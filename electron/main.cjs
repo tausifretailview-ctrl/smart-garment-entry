@@ -221,14 +221,40 @@ function ensureMainWindowMaximized() {
   }
 }
 
-/** Mimics the manual maximize/restore resize that fixes clipped footers in the WebView. */
-function notifyRendererLayoutSync() {
+/** Push BrowserWindow client size into CSS vars — reliable on first maximize (innerHeight alone often wrong). */
+function syncRendererViewportFromMain() {
   if (!mainWindow || mainWindow.isDestroyed()) return;
+  const [cw, ch] = mainWindow.getContentSize();
+  if (cw <= 0 || ch <= 0) return;
   mainWindow.webContents
     .executeJavaScript(
-      'window.dispatchEvent(new Event("resize")); if (document.visibilityState === "visible") document.dispatchEvent(new Event("visibilitychange"));',
+      `(function(w,h){
+        try {
+          document.documentElement.classList.add('entry-viewport-synced');
+          document.documentElement.style.setProperty('--ezzy-viewport-h', h + 'px');
+          document.documentElement.style.setProperty('--ezzy-viewport-w', w + 'px');
+          document.documentElement.style.setProperty('--entry-vw', w + 'px');
+          document.documentElement.style.setProperty('--entry-vh', h + 'px');
+          window.dispatchEvent(new Event('resize'));
+          if (document.visibilityState === 'visible') document.dispatchEvent(new Event('visibilitychange'));
+        } catch (e) {}
+      })(${cw},${ch});`,
     )
     .catch(() => {});
+}
+
+/** Mimics the manual maximize/restore resize that fixes clipped POS/bill footers in the WebView. */
+function nudgeMaximizedLayout() {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.isMaximized()) return;
+  const [w, h] = mainWindow.getContentSize();
+  if (w <= 0 || h <= 0) return;
+  mainWindow.setContentSize(w, h - 1);
+  mainWindow.setContentSize(w, h);
+  syncRendererViewportFromMain();
+}
+
+function notifyRendererLayoutSync() {
+  syncRendererViewportFromMain();
 }
 
 function createWindow() {
@@ -254,7 +280,7 @@ function createWindow() {
       nodeIntegration: false,
       contextIsolation: true,
       preload: path.join(__dirname, 'preload.cjs'),
-      zoomFactor: 0.8, // medium zoom — content was too large at 100%
+      zoomFactor: 1.0, // 100% — 0.8 left empty margins / “half screen”; density via ui-scale in app
       backgroundThrottling: false,
     },
   });
@@ -541,10 +567,18 @@ function createWindow() {
       }
       function syncViewport() {
         try {
-          var h = window.innerHeight;
+          var vv = window.visualViewport;
+          var w = Math.round((vv && vv.width) ? vv.width : window.innerWidth);
+          var h = Math.round((vv && vv.height) ? vv.height : window.innerHeight);
+          if (w > 0) {
+            document.documentElement.style.setProperty('--ezzy-viewport-w', w + 'px');
+            document.documentElement.style.setProperty('--entry-vw', w + 'px');
+          }
           if (h > 0) {
             document.documentElement.style.setProperty('--ezzy-viewport-h', h + 'px');
+            document.documentElement.style.setProperty('--entry-vh', h + 'px');
           }
+          document.documentElement.classList.add('entry-viewport-synced');
           window.dispatchEvent(new Event('resize'));
         } catch (e) {}
       }
@@ -597,11 +631,14 @@ function createWindow() {
     ensureMainWindowMaximized();
     mainWindow.show();
     mainWindow.focus();
-    setTimeout(() => {
-      ensureMainWindowMaximized();
-      notifyRendererLayoutSync();
-    }, 80);
-    setTimeout(notifyRendererLayoutSync, 400);
+    const layoutPasses = [0, 50, 150, 400, 900];
+    layoutPasses.forEach((ms) => {
+      setTimeout(() => {
+        ensureMainWindowMaximized();
+        if (ms <= 150) nudgeMaximizedLayout();
+        notifyRendererLayoutSync();
+      }, ms);
+    });
   });
 
   mainWindow.on('show', () => {

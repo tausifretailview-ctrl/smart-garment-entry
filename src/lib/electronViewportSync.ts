@@ -2,6 +2,7 @@ import { isElectronShell } from "@/lib/electronShell";
 
 /** CSS variable — actual BrowserWindow client height (not full-monitor 100dvh). */
 export const EZZY_VIEWPORT_H_VAR = "--ezzy-viewport-h";
+export const EZZY_VIEWPORT_W_VAR = "--ezzy-viewport-w";
 
 let initialized = false;
 
@@ -11,12 +12,15 @@ let initialized = false;
  */
 export function syncElectronViewportHeight(): void {
   const root = document.documentElement;
-  const h = window.innerHeight;
-  if (h <= 0) return;
+  const vv = window.visualViewport;
+  const w = Math.round(vv?.width ?? window.innerWidth);
+  const h = Math.round(vv?.height ?? window.innerHeight);
+  if (h <= 0 || w <= 0) return;
 
   root.classList.add("entry-viewport-synced");
   root.style.setProperty(EZZY_VIEWPORT_H_VAR, `${h}px`);
-  root.style.setProperty("--entry-vw", `${window.innerWidth}px`);
+  root.style.setProperty(EZZY_VIEWPORT_W_VAR, `${w}px`);
+  root.style.setProperty("--entry-vw", `${w}px`);
   root.style.setProperty("--entry-vh", `${h}px`);
 
   if (root.style.zoom && root.style.zoom !== "1") {

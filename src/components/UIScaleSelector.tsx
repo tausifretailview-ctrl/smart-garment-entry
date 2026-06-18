@@ -1,5 +1,6 @@
 import { Monitor, Check } from "lucide-react";
 import { useState, useEffect } from "react";
+import { isElectronShell } from "@/lib/electronShell";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -18,6 +19,25 @@ const SCALE_OPTIONS = [
 
 type ScaleKey = (typeof SCALE_OPTIONS)[number]["key"];
 
+const UI_SCALE_STORAGE_KEY = "ui-scale";
+
+/** Desktop shell default — fits POS/bill footers without manual Display Scale adjustment. */
+const ELECTRON_DEFAULT_SCALE: ScaleKey = "standard";
+
+function readSavedScale(): ScaleKey | null {
+  try {
+    const saved = localStorage.getItem(UI_SCALE_STORAGE_KEY) as ScaleKey | null;
+    if (saved && SCALE_OPTIONS.some((o) => o.key === saved)) return saved;
+  } catch {
+    /* private mode */
+  }
+  return null;
+}
+
+function defaultScaleKey(): ScaleKey {
+  return isElectronShell() ? ELECTRON_DEFAULT_SCALE : "large";
+}
+
 function applyScale(key: ScaleKey) {
   const opt = SCALE_OPTIONS.find((o) => o.key === key)!;
   document.documentElement.style.fontSize = opt.size;
@@ -29,8 +49,16 @@ function applyScale(key: ScaleKey) {
 }
 
 export function initUIScale() {
-  const saved = (localStorage.getItem("ui-scale") as ScaleKey) || "large";
-  applyScale(saved);
+  const saved = readSavedScale();
+  const key = saved ?? defaultScaleKey();
+  applyScale(key);
+  if (!saved) {
+    try {
+      localStorage.setItem(UI_SCALE_STORAGE_KEY, key);
+    } catch {
+      /* private mode */
+    }
+  }
 }
 
 type UIScaleSelectorProps = {
@@ -39,9 +67,7 @@ type UIScaleSelectorProps = {
 };
 
 export const UIScaleSelector = ({ triggerClassName }: UIScaleSelectorProps) => {
-  const [scale, setScale] = useState<ScaleKey>(() => {
-    return (localStorage.getItem("ui-scale") as ScaleKey) || "large";
-  });
+  const [scale, setScale] = useState<ScaleKey>(() => readSavedScale() ?? defaultScaleKey());
 
   useEffect(() => {
     applyScale(scale);
@@ -49,7 +75,7 @@ export const UIScaleSelector = ({ triggerClassName }: UIScaleSelectorProps) => {
 
   const handleSelect = (key: ScaleKey) => {
     setScale(key);
-    localStorage.setItem("ui-scale", key);
+    localStorage.setItem(UI_SCALE_STORAGE_KEY, key);
     applyScale(key);
   };
 

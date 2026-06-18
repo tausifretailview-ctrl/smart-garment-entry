@@ -50,7 +50,7 @@ restart when ready.
 | `disk-cache-size=512MB` | Keeps JS chunks / images across launches — cold reload re-downloads less. |
 | `preconnect` to website + Supabase on app ready | Warms TLS sockets, saves ~200–400 ms on first request. |
 | `backgroundThrottling: false` (BrowserWindow) | Per-window backup for the global switches above. |
-| `zoomFactor: 0.8` (via `webPreferences` only) | Applied before first paint — no post-load reflow. |
+| `zoomFactor: 1.0` (via `webPreferences` only) | Full-width layout; density via in-app Display Scale (Standard default on desktop). |
 | First-retry delay 400 ms | Recovers instantly from a brief network flap; later retries back off. |
 
 ## Troubleshooting
@@ -60,6 +60,7 @@ restart when ready.
 | Blank window on launch | Internet down? App auto-retries up to 4 times. Press **F5**, use **File → Refresh App**, or right-click → **Refresh App**. |
 | Blank window after minimize / tab switch | Renderer may have crashed (memory). A **Reload app** dialog should appear; if not, press **F5**. Close unused ERP tabs to reduce memory use. |
 | Stale data / screen stuck | **F5** or **Ctrl+R** reloads the app. Tray icon → **Refresh App** also works. Unsaved work on the current screen may be lost. |
+| POS / dashboard shows half width or clipped footer on launch | Update to the latest desktop build (100% zoom + auto viewport sync). Use header **Display Scale** (monitor icon) → **Standard** if text is too large. Press **F5** once after login if layout still looks wrong. |
 | "Not responding" dialog | Click **Reload now** — work on the current screen may be lost. |
 | App stays in background after Close | That's intentional. Right-click tray icon → **Quit** to fully exit. |
 | Printing dialog still appears | The web app calls `electronAPI.silentPrint()` only when running inside the desktop shell. Verify `window.electronAPI?.isElectron === true` in DevTools. |
