@@ -211,3 +211,120 @@ export function lazyWithRetry(
 ): LazyExoticComponent<ComponentType<unknown>> {
   return lazy(() => importWithRetry(importFn));
 }
+
+/** Defer post-login prefetch so the first screen the user opens wins bandwidth. */
+export const POST_LOGIN_PREFETCH_DEFER_MS = 2_500;
+
+/** Gap between sequential background chunk prefetches (avoids cold-start contention). */
+export const BACKGROUND_PREFETCH_GAP_MS = 200;
+
+let userPriorityLoadDepth = 0;
+let backgroundPrefetchPausedUntil = 0;
+
+/** True while a user-opened screen/chunk is loading — background prefetch must yield. */
+export function isBackgroundPrefetchAllowed(): boolean {
+  if (userPriorityLoadDepth > 0) return false;
+  return Date.now() >= backgroundPrefetchPausedUntil;
+}
+
+/** Pause background prefetch briefly after user navigation (chunk + data fetches). */
+export function pauseBackgroundPrefetch(ms = 30_000): void {
+  backgroundPrefetchPausedUntil = Math.max(backgroundPrefetchPausedUntil, Date.now() + ms);
+}
+
+/**
+ * Mark a user-initiated load (tab navigation, Add Product dialog, etc.).
+ * Call the returned disposer when the load finishes.
+ */
+export function beginUserPriorityLoad(): () => void {
+  userPriorityLoadDepth += 1;
+  pauseBackgroundPrefetch();
+  return () => {
+    userPriorityLoadDepth = Math.max(0, userPriorityLoadDepth - 1);
+  };
+}
+
+export type IdleWorkOptions = {
+  /** Minimum delay before scheduling (e.g. post-login defer). */
+  minDelay?: number;
+  /** requestIdleCallback timeout — run even if the browser stays busy. */
+  timeout?: number;
+};
+
+/** Run work on idle; re-checks background-prefetch gate before executing. */
+export function scheduleIdleWork(
+  work: () => void,
+  options: IdleWorkOptions = {},
+): () => void {
+  const minDelay = options.minDelay ?? 0;
+  const timeout = options.timeout ?? 12_000;
+  let cancelled = false;
+  let idleId = 0;
+  let delayTimer = 0;
+  let retryTimer = 0;
+
+  const runWhenAllowed = () => {
+    if (cancelled) return;
+    if (!isBackgroundPrefetchAllowed()) {
+      retryTimer = window.setTimeout(runWhenAllowed, BACKGROUND_PREFETCH_GAP_MS);
+      return;
+    }
+    work();
+  };
+
+  const scheduleIdle = () => {
+    if (cancelled) return;
+    if (typeof requestIdleCallback !== "undefined") {
+      idleId = requestIdleCallback(runWhenAllowed, { timeout });
+    } else {
+      retryTimer = window.setTimeout(runWhenAllowed, Math.min(timeout, 4_000));
+    }
+  };
+
+  if (minDelay > 0) {
+    delayTimer = window.setTimeout(scheduleIdle, minDelay);
+  } else {
+    scheduleIdle();
+  }
+
+  return () => {
+    cancelled = true;
+    if (delayTimer) window.clearTimeout(delayTimer);
+    if (retryTimer) window.clearTimeout(retryTimer);
+    if (idleId && typeof cancelIdleCallback !== "undefined") {
+      cancelIdleCallback(idleId);
+    }
+  };
+}
+
+/** Run paths one-at-a-time on idle so they never starve an active user navigation. */
+export function scheduleSequentialIdlePrefetch(
+  paths: readonly string[],
+  runPrefetch: (path: string) => void,
+  options: IdleWorkOptions = {},
+): () => void {
+  let index = 0;
+  let gapTimer = 0;
+  let cancelled = false;
+
+  const step = () => {
+    if (cancelled || index >= paths.length) return;
+    if (!isBackgroundPrefetchAllowed()) {
+      gapTimer = window.setTimeout(step, BACKGROUND_PREFETCH_GAP_MS);
+      return;
+    }
+    runPrefetch(paths[index]);
+    index += 1;
+    if (index < paths.length) {
+      gapTimer = window.setTimeout(step, BACKGROUND_PREFETCH_GAP_MS);
+    }
+  };
+
+  const cancelDefer = scheduleIdleWork(step, options);
+
+  return () => {
+    cancelled = true;
+    if (gapTimer) window.clearTimeout(gapTimer);
+    cancelDefer();
+  };
+}
