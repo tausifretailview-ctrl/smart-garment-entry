@@ -13,7 +13,14 @@ import {
   type CreditNoteLiveRow,
 } from "@/utils/saleReturnCnBalance";
 
-const SETTLEMENT_TOLERANCE = 0.5;
+/**
+ * DB is authoritative for payment_status on persisted sales:
+ *   sale_settlement_tolerance() + derive_sale_payment_status + normalize_sale_payment_status_on_write
+ *   (migration 20260824120000) and compute_sale_settlement / trg_sync_sale_payment_status_from_receipts.
+ * Client derivePaidAndStatus mirrors the same tolerance for pre-save UX only — do not write a
+ * conflicting status when the DB normalizer will override it.
+ */
+const SETTLEMENT_TOLERANCE = 1.0;
 
 export type SalePaymentStatus = "completed" | "partial" | "pending";
 
