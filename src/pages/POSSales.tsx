@@ -6282,20 +6282,20 @@ export default function POSSales() {
             <>
               <div className="w-px h-8 bg-slate-600 shrink-0" aria-hidden />
               <div
-                className="flex shrink-0 items-center gap-2.5 px-2.5 py-1 rounded-md bg-slate-900/90 border border-slate-600/50"
+                className="flex shrink-0 items-center gap-3 px-3 py-1.5 rounded-md bg-slate-900/90 border border-slate-600/50"
                 title="Last saved POS invoice today"
               >
-                <span className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold whitespace-nowrap">
+                <span className="text-xs uppercase tracking-wide text-slate-300 font-bold whitespace-nowrap">
                   Last Bill
                 </span>
-                <span className="text-[12px] font-bold text-emerald-400 tabular-nums whitespace-nowrap">
+                <span className="text-[15px] font-bold text-emerald-400 tabular-nums whitespace-nowrap">
                   {lastCompletedPosHint.invoiceNumber}
                 </span>
-                <span className="text-[11px] text-slate-300 whitespace-nowrap">
+                <span className="text-sm text-slate-200 whitespace-nowrap">
                   Qty{" "}
-                  <span className="font-bold text-white tabular-nums">{lastCompletedPosHint.qty}</span>
+                  <span className="text-[15px] font-bold text-white tabular-nums">{lastCompletedPosHint.qty}</span>
                 </span>
-                <span className="text-[13px] font-extrabold text-amber-300 tabular-nums whitespace-nowrap">
+                <span className="text-base font-extrabold text-amber-300 tabular-nums whitespace-nowrap">
                   ₹{formatINR2(lastCompletedPosHint.amount)}
                 </span>
               </div>
