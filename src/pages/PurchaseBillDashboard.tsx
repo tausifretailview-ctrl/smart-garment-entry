@@ -1776,6 +1776,7 @@ const PurchaseBillDashboard = () => {
       header: "Actions",
       cell: ({ row }) => {
         const bill = row.original;
+        const ownership = canModifyEntry((bill as any).created_by);
         return (
           <div className="flex items-center gap-0" onClick={(e) => e.stopPropagation()}>
             <Button size="icon" variant="ghost" className="h-7 w-7 hover:bg-emerald-50 hover:text-emerald-600 dark:hover:bg-emerald-950" onClick={(e) => handleOpenPaymentDialog(bill, e)} title="Record Payment">
@@ -1784,7 +1785,7 @@ const PurchaseBillDashboard = () => {
             <Button
               size="icon"
               variant="ghost"
-              className={`h-7 w-7 ${bill.is_cancelled ? 'opacity-40 cursor-not-allowed' : bill.is_locked ? 'opacity-40 cursor-not-allowed' : 'hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-950'}`}
+              className={`h-7 w-7 ${(bill.is_cancelled || bill.is_locked || !ownership.allowed) ? 'opacity-40 cursor-not-allowed' : 'hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-950'}`}
               onClick={(e) => {
                 e.stopPropagation();
                 if (bill.is_cancelled) {
@@ -1799,9 +1800,13 @@ const PurchaseBillDashboard = () => {
                   toast({ title: "Bill is locked", description: "Unlock the bill first to edit it.", variant: "destructive" });
                   return;
                 }
+                if (!ownership.allowed) {
+                  toast({ title: "Not allowed", description: ownership.reason || "Only the creator or an admin can edit this bill.", variant: "destructive" });
+                  return;
+                }
                 navigate("/purchase-entry", { state: { editBillId: bill.id } });
               }}
-              title={bill.is_cancelled ? "Bill is cancelled" : bill.is_locked ? "Unlock bill to edit" : "Edit bill"}
+              title={bill.is_cancelled ? "Bill is cancelled" : bill.is_locked ? "Unlock bill to edit" : !ownership.allowed ? (ownership.reason || "Other user's bill") : "Edit bill"}
             >
               <Edit className="h-3.5 w-3.5" />
             </Button>
