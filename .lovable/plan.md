@@ -1,31 +1,84 @@
 
 ## Goal
 
-The user has shared a second printed invoice — **POS/26-27/1101, TEJAS SURESH CHAVAN, ₹20,500, 30-05-2026** — that "disappeared" from the Mulund Mobility POS dashboard, same complaint as POS/26-27/1576. Audit it the same way as before and append findings to the existing report. No new code fix is required because the `useSaveSale` confirm dialog shipped on 18-Jun already blocks this exact scenario; verify and document.
+Add a **user-scoped restriction**: only the user who created a POS invoice / purchase bill / payment entry may **Modify** or **Delete** it. Other users see the row but the Edit / Delete buttons are disabled with a tooltip ("Only <creator> can modify this entry"). Admin / Owner role bypasses the restriction.
 
-## What the database shows
+This closes the root cause of the "POS bills disappearing in multi-user setup" issue documented for Mulund Mobility — even with the destructive-edit confirm dialog already shipped, the right fix is to prevent the wrong user from opening another user's bill at all.
 
-- **Sale POS/26-27/1101 no longer exists** in `sales` (Mulund org). It was hard-deleted at some point after being overwritten.
-- `audit_logs` for entity `8ddb711e-61c3-404c-8084-3546c9b5283c` (sale_number 1101):
-  - **30-May 08:39 IST**, user `mobility@gmail.com` — `SALE_UPDATED`, `net_amount 20,500 → 109,999`. Destructive edit on the wrong bill.
-  - **30-May 11:31 IST**, same user — another `SALE_UPDATED`, amount unchanged at ₹1,09,999.
-- A few minutes later, at **30-May 08:42 IST**, sale **POS/26-27/1102** was created by the same user for **RAKESH TAMBE ₹1,09,999** — the customer whose data was pasted into 1101.
-- TEJAS SURESH CHAVAN's ₹20,500 bill was re-entered on **16-Jun as POS/26-27/1541** by user `mobility@gmail.com` (which itself shows a later `SALE_UPDATED` 23,999 → 20,500 — same Modify-on-wrong-bill pattern, caught and corrected within 15 minutes).
+## Your hypothesis about POS auto-loading the last saved invoice
 
-This is the **same root cause** as POS/26-27/1576: a user with Modify permission opened a stale row from another terminal and saved over it. Not a concurrency bug, not a number-collision bug, not an RLS bug.
+Verified — **it does not happen.** The POS cart (`pos_cart_${orgId}` in `sessionStorage`) only stores the *in-progress* cart for the current tab; it is cleared after a successful save. POS edit-mode is only entered when a user explicitly clicks the **pencil / Modify** button on a row in the POS Dashboard, which calls `handleEditSale(sale.id)` and navigates with that sale id. So the bug is never "POS opened last invoice automatically" — it is always "user clicked Modify on a stale row that belonged to another terminal."
 
-## Plan
+The fix below targets exactly that click.
 
-1. **Append a new section** "Second confirmed incident — POS/26-27/1101 (30-May-2026)" to `docs/mulund-multi-user-pos-audit-2026-06-18.md` with the audit-log evidence above and a one-line note that the same pattern recurred again on 1541 (also self-corrected).
-2. **Reconfirm** that the destructive-edit guard added on 18-Jun in `src/hooks/useSaveSale.tsx` would have caught both events (customer change + >50% amount change). No code change needed — just document it in the audit file under "Why this won't happen again".
-3. **Reiterate the three open follow-ups** that would harden multi-user POS to Tally/Vyapar grade:
-   - Creator-scoped Modify permission (only the bill's creator, or an explicit "edit others' bills" right, can edit).
-   - Realtime subscription on `sales` INSERT/UPDATE for the POS dashboard so stale rows can't be opened.
-   - Show the bill creator's name on the POS dashboard row.
-4. **Hand back** an updated one-page audit doc — same file, no other files touched.
+## Scope
 
-## Files
+Three modules, same pattern:
 
-- Update: `docs/mulund-multi-user-pos-audit-2026-06-18.md` (append section + tighten follow-ups).
+| Module | Dashboard file | Edit handler | Delete handler | DB column |
+| --- | --- | --- | --- | --- |
+| POS / Invoice sales | `src/pages/POSDashboard.tsx`, `src/pages/SalesInvoiceDashboard.tsx` | `handleEditSale` | `handleDeleteSale` | `sales.created_by` |
+| Purchase bills | `src/pages/PurchaseBillDashboard.tsx` | row Edit click → `/purchase/edit/:id` | `handleDeleteClick` / `handleDeleteConfirm` | `purchase_bills.created_by` |
+| Payments | accounts payment dialogs (entry under `voucher_entries`) | `useAccountsPaymentDialogs` open-for-edit | delete in same hook | `voucher_entries.created_by` |
 
-No code, schema, RLS, or migration changes. Pure documentation update; the destructive-edit confirm dialog already covers this case in `useSaveSale.tsx`.
+(Sale returns, delivery challans, quotations, sale orders are out of scope for this pass — call them out in the closing message so the user can decide if they want a follow-up.)
+
+## Implementation
+
+### 1. Single source of truth for the rule
+
+New helper `src/lib/entryOwnership.ts`:
+
+```ts
+export function canModifyEntry(opts: {
+  currentUserId: string | undefined;
+  createdBy: string | null | undefined;
+  isOwnerOrAdmin: boolean;
+}): { allowed: boolean; reason?: string };
+```
+
+Returns `allowed = true` when `isOwnerOrAdmin` OR `createdBy === currentUserId` OR `createdBy` is null (legacy rows with no creator are left editable to avoid breaking historical data — flagged in the message back to the user).
+
+### 2. Resolve "is owner/admin" once per session
+
+Reuse `useUserRoles()` (already in the project) to detect `owner` / `admin`. Resolve creator's display name via the existing `useOrganizationMembers` / user map already used on dashboards (no extra round-trip).
+
+### 3. Wire the helper into the three dashboards (frontend guard)
+
+For each Edit / Delete button on a row:
+
+- Compute `const { allowed, reason } = canModifyEntry({...})`.
+- If not allowed → render the button **disabled** with a tooltip "Only <Creator Name> or an admin can modify this entry".
+- Mirror the same check inside the click handler (`handleEditSale`, `handleDeleteSale`, purchase delete, payment edit/delete) so even a programmatic call is rejected with a toast.
+
+### 4. Backend enforcement (defence-in-depth)
+
+Tighten the RLS UPDATE / DELETE policies on the three tables so the database rejects the same operation even if the UI is bypassed:
+
+- `sales` — UPDATE / DELETE allowed only when `created_by = auth.uid()` OR caller has `owner` / `admin` role via the existing `has_role(...)` security-definer function. SELECT and INSERT policies untouched. Soft-delete writes (`deleted_at`) follow the same UPDATE rule.
+- `purchase_bills` — same pattern.
+- `voucher_entries` — same pattern.
+
+This is a single migration; existing policies are dropped and recreated. SELECT is unchanged so dashboards keep showing every row to every user.
+
+### 5. Show creator name on the row (small UX add)
+
+The three dashboards already fetch user maps; surface a small "by <creator first name>" label on each row so users see ownership at a glance, not only when they hover a disabled button.
+
+### 6. Audit doc update
+
+Append a "Permanent fix shipped" section to `docs/mulund-multi-user-pos-audit-2026-06-18.md` describing the new rule and pointing to the helper / RLS change.
+
+## Out of scope (call out, do not build now)
+
+- Sale returns, delivery challans, quotations, sale orders, school fee receipts — same pattern can be applied later if the user confirms.
+- A configurable "Edit others' bills" right in the User Rights screen — could be added next; for now Owner / Admin is the only escape hatch, matching Tally / Vyapar default.
+
+## Files touched
+
+- New: `src/lib/entryOwnership.ts`
+- Edit: `src/pages/POSDashboard.tsx`, `src/pages/SalesInvoiceDashboard.tsx`, `src/pages/PurchaseBillDashboard.tsx`, `src/hooks/useAccountsPaymentDialogs.ts`
+- Edit: `docs/mulund-multi-user-pos-audit-2026-06-18.md`
+- One Supabase migration: tighten UPDATE / DELETE RLS on `sales`, `purchase_bills`, `voucher_entries`
+
+No data migration needed. Legacy rows with `created_by IS NULL` remain editable by anyone (Owner / Admin can always edit them) so old data is not locked out.
