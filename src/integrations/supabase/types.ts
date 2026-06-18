@@ -7815,6 +7815,10 @@ export type Database = {
       }
     }
     Functions: {
+      _apply_bulk_purchase_insert_effects: {
+        Args: { p_bill_id: string }
+        Returns: undefined
+      }
       _customer_advance_available: {
         Args: { p_customer_id: string; p_organization_id: string }
         Returns: number
@@ -8236,6 +8240,17 @@ export type Database = {
           total_amount: number
         }[]
       }
+      get_invoice_dashboard_stats: {
+        Args: {
+          p_customer_id?: string
+          p_date_from?: string
+          p_date_to?: string
+          p_filters?: Json
+          p_organization_id: string
+          p_search?: string
+        }
+        Returns: Json
+      }
       get_item_sales_summary: {
         Args: {
           p_customer_name?: string
@@ -8270,6 +8285,17 @@ export type Database = {
       }
       get_pnl_aggregates: {
         Args: { p_from_date: string; p_org_id: string; p_to_date: string }
+        Returns: Json
+      }
+      get_pos_dashboard_stats: {
+        Args: {
+          p_customer_id?: string
+          p_date_from?: string
+          p_date_to?: string
+          p_filters?: Json
+          p_organization_id: string
+          p_search?: string
+        }
         Returns: Json
       }
       get_product_catalog_page: {
