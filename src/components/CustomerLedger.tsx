@@ -70,6 +70,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { computePendingAllSessionsBatch, computeYearWiseFeeBalances, computePriorYearsCarryForward } from "@/lib/schoolFeeYearBalances";
 import { resolveImportedOpeningBalance } from "@/lib/schoolFeeOpening";
+import { reconcileBillWisePending } from "@/utils/reconcileBillWisePending";
 
 interface CustomerLedgerProps {
   organizationId: string;
