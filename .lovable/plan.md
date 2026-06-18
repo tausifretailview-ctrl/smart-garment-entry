@@ -1,68 +1,77 @@
-## Goal
+## What I already verified in Mulund Mobility's data
 
-Permanently remove 3 mistaken Excel-imported opening-stock bills from KIDS ZONE — including the stock they added and the product master rows they created — and explain why the Purchase Dashboard Delete button currently does not work for very large bills.
+- **No duplicate `sale_number`s** in the whole `sales` table for this org.
+- **No soft-deleted and no cancelled sales** today or recent history (the bill the user thinks was "deleted" is actually still present in the database).
+- **POS number generation is concurrency-safe.** Mulund Mobility has no custom POS format, so the system uses `generate_pos_number_atomic`, which:
+  - Increments `bill_number_sequences` atomically via `INSERT … ON CONFLICT (organization_id, series) DO UPDATE SET last_number = last_number + 1 RETURNING last_number`.
+  - Self-heals to `MAX(sale_number) + 1` if the sequence ever falls behind.
+  - Result: two simultaneous saves from two devices cannot get the same number, and one save cannot overwrite the other's row (each save inserts a brand new `sales` row keyed by its own UUID + unique `sale_number`).
+- **Edit-mode save (`useSaveSale`)** is scoped strictly by `sale_id` — it deletes and re-inserts only `sale_items WHERE sale_id = X`, then updates `sales WHERE id = X`. It cannot touch another user's in-flight new bill.
 
-## Bills targeted (KIDS ZONE)
+## What the specific example actually shows
 
-| Bill | Date | Qty | Lines | Products | Net |
-|---|---|---|---|---|---|
-| PUR/26-27/10 | 10-Jun-2026 | 5,093 | 5,072 | 2,077 | ₹31,22,013 |
-| PUR/26-27/14 | 10-Jun-2026 | 4,455 | 4,151 | 549 | ₹21,82,184 |
-| PUR/26-27/25 | 15-Jun-2026 | 3,931 | 3,662 | 1,024 | ₹22,32,428 |
+The bill the user said "disappeared" — **POS/26-27/1576** — is **still in the database**, not deleted:
 
-Verified: not locked, not cancelled, paid = 0, no sale_items linked (by variant or barcode), no shortfall in current stock vs. quantity to reverse.
+| Field | Value |
+|---|---|
+| `sale_number` | POS/26-27/1576 |
+| `customer_name` | MOHAMMAD TABREJ SHAIKH (₹3,500) |
+| `created_at` | 17-Jun 15:11:54 |
+| `updated_at` | 17-Jun **15:37:54** (edited 26 min after creation) |
+| `created_by` | user `5cda0a08…` (same user both times) |
+| `deleted_at` | null |
 
-## Why the dashboard delete didn't work
+Sangita Kale's bills for the same period are **POS/26-27/1577** (₹2,000, 17-Jun 15:14) and **POS/26-27/1584** (₹82,900, 18-Jun 09:47) — both intact, both created by the same user.
 
-Two possible causes — both will be addressed:
-
-1. The "Delete Records" special permission may not be enabled for this user — the button shows a "Permission Denied" toast.
-2. `soft_delete_purchase_bill` does the negative-stock check, stock reversal, batch_stock update, audit insert and child soft-delete inside one statement. On a 5,000-line bill this can exceed the PostgREST 60-second statement timeout, returning a generic failure. The user reads it as "not allowed".
-
-Even if it succeeded, soft-delete only reverses stock; it does not remove the products/variants this import created in the product master, which is also part of the user's request.
+So in this case the bill wasn't deleted by another user — bill 1576 was **edited** (customer field overwritten) 26 minutes after creation by the same login. That looks more like an accidental "Modify" on the wrong bill than a multi-user race. I want to confirm this before changing code.
 
 ## Plan
 
-### Step 1 — One-off SQL cleanup (via approved migration / insert tool)
+### Step 1 — Confirm with the user what they actually saw
 
-For the 3 bills above, scoped to `organization_id = KIDS ZONE`:
+Ask once whether:
+- They (or whoever they meant by "Sangita Kale's bill on 1576") saw POS/26-27/1576 in the dashboard yesterday with "Sangita Kale" as the customer, then later saw it as "Mohammad Tabrej Shaikh", or
+- They simply never saw bill 1576 belonging to Sangita Kale and were expecting that number based on memory.
 
-1. Re-verify guards in a single CTE: bill belongs to KIDS ZONE, `deleted_at IS NULL`, no sale_items on any of these barcodes/variant_ids, no purchase_returns referencing the bill, sum(qty) ≤ current stock_qty for every sku.
-2. Reverse `product_variants.stock_qty` for every line (set-based UPDATE, aggregated by sku).
-3. Delete matching `batch_stock` rows (`purchase_bill_id IN (...)`).
-4. Insert `stock_movements` audit rows (`movement_type = 'hard_delete_purchase_excel_cleanup'`).
-5. Soft-delete `voucher_entries` referencing the bills, then hard-delete `purchase_items` rows for these bills, then hard-delete the 3 `purchase_bills` rows. Hard delete (not soft) is required so the products step below can find them as fully orphaned.
-6. Reverse any GL postings (`journal_entries` / `journal_lines` referencing these bill ids) if the accounting engine is enabled for the org.
+(This question goes out in chat, not in the plan.)
 
-### Step 2 — Prune orphan products & variants created by these imports
+### Step 2 — Forensic check on bill 1576 and its neighbours
 
-Only delete master rows that are now provably unused:
+Read-only SQL — no data changes:
+- Pull `audit_logs`, `customer_ledger_entries`, `journal_entries`/`journal_lines` for bill 1576, and the `sale_items` rows with their `created_at`. Map the timeline of every change to that bill.
+- Pull all sales created between 15:00 and 16:00 on 17-Jun by both users with `created_at` / `updated_at` / payment method, to see if any two-user interleaving could have caused the customer name to flip.
+- Compare original print/WhatsApp logs (`whatsapp_logs`) for 1576 if any — they'd show the customer name at the moment of the original send.
 
-- A variant is orphaned if: no remaining `purchase_items` (any bill), no `sale_items`, no `sale_return_items`, no `purchase_return_items`, no `batch_stock`, `stock_qty = 0` after Step 1, and not referenced by any `delivery_challan_items` / `quotation_items` / `sale_order_items` / `customer_product_prices`.
-- A product is orphaned if all its variants are orphaned by the same criteria and the product itself has no `product_images` left in use, no `customer_brand_discounts`, no `stock_alerts`.
+This is enough to prove whether 1576 was "deleted" or just "edited".
 
-Hard-delete orphan variants first, then orphan products. Variants/products that are also stocked from other bills (the ~9,511 we already counted) are left intact.
+### Step 3 — Static review of the multi-user save path
 
-Output a final report: variants reversed, variants deleted, products deleted, GL reversals, and any rows skipped with the reason.
+Read the code paths that two-user POS billing depends on, and document concrete risks:
+- `src/hooks/useSaveSale.tsx` (new-sale insert + edit-mode update).
+- `src/utils/saleNumber.ts` + RPCs `generate_pos_number_atomic`, `generate_custom_pos_number`, `generate_sale_number_atomic`.
+- `src/lib/posCartPersistence.ts` (POS cart is keyed by `pos_cart_${orgId}` in `sessionStorage`, scoped per tab — confirmed safe across devices, but two tabs on the same device share `localStorage` clean-up on cold open).
+- POS dashboard query / realtime invalidation (`useDashboardInvalidation`) — to ensure both terminals refresh when the other saves, so a bill doesn't *appear* to be missing just because the list is stale.
 
-### Step 3 — Dashboard UX fix (small, code-only)
+The output of this step is a short written report (`docs/mulund-multi-user-pos-audit-2026-06-18.md`) listing:
+- What is already safe (number generator, per-row locks, edit-mode scoping).
+- Any minor gaps found (e.g. `pos_cart_${orgId}` is not keyed by user; dashboard list may need realtime refresh after another user saves; "Modify" button on dashboard should re-fetch the row before opening so a stale row can't be edited from cached state).
 
-In `src/pages/PurchaseBillDashboard.tsx`:
+### Step 4 — Code fixes, only if Step 2/3 prove a real bug
 
-- When `softDelete("purchase_bills", id)` rejects, surface the actual Postgres error message (currently the toast prints a generic "Failed to delete purchase bill" because `success === false` is thrown with no message).
-- For bills with `purchase_items(count) > 1500`, replace the inline delete with a confirmation that warns "Large bill — this may take up to 60 seconds; if it times out, please contact support." This prevents the silent "not allowed" perception.
+Likely candidates if needed (each kept tiny and frontend-only unless a backend bug is proven):
+- Add a "stale row guard" before opening Modify: re-fetch `sales` by id and warn if `updated_at` changed since the dashboard loaded the row.
+- Add a small confirmation when the customer field is changed during edit-mode of a saved POS bill.
+- Force a dashboard refetch (or realtime subscription) on `sales INSERT/UPDATE` so a second terminal's new bill shows up instantly.
 
-No change to RPC logic, no change to permissions model.
+No backend / RLS / number-generator changes are planned unless Step 2 produces evidence that the structure is unsafe — current evidence says it is safe.
 
-## Out of scope
+### Step 5 — Hand the audit report back to the user
 
-- Re-importing corrected opening stock (separate task once these 3 bills are gone).
-- Changing the soft-delete RPC to be chunked/async — possible future improvement, not needed for this one-off.
+A one-page summary in plain language: "Numbers cannot collide, bills cannot overwrite each other across two devices, here is what actually happened to 1576, and here is the small UX fix we made (if any)." No accounting numbers are touched.
 
-## Approval gate
+## Technical detail (for reference)
 
-Step 1 + Step 2 will be issued as a single `supabase--insert` transactional script that the user must approve in the dialog before it runs. Step 3 is a small code-only patch applied after Steps 1–2 succeed.
-
-## Question for you before I start
-
-Do you want me to **hard-delete** the bills (gone forever, products/variants pruned as above) or **soft-delete** them into the Recycle Bin (stock reversed, but bills and products remain restorable)? My plan above assumes hard-delete because you said "delete with stock & product master".
+- `generate_pos_number_atomic` uses `bill_number_sequences (organization_id, series)` with `ON CONFLICT DO UPDATE … RETURNING` → race-safe.
+- `generate_custom_pos_number` uses `pg_advisory_xact_lock(hashtext(org||':pos'))` + duplicate-check loop → race-safe but only relevant if the org sets a custom format (Mulund doesn't).
+- `useSaveSale` edit-mode: `DELETE FROM sale_items WHERE sale_id = $1` then bulk insert; scoped by `sale_id`, cannot touch another bill.
+- POS cart storage: `sessionStorage["pos_cart_<orgId>"]`, tab-isolated, device-isolated — two physical devices never share a cart.
