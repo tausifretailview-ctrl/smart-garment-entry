@@ -893,6 +893,19 @@ const POSDashboard = () => {
   const handleBulkDelete = async () => {
     if (selectedSales.size === 0 || !hasSpecialPermission('delete_records')) return;
 
+    // Block bulk delete that includes another user's bills.
+    const blocked = Array.from(selectedSales)
+      .map((sid) => sales.find((x: any) => x.id === sid))
+      .filter((s: any) => s && !canModifyEntry(s.created_by, creatorLabel(s.created_by)).allowed);
+    if (blocked.length > 0) {
+      toast({
+        title: "Some bills are owned by another user",
+        description: `Cannot delete ${blocked.length} bill(s) created by other users. Ask an admin or the original biller to delete those.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsDeleting(true);
     try {
       const salesToDelete = Array.from(selectedSales);
