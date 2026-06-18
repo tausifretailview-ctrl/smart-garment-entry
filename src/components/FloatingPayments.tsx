@@ -686,7 +686,7 @@ function SupplierPaymentForm({ organizationId }: { organizationId: string }) {
         .eq("organization_id", organizationId)
         .is("deleted_at", null)
         .order("supplier_name");
-      let balanceMap: Map<string, Awaited<ReturnType<typeof fetchSupplierBalanceSnapshotsForOrg>>>;
+      let balanceMap: Awaited<ReturnType<typeof fetchSupplierBalanceSnapshotsForOrg>>;
       try {
         balanceMap = await fetchSupplierBalanceSnapshotsForOrg(supabase, organizationId);
       } catch (e) {

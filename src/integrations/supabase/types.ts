@@ -8278,6 +8278,29 @@ export type Database = {
           total_count: number
         }[]
       }
+      get_organization_receivables_summary: {
+        Args: { p_organization_id: string }
+        Returns: {
+          advance_available: number
+          customer_count: number
+          customer_credit_pool_cr: number
+          customers_in_credit: number
+          customers_owing: number
+          gross_receivable_dr: number
+          net_receivable: number
+        }[]
+      }
+      get_organization_supplier_payable_summary: {
+        Args: { p_organization_id: string }
+        Returns: {
+          credit_notes: number
+          net_outstanding: number
+          open_bills: number
+          paid_via_bill: number
+          paid_via_vouchers: number
+          supplier_count: number
+        }[]
+      }
       get_outstanding_summary: { Args: { p_org_id: string }; Returns: Json }
       get_pending_gl_backfill_counts: {
         Args: { p_org_id: string }

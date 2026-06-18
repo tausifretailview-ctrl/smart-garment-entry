@@ -106,16 +106,22 @@ function sumOrgSupplierPayableFromSnapshots(
 
 function AccountsOutstandingHeadlineCards({
   totalReceivable,
+  grossReceivable,
+  customerCreditPool,
   customerCount,
   totalPayable,
+  openSupplierBills,
   receivableLoading,
   payableLoading,
   onReceivableClick,
   onPayableClick,
 }: {
   totalReceivable: number;
+  grossReceivable: number;
+  customerCreditPool: number;
   customerCount: number;
   totalPayable: number;
+  openSupplierBills: number;
   receivableLoading: boolean;
   payableLoading: boolean;
   onReceivableClick: () => void;
@@ -139,7 +145,7 @@ function AccountsOutstandingHeadlineCards({
         <CardHeader className="pb-1 pt-3 px-3">
           <div className="flex items-center justify-between gap-2">
             <CardDescription className="text-xs font-semibold text-emerald-800 uppercase tracking-wide">
-              Total Receivable
+              {totalReceivable >= 0 ? "Net Receivable" : "Net Customer Credit"}
             </CardDescription>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -153,22 +159,28 @@ function AccountsOutstandingHeadlineCards({
                 </button>
               </TooltipTrigger>
               <TooltipContent side="top" className="max-w-xs text-xs">
-                Net amount customers owe (after advances &amp; credit notes)
+                Gross AR (Dr) minus customer credit pool (Cr).<br />
+                Positive = customers owe you. Negative = you owe customers (overpaid / advance).
               </TooltipContent>
             </Tooltip>
           </div>
         </CardHeader>
         <CardContent className="px-3 pb-3 pt-0">
-          <div className="text-xl font-bold text-emerald-700 tabular-nums">
+          <div className={cn(
+            "text-xl font-bold tabular-nums",
+            totalReceivable >= 0 ? "text-emerald-700" : "text-amber-700",
+          )}>
             {receivableLoading ? (
               <Loader2 className="h-5 w-5 animate-spin" />
             ) : (
               fmtOutstandingInr(totalReceivable)
             )}
           </div>
-          <p className="text-xs text-emerald-700/80 mt-1">
-            {customerCount} customer{customerCount === 1 ? "" : "s"} on file
-          </p>
+          <div className="text-[11px] text-emerald-900/70 mt-1 flex flex-wrap gap-x-3 gap-y-0.5 tabular-nums">
+            <span>Dr {fmtOutstandingInr(grossReceivable)}</span>
+            <span>Cr {fmtOutstandingInr(customerCreditPool)}</span>
+            <span className="text-emerald-700/70">· {customerCount} active</span>
+          </div>
         </CardContent>
       </Card>
 
@@ -178,7 +190,7 @@ function AccountsOutstandingHeadlineCards({
       >
         <CardHeader className="pb-1 pt-3 px-3">
           <CardDescription className="text-xs font-semibold text-rose-800 uppercase tracking-wide">
-            Total Payable
+            Net Payable
           </CardDescription>
         </CardHeader>
         <CardContent className="px-3 pb-3 pt-0">
@@ -189,7 +201,9 @@ function AccountsOutstandingHeadlineCards({
               fmtOutstandingInr(totalPayable)
             )}
           </div>
-          <p className="text-xs text-rose-700/80 mt-1">Outstanding to suppliers</p>
+          <p className="text-[11px] text-rose-900/70 mt-1 tabular-nums">
+            Open bills {fmtOutstandingInr(openSupplierBills)} · less payments &amp; credit notes
+          </p>
         </CardContent>
       </Card>
 
@@ -760,8 +774,9 @@ export default function Accounts() {
   const monthlyExpenses = dashboardStats?.monthlyExpenses || 0;
 
   const dashboardMetrics = useMemo(() => ({
-    // Receivables tile = Master Reconciliation RPC (canonical). RPC dashboard
-    // metrics are the lightweight fallback only — no lifetime client-side scan.
+    // Receivables tile = Master Reconciliation summary (canonical, set-based RPC).
+    // It can legitimately be negative for orgs in net customer credit, so do NOT
+    // fall back to the old invoice-arithmetic when it is zero.
     totalReceivables:
       receivablesSummary.customerCount > 0
         ? receivablesSummary.netReceivable
@@ -799,8 +814,11 @@ export default function Accounts() {
   const outstandingHeadlineCards = currentOrganization?.id ? (
     <AccountsOutstandingHeadlineCards
       totalReceivable={receivablesSummary.netReceivable}
+      grossReceivable={receivablesSummary.grossReceivableDr}
+      customerCreditPool={receivablesSummary.customerCreditPoolCr}
       customerCount={receivablesSummary.customerCount}
       totalPayable={totalSupplierPayable}
+      openSupplierBills={totalSupplierPayable}
       receivableLoading={receivablesSummaryLoading || receivablesSummaryFetching}
       payableLoading={supplierPayableLoading || supplierPayableFetching}
       onReceivableClick={scrollToOutstandingCustomers}
