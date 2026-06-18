@@ -249,6 +249,19 @@ export default function SalesInvoiceDashboard() {
     refetchOnWindowFocus: false,
   });
 
+  // Creator-scoped Modify/Delete (multi-user invoice protection)
+  const { canModify: canModifyEntry } = useEntryOwnership();
+  const invoiceCreatorLabel = useCallback(
+    (createdBy?: string | null) => {
+      if (!createdBy) return undefined;
+      const u: any = (orgUsers || []).find((x: any) => x?.id === createdBy);
+      const email = u?.email as string | undefined;
+      if (!email) return undefined;
+      return email.split("@")[0] || email;
+    },
+    [orgUsers],
+  );
+
   // Default userFilter: admins (and mobile) see all users; non-admins default to themselves
   useEffect(() => {
     const pending = !userFilter || userFilter === "__pending__";
