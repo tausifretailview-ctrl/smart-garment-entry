@@ -4931,15 +4931,24 @@ export default function POSSales() {
             <span>Last</span>
           </Button>
           
-          {/* 9. Print - matches Dashboard "Credit Notes" indigo-500 */}
+          {/* 9. Print last saved invoice - never prints unsaved cart */}
           <Button
-            onClick={handleTriggerBrowserPrint}
-            disabled={items.length === 0}
+            onClick={() => {
+              if (savedInvoiceData?.saleId && savedInvoiceData?.invoiceNumber) {
+                handlePrintFromDialog();
+              } else {
+                toast.error("No saved invoice to print", {
+                  description:
+                    "Complete payment (Cash/UPI/Card/Credit/Mix) first, or use Estimate (F9) for an unsaved draft.",
+                });
+              }
+            }}
+            disabled={!savedInvoiceData?.saleId}
             className="h-[60px] flex flex-col items-center justify-center gap-1 text-[12px] font-semibold w-full rounded-lg bg-indigo-500 hover:bg-indigo-600 active:scale-95 text-white shadow-sm transition-all duration-150 disabled:opacity-40"
-            title="Print"
+            title="Reprint Last Saved Invoice"
           >
             <Printer className="h-4 w-4" />
-            <span>Print</span>
+            <span>Reprint</span>
           </Button>
           
           {/* Advance Booking */}
