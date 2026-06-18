@@ -85,6 +85,10 @@ export function useAccountsPaymentDialogs(settings: any) {
       bankAccounts = [],
     }: { bankAccounts?: OrganizationBankAccount[] } = {}) => {
       if (!editingPayment || !currentOrganization?.id) throw new Error("No payment selected");
+      const ownership = canModifyEntry(editingPayment?.created_by);
+      if (!ownership.allowed) {
+        throw new Error(ownership.reason || "Only the creator or an admin can edit this payment.");
+      }
       const newAmount = parseFloat(editPaymentAmount);
       const oldAmount = editingPayment.total_amount || 0;
       const amountDiff = newAmount - oldAmount;
