@@ -2,8 +2,8 @@ import { keepPreviousData } from "@tanstack/react-query";
 import { STALE_DASHBOARD_TAB_RETURN } from "@/lib/queryStaleTimes";
 
 /**
- * Main desktop dashboard metrics/charts — no automatic Supabase reads.
- * Queries stay disabled until the user clicks Refresh (see Index.tsx).
+ * Main desktop dashboard metrics/charts — load when user opens dashboard or after login prefetch.
+ * User Refresh still refetches all keys in DASHBOARD_REFRESH_QUERY_KEYS.
  */
 export const DASHBOARD_MANUAL_REFRESH_OPTIONS = {
   staleTime: Number.POSITIVE_INFINITY,

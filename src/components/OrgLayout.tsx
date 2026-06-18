@@ -33,6 +33,8 @@ import { cn } from "@/lib/utils";
 import { invoiceDashboardPrefetchQueryOptions } from "@/utils/invoiceDashboardData";
 import { isTabCachePaneMounted } from "@/lib/tabCacheMountRegistry";
 import { prefetchPurchaseDashboardQueries } from "@/utils/purchaseDashboardPrefetch";
+import { prefetchMainDashboardQueries } from "@/utils/mainDashboardPrefetch";
+import { prefetchPosDashboardQueries } from "@/utils/posDashboardPrefetch";
 import { DesktopAppShell } from "@/components/DesktopAppShell";
 import { SharedAppShellContext } from "@/contexts/SharedAppShellContext";
 import { useShowDesktopChrome } from "@/hooks/useDesktopViewPreference";
@@ -155,6 +157,8 @@ export const OrgLayout = () => {
     if (!isOrgSynced || !user || !orgId) return;
 
     const warm = () => {
+      prefetchMainDashboardQueries(queryClient, orgId);
+      prefetchPosDashboardQueries(queryClient, supabase, orgId);
       const salesOpts = invoiceDashboardPrefetchQueryOptions(supabase, orgId);
       void queryClient.prefetchQuery({
         ...salesOpts,

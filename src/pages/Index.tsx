@@ -264,6 +264,7 @@ const DesktopDashboard = () => {
 
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [metricsLoadRequested, setMetricsLoadRequested] = useState(false);
+  const [auxiliaryMetricsEnabled, setAuxiliaryMetricsEnabled] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [cacheTick, setCacheTick] = useState(0);
   const queryClient = useQueryClient();
@@ -343,10 +344,15 @@ const DesktopDashboard = () => {
   );
 
   useEffect(() => {
-    setMetricsLoadRequested(false);
+    if (!currentOrganization?.id) return;
+    setMetricsLoadRequested(true);
+    setAuxiliaryMetricsEnabled(false);
+  }, [currentOrganization?.id]);
+
+  useEffect(() => {
     const updatedAt = queryClient.getQueryState(dashStatsQueryKey)?.dataUpdatedAt;
     setLastUpdated(updatedAt ? new Date(updatedAt) : null);
-  }, [currentOrganization?.id, dateRange, dashStatsQueryKey, queryClient]);
+  }, [dateRange, dashStatsQueryKey, queryClient]);
 
   // Re-render when persisted cache hydrates from IndexedDB (no network).
   useEffect(() => {
@@ -374,7 +380,10 @@ const DesktopDashboard = () => {
   const handleRefreshAll = async () => {
     setIsRefreshing(true);
     try {
-      flushSync(() => setMetricsLoadRequested(true));
+      flushSync(() => {
+        setMetricsLoadRequested(true);
+        setAuxiliaryMetricsEnabled(true);
+      });
       await Promise.all(
         DASHBOARD_REFRESH_QUERY_KEYS.map((key) =>
           queryClient.refetchQueries({ queryKey: [key] }),
@@ -413,6 +422,34 @@ const DesktopDashboard = () => {
     [liveDashStats, queryClient, dashStatsQueryKey, cacheTick],
   );
 
+  // Defer charts + customer segments until main RPC tiles are ready (faster first paint).
+  useEffect(() => {
+    if (!metricsLoadRequested) return;
+    let cancelled = false;
+    const enable = () => {
+      if (!cancelled) setAuxiliaryMetricsEnabled(true);
+    };
+    if (displayedDashStats) {
+      if (typeof requestIdleCallback !== "undefined") {
+        const id = requestIdleCallback(enable, { timeout: 2500 });
+        return () => {
+          cancelled = true;
+          cancelIdleCallback(id);
+        };
+      }
+      const t = window.setTimeout(enable, 800);
+      return () => {
+        cancelled = true;
+        window.clearTimeout(t);
+      };
+    }
+    const fallback = window.setTimeout(enable, 5000);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(fallback);
+    };
+  }, [metricsLoadRequested, displayedDashStats]);
+
   const cachedStatsUpdatedAt = queryClient.getQueryState(dashStatsQueryKey)?.dataUpdatedAt ?? null;
 
   // Receivables = true net customer AR (Master Reconciliation), shared with the
@@ -440,7 +477,7 @@ const DesktopDashboard = () => {
 
   const { data: liveCustomerSegments, isFetching: segmentsLoading } = useQuery({
     queryKey: customerSegmentsQueryKey,
-    enabled: metricsQueryEnabled,
+    enabled: metricsQueryEnabled && auxiliaryMetricsEnabled,
     ...DASHBOARD_MANUAL_REFRESH_OPTIONS,
     queryFn: () => fetchCustomerSegmentCounts(currentOrganization!.id),
   });
@@ -803,7 +840,9 @@ const DesktopDashboard = () => {
       ? `Last updated ${formatDistanceToNow(displayUpdatedAt, { addSuffix: true })}${staleHint}`
       : hasMetrics
         ? "Showing last loaded figures · click Refresh for latest"
-        : "Click Refresh to load dashboard data";
+        : metricsLoadRequested
+          ? "Loading dashboard…"
+          : "Click Refresh to load dashboard data";
   const segmentsBusy = metricsLoadRequested && segmentsLoading && !displayedCustomerSegments;
 
   return (
@@ -1164,7 +1203,7 @@ const DesktopDashboard = () => {
           )}
 
           {/* Charts Section */}
-          <StatsChartsSection loadEnabled={metricsLoadRequested} />
+          <StatsChartsSection loadEnabled={metricsLoadRequested && auxiliaryMetricsEnabled} />
         </div>
 
         {/* Customer Category Cards */}

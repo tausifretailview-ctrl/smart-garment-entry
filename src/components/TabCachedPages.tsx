@@ -184,6 +184,8 @@ const LIST_DASHBOARD_SHELL_PATHS = new Set([
   "purchase-return-dashboard",
   "purchase-returns",
   "stock-adjustment",
+  "pos-dashboard",
+  "sales-invoice-dashboard",
 ]);
 /** Time before showing the "Retry tab / Refresh app" card. Generous on web/PWA
  *  so slow shop Wi-Fi does not false-alarm while the chunk is still downloading. */

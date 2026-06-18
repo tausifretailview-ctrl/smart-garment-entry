@@ -565,7 +565,9 @@ const POSDashboard = () => {
   );
 
   const posQueryEnabled =
-    !!currentOrganization?.id && routePathSegment === "pos-dashboard";
+    !!currentOrganization?.id &&
+    routePathSegment === "pos-dashboard" &&
+    userFilter !== "__pending__";
 
   const posDashboardQueryKey = [
     "pos-dashboard-sales",
