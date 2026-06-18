@@ -1786,8 +1786,20 @@ const POSDashboard = () => {
 
   const handleEditSale = useCallback((saleId: string, event: React.MouseEvent) => {
     event.stopPropagation();
+    const target: any = sales.find((s: any) => s.id === saleId);
+    if (target) {
+      const check = canModifyEntry(target.created_by, creatorLabel(target.created_by));
+      if (!check.allowed) {
+        toast({
+          title: "Not allowed",
+          description: check.reason || "Only the creator or an admin can modify this entry.",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
     navigate(`/pos-sales?saleId=${saleId}`);
-  }, [navigate]);
+  }, [navigate, sales, canModifyEntry, creatorLabel, toast]);
 
   // ── E-Invoice handlers ──
   const handleGenerateEInvoice = async (sale: Sale) => {
