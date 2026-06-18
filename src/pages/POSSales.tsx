@@ -3665,7 +3665,14 @@ export default function POSSales() {
             template={posInvoiceTemplate}
             format={posInvoiceWrapperFormat}
             thermalPaper={posThermalPaper}
-            billNo={savedInvoiceData?.invoiceNumber || currentInvoiceNumber || nextInvoicePreview || 'DRAFT'}
+            // Only show a real invoice number when we actually have a saved sale or are editing one.
+            // Falling back to nextInvoicePreview here caused unsaved cart prints to carry a real-looking
+            // sequential number (e.g. POS/26-27/1576) that the next saved sale then reused.
+            billNo={
+              savedInvoiceData?.invoiceNumber
+                || currentInvoiceNumber
+                || (savedInvoiceData?.isEstimate ? 'ESTIMATE' : 'DRAFT')
+            }
             date={currentDateTime}
             customerName={savedInvoiceData?.customerName || customerName || 'Walk in Customer'}
             customerAddress={savedInvoiceData?.customerAddress || customers.find((c) => c.id === customerId)?.address || ''}
