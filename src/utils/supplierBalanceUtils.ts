@@ -307,7 +307,7 @@ export async function fetchSupplierBalanceSnapshotsForOrg(
       .from("voucher_entries")
       .select("reference_id, total_amount, discount_amount, description")
       .eq("organization_id", organizationId)
-      .eq("reference_type", "supplier")
+      .in("reference_type", ["supplier", "SupplierPayment", "supplier_payment", "purchase"])
       .eq("voucher_type", "payment")
       .is("deleted_at", null);
 
@@ -319,7 +319,7 @@ export async function fetchSupplierBalanceSnapshotsForOrg(
       .from("voucher_entries")
       .select("id, reference_id, total_amount")
       .eq("organization_id", organizationId)
-      .eq("reference_type", "supplier")
+      .in("reference_type", ["supplier", "SupplierPayment", "supplier_payment", "purchase"])
       .eq("voucher_type", "credit_note")
       .is("deleted_at", null);
 
@@ -338,7 +338,7 @@ export async function fetchSupplierBalanceSnapshotsForOrg(
       .from("voucher_entries")
       .select("reference_id, total_amount")
       .eq("organization_id", organizationId)
-      .eq("reference_type", "supplier")
+      .in("reference_type", ["supplier", "SupplierPayment", "supplier_payment", "purchase"])
       .eq("voucher_type", "receipt")
       .is("deleted_at", null);
 
