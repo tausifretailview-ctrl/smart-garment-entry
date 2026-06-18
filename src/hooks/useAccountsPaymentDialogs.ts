@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { whatsappPaymentReceiptDiscountLines } from "@/utils/paymentReceiptWhatsApp";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { useEntryOwnership } from "@/hooks/useEntryOwnership";
 import {
   fetchSaleReceiptSplitsForInvoices,
   reconcileSaleInvoiceWithSplit,
@@ -21,6 +22,7 @@ import {
 export function useAccountsPaymentDialogs(settings: any) {
   const { currentOrganization } = useOrganization();
   const queryClient = useQueryClient();
+  const { canModify: canModifyEntry } = useEntryOwnership();
   const receiptRef = useRef<HTMLDivElement>(null);
 
   const [showReceiptDialog, setShowReceiptDialog] = useState(false);
@@ -43,6 +45,11 @@ export function useAccountsPaymentDialogs(settings: any) {
   };
 
   const openEditPaymentDialog = (voucher: any) => {
+    const own = canModifyEntry(voucher?.created_by);
+    if (!own.allowed) {
+      toast.error(own.reason || "Only the creator or an admin can edit this payment.");
+      return;
+    }
     setEditingPayment(voucher);
     setEditPaymentDate(new Date(voucher.voucher_date));
     setEditPaymentAmount(voucher.total_amount?.toString() || "");
