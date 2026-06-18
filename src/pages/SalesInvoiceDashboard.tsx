@@ -451,8 +451,9 @@ export default function SalesInvoiceDashboard() {
   const getInvoiceContextMenuItems = (invoice: any): ContextMenuItem[] => {
     const cancelled = isSaleInvoiceCancelled(invoice);
     const isLocked = invoice.payment_status === 'completed';
-    const canModify = hasSpecialPermission('modify_records') || !isLocked;
-    const canDelete = hasSpecialPermission('delete_records');
+    const ownership = canModifyEntry((invoice as any).created_by, invoiceCreatorLabel((invoice as any).created_by));
+    const canModify = (hasSpecialPermission('modify_records') || !isLocked) && ownership.allowed;
+    const canDelete = hasSpecialPermission('delete_records') && ownership.allowed;
     const canCancelInvoice = hasSpecialPermission('cancel_invoice');
     
     return [
