@@ -97,3 +97,44 @@ No backend / RLS / number-generator changes were made — current evidence shows
 - Show the **bill creator's name** in the POS dashboard row, so a different user sees clearly "this bill belongs to someone else" before clicking Modify.
 
 These three together would harden multi-user POS billing to a Tally / Vyapar–grade safety level.
+
+## Second confirmed incident — POS/26-27/1101 (30-May-2026)
+
+User shared a printed copy of **POS/26-27/1101, TEJAS SURESH CHAVAN ₹20,500, 30-05-2026** that no longer appears in the POS dashboard. Same complaint as 1576.
+
+### Database evidence
+
+- `sales` table has **no row** with `sale_number = 'POS/26-27/1101'` for this org — the row was eventually hard-deleted (likely from Recycle Bin after the overwrite).
+- `audit_logs` for entity `8ddb711e-61c3-404c-8084-3546c9b5283c` (the original 1101):
+
+```
+30-May 08:39:01 IST  SALE_UPDATED  mobility@gmail.com
+  old: { sale_number: POS/26-27/1101, net_amount:  20,500 }
+  new: { sale_number: POS/26-27/1101, net_amount: 109,999 }
+
+30-May 11:31:18 IST  SALE_UPDATED  mobility@gmail.com
+  old: { sale_number: POS/26-27/1101, net_amount: 109,999 }
+  new: { sale_number: POS/26-27/1101, net_amount: 109,999 }
+```
+
+- Three minutes after the destructive edit, the same user created **POS/26-27/1102 — RAKESH TAMBE ₹1,09,999** (30-May 08:42:15 IST). 1101's content was effectively the Rakesh Tambe bill pasted over Tejas Chavan.
+- TEJAS SURESH CHAVAN's ₹20,500 invoice was later re-entered as **POS/26-27/1541** on 16-Jun 10:41 IST. That row itself shows a follow-up `SALE_UPDATED` at 10:55 IST changing `net_amount 23,999 → 20,500` — same Modify-on-wrong-bill foot-gun, this time noticed and corrected within 15 minutes.
+
+### Root cause
+
+Identical to POS/26-27/1576: a user with Modify permission opened the wrong row from the POS dashboard (likely a stale list while another terminal was billing) and saved over it. **No concurrency bug, no number-collision, no RLS bug.** Two independent occurrences (1101 and 1576) plus a near-miss (1541) confirm the pattern.
+
+## Why this won't happen again (fix already shipped 18-Jun)
+
+`src/hooks/useSaveSale.tsx` edit-mode now reads the bill's existing `customer_id`, `customer_name`, and `net_amount` before saving and shows a blocking `window.confirm(...)` whenever:
+
+1. The customer is being changed (different `customer_id` or different `customer_name`), or
+2. The net amount changes by more than 50 %.
+
+Both 1101 (₹20,500 → ₹1,09,999, +437 %) and 1576 (₹82,900 → ₹3,500, –96 %) would have been blocked by this dialog. Routine edits (payment-method change, small price tweak) are unaffected.
+
+## Open follow-ups to fully harden multi-user POS
+
+1. **Creator-scoped Modify permission** — restrict Modify on saved POS bills to the original creator, or gate cross-user edits behind an explicit "Edit others' bills" right under User Rights. Today both `mobility@gmail.com` and `mobilitynx@gmail.com` can edit every bill.
+2. **Realtime POS dashboard** — subscribe to `sales` INSERT / UPDATE for the current org so the second terminal's list refreshes instantly, removing the stale-row foot-gun at its source.
+3. **Show bill creator on the dashboard row** — make it visually obvious that a row belongs to a coworker before someone clicks Modify.
