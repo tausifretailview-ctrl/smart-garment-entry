@@ -284,6 +284,23 @@ const POSDashboard = () => {
   }, [userFilter, orgUsers, orgUsersFetched, user?.id, organizationRole]);
 
   const [expandedSale, setExpandedSale] = useState<string | null>(null);
+
+  // Creator-scoped Modify/Delete (multi-user POS protection)
+  const { canModify: canModifyEntry } = useEntryOwnership();
+  const orgUserEmailById = useMemo(() => {
+    const m = new Map<string, string>();
+    (orgUsers || []).forEach((u: any) => { if (u?.id) m.set(u.id, u.email || ""); });
+    return m;
+  }, [orgUsers]);
+  const creatorLabel = useCallback(
+    (createdBy?: string | null) => {
+      if (!createdBy) return undefined;
+      const email = orgUserEmailById.get(createdBy);
+      if (!email) return undefined;
+      return email.split("@")[0] || email;
+    },
+    [orgUserEmailById],
+  );
   const [saleItems, setSaleItems] = useState<Record<string, SaleItem[]>>({});
   const [saleFinancerDetails, setSaleFinancerDetails] = useState<Record<string, SaleFinancerDetailsDisplay | null>>({});
   const [saleReturns, setSaleReturns] = useState<Record<string, any[]>>({});
