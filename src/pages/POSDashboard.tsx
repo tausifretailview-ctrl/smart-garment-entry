@@ -68,6 +68,7 @@ import { waitForPrintReady } from "@/utils/printReady";
 import { whatsappPaymentReceiptDiscountLines } from "@/utils/paymentReceiptWhatsApp";
 import { buildPublicInvoiceViewUrl } from "@/utils/publicInvoiceLink";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
+import { useEntryOwnership } from "@/hooks/useEntryOwnership";
 import { useMobileERP } from "@/hooks/useMobileERP";
 import {
   SaleFinancerDetailsPanel,
