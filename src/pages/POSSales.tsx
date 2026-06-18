@@ -535,6 +535,21 @@ export default function POSSales() {
     return safe.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }, []);
 
+  type LastCompletedPosHint = {
+    invoiceNumber: string;
+    amount: number;
+    qty: number;
+  };
+  const [lastCompletedPosHint, setLastCompletedPosHint] = useState<LastCompletedPosHint | null>(null);
+
+  const applyLastCompletedPosHint = useCallback((invoiceNumber: string, amount: number, qty: number) => {
+    setLastCompletedPosHint({
+      invoiceNumber,
+      amount: Number(amount) || 0,
+      qty: Number(qty) || 0,
+    });
+  }, []);
+
   const bumpCartHighlight = useCallback((id: string) => {
     setHighlightCartItemId(id);
     if (highlightClearTimerRef.current) clearTimeout(highlightClearTimerRef.current);
@@ -1473,7 +1488,7 @@ export default function POSSales() {
 
       const { data, error } = await (supabase as any)
         .from('sales')
-        .select('id, sale_number, sale_date, net_amount, paid_amount, payment_status, customer_name, customer_phone, payment_method, created_at, sale_type, customer_id, round_off, flat_discount_percent, flat_discount_amount, sale_return_adjust, salesman, notes')
+        .select('id, sale_number, sale_date, net_amount, paid_amount, payment_status, customer_name, customer_phone, payment_method, created_at, sale_type, customer_id, round_off, flat_discount_percent, flat_discount_amount, sale_return_adjust, salesman, notes, total_qty')
         .eq('organization_id', currentOrganization.id)
         .eq('sale_type', 'pos')
         .is('deleted_at', null)
@@ -1490,6 +1505,16 @@ export default function POSSales() {
     refetchInterval: posRefetchInterval,
     refetchOnWindowFocus: false,
   });
+
+  useEffect(() => {
+    const latest = todaysSales?.[0];
+    if (!latest?.sale_number) return;
+    applyLastCompletedPosHint(
+      latest.sale_number,
+      Number(latest.net_amount) || 0,
+      Number(latest.total_qty) || 0,
+    );
+  }, [todaysSales, applyLastCompletedPosHint]);
 
   const isHoldLikeBill = (sale: any) => {
     if (!sale) return false;
@@ -3162,6 +3187,7 @@ export default function POSSales() {
       const willAutoPrint = isDirectPrintEnabled && isAutoPrintEnabled;
       // Set print snapshot first so hidden invoice re-renders with salesman before cart clears
       setSavedInvoiceData(invoiceDataForPrint);
+      applyLastCompletedPosHint(result.sale_number, finalAmount, totals.quantity);
 
       // Clear the form immediately after successful save (reset to new blank invoice)
       setItems([]);
@@ -3449,6 +3475,11 @@ export default function POSSales() {
       
       if (invoiceDataForPrint) {
         setSavedInvoiceData(invoiceDataForPrint);
+        applyLastCompletedPosHint(
+          result.sale_number,
+          isRefund ? 0 : finalAmount,
+          totals.quantity,
+        );
         triggerPosAutoPrintIfEnabled(() => setShowPrintConfirmDialog(true));
       }
       
@@ -6188,7 +6219,8 @@ export default function POSSales() {
         </div>
 
         {/* Keyboard Shortcut Bar - Desktop only, redesigned with columns */}
-        <div className="pos-sales-shortcuts hidden md:flex h-[52px] shrink-0 w-full flex-nowrap bg-slate-800 dark:bg-slate-950 text-white items-center justify-center gap-1 border-t border-slate-700/50 select-none px-2 overflow-x-auto whitespace-nowrap">
+        <div className="pos-sales-shortcuts hidden md:flex h-[52px] shrink-0 w-full flex-nowrap bg-slate-800 dark:bg-slate-950 text-white items-center gap-1 border-t border-slate-700/50 select-none px-2 overflow-hidden">
+          <div className="flex flex-1 min-w-0 items-center justify-center gap-1 overflow-x-auto whitespace-nowrap">
           {/* Payment methods - amber/yellow */}
           {[
             { key: 'F1', label: 'Cash' },
@@ -6244,6 +6276,31 @@ export default function POSSales() {
             <kbd className="text-[10px] font-mono text-slate-400/80 font-bold leading-tight">CTRL+P</kbd>
             <span className="text-[13px] font-extrabold text-slate-300 leading-tight">Print</span>
           </div>
+          </div>
+
+          {lastCompletedPosHint ? (
+            <>
+              <div className="w-px h-8 bg-slate-600 shrink-0" aria-hidden />
+              <div
+                className="flex shrink-0 items-center gap-2.5 px-2.5 py-1 rounded-md bg-slate-900/90 border border-slate-600/50"
+                title="Last saved POS invoice today"
+              >
+                <span className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold whitespace-nowrap">
+                  Last Bill
+                </span>
+                <span className="text-[12px] font-bold text-emerald-400 tabular-nums whitespace-nowrap">
+                  {lastCompletedPosHint.invoiceNumber}
+                </span>
+                <span className="text-[11px] text-slate-300 whitespace-nowrap">
+                  Qty{" "}
+                  <span className="font-bold text-white tabular-nums">{lastCompletedPosHint.qty}</span>
+                </span>
+                <span className="text-[13px] font-extrabold text-amber-300 tabular-nums whitespace-nowrap">
+                  ₹{formatINR2(lastCompletedPosHint.amount)}
+                </span>
+              </div>
+            </>
+          ) : null}
         </div>
         </div>
 
