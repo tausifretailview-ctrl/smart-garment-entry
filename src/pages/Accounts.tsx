@@ -760,8 +760,9 @@ export default function Accounts() {
   const monthlyExpenses = dashboardStats?.monthlyExpenses || 0;
 
   const dashboardMetrics = useMemo(() => ({
-    // Receivables tile = Master Reconciliation RPC (canonical). RPC dashboard
-    // metrics are the lightweight fallback only — no lifetime client-side scan.
+    // Receivables tile = Master Reconciliation summary (canonical, set-based RPC).
+    // It can legitimately be negative for orgs in net customer credit, so do NOT
+    // fall back to the old invoice-arithmetic when it is zero.
     totalReceivables:
       receivablesSummary.customerCount > 0
         ? receivablesSummary.netReceivable
