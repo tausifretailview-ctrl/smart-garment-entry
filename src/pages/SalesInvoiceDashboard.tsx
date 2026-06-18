@@ -3815,28 +3815,36 @@ export default function SalesInvoiceDashboard() {
                                     <Download className="h-4 w-4 text-blue-600" />
                                   </Button>
                                 )}
-                                {columnSettings.modify && (
-                                  invoice.payment_status === 'completed' && !hasSpecialPermission('edit_paid_invoices') ? (
-                                    <Button variant="ghost" size="icon" disabled title="Invoice is locked (Fully Paid)">
-                                      <Lock className="h-4 w-4 text-muted-foreground" />
-                                    </Button>
-                                  ) : (
-                                    <Button variant="ghost" size="icon" onClick={() => navigate('/sales-invoice', { state: { editInvoiceId: invoice.id } })}>
+                                {columnSettings.modify && (() => {
+                                  const own = canModifyEntry((invoice as any).created_by, invoiceCreatorLabel((invoice as any).created_by));
+                                  if (invoice.payment_status === 'completed' && !hasSpecialPermission('edit_paid_invoices')) {
+                                    return (
+                                      <Button variant="ghost" size="icon" disabled title="Invoice is locked (Fully Paid)">
+                                        <Lock className="h-4 w-4 text-muted-foreground" />
+                                      </Button>
+                                    );
+                                  }
+                                  return (
+                                    <Button variant="ghost" size="icon" disabled={!own.allowed} title={own.allowed ? "Edit" : own.reason} onClick={() => own.allowed && navigate('/sales-invoice', { state: { editInvoiceId: invoice.id } })}>
                                       <Edit className="h-4 w-4" />
                                     </Button>
-                                  )
-                                )}
-                                {columnSettings.delete && (
-                                  invoice.payment_status === 'completed' && !hasSpecialPermission('edit_paid_invoices') ? (
-                                    <Button variant="ghost" size="icon" disabled title="Invoice is locked (Fully Paid)">
-                                      <Lock className="h-4 w-4 text-muted-foreground" />
-                                    </Button>
-                                  ) : (
-                                    <Button variant="ghost" size="icon" onClick={() => setInvoiceToDelete(invoice)}>
+                                  );
+                                })()}
+                                {columnSettings.delete && (() => {
+                                  const own = canModifyEntry((invoice as any).created_by, invoiceCreatorLabel((invoice as any).created_by));
+                                  if (invoice.payment_status === 'completed' && !hasSpecialPermission('edit_paid_invoices')) {
+                                    return (
+                                      <Button variant="ghost" size="icon" disabled title="Invoice is locked (Fully Paid)">
+                                        <Lock className="h-4 w-4 text-muted-foreground" />
+                                      </Button>
+                                    );
+                                  }
+                                  return (
+                                    <Button variant="ghost" size="icon" disabled={!own.allowed} title={own.allowed ? "Delete" : own.reason} onClick={() => own.allowed && setInvoiceToDelete(invoice)}>
                                       <Trash2 className="h-4 w-4 text-destructive" />
                                     </Button>
-                                  )
-                                )}
+                                  );
+                                })()}
                               </div>
 
                               {/* Mobile: primary actions + more menu */}
