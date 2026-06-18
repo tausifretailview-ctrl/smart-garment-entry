@@ -3900,28 +3900,36 @@ export default function SalesInvoiceDashboard() {
                                       </>
                                     )}
                                     <DropdownMenuSeparator />
-                                    {columnSettings.modify && (
-                                      invoice.payment_status === 'completed' && !hasSpecialPermission('edit_paid_invoices') ? (
-                                        <DropdownMenuItem disabled>
-                                          <Lock className="h-4 w-4 mr-2 text-muted-foreground" /> Edit (Locked)
+                                    {columnSettings.modify && (() => {
+                                      const own = canModifyEntry((invoice as any).created_by, invoiceCreatorLabel((invoice as any).created_by));
+                                      if (invoice.payment_status === 'completed' && !hasSpecialPermission('edit_paid_invoices')) {
+                                        return (
+                                          <DropdownMenuItem disabled>
+                                            <Lock className="h-4 w-4 mr-2 text-muted-foreground" /> Edit (Locked)
+                                          </DropdownMenuItem>
+                                        );
+                                      }
+                                      return (
+                                        <DropdownMenuItem disabled={!own.allowed} onClick={() => navigate('/sales-invoice', { state: { editInvoiceId: invoice.id } })}>
+                                          <Edit className="h-4 w-4 mr-2" /> {own.allowed ? "Edit Invoice" : "Edit (Other user's bill)"}
                                         </DropdownMenuItem>
-                                      ) : (
-                                        <DropdownMenuItem onClick={() => navigate('/sales-invoice', { state: { editInvoiceId: invoice.id } })}>
-                                          <Edit className="h-4 w-4 mr-2" /> Edit Invoice
+                                      );
+                                    })()}
+                                    {columnSettings.delete && (() => {
+                                      const own = canModifyEntry((invoice as any).created_by, invoiceCreatorLabel((invoice as any).created_by));
+                                      if (invoice.payment_status === 'completed' && !hasSpecialPermission('edit_paid_invoices')) {
+                                        return (
+                                          <DropdownMenuItem disabled>
+                                            <Lock className="h-4 w-4 mr-2 text-muted-foreground" /> Delete (Locked)
+                                          </DropdownMenuItem>
+                                        );
+                                      }
+                                      return (
+                                        <DropdownMenuItem disabled={!own.allowed} onClick={() => setInvoiceToDelete(invoice)} className="text-destructive">
+                                          <Trash2 className="h-4 w-4 mr-2" /> {own.allowed ? "Delete Invoice" : "Delete (Other user's bill)"}
                                         </DropdownMenuItem>
-                                      )
-                                    )}
-                                    {columnSettings.delete && (
-                                      invoice.payment_status === 'completed' && !hasSpecialPermission('edit_paid_invoices') ? (
-                                        <DropdownMenuItem disabled>
-                                          <Lock className="h-4 w-4 mr-2 text-muted-foreground" /> Delete (Locked)
-                                        </DropdownMenuItem>
-                                      ) : (
-                                        <DropdownMenuItem onClick={() => setInvoiceToDelete(invoice)} className="text-destructive">
-                                          <Trash2 className="h-4 w-4 mr-2" /> Delete Invoice
-                                        </DropdownMenuItem>
-                                      )
-                                    )}
+                                      );
+                                    })()}
                                   </DropdownMenuContent>
                                 </DropdownMenu>
                               </div>
