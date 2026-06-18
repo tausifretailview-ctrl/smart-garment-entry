@@ -1,4 +1,4 @@
-import { Bell, Menu, Search, ShoppingCart, Package, TrendingUp, Download, LayoutGrid, BoxIcon, ChevronDown, Plus, FileText, Scale, Banknote, RefreshCw } from "lucide-react";
+import { Bell, Menu, Search, ShoppingCart, Package, TrendingUp, Download, LayoutGrid, BoxIcon, ChevronDown, Plus, FileText, Scale, Banknote, RefreshCw, BarChart3 } from "lucide-react";
 import { UIScaleSelector } from "@/components/UIScaleSelector";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -57,7 +57,7 @@ export const Header = () => {
   const isDesktopApp = isElectronShell();
   const dashboardToolbar = useDashboardToolbarOptional();
   const { isSchool } = useSchoolFeatures();
-  const { hasMenuAccess, hasSpecialPermission, permissions, loading: permissionsLoading } = useUserPermissions();
+  const { hasMenuAccess, hasMainMenuAccess, hasSpecialPermission, permissions, loading: permissionsLoading } = useUserPermissions();
   const can = (menuId: string) =>
     !permissionsLoading && (permissions === null || hasMenuAccess(menuId));
   const goHome = () => {
@@ -78,6 +78,7 @@ export const Header = () => {
   const canAccessReportsHub = useMemo(() => {
     if (permissionsLoading) return false;
     if (permissions === null) return true;
+    if (hasMainMenuAccess("reports")) return true;
     const reportPermissions = [
       "stock_report",
       "item_wise_sales",
@@ -106,7 +107,7 @@ export const Header = () => {
       "tally_export",
     ];
     return reportPermissions.some((id) => hasMenuAccess(id));
-  }, [permissions, permissionsLoading, hasMenuAccess]);
+  }, [permissions, permissionsLoading, hasMenuAccess, hasMainMenuAccess]);
   const forceDesktopView = useForceDesktopView();
   const isNarrowViewport = useIsNarrowViewport();
 
@@ -612,6 +613,19 @@ export const Header = () => {
             >
               <TrendingUp className="h-3.5 w-3.5" />
               Cashier
+            </Button>
+          </div>
+        )}
+
+        {canAccessReportsHub && (
+          <div className="flex items-center">
+            <Button
+              variant="ghost"
+              onClick={() => orgNavigate("/reports")}
+              className={shortcutBtn("bg-sky-600 hover:bg-sky-700", "px-2.5")}
+            >
+              <BarChart3 className="h-3.5 w-3.5" />
+              Reports
             </Button>
           </div>
         )}

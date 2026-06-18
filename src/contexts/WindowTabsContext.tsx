@@ -61,6 +61,7 @@ const PAGE_CONFIG: Record<string, { label: string; icon: string }> = {
   "suppliers": { label: "Suppliers", icon: "Building2" },
   "employees": { label: "Employees", icon: "UserCheck" },
   "stock-report": { label: "Stock Report", icon: "BarChart3" },
+  reports: { label: "Reports Hub", icon: "BarChart3" },
   "item-wise-sales": { label: "Item Sales", icon: "PieChart" },
   "sales-report-by-customer": { label: "Customer Sales", icon: "TrendingUp" },
   "purchase-report-by-supplier": { label: "Supplier Report", icon: "TrendingUp" },

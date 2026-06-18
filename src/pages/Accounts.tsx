@@ -5,7 +5,16 @@ import { useSearchParams } from "react-router-dom";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { MobilePageHeader } from "@/components/mobile/MobilePageHeader";
 import { MobileBottomNav } from "@/components/mobile/MobileBottomNav";
-import { ArrowDownLeft, ArrowUpRight, BookOpen, AlertCircle, Receipt, FileText as FileTextIcon2 } from "lucide-react";
+import {
+  ArrowDownLeft,
+  ArrowUpRight,
+  BookOpen,
+  AlertCircle,
+  Receipt,
+  FileText as FileTextIcon2,
+  Scale,
+  HelpCircle,
+} from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Plus, Coins, Loader2, BookMarked, Trash2, ChevronDown, Lock } from "lucide-react";
@@ -39,6 +48,8 @@ import { AddAdvanceBookingDialog } from "@/components/AddAdvanceBookingDialog";
 import { CustomerBalanceAdjustmentDialog } from "@/components/CustomerBalanceAdjustmentDialog";
 import { RecentBalanceAdjustments } from "@/components/RecentBalanceAdjustments";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { fetchSupplierBalanceSnapshotsForOrg } from "@/utils/supplierBalanceUtils";
 import { fetchAllSuppliers } from "@/utils/fetchAllRows";
 import { useOrgLedgerReferenceData } from "@/hooks/useOrgLedgerReferenceData";
 import {
@@ -78,10 +89,160 @@ const STICKY_TAB_CONTENT_CLASS = "mt-0 space-y-4 outline-none data-[state=inacti
 
 const PERF_PATH = "accounts";
 
+const fmtOutstandingInr = (n: number) =>
+  `₹${Math.round(n).toLocaleString("en-IN")}`;
+
+/** Sum positive supplier balances — matches Supplier Ledger "totalOutstanding". */
+function sumOrgSupplierPayableFromSnapshots(
+  map: Awaited<ReturnType<typeof fetchSupplierBalanceSnapshotsForOrg>>,
+): number {
+  if (!(map instanceof Map)) return 0;
+  let sum = 0;
+  for (const snap of map.values()) {
+    if (snap.balance > 0) sum += snap.balance;
+  }
+  return Math.round(sum * 100) / 100;
+}
+
+function AccountsOutstandingHeadlineCards({
+  totalReceivable,
+  customerCount,
+  totalPayable,
+  receivableLoading,
+  payableLoading,
+  onReceivableClick,
+  onPayableClick,
+}: {
+  totalReceivable: number;
+  customerCount: number;
+  totalPayable: number;
+  receivableLoading: boolean;
+  payableLoading: boolean;
+  onReceivableClick: () => void;
+  onPayableClick: () => void;
+}) {
+  const netPosition = totalReceivable - totalPayable;
+  const netAbs = Math.abs(netPosition);
+  const netLabel =
+    netPosition > 0
+      ? `Net Receivable (you are owed ${fmtOutstandingInr(netAbs)})`
+      : netPosition < 0
+        ? `Net Payable (you owe ${fmtOutstandingInr(netAbs)})`
+        : "Net Position (balanced)";
+
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+      <Card
+        className="cursor-pointer border-emerald-200 bg-emerald-50/80 hover:shadow-md transition-shadow"
+        onClick={onReceivableClick}
+      >
+        <CardHeader className="pb-1 pt-3 px-3">
+          <div className="flex items-center justify-between gap-2">
+            <CardDescription className="text-xs font-semibold text-emerald-800 uppercase tracking-wide">
+              Total Receivable
+            </CardDescription>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  className="text-emerald-700/70 hover:text-emerald-800"
+                  onClick={(e) => e.stopPropagation()}
+                  aria-label="Receivable help"
+                >
+                  <HelpCircle className="h-3.5 w-3.5" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="max-w-xs text-xs">
+                Net amount customers owe (after advances &amp; credit notes)
+              </TooltipContent>
+            </Tooltip>
+          </div>
+        </CardHeader>
+        <CardContent className="px-3 pb-3 pt-0">
+          <div className="text-xl font-bold text-emerald-700 tabular-nums">
+            {receivableLoading ? (
+              <Loader2 className="h-5 w-5 animate-spin" />
+            ) : (
+              fmtOutstandingInr(totalReceivable)
+            )}
+          </div>
+          <p className="text-xs text-emerald-700/80 mt-1">
+            {customerCount} customer{customerCount === 1 ? "" : "s"} on file
+          </p>
+        </CardContent>
+      </Card>
+
+      <Card
+        className="cursor-pointer border-rose-200 bg-rose-50/80 hover:shadow-md transition-shadow"
+        onClick={onPayableClick}
+      >
+        <CardHeader className="pb-1 pt-3 px-3">
+          <CardDescription className="text-xs font-semibold text-rose-800 uppercase tracking-wide">
+            Total Payable
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="px-3 pb-3 pt-0">
+          <div className="text-xl font-bold text-rose-700 tabular-nums">
+            {payableLoading ? (
+              <Loader2 className="h-5 w-5 animate-spin" />
+            ) : (
+              fmtOutstandingInr(totalPayable)
+            )}
+          </div>
+          <p className="text-xs text-rose-700/80 mt-1">Outstanding to suppliers</p>
+        </CardContent>
+      </Card>
+
+      <Card
+        className={cn(
+          "border shadow-sm",
+          netPosition > 0
+            ? "border-emerald-200 bg-white"
+            : netPosition < 0
+              ? "border-rose-200 bg-white"
+              : "border-slate-200 bg-white",
+        )}
+      >
+        <CardHeader className="pb-1 pt-3 px-3">
+          <div className="flex items-center justify-between gap-2">
+            <CardDescription className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+              Net Position
+            </CardDescription>
+            <Scale className="h-4 w-4 text-muted-foreground shrink-0" />
+          </div>
+        </CardHeader>
+        <CardContent className="px-3 pb-3 pt-0">
+          <div
+            className={cn(
+              "text-xl font-bold tabular-nums",
+              netPosition > 0
+                ? "text-emerald-700"
+                : netPosition < 0
+                  ? "text-rose-700"
+                  : "text-slate-700",
+            )}
+          >
+            {receivableLoading || payableLoading ? (
+              <Loader2 className="h-5 w-5 animate-spin" />
+            ) : (
+              fmtOutstandingInr(netPosition)
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground mt-1">{netLabel}</p>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 export default function Accounts() {
   const { currentOrganization } = useOrganization();
   const { orgNavigate } = useOrgNavigation();
-  const { summary: receivablesSummary } = useOrganizationReceivablesSummary(currentOrganization?.id);
+  const {
+    summary: receivablesSummary,
+    isLoading: receivablesSummaryLoading,
+    isFetching: receivablesSummaryFetching,
+  } = useOrganizationReceivablesSummary(currentOrganization?.id);
   const queryClient = useQueryClient();
   const { isAdmin, isPlatformAdmin } = useUserRoles();
   useNavPerfPage(PERF_PATH);
@@ -517,8 +678,30 @@ export default function Accounts() {
     }
   };
 
-  const needsSales = selectedTab === "customer-payment" || selectedTab === "customer-ledger" || selectedTab === "outstanding";
-  const needsCustomers = selectedTab === "customer-payment" || selectedTab === "reconciliation" || selectedTab === "customer-ledger" || selectedTab === "outstanding";
+  const outstandingTabActive = selectedTab === "outstanding";
+
+  const needsSales = selectedTab === "customer-payment" || selectedTab === "customer-ledger" || outstandingTabActive;
+  const needsCustomers =
+    selectedTab === "customer-payment" ||
+    selectedTab === "reconciliation" ||
+    selectedTab === "customer-ledger" ||
+    outstandingTabActive;
+
+  const {
+    data: totalSupplierPayable = 0,
+    isLoading: supplierPayableLoading,
+    isFetching: supplierPayableFetching,
+  } = useQuery({
+    queryKey: ["supplier-payables-org-total", currentOrganization?.id],
+    queryFn: async () => {
+      const map = await fetchSupplierBalanceSnapshotsForOrg(supabase, currentOrganization!.id);
+      return sumOrgSupplierPayableFromSnapshots(map);
+    },
+    enabled: !!currentOrganization?.id && outstandingTabActive,
+    staleTime: 2 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  });
 
   const { customers, salesSummary: sales } = useOrgLedgerReferenceData(currentOrganization?.id, {
     enabled: !!currentOrganization?.id,
@@ -605,6 +788,25 @@ export default function Accounts() {
     handleAccountsTabChange("customer-ledger");
   };
 
+  const scrollToOutstandingCustomers = useCallback(() => {
+    document.getElementById("accounts-outstanding-detail")?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+  }, []);
+
+  const outstandingHeadlineCards = currentOrganization?.id ? (
+    <AccountsOutstandingHeadlineCards
+      totalReceivable={receivablesSummary.netReceivable}
+      customerCount={receivablesSummary.customerCount}
+      totalPayable={totalSupplierPayable}
+      receivableLoading={receivablesSummaryLoading || receivablesSummaryFetching}
+      payableLoading={supplierPayableLoading || supplierPayableFetching}
+      onReceivableClick={scrollToOutstandingCustomers}
+      onPayableClick={() => handleAccountsTabChange("supplier-ledger")}
+    />
+  ) : null;
+
   const isMobile = useIsMobile();
 
   if (isMobile) {
@@ -680,7 +882,10 @@ export default function Accounts() {
                 <SupplierLedger organizationId={currentOrganization.id} />
               </div>
               <div className={cn(selectedTab !== "outstanding" && "hidden")} aria-hidden={selectedTab !== "outstanding"}>
-                <OutstandingDashboardTab organizationId={currentOrganization.id} />
+                {outstandingHeadlineCards}
+                <div id="accounts-outstanding-detail">
+                  <OutstandingDashboardTab organizationId={currentOrganization.id} />
+                </div>
               </div>
               <div className={cn(selectedTab !== "customer-payment" && "hidden")} aria-hidden={selectedTab !== "customer-payment"}>
                 <CustomerPaymentTab organizationId={currentOrganization.id} vouchers={vouchers} sales={sales} customers={customers} settings={settings} onShowReceipt={paymentDialogs.handleShowReceipt} onShowAdvanceDialog={() => setShowAdvanceDialog(true)} onEditPayment={paymentDialogs.openEditPaymentDialog} />
@@ -970,7 +1175,12 @@ export default function Accounts() {
         </TabsContent>
 
         <TabsContent value="outstanding" forceMount className={STICKY_TAB_CONTENT_CLASS}>
-          {currentOrganization?.id && <OutstandingDashboardTab organizationId={currentOrganization.id} />}
+          {outstandingHeadlineCards}
+          {currentOrganization?.id && (
+            <div id="accounts-outstanding-detail">
+              <OutstandingDashboardTab organizationId={currentOrganization.id} />
+            </div>
+          )}
         </TabsContent>
 
         <TabsContent value="customer-payment" forceMount className={STICKY_TAB_CONTENT_CLASS}>
