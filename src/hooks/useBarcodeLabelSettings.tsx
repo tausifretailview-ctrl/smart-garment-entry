@@ -55,9 +55,6 @@ interface DefaultFormat {
   };
 }
 
-// Module-level dedupe cache for printer_presets mirror writes (see saveLabelTemplate).
-const PRINTER_PRESET_SYNC_CACHE = new Map<string, string>();
-
 export function useBarcodeLabelSettings() {
   const { currentOrganization } = useOrganization();
   const [labelTemplates, setLabelTemplates] = useState<LabelTemplate[]>([]);
@@ -66,13 +63,6 @@ export function useBarcodeLabelSettings() {
   const [prnTemplates, setPrnTemplates] = useState<PRNTemplate[]>([]);
   const [defaultFormat, setDefaultFormat] = useState<DefaultFormat | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-
-  // Module-level dedupe cache for printer_presets mirror writes.
-  // saveLabelTemplate runs on every preset auto-save; without this we re-issue
-  // identical UPDATEs to printer_presets each time, which dominated DB CPU on
-  // the small Cloud instance (~1.6M printer_presets UPDATEs in pg_stat_statements).
-  // Key: `${orgId}|${templateName}` — Value: signature of last persisted payload.
-  // Lives across renders/mounts because Map is declared outside the hook closure scope below.
 
   // Fetch all settings from database
   const fetchSettings = useCallback(async () => {
@@ -172,39 +162,22 @@ export function useBarcodeLabelSettings() {
 
       // Sync label_config to any matching printer_preset with the same name
       try {
-        // Skip the mirror write entirely if the payload hasn't changed since the
-        // last time we synced. Auto-save fires on every preset selection change,
-        // so identical writes were the dominant DB cost on the small instance.
-        const signatureKey = `${currentOrganization.id}|${template.name}`;
-        let signature = "";
-        try {
-          signature = JSON.stringify([
-            template.labelWidth ?? null,
-            template.labelHeight ?? null,
-            template.config,
-          ]);
-        } catch {
-          signature = `${template.labelWidth ?? ""}|${template.labelHeight ?? ""}`;
-        }
-        if (PRINTER_PRESET_SYNC_CACHE.get(signatureKey) !== signature) {
-          const { data: matchingPresets } = await supabase
+        const { data: matchingPresets } = await supabase
+          .from("printer_presets")
+          .select("id")
+          .eq("organization_id", currentOrganization.id)
+          .eq("name", template.name);
+        
+        if (matchingPresets && matchingPresets.length > 0) {
+          await supabase
             .from("printer_presets")
-            .select("id")
+            .update({
+              label_config: template.config as any,
+              label_width: template.labelWidth || null,
+              label_height: template.labelHeight || null,
+            })
             .eq("organization_id", currentOrganization.id)
             .eq("name", template.name);
-
-          if (matchingPresets && matchingPresets.length > 0) {
-            await supabase
-              .from("printer_presets")
-              .update({
-                label_config: template.config as any,
-                label_width: template.labelWidth || null,
-                label_height: template.labelHeight || null,
-              })
-              .eq("organization_id", currentOrganization.id)
-              .eq("name", template.name);
-          }
-          PRINTER_PRESET_SYNC_CACHE.set(signatureKey, signature);
         }
       } catch (syncErr) {
         console.warn("Failed to sync template to printer preset:", syncErr);

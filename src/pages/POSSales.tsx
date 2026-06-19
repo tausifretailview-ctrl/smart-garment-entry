@@ -417,7 +417,8 @@ export default function POSSales() {
     }
   }, [currentOrganization?.id, flushScheduledSalesInvalidation, queryClient]);
 
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const location = useLocation();
   const { orgNavigate: orgNavigatePOS } = useOrgNavigation();
   const _savedCart = readPosCartSnapshot(currentOrganization?.id || "default");
 
@@ -644,6 +645,11 @@ export default function POSSales() {
   // Persist cart in sessionStorage — survives minimize / in-app tab switch, not app quit.
   useEffect(() => {
     const orgId = currentOrganization?.id || "default";
+    // Don't snapshot a loaded/edited invoice — only unsaved new-sale work belongs in the snapshot.
+    if (currentSaleId) {
+      clearPosCartSnapshot(orgId);
+      return;
+    }
     if (items.length === 0) {
       clearPosCartSnapshot(orgId);
       return;
@@ -657,7 +663,7 @@ export default function POSSales() {
       savedAt: Date.now(),
     };
     writePosCartSnapshot(orgId, snapshot);
-  }, [items, customerId, customerName, customerPhone, saleNotes, currentOrganization?.id]);
+  }, [items, customerId, customerName, customerPhone, saleNotes, currentOrganization?.id, currentSaleId]);
 
   // Org may load after first paint — restore in-session cart once per org (not after app quit).
   const posCartHydratedOrgRef = useRef<string | null>(null);
@@ -694,11 +700,36 @@ export default function POSSales() {
   useEffect(() => {
     const saleId = searchParams.get('saleId');
     if (saleId && currentOrganization?.id) {
-      loadSaleForEdit(saleId);
+      loadSaleForEdit(saleId).finally(() => {
+        // Strip ?saleId so reactivating the POS tab (or reloading) does not reload this invoice.
+        setSearchParams((prev) => {
+          const next = new URLSearchParams(prev);
+          next.delete('saleId');
+          return next;
+        }, { replace: true });
+      });
     }
   }, [searchParams, currentOrganization?.id]);
 
-  const location = useLocation();
+  // Auto-reset POS to a fresh new sale when the POS tab re-activates while an old invoice is still loaded.
+  // Skip when the user has unsaved edits (item list differs from originally loaded items).
+  const wasOnPosSalesRef = useRef(false);
+  useEffect(() => {
+    const isOnPosSales = location.pathname.endsWith('/pos-sales');
+    const wasOn = wasOnPosSalesRef.current;
+    wasOnPosSalesRef.current = isOnPosSales;
+    if (!isOnPosSales || wasOn) return;
+    if (searchParams.get('saleId')) return; // explicit edit URL — leave it alone
+    if (!currentSaleId) return;
+    // Detect unsaved edits relative to the originally loaded invoice.
+    const sameLength = items.length === originalItemsForEdit.length;
+    const sameContents = sameLength && items.every((it, i) => {
+      const orig = originalItemsForEdit[i];
+      return orig && orig.variantId === it.variantId && Number(orig.quantity) === Number(it.quantity);
+    });
+    if (!sameContents) return; // user has unsaved work — keep the loaded invoice
+    handleNewInvoice();
+  }, [location.pathname, searchParams, currentSaleId, items, originalItemsForEdit]);
 
   const focusBarcodeScanInput = useCallback(() => {
     if (isIOS) return;
@@ -835,6 +866,8 @@ export default function POSSales() {
   const loadSaleForEdit = async (saleId: string) => {
     isInitializingEditRef.current = true;
     hasManuallyAddedNewItemRef.current = false;
+    // Drop any unsaved-cart snapshot — we're now viewing a specific saved invoice.
+    clearPosCartSnapshot(currentOrganization?.id || "default");
     try {
       // Fetch sale data
       const { data: sale, error: saleError } = await supabase
