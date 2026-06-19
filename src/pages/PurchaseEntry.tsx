@@ -108,6 +108,30 @@ import { DuplicatePurchaseBillDialog, type ExistingDuplicateBill } from "@/compo
 import { deleteJournalEntryByReference, recordPurchaseJournalEntry } from "@/utils/accounting/journalService";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
 
+const PURCHASE_LINE_UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Persist UI row order on purchase_items.line_number (1-based). */
+async function syncPurchaseBillLineNumbers(
+  billId: string,
+  orderedItems: Array<{ temp_id: string }>,
+) {
+  const updates = orderedItems
+    .map((item, index) => ({ id: item.temp_id, line_number: index + 1 }))
+    .filter(({ id }) => PURCHASE_LINE_UUID_RE.test(id));
+  if (updates.length === 0) return;
+
+  const CHUNK = 50;
+  for (let i = 0; i < updates.length; i += CHUNK) {
+    const chunk = updates.slice(i, i + CHUNK);
+    await Promise.all(
+      chunk.map(({ id, line_number }) =>
+        supabase.from("purchase_items").update({ line_number }).eq("id", id).eq("bill_id", billId),
+      ),
+    );
+  }
+}
+
 interface PriceChange {
   sku_id: string;
   product_name: string;
@@ -4089,8 +4113,9 @@ const PurchaseEntry = () => {
 
         // 3. Find items to INSERT (new items not in original)
         const itemsToInsert = lineItems
-          .filter(item => !originalItemsMap.has(item.temp_id))
-          .map(item => ({
+          .map((item, index) => ({ item, lineNumber: index + 1 }))
+          .filter(({ item }) => !originalItemsMap.has(item.temp_id))
+          .map(({ item, lineNumber }) => ({
             bill_id: editingBillId,
             product_id: item.product_id,
             sku_id: item.sku_id,
@@ -4109,6 +4134,7 @@ const PurchaseEntry = () => {
             category: item.category || null,
             color: item.color || null,
             style: item.style || null,
+            line_number: lineNumber,
           }));
 
         let insertedNewItems: LineItem[] = [];
@@ -4122,11 +4148,11 @@ const PurchaseEntry = () => {
               .insert(chunk);
             if (insertError) throw insertError;
           }
-          
-          
-          // Map inserted items back to LineItem format for barcode printing
-          insertedNewItems = lineItems.filter(item => !originalItemsMap.has(item.temp_id));
         }
+
+        await syncPurchaseBillLineNumbers(editingBillId, lineItems);
+
+        insertedNewItems = lineItems.filter((item) => !originalItemsMap.has(item.temp_id));
 
         // Store items for barcode printing (edit mode)
         // Batch-fetch product details instead of N individual queries
@@ -4418,7 +4444,7 @@ const PurchaseEntry = () => {
           if (billError) throw billError;
           createdBillIdForRollback = legacyBill.id;
 
-          const itemsToInsert = lineItems.map((item) => ({
+          const itemsToInsert = lineItems.map((item, index) => ({
             bill_id: legacyBill.id,
             product_id: item.product_id,
             sku_id: item.sku_id,
@@ -4438,6 +4464,7 @@ const PurchaseEntry = () => {
             color: item.color || null,
             style: item.style || null,
             is_dc_item: isDcPurchase,
+            line_number: index + 1,
           }));
 
           const INSERT_CHUNK_SIZE = 100;

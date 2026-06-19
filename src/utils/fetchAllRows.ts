@@ -594,6 +594,7 @@ export async function fetchPurchaseItemsByBillId(
       .from("purchase_items")
       .select(selectFields)
       .eq("bill_id", billId)
+      .order("line_number", { ascending: true })
       .order("created_at", { ascending: true })
       .order("id", { ascending: true })
       .range(offset, offset + pageSize - 1);
