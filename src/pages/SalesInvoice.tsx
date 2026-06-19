@@ -4553,16 +4553,17 @@ Thank you for choosing us!`;
 
       {/* Hidden Invoice for Printing */}
       <div style={{ position: 'absolute', left: '-9999px', top: 0 }}>
-        <InvoiceWrapper
-          ref={printRef}
-          billNo={savedInvoiceData?.invoiceNumber || `DRAFT-${Date.now()}`}
+        {savedInvoiceData?.invoiceNumber && (savedInvoiceData?.filledItems?.length ?? 0) > 0 ? (
+          <InvoiceWrapper
+            ref={printRef}
+            billNo={savedInvoiceData.invoiceNumber}
           date={invoiceDate}
           customerName={savedInvoiceData?.customer.customer_name || selectedCustomer?.customer_name || ""}
           customerAddress={savedInvoiceData?.customer.address || selectedCustomer?.address || ""}
           customerMobile={savedInvoiceData?.customer.phone || selectedCustomer?.phone || ""}
           customerGSTIN={savedInvoiceData?.customer.gst_number || selectedCustomer?.gst_number || ""}
           customerTransportDetails={(savedInvoiceData?.customer as any)?.transport_details || (selectedCustomer as any)?.transport_details || ""}
-          items={(savedInvoiceData?.filledItems || lineItems.filter(item => item.productId)).map((item: any, index: number) => ({
+            items={(savedInvoiceData.filledItems).map((item: any, index: number) => ({
               sr: index + 1,
               particulars: item.productName,
               size: item.size,
@@ -4587,6 +4588,7 @@ Thank you for choosing us!`;
             taxType={taxType}
             financerDetails={financerDetails}
           />
+        ) : <div ref={printRef} />}
         </div>
 
       {/* Product History Dialog */}
