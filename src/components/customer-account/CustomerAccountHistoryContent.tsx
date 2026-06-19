@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, useMemo, Fragment } from "react";
+import { useState, useEffect, useCallback, useMemo, Fragment } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -15,7 +15,6 @@ import {
   Receipt,
   ChevronDown,
   ChevronRight,
-  History,
   Eye,
   Wallet,
   Scale,
@@ -37,7 +36,6 @@ import {
   filterAdvances,
   filterByDateAndSearch,
   filterCreditNotes,
-  filterLegacyInvoices,
   filterSales,
   isSaleRecordCancelled,
   type CustomerAccountTabFilters,
@@ -115,8 +113,8 @@ function TableTotalRow({
         <TableCell
           key={i}
           className={cn(
-            "tabular-nums",
-            isGrand ? "text-base font-bold text-foreground" : "text-sm font-semibold",
+            "num tabular-nums",
+            isGrand ? "text-lg font-bold text-foreground" : "text-sm font-semibold",
             cell.className,
           )}
         >
@@ -130,11 +128,67 @@ function TableTotalRow({
 
 const customerAccountTableClass = cn(accountsHistoryTableClass, "erp-desktop-table customer-account-grid");
 
+const customerTabTriggerClass =
+  "gap-1.5 rounded-none border-b-2 border-transparent text-slate-600 dark:text-slate-400 data-[state=active]:border-primary data-[state=active]:text-slate-900 dark:data-[state=active]:text-slate-100 data-[state=active]:bg-transparent data-[state=active]:font-semibold px-4 h-10 text-xs sm:text-sm font-medium whitespace-nowrap";
+
 function CustomerAccountTable({ children }: { children: React.ReactNode }) {
   return (
     <div className={accountsHistoryTableWrapClass}>
       <Table className={customerAccountTableClass}>{children}</Table>
     </div>
+  );
+}
+
+const salesTableColGroup = (
+  <colgroup>
+    <col className="w-8" />
+    <col className="w-[11rem]" />
+    <col className="w-[5.5rem]" />
+    <col className="w-[5rem]" />
+    <col className="w-[7rem]" />
+    <col className="w-[7rem]" />
+    <col className="w-[7.5rem]" />
+    <col className="w-[5.5rem]" />
+    <col className="w-[5rem]" />
+  </colgroup>
+);
+
+function CustomerAccountSalesTable({ children }: { children: React.ReactNode }) {
+  return (
+    <div className={accountsHistoryTableWrapClass}>
+      <Table className={cn(customerAccountTableClass, "table-fixed")}>
+        {salesTableColGroup}
+        {children}
+      </Table>
+    </div>
+  );
+}
+
+function SalesGrandTotalRow({
+  count,
+  amounts,
+}: {
+  count: number;
+  amounts: { amount: number; paid: number; balance: number };
+}) {
+  return (
+    <TableRow className="bg-slate-100 dark:bg-slate-800 border-t-2">
+      <TableCell className="p-2" />
+      <TableCell colSpan={3} className="text-right text-sm font-bold uppercase tracking-wide text-foreground">
+        Total ({count})
+      </TableCell>
+      <TableCell className="num text-lg font-bold text-primary">{fmtTotal(amounts.amount)}</TableCell>
+      <TableCell className="num text-lg font-bold text-emerald-700">{fmtTotal(amounts.paid)}</TableCell>
+      <TableCell
+        className={cn(
+          "num text-lg font-bold",
+          amounts.balance > 0 ? "text-amber-700" : "text-emerald-700",
+        )}
+      >
+        {fmtTotal(amounts.balance)}
+      </TableCell>
+      <TableCell colSpan={2} />
+    </TableRow>
   );
 }
 
@@ -417,10 +471,8 @@ export function CustomerAccountHistoryContent({
 }: CustomerAccountHistoryContentProps) {
   const [activeTab, setActiveTab] = useState("sales");
   const [expandedSaleId, setExpandedSaleId] = useState<string | null>(null);
-  const [selectedLegacyIndex, setSelectedLegacyIndex] = useState<number>(0);
   const [preview, setPreview] = useState<PreviewData | null>(null);
   const [tabFilters, setTabFilters] = useState<Record<string, CustomerAccountTabFilters>>({});
-  const legacyRowRefs = useRef<(HTMLTableRowElement | null)[]>([]);
 
   const filters = tabFilters[activeTab] ?? defaultCustomerAccountTabFilters();
   const patchFilters = useCallback((patch: Partial<CustomerAccountTabFilters>) => {
@@ -440,8 +492,6 @@ export function CustomerAccountHistoryContent({
     creditNotesLoading,
     saleReturns,
     returnsLoading,
-    legacyInvoices,
-    legacyLoading,
     customerAdvances,
     advancesLoading,
     balanceAdjustments,
@@ -452,7 +502,6 @@ export function CustomerAccountHistoryContent({
 
   const filteredSales = useMemo(() => filterSales(salesHistory, filters), [salesHistory, filters]);
   const filteredActiveSales = useMemo(() => filteredSales.filter((s) => !isSaleRecordCancelled(s)), [filteredSales]);
-  const filteredLegacy = useMemo(() => filterLegacyInvoices(legacyInvoices, filters), [legacyInvoices, filters]);
   const filteredPayments = useMemo(
     () => filterByDateAndSearch(paymentHistory, filters, "voucher_date", ["voucher_number", "description", "payment_method", "payment_mode"]),
     [paymentHistory, filters],
@@ -476,7 +525,6 @@ export function CustomerAccountHistoryContent({
     const salesAmount = filteredActiveSales.reduce((sum, s) => sum + Number(s.net_amount || 0), 0);
     const salesPaid = filteredActiveSales.reduce((sum, s) => sum + Number(s.paid_amount || 0), 0);
     const salesBalance = filteredActiveSales.reduce((sum, s) => sum + computeSaleBalance(s), 0);
-    const legacyAmount = filteredLegacy.reduce((sum, inv) => sum + Number(inv.amount || 0), 0);
     const paymentsAmount = filteredPayments.reduce((sum, p) => sum + Number(p.total_amount || 0), 0);
     const returnsAmount = filteredReturns.reduce((sum, r) => sum + Number(r.net_amount || 0), 0);
     const cnAmount = filteredCreditNotes.reduce((sum, cn) => sum + Number(cn.credit_amount || 0), 0);
@@ -495,7 +543,6 @@ export function CustomerAccountHistoryContent({
       salesAmount,
       salesPaid,
       salesBalance,
-      legacyAmount,
       paymentsAmount,
       returnsAmount,
       cnAmount,
@@ -510,7 +557,6 @@ export function CustomerAccountHistoryContent({
     };
   }, [
     filteredActiveSales,
-    filteredLegacy,
     filteredPayments,
     filteredReturns,
     filteredCreditNotes,
@@ -518,35 +564,6 @@ export function CustomerAccountHistoryContent({
     filteredAdvances,
     filteredAdjustments,
   ]);
-
-  // Keyboard navigation for Legacy tab
-  const handleKeyDown = useCallback((e: KeyboardEvent) => {
-    if (activeTab !== 'legacy' || !filteredLegacy || filteredLegacy.length === 0) return;
-    if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      setSelectedLegacyIndex(prev => {
-        const newIndex = Math.min(prev + 1, filteredLegacy.length - 1);
-        legacyRowRefs.current[newIndex]?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        return newIndex;
-      });
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      setSelectedLegacyIndex(prev => {
-        const newIndex = Math.max(prev - 1, 0);
-        legacyRowRefs.current[newIndex]?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        return newIndex;
-      });
-    }
-  }, [activeTab, filteredLegacy]);
-
-  useEffect(() => {
-    if (queriesEnabled && activeTab === 'legacy') {
-      window.addEventListener('keydown', handleKeyDown);
-      return () => window.removeEventListener('keydown', handleKeyDown);
-    }
-  }, [queriesEnabled, activeTab, handleKeyDown]);
-
-  useEffect(() => { setSelectedLegacyIndex(0); }, [filteredLegacy]);
 
   useEffect(() => { if (!queriesEnabled) setPreview(null); }, [queriesEnabled]);
 
@@ -597,36 +614,32 @@ export function CustomerAccountHistoryContent({
           {/* Tabs */}
           <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 overflow-hidden flex flex-col">
             <div className="overflow-x-auto -mx-1 px-1">
-              <TabsList className="inline-flex w-auto min-w-full h-10 sm:w-full bg-transparent border-b rounded-none p-0 gap-0">
-                <TabsTrigger value="sales" className="gap-1 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-3 h-10 text-xs sm:text-sm font-medium whitespace-nowrap">
+              <TabsList className="inline-flex w-auto min-w-full h-10 sm:w-full bg-transparent border-b border-slate-200 rounded-none p-0 gap-3">
+                <TabsTrigger value="sales" className={customerTabTriggerClass}>
                   <Receipt className="h-3 w-3 hidden sm:block" />
                   Sales ({salesHistory?.length || 0})
                 </TabsTrigger>
-                <TabsTrigger value="legacy" className="gap-1 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-3 h-10 text-xs sm:text-sm font-medium whitespace-nowrap">
-                  <History className="h-3 w-3 hidden sm:block" />
-                  Legacy ({legacyInvoices?.length || 0})
-                </TabsTrigger>
-                <TabsTrigger value="payments" className="gap-1 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-3 h-10 text-xs sm:text-sm font-medium whitespace-nowrap">
+                <TabsTrigger value="payments" className={customerTabTriggerClass}>
                   <IndianRupee className="h-3 w-3 hidden sm:block" />
                   Payments ({paymentHistory?.length || 0})
                 </TabsTrigger>
-                <TabsTrigger value="returns" className="gap-1 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-3 h-10 text-xs sm:text-sm font-medium whitespace-nowrap">
+                <TabsTrigger value="returns" className={customerTabTriggerClass}>
                   <RotateCcw className="h-3 w-3 hidden sm:block" />
                   Returns ({saleReturns?.length || 0})
                 </TabsTrigger>
-                <TabsTrigger value="credit-notes" className="gap-1 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-3 h-10 text-xs sm:text-sm font-medium whitespace-nowrap">
+                <TabsTrigger value="credit-notes" className={customerTabTriggerClass}>
                   <FileText className="h-3 w-3 hidden sm:block" />
                   C/Notes ({creditNotes?.length || 0})
                 </TabsTrigger>
-                <TabsTrigger value="refunds" className="gap-1 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-3 h-10 text-xs sm:text-sm font-medium whitespace-nowrap">
+                <TabsTrigger value="refunds" className={customerTabTriggerClass}>
                   <CreditCard className="h-3 w-3 hidden sm:block" />
                   Refunds ({refunds.length})
                 </TabsTrigger>
-                <TabsTrigger value="advances" className="gap-1 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-3 h-10 text-xs sm:text-sm font-medium whitespace-nowrap">
+                <TabsTrigger value="advances" className={customerTabTriggerClass}>
                   <Wallet className="h-3 w-3 hidden sm:block" />
                   Advances ({customerAdvances?.length || 0})
                 </TabsTrigger>
-                <TabsTrigger value="adjustments" className="gap-1 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-3 h-10 text-xs sm:text-sm font-medium whitespace-nowrap">
+                <TabsTrigger value="adjustments" className={customerTabTriggerClass}>
                   <Scale className="h-3 w-3 hidden sm:block" />
                   Adj ({balanceAdjustments?.length || 0})
                 </TabsTrigger>
@@ -641,7 +654,7 @@ export function CustomerAccountHistoryContent({
                 {salesLoading ? (
                   <EmptyTabMessage loading label="sales" />
                 ) : filteredSales.length > 0 ? (
-                  <CustomerAccountTable>
+                  <CustomerAccountSalesTable>
                     <TableHeader className="!static">
                       <TableRow>
                         <TableHead className={cn(accountsHistoryThClass, "w-8")} />
@@ -765,75 +778,18 @@ export function CustomerAccountHistoryContent({
                       })}
                     </TableBody>
                     <TableFooter className="border-t-2 border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-800 [&>tr]:border-0 [&>tr]:hover:bg-transparent">
-                      <TableTotalRow
-                        variant="grand"
-                        label={`Total (${filteredActiveSales.length})`}
-                        leadingColSpan={4}
-                        trailingColSpan={2}
-                        amounts={[
-                          { value: tabTotals.salesAmount, className: "text-primary" },
-                          { value: tabTotals.salesPaid, className: "text-emerald-700" },
-                          { value: tabTotals.salesBalance, className: tabTotals.salesBalance > 0 ? "text-amber-700" : "text-emerald-700" },
-                        ]}
+                      <SalesGrandTotalRow
+                        count={filteredActiveSales.length}
+                        amounts={{
+                          amount: tabTotals.salesAmount,
+                          paid: tabTotals.salesPaid,
+                          balance: tabTotals.salesBalance,
+                        }}
                       />
                     </TableFooter>
-                  </CustomerAccountTable>
+                  </CustomerAccountSalesTable>
                 ) : (
                   <EmptyTabMessage hasRaw={!!salesHistory?.length} label="sales" />
-                )}
-              </TabsContent>
-
-              {/* Legacy Invoices Tab */}
-              <TabsContent value="legacy" className="mt-0">
-                {legacyLoading ? (
-                  <EmptyTabMessage loading label="legacy invoices" />
-                ) : filteredLegacy.length > 0 ? (
-                  <>
-                    {legacyInvoices?.[0]?.source && (
-                      <div className="mb-2 px-3 pt-2">
-                        <p className="text-xs text-muted-foreground">
-                          Legacy data from: <span className="font-medium">{legacyInvoices[0].source}</span>
-                        </p>
-                      </div>
-                    )}
-                    <CustomerAccountTable>
-                      <TableHeader className="!static">
-                        <TableRow>
-                          <TableHead className={accountsHistoryThClass}>Invoice No</TableHead>
-                          <TableHead className={accountsHistoryThClass}>Date</TableHead>
-                          <TableHead className={cn(accountsHistoryThClass, "num")}>Amount</TableHead>
-                          <TableHead className={accountsHistoryThClass}>Status</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {filteredLegacy.map((inv, index) => (
-                          <TableRow
-                            key={inv.id}
-                            ref={(el) => { legacyRowRefs.current[index] = el; }}
-                            className={cn("cursor-pointer", selectedLegacyIndex === index && "selected")}
-                            onClick={() => setSelectedLegacyIndex(index)}
-                          >
-                            <TableCell className="font-mono text-primary">{inv.invoice_number}</TableCell>
-                            <TableCell>{format(new Date(inv.invoice_date), 'dd/MM/yyyy')}</TableCell>
-                            <TableCell className="num font-semibold">₹{(inv.amount || 0).toFixed(2)}</TableCell>
-                            <TableCell>
-                              <Badge variant={inv.payment_status === 'Paid' ? 'default' : 'secondary'}>{inv.payment_status}</Badge>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                      <TableFooter className="border-t-2 border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-800 [&>tr]:border-0 [&>tr]:hover:bg-transparent">
-                        <TableTotalRow
-                          label={`Total (${filteredLegacy.length})`}
-                          leadingColSpan={2}
-                          trailingColSpan={1}
-                          amounts={[{ value: tabTotals.legacyAmount }]}
-                        />
-                      </TableFooter>
-                    </CustomerAccountTable>
-                  </>
-                ) : (
-                  <EmptyTabMessage hasRaw={!!legacyInvoices?.length} label="legacy invoices" />
                 )}
               </TabsContent>
 

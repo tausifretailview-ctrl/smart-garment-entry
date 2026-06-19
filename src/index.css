@@ -1877,6 +1877,16 @@ input.no-uppercase {
   vertical-align: middle;
 }
 
+.customer-account-page .customer-account-grid tfoot td.num {
+  font-size: 16px;
+  font-weight: 700;
+  height: 36px;
+}
+
+.customer-account-page .customer-account-grid tfoot td {
+  vertical-align: middle;
+}
+
 /* Stock report — compact chrome, prominent product rows */
 .stock-report-page table tbody td {
   vertical-align: middle;
