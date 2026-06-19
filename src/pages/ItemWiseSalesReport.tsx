@@ -15,7 +15,6 @@ import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, Table
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
 import { format, startOfDay, endOfDay, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear } from "date-fns";
 import { CalendarIcon, Search, Package, IndianRupee, TrendingUp, Printer, FileSpreadsheet, FileText, Filter, X } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -47,17 +46,6 @@ interface FilterOptions {
   colors: string[];
   users: string[];
 }
-
-const CHART_COLORS = [
-  "hsl(var(--primary))",
-  "hsl(var(--secondary))",
-  "hsl(210, 70%, 50%)",
-  "hsl(150, 60%, 45%)",
-  "hsl(45, 90%, 55%)",
-  "hsl(280, 65%, 55%)",
-  "hsl(0, 70%, 55%)",
-  "hsl(180, 60%, 45%)",
-];
 
 const SALES_TABLE_SCROLL = "flex-1 min-h-0 overflow-auto overscroll-contain min-w-0";
 const SALES_PRODUCT_CELL =
@@ -611,28 +599,6 @@ export default function ItemWiseSalesReport() {
     };
   }, [rpcSummary, filteredData, hasClientFilters]);
 
-  // Chart data - Top 10 products
-  const topProductsData = useMemo(() => {
-    return filteredData.slice(0, 10).map((item) => ({
-      name: item.product_name.length > 15 ? item.product_name.substring(0, 15) + "..." : item.product_name,
-      qty: item.total_qty,
-      amount: item.total_amount,
-    }));
-  }, [filteredData]);
-
-  // Category distribution
-  const categoryData = useMemo(() => {
-    const categoryMap = new Map<string, number>();
-    filteredData.forEach((item) => {
-      const category = item.category || "Uncategorized";
-      categoryMap.set(category, (categoryMap.get(category) || 0) + item.total_amount);
-    });
-    return Array.from(categoryMap.entries())
-      .map(([name, value]) => ({ name, value }))
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 8);
-  }, [filteredData]);
-
   // Export to Excel
   const exportToExcel = () => {
     if (activeTab === "customerwise") {
@@ -732,96 +698,35 @@ export default function ItemWiseSalesReport() {
     [summary],
   );
 
-  const itemWiseCharts = (
-    <div className="grid md:grid-cols-2 gap-2 shrink-0 print:hidden">
-      <Card className="rounded-lg border border-slate-200 shadow-sm">
-        <CardHeader className="py-2 px-3">
-          <CardTitle className="text-sm font-semibold">Top 10 Products by Quantity</CardTitle>
-        </CardHeader>
-        <CardContent className="pb-3 px-3">
-          <div className="h-[220px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={topProductsData} layout="vertical">
-                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                <XAxis type="number" className="text-xs" />
-                <YAxis dataKey="name" type="category" width={120} className="text-xs" />
-                <Tooltip
-                  contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }}
-                  formatter={(value: number) => [value.toLocaleString(), "Qty"]}
-                />
-                <Bar dataKey="qty" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card className="rounded-lg border border-slate-200 shadow-sm">
-        <CardHeader className="py-2 px-3">
-          <CardTitle className="text-sm font-semibold">Sales by Category</CardTitle>
-        </CardHeader>
-        <CardContent className="pb-3 px-3">
-          <div className="h-[220px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={categoryData}
-                  cx="50%"
-                  cy="50%"
-                  labelLine={false}
-                  outerRadius={80}
-                  fill="#8884d8"
-                  dataKey="value"
-                  label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
-                >
-                  {categoryData.map((_, index) => (
-                    <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip
-                  contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }}
-                  formatter={(value: number) => [`₹${value.toLocaleString()}`, "Amount"]}
-                />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
-  );
-
   return (
-    <div className="item-wise-sales-report flex flex-col h-[calc(100vh-4.5rem)] min-h-0 bg-slate-50 px-1.5 sm:px-2 py-1 overflow-hidden print:min-h-screen print:h-auto print:overflow-visible print:p-4">
-      <div className="w-full min-w-0 flex flex-col flex-1 min-h-0 space-y-1 print:space-y-2">
-      <div className="print:hidden shrink-0">
+    <div className="item-wise-sales-report flex flex-col h-[calc(100vh-3.25rem)] min-h-0 bg-slate-50 px-1 sm:px-1.5 py-0.5 overflow-hidden print:min-h-screen print:h-auto print:overflow-visible print:p-4">
+      <div className="w-full min-w-0 flex flex-col flex-1 min-h-0 gap-0.5 print:gap-2">
+      <div className="print:hidden shrink-0 flex flex-wrap items-center gap-1.5 [&_button]:mb-0">
         <BackToDashboard />
-      </div>
-
-      <div className="flex flex-wrap items-center justify-between gap-1 shrink-0 print:hidden">
-        <h1 className="text-lg font-bold text-blue-600 tracking-tight leading-none">Item-wise Sales Report</h1>
-        <div className="flex items-center gap-1.5">
-          <Button variant="outline" className="h-8 text-sm border-slate-300 text-slate-600 gap-1.5 px-2.5" onClick={handlePrint}>
-            <Printer className="h-3.5 w-3.5" />
+        <h1 className="text-base font-bold text-blue-600 tracking-tight leading-none">Item-wise Sales Report</h1>
+        <div className="flex items-center gap-1 ml-auto">
+          <Button variant="outline" className="h-7 text-xs border-slate-300 text-slate-600 gap-1 px-2" onClick={handlePrint}>
+            <Printer className="h-3 w-3" />
             Print
           </Button>
-          <Button variant="outline" className="h-8 text-sm border-slate-300 text-slate-600 gap-1.5 px-2.5" onClick={exportToExcel}>
-            <FileSpreadsheet className="h-3.5 w-3.5" />
+          <Button variant="outline" className="h-7 text-xs border-slate-300 text-slate-600 gap-1 px-2" onClick={exportToExcel}>
+            <FileSpreadsheet className="h-3 w-3" />
             Excel
           </Button>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-1.5 shrink-0 print:hidden">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-1 shrink-0 print:hidden">
         {salesKpiItems.map((item) => (
-          <div key={item.label} className={cn("rounded-lg px-2 py-1.5 min-w-0 shadow-sm", item.gradient)}>
-            <p className="text-[10px] font-medium text-white/80 leading-none truncate">{item.label}</p>
-            <p className="text-base font-black text-white tabular-nums leading-tight truncate mt-0.5">{item.value}</p>
+          <div key={item.label} className={cn("rounded-md px-1.5 py-1 min-w-0 shadow-sm", item.gradient)}>
+            <p className="text-[9px] font-medium text-white/80 leading-none truncate">{item.label}</p>
+            <p className="text-sm font-black text-white tabular-nums leading-tight truncate">{item.value}</p>
           </div>
         ))}
       </div>
 
       <Card className="rounded-lg border border-slate-200 shadow-sm shrink-0 print:hidden">
-        <CardContent className="p-1.5 space-y-1">
+        <CardContent className="p-1 space-y-0.5">
             <div className="grid grid-cols-1 md:grid-cols-12 gap-1.5 items-end">
               <div className="md:col-span-2 space-y-0.5">
                 <label className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Period</label>
@@ -971,18 +876,18 @@ export default function ItemWiseSalesReport() {
         </CardContent>
       </Card>
 
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "itemwise" | "customerwise" | "brandwise" | "saledetails")} className="flex-1 min-h-0 flex flex-col">
-        <TabsList className="h-8 bg-slate-100 p-0.5 rounded-md shrink-0 w-fit">
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "itemwise" | "customerwise" | "brandwise" | "saledetails")} className="flex-1 min-h-0 flex flex-col mt-0">
+        <TabsList className="h-7 bg-slate-100 p-0.5 rounded-md shrink-0 w-fit">
           <TabsTrigger value="itemwise" className="rounded text-xs font-semibold px-2.5 data-[state=active]:bg-white data-[state=active]:text-blue-700">Item-wise</TabsTrigger>
           <TabsTrigger value="customerwise" className="rounded text-xs font-semibold px-2.5 data-[state=active]:bg-white data-[state=active]:text-blue-700">Customer-wise</TabsTrigger>
           <TabsTrigger value="brandwise" className="rounded text-xs font-semibold px-2.5 data-[state=active]:bg-white data-[state=active]:text-blue-700">Brand-wise</TabsTrigger>
           <TabsTrigger value="saledetails" className="rounded text-xs font-semibold px-2.5 data-[state=active]:bg-white data-[state=active]:text-blue-700">Sale Details</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="itemwise" className="mt-1 flex-1 min-h-0 flex flex-col gap-1 focus-visible:outline-none data-[state=inactive]:hidden">
+        <TabsContent value="itemwise" className="mt-0.5 flex-1 min-h-0 flex flex-col focus-visible:outline-none data-[state=inactive]:hidden">
           <Card className="rounded-lg border border-slate-200 shadow-sm flex-1 min-h-0 flex flex-col overflow-hidden">
-            <CardHeader className="py-1.5 px-2 shrink-0">
-              <CardTitle className="text-sm font-semibold">Item-wise Details ({filteredData.length} items)</CardTitle>
+            <CardHeader className="py-1 px-2 shrink-0">
+              <CardTitle className="text-xs font-semibold">Item-wise Details ({filteredData.length} items)</CardTitle>
             </CardHeader>
             <CardContent className="p-0 flex-1 min-h-0 flex flex-col">
               <div className={SALES_TABLE_SCROLL}>
@@ -1069,7 +974,6 @@ export default function ItemWiseSalesReport() {
               </div>
             </CardContent>
           </Card>
-          {itemWiseCharts}
         </TabsContent>
 
         <TabsContent value="customerwise" className="mt-1 flex-1 min-h-0 flex flex-col focus-visible:outline-none data-[state=inactive]:hidden">
