@@ -34,7 +34,7 @@ import { format, startOfMonth, endOfMonth } from "date-fns";
 import { Search, Plus, Calendar as CalendarIcon, FileText, Trash2, ArrowRight, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
-import { CustomerHistoryDialog } from "@/components/CustomerHistoryDialog";
+import { useOpenCustomerAccount } from "@/hooks/useOpenCustomerAccount";
 import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
 import { restoreDashboardFilters } from "@/lib/dashboardFilterPersistence";
 
@@ -80,9 +80,7 @@ export default function DeliveryChallanDashboard() {
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [convertConfirm, setConvertConfirm] = useState<any | null>(null);
   const [isConverting, setIsConverting] = useState(false);
-  const [showCustomerHistory, setShowCustomerHistory] = useState(false);
-  const [selectedCustomerForHistory, setSelectedCustomerForHistory] = useState<{id: string | null; name: string} | null>(null);
-
+  const openCustomerAccount = useOpenCustomerAccount();
   // Centralized cached settings (5 min) — used during DC → Invoice conversion
   const { data: orgSettings } = useSettings();
 
@@ -384,8 +382,7 @@ export default function DeliveryChallanDashboard() {
                           className="text-primary hover:underline cursor-pointer bg-transparent border-none p-0 font-inherit text-left"
                           onClick={(e) => {
                             e.stopPropagation();
-                            setSelectedCustomerForHistory({ id: challan.customer_id, name: challan.customer_name });
-                            setShowCustomerHistory(true);
+                            openCustomerAccount(challan.customer_id, challan.customer_name);
                           }}
                         >
                           {challan.customer_name}
@@ -456,13 +453,6 @@ export default function DeliveryChallanDashboard() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <CustomerHistoryDialog
-        open={showCustomerHistory}
-        onOpenChange={setShowCustomerHistory}
-        customerId={selectedCustomerForHistory?.id || null}
-        customerName={selectedCustomerForHistory?.name || ''}
-        organizationId={currentOrganization?.id || ''}
-      />
     </div>
   );
 }

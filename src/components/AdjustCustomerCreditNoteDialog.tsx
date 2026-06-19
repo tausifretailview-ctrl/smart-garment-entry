@@ -14,7 +14,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { format } from "date-fns";
 import { Loader2, IndianRupee } from "lucide-react";
-import { CustomerHistoryDialog } from "@/components/CustomerHistoryDialog";
+import { useOpenCustomerAccount } from "@/hooks/useOpenCustomerAccount";
 import {
   recordCustomerCreditNoteApplicationJournalEntry,
 } from "@/utils/accounting/journalService";
@@ -69,7 +69,7 @@ export function AdjustCustomerCreditNoteDialog({
   const [adjustmentType, setAdjustmentType] = useState<"invoice" | "refund">("invoice");
   const [refundMode, setRefundMode] = useState<"cash" | "bank">("cash");
   const [loading, setLoading] = useState(false);
-  const [showCustomerHistory, setShowCustomerHistory] = useState(false);
+  const openCustomerAccount = useOpenCustomerAccount();
   /** Rupee amount allocated per sale id */
   const [allocations, setAllocations] = useState<Record<string, number>>({});
   const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
@@ -535,7 +535,7 @@ export function AdjustCustomerCreditNoteDialog({
             <button
               type="button"
               className="text-primary hover:underline cursor-pointer bg-transparent border-none p-0 font-bold"
-              onClick={() => setShowCustomerHistory(true)}
+              onClick={() => openCustomerAccount(customerId, customerName)}
             >
               {customerName}
             </button>
@@ -703,15 +703,6 @@ export function AdjustCustomerCreditNoteDialog({
           </Button>
         </DialogFooter>
 
-        {customerId && (
-          <CustomerHistoryDialog
-            open={showCustomerHistory}
-            onOpenChange={setShowCustomerHistory}
-            customerId={customerId}
-            customerName={customerName}
-            organizationId={currentOrganization?.id || ""}
-          />
-        )}
       </DialogContent>
     </Dialog>
   );

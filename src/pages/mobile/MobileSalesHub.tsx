@@ -13,7 +13,7 @@ import { MobileModuleNavStrip } from "@/components/mobile/MobileModuleNavStrip";
 import { MobileDateFilterChips } from "@/components/mobile/MobileDateFilterChips";
 import { MOBILE_HOME_SALE_TYPES, mobileSalesDateBounds } from "@/lib/mobileShell";
 import { formatTimestampIST } from "@/lib/localDayBounds";
-import { CustomerHistoryDialog } from "@/components/CustomerHistoryDialog";
+import { useOpenCustomerAccount } from "@/hooks/useOpenCustomerAccount";
 import { InvoiceWrapper } from "@/components/InvoiceWrapper";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -37,10 +37,7 @@ export default function MobileSalesHub() {
   const [period, setPeriod] = useState("today");
   const [search, setSearch] = useState("");
 
-  // Customer history dialog state
-  const [showCustomerHistory, setShowCustomerHistory] = useState(false);
-  const [selectedCustomer, setSelectedCustomer] = useState<{ id: string | null; name: string }>({ id: null, name: "" });
-
+  const openCustomerAccount = useOpenCustomerAccount();
   // PDF generation state
   const [invoiceToPrint, setInvoiceToPrint] = useState<any>(null);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState<string | null>(null);
@@ -143,8 +140,7 @@ export default function MobileSalesHub() {
 
   const handleCustomerClick = (sale: any) => {
     if (sale.customer_name && sale.customer_name !== 'Walk-in') {
-      setSelectedCustomer({ id: sale.customer_id || null, name: sale.customer_name });
-      setShowCustomerHistory(true);
+      openCustomerAccount(sale.customer_id, sale.customer_name);
     }
   };
 
@@ -506,15 +502,6 @@ export default function MobileSalesHub() {
           <ChevronRight className="h-4 w-4 text-muted-foreground" />
         </button>
       </div>
-
-      {/* Customer History Dialog */}
-      <CustomerHistoryDialog
-        open={showCustomerHistory}
-        onOpenChange={setShowCustomerHistory}
-        customerId={selectedCustomer.id}
-        customerName={selectedCustomer.name}
-        organizationId={currentOrganization?.id || ''}
-      />
 
       {/* Hidden Invoice for PDF Generation */}
       {invoiceToPrint && (

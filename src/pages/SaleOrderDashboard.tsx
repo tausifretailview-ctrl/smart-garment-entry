@@ -48,7 +48,7 @@ import { useSoftDelete } from "@/hooks/useSoftDelete";
 import { Check, FileText, X } from "lucide-react";
 import { useDraftSave } from "@/hooks/useDraftSave";
 import { formatDistanceToNow } from "date-fns";
-import { CustomerHistoryDialog } from "@/components/CustomerHistoryDialog";
+import { useOpenCustomerAccount } from "@/hooks/useOpenCustomerAccount";
 import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
 import { restoreDashboardFilters } from "@/lib/dashboardFilterPersistence";
 
@@ -133,8 +133,7 @@ export default function SaleOrderDashboard() {
   
   // Draft save hook
   const { hasDraft, draftData, deleteDraft, lastSaved } = useDraftSave('sale_order');
-  const [showCustomerHistory, setShowCustomerHistory] = useState(false);
-  const [selectedCustomerForHistory, setSelectedCustomerForHistory] = useState<{id: string | null; name: string} | null>(null);
+  const openCustomerAccount = useOpenCustomerAccount();
 
   const calculateLineTotal = (item: ConversionItem, taxType: string) => {
     const gross = (item.unit_price || 0) * (item.convert_qty || 0);
@@ -778,8 +777,7 @@ export default function SaleOrderDashboard() {
                               className="text-primary hover:underline cursor-pointer bg-transparent border-none p-0 font-inherit text-left"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                setSelectedCustomerForHistory({ id: order.customer_id, name: order.customer_name });
-                                setShowCustomerHistory(true);
+                                openCustomerAccount(order.customer_id, order.customer_name);
                               }}
                             >
                               {order.customer_name}
@@ -1049,13 +1047,6 @@ export default function SaleOrderDashboard() {
         />
       )}
 
-      <CustomerHistoryDialog
-        open={showCustomerHistory}
-        onOpenChange={setShowCustomerHistory}
-        customerId={selectedCustomerForHistory?.id || null}
-        customerName={selectedCustomerForHistory?.name || ''}
-        organizationId={currentOrganization?.id || ''}
-      />
     </div>
   );
 }

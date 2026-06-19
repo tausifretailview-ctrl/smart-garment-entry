@@ -33,7 +33,7 @@ import { SaleReturnPrint } from "@/components/SaleReturnPrint";
 import { SaleReturnThermalPrint } from "@/components/SaleReturnThermalPrint";
 import { useSoftDelete } from "@/hooks/useSoftDelete";
 import { AdjustCustomerCreditNoteDialog } from "@/components/AdjustCustomerCreditNoteDialog";
-import { CustomerHistoryDialog } from "@/components/CustomerHistoryDialog";
+import { useOpenCustomerAccount } from "@/hooks/useOpenCustomerAccount";
 import { CreditNoteHistoryDialog } from "@/components/CreditNoteHistoryDialog";
 import { format } from "date-fns";
 import * as XLSX from "xlsx";
@@ -223,8 +223,7 @@ export default function SaleReturnDashboard() {
   const [refundMode, setRefundMode] = useState<"cash" | "upi" | "card">("cash");
   const [refundNote, setRefundNote] = useState("");
   const [isProcessingRefund, setIsProcessingRefund] = useState(false);
-  const [showCustomerHistory, setShowCustomerHistory] = useState(false);
-  const [selectedCustomerForHistory, setSelectedCustomerForHistory] = useState<{id: string | null; name: string} | null>(null);
+  const openCustomerAccount = useOpenCustomerAccount();
   const [showCnHistory, setShowCnHistory] = useState(false);
   const [selectedCnForHistory, setSelectedCnForHistory] = useState<{
     creditNoteId: string | null;
@@ -798,14 +797,6 @@ export default function SaleReturnDashboard() {
           )}
         </div>
 
-        <CustomerHistoryDialog
-          open={showCustomerHistory}
-          onOpenChange={setShowCustomerHistory}
-          customerId={selectedCustomerForHistory?.id || null}
-          customerName={selectedCustomerForHistory?.name || ""}
-          organizationId={currentOrganization?.id || ""}
-        />
-
         <CreditNoteHistoryDialog
           open={showCnHistory}
           onOpenChange={setShowCnHistory}
@@ -1029,8 +1020,7 @@ export default function SaleReturnDashboard() {
                         className="text-primary font-medium"
                         onClick={(e) => {
                           e.stopPropagation();
-                          setSelectedCustomerForHistory({ id: ret.customer_id, name: ret.customer_name });
-                          setShowCustomerHistory(true);
+                          openCustomerAccount(ret.customer_id, ret.customer_name);
                         }}
                       >
                         {ret.customer_name}
@@ -1438,8 +1428,7 @@ export default function SaleReturnDashboard() {
                               title={ret.customer_name?.toUpperCase()}
                               onClick={(e) => {
                                 e.stopPropagation();
-                                setSelectedCustomerForHistory({ id: ret.customer_id, name: ret.customer_name });
-                                setShowCustomerHistory(true);
+                                openCustomerAccount(ret.customer_id, ret.customer_name);
                               }}
                             >
                               {ret.customer_name?.toUpperCase()}

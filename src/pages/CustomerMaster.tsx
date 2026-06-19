@@ -70,7 +70,7 @@ import { ExcelImportDialog, ImportProgress } from "@/components/ExcelImportDialo
 import { customerMasterFields, customerMasterSampleData, normalizePhoneNumber } from "@/utils/excelImportUtils";
 import { Checkbox } from "@/components/ui/checkbox";
 import { LegacyInvoiceImportDialog } from "@/components/LegacyInvoiceImportDialog";
-import { CustomerHistoryDialog } from "@/components/CustomerHistoryDialog";
+import { useOpenCustomerAccount } from "@/hooks/useOpenCustomerAccount";
 import { RelinkLegacyInvoicesDialog } from "@/components/RelinkLegacyInvoicesDialog";
 import { UpdateLegacyPhonesDialog } from "@/components/UpdateLegacyPhonesDialog";
 import { BrandDiscountDialog } from "@/components/BrandDiscountDialog";
@@ -148,8 +148,7 @@ const CustomerMaster = () => {
   const [showBalanceImport, setShowBalanceImport] = useState(false);
   const [selectedCustomers, setSelectedCustomers] = useState<Set<string>>(new Set());
   const [currentPage, setCurrentPage] = useState(1);
-  const [showCustomerHistory, setShowCustomerHistory] = useState(false);
-  const [selectedCustomerForHistory, setSelectedCustomerForHistory] = useState<{ id: string; name: string } | null>(null);
+  const openCustomerAccount = useOpenCustomerAccount();
   const [showRelinkDialog, setShowRelinkDialog] = useState(false);
   const [showBrandDiscountDialog, setShowBrandDiscountDialog] = useState(false);
   const [selectedCustomerForBrandDiscount, setSelectedCustomerForBrandDiscount] = useState<{ id: string; name: string } | null>(null);
@@ -166,8 +165,7 @@ const CustomerMaster = () => {
         label: "View Ledger",
         icon: Eye,
         onClick: () => {
-          setSelectedCustomerForHistory({ id: customer.id, name: customer.customer_name });
-          setShowCustomerHistory(true);
+          openCustomerAccount(customer.id, customer.customer_name);
         },
       },
       {
@@ -795,8 +793,7 @@ const CustomerMaster = () => {
           className="font-semibold text-primary cursor-pointer hover:underline"
           onClick={(e) => {
             e.stopPropagation();
-            setSelectedCustomerForHistory({ id: row.original.id, name: row.original.customer_name });
-            setShowCustomerHistory(true);
+            openCustomerAccount(row.original.id, row.original.customer_name);
           }}
         >
           {row.original.customer_name?.toUpperCase()}
@@ -1075,8 +1072,7 @@ const CustomerMaster = () => {
                     </button>
                     <button
                       onClick={() => {
-                        setSelectedCustomerForHistory({ id: c.id, name: c.customer_name });
-                        setShowCustomerHistory(true);
+                        openCustomerAccount(c.id, c.customer_name);
                       }}
                       className="w-8 h-8 bg-primary/10 rounded-lg flex items-center justify-center active:scale-90 touch-manipulation"
                     >
@@ -1128,7 +1124,6 @@ const CustomerMaster = () => {
 
         <ExcelImportDialog open={showExcelImport} onClose={() => setShowExcelImport(false)} targetFields={customerMasterFields} onImport={handleExcelImport} sampleData={customerMasterSampleData} sampleFileName="Customer_Master_Sample.xlsx" title="Import Customers" />
         {currentOrganization?.id && <LegacyInvoiceImportDialog open={showLegacyImport} onOpenChange={setShowLegacyImport} organizationId={currentOrganization.id} />}
-        <CustomerHistoryDialog open={showCustomerHistory} onOpenChange={setShowCustomerHistory} customerId={selectedCustomerForHistory?.id || null} customerName={selectedCustomerForHistory?.name || ''} organizationId={currentOrganization?.id || ''} />
         <RelinkLegacyInvoicesDialog open={showRelinkDialog} onOpenChange={setShowRelinkDialog} />
         <UpdateLegacyPhonesDialog open={showUpdatePhonesDialog} onOpenChange={setShowUpdatePhonesDialog} />
         <BrandDiscountDialog open={showBrandDiscountDialog} onOpenChange={setShowBrandDiscountDialog} customer={selectedCustomerForBrandDiscount} />
@@ -1409,14 +1404,6 @@ const CustomerMaster = () => {
       {currentOrganization?.id && (
         <LegacyInvoiceImportDialog open={showLegacyImport} onOpenChange={setShowLegacyImport} organizationId={currentOrganization.id} />
       )}
-
-      <CustomerHistoryDialog
-        open={showCustomerHistory}
-        onOpenChange={setShowCustomerHistory}
-        customerId={selectedCustomerForHistory?.id || null}
-        customerName={selectedCustomerForHistory?.name || ''}
-        organizationId={currentOrganization?.id || ''}
-      />
 
       <RelinkLegacyInvoicesDialog open={showRelinkDialog} onOpenChange={setShowRelinkDialog} />
       <UpdateLegacyPhonesDialog open={showUpdatePhonesDialog} onOpenChange={setShowUpdatePhonesDialog} />

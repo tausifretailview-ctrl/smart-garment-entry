@@ -35,7 +35,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useSoftDelete } from "@/hooks/useSoftDelete";
-import { CustomerHistoryDialog } from "@/components/CustomerHistoryDialog";
+import { useOpenCustomerAccount } from "@/hooks/useOpenCustomerAccount";
 import { useAuth } from "@/contexts/AuthContext";
 
 export default function QuotationDashboard() {
@@ -89,8 +89,7 @@ export default function QuotationDashboard() {
     },
   );
 
-  const [showCustomerHistory, setShowCustomerHistory] = useState(false);
-  const [selectedCustomerForHistory, setSelectedCustomerForHistory] = useState<{id: string | null; name: string} | null>(null);
+  const openCustomerAccount = useOpenCustomerAccount();
   const { user } = useAuth();
 
   // Check for unsaved draft
@@ -517,8 +516,7 @@ export default function QuotationDashboard() {
                           className="text-primary hover:underline cursor-pointer bg-transparent border-none p-0 font-inherit text-left"
                           onClick={(e) => {
                             e.stopPropagation();
-                            setSelectedCustomerForHistory({ id: quotation.customer_id, name: quotation.customer_name });
-                            setShowCustomerHistory(true);
+                            openCustomerAccount(quotation.customer_id, quotation.customer_name);
                           }}
                         >
                           {quotation.customer_name}
@@ -635,13 +633,6 @@ export default function QuotationDashboard() {
         />
       )}
 
-      <CustomerHistoryDialog
-        open={showCustomerHistory}
-        onOpenChange={setShowCustomerHistory}
-        customerId={selectedCustomerForHistory?.id || null}
-        customerName={selectedCustomerForHistory?.name || ''}
-        organizationId={currentOrganization?.id || ''}
-      />
     </div>
   );
 }

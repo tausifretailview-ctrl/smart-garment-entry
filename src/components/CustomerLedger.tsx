@@ -31,7 +31,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { CustomerHistoryDialog } from "@/components/CustomerHistoryDialog";
+import { useOpenCustomerAccount } from "@/hooks/useOpenCustomerAccount";
 import { useCustomerBalance } from "@/hooks/useCustomerBalance";
 import { useCustomerFinancialSnapshot } from "@/hooks/useCustomerFinancialSnapshot";
 import {
@@ -320,8 +320,7 @@ export function CustomerLedger({
   const isMobile = useIsMobile();
   const { sendWhatsApp } = useWhatsAppSend();
   const { isSchool } = useSchoolFeatures();
-  const [showCustomerHistory, setShowCustomerHistory] = useState(false);
-  const [customerForHistory, setCustomerForHistory] = useState<{ id: string; name: string } | null>(null);
+  const openCustomerAccount = useOpenCustomerAccount();
   const [showOverpaymentRefundDialog, setShowOverpaymentRefundDialog] = useState(false);
   const [overpaymentRefundAmount, setOverpaymentRefundAmount] = useState('');
   const [overpaymentRefundMode, setOverpaymentRefundMode] = useState('cash');
@@ -390,8 +389,7 @@ export function CustomerLedger({
   }, [selectedAcademicYearId, academicYears, isSchool]);
 
   const openHistory = (id: string, name: string) => {
-    setCustomerForHistory({ id, name });
-    setShowCustomerHistory(true);
+    openCustomerAccount(id, name);
   };
 
 
@@ -5398,15 +5396,6 @@ Please clear your dues at the earliest. Thank you!`;
             </TooltipProvider>
           </CardContent>
         </Card>
-        {customerForHistory && (
-          <CustomerHistoryDialog
-            open={showCustomerHistory}
-            onOpenChange={setShowCustomerHistory}
-            customerId={customerForHistory.id}
-            customerName={customerForHistory.name}
-            organizationId={organizationId}
-          />
-        )}
       </div>
       {overpaymentRefundDialog}
       </>
@@ -5888,15 +5877,6 @@ Please clear your dues at the earliest. Thank you!`;
           )}
         </div>
       </div>
-      {customerForHistory && (
-        <CustomerHistoryDialog
-          open={showCustomerHistory}
-          onOpenChange={setShowCustomerHistory}
-          customerId={customerForHistory.id}
-          customerName={customerForHistory.name}
-          organizationId={organizationId}
-        />
-      )}
       {overpaymentRefundDialog}
     </div>
     </>

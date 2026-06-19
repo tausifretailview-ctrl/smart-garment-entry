@@ -50,7 +50,7 @@ import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersist
 import { restoreDashboardFilters } from "@/lib/dashboardFilterPersistence";
 import { useDashboardColumnSettings } from "@/hooks/useDashboardColumnSettings";
 import { PaymentLinkDialog } from "@/components/PaymentLinkDialog";
-import { CustomerHistoryDialog } from "@/components/CustomerHistoryDialog";
+import { useOpenCustomerAccount } from "@/hooks/useOpenCustomerAccount";
 import { whatsappPaymentReceiptDiscountLines } from "@/utils/paymentReceiptWhatsApp";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { MobilePageHeader } from "@/components/mobile/MobilePageHeader";
@@ -219,9 +219,7 @@ export default function PaymentsDashboard() {
   // Payment link dialog state
   const [showPaymentLinkDialog, setShowPaymentLinkDialog] = useState(false);
   const [paymentLinkInvoice, setPaymentLinkInvoice] = useState<Invoice | null>(null);
-  const [showCustomerHistory, setShowCustomerHistory] = useState(false);
-  const [selectedCustomerForHistory, setSelectedCustomerForHistory] = useState<{id: string | null; name: string} | null>(null);
-
+  const openCustomerAccount = useOpenCustomerAccount();
   const receiptRef = useRef<HTMLDivElement>(null);
 
   const { columnSettings, updateColumnSetting } = useDashboardColumnSettings(
@@ -858,13 +856,6 @@ Thank you for your business!`;
         />
       )}
 
-      <CustomerHistoryDialog
-        open={showCustomerHistory}
-        onOpenChange={setShowCustomerHistory}
-        customerId={selectedCustomerForHistory?.id || null}
-        customerName={selectedCustomerForHistory?.name || ''}
-        organizationId={currentOrganization?.id || ''}
-      />
     </>
   );
 
@@ -958,8 +949,7 @@ Thank you for your business!`;
                           className="text-primary font-medium"
                           onClick={(e) => {
                             e.stopPropagation();
-                            setSelectedCustomerForHistory({ id: invoice.customer_id, name: invoice.customer_name });
-                            setShowCustomerHistory(true);
+                            openCustomerAccount(invoice.customer_id, invoice.customer_name);
                           }}
                         >
                           {invoice.customer_name}
@@ -1326,8 +1316,7 @@ Thank you for your business!`;
                                   className="text-primary hover:underline cursor-pointer bg-transparent border-none p-0 font-medium text-left"
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    setSelectedCustomerForHistory({ id: invoice.customer_id, name: invoice.customer_name });
-                                    setShowCustomerHistory(true);
+                                    openCustomerAccount(invoice.customer_id, invoice.customer_name);
                                   }}
                                 >
                                   {invoice.customer_name}

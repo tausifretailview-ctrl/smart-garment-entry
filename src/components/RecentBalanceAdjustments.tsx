@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { CustomerHistoryDialog } from "@/components/CustomerHistoryDialog";
+import { useOpenCustomerAccount } from "@/hooks/useOpenCustomerAccount";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { AccountsHistoryPanel } from "@/components/accounts/AccountsHistoryPanel";
@@ -88,8 +88,7 @@ export function RecentBalanceAdjustments({ organizationId }: Props) {
   const [editNewOutstanding, setEditNewOutstanding] = useState("");
   const [editNewAdvance, setEditNewAdvance] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
-  const [customerForHistory, setCustomerForHistory] = useState<{ id: string; name: string } | null>(null);
-  const [showCustomerHistory, setShowCustomerHistory] = useState(false);
+  const openCustomerAccount = useOpenCustomerAccount();
   const [deleteAdj, setDeleteAdj] = useState<any>(null);
   const [reverseAdj, setReverseAdj] = useState<any>(null);
 
@@ -340,8 +339,7 @@ export function RecentBalanceAdjustments({ organizationId }: Props) {
                               className="font-medium text-sm text-primary hover:underline cursor-pointer text-left"
                               onClick={() => {
                                 if (adj.customer_id) {
-                                  setCustomerForHistory({ id: adj.customer_id, name: adj.customers?.customer_name || "Customer" });
-                                  setShowCustomerHistory(true);
+                                  openCustomerAccount(adj.customer_id, adj.customers?.customer_name || "Customer");
                                 }
                               }}
                             >
@@ -518,18 +516,6 @@ export function RecentBalanceAdjustments({ organizationId }: Props) {
         </AlertDialogContent>
       </AlertDialog>
 
-      {customerForHistory && (
-        <CustomerHistoryDialog
-          customerId={customerForHistory.id}
-          customerName={customerForHistory.name}
-          organizationId={organizationId}
-          open={showCustomerHistory}
-          onOpenChange={(v) => {
-            setShowCustomerHistory(v);
-            if (!v) setCustomerForHistory(null);
-          }}
-        />
-      )}
     </>
   );
 }

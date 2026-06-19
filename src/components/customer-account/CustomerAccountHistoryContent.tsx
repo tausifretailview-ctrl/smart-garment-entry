@@ -1,9 +1,7 @@
-import { useState, useEffect, useCallback, useRef, Fragment } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo, Fragment } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
-import { CUSTOMER_SEGMENT_LABELS } from "@/utils/customerSegments";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -56,6 +54,35 @@ interface PreviewData {
 
 function isSaleRecordCancelled(sale: { is_cancelled?: boolean | null; payment_status?: string | null }) {
   return sale.is_cancelled === true || String(sale.payment_status || "").toLowerCase() === "cancelled";
+}
+
+const fmtTotal = (n: number) =>
+  `₹${n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+function TableTotalRow({
+  label,
+  leadingColSpan,
+  trailingColSpan = 0,
+  amounts,
+}: {
+  label: string;
+  leadingColSpan: number;
+  trailingColSpan?: number;
+  amounts: Array<{ value: number; className?: string }>;
+}) {
+  return (
+    <TableRow className="bg-muted/50 border-t-2 font-semibold">
+      <TableCell colSpan={leadingColSpan} className="text-right text-xs uppercase tracking-wide text-muted-foreground">
+        {label}
+      </TableCell>
+      {amounts.map((cell, i) => (
+        <TableCell key={i} className={cn("tabular-nums text-sm", cell.className)}>
+          {fmtTotal(cell.value)}
+        </TableCell>
+      ))}
+      {trailingColSpan > 0 ? <TableCell colSpan={trailingColSpan} /> : null}
+    </TableRow>
+  );
 }
 
 // ─── Floating Detail Preview ───
@@ -327,16 +354,7 @@ export function CustomerAccountHistoryContent({
   const legacyRowRefs = useRef<(HTMLTableRowElement | null)[]>([]);
 
   const {
-    isSchool,
-    schoolFeeData,
-    openingBalance,
-    totalSales,
-    totalSalesGross,
-    totalCashPaid,
     summary,
-    customerSegment,
-    customerSaleStats,
-    saleStatsLoading,
     salesHistory,
     salesLoading,
     paymentHistory,
@@ -354,6 +372,47 @@ export function CustomerAccountHistoryContent({
     refunds,
     refundableCreditBalance,
   } = useCustomerAccountHistoryData({ customerId, organizationId, queriesEnabled });
+
+  const activeSales = useMemo(
+    () => (salesHistory || []).filter((s) => !isSaleRecordCancelled(s)),
+    [salesHistory],
+  );
+
+  const tabTotals = useMemo(() => {
+    const salesAmount = activeSales.reduce((sum, s) => sum + Number(s.net_amount || 0), 0);
+    const salesPaid = activeSales.reduce((sum, s) => sum + Number(s.paid_amount || 0), 0);
+    const legacyAmount = (legacyInvoices || []).reduce((sum, inv) => sum + Number(inv.amount || 0), 0);
+    const paymentsAmount = (paymentHistory || []).reduce((sum, p) => sum + Number(p.total_amount || 0), 0);
+    const returnsAmount = (saleReturns || []).reduce((sum, r) => sum + Number(r.net_amount || 0), 0);
+    const cnAmount = (creditNotes || []).reduce((sum, cn) => sum + Number(cn.credit_amount || 0), 0);
+    const cnUsed = (creditNotes || []).reduce((sum, cn) => sum + Number(cn.used_amount || 0), 0);
+    const refundSaleAmount = refunds.reduce((sum, s) => sum + Number(s.net_amount || 0), 0);
+    const refundAmount = refunds.reduce((sum, s) => sum + Number(s.refund_amount || 0), 0);
+    const advanceAmount = (customerAdvances || []).reduce((sum, a) => sum + Number(a.amount || 0), 0);
+    const advanceUsed = (customerAdvances || []).reduce((sum, a) => sum + Number(a.used_amount || 0), 0);
+    const advanceUnused = (customerAdvances || []).reduce(
+      (sum, a) => sum + Math.max(0, Number(a.amount || 0) - Number(a.used_amount || 0)),
+      0,
+    );
+    const adjOsDiff = (balanceAdjustments || []).reduce((sum, a) => sum + Number(a.outstanding_difference || 0), 0);
+    const adjAdvDiff = (balanceAdjustments || []).reduce((sum, a) => sum + Number(a.advance_difference || 0), 0);
+    return {
+      salesAmount,
+      salesPaid,
+      legacyAmount,
+      paymentsAmount,
+      returnsAmount,
+      cnAmount,
+      cnUsed,
+      refundSaleAmount,
+      refundAmount,
+      advanceAmount,
+      advanceUsed,
+      advanceUnused,
+      adjOsDiff,
+      adjAdvDiff,
+    };
+  }, [activeSales, legacyInvoices, paymentHistory, saleReturns, creditNotes, refunds, customerAdvances, balanceAdjustments]);
 
   // Keyboard navigation for Legacy tab
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
@@ -389,166 +448,6 @@ export function CustomerAccountHistoryContent({
   const renderContent = () => (
     <>
       <div className={wrapperClassName}>
-          {(() => {
-            // For school orgs with linked student fee data, show school-specific cards
-            if (isSchool && schoolFeeData) {
-              return (
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3 py-3">
-                  <Card className={`border-l-4 ${schoolFeeData.hasStructures ? 'border-l-blue-500' : 'border-l-orange-500'}`}>
-                    <CardContent className="p-2 sm:p-3">
-                      <p className="text-[10px] sm:text-xs text-muted-foreground truncate">
-                        {schoolFeeData.hasStructures ? 'Total Fees' : 'Opening Balance'}
-                      </p>
-                      <p className={`text-sm sm:text-base font-bold truncate ${schoolFeeData.hasStructures ? 'text-blue-600' : 'text-orange-600'}`}>
-                        ₹{schoolFeeData.feesExpected.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-                      </p>
-                    </CardContent>
-                  </Card>
-                  <Card className="border-l-4 border-l-green-500">
-                    <CardContent className="p-2 sm:p-3">
-                      <p className="text-[10px] sm:text-xs text-muted-foreground truncate">Total Paid</p>
-                      <p className="text-sm sm:text-base font-bold text-green-600 truncate">
-                        ₹{schoolFeeData.feesPaid.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-                      </p>
-                    </CardContent>
-                  </Card>
-                  <Card className="border-l-4 border-l-red-500">
-                    <CardContent className="p-2 sm:p-3">
-                      <p className="text-[10px] sm:text-xs text-muted-foreground truncate">Pending Due</p>
-                      <p className="text-sm sm:text-base font-bold text-red-600 truncate">
-                        ₹{schoolFeeData.feesDue.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-                      </p>
-                    </CardContent>
-                  </Card>
-                  <Card className="border-l-4 border-l-blue-400">
-                    <CardContent className="p-2 sm:p-3">
-                      <p className="text-[10px] sm:text-xs text-muted-foreground truncate">Collection Rate</p>
-                      <p className="text-sm sm:text-base font-bold text-blue-600 truncate">
-                        {schoolFeeData.feesExpected > 0 ? `${((schoolFeeData.feesPaid / schoolFeeData.feesExpected) * 100).toFixed(1)}%` : '0%'}
-                      </p>
-                    </CardContent>
-                  </Card>
-                </div>
-              );
-            }
-
-            // Business mode — dashboard-style gradient KPIs
-            const { outstandingDr, advanceAvailable, cnAvailable, cnAppliedOnInvoices } = summary;
-            const showGrossSales =
-              (totalSalesGross || 0) > (totalSales || 0) + 0.005;
-            const lifetimeRev = customerSaleStats?.revenue ?? 0;
-            const lifetimeOrders = customerSaleStats?.orders ?? 0;
-            const lastSale = customerSaleStats?.lastSaleDate;
-
-            return (
-              <div className="space-y-3 py-2">
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                  <Card className="bg-gradient-to-br from-violet-500 to-violet-600 border-0 shadow-md rounded-xl">
-                    <CardHeader className="pb-1 pt-3 px-3">
-                      <CardDescription className="text-sm font-medium text-white/80">Segment</CardDescription>
-                    </CardHeader>
-                    <CardContent className="px-3 pb-3 pt-0">
-                      <p className="text-xl font-black text-white">
-                        {saleStatsLoading ? "…" : CUSTOMER_SEGMENT_LABELS[customerSegment]}
-                      </p>
-                      <p className="text-xs text-white/65 mt-0.5">
-                        {lifetimeOrders} order{lifetimeOrders === 1 ? "" : "s"}
-                        {lastSale ? ` · Last ${lastSale}` : ""}
-                      </p>
-                    </CardContent>
-                  </Card>
-                  <Card className="bg-gradient-to-br from-emerald-500 to-emerald-600 border-0 shadow-md rounded-xl">
-                    <CardHeader className="pb-1 pt-3 px-3">
-                      <CardDescription className="text-sm font-medium text-white/80">Lifetime Sales</CardDescription>
-                    </CardHeader>
-                    <CardContent className="px-3 pb-3 pt-0">
-                      <p className="text-xl font-black text-white tabular-nums">
-                        {saleStatsLoading ? "…" : `₹${Math.round(lifetimeRev).toLocaleString("en-IN")}`}
-                      </p>
-                      {showGrossSales && (
-                        <p className="text-xs text-white/65 mt-0.5">Ledger net ₹{totalSales.toFixed(0)}</p>
-                      )}
-                    </CardContent>
-                  </Card>
-                  <Card className="bg-gradient-to-br from-blue-500 to-blue-600 border-0 shadow-md rounded-xl">
-                    <CardHeader className="pb-1 pt-3 px-3">
-                      <CardDescription className="text-sm font-medium text-white/80">Opening Balance</CardDescription>
-                    </CardHeader>
-                    <CardContent className="px-3 pb-3 pt-0">
-                      <p className="text-xl font-black text-white tabular-nums">₹{openingBalance.toFixed(0)}</p>
-                    </CardContent>
-                  </Card>
-                  <Card className="bg-gradient-to-br from-purple-500 to-purple-600 border-0 shadow-md rounded-xl">
-                    <CardHeader className="pb-1 pt-3 px-3">
-                      <CardDescription className="text-sm font-medium text-white/80">Cash / UPI Paid</CardDescription>
-                    </CardHeader>
-                    <CardContent className="px-3 pb-3 pt-0">
-                      <p className="text-xl font-black text-white tabular-nums">₹{(totalCashPaid || 0).toFixed(0)}</p>
-                    </CardContent>
-                  </Card>
-                </div>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                  <Card className="bg-gradient-to-br from-amber-500 to-amber-600 border-0 shadow-md rounded-xl">
-                    <CardHeader className="pb-1 pt-3 px-3">
-                      <CardDescription className="text-sm font-medium text-white/80">Advance Available</CardDescription>
-                    </CardHeader>
-                    <CardContent className="px-3 pb-3 pt-0">
-                      <p className="text-xl font-black text-white tabular-nums">₹{advanceAvailable.toFixed(0)}</p>
-                    </CardContent>
-                  </Card>
-                  <Card className="bg-gradient-to-br from-pink-500 to-pink-600 border-0 shadow-md rounded-xl">
-                    <CardHeader className="pb-1 pt-3 px-3">
-                      <CardDescription className="text-sm font-medium text-white/80">CN Available</CardDescription>
-                    </CardHeader>
-                    <CardContent className="px-3 pb-3 pt-0">
-                      <p className="text-xl font-black text-white tabular-nums">₹{cnAvailable.toFixed(0)}</p>
-                      <p className="text-xs text-white/65 mt-0.5 truncate">
-                        {cnAvailable > 0.005
-                          ? "Pool to apply"
-                          : cnAppliedOnInvoices > 0
-                            ? `₹${cnAppliedOnInvoices.toLocaleString("en-IN")} applied`
-                            : "None"}
-                      </p>
-                    </CardContent>
-                  </Card>
-                  <Card
-                    className={cn(
-                      "border-0 shadow-md rounded-xl bg-gradient-to-br",
-                      outstandingDr > 0.005
-                        ? "from-red-500 to-red-600"
-                        : advanceAvailable > 0.005
-                          ? "from-teal-500 to-teal-600"
-                          : "from-slate-500 to-slate-600",
-                    )}
-                  >
-                    <CardHeader className="pb-1 pt-3 px-3">
-                      <CardDescription className="text-sm font-medium text-white/80">
-                        {outstandingDr > 0.005
-                          ? "Outstanding (Dr)"
-                          : advanceAvailable > 0.005
-                            ? "Unused Advance"
-                            : "Current Balance"}
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="px-3 pb-3 pt-0">
-                      <p className="text-xl font-black text-white tabular-nums">
-                        ₹
-                        {(outstandingDr > 0.005 ? outstandingDr : advanceAvailable).toFixed(0)}
-                      </p>
-                      <p className="text-xs text-white/65 mt-0.5">
-                        {outstandingDr > 0.005
-                          ? "Customer owes"
-                          : advanceAvailable > 0.005
-                            ? "Available for bills"
-                            : "Settled"}
-                      </p>
-                    </CardContent>
-                  </Card>
-                </div>
-              </div>
-            );
-          })()}
-
           {actions && refundableCreditBalance > 0 && (
             <div className="mb-3 p-3 rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/30 flex flex-wrap items-center justify-between gap-3">
               <p className="text-sm font-semibold text-amber-900 dark:text-amber-100">
@@ -593,36 +492,36 @@ export function CustomerAccountHistoryContent({
           {/* Tabs */}
           <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 overflow-hidden flex flex-col">
             <div className="overflow-x-auto -mx-1 px-1">
-              <TabsList className="inline-flex w-auto min-w-full h-9 sm:grid sm:grid-cols-8 sm:w-full bg-muted/60 p-0.5 rounded-lg">
-                <TabsTrigger value="sales" className="gap-1 rounded-md text-[10px] sm:text-xs font-medium px-2 h-8 whitespace-nowrap">
+              <TabsList className="inline-flex w-auto min-w-full h-10 sm:w-full bg-transparent border-b rounded-none p-0 gap-0">
+                <TabsTrigger value="sales" className="gap-1 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-3 h-10 text-xs sm:text-sm font-medium whitespace-nowrap">
                   <Receipt className="h-3 w-3 hidden sm:block" />
                   Sales ({salesHistory?.length || 0})
                 </TabsTrigger>
-                <TabsTrigger value="legacy" className="gap-1 rounded-md text-[10px] sm:text-xs font-medium px-2 h-8 whitespace-nowrap">
+                <TabsTrigger value="legacy" className="gap-1 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-3 h-10 text-xs sm:text-sm font-medium whitespace-nowrap">
                   <History className="h-3 w-3 hidden sm:block" />
                   Legacy ({legacyInvoices?.length || 0})
                 </TabsTrigger>
-                <TabsTrigger value="payments" className="gap-1 rounded-md text-[10px] sm:text-xs font-medium px-2 h-8 whitespace-nowrap">
+                <TabsTrigger value="payments" className="gap-1 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-3 h-10 text-xs sm:text-sm font-medium whitespace-nowrap">
                   <IndianRupee className="h-3 w-3 hidden sm:block" />
                   Payments ({paymentHistory?.length || 0})
                 </TabsTrigger>
-                <TabsTrigger value="returns" className="gap-1 rounded-md text-[10px] sm:text-xs font-medium px-2 h-8 whitespace-nowrap">
+                <TabsTrigger value="returns" className="gap-1 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-3 h-10 text-xs sm:text-sm font-medium whitespace-nowrap">
                   <RotateCcw className="h-3 w-3 hidden sm:block" />
                   Returns ({saleReturns?.length || 0})
                 </TabsTrigger>
-                <TabsTrigger value="credit-notes" className="gap-1 rounded-md text-[10px] sm:text-xs font-medium px-2 h-8 whitespace-nowrap">
+                <TabsTrigger value="credit-notes" className="gap-1 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-3 h-10 text-xs sm:text-sm font-medium whitespace-nowrap">
                   <FileText className="h-3 w-3 hidden sm:block" />
                   C/Notes ({creditNotes?.length || 0})
                 </TabsTrigger>
-                <TabsTrigger value="refunds" className="gap-1 rounded-md text-[10px] sm:text-xs font-medium px-2 h-8 whitespace-nowrap">
+                <TabsTrigger value="refunds" className="gap-1 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-3 h-10 text-xs sm:text-sm font-medium whitespace-nowrap">
                   <CreditCard className="h-3 w-3 hidden sm:block" />
                   Refunds ({refunds.length})
                 </TabsTrigger>
-                <TabsTrigger value="advances" className="gap-1 rounded-md text-[10px] sm:text-xs font-medium px-2 h-8 whitespace-nowrap">
+                <TabsTrigger value="advances" className="gap-1 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-3 h-10 text-xs sm:text-sm font-medium whitespace-nowrap">
                   <Wallet className="h-3 w-3 hidden sm:block" />
                   Advances ({customerAdvances?.length || 0})
                 </TabsTrigger>
-                <TabsTrigger value="adjustments" className="gap-1 rounded-md text-[10px] sm:text-xs font-medium px-2 h-8 whitespace-nowrap">
+                <TabsTrigger value="adjustments" className="gap-1 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-3 h-10 text-xs sm:text-sm font-medium whitespace-nowrap">
                   <Scale className="h-3 w-3 hidden sm:block" />
                   Adj ({balanceAdjustments?.length || 0})
                 </TabsTrigger>
@@ -748,6 +647,17 @@ export function CustomerAccountHistoryContent({
                         );
                       })}
                     </TableBody>
+                    <TableFooter>
+                      <TableTotalRow
+                        label={`Total (${activeSales.length})`}
+                        leadingColSpan={4}
+                        trailingColSpan={2}
+                        amounts={[
+                          { value: tabTotals.salesAmount },
+                          { value: tabTotals.salesPaid },
+                        ]}
+                      />
+                    </TableFooter>
                   </Table>
                 ) : (
                   <p className="text-center text-muted-foreground py-8">No sales found</p>
@@ -763,7 +673,6 @@ export function CustomerAccountHistoryContent({
                     <div className="mb-2 p-2 bg-muted/50 rounded-md">
                       <p className="text-xs text-muted-foreground">
                         Legacy data from: <span className="font-medium">{legacyInvoices[0]?.source || 'External System'}</span>
-                        {' | '}Total: <span className="font-medium">₹{legacyInvoices.reduce((sum, inv) => sum + (inv.amount || 0), 0).toFixed(2)}</span>
                       </p>
                     </div>
                     <Table>
@@ -792,6 +701,14 @@ export function CustomerAccountHistoryContent({
                           </TableRow>
                         ))}
                       </TableBody>
+                      <TableFooter>
+                        <TableTotalRow
+                          label={`Total (${legacyInvoices.length})`}
+                          leadingColSpan={2}
+                          trailingColSpan={1}
+                          amounts={[{ value: tabTotals.legacyAmount }]}
+                        />
+                      </TableFooter>
                     </Table>
                   </>
                 ) : (
@@ -836,6 +753,14 @@ export function CustomerAccountHistoryContent({
                         </TableRow>
                       ))}
                     </TableBody>
+                    <TableFooter>
+                      <TableTotalRow
+                        label={`Total (${paymentHistory.length})`}
+                        leadingColSpan={2}
+                        trailingColSpan={2}
+                        amounts={[{ value: tabTotals.paymentsAmount, className: "text-green-600" }]}
+                      />
+                    </TableFooter>
                   </Table>
                 ) : (
                   <p className="text-center text-muted-foreground py-8">No payments found</p>
@@ -879,6 +804,14 @@ export function CustomerAccountHistoryContent({
                         </TableRow>
                       ))}
                     </TableBody>
+                    <TableFooter>
+                      <TableTotalRow
+                        label={`Total (${saleReturns.length})`}
+                        leadingColSpan={3}
+                        trailingColSpan={1}
+                        amounts={[{ value: tabTotals.returnsAmount, className: "text-red-600" }]}
+                      />
+                    </TableFooter>
                   </Table>
                 ) : (
                   <p className="text-center text-muted-foreground py-8">No returns found</p>
@@ -928,6 +861,17 @@ export function CustomerAccountHistoryContent({
                         </TableRow>
                       ))}
                     </TableBody>
+                    <TableFooter>
+                      <TableTotalRow
+                        label={`Total (${creditNotes.length})`}
+                        leadingColSpan={2}
+                        trailingColSpan={2}
+                        amounts={[
+                          { value: tabTotals.cnAmount, className: "text-violet-600" },
+                          { value: tabTotals.cnUsed },
+                        ]}
+                      />
+                    </TableFooter>
                   </Table>
                 ) : (
                   <p className="text-center text-muted-foreground py-8">No credit notes found</p>
@@ -969,6 +913,17 @@ export function CustomerAccountHistoryContent({
                         </TableRow>
                       ))}
                     </TableBody>
+                    <TableFooter>
+                      <TableTotalRow
+                        label={`Total (${refunds.length})`}
+                        leadingColSpan={2}
+                        trailingColSpan={1}
+                        amounts={[
+                          { value: tabTotals.refundSaleAmount },
+                          { value: tabTotals.refundAmount, className: "text-red-600" },
+                        ]}
+                      />
+                    </TableFooter>
                   </Table>
                 ) : (
                   <p className="text-center text-muted-foreground py-8">No refunds found</p>
@@ -1035,6 +990,18 @@ export function CustomerAccountHistoryContent({
                         );
                       })}
                     </TableBody>
+                    <TableFooter>
+                      <TableTotalRow
+                        label={`Total (${customerAdvances.length})`}
+                        leadingColSpan={2}
+                        trailingColSpan={3}
+                        amounts={[
+                          { value: tabTotals.advanceAmount },
+                          { value: tabTotals.advanceUsed },
+                          { value: tabTotals.advanceUnused, className: "text-green-600" },
+                        ]}
+                      />
+                    </TableFooter>
                   </Table>
                 ) : (
                   <p className="text-center text-muted-foreground py-8">No advances found</p>
@@ -1083,6 +1050,22 @@ export function CustomerAccountHistoryContent({
                         </TableRow>
                       ))}
                     </TableBody>
+                    <TableFooter>
+                      <TableRow className="bg-muted/50 border-t-2 font-semibold">
+                        <TableCell colSpan={2} className="text-right text-xs uppercase tracking-wide text-muted-foreground">
+                          Total ({balanceAdjustments.length})
+                        </TableCell>
+                        <TableCell colSpan={2} />
+                        <TableCell className={cn("text-right tabular-nums text-sm", tabTotals.adjOsDiff > 0 ? "text-red-600" : tabTotals.adjOsDiff < 0 ? "text-green-600" : "")}>
+                          {tabTotals.adjOsDiff > 0 ? "+" : ""}{fmtTotal(tabTotals.adjOsDiff)}
+                        </TableCell>
+                        <TableCell colSpan={2} />
+                        <TableCell className={cn("text-right tabular-nums text-sm", tabTotals.adjAdvDiff > 0 ? "text-green-600" : tabTotals.adjAdvDiff < 0 ? "text-red-600" : "")}>
+                          {tabTotals.adjAdvDiff > 0 ? "+" : ""}{fmtTotal(tabTotals.adjAdvDiff)}
+                        </TableCell>
+                        <TableCell />
+                      </TableRow>
+                    </TableFooter>
                   </Table>
                 ) : (
                   <p className="text-center text-muted-foreground py-8">No balance adjustments found</p>

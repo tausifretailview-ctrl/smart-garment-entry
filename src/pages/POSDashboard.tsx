@@ -62,7 +62,7 @@ import { useSettings } from "@/hooks/useSettings";
 import { useDashboardColumnSettings } from "@/hooks/useDashboardColumnSettings";
 import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
 import { useWhatsAppAPI } from "@/hooks/useWhatsAppAPI";
-import { CustomerHistoryDialog } from "@/components/CustomerHistoryDialog";
+import { useOpenCustomerAccount } from "@/hooks/useOpenCustomerAccount";
 import { useSoftDelete } from "@/hooks/useSoftDelete";
 import { waitForPrintReady } from "@/utils/printReady";
 import { whatsappPaymentReceiptDiscountLines } from "@/utils/paymentReceiptWhatsApp";
@@ -449,10 +449,7 @@ const POSDashboard = () => {
   const [receiptData, setReceiptData] = useState<any>(null);
   const receiptRef = useRef<HTMLDivElement>(null);
   
-  // Customer history dialog state
-  const [showCustomerHistory, setShowCustomerHistory] = useState(false);
-  const [selectedCustomerForHistory, setSelectedCustomerForHistory] = useState<{id: string | null; name: string} | null>(null);
-  
+  const openCustomerAccount = useOpenCustomerAccount();
   // E-Invoice state
   const [isGeneratingEInvoice, setIsGeneratingEInvoice] = useState<string | null>(null);
   const [isCancellingIRN, setIsCancellingIRN] = useState<string | null>(null);
@@ -2865,11 +2862,7 @@ const POSDashboard = () => {
                               )}
                               onClick={(e) => {
                                 e.stopPropagation();
-                                setSelectedCustomerForHistory({
-                                  id: sale.customer_id || null,
-                                  name: sale.customer_name
-                                });
-                                setShowCustomerHistory(true);
+                                openCustomerAccount(sale.customer_id, sale.customer_name);
                               }}
                             >
                               {sale.customer_name?.toUpperCase()}
@@ -3914,15 +3907,6 @@ const POSDashboard = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {/* Customer History Dialog */}
-      <CustomerHistoryDialog
-        open={showCustomerHistory}
-        onOpenChange={setShowCustomerHistory}
-        customerId={selectedCustomerForHistory?.id || null}
-        customerName={selectedCustomerForHistory?.name || ''}
-        organizationId={currentOrganization?.id || ''}
-      />
 
       {/* Hidden E-Invoice Print Component for PDF Generation */}
       {eInvoiceToPrint && (

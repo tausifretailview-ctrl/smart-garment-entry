@@ -23,7 +23,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import * as XLSX from "xlsx";
 import { useWhatsAppTemplates } from "@/hooks/useWhatsAppTemplates";
-import { CustomerHistoryDialog } from "@/components/CustomerHistoryDialog";
+import { useOpenCustomerAccount } from "@/hooks/useOpenCustomerAccount";
 
 const DeliveryDashboard = () => {
   const { currentOrganization } = useOrganization();
@@ -72,9 +72,7 @@ const DeliveryDashboard = () => {
   const [statusNarration, setStatusNarration] = useState("");
   const [selectedInvoiceIds, setSelectedInvoiceIds] = useState<Set<string>>(new Set());
   const [isExporting, setIsExporting] = useState(false);
-  const [showCustomerHistory, setShowCustomerHistory] = useState(false);
-  const [selectedCustomerForHistory, setSelectedCustomerForHistory] = useState<{ id: string; name: string } | null>(null);
-
+  const openCustomerAccount = useOpenCustomerAccount();
   // Fetch delivery statistics
   const { data: deliveryStats } = useQuery({
     queryKey: ["delivery-stats", currentOrganization?.id],
@@ -710,8 +708,7 @@ const DeliveryDashboard = () => {
                             onClick={(e) => {
                               e.stopPropagation();
                               if (invoice.customer_id) {
-                                setSelectedCustomerForHistory({ id: invoice.customer_id, name: invoice.customer_name });
-                                setShowCustomerHistory(true);
+                                openCustomerAccount(invoice.customer_id, invoice.customer_name);
                               }
                             }}
                           >
@@ -857,15 +854,6 @@ const DeliveryDashboard = () => {
           </DialogContent>
         </Dialog>
 
-        {selectedCustomerForHistory && (
-          <CustomerHistoryDialog
-            open={showCustomerHistory}
-            onOpenChange={setShowCustomerHistory}
-            customerId={selectedCustomerForHistory.id}
-            customerName={selectedCustomerForHistory.name}
-            organizationId={currentOrganization?.id || ""}
-          />
-        )}
       </div>
   );
 };

@@ -19,7 +19,7 @@ import { format, startOfDay, startOfWeek, startOfMonth } from "date-fns";
 import { toast } from "sonner";
 import { AddAdvanceBookingDialog } from "@/components/AddAdvanceBookingDialog";
 import { useAuth } from "@/contexts/AuthContext";
-import { CustomerHistoryDialog } from "@/components/CustomerHistoryDialog";
+import { useOpenCustomerAccount } from "@/hooks/useOpenCustomerAccount";
 import { AdvanceBookingReceipt } from "@/components/AdvanceBookingReceipt";
 import { useReactToPrint } from "react-to-print";
 import { useSettings } from "@/hooks/useSettings";
@@ -85,8 +85,7 @@ export default function AdvanceBookingDashboard() {
    const [editDescription, setEditDescription] = useState("");
    const [editChequeNumber, setEditChequeNumber] = useState("");
    const [editTransactionId, setEditTransactionId] = useState("");
-   const [showCustomerHistory, setShowCustomerHistory] = useState(false);
-   const [selectedCustomerForHistory, setSelectedCustomerForHistory] = useState<{id: string | null; name: string} | null>(null);
+   const openCustomerAccount = useOpenCustomerAccount();
    const [printAdvance, setPrintAdvance] = useState<any>(null);
    const [printPaperSize, setPrintPaperSize] = useState<"A4" | "A5">("A5");
    const [printDialogOpen, setPrintDialogOpen] = useState(false);
@@ -633,8 +632,7 @@ export default function AdvanceBookingDashboard() {
                         className="text-primary hover:underline cursor-pointer bg-transparent border-none p-0 font-inherit text-left"
                         onClick={(e) => {
                           e.stopPropagation();
-                          setSelectedCustomerForHistory({ id: adv.customer_id, name: adv.customers?.customer_name || "-" });
-                          setShowCustomerHistory(true);
+                          openCustomerAccount(adv.customer_id, adv.customers?.customer_name || "-");
                         }}
                       >
                         {adv.customers?.customer_name || "-"}
@@ -901,14 +899,6 @@ export default function AdvanceBookingDashboard() {
            </DialogFooter>
          </DialogContent>
        </Dialog>
-
-       <CustomerHistoryDialog
-         open={showCustomerHistory}
-         onOpenChange={setShowCustomerHistory}
-         customerId={selectedCustomerForHistory?.id || null}
-         customerName={selectedCustomerForHistory?.name || ''}
-         organizationId={currentOrganization?.id || ''}
-        />
 
        {/* Print Dialog */}
        <Dialog open={printDialogOpen} onOpenChange={setPrintDialogOpen}>

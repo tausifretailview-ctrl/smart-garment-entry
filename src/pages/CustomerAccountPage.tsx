@@ -1,15 +1,20 @@
 import { useQuery } from "@tanstack/react-query";
-import { useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { CustomerAccountHistoryShell } from "@/components/customer-account/CustomerAccountHistoryShell";
 
+type LocationState = { from?: string; customerName?: string };
+
 export default function CustomerAccountPage() {
   const { customerId } = useParams<{ customerId: string }>();
   const { currentOrganization } = useOrganization();
-  const { navigate } = useOrgNavigation();
+  const { orgNavigate } = useOrgNavigation();
+  const routerNavigate = useNavigate();
+  const location = useLocation();
+  const locationState = (location.state as LocationState | null) ?? {};
   const organizationId = currentOrganization?.id ?? "";
 
   const { data: customer, isLoading, isError } = useQuery({
@@ -17,7 +22,7 @@ export default function CustomerAccountPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("customers")
-        .select("id, customer_name")
+        .select("id, customer_name, phone, address")
         .eq("id", customerId!)
         .eq("organization_id", organizationId)
         .is("deleted_at", null)
@@ -28,6 +33,18 @@ export default function CustomerAccountPage() {
     enabled: !!customerId && !!organizationId,
   });
 
+  const handleBack = () => {
+    if (locationState.from) {
+      orgNavigate(locationState.from);
+      return;
+    }
+    if (window.history.length > 1) {
+      routerNavigate(-1);
+      return;
+    }
+    orgNavigate("/sales-invoice-dashboard");
+  };
+
   if (!customerId || !organizationId) {
     return (
       <div className="flex items-center justify-center min-h-[40vh] text-muted-foreground">
@@ -36,27 +53,29 @@ export default function CustomerAccountPage() {
     );
   }
 
-  const customerName = customer?.customer_name ?? "";
+  const customerName = customer?.customer_name ?? locationState.customerName ?? "";
 
   return (
-    <div className="flex flex-col h-full min-h-0 bg-slate-50 overflow-hidden">
-      <div className="h-1 w-full bg-gradient-to-r from-blue-500 via-blue-600 to-violet-500 flex-shrink-0" />
-      <div className="p-4 sm:p-5 pb-0 bg-slate-50 flex-shrink-0 flex items-start gap-3">
+    <div className="flex flex-col h-full min-h-0 bg-background overflow-hidden">
+      <div className="flex-shrink-0 border-b bg-background px-4 py-3 flex items-center gap-3">
         <button
           type="button"
-          onClick={() => navigate(-1)}
-          className="mt-1 w-9 h-9 rounded-xl bg-muted flex items-center justify-center hover:bg-muted/80 transition-colors flex-shrink-0"
+          onClick={handleBack}
+          className="w-9 h-9 rounded-md border flex items-center justify-center hover:bg-muted transition-colors flex-shrink-0"
           aria-label="Go back"
         >
-          <ArrowLeft className="h-5 w-5 text-foreground" />
+          <ArrowLeft className="h-5 w-5" />
         </button>
         <div className="min-w-0 flex-1">
-          <h1 className="text-2xl font-extrabold text-blue-600 tracking-tight leading-tight truncate">
-            {isLoading ? "Loading…" : customerName || "Customer"}
+          <h1 className="text-lg font-semibold truncate">
+            {isLoading && !customerName ? "Loading…" : customerName || "Customer"}
+            <span className="text-muted-foreground font-normal"> · Customer</span>
           </h1>
-          <p className="text-slate-400 text-base mt-0.5">
-            Customer account history and transactions
-          </p>
+          {(customer?.phone || customer?.address) && (
+            <p className="text-xs text-muted-foreground truncate mt-0.5">
+              {[customer?.phone, customer?.address].filter(Boolean).join(" · ")}
+            </p>
+          )}
         </div>
       </div>
 
@@ -74,8 +93,8 @@ export default function CustomerAccountPage() {
           customerName={customerName}
           organizationId={organizationId}
           queriesEnabled
-          scrollAreaClassName="flex-1 mt-3 min-h-[calc(100vh-18rem)]"
-          wrapperClassName="px-3 sm:px-6 pb-4 flex flex-col flex-1 overflow-hidden min-h-0"
+          scrollAreaClassName="flex-1 min-h-0"
+          wrapperClassName="px-4 pb-4 flex flex-col flex-1 overflow-hidden min-h-0"
         />
       )}
     </div>

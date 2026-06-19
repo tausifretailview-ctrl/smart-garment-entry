@@ -75,7 +75,7 @@ import {
 import { useDashboardColumnSettings } from "@/hooks/useDashboardColumnSettings";
 import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
 import { useWhatsAppAPI } from "@/hooks/useWhatsAppAPI";
-import { CustomerHistoryDialog } from "@/components/CustomerHistoryDialog";
+import { useOpenCustomerAccount } from "@/hooks/useOpenCustomerAccount";
 import { InvoiceHistoryDialog } from "@/components/InvoiceHistoryDialog";
 import { useSoftDelete } from "@/hooks/useSoftDelete";
 import { useDraftSave } from "@/hooks/useDraftSave";
@@ -413,10 +413,7 @@ export default function SalesInvoiceDashboard() {
   const [showReceiptDialog, setShowReceiptDialog] = useState(false);
   const [receiptData, setReceiptData] = useState<any>(null);
   const receiptRef = useRef<HTMLDivElement>(null);
-  
-  // Customer history dialog state
-  const [showCustomerHistory, setShowCustomerHistory] = useState(false);
-  const [selectedCustomerForHistory, setSelectedCustomerForHistory] = useState<{id: string | null; name: string} | null>(null);
+  const openCustomerAccount = useOpenCustomerAccount();
 
   // Invoice history dialog state
   const [showInvoiceHistory, setShowInvoiceHistory] = useState(false);
@@ -2895,8 +2892,7 @@ export default function SalesInvoiceDashboard() {
                         onClick={(e) => {
                           if (inv.customer_name && inv.customer_name !== 'Walk-in') {
                             e.stopPropagation();
-                            setSelectedCustomerForHistory({ id: inv.customer_id || null, name: inv.customer_name });
-                            setShowCustomerHistory(true);
+                            openCustomerAccount(inv.customer_id, inv.customer_name);
                           }
                         }}
                       >{inv.customer_name || 'Walk-in'}</p>
@@ -3018,13 +3014,6 @@ export default function SalesInvoiceDashboard() {
 
         {/* Print preview is desktop-only */}
 
-        <CustomerHistoryDialog
-          open={showCustomerHistory}
-          onOpenChange={setShowCustomerHistory}
-          customerId={selectedCustomerForHistory?.id || null}
-          customerName={selectedCustomerForHistory?.name || ''}
-          organizationId={currentOrganization?.id || ''}
-        />
 
         <InvoiceHistoryDialog
           open={showInvoiceHistory}
@@ -3635,11 +3624,7 @@ export default function SalesInvoiceDashboard() {
                               title={invoice.customer_name?.toUpperCase()}
                               onClick={(e) => {
                                 e.stopPropagation();
-                                setSelectedCustomerForHistory({
-                                  id: invoice.customer_id || null,
-                                  name: invoice.customer_name
-                                });
-                                setShowCustomerHistory(true);
+                                openCustomerAccount(invoice.customer_id, invoice.customer_name);
                               }}
                             >
                               {invoice.customer_name?.toUpperCase()}
@@ -4640,13 +4625,6 @@ export default function SalesInvoiceDashboard() {
         )}
 
         {/* Customer History Dialog */}
-        <CustomerHistoryDialog
-          open={showCustomerHistory}
-          onOpenChange={setShowCustomerHistory}
-          customerId={selectedCustomerForHistory?.id || null}
-          customerName={selectedCustomerForHistory?.name || ''}
-          organizationId={currentOrganization?.id || ''}
-        />
 
         <InvoiceHistoryDialog
           open={showInvoiceHistory}
