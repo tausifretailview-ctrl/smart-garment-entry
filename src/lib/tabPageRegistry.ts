@@ -62,6 +62,11 @@ export const TAB_PAGE_REGISTRY: Record<string, TabPageDef> = {
     layout: "fullscreen",
     roles: ["admin", "manager"],
   },
+  "accounting/customer": {
+    loader: () => import("@/pages/CustomerAccountPage"),
+    layout: "fullscreen",
+    roles: ["admin", "manager"],
+  },
   suppliers: {
     loader: () => import("@/pages/SupplierMaster"),
     layout: "fullscreen",

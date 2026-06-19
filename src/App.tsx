@@ -62,6 +62,7 @@ const SaleOrderDashboard = lazyWithRetry(() => import("./pages/SaleOrderDashboar
 const PurchaseOrderEntry = lazyWithRetry(() => import("./pages/PurchaseOrderEntry"));
 const PurchaseOrderDashboard = lazyWithRetry(() => import("./pages/PurchaseOrderDashboard"));
 const CustomerMaster = lazyWithRetry(() => import("./pages/CustomerMaster"));
+const CustomerAccountPage = lazyWithRetry(() => import("./pages/CustomerAccountPage"));
 const SupplierMaster = lazyWithRetry(() => import("./pages/SupplierMaster"));
 const EmployeeMaster = lazyWithRetry(() => import("./pages/EmployeeMaster"));
 const PurchaseReportBySupplier = lazyWithRetry(() => import("./pages/PurchaseReportBySupplier"));
@@ -964,6 +965,18 @@ const App = () => {
                       <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
                         <FullScreenLayout>
                           <CustomerMaster />
+                        </FullScreenLayout>
+                      </RoleProtectedRoute>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="accounting/customer/:customerId"
+                  element={
+                    <ProtectedRoute>
+                      <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
+                        <FullScreenLayout>
+                          <CustomerAccountPage />
                         </FullScreenLayout>
                       </RoleProtectedRoute>
                     </ProtectedRoute>
