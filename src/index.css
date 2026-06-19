@@ -1851,6 +1851,19 @@ input.no-uppercase {
   height: 30px;
 }
 
+/* Sales invoice dashboard — dense grid, prominent invoice numbers */
+.sales-invoice-dashboard .sales-invoice-grid thead th {
+  padding: 4px 6px !important;
+  font-size: 11px;
+  height: 28px;
+}
+
+.sales-invoice-dashboard .sales-invoice-grid tbody td {
+  padding: 2px 6px !important;
+  height: 30px;
+  vertical-align: middle;
+}
+
 /* Bill entry — use full content width; product column absorbs extra space */
 [data-entry-form] {
   max-width: none;
