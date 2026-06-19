@@ -31,6 +31,23 @@ import {
 } from "@/hooks/useCustomerAccountHistoryData";
 import { cn } from "@/lib/utils";
 import type { CustomerAccountHistoryActions } from "@/components/customer-account/customerAccountHistoryActions";
+import { CustomerAccountTabToolbar } from "@/components/customer-account/CustomerAccountTabToolbar";
+import {
+  defaultCustomerAccountTabFilters,
+  filterAdvances,
+  filterByDateAndSearch,
+  filterCreditNotes,
+  filterLegacyInvoices,
+  filterSales,
+  isSaleRecordCancelled,
+  type CustomerAccountTabFilters,
+} from "@/components/customer-account/customerAccountTabFilters";
+import {
+  accountsHistoryCardClass,
+  accountsHistoryTableClass,
+  accountsHistoryTableWrapClass,
+  accountsHistoryThClass,
+} from "@/components/accounts/accountsHistoryUi";
 
 interface SaleItem {
   id: string;
@@ -50,10 +67,6 @@ type PreviewType = "sale" | "payment" | "return" | "credit-note" | "refund" | "a
 interface PreviewData {
   type: PreviewType;
   data: any;
-}
-
-function isSaleRecordCancelled(sale: { is_cancelled?: boolean | null; payment_status?: string | null }) {
-  return sale.is_cancelled === true || String(sale.payment_status || "").toLowerCase() === "cancelled";
 }
 
 const fmtTotal = (n: number) =>
@@ -82,6 +95,31 @@ function TableTotalRow({
       ))}
       {trailingColSpan > 0 ? <TableCell colSpan={trailingColSpan} /> : null}
     </TableRow>
+  );
+}
+
+const customerAccountTableClass = cn(accountsHistoryTableClass, "erp-desktop-table customer-account-grid");
+
+function CustomerAccountTable({ children }: { children: React.ReactNode }) {
+  return (
+    <div className={accountsHistoryTableWrapClass}>
+      <Table className={customerAccountTableClass}>{children}</Table>
+    </div>
+  );
+}
+
+function EmptyTabMessage({ loading, hasRaw, label }: { loading?: boolean; hasRaw?: boolean; label: string }) {
+  if (loading) {
+    return (
+      <div className="flex justify-center py-12">
+        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+      </div>
+    );
+  }
+  return (
+    <p className="text-center text-muted-foreground py-12 text-sm">
+      {hasRaw ? "No records match the current filters" : `No ${label} found`}
+    </p>
   );
 }
 
@@ -351,7 +389,16 @@ export function CustomerAccountHistoryContent({
   const [expandedSaleId, setExpandedSaleId] = useState<string | null>(null);
   const [selectedLegacyIndex, setSelectedLegacyIndex] = useState<number>(0);
   const [preview, setPreview] = useState<PreviewData | null>(null);
+  const [tabFilters, setTabFilters] = useState<Record<string, CustomerAccountTabFilters>>({});
   const legacyRowRefs = useRef<(HTMLTableRowElement | null)[]>([]);
+
+  const filters = tabFilters[activeTab] ?? defaultCustomerAccountTabFilters();
+  const patchFilters = useCallback((patch: Partial<CustomerAccountTabFilters>) => {
+    setTabFilters((prev) => ({
+      ...prev,
+      [activeTab]: { ...(prev[activeTab] ?? defaultCustomerAccountTabFilters()), ...patch },
+    }));
+  }, [activeTab]);
 
   const {
     summary,
@@ -373,29 +420,46 @@ export function CustomerAccountHistoryContent({
     refundableCreditBalance,
   } = useCustomerAccountHistoryData({ customerId, organizationId, queriesEnabled });
 
-  const activeSales = useMemo(
-    () => (salesHistory || []).filter((s) => !isSaleRecordCancelled(s)),
-    [salesHistory],
+  const filteredSales = useMemo(() => filterSales(salesHistory, filters), [salesHistory, filters]);
+  const filteredActiveSales = useMemo(() => filteredSales.filter((s) => !isSaleRecordCancelled(s)), [filteredSales]);
+  const filteredLegacy = useMemo(() => filterLegacyInvoices(legacyInvoices, filters), [legacyInvoices, filters]);
+  const filteredPayments = useMemo(
+    () => filterByDateAndSearch(paymentHistory, filters, "voucher_date", ["voucher_number", "description", "payment_method", "payment_mode"]),
+    [paymentHistory, filters],
+  );
+  const filteredReturns = useMemo(
+    () => filterByDateAndSearch(saleReturns, filters, "return_date", ["return_number", "original_sale_number"]),
+    [saleReturns, filters],
+  );
+  const filteredCreditNotes = useMemo(() => filterCreditNotes(creditNotes, filters), [creditNotes, filters]);
+  const filteredRefunds = useMemo(
+    () => filterByDateAndSearch(refunds, filters, "sale_date", ["sale_number"]),
+    [refunds, filters],
+  );
+  const filteredAdvances = useMemo(() => filterAdvances(customerAdvances, filters), [customerAdvances, filters]);
+  const filteredAdjustments = useMemo(
+    () => filterByDateAndSearch(balanceAdjustments, filters, "adjustment_date", ["reason"]),
+    [balanceAdjustments, filters],
   );
 
   const tabTotals = useMemo(() => {
-    const salesAmount = activeSales.reduce((sum, s) => sum + Number(s.net_amount || 0), 0);
-    const salesPaid = activeSales.reduce((sum, s) => sum + Number(s.paid_amount || 0), 0);
-    const legacyAmount = (legacyInvoices || []).reduce((sum, inv) => sum + Number(inv.amount || 0), 0);
-    const paymentsAmount = (paymentHistory || []).reduce((sum, p) => sum + Number(p.total_amount || 0), 0);
-    const returnsAmount = (saleReturns || []).reduce((sum, r) => sum + Number(r.net_amount || 0), 0);
-    const cnAmount = (creditNotes || []).reduce((sum, cn) => sum + Number(cn.credit_amount || 0), 0);
-    const cnUsed = (creditNotes || []).reduce((sum, cn) => sum + Number(cn.used_amount || 0), 0);
-    const refundSaleAmount = refunds.reduce((sum, s) => sum + Number(s.net_amount || 0), 0);
-    const refundAmount = refunds.reduce((sum, s) => sum + Number(s.refund_amount || 0), 0);
-    const advanceAmount = (customerAdvances || []).reduce((sum, a) => sum + Number(a.amount || 0), 0);
-    const advanceUsed = (customerAdvances || []).reduce((sum, a) => sum + Number(a.used_amount || 0), 0);
-    const advanceUnused = (customerAdvances || []).reduce(
+    const salesAmount = filteredActiveSales.reduce((sum, s) => sum + Number(s.net_amount || 0), 0);
+    const salesPaid = filteredActiveSales.reduce((sum, s) => sum + Number(s.paid_amount || 0), 0);
+    const legacyAmount = filteredLegacy.reduce((sum, inv) => sum + Number(inv.amount || 0), 0);
+    const paymentsAmount = filteredPayments.reduce((sum, p) => sum + Number(p.total_amount || 0), 0);
+    const returnsAmount = filteredReturns.reduce((sum, r) => sum + Number(r.net_amount || 0), 0);
+    const cnAmount = filteredCreditNotes.reduce((sum, cn) => sum + Number(cn.credit_amount || 0), 0);
+    const cnUsed = filteredCreditNotes.reduce((sum, cn) => sum + Number(cn.used_amount || 0), 0);
+    const refundSaleAmount = filteredRefunds.reduce((sum, s) => sum + Number(s.net_amount || 0), 0);
+    const refundAmount = filteredRefunds.reduce((sum, s) => sum + Number(s.refund_amount || 0), 0);
+    const advanceAmount = filteredAdvances.reduce((sum, a) => sum + Number(a.amount || 0), 0);
+    const advanceUsed = filteredAdvances.reduce((sum, a) => sum + Number(a.used_amount || 0), 0);
+    const advanceUnused = filteredAdvances.reduce(
       (sum, a) => sum + Math.max(0, Number(a.amount || 0) - Number(a.used_amount || 0)),
       0,
     );
-    const adjOsDiff = (balanceAdjustments || []).reduce((sum, a) => sum + Number(a.outstanding_difference || 0), 0);
-    const adjAdvDiff = (balanceAdjustments || []).reduce((sum, a) => sum + Number(a.advance_difference || 0), 0);
+    const adjOsDiff = filteredAdjustments.reduce((sum, a) => sum + Number(a.outstanding_difference || 0), 0);
+    const adjAdvDiff = filteredAdjustments.reduce((sum, a) => sum + Number(a.advance_difference || 0), 0);
     return {
       salesAmount,
       salesPaid,
@@ -412,15 +476,24 @@ export function CustomerAccountHistoryContent({
       adjOsDiff,
       adjAdvDiff,
     };
-  }, [activeSales, legacyInvoices, paymentHistory, saleReturns, creditNotes, refunds, customerAdvances, balanceAdjustments]);
+  }, [
+    filteredActiveSales,
+    filteredLegacy,
+    filteredPayments,
+    filteredReturns,
+    filteredCreditNotes,
+    filteredRefunds,
+    filteredAdvances,
+    filteredAdjustments,
+  ]);
 
   // Keyboard navigation for Legacy tab
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
-    if (activeTab !== 'legacy' || !legacyInvoices || legacyInvoices.length === 0) return;
+    if (activeTab !== 'legacy' || !filteredLegacy || filteredLegacy.length === 0) return;
     if (e.key === 'ArrowDown') {
       e.preventDefault();
       setSelectedLegacyIndex(prev => {
-        const newIndex = Math.min(prev + 1, legacyInvoices.length - 1);
+        const newIndex = Math.min(prev + 1, filteredLegacy.length - 1);
         legacyRowRefs.current[newIndex]?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         return newIndex;
       });
@@ -432,7 +505,7 @@ export function CustomerAccountHistoryContent({
         return newIndex;
       });
     }
-  }, [activeTab, legacyInvoices]);
+  }, [activeTab, filteredLegacy]);
 
   useEffect(() => {
     if (queriesEnabled && activeTab === 'legacy') {
@@ -441,7 +514,7 @@ export function CustomerAccountHistoryContent({
     }
   }, [queriesEnabled, activeTab, handleKeyDown]);
 
-  useEffect(() => { setSelectedLegacyIndex(0); }, [legacyInvoices]);
+  useEffect(() => { setSelectedLegacyIndex(0); }, [filteredLegacy]);
 
   useEffect(() => { if (!queriesEnabled) setPreview(null); }, [queriesEnabled]);
 
@@ -528,27 +601,29 @@ export function CustomerAccountHistoryContent({
               </TabsList>
             </div>
 
+            <div className={cn(accountsHistoryCardClass, "flex-1 min-h-0 flex flex-col mt-2")}>
+              <CustomerAccountTabToolbar activeTab={activeTab} filters={filters} onChange={patchFilters} />
             <ScrollArea className={scrollAreaClassName}>
               {/* Sales Tab */}
               <TabsContent value="sales" className="mt-0">
                 {salesLoading ? (
-                  <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
-                ) : salesHistory && salesHistory.length > 0 ? (
-                  <Table>
-                    <TableHeader className="bg-slate-50 dark:bg-slate-900 sticky top-0">
-                      <TableRow className="border-b-2 border-slate-200 dark:border-slate-700">
-                        <TableHead className="w-8 text-xs font-bold uppercase tracking-wide text-slate-600"></TableHead>
-                        <TableHead className="text-xs font-bold uppercase tracking-wide text-slate-600">Invoice #</TableHead>
-                        <TableHead className="text-xs font-bold uppercase tracking-wide text-slate-600">Date</TableHead>
-                        <TableHead className="text-xs font-bold uppercase tracking-wide text-slate-600">Type</TableHead>
-                        <TableHead className="text-xs font-bold uppercase tracking-wide text-slate-600">Amount</TableHead>
-                        <TableHead className="text-xs font-bold uppercase tracking-wide text-slate-600">Paid</TableHead>
-                        <TableHead className="text-xs font-bold uppercase tracking-wide text-slate-600">Status</TableHead>
-                        <TableHead className="w-10 text-xs font-bold uppercase tracking-wide text-slate-600"></TableHead>
+                  <EmptyTabMessage loading label="sales" />
+                ) : filteredSales.length > 0 ? (
+                  <CustomerAccountTable>
+                    <TableHeader className="!static">
+                      <TableRow>
+                        <TableHead className={cn(accountsHistoryThClass, "w-8")} />
+                        <TableHead className={accountsHistoryThClass}>Invoice No</TableHead>
+                        <TableHead className={accountsHistoryThClass}>Date</TableHead>
+                        <TableHead className={accountsHistoryThClass}>Type</TableHead>
+                        <TableHead className={cn(accountsHistoryThClass, "num")}>Amount</TableHead>
+                        <TableHead className={cn(accountsHistoryThClass, "num")}>Paid</TableHead>
+                        <TableHead className={accountsHistoryThClass}>Status</TableHead>
+                        <TableHead className={cn(accountsHistoryThClass, "text-right")}>Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {salesHistory.map((sale) => {
+                      {filteredSales.map((sale) => {
                         const isExpanded = expandedSaleId === sale.id;
                         const items = (sale as any).sale_items as SaleItem[] || [];
                         const saleCancelled = isSaleRecordCancelled(sale);
@@ -564,11 +639,11 @@ export function CustomerAccountHistoryContent({
                               <TableCell className="p-2">
                                 {isExpanded ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
                               </TableCell>
-                              <TableCell className={cn("font-medium", saleCancelled && "line-through decoration-red-500/70 text-muted-foreground")}>{sale.sale_number}</TableCell>
+                              <TableCell className={cn("font-medium font-mono text-primary", saleCancelled && "line-through decoration-red-500/70 text-muted-foreground")}>{sale.sale_number}</TableCell>
                               <TableCell className={cn(saleCancelled && "text-muted-foreground")}>{format(new Date(sale.sale_date), 'dd/MM/yyyy')}</TableCell>
-                              <TableCell><Badge variant="outline">{sale.sale_type?.toUpperCase()}</Badge></TableCell>
-                              <TableCell className={cn(saleCancelled && "line-through decoration-red-500/70 text-muted-foreground font-medium")}>₹{sale.net_amount.toFixed(2)}</TableCell>
-                              <TableCell className={cn(saleCancelled && "line-through decoration-red-500/70 text-muted-foreground")}>₹{(sale.paid_amount || 0).toFixed(2)}</TableCell>
+                              <TableCell><Badge variant="outline" className="text-[10px]">{sale.sale_type?.toUpperCase()}</Badge></TableCell>
+                              <TableCell className={cn("num font-semibold text-primary", saleCancelled && "line-through decoration-red-500/70 text-muted-foreground")}>₹{sale.net_amount.toFixed(2)}</TableCell>
+                              <TableCell className={cn("num", saleCancelled && "line-through decoration-red-500/70 text-muted-foreground")}>₹{(sale.paid_amount || 0).toFixed(2)}</TableCell>
                               <TableCell>
                                 {(() => {
                                   if (saleCancelled) {
@@ -647,9 +722,9 @@ export function CustomerAccountHistoryContent({
                         );
                       })}
                     </TableBody>
-                    <TableFooter>
+                    <TableFooter className="border-t-2 border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-800 [&>tr]:border-0 [&>tr]:hover:bg-transparent">
                       <TableTotalRow
-                        label={`Total (${activeSales.length})`}
+                        label={`Total (${filteredActiveSales.length})`}
                         leadingColSpan={4}
                         trailingColSpan={2}
                         amounts={[
@@ -658,88 +733,90 @@ export function CustomerAccountHistoryContent({
                         ]}
                       />
                     </TableFooter>
-                  </Table>
+                  </CustomerAccountTable>
                 ) : (
-                  <p className="text-center text-muted-foreground py-8">No sales found</p>
+                  <EmptyTabMessage hasRaw={!!salesHistory?.length} label="sales" />
                 )}
               </TabsContent>
 
               {/* Legacy Invoices Tab */}
               <TabsContent value="legacy" className="mt-0">
                 {legacyLoading ? (
-                  <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
-                ) : legacyInvoices && legacyInvoices.length > 0 ? (
+                  <EmptyTabMessage loading label="legacy invoices" />
+                ) : filteredLegacy.length > 0 ? (
                   <>
-                    <div className="mb-2 p-2 bg-muted/50 rounded-md">
-                      <p className="text-xs text-muted-foreground">
-                        Legacy data from: <span className="font-medium">{legacyInvoices[0]?.source || 'External System'}</span>
-                      </p>
-                    </div>
-                    <Table>
-                    <TableHeader className="bg-background">
-                      <TableRow className="border-b-2 border-border">
-                        <TableHead className="text-foreground font-bold">Invoice #</TableHead>
-                        <TableHead className="text-foreground font-bold">Date</TableHead>
-                        <TableHead className="text-right text-foreground font-bold">Amount</TableHead>
-                        <TableHead className="text-foreground font-bold">Status</TableHead>
-                      </TableRow>
-                    </TableHeader>
+                    {legacyInvoices?.[0]?.source && (
+                      <div className="mb-2 px-3 pt-2">
+                        <p className="text-xs text-muted-foreground">
+                          Legacy data from: <span className="font-medium">{legacyInvoices[0].source}</span>
+                        </p>
+                      </div>
+                    )}
+                    <CustomerAccountTable>
+                      <TableHeader className="!static">
+                        <TableRow>
+                          <TableHead className={accountsHistoryThClass}>Invoice No</TableHead>
+                          <TableHead className={accountsHistoryThClass}>Date</TableHead>
+                          <TableHead className={cn(accountsHistoryThClass, "num")}>Amount</TableHead>
+                          <TableHead className={accountsHistoryThClass}>Status</TableHead>
+                        </TableRow>
+                      </TableHeader>
                       <TableBody>
-                        {legacyInvoices.map((inv, index) => (
+                        {filteredLegacy.map((inv, index) => (
                           <TableRow
                             key={inv.id}
                             ref={(el) => { legacyRowRefs.current[index] = el; }}
-                            className={`cursor-pointer ${selectedLegacyIndex === index ? 'bg-primary/10 ring-1 ring-primary/30' : ''}`}
+                            className={cn("cursor-pointer", selectedLegacyIndex === index && "selected")}
                             onClick={() => setSelectedLegacyIndex(index)}
                           >
-                            <TableCell className="font-mono text-sm">{inv.invoice_number}</TableCell>
+                            <TableCell className="font-mono text-primary">{inv.invoice_number}</TableCell>
                             <TableCell>{format(new Date(inv.invoice_date), 'dd/MM/yyyy')}</TableCell>
-                            <TableCell className="text-right font-semibold">₹{(inv.amount || 0).toFixed(2)}</TableCell>
+                            <TableCell className="num font-semibold">₹{(inv.amount || 0).toFixed(2)}</TableCell>
                             <TableCell>
                               <Badge variant={inv.payment_status === 'Paid' ? 'default' : 'secondary'}>{inv.payment_status}</Badge>
                             </TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
-                      <TableFooter>
+                      <TableFooter className="border-t-2 border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-800 [&>tr]:border-0 [&>tr]:hover:bg-transparent">
                         <TableTotalRow
-                          label={`Total (${legacyInvoices.length})`}
+                          label={`Total (${filteredLegacy.length})`}
                           leadingColSpan={2}
                           trailingColSpan={1}
                           amounts={[{ value: tabTotals.legacyAmount }]}
                         />
                       </TableFooter>
-                    </Table>
+                    </CustomerAccountTable>
                   </>
                 ) : (
-                  <p className="text-center text-muted-foreground py-8">No legacy invoices found</p>
+                  <EmptyTabMessage hasRaw={!!legacyInvoices?.length} label="legacy invoices" />
                 )}
               </TabsContent>
 
               {/* Payments Tab */}
               <TabsContent value="payments" className="mt-0">
                 {paymentsLoading ? (
-                  <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
-                ) : paymentHistory && paymentHistory.length > 0 ? (
-                  <Table>
-                    <TableHeader className="bg-background">
-                      <TableRow className="border-b-2 border-border">
-                        <TableHead className="text-foreground font-bold">Voucher #</TableHead>
-                        <TableHead className="text-foreground font-bold">Date</TableHead>
-                        <TableHead className="text-foreground font-bold">Amount</TableHead>
-                        <TableHead className="text-foreground font-bold">Description</TableHead>
-                        <TableHead className="w-10 text-foreground font-bold"></TableHead>
+                  <EmptyTabMessage loading label="payments" />
+                ) : filteredPayments.length > 0 ? (
+                  <CustomerAccountTable>
+                    <TableHeader className="!static">
+                      <TableRow>
+                        <TableHead className={accountsHistoryThClass}>Voucher No</TableHead>
+                        <TableHead className={accountsHistoryThClass}>Date</TableHead>
+                        <TableHead className={cn(accountsHistoryThClass, "num")}>Amount</TableHead>
+                        <TableHead className={accountsHistoryThClass}>Description</TableHead>
+                        <TableHead className={cn(accountsHistoryThClass, "text-right")}>Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {paymentHistory.map((payment) => (
+                      {filteredPayments.map((payment) => (
                         <TableRow key={payment.id}>
-                          <TableCell className="font-medium">{payment.voucher_number}</TableCell>
+                          <TableCell className="font-medium font-mono">{payment.voucher_number}</TableCell>
                           <TableCell>{format(new Date(payment.voucher_date), 'dd/MM/yyyy')}</TableCell>
-                          <TableCell className="text-green-600 font-semibold">₹{payment.total_amount.toFixed(2)}</TableCell>
+                          <TableCell className="num text-green-600 font-semibold">₹{payment.total_amount.toFixed(2)}</TableCell>
                           <TableCell className="text-muted-foreground">{payment.description || '-'}</TableCell>
                           <TableCell>
-                            <div className="flex items-center justify-center gap-0.5">
+                            <div className="flex items-center justify-end gap-0.5">
                               <Button variant="ghost" size="icon" className="h-7 w-7" title="View Payment" onClick={() => setPreview({ type: "payment", data: payment })}>
                                 <Eye className="h-4 w-4" />
                               </Button>
@@ -753,44 +830,44 @@ export function CustomerAccountHistoryContent({
                         </TableRow>
                       ))}
                     </TableBody>
-                    <TableFooter>
+                    <TableFooter className="border-t-2 border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-800 [&>tr]:border-0 [&>tr]:hover:bg-transparent">
                       <TableTotalRow
-                        label={`Total (${paymentHistory.length})`}
+                        label={`Total (${filteredPayments.length})`}
                         leadingColSpan={2}
                         trailingColSpan={2}
                         amounts={[{ value: tabTotals.paymentsAmount, className: "text-green-600" }]}
                       />
                     </TableFooter>
-                  </Table>
+                  </CustomerAccountTable>
                 ) : (
-                  <p className="text-center text-muted-foreground py-8">No payments found</p>
+                  <EmptyTabMessage hasRaw={!!paymentHistory?.length} label="payments" />
                 )}
               </TabsContent>
 
               {/* Returns Tab */}
               <TabsContent value="returns" className="mt-0">
                 {returnsLoading ? (
-                  <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
-                ) : saleReturns && saleReturns.length > 0 ? (
-                  <Table>
-                    <TableHeader className="bg-background">
-                      <TableRow className="border-b-2 border-border">
-                        <TableHead className="text-foreground font-bold">Return #</TableHead>
-                        <TableHead className="text-foreground font-bold">Date</TableHead>
-                        <TableHead className="text-foreground font-bold">Original Invoice</TableHead>
-                        <TableHead className="text-foreground font-bold">Amount</TableHead>
-                        <TableHead className="w-10 text-foreground font-bold"></TableHead>
+                  <EmptyTabMessage loading label="returns" />
+                ) : filteredReturns.length > 0 ? (
+                  <CustomerAccountTable>
+                    <TableHeader className="!static">
+                      <TableRow>
+                        <TableHead className={accountsHistoryThClass}>Return No</TableHead>
+                        <TableHead className={accountsHistoryThClass}>Date</TableHead>
+                        <TableHead className={accountsHistoryThClass}>Original Invoice</TableHead>
+                        <TableHead className={cn(accountsHistoryThClass, "num")}>Amount</TableHead>
+                        <TableHead className={cn(accountsHistoryThClass, "text-right")}>Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {saleReturns.map((ret) => (
+                      {filteredReturns.map((ret) => (
                         <TableRow key={ret.id}>
-                          <TableCell className="font-medium">{ret.return_number}</TableCell>
+                          <TableCell className="font-medium font-mono">{ret.return_number}</TableCell>
                           <TableCell>{format(new Date(ret.return_date), 'dd/MM/yyyy')}</TableCell>
-                          <TableCell>{ret.original_sale_number || '-'}</TableCell>
-                          <TableCell className="text-red-600 font-semibold">₹{ret.net_amount.toFixed(2)}</TableCell>
+                          <TableCell className="font-mono text-primary">{ret.original_sale_number || '-'}</TableCell>
+                          <TableCell className="num text-red-600 font-semibold">₹{ret.net_amount.toFixed(2)}</TableCell>
                           <TableCell>
-                            <div className="flex items-center justify-center gap-0.5">
+                            <div className="flex items-center justify-end gap-0.5">
                               <Button variant="ghost" size="icon" className="h-7 w-7" title="View Return" onClick={() => setPreview({ type: "return", data: ret })}>
                                 <Eye className="h-4 w-4" />
                               </Button>
@@ -804,50 +881,50 @@ export function CustomerAccountHistoryContent({
                         </TableRow>
                       ))}
                     </TableBody>
-                    <TableFooter>
+                    <TableFooter className="border-t-2 border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-800 [&>tr]:border-0 [&>tr]:hover:bg-transparent">
                       <TableTotalRow
-                        label={`Total (${saleReturns.length})`}
+                        label={`Total (${filteredReturns.length})`}
                         leadingColSpan={3}
                         trailingColSpan={1}
                         amounts={[{ value: tabTotals.returnsAmount, className: "text-red-600" }]}
                       />
                     </TableFooter>
-                  </Table>
+                  </CustomerAccountTable>
                 ) : (
-                  <p className="text-center text-muted-foreground py-8">No returns found</p>
+                  <EmptyTabMessage hasRaw={!!saleReturns?.length} label="returns" />
                 )}
               </TabsContent>
 
               {/* Credit Notes Tab */}
               <TabsContent value="credit-notes" className="mt-0">
                 {creditNotesLoading ? (
-                  <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
-                ) : creditNotes && creditNotes.length > 0 ? (
-                  <Table>
-                    <TableHeader className="bg-background">
-                      <TableRow className="border-b-2 border-border">
-                        <TableHead className="text-foreground font-bold">Credit Note #</TableHead>
-                        <TableHead className="text-foreground font-bold">Date</TableHead>
-                        <TableHead className="text-foreground font-bold">Amount</TableHead>
-                        <TableHead className="text-foreground font-bold">Used</TableHead>
-                        <TableHead className="text-foreground font-bold">Status</TableHead>
-                        <TableHead className="w-10 text-foreground font-bold"></TableHead>
+                  <EmptyTabMessage loading label="credit notes" />
+                ) : filteredCreditNotes.length > 0 ? (
+                  <CustomerAccountTable>
+                    <TableHeader className="!static">
+                      <TableRow>
+                        <TableHead className={accountsHistoryThClass}>Credit Note No</TableHead>
+                        <TableHead className={accountsHistoryThClass}>Date</TableHead>
+                        <TableHead className={cn(accountsHistoryThClass, "num")}>Amount</TableHead>
+                        <TableHead className={cn(accountsHistoryThClass, "num")}>Used</TableHead>
+                        <TableHead className={accountsHistoryThClass}>Status</TableHead>
+                        <TableHead className={cn(accountsHistoryThClass, "text-right")}>Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {creditNotes.map((cn) => (
+                      {filteredCreditNotes.map((cn) => (
                         <TableRow key={cn.id}>
-                          <TableCell className="font-medium">{cn.credit_note_number}</TableCell>
+                          <TableCell className="font-medium font-mono">{cn.credit_note_number}</TableCell>
                           <TableCell>{format(new Date(cn.issue_date), 'dd/MM/yyyy')}</TableCell>
-                          <TableCell className="text-violet-600 font-semibold">₹{cn.credit_amount.toFixed(2)}</TableCell>
-                          <TableCell>₹{(cn.used_amount || 0).toFixed(2)}</TableCell>
+                          <TableCell className="num text-violet-600 font-semibold">₹{cn.credit_amount.toFixed(2)}</TableCell>
+                          <TableCell className="num">₹{(cn.used_amount || 0).toFixed(2)}</TableCell>
                           <TableCell>
                             <Badge variant={cn.status === 'active' ? 'default' : cn.status === 'fully_used' ? 'secondary' : 'outline'} className={cn.status === 'active' ? 'bg-green-500' : ''}>
                               {cn.status}
                             </Badge>
                           </TableCell>
                           <TableCell>
-                            <div className="flex items-center justify-center gap-0.5">
+                            <div className="flex items-center justify-end gap-0.5">
                               <Button variant="ghost" size="icon" className="h-7 w-7" title="View Credit Note" onClick={() => setPreview({ type: "credit-note", data: cn })}>
                                 <Eye className="h-4 w-4" />
                               </Button>
@@ -861,9 +938,9 @@ export function CustomerAccountHistoryContent({
                         </TableRow>
                       ))}
                     </TableBody>
-                    <TableFooter>
+                    <TableFooter className="border-t-2 border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-800 [&>tr]:border-0 [&>tr]:hover:bg-transparent">
                       <TableTotalRow
-                        label={`Total (${creditNotes.length})`}
+                        label={`Total (${filteredCreditNotes.length})`}
                         leadingColSpan={2}
                         trailingColSpan={2}
                         amounts={[
@@ -872,34 +949,34 @@ export function CustomerAccountHistoryContent({
                         ]}
                       />
                     </TableFooter>
-                  </Table>
+                  </CustomerAccountTable>
                 ) : (
-                  <p className="text-center text-muted-foreground py-8">No credit notes found</p>
+                  <EmptyTabMessage hasRaw={!!creditNotes?.length} label="credit notes" />
                 )}
               </TabsContent>
 
               {/* Refunds Tab */}
               <TabsContent value="refunds" className="mt-0">
-                {refunds.length > 0 ? (
-                  <Table>
-                    <TableHeader className="bg-background">
-                      <TableRow className="border-b-2 border-border">
-                        <TableHead className="text-foreground font-bold">Invoice #</TableHead>
-                        <TableHead className="text-foreground font-bold">Date</TableHead>
-                        <TableHead className="text-foreground font-bold">Sale Amount</TableHead>
-                        <TableHead className="text-foreground font-bold">Refund Amount</TableHead>
-                        <TableHead className="w-10 text-foreground font-bold"></TableHead>
+                {filteredRefunds.length > 0 ? (
+                  <CustomerAccountTable>
+                    <TableHeader className="!static">
+                      <TableRow>
+                        <TableHead className={accountsHistoryThClass}>Invoice No</TableHead>
+                        <TableHead className={accountsHistoryThClass}>Date</TableHead>
+                        <TableHead className={cn(accountsHistoryThClass, "num")}>Sale Amount</TableHead>
+                        <TableHead className={cn(accountsHistoryThClass, "num")}>Refund Amount</TableHead>
+                        <TableHead className={cn(accountsHistoryThClass, "text-right")}>Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {refunds.map((sale) => (
+                      {filteredRefunds.map((sale) => (
                         <TableRow key={sale.id}>
-                          <TableCell className="font-medium">{sale.sale_number}</TableCell>
+                          <TableCell className="font-medium font-mono text-primary">{sale.sale_number}</TableCell>
                           <TableCell>{format(new Date(sale.sale_date), 'dd/MM/yyyy')}</TableCell>
-                          <TableCell>₹{sale.net_amount.toFixed(2)}</TableCell>
-                          <TableCell className="text-red-600 font-semibold">₹{(sale.refund_amount || 0).toFixed(2)}</TableCell>
+                          <TableCell className="num">₹{sale.net_amount.toFixed(2)}</TableCell>
+                          <TableCell className="num text-red-600 font-semibold">₹{(sale.refund_amount || 0).toFixed(2)}</TableCell>
                           <TableCell>
-                            <div className="flex items-center justify-center gap-0.5">
+                            <div className="flex items-center justify-end gap-0.5">
                               <Button variant="ghost" size="icon" className="h-7 w-7" title="View Invoice" onClick={() => setPreview({ type: "refund", data: sale })}>
                                 <Eye className="h-4 w-4" />
                               </Button>
@@ -913,9 +990,9 @@ export function CustomerAccountHistoryContent({
                         </TableRow>
                       ))}
                     </TableBody>
-                    <TableFooter>
+                    <TableFooter className="border-t-2 border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-800 [&>tr]:border-0 [&>tr]:hover:bg-transparent">
                       <TableTotalRow
-                        label={`Total (${refunds.length})`}
+                        label={`Total (${filteredRefunds.length})`}
                         leadingColSpan={2}
                         trailingColSpan={1}
                         amounts={[
@@ -924,40 +1001,40 @@ export function CustomerAccountHistoryContent({
                         ]}
                       />
                     </TableFooter>
-                  </Table>
+                  </CustomerAccountTable>
                 ) : (
-                  <p className="text-center text-muted-foreground py-8">No refunds found</p>
+                  <EmptyTabMessage hasRaw={refunds.length > 0} label="refunds" />
                 )}
               </TabsContent>
 
               {/* Advances Tab */}
               <TabsContent value="advances" className="mt-0">
                 {advancesLoading ? (
-                  <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
-                ) : customerAdvances && customerAdvances.length > 0 ? (
-                  <Table>
-                    <TableHeader className="bg-background">
-                      <TableRow className="border-b-2 border-border">
-                        <TableHead className="text-foreground font-bold">Advance #</TableHead>
-                        <TableHead className="text-foreground font-bold">Date</TableHead>
-                        <TableHead className="text-right text-foreground font-bold">Amount</TableHead>
-                        <TableHead className="text-right text-foreground font-bold">Used</TableHead>
-                        <TableHead className="text-right text-foreground font-bold">Unused</TableHead>
-                        <TableHead className="text-foreground font-bold">Method</TableHead>
-                        <TableHead className="text-foreground font-bold">Status</TableHead>
-                        <TableHead className="text-center text-foreground font-bold w-[50px]">View</TableHead>
+                  <EmptyTabMessage loading label="advances" />
+                ) : filteredAdvances.length > 0 ? (
+                  <CustomerAccountTable>
+                    <TableHeader className="!static">
+                      <TableRow>
+                        <TableHead className={accountsHistoryThClass}>Advance No</TableHead>
+                        <TableHead className={accountsHistoryThClass}>Date</TableHead>
+                        <TableHead className={cn(accountsHistoryThClass, "num")}>Amount</TableHead>
+                        <TableHead className={cn(accountsHistoryThClass, "num")}>Used</TableHead>
+                        <TableHead className={cn(accountsHistoryThClass, "num")}>Unused</TableHead>
+                        <TableHead className={accountsHistoryThClass}>Method</TableHead>
+                        <TableHead className={accountsHistoryThClass}>Status</TableHead>
+                        <TableHead className={cn(accountsHistoryThClass, "text-right")}>Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {customerAdvances.map((adv) => {
+                      {filteredAdvances.map((adv) => {
                         const unused = Math.max(0, (adv.amount || 0) - (adv.used_amount || 0));
                         return (
                           <TableRow key={adv.id}>
-                            <TableCell className="font-medium">{adv.advance_number}</TableCell>
+                            <TableCell className="font-medium font-mono">{adv.advance_number}</TableCell>
                             <TableCell>{format(new Date(adv.advance_date), 'dd/MM/yyyy')}</TableCell>
-                            <TableCell className="text-right font-semibold tabular-nums">₹{adv.amount.toFixed(2)}</TableCell>
-                            <TableCell className="text-right tabular-nums">₹{adv.used_amount.toFixed(2)}</TableCell>
-                            <TableCell className={`text-right font-semibold tabular-nums ${unused > 0 ? 'text-green-600' : 'text-muted-foreground'}`}>
+                            <TableCell className="num font-semibold">₹{adv.amount.toFixed(2)}</TableCell>
+                            <TableCell className="num">₹{adv.used_amount.toFixed(2)}</TableCell>
+                            <TableCell className={cn("num font-semibold", unused > 0 ? "text-green-600" : "text-muted-foreground")}>
                               ₹{unused.toFixed(2)}
                             </TableCell>
                             <TableCell className="capitalize">{adv.payment_method || '-'}</TableCell>
@@ -969,8 +1046,8 @@ export function CustomerAccountHistoryContent({
                                 {adv.status?.replace('_', ' ')}
                               </Badge>
                             </TableCell>
-                            <TableCell className="text-center">
-                              <div className="flex items-center justify-center gap-0.5">
+                            <TableCell>
+                              <div className="flex items-center justify-end gap-0.5">
                                 <Button variant="ghost" size="icon" className="h-7 w-7" title="View Advance" onClick={() => setPreview({ type: "advance", data: adv })}>
                                   <Eye className="h-4 w-4" />
                                 </Button>
@@ -990,9 +1067,9 @@ export function CustomerAccountHistoryContent({
                         );
                       })}
                     </TableBody>
-                    <TableFooter>
+                    <TableFooter className="border-t-2 border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-800 [&>tr]:border-0 [&>tr]:hover:bg-transparent">
                       <TableTotalRow
-                        label={`Total (${customerAdvances.length})`}
+                        label={`Total (${filteredAdvances.length})`}
                         leadingColSpan={2}
                         trailingColSpan={3}
                         amounts={[
@@ -1002,47 +1079,47 @@ export function CustomerAccountHistoryContent({
                         ]}
                       />
                     </TableFooter>
-                  </Table>
+                  </CustomerAccountTable>
                 ) : (
-                  <p className="text-center text-muted-foreground py-8">No advances found</p>
+                  <EmptyTabMessage hasRaw={!!customerAdvances?.length} label="advances" />
                 )}
               </TabsContent>
 
               {/* Balance Adjustments Tab */}
               <TabsContent value="adjustments" className="mt-0">
                 {adjustmentsLoading ? (
-                  <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
-                ) : balanceAdjustments && balanceAdjustments.length > 0 ? (
-                  <Table>
-                    <TableHeader className="bg-background">
-                      <TableRow className="border-b-2 border-border">
-                        <TableHead className="text-foreground font-bold">Date</TableHead>
-                        <TableHead className="text-foreground font-bold">Reason</TableHead>
-                        <TableHead className="text-right text-foreground font-bold">Prev O/S</TableHead>
-                        <TableHead className="text-right text-foreground font-bold">New O/S</TableHead>
-                        <TableHead className="text-right text-foreground font-bold">O/S Diff</TableHead>
-                        <TableHead className="text-right text-foreground font-bold">Prev Adv</TableHead>
-                        <TableHead className="text-right text-foreground font-bold">New Adv</TableHead>
-                        <TableHead className="text-right text-foreground font-bold">Adv Diff</TableHead>
-                        <TableHead className="text-center text-foreground font-bold w-[50px]">View</TableHead>
+                  <EmptyTabMessage loading label="balance adjustments" />
+                ) : filteredAdjustments.length > 0 ? (
+                  <CustomerAccountTable>
+                    <TableHeader className="!static">
+                      <TableRow>
+                        <TableHead className={accountsHistoryThClass}>Date</TableHead>
+                        <TableHead className={accountsHistoryThClass}>Reason</TableHead>
+                        <TableHead className={cn(accountsHistoryThClass, "num")}>Prev O/S</TableHead>
+                        <TableHead className={cn(accountsHistoryThClass, "num")}>New O/S</TableHead>
+                        <TableHead className={cn(accountsHistoryThClass, "num")}>O/S Diff</TableHead>
+                        <TableHead className={cn(accountsHistoryThClass, "num")}>Prev Adv</TableHead>
+                        <TableHead className={cn(accountsHistoryThClass, "num")}>New Adv</TableHead>
+                        <TableHead className={cn(accountsHistoryThClass, "num")}>Adv Diff</TableHead>
+                        <TableHead className={cn(accountsHistoryThClass, "text-right")}>View</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {balanceAdjustments.map((adj) => (
+                      {filteredAdjustments.map((adj) => (
                         <TableRow key={adj.id}>
                           <TableCell>{format(new Date(adj.adjustment_date), 'dd/MM/yyyy')}</TableCell>
                           <TableCell className="font-medium max-w-[200px] truncate" title={adj.reason}>{adj.reason}</TableCell>
-                          <TableCell className="text-right tabular-nums">₹{adj.previous_outstanding.toFixed(2)}</TableCell>
-                          <TableCell className="text-right tabular-nums">₹{adj.new_outstanding.toFixed(2)}</TableCell>
-                          <TableCell className={`text-right font-semibold tabular-nums ${adj.outstanding_difference > 0 ? 'text-red-600' : adj.outstanding_difference < 0 ? 'text-green-600' : ''}`}>
-                            {adj.outstanding_difference > 0 ? '+' : ''}₹{adj.outstanding_difference.toFixed(2)}
+                          <TableCell className="num">₹{adj.previous_outstanding.toFixed(2)}</TableCell>
+                          <TableCell className="num">₹{adj.new_outstanding.toFixed(2)}</TableCell>
+                          <TableCell className={cn("num font-semibold", adj.outstanding_difference > 0 ? "text-red-600" : adj.outstanding_difference < 0 ? "text-green-600" : "")}>
+                            {adj.outstanding_difference > 0 ? "+" : ""}₹{adj.outstanding_difference.toFixed(2)}
                           </TableCell>
-                          <TableCell className="text-right tabular-nums">₹{adj.previous_advance.toFixed(2)}</TableCell>
-                          <TableCell className="text-right tabular-nums">₹{adj.new_advance.toFixed(2)}</TableCell>
-                          <TableCell className={`text-right font-semibold tabular-nums ${adj.advance_difference > 0 ? 'text-green-600' : adj.advance_difference < 0 ? 'text-red-600' : ''}`}>
-                            {adj.advance_difference > 0 ? '+' : ''}₹{adj.advance_difference.toFixed(2)}
+                          <TableCell className="num">₹{adj.previous_advance.toFixed(2)}</TableCell>
+                          <TableCell className="num">₹{adj.new_advance.toFixed(2)}</TableCell>
+                          <TableCell className={cn("num font-semibold", adj.advance_difference > 0 ? "text-green-600" : adj.advance_difference < 0 ? "text-red-600" : "")}>
+                            {adj.advance_difference > 0 ? "+" : ""}₹{adj.advance_difference.toFixed(2)}
                           </TableCell>
-                          <TableCell className="text-center">
+                          <TableCell className="text-right">
                             <Button variant="ghost" size="icon" className="h-7 w-7" title="View Adjustment" onClick={() => setPreview({ type: "adjustment", data: adj })}>
                               <Eye className="h-4 w-4" />
                             </Button>
@@ -1050,28 +1127,29 @@ export function CustomerAccountHistoryContent({
                         </TableRow>
                       ))}
                     </TableBody>
-                    <TableFooter>
-                      <TableRow className="bg-muted/50 border-t-2 font-semibold">
+                    <TableFooter className="border-t-2 border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-800 [&>tr]:border-0 [&>tr]:hover:bg-transparent">
+                      <TableRow className="font-semibold">
                         <TableCell colSpan={2} className="text-right text-xs uppercase tracking-wide text-muted-foreground">
-                          Total ({balanceAdjustments.length})
+                          Total ({filteredAdjustments.length})
                         </TableCell>
                         <TableCell colSpan={2} />
-                        <TableCell className={cn("text-right tabular-nums text-sm", tabTotals.adjOsDiff > 0 ? "text-red-600" : tabTotals.adjOsDiff < 0 ? "text-green-600" : "")}>
+                        <TableCell className={cn("num text-sm", tabTotals.adjOsDiff > 0 ? "text-red-600" : tabTotals.adjOsDiff < 0 ? "text-green-600" : "")}>
                           {tabTotals.adjOsDiff > 0 ? "+" : ""}{fmtTotal(tabTotals.adjOsDiff)}
                         </TableCell>
                         <TableCell colSpan={2} />
-                        <TableCell className={cn("text-right tabular-nums text-sm", tabTotals.adjAdvDiff > 0 ? "text-green-600" : tabTotals.adjAdvDiff < 0 ? "text-red-600" : "")}>
+                        <TableCell className={cn("num text-sm", tabTotals.adjAdvDiff > 0 ? "text-green-600" : tabTotals.adjAdvDiff < 0 ? "text-red-600" : "")}>
                           {tabTotals.adjAdvDiff > 0 ? "+" : ""}{fmtTotal(tabTotals.adjAdvDiff)}
                         </TableCell>
                         <TableCell />
                       </TableRow>
                     </TableFooter>
-                  </Table>
+                  </CustomerAccountTable>
                 ) : (
-                  <p className="text-center text-muted-foreground py-8">No balance adjustments found</p>
+                  <EmptyTabMessage hasRaw={!!balanceAdjustments?.length} label="balance adjustments" />
                 )}
               </TabsContent>
             </ScrollArea>
+            </div>
           </Tabs>
           </div>
     </>

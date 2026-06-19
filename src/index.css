@@ -1864,6 +1864,19 @@ input.no-uppercase {
   vertical-align: middle;
 }
 
+/* Customer account page — dashboard-style dense grid */
+.customer-account-page .customer-account-grid thead th {
+  padding: 4px 8px !important;
+  font-size: 11px;
+  height: 28px;
+}
+
+.customer-account-page .customer-account-grid tbody td {
+  padding: 3px 8px !important;
+  height: 32px;
+  vertical-align: middle;
+}
+
 /* Stock report — compact chrome, prominent product rows */
 .stock-report-page table tbody td {
   vertical-align: middle;

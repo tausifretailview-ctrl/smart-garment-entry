@@ -56,7 +56,7 @@ export default function CustomerAccountPage() {
   const customerName = customer?.customer_name ?? locationState.customerName ?? "";
 
   return (
-    <div className="flex flex-col h-full min-h-0 bg-background overflow-hidden">
+    <div className="flex flex-col h-full min-h-0 bg-slate-50 customer-account-page overflow-hidden">
       <div className="flex-shrink-0 border-b bg-background px-4 py-3 flex items-center gap-3">
         <button
           type="button"
@@ -94,7 +94,7 @@ export default function CustomerAccountPage() {
           organizationId={organizationId}
           queriesEnabled
           scrollAreaClassName="flex-1 min-h-0"
-          wrapperClassName="px-4 pb-4 flex flex-col flex-1 overflow-hidden min-h-0"
+          wrapperClassName="px-3 sm:px-4 pb-4 flex flex-col flex-1 overflow-hidden min-h-0"
         />
       )}
     </div>
