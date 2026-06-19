@@ -1,84 +1,105 @@
-
 ## Goal
 
-Add a **user-scoped restriction**: only the user who created a POS invoice / purchase bill / payment entry may **Modify** or **Delete** it. Other users see the row but the Edit / Delete buttons are disabled with a tooltip ("Only <creator> can modify this entry"). Admin / Owner role bypasses the restriction.
+Keep the Lovable Cloud instance on the **small tier** with low monthly cloud usage, while making the app feel **faster** for the user. Focus only on the highest-impact hotspots surfaced by `pg_stat_statements` — no formula changes, no RLS changes, no behaviour changes.
 
-This closes the root cause of the "POS bills disappearing in multi-user setup" issue documented for Mulund Mobility — even with the destructive-edit confirm dialog already shipped, the right fix is to prevent the wrong user from opening another user's bill at all.
+## What the slow-query report actually shows
 
-## Your hypothesis about POS auto-loading the last saved invoice
+Top offenders by total DB time (last window):
 
-Verified — **it does not happen.** The POS cart (`pos_cart_${orgId}` in `sessionStorage`) only stores the *in-progress* cart for the current tab; it is cleared after a successful save. POS edit-mode is only entered when a user explicitly clicks the **pencil / Modify** button on a row in the POS Dashboard, which calls `handleEditSale(sale.id)` and navigates with that sale id. So the bug is never "POS opened last invoice automatically" — it is always "user clicked Modify on a stale row that belonged to another terminal."
+| # | Pattern | Calls | Mean | Total time |
+|---|---------|-------|------|------------|
+| 1 | `products` + LATERAL `product_variants` list, no filter besides `org+status` | 12,467 | 2,262 ms | **7.8 hrs** |
+| 2 | Same with `uom` column variant | 9,191 | 2,623 ms | 6.7 hrs |
+| 3 | Same with nested `batch_stock` LATERAL | 45,001 | 446 ms | 5.6 hrs |
+| 4 | `product_variants` by `barcode ilike` (search) | 19,422 | 671 ms | 3.6 hrs |
+| 5 | `product_variants` barcode exact-OR-ilike, ordered by stock_qty | 10,008 | 1,150 ms | 3.2 hrs |
+| 6 | `printer_presets` UPDATE | **1,684,678** | 6 ms | 2.9 hrs |
+| 7 | `voucher_entries` description **ilike × 12** OR-chain | 91,006 | 67 ms | 1.7 hrs |
+| 8 | `purchase_items` by sku_id ANY() | 75,771 | 95 ms | 2.0 hrs |
 
-The fix below targets exactly that click.
+DB health: memory 63%, connections 23/90, DB 842 MB — **no instance pressure**. The cost is CPU burned on the queries above, not RAM/disk. Fix the queries, the small instance stays comfortable.
 
-## Scope
+## Plan (8 focused fixes, no business-logic changes)
 
-Three modules, same pattern:
+### 1. Index + trim the `products + product_variants` catalog reads (#1, #2, #3, #7 in table)
 
-| Module | Dashboard file | Edit handler | Delete handler | DB column |
-| --- | --- | --- | --- | --- |
-| POS / Invoice sales | `src/pages/POSDashboard.tsx`, `src/pages/SalesInvoiceDashboard.tsx` | `handleEditSale` | `handleDeleteSale` | `sales.created_by` |
-| Purchase bills | `src/pages/PurchaseBillDashboard.tsx` | row Edit click → `/purchase/edit/:id` | `handleDeleteClick` / `handleDeleteConfirm` | `purchase_bills.created_by` |
-| Payments | accounts payment dialogs (entry under `voucher_entries`) | `useAccountsPaymentDialogs` open-for-edit | delete in same hook | `voucher_entries.created_by` |
+These are PostgREST `select=*,product_variants(...)` calls from product pickers / barcode pages. Each call scans the org's full product list and does a LATERAL join per row.
 
-(Sale returns, delivery challans, quotations, sale orders are out of scope for this pass — call them out in the closing message so the user can decide if they want a follow-up.)
+- Add composite indexes:
+  - `products (organization_id, status) WHERE deleted_at IS NULL`
+  - `product_variants (product_id) WHERE deleted_at IS NULL AND active = true`
+  - `batch_stock (variant_id)` if not already present
+- Audit callers that request `select=*` on products and switch to the **column list they actually use** (mirror the slim shape already used in POS search).
+- Where the caller only needs the active set, add `.eq('status','active')` and `.is('deleted_at', null)` so indexes are usable.
 
-## Implementation
+### 2. Replace `barcode ilike '%x%'` scans with prefix / exact lookups (#4, #5, #8)
 
-### 1. Single source of truth for the rule
+POS barcode scan currently uses `ilike` on `product_variants.barcode`, which cannot use the b-tree index.
 
-New helper `src/lib/entryOwnership.ts`:
+- Use exact equality first; fall back to `ilike` **only** when the scanner input has no exact match.
+- Add `product_variants_barcode_trgm` (`gin_trgm_ops`) index to make the rare ilike fallback also cheap.
+- Same treatment for `purchase_items (sku_id, deleted_at)` composite index.
 
-```ts
-export function canModifyEntry(opts: {
-  currentUserId: string | undefined;
-  createdBy: string | null | undefined;
-  isOwnerOrAdmin: boolean;
-}): { allowed: boolean; reason?: string };
-```
+### 3. Stop the 1.68 M `printer_presets` UPDATE storm (#6)
 
-Returns `allowed = true` when `isOwnerOrAdmin` OR `createdBy === currentUserId` OR `createdBy` is null (legacy rows with no creator are left editable to avoid breaking historical data — flagged in the message back to the user).
+A dedupe guard already exists in `BarcodePrinting.tsx`, but other call sites (`useBarcodeLabelSettings.tsx`, calibration auto-save in `BarcodePrinting.tsx` ~line 4098) still write on every render.
 
-### 2. Resolve "is owner/admin" once per session
+- Hoist the "did the payload actually change?" signature check into a shared helper and use it in every `printer_presets` write site (label settings hook, calibration auto-save, settings page).
+- Debounce calibration auto-save to 1 s.
+- Skip writes when `label_width` / `label_height` / `label_config` are identical to last saved values.
 
-Reuse `useUserRoles()` (already in the project) to detect `owner` / `admin`. Resolve creator's display name via the existing `useOrganizationMembers` / user map already used on dashboards (no extra round-trip).
+### 4. Replace the 12-pattern `voucher_entries.description ilike` OR-chain (#7)
 
-### 3. Wire the helper into the three dashboards (frontend guard)
+This is the customer/supplier search in Accounts. Twelve `ilike` patterns × no usable index = full table scan per query.
 
-For each Edit / Delete button on a row:
+- Add a generated `tsvector` column on `voucher_entries.description` with a GIN index, OR a simpler `description_lc` text column + GIN trigram index.
+- Switch the query to a single `to_tsquery` / trigram match instead of 12 ORs.
+- Keep the existing `organization_id` + `voucher_type` + `reference_type` filters first so the planner uses the composite path.
 
-- Compute `const { allowed, reason } = canModifyEntry({...})`.
-- If not allowed → render the button **disabled** with a tooltip "Only <Creator Name> or an admin can modify this entry".
-- Mirror the same check inside the click handler (`handleEditSale`, `handleDeleteSale`, purchase delete, payment edit/delete) so even a programmatic call is rejected with a toast.
+### 5. Cache the catalog picker reads on the client
 
-### 4. Backend enforcement (defence-in-depth)
+These same `products+variants` calls run repeatedly because the product list / barcode page mounts often.
 
-Tighten the RLS UPDATE / DELETE policies on the three tables so the database rejects the same operation even if the UI is bypassed:
+- Promote the existing product catalog query key to `STALE_REFERENCE` (2 min) where it isn't already.
+- Reuse one shared query key across POS search, Sales Invoice search, and Barcode Print so they hit React Query cache instead of refetching.
 
-- `sales` — UPDATE / DELETE allowed only when `created_by = auth.uid()` OR caller has `owner` / `admin` role via the existing `has_role(...)` security-definer function. SELECT and INSERT policies untouched. Soft-delete writes (`deleted_at`) follow the same UPDATE rule.
-- `purchase_bills` — same pattern.
-- `voucher_entries` — same pattern.
+### 6. Kill remaining "refetch on every mount" on read-mostly screens
 
-This is a single migration; existing policies are dropped and recreated. SELECT is unchanged so dashboards keep showing every row to every user.
+Confirm `refetchOnMount: false` + `DASHBOARD_TAB_RETURN_QUERY_OPTIONS` are applied to:
+- Customer / Supplier ledger picker
+- Accounts → Receipts list
+- Settings sub-pages
 
-### 5. Show creator name on the row (small UX add)
+(Phase 1/2 covered POS, Sales, Purchase, Products — these are the stragglers.)
 
-The three dashboards already fetch user maps; surface a small "by <creator first name>" label on each row so users see ownership at a glance, not only when they hover a disabled button.
+### 7. Idle-time JS prefetch only, no Supabase prefetch
 
-### 6. Audit doc update
+Confirm no `useQuery` is firing on idle prefetch effects — only chunk prefetch. Anything that polls every 30 s without a user request gets switched to manual / on-focus refetch.
 
-Append a "Permanent fix shipped" section to `docs/mulund-multi-user-pos-audit-2026-06-18.md` describing the new rule and pointing to the helper / RLS change.
+### 8. Diagnostics doc
 
-## Out of scope (call out, do not build now)
+Update `docs/phase-2-cloud-savings.md` with a new "Phase 3 — small-instance hot queries" section and record before/after `pg_stat_statements` totals so we can prove the savings.
 
-- Sale returns, delivery challans, quotations, sale orders, school fee receipts — same pattern can be applied later if the user confirms.
-- A configurable "Edit others' bills" right in the User Rights screen — could be added next; for now Owner / Admin is the only escape hatch, matching Tally / Vyapar default.
+## Out of scope (explicitly)
 
-## Files touched
+- No change to `customerBalanceUtils`, no change to sale/payment formulas.
+- No RLS rewrites; only index additions.
+- No removal of any user-facing feature.
+- No migration on `auth`, `storage`, or other reserved schemas.
+- No instance resize.
 
-- New: `src/lib/entryOwnership.ts`
-- Edit: `src/pages/POSDashboard.tsx`, `src/pages/SalesInvoiceDashboard.tsx`, `src/pages/PurchaseBillDashboard.tsx`, `src/hooks/useAccountsPaymentDialogs.ts`
-- Edit: `docs/mulund-multi-user-pos-audit-2026-06-18.md`
-- One Supabase migration: tighten UPDATE / DELETE RLS on `sales`, `purchase_bills`, `voucher_entries`
+## Files likely touched
 
-No data migration needed. Legacy rows with `created_by IS NULL` remain editable by anyone (Owner / Admin can always edit them) so old data is not locked out.
+- `supabase/migrations/<new>.sql` — indexes only (products, product_variants, batch_stock, purchase_items, voucher_entries trigram/tsvector).
+- `src/pages/BarcodePrinting.tsx`, `src/hooks/useBarcodeLabelSettings.tsx` — dedupe + debounce.
+- `src/hooks/useCustomerSearch.tsx` / accounts search hook — switch description ilike → trigram match.
+- POS / Sales Invoice / BarcodePrint product fetchers — slim `select=` columns, shared query key.
+- `docs/phase-2-cloud-savings.md` — Phase 3 notes.
+
+## Expected outcome
+
+- Top-10 `pg_stat_statements` total time roughly halved on the next sample.
+- Product / barcode pages snappier on the small instance (mean falls from 2 s → < 300 ms for the catalog reads).
+- Cloud usage budget continues to fit on the small tier.
+
+Approve to start implementation, or tell me which of the 8 items to drop or reorder.
