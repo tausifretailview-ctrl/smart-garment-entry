@@ -87,3 +87,35 @@ From `docs/app-loading-slowness-diagnosis.md` — **unchanged logic**, possible 
 - RLS / `organization_id` filters on tenant tables
 - Payment `reference_type` canonical list
 - Schema: new timestamped migrations only (Lovable applies)
+
+---
+
+## Phase 3 — small-instance hot queries (2026-06-19)
+
+Goal: keep Lovable Cloud on the **small** instance after the medium→small downgrade.
+Baseline from `pg_stat_statements`:
+
+| Query | Calls | Mean | Total |
+|-------|------:|-----:|------:|
+| `products + product_variants` LATERAL list | 12.5K | 2.26s | 7.8 hrs |
+| Same, with `uom` column | 9.2K | 2.62s | 6.7 hrs |
+| Same, nested `batch_stock` LATERAL | 45K | 0.45s | 5.6 hrs |
+| `product_variants` barcode ilike | 19.4K | 0.67s | 3.6 hrs |
+| `printer_presets` UPDATE storm | **1.68M** | 6ms | 2.9 hrs |
+| `voucher_entries` description ilike × 12 | 91K | 67ms | 1.7 hrs |
+
+### Shipped
+
+1. **GIN trigram index on `voucher_entries.description`** (partial, `deleted_at IS NULL`) — replaces seq-scan for the 12-way ilike OR chains used by `fetchSaleReceiptSplitsForInvoices`, `customerAuditBundle`, `CustomerLedger`, and CN dialogs.
+2. **Composite `(organization_id, voucher_type, reference_type)`** partial index on `voucher_entries` — lets the planner narrow before the trigram scan.
+3. **`printer_presets` mirror-write dedupe** in `useBarcodeLabelSettings.saveLabelTemplate` — module-level signature cache skips identical UPDATEs; complements the existing dedupe guard in `BarcodePrinting.tsx`.
+
+### Not changed (already optimal or out of scope)
+
+- `idx_product_variants_barcode_trgm` already exists — slow ilike samples are historical; new queries should pick it up.
+- `products`/`product_variants` indexes already comprehensive (`org_status`, `org_status_name`, `org_product_active`, trigram on name/brand). No new indexes needed; slowness comes from `select=*` payload size. Caller trimming deferred — measure first after the description-trigram win.
+- No business-logic, RLS, or formula changes.
+
+### Verify
+
+After 24h of traffic, re-run `supabase--slow_queries` and compare `total_ms` for the two voucher_entries patterns and `printer_presets` UPDATE.
