@@ -15,7 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
-import { format } from "date-fns";
+import { differenceInDays, format } from "date-fns";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -949,6 +949,7 @@ export function SupplierPaymentTab({
                           <TableHead className="w-[50px]">Select</TableHead>
                           <TableHead>Bill No</TableHead>
                           <TableHead>Date</TableHead>
+                          <TableHead className="text-center w-[4.5rem]">Days</TableHead>
                           <TableHead className="text-right">Bill Amt</TableHead>
                           <TableHead className="text-right">Paid</TableHead>
                           {cnCreditPool > 0 && <TableHead className="text-right">CN Offset</TableHead>}
@@ -968,6 +969,9 @@ export function SupplierPaymentTab({
                           const isSelected = selectedSupplierBillIds.includes(bill.id);
                           const billDate = bill.bill_date ? new Date(bill.bill_date) : null;
                           const billDateText = billDate && !Number.isNaN(billDate.getTime()) ? format(billDate, "dd/MM/yyyy") : "-";
+                          const pendingDays = billDate && !Number.isNaN(billDate.getTime())
+                            ? Math.max(0, differenceInDays(voucherDate, billDate))
+                            : null;
                           return (
                             <TableRow key={bill.id} className={cn("cursor-pointer transition-colors", isSelected && "bg-primary/5")}
                               onClick={() => {
@@ -984,6 +988,20 @@ export function SupplierPaymentTab({
                               </TableCell>
                               <TableCell className="font-medium">{bill.supplier_invoice_no || bill.software_bill_no || bill.id.slice(0, 8)}</TableCell>
                               <TableCell>{billDateText}</TableCell>
+                              <TableCell
+                                className={cn(
+                                  "text-center font-mono tabular-nums",
+                                  pendingDays === null
+                                    ? "text-muted-foreground"
+                                    : pendingDays > 30
+                                      ? "text-destructive font-medium"
+                                      : pendingDays > 7
+                                        ? "text-amber-600 dark:text-amber-400"
+                                        : "text-muted-foreground",
+                                )}
+                              >
+                                {pendingDays !== null ? `${pendingDays}d` : "—"}
+                              </TableCell>
                               <TableCell className="text-right">₹{netAmount.toFixed(2)}</TableCell>
                               <TableCell className="text-right text-muted-foreground">₹{paidAmount.toFixed(2)}</TableCell>
                               {cnCreditPool > 0 && (

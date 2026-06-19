@@ -1497,33 +1497,23 @@ export function CustomerPaymentTab({
                   </div>
                 ) : (
                   <>
-                    <div className="border rounded-md p-2 max-h-48 overflow-y-auto bg-muted/30">
-                      <table className="w-full table-fixed border-collapse">
-                        <colgroup>
-                          <col className="w-8" />
-                          <col />
-                          <col className="w-[4.75rem]" />
-                          <col className="w-[3.25rem]" />
-                          <col className="w-[6.75rem]" />
-                          <col className="w-28" />
-                        </colgroup>
-                        {((customerInvoices?.length ?? 0) > 0 || openingBalanceRemaining > 0) && (
-                          <thead>
-                            <tr className="text-[10px] uppercase tracking-wide text-muted-foreground border-b border-border/60">
-                              <th className="pb-1.5 pt-0.5" />
-                              <th className="pb-1.5 pt-0.5 text-left font-medium">Invoice</th>
-                              <th className="pb-1.5 pt-0.5 text-center font-medium">Date</th>
-                              <th className="pb-1.5 pt-0.5 text-center font-medium">Days</th>
-                              <th className="pb-1.5 pt-0.5 text-right font-medium">Pending</th>
-                              <th className="pb-1.5 pt-0.5" />
-                            </tr>
-                          </thead>
-                        )}
-                        <tbody>
+                    <div className="border rounded-lg overflow-y-auto overflow-x-auto max-h-48">
+                      <Table>
+                        <TableHeader>
+                          <TableRow className="bg-muted/50">
+                            <TableHead className="w-[50px]">Select</TableHead>
+                            <TableHead>Invoice</TableHead>
+                            <TableHead>Date</TableHead>
+                            <TableHead className="text-center w-[4.5rem]">Days</TableHead>
+                            <TableHead className="text-right">Pending</TableHead>
+                            <TableHead className="w-28 text-right">Pay</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
                           {openingBalanceRemaining > 0 && (() => {
                             const isSelected = selectedInvoiceIds.includes(OPENING_BALANCE_ID);
                             return (
-                              <tr
+                              <TableRow
                                 key={OPENING_BALANCE_ID}
                                 className={cn(
                                   "cursor-pointer transition-colors",
@@ -1531,17 +1521,17 @@ export function CustomerPaymentTab({
                                 )}
                                 onClick={() => setSelectedInvoiceIds(prev => prev.includes(OPENING_BALANCE_ID) ? prev.filter(id => id !== OPENING_BALANCE_ID) : [...prev, OPENING_BALANCE_ID])}
                               >
-                                <td className="py-2 pl-1 pr-0 align-middle">
-                                  <input type="checkbox" checked={isSelected} readOnly className="h-4 w-4 rounded border-primary text-primary focus:ring-primary pointer-events-none" />
-                                </td>
-                                <td className="py-2 pr-2 align-middle font-medium text-amber-700 dark:text-amber-400 truncate">Opening Balance</td>
-                                <td className="py-2 px-1 align-middle text-sm text-muted-foreground text-center">—</td>
-                                <td className="py-2 px-1 align-middle text-sm text-muted-foreground text-center">—</td>
-                                <td className="py-2 pl-1 pr-2 align-middle text-right">
+                                <TableCell>
+                                  <Checkbox checked={isSelected} className="pointer-events-none" />
+                                </TableCell>
+                                <TableCell className="font-medium text-amber-700 dark:text-amber-400">Opening Balance</TableCell>
+                                <TableCell className="text-muted-foreground">—</TableCell>
+                                <TableCell className="text-center text-muted-foreground">—</TableCell>
+                                <TableCell className="text-right">
                                   <Badge variant="destructive" className="font-mono tabular-nums">₹{Number(openingBalanceRemaining).toFixed(2)}</Badge>
-                                </td>
-                                <td className="py-2 pr-1 align-middle" />
-                              </tr>
+                                </TableCell>
+                                <TableCell />
+                              </TableRow>
                             );
                           })()}
                           {customerInvoices?.map((invoice) => {
@@ -1554,7 +1544,7 @@ export function CustomerPaymentTab({
                               ? Math.max(0, differenceInDays(voucherDate, invoiceDate))
                               : null;
                             return (
-                              <tr
+                              <TableRow
                                 key={invoice.id}
                                 className={cn(
                                   "cursor-pointer transition-colors",
@@ -1576,14 +1566,14 @@ export function CustomerPaymentTab({
                                   });
                                 }}
                               >
-                                <td className="py-2 pl-1 pr-0 align-middle">
-                                  <input type="checkbox" checked={isSelected} readOnly className="h-4 w-4 rounded border-primary text-primary focus:ring-primary pointer-events-none" />
-                                </td>
-                                <td className="py-2 pr-2 align-middle font-medium truncate">{invoice.sale_number}</td>
-                                <td className="py-2 px-1 align-middle text-sm text-muted-foreground text-center font-mono tabular-nums">{invoiceDateText}</td>
-                                <td
+                                <TableCell>
+                                  <Checkbox checked={isSelected} className="pointer-events-none" />
+                                </TableCell>
+                                <TableCell className="font-medium">{invoice.sale_number}</TableCell>
+                                <TableCell className="font-mono tabular-nums text-muted-foreground">{invoiceDateText}</TableCell>
+                                <TableCell
                                   className={cn(
-                                    "py-2 px-1 align-middle text-sm text-center font-mono tabular-nums",
+                                    "text-center font-mono tabular-nums",
                                     pendingDays === null
                                       ? "text-muted-foreground"
                                       : pendingDays > 30
@@ -1594,13 +1584,13 @@ export function CustomerPaymentTab({
                                   )}
                                 >
                                   {pendingDays !== null ? `${pendingDays}d` : "—"}
-                                </td>
-                                <td className="py-2 pl-1 pr-2 align-middle text-right">
+                                </TableCell>
+                                <TableCell className="text-right">
                                   <Badge variant={roundedBalance > 0 ? "destructive" : "secondary"} className="font-mono tabular-nums">
                                     ₹{roundedBalance.toFixed(2)}
                                   </Badge>
-                                </td>
-                                <td className="py-2 pr-1 align-middle">
+                                </TableCell>
+                                <TableCell className="text-right">
                                   {isSelected && (
                                     <Input
                                       type="number"
@@ -1619,12 +1609,12 @@ export function CustomerPaymentTab({
                                       }}
                                     />
                                   )}
-                                </td>
-                              </tr>
+                                </TableCell>
+                              </TableRow>
                             );
                           })}
-                        </tbody>
-                      </table>
+                        </TableBody>
+                      </Table>
                     </div>
                     {selectedInvoiceIds.length === 0 && referenceId && (
                       <p className="text-xs text-red-600 dark:text-red-400">⚠️ Please select at least one invoice to proceed</p>
