@@ -19,6 +19,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
+import { coerceToMap, safeMapGet } from "@/lib/coerceToMap";
 import { differenceInDays, format } from "date-fns";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -59,8 +60,7 @@ import { AccountsHistoryPanel } from "@/components/accounts/AccountsHistoryPanel
 import { accountsHistoryTableClass, accountsHistoryThClass } from "@/components/accounts/accountsHistoryUi";
 import { useCustomerFinancialSnapshot } from "@/hooks/useCustomerFinancialSnapshot";
 import { invalidateCustomerFinancialSnapshot } from "@/utils/customerFinancialSnapshot";
-import { invalidatePosDashboardQueries } from "@/utils/posDashboardSales";
-import { notifyPosSalesChanged } from "@/utils/posSalesRefresh";
+import { invalidateAfterCustomerPaymentMutation } from "@/utils/invalidateDashboardQueries";
 import {
   consumeAdvanceFIFO,
   createReceiptVoucher,
@@ -98,15 +98,6 @@ const toNumberOrZero = (value: any) => {
 const MIN_PENDING_RUPEE = 1;
 const SETTLEMENT_TOLERANCE_RUPEE = 0.99;
 const roundToRupee = (value: any) => Math.max(0, Math.round(toNumberOrZero(value)));
-
-function ensureStringKeyMap<T>(value: unknown): Map<string, T> {
-  return value instanceof Map ? value : new Map<string, T>();
-}
-
-function safeMapGet<T>(map: unknown, key: string): T | undefined {
-  if (!(map instanceof Map)) return undefined;
-  return map.get(key);
-}
 
 /** Settlement (invoice total), optional % discount → cash received + discount rupees. */
 function resolvePaymentBreakdown(
@@ -273,7 +264,7 @@ export function CustomerPaymentTab({
 
       let splitBySale = new Map<string, SaleReceiptVoucherSplit>();
       try {
-        splitBySale = ensureStringKeyMap<SaleReceiptVoucherSplit>(
+        splitBySale = coerceToMap<string, SaleReceiptVoucherSplit>(
           await fetchSaleReceiptSplitsForInvoices(
             supabase,
             organizationId,
@@ -364,7 +355,7 @@ export function CustomerPaymentTab({
             customer_id: s.customer_id,
           })),
         );
-        return ensureStringKeyMap<SaleReceiptVoucherSplit>(splits);
+        return coerceToMap<string, SaleReceiptVoucherSplit>(splits);
       } catch (e) {
         console.error("CustomerPaymentTab: customerInvoiceVoucherSplits query failed", e);
         return new Map<string, SaleReceiptVoucherSplit>();
@@ -374,7 +365,7 @@ export function CustomerPaymentTab({
   });
 
   const invoiceVoucherSplits = useMemo(
-    () => ensureStringKeyMap<SaleReceiptVoucherSplit>(customerInvoiceVoucherSplitsRaw),
+    () => coerceToMap<string, SaleReceiptVoucherSplit>(customerInvoiceVoucherSplitsRaw),
     [customerInvoiceVoucherSplitsRaw],
   );
 
@@ -633,8 +624,7 @@ export function CustomerPaymentTab({
       queryClient.invalidateQueries({ queryKey: ["customer-advance-balance"] });
       queryClient.invalidateQueries({ queryKey: ["customer-advances"] });
       queryClient.invalidateQueries({ queryKey: ["sales"] });
-      queryClient.invalidateQueries({ queryKey: ["sales-invoice-dashboard"] });
-      queryClient.invalidateQueries({ queryKey: ["invoice-dashboard-unified"] });
+      invalidateAfterCustomerPaymentMutation(queryClient, organizationId);
       queryClient.invalidateQueries({ queryKey: ["customers-with-balance"] });
       queryClient.invalidateQueries({ queryKey: ["journal-vouchers"] });
       invalidateCustomerFinancialSnapshot(queryClient, organizationId, referenceId);
@@ -1066,13 +1056,10 @@ export function CustomerPaymentTab({
       queryClient.invalidateQueries({ queryKey: ["customer-balance"] });
       queryClient.invalidateQueries({ queryKey: ["next-receipt-number"] });
       queryClient.invalidateQueries({ queryKey: ["sales"] });
-      queryClient.invalidateQueries({ queryKey: ["sales-invoice-dashboard"] });
-      queryClient.invalidateQueries({ queryKey: ["invoice-dashboard-unified"] });
+      invalidateAfterCustomerPaymentMutation(queryClient, organizationId);
       queryClient.invalidateQueries({ queryKey: ["customers-with-balance"] });
       queryClient.invalidateQueries({ queryKey: ["customer-ledger-statement"] });
       queryClient.invalidateQueries({ queryKey: ["journal-vouchers"] });
-      invalidatePosDashboardQueries(queryClient, organizationId);
-      notifyPosSalesChanged({ organizationId });
       invalidateCustomerFinancialSnapshot(queryClient, organizationId, referenceId);
 
       const totalPaid = data.paidAmount ?? roundToRupee(amount);
@@ -1226,8 +1213,7 @@ export function CustomerPaymentTab({
       queryClient.invalidateQueries({ queryKey: ["customer-receipt-vouchers", organizationId] });
       queryClient.invalidateQueries({ queryKey: ["payment-reconciliation"] });
       queryClient.invalidateQueries({ queryKey: ["sales"] });
-      queryClient.invalidateQueries({ queryKey: ["sales-invoice-dashboard"] });
-      queryClient.invalidateQueries({ queryKey: ["invoice-dashboard-unified"] });
+      invalidateAfterCustomerPaymentMutation(queryClient, organizationId);
       queryClient.invalidateQueries({ queryKey: ["customer-balance"] });
       queryClient.invalidateQueries({ queryKey: ["journal-vouchers"] });
       queryClient.invalidateQueries({ queryKey: ["customer-advance-balance"] });

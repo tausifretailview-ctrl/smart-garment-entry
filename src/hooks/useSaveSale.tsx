@@ -5,7 +5,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useToast } from "@/hooks/use-toast";
 import { useCustomerPoints } from "@/hooks/useCustomerPoints";
-import { useDashboardInvalidation } from "@/hooks/useDashboardInvalidation";
 import type { SaveSaleRuntimeOptions } from "@/utils/saveSaleRuntimeOptions";
 import { useShopName } from "@/hooks/useShopName";
 import { useSettings } from "@/hooks/useSettings";
@@ -24,8 +23,7 @@ import {
   isStatementTimeoutError,
   saleSaveTimeoutMessage,
 } from "@/utils/insertSaleItemsInChunks";
-import { notifyPosSalesChanged } from "@/utils/posSalesRefresh";
-import { invalidatePosDashboardQueries } from "@/utils/posDashboardSales";
+import { invalidateAfterSaleSave } from "@/utils/invalidateDashboardQueries";
 import { istCalendarYmd, saleDateIsoIst } from "@/lib/localDayBounds";
 
 interface CartItem {
@@ -74,7 +72,6 @@ export const useSaveSale = () => {
   const [isSaving, setIsSaving] = useState(false);
   const savingLockRef = useRef(false); // Synchronous lock to prevent duplicate saves
   const { awardPoints, isPointsEnabled, calculatePoints } = useCustomerPoints();
-  const { invalidateSales, scheduleInvalidateSales } = useDashboardInvalidation();
   const queryClient = useQueryClient();
 
   const applyPostSaleInvalidation = (
@@ -82,20 +79,11 @@ export const useSaveSale = () => {
     runtimeOptions?: SaveSaleRuntimeOptions,
     saleMeta?: { saleDate?: string; saleNumber?: string },
   ) => {
-    // Always notify POS dashboard immediately — do not wait for print dialog or 8s defer timer.
-    notifyPosSalesChanged({
-      organizationId,
+    invalidateAfterSaleSave(queryClient, organizationId, {
+      deferDashboardInvalidation: runtimeOptions?.deferDashboardInvalidation,
       saleDate: saleMeta?.saleDate,
       saleNumber: saleMeta?.saleNumber,
     });
-    void queryClient.invalidateQueries({ queryKey: ["sales-invoice-dashboard"] });
-    void queryClient.invalidateQueries({ queryKey: ["invoice-dashboard-unified"] });
-    invalidatePosDashboardQueries(queryClient, organizationId);
-    if (runtimeOptions?.deferDashboardInvalidation) {
-      scheduleInvalidateSales(organizationId, { skipPosNotify: true });
-    } else {
-      invalidateSales(organizationId);
-    }
   };
   const shopName = useShopName();
   // Centralized cached org settings (5 min) — used by save handlers below
