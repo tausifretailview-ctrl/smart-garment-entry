@@ -61,7 +61,6 @@ const SalesmanLayout = () => {
         queryKey: [SALESMAN_CUSTOMER_LIST_QUERY_KEY, orgId],
         queryFn: () => fetchSalesmanCustomerListCore(orgId, queryClient),
         staleTime: STALE_FREQUENT,
-        refetchOnWindowFocus: false,
       });
     };
 

@@ -126,7 +126,7 @@ async function syncPurchaseBillLineNumbers(
     const chunk = updates.slice(i, i + CHUNK);
     const results = await Promise.all(
       chunk.map(({ id, line_number }) =>
-        supabase.from("purchase_items").update({ line_number }).eq("id", id).eq("bill_id", billId),
+        supabase.from("purchase_items").update({ line_number } as any).eq("id", id).eq("bill_id", billId),
       ),
     );
     const lineNumberMissing = results.some(
@@ -140,11 +140,11 @@ async function syncPurchaseBillLineNumbers(
 
 async function insertPurchaseItemsRows(rows: Record<string, unknown>[]) {
   if (rows.length === 0) return;
-  const { error } = await supabase.from("purchase_items").insert(rows);
+  const { error } = await supabase.from("purchase_items").insert(rows as any);
   if (!error) return;
   if (/line_number/i.test(String(error.message || ""))) {
     const stripped = rows.map(({ line_number: _ln, ...rest }) => rest);
-    const { error: retryError } = await supabase.from("purchase_items").insert(stripped);
+    const { error: retryError } = await supabase.from("purchase_items").insert(stripped as any);
     if (retryError) throw retryError;
     return;
   }
