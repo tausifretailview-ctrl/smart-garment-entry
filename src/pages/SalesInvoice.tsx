@@ -2967,6 +2967,16 @@ Thank you for choosing us!`;
 
   const handlePrintInvoice = async () => {
     if (!savedInvoiceData || !currentOrganization?.id) return;
+    // Hard guard: never print a blank invoice. Require an invoice number AND at least one item.
+    const itemsForPrint = savedInvoiceData?.filledItems || [];
+    if (!savedInvoiceData.invoiceNumber || itemsForPrint.length === 0) {
+      toast({
+        variant: "destructive",
+        title: "Cannot Print",
+        description: "Invoice data not ready yet. Please try again in a moment.",
+      });
+      return;
+    }
     
     // Try QZ Tray direct print first
     if (isDirectPrintEnabled) {
