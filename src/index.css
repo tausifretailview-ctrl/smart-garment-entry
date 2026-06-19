@@ -1873,8 +1873,13 @@ input.no-uppercase {
   height: 32px;
 }
 
-.stock-report-page mark {
+.stock-report-page mark,
+.item-wise-sales-report mark {
   line-height: inherit;
+}
+
+.item-wise-sales-report table tbody tr {
+  height: 32px;
 }
 
 /* Bill entry — use full content width; product column absorbs extra space */

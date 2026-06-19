@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, type ReactNode } from "react";
 
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -6,7 +6,6 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 import { useProductFieldLabels } from "@/hooks/useSettings";
 import { fetchAllSaleItems } from "@/utils/fetchAllRows";
 import { BackToDashboard } from "@/components/BackToDashboard";
-import { ReportKpiCards, type ReportKpiItem } from "@/components/reports/ReportKpiCards";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -60,6 +59,34 @@ const CHART_COLORS = [
   "hsl(180, 60%, 45%)",
 ];
 
+const SALES_TABLE_SCROLL = "flex-1 min-h-0 overflow-auto overscroll-contain min-w-0";
+const SALES_PRODUCT_CELL =
+  "py-1 px-2 align-middle text-base font-bold text-foreground bg-blue-50/40 dark:bg-blue-950/20 whitespace-nowrap";
+const SALES_DETAIL_CELL = "py-1 px-2 align-middle text-sm font-semibold text-foreground whitespace-nowrap";
+const SALES_QTY_CELL = "py-1 px-2 align-middle text-base font-bold text-right tabular-nums text-foreground";
+const SALES_AMOUNT_CELL = "py-1 px-2 align-middle text-base font-bold text-right tabular-nums text-primary";
+
+function highlightSearchText(text: string, query: string): ReactNode {
+  const raw = text || "";
+  const q = query.trim();
+  if (!q || !raw) return raw || "—";
+
+  const lower = raw.toLowerCase();
+  const needle = q.toLowerCase();
+  const idx = lower.indexOf(needle);
+  if (idx === -1) return raw;
+
+  return (
+    <>
+      {raw.slice(0, idx)}
+      <mark className="bg-amber-300/90 text-foreground font-bold px-0.5 rounded-sm not-italic">
+        {raw.slice(idx, idx + q.length)}
+      </mark>
+      {raw.slice(idx + q.length)}
+    </>
+  );
+}
+
 export default function ItemWiseSalesReport() {
   const { currentOrganization } = useOrganization();
   const fieldLabels = useProductFieldLabels();
@@ -69,6 +96,7 @@ export default function ItemWiseSalesReport() {
     from: new Date(),
     to: new Date(),
   });
+  const [searchInput, setSearchInput] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [showFilters, setShowFilters] = useState(false);
   const [selectedBrand, setSelectedBrand] = useState<string>("all");
@@ -159,7 +187,10 @@ export default function ItemWiseSalesReport() {
       restoreDashboardFilters(saved, {
         strings: [
           ["periodType", (v) => setPeriodType(v as PeriodType)],
-          ["searchQuery", setSearchQuery],
+          ["searchQuery", (v) => {
+            setSearchQuery(v);
+            setSearchInput(v);
+          }],
           ["selectedBrand", setSelectedBrand],
           ["selectedCategory", setSelectedCategory],
           ["selectedDepartment", setSelectedDepartment],
@@ -674,65 +705,128 @@ export default function ItemWiseSalesReport() {
     window.print();
   };
 
-  const salesKpiItems = useMemo((): ReportKpiItem[] => [
-    {
-      label: "Total Qty Sold",
-      value: summary.totalQty.toLocaleString("en-IN"),
-      gradient: "bg-gradient-to-br from-blue-500 to-blue-600",
-      icon: Package,
-    },
-    {
-      label: "Total Sales",
-      value: `₹${summary.totalAmount.toLocaleString("en-IN")}`,
-      gradient: "bg-gradient-to-br from-emerald-500 to-emerald-600",
-      icon: IndianRupee,
-    },
-    {
-      label: "Unique Products",
-      value: summary.uniqueProducts.toLocaleString("en-IN"),
-      gradient: "bg-gradient-to-br from-violet-500 to-violet-600",
-      icon: FileText,
-    },
-    {
-      label: "Avg Sale Price",
-      value: `₹${summary.avgPrice.toFixed(2)}`,
-      gradient: "bg-gradient-to-br from-amber-500 to-amber-600",
-      icon: TrendingUp,
-    },
-  ], [summary]);
+  const handleSearch = () => {
+    setSearchQuery(searchInput.trim());
+    setCurrentPage(1);
+    setCustomerPage(1);
+    setBrandPage(1);
+    setSaleDetailsPage(1);
+  };
+
+  const handleClearSearch = () => {
+    setSearchInput("");
+    setSearchQuery("");
+    setCurrentPage(1);
+    setCustomerPage(1);
+    setBrandPage(1);
+    setSaleDetailsPage(1);
+  };
+
+  const salesKpiItems = useMemo(
+    () => [
+      { label: "Total Qty Sold", value: summary.totalQty.toLocaleString("en-IN"), gradient: "bg-gradient-to-br from-blue-500 to-blue-600" },
+      { label: "Total Sales", value: `₹${summary.totalAmount.toLocaleString("en-IN")}`, gradient: "bg-gradient-to-br from-emerald-500 to-emerald-600" },
+      { label: "Unique Products", value: summary.uniqueProducts.toLocaleString("en-IN"), gradient: "bg-gradient-to-br from-violet-500 to-violet-600" },
+      { label: "Avg Sale Price", value: `₹${summary.avgPrice.toFixed(2)}`, gradient: "bg-gradient-to-br from-amber-500 to-amber-600" },
+    ],
+    [summary],
+  );
+
+  const itemWiseCharts = (
+    <div className="grid md:grid-cols-2 gap-2 shrink-0 print:hidden">
+      <Card className="rounded-lg border border-slate-200 shadow-sm">
+        <CardHeader className="py-2 px-3">
+          <CardTitle className="text-sm font-semibold">Top 10 Products by Quantity</CardTitle>
+        </CardHeader>
+        <CardContent className="pb-3 px-3">
+          <div className="h-[220px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={topProductsData} layout="vertical">
+                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                <XAxis type="number" className="text-xs" />
+                <YAxis dataKey="name" type="category" width={120} className="text-xs" />
+                <Tooltip
+                  contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }}
+                  formatter={(value: number) => [value.toLocaleString(), "Qty"]}
+                />
+                <Bar dataKey="qty" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="rounded-lg border border-slate-200 shadow-sm">
+        <CardHeader className="py-2 px-3">
+          <CardTitle className="text-sm font-semibold">Sales by Category</CardTitle>
+        </CardHeader>
+        <CardContent className="pb-3 px-3">
+          <div className="h-[220px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={categoryData}
+                  cx="50%"
+                  cy="50%"
+                  labelLine={false}
+                  outerRadius={80}
+                  fill="#8884d8"
+                  dataKey="value"
+                  label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
+                >
+                  {categoryData.map((_, index) => (
+                    <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip
+                  contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }}
+                  formatter={(value: number) => [`₹${value.toLocaleString()}`, "Amount"]}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
 
   return (
-    <div className="min-h-screen bg-slate-50 p-4 md:p-6 space-y-5">
-      <BackToDashboard />
+    <div className="item-wise-sales-report flex flex-col h-[calc(100vh-4.5rem)] min-h-0 bg-slate-50 px-1.5 sm:px-2 py-1 overflow-hidden print:min-h-screen print:h-auto print:overflow-visible print:p-4">
+      <div className="w-full min-w-0 flex flex-col flex-1 min-h-0 space-y-1 print:space-y-2">
+      <div className="print:hidden shrink-0">
+        <BackToDashboard />
+      </div>
 
-      <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-extrabold text-blue-600 tracking-tight">Item-wise Sales Report</h1>
-          <p className="text-slate-400 text-base mt-0.5">Period, filters, and item / brand breakdowns</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" className="h-10 border-slate-300 text-slate-600 gap-2" onClick={handlePrint}>
-            <Printer className="h-4 w-4" />
+      <div className="flex flex-wrap items-center justify-between gap-1 shrink-0 print:hidden">
+        <h1 className="text-lg font-bold text-blue-600 tracking-tight leading-none">Item-wise Sales Report</h1>
+        <div className="flex items-center gap-1.5">
+          <Button variant="outline" className="h-8 text-sm border-slate-300 text-slate-600 gap-1.5 px-2.5" onClick={handlePrint}>
+            <Printer className="h-3.5 w-3.5" />
             Print
           </Button>
-          <Button variant="outline" className="h-10 border-slate-300 text-slate-600 gap-2" onClick={exportToExcel}>
-            <FileSpreadsheet className="h-4 w-4" />
+          <Button variant="outline" className="h-8 text-sm border-slate-300 text-slate-600 gap-1.5 px-2.5" onClick={exportToExcel}>
+            <FileSpreadsheet className="h-3.5 w-3.5" />
             Excel
           </Button>
         </div>
       </div>
 
-      <ReportKpiCards items={salesKpiItems} />
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-1.5 shrink-0 print:hidden">
+        {salesKpiItems.map((item) => (
+          <div key={item.label} className={cn("rounded-lg px-2 py-1.5 min-w-0 shadow-sm", item.gradient)}>
+            <p className="text-[10px] font-medium text-white/80 leading-none truncate">{item.label}</p>
+            <p className="text-base font-black text-white tabular-nums leading-tight truncate mt-0.5">{item.value}</p>
+          </div>
+        ))}
+      </div>
 
-      <Card className="rounded-xl border border-slate-200 shadow-sm">
-        <CardContent className="p-4">
-          <div className="flex flex-col gap-4">
-            <div className="flex flex-col md:flex-row gap-4 items-end">
-              {/* Period Type */}
-              <div className="w-full md:w-40">
-                <label className="text-sm font-medium text-muted-foreground mb-1 block">Period</label>
+      <Card className="rounded-lg border border-slate-200 shadow-sm shrink-0 print:hidden">
+        <CardContent className="p-1.5 space-y-1">
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-1.5 items-end">
+              <div className="md:col-span-2 space-y-0.5">
+                <label className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Period</label>
                 <Select value={periodType} onValueChange={(v) => setPeriodType(v as PeriodType)}>
-                  <SelectTrigger>
+                  <SelectTrigger className="h-8 text-sm">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -746,337 +840,212 @@ export default function ItemWiseSalesReport() {
                 </Select>
               </div>
 
-              {/* Date Picker */}
               {periodType !== "custom" && periodType !== "all" && (
-                <div className="w-full md:w-48">
-                  <label className="text-sm font-medium text-muted-foreground mb-1 block">Date</label>
+                <div className="md:col-span-2 space-y-0.5">
+                  <label className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Date</label>
                   <Popover>
                     <PopoverTrigger asChild>
-                      <Button variant="outline" className="w-full justify-start text-left font-normal">
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {format(selectedDate, "PPP")}
+                      <Button variant="outline" className="h-8 w-full justify-start text-left font-normal text-sm px-2">
+                        <CalendarIcon className="mr-1.5 h-3.5 w-3.5 shrink-0" />
+                        <span className="truncate">{format(selectedDate, "dd MMM yyyy")}</span>
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0">
-                      <Calendar
-                        mode="single"
-                        selected={selectedDate}
-                        onSelect={(date) => date && setSelectedDate(date)}
-                        initialFocus
-                      />
+                      <Calendar mode="single" selected={selectedDate} onSelect={(date) => date && setSelectedDate(date)} initialFocus />
                     </PopoverContent>
                   </Popover>
                 </div>
               )}
 
-              {/* Custom Date Range */}
               {periodType === "custom" && (
                 <>
-                  <div className="w-full md:w-48">
-                    <label className="text-sm font-medium text-muted-foreground mb-1 block">From</label>
+                  <div className="md:col-span-2 space-y-0.5">
+                    <label className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">From</label>
                     <Popover>
                       <PopoverTrigger asChild>
-                        <Button variant="outline" className="w-full justify-start text-left font-normal">
-                          <CalendarIcon className="mr-2 h-4 w-4" />
-                          {format(customDateRange.from, "PPP")}
+                        <Button variant="outline" className="h-8 w-full justify-start text-left font-normal text-sm px-2">
+                          <CalendarIcon className="mr-1.5 h-3.5 w-3.5 shrink-0" />
+                          <span className="truncate">{format(customDateRange.from, "dd MMM yyyy")}</span>
                         </Button>
                       </PopoverTrigger>
                       <PopoverContent className="w-auto p-0">
-                        <Calendar
-                          mode="single"
-                          selected={customDateRange.from}
-                          onSelect={(date) => date && setCustomDateRange((prev) => ({ ...prev, from: date }))}
-                          initialFocus
-                        />
+                        <Calendar mode="single" selected={customDateRange.from} onSelect={(date) => date && setCustomDateRange((prev) => ({ ...prev, from: date }))} initialFocus />
                       </PopoverContent>
                     </Popover>
                   </div>
-                  <div className="w-full md:w-48">
-                    <label className="text-sm font-medium text-muted-foreground mb-1 block">To</label>
+                  <div className="md:col-span-2 space-y-0.5">
+                    <label className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">To</label>
                     <Popover>
                       <PopoverTrigger asChild>
-                        <Button variant="outline" className="w-full justify-start text-left font-normal">
-                          <CalendarIcon className="mr-2 h-4 w-4" />
-                          {format(customDateRange.to, "PPP")}
+                        <Button variant="outline" className="h-8 w-full justify-start text-left font-normal text-sm px-2">
+                          <CalendarIcon className="mr-1.5 h-3.5 w-3.5 shrink-0" />
+                          <span className="truncate">{format(customDateRange.to, "dd MMM yyyy")}</span>
                         </Button>
                       </PopoverTrigger>
                       <PopoverContent className="w-auto p-0">
-                        <Calendar
-                          mode="single"
-                          selected={customDateRange.to}
-                          onSelect={(date) => date && setCustomDateRange((prev) => ({ ...prev, to: date }))}
-                          initialFocus
-                        />
+                        <Calendar mode="single" selected={customDateRange.to} onSelect={(date) => date && setCustomDateRange((prev) => ({ ...prev, to: date }))} initialFocus />
                       </PopoverContent>
                     </Popover>
                   </div>
                 </>
               )}
 
-              {/* Search */}
-              <div className="flex-1">
-                <label className="text-sm font-medium text-muted-foreground mb-1 block">Search</label>
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Search name, brand, barcode, color... (multi-word AND)"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-9 pr-8 no-uppercase"
-                  />
-                  {searchQuery && (
-                    <button
-                      onClick={() => setSearchQuery("")}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded-full hover:bg-muted transition-colors"
-                    >
-                      <X className="h-3.5 w-3.5 text-muted-foreground" />
-                    </button>
-                  )}
+              <div className={cn("space-y-0.5", periodType === "custom" ? "md:col-span-4" : periodType === "all" ? "md:col-span-8" : "md:col-span-6")}>
+                <label className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Search</label>
+                <div className="flex gap-1.5 items-center">
+                  <div className="relative flex-1 min-w-0">
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                    <Input
+                      placeholder="Name, brand, barcode, color… (multi-word AND)"
+                      value={searchInput}
+                      onChange={(e) => setSearchInput(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter") handleSearch(); }}
+                      className="h-8 pl-8 pr-8 text-sm no-uppercase"
+                    />
+                    {searchInput && (
+                      <button type="button" onClick={handleClearSearch} className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded-full hover:bg-muted">
+                        <X className="h-3.5 w-3.5 text-muted-foreground" />
+                      </button>
+                    )}
+                  </div>
+                  <Button onClick={handleSearch} className="h-8 px-4 text-sm font-semibold bg-blue-600 hover:bg-blue-700 shrink-0 gap-1.5">
+                    <Search className="h-3.5 w-3.5" />
+                    Search
+                  </Button>
                 </div>
-                {searchQuery && (
-                  <span className="text-xs text-muted-foreground mt-1 block">
-                    Showing {filteredData.length.toLocaleString('en-IN')} of {aggregatedData.length.toLocaleString('en-IN')} items
-                  </span>
-                )}
               </div>
 
-              {/* Filter Toggle Button */}
-              <Button
-                variant={showFilters ? "secondary" : "outline"}
-                size="sm"
-                onClick={() => setShowFilters(!showFilters)}
-                className="h-10"
-              >
-                <Filter className="h-4 w-4 mr-2" />
-                Filters
-              </Button>
+              <div className="md:col-span-2 space-y-0.5">
+                <label className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 invisible md:visible">Filters</label>
+                <Button
+                  variant={showFilters ? "secondary" : "outline"}
+                  onClick={() => setShowFilters(!showFilters)}
+                  className="h-8 w-full text-sm"
+                >
+                  <Filter className="h-3.5 w-3.5 mr-1.5" />
+                  Filters
+                </Button>
+              </div>
             </div>
 
-            {/* Dropdown Filters Row */}
             {showFilters && (
-              <div className="flex flex-wrap gap-4 pt-2 border-t">
-                {/* Brand Filter */}
-                <div className="w-full md:w-44">
-                  <label className="text-sm font-medium text-muted-foreground mb-1 block">{fieldLabels.brand}</label>
-                  <SearchableSelect
-                    value={selectedBrand}
-                    onValueChange={setSelectedBrand}
-                    options={filterOptions.brands}
-                    placeholder={`All ${fieldLabels.brand}`}
-                    allLabel={`All ${fieldLabels.brand}`}
-                    allValue="all"
-                  />
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-1.5 pt-1 border-t border-slate-100">
+                <div className="space-y-0.5">
+                  <label className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{fieldLabels.brand}</label>
+                  <SearchableSelect value={selectedBrand} onValueChange={setSelectedBrand} options={filterOptions.brands} placeholder={`All ${fieldLabels.brand}`} allLabel={`All ${fieldLabels.brand}`} allValue="all" />
                 </div>
-
-                {/* Category Filter */}
-                <div className="w-full md:w-44">
-                  <label className="text-sm font-medium text-muted-foreground mb-1 block">{fieldLabels.category}</label>
-                  <SearchableSelect
-                    value={selectedCategory}
-                    onValueChange={setSelectedCategory}
-                    options={filterOptions.categories}
-                    placeholder={`All ${fieldLabels.category}`}
-                    allLabel={`All ${fieldLabels.category}`}
-                    allValue="all"
-                  />
+                <div className="space-y-0.5">
+                  <label className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{fieldLabels.category}</label>
+                  <SearchableSelect value={selectedCategory} onValueChange={setSelectedCategory} options={filterOptions.categories} placeholder={`All ${fieldLabels.category}`} allLabel={`All ${fieldLabels.category}`} allValue="all" />
                 </div>
-
-                {/* Department Filter */}
-                <div className="w-full md:w-44">
-                  <label className="text-sm font-medium text-muted-foreground mb-1 block">{fieldLabels.style}</label>
-                  <SearchableSelect
-                    value={selectedDepartment}
-                    onValueChange={setSelectedDepartment}
-                    options={filterOptions.departments}
-                    placeholder={`All ${fieldLabels.style}`}
-                    allLabel={`All ${fieldLabels.style}`}
-                    allValue="all"
-                  />
+                <div className="space-y-0.5">
+                  <label className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{fieldLabels.style}</label>
+                  <SearchableSelect value={selectedDepartment} onValueChange={setSelectedDepartment} options={filterOptions.departments} placeholder={`All ${fieldLabels.style}`} allLabel={`All ${fieldLabels.style}`} allValue="all" />
                 </div>
-
-                {/* Color Filter */}
-                <div className="w-full md:w-44">
-                  <label className="text-sm font-medium text-muted-foreground mb-1 block">{fieldLabels.color}</label>
-                  <SearchableSelect
-                    value={selectedColor}
-                    onValueChange={setSelectedColor}
-                    options={filterOptions.colors}
-                    placeholder={`All ${fieldLabels.color}`}
-                    allLabel={`All ${fieldLabels.color}`}
-                    allValue="all"
-                  />
+                <div className="space-y-0.5">
+                  <label className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{fieldLabels.color}</label>
+                  <SearchableSelect value={selectedColor} onValueChange={setSelectedColor} options={filterOptions.colors} placeholder={`All ${fieldLabels.color}`} allLabel={`All ${fieldLabels.color}`} allValue="all" />
                 </div>
-
-                {/* Customer Filter */}
-                <div className="w-full md:w-48">
-                  <label className="text-sm font-medium text-muted-foreground mb-1 block">Customer</label>
-                  <SearchableSelect
-                    value={selectedCustomer}
-                    onValueChange={setSelectedCustomer}
-                    options={filterOptions.customers}
-                    placeholder="All Customers"
-                    allLabel="All Customers"
-                    allValue="all"
-                  />
+                <div className="space-y-0.5">
+                  <label className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Customer</label>
+                  <SearchableSelect value={selectedCustomer} onValueChange={setSelectedCustomer} options={filterOptions.customers} placeholder="All Customers" allLabel="All Customers" allValue="all" />
                 </div>
-
-                {/* User Filter */}
-                <div className="w-full md:w-48">
-                  <label className="text-sm font-medium text-muted-foreground mb-1 block">User</label>
-                  <SearchableSelect
-                    value={selectedUser}
-                    onValueChange={setSelectedUser}
-                    options={filterOptions.users}
-                    placeholder="All Users"
-                    allLabel="All Users"
-                    allValue="all"
-                  />
+                <div className="space-y-0.5">
+                  <label className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">User</label>
+                  <SearchableSelect value={selectedUser} onValueChange={setSelectedUser} options={filterOptions.users} placeholder="All Users" allLabel="All Users" allValue="all" />
                 </div>
               </div>
             )}
 
-            <div className="text-sm text-muted-foreground">
-              Showing data from {format(dateRange.from, "dd MMM yyyy")} to {format(dateRange.to, "dd MMM yyyy")}
+            <div className="text-xs text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-0.5">
+              <span>{format(dateRange.from, "dd MMM yyyy")} – {format(dateRange.to, "dd MMM yyyy")}</span>
+              {searchQuery && (
+                <span className="font-semibold text-amber-700 dark:text-amber-400">
+                  {filteredData.length.toLocaleString("en-IN")} of {aggregatedData.length.toLocaleString("en-IN")} items
+                </span>
+              )}
               {(selectedBrand !== "all" || selectedCategory !== "all" || selectedDepartment !== "all" || selectedColor !== "all" || selectedCustomer !== "all" || selectedUser !== "all") && (
-                <span className="ml-2 text-primary">• Filters applied</span>
+                <span className="text-primary font-medium">Filters applied</span>
               )}
             </div>
-          </div>
         </CardContent>
       </Card>
 
-      {/* Tabs for Item-wise and Brand-wise */}
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "itemwise" | "customerwise" | "brandwise" | "saledetails")}>
-        <TabsList className="mb-4">
-          <TabsTrigger value="itemwise">📦 Item-wise Details</TabsTrigger>
-          <TabsTrigger value="customerwise">👤 Customer-wise Sale</TabsTrigger>
-          <TabsTrigger value="brandwise">🏷️ Brand-wise Sale</TabsTrigger>
-          <TabsTrigger value="saledetails">📊 Sale Details</TabsTrigger>
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "itemwise" | "customerwise" | "brandwise" | "saledetails")} className="flex-1 min-h-0 flex flex-col">
+        <TabsList className="h-8 bg-slate-100 p-0.5 rounded-md shrink-0 w-fit">
+          <TabsTrigger value="itemwise" className="rounded text-xs font-semibold px-2.5 data-[state=active]:bg-white data-[state=active]:text-blue-700">Item-wise</TabsTrigger>
+          <TabsTrigger value="customerwise" className="rounded text-xs font-semibold px-2.5 data-[state=active]:bg-white data-[state=active]:text-blue-700">Customer-wise</TabsTrigger>
+          <TabsTrigger value="brandwise" className="rounded text-xs font-semibold px-2.5 data-[state=active]:bg-white data-[state=active]:text-blue-700">Brand-wise</TabsTrigger>
+          <TabsTrigger value="saledetails" className="rounded text-xs font-semibold px-2.5 data-[state=active]:bg-white data-[state=active]:text-blue-700">Sale Details</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="itemwise" className="space-y-6">
-          {/* Charts */}
-          <div className="grid md:grid-cols-2 gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Top 10 Products by Quantity</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="h-[300px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={topProductsData} layout="vertical">
-                      <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                      <XAxis type="number" className="text-xs" />
-                      <YAxis dataKey="name" type="category" width={120} className="text-xs" />
-                      <Tooltip
-                        contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }}
-                        formatter={(value: number) => [value.toLocaleString(), "Qty"]}
-                      />
-                      <Bar dataKey="qty" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Sales by Category</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="h-[300px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={categoryData}
-                        cx="50%"
-                        cy="50%"
-                        labelLine={false}
-                        outerRadius={100}
-                        fill="#8884d8"
-                        dataKey="value"
-                        label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
-                      >
-                        {categoryData.map((_, index) => (
-                          <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
-                        ))}
-                      </Pie>
-                      <Tooltip
-                        contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }}
-                        formatter={(value: number) => [`₹${value.toLocaleString()}`, "Amount"]}
-                      />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Item-wise Data Table */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Item-wise Details ({filteredData.length} items)</CardTitle>
+        <TabsContent value="itemwise" className="mt-1 flex-1 min-h-0 flex flex-col gap-1 focus-visible:outline-none data-[state=inactive]:hidden">
+          <Card className="rounded-lg border border-slate-200 shadow-sm flex-1 min-h-0 flex flex-col overflow-hidden">
+            <CardHeader className="py-1.5 px-2 shrink-0">
+              <CardTitle className="text-sm font-semibold">Item-wise Details ({filteredData.length} items)</CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="border rounded-lg overflow-hidden">
-                <Table>
+            <CardContent className="p-0 flex-1 min-h-0 flex flex-col">
+              <div className={SALES_TABLE_SCROLL}>
+                <Table className="text-sm min-w-max">
                   <TableHeader>
                     <TableRow className="bg-muted/50">
-                      <TableHead className="w-[100px] font-bold text-foreground">Barcode</TableHead>
-                      <TableHead className="font-bold text-foreground">Product Name</TableHead>
-                      <TableHead className="font-bold text-foreground">Brand</TableHead>
-                      <TableHead className="font-bold text-foreground">Category</TableHead>
-                      <TableHead className="font-bold text-foreground">Color</TableHead>
-                      <TableHead className="font-bold text-foreground">Size</TableHead>
-                      <TableHead className="text-right font-bold text-foreground">Qty Sold</TableHead>
-                      <TableHead className="text-right font-bold text-foreground">Stock Qty</TableHead>
-                      <TableHead className="text-right font-bold text-foreground">Total Amount</TableHead>
+                      <TableHead className="w-[100px] text-xs font-semibold">Barcode</TableHead>
+                      <TableHead className="text-xs font-semibold">Product Name</TableHead>
+                      <TableHead className="text-xs font-semibold">{fieldLabels.brand}</TableHead>
+                      <TableHead className="text-xs font-semibold">{fieldLabels.category}</TableHead>
+                      <TableHead className="text-xs font-semibold">{fieldLabels.color}</TableHead>
+                      <TableHead className="text-xs font-semibold">Size</TableHead>
+                      <TableHead className="text-right text-xs font-semibold">Qty Sold</TableHead>
+                      <TableHead className="text-right text-xs font-semibold">Stock Qty</TableHead>
+                      <TableHead className="text-right text-xs font-semibold">Total Amount</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {isLoading ? (
                       <TableRow>
-                        <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
-                          Loading...
-                        </TableCell>
+                        <TableCell colSpan={9} className="text-center py-4 text-muted-foreground">Loading...</TableCell>
                       </TableRow>
                     ) : filteredData.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
-                          No sales data found for the selected period
-                        </TableCell>
+                        <TableCell colSpan={9} className="text-center py-4 text-muted-foreground">No sales data found for the selected period</TableCell>
                       </TableRow>
                     ) : (() => {
                       const totalPages = Math.ceil(filteredData.length / ITEMS_PER_PAGE);
                       const paginatedData = filteredData.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+                      const rowMatches = (item: SaleItemData) =>
+                        searchQuery.trim() && multiTokenMatch(searchQuery, item.product_name, item.barcode, item.brand, item.category, item.color, item.size);
                       return (
                         <>
                           {paginatedData.map((item, idx) => (
-                            <TableRow key={idx} className="hover:bg-muted/30">
-                              <TableCell className="font-mono text-sm">{item.barcode || "-"}</TableCell>
-                              <TableCell className="font-medium">{item.product_name}</TableCell>
-                              <TableCell>{item.brand || "-"}</TableCell>
-                              <TableCell>{item.category || "-"}</TableCell>
-                              <TableCell>{item.color || "-"}</TableCell>
-                              <TableCell>{item.size}</TableCell>
-                              <TableCell className="text-right font-medium">{item.total_qty}</TableCell>
-                              <TableCell className="text-right">{item.stock_qty}</TableCell>
-                              <TableCell className="text-right font-semibold text-primary">
-                                ₹{item.total_amount.toLocaleString()}
-                              </TableCell>
+                            <TableRow
+                              key={idx}
+                              className={cn(
+                                "hover:bg-muted/30",
+                                rowMatches(item) && "bg-amber-50/80 dark:bg-amber-950/25 ring-1 ring-inset ring-amber-300/50",
+                              )}
+                            >
+                              <TableCell className="font-mono text-sm font-semibold">{highlightSearchText(item.barcode || "-", searchQuery)}</TableCell>
+                              <TableCell className={SALES_PRODUCT_CELL}>{highlightSearchText(item.product_name, searchQuery)}</TableCell>
+                              <TableCell className={SALES_DETAIL_CELL}>{highlightSearchText(item.brand || "-", searchQuery)}</TableCell>
+                              <TableCell className={SALES_DETAIL_CELL}>{highlightSearchText(item.category || "-", searchQuery)}</TableCell>
+                              <TableCell className={SALES_DETAIL_CELL}>{highlightSearchText(item.color || "-", searchQuery)}</TableCell>
+                              <TableCell className={SALES_DETAIL_CELL}>{highlightSearchText(item.size, searchQuery)}</TableCell>
+                              <TableCell className={SALES_QTY_CELL}>{item.total_qty.toLocaleString("en-IN")}</TableCell>
+                              <TableCell className={SALES_QTY_CELL}>{item.stock_qty.toLocaleString("en-IN")}</TableCell>
+                              <TableCell className={SALES_AMOUNT_CELL}>₹{item.total_amount.toLocaleString("en-IN")}</TableCell>
                             </TableRow>
                           ))}
                           {totalPages > 1 && (
                             <TableRow>
                               <TableCell colSpan={9}>
-                                <div className="flex items-center justify-between py-2">
-                                  <p className="text-sm text-muted-foreground">
-                                    Showing {(currentPage - 1) * ITEMS_PER_PAGE + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filteredData.length)} of {filteredData.length}
+                                <div className="flex items-center justify-between py-1">
+                                  <p className="text-xs text-muted-foreground">
+                                    {(currentPage - 1) * ITEMS_PER_PAGE + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filteredData.length)} of {filteredData.length}
                                   </p>
-                                  <div className="flex items-center gap-2">
-                                    <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}>Previous</Button>
-                                    <span className="text-sm text-muted-foreground">Page {currentPage} of {totalPages}</span>
-                                    <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}>Next</Button>
+                                  <div className="flex items-center gap-1.5">
+                                    <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}>Previous</Button>
+                                    <span className="text-xs text-muted-foreground">Page {currentPage} of {totalPages}</span>
+                                    <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}>Next</Button>
                                   </div>
                                 </div>
                               </TableCell>
@@ -1089,12 +1058,10 @@ export default function ItemWiseSalesReport() {
                   {filteredData.length > 0 && (
                     <TableFooter>
                       <TableRow>
-                        <TableCell colSpan={6} className="font-bold">Grand Total</TableCell>
-                        <TableCell className="text-right font-bold">{itemWiseTotals.total_qty.toLocaleString()}</TableCell>
-                        <TableCell className="text-right font-bold">{itemWiseTotals.stock_qty.toLocaleString()}</TableCell>
-                        <TableCell className="text-right font-bold text-primary">
-                          ₹{itemWiseTotals.total_amount.toLocaleString("en-IN")}
-                        </TableCell>
+                        <TableCell colSpan={6} className="font-bold text-sm">Grand Total</TableCell>
+                        <TableCell className={SALES_QTY_CELL}>{itemWiseTotals.total_qty.toLocaleString()}</TableCell>
+                        <TableCell className={SALES_QTY_CELL}>{itemWiseTotals.stock_qty.toLocaleString()}</TableCell>
+                        <TableCell className={SALES_AMOUNT_CELL}>₹{itemWiseTotals.total_amount.toLocaleString("en-IN")}</TableCell>
                       </TableRow>
                     </TableFooter>
                   )}
@@ -1102,16 +1069,17 @@ export default function ItemWiseSalesReport() {
               </div>
             </CardContent>
           </Card>
+          {itemWiseCharts}
         </TabsContent>
 
-        <TabsContent value="customerwise">
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg">Customer-wise Sale ({customerWiseData.length} customers)</CardTitle>
+        <TabsContent value="customerwise" className="mt-1 flex-1 min-h-0 flex flex-col focus-visible:outline-none data-[state=inactive]:hidden">
+          <Card className="rounded-lg border border-slate-200 shadow-sm flex-1 min-h-0 flex flex-col overflow-hidden">
+            <CardHeader className="py-1.5 px-2 shrink-0">
+              <CardTitle className="text-sm font-semibold">Customer-wise Sale ({customerWiseData.length} customers)</CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="border rounded-lg overflow-hidden">
-                <Table>
+            <CardContent className="p-0 flex-1 min-h-0">
+              <div className={SALES_TABLE_SCROLL}>
+                <Table className="text-sm min-w-max">
                   <TableHeader>
                      <TableRow className="bg-muted/50">
                       <TableHead className="w-12 font-bold text-foreground">#</TableHead>
@@ -1136,15 +1104,15 @@ export default function ItemWiseSalesReport() {
                                   className={cn("cursor-pointer hover:bg-muted/40", globalIdx % 2 === 0 ? "" : "bg-muted/30")}
                                   onClick={() => setExpandedCustomer(expandedCustomer === row.customer_name ? null : row.customer_name)}
                                 >
-                                  <TableCell className="font-mono text-muted-foreground">{globalIdx + 1}</TableCell>
-                                  <TableCell className="font-medium">
+                                  <TableCell className="font-mono text-xs text-muted-foreground">{globalIdx + 1}</TableCell>
+                                  <TableCell className="text-base font-bold text-foreground">
                                     <span className="mr-1 text-xs">{expandedCustomer === row.customer_name ? "▼" : "▶"}</span>
                                     {row.customer_name}
                                   </TableCell>
-                                  <TableCell className="text-center">{row.item_count}</TableCell>
-                                  <TableCell className="text-right font-mono">{row.total_qty}</TableCell>
-                                  <TableCell className="text-right font-mono font-semibold">₹{Math.round(row.total_amount).toLocaleString("en-IN")}</TableCell>
-                                  <TableCell className="text-right font-mono text-muted-foreground">₹{row.total_qty > 0 ? Math.round(row.total_amount / row.total_qty).toLocaleString("en-IN") : 0}</TableCell>
+                                  <TableCell className="text-center text-sm font-semibold">{row.item_count}</TableCell>
+                                  <TableCell className={SALES_QTY_CELL}>{row.total_qty.toLocaleString("en-IN")}</TableCell>
+                                  <TableCell className={SALES_AMOUNT_CELL}>₹{Math.round(row.total_amount).toLocaleString("en-IN")}</TableCell>
+                                  <TableCell className="text-right text-sm font-semibold tabular-nums text-muted-foreground">₹{row.total_qty > 0 ? Math.round(row.total_amount / row.total_qty).toLocaleString("en-IN") : 0}</TableCell>
                                 </TableRow>
                                 {expandedCustomer === row.customer_name && (
                                   <TableRow>
@@ -1163,9 +1131,9 @@ export default function ItemWiseSalesReport() {
                                             {row.productList.map((p, pi) => (
                                               <TableRow key={pi} className="hover:bg-muted/30">
                                                 <TableCell className="pl-10 font-mono text-xs text-muted-foreground">{pi + 1}</TableCell>
-                                                <TableCell className="pl-10 text-sm">{p.product_name}</TableCell>
-                                                <TableCell className="text-right font-mono text-sm">{p.qty}</TableCell>
-                                                <TableCell className="text-right font-mono text-sm">₹{Math.round(p.amount).toLocaleString("en-IN")}</TableCell>
+                                                <TableCell className="pl-10 text-sm font-bold text-foreground">{p.product_name}</TableCell>
+                                                <TableCell className={SALES_QTY_CELL}>{p.qty}</TableCell>
+                                                <TableCell className={SALES_AMOUNT_CELL}>₹{Math.round(p.amount).toLocaleString("en-IN")}</TableCell>
                                               </TableRow>
                                             ))}
                                           </TableBody>
@@ -1214,14 +1182,14 @@ export default function ItemWiseSalesReport() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="brandwise">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Brand-wise Sale by Customer ({brandWiseData.length} rows)</CardTitle>
+        <TabsContent value="brandwise" className="mt-1 flex-1 min-h-0 flex flex-col focus-visible:outline-none data-[state=inactive]:hidden">
+          <Card className="rounded-lg border border-slate-200 shadow-sm flex-1 min-h-0 flex flex-col overflow-hidden">
+            <CardHeader className="py-1.5 px-2 shrink-0">
+              <CardTitle className="text-sm font-semibold">Brand-wise Sale by Customer ({brandWiseData.length} rows)</CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="border rounded-lg overflow-hidden">
-                <Table>
+            <CardContent className="p-0 flex-1 min-h-0">
+              <div className={SALES_TABLE_SCROLL}>
+                <Table className="text-sm min-w-max">
                   <TableHeader>
                      <TableRow className="bg-muted/50">
                       <TableHead className="font-bold text-foreground">Customer Name</TableHead>
@@ -1260,14 +1228,12 @@ export default function ItemWiseSalesReport() {
                             lastCustomer = item.customer_name;
                             return (
                               <TableRow key={idx} className={cn("hover:bg-muted/30", showCustomer && idx > 0 && "border-t-2 border-border")}>
-                                <TableCell className="font-medium">
+                                <TableCell className="text-base font-bold text-foreground">
                                   {showCustomer ? item.customer_name : ""}
                                 </TableCell>
-                                <TableCell>{item.brand}</TableCell>
-                                <TableCell className="text-right font-medium">{item.total_qty}</TableCell>
-                                <TableCell className="text-right font-semibold text-primary">
-                                  ₹{item.total_amount.toLocaleString()}
-                                </TableCell>
+                                <TableCell className={SALES_DETAIL_CELL}>{item.brand}</TableCell>
+                                <TableCell className={SALES_QTY_CELL}>{item.total_qty.toLocaleString("en-IN")}</TableCell>
+                                <TableCell className={SALES_AMOUNT_CELL}>₹{item.total_amount.toLocaleString("en-IN")}</TableCell>
                               </TableRow>
                             );
                           })}
@@ -1489,6 +1455,7 @@ export default function ItemWiseSalesReport() {
           </Card>
         </TabsContent>
       </Tabs>
+      </div>
     </div>
   );
 }
