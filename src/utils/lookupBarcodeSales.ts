@@ -69,7 +69,7 @@ function mapSaleRows(rows: any[]): BarcodeSaleRecord[] {
 
 async function fetchSaleItemsForOrg(
   organizationId: string,
-  applyFilter: (query: ReturnType<typeof supabase.from>) => ReturnType<typeof supabase.from>,
+  applyFilter: (query: any) => any,
 ): Promise<any[]> {
   let query = supabase
     .from("sale_items")
@@ -80,7 +80,7 @@ async function fetchSaleItemsForOrg(
     .order("created_at", { ascending: false })
     .limit(100);
 
-  query = applyFilter(query) as typeof query;
+  query = applyFilter(query);
 
   const { data, error } = await query;
   if (error) throw error;
