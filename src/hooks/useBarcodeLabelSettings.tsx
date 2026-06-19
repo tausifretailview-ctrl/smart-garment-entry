@@ -55,6 +55,9 @@ interface DefaultFormat {
   };
 }
 
+// Module-level dedupe cache for printer_presets mirror writes (see saveLabelTemplate).
+const PRINTER_PRESET_SYNC_CACHE = new Map<string, string>();
+
 export function useBarcodeLabelSettings() {
   const { currentOrganization } = useOrganization();
   const [labelTemplates, setLabelTemplates] = useState<LabelTemplate[]>([]);
