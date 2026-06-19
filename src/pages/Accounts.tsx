@@ -49,7 +49,8 @@ import { CustomerBalanceAdjustmentDialog } from "@/components/CustomerBalanceAdj
 import { RecentBalanceAdjustments } from "@/components/RecentBalanceAdjustments";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { fetchSupplierBalanceSnapshotsForOrg } from "@/utils/supplierBalanceUtils";
+import { coerceToMap } from "@/lib/coerceToMap";
+import { loadSupplierBalanceMapForOrg } from "@/utils/supplierBalanceUtils";
 import { fetchAllSuppliers } from "@/utils/fetchAllRows";
 import { useOrgLedgerReferenceData } from "@/hooks/useOrgLedgerReferenceData";
 import {
@@ -94,11 +95,10 @@ const fmtOutstandingInr = (n: number) =>
 
 /** Sum positive supplier balances — matches Supplier Ledger "totalOutstanding". */
 function sumOrgSupplierPayableFromSnapshots(
-  map: Awaited<ReturnType<typeof fetchSupplierBalanceSnapshotsForOrg>>,
+  map: Map<string, { balance: number }>,
 ): number {
-  if (!(map instanceof Map)) return 0;
   let sum = 0;
-  for (const snap of map.values()) {
+  for (const snap of coerceToMap<string, { balance: number }>(map).values()) {
     if (snap.balance > 0) sum += snap.balance;
   }
   return Math.round(sum * 100) / 100;
@@ -709,8 +709,8 @@ export default function Accounts() {
   } = useQuery({
     queryKey: ["supplier-payables-org-total", currentOrganization?.id],
     queryFn: async () => {
-      const map = await fetchSupplierBalanceSnapshotsForOrg(supabase, currentOrganization!.id);
-      return sumOrgSupplierPayableFromSnapshots(map);
+      const { balanceMap } = await loadSupplierBalanceMapForOrg(supabase, currentOrganization!.id);
+      return sumOrgSupplierPayableFromSnapshots(balanceMap);
     },
     enabled: !!currentOrganization?.id && outstandingTabActive,
     staleTime: 2 * 60 * 1000,

@@ -17,3 +17,10 @@ export function lookupMap<K extends string, V>(
   if (key == null || key === "") return undefined;
   return coerceToMap<K, V>(value).get(key);
 }
+
+/** Alias used by payment/ledger screens — always safe after persisted-query restore. */
+export const safeMapGet = lookupMap;
+
+export function ensureMap<K extends string, V>(value: unknown): Map<K, V> {
+  return coerceToMap<K, V>(value);
+}

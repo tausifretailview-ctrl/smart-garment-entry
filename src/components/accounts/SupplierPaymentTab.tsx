@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
+import { coerceToMap, safeMapGet } from "@/lib/coerceToMap";
 import { differenceInDays, format } from "date-fns";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -28,7 +29,7 @@ import { AccountsHistoryPanel } from "@/components/accounts/AccountsHistoryPanel
 import { accountsHistoryTableClass, accountsHistoryThClass } from "@/components/accounts/accountsHistoryUi";
 import {
   fetchSupplierBalanceSnapshot,
-  fetchSupplierBalanceSnapshotsForOrg,
+  loadSupplierBalanceMapForOrg,
   type SupplierBalanceSnapshot,
 } from "@/utils/supplierBalanceUtils";
 import {
@@ -51,15 +52,6 @@ function roundMoney(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
-function ensureStringKeyMap<T>(value: unknown): Map<string, T> {
-  return value instanceof Map ? value : new Map<string, T>();
-}
-
-function safeMapGet<T>(map: unknown, key: string): T | undefined {
-  if (!(map instanceof Map)) return undefined;
-  return map.get(key);
-}
-
 const EMPTY_SUPPLIER_SNAPSHOT = (supplierId: string): SupplierBalanceSnapshot => ({
   supplierId,
   openingBalance: 0,
@@ -75,26 +67,6 @@ const EMPTY_SUPPLIER_SNAPSHOT = (supplierId: string): SupplierBalanceSnapshot =>
   refundsReceived: 0,
   balance: 0,
 });
-
-async function loadSupplierBalanceMapForOrg(
-  organizationId: string,
-): Promise<{ balanceMap: Map<string, SupplierBalanceSnapshot>; degraded: boolean }> {
-  let balanceMap: Map<string, SupplierBalanceSnapshot>;
-  let degraded = false;
-  try {
-    balanceMap = await fetchSupplierBalanceSnapshotsForOrg(supabase, organizationId);
-  } catch (e) {
-    console.error("SupplierPaymentTab: balance snapshot failed", e);
-    balanceMap = new Map();
-    degraded = true;
-  }
-  if (!(balanceMap instanceof Map)) {
-    console.error("SupplierPaymentTab: balance snapshot was not a Map", balanceMap);
-    balanceMap = new Map();
-    degraded = true;
-  }
-  return { balanceMap, degraded };
-}
 
 interface SupplierPaymentTabProps {
   organizationId: string;
@@ -154,7 +126,7 @@ export function SupplierPaymentTab({
         .is("deleted_at", null)
         .order("supplier_name");
       if (suppError) throw suppError;
-      const { balanceMap, degraded } = await loadSupplierBalanceMapForOrg(organizationId);
+      const { balanceMap, degraded } = await loadSupplierBalanceMapForOrg(supabase, organizationId);
       const suppliers =
         allSuppliers?.filter((s: any) => (safeMapGet<SupplierBalanceSnapshot>(balanceMap, s.id)?.balance ?? 0) > 0.01).map((s: any) => ({
           ...s,
@@ -253,7 +225,7 @@ export function SupplierPaymentTab({
 
   const supplierBills = supplierBillsData?.bills;
   const voucherPaidByBill = useMemo(
-    () => ensureStringKeyMap<number>(supplierBillsData?.voucherPaidByBill),
+    () => coerceToMap<string, number>(supplierBillsData?.voucherPaidByBill),
     [supplierBillsData?.voucherPaidByBill],
   );
 
@@ -293,7 +265,7 @@ export function SupplierPaymentTab({
         cnCreditPool,
         voucherPaidByBill,
       );
-      return ensureStringKeyMap<SupplierBillOutstandingBreakdown>(map);
+      return coerceToMap<string, SupplierBillOutstandingBreakdown>(map);
     } catch (e) {
       console.error("SupplierPaymentTab: bill outstanding allocation failed", e);
       return new Map<string, SupplierBillOutstandingBreakdown>();

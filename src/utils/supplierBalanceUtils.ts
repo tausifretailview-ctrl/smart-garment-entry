@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { coerceToMap } from "@/lib/coerceToMap";
 import { voucherSettlementCredit } from "@/utils/paymentSettlementBreakdown";
 
 /**
@@ -387,6 +388,20 @@ export async function fetchSupplierBalanceSnapshotsForOrg(
   }
 
   return map instanceof Map ? map : EMPTY_SUPPLIER_BALANCE_MAP();
+}
+
+/** Safe org-wide supplier balance map — always a Map; never throws to callers. */
+export async function loadSupplierBalanceMapForOrg(
+  client: SupabaseClient,
+  organizationId: string,
+): Promise<{ balanceMap: Map<string, SupplierBalanceSnapshot>; degraded: boolean }> {
+  try {
+    const raw = await fetchSupplierBalanceSnapshotsForOrg(client, organizationId);
+    return { balanceMap: coerceToMap<string, SupplierBalanceSnapshot>(raw), degraded: false };
+  } catch (err) {
+    console.error("[supplierBalance] loadSupplierBalanceMapForOrg failed", err);
+    return { balanceMap: EMPTY_SUPPLIER_BALANCE_MAP(), degraded: true };
+  }
 }
 
 /** One supplier (e.g. payment form header). */

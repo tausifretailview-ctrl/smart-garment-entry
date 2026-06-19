@@ -50,16 +50,24 @@ export async function fetchCustomerFinancialSnapshot(
 ): Promise<CustomerFinancialSnapshot> {
   if (!organizationId || !customerId) return { ...EMPTY_SNAPSHOT };
 
-  const { data, error } = await (client.rpc as any)("get_customer_financial_snapshot", {
-    p_customer_id: customerId,
-    p_organization_id: organizationId,
-  });
+  try {
+    const { data, error } = await (client.rpc as any)("get_customer_financial_snapshot", {
+      p_customer_id: customerId,
+      p_organization_id: organizationId,
+    });
 
-  if (error) throw error;
+    if (error) {
+      console.warn("[customerFinancialSnapshot] single fetch failed", error);
+      return { ...EMPTY_SNAPSHOT };
+    }
 
-  const row = Array.isArray(data) ? data[0] : data;
-  if (!row) return { ...EMPTY_SNAPSHOT };
-  return normalizeRow(row);
+    const row = Array.isArray(data) ? data[0] : data;
+    if (!row) return { ...EMPTY_SNAPSHOT };
+    return normalizeRow(row);
+  } catch (err) {
+    console.warn("[customerFinancialSnapshot] single fetch threw", err);
+    return { ...EMPTY_SNAPSHOT };
+  }
 }
 
 /**
@@ -74,40 +82,39 @@ export async function fetchCustomerFinancialSnapshotMap(
   const unique = [...new Set(customerIds.filter(Boolean))];
   if (!organizationId || unique.length === 0) return map;
 
-  for (let i = 0; i < unique.length; i += SNAPSHOT_BATCH_CHUNK) {
-    const chunk = unique.slice(i, i + SNAPSHOT_BATCH_CHUNK);
-    try {
-      const { data, error } = await (client.rpc as any)("get_customer_financial_snapshot_batch", {
-        p_organization_id: organizationId,
-        p_customer_ids: chunk,
-      });
-      if (error) throw error;
+  try {
+    for (let i = 0; i < unique.length; i += SNAPSHOT_BATCH_CHUNK) {
+      const chunk = unique.slice(i, i + SNAPSHOT_BATCH_CHUNK);
+      try {
+        const { data, error } = await (client.rpc as any)("get_customer_financial_snapshot_batch", {
+          p_organization_id: organizationId,
+          p_customer_ids: chunk,
+        });
+        if (error) throw error;
 
-      for (const row of (data || []) as Array<{
-        customer_id: string;
-        outstanding_dr?: number | null;
-        advance_available?: number | null;
-        cn_available_total?: number | null;
-        cn_pending_count?: number | null;
-      }>) {
-        if (!row?.customer_id) continue;
-        map.set(row.customer_id, normalizeRow(row));
+        for (const row of (data || []) as Array<{
+          customer_id: string;
+          outstanding_dr?: number | null;
+          advance_available?: number | null;
+          cn_available_total?: number | null;
+          cn_pending_count?: number | null;
+        }>) {
+          if (!row?.customer_id) continue;
+          map.set(row.customer_id, normalizeRow(row));
+        }
+      } catch (err) {
+        console.warn("customer financial snapshot chunk failed (treated as empty):", err);
       }
-    } catch (err) {
-      // Resilience: a heavy reconcile_customer_balance can hit statement_timeout
-      // on orgs with many vouchers. Treat the failing chunk as empty so the
-      // dashboard / customer picker keeps working — and, more importantly, so
-      // the failure does not surface as an "Error: canceling statement due to
-      // statement timeout" toast inside the bill-save flow on POS.
-      console.warn("customer financial snapshot chunk failed (treated as empty):", err);
     }
+  } catch (err) {
+    console.error("[customerFinancialSnapshot] batch map fetch failed", err);
   }
 
   for (const id of unique) {
     if (!map.has(id)) map.set(id, { ...EMPTY_SNAPSHOT });
   }
 
-  return map;
+  return map instanceof Map ? map : new Map();
 }
 
 export type OrganizationCustomerAccountTotals = {

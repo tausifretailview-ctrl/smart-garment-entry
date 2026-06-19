@@ -15,9 +15,10 @@ import { format } from "date-fns";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import { accountsHistoryTableClass, accountsHistoryTableWrapClass, accountsHistoryThClass } from "@/components/accounts/accountsHistoryUi";
+import { safeMapGet } from "@/lib/coerceToMap";
 import {
   fetchSupplierBalanceSnapshot,
-  fetchSupplierBalanceSnapshotsForOrg,
+  loadSupplierBalanceMapForOrg,
 } from "@/utils/supplierBalanceUtils";
 import { fetchAllSuppliers } from "@/utils/fetchAllRows";
 import { voucherSettlementCredit } from "@/utils/paymentSettlementBreakdown";
@@ -111,19 +112,14 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
     queryFn: async () => {
       const suppliersData = await fetchAllSuppliers(organizationId);
 
-      let balanceMap: Awaited<ReturnType<typeof fetchSupplierBalanceSnapshotsForOrg>>;
       let balanceSnapshotError: string | null = null;
-      try {
-        balanceMap = await fetchSupplierBalanceSnapshotsForOrg(supabase, organizationId);
-      } catch (e) {
-        console.error("Supplier ledger: balance snapshot failed", e);
-        balanceMap = new Map();
-        balanceSnapshotError =
-          e instanceof Error ? e.message : "Could not compute balances from bills and vouchers.";
+      const { balanceMap, degraded } = await loadSupplierBalanceMapForOrg(supabase, organizationId);
+      if (degraded) {
+        balanceSnapshotError = "Could not compute balances from bills and vouchers.";
       }
 
       const suppliers = (suppliersData || []).map((supplier: any) => {
-        const snap = balanceMap.get(supplier.id);
+        const snap = safeMapGet(balanceMap, supplier.id);
         const openingBalance = snap?.openingBalance ?? (Number(supplier.opening_balance) || 0);
         return {
           ...supplier,
