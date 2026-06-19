@@ -1,84 +1,60 @@
+## Issue
 
-## Goal
+Every time the user opens the **POS Sales** tab, an old saved invoice (e.g. `POS/26-27/1123`) reappears with the green **Save Changes** button instead of a blank new sale.
 
-Add a **user-scoped restriction**: only the user who created a POS invoice / purchase bill / payment entry may **Modify** or **Delete** it. Other users see the row but the Edit / Delete buttons are disabled with a tooltip ("Only <creator> can modify this entry"). Admin / Owner role bypasses the restriction.
+## Root Cause
 
-This closes the root cause of the "POS bills disappearing in multi-user setup" issue documented for Mulund Mobility — even with the destructive-edit confirm dialog already shipped, the right fix is to prevent the wrong user from opening another user's bill at all.
+Two layered behaviors keep the previously-loaded invoice "stuck" on the POS Sales tab:
 
-## Your hypothesis about POS auto-loading the last saved invoice
+1. **Tab caching keeps POSSales mounted forever.** `src/components/TabCachedPages.tsx` puts `pos-sales` in `EXPLICIT_PROTECTED_TAB_PATHS` / `LIVE_WORK_TAB_PATHS`. So when the user opens any saved invoice (via Previous / Last / Edit from the Sales dashboard) and then switches to another tab, the React state for `POSSales.tsx` — including `currentSaleId`, `items`, `customerId`, `originalItemsForEdit` — is preserved. Returning to the POS Sales tab simply re-shows that loaded invoice in edit mode.
 
-Verified — **it does not happen.** The POS cart (`pos_cart_${orgId}` in `sessionStorage`) only stores the *in-progress* cart for the current tab; it is cleared after a successful save. POS edit-mode is only entered when a user explicitly clicks the **pencil / Modify** button on a row in the POS Dashboard, which calls `handleEditSale(sale.id)` and navigates with that sale id. So the bug is never "POS opened last invoice automatically" — it is always "user clicked Modify on a stale row that belonged to another terminal."
+2. **WindowTabsContext persists `?saleId=` in the tab's saved search.** `src/contexts/WindowTabsContext.tsx` (lines ~223–245) stores `location.search` per tab. If the user reached POS via "Edit Invoice" (`/pos-sales?saleId=...`), the `?saleId` stays attached to the POS tab. On hard reload or fresh tab-click navigation, `useEffect` at `POSSales.tsx:694–699` re-runs `loadSaleForEdit(saleId)`, reloading the same old invoice.
 
-The fix below targets exactly that click.
+A third minor contributor: the session-storage cart snapshot (`writePosCartSnapshot`) keeps writing items even while viewing a saved invoice, so after a refresh the cart re-hydrates with items from the viewed sale (without `currentSaleId`, but the items look "leftover").
 
-## Scope
+## Plan
 
-Three modules, same pattern:
+Goal: opening / reactivating the POS Sales tab should land on a fresh new sale unless the user just navigated there from an "Edit" link in the current navigation event. No business-logic changes — only frontend reset semantics.
 
-| Module | Dashboard file | Edit handler | Delete handler | DB column |
-| --- | --- | --- | --- | --- |
-| POS / Invoice sales | `src/pages/POSDashboard.tsx`, `src/pages/SalesInvoiceDashboard.tsx` | `handleEditSale` | `handleDeleteSale` | `sales.created_by` |
-| Purchase bills | `src/pages/PurchaseBillDashboard.tsx` | row Edit click → `/purchase/edit/:id` | `handleDeleteClick` / `handleDeleteConfirm` | `purchase_bills.created_by` |
-| Payments | accounts payment dialogs (entry under `voucher_entries`) | `useAccountsPaymentDialogs` open-for-edit | delete in same hook | `voucher_entries.created_by` |
+### 1. Drop `?saleId` from the persisted POS tab search after it is consumed
+**File:** `src/pages/POSSales.tsx` (around the existing `loadSaleForEdit` effect, line 693–699)
 
-(Sale returns, delivery challans, quotations, sale orders are out of scope for this pass — call them out in the closing message so the user can decide if they want a follow-up.)
+- After `loadSaleForEdit(saleId)` resolves, call `setSearchParams({}, { replace: true })` to strip `saleId` from the URL.
+- This prevents `WindowTabsContext` from re-storing `?saleId=...` as the tab's "last search", which is what causes the same invoice to reload every time the tab is clicked.
 
-## Implementation
+### 2. Auto-reset POS to a new sale when the tab becomes active in edit/view mode
+**File:** `src/pages/POSSales.tsx`
 
-### 1. Single source of truth for the rule
+- Add a "tab activation" effect: when the `pos-sales` tab transitions from hidden → active (detect via `document.visibilityState` + the `TabCacheLayoutContext`/`markTabCachePaneMounted` signals already in `tabCacheMountRegistry`), AND `currentSaleId` is set, AND the user is not mid-edit of unsaved changes, automatically run `handleNewInvoice()` so the screen is blank.
+- Conservative variant: only auto-reset when **no unsaved edits** exist relative to `originalItemsForEdit` — if the user genuinely modified the loaded invoice, keep it (so we don't throw away their work). Otherwise reset.
 
-New helper `src/lib/entryOwnership.ts`:
+### 3. Stop snapshotting the cart while a saved invoice is loaded
+**File:** `src/pages/POSSales.tsx` (the snapshot effect at lines 645–660)
 
-```ts
-export function canModifyEntry(opts: {
-  currentUserId: string | undefined;
-  createdBy: string | null | undefined;
-  isOwnerOrAdmin: boolean;
-}): { allowed: boolean; reason?: string };
-```
+- Add `if (currentSaleId) { clearPosCartSnapshot(orgId); return; }` at the top of the effect.
+- Rationale: the snapshot is meant for **unsaved work-in-progress** only. While viewing/editing a saved invoice, writing its items into sessionStorage causes them to reappear as a phantom cart after a reload.
 
-Returns `allowed = true` when `isOwnerOrAdmin` OR `createdBy === currentUserId` OR `createdBy` is null (legacy rows with no creator are left editable to avoid breaking historical data — flagged in the message back to the user).
+### 4. Clear the cart snapshot on `loadSaleForEdit` entry
+**File:** `src/pages/POSSales.tsx` (inside `loadSaleForEdit`, near line 854)
 
-### 2. Resolve "is owner/admin" once per session
+- Call `clearPosCartSnapshot(currentOrganization.id)` so any earlier in-progress snapshot is dropped when the user explicitly opens a saved invoice.
 
-Reuse `useUserRoles()` (already in the project) to detect `owner` / `admin`. Resolve creator's display name via the existing `useOrganizationMembers` / user map already used on dashboards (no extra round-trip).
+### 5. Tab-click behavior in WindowTabsBar (optional safety net)
+**File:** `src/contexts/WindowTabsContext.tsx`
 
-### 3. Wire the helper into the three dashboards (frontend guard)
+- When the user clicks the already-open `pos-sales` tab from `WindowTabsBar` (i.e. switches to it from another tab), strip any `saleId` from the saved search before navigating, so re-opening the tab never reloads the edit URL.
 
-For each Edit / Delete button on a row:
+## What stays the same
 
-- Compute `const { allowed, reason } = canModifyEntry({...})`.
-- If not allowed → render the button **disabled** with a tooltip "Only <Creator Name> or an admin can modify this entry".
-- Mirror the same check inside the click handler (`handleEditSale`, `handleDeleteSale`, purchase delete, payment edit/delete) so even a programmatic call is rejected with a toast.
+- Edit / Previous / Next / Last buttons still work exactly as today **within a session** while POS is the active tab.
+- The held-bill flow, sale return flow, and "New Sale" button are untouched.
+- No DB, RLS, or pricing logic changes.
+- Mobile POS layout (`MobilePOSLayout`) unaffected — these are POSSales state-level fixes shared by both layouts.
 
-### 4. Backend enforcement (defence-in-depth)
+## Verification
 
-Tighten the RLS UPDATE / DELETE policies on the three tables so the database rejects the same operation even if the UI is bypassed:
-
-- `sales` — UPDATE / DELETE allowed only when `created_by = auth.uid()` OR caller has `owner` / `admin` role via the existing `has_role(...)` security-definer function. SELECT and INSERT policies untouched. Soft-delete writes (`deleted_at`) follow the same UPDATE rule.
-- `purchase_bills` — same pattern.
-- `voucher_entries` — same pattern.
-
-This is a single migration; existing policies are dropped and recreated. SELECT is unchanged so dashboards keep showing every row to every user.
-
-### 5. Show creator name on the row (small UX add)
-
-The three dashboards already fetch user maps; surface a small "by <creator first name>" label on each row so users see ownership at a glance, not only when they hover a disabled button.
-
-### 6. Audit doc update
-
-Append a "Permanent fix shipped" section to `docs/mulund-multi-user-pos-audit-2026-06-18.md` describing the new rule and pointing to the helper / RLS change.
-
-## Out of scope (call out, do not build now)
-
-- Sale returns, delivery challans, quotations, sale orders, school fee receipts — same pattern can be applied later if the user confirms.
-- A configurable "Edit others' bills" right in the User Rights screen — could be added next; for now Owner / Admin is the only escape hatch, matching Tally / Vyapar default.
-
-## Files touched
-
-- New: `src/lib/entryOwnership.ts`
-- Edit: `src/pages/POSDashboard.tsx`, `src/pages/SalesInvoiceDashboard.tsx`, `src/pages/PurchaseBillDashboard.tsx`, `src/hooks/useAccountsPaymentDialogs.ts`
-- Edit: `docs/mulund-multi-user-pos-audit-2026-06-18.md`
-- One Supabase migration: tighten UPDATE / DELETE RLS on `sales`, `purchase_bills`, `voucher_entries`
-
-No data migration needed. Legacy rows with `created_by IS NULL` remain editable by anyone (Owner / Admin can always edit them) so old data is not locked out.
+1. From Sales Invoice Dashboard, click **Edit** on a saved invoice → POS Sales opens with that invoice and **Save Changes** button (expected).
+2. Switch to another tab (e.g. POS Dashboard) and back to POS Sales → POS Sales now shows a **blank new sale** (was: still showed the old invoice).
+3. Reload the browser while on POS Sales → POS Sales lands on a blank new sale (was: re-loaded the old invoice via persisted `?saleId`).
+4. Open POS Sales fresh, scan items, switch tabs and back → unsaved cart is still preserved (snapshot path still works for genuine new sales).
+5. Edit a saved invoice, modify a line, switch tabs and back → the edit-in-progress is preserved (auto-reset skipped because edits differ from `originalItemsForEdit`).
