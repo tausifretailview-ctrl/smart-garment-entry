@@ -418,7 +418,6 @@ export default function POSSales() {
   }, [currentOrganization?.id, flushScheduledSalesInvalidation, queryClient]);
 
   const [searchParams, setSearchParams] = useSearchParams();
-  const location = useLocation();
   const { orgNavigate: orgNavigatePOS } = useOrgNavigation();
   const _savedCart = readPosCartSnapshot(currentOrganization?.id || "default");
 
