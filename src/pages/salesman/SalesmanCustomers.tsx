@@ -19,6 +19,15 @@ import {
   type SalesmanCustomerRow,
 } from "@/utils/salesmanCustomerList";
 
+function formatCustomerListError(error: unknown): string {
+  if (error instanceof Error && error.message) return error.message;
+  if (error && typeof error === "object" && "message" in error) {
+    const msg = String((error as { message?: unknown }).message || "").trim();
+    if (msg) return msg;
+  }
+  return "Could not load customers.";
+}
+
 const SalesmanCustomers = () => {
   const { navigate } = useOrgNavigation();
   const { currentOrganization } = useOrganization();
@@ -37,9 +46,13 @@ const SalesmanCustomers = () => {
     queryFn: async () => {
       const core = await fetchSalesmanCustomerListCore(orgId!, queryClient);
       // Enrich dates in background — list is usable immediately after core resolves.
-      void enrichSalesmanCustomerActivity(orgId!, core, queryClient).then((enriched) => {
-        queryClient.setQueryData([SALESMAN_CUSTOMER_LIST_QUERY_KEY, orgId], enriched);
-      });
+      void enrichSalesmanCustomerActivity(orgId!, core, queryClient)
+        .then((enriched) => {
+          queryClient.setQueryData([SALESMAN_CUSTOMER_LIST_QUERY_KEY, orgId], enriched);
+        })
+        .catch((err) => {
+          console.warn("[SalesmanCustomers] activity enrich failed", err);
+        });
       return core;
     },
     enabled: !!orgId,
@@ -91,7 +104,7 @@ const SalesmanCustomers = () => {
     );
   }
 
-  const errorMsg = error instanceof Error ? error.message : error ? "Could not load customers." : null;
+  const errorMsg = formatCustomerListError(error);
 
   return (
     <div className="p-3 space-y-4 max-w-full overflow-x-hidden">
@@ -128,7 +141,7 @@ const SalesmanCustomers = () => {
         {filteredCustomers.length === 0 && (
           <div className="text-center py-12 text-muted-foreground">
             <Users className="h-12 w-12 mx-auto mb-4 opacity-50" />
-            {errorMsg ? (
+            {error ? (
               <>
                 <p className="text-destructive font-medium">Couldn't load customers</p>
                 <p className="text-xs mt-1 px-6 break-words">{errorMsg}</p>

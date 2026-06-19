@@ -1,9 +1,11 @@
 import type { QueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import {
   fetchOrgLedgerCustomersReference,
   fetchOrgLedgerSalesSummaryReference,
 } from "@/hooks/useOrgLedgerReferenceData";
 import { fetchCustomerReceiptVouchers } from "@/utils/fetchAllRows";
+import { calculateCustomerInvoiceBalances } from "@/utils/customerBalanceUtils";
 import { fetchOrganizationReceivableRows } from "@/utils/organizationReceivables";
 import { isCustomerReceiptVoucher } from "@/utils/paymentVoucherFilters";
 
@@ -97,17 +99,136 @@ function buildActivityMaps(
   return { lastOrderByCustomer, lastPaymentByCustomer };
 }
 
+type ReceivableLookup = Map<
+  string,
+  { balance: number; totalInvoices: number; totalCashPayments: number }
+>;
+
+/** Sales + receipt fallback when reconcile_customer_balances RPC fails (mobile timeout, etc.). */
+async function fetchSalesmanReceivableFallback(
+  organizationId: string,
+  customersData: Array<{ id: string; opening_balance?: number | null }>,
+  queryClient?: QueryClient,
+): Promise<ReceivableLookup> {
+  const allSales = await fetchOrgLedgerSalesSummaryReference(organizationId, queryClient);
+  const { data: allVouchers, error: voucherError } = await supabase
+    .from("voucher_entries")
+    .select("reference_id, reference_type, total_amount, discount_amount")
+    .eq("organization_id", organizationId)
+    .eq("voucher_type", "receipt")
+    .is("deleted_at", null);
+  if (voucherError) throw voucherError;
+
+  const invoiceVoucherPayments = new Map<string, number>();
+  const customerOpeningBalancePayments = new Map<string, number>();
+  const saleIdSet = new Set((allSales || []).map((s: { id: string }) => s.id));
+  const saleById = new Map((allSales || []).map((s: { id: string; customer_id?: string | null }) => [s.id, s]));
+  const totalInvoicesByCustomer = new Map<string, number>();
+  const totalCashByCustomer = new Map<string, number>();
+
+  for (const sale of allSales || []) {
+    const customerId = sale.customer_id;
+    if (!customerId) continue;
+    totalInvoicesByCustomer.set(
+      customerId,
+      (totalInvoicesByCustomer.get(customerId) || 0) + Number(sale.net_amount || 0),
+    );
+  }
+
+  for (const voucher of allVouchers || []) {
+    if (!voucher.reference_id) continue;
+    const amt = Number(voucher.total_amount || 0) + Number(voucher.discount_amount || 0);
+    if (saleIdSet.has(voucher.reference_id)) {
+      invoiceVoucherPayments.set(
+        voucher.reference_id,
+        (invoiceVoucherPayments.get(voucher.reference_id) || 0) + amt,
+      );
+      const sale = saleById.get(voucher.reference_id);
+      const customerId = sale?.customer_id;
+      if (customerId) {
+        totalCashByCustomer.set(customerId, (totalCashByCustomer.get(customerId) || 0) + amt);
+      }
+    } else if (voucher.reference_type === "customer") {
+      customerOpeningBalancePayments.set(
+        voucher.reference_id,
+        (customerOpeningBalancePayments.get(voucher.reference_id) || 0) + amt,
+      );
+      totalCashByCustomer.set(
+        voucher.reference_id,
+        (totalCashByCustomer.get(voucher.reference_id) || 0) + amt,
+      );
+    }
+  }
+
+  const customerInvoiceBalances = calculateCustomerInvoiceBalances(allSales || [], invoiceVoucherPayments);
+  const out: ReceivableLookup = new Map();
+
+  for (const customer of customersData) {
+    const openingBalance = Number(customer.opening_balance || 0);
+    const openingPaid = customerOpeningBalancePayments.get(customer.id) || 0;
+    const invoiceOutstanding = customerInvoiceBalances.get(customer.id) || 0;
+    const balance = Math.round(Math.max(0, openingBalance - openingPaid) + invoiceOutstanding);
+    out.set(customer.id, {
+      balance,
+      totalInvoices: Math.round(totalInvoicesByCustomer.get(customer.id) || 0),
+      totalCashPayments: Math.round(totalCashByCustomer.get(customer.id) || 0),
+    });
+  }
+
+  return out;
+}
+
+async function resolveSalesmanReceivableLookup(
+  organizationId: string,
+  customersData: Array<{ id: string; opening_balance?: number | null }>,
+  queryClient?: QueryClient,
+): Promise<ReceivableLookup> {
+  try {
+    const receivableRows = await fetchOrganizationReceivableRows(organizationId);
+    return new Map(
+      receivableRows.map((row) => [
+        row.customerId,
+        {
+          balance: row.balance,
+          totalInvoices: row.totalInvoices,
+          totalCashPayments: row.totalCashPayments,
+        },
+      ]),
+    );
+  } catch (err) {
+    console.warn(
+      "[salesmanCustomerList] reconcile_customer_balances failed; using sales ledger fallback",
+      err,
+    );
+  }
+
+  try {
+    return await fetchSalesmanReceivableFallback(organizationId, customersData, queryClient);
+  } catch (err) {
+    console.warn("[salesmanCustomerList] receivable fallback failed; using opening balance only", err);
+    const out: ReceivableLookup = new Map();
+    for (const customer of customersData) {
+      out.set(customer.id, {
+        balance: Math.round(Number(customer.opening_balance || 0)),
+        totalInvoices: 0,
+        totalCashPayments: 0,
+      });
+    }
+    return out;
+  }
+}
+
 /** Fast path: customers + master balances (one RPC). No org-wide voucher/sales scan. */
 export async function fetchSalesmanCustomerListCore(
   organizationId: string,
   queryClient?: QueryClient,
 ): Promise<SalesmanCustomerRow[]> {
-  const [customersData, receivableRows] = await Promise.all([
-    fetchOrgLedgerCustomersReference(organizationId, queryClient),
-    fetchOrganizationReceivableRows(organizationId),
-  ]);
-
-  const receivableById = new Map(receivableRows.map((row) => [row.customerId, row]));
+  const customersData = await fetchOrgLedgerCustomersReference(organizationId, queryClient);
+  const receivableById = await resolveSalesmanReceivableLookup(
+    organizationId,
+    customersData || [],
+    queryClient,
+  );
 
   const rows: SalesmanCustomerRow[] = (customersData || []).map((c: any) => {
     const receivable = receivableById.get(c.id);
