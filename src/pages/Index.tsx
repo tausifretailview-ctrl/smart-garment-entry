@@ -47,7 +47,6 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { StatsChartsSection } from "@/components/dashboard/StatsChartsSection";
-import { ThemeToggle } from "@/components/ThemeToggle";
 import { isElectronShell } from "@/lib/electronShell";
 import {
   Select,
@@ -495,13 +494,10 @@ const DesktopDashboard = () => {
   const isDesktopApp = isElectronShell();
   const { setToolbar } = useDashboardToolbar();
 
-  /** Shown in Header row 2 on lg+. Electron: hide theme + net profit to keep quick bar on one row. */
+  /** Shown in Header row 2 on lg+ — period selector (+ Net Profit when permitted). */
   const dashboardHeaderToolbar = useMemo(
     () => (
       <div className="flex items-center gap-1.5 flex-nowrap shrink-0">
-        {!isDesktopApp && (
-          <ThemeToggle className="h-7 gap-1.5 text-[11px] px-2.5 font-semibold text-white bg-purple-600 hover:bg-purple-700 border-0 shadow-sm [&_svg]:text-white [&_span]:text-white" />
-        )}
         <div className="flex items-center gap-1 bg-sky-600 hover:bg-sky-700 border-0 rounded-md px-1.5 h-7 shrink-0 shadow-sm text-white">
           <Calendar className="h-3.5 w-3.5 text-white shrink-0" />
           <Select value={dateRange} onValueChange={(v: DateRangeType) => setDateRange(v)}>
@@ -865,7 +861,7 @@ const DesktopDashboard = () => {
         title="Quick Actions"
       />
 
-      {/* lg+: theme / month / Net Profit sit in window tabs bar; here: refresh + status only */}
+      {/* lg+: period / Net Profit sit in header toolbar; here: refresh + status only */}
       {!isLgUp ? (
         <div className="dashboard-toolbar flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-border shrink-0">
           <Button
@@ -879,7 +875,6 @@ const DesktopDashboard = () => {
             Refresh
           </Button>
           <div className="flex items-center gap-1.5 flex-nowrap shrink-0 overflow-x-auto">
-            {!isDesktopApp && <ThemeToggle />}
             <div className="flex items-center gap-2 bg-card border border-border rounded-md px-2 py-0.5 shadow-sm h-8 shrink-0">
               <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
               <Select value={dateRange} onValueChange={(v: DateRangeType) => setDateRange(v)}>
