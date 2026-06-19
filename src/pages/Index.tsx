@@ -48,6 +48,7 @@ import { Button } from "@/components/ui/button";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { StatsChartsSection } from "@/components/dashboard/StatsChartsSection";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { isElectronShell } from "@/lib/electronShell";
 import {
   Select,
   SelectContent,
@@ -491,13 +492,16 @@ const DesktopDashboard = () => {
   );
 
   const isLgUp = useIsLgUp();
+  const isDesktopApp = isElectronShell();
   const { setToolbar } = useDashboardToolbar();
 
-  /** Shown in Header row 2 (next to Size Stock) on lg+ to avoid crowding the window tabs strip. */
+  /** Shown in Header row 2 on lg+. Electron: hide theme + net profit to keep quick bar on one row. */
   const dashboardHeaderToolbar = useMemo(
     () => (
       <div className="flex items-center gap-1.5 flex-nowrap shrink-0">
-        <ThemeToggle className="h-7 gap-1.5 text-[11px] px-2.5 font-semibold text-white bg-purple-600 hover:bg-purple-700 border-0 shadow-sm [&_svg]:text-white [&_span]:text-white" />
+        {!isDesktopApp && (
+          <ThemeToggle className="h-7 gap-1.5 text-[11px] px-2.5 font-semibold text-white bg-purple-600 hover:bg-purple-700 border-0 shadow-sm [&_svg]:text-white [&_span]:text-white" />
+        )}
         <div className="flex items-center gap-1 bg-sky-600 hover:bg-sky-700 border-0 rounded-md px-1.5 h-7 shrink-0 shadow-sm text-white">
           <Calendar className="h-3.5 w-3.5 text-white shrink-0" />
           <Select value={dateRange} onValueChange={(v: DateRangeType) => setDateRange(v)}>
@@ -519,7 +523,7 @@ const DesktopDashboard = () => {
             </span>
           )}
         </div>
-        {canNetProfit && (
+        {!isDesktopApp && canNetProfit && (
           <Button
             variant="ghost"
             size="sm"
@@ -532,7 +536,7 @@ const DesktopDashboard = () => {
         )}
       </div>
     ),
-    [dateRange, isLoading, dateLabel, startDate, endDate, navigate, canNetProfit]
+    [dateRange, isLoading, dateLabel, startDate, endDate, navigate, canNetProfit, isDesktopApp]
   );
 
   useEffect(() => {
@@ -875,7 +879,7 @@ const DesktopDashboard = () => {
             Refresh
           </Button>
           <div className="flex items-center gap-1.5 flex-nowrap shrink-0 overflow-x-auto">
-            <ThemeToggle />
+            {!isDesktopApp && <ThemeToggle />}
             <div className="flex items-center gap-2 bg-card border border-border rounded-md px-2 py-0.5 shadow-sm h-8 shrink-0">
               <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
               <Select value={dateRange} onValueChange={(v: DateRangeType) => setDateRange(v)}>
@@ -895,7 +899,7 @@ const DesktopDashboard = () => {
                 <span className="text-xs font-medium text-primary whitespace-nowrap">{dateLabel}</span>
               )}
             </div>
-            {canNetProfit && (
+            {!isDesktopApp && canNetProfit && (
               <Button
                 variant="default"
                 size="sm"

@@ -546,9 +546,15 @@ export const Header = () => {
         </div>
       </div>
 
-      {/* ROW 2: Action toolbar — shortcuts left; dashboard theme/period/profit pinned right in one row */}
-      <div className="sticky top-9 z-50 hidden lg:flex min-h-10 items-center px-3 py-1.5 gap-2 bg-slate-100 dark:bg-slate-900/90 border-b border-border/80 shadow-sm">
-        <div className="flex items-center flex-wrap gap-x-2 gap-y-1 flex-1 min-w-0">
+      {/* ROW 2: Action toolbar — Electron keeps all shortcuts on one row (no theme/net profit on dashboard). */}
+      <div className={cn(
+        "sticky top-9 z-50 hidden lg:flex min-h-10 items-center px-3 py-1.5 gap-2 bg-slate-100 dark:bg-slate-900/90 border-b border-border/80 shadow-sm",
+        isDesktopApp && "flex-nowrap overflow-x-auto",
+      )}>
+        <div className={cn(
+          "flex items-center gap-x-2 flex-1 min-w-0",
+          isDesktopApp ? "flex-nowrap overflow-x-auto" : "flex-wrap gap-y-1",
+        )}>
         {can("pos_sales") && (
           <div className="flex items-center">
             <Button
