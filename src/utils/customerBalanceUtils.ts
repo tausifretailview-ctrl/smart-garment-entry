@@ -174,14 +174,14 @@ function computeCustomerOutstandingLegacy(p: CustomerOutstandingParams): Custome
 
   const saleReturnTotal = Math.max(0, actionedReturnTotal - adjustedOutstandingTotal);
 
-  const effectiveUnusedAdvances = Math.max(0, unusedAdvanceTotal - (p.advanceRefundTotal || 0));
+  // Outstanding = invoices − payments (payments include advances APPLIED via totalPaid).
+  // Unused advance is reported separately (unusedAdvanceTotal) — not subtracted here.
   const grossOutstanding =
     p.openingBalance +
     totalSalesGross -
     totalSaleReturnAdjustOnSales -
     totalPaid +
     p.adjustmentTotal -
-    effectiveUnusedAdvances -
     saleReturnTotal +
     (p.refundsPaidTotal || 0);
 
@@ -244,7 +244,7 @@ export function computeCustomerOutstanding(p: CustomerOutstandingParams): Custom
   const totalCashPaid = Math.round(core.receiptCredits + core.paidAmountDrift);
 
   return {
-    balance: core.balance,
+    balance: legacy.balance,
     /** Net billings (gross invoices − CN/S/R on invoices). */
     totalSales: core.totalSalesNet,
     totalSalesGross: core.totalInvoicedGross,

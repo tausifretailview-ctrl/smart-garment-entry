@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import { describe, it } from "node:test";
+import { describe, expect, it } from "vitest";
 import {
   computeCustomerBalanceCore,
   computePendingStandaloneSaleReturns,
@@ -17,7 +16,7 @@ describe("computePendingStandaloneSaleReturns", () => {
       { net_amount: 11400, credit_status: "pending", linked_sale_id: null },
       { net_amount: 10950, credit_status: "pending", linked_sale_id: null },
     ];
-    assert.equal(computePendingStandaloneSaleReturns(saleReturns, sales), 33450);
+    expect(computePendingStandaloneSaleReturns(saleReturns, sales)).toBe(33450);
   });
 
   it("offsets only linked invoice SRA", () => {
@@ -25,7 +24,7 @@ describe("computePendingStandaloneSaleReturns", () => {
     const saleReturns = [
       { net_amount: 8000, credit_status: "pending", linked_sale_id: "sale-a" },
     ];
-    assert.equal(computePendingStandaloneSaleReturns(saleReturns, sales), 3000);
+    expect(computePendingStandaloneSaleReturns(saleReturns, sales)).toBe(3000);
   });
 });
 
@@ -54,8 +53,9 @@ describe("computeCustomerBalanceCore — Shumama-shaped fixture", () => {
         { net_amount: 10950, credit_status: "pending", linked_sale_id: null },
       ],
     });
-    assert.equal(result.paidAmountDrift, 0);
-    assert.ok(result.balance > -20000 && result.balance < -10000);
+    expect(result.paidAmountDrift).toBe(0);
+    expect(result.balance).toBeGreaterThan(-20000);
+    expect(result.balance).toBeLessThan(-10000);
   });
 
   it("credits full pending SR (fixes global sraPool under-credit)", () => {
@@ -79,8 +79,8 @@ describe("computeCustomerBalanceCore — Shumama-shaped fixture", () => {
         { net_amount: 10950, credit_status: "pending", linked_sale_id: null },
       ],
     });
-    assert.equal(result.pendingStandaloneSaleReturns, 33450);
-    assert.equal(result.balance, -12850);
+    expect(result.pendingStandaloneSaleReturns).toBe(33450);
+    expect(result.balance).toBe(-12850);
   });
 
   it("economic net refund = unused advance + CN − outstanding Dr", () => {
@@ -88,6 +88,6 @@ describe("computeCustomerBalanceCore — Shumama-shaped fixture", () => {
     const cnAvailable = 33450;
     const outstandingDr = 66050;
     const netRefund = Math.max(0, unusedAdvance + cnAvailable - outstandingDr);
-    assert.equal(netRefund, 17400);
+    expect(netRefund).toBe(17400);
   });
 });
