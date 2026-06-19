@@ -1934,6 +1934,38 @@ input.no-uppercase {
   padding-right: 0;
 }
 
+/* Purchase bill — compact product name, larger size/barcode/rate columns */
+.purchase-entry-page .erp-entry-lines-table .col-product {
+  width: 10rem;
+  max-width: 10rem;
+  min-width: 8rem;
+}
+
+.purchase-entry-page .erp-entry-lines-table .pur-col-size {
+  font-size: 15px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.purchase-entry-page .erp-entry-lines-table .pur-col-barcode {
+  font-size: 14px;
+}
+
+.purchase-entry-page .erp-entry-lines-table .pur-col-num {
+  font-size: 15px;
+}
+
+.purchase-entry-page .erp-entry-lines-table .pur-col-num input,
+.purchase-entry-page .erp-entry-lines-table .pur-col-num button[role="combobox"] {
+  font-size: 15px;
+}
+
+.purchase-entry-page .erp-entry-lines-table thead .pur-col-size,
+.purchase-entry-page .erp-entry-lines-table thead .pur-col-barcode,
+.purchase-entry-page .erp-entry-lines-table thead .pur-col-num {
+  font-size: 12px;
+}
+
 /* ─── ERP Form Compact — Tally-style entry fields ─── */
 .erp-form-compact .erp-field {
   display: flex;

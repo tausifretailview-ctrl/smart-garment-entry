@@ -698,6 +698,8 @@ const PurchaseEntry = () => {
   // Barcode duplicate warning state
   const [barcodeWarnings, setBarcodeWarnings] = useState<Map<string, string>>(new Map());
   const [barcodeValidationProgress, setBarcodeValidationProgress] = useState<ExcelImportLoadingState | null>(null);
+  const [showBarcodeConflictDialog, setShowBarcodeConflictDialog] = useState(false);
+  const pendingBarcodeSaveRef = useRef(false);
   const barcodeCheckTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const barcodeCheckGenRef = useRef(0);
   const lineItemsForBarcodeCheckRef = useRef(lineItems);
@@ -3792,6 +3794,12 @@ const PurchaseEntry = () => {
       return;
     }
 
+    if (barcodeWarnings.size > 0 && !pendingBarcodeSaveRef.current) {
+      setShowBarcodeConflictDialog(true);
+      return;
+    }
+    pendingBarcodeSaveRef.current = false;
+
     // Allocate the next serial supplier invoice number atomically when auto-filled.
     // Prevents two users in the same org from saving the same number simultaneously.
     if (
@@ -5665,7 +5673,7 @@ const PurchaseEntry = () => {
   }
 
   return (
-    <div className={cn(entryPageShellClass, "bg-slate-50")} data-entry-form>
+    <div className={cn(entryPageShellClass, "bg-slate-50 purchase-entry-page")} data-entry-form>
       {excelImportLoading && <ExcelImportLoadingOverlay progress={excelImportLoading} />}
       {barcodeValidationProgress && (
         <ExcelImportLoadingOverlay
@@ -6115,6 +6123,15 @@ const PurchaseEntry = () => {
                 <span>Showing {Math.min(visibleItemCount, lineItems.length)} rows — scroll to load more</span>
               </div>
             )}
+            {barcodeWarnings.size > 0 && (
+              <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 border-b border-amber-200 text-sm text-amber-900 shrink-0">
+                <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" />
+                <span>
+                  <strong>{barcodeWarnings.size}</strong> barcode conflict
+                  {barcodeWarnings.size === 1 ? "" : "s"} — check SIZE/BARCODE columns below before saving.
+                </span>
+              </div>
+            )}
             <div
               className={`relative flex-1 min-h-0 overflow-x-auto overflow-y-auto isolate ${isBillLocked ? "pointer-events-none" : ""}`}
               onScroll={(e) => {
@@ -6145,17 +6162,17 @@ const PurchaseEntry = () => {
                       />
                     </TableHead>
                     <TableHead className="w-[60px]">SR.NO</TableHead>
-                    <TableHead className="col-product min-w-[200px]">ITEM NAME</TableHead>
-                    {showPurCol.size && <TableHead className="w-[50px]">SIZE</TableHead>}
-                    <TableHead className="w-[120px]">{isMobileERPMode ? "IMEI NUMBER" : "BARCODE"}</TableHead>
-                    <TableHead className="w-[110px] text-right">QTY</TableHead>
-                    <TableHead className="w-[140px] text-right pur-rate-col">PUR.RATE</TableHead>
-                    <TableHead className="w-[140px] text-right sale-rate-col">SALE.RATE</TableHead>
-                    {showMrp && <TableHead className="w-[140px] text-right">MRP</TableHead>}
-                    {showPurCol.gst && <TableHead className="w-[110px] text-right">GST %</TableHead>}
-                    <TableHead className="w-[120px] text-right">SUB TOTAL</TableHead>
-                    {showPurCol.disc_percent && <TableHead className="w-[110px] text-right">DISC %</TableHead>}
-                    <TableHead className="w-[120px] text-right total-col">TOTAL</TableHead>
+                    <TableHead className="col-product w-[10rem] max-w-[10rem]">ITEM NAME</TableHead>
+                    {showPurCol.size && <TableHead className="pur-col-size w-[4.5rem] text-center">SIZE</TableHead>}
+                    <TableHead className="pur-col-barcode w-[9rem]">{isMobileERPMode ? "IMEI NUMBER" : "BARCODE"}</TableHead>
+                    <TableHead className="pur-col-num w-[5.5rem] text-right">QTY</TableHead>
+                    <TableHead className="pur-col-num w-[6.5rem] text-right pur-rate-col">PUR.RATE</TableHead>
+                    <TableHead className="pur-col-num w-[6.5rem] text-right sale-rate-col">SALE.RATE</TableHead>
+                    {showMrp && <TableHead className="pur-col-num w-[6.5rem] text-right">MRP</TableHead>}
+                    {showPurCol.gst && <TableHead className="pur-col-num w-[5.5rem] text-right">GST %</TableHead>}
+                    <TableHead className="pur-col-num w-[6rem] text-right">SUB TOTAL</TableHead>
+                    {showPurCol.disc_percent && <TableHead className="pur-col-num w-[5.5rem] text-right">DISC %</TableHead>}
+                    <TableHead className="pur-col-num w-[6rem] text-right total-col">TOTAL</TableHead>
                     <TableHead className="w-[40px]"></TableHead>
                     <TableHead className="w-[40px]">Action</TableHead>
                   </TableRow>
@@ -6176,13 +6193,17 @@ const PurchaseEntry = () => {
                           />
                         </TableCell>
                         <TableCell className="w-[60px] text-center font-medium">{index + 1}</TableCell>
-                        <TableCell className="col-product font-medium cursor-pointer" title={formatProductDescription(item)}
+                        <TableCell className="col-product w-[10rem] max-w-[10rem] font-medium cursor-pointer" title={formatProductDescription(item)}
                           onDoubleClick={() => openEditPanel(index, "product_name")}>
-                          <div className="text-sm leading-snug break-words">{formatProductDescription(item)}</div>
+                          <div className="text-sm leading-snug truncate">{formatProductDescription(item)}</div>
                         </TableCell>
-                        {showPurCol.size && <TableCell className="w-[50px] text-sm">{item.size || "—"}</TableCell>}
-                        <TableCell className="w-[120px]">
-                          <Badge variant="outline" className={cn("text-xs", isMobileERPMode ? "font-mono tracking-wider" : "font-mono")}>
+                        {showPurCol.size && (
+                          <TableCell className="pur-col-size w-[4.5rem] text-center text-[15px] font-bold">
+                            {item.size || "—"}
+                          </TableCell>
+                        )}
+                        <TableCell className="pur-col-barcode w-[9rem]">
+                          <Badge variant="outline" className={cn("text-[13px] font-mono px-2 py-0.5", isMobileERPMode && "tracking-wider")}>
                             {item.barcode || "—"}
                           </Badge>
                           {barcodeWarnings.has(item.temp_id) && (() => {
@@ -6201,7 +6222,7 @@ const PurchaseEntry = () => {
                             );
                           })()}
                         </TableCell>
-                        <TableCell className="w-[110px]">
+                        <TableCell className="pur-col-num w-[5.5rem]">
                           <div className="flex items-center gap-0.5">
                             <Input
                               ref={index === lineItems.length - 1 ? lastQtyInputRef : undefined}
@@ -6218,50 +6239,50 @@ const PurchaseEntry = () => {
                                 )
                               }
                               onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                              className="w-full text-right px-2 bg-amber-50 border-amber-200 text-center font-bold [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                              className="w-full text-right px-2 bg-amber-50 border-amber-200 text-center text-[15px] font-bold [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                             />
                             {item.uom && item.uom !== 'NOS' && item.uom !== 'PCS' && (
                               <span className="text-[10px] text-muted-foreground whitespace-nowrap">{item.uom}</span>
                             )}
                           </div>
                         </TableCell>
-                        <TableCell className="w-[140px]">
+                        <TableCell className="pur-col-num w-[6.5rem]">
                           <CalculatorInput
                             value={item.pur_price}
                             onChange={(val) =>
                               updateLineItem(item.temp_id, "pur_price", val)
                             }
-                            className="w-full text-right bg-green-50 border-green-200 text-green-800 font-bold"
+                            className="w-full text-right text-[15px] bg-green-50 border-green-200 text-green-800 font-bold"
                           />
                         </TableCell>
-                        <TableCell className="w-[140px]">
+                        <TableCell className="pur-col-num w-[6.5rem]">
                           <CalculatorInput
                             value={item.sale_price}
                             onChange={(val) =>
                               updateLineItem(item.temp_id, "sale_price", val)
                             }
-                            className="w-full text-right bg-blue-50 border-blue-200 text-blue-800 font-bold"
+                            className="w-full text-right text-[15px] bg-blue-50 border-blue-200 text-blue-800 font-bold"
                           />
                         </TableCell>
                         {showMrp && (
-                          <TableCell className="w-[140px]">
+                          <TableCell className="pur-col-num w-[6.5rem]">
                             <CalculatorInput
                               value={item.mrp || 0}
                               onChange={(val) =>
                                 updateLineItem(item.temp_id, "mrp", val)
                               }
-                              className="w-full text-right"
+                              className="w-full text-right text-[15px] font-semibold"
                             />
                           </TableCell>
                         )}
-                        {showPurCol.gst && <TableCell className="w-[110px]">
+                        {showPurCol.gst && <TableCell className="pur-col-num w-[5.5rem]">
                           <Select
                             value={String(item.gst_per)}
                             onValueChange={(value) =>
                               updateLineItem(item.temp_id, "gst_per", Number(value))
                             }
                           >
-                            <SelectTrigger className="w-full h-9">
+                            <SelectTrigger className="w-full h-9 text-[14px] font-semibold">
                               <SelectValue placeholder="GST" />
                             </SelectTrigger>
                             <SelectContent className="bg-background z-50">
@@ -6273,10 +6294,10 @@ const PurchaseEntry = () => {
                             </SelectContent>
                           </Select>
                         </TableCell>}
-                        <TableCell className="w-[120px] text-right font-semibold tabular-nums">
+                        <TableCell className="pur-col-num w-[6rem] text-right text-[15px] font-semibold tabular-nums">
                           ₹{subTotal.toFixed(2)}
                         </TableCell>
-                        {showPurCol.disc_percent && <TableCell className="w-[110px]">
+                        {showPurCol.disc_percent && <TableCell className="pur-col-num w-[5.5rem]">
                           <Input
                             type="number"
                             min="0"
@@ -6291,10 +6312,10 @@ const PurchaseEntry = () => {
                               )
                             }
                             onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                            className="w-full text-right"
+                            className="w-full text-right text-[14px] font-semibold"
                           />
                         </TableCell>}
-                        <TableCell className="w-[120px] text-right font-bold tabular-nums text-green-700 bg-green-50/40 font-mono">
+                        <TableCell className="pur-col-num w-[6rem] text-right text-[15px] font-bold tabular-nums text-green-700 bg-green-50/40 font-mono">
                           ₹{total.toFixed(2)}
                         </TableCell>
                         <TableCell className="w-[40px]">
@@ -6949,6 +6970,44 @@ const PurchaseEntry = () => {
               onClick={() => {
                 setShowDuplicateBillWarning(false);
                 pendingSaveRef.current = true;
+                handleSave();
+              }}
+            >
+              Save Anyway
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Barcode conflict — confirm before save (inline row warnings stay primary) */}
+      <AlertDialog open={showBarcodeConflictDialog} onOpenChange={setShowBarcodeConflictDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-amber-600" />
+              Duplicate Barcode Detected
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm">
+                <p>
+                  {barcodeWarnings.size === 1
+                    ? "1 line item has a barcode conflict"
+                    : `${barcodeWarnings.size} line items have barcode conflicts`}
+                  {" "}(duplicate in this bill or already used on another product).
+                </p>
+                <p className="text-muted-foreground">
+                  Review the amber/red warnings under the BARCODE column. Saving with duplicate barcodes can cause stock and billing errors.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Review Items</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-amber-600 hover:bg-amber-700"
+              onClick={() => {
+                setShowBarcodeConflictDialog(false);
+                pendingBarcodeSaveRef.current = true;
                 handleSave();
               }}
             >
