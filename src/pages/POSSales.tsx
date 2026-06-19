@@ -866,6 +866,8 @@ export default function POSSales() {
   const loadSaleForEdit = async (saleId: string) => {
     isInitializingEditRef.current = true;
     hasManuallyAddedNewItemRef.current = false;
+    // Drop any unsaved-cart snapshot — we're now viewing a specific saved invoice.
+    clearPosCartSnapshot(currentOrganization?.id || "default");
     try {
       // Fetch sale data
       const { data: sale, error: saleError } = await supabase
