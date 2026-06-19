@@ -1,0 +1,1 @@
+CREATE INDEX IF NOT EXISTS idx_purchase_items_sku_created ON public.purchase_items (sku_id, created_at DESC) WHERE deleted_at IS NULL;
