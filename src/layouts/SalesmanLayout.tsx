@@ -1,6 +1,16 @@
 import { useState, useEffect } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
+import { useOrganization } from "@/contexts/OrganizationContext";
+import {
+  fetchOrgLedgerCustomersReference,
+} from "@/hooks/useOrgLedgerReferenceData";
+import {
+  fetchSalesmanCustomerListCore,
+  SALESMAN_CUSTOMER_LIST_QUERY_KEY,
+} from "@/utils/salesmanCustomerList";
+import { STALE_FREQUENT } from "@/lib/queryStaleTimes";
 import { Home, Users, ShoppingCart, ListOrdered, LogOut, Download, AlertCircle, Package, BookOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
@@ -18,6 +28,8 @@ const SalesmanLayout = () => {
   const { getOrgPath } = useOrgNavigation();
   const navigate = useNavigate();
   const location = useLocation();
+  const queryClient = useQueryClient();
+  const { currentOrganization } = useOrganization();
   const { signOut } = useAuth();
   const { isInstallable, isInstalled, promptInstall } = useInstallPrompt();
   const { hasAccess, employeeName, isLoading } = useFieldSalesAccess();
@@ -37,6 +49,29 @@ const SalesmanLayout = () => {
     }, LOADING_TIMEOUT);
     return () => clearTimeout(timer);
   }, [isLoading]);
+
+  // Warm customer list caches while salesman uses Home / Orders (faster Customers tab open).
+  useEffect(() => {
+    const orgId = currentOrganization?.id;
+    if (!orgId || !hasAccess) return;
+
+    const warm = () => {
+      void fetchOrgLedgerCustomersReference(orgId, queryClient);
+      void queryClient.prefetchQuery({
+        queryKey: [SALESMAN_CUSTOMER_LIST_QUERY_KEY, orgId],
+        queryFn: () => fetchSalesmanCustomerListCore(orgId, queryClient),
+        staleTime: STALE_FREQUENT,
+        refetchOnWindowFocus: false,
+      });
+    };
+
+    if (typeof requestIdleCallback === "function") {
+      const id = requestIdleCallback(warm, { timeout: 2500 });
+      return () => cancelIdleCallback(id);
+    }
+    const timer = window.setTimeout(warm, 400);
+    return () => window.clearTimeout(timer);
+  }, [currentOrganization?.id, hasAccess, queryClient]);
 
   // Dynamic manifest and theme for Field Sales PWA
   useEffect(() => {

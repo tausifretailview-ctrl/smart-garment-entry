@@ -21,6 +21,10 @@ export type OrganizationReceivableRow = {
   balance: number;
   /** Unused advance still available to the customer. */
   advanceAvailable: number;
+  /** Lifetime net invoiced (gated gross) from reconcile RPC. */
+  totalInvoices: number;
+  /** Lifetime cash receipts from reconcile RPC. */
+  totalCashPayments: number;
 };
 
 export type OrganizationReceivablesSummary = {
@@ -42,6 +46,8 @@ type ReconcileRpcRow = {
   customer_id: string | null;
   calculated_balance: number | null;
   advance_available: number | null;
+  total_invoices: number | null;
+  total_cash_payments: number | null;
 };
 
 const EMPTY_SUMMARY: OrganizationReceivablesSummary = {
@@ -72,6 +78,8 @@ export async function fetchOrganizationReceivableRows(
       customerId: row.customer_id as string,
       balance: Math.round(Number(row.calculated_balance ?? 0)),
       advanceAvailable: Math.round(Number(row.advance_available ?? 0) * 100) / 100,
+      totalInvoices: Math.round(Number(row.total_invoices ?? 0)),
+      totalCashPayments: Math.round(Number(row.total_cash_payments ?? 0)),
     }));
 }
 
