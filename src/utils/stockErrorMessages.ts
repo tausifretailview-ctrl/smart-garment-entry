@@ -50,7 +50,7 @@ export function buildInsufficientStockIssue(
   const label = `${productName}${size ? ` (${size})` : ""}`;
   if (available <= 0) {
     return {
-      title: "Out of Stock",
+      title: "Stock Not Available",
       message: `${label} is not available to sell.`,
       details: ["There is no stock left for this item."],
     };

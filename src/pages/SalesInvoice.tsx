@@ -97,6 +97,12 @@ import { useCustomerBrandDiscounts } from "@/hooks/useCustomerBrandDiscounts";
 import { fetchCustomerProductPrice } from "@/hooks/useCustomerProductPrice";
 import { ProductHistoryDialog } from "@/components/ProductHistoryDialog";
 import { PriceSelectionDialog } from "@/components/PriceSelectionDialog";
+import { StockIssueAlertDialog } from "@/components/StockIssueAlertDialog";
+import {
+  buildInsufficientStockIssue,
+  buildMultipleStockIssues,
+  type StockIssuePresentation,
+} from "@/utils/stockErrorMessages";
 import { useShopName } from "@/hooks/useShopName";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { logError } from "@/lib/errorLogger";
@@ -212,7 +218,14 @@ export default function SalesInvoice() {
   const refreshInvoiceDashboardAfterPrint = useCallback(() => {
     flushScheduledSalesInvalidation(currentOrganization?.id, { notifyPos: false });
   }, [currentOrganization?.id, flushScheduledSalesInvalidation]);
-  const { checkStock, validateCartStock, showStockError, showMultipleStockErrors } = useStockValidation();
+  const { checkStock, validateCartStock } = useStockValidation();
+  const [showStockIssueDialog, setShowStockIssueDialog] = useState(false);
+  const [stockIssuePresentation, setStockIssuePresentation] = useState<StockIssuePresentation | null>(null);
+
+  const openStockIssueDialog = useCallback((issue: StockIssuePresentation) => {
+    setStockIssuePresentation(issue);
+    setShowStockIssueDialog(true);
+  }, []);
   const shopName = useShopName();
   const { isColumnVisible } = useUserPermissions();
   const showCol = {
@@ -1436,7 +1449,9 @@ export default function SalesInvoice() {
       // Stock validation with freed quantity
       const stockCheck = await checkStock(variant.id, qty, freedQty);
       if (!stockCheck.isAvailable) {
-        showStockError(product.product_name, variant.size, qty, stockCheck.availableStock);
+        openStockIssueDialog(
+          buildInsufficientStockIssue(product.product_name, variant.size, qty, stockCheck.availableStock),
+        );
         continue;
       }
 
@@ -1447,7 +1462,14 @@ export default function SalesInvoice() {
         const newQty = updatedItems[existingIndex].quantity + qty;
         const stockCheckIncrease = await checkStock(variant.id, newQty, freedQty);
         if (!stockCheckIncrease.isAvailable) {
-          showStockError(product.product_name, variant.size, newQty, stockCheckIncrease.availableStock);
+          openStockIssueDialog(
+            buildInsufficientStockIssue(
+              product.product_name,
+              variant.size,
+              newQty,
+              stockCheckIncrease.availableStock,
+            ),
+          );
           continue;
         }
         updatedItems[existingIndex].quantity = newQty;
@@ -1565,11 +1587,11 @@ export default function SalesInvoice() {
     let foundVariant: any = indexMatch?.variant || null;
     let foundProduct: any = indexMatch?.product || null;
 
-    // Fallback: local linear search when cache/index misses
+    // Fallback: local linear search when cache/index misses (match barcode even if stock is 0)
     if (!foundVariant && productsData) {
       for (const product of productsData) {
-        const variantMatch = product.product_variants?.find((v: any) =>
-          v.barcode?.toLowerCase() === normalizedSearchTerm && (v.stock_qty > 0 || product.product_type === 'service' || product.product_type === 'combo')
+        const variantMatch = product.product_variants?.find(
+          (v: any) => v.barcode?.toLowerCase() === normalizedSearchTerm,
         );
         if (variantMatch) {
           foundVariant = variantMatch;
@@ -1606,15 +1628,31 @@ export default function SalesInvoice() {
       }
 
       if (dbVariant && (dbVariant as any).products) {
-        const dbProduct = (dbVariant as any).products;
-        if ((dbVariant.stock_qty || 0) > 0 || dbProduct.product_type === 'service' || dbProduct.product_type === 'combo') {
-          foundVariant = dbVariant;
-          foundProduct = dbProduct;
-        }
+        foundVariant = dbVariant;
+        foundProduct = (dbVariant as any).products;
       }
     }
 
     if (foundVariant && foundProduct) {
+      const isServiceOrCombo =
+        foundProduct.product_type === 'service' || foundProduct.product_type === 'combo';
+      const stockQty = Number(foundVariant.stock_qty) || 0;
+
+      if (!isServiceOrCombo && stockQty <= 0) {
+        playErrorBeep();
+        openStockIssueDialog(
+          buildInsufficientStockIssue(
+            buildProductDisplayName(foundProduct),
+            foundVariant.size,
+            1,
+            stockQty,
+          ),
+        );
+        setSearchInput("");
+        setTimeout(() => barcodeInputRef.current?.focus(), 50);
+        return;
+      }
+
       // Barcode uniquely identifies a specific variant (size+color) — always add directly, skip size grid
       playSuccessBeep();
       await addProductToInvoice(foundProduct, foundVariant, undefined, { skipSizeGrid: true });
@@ -1626,7 +1664,14 @@ export default function SalesInvoice() {
     playErrorBeep();
     setSearchInput("");
     barcodeInputRef.current?.focus();
-  }, [productsData, barcodeIndex, currentOrganization?.id, entryMode, playSuccessBeep, playErrorBeep, toast]);
+  }, [
+    productsData,
+    barcodeIndex,
+    currentOrganization?.id,
+    playSuccessBeep,
+    playErrorBeep,
+    openStockIssueDialog,
+  ]);
 
   const addProductToInvoice = async (product: any, variant: any, overridePrice?: { sale_price: number; mrp: number }, options?: { skipSizeGrid?: boolean }) => {
     // If in grid mode, open size grid dialog
@@ -1716,6 +1761,30 @@ export default function SalesInvoice() {
     })();
     const discountPercent = brandDiscount > 0 ? brandDiscount : (productSaleDiscount > 0 ? productSaleDiscount : 0);
 
+    const isServiceOrCombo =
+      product.product_type === 'service' || product.product_type === 'combo';
+    if (!isServiceOrCombo) {
+      const existingItem = lineItems.find(
+        (item) => item.variantId === variant.id && item.productId !== '',
+      );
+      const requestedQty = (existingItem?.quantity || 0) + 1;
+      const stockCheck = await checkStock(variant.id, requestedQty, freedQty);
+      if (!stockCheck.isAvailable) {
+        playErrorBeep();
+        openStockIssueDialog(
+          buildInsufficientStockIssue(
+            stockCheck.productName,
+            stockCheck.size,
+            requestedQty,
+            stockCheck.availableStock,
+          ),
+        );
+        setSearchInput("");
+        setTimeout(() => barcodeInputRef.current?.focus(), 50);
+        return;
+      }
+    }
+
     // Use functional update with duplicate check INSIDE to prevent stale state during rapid barcode scans
     hasManuallyAddedNewItemRef.current = true;
     setLineItems(prev => {
@@ -1770,33 +1839,6 @@ export default function SalesInvoice() {
         return updatedItems;
       }
     });
-
-    // Validate stock asynchronously after state update
-    // Use a microtask to read the updated quantity
-    setTimeout(() => {
-      setLineItems(prev => {
-        const idx = prev.findIndex(item => item.variantId === variant.id && item.productId !== '');
-        if (idx >= 0) {
-          const currentQty = prev[idx].quantity;
-          checkStock(variant.id, currentQty, freedQty).then(stockCheck => {
-            if (!stockCheck.isAvailable) {
-              playErrorBeep();
-              showStockError(stockCheck.productName, stockCheck.size, currentQty, stockCheck.availableStock);
-              // Revert
-              setLineItems(p => {
-                const items = [...p];
-                const i = items.findIndex(item => item.variantId === variant.id && item.productId !== '');
-                if (i >= 0) {
-                  items[i] = calculateLineTotal({ ...items[i], quantity: items[i].quantity - 1 });
-                }
-                return items;
-              });
-            }
-          });
-        }
-        return prev; // No change, just reading
-      });
-    }, 0);
 
     // Show toast if brand discount was applied
     if (brandDiscount > 0) {
@@ -2087,11 +2129,14 @@ export default function SalesInvoice() {
     const stockCheck = await checkStock(item.variantId, quantity, freedQty);
     
     if (!stockCheck.isAvailable) {
-      showStockError(
-        item.productName,
-        item.size,
-        quantity,
-        stockCheck.availableStock
+      playErrorBeep();
+      openStockIssueDialog(
+        buildInsufficientStockIssue(
+          stockCheck.productName,
+          stockCheck.size,
+          quantity,
+          stockCheck.availableStock,
+        ),
       );
       return;
     }
@@ -2454,7 +2499,7 @@ Thank you for choosing us!`;
     );
     
     if (insufficientItems.length > 0) {
-      showMultipleStockErrors(insufficientItems);
+      openStockIssueDialog(buildMultipleStockIssues(insufficientItems));
       return;
     }
 
@@ -3239,6 +3284,14 @@ Thank you for choosing us!`;
         </div>
         {historyProduct && currentOrganization && <ProductHistoryDialog isOpen={!!historyProduct} onClose={() => setHistoryProduct(null)} productId={historyProduct.id} productName={historyProduct.name} organizationId={currentOrganization.id} />}
         {pendingPriceSelection && <PriceSelectionDialog open={showPriceSelectionDialog} onOpenChange={(open) => { setShowPriceSelectionDialog(open); if (!open) setPendingPriceSelection(null); }} productName={pendingPriceSelection.product?.product_name || ''} size={pendingPriceSelection.variant?.size || ''} masterPrice={pendingPriceSelection.masterPrice} lastPurchasePrice={pendingPriceSelection.lastPurchasePrice} customerPrice={pendingPriceSelection.customerPrice} onSelect={(source, prices) => { const { product, variant } = pendingPriceSelection; setShowPriceSelectionDialog(false); setPendingPriceSelection(null); addProductToInvoice(product, variant, prices); }} />}
+        <StockIssueAlertDialog
+          open={showStockIssueDialog}
+          onOpenChange={(open) => {
+            setShowStockIssueDialog(open);
+            if (!open) setTimeout(() => barcodeInputRef.current?.focus(), 50);
+          }}
+          issue={stockIssuePresentation}
+        />
       </div>
     );
   }
@@ -4556,6 +4609,15 @@ Thank you for choosing us!`;
           }}
         />
       )}
+
+      <StockIssueAlertDialog
+        open={showStockIssueDialog}
+        onOpenChange={(open) => {
+          setShowStockIssueDialog(open);
+          if (!open) setTimeout(() => barcodeInputRef.current?.focus(), 50);
+        }}
+        issue={stockIssuePresentation}
+      />
     </div>
   );
 }
