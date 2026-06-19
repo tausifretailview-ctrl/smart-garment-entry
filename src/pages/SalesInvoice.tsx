@@ -198,12 +198,16 @@ function applyFlatDiscountFromInvoice(
 export default function SalesInvoice() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { scheduleInvalidateSales, flushScheduledSalesInvalidation } = useDashboardInvalidation();
+  const { scheduleInvalidateSales, flushScheduledSalesInvalidation, invalidateSales } = useDashboardInvalidation();
   const { currentOrganization } = useOrganization();
 
   const scheduleInvoiceDashboardRefresh = useCallback(() => {
-    scheduleInvalidateSales(currentOrganization?.id, { skipPosNotify: true });
-  }, [currentOrganization?.id, scheduleInvalidateSales]);
+    // Edits/saves on Sales Invoice are explicit single actions — invalidate
+    // dashboards immediately so the Sales Dashboard reflects the change even
+    // if the user dismisses the Print dialog via Escape/overlay instead of
+    // the Skip/Print buttons.
+    invalidateSales(currentOrganization?.id);
+  }, [currentOrganization?.id, invalidateSales]);
 
   const refreshInvoiceDashboardAfterPrint = useCallback(() => {
     flushScheduledSalesInvalidation(currentOrganization?.id, { notifyPos: false });
@@ -3217,7 +3221,13 @@ Thank you for choosing us!`;
             </Form>
           </DialogContent>
         </Dialog>
-        <AlertDialog open={showPrintDialog} onOpenChange={setShowPrintDialog}>
+        <AlertDialog
+          open={showPrintDialog}
+          onOpenChange={(open) => {
+            if (!open) handleClosePrintDialog();
+            else setShowPrintDialog(true);
+          }}
+        >
           <AlertDialogContent>
             <AlertDialogHeader><AlertDialogTitle>Print Invoice?</AlertDialogTitle><AlertDialogDescription>Invoice saved successfully.</AlertDialogDescription></AlertDialogHeader>
             <AlertDialogFooter><AlertDialogCancel onClick={handleClosePrintDialog}>Skip</AlertDialogCancel><AlertDialogAction onClick={handlePrintInvoice}>Print</AlertDialogAction></AlertDialogFooter>
@@ -4436,7 +4446,13 @@ Thank you for choosing us!`;
       </Dialog>
 
       {/* Print Confirmation Dialog */}
-      <AlertDialog open={showPrintDialog} onOpenChange={setShowPrintDialog}>
+      <AlertDialog
+        open={showPrintDialog}
+        onOpenChange={(open) => {
+          if (!open) handleClosePrintDialog();
+          else setShowPrintDialog(true);
+        }}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Print Invoice?</AlertDialogTitle>
