@@ -23,7 +23,7 @@ import { useState, useEffect, useMemo } from "react";
 import { SizeStockDialog } from "@/components/SizeStockDialog";
 import { CustomerStatementFloatingDialog } from "@/components/CustomerStatementFloatingDialog";
 import { FloatingAccountsPaymentsDialog } from "@/components/FloatingAccountsPaymentsDialog";
-import { FloatingStockReport } from "@/components/FloatingPOSReports";
+import { FloatingStockReport, FloatingSaleReport } from "@/components/FloatingPOSReports";
 import { useDashboardToolbarOptional } from "@/contexts/DashboardToolbarContext";
 import { useSchoolFeatures } from "@/hooks/useSchoolFeatures";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
@@ -51,6 +51,7 @@ export const Header = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [sizeStockOpen, setSizeStockOpen] = useState(false);
   const [quickStockOpen, setQuickStockOpen] = useState(false);
+  const [quickSaleOpen, setQuickSaleOpen] = useState(false);
   const [customerStatementOpen, setCustomerStatementOpen] = useState(false);
   const [paymentsOpen, setPaymentsOpen] = useState(false);
   const { isInstallable, isInstalled, promptInstall } = useInstallPrompt();
@@ -75,6 +76,13 @@ export const Header = () => {
     (permissions === null ||
       hasMenuAccess("payment_recording") ||
       hasMenuAccess("payments_dashboard"));
+  const canQuickSaleLookup =
+    !permissionsLoading &&
+    (permissions === null ||
+      hasMenuAccess("sales_report_customer") ||
+      hasMenuAccess("sales_invoice_dashboard") ||
+      hasMenuAccess("pos_sales") ||
+      hasMenuAccess("sales_invoice"));
   const canAccessReportsHub = useMemo(() => {
     if (permissionsLoading) return false;
     if (permissions === null) return true;
@@ -158,6 +166,7 @@ export const Header = () => {
       { icon: Package, label: "New Purchase", path: "/purchase-entry", isDialog: false, dialogKey: "", permission: "purchase_bill" },
       { icon: LayoutGrid, label: "Size Stock", path: "", isDialog: true, shortcut: "Ctrl+G", dialogKey: "sizeStock", permission: "stock_report" },
       { icon: BoxIcon, label: "Quick Stock", path: "", isDialog: true, dialogKey: "quickStock", permission: "stock_report" },
+      { icon: FileText, label: "Quick Sale", path: "", isDialog: true, dialogKey: "quickSale" },
     ];
     if (canQuickCustomerStatement) {
       base.push({
@@ -173,10 +182,12 @@ export const Header = () => {
     }
     return base.filter(
       (a) =>
-        !a.permission ||
-        (!permissionsLoading && (permissions === null || hasMenuAccess(a.permission)))
+        (a.dialogKey === "quickSale"
+          ? canQuickSaleLookup
+          : !a.permission ||
+            (!permissionsLoading && (permissions === null || hasMenuAccess(a.permission))))
     );
-  }, [canQuickCustomerStatement, canAccessReportsHub, permissions, permissionsLoading, hasMenuAccess]);
+  }, [canQuickCustomerStatement, canQuickSaleLookup, canAccessReportsHub, permissions, permissionsLoading, hasMenuAccess]);
 
   const openPosSales = () => {
     orgNavigate("/pos-sales");
@@ -188,6 +199,8 @@ export const Header = () => {
       setSizeStockOpen(true);
     } else if (action.dialogKey === "quickStock") {
       setQuickStockOpen(true);
+    } else if (action.dialogKey === "quickSale") {
+      setQuickSaleOpen(true);
     } else if (action.dialogKey === "customerStatement") {
       setCustomerStatementOpen(true);
     } else if (action.path === "/pos-sales") {
@@ -653,6 +666,16 @@ export const Header = () => {
             </Button>
           </>
         )}
+        {canQuickSaleLookup && (
+          <Button
+            variant="ghost"
+            onClick={() => setQuickSaleOpen(true)}
+            className={shortcutBtn("bg-orange-600 hover:bg-orange-700", "px-2.5")}
+          >
+            <FileText className="h-3.5 w-3.5" />
+            Quick Sale
+          </Button>
+        )}
         {canQuickCustomerStatement && (
           <Button
             variant="ghost"
@@ -702,6 +725,7 @@ export const Header = () => {
       {/* Dialogs */}
       <SizeStockDialog open={sizeStockOpen} onOpenChange={setSizeStockOpen} />
       <FloatingStockReport open={quickStockOpen} onOpenChange={setQuickStockOpen} />
+      <FloatingSaleReport open={quickSaleOpen} onOpenChange={setQuickSaleOpen} />
       <CustomerStatementFloatingDialog open={customerStatementOpen} onOpenChange={setCustomerStatementOpen} />
       <FloatingAccountsPaymentsDialog open={paymentsOpen} onOpenChange={setPaymentsOpen} />
     </>
