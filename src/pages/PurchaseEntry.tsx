@@ -111,7 +111,7 @@ import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngine
 const PURCHASE_LINE_UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-/** Persist UI row order on purchase_items.line_number (1-based). */
+/** Persist UI row order on purchase_items.line_number (1-based). No-op if column not migrated yet. */
 async function syncPurchaseBillLineNumbers(
   billId: string,
   orderedItems: Array<{ temp_id: string }>,
@@ -124,12 +124,31 @@ async function syncPurchaseBillLineNumbers(
   const CHUNK = 50;
   for (let i = 0; i < updates.length; i += CHUNK) {
     const chunk = updates.slice(i, i + CHUNK);
-    await Promise.all(
+    const results = await Promise.all(
       chunk.map(({ id, line_number }) =>
         supabase.from("purchase_items").update({ line_number }).eq("id", id).eq("bill_id", billId),
       ),
     );
+    const lineNumberMissing = results.some(
+      (r) => r.error && /line_number/i.test(String(r.error.message || "")),
+    );
+    if (lineNumberMissing) return;
+    const otherError = results.find((r) => r.error);
+    if (otherError?.error) throw otherError.error;
   }
+}
+
+async function insertPurchaseItemsRows(rows: Record<string, unknown>[]) {
+  if (rows.length === 0) return;
+  const { error } = await supabase.from("purchase_items").insert(rows);
+  if (!error) return;
+  if (/line_number/i.test(String(error.message || ""))) {
+    const stripped = rows.map(({ line_number: _ln, ...rest }) => rest);
+    const { error: retryError } = await supabase.from("purchase_items").insert(stripped);
+    if (retryError) throw retryError;
+    return;
+  }
+  throw error;
 }
 
 interface PriceChange {
@@ -1013,6 +1032,7 @@ const PurchaseEntry = () => {
           writePurchaseFinalizedMarker(currentOrganization.id, user.id, saved.billId, swNo);
         }
       }
+      loadedEditBillIdRef.current = null;
       if (currentOrganization?.id) {
         void queryClient.invalidateQueries({ queryKey: ["last-purchase-bill", currentOrganization.id] });
         void queryClient.invalidateQueries({ queryKey: ["org-supplier-invoice-numbers", currentOrganization.id] });
@@ -1848,10 +1868,10 @@ const PurchaseEntry = () => {
   });
 
   // Load a purchase bill by ID (edit from dashboard or prev/next navigation)
-  const loadBillById = useCallback(async (billId: string, options?: { usePageLoader?: boolean }) => {
+  const loadBillById = useCallback(async (billId: string, options?: { usePageLoader?: boolean; force?: boolean }) => {
     if (!currentOrganization?.id) return;
-    if (isInitializingEditRef.current) return;
-    if (loadedEditBillIdRef.current === billId) return;
+    if (isInitializingEditRef.current && !options?.force) return;
+    if (!options?.force && loadedEditBillIdRef.current === billId) return;
 
     isInitializingEditRef.current = true;
     entryPersistenceBlockedRef.current = true;
@@ -2057,14 +2077,14 @@ const PurchaseEntry = () => {
     resetToNewBill,
   ]);
 
-  // Load bill when opened from dashboard with editBillId (same pattern as Sales Invoice)
+  // Load bill when opened from dashboard / barcode print "Back to Purchase Bill"
   useEffect(() => {
     const billId = location.state?.editBillId;
     if (!billId || location.state?.loadDraft || workRestoredRef.current) return;
     if (!currentOrganization?.id) return;
-    if (loadedEditBillIdRef.current === billId) return;
-    void loadBillById(billId, { usePageLoader: true });
-  }, [location.state?.editBillId, location.state?.loadDraft, currentOrganization?.id, loadBillById]);
+    loadedEditBillIdRef.current = null;
+    void loadBillById(billId, { usePageLoader: true, force: true });
+  }, [location.state?.editBillId, location.state?.loadDraft, location.key, currentOrganization?.id, loadBillById]);
 
   useEffect(() => {
     if (searchQuery.length >= 1) {
@@ -4143,14 +4163,15 @@ const PurchaseEntry = () => {
           const EDIT_CHUNK_SIZE = 100;
           for (let ci = 0; ci < itemsToInsert.length; ci += EDIT_CHUNK_SIZE) {
             const chunk = itemsToInsert.slice(ci, ci + EDIT_CHUNK_SIZE);
-            const { error: insertError } = await supabase
-              .from("purchase_items")
-              .insert(chunk);
-            if (insertError) throw insertError;
+            await insertPurchaseItemsRows(chunk);
           }
         }
 
-        await syncPurchaseBillLineNumbers(editingBillId, lineItems);
+        try {
+          await syncPurchaseBillLineNumbers(editingBillId, lineItems);
+        } catch (syncErr) {
+          console.warn("[PurchaseEntry] line_number sync skipped:", syncErr);
+        }
 
         insertedNewItems = lineItems.filter((item) => !originalItemsMap.has(item.temp_id));
 
@@ -4470,8 +4491,7 @@ const PurchaseEntry = () => {
           const INSERT_CHUNK_SIZE = 100;
           for (let ci = 0; ci < itemsToInsert.length; ci += INSERT_CHUNK_SIZE) {
             const chunk = itemsToInsert.slice(ci, ci + INSERT_CHUNK_SIZE);
-            const { error: itemsError } = await supabase.from("purchase_items").insert(chunk);
-            if (itemsError) throw itemsError;
+            await insertPurchaseItemsRows(chunk);
           }
 
           createdBillIdForRollback = null;

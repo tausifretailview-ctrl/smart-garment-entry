@@ -578,6 +578,7 @@ export async function fetchPurchaseReturnItemsByIds(
 
 /**
  * Fetch all purchase items for one bill — bypasses PostgREST 1000-row default cap.
+ * Orders by line_number when the column exists (entry order); falls back otherwise.
  */
 export async function fetchPurchaseItemsByBillId(
   billId: string,
@@ -588,13 +589,18 @@ export async function fetchPurchaseItemsByBillId(
   let offset = 0;
   const pageSize = 1000;
   let hasMore = true;
+  let orderByLineNumber = true;
 
   while (hasMore) {
     let query = supabase
       .from("purchase_items")
       .select(selectFields)
-      .eq("bill_id", billId)
-      .order("line_number", { ascending: true })
+      .eq("bill_id", billId);
+
+    if (orderByLineNumber) {
+      query = query.order("line_number", { ascending: true });
+    }
+    query = query
       .order("created_at", { ascending: true })
       .order("id", { ascending: true })
       .range(offset, offset + pageSize - 1);
@@ -606,6 +612,14 @@ export async function fetchPurchaseItemsByBillId(
     const { data, error } = await query;
 
     if (error) {
+      const msg = String(error.message || "");
+      if (orderByLineNumber && /line_number/i.test(msg)) {
+        orderByLineNumber = false;
+        offset = 0;
+        allRows.length = 0;
+        hasMore = true;
+        continue;
+      }
       console.error("Error fetching purchase items for bill:", error);
       throw error;
     }
