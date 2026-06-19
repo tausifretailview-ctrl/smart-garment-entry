@@ -1,4 +1,4 @@
-import { Bell, Menu, Search, ShoppingCart, Package, TrendingUp, Download, LayoutGrid, BoxIcon, ChevronDown, Plus, FileText, Scale, Banknote, RefreshCw, BarChart3 } from "lucide-react";
+import { Bell, Menu, Search, ShoppingCart, Package, TrendingUp, Download, LayoutGrid, BoxIcon, ChevronDown, Plus, FileText, Banknote, RefreshCw } from "lucide-react";
 import { UIScaleSelector } from "@/components/UIScaleSelector";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -21,11 +21,9 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
 import { useState, useEffect, useMemo } from "react";
 import { SizeStockDialog } from "@/components/SizeStockDialog";
-import { CustomerStatementFloatingDialog } from "@/components/CustomerStatementFloatingDialog";
 import { FloatingAccountsPaymentsDialog } from "@/components/FloatingAccountsPaymentsDialog";
 import { FloatingStockReport, FloatingSaleReport } from "@/components/FloatingPOSReports";
 import { useDashboardToolbarOptional } from "@/contexts/DashboardToolbarContext";
-import { useSchoolFeatures } from "@/hooks/useSchoolFeatures";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { resolveFirstAllowedPath } from "@/lib/menuPermissions";
 import { isElectronShell, reloadElectronApp } from "@/lib/electronShell";
@@ -52,12 +50,10 @@ export const Header = () => {
   const [sizeStockOpen, setSizeStockOpen] = useState(false);
   const [quickStockOpen, setQuickStockOpen] = useState(false);
   const [quickSaleOpen, setQuickSaleOpen] = useState(false);
-  const [customerStatementOpen, setCustomerStatementOpen] = useState(false);
   const [paymentsOpen, setPaymentsOpen] = useState(false);
   const { isInstallable, isInstalled, promptInstall } = useInstallPrompt();
   const isDesktopApp = isElectronShell();
   const dashboardToolbar = useDashboardToolbarOptional();
-  const { isSchool } = useSchoolFeatures();
   const { hasMenuAccess, hasMainMenuAccess, hasSpecialPermission, permissions, loading: permissionsLoading } = useUserPermissions();
   const can = (menuId: string) =>
     !permissionsLoading && (permissions === null || hasMenuAccess(menuId));
@@ -65,12 +61,6 @@ export const Header = () => {
     const fallback = resolveFirstAllowedPath(hasMenuAccess, permissions, organizationRole);
     orgNavigate(fallback ? `/${fallback}` : "/");
   };
-  const canQuickCustomerStatement =
-    !isSchool &&
-    !permissionsLoading &&
-    (permissions === null ||
-      hasMenuAccess("customer_account_statement") ||
-      hasMenuAccess("customer_ledger"));
   const canQuickPayments =
     !permissionsLoading &&
     (permissions === null ||
@@ -168,18 +158,6 @@ export const Header = () => {
       { icon: BoxIcon, label: "Quick Stock", path: "", isDialog: true, dialogKey: "quickStock", permission: "stock_report" },
       { icon: FileText, label: "Quick Sale", path: "", isDialog: true, dialogKey: "quickSale" },
     ];
-    if (canQuickCustomerStatement) {
-      base.push({
-        icon: Scale,
-        label: "Account statement (audit)",
-        path: "",
-        isDialog: true,
-        dialogKey: "customerStatement",
-      });
-    }
-    if (canAccessReportsHub) {
-      base.push({ icon: TrendingUp, label: "Reports", path: "/reports", isDialog: false, dialogKey: "" });
-    }
     return base.filter(
       (a) =>
         (a.dialogKey === "quickSale"
@@ -187,7 +165,7 @@ export const Header = () => {
           : !a.permission ||
             (!permissionsLoading && (permissions === null || hasMenuAccess(a.permission))))
     );
-  }, [canQuickCustomerStatement, canQuickSaleLookup, canAccessReportsHub, permissions, permissionsLoading, hasMenuAccess]);
+  }, [canQuickSaleLookup, permissions, permissionsLoading, hasMenuAccess]);
 
   const openPosSales = () => {
     orgNavigate("/pos-sales");
@@ -201,8 +179,6 @@ export const Header = () => {
       setQuickStockOpen(true);
     } else if (action.dialogKey === "quickSale") {
       setQuickSaleOpen(true);
-    } else if (action.dialogKey === "customerStatement") {
-      setCustomerStatementOpen(true);
     } else if (action.path === "/pos-sales") {
       openPosSales();
     } else if (action.path === "/purchase-entry") {
@@ -630,20 +606,7 @@ export const Header = () => {
           </div>
         )}
 
-        {canAccessReportsHub && (
-          <div className="flex items-center">
-            <Button
-              variant="ghost"
-              onClick={() => orgNavigate("/reports")}
-              className={shortcutBtn("bg-sky-600 hover:bg-sky-700", "px-2.5")}
-            >
-              <BarChart3 className="h-3.5 w-3.5" />
-              Reports
-            </Button>
-          </div>
-        )}
-
-        {(can("stock_report") || canQuickCustomerStatement) && (
+        {can("stock_report") && (
           <div className="w-px h-5 bg-border/60 mx-0.5" />
         )}
         {can("stock_report") && (
@@ -674,18 +637,6 @@ export const Header = () => {
           >
             <FileText className="h-3.5 w-3.5" />
             Quick Sale
-          </Button>
-        )}
-        {canQuickCustomerStatement && (
-          <Button
-            variant="ghost"
-            onClick={() => setCustomerStatementOpen(true)}
-            className={shortcutBtn("bg-rose-600 hover:bg-rose-700", "px-2.5")}
-            title="Search customers, balances, open audit statement"
-          >
-            <Scale className="h-3.5 w-3.5" />
-            <span className="hidden xl:inline">Account statement (audit)</span>
-            <span className="xl:hidden">Stmt (audit)</span>
           </Button>
         )}
         {canQuickPayments && (
@@ -726,7 +677,6 @@ export const Header = () => {
       <SizeStockDialog open={sizeStockOpen} onOpenChange={setSizeStockOpen} />
       <FloatingStockReport open={quickStockOpen} onOpenChange={setQuickStockOpen} />
       <FloatingSaleReport open={quickSaleOpen} onOpenChange={setQuickSaleOpen} />
-      <CustomerStatementFloatingDialog open={customerStatementOpen} onOpenChange={setCustomerStatementOpen} />
       <FloatingAccountsPaymentsDialog open={paymentsOpen} onOpenChange={setPaymentsOpen} />
     </>
   );
