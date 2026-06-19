@@ -72,24 +72,54 @@ interface PreviewData {
 const fmtTotal = (n: number) =>
   `₹${n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
+function computeSaleBalance(sale: {
+  net_amount?: number | null;
+  paid_amount?: number | null;
+  sale_return_adjust?: number | null;
+  is_cancelled?: boolean | null;
+  payment_status?: string | null;
+}) {
+  if (isSaleRecordCancelled(sale)) return 0;
+  const net = Number(sale.net_amount || 0);
+  const paid = Number(sale.paid_amount || 0);
+  const sra = Number(sale.sale_return_adjust || 0);
+  return Math.max(0, net - paid - sra);
+}
+
 function TableTotalRow({
   label,
   leadingColSpan,
   trailingColSpan = 0,
   amounts,
+  variant = "default",
 }: {
   label: string;
   leadingColSpan: number;
   trailingColSpan?: number;
   amounts: Array<{ value: number; className?: string }>;
+  variant?: "default" | "grand";
 }) {
+  const isGrand = variant === "grand";
   return (
-    <TableRow className="bg-muted/50 border-t-2 font-semibold">
-      <TableCell colSpan={leadingColSpan} className="text-right text-xs uppercase tracking-wide text-muted-foreground">
+    <TableRow className={cn("border-t-2", isGrand ? "bg-slate-100 dark:bg-slate-800" : "bg-muted/50 font-semibold")}>
+      <TableCell
+        colSpan={leadingColSpan}
+        className={cn(
+          "text-right uppercase tracking-wide text-muted-foreground",
+          isGrand ? "text-sm font-bold text-foreground" : "text-xs",
+        )}
+      >
         {label}
       </TableCell>
       {amounts.map((cell, i) => (
-        <TableCell key={i} className={cn("tabular-nums text-sm", cell.className)}>
+        <TableCell
+          key={i}
+          className={cn(
+            "tabular-nums",
+            isGrand ? "text-base font-bold text-foreground" : "text-sm font-semibold",
+            cell.className,
+          )}
+        >
           {fmtTotal(cell.value)}
         </TableCell>
       ))}
@@ -445,6 +475,7 @@ export function CustomerAccountHistoryContent({
   const tabTotals = useMemo(() => {
     const salesAmount = filteredActiveSales.reduce((sum, s) => sum + Number(s.net_amount || 0), 0);
     const salesPaid = filteredActiveSales.reduce((sum, s) => sum + Number(s.paid_amount || 0), 0);
+    const salesBalance = filteredActiveSales.reduce((sum, s) => sum + computeSaleBalance(s), 0);
     const legacyAmount = filteredLegacy.reduce((sum, inv) => sum + Number(inv.amount || 0), 0);
     const paymentsAmount = filteredPayments.reduce((sum, p) => sum + Number(p.total_amount || 0), 0);
     const returnsAmount = filteredReturns.reduce((sum, r) => sum + Number(r.net_amount || 0), 0);
@@ -463,6 +494,7 @@ export function CustomerAccountHistoryContent({
     return {
       salesAmount,
       salesPaid,
+      salesBalance,
       legacyAmount,
       paymentsAmount,
       returnsAmount,
@@ -618,6 +650,7 @@ export function CustomerAccountHistoryContent({
                         <TableHead className={accountsHistoryThClass}>Type</TableHead>
                         <TableHead className={cn(accountsHistoryThClass, "num")}>Amount</TableHead>
                         <TableHead className={cn(accountsHistoryThClass, "num")}>Paid</TableHead>
+                        <TableHead className={cn(accountsHistoryThClass, "num")}>Balance</TableHead>
                         <TableHead className={accountsHistoryThClass}>Status</TableHead>
                         <TableHead className={cn(accountsHistoryThClass, "text-right")}>Actions</TableHead>
                       </TableRow>
@@ -627,6 +660,7 @@ export function CustomerAccountHistoryContent({
                         const isExpanded = expandedSaleId === sale.id;
                         const items = (sale as any).sale_items as SaleItem[] || [];
                         const saleCancelled = isSaleRecordCancelled(sale);
+                        const balance = computeSaleBalance(sale);
                         return (
                           <Fragment key={sale.id}>
                             <TableRow
@@ -644,6 +678,14 @@ export function CustomerAccountHistoryContent({
                               <TableCell><Badge variant="outline" className="text-[10px]">{sale.sale_type?.toUpperCase()}</Badge></TableCell>
                               <TableCell className={cn("num font-semibold text-primary", saleCancelled && "line-through decoration-red-500/70 text-muted-foreground")}>₹{sale.net_amount.toFixed(2)}</TableCell>
                               <TableCell className={cn("num", saleCancelled && "line-through decoration-red-500/70 text-muted-foreground")}>₹{(sale.paid_amount || 0).toFixed(2)}</TableCell>
+                              <TableCell className={cn(
+                                "num font-semibold",
+                                saleCancelled && "text-muted-foreground",
+                                !saleCancelled && balance > 0 && "text-amber-700",
+                                !saleCancelled && balance <= 0 && "text-emerald-700",
+                              )}>
+                                {saleCancelled ? "—" : fmtTotal(balance)}
+                              </TableCell>
                               <TableCell>
                                 {(() => {
                                   if (saleCancelled) {
@@ -680,7 +722,7 @@ export function CustomerAccountHistoryContent({
                             </TableRow>
                             {isExpanded && items.length > 0 && (
                               <TableRow key={`${sale.id}-items`}>
-                                <TableCell colSpan={8} className="p-0 bg-muted/30">
+                                <TableCell colSpan={9} className="p-0 bg-muted/30">
                                   <div className="p-3">
                                     <p className="text-xs font-medium text-muted-foreground mb-2">Purchased Items ({items.length})</p>
                                     <Table>
@@ -713,7 +755,7 @@ export function CustomerAccountHistoryContent({
                             )}
                             {isExpanded && saleCancelled && items.length === 0 && (
                               <TableRow key={`${sale.id}-cancelled-note`}>
-                                <TableCell colSpan={8} className="py-2 text-xs text-muted-foreground italic bg-muted/20">
+                                <TableCell colSpan={9} className="py-2 text-xs text-muted-foreground italic bg-muted/20">
                                   Items were removed when this invoice was cancelled; amounts above are for audit reference only.
                                 </TableCell>
                               </TableRow>
@@ -724,12 +766,14 @@ export function CustomerAccountHistoryContent({
                     </TableBody>
                     <TableFooter className="border-t-2 border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-800 [&>tr]:border-0 [&>tr]:hover:bg-transparent">
                       <TableTotalRow
+                        variant="grand"
                         label={`Total (${filteredActiveSales.length})`}
                         leadingColSpan={4}
                         trailingColSpan={2}
                         amounts={[
-                          { value: tabTotals.salesAmount },
-                          { value: tabTotals.salesPaid },
+                          { value: tabTotals.salesAmount, className: "text-primary" },
+                          { value: tabTotals.salesPaid, className: "text-emerald-700" },
+                          { value: tabTotals.salesBalance, className: tabTotals.salesBalance > 0 ? "text-amber-700" : "text-emerald-700" },
                         ]}
                       />
                     </TableFooter>
