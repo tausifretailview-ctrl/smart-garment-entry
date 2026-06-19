@@ -225,6 +225,42 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   const totalsLabel = "Sub Total";
   const totalsValue = displaySubTotal;
 
+  // Split bill discount across lines (line % first, then flat discount by gross weight).
+  const getLineGross = (item: InvoiceItem) =>
+    getDisplayBaseRate(item) * (Number(item.qty) || 0);
+  const allocateByGrossWeight = (totalToAllocate: number): number[] => {
+    const grosses = items.map(getLineGross);
+    const grossTotal = grosses.reduce((s, g) => s + g, 0);
+    if (totalToAllocate <= 0.005 || grossTotal <= 0.005) return items.map(() => 0);
+    const shares: number[] = [];
+    let allocated = 0;
+    for (let i = 0; i < items.length; i++) {
+      if (i === items.length - 1) {
+        shares.push(Math.round((totalToAllocate - allocated) * 100) / 100);
+      } else {
+        const share = Math.round((grosses[i] / grossTotal) * totalToAllocate * 100) / 100;
+        shares.push(share);
+        allocated += share;
+      }
+    }
+    return shares;
+  };
+  const lineItemOnlyDiscounts = items.map((item) =>
+    Math.max(0, Math.round((getLineGross(item) - Number(item.total || 0)) * 100) / 100),
+  );
+  const lineItemDiscountSum = lineItemOnlyDiscounts.reduce((s, d) => s + d, 0);
+  const flatDiscountPool = Math.max(
+    0,
+    Math.round((displayDiscount - lineItemDiscountSum) * 100) / 100,
+  );
+  const flatDiscountShares = allocateByGrossWeight(flatDiscountPool);
+  const lineBillDiscounts = items.map(
+    (_, i) => Math.round((lineItemOnlyDiscounts[i] + flatDiscountShares[i]) * 100) / 100,
+  );
+  const lineNetAmounts = items.map((item, i) =>
+    Math.round((getLineGross(item) - lineBillDiscounts[i]) * 100) / 100,
+  );
+
   // GST breakup calculation — group by rate
   const gstBreakup: Record<number, { hsn: string; taxableValue: number; cgst: number; sgst: number; igst: number }> = {};
   const isInterState = igstAmount > 0;
@@ -290,8 +326,10 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   const fsCustName = isA4 ? "15px" : "14px";
   const fsCustDetail = isA4 ? "14px" : "12px";
   const fsInvoiceNo = isA4 ? "15px" : "13px";
+  const fsDiscMedium = isA4 ? "11px" : "10px";
 
   const ROW_H = isA4 ? "26px" : "22px";
+  const ROW_H_WITH_DISC = isA4 ? "36px" : "32px";
 
   // Determine columns
   const showHSNCol = showHSN;
@@ -477,14 +515,26 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                   {pageItems.map((item, idx) => {
                     if (item) srCounter++;
                     const srNo = item ? pageStartSr + srCounter : null;
+                    const itemGlobalIdx = item ? pageStartSr + srCounter - 1 : -1;
+                    const lineDisc =
+                      itemGlobalIdx >= 0 ? lineBillDiscounts[itemGlobalIdx] ?? 0 : 0;
+                    const rowHasDisc = lineDisc > 0.005;
                     return (
-                      <tr key={idx} style={{ height: ROW_H }}>
+                      <tr key={idx} style={{ height: rowHasDisc ? ROW_H_WITH_DISC : ROW_H }}>
                         {cols.map((c, ci) => {
                           const isLast = ci === cols.length - 1;
                           const style: React.CSSProperties = {
                             ...cellBase,
                             textAlign: c.align,
                             borderRight: isLast ? "none" : B,
+                            ...(rowHasDisc && c.key === "amount"
+                              ? {
+                                  maxHeight: "none",
+                                  height: "auto",
+                                  minHeight: ROW_H_WITH_DISC,
+                                  overflow: "visible",
+                                }
+                              : {}),
                           };
                           let content: React.ReactNode = "\u00A0";
                           if (item) {
@@ -534,7 +584,41 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                                 );
                                 break;
                               case "gst": content = ""; break;
-                              case "amount": content = fmt(item.total); break;
+                              case "amount": {
+                                const netAmt =
+                                  itemGlobalIdx >= 0
+                                    ? lineNetAmounts[itemGlobalIdx] ?? item.total
+                                    : item.total;
+                                const qty = Number(item.qty) || 1;
+                                const perQtyDisc = qty > 0 ? lineDisc / qty : lineDisc;
+                                content = (
+                                  <div
+                                    style={{
+                                      display: "flex",
+                                      flexDirection: "column",
+                                      alignItems: "flex-end",
+                                      lineHeight: 1.15,
+                                      justifyContent: "center",
+                                    }}
+                                  >
+                                    {lineDisc > 0.005 && (
+                                      <span
+                                        style={{
+                                          fontSize: fsDiscMedium,
+                                          fontWeight: "600",
+                                          color: "#9a3412",
+                                        }}
+                                      >
+                                        {qty > 1
+                                          ? `Disc -${fmt(perQtyDisc)}×${qty}`
+                                          : `Disc -${fmt(lineDisc)}`}
+                                      </span>
+                                    )}
+                                    <span>{fmt(netAmt)}</span>
+                                  </div>
+                                );
+                                break;
+                              }
                             }
                           }
                           return <td key={c.key} style={style}>{content}</td>;
