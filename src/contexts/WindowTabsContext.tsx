@@ -159,7 +159,21 @@ export function WindowTabsProvider({ children }: { children: React.ReactNode }) 
   const navigateToWindowPath = useCallback(
     (path: string, windows: WindowTab[] = openWindows) => {
       const cleanPath = resolveTabCachePath(path.startsWith("/") ? path.slice(1) : path);
-      const savedSearch = windows.find((w) => w.path === cleanPath)?.search || "";
+      let savedSearch = windows.find((w) => w.path === cleanPath)?.search || "";
+      // Safety net: never reopen the POS Sales tab on an old saved-invoice edit URL.
+      // Strip ?saleId so clicking the POS Sales tab always lands on a fresh new sale.
+      if (cleanPath === "pos-sales" && savedSearch) {
+        try {
+          const sp = new URLSearchParams(savedSearch.startsWith("?") ? savedSearch.slice(1) : savedSearch);
+          if (sp.has("saleId")) {
+            sp.delete("saleId");
+            const remaining = sp.toString();
+            savedSearch = remaining ? `?${remaining}` : "";
+          }
+        } catch {
+          // ignore malformed search
+        }
+      }
       navigate(getOrgPath(`/${cleanPath}`) + savedSearch);
     },
     [navigate, getOrgPath, openWindows],
