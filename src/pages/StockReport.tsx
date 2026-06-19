@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useCallback, useRef } from "react";
+import { useEffect, useState, useMemo, useCallback, useRef, type ReactNode } from "react";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -79,21 +79,60 @@ interface SizeWiseRow {
 const STOCK_TABLE_HEAD =
   "sticky top-0 z-20 !bg-transparent [&_tr]:!bg-transparent [&_tr]:border-slate-200";
 const STOCK_NEUTRAL_TH =
-  "text-xs font-semibold whitespace-nowrap bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-100 normal-case tracking-normal px-2 py-1.5 shadow-[0_1px_0_0_rgba(0,0,0,0.06)]";
+  "text-xs font-semibold whitespace-nowrap bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-100 normal-case tracking-normal px-2 py-1 shadow-[0_1px_0_0_rgba(0,0,0,0.06)]";
 /** Single vertical scroll — header sticky top, footer sticky bottom inside this box */
 const STOCK_TABLE_SCROLL =
-  "max-h-[calc(100vh-11rem)] overflow-auto overscroll-contain min-w-0";
+  "flex-1 min-h-0 overflow-auto overscroll-contain min-w-0";
 const STOCK_TABLE_FOOTER =
   "sticky bottom-0 z-20 border-t-2 border-slate-400 dark:border-slate-500 bg-slate-200 dark:bg-slate-700 shadow-[0_-4px_8px_-2px_rgba(0,0,0,0.12)] [&>tr]:border-0 [&>tr]:hover:bg-transparent";
-const STOCK_FOOTER_CELL = "py-1.5 px-2 align-middle text-xs font-bold tabular-nums whitespace-nowrap";
-const STOCK_DATA_CELL = "py-1.5 px-2 align-middle text-xs whitespace-nowrap tabular-nums text-foreground";
-const STOCK_DATA_CELL_CENTER = "py-1.5 px-2 align-middle text-xs text-center tabular-nums";
-const STOCK_PRODUCT_NAME_CELL = "py-1.5 px-2 align-middle text-xs whitespace-nowrap font-bold text-foreground";
-const STOCK_PRODUCT_DETAIL_CELL = "py-1.5 px-2 align-middle text-xs whitespace-nowrap font-semibold text-foreground";
+const STOCK_FOOTER_CELL = "py-1 px-2 align-middle text-sm font-bold tabular-nums whitespace-nowrap";
+const STOCK_DATA_CELL = "py-1 px-2 align-middle text-sm whitespace-nowrap tabular-nums text-foreground";
+const STOCK_DATA_CELL_CENTER = "py-1 px-2 align-middle text-sm text-center tabular-nums";
+const STOCK_PRODUCT_NAME_CELL =
+  "py-1 px-2 align-middle text-base whitespace-nowrap font-bold text-foreground bg-blue-50/40 dark:bg-blue-950/20";
+const STOCK_PRODUCT_DETAIL_CELL = "py-1 px-2 align-middle text-sm whitespace-nowrap font-semibold text-foreground";
+const STOCK_QTY_HIGHLIGHT_CELL =
+  "py-1 px-2 align-middle text-base font-bold text-right tabular-nums bg-violet-50/90 dark:bg-violet-950/50 text-violet-900 dark:text-violet-200";
 const SIZEWISE_DATA_CELL =
-  "text-center min-w-[44px] md:min-w-[52px] px-1.5 py-1.5 align-middle text-xs tabular-nums";
+  "text-center min-w-[44px] md:min-w-[52px] px-1.5 py-1 align-middle text-sm font-semibold tabular-nums";
 const SIZEWISE_FOOTER_CELL =
-  "text-center min-w-[44px] md:min-w-[52px] px-1.5 py-1.5 align-middle text-xs font-bold tabular-nums";
+  "text-center min-w-[44px] md:min-w-[52px] px-1.5 py-1 align-middle text-sm font-bold tabular-nums";
+
+/** Highlight search term inside product/barcode cells */
+function highlightSearchText(text: string, query: string): ReactNode {
+  const raw = text || "";
+  const q = query.trim();
+  if (!q || !raw) return raw || "—";
+
+  const lower = raw.toLowerCase();
+  const needle = q.toLowerCase();
+  const idx = lower.indexOf(needle);
+  if (idx === -1) return raw;
+
+  return (
+    <>
+      {raw.slice(0, idx)}
+      <mark className="bg-amber-300/90 text-foreground font-bold px-0.5 rounded-sm not-italic">
+        {raw.slice(idx, idx + q.length)}
+      </mark>
+      {raw.slice(idx + q.length)}
+    </>
+  );
+}
+
+function stockItemMatchesSearch(item: StockItem, query: string): boolean {
+  const q = query.trim().toLowerCase();
+  if (!q) return false;
+  return [
+    item.product_name,
+    item.brand,
+    item.barcode,
+    item.size,
+    item.color,
+    item.department,
+    item.supplier_name,
+  ].some((field) => field?.toLowerCase().includes(q));
+}
 
 export default function StockReport() {
   const { currentOrganization } = useOrganization();
@@ -1540,27 +1579,16 @@ export default function StockReport() {
   ]);
 
   const compactStockKpiStrip = (
-    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 print:hidden">
-      {stockKpiItems.map((item) => {
-        const Icon = item.icon;
-        return (
-          <div
-            key={item.label}
-            className={cn("rounded-lg px-3 py-2 flex items-center gap-2.5 min-w-0 shadow-sm", item.gradient)}
-          >
-            <div className="w-8 h-8 bg-white/20 rounded-md flex items-center justify-center shrink-0">
-              <Icon className="h-4 w-4 text-white" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-[11px] font-medium text-white/85 leading-none truncate">{item.label}</p>
-              <p className="text-base font-bold text-white tabular-nums leading-tight truncate">{item.value}</p>
-              {item.sub ? (
-                <p className="text-[10px] text-white/70 truncate leading-tight mt-0.5">{item.sub}</p>
-              ) : null}
-            </div>
-          </div>
-        );
-      })}
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5 print:hidden">
+      {stockKpiItems.map((item) => (
+        <div
+          key={item.label}
+          className={cn("rounded-lg px-2 py-1.5 min-w-0 shadow-sm", item.gradient)}
+        >
+          <p className="text-[10px] font-medium text-white/80 leading-none truncate">{item.label}</p>
+          <p className="text-base font-black text-white tabular-nums leading-tight truncate mt-0.5">{item.value}</p>
+        </div>
+      ))}
     </div>
   );
 
@@ -1644,33 +1672,28 @@ export default function StockReport() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 px-2 sm:px-3 md:px-4 lg:px-5 py-2 pb-20 lg:pb-12 print:bg-white print:p-4">
-      <div className="w-full min-w-0 max-w-none space-y-2 print:space-y-3">
-      <div className="print:hidden">
+    <div className="stock-report-page flex flex-col h-[calc(100vh-4.5rem)] min-h-0 bg-slate-50 px-1.5 sm:px-2 py-1 overflow-hidden print:min-h-screen print:h-auto print:overflow-visible print:bg-white print:p-4">
+      <div className="w-full min-w-0 max-w-none flex flex-col flex-1 min-h-0 space-y-1 print:space-y-2">
+      <div className="print:hidden shrink-0">
         <BackToDashboard />
       </div>
-      <div className="flex flex-wrap items-center justify-between gap-2 print:hidden">
-        <div>
-          <h1 className="text-xl font-bold text-blue-600 tracking-tight leading-tight">
-            Stock Report
-          </h1>
-          <p className="text-slate-500 text-xs">
-            Search · filter · export
-          </p>
-        </div>
-        <div className="flex items-center gap-2 flex-wrap">
+      <div className="flex flex-wrap items-center justify-between gap-1 shrink-0 print:hidden">
+        <h1 className="text-lg font-bold text-blue-600 tracking-tight leading-none">
+          Stock Report
+        </h1>
+        <div className="flex items-center gap-1.5 flex-wrap">
           <Button
             variant="outline"
-            className="h-9 text-sm border-slate-300 text-slate-600 hover:bg-slate-100 gap-2"
+            className="h-8 text-sm border-slate-300 text-slate-600 hover:bg-slate-100 gap-1.5 px-2.5"
             onClick={() => window.print()}
             disabled={!hasSearched || filteredStockItems.length === 0}
           >
-            <Printer className="h-4 w-4" />
+            <Printer className="h-3.5 w-3.5" />
             Print
           </Button>
           <Button
             variant="outline"
-            className="h-9 text-sm border-slate-300 text-slate-600 hover:bg-slate-100 gap-2"
+            className="h-8 text-sm border-slate-300 text-slate-600 hover:bg-slate-100 gap-1.5 px-2.5"
             onClick={() => {
               if (hasSearched && filteredStockItems.length > 0) {
                 activeTab === "sizewise" ? exportSizeWiseToExcel() : exportAllStockToExcel();
@@ -1688,9 +1711,9 @@ export default function StockReport() {
 
       {compactStockKpiStrip}
 
-      <Card className="rounded-xl border border-slate-200 shadow-sm overflow-hidden print:hidden">
-        <div className="space-y-2 p-2.5 border-b border-slate-100 bg-white">
-        <div className="flex gap-2 items-center">
+      <Card className="rounded-lg border border-slate-200 shadow-sm overflow-hidden print:hidden shrink-0">
+        <div className="space-y-1 p-1.5 border-b border-slate-100 bg-white">
+        <div className="flex gap-1.5 items-center">
           <ProductSearchDropdown
             value={searchTerm}
             onChange={setSearchTerm}
@@ -1707,22 +1730,21 @@ export default function StockReport() {
             placeholder="Search name, brand, category, style or barcode..."
             className="flex-1"
           />
-          <Button onClick={handleSearch} disabled={loading || (!hasActiveFilters && pinnedProducts.length === 0)} className="h-9 px-5 text-sm font-semibold bg-blue-600 hover:bg-blue-700 shadow-sm gap-2">
-            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+          <Button onClick={handleSearch} disabled={loading || (!hasActiveFilters && pinnedProducts.length === 0)} className="h-8 px-4 text-sm font-semibold bg-blue-600 hover:bg-blue-700 shadow-sm gap-1.5">
+            {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
             Search
           </Button>
           {(hasActiveFilters || pinnedProducts.length > 0) && (
-            <Button variant="ghost" onClick={() => { clearFilters(); setPinnedProducts([]); }} className="h-9 text-sm">
+            <Button variant="ghost" onClick={() => { clearFilters(); setPinnedProducts([]); }} className="h-8 text-sm px-2">
               Clear All
             </Button>
           )}
         </div>
 
-        {/* Pinned product chips */}
         {pinnedProducts.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 mb-2">
+          <div className="flex flex-wrap gap-1">
             {pinnedProducts.map(p => (
-              <div key={p.id} className="flex items-center gap-1 bg-primary/10 text-primary text-xs px-2 py-1 rounded-full border border-primary/20">
+              <div key={p.id} className="flex items-center gap-1 bg-primary/15 text-primary text-sm font-semibold px-2 py-0.5 rounded-full border border-primary/30">
                 <span className="font-medium">{p.product_name}</span>
                 {p.brand && <span className="opacity-70">· {p.brand}</span>}
                 {p.category && <span className="opacity-70">· {p.category}</span>}
@@ -1744,9 +1766,9 @@ export default function StockReport() {
         )}
 
         {/* Always visible multi-field filters */}
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-2">
-          <div className="space-y-1 relative">
-            <label className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Product Name</label>
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-1.5">
+          <div className="space-y-0.5 relative">
+            <label className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Product Name</label>
             <SearchableSelect
               value={productNameFilter || "all"}
               onValueChange={(val) => {
@@ -1836,37 +1858,29 @@ export default function StockReport() {
       </Card>
 
       {!hasSearched ? (
-        <Card className="py-6 rounded-xl border border-slate-200 shadow-sm">
-          <CardContent className="flex flex-col items-center justify-center text-center py-2">
-            <Search className="h-8 w-8 text-muted-foreground/50 mb-2" />
-            <h3 className="text-sm font-medium mb-0.5">Search to View Detailed Stock Report</h3>
-            <p className="text-muted-foreground text-xs max-w-md">
-              Apply filters or enter a search term, then click Search to view detailed stock data.
-            </p>
-          </CardContent>
-        </Card>
+        <p className="text-xs text-muted-foreground text-center py-2 print:hidden shrink-0">
+          Apply filters or search, then click <strong>Search</strong> to view stock.
+        </p>
       ) : loading ? (
-        <Card className="py-6 rounded-xl border border-slate-200 shadow-sm">
-          <CardContent className="flex flex-col items-center justify-center py-2">
-            <Loader2 className="h-6 w-6 animate-spin text-primary mb-2" />
-            <p className="text-muted-foreground text-xs">Loading stock data...</p>
-          </CardContent>
-        </Card>
+        <div className="flex items-center justify-center gap-2 py-3 text-sm text-muted-foreground print:hidden shrink-0">
+          <Loader2 className="h-5 w-5 animate-spin text-primary" />
+          Loading stock data…
+        </div>
       ) : (
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <Card className="rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-            <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-1.5 border-b border-slate-100 bg-white">
-              <TabsList className="h-9 bg-slate-100 p-0.5 rounded-lg">
-                <TabsTrigger value="all" className="rounded-md text-xs font-semibold px-3 data-[state=active]:bg-white data-[state=active]:text-blue-700">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full flex-1 min-h-0 flex flex-col print:block">
+          <Card className="rounded-lg border border-slate-200 shadow-sm overflow-hidden flex-1 min-h-0 flex flex-col">
+            <div className="flex flex-wrap items-center justify-between gap-1 px-2 py-1 border-b border-slate-100 bg-white shrink-0">
+              <TabsList className="h-8 bg-slate-100 p-0.5 rounded-md">
+                <TabsTrigger value="all" className="rounded text-xs font-semibold px-2.5 data-[state=active]:bg-white data-[state=active]:text-blue-700">
                   All Stock
                 </TabsTrigger>
-                <TabsTrigger value="sizewise" className="rounded-md text-xs font-semibold px-3 gap-1 data-[state=active]:bg-white data-[state=active]:text-blue-700">
-                  <Grid3X3 className="h-3.5 w-3.5" />
+                <TabsTrigger value="sizewise" className="rounded text-xs font-semibold px-2.5 gap-1 data-[state=active]:bg-white data-[state=active]:text-blue-700">
+                  <Grid3X3 className="h-3 w-3" />
                   Size-wise
                 </TabsTrigger>
               </TabsList>
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-xs text-slate-500">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-xs font-medium text-slate-600">
                   {activeTab === "all"
                     ? `Showing ${filteredStockItems.length > 0 ? ((currentPage - 1) * ITEMS_PER_PAGE) + 1 : 0}–${Math.min(currentPage * ITEMS_PER_PAGE, filteredStockItems.length)} of ${filteredStockItems.length}`
                     : `${sizeWiseData.rows.length} products`}
@@ -1893,10 +1907,10 @@ export default function StockReport() {
               </div>
             </div>
 
-            <TabsContent value="all" className="mt-0 focus-visible:outline-none">
-              <CardContent className="p-0 flex flex-col min-h-0">
+            <TabsContent value="all" className="mt-0 flex-1 min-h-0 flex flex-col focus-visible:outline-none data-[state=inactive]:hidden">
+              <CardContent className="p-0 flex flex-col flex-1 min-h-0">
                 <div className={cn(STOCK_TABLE_SCROLL, "border-b border-slate-100")}>
-                  <Table className="text-xs border-separate border-spacing-0 min-w-max">
+                  <Table className="text-sm border-separate border-spacing-0 min-w-max">
                     <TableHeader className={STOCK_TABLE_HEAD}>
                       <TableRow>
                         <TableHead className={cn("w-16 text-center", STOCK_NEUTRAL_TH)}>Sr No</TableHead>
@@ -1923,24 +1937,33 @@ export default function StockReport() {
                     <TableBody>
                       {paginatedStockItems.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={19} className="text-center text-muted-foreground py-6 text-sm">
+                          <TableCell colSpan={19} className="text-center text-muted-foreground py-3 text-sm">
                             No products found matching your search
                           </TableCell>
                         </TableRow>
                       ) : (
-                        paginatedStockItems.map((item, index) => (
-                          <TableRow key={item.id} className="hover:bg-slate-50/80">
-                            <TableCell className={cn(STOCK_DATA_CELL_CENTER, "font-medium text-muted-foreground")}>
+                        paginatedStockItems.map((item, index) => {
+                          const highlightQuery = searchTerm.trim();
+                          const rowHighlight = highlightQuery && stockItemMatchesSearch(item, highlightQuery);
+                          return (
+                          <TableRow
+                            key={item.id}
+                            className={cn(
+                              "hover:bg-slate-50/80",
+                              rowHighlight && "bg-amber-50/80 dark:bg-amber-950/25 ring-1 ring-inset ring-amber-300/50",
+                            )}
+                          >
+                            <TableCell className={cn(STOCK_DATA_CELL_CENTER, "font-medium text-muted-foreground text-xs")}>
                               {((currentPage - 1) * ITEMS_PER_PAGE) + index + 1}
                             </TableCell>
-                            <TableCell className={cn(STOCK_DATA_CELL, "text-muted-foreground")}>{item.supplier_name || '—'}</TableCell>
-                            <TableCell className={cn(STOCK_DATA_CELL, "font-mono font-medium")}>{item.supplier_invoice_no || '—'}</TableCell>
-                            <TableCell className={STOCK_PRODUCT_NAME_CELL}>{item.product_name}</TableCell>
-                            <TableCell className={STOCK_PRODUCT_DETAIL_CELL}>{item.brand}</TableCell>
-                            <TableCell className={STOCK_PRODUCT_DETAIL_CELL}>{item.size}</TableCell>
-                            <TableCell className={STOCK_PRODUCT_DETAIL_CELL}>{item.color || '—'}</TableCell>
-                            <TableCell className={STOCK_PRODUCT_DETAIL_CELL}>{item.department || '—'}</TableCell>
-                            <TableCell className={cn(STOCK_DATA_CELL, "font-mono font-medium")}>{item.barcode}</TableCell>
+                            <TableCell className={cn(STOCK_DATA_CELL, "text-muted-foreground text-xs")}>{item.supplier_name || '—'}</TableCell>
+                            <TableCell className={cn(STOCK_DATA_CELL, "font-mono font-medium text-xs")}>{item.supplier_invoice_no || '—'}</TableCell>
+                            <TableCell className={STOCK_PRODUCT_NAME_CELL}>{highlightSearchText(item.product_name, highlightQuery)}</TableCell>
+                            <TableCell className={STOCK_PRODUCT_DETAIL_CELL}>{highlightSearchText(item.brand, highlightQuery)}</TableCell>
+                            <TableCell className={STOCK_PRODUCT_DETAIL_CELL}>{highlightSearchText(item.size, highlightQuery)}</TableCell>
+                            <TableCell className={STOCK_PRODUCT_DETAIL_CELL}>{highlightSearchText(item.color || '—', highlightQuery)}</TableCell>
+                            <TableCell className={STOCK_PRODUCT_DETAIL_CELL}>{highlightSearchText(item.department || '—', highlightQuery)}</TableCell>
+                            <TableCell className={cn(STOCK_DATA_CELL, "font-mono font-semibold")}>{highlightSearchText(item.barcode, highlightQuery)}</TableCell>
                             <TableCell className={cn(STOCK_DATA_CELL, "text-right bg-blue-50/80 dark:bg-blue-950/50 font-medium")}>
                               {item.opening_qty}
                             </TableCell>
@@ -1956,7 +1979,7 @@ export default function StockReport() {
                             <TableCell className={cn(STOCK_DATA_CELL, "text-right bg-emerald-50/80 dark:bg-emerald-950/50 font-medium text-emerald-700 dark:text-emerald-400")}>
                               {item.sale_return_qty > 0 ? `+${item.sale_return_qty}` : '0'}
                             </TableCell>
-                            <TableCell className={cn(STOCK_DATA_CELL, "text-right bg-violet-50/80 dark:bg-violet-950/50 font-bold text-violet-800 dark:text-violet-300")}>
+                            <TableCell className={STOCK_QTY_HIGHLIGHT_CELL}>
                               {item.stock_qty}{item.uom && item.uom !== 'NOS' && item.uom !== 'PCS' ? ` ${item.uom}` : ''}
                             </TableCell>
                             <TableCell className={cn(STOCK_DATA_CELL, "text-right")}>
@@ -1986,7 +2009,8 @@ export default function StockReport() {
                               )}
                             </TableCell>
                           </TableRow>
-                        ))
+                          );
+                        })
                       )}
                     </TableBody>
                     {filteredStockItems.length > 0 && (
@@ -2102,26 +2126,26 @@ export default function StockReport() {
               </CardContent>
             </TabsContent>
 
-            <TabsContent value="sizewise" className="mt-0 focus-visible:outline-none">
-              <CardContent className="p-0 flex flex-col min-h-0">
-                <div className="px-3 py-1.5 border-b border-slate-100">
+            <TabsContent value="sizewise" className="mt-0 flex-1 min-h-0 flex flex-col focus-visible:outline-none data-[state=inactive]:hidden">
+              <CardContent className="p-0 flex flex-col flex-1 min-h-0">
+                <div className="px-2 py-1 border-b border-slate-100 shrink-0">
                   <div className="relative max-w-2xl">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                     <Input
-                      placeholder="Search live: type product-category-brand-style-color-size (use - or space)"
+                      placeholder="Search live: product-brand-style-color-size"
                       value={sizeWiseSearch}
                       onChange={(e) => setSizeWiseSearch(e.target.value)}
-                      className="pl-9 h-8 text-sm"
+                      className="pl-8 h-8 text-sm font-medium"
                     />
                   </div>
                   {sizeWiseSearch && (
-                    <div className="text-xs text-slate-500 mt-1">
-                      Showing {sizeWiseData.rows.length} matching products
+                    <div className="text-xs font-semibold text-amber-700 dark:text-amber-400 mt-0.5">
+                      {sizeWiseData.rows.length} matching products
                     </div>
                   )}
                 </div>
                 {sizeWiseData.rows.length === 0 ? (
-                  <p className="text-center text-muted-foreground text-sm py-6">No products found matching your filters</p>
+                  <p className="text-center text-muted-foreground text-sm py-3">No products found matching your filters</p>
                 ) : (
                   <>
                     <div className="md:hidden px-3 py-1 flex items-center gap-2 text-xs text-muted-foreground">
@@ -2130,7 +2154,7 @@ export default function StockReport() {
                       <ChevronRight className="h-3 w-3" />
                     </div>
                     <div className={cn(STOCK_TABLE_SCROLL, "border-b border-slate-100 scroll-smooth snap-x snap-mandatory md:snap-none")}>
-                        <Table className="min-w-max text-xs border-separate border-spacing-0">
+                        <Table className="min-w-max text-sm border-separate border-spacing-0">
                           <TableHeader className={STOCK_TABLE_HEAD}>
                             <TableRow>
                               <TableHead className={cn("min-w-[180px] md:min-w-[250px] sticky left-0 z-10", STOCK_NEUTRAL_TH)}>Product</TableHead>
@@ -2153,22 +2177,33 @@ export default function StockReport() {
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {sizeWiseData.rows.map((row, index) => (
-                              <TableRow key={row.productKey} className={index % 2 === 0 ? "bg-background" : "bg-muted/20"}>
-                                <TableCell className="font-medium sticky left-0 bg-inherit z-10 backdrop-blur-sm min-w-[160px] md:min-w-[220px] py-1.5 px-2 align-top">
+                            {sizeWiseData.rows.map((row, index) => {
+                              const swQuery = sizeWiseSearch.trim();
+                              const swHighlight = swQuery && multiTokenMatch(swQuery, row.productName, row.brand, row.color, row.category, row.department);
+                              return (
+                              <TableRow
+                                key={row.productKey}
+                                className={cn(
+                                  index % 2 === 0 ? "bg-background" : "bg-muted/20",
+                                  swHighlight && "bg-amber-50/80 dark:bg-amber-950/25 ring-1 ring-inset ring-amber-300/50",
+                                )}
+                              >
+                                <TableCell className="font-medium sticky left-0 bg-inherit z-10 backdrop-blur-sm min-w-[160px] md:min-w-[220px] py-1 px-2 align-top">
                                   <div className="flex flex-col gap-0.5">
-                                    <span className="text-sm font-bold text-foreground truncate max-w-[150px] md:max-w-none">{row.productName}</span>
+                                    <span className="text-base font-bold text-foreground truncate max-w-[150px] md:max-w-none bg-blue-50/40 dark:bg-blue-950/20 px-1 rounded">
+                                      {highlightSearchText(row.productName, swQuery)}
+                                    </span>
                                     {(row.brand || row.color) && (
-                                      <span className="text-xs font-semibold text-foreground truncate max-w-[200px] md:max-w-none">
-                                        <span className="font-bold">Brand:</span> {row.brand || '-'}
-                                        {row.color && <> · <span className="font-bold">Color:</span> {row.color}</>}
+                                      <span className="text-sm font-semibold text-foreground truncate max-w-[200px] md:max-w-none">
+                                        <span className="font-bold">Brand:</span> {highlightSearchText(row.brand || '-', swQuery)}
+                                        {row.color && <> · <span className="font-bold">Color:</span> {highlightSearchText(row.color, swQuery)}</>}
                                       </span>
                                     )}
                                     {(row.category || row.department) && (
-                                      <span className="text-xs font-semibold text-foreground truncate max-w-[200px] md:max-w-none">
-                                        {row.category && <><span className="font-bold">Cat:</span> {row.category}</>}
+                                      <span className="text-sm font-semibold text-foreground truncate max-w-[200px] md:max-w-none">
+                                        {row.category && <><span className="font-bold">Cat:</span> {highlightSearchText(row.category, swQuery)}</>}
                                         {row.category && row.department && ' · '}
-                                        {row.department && <><span className="font-bold">Style:</span> {row.department}</>}
+                                        {row.department && <><span className="font-bold">Style:</span> {highlightSearchText(row.department, swQuery)}</>}
                                       </span>
                                     )}
                                   </div>
@@ -2190,11 +2225,12 @@ export default function StockReport() {
                                     </TableCell>
                                   );
                                 })}
-                                <TableCell className="text-center font-bold text-primary bg-primary/10 sticky right-0 backdrop-blur-sm min-w-[52px] md:min-w-[64px] px-2 py-1.5 text-xs tabular-nums">
+                                <TableCell className="text-center font-bold text-primary bg-primary/10 sticky right-0 backdrop-blur-sm min-w-[52px] md:min-w-[64px] px-2 py-1 text-base tabular-nums">
                                   {row.totalStock}
                                 </TableCell>
                               </TableRow>
-                            ))}
+                              );
+                            })}
                           </TableBody>
                           {sizeWiseData.rows.length > 0 && (
                             <TableFooter className={STOCK_TABLE_FOOTER}>

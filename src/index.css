@@ -1864,6 +1864,19 @@ input.no-uppercase {
   vertical-align: middle;
 }
 
+/* Stock report — compact chrome, prominent product rows */
+.stock-report-page table tbody td {
+  vertical-align: middle;
+}
+
+.stock-report-page table tbody tr {
+  height: 32px;
+}
+
+.stock-report-page mark {
+  line-height: inherit;
+}
+
 /* Bill entry — use full content width; product column absorbs extra space */
 [data-entry-form] {
   max-width: none;
