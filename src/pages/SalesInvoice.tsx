@@ -4518,7 +4518,7 @@ Thank you for choosing us!`;
             <AlertDialogCancel onClick={handleClosePrintDialog}>
               Skip
             </AlertDialogCancel>
-            <AlertDialogAction onClick={handlePrintInvoice}>
+            <AlertDialogAction onClick={(e) => { e.preventDefault(); handlePrintInvoice(); }}>
               Print Now
             </AlertDialogAction>
           </AlertDialogFooter>
