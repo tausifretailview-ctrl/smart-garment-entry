@@ -757,10 +757,12 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
                           )}
                         >
                           <td className="py-1 px-2">
-                            <div className="font-medium text-foreground">{row.productName}</div>
-                            <div className="text-[9px] text-red-500">
-                              {row.brand}{row.brand && row.color ? " - " : ""}{row.color}
-                            </div>
+                            <div className="text-sm font-bold text-foreground">{row.productName}</div>
+                            {(row.brand || row.color) && (
+                              <div className="text-xs font-bold text-foreground">
+                                {[row.brand, row.color].filter(Boolean).join(" - ")}
+                              </div>
+                            )}
                           </td>
                           {sizeWiseData.sizes.map((size) => {
                             const qty = row.sizeStocks[size] || 0;

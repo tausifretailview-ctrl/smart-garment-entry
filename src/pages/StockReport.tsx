@@ -86,8 +86,10 @@ const STOCK_TABLE_SCROLL =
 const STOCK_TABLE_FOOTER =
   "sticky bottom-0 z-20 border-t-2 border-slate-400 dark:border-slate-500 bg-slate-200 dark:bg-slate-700 shadow-[0_-4px_8px_-2px_rgba(0,0,0,0.12)] [&>tr]:border-0 [&>tr]:hover:bg-transparent";
 const STOCK_FOOTER_CELL = "py-1.5 px-2 align-middle text-xs font-bold tabular-nums whitespace-nowrap";
-const STOCK_DATA_CELL = "py-1.5 px-2 align-middle text-xs whitespace-nowrap tabular-nums";
+const STOCK_DATA_CELL = "py-1.5 px-2 align-middle text-xs whitespace-nowrap tabular-nums text-foreground";
 const STOCK_DATA_CELL_CENTER = "py-1.5 px-2 align-middle text-xs text-center tabular-nums";
+const STOCK_PRODUCT_NAME_CELL = "py-1.5 px-2 align-middle text-xs whitespace-nowrap font-bold text-foreground";
+const STOCK_PRODUCT_DETAIL_CELL = "py-1.5 px-2 align-middle text-xs whitespace-nowrap font-semibold text-foreground";
 const SIZEWISE_DATA_CELL =
   "text-center min-w-[44px] md:min-w-[52px] px-1.5 py-1.5 align-middle text-xs tabular-nums";
 const SIZEWISE_FOOTER_CELL =
@@ -1612,8 +1614,8 @@ export default function StockReport() {
             <div key={item.id} className="bg-card rounded-2xl p-3 border border-border/40 shadow-sm">
               <div className="flex items-start justify-between">
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-semibold text-foreground truncate">{item.product_name}</p>
-                  {item.brand && <p className="text-[11px] text-muted-foreground">{item.brand}</p>}
+                  <p className="text-sm font-bold text-foreground truncate">{item.product_name}</p>
+                  {item.brand && <p className="text-xs font-semibold text-foreground">{item.brand}</p>}
                   <div className="flex gap-1.5 mt-1 flex-wrap">
                     {item.barcode && <span className="text-[10px] bg-muted px-1.5 py-0.5 rounded font-mono">{item.barcode}</span>}
                     {item.size && <span className="text-[10px] bg-muted px-1.5 py-0.5 rounded">{item.size}</span>}
@@ -1932,13 +1934,13 @@ export default function StockReport() {
                               {((currentPage - 1) * ITEMS_PER_PAGE) + index + 1}
                             </TableCell>
                             <TableCell className={cn(STOCK_DATA_CELL, "text-muted-foreground")}>{item.supplier_name || '—'}</TableCell>
-                            <TableCell className={cn(STOCK_DATA_CELL, "font-mono")}>{item.supplier_invoice_no || '—'}</TableCell>
-                            <TableCell className={cn(STOCK_DATA_CELL, "font-medium")}>{item.product_name}</TableCell>
-                            <TableCell className={STOCK_DATA_CELL}>{item.brand}</TableCell>
-                            <TableCell className={STOCK_DATA_CELL}>{item.size}</TableCell>
-                            <TableCell className={STOCK_DATA_CELL}>{item.color || '—'}</TableCell>
-                            <TableCell className={STOCK_DATA_CELL}>{item.department || '—'}</TableCell>
-                            <TableCell className={cn(STOCK_DATA_CELL, "font-mono")}>{item.barcode}</TableCell>
+                            <TableCell className={cn(STOCK_DATA_CELL, "font-mono font-medium")}>{item.supplier_invoice_no || '—'}</TableCell>
+                            <TableCell className={STOCK_PRODUCT_NAME_CELL}>{item.product_name}</TableCell>
+                            <TableCell className={STOCK_PRODUCT_DETAIL_CELL}>{item.brand}</TableCell>
+                            <TableCell className={STOCK_PRODUCT_DETAIL_CELL}>{item.size}</TableCell>
+                            <TableCell className={STOCK_PRODUCT_DETAIL_CELL}>{item.color || '—'}</TableCell>
+                            <TableCell className={STOCK_PRODUCT_DETAIL_CELL}>{item.department || '—'}</TableCell>
+                            <TableCell className={cn(STOCK_DATA_CELL, "font-mono font-medium")}>{item.barcode}</TableCell>
                             <TableCell className={cn(STOCK_DATA_CELL, "text-right bg-blue-50/80 dark:bg-blue-950/50 font-medium")}>
                               {item.opening_qty}
                             </TableCell>
@@ -2155,18 +2157,18 @@ export default function StockReport() {
                               <TableRow key={row.productKey} className={index % 2 === 0 ? "bg-background" : "bg-muted/20"}>
                                 <TableCell className="font-medium sticky left-0 bg-inherit z-10 backdrop-blur-sm min-w-[160px] md:min-w-[220px] py-1.5 px-2 align-top">
                                   <div className="flex flex-col gap-0.5">
-                                    <span className="text-xs font-semibold truncate max-w-[150px] md:max-w-none">{row.productName}</span>
+                                    <span className="text-sm font-bold text-foreground truncate max-w-[150px] md:max-w-none">{row.productName}</span>
                                     {(row.brand || row.color) && (
-                                      <span className="text-[11px] text-muted-foreground truncate max-w-[200px] md:max-w-none">
-                                        <span className="font-medium">Brand:</span> {row.brand || '-'}
-                                        {row.color && <> · <span className="font-medium">Color:</span> {row.color}</>}
+                                      <span className="text-xs font-semibold text-foreground truncate max-w-[200px] md:max-w-none">
+                                        <span className="font-bold">Brand:</span> {row.brand || '-'}
+                                        {row.color && <> · <span className="font-bold">Color:</span> {row.color}</>}
                                       </span>
                                     )}
                                     {(row.category || row.department) && (
-                                      <span className="text-[11px] text-muted-foreground/80 truncate max-w-[200px] md:max-w-none">
-                                        {row.category && <><span className="font-medium">Cat:</span> {row.category}</>}
+                                      <span className="text-xs font-semibold text-foreground truncate max-w-[200px] md:max-w-none">
+                                        {row.category && <><span className="font-bold">Cat:</span> {row.category}</>}
                                         {row.category && row.department && ' · '}
-                                        {row.department && <><span className="font-medium">Style:</span> {row.department}</>}
+                                        {row.department && <><span className="font-bold">Style:</span> {row.department}</>}
                                       </span>
                                     )}
                                   </div>
