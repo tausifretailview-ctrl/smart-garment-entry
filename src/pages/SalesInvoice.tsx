@@ -3275,7 +3275,7 @@ Thank you for choosing us!`;
         >
           <AlertDialogContent>
             <AlertDialogHeader><AlertDialogTitle>Print Invoice?</AlertDialogTitle><AlertDialogDescription>Invoice saved successfully.</AlertDialogDescription></AlertDialogHeader>
-            <AlertDialogFooter><AlertDialogCancel onClick={handleClosePrintDialog}>Skip</AlertDialogCancel><AlertDialogAction onClick={handlePrintInvoice}>Print</AlertDialogAction></AlertDialogFooter>
+            <AlertDialogFooter><AlertDialogCancel onClick={handleClosePrintDialog}>Skip</AlertDialogCancel><AlertDialogAction onClick={(e) => { e.preventDefault(); handlePrintInvoice(); }}>Print</AlertDialogAction></AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
         <SizeGridDialog open={showSizeGrid} onClose={() => setShowSizeGrid(false)} product={sizeGridProduct} variants={sizeGridVariants} onConfirm={handleSizeGridConfirm} showStock validateStock title="Enter Size-wise Qty" />
