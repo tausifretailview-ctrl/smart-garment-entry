@@ -111,7 +111,9 @@ import { fetchCustomerBalanceSnapshot } from "@/utils/customerBalanceUtils";
 import {
   fetchInvoiceDashboardPage,
   fetchInvoiceDashboardStats,
+  patchInvoiceDashboardDeliveryStatus,
   reconcileInvoiceDashboardRows,
+  refetchInvoiceDashboardQueries,
   syncVisibleInvoiceStaleFields,
 } from "@/utils/invoiceDashboardData";
 import { isSaleInvoiceCancelled } from "@/utils/saleInvoiceStatus";
@@ -207,9 +209,9 @@ export default function SalesInvoiceDashboard() {
   const { settings: whatsAppAPISettings, sendMessageAsync, isSending: isSendingWhatsAppAPI } = useWhatsAppAPI();
   const queryClient = useQueryClient();
   const refreshInvoiceDashboard = useCallback(() => {
-    void queryClient.invalidateQueries({ queryKey: ["invoice-dashboard-unified"] });
-    void queryClient.invalidateQueries({ queryKey: ["sales-invoice-dashboard"] });
-  }, [queryClient]);
+    if (!currentOrganization?.id) return;
+    void refetchInvoiceDashboardQueries(queryClient, currentOrganization.id);
+  }, [queryClient, currentOrganization?.id]);
   const isMobile = useIsMobile();
   const isNativeApp = useIsNativeApp();
   const inTabCache = useTabCacheLayout();
@@ -2402,43 +2404,66 @@ export default function SalesInvoiceDashboard() {
   };
 
   const handleUpdateDeliveryStatus = async () => {
-    if (!selectedInvoiceForStatus || !newDeliveryStatus) return;
+    if (!selectedInvoiceForStatus || !newDeliveryStatus || !currentOrganization?.id) return;
+
+    const saleId = selectedInvoiceForStatus.id;
+    const orgId = currentOrganization.id;
+    const previousStatus = selectedInvoiceForStatus.delivery_status || "undelivered";
 
     setIsUpdatingStatus(true);
+    if (orgId) {
+      patchInvoiceDashboardDeliveryStatus(queryClient, orgId, saleId, newDeliveryStatus);
+    }
+
     try {
-      // Update sales table
       const { error: updateError } = await supabase
-        .from('sales')
+        .from("sales")
         .update({ delivery_status: newDeliveryStatus })
-        .eq('id', selectedInvoiceForStatus.id);
+        .eq("id", saleId)
+        .eq("organization_id", orgId);
 
       if (updateError) throw updateError;
 
-      // Insert delivery tracking record
       const { error: trackingError } = await supabase
-        .from('delivery_tracking')
+        .from("delivery_tracking")
         .insert({
-          sale_id: selectedInvoiceForStatus.id,
-          organization_id: currentOrganization?.id,
+          sale_id: saleId,
+          organization_id: orgId,
           status: newDeliveryStatus,
-          status_date: format(statusDate, 'yyyy-MM-dd'),
+          status_date: format(statusDate, "yyyy-MM-dd"),
           narration: statusNarration || null,
           created_by: user?.id,
         });
 
       if (trackingError) throw trackingError;
 
-      void queryClient.invalidateQueries({ queryKey: ["invoice-dashboard-unified"] });
-      void queryClient.invalidateQueries({ queryKey: ["sales-invoice-dashboard"] });
+      setDeliveryHistory((prev) => ({
+        ...prev,
+        [saleId]: [
+          {
+            status: newDeliveryStatus,
+            status_date: format(statusDate, "yyyy-MM-dd"),
+            narration: statusNarration || null,
+            created_at: new Date().toISOString(),
+          },
+          ...(prev[saleId] || []),
+        ],
+      }));
+
+      if (orgId) {
+        void refetchInvoiceDashboardQueries(queryClient, orgId);
+      }
 
       toast({
         title: "Status Updated",
-        description: `Delivery status updated to ${newDeliveryStatus}`,
+        description: `Delivery status updated to ${getDeliveryLabel(newDeliveryStatus)}`,
       });
 
       setShowStatusDialog(false);
-      refreshInvoiceDashboard();
     } catch (error: any) {
+      if (orgId) {
+        patchInvoiceDashboardDeliveryStatus(queryClient, orgId, saleId, previousStatus);
+      }
       toast({
         title: "Error",
         description: error.message || "Failed to update delivery status",

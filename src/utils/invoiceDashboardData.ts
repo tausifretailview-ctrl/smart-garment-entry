@@ -635,6 +635,54 @@ export function invalidateInvoiceDashboardQueries(
   });
 }
 
+/** Instant delivery badge update — avoids waiting on reconcile refetch + keepPreviousData. */
+export function patchInvoiceDashboardDeliveryStatus(
+  queryClient: QueryClient,
+  organizationId: string,
+  saleId: string,
+  deliveryStatus: string,
+) {
+  const patchRow = (inv: any) =>
+    inv?.id === saleId ? { ...inv, delivery_status: deliveryStatus } : inv;
+
+  queryClient.setQueriesData(
+    { queryKey: [INVOICE_DASHBOARD_QUERY_KEY, organizationId] },
+    (old: unknown) => {
+      if (!old) return old;
+      if (Array.isArray(old)) {
+        return old.map(patchRow);
+      }
+      if (typeof old === "object") {
+        const row = old as {
+          invoices?: any[];
+          sourceRows?: any[];
+          deliveredCount?: number;
+          undeliveredCount?: number;
+        };
+        if (Array.isArray(row.invoices) || Array.isArray(row.sourceRows)) {
+          return {
+            ...row,
+            invoices: row.invoices?.map(patchRow),
+            sourceRows: row.sourceRows?.map(patchRow),
+          };
+        }
+      }
+      return old;
+    },
+  );
+}
+
+export async function refetchInvoiceDashboardQueries(
+  queryClient: QueryClient,
+  organizationId: string,
+) {
+  invalidateInvoiceDashboardQueries(queryClient, organizationId);
+  await queryClient.refetchQueries({
+    queryKey: [INVOICE_DASHBOARD_QUERY_KEY, organizationId],
+    type: "active",
+  });
+}
+
 /** React Query prefetch bundle for post-login warm (weekly default filters). */
 export function invoiceDashboardPrefetchQueryOptions(
   client: SupabaseClient,
