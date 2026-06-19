@@ -418,6 +418,7 @@ export default function POSSales() {
   }, [currentOrganization?.id, flushScheduledSalesInvalidation, queryClient]);
 
   const [searchParams, setSearchParams] = useSearchParams();
+  const location = useLocation();
   const { orgNavigate: orgNavigatePOS } = useOrgNavigation();
   const _savedCart = readPosCartSnapshot(currentOrganization?.id || "default");
 
@@ -729,8 +730,6 @@ export default function POSSales() {
     if (!sameContents) return; // user has unsaved work — keep the loaded invoice
     handleNewInvoice();
   }, [location.pathname, searchParams, currentSaleId, items, originalItemsForEdit]);
-
-  const location = useLocation();
 
   const focusBarcodeScanInput = useCallback(() => {
     if (isIOS) return;
