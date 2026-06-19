@@ -77,6 +77,7 @@ import {
 import { useDashboardInvalidation } from "@/hooks/useDashboardInvalidation";
 import { POS_DEFERRED_INVALIDATION_OPTS } from "@/utils/saveSaleRuntimeOptions";
 import { invalidatePosDashboardQueries } from "@/utils/posDashboardSales";
+import { generateOrgEstimateNumber } from "@/utils/saleNumber";
 import {
   computePosBillGst,
   posLineDisplayTotal,
@@ -2743,11 +2744,26 @@ export default function POSSales() {
   const effectiveDiscountPercent = totals.mrp > 0 ? (totalDiscountDisplay / totals.mrp) * 100 : 0;
 
   // Handle Estimate Print (no save, cart stays intact)
-  const handleEstimatePrint = useCallback(() => {
+  const handleEstimatePrint = useCallback(async () => {
     if (items.length === 0) return;
+    if (!currentOrganization?.id) {
+      toast.error("Organization not loaded");
+      return;
+    }
+
+    let estimateNumber = "ESTIMATE";
+    try {
+      estimateNumber = await generateOrgEstimateNumber(currentOrganization.id);
+    } catch (err) {
+      console.error("Estimate number allocation failed:", err);
+      toast.error("Could not assign estimate number", {
+        description: err instanceof Error ? err.message : "Please try again",
+      });
+      return;
+    }
     
     const estimateData = {
-      invoiceNumber: "ESTIMATE",
+      invoiceNumber: estimateNumber,
       saleId: null,
       items: items,
       totals: totals,
@@ -2805,7 +2821,7 @@ export default function POSSales() {
         }
       }
     }, 150);
-  }, [items, totals, flatDiscountAmount, saleReturnAdjust, finalAmount, customerName, customerPhone, customerId, roundOff, creditApplied, saleNotes, customerBalance, isDirectPrintEnabled, posBillFormat, directPrint]);
+  }, [items, totals, flatDiscountAmount, saleReturnAdjust, finalAmount, customerName, customerPhone, customerId, roundOff, creditApplied, saleNotes, customerBalance, isDirectPrintEnabled, posBillFormat, directPrint, currentOrganization?.id, taxType]);
 
   // Register estimate print in POS header and ref for keyboard shortcut
   useEffect(() => {
@@ -3754,7 +3770,7 @@ export default function POSSales() {
             billNo={
               savedInvoiceData?.invoiceNumber
                 || currentInvoiceNumber
-                || (savedInvoiceData?.isEstimate ? 'ESTIMATE' : 'DRAFT')
+                || 'DRAFT'
             }
             date={currentDateTime}
             customerName={savedInvoiceData?.customerName || customerName || 'Walk in Customer'}

@@ -68,3 +68,13 @@ export async function generateOrgSaleNumber(
   if (numberError) throw numberError;
   return defaultNumber as string;
 }
+
+/** POS estimate print — separate EST/YY-YY/N series (does not consume INV/POS numbers). */
+export async function generateOrgEstimateNumber(organizationId: string): Promise<string> {
+  const { data, error } = await supabase.rpc("generate_sale_number_atomic", {
+    p_organization_id: organizationId,
+    p_prefix: "EST",
+  });
+  if (error) throw error;
+  return data as string;
+}
