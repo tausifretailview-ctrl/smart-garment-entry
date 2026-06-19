@@ -496,7 +496,7 @@ const DesktopDashboard = () => {
   /** Shown in Header row 2 (next to Size Stock) on lg+ to avoid crowding the window tabs strip. */
   const dashboardHeaderToolbar = useMemo(
     () => (
-      <>
+      <div className="flex items-center gap-1.5 flex-nowrap shrink-0">
         <ThemeToggle className="h-7 gap-1.5 text-[11px] px-2.5 font-semibold text-white bg-purple-600 hover:bg-purple-700 border-0 shadow-sm [&_svg]:text-white [&_span]:text-white" />
         <div className="flex items-center gap-1 bg-sky-600 hover:bg-sky-700 border-0 rounded-md px-1.5 h-7 shrink-0 shadow-sm text-white">
           <Calendar className="h-3.5 w-3.5 text-white shrink-0" />
@@ -530,7 +530,7 @@ const DesktopDashboard = () => {
             Net Profit
           </Button>
         )}
-      </>
+      </div>
     ),
     [dateRange, isLoading, dateLabel, startDate, endDate, navigate, canNetProfit]
   );
@@ -863,48 +863,50 @@ const DesktopDashboard = () => {
 
       {/* lg+: theme / month / Net Profit sit in window tabs bar; here: refresh + status only */}
       {!isLgUp ? (
-        <div className="dashboard-toolbar flex flex-wrap items-center justify-end gap-2 pb-2 border-b border-border shrink-0">
-          <ThemeToggle />
+        <div className="dashboard-toolbar flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-border shrink-0">
           <Button
             variant="outline"
             size="sm"
             onClick={handleRefreshAll}
             disabled={isRefreshing || isLoading}
-            className="h-8 text-xs border-border bg-card hover:bg-muted"
+            className="h-8 text-xs border-border bg-card hover:bg-muted shrink-0"
           >
             <RefreshCw className={cn("h-3.5 w-3.5 mr-1", (isRefreshing || isLoading) && "animate-spin")} />
             Refresh
           </Button>
-          <div className="flex items-center gap-2 bg-card border border-border rounded-md px-2 py-0.5 shadow-sm h-8">
-            <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
-            <Select value={dateRange} onValueChange={(v: DateRangeType) => setDateRange(v)}>
-              <SelectTrigger className="w-[92px] h-7 border-0 shadow-none text-xs bg-transparent text-foreground">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="bg-popover border-border">
-                <SelectItem value="monthly">Monthly</SelectItem>
-                <SelectItem value="quarterly">Quarterly</SelectItem>
-                <SelectItem value="yearly">Yearly</SelectItem>
-                <SelectItem value="all">All Time</SelectItem>
-              </SelectContent>
-            </Select>
-            {isLoading ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
-            ) : (
-              <span className="text-xs font-medium text-primary">{dateLabel}</span>
+          <div className="flex items-center gap-1.5 flex-nowrap shrink-0 overflow-x-auto">
+            <ThemeToggle />
+            <div className="flex items-center gap-2 bg-card border border-border rounded-md px-2 py-0.5 shadow-sm h-8 shrink-0">
+              <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
+              <Select value={dateRange} onValueChange={(v: DateRangeType) => setDateRange(v)}>
+                <SelectTrigger className="w-[92px] h-7 border-0 shadow-none text-xs bg-transparent text-foreground">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-popover border-border">
+                  <SelectItem value="monthly">Monthly</SelectItem>
+                  <SelectItem value="quarterly">Quarterly</SelectItem>
+                  <SelectItem value="yearly">Yearly</SelectItem>
+                  <SelectItem value="all">All Time</SelectItem>
+                </SelectContent>
+              </Select>
+              {isLoading ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+              ) : (
+                <span className="text-xs font-medium text-primary whitespace-nowrap">{dateLabel}</span>
+              )}
+            </div>
+            {canNetProfit && (
+              <Button
+                variant="default"
+                size="sm"
+                onClick={() => navigate(`/net-profit-analysis?from=${startDate}&to=${endDate}`)}
+                className="h-8 text-xs shrink-0"
+              >
+                <TrendingUp className="h-3.5 w-3.5 mr-1" />
+                Net Profit
+              </Button>
             )}
           </div>
-          {canNetProfit && (
-            <Button
-              variant="default"
-              size="sm"
-              onClick={() => navigate(`/net-profit-analysis?from=${startDate}&to=${endDate}`)}
-              className="h-8 text-xs"
-            >
-              <TrendingUp className="h-3.5 w-3.5 mr-1" />
-              Net Profit
-            </Button>
-          )}
         </div>
       ) : (
         <div className="dashboard-toolbar flex flex-wrap items-center justify-between gap-2 py-1 border-b border-border/70 shrink-0">

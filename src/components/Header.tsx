@@ -546,8 +546,9 @@ export const Header = () => {
         </div>
       </div>
 
-      {/* ROW 2: Action toolbar — each shortcut hidden without the matching User Rights permission */}
-      <div className="sticky top-9 z-50 hidden lg:flex min-h-10 items-center flex-wrap px-3 py-1.5 gap-x-2 gap-y-1.5 bg-slate-100 dark:bg-slate-900/90 border-b border-border/80 shadow-sm">
+      {/* ROW 2: Action toolbar — shortcuts left; dashboard theme/period/profit pinned right in one row */}
+      <div className="sticky top-9 z-50 hidden lg:flex min-h-10 items-center px-3 py-1.5 gap-2 bg-slate-100 dark:bg-slate-900/90 border-b border-border/80 shadow-sm">
+        <div className="flex items-center flex-wrap gap-x-2 gap-y-1 flex-1 min-w-0">
         {can("pos_sales") && (
           <div className="flex items-center">
             <Button
@@ -650,27 +651,26 @@ export const Header = () => {
             Payment
           </Button>
         )}
+        </div>
 
+        <div className="flex items-center gap-2 shrink-0 flex-nowrap ml-1">
         {dashboardToolbar?.toolbar ? (
           <>
+            {dashboardToolbar.toolbar}
             <div className="w-px h-4 bg-sidebar-border shrink-0" />
-            <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
-              {dashboardToolbar.toolbar}
-            </div>
           </>
         ) : null}
-
-        <div className="flex-1 min-w-[4rem]" />
 
         {/* Organization name */}
         <span className="text-xs font-semibold text-sidebar-foreground/80 truncate max-w-[150px]" title={currentOrganization?.name || ""}>
           {currentOrganization?.name || ""}
         </span>
-        <div className="w-px h-4 bg-sidebar-border mx-1" />
+        <div className="w-px h-4 bg-sidebar-border shrink-0" />
 
-        <span className="text-xs text-sidebar-foreground/50 tabular-nums">
+        <span className="text-xs text-sidebar-foreground/50 tabular-nums whitespace-nowrap">
           {new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: false })}
         </span>
+        </div>
       </div>
 
       {/* Dialogs */}
