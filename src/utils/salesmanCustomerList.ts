@@ -48,6 +48,7 @@ function buildActivityMaps(
     payment_status?: string | null;
   }>,
   receiptVouchers: Array<{
+    id?: string | null;
     reference_id?: string | null;
     reference_type?: string | null;
     voucher_date?: string | null;
@@ -76,7 +77,7 @@ function buildActivityMaps(
   }
 
   for (const voucher of receiptVouchers) {
-    if (!isCustomerReceiptVoucher(voucher)) continue;
+    if (!isCustomerReceiptVoucher(voucher as any)) continue;
     const date = voucher.voucher_date || voucher.created_at;
     if (!date || !voucher.reference_id) continue;
 

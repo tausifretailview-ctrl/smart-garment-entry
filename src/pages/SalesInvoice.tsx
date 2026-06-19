@@ -2967,6 +2967,16 @@ Thank you for choosing us!`;
 
   const handlePrintInvoice = async () => {
     if (!savedInvoiceData || !currentOrganization?.id) return;
+    // Hard guard: never print a blank invoice. Require an invoice number AND at least one item.
+    const itemsForPrint = savedInvoiceData?.filledItems || [];
+    if (!savedInvoiceData.invoiceNumber || itemsForPrint.length === 0) {
+      toast({
+        variant: "destructive",
+        title: "Cannot Print",
+        description: "Invoice data not ready yet. Please try again in a moment.",
+      });
+      return;
+    }
     
     // Try QZ Tray direct print first
     if (isDirectPrintEnabled) {
@@ -3275,12 +3285,14 @@ Thank you for choosing us!`;
         >
           <AlertDialogContent>
             <AlertDialogHeader><AlertDialogTitle>Print Invoice?</AlertDialogTitle><AlertDialogDescription>Invoice saved successfully.</AlertDialogDescription></AlertDialogHeader>
-            <AlertDialogFooter><AlertDialogCancel onClick={handleClosePrintDialog}>Skip</AlertDialogCancel><AlertDialogAction onClick={handlePrintInvoice}>Print</AlertDialogAction></AlertDialogFooter>
+            <AlertDialogFooter><AlertDialogCancel onClick={handleClosePrintDialog}>Skip</AlertDialogCancel><AlertDialogAction onClick={(e) => { e.preventDefault(); handlePrintInvoice(); }}>Print</AlertDialogAction></AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
         <SizeGridDialog open={showSizeGrid} onClose={() => setShowSizeGrid(false)} product={sizeGridProduct} variants={sizeGridVariants} onConfirm={handleSizeGridConfirm} showStock validateStock title="Enter Size-wise Qty" />
         <div style={{ position: 'absolute', left: '-9999px', top: 0 }}>
-          <InvoiceWrapper ref={printRef} billNo={savedInvoiceData?.invoiceNumber || `DRAFT`} date={invoiceDate} customerName={savedInvoiceData?.customer?.customer_name || selectedCustomer?.customer_name || ""} customerAddress={savedInvoiceData?.customer?.address || ""} customerMobile={savedInvoiceData?.customer?.phone || ""} customerGSTIN={savedInvoiceData?.customer?.gst_number || ""} customerTransportDetails="" items={(savedInvoiceData?.filledItems || filledItems).map((item: any, index: number) => ({ sr: index + 1, particulars: item.productName, size: item.size, barcode: item.barcode || "", hsn: item.hsnCode || "", sp: item.salePrice, mrp: item.mrp, qty: item.quantity, rate: item.salePrice, total: item.lineTotal, color: item.color || "", gstPercent: item.gstPercent || 0, discountPercent: item.discountPercent || 0 }))} subTotal={savedInvoiceData?.grossAmount ?? grossAmount} discount={savedInvoiceData?.totalDiscount ?? totalDiscount} grandTotal={savedInvoiceData?.netAmount ?? netAmount} notes={savedInvoiceData?.notes ?? notes} otherCharges={savedInvoiceData?.otherCharges ?? otherCharges} roundOff={roundOff} paymentMethod="Cash" taxType={taxType} financerDetails={financerDetails} />
+          {savedInvoiceData?.invoiceNumber && (savedInvoiceData?.filledItems?.length ?? 0) > 0 ? (
+            <InvoiceWrapper ref={printRef} billNo={savedInvoiceData.invoiceNumber} date={invoiceDate} customerName={savedInvoiceData?.customer?.customer_name || selectedCustomer?.customer_name || ""} customerAddress={savedInvoiceData?.customer?.address || ""} customerMobile={savedInvoiceData?.customer?.phone || ""} customerGSTIN={savedInvoiceData?.customer?.gst_number || ""} customerTransportDetails="" items={(savedInvoiceData.filledItems).map((item: any, index: number) => ({ sr: index + 1, particulars: item.productName, size: item.size, barcode: item.barcode || "", hsn: item.hsnCode || "", sp: item.salePrice, mrp: item.mrp, qty: item.quantity, rate: item.salePrice, total: item.lineTotal, color: item.color || "", gstPercent: item.gstPercent || 0, discountPercent: item.discountPercent || 0 }))} subTotal={savedInvoiceData?.grossAmount ?? grossAmount} discount={savedInvoiceData?.totalDiscount ?? totalDiscount} grandTotal={savedInvoiceData?.netAmount ?? netAmount} notes={savedInvoiceData?.notes ?? notes} otherCharges={savedInvoiceData?.otherCharges ?? otherCharges} roundOff={roundOff} paymentMethod="Cash" taxType={taxType} financerDetails={financerDetails} />
+          ) : <div ref={printRef} />}
         </div>
         {historyProduct && currentOrganization && <ProductHistoryDialog isOpen={!!historyProduct} onClose={() => setHistoryProduct(null)} productId={historyProduct.id} productName={historyProduct.name} organizationId={currentOrganization.id} />}
         {pendingPriceSelection && <PriceSelectionDialog open={showPriceSelectionDialog} onOpenChange={(open) => { setShowPriceSelectionDialog(open); if (!open) setPendingPriceSelection(null); }} productName={pendingPriceSelection.product?.product_name || ''} size={pendingPriceSelection.variant?.size || ''} masterPrice={pendingPriceSelection.masterPrice} lastPurchasePrice={pendingPriceSelection.lastPurchasePrice} customerPrice={pendingPriceSelection.customerPrice} onSelect={(source, prices) => { const { product, variant } = pendingPriceSelection; setShowPriceSelectionDialog(false); setPendingPriceSelection(null); addProductToInvoice(product, variant, prices); }} />}
@@ -4518,7 +4530,7 @@ Thank you for choosing us!`;
             <AlertDialogCancel onClick={handleClosePrintDialog}>
               Skip
             </AlertDialogCancel>
-            <AlertDialogAction onClick={handlePrintInvoice}>
+            <AlertDialogAction onClick={(e) => { e.preventDefault(); handlePrintInvoice(); }}>
               Print Now
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -4541,16 +4553,17 @@ Thank you for choosing us!`;
 
       {/* Hidden Invoice for Printing */}
       <div style={{ position: 'absolute', left: '-9999px', top: 0 }}>
-        <InvoiceWrapper
-          ref={printRef}
-          billNo={savedInvoiceData?.invoiceNumber || `DRAFT-${Date.now()}`}
+        {savedInvoiceData?.invoiceNumber && (savedInvoiceData?.filledItems?.length ?? 0) > 0 ? (
+          <InvoiceWrapper
+            ref={printRef}
+            billNo={savedInvoiceData.invoiceNumber}
           date={invoiceDate}
           customerName={savedInvoiceData?.customer.customer_name || selectedCustomer?.customer_name || ""}
           customerAddress={savedInvoiceData?.customer.address || selectedCustomer?.address || ""}
           customerMobile={savedInvoiceData?.customer.phone || selectedCustomer?.phone || ""}
           customerGSTIN={savedInvoiceData?.customer.gst_number || selectedCustomer?.gst_number || ""}
           customerTransportDetails={(savedInvoiceData?.customer as any)?.transport_details || (selectedCustomer as any)?.transport_details || ""}
-          items={(savedInvoiceData?.filledItems || lineItems.filter(item => item.productId)).map((item: any, index: number) => ({
+            items={(savedInvoiceData.filledItems).map((item: any, index: number) => ({
               sr: index + 1,
               particulars: item.productName,
               size: item.size,
@@ -4575,6 +4588,7 @@ Thank you for choosing us!`;
             taxType={taxType}
             financerDetails={financerDetails}
           />
+        ) : <div ref={printRef} />}
         </div>
 
       {/* Product History Dialog */}
