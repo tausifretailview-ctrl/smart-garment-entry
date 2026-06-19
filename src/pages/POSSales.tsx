@@ -60,6 +60,11 @@ import {
 import { buildPublicInvoiceViewUrl } from "@/utils/publicInvoiceLink";
 import { localDayBounds, todayLocalYmd } from "@/lib/localDayBounds";
 import {
+  readPersistedLastPosHint,
+  persistLastPosHint,
+  type LastCompletedPosHint,
+} from "@/lib/posLastBillHint";
+import {
   notifyPosSalesChanged,
   POS_FOCUS_BARCODE_EVENT,
 } from "@/utils/posSalesRefresh";
@@ -536,20 +541,19 @@ export default function POSSales() {
     return safe.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }, []);
 
-  type LastCompletedPosHint = {
-    invoiceNumber: string;
-    amount: number;
-    qty: number;
-  };
   const [lastCompletedPosHint, setLastCompletedPosHint] = useState<LastCompletedPosHint | null>(null);
 
   const applyLastCompletedPosHint = useCallback((invoiceNumber: string, amount: number, qty: number) => {
-    setLastCompletedPosHint({
+    const hint: LastCompletedPosHint = {
       invoiceNumber,
       amount: Number(amount) || 0,
       qty: Number(qty) || 0,
-    });
-  }, []);
+    };
+    setLastCompletedPosHint(hint);
+    if (currentOrganization?.id) {
+      persistLastPosHint(currentOrganization.id, hint);
+    }
+  }, [currentOrganization?.id]);
 
   const bumpCartHighlight = useCallback((id: string) => {
     setHighlightCartItemId(id);
@@ -1538,6 +1542,12 @@ export default function POSSales() {
     refetchInterval: posRefetchInterval,
     refetchOnWindowFocus: false,
   });
+
+  useEffect(() => {
+    if (!currentOrganization?.id) return;
+    const cached = readPersistedLastPosHint(currentOrganization.id);
+    if (cached) setLastCompletedPosHint(cached);
+  }, [currentOrganization?.id]);
 
   useEffect(() => {
     const latest = todaysSales?.[0];
@@ -6252,7 +6262,35 @@ export default function POSSales() {
         </div>
 
         {/* Keyboard Shortcut Bar - Desktop only, redesigned with columns */}
-        <div className="pos-sales-shortcuts hidden md:flex h-[52px] shrink-0 w-full flex-nowrap bg-slate-800 dark:bg-slate-950 text-white items-center gap-1 border-t border-slate-700/50 select-none px-2 overflow-hidden">
+        <div className="pos-sales-shortcuts hidden md:flex h-[52px] shrink-0 w-full flex-nowrap bg-slate-800 dark:bg-slate-950 text-white items-center gap-2 border-t border-slate-700/50 select-none px-2">
+          {/* Last saved bill — pinned left so it is never clipped off-screen on web */}
+          <div
+            className="flex shrink-0 items-center gap-3 px-3 py-1.5 rounded-md bg-slate-900/90 border border-slate-600/50 min-w-[min(100%,22rem)]"
+            title="Last saved POS invoice today"
+          >
+            <span className="text-xs uppercase tracking-wide text-slate-300 font-bold whitespace-nowrap">
+              Last Bill
+            </span>
+            {lastCompletedPosHint ? (
+              <>
+                <span className="text-[15px] font-bold text-emerald-400 tabular-nums whitespace-nowrap">
+                  {lastCompletedPosHint.invoiceNumber}
+                </span>
+                <span className="text-sm text-slate-200 whitespace-nowrap">
+                  Qty{" "}
+                  <span className="text-[15px] font-bold text-white tabular-nums">{lastCompletedPosHint.qty}</span>
+                </span>
+                <span className="text-base font-extrabold text-amber-300 tabular-nums whitespace-nowrap">
+                  ₹{formatINR2(lastCompletedPosHint.amount)}
+                </span>
+              </>
+            ) : (
+              <span className="text-sm text-slate-500 whitespace-nowrap">No bill saved today</span>
+            )}
+          </div>
+
+          <div className="w-px h-8 bg-slate-600 shrink-0" aria-hidden />
+
           <div className="flex flex-1 min-w-0 items-center justify-center gap-1 overflow-x-auto whitespace-nowrap">
           {/* Payment methods - amber/yellow */}
           {[
@@ -6310,30 +6348,6 @@ export default function POSSales() {
             <span className="text-[13px] font-extrabold text-slate-300 leading-tight">Print</span>
           </div>
           </div>
-
-          {lastCompletedPosHint ? (
-            <>
-              <div className="w-px h-8 bg-slate-600 shrink-0" aria-hidden />
-              <div
-                className="flex shrink-0 items-center gap-3 px-3 py-1.5 rounded-md bg-slate-900/90 border border-slate-600/50"
-                title="Last saved POS invoice today"
-              >
-                <span className="text-xs uppercase tracking-wide text-slate-300 font-bold whitespace-nowrap">
-                  Last Bill
-                </span>
-                <span className="text-[15px] font-bold text-emerald-400 tabular-nums whitespace-nowrap">
-                  {lastCompletedPosHint.invoiceNumber}
-                </span>
-                <span className="text-sm text-slate-200 whitespace-nowrap">
-                  Qty{" "}
-                  <span className="text-[15px] font-bold text-white tabular-nums">{lastCompletedPosHint.qty}</span>
-                </span>
-                <span className="text-base font-extrabold text-amber-300 tabular-nums whitespace-nowrap">
-                  ₹{formatINR2(lastCompletedPosHint.amount)}
-                </span>
-              </div>
-            </>
-          ) : null}
         </div>
         </div>
 
