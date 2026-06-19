@@ -1833,6 +1833,24 @@ input.no-uppercase {
   padding-right: 12px;
 }
 
+/* Purchase dashboard — dense layout, prominent bill numbers */
+.purchase-bill-dashboard .erp-desktop-table th {
+  padding: 4px 8px;
+  font-size: 11px;
+  height: 28px;
+}
+
+.purchase-bill-dashboard .erp-desktop-table td {
+  padding: 2px 8px;
+  font-size: 13px;
+  height: 30px;
+}
+
+.purchase-bill-dashboard .erp-desktop-table tbody tr.h-10,
+.purchase-bill-dashboard .erp-desktop-table tbody tr.h-14 {
+  height: 30px;
+}
+
 /* Bill entry — use full content width; product column absorbs extra space */
 [data-entry-form] {
   max-width: none;
