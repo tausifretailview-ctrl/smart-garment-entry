@@ -60,6 +60,35 @@ const EMPTY_SUMMARY: OrganizationReceivablesSummary = {
   advanceAvailable: 0,
 };
 
+export type SignedBalanceFacetSummary = {
+  grossReceivableDr: number;
+  customerCreditPoolCr: number;
+  netReceivable: number;
+};
+
+/**
+ * Aggregate signed master balances into gross DR / credit pool / net facets.
+ * Use wherever a list of per-customer `balance` values is summed for display.
+ */
+export function summarizeSignedBalanceFacets(
+  rows: Array<{ balance: number }>,
+): SignedBalanceFacetSummary {
+  let grossReceivableDr = 0;
+  let customerCreditPoolCr = 0;
+  let netReceivable = 0;
+  for (const row of rows) {
+    const b = Number(row.balance) || 0;
+    if (b > 0) grossReceivableDr += b;
+    else if (b < 0) customerCreditPoolCr += -b;
+    netReceivable += b;
+  }
+  return {
+    grossReceivableDr: Math.round(grossReceivableDr),
+    customerCreditPoolCr: Math.round(customerCreditPoolCr),
+    netReceivable: Math.round(netReceivable),
+  };
+}
+
 /** Per-customer signed master balances for the whole org (one RPC call). */
 export async function fetchOrganizationReceivableRows(
   organizationId: string,
@@ -95,21 +124,13 @@ export function receivableRowsToBalanceMap(
 export function summarizeReceivableRows(
   rows: OrganizationReceivableRow[],
 ): OrganizationReceivablesSummary {
-  const totals = { ...EMPTY_SUMMARY, customerCount: rows.length };
+  const facets = summarizeSignedBalanceFacets(rows);
+  const totals = { ...EMPTY_SUMMARY, customerCount: rows.length, ...facets };
   for (const row of rows) {
-    if (row.balance > 0) {
-      totals.customersOwing += 1;
-      totals.grossReceivableDr += row.balance;
-    } else if (row.balance < 0) {
-      totals.customersInCredit += 1;
-      totals.customerCreditPoolCr += -row.balance;
-    }
-    totals.netReceivable += row.balance;
+    if (row.balance > 0) totals.customersOwing += 1;
+    else if (row.balance < 0) totals.customersInCredit += 1;
     totals.advanceAvailable += row.advanceAvailable;
   }
-  totals.grossReceivableDr = Math.round(totals.grossReceivableDr);
-  totals.customerCreditPoolCr = Math.round(totals.customerCreditPoolCr);
-  totals.netReceivable = Math.round(totals.netReceivable);
   totals.advanceAvailable = Math.round(totals.advanceAvailable * 100) / 100;
   return totals;
 }

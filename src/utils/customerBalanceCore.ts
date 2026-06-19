@@ -506,3 +506,27 @@ export function sumReconcileStyleComponents(c: CustomerBalanceCoreComponents): n
     c.pendingStandaloneSaleReturns
   );
 }
+
+/**
+ * Canonical customer account state — single entry for net/gross/advance facets.
+ * Prefer this (or {@link computeCustomerBalanceCore}) over re-deriving balances in UI.
+ */
+export function getCustomerAccountState(
+  params: CustomerBalanceCoreParams,
+): CustomerBalanceCoreResult & {
+  /** Signed net receivable: > 0 customer owes, < 0 credit/advance pool. */
+  netReceivable: number;
+  /** Gross outstanding (Dr only): max(0, netReceivable) for a single customer. */
+  grossOutstandingDr: number;
+  /** Credit pool (Cr only): max(0, −netReceivable) for a single customer. */
+  customerCreditPoolCr: number;
+} {
+  const core = computeCustomerBalanceCore(params);
+  const netReceivable = core.balance;
+  return {
+    ...core,
+    netReceivable,
+    grossOutstandingDr: Math.max(0, netReceivable),
+    customerCreditPoolCr: Math.max(0, -netReceivable),
+  };
+}

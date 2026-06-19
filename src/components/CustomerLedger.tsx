@@ -37,6 +37,7 @@ import { useCustomerFinancialSnapshot } from "@/hooks/useCustomerFinancialSnapsh
 import {
   fetchOrganizationReceivableRows,
   receivableRowsToBalanceMap,
+  summarizeSignedBalanceFacets,
 } from "@/utils/organizationReceivables";
 import {
   computeCustomerOutstanding,
@@ -2673,14 +2674,13 @@ export function CustomerLedger({
     // balance is the signed Master Reconciliation value: > 0 owes us (Dr),
     // < 0 in credit (advance / overpayment). Surface the credit pool and the
     // true net instead of silently clamping negatives to zero.
-    const grossOutstanding = filteredCustomers.reduce((sum, c) => sum + Math.max(0, c.balance), 0);
-    const customerCreditPool = filteredCustomers.reduce((sum, c) => sum + Math.max(0, -c.balance), 0);
+    const facets = summarizeSignedBalanceFacets(filteredCustomers);
     return {
       totalCustomers: filteredCustomers.length,
-      totalOutstanding: grossOutstanding,
+      totalOutstanding: facets.grossReceivableDr,
       totalReceivable: filteredCustomers.reduce((sum, c) => sum + c.totalSales, 0),
-      customerCreditPool,
-      netReceivable: grossOutstanding - customerCreditPool,
+      customerCreditPool: facets.customerCreditPoolCr,
+      netReceivable: facets.netReceivable,
     };
   }, [filteredCustomers]);
 
