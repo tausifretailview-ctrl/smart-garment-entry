@@ -1,7 +1,9 @@
+import { Link } from "react-router-dom";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { cn } from "@/lib/utils";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, ExternalLink } from "lucide-react";
 import { CustomerAccountHistoryContent } from "@/components/customer-account/CustomerAccountHistoryContent";
 
 interface CustomerHistoryDialogProps {
@@ -10,6 +12,25 @@ interface CustomerHistoryDialogProps {
   customerId: string | null;
   customerName: string;
   organizationId: string;
+}
+
+function OpenFullPageLink({ customerId, className }: { customerId: string | null; className?: string }) {
+  const { getOrgPath } = useOrgNavigation();
+  if (!customerId) return null;
+
+  return (
+    <Link
+      to={getOrgPath(`/accounting/customer/${customerId}`)}
+      title="Open full page"
+      aria-label="Open full page"
+      className={cn(
+        "inline-flex items-center justify-center w-9 h-9 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted transition-colors shrink-0",
+        className,
+      )}
+    >
+      <ExternalLink className="h-4 w-4" />
+    </Link>
+  );
 }
 
 export function CustomerHistoryDialog({
@@ -43,6 +64,7 @@ export function CustomerHistoryDialog({
             <h2 className="text-base font-semibold truncate">{customerName}</h2>
             <p className="text-[11px] text-muted-foreground">Account history & transactions</p>
           </div>
+          <OpenFullPageLink customerId={customerId} />
         </div>
 
         <div
@@ -65,13 +87,16 @@ export function CustomerHistoryDialog({
       <DialogContent className="max-w-6xl w-[95vw] max-h-[92vh] overflow-hidden flex flex-col p-0 bg-slate-50">
         <div className="h-1 w-full bg-gradient-to-r from-blue-500 via-blue-600 to-violet-500 rounded-t-lg flex-shrink-0" />
         <div className="p-4 sm:p-5 pb-0 bg-slate-50">
-          <DialogHeader>
-            <DialogTitle className="text-2xl font-extrabold text-blue-600 tracking-tight leading-tight">
-              {customerName}
-            </DialogTitle>
-            <DialogDescription className="text-slate-400 text-base mt-0.5">
-              Customer account history and transactions
-            </DialogDescription>
+          <DialogHeader className="flex-row items-start justify-between gap-3 space-y-0">
+            <div className="min-w-0 flex-1">
+              <DialogTitle className="text-2xl font-extrabold text-blue-600 tracking-tight leading-tight">
+                {customerName}
+              </DialogTitle>
+              <DialogDescription className="text-slate-400 text-base mt-0.5">
+                Customer account history and transactions
+              </DialogDescription>
+            </div>
+            <OpenFullPageLink customerId={customerId} className="mr-8 mt-0.5" />
           </DialogHeader>
         </div>
         <CustomerAccountHistoryContent
