@@ -1383,7 +1383,7 @@ const PurchaseEntry = () => {
 
   // Show restoring hint on F5 before async IDB read completes.
   useLayoutEffect(() => {
-    if (location.state?.newBill) return;
+    if (location.state?.newBill || location.state?.editBillId) return;
     if (draftDiscardedExternallyRef.current) return;
     if (lineItems.length > 0 || workRestoredRef.current) return;
     const orgId = currentOrganization?.id;
@@ -1997,9 +1997,6 @@ const PurchaseEntry = () => {
       loadedEditBillIdRef.current = null;
       console.error('Failed to load bill:', err);
       toast({ variant: 'destructive', title: 'Error', description: 'Failed to load purchase bill' });
-      if (options?.usePageLoader) {
-        navigate("/purchase-bills");
-      }
     } finally {
       isInitializingEditRef.current = false;
       entryPersistenceBlockedRef.current = false;
@@ -2010,6 +2007,31 @@ const PurchaseEntry = () => {
       }
     }
   }, [currentOrganization?.id, toast, navigate, location.pathname]);
+
+  /** Dashboard / barcode "edit this bill" — must override cached draft restore flags. */
+  const openPurchaseBillForEdit = useCallback(
+    async (billId: string) => {
+      if (!currentOrganization?.id || !billId) return;
+      workRestoredRef.current = false;
+      purchaseSaveFinalizedRef.current = false;
+      draftDiscardedExternallyRef.current = false;
+      loadedEditBillIdRef.current = null;
+      skipSnapshotEffectRef.current = true;
+      importJustAppliedRef.current = false;
+      pendingImportRef.current = null;
+      updateCurrentData(null);
+      await deleteDraft();
+      clearEntrySession();
+      await loadBillById(billId, { usePageLoader: true, force: true });
+    },
+    [
+      clearEntrySession,
+      currentOrganization?.id,
+      deleteDraft,
+      loadBillById,
+      updateCurrentData,
+    ],
+  );
 
   const handleLastBill = useCallback(() => {
     if (!allBillIds || allBillIds.length === 0) return;
@@ -2078,13 +2100,18 @@ const PurchaseEntry = () => {
   ]);
 
   // Load bill when opened from dashboard / barcode print "Back to Purchase Bill"
-  useEffect(() => {
+  useLayoutEffect(() => {
     const billId = location.state?.editBillId;
-    if (!billId || location.state?.loadDraft || workRestoredRef.current) return;
+    if (!billId || location.state?.loadDraft) return;
     if (!currentOrganization?.id) return;
-    loadedEditBillIdRef.current = null;
-    void loadBillById(billId, { usePageLoader: true, force: true });
-  }, [location.state?.editBillId, location.state?.loadDraft, location.key, currentOrganization?.id, loadBillById]);
+    void openPurchaseBillForEdit(billId);
+  }, [
+    location.state?.editBillId,
+    location.state?.loadDraft,
+    location.key,
+    currentOrganization?.id,
+    openPurchaseBillForEdit,
+  ]);
 
   useEffect(() => {
     if (searchQuery.length >= 1) {
