@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, type QueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import {
   classifyCustomerSegment,
@@ -10,6 +10,73 @@ import { useCustomerFinancialSnapshot } from "@/hooks/useCustomerFinancialSnapsh
 import { useSchoolFeatures } from "@/hooks/useSchoolFeatures";
 import { resolveImportedOpeningBalance } from "@/lib/schoolFeeOpening";
 import { adjustmentDueDelta } from "@/lib/schoolFeeLiability";
+
+export async function invalidateCustomerAccountHistoryQueries(
+  queryClient: QueryClient,
+  customerId: string | null,
+  organizationId: string | null,
+) {
+  const keys = [
+    "customer-sales-history",
+    "customer-payment-history",
+    "customer-credit-notes-history",
+    "customer-sale-returns-history",
+    "customer-legacy-invoices",
+    "customer-advances-history",
+    "customer-adjustments-history",
+    "customer-sale-stats",
+    "school-customer-fees",
+    "customer-balance",
+    "customer-financial-snapshot",
+    "customer-ledger",
+    "voucher-entries",
+    "sales",
+    "customers-with-balance",
+  ];
+  await Promise.all(
+    keys.map((key) =>
+      queryClient.invalidateQueries({
+        queryKey: [key],
+        ...(customerId && organizationId ? { refetchType: "active" } : {}),
+      }),
+    ),
+  );
+  if (customerId && organizationId) {
+    await queryClient.invalidateQueries({ queryKey: ["customer-account-page", customerId, organizationId] });
+  }
+}
+
+export function getReturnCnAvailable(ret: {
+  credit_note_id?: string | null;
+  cn_live_remaining?: number | null;
+  linked_sale_id?: string | null;
+  credit_available_balance?: number | null;
+  net_amount?: number | null;
+}) {
+  if (ret.credit_note_id && ret.cn_live_remaining != null) {
+    return Number(ret.cn_live_remaining);
+  }
+  if (ret.linked_sale_id) {
+    return Number(ret.credit_available_balance ?? 0);
+  }
+  return Number(ret.net_amount || 0);
+}
+
+export function canApplyReturnCreditNote(ret: {
+  credit_status?: string | null;
+  linked_sale_id?: string | null;
+  credit_note_id?: string | null;
+  cn_live_remaining?: number | null;
+  credit_available_balance?: number | null;
+  net_amount?: number | null;
+}) {
+  const status = ret.credit_status || "";
+  if (status === "refunded") return false;
+  if (status === "adjusted" && ret.linked_sale_id && getReturnCnAvailable(ret) <= 0) {
+    return false;
+  }
+  return getReturnCnAvailable(ret) > 0;
+}
 
 export type UseCustomerAccountHistoryDataArgs = {
   customerId: string | null;
@@ -233,7 +300,9 @@ export function useCustomerAccountHistoryData({
 
       const { data, error } = await supabase
         .from("voucher_entries")
-        .select("id, voucher_number, voucher_date, voucher_type, total_amount, description, created_at")
+        .select(
+          "id, voucher_number, voucher_date, voucher_type, total_amount, description, created_at, created_by, payment_method, reference_id, reference_type, receiving_bank_account_id",
+        )
         .eq("organization_id", organizationId)
         .or("voucher_type.eq.receipt,voucher_type.eq.RECEIPT")
         .is("deleted_at", null)
@@ -272,13 +341,31 @@ export function useCustomerAccountHistoryData({
       if (!customerId || !organizationId) return [];
       const { data, error } = await supabase
         .from("sale_returns")
-        .select("id, return_number, return_date, original_sale_number, net_amount, credit_status, linked_sale_id")
+        .select(
+          "id, return_number, return_date, original_sale_number, net_amount, credit_status, linked_sale_id, credit_note_id, credit_available_balance, refund_type, customer_id",
+        )
         .eq("customer_id", customerId)
         .eq("organization_id", organizationId)
         .is("deleted_at", null)
         .order("return_date", { ascending: false });
       if (error) throw error;
-      return data || [];
+      const rows = data || [];
+      const creditNoteIds = [...new Set(rows.map((r) => r.credit_note_id).filter(Boolean))] as string[];
+      const cnLiveMap: Record<string, number> = {};
+      if (creditNoteIds.length > 0) {
+        const { data: cnRows } = await supabase
+          .from("credit_notes")
+          .select("id, credit_amount, used_amount")
+          .eq("organization_id", organizationId)
+          .in("id", creditNoteIds);
+        (cnRows || []).forEach((cn) => {
+          cnLiveMap[cn.id] = Math.max(0, Number(cn.credit_amount || 0) - Number(cn.used_amount || 0));
+        });
+      }
+      return rows.map((row) => ({
+        ...row,
+        cn_live_remaining: row.credit_note_id ? cnLiveMap[row.credit_note_id] ?? null : null,
+      }));
     },
     enabled: historyEnabled,
   });
@@ -372,6 +459,20 @@ export function useCustomerAccountHistoryData({
     totalCnApplied,
   ]);
 
+  /** Same refund banner math as CustomerLedger (derived from snapshot + summary). */
+  const refundableCreditBalance = useMemo(() => {
+    if (isSchool) return 0;
+    const unused = summary.advanceAvailable;
+    const cn = summary.cnAvailable;
+    const pool = unused + cn;
+    const lifetimeSigned = summary.outstandingDr;
+    if (lifetimeSigned < -0.5) {
+      return Math.round(Math.min(pool, Math.abs(lifetimeSigned)));
+    }
+    const outstandingDr = Math.max(0, lifetimeSigned);
+    return Math.round(Math.max(0, pool - outstandingDr));
+  }, [isSchool, summary]);
+
   return {
     isSchool,
     schoolFeeData,
@@ -400,5 +501,6 @@ export function useCustomerAccountHistoryData({
     adjustmentsLoading,
     refunds,
     isLoading,
+    refundableCreditBalance,
   };
 }

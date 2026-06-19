@@ -4,7 +4,7 @@ import { ArrowLeft, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
-import { CustomerAccountHistoryContent } from "@/components/customer-account/CustomerAccountHistoryContent";
+import { CustomerAccountHistoryShell } from "@/components/customer-account/CustomerAccountHistoryShell";
 
 export default function CustomerAccountPage() {
   const { customerId } = useParams<{ customerId: string }>();
@@ -69,7 +69,7 @@ export default function CustomerAccountPage() {
           Customer not found.
         </div>
       ) : (
-        <CustomerAccountHistoryContent
+        <CustomerAccountHistoryShell
           customerId={customerId}
           customerName={customerName}
           organizationId={organizationId}

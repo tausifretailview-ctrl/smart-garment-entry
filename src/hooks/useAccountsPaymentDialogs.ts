@@ -173,6 +173,12 @@ export function useAccountsPaymentDialogs(settings: any) {
       queryClient.invalidateQueries({ queryKey: ["customer-invoices"] });
       queryClient.invalidateQueries({ queryKey: ["payment-reconciliation"] });
       queryClient.invalidateQueries({ queryKey: ["customer-ledger"] });
+      queryClient.invalidateQueries({ queryKey: ["customer-payment-history"] });
+      queryClient.invalidateQueries({ queryKey: ["customer-sales-history"] });
+      queryClient.invalidateQueries({ queryKey: ["customer-credit-notes-history"] });
+      queryClient.invalidateQueries({ queryKey: ["customer-sale-returns-history"] });
+      queryClient.invalidateQueries({ queryKey: ["customer-advances-history"] });
+      queryClient.invalidateQueries({ queryKey: ["customer-financial-snapshot"] });
       toast.success(
         `Payment updated. Amount changed from ₹${Math.round(data.oldAmount).toLocaleString("en-IN")} to ₹${Math.round(data.newAmount).toLocaleString("en-IN")}`
       );

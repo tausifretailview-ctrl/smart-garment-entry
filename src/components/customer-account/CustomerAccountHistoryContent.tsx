@@ -8,10 +8,31 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { Loader2, IndianRupee, CreditCard, RotateCcw, FileText, Receipt, ChevronDown, ChevronRight, History, Eye, Wallet, Scale } from "lucide-react";
+import {
+  Loader2,
+  IndianRupee,
+  CreditCard,
+  RotateCcw,
+  FileText,
+  Receipt,
+  ChevronDown,
+  ChevronRight,
+  History,
+  Eye,
+  Wallet,
+  Scale,
+  Pencil,
+  ExternalLink,
+  Link2,
+  Undo2,
+} from "lucide-react";
 import { format } from "date-fns";
-import { useCustomerAccountHistoryData } from "@/hooks/useCustomerAccountHistoryData";
+import {
+  canApplyReturnCreditNote,
+  useCustomerAccountHistoryData,
+} from "@/hooks/useCustomerAccountHistoryData";
 import { cn } from "@/lib/utils";
+import type { CustomerAccountHistoryActions } from "@/components/customer-account/customerAccountHistoryActions";
 
 interface SaleItem {
   id: string;
@@ -287,6 +308,7 @@ interface CustomerAccountHistoryContentProps {
   queriesEnabled: boolean;
   scrollAreaClassName?: string;
   wrapperClassName?: string;
+  actions?: CustomerAccountHistoryActions;
 }
 
 export function CustomerAccountHistoryContent({
@@ -296,6 +318,7 @@ export function CustomerAccountHistoryContent({
   queriesEnabled,
   scrollAreaClassName = "flex-1 mt-3 h-[55vh]",
   wrapperClassName = "px-3 sm:px-5 pb-3 sm:pb-5 flex flex-col flex-1 overflow-hidden",
+  actions,
 }: CustomerAccountHistoryContentProps) {
   const [activeTab, setActiveTab] = useState("sales");
   const [expandedSaleId, setExpandedSaleId] = useState<string | null>(null);
@@ -329,6 +352,7 @@ export function CustomerAccountHistoryContent({
     balanceAdjustments,
     adjustmentsLoading,
     refunds,
+    refundableCreditBalance,
   } = useCustomerAccountHistoryData({ customerId, organizationId, queriesEnabled });
 
   // Keyboard navigation for Legacy tab
@@ -525,6 +549,47 @@ export function CustomerAccountHistoryContent({
             );
           })()}
 
+          {actions && refundableCreditBalance > 0 && (
+            <div className="mb-3 p-3 rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/30 flex flex-wrap items-center justify-between gap-3">
+              <p className="text-sm font-semibold text-amber-900 dark:text-amber-100">
+                ₹{refundableCreditBalance.toLocaleString("en-IN")} credit balance — refund to customer
+              </p>
+              <div className="flex items-center gap-2">
+                {summary.advanceAvailable > 0 && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="border-amber-400 text-amber-800 dark:text-amber-200"
+                    onClick={actions.onRefundAdvance}
+                  >
+                    <Undo2 className="h-4 w-4 mr-1" />
+                    Refund Advance
+                  </Button>
+                )}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="border-red-400 text-red-700 dark:text-red-300"
+                  onClick={actions.onRefundOverpayment}
+                >
+                  <IndianRupee className="h-4 w-4 mr-1" />
+                  Refund Overpayment
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {actions && summary.advanceAvailable > 0.005 && summary.outstandingDr > 0.005 && (
+            <div className="mb-3 flex justify-end">
+              <Button type="button" variant="outline" size="sm" onClick={actions.onApplyAdvance}>
+                <Wallet className="h-4 w-4 mr-1" />
+                Apply advance in Accounts
+              </Button>
+            </div>
+          )}
+
           {/* Tabs */}
           <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 overflow-hidden flex flex-col">
             <div className="overflow-x-auto -mx-1 px-1">
@@ -626,10 +691,17 @@ export function CustomerAccountHistoryContent({
                                   );
                                 })()}
                               </TableCell>
-                              <TableCell>
-                                <Button variant="ghost" size="icon" className="h-7 w-7" title="View details" onClick={(e) => { e.stopPropagation(); setPreview({ type: "sale", data: sale }); }}>
-                                  <Eye className="h-4 w-4" />
-                                </Button>
+                              <TableCell onClick={(e) => e.stopPropagation()}>
+                                <div className="flex items-center justify-center gap-0.5">
+                                  <Button variant="ghost" size="icon" className="h-7 w-7" title="View details" onClick={() => setPreview({ type: "sale", data: sale })}>
+                                    <Eye className="h-4 w-4" />
+                                  </Button>
+                                  {actions && !saleCancelled && (
+                                    <Button variant="ghost" size="icon" className="h-7 w-7" title="Open invoice" onClick={() => actions.onViewInvoice(sale.id)}>
+                                      <ExternalLink className="h-4 w-4" />
+                                    </Button>
+                                  )}
+                                </div>
                               </TableCell>
                             </TableRow>
                             {isExpanded && items.length > 0 && (
@@ -750,9 +822,16 @@ export function CustomerAccountHistoryContent({
                           <TableCell className="text-green-600 font-semibold">₹{payment.total_amount.toFixed(2)}</TableCell>
                           <TableCell className="text-muted-foreground">{payment.description || '-'}</TableCell>
                           <TableCell>
-                            <Button variant="ghost" size="icon" className="h-7 w-7" title="View Payment" onClick={() => setPreview({ type: "payment", data: payment })}>
-                              <Eye className="h-4 w-4" />
-                            </Button>
+                            <div className="flex items-center justify-center gap-0.5">
+                              <Button variant="ghost" size="icon" className="h-7 w-7" title="View Payment" onClick={() => setPreview({ type: "payment", data: payment })}>
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                              {actions && (
+                                <Button variant="ghost" size="icon" className="h-7 w-7" title="Edit Payment" onClick={() => actions.onEditPayment(payment)}>
+                                  <Pencil className="h-4 w-4" />
+                                </Button>
+                              )}
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))}
@@ -786,9 +865,16 @@ export function CustomerAccountHistoryContent({
                           <TableCell>{ret.original_sale_number || '-'}</TableCell>
                           <TableCell className="text-red-600 font-semibold">₹{ret.net_amount.toFixed(2)}</TableCell>
                           <TableCell>
-                            <Button variant="ghost" size="icon" className="h-7 w-7" title="View Return" onClick={() => setPreview({ type: "return", data: ret })}>
-                              <Eye className="h-4 w-4" />
-                            </Button>
+                            <div className="flex items-center justify-center gap-0.5">
+                              <Button variant="ghost" size="icon" className="h-7 w-7" title="View Return" onClick={() => setPreview({ type: "return", data: ret })}>
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                              {actions && canApplyReturnCreditNote(ret) && (
+                                <Button variant="ghost" size="icon" className="h-7 w-7 text-orange-600" title="Apply credit note" onClick={() => actions.onApplyReturnCn(ret)}>
+                                  <Link2 className="h-4 w-4" />
+                                </Button>
+                              )}
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))}
@@ -828,9 +914,16 @@ export function CustomerAccountHistoryContent({
                             </Badge>
                           </TableCell>
                           <TableCell>
-                            <Button variant="ghost" size="icon" className="h-7 w-7" title="View Credit Note" onClick={() => setPreview({ type: "credit-note", data: cn })}>
-                              <Eye className="h-4 w-4" />
-                            </Button>
+                            <div className="flex items-center justify-center gap-0.5">
+                              <Button variant="ghost" size="icon" className="h-7 w-7" title="View Credit Note" onClick={() => setPreview({ type: "credit-note", data: cn })}>
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                              {actions && (
+                                <Button variant="ghost" size="icon" className="h-7 w-7" title="CN history" onClick={() => actions.onViewCreditNote({ id: cn.id })}>
+                                  <History className="h-4 w-4" />
+                                </Button>
+                              )}
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))}
@@ -862,9 +955,16 @@ export function CustomerAccountHistoryContent({
                           <TableCell>₹{sale.net_amount.toFixed(2)}</TableCell>
                           <TableCell className="text-red-600 font-semibold">₹{(sale.refund_amount || 0).toFixed(2)}</TableCell>
                           <TableCell>
-                            <Button variant="ghost" size="icon" className="h-7 w-7" title="View Invoice" onClick={() => setPreview({ type: "refund", data: sale })}>
-                              <Eye className="h-4 w-4" />
-                            </Button>
+                            <div className="flex items-center justify-center gap-0.5">
+                              <Button variant="ghost" size="icon" className="h-7 w-7" title="View Invoice" onClick={() => setPreview({ type: "refund", data: sale })}>
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                              {actions && (
+                                <Button variant="ghost" size="icon" className="h-7 w-7" title="Open invoice" onClick={() => actions.onViewInvoice(sale.id)}>
+                                  <ExternalLink className="h-4 w-4" />
+                                </Button>
+                              )}
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))}
@@ -915,9 +1015,21 @@ export function CustomerAccountHistoryContent({
                               </Badge>
                             </TableCell>
                             <TableCell className="text-center">
-                              <Button variant="ghost" size="icon" className="h-7 w-7" title="View Advance" onClick={() => setPreview({ type: "advance", data: adv })}>
-                                <Eye className="h-4 w-4" />
-                              </Button>
+                              <div className="flex items-center justify-center gap-0.5">
+                                <Button variant="ghost" size="icon" className="h-7 w-7" title="View Advance" onClick={() => setPreview({ type: "advance", data: adv })}>
+                                  <Eye className="h-4 w-4" />
+                                </Button>
+                                {actions && unused > 0 && (
+                                  <>
+                                    <Button variant="ghost" size="icon" className="h-7 w-7 text-emerald-600" title="Apply advance" onClick={actions.onApplyAdvance}>
+                                      <Wallet className="h-4 w-4" />
+                                    </Button>
+                                    <Button variant="ghost" size="icon" className="h-7 w-7 text-amber-600" title="Refund advance" onClick={actions.onRefundAdvance}>
+                                      <Undo2 className="h-4 w-4" />
+                                    </Button>
+                                  </>
+                                )}
+                              </div>
                             </TableCell>
                           </TableRow>
                         );

@@ -4,7 +4,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { cn } from "@/lib/utils";
 import { ArrowLeft, ExternalLink } from "lucide-react";
-import { CustomerAccountHistoryContent } from "@/components/customer-account/CustomerAccountHistoryContent";
+import { CustomerAccountHistoryShell } from "@/components/customer-account/CustomerAccountHistoryShell";
 
 interface CustomerHistoryDialogProps {
   open: boolean;
@@ -71,7 +71,7 @@ export function CustomerHistoryDialog({
           className="flex-1 overflow-y-auto overscroll-contain"
           style={{ WebkitOverflowScrolling: "touch" }}
         >
-          <CustomerAccountHistoryContent
+          <CustomerAccountHistoryShell
             customerId={customerId}
             customerName={customerName}
             organizationId={organizationId}
@@ -99,7 +99,7 @@ export function CustomerHistoryDialog({
             <OpenFullPageLink customerId={customerId} className="mr-8 mt-0.5" />
           </DialogHeader>
         </div>
-        <CustomerAccountHistoryContent
+        <CustomerAccountHistoryShell
           customerId={customerId}
           customerName={customerName}
           organizationId={organizationId}
