@@ -1966,6 +1966,11 @@ input.no-uppercase {
   font-size: 12px;
 }
 
+.purchase-entry-page .purchase-entry-meta-grid input,
+.purchase-entry-page .purchase-entry-meta-grid button[role="combobox"] {
+  min-height: 2.5rem;
+}
+
 /* ─── ERP Form Compact — Tally-style entry fields ─── */
 .erp-form-compact .erp-field {
   display: flex;

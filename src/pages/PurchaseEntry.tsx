@@ -5788,9 +5788,11 @@ const PurchaseEntry = () => {
       <main className={entryPageMainClass}>
 
         <section className={cn("bg-white border-b border-slate-100 py-2 shrink-0 shadow-sm", entryPageSectionX)}>
-            <div className="flex flex-wrap lg:flex-nowrap items-end gap-3">
-              <div className="space-y-2 flex-1 min-w-[140px]">
-                <Label htmlFor="software_bill_no">Software Bill No</Label>
+            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-7 gap-x-3 gap-y-2 items-start purchase-entry-meta-grid">
+              <div className="space-y-1.5 min-w-0">
+                <Label htmlFor="software_bill_no" className="text-[13px] font-semibold text-slate-500 leading-none">
+                  Software Bill No
+                </Label>
                 <Input
                   id="software_bill_no"
                   value={isEditMode ? softwareBillNo : (() => {
@@ -5805,14 +5807,16 @@ const PurchaseEntry = () => {
                     return `PUR/${fy}/1`;
                   })()}
                   readOnly
-                  className="bg-muted"
+                  className="h-10 bg-muted"
                   placeholder="Auto-generated"
                 />
               </div>
 
-              <div className="space-y-2 flex-[1.5] min-w-[160px]">
-                <Label htmlFor="supplier_name">Supplier *</Label>
-                <div className="flex gap-1 min-w-0">
+              <div className="col-span-2 space-y-1.5 min-w-0">
+                <Label htmlFor="supplier_name" className="text-[13px] font-semibold text-slate-500 leading-none">
+                  Supplier <span className="text-red-500">*</span>
+                </Label>
+                <div className="flex gap-1.5 min-w-0">
                   <Select
                     value={billData.supplier_id}
                     onValueChange={(value) => {
@@ -5824,7 +5828,7 @@ const PurchaseEntry = () => {
                       });
                     }}
                   >
-                    <SelectTrigger className="flex-1 min-w-0">
+                    <SelectTrigger id="supplier_name" className="h-10 flex-1 min-w-0">
                       <SelectValue placeholder="Select supplier" />
                     </SelectTrigger>
                     <SelectContent className="bg-background z-50">
@@ -5841,57 +5845,45 @@ const PurchaseEntry = () => {
                     size="icon"
                     onClick={() => setShowAddSupplierDialog(true)}
                     title="Add New Supplier"
-                    className="flex-shrink-0"
+                    className="h-10 w-10 shrink-0"
                   >
                     <Plus className="h-4 w-4" />
                   </Button>
                 </div>
               </div>
 
-              <div className="space-y-2 flex-1 min-w-[140px]">
-                <Label htmlFor="supplier_invoice_no">Supplier Invoice No *</Label>
+              <div className="space-y-1.5 min-w-0">
+                <Label htmlFor="supplier_invoice_no" className="text-[13px] font-semibold text-slate-500 leading-none">
+                  Supplier Invoice No <span className="text-red-500">*</span>
+                </Label>
                 <Input
                   id="supplier_invoice_no"
                   data-field="supplier-invoice-no"
                   value={billData.supplier_invoice_no}
                   onChange={(e) => handleSupplierInvoiceNoChange(e.target.value)}
                   placeholder={nextSupplierInvNo ? `Serial on save: ${nextSupplierInvNo}` : "Invoice number"}
+                  className="h-10"
                 />
-                {!isEditMode && (
-                  <p className="text-[11px] text-muted-foreground leading-snug">
-                    {supplierPaperInvoiceNo ? (
-                      <>
-                        Supplier&apos;s bill: <span className="font-mono">{supplierPaperInvoiceNo}</span>
-                        {" · "}
-                        our serial <span className="font-mono">{nextSupplierInvNo ?? "…"}</span> is assigned when you save
-                      </>
-                    ) : lastPurchaseBill?.supplier_invoice_no ? (
-                      <>
-                        Previous bill used <span className="font-mono">{lastPurchaseBill.supplier_invoice_no}</span>
-                        {nextSupplierInvNo ? (
-                          <> · next serial <span className="font-mono">{nextSupplierInvNo}</span></>
-                        ) : null}
-                      </>
-                    ) : nextSupplierInvNo ? (
-                      <>Auto serial <span className="font-mono">{nextSupplierInvNo}</span> on save</>
-                    ) : null}
-                  </p>
-                )}
               </div>
 
-              <div className="space-y-2 flex-1 min-w-[160px]">
-                <Label htmlFor="bill_date">Supplier bill date</Label>
+              <div className="space-y-1.5 min-w-0">
+                <Label htmlFor="bill_date" className="text-[13px] font-semibold text-slate-500 leading-none">
+                  Supplier bill date
+                </Label>
                 <Popover open={billDateOpen} onOpenChange={setBillDateOpen}>
                   <PopoverTrigger asChild>
                     <Button
+                      id="bill_date"
                       variant="outline"
                       className={cn(
-                        "w-full justify-start text-left font-normal",
+                        "h-10 w-full justify-start text-left font-normal px-3",
                         !billDate && "text-muted-foreground"
                       )}
                     >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {billDate ? format(billDate, "PPP") : <span>Pick a date</span>}
+                      <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
+                      <span className="truncate">
+                        {billDate ? format(billDate, "PPP") : "Pick a date"}
+                      </span>
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0" align="start">
@@ -5906,25 +5898,31 @@ const PurchaseEntry = () => {
                 </Popover>
               </div>
 
-              <div className="space-y-2 flex-1 min-w-[200px]">
-                <Label>Bill entry date &amp; time</Label>
+              <div className="space-y-1.5 min-w-0">
+                <Label className="text-[13px] font-semibold text-slate-500 leading-none">
+                  Bill entry date &amp; time
+                </Label>
                 <div
-                  className="h-10 px-3 flex items-center rounded-md border border-input bg-muted/40 text-sm tabular-nums"
+                  className="h-10 px-3 flex items-center rounded-md border border-input bg-muted/40 text-sm tabular-nums min-w-0"
                   title="When this purchase bill was saved in EzzyERP"
                 >
                   {billEntryAt ? (
-                    <span className="text-foreground font-medium">
+                    <span className="text-foreground font-medium truncate">
                       {formatPurchaseBillEntryAt({ bill_entry_at: billEntryAt })}
                     </span>
                   ) : (
-                    <span className="text-muted-foreground text-xs">Recorded automatically when you save</span>
+                    <span className="text-muted-foreground text-xs truncate">
+                      Recorded automatically when you save
+                    </span>
                   )}
                 </div>
               </div>
 
-              {/* DC Purchase Checkbox */}
-              <div className="flex items-end flex-shrink-0">
-                <label className="flex items-center gap-2 cursor-pointer h-10 px-3 border border-orange-300 bg-orange-50 dark:bg-orange-950/20 rounded-md">
+              <div className="space-y-1.5 min-w-0 self-start">
+                <span className="text-[13px] font-semibold text-slate-500 leading-none invisible select-none block" aria-hidden>
+                  Options
+                </span>
+                <label className="flex items-center gap-2 cursor-pointer h-10 px-3 border border-orange-300 bg-orange-50 dark:bg-orange-950/20 rounded-md w-full xl:w-auto max-w-full">
                   <Checkbox
                     checked={isDcPurchase}
                     onCheckedChange={(checked) => setIsDcPurchase(checked === true)}
@@ -5934,8 +5932,30 @@ const PurchaseEntry = () => {
                   </span>
                 </label>
               </div>
-
             </div>
+
+            {!isEditMode && (
+              <p className="text-[11px] text-muted-foreground leading-snug mt-1.5 min-h-[16px]">
+                {supplierPaperInvoiceNo ? (
+                  <>
+                    Supplier&apos;s bill: <span className="font-mono">{supplierPaperInvoiceNo}</span>
+                    {" · "}
+                    our serial <span className="font-mono">{nextSupplierInvNo ?? "…"}</span> is assigned when you save
+                  </>
+                ) : lastPurchaseBill?.supplier_invoice_no ? (
+                  <>
+                    Previous bill used <span className="font-mono">{lastPurchaseBill.supplier_invoice_no}</span>
+                    {nextSupplierInvNo ? (
+                      <> · next serial <span className="font-mono">{nextSupplierInvNo}</span></>
+                    ) : null}
+                  </>
+                ) : nextSupplierInvNo ? (
+                  <>Auto serial <span className="font-mono">{nextSupplierInvNo}</span> on save</>
+                ) : (
+                  "\u00a0"
+                )}
+              </p>
+            )}
 
             {/* DC Warning */}
             {isDcPurchase && (
