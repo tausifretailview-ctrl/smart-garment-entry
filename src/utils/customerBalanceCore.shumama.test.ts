@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   computeCustomerBalanceCore,
   computePendingStandaloneSaleReturns,
+  getCustomerAccountState,
 } from "./customerBalanceCore";
 
 /** ELLA NOOR Shumama Baireli — pending SRs must not consume global SRA pool. */
@@ -54,8 +55,9 @@ describe("computeCustomerBalanceCore — Shumama-shaped fixture", () => {
       ],
     });
     expect(result.paidAmountDrift).toBe(0);
-    expect(result.balance).toBeGreaterThan(-20000);
-    expect(result.balance).toBeLessThan(-10000);
+    expect(result.balance).toBeCloseTo(37150, 0);
+    expect(result.unusedAdvance).toBeCloseTo(50000, 0);
+    expect(result.balance - result.unusedAdvance).toBeCloseTo(-12850, 0);
   });
 
   it("credits full pending SR (fixes global sraPool under-credit)", () => {
@@ -80,7 +82,27 @@ describe("computeCustomerBalanceCore — Shumama-shaped fixture", () => {
       ],
     });
     expect(result.pendingStandaloneSaleReturns).toBe(33450);
-    expect(result.balance).toBe(-12850);
+    expect(result.balance).toBeCloseTo(37150, 0);
+    expect(getCustomerAccountState({
+      openingBalance: 0,
+      sales: [
+        {
+          id: "bulk",
+          net_amount: 510750,
+          sale_return_adjust: 40150,
+          paid_amount: 0,
+          items_gross: 510750,
+        },
+      ],
+      voucherEntries: [],
+      customerAdvances: [{ amount: 450000, used_amount: 400000 }],
+      advanceRefunds: [],
+      saleReturns: [
+        { net_amount: 11100, credit_status: "pending", linked_sale_id: null },
+        { net_amount: 11400, credit_status: "pending", linked_sale_id: null },
+        { net_amount: 10950, credit_status: "pending", linked_sale_id: null },
+      ],
+    }).netPosition).toBeCloseTo(-12850, 0);
   });
 
   it("economic net refund = unused advance + CN − outstanding Dr", () => {

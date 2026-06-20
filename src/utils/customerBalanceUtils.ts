@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAllCustomers } from "@/utils/fetchAllRows";
 import { fetchCustomerAuditBundle, salePaidAtSaleTender } from "@/utils/customerAuditBundle";
-import { computeCustomerBalanceCore, warnCustomerBalanceMismatch } from "@/utils/customerBalanceCore";
+import { computeCustomerBalanceCore, getCustomerAccountState, warnCustomerBalanceMismatch } from "@/utils/customerBalanceCore";
 import { fetchCustomerFinancialSnapshotMap } from "@/utils/customerFinancialSnapshot";
 import { CUSTOMER_RECEIPT_REFERENCE_TYPE_VALUES } from "@/utils/paymentVoucherFilters";
 
@@ -204,7 +204,7 @@ function computeCustomerOutstandingLegacy(p: CustomerOutstandingParams): Custome
 }
 
 /**
- * Customer outstanding for ledger bulk paths — delegates to {@link computeCustomerBalanceCore}
+ * Customer outstanding for ledger bulk paths — delegates to {@link getCustomerAccountState}
  * with ledger-aligned memo receipts; warns if legacy ledger math differs by > ₹1.
  */
 export function computeCustomerOutstanding(p: CustomerOutstandingParams): CustomerOutstandingResult {
@@ -220,7 +220,7 @@ export function computeCustomerOutstanding(p: CustomerOutstandingParams): Custom
     description: v.description,
   }));
 
-  const core = computeCustomerBalanceCore({
+  const state = getCustomerAccountState({
     openingBalance: p.openingBalance,
     customerId: p.customerId,
     sales: p.sales,
@@ -237,22 +237,22 @@ export function computeCustomerOutstanding(p: CustomerOutstandingParams): Custom
   warnCustomerBalanceMismatch(
     "customerBalanceUtils.computeCustomerOutstanding",
     legacy.balance,
-    core.balance,
+    state.balance,
     { customerId: p.customerId },
   );
 
-  const totalCashPaid = Math.round(core.receiptCredits + core.paidAmountDrift);
+  const totalCashPaid = Math.round(state.receiptCredits + state.paidAmountDrift);
 
   return {
-    balance: legacy.balance,
+    balance: state.balance,
     /** Net billings (gross invoices − CN/S/R on invoices). */
-    totalSales: core.totalSalesNet,
-    totalSalesGross: core.totalInvoicedGross,
-    totalSaleReturnAdjustOnSales: core.totalSaleReturnAdjustOnInvoices,
+    totalSales: state.totalSalesNet,
+    totalSalesGross: state.totalInvoicedGross,
+    totalSaleReturnAdjustOnSales: state.totalSaleReturnAdjustOnInvoices,
     totalPaid: legacy.totalPaid,
-    unusedAdvanceTotal: core.unusedAdvance,
-    adjustmentTotal: core.adjustmentTotal,
-    saleReturnTotal: core.pendingStandaloneSaleReturns,
+    unusedAdvanceTotal: state.unusedAdvance,
+    adjustmentTotal: state.adjustmentTotal,
+    saleReturnTotal: state.pendingStandaloneSaleReturns,
     totalCashPaid,
     totalAdvanceApplied: legacy.totalAdvanceApplied,
     totalCnApplied: legacy.totalCnApplied,

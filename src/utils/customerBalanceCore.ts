@@ -9,6 +9,9 @@ import { salePaidAtSaleTender } from "@/utils/customerAuditBundle";
  *
  * - `paidAmountDrift` — POS cash/UPI on `sales.paid_amount` without a matching receipt voucher
  * - `pendingStandaloneSaleReturns` — standalone sale_returns still in `pending` (not in RPC lines)
+ *
+ * Unused advance (`unusedAdvance`) is returned separately and must NOT reduce `balance`.
+ * Applied advance is captured via `totalAdvanceUsed` / receipt credits.
  */
 
 const BALANCE_MISMATCH_TOL = 1;
@@ -317,14 +320,15 @@ export function computeCustomerBalanceCore(params: CustomerBalanceCoreParams): C
 
   const openingBalance = Number(params.openingBalance || 0);
 
+  // Outstanding = invoiced − payments (applied advance is in totalAdvanceUsed / receipts).
+  // Unused advance is reported separately (unusedAdvance) — not subtracted from balance.
   const auditFormulaOutstanding =
     openingBalance +
     totalInvoicedGross -
     totalSaleReturnAdjustOnInvoices -
     totalRealPayments -
     customerPaymentDebits -
-    totalAdvanceUsed -
-    unusedAdvance +
+    totalAdvanceUsed +
     adjustmentTotal;
 
   const paidAmountDrift = computePaidAmountDrift(validSales, params.voucherEntries);
@@ -363,7 +367,8 @@ export function computeCustomerBalanceCore(params: CustomerBalanceCoreParams): C
       creditNoteVouchers: Math.round(-creditNoteCredits),
       customerPaymentRefunds: Math.round(-customerPaymentDebits),
       advancesApplied: Math.round(-totalAdvanceUsed),
-      unusedAdvances: Math.round(-unusedAdvance),
+      /** Informational only — unused pool is not subtracted from balance (see unusedAdvance). */
+      unusedAdvances: 0,
       paidAmountDrift: Math.round(-paidAmountDrift),
       pendingStandaloneSaleReturns: Math.round(-pendingStandaloneSaleReturns),
     },
@@ -514,19 +519,31 @@ export function sumReconcileStyleComponents(c: CustomerBalanceCoreComponents): n
 export function getCustomerAccountState(
   params: CustomerBalanceCoreParams,
 ): CustomerBalanceCoreResult & {
-  /** Signed net receivable: > 0 customer owes, < 0 credit/advance pool. */
+  /** Invoice outstanding (Dr): excludes unused advance pool. */
+  outstanding: number;
+  /** Signed net receivable: > 0 customer owes, < 0 credit on books. Same as balance. */
   netReceivable: number;
   /** Gross outstanding (Dr only): max(0, netReceivable) for a single customer. */
   grossOutstandingDr: number;
   /** Credit pool (Cr only): max(0, −netReceivable) for a single customer. */
   customerCreditPoolCr: number;
+  /** Unused advance still on file (separate from outstanding). */
+  unusedAdvancePool: number;
+  /** Pending standalone sale-return credit not yet applied to invoices. */
+  unclaimedSaleReturnCredit: number;
+  /** Economic net: outstanding minus unused advance pool. */
+  netPosition: number;
 } {
   const core = computeCustomerBalanceCore(params);
   const netReceivable = core.balance;
   return {
     ...core,
+    outstanding: netReceivable,
     netReceivable,
     grossOutstandingDr: Math.max(0, netReceivable),
     customerCreditPoolCr: Math.max(0, -netReceivable),
+    unusedAdvancePool: core.unusedAdvance,
+    unclaimedSaleReturnCredit: core.pendingStandaloneSaleReturns,
+    netPosition: Math.round(core.balance - core.unusedAdvance),
   };
 }
