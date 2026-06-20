@@ -1,36 +1,40 @@
-# Plan: Halt Step 1 — Insufficient measurement data
+# Suspend Organization for Non-Payment
 
-Per the task's own guardrail ("if not, STOP and wait — do not optimize against an empty sample"), I will make NO changes this turn.
+Block a specific organization (Kids Zone, slug `kids-zone`) from using the app, show a "Payment Pending" message, and sign the user out. Easy to reverse once payment is received.
 
-## What the measurement actually shows
+## Approach
 
-Ran the requested top-15 query against `pg_stat_statements` (filtered for dashboard noise). Findings:
+Add a per-organization `is_suspended` flag plus optional `suspension_message`. When the current organization is suspended, render a full-screen "Payment Pending" block and force sign-out. RLS already scopes everything per org, so flipping the flag in DB instantly suspends only that org — no other tenants impacted.
 
-- Highest `total_min` across every row = **0.0 minutes**.
-- Max `calls` for any single statement = **25** (a `SET client_encoding`).
-- Top entries by total time are PostgREST internals (`set_config`, `BEGIN ISOLATION LEVEL…`), a one-off `DO $$ … sandbox_exec` block, and pg catalog introspection.
-- Only 2 real app-level RPC calls captured (an org dashboard RPC, 2 calls @ 55.9 ms mean).
-- Zero captured SELECTs against `sales`, `sale_items`, `products`, `customers`, `purchase_*`, etc.
+## Steps
 
-Conclusion: `pg_stat_statements` was reset very recently (today's migrations/restart) and a full business-day sample has not accumulated. Any "optimization" against this would be speculative — exactly what the task forbids.
+1. **DB migration** — add columns to `organizations`:
+  - `is_suspended boolean not null default false`
+  - `suspension_reason text` (defaults to a friendly payment-pending message when null)
+  - Include in the existing `organizations` SELECT in `OrganizationContext` so client knows.
+  - Set `is_suspended = true` for `slug = 'kids-zone'` in the same migration.
+2. **Frontend gate** (`src/contexts/OrganizationContext.tsx` + a new `SuspendedOrgScreen` component):
+  - Extend `Organization` interface with `is_suspended`, `suspension_reason`.
+  - Add to the `select(...)` in `queryMemberships`.
+  - In a top-level wrapper (e.g. `App.tsx` or inside `OrganizationProvider`'s consumer at `AppLayout`), if `currentOrganization?.is_suspended` is true:
+    - Render `<SuspendedOrgScreen />` instead of children.
+    - Show: org name, "Payment Pending — Your subscription is on hold. Please complete payment to resume." plus contact info (WhatsApp / phone — to confirm with user).
+    - Provide a "Sign Out" button calling `supabase.auth.signOut()`.
+    - Auto sign-out after ~5 seconds so no stale session lingers.
+  - Platform admin route (`/platform-admin`) must remain accessible (skip the gate when user has `platform_admin` role) so support can unsuspend.
+3. **Unsuspend flow** — When payment received, simply run:
+  ```sql
+   UPDATE organizations SET is_suspended = false WHERE slug = 'kids-zone';
+  ```
+   No code change required. (Optional follow-up: add a toggle in Platform Admin UI — out of scope for this task unless requested.)
 
-## What I will NOT do now
+## Files to touch
 
-- No EXPLAIN (ANALYZE, BUFFERS) — no qualifying hotspots.
-- No Step 2 diagnosis ranked list — nothing to diagnose.
-- No index adds, no `select('*')` rewrites, no write-storm guards.
-- No touching accounting RPCs (out of scope regardless).
+- `supabase/migrations/<new>.sql` — add columns, suspend kids-zone.
+- `src/contexts/OrganizationContext.tsx` — add fields to interface + query.
+- `src/components/SuspendedOrgScreen.tsx` (new) — payment-pending UI + signout.
+- `src/App.tsx` (or appropriate layout) — render gate before app routes (excluding platform-admin route).
 
-## Proposed next steps (require your approval)
+## Open question
 
-1. **Wait** for a full business day of real billing/POS load (open → close on a typical day).
-2. On your "re-measure" signal, I will:
-   - Re-run the top-15 by total time (same filter).
-   - Run `EXPLAIN (ANALYZE, BUFFERS)` on the top 5 app queries.
-   - For each: report Seq Scan vs Index Scan, row counts, and whether an index already covers it (`pg_indexes` check).
-   - Produce the Step 2 ranked list: query → cause (a/b/c/d) → minimal fix → risk.
-3. Only after you approve a specific item from that list will I implement one change, then re-measure that single query before proposing the next.
-
-## Optional (still measurement, no code change)
-
-If you want, I can snapshot the current `pg_stat_statements` counters into a temp table now so tomorrow's delta is clean. Say "snapshot baseline" and I'll do just that.
+What contact details should appear on the Payment Pending screen (phone / WhatsApp number / message)? Default if you don't specify: "Please contact support to resume your subscription." Contact Number: +919820330995

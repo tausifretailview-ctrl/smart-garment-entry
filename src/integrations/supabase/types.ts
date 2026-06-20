@@ -3213,36 +3213,42 @@ export type Database = {
           created_at: string
           enabled_features: Json
           id: string
+          is_suspended: boolean
           name: string
           organization_number: number | null
           organization_type: string
           settings: Json
           slug: string
           subscription_tier: Database["public"]["Enums"]["subscription_tier"]
+          suspension_reason: string | null
           updated_at: string
         }
         Insert: {
           created_at?: string
           enabled_features?: Json
           id?: string
+          is_suspended?: boolean
           name: string
           organization_number?: number | null
           organization_type?: string
           settings?: Json
           slug: string
           subscription_tier?: Database["public"]["Enums"]["subscription_tier"]
+          suspension_reason?: string | null
           updated_at?: string
         }
         Update: {
           created_at?: string
           enabled_features?: Json
           id?: string
+          is_suspended?: boolean
           name?: string
           organization_number?: number | null
           organization_type?: string
           settings?: Json
           slug?: string
           subscription_tier?: Database["public"]["Enums"]["subscription_tier"]
+          suspension_reason?: string | null
           updated_at?: string
         }
         Relationships: []
