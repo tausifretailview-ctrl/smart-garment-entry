@@ -410,6 +410,23 @@ export const parseExcelFile = (file: File): Promise<ParsedExcelData> => {
               }
               cleanRow[normalizedKey] = val;
             }
+            // Numeric cells: prefer raw underlying value over formatted display text.
+            // Excel formats like "0" round 4202.31 → "4202" in display, which truncates
+            // precision when XLSX is parsed with raw:false. Dates (also type 'n') keep
+            // their formatted string so existing date parsers continue to work.
+            for (const [header, colIdx] of normHeaderToColIdx.entries()) {
+              if (barcodeColumnHeaders.includes(header)) continue;
+              const cellRef = XLSX.utils.encode_cell({
+                r: headerRowIdx + 1 + dataRowIdx,
+                c: colIdx,
+              });
+              const cell = worksheet[cellRef];
+              if (!cell || cell.t !== 'n' || typeof cell.v !== 'number') continue;
+              const fmt = String(cell.z || '');
+              const isDateFormat = /[ymdh]/i.test(fmt);
+              if (isDateFormat) continue;
+              cleanRow[header] = cell.v;
+            }
             // Barcode columns: read formatted cell text (preserves 000000191, alphanumeric codes)
             for (const header of barcodeColumnHeaders) {
               const colIdx = normHeaderToColIdx.get(header);
