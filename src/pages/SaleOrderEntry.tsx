@@ -107,6 +107,23 @@ export type SaleOrderVariantSearchResult = {
   size_range?: string | null;
 };
 
+/** Merged product row — same name across MRPs (matches Salesman app search). */
+export type SaleOrderProductSearchGroup = {
+  productName: string;
+  brand: string;
+  category: string;
+  style: string;
+  gst_per: number;
+  hsn_code: string;
+  uom?: string;
+  productIds: string[];
+  representative: SaleOrderVariantSearchResult;
+  variants: SaleOrderVariantSearchResult[];
+  totalStock: number;
+  sizeCount: number;
+  size_range?: string | null;
+};
+
 function sizeRangeFromGroup(sizes: string[] | undefined | null): string | null {
   if (!sizes?.length) return null;
   return sizes.length > 1 ? `${sizes[0]}-${sizes[sizes.length - 1]}` : sizes[0];
@@ -127,26 +144,55 @@ function attachSizeRangesToResults(
   });
 }
 
-/** One row per product for size-grid search — highest-stock variant as representative. */
-function pickProductLevelSearchRows(
+/** Group variants by product name — merges all MRP / product_id rows (Salesman app parity). */
+function groupVariantsByProductName(
   results: SaleOrderVariantSearchResult[],
-): Array<SaleOrderVariantSearchResult & { total_stock: number }> {
-  const groups = new Map<string, { rep: SaleOrderVariantSearchResult; totalStock: number }>();
+): SaleOrderProductSearchGroup[] {
+  const productMap = new Map<
+    string,
+    { productIds: Set<string>; variants: SaleOrderVariantSearchResult[]; totalStock: number }
+  >();
+
   for (const r of results) {
-    const existing = groups.get(r.product_id);
-    if (!existing) {
-      groups.set(r.product_id, { rep: r, totalStock: r.stock_qty || 0 });
+    const groupKey = r.product_name;
+    if (!groupKey) continue;
+    if (!productMap.has(groupKey)) {
+      productMap.set(groupKey, {
+        productIds: new Set([r.product_id]),
+        variants: [r],
+        totalStock: r.stock_qty || 0,
+      });
       continue;
     }
-    existing.totalStock += r.stock_qty || 0;
-    if ((r.stock_qty || 0) > (existing.rep.stock_qty || 0)) {
-      existing.rep = r;
+    const group = productMap.get(groupKey)!;
+    group.productIds.add(r.product_id);
+    if (!group.variants.some((v) => v.id === r.id)) {
+      group.variants.push(r);
+      group.totalStock += r.stock_qty || 0;
     }
   }
-  return Array.from(groups.values()).map(({ rep, totalStock }) => ({
-    ...rep,
-    total_stock: totalStock,
-  }));
+
+  return Array.from(productMap.entries()).map(([productName, group]) => {
+    const representative = group.variants.reduce(
+      (best, v) => ((v.stock_qty || 0) > (best.stock_qty || 0) ? v : best),
+      group.variants[0],
+    );
+    return {
+      productName,
+      brand: representative.brand,
+      category: representative.category,
+      style: representative.style,
+      gst_per: representative.gst_per,
+      hsn_code: representative.hsn_code,
+      uom: representative.uom,
+      productIds: Array.from(group.productIds),
+      representative,
+      variants: group.variants,
+      totalStock: group.totalStock,
+      sizeCount: group.variants.length,
+      size_range: representative.size_range,
+    };
+  });
 }
 
 function mapVariantSearchRow(v: any): SaleOrderVariantSearchResult {
@@ -198,7 +244,7 @@ async function searchSaleOrderVariants(
     .eq("active", true)
     .is("deleted_at", null)
     .eq("organization_id", orgId)
-    .ilike("barcode", `%${primaryTerm}%`)
+    .or(`barcode.ilike.%${primaryTerm}%,color.ilike.%${primaryTerm}%`)
     .limit(50);
 
   let productVariants: any[] = [];
@@ -250,8 +296,10 @@ async function searchSaleOrderVariants(
   if (searchTerms.length > 1) {
     results = results.filter((r) => {
       const haystack =
-        `${r.product_name} ${r.brand} ${r.color} ${r.size} ${r.barcode} ${r.style} ${r.category}`.toLowerCase();
-      return searchTerms.every((term) => haystack.includes(term));
+        `${r.product_name} ${r.brand} ${r.category} ${r.style}`.toLowerCase();
+      const variantHaystack = `${r.color} ${r.size} ${r.barcode}`.toLowerCase();
+      const combined = `${haystack} ${variantHaystack}`;
+      return searchTerms.every((term) => combined.includes(term));
     });
   }
 
@@ -661,14 +709,18 @@ export default function SaleOrderEntry() {
     }
   }, [taxType]);
 
-  // Open size grid — fetch all variants from DB (matches Sale Invoice / Purchase Entry).
-  const openSizeGridForProductId = useCallback(async (productId: string, selectedSalePrice?: number) => {
-    if (!currentOrganization?.id) return;
+  // Open size grid — fetch all variants (merged product ids = all MRP rows for same name).
+  const openSizeGridForProductGroup = useCallback(async (
+    productIds: string[],
+    selectedSalePrice?: number,
+  ) => {
+    if (!currentOrganization?.id || productIds.length === 0) return;
 
+    const primaryProductId = productIds[0];
     const { data: productRow, error: productError } = await supabase
       .from("products")
-      .select("id, product_name, brand, category, style, color, hsn_code, gst_per, uom")
-      .eq("id", productId)
+      .select("id, product_name, brand, category, style, color, hsn_code, gst_per, uom, size_group_id")
+      .eq("id", primaryProductId)
       .eq("organization_id", currentOrganization.id)
       .maybeSingle();
 
@@ -683,7 +735,7 @@ export default function SaleOrderEntry() {
     const { data, error } = await supabase
       .from("product_variants")
       .select("id, size, color, barcode, sale_price, mrp, stock_qty, active, product_id")
-      .eq("product_id", productId)
+      .in("product_id", productIds)
       .eq("organization_id", currentOrganization.id)
       .eq("active", true)
       .is("deleted_at", null);
@@ -815,7 +867,7 @@ export default function SaleOrderEntry() {
     options?: { skipSizeGrid?: boolean },
   ) => {
     if (entryMode === "grid" && !options?.skipSizeGrid) {
-      await openSizeGridForProductId(product.id, variant?.sale_price);
+      await openSizeGridForProductGroup([product.id], variant?.sale_price);
       return;
     }
 
@@ -1071,6 +1123,13 @@ export default function SaleOrderEntry() {
     return () => clearTimeout(timer);
   }, [searchInput, currentOrganization?.id]);
 
+  const selectProductSearchGroup = (group: SaleOrderProductSearchGroup) => {
+    void openSizeGridForProductGroup(
+      group.productIds,
+      group.representative.sale_price,
+    );
+  };
+
   const selectSearchResult = (result: SaleOrderVariantSearchResult, query?: string) => {
     const trimmedQuery = (query ?? searchInput).trim();
     const isBarcodeMatch =
@@ -1079,7 +1138,14 @@ export default function SaleOrderEntry() {
       result.barcode.toLowerCase() === trimmedQuery.toLowerCase();
 
     if (entryMode === "grid" && !isBarcodeMatch) {
-      void openSizeGridForProductId(result.product_id, result.sale_price);
+      const group = groupVariantsByProductName(popoverSearchResults).find(
+        (g) => g.productName === result.product_name,
+      );
+      if (group) {
+        selectProductSearchGroup(group);
+      } else {
+        void openSizeGridForProductGroup([result.product_id], result.sale_price);
+      }
       return;
     }
 
@@ -1324,17 +1390,19 @@ export default function SaleOrderEntry() {
   };
 
   const totalMatchingVariants = popoverSearchResults.length;
-  const productLevelSearchRows = useMemo(
-    () => pickProductLevelSearchRows(popoverSearchResults),
-    [popoverSearchResults],
+  const productSearchGroups = useMemo(
+    () =>
+      sortSearchResults(
+        groupVariantsByProductName(popoverSearchResults),
+        searchInput.trim().toLowerCase(),
+        { productName: "productName" },
+      ),
+    [popoverSearchResults, searchInput],
   );
-  const totalMatchingProducts = productLevelSearchRows.length;
   const visiblePopoverResults = popoverSearchResults.slice(0, displayLimit);
-  const visibleProductLevelRows = useMemo(
-    () => pickProductLevelSearchRows(visiblePopoverResults),
-    [visiblePopoverResults],
-  );
-  const displaySearchCount = entryMode === "grid" ? totalMatchingProducts : totalMatchingVariants;
+  const visibleProductSearchGroups = productSearchGroups.slice(0, displayLimit);
+  const displaySearchCount =
+    entryMode === "grid" ? productSearchGroups.length : totalMatchingVariants;
 
   // Reset display limit when search changes
   useEffect(() => {
@@ -1616,11 +1684,11 @@ export default function SaleOrderEntry() {
                   )}
                   <CommandGroup>
                     {entryMode === "grid" ? (
-                      visibleProductLevelRows.map((result) => (
+                      visibleProductSearchGroups.map((group) => (
                         <CommandItem
-                          key={result.product_id}
+                          key={group.productName}
                           onSelect={() => {
-                            selectSearchResult(result);
+                            selectProductSearchGroup(group);
                             setOpenProductSearch(false);
                             setSearchInput("");
                           }}
@@ -1631,29 +1699,32 @@ export default function SaleOrderEntry() {
                               <div className="flex min-w-0 items-center gap-2">
                                 <span className="truncate font-medium">
                                   {buildProductDisplayName({
-                                    product_name: result.product_name,
-                                    brand: result.brand,
-                                    style: result.style,
-                                    category: result.category,
+                                    product_name: group.productName,
+                                    brand: group.brand,
+                                    style: group.style,
+                                    category: group.category,
                                   })}
                                 </span>
-                                {result.size_range && (
+                                {group.size_range && (
                                   <span className="shrink-0 rounded bg-primary/10 px-1.5 py-0.5 text-xs font-semibold text-primary">
-                                    {result.size_range}
+                                    {group.size_range}
                                   </span>
                                 )}
+                                <Badge variant="secondary" className="shrink-0 text-xs bg-blue-100 text-blue-700">
+                                  {group.sizeCount} sizes
+                                </Badge>
                               </div>
                               <span className="shrink-0 font-semibold text-primary">
-                                ₹{(result.sale_price || 0).toFixed(2)}
+                                ₹{(group.representative.sale_price || 0).toFixed(2)}
                               </span>
                             </div>
                             <div className="flex items-center justify-between text-xs text-muted-foreground">
                               <div className="flex flex-wrap gap-2">
-                                {result.brand && <span>{result.brand}</span>}
-                                {result.color && <span>{result.color}</span>}
+                                {group.brand && <span>{group.brand}</span>}
+                                {group.category && <span>{group.category}</span>}
                               </div>
-                              <span className={result.total_stock > 0 ? "text-emerald-600" : "text-destructive"}>
-                                Stock: {result.total_stock}
+                              <span className={group.totalStock > 0 ? "text-emerald-600" : "text-destructive"}>
+                                Stock: {group.totalStock}
                               </span>
                             </div>
                           </div>
