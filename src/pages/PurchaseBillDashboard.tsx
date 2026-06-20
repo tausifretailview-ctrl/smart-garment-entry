@@ -1072,6 +1072,7 @@ const PurchaseBillDashboard = () => {
     }
   };
 
+  /** Live path (Phase 0 loop) — Phase 3 cutover will call fixMissingMrpForOrgViaRpc instead. */
   const handleFixMissingMrp = async () => {
     setIsFixing(true);
     try {
