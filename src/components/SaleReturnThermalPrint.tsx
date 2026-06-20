@@ -95,8 +95,47 @@ export const SaleReturnThermalPrint = forwardRef<HTMLDivElement, SaleReturnTherm
     const dblLine: React.CSSProperties = { borderTop: '2px solid #000', margin: '3px 0' };
     const singleLine: React.CSSProperties = { borderTop: '1px dashed #000', margin: '3px 0' };
 
+    /** Column headers — div row prints darker/bolder on thermal than `<th>`. */
+    const colHeadRow: React.CSSProperties = {
+      display: 'flex',
+      width: '100%',
+      borderBottom: '2px solid #000',
+      padding: '4px 0',
+      marginBottom: '2px',
+      fontSize: '14px',
+      fontWeight: 900,
+      color: '#000',
+      textTransform: 'uppercase',
+      letterSpacing: '0.6px',
+      WebkitFontSmoothing: 'none',
+      lineHeight: 1.2,
+    };
+    const colItem: React.CSSProperties = { width: '42%', textAlign: 'left' };
+    const colQty: React.CSSProperties = { width: '14%', textAlign: 'center' };
+    const colRate: React.CSSProperties = { width: '22%', textAlign: 'right' };
+    const colAmt: React.CSSProperties = { width: '22%', textAlign: 'right' };
+
     return (
       <div ref={ref} className="thermal-print-80mm thermal-receipt-container sale-return-thermal" style={base}>
+        <style>
+          {`
+            .sale-return-thermal .sr-thermal-col-head,
+            .sale-return-thermal .sr-thermal-col-head span {
+              color: #000 !important;
+              font-weight: 900 !important;
+              -webkit-font-smoothing: none !important;
+              print-color-adjust: exact !important;
+            }
+            @media print {
+              .sale-return-thermal .sr-thermal-col-head,
+              .sale-return-thermal .sr-thermal-col-head span {
+                font-size: 14px !important;
+                font-weight: 900 !important;
+                color: #000 !important;
+              }
+            }
+          `}
+        </style>
         {/* Header */}
         <div style={dblLine} />
         <div style={{ ...center, marginBottom: '4px' }}>
@@ -163,16 +202,16 @@ export const SaleReturnThermalPrint = forwardRef<HTMLDivElement, SaleReturnTherm
 
         <div style={singleLine} />
 
+        {/* Column headers — bold div row (thermal-safe) */}
+        <div className="sr-thermal-col-head" style={colHeadRow}>
+          <span style={colItem}>ITEM</span>
+          <span style={colQty}>QTY</span>
+          <span style={colRate}>RATE</span>
+          <span style={colAmt}>AMT</span>
+        </div>
+
         {/* Items */}
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', tableLayout: 'fixed' }}>
-          <thead>
-            <tr style={{ borderBottom: '2px solid #000' }}>
-              <th style={{ textAlign: 'left', padding: '2px 0', fontWeight: 900, width: '42%' }}>ITEM</th>
-              <th style={{ textAlign: 'center', padding: '2px 0', fontWeight: 900, width: '14%' }}>QTY</th>
-              <th style={{ textAlign: 'right', padding: '2px 0', fontWeight: 900, width: '22%' }}>RATE</th>
-              <th style={{ textAlign: 'right', padding: '2px 0', fontWeight: 900, width: '22%' }}>AMT</th>
-            </tr>
-          </thead>
           <tbody>
             {saleReturn.items?.map((item, idx) => (
               <tr key={idx} style={{ borderBottom: '0.5px dotted #000' }}>

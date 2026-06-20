@@ -632,4 +632,13 @@
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
+
+  /* Credit note / sale return thermal — column headers must stay bold black */
+  .sale-return-thermal .sr-thermal-col-head,
+  .sale-return-thermal .sr-thermal-col-head span {
+    font-size: 14px !important;
+    font-weight: 900 !important;
+    color: #000 !important;
+    -webkit-font-smoothing: none !important;
+  }
 }
