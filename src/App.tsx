@@ -1562,6 +1562,7 @@ const App = () => {
               {/* Catch-all for 404 */}
               <Route path="*" element={<NotFound />} />
             </Routes>
+            </SuspensionGate>
             </Suspense>
             </WindowTabsProvider>
           </OrganizationProvider>
