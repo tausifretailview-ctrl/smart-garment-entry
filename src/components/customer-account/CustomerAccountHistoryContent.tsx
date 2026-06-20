@@ -504,7 +504,7 @@ export function CustomerAccountHistoryContent({
   const filteredSales = useMemo(() => filterSales(salesHistory, filters), [salesHistory, filters]);
   const filteredActiveSales = useMemo(() => filteredSales.filter((s) => !isSaleRecordCancelled(s)), [filteredSales]);
   const filteredPayments = useMemo(
-    () => filterByDateAndSearch(paymentHistory, filters, "voucher_date", ["voucher_number", "description", "payment_method", "payment_mode"]),
+    () => filterByDateAndSearch(paymentHistory, filters, "voucher_date", ["voucher_number", "description", "payment_method"]),
     [paymentHistory, filters],
   );
   const filteredReturns = useMemo(
