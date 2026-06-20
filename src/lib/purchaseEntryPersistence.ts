@@ -361,6 +361,31 @@ export function dispatchPurchaseDraftSaved(orgId: string, userId: string): void 
   dispatchPurchaseDraftEvent(PURCHASE_DRAFT_SAVED_EVENT, orgId, userId, true);
 }
 
+/**
+ * Subscribe on Purchase Bills dashboard — sync draft banner + lists when Entry saves/discards.
+ * Needed on Windows/Electron tab cache where browser meta can stay stale when hasDraft is false.
+ */
+export function subscribePurchaseDashboardDraftSync(
+  orgId: string | undefined,
+  userId: string | undefined,
+  onCommitted: () => void,
+): () => void {
+  if (!orgId || !userId) return () => {};
+
+  const handler = (event: Event) => {
+    const detail = (event as CustomEvent<PurchaseDraftEventDetail>).detail;
+    if (!detail || detail.orgId !== orgId || detail.userId !== userId) return;
+    onCommitted();
+  };
+
+  window.addEventListener(PURCHASE_DRAFT_SAVED_EVENT, handler);
+  window.addEventListener(PURCHASE_DRAFT_DISCARDED_EVENT, handler);
+  return () => {
+    window.removeEventListener(PURCHASE_DRAFT_SAVED_EVENT, handler);
+    window.removeEventListener(PURCHASE_DRAFT_DISCARDED_EVENT, handler);
+  };
+}
+
 /** Stable id per browser tab — metadata on draft snapshots for last-write diagnostics. */
 export function getOrCreatePurchaseEntryTabInstanceId(): string {
   try {

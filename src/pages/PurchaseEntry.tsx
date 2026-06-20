@@ -4048,6 +4048,12 @@ const PurchaseEntry = () => {
     }
 
     let createdBillIdForRollback: string | null = null;
+    stopAutoSave();
+    if (autoSaveDebounceRef.current) {
+      clearTimeout(autoSaveDebounceRef.current);
+      autoSaveDebounceRef.current = null;
+    }
+    purchaseSaveFinalizedRef.current = true;
     try {
       const billTotals = computePurchaseBillTotals(
         lineItems,
@@ -4702,6 +4708,7 @@ const PurchaseEntry = () => {
         variant: "destructive",
         duration: 12000,
       });
+      purchaseSaveFinalizedRef.current = false;
     }
   };
 

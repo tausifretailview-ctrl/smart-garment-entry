@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
+import { useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -36,6 +37,7 @@ import {
   countPurchaseDraftQty,
   readPurchaseEntrySnapshot,
   summarizePurchaseDraft,
+  subscribePurchaseDashboardDraftSync,
   type PurchaseEntryDraftMeta,
 } from "@/lib/purchaseEntryPersistence";
 import { useSettings } from "@/hooks/useSettings";
@@ -171,6 +173,7 @@ const PurchaseBillDashboard = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { orgNavigate: navigate } = useOrgNavigation();
+  const location = useLocation();
   const { currentOrganization } = useOrganization();
   const { user } = useAuth();
   const savedPurchaseFilters = readPurchaseBillDashboardFilters(currentOrganization?.id);
@@ -668,6 +671,32 @@ const PurchaseBillDashboard = () => {
   const fetchBills = () => {
     refetchBills();
   };
+
+  const syncAfterPurchaseDraftCommitted = useCallback(() => {
+    setBrowserDraftMeta(null);
+    refreshBrowserDraftMeta();
+    void checkDraft();
+    setDraftBannerDismissed(true);
+    void queryClient.invalidateQueries({ queryKey: ["purchase-bills"] });
+    void queryClient.invalidateQueries({ queryKey: ["purchase-summary"] });
+    void refetchBills();
+  }, [checkDraft, queryClient, refetchBills, refreshBrowserDraftMeta]);
+
+  // Entry tab save/discards clear sessionStorage — refresh banner + bill list (Windows tab cache).
+  useEffect(() => {
+    return subscribePurchaseDashboardDraftSync(
+      currentOrganization?.id,
+      user?.id,
+      syncAfterPurchaseDraftCommitted,
+    );
+  }, [currentOrganization?.id, user?.id, syncAfterPurchaseDraftCommitted]);
+
+  // When user switches to this dashboard tab, re-read browser draft meta (may have been cleared on save).
+  useEffect(() => {
+    if (!location.pathname.includes("purchase-bill")) return;
+    refreshBrowserDraftMeta();
+    void checkDraft();
+  }, [location.pathname, refreshBrowserDraftMeta, checkDraft]);
 
   const fetchBillItems = async (billId: string, isCancelled?: boolean) => {
     if (billItems[billId]) {
