@@ -13,6 +13,8 @@
     "test:watch": "vitest",
     "test:money": "vitest run test/money src/utils/customerBalanceCore.shumama.test.ts src/utils/saleInvoiceStatus.test.ts",
     "test:integration": "vitest run test/integration",
+    "test:seed": "vitest run test/scripts/seed-staging.test.ts",
+    "test:verify-staging": "vitest run test/scripts/verify-staging-schema.test.ts",
     "check:cn-guard": "node scripts/check-cn-adjust-literals.mjs",
     "preview": "vite preview",
     "build:android": "npm run build && npx cap sync android",

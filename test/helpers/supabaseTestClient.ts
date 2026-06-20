@@ -7,14 +7,8 @@ export type MoneyTestEnv = {
 };
 
 export function readMoneyTestEnv(): MoneyTestEnv | null {
-  const url =
-    process.env.SUPABASE_TEST_URL ||
-    process.env.VITE_SUPABASE_URL ||
-    "";
-  const serviceRoleKey =
-    process.env.SUPABASE_TEST_SERVICE_ROLE_KEY ||
-    process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    "";
+  const url = process.env.SUPABASE_TEST_URL || "";
+  const serviceRoleKey = process.env.SUPABASE_TEST_SERVICE_ROLE_KEY || "";
   if (!url || !serviceRoleKey) return null;
   return {
     url,

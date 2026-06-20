@@ -1,7 +1,10 @@
 /**
- * Vitest setup — mock browser storage for Node (Supabase client import chain).
- * Uses plain assignment so individual tests can vi.stubGlobal if needed.
+ * Vitest setup — load `.env.test`, mock browser storage for Node (Supabase import chain).
  */
+
+import { loadEnvTest } from "../helpers/loadEnvTest";
+
+loadEnvTest();
 
 const storage = new Map<string, string>();
 

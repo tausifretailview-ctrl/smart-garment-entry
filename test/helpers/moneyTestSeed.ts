@@ -129,7 +129,15 @@ export async function cleanupMoneyTestFixtures(
   seed: MoneyTestSeed,
 ): Promise<void> {
   const { orgId } = seed;
-  // Best-effort cleanup — order respects FK dependencies.
+  const { data: returns } = await client
+    .from("sale_returns")
+    .select("id")
+    .eq("organization_id", orgId);
+  const returnIds = (returns ?? []).map((r) => r.id);
+  if (returnIds.length > 0) {
+    await client.from("sale_return_items").delete().in("return_id", returnIds);
+  }
+  await client.from("sale_returns").delete().eq("organization_id", orgId);
   await client.from("sale_items").delete().eq("organization_id", orgId);
   await client.from("sales").delete().eq("organization_id", orgId);
   await client.from("purchase_items").delete().eq("organization_id", orgId);
