@@ -5,7 +5,7 @@ CREATE OR REPLACE FUNCTION public.fix_missing_mrp_for_org(p_org_id uuid)
 RETURNS integer
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path TO public
+SET search_path = public, pg_temp
 AS $$
 DECLARE
   v_updated integer;

@@ -8,7 +8,7 @@ RETURNS TABLE (
 )
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path TO public
+SET search_path = public, pg_temp
 AS $$
 BEGIN
   IF p_org_id IS NULL THEN
@@ -52,7 +52,7 @@ RETURNS TABLE (
 )
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path TO public
+SET search_path = public, pg_temp
 AS $$
 BEGIN
   IF p_org_id IS NULL THEN

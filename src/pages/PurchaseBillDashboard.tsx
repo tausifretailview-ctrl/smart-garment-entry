@@ -43,6 +43,7 @@ import {
 import { useSettings } from "@/hooks/useSettings";
 import { DASHBOARD_TAB_RETURN_QUERY_OPTIONS } from "@/lib/dashboardQueryOptions";
 import { runFixMissingMrpEquivalenceCheck } from "@/utils/fixMissingMrpEquivalence";
+import { fixMissingMrpForOrgViaRpc } from "@/utils/fixMissingMrpForOrg";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SupplierHistoryDialog } from "@/components/SupplierHistoryDialog";
@@ -1095,8 +1096,11 @@ const PurchaseBillDashboard = () => {
     }
   };
 
-  /** Live path (Phase 0 loop) — Phase 3 cutover will call fixMissingMrpForOrgViaRpc instead. */
-  const handleFixMissingMrp = async () => {
+  /** PHASE 3 FALLBACK — set true to revert to per-row client loop. */
+  const USE_LEGACY_MRP_LOOP = false;
+
+  /** PHASE 3 FALLBACK — legacy per-row loop; unreachable when USE_LEGACY_MRP_LOOP is false. */
+  const handleFixMissingMrpLegacy = async () => {
     setIsFixing(true);
     try {
       const { data: itemsToFix, error: fetchError } = await supabase
@@ -1151,6 +1155,60 @@ const PurchaseBillDashboard = () => {
         toast({
           title: "Success",
           description: `Fixed MRP on ${updatedCount} purchase item(s) from product master`,
+        });
+      }
+
+      await fetchBills();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to fix missing MRP",
+        variant: "destructive",
+      });
+    } finally {
+      setIsFixing(false);
+    }
+  };
+
+  const handleFixMissingMrp = async () => {
+    if (USE_LEGACY_MRP_LOOP) {
+      return handleFixMissingMrpLegacy();
+    }
+
+    if (!currentOrganization?.id) {
+      toast({
+        title: "Organization required",
+        description: "Select an organization before fixing missing MRP",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsFixing(true);
+    try {
+      const { updatedCount, error } = await fixMissingMrpForOrgViaRpc(
+        supabase,
+        currentOrganization.id,
+      );
+
+      if (error) {
+        toast({
+          title: "Error",
+          description: error.message,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (updatedCount === 0) {
+        toast({
+          title: "All Good!",
+          description: "No purchase items with missing MRP found",
+        });
+      } else {
+        toast({
+          title: "Success",
+          description: `Updated MRP on ${updatedCount} purchase item(s)`,
         });
       }
 
