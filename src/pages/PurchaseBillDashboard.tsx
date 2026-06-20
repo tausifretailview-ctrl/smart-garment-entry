@@ -42,7 +42,7 @@ import {
 } from "@/lib/purchaseEntryPersistence";
 import { useSettings } from "@/hooks/useSettings";
 import { DASHBOARD_TAB_RETURN_QUERY_OPTIONS } from "@/lib/dashboardQueryOptions";
-import { fetchProductsByIds, fetchPurchaseItemsByBillId } from "@/utils/fetchAllRows";
+import { runFixMissingMrpEquivalenceCheck } from "@/utils/fixMissingMrpEquivalence";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SupplierHistoryDialog } from "@/components/SupplierHistoryDialog";
@@ -1065,6 +1065,29 @@ const PurchaseBillDashboard = () => {
       toast({
         title: "Error",
         description: error.message || "Failed to fix missing product names",
+        variant: "destructive",
+      });
+    } finally {
+      setIsFixing(false);
+    }
+  };
+
+  /** Phase 2 dry-run only — does not write; live button still uses handleFixMissingMrp. */
+  const handleVerifyMrpRpcEquivalence = async () => {
+    if (!currentOrganization?.id) return;
+    setIsFixing(true);
+    try {
+      const report = await runFixMissingMrpEquivalenceCheck(supabase, currentOrganization.id);
+      console.info("[MRP Phase 2 equivalence]", report);
+      toast({
+        title: report.passed ? "MRP RPC equivalence OK" : "MRP RPC equivalence mismatch",
+        description: report.summary,
+        variant: report.passed ? "default" : "destructive",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Equivalence check failed",
+        description: error.message || "Could not run MRP preview comparison",
         variant: "destructive",
       });
     } finally {
@@ -2222,6 +2245,22 @@ const PurchaseBillDashboard = () => {
               )}
               Fix Missing MRP
             </Button>
+            {import.meta.env.DEV && (
+              <Button
+                onClick={handleVerifyMrpRpcEquivalence}
+                variant="outline"
+                className="gap-1.5 h-8 text-sm border-dashed border-amber-400 text-amber-700 hover:bg-amber-50 font-medium px-2.5"
+                disabled={isFixing}
+                title="Phase 2: dry-run compare loop vs RPC for current org (no writes)"
+              >
+                {isFixing ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-3.5 w-3.5" />
+                )}
+                Verify MRP RPC
+              </Button>
+            )}
             <Button
               onClick={() => navigate("/purchase-entry", { state: { newBill: true } })}
               className="h-8 px-3 text-sm font-semibold bg-blue-600 hover:bg-blue-700 text-white shadow-sm gap-1.5"

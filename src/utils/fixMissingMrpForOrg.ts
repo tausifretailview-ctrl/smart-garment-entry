@@ -3,7 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 /**
  * Phase 1 set-based MRP backfill (single UPDATE via RPC).
  * NOT wired to the Purchase Bill Dashboard button until Phase 3 cutover.
- * Use in Phase 2 equivalence checks against handleFixMissingMrp loop.
+ * Phase 2 equivalence: runFixMissingMrpEquivalenceCheck / preview_fix_missing_mrp_for_org.
  */
 export async function fixMissingMrpForOrgViaRpc(
   supabase: SupabaseClient,
