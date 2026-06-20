@@ -80,6 +80,29 @@ import {
 // as a selectable row inside the invoice picker.
 const OPENING_BALANCE_ID = "__opening_balance__";
 const EMPTY_INVOICE_VOUCHER_SPLITS = new Map<string, SaleReceiptVoucherSplit>();
+
+/** Stable primitive for memo deps — avoids Map / persisted plain-object identity churn. */
+function voucherSplitsDepKey(value: unknown): string {
+  const map = coerceToMap<string, SaleReceiptVoucherSplit>(
+    value ?? EMPTY_INVOICE_VOUCHER_SPLITS,
+  );
+  if (map.size === 0) return "";
+  return [...map.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([id, s]) => `${id}:${s.cash},${s.cn},${s.adv},${s.discount}`)
+    .join("|");
+}
+
+function customerInvoicesDepKey(invoices: any[] | undefined): string {
+  if (!invoices?.length) return "";
+  return invoices
+    .map(
+      (inv) =>
+        `${inv.id}:${inv.paid_amount ?? 0}:${inv.payment_status ?? ""}:${inv.net_amount ?? 0}:${inv.sale_return_adjust ?? 0}`,
+    )
+    .join("|");
+}
+
 /** Per-invoice due — same rules as Sales Invoice Dashboard (avoids double-counting CN in paid_amount + sr). */
 const getInvoiceOutstanding = (invoice: any, split?: SaleReceiptVoucherSplit | null) => {
   const s = split ?? { cash: 0, cn: 0, adv: 0, discount: 0 };
@@ -387,7 +410,7 @@ export function CustomerPaymentTab({
     queryKey: ["customer-invoice-voucher-splits", organizationId, referenceId, customerInvoices?.length || 0],
     queryFn: async () => {
       const rows = customerInvoices || [];
-      if (!organizationId || rows.length === 0) return new Map<string, SaleReceiptVoucherSplit>();
+      if (!organizationId || rows.length === 0) return EMPTY_INVOICE_VOUCHER_SPLITS;
       try {
         const splits = await fetchSaleReceiptSplitsForInvoices(
           supabase,
@@ -401,19 +424,22 @@ export function CustomerPaymentTab({
         return coerceToMap<string, SaleReceiptVoucherSplit>(splits);
       } catch (e) {
         console.error("CustomerPaymentTab: customerInvoiceVoucherSplits query failed", e);
-        return new Map<string, SaleReceiptVoucherSplit>();
+        return EMPTY_INVOICE_VOUCHER_SPLITS;
       }
     },
     enabled: !!organizationId && !!referenceId && !!customerInvoices && customerInvoices.length > 0,
   });
 
+  const invoiceVoucherSplitsKey = voucherSplitsDepKey(customerInvoiceVoucherSplitsRaw);
   const invoiceVoucherSplits = useMemo(
     () =>
       coerceToMap<string, SaleReceiptVoucherSplit>(
         customerInvoiceVoucherSplitsRaw ?? EMPTY_INVOICE_VOUCHER_SPLITS,
       ),
-    [customerInvoiceVoucherSplitsRaw],
+    [invoiceVoucherSplitsKey, customerInvoiceVoucherSplitsRaw],
   );
+
+  const customerInvoicesKey = customerInvoicesDepKey(customerInvoices);
 
   // Remaining Opening Balance for the selected customer
   // = customers.opening_balance − sum(receipt vouchers with reference_type='customer')
@@ -485,7 +511,7 @@ export function CustomerPaymentTab({
         0
       ) + (openingBalanceRemaining || 0)
     );
-  }, [referenceId, customerInvoices, invoiceVoucherSplits, openingBalanceRemaining]);
+  }, [referenceId, customerInvoicesKey, invoiceVoucherSplitsKey, openingBalanceRemaining, customerInvoices, invoiceVoucherSplits]);
 
 
   const advanceBalance = snapshotAdvanceAvailable;
@@ -506,9 +532,11 @@ export function CustomerPaymentTab({
     [
       selectedInvoiceIdsKey,
       allocatedAmountsKey,
+      customerInvoicesKey,
+      invoiceVoucherSplitsKey,
+      openingBalanceRemaining,
       customerInvoices,
       invoiceVoucherSplits,
-      openingBalanceRemaining,
     ],
   );
 
@@ -520,29 +548,23 @@ export function CustomerPaymentTab({
     return roundToRupee((settlement * pct) / 100).toFixed(2);
   }, [amount, discountPercent, discountAmount]);
 
-  const payableTotalParams = useMemo(
-    () => ({
-      customerInvoices,
-      invoiceVoucherSplits,
-      openingBalanceRemaining,
-    }),
-    [customerInvoices, invoiceVoucherSplits, openingBalanceRemaining],
-  );
-
   const applyAmountFromSelection = useCallback(
     (invoiceIds: string[], allocations: Record<string, string>) => {
-      if (invoiceIds.length === 0 || !payableTotalParams.customerInvoices) {
+      if (invoiceIds.length === 0 || !customerInvoices) {
         setAmount("");
         return;
       }
       const total = computeSelectedPayableTotal({
         selectedInvoiceIds: invoiceIds,
         allocatedAmounts: allocations,
-        ...payableTotalParams,
+        customerInvoices,
+        invoiceVoucherSplits,
+        openingBalanceRemaining,
       });
-      setAmount(roundToRupee(total).toFixed(2));
+      const nextAmount = roundToRupee(total).toFixed(2);
+      setAmount((prev) => (prev === nextAmount ? prev : nextAmount));
     },
-    [payableTotalParams],
+    [customerInvoicesKey, invoiceVoucherSplitsKey, openingBalanceRemaining, customerInvoices, invoiceVoucherSplits],
   );
 
   const toggleInvoiceSelection = (invoiceId: string, roundedBalance: number) => {

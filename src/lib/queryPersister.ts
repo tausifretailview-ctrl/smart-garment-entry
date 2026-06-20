@@ -41,6 +41,8 @@ const VOLATILE_PREFIXES = [
   "mobile-dashboard-today-sales",
   "payment-reconciliation",
   "customers-with-balance",
+  "customer-invoices",
+  "customer-invoice-voucher-splits",
   "auth",
   "session",
 ] as const;
