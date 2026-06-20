@@ -1,6 +1,13 @@
 import { ReactNode, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { ChevronsUpDown } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
@@ -44,20 +51,18 @@ export function AdaptivePaymentMethodPicker({
     return (
       <div className="space-y-2">
         {label ? <Label>{label}</Label> : null}
-        <select
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
-          className={cn(
-            "flex h-8 w-full rounded border border-input bg-background px-3 py-1.5 text-sm text-foreground outline-none ring-offset-background transition-colors focus:border-primary focus:ring-2 focus:ring-primary/30 disabled:cursor-not-allowed disabled:opacity-50",
-            triggerClassName,
-          )}
-        >
-          {methods.map((m) => (
-            <option key={m.value} value={m.value}>
-              {m.label}
-            </option>
-          ))}
-        </select>
+        <Select value={value} onValueChange={onChange}>
+          <SelectTrigger className={triggerClassName}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {methods.map((m) => (
+              <SelectItem key={m.value} value={m.value}>
+                {m.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
     );
   }
