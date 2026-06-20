@@ -10,7 +10,7 @@ export function coerceToMap<K extends string, V>(value: unknown): Map<K, V> {
   return new Map();
 }
 
-export function lookupMap<K extends string, V>(
+export function lookupMap<V, K extends string = string>(
   value: unknown,
   key: K | null | undefined,
 ): V | undefined {
