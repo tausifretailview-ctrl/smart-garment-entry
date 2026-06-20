@@ -607,7 +607,15 @@ function CustomerPaymentForm({
               return (
                 <div key={inv.id} className={cn("flex items-center gap-2 p-1.5 text-xs cursor-pointer border-b last:border-b-0", isSelected && "bg-primary/5")}
                   onClick={() => setSelectedInvoiceIds(prev => prev.includes(inv.id) ? prev.filter(id => id !== inv.id) : [...prev, inv.id])}>
-                  <Checkbox checked={isSelected} className="h-3.5 w-3.5" />
+                  <span
+                    aria-hidden="true"
+                    className={cn(
+                      "flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-sm border border-primary",
+                      isSelected && "bg-primary text-primary-foreground",
+                    )}
+                  >
+                    {isSelected ? <CheckCircle2 className="h-3 w-3" /> : null}
+                  </span>
                   <span className="flex-1 font-medium">{inv.sale_number}</span>
                   <span className="text-muted-foreground">{inv.sale_date ? format(new Date(inv.sale_date), "dd/MM") : "-"}</span>
                   <Badge variant="destructive" className="text-[10px] h-5">₹{Math.round(balance).toLocaleString('en-IN')}</Badge>

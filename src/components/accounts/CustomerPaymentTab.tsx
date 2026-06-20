@@ -1623,7 +1623,15 @@ export function CustomerPaymentTab({
                                 onClick={toggleOpeningBalanceSelection}
                               >
                                 <TableCell>
-                                  <Checkbox checked={isSelected} className="pointer-events-none" />
+                                  <span
+                                    aria-hidden="true"
+                                    className={cn(
+                                      "flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border border-primary",
+                                      isSelected && "bg-primary text-primary-foreground",
+                                    )}
+                                  >
+                                    {isSelected ? <Check className="h-3.5 w-3.5" /> : null}
+                                  </span>
                                 </TableCell>
                                 <TableCell className="font-medium text-amber-700 dark:text-amber-400">Opening Balance</TableCell>
                                 <TableCell className="text-muted-foreground">—</TableCell>
@@ -1654,7 +1662,15 @@ export function CustomerPaymentTab({
                                 onClick={() => toggleInvoiceSelection(invoice.id, roundedBalance)}
                               >
                                 <TableCell>
-                                  <Checkbox checked={isSelected} className="pointer-events-none" />
+                                  <span
+                                    aria-hidden="true"
+                                    className={cn(
+                                      "flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border border-primary",
+                                      isSelected && "bg-primary text-primary-foreground",
+                                    )}
+                                  >
+                                    {isSelected ? <Check className="h-3.5 w-3.5" /> : null}
+                                  </span>
                                 </TableCell>
                                 <TableCell className="font-medium">{invoice.sale_number}</TableCell>
                                 <TableCell className="font-mono tabular-nums text-muted-foreground">{invoiceDateText}</TableCell>
