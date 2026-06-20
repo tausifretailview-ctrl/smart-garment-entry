@@ -1,0 +1,1 @@
+CREATE INDEX IF NOT EXISTS idx_sale_order_items_variant_id ON public.sale_order_items (variant_id);
