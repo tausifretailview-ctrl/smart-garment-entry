@@ -22,6 +22,7 @@ import {
   ExternalLink,
   Link2,
   Undo2,
+  History,
 } from "lucide-react";
 import { format } from "date-fns";
 import {
