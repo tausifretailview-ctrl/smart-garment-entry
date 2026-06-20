@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useRef, useMemo, useCallback } from "react";
 import { useCustomerBalance } from "@/hooks/useCustomerBalance";
 import { insertLedgerCredit, deleteLedgerEntries } from "@/lib/customerLedger";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -99,6 +99,48 @@ const toNumberOrZero = (value: any) => {
 const MIN_PENDING_RUPEE = 1;
 const SETTLEMENT_TOLERANCE_RUPEE = 0.99;
 const roundToRupee = (value: any) => Math.max(0, Math.round(toNumberOrZero(value)));
+
+function allocatedAmountForInvoice(
+  allocatedAmounts: Record<string, string>,
+  invoiceId: string,
+  fallbackOutstanding: number,
+): number {
+  const raw = allocatedAmounts[invoiceId];
+  if (raw === undefined || raw === "") return roundToRupee(fallbackOutstanding);
+  return roundToRupee(raw);
+}
+
+/** Sum of per-invoice Pay allocations + optional opening balance row (pure — no setState). */
+function computeSelectedPayableTotal(params: {
+  selectedInvoiceIds: string[];
+  allocatedAmounts: Record<string, string>;
+  customerInvoices: any[] | undefined;
+  invoiceVoucherSplits: Map<string, SaleReceiptVoucherSplit>;
+  openingBalanceRemaining: number;
+}): number {
+  const {
+    selectedInvoiceIds,
+    allocatedAmounts,
+    customerInvoices,
+    invoiceVoucherSplits,
+    openingBalanceRemaining,
+  } = params;
+  const invoicePart =
+    customerInvoices
+      ?.filter((inv) => selectedInvoiceIds.includes(inv.id))
+      .reduce((sum, inv) => {
+        const outstanding = getInvoiceOutstanding(inv, safeMapGet(invoiceVoucherSplits, inv.id));
+        const allocated = Math.min(
+          outstanding,
+          allocatedAmountForInvoice(allocatedAmounts, inv.id, outstanding),
+        );
+        return sum + allocated;
+      }, 0) ?? 0;
+  const obPart = selectedInvoiceIds.includes(OPENING_BALANCE_ID)
+    ? Number(openingBalanceRemaining || 0)
+    : 0;
+  return invoicePart + obPart;
+}
 
 /** Settlement (invoice total), optional % discount → cash received + discount rupees. */
 function resolvePaymentBreakdown(
@@ -449,62 +491,85 @@ export function CustomerPaymentTab({
   const advanceBalance = snapshotAdvanceAvailable;
   const adjustedOutstandingCreditTotal = snapshotCnAvailable;
 
-  // Auto-fill amount
-  const getAllocatedAmount = (invoiceId: string, fallbackOutstanding: number) => {
-    const raw = allocatedAmounts[invoiceId];
-    if (raw === undefined || raw === "") return roundToRupee(fallbackOutstanding);
-    return roundToRupee(raw);
-  };
+  const selectedInvoiceIdsKey = selectedInvoiceIds.join("|");
+  const allocatedAmountsKey = JSON.stringify(allocatedAmounts);
 
-  const getSelectedPayableTotal = () => {
-    const invoicePart = customerInvoices?.filter(inv => selectedInvoiceIds.includes(inv.id))
-      .reduce((sum, inv) => {
-        const outstanding = getInvoiceOutstanding(inv, safeMapGet(invoiceVoucherSplits, inv.id));
-        const allocated = Math.min(outstanding, getAllocatedAmount(inv.id, outstanding));
-        return sum + allocated;
-      }, 0) || 0;
-    const obPart = selectedInvoiceIds.includes(OPENING_BALANCE_ID)
-        ? Number(openingBalanceRemaining || 0)
-        : 0;
-    return invoicePart + obPart;
-  };
+  const selectedPayableTotal = useMemo(
+    () =>
+      computeSelectedPayableTotal({
+        selectedInvoiceIds,
+        allocatedAmounts,
+        customerInvoices,
+        invoiceVoucherSplits,
+        openingBalanceRemaining,
+      }),
+    [
+      selectedInvoiceIdsKey,
+      allocatedAmountsKey,
+      customerInvoices,
+      invoiceVoucherSplits,
+      openingBalanceRemaining,
+    ],
+  );
 
-  useEffect(() => {
-    if (selectedInvoiceIds.length === 0 || !customerInvoices) return;
-    const nextAmount = roundToRupee(getSelectedPayableTotal()).toFixed(2);
-    setAmount((prev) => (prev === nextAmount ? prev : nextAmount));
-  }, [selectedInvoiceIds, customerInvoices, openingBalanceRemaining, customerInvoiceVoucherSplitsRaw, allocatedAmounts]);
+  const discountAmountDisplay = useMemo(() => {
+    const pct = toNumberOrZero(discountPercent);
+    if (pct <= 0) return discountAmount;
+    const settlement = roundToRupee(amount);
+    if (settlement <= 0) return "";
+    return roundToRupee((settlement * pct) / 100).toFixed(2);
+  }, [amount, discountPercent, discountAmount]);
+
+  const payableTotalParams = useMemo(
+    () => ({
+      customerInvoices,
+      invoiceVoucherSplits,
+      openingBalanceRemaining,
+    }),
+    [customerInvoices, invoiceVoucherSplits, openingBalanceRemaining],
+  );
+
+  const applyAmountFromSelection = useCallback(
+    (invoiceIds: string[], allocations: Record<string, string>) => {
+      if (invoiceIds.length === 0 || !payableTotalParams.customerInvoices) {
+        setAmount("");
+        return;
+      }
+      const total = computeSelectedPayableTotal({
+        selectedInvoiceIds: invoiceIds,
+        allocatedAmounts: allocations,
+        ...payableTotalParams,
+      });
+      setAmount(roundToRupee(total).toFixed(2));
+    },
+    [payableTotalParams],
+  );
 
   const toggleInvoiceSelection = (invoiceId: string, roundedBalance: number) => {
     const isSelected = selectedInvoiceIds.includes(invoiceId);
     if (isSelected) {
-      setSelectedInvoiceIds((prev) => prev.filter((id) => id !== invoiceId));
-      setAllocatedAmounts((prev) => {
-        const next = { ...prev };
-        delete next[invoiceId];
-        return next;
-      });
+      const nextIds = selectedInvoiceIds.filter((id) => id !== invoiceId);
+      const nextAlloc = { ...allocatedAmounts };
+      delete nextAlloc[invoiceId];
+      setSelectedInvoiceIds(nextIds);
+      setAllocatedAmounts(nextAlloc);
+      applyAmountFromSelection(nextIds, nextAlloc);
       return;
     }
-    setSelectedInvoiceIds((prev) => [...prev, invoiceId]);
-    setAllocatedAmounts((prev) => ({ ...prev, [invoiceId]: roundedBalance.toFixed(2) }));
+    const nextIds = [...selectedInvoiceIds, invoiceId];
+    const nextAlloc = { ...allocatedAmounts, [invoiceId]: roundedBalance.toFixed(2) };
+    setSelectedInvoiceIds(nextIds);
+    setAllocatedAmounts(nextAlloc);
+    applyAmountFromSelection(nextIds, nextAlloc);
   };
 
   const toggleOpeningBalanceSelection = () => {
-    setSelectedInvoiceIds((prev) =>
-      prev.includes(OPENING_BALANCE_ID)
-        ? prev.filter((id) => id !== OPENING_BALANCE_ID)
-        : [...prev, OPENING_BALANCE_ID],
-    );
+    const nextIds = selectedInvoiceIds.includes(OPENING_BALANCE_ID)
+      ? selectedInvoiceIds.filter((id) => id !== OPENING_BALANCE_ID)
+      : [...selectedInvoiceIds, OPENING_BALANCE_ID];
+    setSelectedInvoiceIds(nextIds);
+    applyAmountFromSelection(nextIds, allocatedAmounts);
   };
-
-  useEffect(() => {
-    const pct = toNumberOrZero(discountPercent);
-    if (pct <= 0) return;
-    const settlement = roundToRupee(amount);
-    if (settlement <= 0) return;
-    setDiscountAmount(roundToRupee((settlement * pct) / 100).toFixed(2));
-  }, [amount, discountPercent]);
 
   const resetForm = () => {
     setVoucherDate(new Date());
@@ -746,7 +811,7 @@ export function CustomerPaymentTab({
           if (!invoice) continue;
           const currentPaid = invoice.paid_amount || 0;
           const outstanding = getInvoiceOutstanding(invoice, safeMapGet(invoiceVoucherSplits, invoiceId));
-          const allocatedForInvoice = getAllocatedAmount(invoiceId, outstanding);
+          const allocatedForInvoice = allocatedAmountForInvoice(allocatedAmounts, invoiceId, outstanding);
           const amountToApply = Math.min(pool, outstanding, allocatedForInvoice);
           if (amountToApply <= 0) continue;
           const { cash: cashApplied, discount: discountApplied } = takeFromPool(amountToApply);
@@ -1262,7 +1327,7 @@ export function CustomerPaymentTab({
     }
     if (!referenceId) { toast.error("Please select a customer"); return; }
     if (selectedInvoiceIds.length > 0) {
-      const selectedPayable = getSelectedPayableTotal();
+      const selectedPayable = selectedPayableTotal;
       const { settlement, discount, cash } = breakdown;
       if (settlement > roundToRupee(selectedPayable)) {
         toast.error(`Settlement amount cannot exceed pending total of ₹${selectedPayable.toFixed(2)}`);
@@ -1277,7 +1342,7 @@ export function CustomerPaymentTab({
     // Align with listed invoice rows (includes sale_return_adjust). Hook balance can lag or
     // historically missed per-invoice CN adjust until useCustomerBalance subtracts sale_return_adjust.
     const selectedPayableForZeroGuard =
-      selectedInvoiceIds.length > 0 ? getSelectedPayableTotal() : 0;
+      selectedInvoiceIds.length > 0 ? selectedPayableTotal : 0;
     const lifetimeDrForGuard = lifetimeOutstanding ?? customerBalance;
     if (
       lifetimeDrForGuard !== undefined &&
@@ -1407,6 +1472,7 @@ export function CustomerPaymentTab({
                   setReferenceId(customer.id);
                   setSelectedInvoiceIds([]);
                   setAllocatedAmounts({});
+                  setAmount("");
                 }}
                 isLoading={customersWithBalanceLoading}
                 loadingMessage="Loading customers with balance..."
@@ -1599,12 +1665,16 @@ export function CustomerPaymentTab({
                                       onClick={(e) => e.stopPropagation()}
                                       onChange={(e) => {
                                         const raw = e.target.value;
+                                        let nextAlloc: Record<string, string>;
                                         if (raw === "") {
-                                          setAllocatedAmounts((old) => ({ ...old, [invoice.id]: "" }));
-                                          return;
+                                          nextAlloc = { ...allocatedAmounts, [invoice.id]: "" };
+                                          setAllocatedAmounts(nextAlloc);
+                                        } else {
+                                          const next = Math.min(roundedBalance, roundToRupee(raw));
+                                          nextAlloc = { ...allocatedAmounts, [invoice.id]: next.toFixed(2) };
+                                          setAllocatedAmounts(nextAlloc);
                                         }
-                                        const next = Math.min(roundedBalance, roundToRupee(raw));
-                                        setAllocatedAmounts((old) => ({ ...old, [invoice.id]: next.toFixed(2) }));
+                                        applyAmountFromSelection(selectedInvoiceIds, nextAlloc);
                                       }}
                                     />
                                   )}
@@ -1625,7 +1695,7 @@ export function CustomerPaymentTab({
                     <Badge variant="secondary" className="bg-primary/10">{selectedInvoiceIds.length} invoice(s) selected</Badge>
                     <div className="text-sm text-muted-foreground">
                       {(() => {
-                        const grandTotal = roundToRupee(getSelectedPayableTotal());
+                        const grandTotal = roundToRupee(selectedPayableTotal);
                         return (
                           <div className="space-y-0.5">
                             <div className="font-semibold text-foreground">
@@ -1641,7 +1711,7 @@ export function CustomerPaymentTab({
                         );
                       })()}
                     </div>
-                    <Button type="button" variant="ghost" size="sm" onClick={() => { setSelectedInvoiceIds([]); setAllocatedAmounts({}); }}>Clear</Button>
+                    <Button type="button" variant="ghost" size="sm" onClick={() => { setSelectedInvoiceIds([]); setAllocatedAmounts({}); setAmount(""); }}>Clear</Button>
                   </div>
                 )}
               </div>
@@ -1725,7 +1795,7 @@ export function CustomerPaymentTab({
               {(() => {
                 const breakdown = resolvePaymentBreakdown(amount, discountPercent, discountAmount);
                 const selectedPayable =
-                  selectedInvoiceIds.length > 0 ? roundToRupee(getSelectedPayableTotal()) : 0;
+                  selectedInvoiceIds.length > 0 ? roundToRupee(selectedPayableTotal) : 0;
                 return (
                   <div className="space-y-4">
                     <div className="space-y-2">
@@ -1746,7 +1816,7 @@ export function CustomerPaymentTab({
                           const entered = roundToRupee(raw);
                           const maxAllowed =
                             selectedInvoiceIds.length > 0
-                              ? roundToRupee(getSelectedPayableTotal())
+                              ? roundToRupee(selectedPayableTotal)
                               : Infinity;
                           setAmount(Math.min(entered, maxAllowed).toFixed(2));
                         }}
@@ -1793,7 +1863,7 @@ export function CustomerPaymentTab({
                             type="number"
                             step="0.01"
                             placeholder="Auto from %"
-                            value={discountAmount}
+                            value={discountAmountDisplay}
                             onChange={(e) => {
                               const raw = e.target.value;
                               setDiscountPercent("");
