@@ -11,6 +11,8 @@ interface Organization {
   settings: Record<string, any>;
   organization_type: "business" | "school";
   organization_number: number;
+  is_suspended?: boolean;
+  suspension_reason?: string | null;
 }
 
 interface OrganizationContextType {
@@ -90,7 +92,7 @@ export const OrganizationProvider = ({ children }: { children: ReactNode }) => {
       .from("organization_members")
       .select(`
         id, organization_id, user_id, role,
-        organizations (id, name, slug, subscription_tier, enabled_features, settings, organization_type, organization_number)
+        organizations (id, name, slug, subscription_tier, enabled_features, settings, organization_type, organization_number, is_suspended, suspension_reason)
       `)
       .eq("user_id", userId);
   };

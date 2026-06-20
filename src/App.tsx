@@ -35,6 +35,7 @@ import { ElectronOAuthRecovery } from "@/components/ElectronOAuthRecovery";
 import { initNavigationPerfDiagnostics } from "@/lib/navigationPerfDiagnostics";
 import { initCloudUsageDiagnostics } from "@/lib/cloudUsageDiagnostics";
 import { EntryBillLoadingFallback } from "@/components/EntryBillLoadingFallback";
+import { SuspensionGate } from "@/components/SuspensionGate";
 
 // Lazy-loaded page components for code splitting
 const OrganizationManagement = lazyWithRetry(() => import("./pages/OrganizationManagement"));
@@ -366,6 +367,7 @@ const App = () => {
             <UpdatePrompt />
             <WindowTabsProvider>
             <Suspense fallback={<LazyFallback />}>
+            <SuspensionGate>
             <Routes>
               {/* Public routes - No org context needed */}
               <Route path="/auth" element={<Auth />} />
@@ -1560,6 +1562,7 @@ const App = () => {
               {/* Catch-all for 404 */}
               <Route path="*" element={<NotFound />} />
             </Routes>
+            </SuspensionGate>
             </Suspense>
             </WindowTabsProvider>
           </OrganizationProvider>
