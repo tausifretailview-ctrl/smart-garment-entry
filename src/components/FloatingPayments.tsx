@@ -249,10 +249,12 @@ function CustomerPaymentForm({
   const customerBalance = pickerOutstanding ?? customerBalanceFallback;
 
   useEffect(() => {
-    if (selectedInvoiceIds.length > 0 && customerInvoices) {
-      const total = customerInvoices.filter(inv => selectedInvoiceIds.includes(inv.id)).reduce((sum, inv) => sum + (inv.net_amount - (inv.paid_amount || 0)), 0);
-      setAmount(total.toFixed(2));
-    }
+    if (selectedInvoiceIds.length === 0 || !customerInvoices) return;
+    const total = customerInvoices
+      .filter((inv) => selectedInvoiceIds.includes(inv.id))
+      .reduce((sum, inv) => sum + (inv.net_amount - (inv.paid_amount || 0)), 0);
+    const nextAmount = total.toFixed(2);
+    setAmount((prev) => (prev === nextAmount ? prev : nextAmount));
   }, [selectedInvoiceIds, customerInvoices]);
 
   const resetForm = () => {

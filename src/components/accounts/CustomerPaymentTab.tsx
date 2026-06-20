@@ -79,6 +79,7 @@ import {
 // Sentinel ID used to represent the customer's remaining Opening Balance
 // as a selectable row inside the invoice picker.
 const OPENING_BALANCE_ID = "__opening_balance__";
+const EMPTY_INVOICE_VOUCHER_SPLITS = new Map<string, SaleReceiptVoucherSplit>();
 /** Per-invoice due — same rules as Sales Invoice Dashboard (avoids double-counting CN in paid_amount + sr). */
 const getInvoiceOutstanding = (invoice: any, split?: SaleReceiptVoucherSplit | null) => {
   const s = split ?? { cash: 0, cn: 0, adv: 0, discount: 0 };
@@ -340,7 +341,7 @@ export function CustomerPaymentTab({
     enabled: !!referenceId,
   });
 
-  const { data: customerInvoiceVoucherSplitsRaw = new Map<string, SaleReceiptVoucherSplit>() } = useQuery({
+  const { data: customerInvoiceVoucherSplitsRaw } = useQuery({
     queryKey: ["customer-invoice-voucher-splits", organizationId, referenceId, customerInvoices?.length || 0],
     queryFn: async () => {
       const rows = customerInvoices || [];
@@ -365,7 +366,10 @@ export function CustomerPaymentTab({
   });
 
   const invoiceVoucherSplits = useMemo(
-    () => coerceToMap<string, SaleReceiptVoucherSplit>(customerInvoiceVoucherSplitsRaw),
+    () =>
+      coerceToMap<string, SaleReceiptVoucherSplit>(
+        customerInvoiceVoucherSplitsRaw ?? EMPTY_INVOICE_VOUCHER_SPLITS,
+      ),
     [customerInvoiceVoucherSplitsRaw],
   );
 
@@ -466,10 +470,33 @@ export function CustomerPaymentTab({
   };
 
   useEffect(() => {
-    if (selectedInvoiceIds.length > 0 && customerInvoices) {
-      setAmount(roundToRupee(getSelectedPayableTotal()).toFixed(2));
+    if (selectedInvoiceIds.length === 0 || !customerInvoices) return;
+    const nextAmount = roundToRupee(getSelectedPayableTotal()).toFixed(2);
+    setAmount((prev) => (prev === nextAmount ? prev : nextAmount));
+  }, [selectedInvoiceIds, customerInvoices, openingBalanceRemaining, customerInvoiceVoucherSplitsRaw, allocatedAmounts]);
+
+  const toggleInvoiceSelection = (invoiceId: string, roundedBalance: number) => {
+    const isSelected = selectedInvoiceIds.includes(invoiceId);
+    if (isSelected) {
+      setSelectedInvoiceIds((prev) => prev.filter((id) => id !== invoiceId));
+      setAllocatedAmounts((prev) => {
+        const next = { ...prev };
+        delete next[invoiceId];
+        return next;
+      });
+      return;
     }
-  }, [selectedInvoiceIds, customerInvoices, openingBalanceRemaining, invoiceVoucherSplits, allocatedAmounts]);
+    setSelectedInvoiceIds((prev) => [...prev, invoiceId]);
+    setAllocatedAmounts((prev) => ({ ...prev, [invoiceId]: roundedBalance.toFixed(2) }));
+  };
+
+  const toggleOpeningBalanceSelection = () => {
+    setSelectedInvoiceIds((prev) =>
+      prev.includes(OPENING_BALANCE_ID)
+        ? prev.filter((id) => id !== OPENING_BALANCE_ID)
+        : [...prev, OPENING_BALANCE_ID],
+    );
+  };
 
   useEffect(() => {
     const pct = toNumberOrZero(discountPercent);
@@ -1505,7 +1532,7 @@ export function CustomerPaymentTab({
                                   "cursor-pointer transition-colors",
                                   isSelected ? "bg-amber-100/60 dark:bg-amber-900/20" : "hover:bg-muted",
                                 )}
-                                onClick={() => setSelectedInvoiceIds(prev => prev.includes(OPENING_BALANCE_ID) ? prev.filter(id => id !== OPENING_BALANCE_ID) : [...prev, OPENING_BALANCE_ID])}
+                                onClick={toggleOpeningBalanceSelection}
                               >
                                 <TableCell>
                                   <Checkbox checked={isSelected} className="pointer-events-none" />
@@ -1536,21 +1563,7 @@ export function CustomerPaymentTab({
                                   "cursor-pointer transition-colors",
                                   isSelected ? "bg-primary/10" : "hover:bg-muted",
                                 )}
-                                onClick={() => {
-                                  setSelectedInvoiceIds(prev => {
-                                    const exists = prev.includes(invoice.id);
-                                    if (exists) {
-                                      setAllocatedAmounts((old) => {
-                                        const next = { ...old };
-                                        delete next[invoice.id];
-                                        return next;
-                                      });
-                                      return prev.filter(id => id !== invoice.id);
-                                    }
-                                    setAllocatedAmounts((old) => ({ ...old, [invoice.id]: roundedBalance.toFixed(2) }));
-                                    return [...prev, invoice.id];
-                                  });
-                                }}
+                                onClick={() => toggleInvoiceSelection(invoice.id, roundedBalance)}
                               >
                                 <TableCell>
                                   <Checkbox checked={isSelected} className="pointer-events-none" />
