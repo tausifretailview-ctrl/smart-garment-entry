@@ -339,7 +339,7 @@ const App = () => {
 
   return (
     <RootErrorBoundary>
-    <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
+    <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
     <PersistQueryClientProvider
       client={queryClient}
       persistOptions={{

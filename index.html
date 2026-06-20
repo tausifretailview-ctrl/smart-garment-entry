@@ -1,7 +1,32 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="theme-purple">
   <head>
     <meta charset="UTF-8" />
+    <script>
+      (function () {
+        try {
+          var custom = localStorage.getItem("custom-theme");
+          var mode = localStorage.getItem("theme");
+          var root = document.documentElement;
+          root.classList.remove("theme-indigo", "theme-purple", "theme-enterprise");
+          if (custom === "indigo") root.classList.add("theme-indigo");
+          else if (custom === "enterprise") root.classList.add("theme-enterprise");
+          else if (custom === "purple") root.classList.add("theme-purple");
+          else if (mode === "dark") {
+            /* respect explicit dark choice */
+          } else if (mode === "light") {
+            /* plain light — no custom palette class */
+          } else {
+            root.classList.add("theme-purple");
+            localStorage.setItem("custom-theme", "purple");
+            localStorage.setItem("theme", "light");
+            root.classList.remove("dark");
+          }
+        } catch (e) {
+          document.documentElement.classList.add("theme-purple");
+        }
+      })();
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <title>EzzyERP - Easy Billing, Smart Business</title>
     <meta name="description" content="EzzyERP - Easy Billing, Smart Business" />

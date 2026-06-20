@@ -9,10 +9,12 @@ import { recoverElectronOAuthErrorPage } from "@/lib/electronOAuthRecovery";
 import { initElectronViewportSync } from "@/lib/electronViewportSync";
 import { ensurePosAppSession } from "@/lib/posCartPersistence";
 import { initScrollWheelFix } from "@/lib/scrollWheel";
+import { initAppTheme } from "@/lib/appTheme";
 import "./index.css";
 
 recoverElectronOAuthErrorPage();
 
+initAppTheme();
 initForceDesktopViewPreference();
 initUIScale();
 initElectronViewportSync();
@@ -27,25 +29,24 @@ declare global {
     __pwaInstallPrompt?: Event;
   }
 }
-window.addEventListener('beforeinstallprompt', (e) => {
+window.addEventListener("beforeinstallprompt", (e) => {
   e.preventDefault();
   window.__pwaInstallPrompt = e;
 });
 
 // Global error handlers for async errors (not caught by React error boundaries)
-window.addEventListener('unhandledrejection', (event) => {
-  console.error('Unhandled promise rejection:', event.reason);
-  // Don't prevent default - let ErrorBoundary handle if possible
+window.addEventListener("unhandledrejection", (event) => {
+  console.error("Unhandled promise rejection:", event.reason);
 });
 
-window.addEventListener('error', (event) => {
-  console.error('Uncaught error:', event.error);
+window.addEventListener("error", (event) => {
+  console.error("Uncaught error:", event.error);
 });
 
 createRoot(document.getElementById("root")!).render(
   <ErrorBoundary>
     <App />
-  </ErrorBoundary>
+  </ErrorBoundary>,
 );
 
 // Auto-reload disabled per user request — keep window sticky with existing data.

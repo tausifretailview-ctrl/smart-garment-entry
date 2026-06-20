@@ -9,6 +9,14 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
+import {
+  APP_CUSTOM_THEME_KEY,
+  applyCustomTheme,
+  initAppTheme,
+  readCustomThemeId,
+  stripCustomThemeClasses,
+  type CustomThemeId,
+} from "@/lib/appTheme";
 
 type ThemeToggleProps = {
   /** Merged into trigger button (e.g. match header row 2 / sidebar toolbar). */
@@ -17,53 +25,32 @@ type ThemeToggleProps = {
 
 export function ThemeToggle({ className }: ThemeToggleProps) {
   const { theme, setTheme } = useTheme();
-  const [customTheme, setCustomTheme] = useState<string | null>(null);
+  const [customTheme, setCustomTheme] = useState<CustomThemeId | null>(() => readCustomThemeId());
 
-  // Check for custom theme class on mount and restore from localStorage
-  // Default to purple theme if no theme is saved
   useEffect(() => {
-    const savedCustomTheme = localStorage.getItem("custom-theme");
-    const stripCustom = () => {
-      document.documentElement.classList.remove("theme-indigo", "theme-purple", "theme-enterprise");
-    };
-    if (savedCustomTheme === "indigo") {
-      stripCustom();
-      document.documentElement.classList.add("theme-indigo");
-      setCustomTheme("indigo");
-    } else if (savedCustomTheme === "enterprise") {
-      stripCustom();
-      document.documentElement.classList.add("theme-enterprise");
-      setCustomTheme("enterprise");
-    } else if (savedCustomTheme === "purple" || !savedCustomTheme) {
-      stripCustom();
-      document.documentElement.classList.add("theme-purple");
-      setCustomTheme("purple");
-      if (!savedCustomTheme) {
-        localStorage.setItem("custom-theme", "purple");
-        setTheme("light");
-      }
-    }
+    initAppTheme();
+    setCustomTheme(readCustomThemeId() ?? "purple");
   }, [setTheme]);
 
   const handleThemeChange = (newTheme: string) => {
-    document.documentElement.classList.remove("theme-indigo", "theme-purple", "theme-enterprise");
-    localStorage.removeItem("custom-theme");
+    stripCustomThemeClasses();
+    localStorage.removeItem(APP_CUSTOM_THEME_KEY);
     setCustomTheme(null);
 
     if (newTheme === "indigo") {
       setTheme("light");
-      document.documentElement.classList.add("theme-indigo");
-      localStorage.setItem("custom-theme", "indigo");
+      applyCustomTheme("indigo");
+      localStorage.setItem(APP_CUSTOM_THEME_KEY, "indigo");
       setCustomTheme("indigo");
     } else if (newTheme === "enterprise") {
       setTheme("light");
-      document.documentElement.classList.add("theme-enterprise");
-      localStorage.setItem("custom-theme", "enterprise");
+      applyCustomTheme("enterprise");
+      localStorage.setItem(APP_CUSTOM_THEME_KEY, "enterprise");
       setCustomTheme("enterprise");
     } else if (newTheme === "purple") {
       setTheme("light");
-      document.documentElement.classList.add("theme-purple");
-      localStorage.setItem("custom-theme", "purple");
+      applyCustomTheme("purple");
+      localStorage.setItem(APP_CUSTOM_THEME_KEY, "purple");
       setCustomTheme("purple");
     } else {
       setTheme(newTheme);
@@ -99,7 +86,7 @@ export function ThemeToggle({ className }: ThemeToggleProps) {
         </>
       );
     }
-    if (currentTheme === 'dark') {
+    if (currentTheme === "dark") {
       return (
         <>
           <Moon className={iconClass ?? "h-4 w-4 text-primary"} />
@@ -118,51 +105,36 @@ export function ThemeToggle({ className }: ThemeToggleProps) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button 
-          variant="outline" 
-          size="sm" 
+        <Button
+          variant="outline"
+          size="sm"
           className={cn("gap-2 bg-card border-border hover:bg-accent", className)}
         >
           {getThemeDisplay()}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="min-w-[13.5rem]">
-        <DropdownMenuItem 
-          onClick={() => handleThemeChange("dark")}
-          className="gap-2 cursor-pointer"
-        >
+        <DropdownMenuItem onClick={() => handleThemeChange("dark")} className="gap-2 cursor-pointer">
           <Moon className="h-4 w-4 text-red-500" />
           <span>Dark Theme (Red & Black)</span>
           {currentTheme === "dark" && <span className="ml-auto text-primary">✓</span>}
         </DropdownMenuItem>
-        <DropdownMenuItem 
-          onClick={() => handleThemeChange("light")}
-          className="gap-2 cursor-pointer"
-        >
+        <DropdownMenuItem onClick={() => handleThemeChange("light")} className="gap-2 cursor-pointer">
           <Sun className="h-4 w-4 text-sky-500" />
           <span>Light Theme (Blue)</span>
           {currentTheme === "light" && <span className="ml-auto text-primary">✓</span>}
         </DropdownMenuItem>
-        <DropdownMenuItem 
-          onClick={() => handleThemeChange("indigo")}
-          className="gap-2 cursor-pointer"
-        >
+        <DropdownMenuItem onClick={() => handleThemeChange("indigo")} className="gap-2 cursor-pointer">
           <Sparkles className="h-4 w-4 text-indigo-500" />
           <span>Classic Theme (Indigo)</span>
           {currentTheme === "indigo" && <span className="ml-auto text-primary">✓</span>}
         </DropdownMenuItem>
-        <DropdownMenuItem 
-          onClick={() => handleThemeChange("enterprise")}
-          className="gap-2 cursor-pointer"
-        >
+        <DropdownMenuItem onClick={() => handleThemeChange("enterprise")} className="gap-2 cursor-pointer">
           <Building2 className="h-4 w-4 text-sky-600" />
           <span>Enterprise Theme (Pro)</span>
           {currentTheme === "enterprise" && <span className="ml-auto text-primary">✓</span>}
         </DropdownMenuItem>
-        <DropdownMenuItem 
-          onClick={() => handleThemeChange("purple")}
-          className="gap-2 cursor-pointer"
-        >
+        <DropdownMenuItem onClick={() => handleThemeChange("purple")} className="gap-2 cursor-pointer">
           <Palette className="h-4 w-4 text-[#5B5FEF]" />
           <span>Purple Theme (Ezzy)</span>
           {currentTheme === "purple" && <span className="ml-auto text-primary">✓</span>}
