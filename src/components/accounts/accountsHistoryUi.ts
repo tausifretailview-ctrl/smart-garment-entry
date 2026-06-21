@@ -21,3 +21,10 @@ export const accountsHistoryThClass = "font-semibold whitespace-nowrap";
 
 export const accountsHistoryFooterClass =
   "flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 px-3 py-2 bg-white text-sm";
+
+/** Payment modal — invoice/bill number, days, amount (readable on dense picker grids). */
+export const paymentPickerRefClass = "text-base font-bold leading-snug";
+export const paymentPickerDaysClass = "text-base font-bold font-mono tabular-nums";
+export const paymentPickerAmountClass = "text-base font-bold font-mono tabular-nums";
+export const paymentPickerAmountBadgeClass =
+  "text-base font-bold font-mono tabular-nums px-2.5 py-1 h-auto min-h-[1.75rem]";
