@@ -28,6 +28,7 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 import { useSettings } from "@/hooks/useSettings";
 import { useAuth } from "@/contexts/AuthContext";
 import { fetchCustomersWithBalanceForPaymentPicker } from "@/utils/customerPaymentPickerList";
+import { resolveCustomerOpeningBalance } from "@/utils/customerOpeningBalanceRemaining";
 import { DASHBOARD_TAB_RETURN_QUERY_OPTIONS } from "@/lib/dashboardQueryOptions";
 import { setCloudUsageRoutePath } from "@/lib/cloudUsageDiagnostics";
 import { safeMapGet } from "@/lib/coerceToMap";
@@ -181,7 +182,7 @@ function CustomerPaymentForm({
   // Shared with Accounts Customer Payment tab — RPC reconcile path, cached across screens.
   const { data: customersWithBalance } = useQuery({
     queryKey: ["customers-with-balance", organizationId, "payment-picker-v2"],
-    queryFn: () => fetchCustomersWithBalanceForPaymentPicker(organizationId),
+    queryFn: () => fetchCustomersWithBalanceForPaymentPicker(organizationId, supabase, queryClient),
     enabled: !!organizationId && dialogOpen,
     ...DASHBOARD_TAB_RETURN_QUERY_OPTIONS,
     staleTime: 2 * 60 * 1000,
@@ -216,13 +217,7 @@ function CustomerPaymentForm({
   const { data: customerBalanceFallback } = useQuery({
     queryKey: ["customer-balance", organizationId, referenceId],
     queryFn: async () => {
-      const { data: cust } = await supabase
-        .from("customers")
-        .select("opening_balance")
-        .eq("organization_id", organizationId)
-        .eq("id", referenceId)
-        .maybeSingle();
-      const ob = cust?.opening_balance || 0;
+      const ob = await resolveCustomerOpeningBalance(organizationId, referenceId, queryClient);
       const { data: sales } = await supabase
         .from("sales")
         .select("net_amount, paid_amount")

@@ -62,6 +62,11 @@ import { useCustomerFinancialSnapshot } from "@/hooks/useCustomerFinancialSnapsh
 import { invalidateCustomerFinancialSnapshot } from "@/utils/customerFinancialSnapshot";
 import { invalidateAfterCustomerPaymentMutation } from "@/utils/invalidateDashboardQueries";
 import {
+  fetchCustomerOpeningBalanceRemaining,
+  readCustomerOpeningBalanceFromOrgLedgerCache,
+} from "@/utils/customerOpeningBalanceRemaining";
+import { STALE_FREQUENT } from "@/lib/queryStaleTimes";
+import {
   consumeAdvanceFIFO,
   createReceiptVoucher,
   derivePaidAndStatus,
@@ -442,34 +447,22 @@ export function CustomerPaymentTab({
 
   const customerInvoicesKey = customerInvoicesDepKey(customerInvoices);
 
-  // Remaining Opening Balance for the selected customer
-  // = customers.opening_balance − sum(receipt vouchers with reference_type='customer')
+  // Remaining Opening Balance — OB from org-ledger cache; vouchers only on the wire.
+  const openingBalanceSeed = useMemo(
+    () =>
+      referenceId && organizationId
+        ? readCustomerOpeningBalanceFromOrgLedgerCache(queryClient, organizationId, referenceId)
+        : undefined,
+    [referenceId, organizationId, queryClient, customersWithBalance],
+  );
+
   const { data: openingBalanceRemaining = 0 } = useQuery({
-    queryKey: ["customer-opening-balance-remaining", referenceId, organizationId],
-    queryFn: async () => {
-      if (!referenceId) return 0;
-      const { data: cust } = await supabase
-        .from("customers")
-        .select("opening_balance")
-        .eq("id", referenceId)
-        .maybeSingle();
-      const ob = Number(cust?.opening_balance || 0);
-      if (ob <= 0) return 0;
-      const { data: vouchersData } = await supabase
-        .from("voucher_entries")
-        .select("total_amount, discount_amount")
-        .eq("organization_id", organizationId)
-        .eq("voucher_type", "receipt")
-        .eq("reference_type", "customer")
-        .eq("reference_id", referenceId)
-        .is("deleted_at", null);
-      const paid = (vouchersData || []).reduce(
-        (s: number, v: any) => s + Number(v.total_amount || 0) + Number(v.discount_amount || 0),
-        0,
-      );
-      return Math.max(0, ob - paid);
-    },
+    queryKey: ["customer-opening-balance-remaining", referenceId, organizationId, openingBalanceSeed],
+    queryFn: () =>
+      fetchCustomerOpeningBalanceRemaining(supabase, organizationId!, referenceId!, queryClient),
     enabled: !!referenceId && !!organizationId,
+    staleTime: STALE_FREQUENT,
+    refetchOnWindowFocus: false,
   });
 
   const {
