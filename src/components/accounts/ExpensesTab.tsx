@@ -24,7 +24,12 @@ import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngine
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 import { AccountsHistoryPanel } from "@/components/accounts/AccountsHistoryPanel";
-import { accountsHistoryTableClass, accountsHistoryThClass } from "@/components/accounts/accountsHistoryUi";
+import {
+  accountsHistoryTableClass,
+  accountsHistoryThClass,
+  paymentPickerAmountClass,
+  paymentPickerRefClass,
+} from "@/components/accounts/accountsHistoryUi";
 import { AccountingEntriesGuide } from "@/components/accounting/AccountingEntriesGuide";
 
 interface ExpensesTabProps {
@@ -786,13 +791,13 @@ export function ExpensesTab({ organizationId, vouchers, embedded = false }: Expe
                 ) : (
                   filteredExpenses.map((v) => (
                     <TableRow key={v.id} className="hover:bg-accent/50">
-                      <TableCell className="text-xs font-medium">{v.voucher_number}</TableCell>
+                      <TableCell className={paymentPickerRefClass}>{v.voucher_number}</TableCell>
                       <TableCell className="text-xs">{format(new Date(v.voucher_date), "dd/MM/yyyy")}</TableCell>
                       <TableCell className="text-xs">{formatEntryDateTime(v.created_at)}</TableCell>
                       <TableCell className="text-xs">{v.category || v.description || "—"}</TableCell>
                       <TableCell className="text-xs max-w-[200px] truncate">{v.description || "—"}</TableCell>
                       <TableCell className="text-xs capitalize">{(v.payment_method || "cash").replace("_", " ")}</TableCell>
-                      <TableCell className="text-xs text-right font-semibold tabular-nums">₹{Number(v.total_amount).toLocaleString("en-IN")}</TableCell>
+                      <TableCell className={cn("text-right", paymentPickerAmountClass)}>₹{Number(v.total_amount).toLocaleString("en-IN")}</TableCell>
                       <TableCell className="text-center">
                         <div className="flex items-center justify-center gap-0.5">
                           <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(v)}><Pencil className="h-3.5 w-3.5" /></Button>
@@ -806,7 +811,7 @@ export function ExpensesTab({ organizationId, vouchers, embedded = false }: Expe
                 {filteredExpenses.length > 0 && (
                   <TableRow className="bg-muted/50 font-semibold">
                     <TableCell colSpan={6} className="text-xs text-right">Total ({filteredExpenses.length} entries)</TableCell>
-                    <TableCell className="text-xs text-right tabular-nums">₹{filteredExpenses.reduce((s, v) => s + Number(v.total_amount || 0), 0).toLocaleString("en-IN")}</TableCell>
+                    <TableCell className={cn("text-right", paymentPickerAmountClass)}>₹{filteredExpenses.reduce((s, v) => s + Number(v.total_amount || 0), 0).toLocaleString("en-IN")}</TableCell>
                     <TableCell />
                   </TableRow>
                 )}

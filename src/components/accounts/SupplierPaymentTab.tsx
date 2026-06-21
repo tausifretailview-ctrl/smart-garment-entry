@@ -26,7 +26,13 @@ import {
 } from "@/utils/accounting/journalService";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
 import { AccountsHistoryPanel } from "@/components/accounts/AccountsHistoryPanel";
-import { accountsHistoryTableClass, accountsHistoryThClass } from "@/components/accounts/accountsHistoryUi";
+import {
+  accountsHistoryTableClass,
+  accountsHistoryThClass,
+  paymentPickerAmountClass,
+  paymentPickerDaysClass,
+  paymentPickerRefClass,
+} from "@/components/accounts/accountsHistoryUi";
 import {
   fetchSupplierBalanceSnapshot,
   loadSupplierBalanceMapForOrg,
@@ -958,15 +964,15 @@ export function SupplierPaymentTab({
                                   }} />
                                 </div>
                               </TableCell>
-                              <TableCell className="font-medium">{bill.supplier_invoice_no || bill.software_bill_no || bill.id.slice(0, 8)}</TableCell>
+                              <TableCell className={paymentPickerRefClass}>{bill.supplier_invoice_no || bill.software_bill_no || bill.id.slice(0, 8)}</TableCell>
                               <TableCell>{billDateText}</TableCell>
                               <TableCell
                                 className={cn(
-                                  "text-center font-mono tabular-nums",
+                                  paymentPickerDaysClass,
                                   pendingDays === null
                                     ? "text-muted-foreground"
                                     : pendingDays > 30
-                                      ? "text-destructive font-medium"
+                                      ? "text-destructive"
                                       : pendingDays > 7
                                         ? "text-amber-600 dark:text-amber-400"
                                         : "text-muted-foreground",
@@ -974,14 +980,14 @@ export function SupplierPaymentTab({
                               >
                                 {pendingDays !== null ? `${pendingDays}d` : "—"}
                               </TableCell>
-                              <TableCell className="text-right">₹{netAmount.toFixed(2)}</TableCell>
+                              <TableCell className={cn("text-right", paymentPickerAmountClass)}>₹{netAmount.toFixed(2)}</TableCell>
                               <TableCell className="text-right text-muted-foreground">₹{paidAmount.toFixed(2)}</TableCell>
                               {cnCreditPool > 0 && (
                                 <TableCell className="text-right text-emerald-600 dark:text-emerald-400">
                                   {cnOffset > 0 ? `-₹${cnOffset.toFixed(2)}` : "—"}
                                 </TableCell>
                               )}
-                              <TableCell className="text-right font-semibold text-rose-600 dark:text-rose-400">₹{netPayable.toFixed(2)}</TableCell>
+                              <TableCell className={cn("text-right text-rose-600 dark:text-rose-400", paymentPickerAmountClass)}>₹{netPayable.toFixed(2)}</TableCell>
                             </TableRow>
                           );
                         })}

@@ -20,7 +20,12 @@ import {
 import { CalendarIcon, Plus, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AccountsHistoryPanel } from "@/components/accounts/AccountsHistoryPanel";
-import { accountsHistoryTableClass, accountsHistoryThClass } from "@/components/accounts/accountsHistoryUi";
+import {
+  accountsHistoryTableClass,
+  accountsHistoryThClass,
+  paymentPickerAmountClass,
+  paymentPickerRefClass,
+} from "@/components/accounts/accountsHistoryUi";
 import { format } from "date-fns";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -292,13 +297,13 @@ export function EmployeeSalaryTab({ organizationId, vouchers, embedded = false }
             <TableBody>
               {salaryRows.map((voucher) => (
                 <TableRow key={voucher.id} className="hover:bg-accent/50">
-                  <TableCell className="font-medium">{voucher.voucher_number}</TableCell>
+                  <TableCell className={paymentPickerRefClass}>{voucher.voucher_number}</TableCell>
                   <TableCell>{format(new Date(voucher.voucher_date), "dd/MM/yyyy")}</TableCell>
                   <TableCell>{formatEntryDateTime(voucher.created_at)}</TableCell>
                   <TableCell>
                     {employees?.find((e) => e.id === voucher.reference_id)?.employee_name || "-"}
                   </TableCell>
-                  <TableCell>₹{voucher.total_amount.toFixed(2)}</TableCell>
+                  <TableCell className={cn("text-right", paymentPickerAmountClass)}>₹{voucher.total_amount.toFixed(2)}</TableCell>
                   <TableCell className="max-w-xs truncate">{voucher.description}</TableCell>
                   <TableCell className="text-center">
                     <Button

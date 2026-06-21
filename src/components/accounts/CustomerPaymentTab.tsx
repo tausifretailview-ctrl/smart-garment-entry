@@ -57,7 +57,13 @@ import {
 } from "@/utils/organizationBankAccounts";
 import { ReassignPaymentDialog } from "./ReassignPaymentDialog";
 import { AccountsHistoryPanel } from "@/components/accounts/AccountsHistoryPanel";
-import { accountsHistoryTableClass, accountsHistoryThClass } from "@/components/accounts/accountsHistoryUi";
+import {
+  accountsHistoryTableClass,
+  accountsHistoryThClass,
+  paymentPickerAmountBadgeClass,
+  paymentPickerDaysClass,
+  paymentPickerRefClass,
+} from "@/components/accounts/accountsHistoryUi";
 import { useCustomerFinancialSnapshot } from "@/hooks/useCustomerFinancialSnapshot";
 import { invalidateCustomerFinancialSnapshot } from "@/utils/customerFinancialSnapshot";
 import { invalidateAfterCustomerPaymentMutation } from "@/utils/invalidateDashboardQueries";
@@ -1646,11 +1652,11 @@ export function CustomerPaymentTab({
                                     {isSelected ? <Check className="h-3.5 w-3.5" /> : null}
                                   </span>
                                 </TableCell>
-                                <TableCell className="font-medium text-amber-700 dark:text-amber-400">Opening Balance</TableCell>
+                                <TableCell className={cn(paymentPickerRefClass, "text-amber-700 dark:text-amber-400")}>Opening Balance</TableCell>
                                 <TableCell className="text-muted-foreground">—</TableCell>
-                                <TableCell className="text-center text-muted-foreground">—</TableCell>
+                                <TableCell className={cn(paymentPickerDaysClass, "text-muted-foreground")}>—</TableCell>
                                 <TableCell className="text-right">
-                                  <Badge variant="destructive" className="font-mono tabular-nums">₹{Number(openingBalanceRemaining).toFixed(2)}</Badge>
+                                  <Badge variant="destructive" className={paymentPickerAmountBadgeClass}>₹{Number(openingBalanceRemaining).toFixed(2)}</Badge>
                                 </TableCell>
                                 <TableCell />
                               </TableRow>
@@ -1685,15 +1691,15 @@ export function CustomerPaymentTab({
                                     {isSelected ? <Check className="h-3.5 w-3.5" /> : null}
                                   </span>
                                 </TableCell>
-                                <TableCell className="font-medium">{invoice.sale_number}</TableCell>
+                                <TableCell className={paymentPickerRefClass}>{invoice.sale_number}</TableCell>
                                 <TableCell className="font-mono tabular-nums text-muted-foreground">{invoiceDateText}</TableCell>
                                 <TableCell
                                   className={cn(
-                                    "text-center font-mono tabular-nums",
+                                    paymentPickerDaysClass,
                                     pendingDays === null
                                       ? "text-muted-foreground"
                                       : pendingDays > 30
-                                        ? "text-destructive font-medium"
+                                        ? "text-destructive"
                                         : pendingDays > 7
                                           ? "text-amber-600 dark:text-amber-400"
                                           : "text-muted-foreground",
@@ -1702,7 +1708,7 @@ export function CustomerPaymentTab({
                                   {pendingDays !== null ? `${pendingDays}d` : "—"}
                                 </TableCell>
                                 <TableCell className="text-right">
-                                  <Badge variant={roundedBalance > 0 ? "destructive" : "secondary"} className="font-mono tabular-nums">
+                                  <Badge variant={roundedBalance > 0 ? "destructive" : "secondary"} className={paymentPickerAmountBadgeClass}>
                                     ₹{roundedBalance.toFixed(2)}
                                   </Badge>
                                 </TableCell>
