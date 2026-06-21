@@ -7986,6 +7986,7 @@ export type Database = {
           variant_id: string
         }[]
       }
+      fix_missing_mrp_for_org: { Args: { p_org_id: string }; Returns: number }
       fix_stock_discrepancies: {
         Args: { p_organization_id: string }
         Returns: {
@@ -8519,6 +8520,23 @@ export type Database = {
             }
             Returns: Json
           }
+      preview_fix_missing_mrp_cross_org_for_org: {
+        Args: { p_org_id: string }
+        Returns: {
+          current_mrp: number
+          purchase_item_id: string
+          target_mrp: number
+          variant_org: string
+        }[]
+      }
+      preview_fix_missing_mrp_for_org: {
+        Args: { p_org_id: string }
+        Returns: {
+          current_mrp: number
+          purchase_item_id: string
+          target_mrp: number
+        }[]
+      }
       purge_all_old_backup_logs: { Args: never; Returns: Json }
       purge_journals_for_voucher_ref: {
         Args: { p_org: string; p_voucher_id: string }
