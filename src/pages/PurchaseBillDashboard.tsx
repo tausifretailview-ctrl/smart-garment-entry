@@ -81,6 +81,7 @@ import { MobilePageHeader } from "@/components/mobile/MobilePageHeader";
 import { MobileStatStrip } from "@/components/mobile/MobileStatStrip";
 import { MobileBottomNav } from "@/components/mobile/MobileBottomNav";
 import { Skeleton } from "@/components/ui/skeleton";
+import { fetchProductsByIds, fetchPurchaseItemsByBillId } from "@/utils/fetchAllRows";
 
 /** Supplier invoice image column — hidden by default; enable via Columns menu. */
 const PURCHASE_BILLS_DEFAULT_COLUMN_VISIBILITY: Record<string, boolean> = {
@@ -721,12 +722,12 @@ const PurchaseBillDashboard = () => {
       let itemsWithStyleFallback = fetchedItems;
 
       if (missingStyleProductIds.length > 0) {
-        const products = await fetchProductsByIds(missingStyleProductIds, "id, style");
+        const products = await fetchProductsByIds(missingStyleProductIds, "id, style") as Array<{ id: string; style?: string | null }>;
         if (products.length > 0) {
           const styleByProductId = new Map(
             products
               .filter((product) => hasDisplayValue(product.style))
-              .map((product) => [product.id, product.style!.trim()])
+              .map((product) => [product.id, product.style!.trim()] as [string, string])
           );
 
           itemsWithStyleFallback = fetchedItems.map((item) => {
@@ -1381,7 +1382,7 @@ const PurchaseBillDashboard = () => {
       // Fallback: fetch style from products master for items missing style
       const missingStyleIds = Array.from(new Set(
         items.filter((i: any) => !hasDisplayValue(i.style) && i.product_id).map((i: any) => i.product_id)
-      ));
+      )) as string[];
       let styleMap = new Map<string, string>();
       if (missingStyleIds.length > 0) {
         const { data: prods } = await supabase.from("products").select("id, style").in("id", missingStyleIds);
