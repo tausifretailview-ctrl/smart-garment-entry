@@ -107,7 +107,7 @@ export type SaleOrderVariantSearchResult = {
   size_range?: string | null;
 };
 
-/** Merged product row — same name across MRPs (matches Salesman app search). */
+/** Merged product row — same style family across colors / MRP product_ids (Size Stock parity). */
 export type SaleOrderProductSearchGroup = {
   productName: string;
   brand: string;
@@ -121,8 +121,31 @@ export type SaleOrderProductSearchGroup = {
   variants: SaleOrderVariantSearchResult[];
   totalStock: number;
   sizeCount: number;
+  colorCount: number;
+  colors: string[];
+  mrpMin: number;
+  mrpMax: number;
   size_range?: string | null;
 };
+
+function buildSaleOrderProductGroupKey(
+  v: Pick<SaleOrderVariantSearchResult, "product_name" | "brand" | "category" | "style">,
+  searchTerm?: string,
+): string {
+  const term = searchTerm?.trim().toLowerCase();
+  if (term && term.length >= 2) {
+    const haystack = `${v.product_name} ${v.brand} ${v.style} ${v.category}`.toLowerCase();
+    if (haystack.includes(term)) {
+      return `search:${term}||${(v.brand || "").trim().toLowerCase()}`;
+    }
+  }
+  const brand = (v.brand || "").trim().toLowerCase();
+  const style = (v.style || "").trim().toLowerCase();
+  const category = (v.category || "").trim().toLowerCase();
+  if (style) return `family:${brand}||${style}||${category}`;
+  const name = (v.product_name || "").trim().toLowerCase();
+  return `name:${name}||${brand}||${category}`;
+}
 
 function sizeRangeFromGroup(sizes: string[] | undefined | null): string | null {
   if (!sizes?.length) return null;
@@ -144,41 +167,51 @@ function attachSizeRangesToResults(
   });
 }
 
-/** Group variants by product name — merges all MRP / product_id rows (Salesman app parity). */
-function groupVariantsByProductName(
+/** Group variants by style family — merges colors + MRP product_id rows for one search row. */
+function groupVariantsByProductFamily(
   results: SaleOrderVariantSearchResult[],
+  searchTerm?: string,
 ): SaleOrderProductSearchGroup[] {
   const productMap = new Map<
     string,
-    { productIds: Set<string>; variants: SaleOrderVariantSearchResult[]; totalStock: number }
+    {
+      productIds: Set<string>;
+      variants: SaleOrderVariantSearchResult[];
+      colors: Set<string>;
+      totalStockFromSample: number;
+    }
   >();
 
   for (const r of results) {
-    const groupKey = r.product_name;
+    const groupKey = buildSaleOrderProductGroupKey(r, searchTerm);
     if (!groupKey) continue;
     if (!productMap.has(groupKey)) {
       productMap.set(groupKey, {
         productIds: new Set([r.product_id]),
         variants: [r],
-        totalStock: r.stock_qty || 0,
+        colors: new Set(r.color ? [r.color] : []),
+        totalStockFromSample: r.stock_qty || 0,
       });
       continue;
     }
     const group = productMap.get(groupKey)!;
     group.productIds.add(r.product_id);
+    if (r.color) group.colors.add(r.color);
     if (!group.variants.some((v) => v.id === r.id)) {
       group.variants.push(r);
-      group.totalStock += r.stock_qty || 0;
+      group.totalStockFromSample += r.stock_qty || 0;
     }
   }
 
-  return Array.from(productMap.entries()).map(([productName, group]) => {
+  return Array.from(productMap.values()).map((group) => {
     const representative = group.variants.reduce(
       (best, v) => ((v.stock_qty || 0) > (best.stock_qty || 0) ? v : best),
       group.variants[0],
     );
+    const mrps = group.variants.map((v) => v.mrp || 0).filter((m) => m > 0);
+    const uniqueSizes = new Set(group.variants.map((v) => v.size).filter(Boolean));
     return {
-      productName,
+      productName: representative.product_name,
       brand: representative.brand,
       category: representative.category,
       style: representative.style,
@@ -188,11 +221,90 @@ function groupVariantsByProductName(
       productIds: Array.from(group.productIds),
       representative,
       variants: group.variants,
-      totalStock: group.totalStock,
-      sizeCount: group.variants.length,
+      totalStock: group.totalStockFromSample,
+      sizeCount: uniqueSizes.size || group.variants.length,
+      colorCount: group.colors.size,
+      colors: Array.from(group.colors),
+      mrpMin: mrps.length ? Math.min(...mrps) : 0,
+      mrpMax: mrps.length ? Math.max(...mrps) : 0,
       size_range: representative.size_range,
     };
   });
+}
+
+function groupVariantsByProductName(
+  results: SaleOrderVariantSearchResult[],
+  searchTerm?: string,
+): SaleOrderProductSearchGroup[] {
+  return groupVariantsByProductFamily(results, searchTerm);
+}
+
+async function sumVariantStockForProducts(orgId: string, productIds: string[]): Promise<number> {
+  if (!productIds.length) return 0;
+  const { data, error } = await supabase
+    .from("product_variants")
+    .select("stock_qty")
+    .eq("organization_id", orgId)
+    .eq("active", true)
+    .is("deleted_at", null)
+    .in("product_id", productIds);
+  if (error) {
+    console.error("SaleOrderEntry: stock sum failed", error);
+    return 0;
+  }
+  return (data || []).reduce((sum, row) => sum + Number(row.stock_qty || 0), 0);
+}
+
+/** Full merged stock across all colors/MRP rows — matches Size Stock grand total. */
+async function enrichSaleOrderSearchGroups(
+  orgId: string,
+  groups: SaleOrderProductSearchGroup[],
+  rawQuery: string,
+): Promise<SaleOrderProductSearchGroup[]> {
+  const primaryTerm = rawQuery.trim().split(/\s+/).filter(Boolean)[0] || rawQuery.trim();
+  if (!primaryTerm || groups.length === 0) return groups;
+
+  const { data: matchingProducts } = await supabase
+    .from("products")
+    .select("id, product_name, brand, category, style, color")
+    .eq("organization_id", orgId)
+    .eq("status", "active")
+    .is("deleted_at", null)
+    .or(
+      `product_name.ilike.%${primaryTerm}%,brand.ilike.%${primaryTerm}%,style.ilike.%${primaryTerm}%,category.ilike.%${primaryTerm}%`,
+    );
+
+  return Promise.all(
+    groups.map(async (group) => {
+      const key = buildSaleOrderProductGroupKey(group.representative, rawQuery);
+      const mergedIds = new Set(group.productIds);
+      for (const p of matchingProducts || []) {
+        if (buildSaleOrderProductGroupKey({
+          product_name: p.product_name,
+          brand: p.brand || "",
+          category: p.category || "",
+          style: p.style || "",
+        }, rawQuery) === key) {
+          mergedIds.add(p.id);
+        }
+      }
+      const productIds = Array.from(mergedIds);
+      const totalStock = await sumVariantStockForProducts(orgId, productIds);
+
+      const colors = new Set(group.colors);
+      for (const p of matchingProducts || []) {
+        if (mergedIds.has(p.id) && p.color) colors.add(p.color);
+      }
+
+      return {
+        ...group,
+        productIds,
+        totalStock,
+        colorCount: colors.size,
+        colors: Array.from(colors),
+      };
+    }),
+  );
 }
 
 function mapVariantSearchRow(v: any): SaleOrderVariantSearchResult {
@@ -341,6 +453,7 @@ export default function SaleOrderEntry() {
   const [openProductSearch, setOpenProductSearch] = useState(false);
   const [searchInput, setSearchInput] = useState("");
   const [popoverSearchResults, setPopoverSearchResults] = useState<SaleOrderVariantSearchResult[]>([]);
+  const [productSearchGroups, setProductSearchGroups] = useState<SaleOrderProductSearchGroup[]>([]);
   const [isProductSearching, setIsProductSearching] = useState(false);
   const [displayLimit, setDisplayLimit] = useState(100);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>("");
@@ -1103,18 +1216,27 @@ export default function SaleOrderEntry() {
   useEffect(() => {
     if (!searchInput || searchInput.length < 1 || !currentOrganization?.id) {
       setPopoverSearchResults([]);
+      setProductSearchGroups([]);
       setIsProductSearching(false);
       return;
     }
 
     setIsProductSearching(true);
+    const orgId = currentOrganization.id;
+    const query = searchInput;
     const timer = setTimeout(async () => {
       try {
-        const results = await searchSaleOrderVariants(currentOrganization.id, searchInput);
+        const results = await searchSaleOrderVariants(orgId, query);
         setPopoverSearchResults(results);
+        const grouped = groupVariantsByProductFamily(results, query);
+        const enriched = await enrichSaleOrderSearchGroups(orgId, grouped, query);
+        setProductSearchGroups(
+          sortSearchResults(enriched, query.trim().toLowerCase(), { productName: "productName" }),
+        );
       } catch (error) {
         console.error("Product search error:", error);
         setPopoverSearchResults([]);
+        setProductSearchGroups([]);
       } finally {
         setIsProductSearching(false);
       }
@@ -1138,9 +1260,13 @@ export default function SaleOrderEntry() {
       result.barcode.toLowerCase() === trimmedQuery.toLowerCase();
 
     if (entryMode === "grid" && !isBarcodeMatch) {
-      const group = groupVariantsByProductName(popoverSearchResults).find(
-        (g) => g.productName === result.product_name,
-      );
+      const group =
+        productSearchGroups.find(
+          (g) =>
+            buildSaleOrderProductGroupKey(g.representative, trimmedQuery) ===
+            buildSaleOrderProductGroupKey(result, trimmedQuery),
+        ) ??
+        productSearchGroups.find((g) => g.productIds.includes(result.product_id));
       if (group) {
         selectProductSearchGroup(group);
       } else {
@@ -1390,15 +1516,6 @@ export default function SaleOrderEntry() {
   };
 
   const totalMatchingVariants = popoverSearchResults.length;
-  const productSearchGroups = useMemo(
-    () =>
-      sortSearchResults(
-        groupVariantsByProductName(popoverSearchResults),
-        searchInput.trim().toLowerCase(),
-        { productName: "productName" },
-      ),
-    [popoverSearchResults, searchInput],
-  );
   const visiblePopoverResults = popoverSearchResults.slice(0, displayLimit);
   const visibleProductSearchGroups = productSearchGroups.slice(0, displayLimit);
   const displaySearchCount =
@@ -1686,7 +1803,7 @@ export default function SaleOrderEntry() {
                     {entryMode === "grid" ? (
                       visibleProductSearchGroups.map((group) => (
                         <CommandItem
-                          key={group.productName}
+                          key={`${buildSaleOrderProductGroupKey(group.representative, searchInput)}-${group.productIds.join("-")}`}
                           onSelect={() => {
                             selectProductSearchGroup(group);
                             setOpenProductSearch(false);
@@ -1697,7 +1814,7 @@ export default function SaleOrderEntry() {
                           <div className="flex w-full flex-col gap-1 px-4 py-3">
                             <div className="flex items-center justify-between gap-2">
                               <div className="flex min-w-0 items-center gap-2">
-                                <span className="truncate font-medium">
+                                <span className="truncate text-base font-bold">
                                   {buildProductDisplayName({
                                     product_name: group.productName,
                                     brand: group.brand,
@@ -1710,20 +1827,40 @@ export default function SaleOrderEntry() {
                                     {group.size_range}
                                   </span>
                                 )}
+                                {group.colorCount > 0 && (
+                                  <Badge variant="secondary" className="shrink-0 text-xs bg-violet-100 text-violet-700">
+                                    {group.colorCount} color{group.colorCount === 1 ? "" : "s"}
+                                  </Badge>
+                                )}
                                 <Badge variant="secondary" className="shrink-0 text-xs bg-blue-100 text-blue-700">
                                   {group.sizeCount} sizes
                                 </Badge>
                               </div>
-                              <span className="shrink-0 font-semibold text-primary">
+                              <span className="shrink-0 text-base font-bold text-primary">
                                 ₹{(group.representative.sale_price || 0).toFixed(2)}
                               </span>
                             </div>
-                            <div className="flex items-center justify-between text-xs text-muted-foreground">
-                              <div className="flex flex-wrap gap-2">
+                            <div className="flex items-center justify-between gap-2 text-sm">
+                              <div className="flex flex-wrap gap-2 text-muted-foreground">
+                                {group.style && <span>{group.style}</span>}
                                 {group.brand && <span>{group.brand}</span>}
-                                {group.category && <span>{group.category}</span>}
+                                {group.mrpMax > 0 && (
+                                  <span className="font-medium text-foreground">
+                                    MRP{" "}
+                                    {group.mrpMin > 0 && group.mrpMin !== group.mrpMax
+                                      ? `₹${group.mrpMin.toFixed(0)}–₹${group.mrpMax.toFixed(0)}`
+                                      : `₹${group.mrpMax.toFixed(0)}`}
+                                  </span>
+                                )}
                               </div>
-                              <span className={group.totalStock > 0 ? "text-emerald-600" : "text-destructive"}>
+                              <span
+                                className={cn(
+                                  "shrink-0 rounded-md px-2.5 py-1 text-base font-bold tabular-nums",
+                                  group.totalStock > 0
+                                    ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200"
+                                    : "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200",
+                                )}
+                              >
                                 Stock: {group.totalStock}
                               </span>
                             </div>
