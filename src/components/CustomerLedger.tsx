@@ -35,8 +35,6 @@ import { useOpenCustomerAccount } from "@/hooks/useOpenCustomerAccount";
 import { useCustomerBalance } from "@/hooks/useCustomerBalance";
 import { useCustomerFinancialSnapshot } from "@/hooks/useCustomerFinancialSnapshot";
 import {
-  fetchOrganizationReceivableRows,
-  receivableRowsToBalanceMap,
   summarizeSignedBalanceFacets,
 } from "@/utils/organizationReceivables";
 import {
@@ -881,37 +879,7 @@ export function CustomerLedger({
   const isCustomersInitialLoad = isLoading && customers === undefined;
   const isCustomersBackgroundRefresh = isCustomersFetching && !isCustomersInitialLoad;
 
-  /** SQL snapshot balances (batch RPC) — loaded after list so search is not blocked. */
-  const businessCustomerIds = useMemo(
-    () => (isSchool ? [] : (customers || []).map((c: { id: string }) => c.id).filter(Boolean)),
-    [customers, isSchool],
-  );
-
-  const { data: snapshotBalanceById } = useQuery({
-    // Single source of truth: Master Reconciliation RPC (signed per-customer
-    // balance), one call for the whole org. Replaces the get_customer_financial_snapshot
-    // path which over-credited advances (drove Balance Sheet AR to ₹0).
-    queryKey: ["customer-ledger-reconcile-balances", organizationId, businessCustomerIds.length],
-    queryFn: async () => {
-      const rows = await fetchOrganizationReceivableRows(organizationId!);
-      return receivableRowsToBalanceMap(rows);
-    },
-    enabled: !!organizationId && !isSchool && businessCustomerIds.length > 0,
-    staleTime: STALE_REFERENCE,
-    refetchOnWindowFocus: false,
-    gcTime: 10 * 60 * 1000,
-  });
-
-  const customersWithBalances = useMemo(() => {
-    if (!customers) return undefined;
-    if (isSchool || !snapshotBalanceById) return customers;
-    return customers.map((row: { id: string; balance: number }) => ({
-      ...row,
-      balance: snapshotBalanceById[row.id] ?? row.balance,
-    }));
-  }, [customers, snapshotBalanceById, isSchool]);
-
-  const customersForList = customersWithBalances ?? customers;
+  const customersForList = customers;
 
   // Auto-select customer from URL or persisted session when list is loaded
   useEffect(() => {
