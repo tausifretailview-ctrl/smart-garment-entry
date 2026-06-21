@@ -745,13 +745,15 @@ export function SupplierPaymentTab({
   }, [discountPercent, discountAmount, discountReason, paymentBreakdown.discount]);
 
   return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>Supplier Payment (PAY)</CardTitle>
-          <CardDescription>Record payment made to suppliers - select bills or pay against opening balance</CardDescription>
+    <div className={cn(embedded ? "space-y-0" : "space-y-6")}>
+      <Card className={cn(embedded && "border-0 shadow-none bg-transparent")}>
+        <CardHeader className={cn(embedded ? "px-0 pt-0 pb-2" : undefined)}>
+          <CardTitle className={embedded ? "text-base" : undefined}>Supplier Payment (PAY)</CardTitle>
+          {!embedded && (
+            <CardDescription>Record payment made to suppliers - select bills or pay against opening balance</CardDescription>
+          )}
         </CardHeader>
-        <CardContent>
+        <CardContent className={cn(embedded && "px-0 pb-0")}>
           {balanceSnapshotDegraded && (
             <div className="mb-4 flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
               <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
@@ -760,8 +762,8 @@ export function SupplierPaymentTab({
               </span>
             </div>
           )}
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <form onSubmit={handleSubmit} className={cn(embedded ? "space-y-2.5" : "space-y-4")}>
+            <div className={cn("grid grid-cols-1 md:grid-cols-2", embedded ? "gap-2" : "gap-4")}>
               {/* Date */}
               <div className="space-y-2">
                 <Label>Date</Label>

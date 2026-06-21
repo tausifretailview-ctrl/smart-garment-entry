@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo, useCallback } from "react";
+import { useState, useRef, useMemo, useCallback, useEffect } from "react";
 import { useCustomerBalance } from "@/hooks/useCustomerBalance";
 import { insertLedgerCredit, deleteLedgerEntries } from "@/lib/customerLedger";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, Plus, TrendingDown, Printer, Check, ChevronsUpDown, Pencil, Trash2, ChevronLeft, ChevronRight, Coins, Send, Link2, Zap, Wallet, RefreshCw } from "lucide-react";
+import { CalendarIcon, Plus, TrendingDown, Printer, Check, ChevronsUpDown, Pencil, Trash2, ChevronLeft, ChevronRight, Coins, Send, Link2, Zap, Wallet, RefreshCw, ChevronDown } from "lucide-react";
 import { Filter } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
@@ -257,6 +257,7 @@ export function CustomerPaymentTab({
   const [discountPercent, setDiscountPercent] = useState("");
   const [discountAmount, setDiscountAmount] = useState("");
   const [discountReason, setDiscountReason] = useState("");
+  const [showDiscountOptions, setShowDiscountOptions] = useState(false);
   const savingRef = useRef(false);
 
   // Customer search
@@ -609,6 +610,7 @@ export function CustomerPaymentTab({
     setDiscountPercent("");
     setDiscountAmount("");
     setDiscountReason("");
+    setShowDiscountOptions(false);
     queryClient.invalidateQueries({ queryKey: ["next-receipt-number"] });
   };
 
@@ -1457,31 +1459,59 @@ export function CustomerPaymentTab({
     return { amount, discount, count: customerPayments.length };
   }, [customerPayments]);
 
+  const paymentBreakdown = useMemo(
+    () => resolvePaymentBreakdown(amount, discountPercent, discountAmount),
+    [amount, discountPercent, discountAmount],
+  );
+
+  const invoiceGridMaxHeight = useMemo(() => {
+    const count =
+      (customerInvoices?.length ?? 0) + (openingBalanceRemaining > 0 ? 1 : 0);
+    if (count === 0) return undefined;
+    const headerPx = 40;
+    const rowPx = embedded ? 42 : 48;
+    const contentPx = headerPx + count * rowPx;
+    const capPx = embedded ? 220 : 192;
+    const vhCapPx =
+      typeof window !== "undefined"
+        ? Math.round(window.innerHeight * (embedded ? 0.26 : 0.32))
+        : capPx;
+    return Math.min(Math.max(contentPx, 100), capPx, vhCapPx);
+  }, [customerInvoices?.length, openingBalanceRemaining, embedded]);
+
+  useEffect(() => {
+    if (discountPercent || discountAmount || discountReason || paymentBreakdown.discount > 0) {
+      setShowDiscountOptions(true);
+    }
+  }, [discountPercent, discountAmount, discountReason, paymentBreakdown.discount]);
+
   return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center justify-between">
+    <div className={cn(embedded ? "space-y-0" : "space-y-6")}>
+      <Card className={cn(embedded && "border-0 shadow-none bg-transparent")}>
+        <CardHeader className={cn(embedded ? "px-0 pt-0 pb-2" : undefined)}>
+          <CardTitle className={cn("flex items-center justify-between gap-2", embedded && "text-base")}>
             <span>Customer Payment Receipt (RCP)</span>
             {previewReceiptNumber && (
-              <Badge variant="outline" className="text-lg font-mono bg-primary/10 text-primary border-primary/30">
+              <Badge variant="outline" className={cn("font-mono bg-primary/10 text-primary border-primary/30", embedded ? "text-sm" : "text-lg")}>
                 {previewReceiptNumber}
               </Badge>
             )}
           </CardTitle>
-          <CardDescription>Record payment received from customers</CardDescription>
+          {!embedded && (
+            <CardDescription>Record payment received from customers</CardDescription>
+          )}
         </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4" noValidate>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <CardContent className={cn(embedded && "px-0 pb-0")}>
+          <form onSubmit={handleSubmit} className={cn(embedded ? "space-y-2.5" : "space-y-4")} noValidate>
+            <div className={cn("grid grid-cols-1 md:grid-cols-2", embedded ? "gap-2" : "gap-4")}>
               {/* Date */}
-              <div className="space-y-2">
-                <Label>Date</Label>
+              <div className={cn("space-y-2", embedded && "space-y-1")}>
+                <Label className={embedded ? "text-xs" : undefined}>Date</Label>
                 <Popover>
                   <PopoverTrigger asChild>
-                    <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !voucherDate && "text-muted-foreground")}>
+                    <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !voucherDate && "text-muted-foreground", embedded && "h-9 text-sm")}>
                       <CalendarIcon className="mr-2 h-4 w-4" />
-                      {voucherDate ? format(voucherDate, "PPP") : <span>Pick a date</span>}
+                      {voucherDate ? format(voucherDate, embedded ? "PP" : "PPP") : <span>Pick a date</span>}
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0">
@@ -1556,13 +1586,13 @@ export function CustomerPaymentTab({
                       : listedInvoicePendingTotal,
                   );
                   return (
-                  <div className={cn("mt-2 p-3 border rounded-md", showAsNoOutstanding ? "bg-gradient-to-r from-red-50 to-red-100 dark:from-red-950 dark:to-red-900 border-red-200 dark:border-red-800" : "bg-gradient-to-r from-amber-50 to-amber-100 dark:from-amber-950 dark:to-amber-900 border-amber-200 dark:border-amber-800")}>
+                  <div className={cn("mt-2 border rounded-md", embedded ? "py-1.5 px-2" : "p-3", showAsNoOutstanding ? "bg-gradient-to-r from-red-50 to-red-100 dark:from-red-950 dark:to-red-900 border-red-200 dark:border-red-800" : "bg-gradient-to-r from-amber-50 to-amber-100 dark:from-amber-950 dark:to-amber-900 border-amber-200 dark:border-amber-800")}>
                     {showAsNoOutstanding ? (
-                      <p className="text-sm font-medium text-red-900 dark:text-red-100">⚠️ No outstanding balance - Payment receipt not allowed</p>
+                      <p className={cn("font-medium text-red-900 dark:text-red-100", embedded ? "text-xs" : "text-sm")}>⚠️ No outstanding balance - Payment receipt not allowed</p>
                     ) : (
-                      <p className="text-sm font-medium text-amber-900 dark:text-amber-100">
+                      <p className={cn("font-medium text-amber-900 dark:text-amber-100", embedded ? "text-xs" : "text-sm")}>
                         Outstanding Balance:{" "}
-                        <span className="text-lg font-bold">
+                        <span className={cn("font-bold", embedded ? "text-base" : "text-lg")}>
                           ₹{displayBalance.toLocaleString("en-IN")}
                         </span>
                         {lifetimeDr < MIN_PENDING_RUPEE && listedInvoicePendingTotal >= MIN_PENDING_RUPEE && (
@@ -1577,7 +1607,7 @@ export function CustomerPaymentTab({
                 })()}
                 {/* Advance Balance Banner */}
                 {referenceId && advanceBalance > 0 && (lifetimeOutstanding !== undefined || customerBalance !== undefined) && ((lifetimeOutstanding ?? customerBalance ?? 0) >= MIN_PENDING_RUPEE || listedInvoicePendingTotal >= MIN_PENDING_RUPEE) && (
-                  <div className="mt-2 p-3 border rounded-md bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950 dark:to-teal-950 border-emerald-300 dark:border-emerald-700">
+                  <div className={cn("mt-2 border rounded-md bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950 dark:to-teal-950 border-emerald-300 dark:border-emerald-700", embedded ? "py-1.5 px-2" : "p-3")}>
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <Zap className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
@@ -1607,8 +1637,8 @@ export function CustomerPaymentTab({
               </div>
 
               {/* Invoice Selection */}
-              <div className="space-y-2 md:col-span-2">
-                <Label>{(customerInvoices && customerInvoices.length > 0) || openingBalanceRemaining > 0 ? "Select Invoices (Required)" : "Select Invoices"}</Label>
+              <div className={cn("space-y-2 md:col-span-2", embedded && "space-y-1")}>
+                <Label className={embedded ? "text-xs" : undefined}>{(customerInvoices && customerInvoices.length > 0) || openingBalanceRemaining > 0 ? "Select Invoices (Required)" : "Select Invoices"}</Label>
                 {!referenceId ? (
                   <p className="text-xs text-muted-foreground">Select a customer first</p>
                 ) : (customerInvoices?.length === 0 && openingBalanceRemaining <= 0) ? (
@@ -1617,8 +1647,11 @@ export function CustomerPaymentTab({
                   </div>
                 ) : (
                   <>
-                    <div className="border rounded-lg overflow-y-auto overflow-x-auto max-h-48">
-                      <Table>
+                    <div
+                      className="border rounded-lg overflow-y-auto overflow-x-auto"
+                      style={invoiceGridMaxHeight ? { maxHeight: invoiceGridMaxHeight } : undefined}
+                    >
+                      <Table className={cn(embedded && "[&_td]:py-2 [&_th]:h-9 [&_th]:py-2")}>
                         <TableHeader>
                           <TableRow className="bg-muted/50">
                             <TableHead className="w-[50px]">Select</TableHead>
@@ -1774,7 +1807,7 @@ export function CustomerPaymentTab({
               </div>
 
               <AdaptivePaymentMethodPicker
-                label="Payment Method"
+                label={embedded ? <span className="text-xs">Payment Method</span> : "Payment Method"}
                 value={paymentMethod}
                 onChange={(value) => {
                   setPaymentMethod(value);
@@ -1788,6 +1821,34 @@ export function CustomerPaymentTab({
                 }}
               />
 
+              <div className={cn("space-y-2", embedded && "space-y-1")}>
+                <Label className={embedded ? "text-xs" : undefined}>
+                  {selectedInvoiceIds.length > 0 ? "Settlement Amount" : "Amount"}
+                </Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  placeholder="Enter amount"
+                  value={amount}
+                  onChange={(e) => {
+                    const raw = e.target.value;
+                    if (raw === "") {
+                      setAmount("");
+                      return;
+                    }
+                    const entered = roundToRupee(raw);
+                    const maxAllowed =
+                      selectedInvoiceIds.length > 0
+                        ? roundToRupee(selectedPayableTotal)
+                        : Infinity;
+                    setAmount(Math.min(entered, maxAllowed).toFixed(2));
+                  }}
+                  required
+                  className={cn("no-uppercase", embedded && "h-9 text-sm")}
+                />
+              </div>
+
+              <div className={cn("md:col-span-2 space-y-2", embedded && "space-y-1.5")}>
               <ReceivingBankAccountPicker
                 organizationId={organizationId}
                 paymentMethod={paymentMethod}
@@ -1795,18 +1856,17 @@ export function CustomerPaymentTab({
                 onChange={setSelectedBankAccountId}
               />
 
-              {/* Cheque fields */}
               {paymentMethod === 'cheque' && (
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Cheque Number</Label>
-                    <Input placeholder="Enter cheque number" value={chequeNumber} onChange={(e) => setChequeNumber(e.target.value)} />
+                <div className={cn("grid grid-cols-2", embedded ? "gap-2" : "gap-4")}>
+                  <div className="space-y-1">
+                    <Label className={embedded ? "text-xs" : undefined}>Cheque Number</Label>
+                    <Input placeholder="Enter cheque number" value={chequeNumber} onChange={(e) => setChequeNumber(e.target.value)} className={embedded ? "h-9 text-sm" : undefined} />
                   </div>
-                  <div className="space-y-2">
-                    <Label>Cheque Date</Label>
+                  <div className="space-y-1">
+                    <Label className={embedded ? "text-xs" : undefined}>Cheque Date</Label>
                     <Popover>
                       <PopoverTrigger asChild>
-                        <Button variant="outline" className="w-full justify-start text-left font-normal">
+                        <Button variant="outline" className={cn("w-full justify-start text-left font-normal", embedded && "h-9 text-sm")}>
                           <CalendarIcon className="mr-2 h-4 w-4" />
                           {chequeDate ? format(chequeDate, "dd/MM/yyyy") : "Select date"}
                         </Button>
@@ -1824,17 +1884,17 @@ export function CustomerPaymentTab({
                 paymentMethod === 'bank_transfer' ||
                 paymentMethod === 'card' ||
                 paymentMethod === 'online') && (
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Transaction ID</Label>
-                    <Input placeholder="Enter transaction ID" value={transactionId} onChange={(e) => setTransactionId(e.target.value)} />
+                <div className={cn("grid grid-cols-2", embedded ? "gap-2" : "gap-4")}>
+                  <div className="space-y-1">
+                    <Label className={embedded ? "text-xs" : undefined}>Transaction ID</Label>
+                    <Input placeholder="Enter transaction ID" value={transactionId} onChange={(e) => setTransactionId(e.target.value)} className={embedded ? "h-9 text-sm" : undefined} />
                   </div>
                   {paymentMethod === 'upi' && (
-                    <div className="space-y-2">
-                      <Label>UPI Payment Date</Label>
+                    <div className="space-y-1">
+                      <Label className={embedded ? "text-xs" : undefined}>UPI Payment Date</Label>
                       <Popover open={upiCalendarOpen} onOpenChange={setUpiCalendarOpen}>
                         <PopoverTrigger asChild>
-                          <Button variant="outline" className="w-full justify-start text-left font-normal">
+                          <Button variant="outline" className={cn("w-full justify-start text-left font-normal", embedded && "h-9 text-sm")}>
                             <CalendarIcon className="mr-2 h-4 w-4" />
                             {upiPaymentDate ? format(upiPaymentDate, "dd/MM/yyyy") : "Select date"}
                           </Button>
@@ -1848,151 +1908,140 @@ export function CustomerPaymentTab({
                 </div>
               )}
 
-              {/* Settlement + discount */}
-              {(() => {
-                const breakdown = resolvePaymentBreakdown(amount, discountPercent, discountAmount);
-                const selectedPayable =
-                  selectedInvoiceIds.length > 0 ? roundToRupee(selectedPayableTotal) : 0;
-                return (
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                      <Label>
-                        {selectedInvoiceIds.length > 0 ? "Settlement Amount" : "Amount"}
-                      </Label>
+              <div className="rounded-lg border border-slate-200 bg-slate-50 dark:bg-slate-900/50 dark:border-slate-700 overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setShowDiscountOptions((v) => !v)}
+                  className="w-full flex items-center justify-between gap-2 px-3 py-2 text-left hover:bg-slate-100/80 dark:hover:bg-slate-800/50 transition-colors"
+                  aria-expanded={showDiscountOptions}
+                >
+                  <span className="flex items-center gap-2 text-sm font-medium text-foreground">
+                    <TrendingDown className="h-4 w-4 shrink-0" />
+                    Discount (optional)
+                    {paymentBreakdown.discount > 0 && (
+                      <Badge variant="secondary" className="text-xs font-normal tabular-nums">
+                        −₹{paymentBreakdown.discount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                      </Badge>
+                    )}
+                  </span>
+                  <ChevronDown
+                    className={cn(
+                      "h-4 w-4 shrink-0 text-muted-foreground transition-transform",
+                      showDiscountOptions && "rotate-180",
+                    )}
+                  />
+                </button>
+                {showDiscountOptions && (
+                <div className="px-3 pb-3 pt-1 space-y-3 border-t border-slate-200 dark:border-slate-700">
+                  <div className={cn("grid grid-cols-1 md:grid-cols-3 pt-2", embedded ? "gap-2" : "gap-4")}>
+                    <div className="space-y-1">
+                      <Label className={embedded ? "text-xs" : undefined}>Discount %</Label>
                       <Input
                         type="number"
                         step="0.01"
-                        placeholder="Enter amount"
-                        value={amount}
+                        min={0}
+                        max={100}
+                        placeholder="e.g. 20"
+                        value={discountPercent}
                         onChange={(e) => {
                           const raw = e.target.value;
                           if (raw === "") {
-                            setAmount("");
+                            setDiscountPercent("");
                             return;
                           }
-                          const entered = roundToRupee(raw);
-                          const maxAllowed =
-                            selectedInvoiceIds.length > 0
-                              ? roundToRupee(selectedPayableTotal)
-                              : Infinity;
-                          setAmount(Math.min(entered, maxAllowed).toFixed(2));
+                          const pct = Math.min(100, Math.max(0, toNumberOrZero(raw)));
+                          setDiscountPercent(String(pct));
                         }}
-                        required
-                        className="no-uppercase"
+                        className={cn("no-uppercase", embedded && "h-9 text-sm")}
                       />
-                      {selectedInvoiceIds.length > 0 && (
-                        <p className="text-xs text-muted-foreground">
-                          Total against selected invoice(s). Add discount % below to calculate cash received.
-                        </p>
-                      )}
                     </div>
-
-                    <div className="space-y-4 p-4 border border-slate-200 bg-slate-50 dark:bg-slate-900/50 dark:border-slate-700 rounded-lg">
-                      <div className="flex items-center gap-2 text-foreground">
-                        <TrendingDown className="h-4 w-4" />
-                        <span className="text-sm font-medium">Discount (optional)</span>
-                      </div>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div className="space-y-2">
-                          <Label>Discount %</Label>
-                          <Input
-                            type="number"
-                            step="0.01"
-                            min={0}
-                            max={100}
-                            placeholder="e.g. 20"
-                            value={discountPercent}
-                            onChange={(e) => {
-                              const raw = e.target.value;
-                              if (raw === "") {
-                                setDiscountPercent("");
-                                return;
-                              }
-                              const pct = Math.min(100, Math.max(0, toNumberOrZero(raw)));
-                              setDiscountPercent(String(pct));
-                            }}
-                            className="no-uppercase"
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Discount Amount (₹)</Label>
-                          <Input
-                            type="number"
-                            step="0.01"
-                            placeholder="Auto from %"
-                            value={discountAmountDisplay}
-                            onChange={(e) => {
-                              const raw = e.target.value;
-                              setDiscountPercent("");
-                              if (raw === "") {
-                                setDiscountAmount("");
-                                return;
-                              }
-                              setDiscountAmount(roundToRupee(raw).toFixed(2));
-                            }}
-                            className="no-uppercase"
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label>
-                            Discount Reason
-                            {breakdown.discount > 0 && <span className="text-red-500"> *</span>}
-                          </Label>
-                          <Input
-                            placeholder="e.g., Early payment"
-                            value={discountReason}
-                            onChange={(e) => setDiscountReason(e.target.value)}
-                            className="no-uppercase"
-                          />
-                        </div>
-                      </div>
-
-                      {breakdown.settlement > 0 && (
-                        <div className="p-3 bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-md space-y-1.5">
-                          <div className="flex justify-between items-center text-sm">
-                            <span>Settlement (invoice total):</span>
-                            <span className="font-medium">
-                              ₹{breakdown.settlement.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-                            </span>
-                          </div>
-                          {breakdown.discount > 0 && (
-                            <div className="flex justify-between items-center text-sm text-muted-foreground">
-                              <span>
-                                − Discount
-                                {breakdown.discountPercent > 0
-                                  ? ` (${breakdown.discountPercent}%)`
-                                  : ""}
-                                :
-                              </span>
-                              <span className="font-medium text-amber-700 dark:text-amber-400">
-                                ₹{breakdown.discount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-                              </span>
-                            </div>
-                          )}
-                          <Separator className="my-2" />
-                          <div className="flex justify-between items-center text-base font-bold text-green-700 dark:text-green-400">
-                            <span>Amount Received (Cash):</span>
-                            <span>
-                              ₹{breakdown.cash.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-                            </span>
-                          </div>
-                          {selectedPayable > 0 &&
-                            breakdown.settlement >= selectedPayable - SETTLEMENT_TOLERANCE_RUPEE && (
-                              <p className="text-xs text-green-600 dark:text-green-400 mt-2">
-                                ✓ Selected invoice(s) will be fully settled
-                              </p>
-                            )}
-                        </div>
-                      )}
+                    <div className="space-y-1">
+                      <Label className={embedded ? "text-xs" : undefined}>Discount Amount (₹)</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        placeholder="Auto from %"
+                        value={discountAmountDisplay}
+                        onChange={(e) => {
+                          const raw = e.target.value;
+                          setDiscountPercent("");
+                          if (raw === "") {
+                            setDiscountAmount("");
+                            return;
+                          }
+                          setDiscountAmount(roundToRupee(raw).toFixed(2));
+                        }}
+                        className={cn("no-uppercase", embedded && "h-9 text-sm")}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className={embedded ? "text-xs" : undefined}>
+                        Discount Reason
+                        {paymentBreakdown.discount > 0 && <span className="text-red-500"> *</span>}
+                      </Label>
+                      <Input
+                        placeholder="e.g., Early payment"
+                        value={discountReason}
+                        onChange={(e) => setDiscountReason(e.target.value)}
+                        className={cn("no-uppercase", embedded && "h-9 text-sm")}
+                      />
                     </div>
                   </div>
-                );
-              })()}
 
-              {/* Description */}
+                  {paymentBreakdown.settlement > 0 && (
+                    <div className="p-2.5 bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-md space-y-1">
+                      <div className="flex justify-between items-center text-sm">
+                        <span>Settlement (invoice total):</span>
+                        <span className="font-medium">
+                          ₹{paymentBreakdown.settlement.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                        </span>
+                      </div>
+                      {paymentBreakdown.discount > 0 && (
+                        <div className="flex justify-between items-center text-sm text-muted-foreground">
+                          <span>
+                            − Discount
+                            {paymentBreakdown.discountPercent > 0
+                              ? ` (${paymentBreakdown.discountPercent}%)`
+                              : ""}
+                            :
+                          </span>
+                          <span className="font-medium text-amber-700 dark:text-amber-400">
+                            ₹{paymentBreakdown.discount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                          </span>
+                        </div>
+                      )}
+                      <Separator className="my-1.5" />
+                      <div className="flex justify-between items-center text-sm font-bold text-green-700 dark:text-green-400">
+                        <span>Amount Received (Cash):</span>
+                        <span>
+                          ₹{paymentBreakdown.cash.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                        </span>
+                      </div>
+                      {selectedInvoiceIds.length > 0 &&
+                        roundToRupee(selectedPayableTotal) > 0 &&
+                        paymentBreakdown.settlement >= roundToRupee(selectedPayableTotal) - SETTLEMENT_TOLERANCE_RUPEE && (
+                          <p className="text-xs text-green-600 dark:text-green-400">
+                            ✓ Selected invoice(s) will be fully settled
+                          </p>
+                        )}
+                    </div>
+                  )}
+                </div>
+                )}
+              </div>
+
+              {!embedded && (
               <div className="space-y-2">
                 <Label>Description</Label>
                 <Textarea placeholder="Payment description" value={description} onChange={(e) => setDescription(e.target.value)} />
+              </div>
+              )}
+              {embedded && (
+              <div className="space-y-1">
+                <Label className="text-xs">Description (optional)</Label>
+                <Input placeholder="Payment note" value={description} onChange={(e) => setDescription(e.target.value)} className="h-9 text-sm no-uppercase" />
+              </div>
+              )}
               </div>
             </div>
 
@@ -2015,7 +2064,7 @@ export function CustomerPaymentTab({
                       ⚠️ Payment (₹{Math.round(totalSettled).toLocaleString('en-IN')}) exceeds outstanding balance (₹{Math.round(outstandingBalance).toLocaleString('en-IN')})
                     </p>
                   )}
-                  <Button type="submit" className="w-full md:w-auto" disabled={isDisabled || createVoucher.isPending || savingRef.current}>
+                  <Button type="submit" className={cn(embedded ? "w-full h-9" : "w-full md:w-auto")} disabled={isDisabled || createVoucher.isPending || savingRef.current}>
                     <Plus className="mr-2 h-4 w-4" />
                     {createVoucher.isPending ? "Recording..." : "Record Payment"}
                   </Button>

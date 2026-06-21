@@ -7,7 +7,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useSettings } from "@/hooks/useSettings";
 import { useAccountsVoucherData, type AccountsPaymentTabId } from "@/hooks/useAccountsVoucherData";
@@ -81,16 +80,16 @@ export function FloatingAccountsPaymentsDialog({
     showPaymentHistory ? "flex-[3]" : "flex-1"
   );
   const tabScrollClass = cn(
-    "h-full border rounded-md bg-background",
-    showPaymentHistory ? "max-h-[52vh]" : "flex-1 min-h-0"
+    "flex-1 min-h-0 overflow-y-auto overflow-x-hidden",
+    showPaymentHistory && "max-h-[52vh]",
   );
 
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="max-w-[min(1280px,95vw)] w-[95vw] max-h-[92vh] h-[92vh] p-0 gap-0 flex flex-col overflow-hidden">
-          <DialogHeader className="shrink-0 px-4 pt-4 pb-2 border-b">
-            <DialogTitle className="flex items-center gap-2 text-lg">
+          <DialogHeader className="shrink-0 px-4 pt-3 pb-2 border-b">
+            <DialogTitle className="flex items-center gap-2 text-base">
               <Banknote className="h-5 w-5" />
               Payments — Collect &amp; Pay
             </DialogTitle>
@@ -101,7 +100,7 @@ export function FloatingAccountsPaymentsDialog({
             onValueChange={(v) => setActiveTab(v as AccountsPaymentTabId)}
             className="flex-1 flex flex-col min-h-0 overflow-hidden"
           >
-            <TabsList className="shrink-0 mx-4 mt-2 grid grid-cols-4 h-9">
+            <TabsList className="shrink-0 mx-3 mt-1.5 grid grid-cols-4 h-8">
               <TabsTrigger value="customer-payment" className="text-xs">
                 Customer Payment
               </TabsTrigger>
@@ -116,11 +115,10 @@ export function FloatingAccountsPaymentsDialog({
               </TabsTrigger>
             </TabsList>
 
-            <div className="flex-1 flex flex-col min-h-0 overflow-hidden px-4 pb-2 pt-2 gap-2">
+            <div className="flex-1 flex flex-col min-h-0 overflow-hidden px-3 pb-2 pt-1.5 gap-1">
               <TabsContent value="customer-payment" className={tabContentClass}>
-                <ScrollArea className={tabScrollClass}>
-                  <div className="p-3">
-                    <CustomerPaymentTab
+                <div className={tabScrollClass}>
+                  <CustomerPaymentTab
                       embedded
                       organizationId={orgId}
                       vouchers={vouchers}
@@ -131,35 +129,28 @@ export function FloatingAccountsPaymentsDialog({
                       onShowAdvanceDialog={() => setShowAdvanceDialog(true)}
                       onEditPayment={paymentDialogs.openEditPaymentDialog}
                     />
-                  </div>
-                </ScrollArea>
+                </div>
               </TabsContent>
               <TabsContent value="supplier-payment" className={tabContentClass}>
-                <ScrollArea className={tabScrollClass}>
-                  <div className="p-3">
-                    <SupplierPaymentTab
+                <div className={tabScrollClass}>
+                  <SupplierPaymentTab
                       embedded
                       organizationId={orgId}
                       vouchers={vouchers}
                       suppliers={suppliers}
                       onEditPayment={paymentDialogs.openEditPaymentDialog}
                     />
-                  </div>
-                </ScrollArea>
+                </div>
               </TabsContent>
               <TabsContent value="expenses" className={tabContentClass}>
-                <ScrollArea className={tabScrollClass}>
-                  <div className="p-3">
-                    <ExpensesTab embedded organizationId={orgId} vouchers={vouchers} />
-                  </div>
-                </ScrollArea>
+                <div className={tabScrollClass}>
+                  <ExpensesTab embedded organizationId={orgId} vouchers={vouchers} />
+                </div>
               </TabsContent>
               <TabsContent value="employee-salary" className={tabContentClass}>
-                <ScrollArea className={tabScrollClass}>
-                  <div className="p-3">
-                    <EmployeeSalaryTab embedded organizationId={orgId} vouchers={vouchers} />
-                  </div>
-                </ScrollArea>
+                <div className={tabScrollClass}>
+                  <EmployeeSalaryTab embedded organizationId={orgId} vouchers={vouchers} />
+                </div>
               </TabsContent>
 
               {showPaymentHistory ? (
@@ -193,12 +184,12 @@ export function FloatingAccountsPaymentsDialog({
                   </div>
                 </div>
               ) : (
-                <div className="shrink-0 flex justify-center py-1.5 border-t bg-muted/20">
+                <div className="shrink-0 flex justify-center py-1 border-t bg-muted/20">
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
-                    className="h-8 text-xs gap-1.5"
+                    className="h-7 text-xs gap-1.5"
                     onClick={() => setShowPaymentHistory(true)}
                   >
                     <History className="h-3.5 w-3.5" />
