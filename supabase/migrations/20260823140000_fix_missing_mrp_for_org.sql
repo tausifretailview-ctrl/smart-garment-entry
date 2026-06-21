@@ -21,9 +21,10 @@ BEGIN
 
   UPDATE public.purchase_items pi
   SET mrp = pv.mrp
-  FROM public.product_variants pv
-  INNER JOIN public.purchase_bills pb ON pb.id = pi.bill_id
+  FROM public.product_variants pv,
+       public.purchase_bills pb
   WHERE pi.sku_id = pv.id
+    AND pb.id = pi.bill_id
     AND pb.organization_id = p_org_id
     AND pv.organization_id = p_org_id
     AND (pi.mrp IS NULL OR pi.mrp = 0)
