@@ -23,6 +23,50 @@ interface ReconciliationTabProps {
   customers: any[] | undefined;
 }
 
+const RECON_LOOKUP_BATCH = 200;
+
+async function fetchSalesMapForReconciliation(
+  organizationId: string,
+  saleIds: string[],
+): Promise<Map<string, any>> {
+  const map = new Map<string, any>();
+  const unique = [...new Set(saleIds.filter(Boolean))];
+  for (let i = 0; i < unique.length; i += RECON_LOOKUP_BATCH) {
+    const chunk = unique.slice(i, i + RECON_LOOKUP_BATCH);
+    const { data, error } = await supabase
+      .from("sales")
+      .select("*")
+      .eq("organization_id", organizationId)
+      .in("id", chunk);
+    if (error) throw error;
+    for (const row of data || []) {
+      map.set(row.id, row);
+    }
+  }
+  return map;
+}
+
+async function fetchCustomersMapForReconciliation(
+  organizationId: string,
+  customerIds: string[],
+): Promise<Map<string, { customer_name: string; phone: string | null }>> {
+  const map = new Map<string, { customer_name: string; phone: string | null }>();
+  const unique = [...new Set(customerIds.filter(Boolean))];
+  for (let i = 0; i < unique.length; i += RECON_LOOKUP_BATCH) {
+    const chunk = unique.slice(i, i + RECON_LOOKUP_BATCH);
+    const { data, error } = await supabase
+      .from("customers")
+      .select("id, customer_name, phone")
+      .eq("organization_id", organizationId)
+      .in("id", chunk);
+    if (error) throw error;
+    for (const row of data || []) {
+      map.set(row.id, { customer_name: row.customer_name, phone: row.phone });
+    }
+  }
+  return map;
+}
+
 export function ReconciliationTab({ organizationId, customers }: ReconciliationTabProps) {
   const queryClient = useQueryClient();
   const { isAdmin } = useUserRoles();
@@ -48,28 +92,54 @@ export function ReconciliationTab({ organizationId, customers }: ReconciliationT
       const { data: payments, error } = await query.order("voucher_date", { ascending: false });
       if (error) throw error;
 
-      const enhanced = await Promise.all(
-        (payments || []).map(async (payment) => {
+      const paymentRows = payments || [];
+      const referenceSaleIds = paymentRows
+        .map((payment) => payment.reference_id)
+        .filter(Boolean) as string[];
+
+      const salesById = await fetchSalesMapForReconciliation(organizationId, referenceSaleIds);
+
+      const customerIds = [
+        ...new Set(
+          [...salesById.values()]
+            .map((invoice) => invoice.customer_id)
+            .filter(Boolean),
+        ),
+      ] as string[];
+      const customersById = await fetchCustomersMapForReconciliation(organizationId, customerIds);
+
+      const enhanced = paymentRows
+        .map((payment) => {
           let customerName = "Unknown";
           let customerPhone = "";
           let invoiceDetails: any = null;
           if (payment.reference_id) {
-            const { data: invoice } = await supabase.from("sales").select("*").eq("id", payment.reference_id).maybeSingle();
+            const invoice = salesById.get(payment.reference_id);
             if (invoice) {
-              if (reconStatusFilter && reconStatusFilter !== "all" && invoice.payment_status !== reconStatusFilter) return null;
+              if (
+                reconStatusFilter &&
+                reconStatusFilter !== "all" &&
+                invoice.payment_status !== reconStatusFilter
+              ) {
+                return null;
+              }
               invoiceDetails = invoice;
               customerName = invoice.customer_name || "Walk-in Customer";
               customerPhone = invoice.customer_phone || "";
               if (invoice.customer_id) {
-                const { data: customer } = await supabase.from("customers").select("customer_name, phone").eq("id", invoice.customer_id).maybeSingle();
-                if (customer) { customerName = customer.customer_name || customerName; customerPhone = customer.phone || customerPhone; }
+                const customer = customersById.get(invoice.customer_id);
+                if (customer) {
+                  customerName = customer.customer_name || customerName;
+                  customerPhone = customer.phone || customerPhone;
+                }
               }
             }
           }
           return { ...payment, customerName, customerPhone, invoiceDetails };
         })
-      );
-      return enhanced.filter(e => e !== null);
+        .filter((row): row is NonNullable<typeof row> => row !== null);
+
+      return enhanced;
     },
     enabled: !!organizationId,
   });
