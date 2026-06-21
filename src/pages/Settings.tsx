@@ -3129,7 +3129,7 @@ export default function Settings() {
                       {settings.sale_settings?.invoice_template === 'kids-80mm'
                         ? 'Kids 80mm prints on 80mm thermal roll — product name, size, qty, sale price, MRP total, fixed footer & terms.'
                         : settings.sale_settings?.invoice_template === 'real-tast'
-                          ? 'Real Tast prints on A4 — Bill of Supply layout without size column, payment, balance, or state code.'
+                          ? 'Real Tast prints on A4 — Bill of Supply: SN, Description, Qty, Rate, Amount only; no barcode/HSN/discount/round-off lines.'
                         : 'Modern Wholesale is optimized for bulk orders with size grouping (e.g., 38/2, 40/3, 42/1)'}
                     </p>
                   </div>

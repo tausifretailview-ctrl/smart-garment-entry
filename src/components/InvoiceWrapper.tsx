@@ -606,7 +606,16 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
         case 'retail-erp':
           return <RetailERPTemplate {...commonProps} />;
         case 'real-tast':
-          return <RetailERPTemplate {...commonProps} variant="real-tast" format="a4" />;
+          return (
+            <RetailERPTemplate
+              {...commonProps}
+              variant="real-tast"
+              format="a4"
+              showHSN={false}
+              showBarcode={false}
+              showDiscountOnRate={false}
+            />
+          );
         case 'retail-tax-ezzy':
           return <RetailTaxEzzyTemplate {...commonProps} />;
         case 'wholesale-a5':

@@ -335,27 +335,29 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   const ROW_H = isA4 ? "26px" : "22px";
   const ROW_H_WITH_DISC = isA4 ? "36px" : "32px";
 
-  // Determine columns
-  const showHSNCol = showHSN;
+  // Determine columns — Real Tast: no size, barcode, or HSN
+  const showHSNCol = showHSN && !isRealTast;
+  const showBarcodeCol = !isRealTast;
 
-  // Build column config — GST column removed for clean retail look
   const cols: { key: string; label: string; width: string; align: "center" | "left" | "right" }[] = [
-    { key: "sr", label: "SN", width: "5%", align: "center" },
+    { key: "sr", label: "SN", width: isRealTast ? "6%" : "5%", align: "center" },
     {
       key: "description",
       label: "DESCRIPTION",
-      width: showHSNCol ? (isRealTast ? "30%" : "24%") : isRealTast ? "36%" : "30%",
+      width: isRealTast ? "46%" : showHSNCol ? "24%" : "30%",
       align: "left",
     },
     ...(isRealTast
       ? []
       : [{ key: "size", label: "SIZE", width: "6%", align: "center" as const }]),
-    { key: "barcode", label: "BARCODE", width: "14%", align: "center" },
+    ...(showBarcodeCol
+      ? [{ key: "barcode", label: "BARCODE", width: "14%", align: "center" as const }]
+      : []),
   ];
   if (showHSNCol) cols.push({ key: "hsn", label: "HSN", width: "7%", align: "center" });
-  cols.push({ key: "qty", label: "QTY", width: "6%", align: "center" });
-  cols.push({ key: "rate", label: "RATE", width: "12%", align: "right" });
-  cols.push({ key: "amount", label: "AMOUNT", width: "14%", align: "right" });
+  cols.push({ key: "qty", label: "QTY", width: isRealTast ? "8%" : "6%", align: "center" });
+  cols.push({ key: "rate", label: "RATE", width: isRealTast ? "18%" : "12%", align: "right" });
+  cols.push({ key: "amount", label: "AMOUNT", width: isRealTast ? "22%" : "14%", align: "right" });
 
   const cellBase: React.CSSProperties = {
     borderRight: B,
@@ -593,7 +595,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                                 content = (
                                   <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", lineHeight: "1.15" }}>
                                     <span>{fmt(getDisplayBaseRate(item))}</span>
-                                    {showDiscountOnRate && (Number(item.discountPercent || 0) > 0) && (
+                                    {showDiscountOnRate && !isRealTast && (Number(item.discountPercent || 0) > 0) && (
                                       <span style={{ fontSize: isA4 ? "10px" : "8px", color: "#b45309" }}>
                                         -{Number(item.discountPercent).toFixed(0)}%
                                       </span>
@@ -619,7 +621,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                                       justifyContent: "center",
                                     }}
                                   >
-                                    {lineDisc > 0.005 && (
+                                    {!isRealTast && lineDisc > 0.005 && (
                                       <span
                                         style={{
                                           fontSize: fsDiscMedium,
@@ -733,15 +735,17 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                         flexShrink: 0,
                       }}
                     >
-                      <div style={{ display: "flex", justifyContent: "space-between", borderBottom: B, padding: isA4 ? "3px 8px" : "3px 6px", fontSize: isA4 ? "14px" : "11px", fontWeight: "900", color: "#000" }}>
-                        <span>Sub Total</span><span>₹{fmt(displaySubTotal)}</span>
-                      </div>
+                      {!isRealTast && (
+                        <div style={{ display: "flex", justifyContent: "space-between", borderBottom: B, padding: isA4 ? "3px 8px" : "3px 6px", fontSize: isA4 ? "14px" : "11px", fontWeight: "900", color: "#000" }}>
+                          <span>Sub Total</span><span>₹{fmt(displaySubTotal)}</span>
+                        </div>
+                      )}
                       {saleReturnAdjust > 0 && (
                         <div style={{ display: "flex", justifyContent: "space-between", borderBottom: B, padding: isA4 ? "3px 8px" : "3px 6px", color: "#9a3412", fontSize: isA4 ? "14px" : "11px", fontWeight: "800" }}>
                           <span>S/R Adjust</span><span>- ₹{fmt(saleReturnAdjust)}</span>
                         </div>
                       )}
-                      {displayDiscount > 0 && (
+                      {!isRealTast && displayDiscount > 0 && (
                         <div style={{ display: "flex", justifyContent: "space-between", borderBottom: B, padding: isA4 ? "3px 8px" : "3px 6px", fontSize: isA4 ? "14px" : "11px", fontWeight: "900", color: "#000" }}>
                           <span>Discount</span><span>- ₹{fmt(displayDiscount)}</span>
                         </div>
@@ -751,7 +755,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                           <span>Other Charges</span><span>+ ₹{fmt(displayOtherCharges)}</span>
                         </div>
                       )}
-                      {roundOff !== 0 && (
+                      {!isRealTast && roundOff !== 0 && (
                         <div style={{ display: "flex", justifyContent: "space-between", borderBottom: B, padding: isA4 ? "3px 8px" : "3px 6px", fontSize: isA4 ? "14px" : "11px", fontWeight: "800", color: "#000" }}>
                           <span>Round Off</span><span>{roundOff > 0 ? "+" : ""}{fmt(roundOff)}</span>
                         </div>
