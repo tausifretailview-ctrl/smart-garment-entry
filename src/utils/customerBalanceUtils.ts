@@ -851,43 +851,130 @@ export function reconcileSaleInvoiceWithSplit(
   });
 }
 
+export type SaleRowForPaymentSync = {
+  id: string;
+  net_amount?: number | null;
+  paid_amount?: number | null;
+  sale_return_adjust?: number | null;
+  customer_id?: string | null;
+  sale_number?: string | null;
+  cash_amount?: number | null;
+  card_amount?: number | null;
+  upi_amount?: number | null;
+};
+
+const SALE_PAYMENT_SYNC_SELECT =
+  "id, net_amount, paid_amount, sale_return_adjust, customer_id, sale_number, cash_amount, card_amount, upi_amount";
+
+async function loadSalesForPaymentSync(
+  client: SupabaseClient,
+  organizationId: string,
+  invoiceIds: string[],
+  existingSalesById?: Map<string, SaleRowForPaymentSync>,
+): Promise<Map<string, SaleRowForPaymentSync>> {
+  const salesById = new Map(existingSalesById);
+  const missingIds = [...new Set(invoiceIds.filter(Boolean))].filter((id) => !salesById.has(id));
+
+  for (let i = 0; i < missingIds.length; i += SALE_ID_IN_CHUNK) {
+    const chunk = missingIds.slice(i, i + SALE_ID_IN_CHUNK);
+    const { data, error } = await client
+      .from("sales")
+      .select(SALE_PAYMENT_SYNC_SELECT)
+      .eq("organization_id", organizationId)
+      .in("id", chunk);
+    if (error) throw error;
+    for (const row of data || []) {
+      salesById.set(row.id, row as SaleRowForPaymentSync);
+    }
+  }
+
+  return salesById;
+}
+
+/** Batch sync: one sales IN(...) load + one receipt-split fetch for many invoices. */
+export async function syncSalePaymentsFromVouchersBatch(
+  invoiceIds: string[],
+  organizationId: string,
+  voucherDateYmd: string,
+  client: SupabaseClient,
+  options?: {
+    existingSalesById?: Map<string, SaleRowForPaymentSync>;
+  },
+): Promise<Map<string, ReturnType<typeof reconcileSaleInvoiceWithSplit>>> {
+  const uniqueIds = [...new Set(invoiceIds.filter(Boolean))];
+  const results = new Map<string, ReturnType<typeof reconcileSaleInvoiceWithSplit>>();
+  if (uniqueIds.length === 0) return results;
+
+  const salesById = await loadSalesForPaymentSync(
+    client,
+    organizationId,
+    uniqueIds,
+    options?.existingSalesById,
+  );
+
+  const splitMap = await fetchSaleReceiptSplitsForInvoices(
+    client,
+    organizationId,
+    uniqueIds
+      .map((id) => salesById.get(id))
+      .filter(Boolean)
+      .map((sale) => ({
+        id: sale!.id,
+        sale_number: sale!.sale_number,
+        customer_id: sale!.customer_id,
+      })),
+  );
+
+  await Promise.all(
+    uniqueIds.map(async (invoiceId) => {
+      const sale = salesById.get(invoiceId);
+      if (!sale) return;
+      const split = splitMap.get(invoiceId) ?? emptySplit();
+      const rec = reconcileSaleInvoiceWithSplit(sale, split);
+      const { error: updErr } = await client
+        .from("sales")
+        .update({
+          paid_amount: rec.paid_amount,
+          payment_status: rec.payment_status,
+          payment_date: voucherDateYmd,
+        })
+        .eq("id", invoiceId)
+        .eq("organization_id", organizationId);
+      if (updErr) throw updErr;
+      results.set(invoiceId, rec);
+    }),
+  );
+
+  return results;
+}
+
 /** Ledger-consistent paid_amount / status from receipt vouchers (canonical sale row writer). */
 export async function syncSalePaymentFromVouchers(
   invoiceId: string,
   organizationId: string,
   voucherDateYmd: string,
   client: SupabaseClient,
+  options?: {
+    /** Skip sales SELECT when caller already has the row (e.g. POS payment dialog). */
+    existingSale?: SaleRowForPaymentSync | null;
+  },
 ) {
-  const { data: freshSale, error: saleErr } = await client
-    .from("sales")
-    .select(
-      "net_amount, paid_amount, sale_return_adjust, customer_id, sale_number, cash_amount, card_amount, upi_amount",
-    )
-    .eq("id", invoiceId)
-    .eq("organization_id", organizationId)
-    .single();
-  if (saleErr) throw saleErr;
+  const existingSalesById = options?.existingSale
+    ? new Map([[invoiceId, options.existingSale]])
+    : undefined;
 
-  const splitMap = await fetchSaleReceiptSplitsForInvoices(client, organizationId, [
-    {
-      id: invoiceId,
-      sale_number: freshSale.sale_number,
-      customer_id: freshSale.customer_id,
-    },
-  ]);
-  const split = splitMap.get(invoiceId) ?? emptySplit();
-  const rec = reconcileSaleInvoiceWithSplit(freshSale, split);
+  const results = await syncSalePaymentsFromVouchersBatch(
+    [invoiceId],
+    organizationId,
+    voucherDateYmd,
+    client,
+    { existingSalesById },
+  );
 
-  const { error: updErr } = await client
-    .from("sales")
-    .update({
-      paid_amount: rec.paid_amount,
-      payment_status: rec.payment_status,
-      payment_date: voucherDateYmd,
-    })
-    .eq("id", invoiceId)
-    .eq("organization_id", organizationId);
-  if (updErr) throw updErr;
+  const rec = results.get(invoiceId);
+  if (!rec) {
+    throw new Error(`Sale not found: ${invoiceId}`);
+  }
   return rec;
 }
 

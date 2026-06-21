@@ -74,6 +74,7 @@ import {
   resolveReceiptReprintBalances,
   splitSaleLinkedReceiptRows,
   syncSalePaymentFromVouchers,
+  syncSalePaymentsFromVouchersBatch,
   type SaleReceiptVoucherSplit,
 } from "@/utils/customerBalanceUtils";
 // Sentinel ID used to represent the customer's remaining Opening Balance
@@ -658,6 +659,7 @@ export function CustomerPaymentTab({
 
       const saleRevertAdv: Array<{ id: string; prevPaid: number; prevStatus: string }> = [];
       const createdAdvanceVoucherIds: string[] = [];
+      const advanceSyncedInvoiceIds: string[] = [];
 
       try {
         for (const invoice of invoicesToProcess) {
@@ -702,8 +704,17 @@ export function CustomerPaymentTab({
               amount: applyAmt,
             });
           }
-          await syncSalePaymentFromVouchers(invoice.id, organizationId, advYmd, supabase);
+          advanceSyncedInvoiceIds.push(invoice.id);
           remaining -= applyAmt;
+        }
+
+        if (advanceSyncedInvoiceIds.length > 0) {
+          await syncSalePaymentsFromVouchersBatch(
+            advanceSyncedInvoiceIds,
+            organizationId,
+            advYmd,
+            supabase,
+          );
         }
       } catch (advErr) {
         for (const vid of [...createdAdvanceVoucherIds].reverse()) {
@@ -1135,18 +1146,27 @@ export function CustomerPaymentTab({
       // Sync paid_amount from vouchers only — do not add allocatedAmount on top (double-counts cash/UPI).
       if (processedInvoices.length > 0) {
         const voucherDateYmd = format(voucherDate, "yyyy-MM-dd");
-        await Promise.all(
-          processedInvoices.map(async (processed) => {
-            if (Number(processed.amountApplied || 0) <= 0) return;
-            const rec = await syncSalePaymentFromVouchers(
-              processed.invoice.id,
-              organizationId,
-              voucherDateYmd,
-              supabase,
-            );
-            processed.currentBalance = rec.outstanding;
-          }),
+        const invoicesToSync = processedInvoices.filter(
+          (processed) => Number(processed.amountApplied || 0) > 0,
         );
+        if (invoicesToSync.length > 0) {
+          const existingSalesById = new Map(
+            invoicesToSync.map((processed) => [processed.invoice.id, processed.invoice]),
+          );
+          const syncResults = await syncSalePaymentsFromVouchersBatch(
+            invoicesToSync.map((processed) => processed.invoice.id),
+            organizationId,
+            voucherDateYmd,
+            supabase,
+            { existingSalesById },
+          );
+          for (const processed of invoicesToSync) {
+            const rec = syncResults.get(processed.invoice.id);
+            if (rec) {
+              processed.currentBalance = rec.outstanding;
+            }
+          }
+        }
       }
 
       return {

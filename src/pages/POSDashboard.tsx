@@ -1572,6 +1572,7 @@ const POSDashboard = () => {
         currentOrganization!.id,
         voucherDateYmd,
         supabase,
+        { existingSale: selectedSaleForPayment },
       );
 
       const { error: paymentMethodError } = await supabase
