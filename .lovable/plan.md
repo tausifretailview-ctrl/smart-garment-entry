@@ -1,81 +1,73 @@
+## Ella Noor — Accounts Finalization: Step 1 audit + Step 2–5 roadmap
 
-# DB performance — Phase 0 + Phase 1 (measure only)
+### Step 1 status (what's actually done in the DB)
 
-## Phase 0 — baseline
 
-- `pg_stat_statements` is enabled (`track=top`, loaded in `shared_preload_libraries`).
-- `pg_stat_statements_reset()` is not callable with our role, so we used the **current accumulated snapshot** as the baseline. The window reflects normal multi-org traffic up to now.
-- No schema/data changes made in this phase.
+| Check                        | Result                                                                                                                                                                |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Accounting engine enabled    | ✅ ON (`settings.accounting_engine_enabled = true`)                                                                                                                    |
+| Chart of Accounts seeded     | ✅ 25 ledgers across 11 Tally groups (Sundry Debtors/Creditors, Sales, Purchase, Duties & Taxes, Direct/Indirect Exp & Inc, Stock-in-Hand, Current Assets/Liabilities) |
+| Live posting (going forward) | ✅ Sales / Purchases / Returns / Advances / CN applications all writing `journal_entries` + `journal_lines`                                                            |
+| Date range journaled         | 11-Feb-2026 → 21-Jun-2026                                                                                                                                             |
 
-## Phase 1 — top hotspots
 
-Times in ms. "Source" is the screen/RPC inferred from the query shape.
+**So "Step 1" = engine ON + CoA seeded + new transactions posting. That is complete. ✅**
 
-| # | Table / shape | calls | total ms | mean ms | source guess | class |
-|---|---|---:|---:|---:|---|---|
-| 1 | `sale_items` ILIKE(barcode/product_name/size/color) AND `sale_id = ANY(...)` AND `deleted_at IS NULL` | 7,456 | 215,353 | 28.9 | Sales list page — embedded item search via PostgREST | **b — frequency + already optimal plan** |
-| 2 | `purchase_bills` list, org+deleted, LEFT JOIN LATERAL `purchase_items` count, ORDER BY bill_date DESC | 1,488 | 171,997 | 115.6 | Purchase Bills list | **a/d — embed pattern, see below** |
-| 3 | `UPDATE purchase_items SET mrp = ... WHERE id=$ AND (mrp IS NULL OR mrp=0)` | 1,000 | 148,702 | 148.7 | App-side backfill loop | **b — call-frequency, app code issue** |
-| 4 | `voucher_entries` 12× ILIKE description + org + voucher_type + reference_type ANY, ORDER BY created_at DESC | 1,740 | 74,990 | 43.1 | Accounts/Payments search | **d — uses idx_voucher_entries_ref_type_id, already optimal** |
-| 5 | `purchase_items WHERE sku_id=$1` | 315 | 39,349 | 124.9 | Inventory SKU lookup | **d — idx_purchase_items_sku exists; mean inflated by occasional cold cache, total is small in absolute terms** |
-| 6 | `sale_items WHERE sale_id = ANY(...) AND deleted_at IS NULL` | 1,311 | 37,178 | 28.4 | Sales detail/embed | **b — frequency** |
-| 7 | `sale_items` JOIN LATERAL sales, ORDER BY sale_items.id ASC, no org filter on sale_items | 175 | 26,344 | 150.5 | Item-wise report | **a — see candidate B** |
-| 8 | `purchase_bills` slim list, org+deleted | 1,440 | 24,197 | 16.8 | Purchase dashboard KPI | **b — frequency, plan already uses idx_purchase_bills_org_date_deleted** |
-| 9 | `purchase_items` ILIKE(name/brand/barcode/style/category/color) AND `bill_id = ANY(...)` | 228 | 23,563 | 103.3 | Purchase list embedded search | **b — same shape as #1, residual filter on bill-scoped rows** |
-| 10 | `sale_orders` + LATERAL items, org+deleted ORDER BY created_at DESC | 21 | 22,854 | **1,088** | Sale Orders list | **a — see candidate C** |
-| 11 | `product_variants` org+deleted+barcode ILIKE | 808 | 18,586 | 23.0 | Barcode lookup | **d — idx_product_variants_barcode_trgm exists** |
-| 12 | `v_dashboard_stock_summary` org filter | 664 | 16,766 | 25.2 | Dashboard | **c — view, refresh-pattern candidate** |
-| 13 | `customers` ILIKE name/phone/email + org | 824 | 16,510 | 20.0 | Customer search | **d — trigram indexes present** |
-| 14 | `product_variants` barcode=/ILIKE + org+active+deleted | 562 | 15,024 | 26.7 | POS barcode | **d** |
-| 15 | `customers` org+deleted ORDER BY customer_name | 845 | 14,961 | 17.7 | Customer list | **d — idx_customers_org_name covers** |
-| 16 | `sale_items WHERE variant_id=$1` (315 calls, 12.9s) | 315 | 12,855 | 40.8 | Stock card / variant detail | **d — idx_sale_items_variant_id exists, plan confirmed** |
-| 17 | `sales WHERE id=$1` | 10,496 | 12,489 | 1.2 | Per-bill fetch | **b — frequency, cache opportunity** |
-| 18 | `sale_order_items WHERE variant_id=$1` | 315 | 7,389 | 23.5 | Stock card | **a — see candidate A (CONFIRMED missing index)** |
-| 19 | `customers WHERE id=$1` | 10,343 | 5,725 | 0.55 | Per-row customer fetch | **b — frequency, cache opportunity** |
+### Gaps blocking Tally-exact Trial Balance / P&L / Balance Sheet
 
-Tables: `sale_items` 95k, `product_variants` 100k, `purchase_items` 103k, `sale_order_items` 40k, `sales` 34k, `customers` 30k, `voucher_entries` 27k, `purchase_bills` 3.5k, `sale_orders` 1.3k.
+Each of these will visibly break one of the three reports until fixed. **Severity order = the order you'll see mismatches with Tally.**
 
-## EXPLAIN ANALYZE — candidates that need a real plan
 
-### Candidate A — `sale_order_items WHERE variant_id=$1` (CONFIRMED missing index)
+| #   | Gap                                                                                                                                                                                                 | Counts     | Hits which report                                           | Severity    |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- | ----------------------------------------------------------- | ----------- |
+| 1   | **1,988 vouchers have no journal entry** (`vouchers_without_journal` from `get_pending_gl_backfill_counts`). Of 3,138 receipts only 800 are journaled; 32 payments + 3 CNs also pending             | 1,988 docs | TB (Cash/Bank, Sundry Debtors), BS, customer ledger         | 🔴 Critical |
+| 2   | **No opening balances loaded** (`ledger_opening_balances` = 0). Customer master shows ₹22,28,652 of opening dues but they are nowhere on the books                                                  | 0 rows     | BS won't tie; TB won't reconcile to Tally's brought-forward | 🔴 Critical |
+| 3   | **No Expense / Salary / Manual / Contra / RoundOff journals booked** (counts = 0 each). If real expenses occurred, P&L expense side is empty                                                        | 0 entries  | P&L (expense side), TB                                      | 🔴 Critical |
+| 4   | **12 purchase bills with year typos** — bill_date = `0202-03-02` and `2028-01-03 … 2028-07-05`. Total ≈ ₹9.35 L sitting outside FY → silently dropped from period reports or pushed into wrong year | 12 bills   | P&L purchases, TB, stock value                              | 🔴 Critical |
+| 5   | Sale journals (3,219) > active sales (3,155). Likely stale journals from cancelled/deleted sales not reversed                                                                                       | Δ 64       | TB sales total + Sundry Debtors slightly inflated           | 🟡 High     |
+| 6   | CoA is only 25 ledgers. Tally master typically has separate bank accounts, individual expense heads (Rent, Salary, Electricity, Bank Charges, etc.), and per-payee ledgers                          | –          | TB groupings will look "thin" vs Tally                      | 🟡 Medium   |
+| 7   | Books-closing lock (`books_closed_before_date`) not set                                                                                                                                             | –          | Accidental back-dated edits can move TB after sign-off      | 🟢 Hygiene  |
 
-```
-Seq Scan on sale_order_items  (actual 507ms, hit=904)
-  Filter: variant_id = '...'  Rows Removed by Filter: 40100
-```
 
-No index on `sale_order_items.variant_id`. Compare to `sale_items.variant_id` which has an index and plans an Index Scan in 0.08 ms.
+### Step 2–5 roadmap to reach Tally-exact reports
 
-### Candidate B — `sale_items ... ORDER BY id ASC` item-wise report (175 calls, mean 150 ms)
+Each step is a separate, reviewable action. **No code or DB writes in this plan — just the proposed sequence.** I'll come back and ask for go-ahead before executing any one of them.
 
-Query has NO `organization_id` on `sale_items` and joins to `sales` for the org filter. Worst case scans large ranges of `sale_items` by id. Needs deeper EXPLAIN against the report's real shape before adding any index.
+**Step 2 — Fix data-quality issues that will skew every report (no GL impact yet).**
 
-### Candidate C — `sale_orders` list (21 calls, mean 1,088 ms)
+- 2.1 Correct the 12 purchase bills with bad `bill_date` (`0202-03-02`, `2028-…`). I'll list each one with current date and ask you for the correct date — purchase entries, not auto-fix.
+- 2.2 Identify the 64 surplus `Sale` journal entries (likely cancelled sales that weren't journal-reversed) and reverse them via the existing reversal path.
+- 2.3 If real expenses/salary were paid in cash/bank in this FY, capture them via Accounts → Expense / Salary vouchers so they enter the GL. (You'll need to give me the list, or post them yourself in the app.)
 
-EXPLAIN of the bare list is sub-ms — the cost is from the LATERAL embed of `sale_order_items` per row. Each per-row probe uses `idx_sale_order_items_order` which exists. The 1s mean is suspicious — likely correlates with Candidate A (variant_id seq scans elsewhere on the same page). Re-measure after fix A.
+**Step 3 — Load opening balances as of the chosen FY-start cut-over date.**
 
-### Candidate D (frequency only — NOT an index problem)
+- 3.1 Confirm the cut-over date (likely 01-Apr-2026 for FY 2026-27, or earlier if you want a full year).
+- 3.2 Enter Tally's closing trial balance as of the day before that cut-over into `ledger_opening_balances` (Accounts → Opening Balances UI). Capital, Reserves, Fixed Assets, Stock-in-Hand, Bank, Cash, Loans, OB customers, OB suppliers.
+- 3.3 Verify Σ Dr opening = Σ Cr opening before proceeding.
 
-- #3 mass UPDATE of `purchase_items.mrp` — 1,000 calls × 148 ms = 148s. Looks like a one-row-at-a-time backfill loop in the app. Fix is in client code (batch or remove), not in the DB. Out of scope for this task; reporting only.
-- #17 `sales WHERE id=$1` (10,496 calls) and #19 `customers WHERE id=$1` (10,343 calls) — already index scans on PK, ~0.5–1.2 ms each. They show up because they're called thousands of times. Client-side caching/dedupe would help; not an index problem.
+**Step 4 — Historical GL backfill (one-click, already built).**
 
-### Candidate E — heavy report views (#12 `v_dashboard_stock_summary`, #23 `v_dashboard_purchase_summary`)
+- 4.1 Run `Accounts → Pending GL Backfill → Historical Backfill` for Ella Noor only. This walks through all unjournaled sales/purchases/receipts/payments/returns and writes the missing `journal_entries` + `journal_lines` using the same posting rules new transactions already use.
+- 4.2 Re-check `get_pending_gl_backfill_counts` — must return `total_pending = 0, total_failed = 0`.
 
-Mean 25–99 ms × 664/92 calls. Candidates for a materialized view + `pg_cron` refresh — propose only if numbers grow. Not urgent.
+**Step 5 — Reconcile against Tally and lock the books.**
 
-## Ranked fix list (awaiting approval)
+- 5.1 Open `Accounting Reports → GL Trial Balance` for the cut-over → today. Compare group-by-group with Tally's TB.
+- 5.2 Open `GL P&L` for the FY range. Compare Gross Profit, line-by-line indirect expenses.
+- 5.3 Open `GL Balance Sheet` as-of today. Liabilities + Equity must equal Assets, and major heads must match Tally.
+- 5.4 Tally drift checklist (predictable causes): rounding diff (use RoundOff journal), unbooked bank charges, unbooked TDS, depreciation not yet posted, inventory closing-stock valuation method difference.
+- 5.5 Once matched, set `settings.books_closed_before_date = <cut-over date>` to prevent back-dated journals from breaking the locked TB.
 
-1. **FIX A (only confirmed index)** — add `idx_sale_order_items_variant_id` on `public.sale_order_items(variant_id)` (partial `WHERE deleted_at IS NULL` is **not** applicable — table has no `deleted_at` referenced in this query). 40k rows, write impact negligible. Plain `CREATE INDEX` is fine (~40k rows, brief lock); we'll run it in low traffic. Re-run EXPLAIN to confirm Index Scan.
-2. **REPORT B** — instrument/EXPLAIN the actual item-wise report query against a real org before proposing an index. Do NOT add anything yet.
-3. **REPORT D** — flag the `purchase_items.mrp` update loop and the per-row `sales`/`customers` fetches to the app team as caching/batching work. No DB change.
-4. **DEFER C, E** — re-measure after A lands.
+### What I need from you to start Step 2
 
-## What this plan will NOT do
+1. **Cut-over date** for the opening trial balance (default suggestion: **01-Apr-2026**).
+2. Confirmation that **only Ella Noor** should be touched (the "Backfill All Organizations" button is the wrong one).
+3. Permission to **list the 12 bad-date purchase bills** in chat and the **64 surplus sale journals** so you can give correct values / approve reversals.
 
-- Will not touch customer/billing math, RLS, soft-delete, print/PDF/WhatsApp.
-- Will not add any speculative indexes for items 1, 2, 4–9, 11–16 — their plans already use existing indexes, or the cost is call-frequency, not query plan.
-- Will not change search UI or list logic.
+After your answers I'll come back with the Step 2 action plan for approval before any write.
 
-## On approval
+Calculate date from starting transaction 
 
-Phase 2 will be a single `CREATE INDEX IF NOT EXISTS idx_sale_order_items_variant_id ON public.sale_order_items (variant_id);` migration, followed by re-EXPLAIN to confirm the seq-scan is gone. Phase 3 will compare `pg_stat_statements` totals for query #18 (and #10) after ~24 h.
+Only ella noor touched 
+
+Stay as original date we change to 2026 by mistake 2028 entry manual 
