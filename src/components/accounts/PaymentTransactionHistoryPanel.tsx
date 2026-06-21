@@ -28,7 +28,12 @@ import {
 } from "@/utils/paymentVoucherFilters";
 import { useUserRoles } from "@/hooks/useUserRoles";
 import { AccountsHistoryPanel } from "@/components/accounts/AccountsHistoryPanel";
-import { accountsHistoryTableClass, accountsHistoryThClass } from "@/components/accounts/accountsHistoryUi";
+import {
+  accountsHistoryTableClass,
+  accountsHistoryThClass,
+  paymentPickerAmountClass,
+  paymentPickerRefClass,
+} from "@/components/accounts/accountsHistoryUi";
 import { supabase } from "@/integrations/supabase/client";
 import { resolveReceiptReprintBalances } from "@/utils/customerBalanceUtils";
 
@@ -294,14 +299,14 @@ export function PaymentTransactionHistoryPanel({
                   )}
                   onClick={() => onNavIndexChange(idx)}
                 >
-                  <TableCell className="font-mono text-sm font-medium">{v.voucher_number}</TableCell>
+                  <TableCell className={cn("font-mono", paymentPickerRefClass)}>{v.voucher_number}</TableCell>
                   <TableCell className="text-sm whitespace-nowrap">
                     {format(new Date(v.voucher_date || v.created_at || 0), "dd/MM/yy")}
                   </TableCell>
                   <TableCell className="text-sm max-w-[140px] truncate">
                     {resolveVoucherPartyName(v, { tab, sales, customers, suppliers, employees })}
                   </TableCell>
-                  <TableCell className="text-right text-sm font-semibold tabular-nums">
+                  <TableCell className={cn("text-right", paymentPickerAmountClass)}>
                     ₹{Number(v.total_amount || 0).toLocaleString("en-IN")}
                   </TableCell>
                   <TableCell className="text-sm uppercase">{v.payment_method || "—"}</TableCell>

@@ -28,6 +28,10 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 import { useSettings } from "@/hooks/useSettings";
 import { useAuth } from "@/contexts/AuthContext";
 import { fetchCustomersWithBalanceForPaymentPicker } from "@/utils/customerPaymentPickerList";
+import {
+  paymentPickerAmountBadgeClass,
+  paymentPickerRefClass,
+} from "@/components/accounts/accountsHistoryUi";
 import { resolveCustomerOpeningBalance } from "@/utils/customerOpeningBalanceRemaining";
 import { DASHBOARD_TAB_RETURN_QUERY_OPTIONS } from "@/lib/dashboardQueryOptions";
 import { setCloudUsageRoutePath } from "@/lib/cloudUsageDiagnostics";
@@ -600,7 +604,7 @@ function CustomerPaymentForm({
               const balance = (inv.net_amount || 0) - (inv.paid_amount || 0);
               const isSelected = selectedInvoiceIds.includes(inv.id);
               return (
-                <div key={inv.id} className={cn("flex items-center gap-2 p-1.5 text-xs cursor-pointer border-b last:border-b-0", isSelected && "bg-primary/5")}
+                <div key={inv.id} className={cn("flex items-center gap-2 p-2 cursor-pointer border-b last:border-b-0", isSelected && "bg-primary/5")}
                   onClick={() => setSelectedInvoiceIds(prev => prev.includes(inv.id) ? prev.filter(id => id !== inv.id) : [...prev, inv.id])}>
                   <span
                     aria-hidden="true"
@@ -611,9 +615,9 @@ function CustomerPaymentForm({
                   >
                     {isSelected ? <CheckCircle2 className="h-3 w-3" /> : null}
                   </span>
-                  <span className="flex-1 font-medium">{inv.sale_number}</span>
-                  <span className="text-muted-foreground">{inv.sale_date ? format(new Date(inv.sale_date), "dd/MM") : "-"}</span>
-                  <Badge variant="destructive" className="text-[10px] h-5">₹{Math.round(balance).toLocaleString('en-IN')}</Badge>
+                  <span className={cn("flex-1 min-w-0 truncate", paymentPickerRefClass)}>{inv.sale_number}</span>
+                  <span className="text-sm text-muted-foreground shrink-0">{inv.sale_date ? format(new Date(inv.sale_date), "dd/MM") : "-"}</span>
+                  <Badge variant="destructive" className={paymentPickerAmountBadgeClass}>₹{Math.round(balance).toLocaleString('en-IN')}</Badge>
                 </div>
               );
             })}
@@ -854,12 +858,12 @@ function SupplierPaymentForm({ organizationId }: { organizationId: string }) {
               const outstanding = (bill.net_amount || 0) - (bill.paid_amount || 0);
               const isSelected = selectedBillIds.includes(bill.id);
               return (
-                <div key={bill.id} className={cn("flex items-center gap-2 p-1.5 text-xs cursor-pointer border-b last:border-b-0", isSelected && "bg-primary/5")}
+                <div key={bill.id} className={cn("flex items-center gap-2 p-2 cursor-pointer border-b last:border-b-0", isSelected && "bg-primary/5")}
                   onClick={() => setSelectedBillIds(prev => prev.includes(bill.id) ? prev.filter(id => id !== bill.id) : [...prev, bill.id])}>
                   <Checkbox checked={isSelected} className="h-3.5 w-3.5" />
-                  <span className="flex-1 font-medium">{bill.software_bill_no || bill.supplier_invoice_no || bill.id.slice(0, 8)}</span>
-                  <span className="text-muted-foreground">{bill.bill_date ? format(new Date(bill.bill_date), "dd/MM") : "-"}</span>
-                  <Badge variant="destructive" className="text-[10px] h-5">₹{Math.round(outstanding).toLocaleString('en-IN')}</Badge>
+                  <span className={cn("flex-1 min-w-0 truncate", paymentPickerRefClass)}>{bill.software_bill_no || bill.supplier_invoice_no || bill.id.slice(0, 8)}</span>
+                  <span className="text-sm text-muted-foreground shrink-0">{bill.bill_date ? format(new Date(bill.bill_date), "dd/MM") : "-"}</span>
+                  <Badge variant="destructive" className={paymentPickerAmountBadgeClass}>₹{Math.round(outstanding).toLocaleString('en-IN')}</Badge>
                 </div>
               );
             })}
