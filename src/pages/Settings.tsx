@@ -184,7 +184,7 @@ interface SaleSettings {
   defaultEntryMode?: 'grid' | 'inline';  // Default entry mode for Sale Order
   enable_size_grid_sales?: boolean; // Enable/disable size grid in Sales Invoice
   sales_tax_rate?: number;
-  invoice_template?: 'professional' | 'modern' | 'modern-wholesale' | 'classic' | 'minimal' | 'compact' | 'detailed' | 'tax-invoice' | 'tally-tax-invoice' | 'a4-electronic' | 'retail' | 'retail-erp' | 'retail-tax-ezzy' | 'wholesale-a5' | 'kids-80mm';
+  invoice_template?: 'professional' | 'modern' | 'modern-wholesale' | 'classic' | 'minimal' | 'compact' | 'detailed' | 'tax-invoice' | 'tally-tax-invoice' | 'a4-electronic' | 'retail' | 'retail-erp' | 'retail-tax-ezzy' | 'wholesale-a5' | 'kids-80mm' | 'real-tast';
   invoice_color_scheme?: string;
   declaration_text?: string;
   terms_list?: string[];
@@ -3011,14 +3011,19 @@ export default function Settings() {
                           ...settings,
                           sale_settings: {
                             ...settings.sale_settings,
-                            invoice_template: value as 'professional' | 'modern' | 'modern-wholesale' | 'classic' | 'minimal' | 'compact' | 'detailed' | 'tax-invoice' | 'tally-tax-invoice' | 'a4-electronic' | 'retail' | 'retail-erp' | 'retail-tax-ezzy' | 'wholesale-a5' | 'kids-80mm',
+                            invoice_template: value as 'professional' | 'modern' | 'modern-wholesale' | 'classic' | 'minimal' | 'compact' | 'detailed' | 'tax-invoice' | 'tally-tax-invoice' | 'a4-electronic' | 'retail' | 'retail-erp' | 'retail-tax-ezzy' | 'wholesale-a5' | 'kids-80mm' | 'real-tast',
                             ...(value === 'kids-80mm'
                               ? {
                                   invoice_paper_format: 'thermal' as const,
                                   sales_bill_format: 'thermal' as const,
                                   pos_bill_format: 'thermal' as const,
                                 }
-                              : {}),
+                              : value === 'real-tast'
+                                ? {
+                                    invoice_paper_format: 'a4' as const,
+                                    sales_bill_format: 'a4' as const,
+                                  }
+                                : {}),
                           },
                         })
                       }
@@ -3094,6 +3099,12 @@ export default function Settings() {
                             Retail ERP — Tax Invoice ERP style
                           </span>
                         </SelectItem>
+                        <SelectItem value="real-tast">
+                          <span className="flex items-center gap-2">
+                            <span className="text-emerald-700 font-bold text-xs w-5">RT</span>
+                            Real Tast — Bill of Supply (A4)
+                          </span>
+                        </SelectItem>
                         <SelectItem value="retail-tax-ezzy">
                           <span className="flex items-center gap-2">
                             <span className="text-slate-700 font-bold text-xs w-5">EZY</span>
@@ -3117,6 +3128,8 @@ export default function Settings() {
                     <p className="text-xs text-muted-foreground">
                       {settings.sale_settings?.invoice_template === 'kids-80mm'
                         ? 'Kids 80mm prints on 80mm thermal roll — product name, size, qty, sale price, MRP total, fixed footer & terms.'
+                        : settings.sale_settings?.invoice_template === 'real-tast'
+                          ? 'Real Tast prints on A4 — Bill of Supply layout without size column, payment, balance, or state code.'
                         : 'Modern Wholesale is optimized for bulk orders with size grouping (e.g., 38/2, 40/3, 42/1)'}
                     </p>
                   </div>
@@ -4360,6 +4373,8 @@ export default function Settings() {
                           settings.sale_settings?.invoice_paper_format === 'thermal' ||
                           settings.sale_settings?.invoice_template === 'kids-80mm'
                             ? 'thermal'
+                            : settings.sale_settings?.invoice_template === 'real-tast'
+                              ? 'a4'
                             : (settings.sale_settings?.invoice_paper_format
                                || (settings.sale_settings?.sales_bill_format === 'a5' ? 'a5-vertical' : undefined)
                                || 'a4') as any

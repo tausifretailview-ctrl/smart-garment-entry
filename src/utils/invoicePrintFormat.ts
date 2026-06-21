@@ -1,3 +1,6 @@
+/** A4-only invoice templates — always print on A4 portrait. */
+export const A4_ONLY_INVOICE_TEMPLATES = new Set(['real-tast']);
+
 /** Templates that must print on A5 — not thermal 80mm. */
 export const A5_ONLY_INVOICE_TEMPLATES = new Set(['retail-tax-ezzy', 'wholesale-a5']);
 
@@ -20,6 +23,7 @@ export const FULL_PAGE_INVOICE_TEMPLATES = new Set([
   'a4-electronic',
   'retail',
   'retail-erp',
+  'real-tast',
 ]);
 
 export type PosBillFormat = 'a4' | 'a5' | 'a5-horizontal' | 'thermal';
@@ -47,6 +51,9 @@ export function resolvePosBillFormat(
   if (invoiceTemplate && A5_ONLY_INVOICE_TEMPLATES.has(invoiceTemplate)) {
     return 'a5';
   }
+  if (invoiceTemplate && A4_ONLY_INVOICE_TEMPLATES.has(invoiceTemplate)) {
+    return 'a4';
+  }
   return posBillFormat;
 }
 
@@ -61,6 +68,9 @@ export function resolveSaleBillFormat(
   }
   if (invoiceTemplate && A5_ONLY_INVOICE_TEMPLATES.has(invoiceTemplate)) {
     return 'a5';
+  }
+  if (invoiceTemplate && A4_ONLY_INVOICE_TEMPLATES.has(invoiceTemplate)) {
+    return 'a4';
   }
   if (
     invoiceTemplate &&

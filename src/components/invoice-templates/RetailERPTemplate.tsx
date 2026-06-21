@@ -111,6 +111,8 @@ interface RetailERPTemplateProps {
   stampSize?: string;
   financerDetails?: any;
   instagramLink?: string;
+  /** Real Tast — Bill of Supply A4 (no size, payment, balance, state code). */
+  variant?: "standard" | "real-tast";
 }
 
 const B = "1px solid #000";
@@ -165,8 +167,10 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   stampPosition = "bottom-right",
   stampSize = "medium",
   instagramLink,
+  variant = "standard",
 }) => {
-  const isA4 = format === "a4";
+  const isRealTast = variant === "real-tast";
+  const isA4 = format === "a4" || isRealTast;
   const invoiceNoteText =
     notes && notes.trim() && !/^\d+$/.test(notes.trim()) ? notes.trim() : "";
   const MAX_ITEMS_PER_PAGE = isA4 ? 20 : 15;
@@ -337,8 +341,15 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   // Build column config — GST column removed for clean retail look
   const cols: { key: string; label: string; width: string; align: "center" | "left" | "right" }[] = [
     { key: "sr", label: "SN", width: "5%", align: "center" },
-    { key: "description", label: "DESCRIPTION", width: showHSNCol ? "24%" : "30%", align: "left" },
-    { key: "size", label: "SIZE", width: "6%", align: "center" },
+    {
+      key: "description",
+      label: "DESCRIPTION",
+      width: showHSNCol ? (isRealTast ? "30%" : "24%") : isRealTast ? "36%" : "30%",
+      align: "left",
+    },
+    ...(isRealTast
+      ? []
+      : [{ key: "size", label: "SIZE", width: "6%", align: "center" as const }]),
     { key: "barcode", label: "BARCODE", width: "14%", align: "center" },
   ];
   if (showHSNCol) cols.push({ key: "hsn", label: "HSN", width: "7%", align: "center" });
@@ -437,9 +448,14 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
               {/* ===== TAX INVOICE / CREDIT NOTE — flush, no gap ===== */}
               <div style={{ textAlign: "center", fontWeight: "bold", fontSize: titleFs, borderBottom: B2, padding: "1px 0", lineHeight: "1.2", margin: 0, textTransform: "uppercase", letterSpacing: "1px" }}>
                 {(() => {
-                  const docTitle = grandTotal < 0 ? 'CREDIT NOTE' : 'TAX INVOICE';
+                  const docTitle =
+                    grandTotal < 0
+                      ? "CREDIT NOTE"
+                      : isRealTast
+                        ? "BILL OF SUPPLY"
+                        : "TAX INVOICE";
                   return itemPages.length > 1
-                    ? `${docTitle}${pageIndex > 0 ? ` (Page ${pageIndex + 1} of ${itemPages.length})` : ''}`
+                    ? `${docTitle}${pageIndex > 0 ? ` (Page ${pageIndex + 1} of ${itemPages.length})` : ""}`
                     : docTitle;
                 })()}
               </div>
@@ -451,12 +467,14 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                   <div style={{ fontWeight: "bold", fontSize: fsCustName }}>{customerName || "Walk-in Customer"}</div>
                   {customerAddress && <div style={{ fontSize: fsCustDetail }}>{customerAddress}</div>}
                   {customerMobile && <div style={{ fontSize: fsCustDetail }}>Ph: {customerMobile}</div>}
-                  {customerGSTIN && <div style={{ fontSize: fsCustDetail }}>GSTIN: {customerGSTIN}</div>}
+                  {!isRealTast && customerGSTIN && (
+                    <div style={{ fontSize: fsCustDetail }}>GSTIN: {customerGSTIN}</div>
+                  )}
                 </div>
                 <div style={{ width: "40%", padding: "0" }}>
                   <div style={{ display: "flex", borderBottom: B }}>
                     <div style={{ flex: 1, padding: isA4 ? "2px 8px" : "2px 6px", fontWeight: "bold", fontSize: fsInvoiceNo }}>
-                      Invoice No: {invoiceNumber}
+                      {isRealTast ? "Supply No" : "Invoice No"}: {invoiceNumber}
                     </div>
                   </div>
                   <div style={{ display: "flex", borderBottom: B }}>
@@ -465,7 +483,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                       {invoiceTime && ` ${invoiceTime}`}
                     </div>
                   </div>
-                  {gstNumber && (
+                  {gstNumber && !isRealTast && (
                     <div style={{ display: "flex", borderBottom: B }}>
                       <div style={{ flex: 1, padding: isA4 ? "2px 8px" : "2px 6px", fontSize: fsCustDetail }}>
                         <strong>State Code:</strong> {gstNumber.substring(0, 2)}
@@ -750,7 +768,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                   </div>
 
                   {/* Payment + mix breakdown */}
-                  {paymentMethod && (
+                  {paymentMethod && !isRealTast && (
                     <div style={{ borderBottom: B, padding: isA4 ? "2px 8px" : "2px 6px", fontSize: isA4 ? "13px" : "10px" }}>
                       <strong>Payment:</strong>{" "}
                       {isMixPayment ? "Mix Payment" : paymentMethod}
@@ -759,6 +777,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                   )}
 
                   {/* Balance rows */}
+                  {!isRealTast && (
                   <div style={{ display: "flex", borderBottom: B }}>
                     <div style={{ flex: 1, borderRight: B, padding: isA4 ? "2px 8px" : "2px 6px", fontSize: isA4 ? "13px" : "10px", fontWeight: "bold", color: "#000" }}>
                       <strong>Received:</strong> ₹{fmt(receivedToday)}
@@ -772,6 +791,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                       <strong>Total Due:</strong> <span style={{ color: totalDue > 0 ? "#dc2626" : "#16a34a", fontWeight: "bold" }}>₹{fmt(totalDue)}</span>
                     </div>
                   </div>
+                  )}
 
                   {/* Terms + QR Code */}
                   <div style={{ display: "flex", minHeight: isA4 ? "80px" : "60px", position: "relative" }}>

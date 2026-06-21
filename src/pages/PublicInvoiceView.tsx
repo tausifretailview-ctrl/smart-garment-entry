@@ -309,6 +309,7 @@ export default function PublicInvoiceView() {
       case 'a4-electronic': return <A4ElectronicTemplate {...templateProps} />;
       case 'retail': return <RetailTemplate {...templateProps} />;
       case 'retail-erp': return <RetailERPTemplate {...templateProps} />;
+      case 'real-tast': return <RetailERPTemplate {...templateProps} variant="real-tast" format="a4" />;
       case 'retail-tax-ezzy': return <RetailTaxEzzyTemplate {...templateProps} />;
       case 'wholesale-a5': return <WholesaleA5Template {...templateProps} />;
       case 'professional':

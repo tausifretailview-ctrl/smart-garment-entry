@@ -221,6 +221,10 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
     if (templateForFormat === 'kids-80mm') {
       format = 'thermal';
     }
+    // Real Tast is A4 Bill of Supply only.
+    if (templateForFormat === 'real-tast') {
+      format = 'a4';
+    }
     
     // Get display settings - use prop overrides if provided for live preview
     const showHSN = props.showHSN ?? settings?.sale_settings?.show_hsn_code ?? true;
@@ -601,6 +605,8 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
           return <RetailTemplate {...commonProps} />;
         case 'retail-erp':
           return <RetailERPTemplate {...commonProps} />;
+        case 'real-tast':
+          return <RetailERPTemplate {...commonProps} variant="real-tast" format="a4" />;
         case 'retail-tax-ezzy':
           return <RetailTaxEzzyTemplate {...commonProps} />;
         case 'wholesale-a5':
