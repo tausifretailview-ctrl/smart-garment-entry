@@ -164,8 +164,17 @@ export async function sendViaWappConnect(
   if (fileUrl) {
     url.searchParams.set("link", fileUrl);
   }
-  if (message) {
+
+  // WappConnect endpoints use different param names across versions.
+  // sendFileWithCaption requires a text body — set all known aliases.
+  if (endpoint === "/api/sendFileWithCaption") {
     url.searchParams.set("message", message);
+    url.searchParams.set("caption", message);
+    url.searchParams.set("text", message);
+    url.searchParams.set("body", message);
+  } else if (message) {
+    url.searchParams.set("message", message);
+    url.searchParams.set("text", message);
   }
 
   const requestUrlRedacted = redactWappConnectInstanceId(url.toString(), token) as string;

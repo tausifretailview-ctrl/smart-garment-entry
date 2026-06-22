@@ -13,7 +13,7 @@ import {
   resolveWappConnectFileUrl,
   sendViaWappConnect,
 } from "../_shared/wappConnectSend.ts";
-import { buildMessageFromWhatsAppTemplate } from "../_shared/whatsappMessageTemplate.ts";
+import { buildMessageFromWhatsAppTemplate, buildWappConnectInvoiceFallbackCaption } from "../_shared/whatsappMessageTemplate.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -631,8 +631,8 @@ serve(async (req) => {
           saleData,
           orgName,
         });
-        if (templateMessage) {
-          resolvedMessage = templateMessage;
+        if (templateMessage?.trim()) {
+          resolvedMessage = templateMessage.trim();
         }
       }
       if (!resolvedMessage && saleData && orgSettings && templateType) {
@@ -656,10 +656,6 @@ serve(async (req) => {
       if (!resolvedMessage) {
         resolvedMessage = String(documentCaption ?? '').trim();
       }
-      if (!resolvedMessage && (templateName || templateType)) {
-        resolvedMessage = `WhatsApp notification (${templateName || templateType})`;
-      }
-
       let resolvedFileUrl = String(documentUrl ?? '').trim();
       if (pdfBlob) {
         try {
@@ -676,6 +672,20 @@ serve(async (req) => {
             { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
           );
         }
+      }
+
+      // PDF + caption: WappConnect requires non-empty text body with sendFileWithCaption
+      if (resolvedFileUrl && !resolvedMessage && saleData) {
+        const { data: companySettings } = await supabase
+          .from('settings')
+          .select('business_name')
+          .eq('organization_id', organizationId)
+          .maybeSingle();
+        const orgName = companySettings?.business_name || orgSettings?.business_name || 'Our Company';
+        resolvedMessage = buildWappConnectInvoiceFallbackCaption(saleData, orgName);
+      }
+      if (!resolvedMessage && (templateName || templateType)) {
+        resolvedMessage = `WhatsApp notification (${templateName || templateType})`;
       }
 
       if (!resolvedMessage && !resolvedFileUrl) {

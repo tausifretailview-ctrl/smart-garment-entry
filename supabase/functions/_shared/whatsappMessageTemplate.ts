@@ -165,5 +165,30 @@ export async function buildMessageFromWhatsAppTemplate(opts: {
 
   if (!templateText) return null;
 
-  return applyWhatsAppTemplatePlaceholders(templateText, opts.saleData, opts.orgName);
+  const formatted = applyWhatsAppTemplatePlaceholders(templateText, opts.saleData, opts.orgName).trim();
+  return formatted || null;
+}
+
+/** Fallback caption when PDF send has no template text (WappConnect requires a body with file+caption). */
+export function buildWappConnectInvoiceFallbackCaption(
+  saleData: Record<string, unknown>,
+  orgName: string,
+): string {
+  const customer = String(saleData.customer_name || "Customer");
+  const invoiceNo = String(saleData.sale_number || saleData.invoice_number || "invoice");
+  const amount = saleData.net_amount ?? saleData.amount ?? 0;
+  const amountText = `₹${Number(amount).toLocaleString("en-IN")}`;
+  const dateText = formatDateIn(saleData.sale_date || saleData.invoice_date);
+  const shop = String(saleData.organization_name || orgName || "Our store");
+
+  return [
+    `Hello ${customer},`,
+    "",
+    `Your invoice ${invoiceNo} is attached.`,
+    dateText ? `Date: ${dateText}` : "",
+    `Amount: ${amountText}`,
+    "",
+    "Thank you for your business!",
+    shop,
+  ].filter(Boolean).join("\n");
 }
