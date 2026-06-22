@@ -1101,6 +1101,11 @@ ipcMain.handle('reload-app', async () => {
   return { success: true };
 });
 
+ipcMain.handle('check-for-updates', async () => {
+  checkForUpdatesManually();
+  return { success: true };
+});
+
 ipcMain.handle('open-external', async (_event, url) => {
   if (typeof url === 'string' && /^https?:\/\//i.test(url)) {
     await shell.openExternal(url);

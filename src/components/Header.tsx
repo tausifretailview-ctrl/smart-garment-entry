@@ -26,7 +26,8 @@ import { FloatingStockReport, FloatingSaleReport } from "@/components/FloatingPO
 import { useDashboardToolbarOptional } from "@/contexts/DashboardToolbarContext";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { resolveFirstAllowedPath } from "@/lib/menuPermissions";
-import { isElectronShell, reloadElectronApp } from "@/lib/electronShell";
+import { confirmReloadIfPosCartBusy, reloadAppWithUpdateCheck } from "@/lib/appReload";
+import { isElectronShell } from "@/lib/electronShell";
 import { requestPosBarcodeFocus } from "@/utils/posSalesRefresh";
 import { useForceDesktopView } from "@/hooks/useDesktopViewPreference";
 import { useIsNarrowViewport } from "@/hooks/use-mobile";
@@ -120,6 +121,11 @@ export const Header = () => {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [permissions, permissionsLoading, hasMenuAccess]);
+
+  const handleManualReload = () => {
+    if (!confirmReloadIfPosCartBusy(currentOrganization?.id)) return;
+    void reloadAppWithUpdateCheck();
+  };
 
   const handleSignOut = async () => {
     // Get the organization slug (prefer current, fallback to localStorage)
@@ -497,17 +503,15 @@ export const Header = () => {
               <span className="hidden sm:inline text-[11px] font-medium">Install App</span>
             </Button>
           )}
-          {isDesktopApp && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 text-white/90 hover:text-white hover:bg-white/10 hidden md:flex"
-              title="Refresh app (F5)"
-              onClick={() => reloadElectronApp()}
-            >
-              <RefreshCw className="h-3.5 w-3.5" />
-            </Button>
-          )}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 text-white/90 hover:text-white hover:bg-white/10"
+            title={isDesktopApp ? "Refresh app and check for updates (F5)" : "Refresh app and check for updates"}
+            onClick={handleManualReload}
+          >
+            <RefreshCw className="h-3.5 w-3.5" />
+          </Button>
           <UIScaleSelector triggerClassName="h-7 w-7 text-white/90 hover:text-white hover:bg-white/10 hidden md:flex" />
           <Button variant="ghost" size="icon" className="h-7 w-7 text-white/90 hover:text-white hover:bg-white/10 hidden md:flex">
             <Bell className="h-3.5 w-3.5" />
@@ -529,16 +533,16 @@ export const Header = () => {
               <div className="px-2 py-1.5"><p className="text-xs text-muted-foreground">{user?.email}</p></div>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => orgNavigate("/settings")} className="cursor-pointer text-sm">App Settings</DropdownMenuItem>
-              {isDesktopApp && (
-                <DropdownMenuItem
-                  onClick={() => reloadElectronApp()}
-                  className="cursor-pointer text-sm"
-                >
-                  <RefreshCw className="h-3.5 w-3.5 mr-2 opacity-60" />
-                  Refresh App
+              <DropdownMenuItem
+                onClick={handleManualReload}
+                className="cursor-pointer text-sm"
+              >
+                <RefreshCw className="h-3.5 w-3.5 mr-2 opacity-60" />
+                Refresh App
+                {isDesktopApp && (
                   <span className="ml-auto text-[10px] text-muted-foreground">F5</span>
-                </DropdownMenuItem>
-              )}
+                )}
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={handleSignOut} className="text-destructive cursor-pointer text-sm">Sign Out</DropdownMenuItem>
             </DropdownMenuContent>

@@ -33,6 +33,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   /** Full page reload — same as F5 / File → Refresh App. */
   reloadApp: () => ipcRenderer.invoke('reload-app'),
 
+  /** Check for a new desktop installer (Help → Check for Updates). */
+  checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
+
   /** Open a URL in the system browser (OAuth must not run inside the Electron webview). */
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
 
