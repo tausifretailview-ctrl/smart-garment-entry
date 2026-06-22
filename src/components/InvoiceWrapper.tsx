@@ -131,6 +131,8 @@ interface InvoiceWrapperProps {
   fontFamily?: string;
   declarationText?: string;
   termsConditions?: string[];
+  /** Invoice heading below business header — e.g. BILL OF SUPPLY, CATERING SERVICE. */
+  documentTitle?: string;
   salesman?: string;
   /** GST inclusive = prices include tax; exclusive = taxable amounts with GST added at bottom (Tally tax invoice). */
   taxType?: GstTaxType | string;
@@ -255,6 +257,7 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
     // Get customization settings - use prop overrides if provided for live preview
     const customHeaderText = props.customHeaderText ?? settings?.sale_settings?.invoice_header_text;
     const customFooterText = props.customFooterText ?? settings?.sale_settings?.invoice_footer_text;
+    const documentTitle = props.documentTitle ?? settings?.sale_settings?.invoice_document_title;
     const logoPlacement = props.logoPlacement ?? settings?.sale_settings?.logo_placement ?? 'left';
     const fontFamily = props.fontFamily ?? settings?.sale_settings?.font_family ?? 'inter';
     const declarationText = props.declarationText ?? settings?.sale_settings?.declaration_text ?? 'Certified that the particulars given above are true and correct';
@@ -338,7 +341,10 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
       
       invoiceNumber: props.billNo,
       invoiceDate: props.date,
-      invoiceTime: props.date.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
+      invoiceTime:
+        templateForFormat === 'real-tast'
+          ? undefined
+          : props.date.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
       
       customerName: props.customerName,
       customerAddress: props.customerAddress,
@@ -399,6 +405,7 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
       // Customization settings
       customHeaderText,
       customFooterText,
+      documentTitle,
       logoPlacement,
       fontFamily,
       
@@ -611,7 +618,6 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
               {...commonProps}
               variant="real-tast"
               format="a4"
-              showHSN={false}
               showBarcode={false}
               showDiscountOnRate={false}
             />

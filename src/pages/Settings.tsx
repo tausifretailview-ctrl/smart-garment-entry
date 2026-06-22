@@ -212,6 +212,8 @@ interface SaleSettings {
   // Invoice Customization
   invoice_header_text?: string;
   invoice_footer_text?: string;
+  /** Heading on invoice body — e.g. BILL OF SUPPLY, CATERING SERVICE (Real Tast / A4). */
+  invoice_document_title?: string;
   logo_placement?: 'left' | 'center' | 'right';
   font_family?: 'inter' | 'roboto' | 'montserrat' | 'opensans' | 'playfair' | 'merriweather' | 'lora' | 'raleway' | 'poppins';
   // Wholesale Mode Settings
@@ -3129,7 +3131,7 @@ export default function Settings() {
                       {settings.sale_settings?.invoice_template === 'kids-80mm'
                         ? 'Kids 80mm prints on 80mm thermal roll — product name, size, qty, sale price, MRP total, fixed footer & terms.'
                         : settings.sale_settings?.invoice_template === 'real-tast'
-                          ? 'Real Tast prints on A4 — Bill of Supply: SN, Description, Qty, Rate, Amount only; no barcode/HSN/discount/round-off lines.'
+                          ? 'Real Tast prints on A4 — SN, Description, HSN, Qty, Rate, Amount. Set document title and terms in Sale settings below.'
                         : 'Modern Wholesale is optimized for bulk orders with size grouping (e.g., 38/2, 40/3, 42/1)'}
                     </p>
                   </div>
@@ -3324,6 +3326,28 @@ export default function Settings() {
                       </Select>
                       <p className="text-xs text-muted-foreground">
                         Position of your business logo on invoices
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="invoice_document_title">Invoice document title</Label>
+                      <Input
+                        id="invoice_document_title"
+                        value={settings.sale_settings?.invoice_document_title || ''}
+                        onChange={(e) =>
+                          setSettings({
+                            ...settings,
+                            sale_settings: {
+                              ...settings.sale_settings,
+                              invoice_document_title: e.target.value,
+                            },
+                          })
+                        }
+                        maxLength={80}
+                        placeholder="e.g. BILL OF SUPPLY, CATERING SERVICE, TAX INVOICE"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Shown below your business name on A4 invoices (Real Tast template). Leave blank for default BILL OF SUPPLY.
                       </p>
                     </div>
 
@@ -4396,6 +4420,7 @@ export default function Settings() {
                         amountWithGrouping={(settings.sale_settings as any)?.amount_with_grouping}
                         customHeaderText={settings.sale_settings?.invoice_header_text}
                         customFooterText={settings.sale_settings?.invoice_footer_text}
+                        documentTitle={settings.sale_settings?.invoice_document_title}
                         logoPlacement={settings.sale_settings?.logo_placement}
                         fontFamily={settings.sale_settings?.font_family}
                         declarationText={settings.sale_settings?.declaration_text}
