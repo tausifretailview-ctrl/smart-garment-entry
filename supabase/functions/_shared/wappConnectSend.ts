@@ -5,6 +5,7 @@ const WAPPCONNECT_API_ORIGIN = "https://api.wappconnect.com";
 export interface WappConnectSendInput {
   message?: string;
   fileUrl?: string;
+  filename?: string;
 }
 
 export interface WappConnectSendResult {
@@ -140,6 +141,7 @@ export async function sendViaWappConnect(
 
   const fileUrl = String(input.fileUrl ?? "").trim();
   let message = String(input.message ?? "").trim();
+  const filename = String(input.filename ?? "").trim() || "document.pdf";
 
   // WappConnect file endpoints require a text body — never send file-only via sendFiles.
   if (fileUrl && !message) {
@@ -165,6 +167,9 @@ export async function sendViaWappConnect(
     url.searchParams.set("phone", normalizedPhone);
     if (fileUrl) {
       url.searchParams.set("link", fileUrl);
+      // Some WappConnect builds sniff media type from URL extension. Signed-URL
+      // tokens hide the .pdf extension, so pass filename explicitly.
+      url.searchParams.set("filename", filename);
     }
     if (endpoint === "/api/sendFileWithCaption") {
       url.searchParams.set("message", message);
@@ -206,8 +211,13 @@ export async function sendViaWappConnect(
 
   let providerError = extractErrorMessage(responseObject);
 
-  // Some WappConnect builds expect POST JSON for file+caption — retry once on GET failure.
-  if (fileUrl && providerError && /text body is required/i.test(providerError)) {
+  // Some WappConnect builds expect POST JSON for file+caption, or fail to detect
+  // the media type from a signed URL. Retry as POST with explicit filename/mime.
+  if (
+    fileUrl &&
+    providerError &&
+    /(text body is required|unsupported media type|mime|content[- ]type)/i.test(providerError)
+  ) {
     try {
       const postResponse = await fetch(`${WAPPCONNECT_API_ORIGIN}${endpoint}`, {
         method: "POST",
@@ -216,6 +226,11 @@ export async function sendViaWappConnect(
           token,
           phone: normalizedPhone,
           link: fileUrl,
+          url: fileUrl,
+          filename,
+          mime: "application/pdf",
+          mimetype: "application/pdf",
+          type: "document",
           message,
           caption: message,
           text: message,
