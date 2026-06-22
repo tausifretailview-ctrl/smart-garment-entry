@@ -247,6 +247,7 @@ export default function PublicInvoiceView() {
     colorScheme: settings?.invoice_color_scheme || "blue",
     customHeaderText: settings?.invoice_header_text || "",
     customFooterText: settings?.invoice_footer_text || "",
+    documentTitle: settings?.invoice_document_title || "",
     declarationText: settings?.declaration_text || "",
     fontFamily: settings?.font_family || "inter",
     stampImageBase64: settings?.bill_barcode_settings?.stamp_show_sale !== false
@@ -315,7 +316,6 @@ export default function PublicInvoiceView() {
             {...templateProps}
             variant="real-tast"
             format="a4"
-            showHSN={false}
             showBarcode={false}
             showDiscountOnRate={false}
           />

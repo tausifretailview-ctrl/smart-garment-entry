@@ -97,6 +97,8 @@ interface RetailERPTemplateProps {
   customFooterText?: string;
   logoPlacement?: string;
   fontFamily?: string;
+  /** Sale settings — e.g. BILL OF SUPPLY, CATERING SERVICE (Real Tast A4). */
+  documentTitle?: string;
 
   salesman?: string;
 
@@ -163,6 +165,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   format = "a5-vertical",
   salesman,
   customHeaderText,
+  documentTitle,
   stampImageBase64,
   stampPosition = "bottom-right",
   stampSize = "medium",
@@ -335,16 +338,16 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   const ROW_H = isA4 ? "26px" : "22px";
   const ROW_H_WITH_DISC = isA4 ? "36px" : "32px";
 
-  // Determine columns — Real Tast: no size, barcode, or HSN
-  const showHSNCol = showHSN && !isRealTast;
+  // Real Tast: no size or barcode; HSN optional via show_hsn_code setting
+  const showHSNCol = showHSN;
   const showBarcodeCol = !isRealTast;
 
   const cols: { key: string; label: string; width: string; align: "center" | "left" | "right" }[] = [
-    { key: "sr", label: "SN", width: isRealTast ? "6%" : "5%", align: "center" },
+    { key: "sr", label: "SN", width: isRealTast ? "5%" : "5%", align: "center" },
     {
       key: "description",
       label: "DESCRIPTION",
-      width: isRealTast ? "46%" : showHSNCol ? "24%" : "30%",
+      width: isRealTast ? (showHSNCol ? "38%" : "46%") : showHSNCol ? "24%" : "30%",
       align: "left",
     },
     ...(isRealTast
@@ -354,10 +357,12 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
       ? [{ key: "barcode", label: "BARCODE", width: "14%", align: "center" as const }]
       : []),
   ];
-  if (showHSNCol) cols.push({ key: "hsn", label: "HSN", width: "7%", align: "center" });
-  cols.push({ key: "qty", label: "QTY", width: isRealTast ? "8%" : "6%", align: "center" });
-  cols.push({ key: "rate", label: "RATE", width: isRealTast ? "18%" : "12%", align: "right" });
-  cols.push({ key: "amount", label: "AMOUNT", width: isRealTast ? "22%" : "14%", align: "right" });
+  if (showHSNCol) {
+    cols.push({ key: "hsn", label: "HSN", width: isRealTast ? "8%" : "7%", align: "center" });
+  }
+  cols.push({ key: "qty", label: "QTY", width: isRealTast ? "7%" : "6%", align: "center" });
+  cols.push({ key: "rate", label: "RATE", width: isRealTast ? (showHSNCol ? "16%" : "18%") : "12%", align: "right" });
+  cols.push({ key: "amount", label: "AMOUNT", width: isRealTast ? (showHSNCol ? "20%" : "22%") : "14%", align: "right" });
 
   const cellBase: React.CSSProperties = {
     borderRight: B,
@@ -454,7 +459,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                     grandTotal < 0
                       ? "CREDIT NOTE"
                       : isRealTast
-                        ? "BILL OF SUPPLY"
+                        ? (documentTitle?.trim() || "BILL OF SUPPLY")
                         : "TAX INVOICE";
                   return itemPages.length > 1
                     ? `${docTitle}${pageIndex > 0 ? ` (Page ${pageIndex + 1} of ${itemPages.length})` : ""}`
@@ -481,8 +486,13 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                   </div>
                   <div style={{ display: "flex", borderBottom: B }}>
                     <div style={{ flex: 1, padding: isA4 ? "2px 8px" : "2px 6px", fontSize: fsInvoiceNo, fontWeight: "bold" }}>
-                      Date: {invoiceDate.toLocaleDateString("en-IN")}
-                      {invoiceTime && ` ${invoiceTime}`}
+                      Date:{" "}
+                      {invoiceDate.toLocaleDateString("en-IN", {
+                        day: "2-digit",
+                        month: "2-digit",
+                        year: "numeric",
+                      })}
+                      {!isRealTast && invoiceTime ? ` ${invoiceTime}` : ""}
                     </div>
                   </div>
                   {gstNumber && !isRealTast && (
@@ -804,13 +814,41 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                       <div>
                         {termsConditions.length > 0 && (
                           <div>
-                            <strong style={{ textDecoration: "underline", fontSize: isA4 ? "13px" : "11px" }}>Terms & Conditions:</strong>
-                            <ul style={{ margin: "2px 0 0 14px", padding: 0, listStyleType: "disc", fontSize: isA4 ? "12px" : "10px", lineHeight: 1.6 }}>
+                            <strong
+                              style={{
+                                textDecoration: "underline",
+                                fontSize: isA4 ? (isRealTast ? "14px" : "13px") : "11px",
+                                fontWeight: isRealTast ? 900 : 700,
+                                color: isRealTast ? "#000" : undefined,
+                              }}
+                            >
+                              Terms & Conditions:
+                            </strong>
+                            <ul
+                              style={{
+                                margin: "2px 0 0 14px",
+                                padding: 0,
+                                listStyleType: "disc",
+                                fontSize: isA4 ? (isRealTast ? "13px" : "12px") : "10px",
+                                lineHeight: 1.6,
+                                fontWeight: isRealTast ? 800 : 400,
+                                color: isRealTast ? "#000" : "#111",
+                              }}
+                            >
                               {termsConditions.map((t, i) => <li key={i}>{t}</li>)}
                             </ul>
                           </div>
                         )}
-                        <div style={{ fontSize: isA4 ? "9px" : "7px", marginTop: "2px" }}>E. & O.E.</div>
+                        <div
+                          style={{
+                            fontSize: isA4 ? (isRealTast ? "11px" : "9px") : "7px",
+                            marginTop: "2px",
+                            fontWeight: isRealTast ? 800 : 400,
+                            color: isRealTast ? "#000" : undefined,
+                          }}
+                        >
+                          E. & O.E.
+                        </div>
                       </div>
                     </div>
 

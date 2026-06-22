@@ -109,6 +109,7 @@ Deno.serve(async (req) => {
       show_total_quantity: saleSettings?.show_total_quantity ?? true,
       invoice_header_text: saleSettings?.invoice_header_text || '',
       invoice_footer_text: saleSettings?.invoice_footer_text || '',
+      invoice_document_title: saleSettings?.invoice_document_title || '',
       declaration_text: saleSettings?.declaration_text || '',
       terms_list: saleSettings?.terms_list || [],
       font_family: saleSettings?.font_family || 'inter',
