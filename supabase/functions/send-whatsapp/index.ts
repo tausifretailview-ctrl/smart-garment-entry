@@ -49,6 +49,40 @@ interface SendWhatsAppRequest {
   useDocumentHeaderTemplate?: boolean;
   documentHeaderTemplateName?: string;
   pdfBlob?: string; // Base64 encoded PDF for Meta upload
+  /** Client requests WappConnect instance API (api.wappconnect.com) — not Meta BSP. */
+  useWappConnect?: boolean;
+}
+
+async function resolveOutboundSendProvider(
+  supabase: ReturnType<typeof createClient>,
+  organizationId: string,
+  orgSettings: Record<string, unknown> | null,
+  requestUseWappConnect: boolean,
+): Promise<'wappconnect' | 'existing'> {
+  const fromSettings = String(orgSettings?.send_provider ?? '').trim();
+
+  if (fromSettings === 'wappconnect') {
+    return 'wappconnect';
+  }
+
+  // Client + saved instance id — use instance API even if DB still says 'existing'
+  if (requestUseWappConnect) {
+    const { data: secret } = await supabase
+      .from('whatsapp_wappconnect_secrets')
+      .select('instance_id')
+      .eq('organization_id', organizationId)
+      .maybeSingle();
+
+    if (String(secret?.instance_id ?? '').trim()) {
+      return 'wappconnect';
+    }
+  }
+
+  if (fromSettings === 'existing') {
+    return 'existing';
+  }
+
+  return 'existing';
 }
 
 
@@ -487,7 +521,8 @@ serve(async (req) => {
       imageCaption,
       useDocumentHeaderTemplate,
       documentHeaderTemplateName,
-      pdfBlob
+      pdfBlob,
+      useWappConnect,
     }: SendWhatsAppRequest = await req.json();
 
     // Validate required fields - message is optional for template messages
@@ -535,7 +570,16 @@ serve(async (req) => {
       );
     }
 
-    const sendProvider = String(orgSettings?.send_provider ?? 'existing').trim();
+    const sendProvider = await resolveOutboundSendProvider(
+      supabase,
+      organizationId,
+      orgSettings as Record<string, unknown> | null,
+      useWappConnect === true,
+    );
+    console.log('[send-whatsapp] provider:', sendProvider, {
+      useWappConnect,
+      settingsSendProvider: orgSettings?.send_provider,
+    });
 
     // ========== WappConnect instance API path (per-org opt-in) ==========
     if (sendProvider === 'wappconnect') {

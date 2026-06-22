@@ -949,6 +949,7 @@ export const useSaveSale = () => {
                     referenceType: 'sale',
                     pdfBlob: pdfBase64 || undefined,
                     documentFilename,
+                    useWappConnect: true,
                   },
                 });
               } catch (wappConnectError) {

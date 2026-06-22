@@ -335,6 +335,16 @@ export const WhatsAppAPISettings = () => {
       }
 
       await updateSettingsAsync(payload);
+
+      if (settings?.organization_id && formData.send_provider) {
+        const { error: providerError } = await supabase.rpc('set_whatsapp_send_provider', {
+          p_organization_id: settings.organization_id,
+          p_send_provider: formData.send_provider,
+        });
+        if (providerError) {
+          console.warn('set_whatsapp_send_provider RPC failed:', providerError);
+        }
+      }
     } catch (error) {
       console.error("Error saving WhatsApp settings:", error);
       toast.error("Failed to save WhatsApp API settings");
@@ -546,9 +556,21 @@ export const WhatsAppAPISettings = () => {
                 <p className="text-xs text-muted-foreground">
                   Based on your most recent WhatsApp log entry — not a live WappConnect connection check.
                 </p>
-                {lastSendStatus?.status === "failed" && lastSendStatus.error_message && (
-                  <p className="text-xs text-destructive">{lastSendStatus.error_message}</p>
-                )}
+                {lastSendStatus?.status === "failed" && (() => {
+                  const hint = getWhatsAppErrorHint(
+                    lastSendStatus.error_message,
+                    lastSendStatus.provider_response,
+                    lastSendStatus.provider,
+                  );
+                  if (hint) {
+                    return (
+                      <p className="text-xs text-destructive font-medium">{hint.title}</p>
+                    );
+                  }
+                  return lastSendStatus.error_message ? (
+                    <p className="text-xs text-destructive">{lastSendStatus.error_message}</p>
+                  ) : null;
+                })()}
               </div>
             </>
           ) : (

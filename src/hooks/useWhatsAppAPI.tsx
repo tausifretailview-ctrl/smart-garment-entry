@@ -93,6 +93,8 @@ export interface WhatsAppLastSendStatus {
   sent_at: string | null;
   created_at: string;
   error_message: string | null;
+  provider?: string | null;
+  provider_response?: Record<string, unknown> | null;
 }
 
 export interface WhatsAppLog {
@@ -217,7 +219,7 @@ export const useWhatsAppAPI = () => {
 
       const { data, error } = await supabase
         .from('whatsapp_logs')
-        .select('status, sent_at, created_at, error_message')
+        .select('status, sent_at, created_at, error_message, provider, provider_response')
         .eq('organization_id', currentOrganization.id)
         .order('created_at', { ascending: false })
         .limit(1)
@@ -343,6 +345,7 @@ export const useWhatsAppAPI = () => {
           useDocumentHeaderTemplate: params.useDocumentHeaderTemplate,
           documentHeaderTemplateName: params.documentHeaderTemplateName,
           pdfBlob: params.pdfBlob,
+          useWappConnect: isWappConnectSendProvider(settings?.send_provider),
         },
       });
 
@@ -383,6 +386,7 @@ export const useWhatsAppAPI = () => {
           phone: testPhone,
           message: `🔔 Test message from ${settings?.business_name || 'WhatsApp API Integration'}\n\nYour WhatsApp Business API is configured correctly!`,
           templateType: 'test',
+          useWappConnect: useWappConnect,
         },
       });
 
