@@ -590,6 +590,7 @@ export const useWhatsAppAPI = () => {
           saleData, // Edge function will use configured param mapping
           referenceId: logEntry.reference_id,
           referenceType: logEntry.reference_type,
+          useWappConnect: isWappConnectSendProvider(settings?.send_provider),
         },
       });
 

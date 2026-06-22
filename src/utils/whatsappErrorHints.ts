@@ -50,6 +50,15 @@ export function getWhatsAppErrorHint(
 
   // WappConnect path — never show Meta 24h / template hints
   if (provider === "wappconnect") {
+    if (raw.includes("unsupported media type") || raw.includes("mime") || raw.includes("content-type")) {
+      return {
+        title: "PDF link not readable by WappConnect",
+        reason:
+          "WappConnect could not detect the invoice PDF type. This usually happens when an old signed storage URL was sent instead of the serve-wappconnect-pdf endpoint.",
+        action:
+          "Deploy the latest send-whatsapp and serve-wappconnect-pdf edge functions in Supabase, hard refresh (↻), then retry the message.",
+      };
+    }
     if (raw.includes("text body is required")) {
       return {
         title: "PDF caption missing",

@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   buildWappConnectPdfServeUrl,
   classifyWappConnectResponse,
+  extractInvoicePdfStoragePath,
   extractWappConnectErrorMessage,
   isAllowedWappConnectPdfPath,
+  normalizeWappConnectFileUrl,
 } from "../supabase/functions/_shared/wappConnectResponse.ts";
 
 describe("extractWappConnectErrorMessage", () => {
@@ -54,5 +56,35 @@ describe("isAllowedWappConnectPdfPath", () => {
     expect(isAllowedWappConnectPdfPath(`${orgId}/wappconnect/171_Invoice.pdf`)).toBe(true);
     expect(isAllowedWappConnectPdfPath(`${orgId}/invoices/171_Invoice.pdf`)).toBe(false);
     expect(isAllowedWappConnectPdfPath("../wappconnect/x.pdf")).toBe(false);
+  });
+});
+
+describe("extractInvoicePdfStoragePath", () => {
+  const orgId = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
+  const storagePath = `${orgId}/wappconnect/171_Invoice.pdf`;
+
+  it("extracts path from signed storage URL", () => {
+    const signed =
+      `https://lkbbrqcs.supabase.co/storage/v1/object/sign/invoice-pdfs/${encodeURIComponent(storagePath)}?token=eyJhbGci`;
+    expect(extractInvoicePdfStoragePath(signed)).toBe(storagePath);
+  });
+
+  it("extracts path from serve-wappconnect-pdf URL", () => {
+    const serveUrl = buildWappConnectPdfServeUrl("https://example.supabase.co", storagePath);
+    expect(extractInvoicePdfStoragePath(serveUrl)).toBe(storagePath);
+  });
+});
+
+describe("normalizeWappConnectFileUrl", () => {
+  const orgId = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
+  const storagePath = `${orgId}/wappconnect/171_Invoice.pdf`;
+  const supabaseUrl = "https://example.supabase.co";
+
+  it("rewrites signed storage URLs to serve-wappconnect-pdf", () => {
+    const signed =
+      `https://example.supabase.co/storage/v1/object/sign/invoice-pdfs/${encodeURIComponent(storagePath)}?token=abc`;
+    expect(normalizeWappConnectFileUrl(supabaseUrl, signed)).toBe(
+      buildWappConnectPdfServeUrl(supabaseUrl, storagePath),
+    );
   });
 });
