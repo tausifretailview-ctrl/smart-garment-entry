@@ -20,6 +20,15 @@ describe("extractWappConnectErrorMessage", () => {
 
   it("returns undefined for successful provider payloads", () => {
     expect(extractWappConnectErrorMessage({ status: "200", message: "ok" })).toBeUndefined();
+    expect(
+      extractWappConnectErrorMessage({ data: { connStatus: true, messageIDs: ["abc"] } }),
+    ).toBeUndefined();
+  });
+
+  it("detects connStatus false in nested data", () => {
+    expect(
+      extractWappConnectErrorMessage({ data: { connStatus: false, message: "not connected" } }),
+    ).toBe("not connected");
   });
 });
 
@@ -46,6 +55,9 @@ describe("buildWappConnectPdfServeUrl", () => {
     const path = `${orgId}/wappconnect/1710000000000_Invoice.pdf`;
     expect(buildWappConnectPdfServeUrl("https://example.supabase.co", path)).toBe(
       `https://example.supabase.co/functions/v1/serve-wappconnect-pdf?path=${encodeURIComponent(path)}`,
+    );
+    expect(buildWappConnectPdfServeUrl("https://example.supabase.co", path, "anon-key")).toBe(
+      `https://example.supabase.co/functions/v1/serve-wappconnect-pdf?path=${encodeURIComponent(path)}&apikey=anon-key`,
     );
   });
 });

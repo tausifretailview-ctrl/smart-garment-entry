@@ -50,13 +50,20 @@ export function getWhatsAppErrorHint(
 
   // WappConnect path — never show Meta 24h / template hints
   if (provider === "wappconnect") {
-    if (raw.includes("unsupported media type") || raw.includes("mime") || raw.includes("content-type")) {
+    if (
+      raw.includes("unsupported media type") ||
+      raw.includes("mime") ||
+      raw.includes("content-type") ||
+      raw.includes("signed storage") ||
+      raw.includes("serve-wappconnect-pdf") ||
+      raw.includes("invalid message")
+    ) {
       return {
         title: "PDF link not readable by WappConnect",
         reason:
-          "WappConnect could not detect the invoice PDF type. This usually happens when an old signed storage URL was sent instead of the serve-wappconnect-pdf endpoint.",
+          "WappConnect may show \"sent\" in ERP while WhatsApp later fails the document (invalid message). This usually means the PDF link was a signed storage URL or serve-wappconnect-pdf is not deployed.",
         action:
-          "Deploy the latest send-whatsapp and serve-wappconnect-pdf edge functions in Supabase, hard refresh (↻), then retry the message.",
+          "In WhatsApp Logs, confirm Request URL uses .../functions/v1/serve-wappconnect-pdf?path=... Deploy send-whatsapp and serve-wappconnect-pdf in Supabase, hard refresh (↻), then retry.",
       };
     }
     if (raw.includes("text body is required")) {

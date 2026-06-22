@@ -22,6 +22,15 @@ export function getWappConnectProviderError(providerResponse?: unknown): string 
   if (!providerResponse || typeof providerResponse !== "object") return undefined;
 
   const obj = providerResponse as Record<string, unknown>;
+  const nested = obj.data;
+  if (nested && typeof nested === "object") {
+    const data = nested as Record<string, unknown>;
+    if (data.connStatus === false) {
+      return String(data.message ?? data.error ?? "WappConnect instance is not connected").trim()
+        || "WappConnect instance is not connected";
+    }
+  }
+
   if (obj.error !== undefined && obj.error !== null && obj.error !== "") {
     if (typeof obj.error === "string") return obj.error;
     if (typeof obj.error === "object") {
