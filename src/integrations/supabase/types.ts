@@ -6910,11 +6910,13 @@ export type Database = {
           selected_sale_order_template_id: string | null
           send_followup_on_button_click: boolean | null
           send_invoice_pdf: boolean | null
+          send_provider: string
           social_links: Json | null
           updated_at: string
           use_default_api: boolean | null
           use_document_header_template: boolean | null
           waba_id: string | null
+          wappconnect_connected_number: string | null
           webhook_verify_token: string | null
         }
         Insert: {
@@ -6974,11 +6976,13 @@ export type Database = {
           selected_sale_order_template_id?: string | null
           send_followup_on_button_click?: boolean | null
           send_invoice_pdf?: boolean | null
+          send_provider?: string
           social_links?: Json | null
           updated_at?: string
           use_default_api?: boolean | null
           use_document_header_template?: boolean | null
           waba_id?: string | null
+          wappconnect_connected_number?: string | null
           webhook_verify_token?: string | null
         }
         Update: {
@@ -7038,11 +7042,13 @@ export type Database = {
           selected_sale_order_template_id?: string | null
           send_followup_on_button_click?: boolean | null
           send_invoice_pdf?: boolean | null
+          send_provider?: string
           social_links?: Json | null
           updated_at?: string
           use_default_api?: boolean | null
           use_document_header_template?: boolean | null
           waba_id?: string | null
+          wappconnect_connected_number?: string | null
           webhook_verify_token?: string | null
         }
         Relationships: [
@@ -7162,6 +7168,7 @@ export type Database = {
           organization_id: string
           pending_followup: boolean | null
           phone_number: string
+          provider: string | null
           provider_response: Json | null
           read_at: string | null
           reference_id: string | null
@@ -7182,6 +7189,7 @@ export type Database = {
           organization_id: string
           pending_followup?: boolean | null
           phone_number: string
+          provider?: string | null
           provider_response?: Json | null
           read_at?: string | null
           reference_id?: string | null
@@ -7202,6 +7210,7 @@ export type Database = {
           organization_id?: string
           pending_followup?: boolean | null
           phone_number?: string
+          provider?: string | null
           provider_response?: Json | null
           read_at?: string | null
           reference_id?: string | null
@@ -7519,6 +7528,42 @@ export type Database = {
             foreignKeyName: "whatsapp_templates_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+        ]
+      }
+      whatsapp_wappconnect_secrets: {
+        Row: {
+          created_at: string
+          instance_id: string
+          organization_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          instance_id: string
+          organization_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          instance_id?: string
+          organization_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_wappconnect_secrets_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_wappconnect_secrets_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
             referencedRelation: "v_dashboard_counts"
             referencedColumns: ["organization_id"]
           },
@@ -8427,6 +8472,10 @@ export type Database = {
         Args: { user_id: string }
         Returns: string[]
       }
+      get_wappconnect_instance_masked: {
+        Args: { p_organization_id: string }
+        Returns: string
+      }
       has_org_role: {
         Args: {
           org_id: string
@@ -8634,6 +8683,10 @@ export type Database = {
           updated_alerts: number
         }[]
       }
+      set_whatsapp_send_provider: {
+        Args: { p_organization_id: string; p_send_provider: string }
+        Returns: undefined
+      }
       soft_delete_delivery_challan: {
         Args: { p_challan_id: string; p_user_id: string }
         Returns: undefined
@@ -8669,6 +8722,10 @@ export type Database = {
       update_purchase_return_items: {
         Args: { p_items: Json; p_return_id: string }
         Returns: Json
+      }
+      upsert_wappconnect_instance_secret: {
+        Args: { p_instance_id: string; p_organization_id: string }
+        Returns: undefined
       }
       user_belongs_to_org: {
         Args: { org_id: string; user_id: string }
