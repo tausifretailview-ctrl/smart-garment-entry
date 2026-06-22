@@ -607,6 +607,7 @@ export default function SaleOrderEntry() {
   const tableContainerRef = useRef<HTMLDivElement>(null);
   const tableEndRef = useRef<HTMLDivElement>(null);
   const skipDraftSaveOnUnmountRef = useRef(false);
+  const savingLockRef = useRef(false);
   const [showNotesSection, setShowNotesSection] = useState(false);
   const [salesman, setSalesman] = useState<string>("");
   const [invoiceFormat, setInvoiceFormat] = useState<"standard" | "wholesale-size-grouping">("standard");
@@ -1457,6 +1458,10 @@ export default function SaleOrderEntry() {
   };
 
   const handleSaveOrder = async (): Promise<{ success: boolean; orderId?: string }> => {
+    if (savingLockRef.current) {
+      return { success: false };
+    }
+
     // Capture items at save time to prevent race conditions
     const itemsToSave = lineItems.filter(item => item.productId !== '' && item.orderQty > 0);
     
@@ -1464,14 +1469,31 @@ export default function SaleOrderEntry() {
       toast({ title: "Error", description: "Add at least one item with quantity", variant: "destructive" });
       return { success: false };
     }
-    
-    
 
+    savingLockRef.current = true;
     setIsSaving(true);
     try {
+      let savedOrderNumber = orderNumber;
+
+      // Regenerate at save time so concurrent tabs/users don't reuse a stale preview number
+      if (!editingOrderId && currentOrganization?.id) {
+        try {
+          const { data: freshNum, error: numError } = await supabase.rpc('generate_sale_order_number', {
+            p_organization_id: currentOrganization.id,
+          });
+          if (numError) throw numError;
+          if (freshNum) {
+            savedOrderNumber = freshNum;
+            setOrderNumber(freshNum);
+          }
+        } catch (e) {
+          console.warn('Failed to regenerate sale order number, using existing:', e);
+        }
+      }
+
       const orderData = {
         organization_id: currentOrganization?.id,
-        order_number: orderNumber,
+        order_number: savedOrderNumber,
         order_date: orderDate.toISOString(),
         expected_delivery_date: expectedDelivery.toISOString().split('T')[0],
         customer_id: selectedCustomerId || null,
@@ -1507,13 +1529,37 @@ export default function SaleOrderEntry() {
         
         await supabase.from('sale_order_items').delete().eq('order_id', editingOrderId);
       } else {
-        const { data, error } = await supabase
-          .from('sale_orders')
-          .insert([orderData])
-          .select()
-          .single();
-        if (error) throw error;
-        orderId = data.id;
+        let insertError: any = null;
+        for (let attempt = 0; attempt < 5; attempt++) {
+          if (attempt > 0 && currentOrganization?.id) {
+            const { data: freshNum } = await supabase.rpc('generate_sale_order_number', {
+              p_organization_id: currentOrganization.id,
+            });
+            if (freshNum) {
+              savedOrderNumber = freshNum;
+              orderData.order_number = freshNum;
+              setOrderNumber(freshNum);
+            }
+          }
+
+          const { data, error } = await supabase
+            .from('sale_orders')
+            .insert([orderData])
+            .select()
+            .single();
+
+          if (!error) {
+            orderId = data.id;
+            break;
+          }
+
+          insertError = error;
+          const isDuplicate =
+            error?.code === '23505' || error?.message?.includes('duplicate key');
+          if (!isDuplicate) throw error;
+        }
+
+        if (!orderId) throw insertError;
       }
 
       const orderItems = itemsToSave.map(item => ({
@@ -1570,7 +1616,7 @@ export default function SaleOrderEntry() {
 
             const templateParams = [
               selectedCustomer.customer_name || 'Valued Customer',
-              orderNumber,
+              savedOrderNumber,
               formattedDate,
               formattedAmount,
               formattedDelivery,
@@ -1584,7 +1630,7 @@ export default function SaleOrderEntry() {
               return `• ${item.product_name}${colorPart} (${item.size}) x ${item.order_qty} = ₹${Number(item.line_total).toLocaleString('en-IN')}`;
             }).join('\n');
 
-            const messageText = `🛒 *Sales Order Confirmation*\n\nOrder No: ${orderNumber}\nCustomer: ${selectedCustomer.customer_name || 'Valued Customer'}\n\n*Items:*\n${itemLines}\n\n*Total: ₹${formattedAmount}*\nOrder Date: ${formattedDate}\nExpected Delivery: ${formattedDelivery}\n\nThank you for your order!\n${companyName}\n${contactNumber}`;
+            const messageText = `🛒 *Sales Order Confirmation*\n\nOrder No: ${savedOrderNumber}\nCustomer: ${selectedCustomer.customer_name || 'Valued Customer'}\n\n*Items:*\n${itemLines}\n\n*Total: ₹${formattedAmount}*\nOrder Date: ${formattedDate}\nExpected Delivery: ${formattedDelivery}\n\nThank you for your order!\n${companyName}\n${contactNumber}`;
 
             await supabase.functions.invoke('send-whatsapp', {
               body: {
@@ -1611,12 +1657,21 @@ export default function SaleOrderEntry() {
       await deleteDraft();
       
 
-      toast({ title: "Success", description: `Sale Order ${orderNumber} saved` });
+      toast({ title: "Success", description: `Sale Order ${savedOrderNumber} saved` });
       return { success: true, orderId };
     } catch (error: any) {
-      toast({ variant: "destructive", title: "Error", description: error.message });
+      const isDuplicate =
+        error?.code === '23505' || error?.message?.includes('duplicate key');
+      toast({
+        variant: "destructive",
+        title: isDuplicate ? "Order number conflict" : "Error",
+        description: isDuplicate
+          ? "Another sale order was saved with the same number. Please try again."
+          : error.message,
+      });
       return { success: false };
     } finally {
+      savingLockRef.current = false;
       setIsSaving(false);
     }
   };
