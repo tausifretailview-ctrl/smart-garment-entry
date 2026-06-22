@@ -7,6 +7,12 @@ import {
 } from "../_shared/whatsappAuth.ts";
 import { normalizeWhatsAppApiBaseUrl, normalizeWhatsAppApiVersion } from "../_shared/whatsappUrl.ts";
 import { buildPublicInvoiceViewUrl } from "../_shared/publicInvoiceLink.ts";
+import { formatPhoneNumber } from "../_shared/whatsappPhone.ts";
+import {
+  redactWappConnectInstanceId,
+  resolveWappConnectFileUrl,
+  sendViaWappConnect,
+} from "../_shared/wappConnectSend.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -44,21 +50,6 @@ interface SendWhatsAppRequest {
   pdfBlob?: string; // Base64 encoded PDF for Meta upload
 }
 
-
-// Format phone number for WhatsApp (ensure country code)
-function formatPhoneNumber(phone: string): string {
-  if (!phone) return "";
-
-  // Remove all non-digit characters
-  const cleaned = phone.replace(/\D/g, "");
-
-  // Add 91 prefix for Indian numbers if not present
-  if (cleaned.length === 10) {
-    return `91${cleaned}`;
-  }
-
-  return cleaned;
-}
 
 async function fetchNamedTemplateParamNames(opts: {
   accessToken: string;
@@ -509,9 +500,10 @@ serve(async (req) => {
       );
     }
 
-    // For non-template messages, message is required
+    // For non-template messages, message is required unless a file attachment is provided
     const isTemplateMessage = templateType || templateName;
-    if (!isTemplateMessage && !message) {
+    const hasFileAttachment = !!(documentUrl || pdfBlob);
+    if (!isTemplateMessage && !message && !hasFileAttachment) {
       return new Response(
         JSON.stringify({ 
           success: false, 
@@ -541,6 +533,226 @@ serve(async (req) => {
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    const sendProvider = String(orgSettings?.send_provider ?? 'existing').trim();
+
+    // ========== WappConnect instance API path (per-org opt-in) ==========
+    if (sendProvider === 'wappconnect') {
+      if (!orgSettings?.is_active) {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: 'WhatsApp API integration is disabled',
+          }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        );
+      }
+
+      const formattedPhone = formatPhoneNumber(phone);
+      if (!formattedPhone || formattedPhone.length < 10) {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: 'Invalid phone number format',
+          }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        );
+      }
+
+      const { data: wappConnectSecret, error: secretError } = await supabase
+        .from('whatsapp_wappconnect_secrets')
+        .select('instance_id')
+        .eq('organization_id', organizationId)
+        .maybeSingle();
+
+      if (secretError) {
+        console.error('Error fetching WappConnect instance id:', secretError);
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: 'Failed to load WappConnect configuration',
+          }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        );
+      }
+
+      const instanceId = String(wappConnectSecret?.instance_id ?? '').trim();
+      if (!instanceId) {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: 'WappConnect instance id is not configured for this organization',
+          }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        );
+      }
+
+      if (referenceId && referenceType === 'sale') {
+        const { data: existingLog } = await supabase
+          .from('whatsapp_logs')
+          .select('id, status, created_at')
+          .eq('reference_id', referenceId)
+          .eq('template_type', templateType || 'sales_invoice')
+          .in('status', ['sent', 'delivered', 'read', 'pending'])
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (existingLog) {
+          const hoursSinceLastSend =
+            (Date.now() - new Date(existingLog.created_at).getTime()) / (1000 * 60 * 60);
+          if (hoursSinceLastSend < 1) {
+            return new Response(
+              JSON.stringify({
+                success: true,
+                skipped: true,
+                reason: 'Message already sent for this invoice within the last 60 minutes',
+              }),
+              { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+            );
+          }
+        }
+      }
+
+      let resolvedMessage = String(message ?? '').trim();
+      if (!resolvedMessage && saleData && orgSettings && templateType) {
+        const paramMappingKey = `${templateType.replace('sales_', '')}_template_params`;
+        const paramMapping = orgSettings[paramMappingKey] as TemplateParamMapping[] | null;
+        if (paramMapping && paramMapping.length > 0) {
+          const { data: companySettings } = await supabase
+            .from('settings')
+            .select('business_name')
+            .eq('organization_id', organizationId)
+            .maybeSingle();
+          const orgName = companySettings?.business_name || 'Our Company';
+          const builtParams = buildTemplateParams(paramMapping, saleData, orgName)
+            .map((value) => String(value ?? '').trim())
+            .filter(Boolean);
+          if (builtParams.length > 0) {
+            resolvedMessage = builtParams.join('\n');
+          }
+        }
+      }
+      if (!resolvedMessage) {
+        resolvedMessage = String(documentCaption ?? '').trim();
+      }
+      if (!resolvedMessage && (templateName || templateType)) {
+        resolvedMessage = `WhatsApp notification (${templateName || templateType})`;
+      }
+
+      let resolvedFileUrl = String(documentUrl ?? '').trim();
+      if (pdfBlob) {
+        try {
+          resolvedFileUrl = await resolveWappConnectFileUrl(
+            supabase,
+            organizationId,
+            pdfBlob,
+            documentFilename || 'Invoice.pdf',
+          );
+        } catch (uploadError) {
+          const errMsg = uploadError instanceof Error ? uploadError.message : 'PDF upload failed';
+          return new Response(
+            JSON.stringify({ success: false, error: errMsg }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+          );
+        }
+      }
+
+      if (!resolvedMessage && !resolvedFileUrl) {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: 'WappConnect send requires a message and/or file URL',
+          }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        );
+      }
+
+      const { data: logEntry, error: logError } = await supabase
+        .from('whatsapp_logs')
+        .insert({
+          organization_id: organizationId,
+          phone_number: formattedPhone,
+          message: resolvedMessage || (resolvedFileUrl ? `File: ${documentFilename || 'attachment'}` : null),
+          template_name: templateName || null,
+          template_type: templateType || (isTextMessage ? 'manual_message' : 'unknown'),
+          status: 'pending',
+          reference_id: referenceId || null,
+          reference_type: referenceType || null,
+          provider: 'wappconnect',
+        })
+        .select()
+        .single();
+
+      if (logError) {
+        console.error('Error creating WappConnect log entry:', logError);
+      }
+
+      const wappConnectResult = await sendViaWappConnect(instanceId, formattedPhone, {
+        message: resolvedMessage || undefined,
+        fileUrl: resolvedFileUrl || undefined,
+      });
+
+      const redactedResponse = redactWappConnectInstanceId(
+        {
+          ...(typeof wappConnectResult.responseData === 'object' && wappConnectResult.responseData !== null
+            ? wappConnectResult.responseData as Record<string, unknown>
+            : { raw: wappConnectResult.responseData }),
+          endpoint: wappConnectResult.endpoint,
+          requestUrl: wappConnectResult.requestUrlRedacted,
+        },
+        instanceId,
+      );
+
+      if (logEntry) {
+        await supabase
+          .from('whatsapp_logs')
+          .update({
+            status: wappConnectResult.success ? 'sent' : 'failed',
+            wamid: wappConnectResult.messageId || null,
+            sent_at: new Date().toISOString(),
+            error_message: wappConnectResult.error || null,
+            provider_response: redactedResponse,
+            provider: 'wappconnect',
+          })
+          .eq('id', logEntry.id);
+      }
+
+      if (!wappConnectResult.success) {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: wappConnectResult.error || 'WappConnect send failed',
+            details: redactedResponse,
+            logId: logEntry?.id,
+          }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        );
+      }
+
+      const inboxText = resolvedMessage
+        || (resolvedFileUrl ? `File: ${documentFilename || 'attachment'}` : 'WhatsApp message');
+      await saveOutboundToInbox(
+        supabase,
+        organizationId,
+        formattedPhone,
+        saleData,
+        inboxText,
+        wappConnectResult.messageId || null,
+        resolvedFileUrl ? 'document' : 'text',
+      );
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          messageId: wappConnectResult.messageId,
+          provider: 'wappconnect',
+          logId: logEntry?.id,
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      );
+    }
+    // ===================================================================
 
     // Determine which credentials to use
     let apiCredentials: {
@@ -712,6 +924,7 @@ serve(async (req) => {
         status: 'pending',
         reference_id: referenceId || null,
         reference_type: referenceType || null,
+        provider: 'existing',
       })
       .select()
       .single();

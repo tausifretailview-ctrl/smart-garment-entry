@@ -111,6 +111,7 @@ export interface WhatsAppLog {
   sent_at: string | null;
   delivered_at: string | null;
   read_at: string | null;
+  provider?: string | null;
   created_at: string;
 }
 

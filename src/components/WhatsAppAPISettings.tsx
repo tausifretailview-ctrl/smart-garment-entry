@@ -757,7 +757,7 @@ export const WhatsAppAPISettings = () => {
             </div>
             {isWappConnect && (
               <p className="text-xs text-muted-foreground">
-                Save settings before testing — the test uses your saved provider and instance id.
+                Save settings before testing — sends use your saved WappConnect instance id.
               </p>
             )}
             {!formData.is_active && (
