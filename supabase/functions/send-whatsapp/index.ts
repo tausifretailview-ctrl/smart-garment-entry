@@ -708,6 +708,7 @@ serve(async (req) => {
             organizationId,
             pdfBlob,
             documentFilename || 'Invoice.pdf',
+            Deno.env.get('SUPABASE_URL') ?? '',
           );
         } catch (uploadError) {
           const errMsg = uploadError instanceof Error ? uploadError.message : 'PDF upload failed';

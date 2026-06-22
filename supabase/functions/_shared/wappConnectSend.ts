@@ -1,4 +1,15 @@
 import { formatPhoneNumber } from "./whatsappPhone.ts";
+import {
+  buildWappConnectPdfServeUrl,
+  classifyWappConnectResponse,
+  extractWappConnectErrorMessage,
+} from "./wappConnectResponse.ts";
+
+export {
+  buildWappConnectPdfServeUrl,
+  classifyWappConnectResponse,
+  extractWappConnectErrorMessage,
+} from "./wappConnectResponse.ts";
 
 const WAPPCONNECT_API_ORIGIN = "https://api.wappconnect.com";
 
@@ -83,31 +94,6 @@ function parseWappConnectResponseBody(raw: string): unknown {
   } catch {
     return { raw: trimmed };
   }
-}
-
-function extractErrorMessage(payload: unknown): string | undefined {
-  if (!payload || typeof payload !== "object") return undefined;
-
-  const obj = payload as Record<string, unknown>;
-  if (obj.error !== undefined && obj.error !== null && obj.error !== "") {
-    if (typeof obj.error === "string") return obj.error;
-    if (typeof obj.error === "object") {
-      const nested = obj.error as Record<string, unknown>;
-      const nestedMsg = String(nested.message ?? nested.title ?? nested.description ?? "").trim();
-      if (nestedMsg) return nestedMsg;
-    }
-  }
-
-  const message = String(obj.message ?? obj.msg ?? "").trim();
-  if (message && String(obj.success ?? "").toLowerCase() === "false") {
-    return message;
-  }
-
-  if (String(obj.status ?? "").toLowerCase() === "error") {
-    return message || "WappConnect returned error status";
-  }
-
-  return undefined;
 }
 
 /**
@@ -209,7 +195,7 @@ export async function sendViaWappConnect(
     ? responseData as Record<string, unknown>
     : { raw: responseData };
 
-  let providerError = extractErrorMessage(responseObject);
+  let providerError = extractWappConnectErrorMessage(responseObject);
 
   // Some WappConnect builds expect POST JSON for file+caption, or fail to detect
   // the media type from a signed URL. Retry as POST with explicit filename/mime.
@@ -243,7 +229,7 @@ export async function sendViaWappConnect(
       responseObject = typeof responseData === "object" && responseData !== null
         ? responseData as Record<string, unknown>
         : { raw: responseData };
-      providerError = extractErrorMessage(responseObject);
+      providerError = extractWappConnectErrorMessage(responseObject);
       response = postResponse;
     } catch {
       // keep original GET error
@@ -251,11 +237,11 @@ export async function sendViaWappConnect(
   }
 
   const messageId = pickMessageId(responseObject);
-  const success = response.ok && !providerError;
+  const outcome = classifyWappConnectResponse(response.status, responseObject);
 
   return {
-    success,
-    error: success ? undefined : (providerError || `WappConnect request failed (${response.status})`),
+    success: outcome.success,
+    error: outcome.error,
     messageId,
     responseData: redactWappConnectInstanceId(responseObject, token),
     endpoint,
@@ -263,7 +249,7 @@ export async function sendViaWappConnect(
   };
 }
 
-/** Upload base64 PDF and return an https URL WappConnect can fetch. */
+/** Upload base64 PDF and return a stable https URL WappConnect can fetch. */
 export async function resolveWappConnectFileUrl(
   supabase: {
     storage: {
@@ -273,17 +259,13 @@ export async function resolveWappConnectFileUrl(
           body: Uint8Array,
           opts: { contentType: string; upsert: boolean },
         ) => Promise<{ error: { message: string } | null }>;
-        createSignedUrl: (
-          path: string,
-          expiresIn: number,
-        ) => Promise<{ data: { signedUrl: string } | null; error: { message: string } | null }>;
-        getPublicUrl: (path: string) => { data: { publicUrl: string } };
       };
     };
   },
   organizationId: string,
   pdfBlob: string,
   filename: string,
+  supabaseUrl: string,
 ): Promise<string> {
   const binary = Uint8Array.from(atob(pdfBlob), (char) => char.charCodeAt(0));
   const timestamp = Date.now();
@@ -301,19 +283,5 @@ export async function resolveWappConnectFileUrl(
     throw new Error(`Failed to upload PDF for WappConnect: ${uploadError.message}`);
   }
 
-  const { data: signed, error: signError } = await supabase.storage
-    .from("invoice-pdfs")
-    .createSignedUrl(filePath, 600);
-
-  if (!signError && signed?.signedUrl?.startsWith("https://")) {
-    return signed.signedUrl;
-  }
-
-  const { data: publicUrlData } = supabase.storage.from("invoice-pdfs").getPublicUrl(filePath);
-  const publicUrl = publicUrlData?.publicUrl;
-  if (!publicUrl?.startsWith("https://")) {
-    throw new Error("Failed to resolve HTTPS URL for WappConnect file send");
-  }
-
-  return publicUrl;
+  return buildWappConnectPdfServeUrl(supabaseUrl, filePath);
 }
