@@ -773,6 +773,7 @@ serve(async (req) => {
       const wappConnectResult = await sendViaWappConnect(instanceId, formattedPhone, {
         message: resolvedMessage || undefined,
         fileUrl: resolvedFileUrl || undefined,
+        filename: documentFilename || 'Invoice.pdf',
       });
 
       const redactedResponse = redactWappConnectInstanceId(
