@@ -16,6 +16,12 @@ import { useTierBasedRefresh } from "@/hooks/useTierBasedRefresh";
 import { MetaTemplateSelector } from "@/components/MetaTemplateSelector";
 import { SyncMetaTemplates } from "@/components/SyncMetaTemplates";
 import { DEFAULT_WHATSAPP_THIRD_PARTY } from "@/constants/defaultWhatsAppThirdParty";
+import {
+  WHATSAPP_SEND_PROVIDERS,
+  WHATSAPP_SEND_PROVIDER_LABELS,
+  type WhatsAppSendProvider,
+  isWappConnectSendProvider,
+} from "@/constants/whatsappSendProvider";
 import { normalizeWhatsAppAccessToken } from "@/lib/whatsappApiAuth";
 import { normalizeWhatsAppApiBaseUrl, normalizeWhatsAppApiVersion } from "@/lib/whatsappApiUrl";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -44,18 +50,40 @@ import {
     FileText
   } from "lucide-react";
 import { toast } from "sonner";
+import { format } from "date-fns";
 import {
   Alert,
   AlertDescription,
   AlertTitle,
 } from "@/components/ui/alert";
 
+function formatLastSendProxyStatus(
+  log: { status: string; sent_at: string | null; created_at: string } | null | undefined,
+): string {
+  if (!log) return "No sends recorded yet";
+
+  const isSuccess = ["sent", "delivered", "read"].includes(log.status);
+  const isFailed = log.status === "failed";
+  const outcome = isSuccess ? "success" : isFailed ? "failed" : log.status;
+  const at = log.sent_at || log.created_at;
+
+  try {
+    return `Last send: ${outcome}, ${format(new Date(at), "PPp")}`;
+  } catch {
+    return `Last send: ${outcome}`;
+  }
+}
+
 export const WhatsAppAPISettings = () => {
   const { 
     settings, 
     settingsLoading, 
-    updateSettings, 
+    updateSettingsAsync,
     isUpdating,
+    maskedWappConnectInstanceId,
+    lastSendStatus,
+    saveWappConnectInstanceAsync,
+    isSavingWappConnectInstance,
     testConnection,
     isTesting,
     getMessageStats 
@@ -67,6 +95,9 @@ export const WhatsAppAPISettings = () => {
   const { getRefreshInterval } = useTierBasedRefresh();
 
   const [formData, setFormData] = useState({
+    send_provider: "existing" as WhatsAppSendProvider,
+    wappconnect_connected_number: "",
+    wappconnect_instance_id: "",
     phone_number_id: "",
     waba_id: "",
     access_token: "",
@@ -127,6 +158,7 @@ export const WhatsAppAPISettings = () => {
   });
 
   const [showToken, setShowToken] = useState(false);
+  const [showWappConnectInstanceId, setShowWappConnectInstanceId] = useState(false);
   const [testPhone, setTestPhone] = useState("");
   const [openTemplateSection, setOpenTemplateSection] = useState<string | null>(null);
 
@@ -134,6 +166,11 @@ export const WhatsAppAPISettings = () => {
   useEffect(() => {
     if (settings) {
       setFormData({
+        send_provider: isWappConnectSendProvider((settings as { send_provider?: string }).send_provider)
+          ? "wappconnect"
+          : "existing",
+        wappconnect_connected_number: settings.wappconnect_connected_number || "",
+        wappconnect_instance_id: "",
         phone_number_id: settings.phone_number_id || DEFAULT_WHATSAPP_THIRD_PARTY.phone_number_id,
         waba_id: settings.waba_id || DEFAULT_WHATSAPP_THIRD_PARTY.waba_id,
         business_name: settings.business_name || "",
@@ -217,49 +254,69 @@ export const WhatsAppAPISettings = () => {
   };
 
   const handleSave = async () => {
-    // Check if this phone_number_id is used by other organizations
-    if (!formData.use_default_api && formData.phone_number_id) {
-      const { data: existingSettings } = await supabase
-        .from('whatsapp_api_settings')
-        .select('organization_id, organizations!inner(name)')
-        .eq('phone_number_id', formData.phone_number_id)
-        .eq('use_default_api', false)
-        .neq('organization_id', settings?.organization_id || '');
-      
-      if (existingSettings && existingSettings.length > 0) {
-        const orgNames = existingSettings.map((s: any) => s.organizations?.name).filter(Boolean).join(', ');
-        setSharedNumberWarning(
-          `This Phone Number ID is already used by: ${orgNames || 'other organizations'}. Messages will be routed based on customer's last interaction.`
-        );
+    try {
+      const isWappConnect = formData.send_provider === "wappconnect";
+
+      if (isWappConnect) {
+        const hasNewInstance = !!formData.wappconnect_instance_id?.trim();
+        const hasSavedInstance = !!maskedWappConnectInstanceId;
+        if (!hasNewInstance && !hasSavedInstance) {
+          toast.error("Paste your WappConnect instance id from the dashboard");
+          return;
+        }
+        if (hasNewInstance) {
+          await saveWappConnectInstanceAsync(formData.wappconnect_instance_id.trim());
+          setFormData((prev) => ({ ...prev, wappconnect_instance_id: "" }));
+        }
+      } else if (!formData.use_default_api && formData.phone_number_id) {
+        const { data: existingSettings } = await supabase
+          .from('whatsapp_api_settings')
+          .select('organization_id, organizations!inner(name)')
+          .eq('phone_number_id', formData.phone_number_id)
+          .eq('use_default_api', false)
+          .neq('organization_id', settings?.organization_id || '');
+        
+        if (existingSettings && existingSettings.length > 0) {
+          const orgNames = existingSettings.map((s: any) => s.organizations?.name).filter(Boolean).join(', ');
+          setSharedNumberWarning(
+            `This Phone Number ID is already used by: ${orgNames || 'other organizations'}. Messages will be routed based on customer's last interaction.`
+          );
+        } else {
+          setSharedNumberWarning(null);
+        }
       } else {
         setSharedNumberWarning(null);
       }
-    } else {
-      setSharedNumberWarning(null);
-    }
-    
-    const payload = { ...formData, api_provider: "third_party" as const };
-    const businessId = payload.business_id?.trim();
-    const wabaId = payload.waba_id?.trim();
-    if (businessId && !wabaId) payload.waba_id = businessId;
-    if (wabaId && !businessId) payload.business_id = wabaId;
-    payload.custom_api_url = normalizeWhatsAppApiBaseUrl(
-      payload.custom_api_url?.trim() || DEFAULT_WHATSAPP_THIRD_PARTY.custom_api_url,
-    );
-    payload.api_version = normalizeWhatsAppApiVersion(payload.api_version);
-    if (payload.access_token) {
-      payload.access_token = normalizeWhatsAppAccessToken(payload.access_token);
-    }
+      
+      const { wappconnect_instance_id: _instanceDraft, ...rest } = formData;
+      const payload = { ...rest, api_provider: "third_party" as const };
+      const businessId = payload.business_id?.trim();
+      const wabaId = payload.waba_id?.trim();
+      if (businessId && !wabaId) payload.waba_id = businessId;
+      if (wabaId && !businessId) payload.business_id = wabaId;
+      payload.custom_api_url = normalizeWhatsAppApiBaseUrl(
+        payload.custom_api_url?.trim() || DEFAULT_WHATSAPP_THIRD_PARTY.custom_api_url,
+      );
+      payload.api_version = normalizeWhatsAppApiVersion(payload.api_version);
+      if (payload.access_token) {
+        payload.access_token = normalizeWhatsAppAccessToken(payload.access_token);
+      }
 
-    const hasOwnProviderCreds =
-      !!payload.access_token?.trim() &&
-      !!payload.custom_api_url?.trim() &&
-      !!(payload.waba_id?.trim() || payload.business_id?.trim());
-    if (hasOwnProviderCreds) {
-      payload.use_default_api = false;
-    }
+      if (!isWappConnect) {
+        const hasOwnProviderCreds =
+          !!payload.access_token?.trim() &&
+          !!payload.custom_api_url?.trim() &&
+          !!(payload.waba_id?.trim() || payload.business_id?.trim());
+        if (hasOwnProviderCreds) {
+          payload.use_default_api = false;
+        }
+      }
 
-    updateSettings(payload);
+      await updateSettingsAsync(payload);
+    } catch (error) {
+      console.error("Error saving WhatsApp settings:", error);
+      toast.error("Failed to save WhatsApp API settings");
+    }
   };
 
   const handleTestConnection = () => {
@@ -270,7 +327,13 @@ export const WhatsAppAPISettings = () => {
     testConnection(testPhone);
   };
 
-  const isConfigured = formData.use_default_api || (formData.phone_number_id && formData.access_token);
+  const isWappConnect = formData.send_provider === "wappconnect";
+  const hasWappConnectInstance =
+    !!maskedWappConnectInstanceId || !!formData.wappconnect_instance_id?.trim();
+  const isConfigured = isWappConnect
+    ? hasWappConnectInstance
+    : formData.use_default_api || (formData.phone_number_id && formData.access_token);
+  const isSaving = isUpdating || isSavingWappConnectInstance;
 
   if (settingsLoading) {
     return (
@@ -290,7 +353,9 @@ export const WhatsAppAPISettings = () => {
             WhatsApp Business API
           </h3>
           <p className="text-sm text-muted-foreground">
-            Configure Official WhatsApp Business API for automated messaging
+            {isWappConnect
+              ? "Connect your shop's own WhatsApp number via WappConnect"
+              : "Configure Official WhatsApp Business API for automated messaging"}
           </p>
         </div>
         <Badge variant={formData.is_active && isConfigured ? "default" : "secondary"}>
@@ -303,6 +368,7 @@ export const WhatsAppAPISettings = () => {
       </div>
 
       {/* Setup Guide Alert */}
+      {!isWappConnect && (
       <Alert>
         <Info className="h-4 w-4" />
         <AlertTitle>Setup Guide</AlertTitle>
@@ -318,6 +384,7 @@ export const WhatsAppAPISettings = () => {
           </a>
         </AlertDescription>
       </Alert>
+      )}
 
       {/* API Configuration */}
       <Card>
@@ -327,10 +394,125 @@ export const WhatsAppAPISettings = () => {
             API Configuration
           </CardTitle>
           <CardDescription>
-            Choose to use the platform's shared WhatsApp number or configure your own
+            Choose how this shop sends WhatsApp messages
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="send_provider">Send provider</Label>
+            <Select
+              value={formData.send_provider}
+              onValueChange={(value) =>
+                handleInputChange("send_provider", value as WhatsAppSendProvider)
+              }
+            >
+              <SelectTrigger id="send_provider">
+                <SelectValue placeholder="Select provider" />
+              </SelectTrigger>
+              <SelectContent>
+                {WHATSAPP_SEND_PROVIDERS.map((provider) => (
+                  <SelectItem key={provider} value={provider}>
+                    {WHATSAPP_SEND_PROVIDER_LABELS[provider]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Existing orgs keep Meta/BSP until you switch to WappConnect and save.
+            </p>
+          </div>
+
+          {isWappConnect ? (
+            <>
+              <Alert>
+                <Info className="h-4 w-4" />
+                <AlertTitle>WappConnect setup</AlertTitle>
+                <AlertDescription className="text-sm space-y-2">
+                  <p>
+                    In the WappConnect dashboard, scan the QR code with your shop WhatsApp, then paste the
+                    instance id below. Each shop uses its own instance and sends from its own number.
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    In-app QR connect is not available yet — manual paste only for now.
+                  </p>
+                </AlertDescription>
+              </Alert>
+
+              <div className="space-y-2">
+                <Label htmlFor="wappconnect_connected_number">Connected WhatsApp number (label)</Label>
+                <Input
+                  id="wappconnect_connected_number"
+                  placeholder="e.g. 9876543210 — for your reference only"
+                  value={formData.wappconnect_connected_number}
+                  onChange={(e) =>
+                    handleInputChange("wappconnect_connected_number", e.target.value)
+                  }
+                  className="font-mono tabular-nums"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Display label only — not used for authentication or sending.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="wappconnect_instance_id">Instance id</Label>
+                {maskedWappConnectInstanceId && (
+                  <p className="text-xs text-muted-foreground font-mono">
+                    Saved: {maskedWappConnectInstanceId}
+                  </p>
+                )}
+                <div className="relative">
+                  <Input
+                    id="wappconnect_instance_id"
+                    type={showWappConnectInstanceId ? "text" : "password"}
+                    placeholder={
+                      maskedWappConnectInstanceId
+                        ? "Paste a new instance id to replace the saved one"
+                        : "Paste instance id from WappConnect dashboard"
+                    }
+                    value={formData.wappconnect_instance_id}
+                    onChange={(e) =>
+                      handleInputChange("wappconnect_instance_id", e.target.value)
+                    }
+                    className="pr-10 font-mono no-uppercase"
+                    autoComplete="off"
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="absolute right-0 top-0 h-full px-3"
+                    onClick={() => setShowWappConnectInstanceId(!showWappConnectInstanceId)}
+                  >
+                    {showWappConnectInstanceId ? (
+                      <EyeOff className="h-4 w-4" />
+                    ) : (
+                      <Eye className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Stored server-side only — the full value is never shown again after save.
+                </p>
+              </div>
+
+              <div className="rounded-lg border bg-muted/40 p-3 space-y-1">
+                <p className="text-xs font-medium text-muted-foreground">
+                  Connection status (last send proxy)
+                </p>
+                <p className="text-sm font-mono tabular-nums">
+                  {formatLastSendProxyStatus(lastSendStatus)}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Based on your most recent WhatsApp log entry — not a live WappConnect connection check.
+                </p>
+                {lastSendStatus?.status === "failed" && lastSendStatus.error_message && (
+                  <p className="text-xs text-destructive">{lastSendStatus.error_message}</p>
+                )}
+              </div>
+            </>
+          ) : (
+            <>
           {/* Platform Default Toggle */}
           <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
             <div>
@@ -513,6 +695,8 @@ export const WhatsAppAPISettings = () => {
               </div>
             </>
           )}
+            </>
+          )}
 
           <div className="space-y-2">
             <Label htmlFor="business_name">Business Name</Label>
@@ -551,7 +735,7 @@ export const WhatsAppAPISettings = () => {
 
           {/* Test Connection */}
           <div className="space-y-3">
-            <Label>Test Connection</Label>
+            <Label>{isWappConnect ? "Send test message" : "Test Connection"}</Label>
             <div className="flex gap-2">
               <Input
                 placeholder="Enter phone number to test (e.g., 9876543210)"
@@ -565,12 +749,17 @@ export const WhatsAppAPISettings = () => {
                 variant="outline"
               >
                 {isTesting ? (
-                  <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Testing...</>
+                  <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Sending...</>
                 ) : (
-                  <><Send className="h-4 w-4 mr-2" /> Test</>
+                  <><Send className="h-4 w-4 mr-2" /> {isWappConnect ? "Send test" : "Test"}</>
                 )}
               </Button>
             </div>
+            {isWappConnect && (
+              <p className="text-xs text-muted-foreground">
+                Save settings before testing — the test uses your saved provider and instance id.
+              </p>
+            )}
             {!formData.is_active && (
               <p className="text-xs text-orange-600">
                 <AlertCircle className="h-3 w-3 inline mr-1" />
@@ -1386,8 +1575,8 @@ export const WhatsAppAPISettings = () => {
 
       {/* Save Button */}
       <div className="flex justify-end">
-        <Button onClick={handleSave} disabled={isUpdating}>
-          {isUpdating ? (
+        <Button onClick={handleSave} disabled={isSaving}>
+          {isSaving ? (
             <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Saving...</>
           ) : (
             "Save Settings"

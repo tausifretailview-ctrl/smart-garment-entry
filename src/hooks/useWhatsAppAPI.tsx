@@ -2,6 +2,10 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { toast } from "sonner";
+import {
+  type WhatsAppSendProvider,
+  isWappConnectSendProvider,
+} from "@/constants/whatsappSendProvider";
 
 export interface TemplateParam {
   index: number;
@@ -78,8 +82,17 @@ export interface WhatsAppSettings {
   use_document_header_template: boolean;
   invoice_document_template_name: string | null;
   invoice_document_template_params: TemplateParam[] | null;
+  send_provider: WhatsAppSendProvider;
+  wappconnect_connected_number: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface WhatsAppLastSendStatus {
+  status: string;
+  sent_at: string | null;
+  created_at: string;
+  error_message: string | null;
 }
 
 export interface WhatsAppLog {
@@ -171,9 +184,69 @@ export const useWhatsAppAPI = () => {
         social_links: data.social_links && typeof data.social_links === 'object'
           ? data.social_links as unknown as SocialLinks
           : { website: '', instagram: '', facebook: '' },
+        send_provider: isWappConnectSendProvider((data as { send_provider?: string }).send_provider)
+          ? 'wappconnect'
+          : 'existing',
+        wappconnect_connected_number:
+          (data as { wappconnect_connected_number?: string | null }).wappconnect_connected_number ?? null,
       } as WhatsAppSettings;
     },
     enabled: !!currentOrganization?.id,
+  });
+
+  const { data: maskedWappConnectInstanceId, refetch: refetchMaskedWappConnectInstance } = useQuery({
+    queryKey: ['wappconnect-instance-masked', currentOrganization?.id],
+    queryFn: async () => {
+      if (!currentOrganization?.id) return null;
+
+      const { data, error } = await supabase.rpc('get_wappconnect_instance_masked', {
+        p_organization_id: currentOrganization.id,
+      });
+
+      if (error) throw error;
+      return (data as string | null) ?? null;
+    },
+    enabled: !!currentOrganization?.id,
+  });
+
+  const { data: lastSendStatus, refetch: refetchLastSendStatus } = useQuery({
+    queryKey: ['whatsapp-last-send', currentOrganization?.id],
+    queryFn: async () => {
+      if (!currentOrganization?.id) return null;
+
+      const { data, error } = await supabase
+        .from('whatsapp_logs')
+        .select('status, sent_at, created_at, error_message')
+        .eq('organization_id', currentOrganization.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error) throw error;
+      return data as WhatsAppLastSendStatus | null;
+    },
+    enabled: !!currentOrganization?.id,
+    staleTime: 60 * 1000,
+  });
+
+  const saveWappConnectInstanceMutation = useMutation({
+    mutationFn: async (instanceId: string) => {
+      if (!currentOrganization?.id) throw new Error('No organization selected');
+
+      const { error } = await supabase.rpc('upsert_wappconnect_instance_secret', {
+        p_organization_id: currentOrganization.id,
+        p_instance_id: instanceId.trim(),
+      });
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['wappconnect-instance-masked'] });
+    },
+    onError: (error) => {
+      console.error('Error saving WappConnect instance id:', error);
+      toast.error('Failed to save WappConnect instance id');
+    },
   });
 
   // Update or create WhatsApp settings
@@ -287,12 +360,20 @@ export const useWhatsAppAPI = () => {
     mutationFn: async (testPhone: string) => {
       if (!currentOrganization?.id) throw new Error('No organization selected');
       
-      // Allow test if using platform default API OR if own credentials are configured
-      const useDefaultApi = settings?.use_default_api !== false;
-      const hasOwnCredentials = settings?.phone_number_id && settings?.access_token;
-      
-      if (!useDefaultApi && !hasOwnCredentials) {
-        throw new Error('Please configure API credentials first');
+      const useWappConnect = isWappConnectSendProvider(settings?.send_provider);
+
+      if (useWappConnect) {
+        if (!settings?.is_active) {
+          throw new Error('Enable WhatsApp API integration first');
+        }
+      } else {
+        // Allow test if using platform default API OR if own credentials are configured
+        const useDefaultApi = settings?.use_default_api !== false;
+        const hasOwnCredentials = settings?.phone_number_id && settings?.access_token;
+
+        if (!useDefaultApi && !hasOwnCredentials) {
+          throw new Error('Please configure API credentials first');
+        }
       }
 
       const { data, error } = await supabase.functions.invoke('send-whatsapp', {
@@ -315,6 +396,7 @@ export const useWhatsAppAPI = () => {
       return data;
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['whatsapp-last-send'] });
       toast.success('Test message sent successfully! Check your WhatsApp.');
     },
     onError: (error) => {
@@ -560,6 +642,13 @@ export const useWhatsAppAPI = () => {
     settings,
     settingsLoading,
     refetchSettings,
+    maskedWappConnectInstanceId,
+    refetchMaskedWappConnectInstance,
+    lastSendStatus,
+    refetchLastSendStatus,
+    saveWappConnectInstance: saveWappConnectInstanceMutation.mutate,
+    saveWappConnectInstanceAsync: saveWappConnectInstanceMutation.mutateAsync,
+    isSavingWappConnectInstance: saveWappConnectInstanceMutation.isPending,
     updateSettings: updateSettingsMutation.mutate,
     updateSettingsAsync: updateSettingsMutation.mutateAsync,
     isUpdating: updateSettingsMutation.isPending,
