@@ -1635,6 +1635,73 @@ export default function SalesInvoiceDashboard() {
     }
   };
 
+  const getInvoicePreviewItems = useCallback(
+    (invoice: any) =>
+      (loadedItems[invoice.id] || invoice.sale_items || []).map((item: any, index: number) => ({
+        sr: index + 1,
+        particulars: item.product_name,
+        size: item.size,
+        barcode: item.barcode || "",
+        hsn: item.hsn_code || "",
+        sp: item.mrp,
+        mrp: item.mrp,
+        qty: item.quantity,
+        rate: item.unit_price,
+        total: item.line_total,
+        color: item.color || item.products?.color || "",
+        brand: item.products?.brand || "",
+        style: item.products?.style || "",
+        gstPercent: item.gst_percent || 0,
+        discountPercent: item.discount_percent || 0,
+        itemNotes: item.item_notes || "",
+      })),
+    [loadedItems],
+  );
+
+  const renderInvoiceForPreview = useCallback(
+    (format: string) => {
+      if (!invoiceToPrint) return null;
+      return (
+        <InvoiceWrapper
+          format={format}
+          billNo={invoiceToPrint.sale_number}
+          date={new Date(invoiceToPrint.sale_date)}
+          customerName={invoiceToPrint.customer_name}
+          customerAddress={invoiceToPrint.customer_address || ""}
+          customerMobile={invoiceToPrint.customer_phone || ""}
+          customerGSTIN={invoiceToPrint.customers?.gst_number || ""}
+          template={invoiceTemplate}
+          showMRP={(settings?.sale_settings as any)?.show_mrp_column ?? false}
+          showHSN={(settings?.sale_settings as any)?.show_hsn_column ?? true}
+          items={getInvoicePreviewItems(invoiceToPrint)}
+          subTotal={invoiceToPrint.gross_amount}
+          discount={(invoiceToPrint.discount_amount || 0) + (invoiceToPrint.flat_discount_amount || 0)}
+          saleReturnAdjust={invoiceToPrint.sale_return_adjust || 0}
+          grandTotal={invoiceToPrint.net_amount}
+          cashPaid={invoiceToPrint.payment_method === "cash" ? invoiceToPrint.net_amount : 0}
+          upiPaid={invoiceToPrint.payment_method === "upi" ? invoiceToPrint.net_amount : 0}
+          paymentMethod={invoiceToPrint.payment_method}
+          cashAmount={invoiceToPrint.cash_amount || 0}
+          upiAmount={invoiceToPrint.upi_amount || 0}
+          cardAmount={invoiceToPrint.card_amount || 0}
+          paidAmount={invoiceToPrint.paid_amount || 0}
+          salesman={invoiceToPrint.salesman || ""}
+          notes={invoiceToPrint.notes || ""}
+          otherCharges={invoiceToPrint.other_charges || 0}
+          roundOff={invoiceToPrint.round_off || 0}
+          financerDetails={invoiceToPrint.financerDetails || null}
+        />
+      );
+    },
+    [getInvoicePreviewItems, invoiceTemplate, invoiceToPrint, settings?.sale_settings],
+  );
+
+  const handleViewInvoicePreview = async (invoice: any) => {
+    const invoiceWithItems = await ensureSaleItems(invoice);
+    setInvoiceToPrint(invoiceWithItems);
+    setShowPrintPreview(true);
+  };
+
   const handleDownloadPDF = async (invoice: any) => {
     const invoiceWithItems = await ensureSaleItems(invoice);
     setInvoiceToPrint(invoiceWithItems);
@@ -2911,7 +2978,10 @@ export default function SalesInvoiceDashboard() {
                 </div>
                 <div className="flex items-center border-t border-border/40 divide-x divide-border/40">
                   <button
-                    onClick={() => navigate('/sales-invoice', { state: { editInvoiceId: inv.id } })}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void handleViewInvoicePreview(inv);
+                    }}
                     className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium text-primary active:bg-primary/5 transition-colors touch-manipulation"
                   >
                     <Eye className="h-3.5 w-3.5" />
@@ -3012,8 +3082,16 @@ export default function SalesInvoiceDashboard() {
           </DialogContent>
         </Dialog>
 
-        {/* Print preview is desktop-only */}
-
+        {/* Invoice preview (same as PDF layout) */}
+        {invoiceToPrint && (
+          <PrintPreviewDialog
+            open={showPrintPreview}
+            onOpenChange={setShowPrintPreview}
+            defaultFormat={effectiveSaleBillFormat || "a4"}
+            thermalPaper={saleThermalPaper}
+            renderInvoice={renderInvoiceForPreview}
+          />
+        )}
 
         <InvoiceHistoryDialog
           open={showInvoiceHistory}
@@ -4516,56 +4594,8 @@ export default function SalesInvoiceDashboard() {
             open={showPrintPreview}
             onOpenChange={setShowPrintPreview}
             defaultFormat={effectiveSaleBillFormat || 'a4'}
-            renderInvoice={(format) => 
-              invoiceToPrint ? (
-              <InvoiceWrapper
-                format={format}
-                billNo={invoiceToPrint.sale_number}
-                date={new Date(invoiceToPrint.sale_date)}
-                customerName={invoiceToPrint.customer_name}
-                customerAddress={invoiceToPrint.customer_address || ""}
-                customerMobile={invoiceToPrint.customer_phone || ""}
-                customerGSTIN={invoiceToPrint.customers?.gst_number || ""}
-                template={invoiceTemplate}
-                showMRP={(settings?.sale_settings as any)?.show_mrp_column ?? false}
-                showHSN={(settings?.sale_settings as any)?.show_hsn_column ?? true}
-              items={(loadedItems[invoiceToPrint.id] || invoiceToPrint.sale_items || []).map((item: any, index: number) => ({
-                sr: index + 1,
-                particulars: item.product_name,
-                size: item.size,
-                barcode: item.barcode || "",
-                hsn: item.hsn_code || "",
-                sp: item.mrp,
-                mrp: item.mrp,
-                qty: item.quantity,
-                rate: item.unit_price,
-                total: item.line_total,
-                color: item.color || item.products?.color || "",
-                brand: item.products?.brand || "",
-                style: item.products?.style || "",
-                gstPercent: item.gst_percent || 0,
-                discountPercent: item.discount_percent || 0,
-                itemNotes: item.item_notes || "",
-              })) || []}
-                subTotal={invoiceToPrint.gross_amount}
-                discount={(invoiceToPrint.discount_amount || 0) + (invoiceToPrint.flat_discount_amount || 0)}
-                saleReturnAdjust={invoiceToPrint.sale_return_adjust || 0}
-                grandTotal={invoiceToPrint.net_amount}
-                cashPaid={invoiceToPrint.payment_method === 'cash' ? invoiceToPrint.net_amount : 0}
-                upiPaid={invoiceToPrint.payment_method === 'upi' ? invoiceToPrint.net_amount : 0}
-                paymentMethod={invoiceToPrint.payment_method}
-                cashAmount={invoiceToPrint.cash_amount || 0}
-                upiAmount={invoiceToPrint.upi_amount || 0}
-                cardAmount={invoiceToPrint.card_amount || 0}
-                paidAmount={invoiceToPrint.paid_amount || 0}
-                salesman={invoiceToPrint.salesman || ''}
-                notes={invoiceToPrint.notes || ''}
-                otherCharges={invoiceToPrint.other_charges || 0}
-                roundOff={invoiceToPrint.round_off || 0}
-                financerDetails={invoiceToPrint.financerDetails || null}
-              />
-              ) : null
-            }
+            thermalPaper={saleThermalPaper}
+            renderInvoice={renderInvoiceForPreview}
           />
         )}
 
