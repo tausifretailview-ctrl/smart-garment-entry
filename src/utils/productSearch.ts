@@ -1,65 +1,96 @@
-/**
- * Unified product search utility.
- * All search bars across the app MUST use these fields and logic
- * to ensure consistent results everywhere.
- */
+/** Strip spaces/hyphens for compact product code matching (PUL 204 ↔ pul204). */
+export function compactProductToken(value: string): string {
+  return String(value ?? "")
+    .toLowerCase()
+    .replace(/[\s\-_./]/g, "");
+}
 
-/** Canonical list of fields every product search should cover */
-export const PRODUCT_SEARCH_FIELDS = [
-  'product_name',
-  'style',
-  'brand',
-  'category',
-  'color',
-  'barcode',
-  'hsn_code',
-  'size',
-  'sale_price',
-] as const;
+/** Expand typed codes so DB ilike finds spaced/hyphenated product names. */
+export function expandProductSearchTerms(raw: string): string[] {
+  const cleaned = raw.trim().toLowerCase().replace(/[%_(),."']/g, "");
+  if (!cleaned) return [];
 
-/**
- * Client-side multi-token AND filter.
- * Splits query into tokens; a row matches only if EVERY token
- * appears somewhere across all searchable fields.
- */
-export function filterProductMatch(
-  query: string,
-  row: Record<string, any>,
+  const terms = new Set<string>([cleaned]);
+
+  const letterThenDigits = cleaned.match(/^([a-z]+)(\d+)$/i);
+  if (letterThenDigits) {
+    terms.add(`${letterThenDigits[1]} ${letterThenDigits[2]}`);
+    terms.add(`${letterThenDigits[1]}-${letterThenDigits[2]}`);
+  }
+
+  const digitsThenLetters = cleaned.match(/^(\d+)([a-z]+)$/i);
+  if (digitsThenLetters) {
+    terms.add(`${digitsThenLetters[1]} ${digitsThenLetters[2]}`);
+    terms.add(`${digitsThenLetters[1]}-${digitsThenLetters[2]}`);
+  }
+
+  const spaced = cleaned
+    .replace(/([a-z])(\d)/gi, "$1 $2")
+    .replace(/(\d)([a-z])/gi, "$1 $2")
+    .replace(/-/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (spaced && spaced !== cleaned) {
+    terms.add(spaced);
+  }
+
+  return Array.from(terms).filter(Boolean);
+}
+
+export function buildProductTextOrFilter(terms: string[]): string {
+  const fields = ["product_name", "brand", "style", "category"];
+  const clauses: string[] = [];
+
+  for (const term of terms) {
+    const safe = term.replace(/[%_]/g, "");
+    if (!safe) continue;
+    for (const field of fields) {
+      clauses.push(`${field}.ilike.%${safe}%`);
+    }
+  }
+
+  return clauses.join(",");
+}
+
+export function productHaystack(
+  parts: { product_name?: string; brand?: string; style?: string; category?: string; barcode?: string; color?: string; size?: string },
+): string {
+  return `${parts.product_name ?? ""} ${parts.brand ?? ""} ${parts.style ?? ""} ${parts.category ?? ""} ${parts.barcode ?? ""} ${parts.color ?? ""} ${parts.size ?? ""}`;
+}
+
+/** True when compact query appears in compact product fields (pul204 matches PUL 204). */
+export function matchesCompactProductSearch(
+  parts: { product_name?: string; brand?: string; style?: string; category?: string; barcode?: string; color?: string; size?: string },
+  rawQuery: string,
 ): boolean {
-  if (!query || !query.trim()) return true;
-  const tokens = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
-  if (tokens.length === 0) return true;
-  const haystack = PRODUCT_SEARCH_FIELDS
-    .map(f => (row[f] != null ? String(row[f]) : ''))
-    .join(' ')
-    .toLowerCase();
-  return tokens.every(t => haystack.includes(t));
+  const compactQuery = compactProductToken(rawQuery);
+  if (compactQuery.length < 2) return false;
+  return compactProductToken(productHaystack(parts)).includes(compactQuery);
 }
 
-/**
- * Build a Supabase `.or()` filter string covering all product-level
- * text columns for a single search token.
- * Use on the `products` table (not variants).
- */
-export function buildProductOrFilter(token: string): string {
-  return [
-    `product_name.ilike.%${token}%`,
-    `brand.ilike.%${token}%`,
-    `style.ilike.%${token}%`,
-    `category.ilike.%${token}%`,
-    `color.ilike.%${token}%`,
-    `hsn_code.ilike.%${token}%`,
-  ].join(',');
-}
+export function scoreProductSearchMatch(
+  parts: { product_name?: string; brand?: string; style?: string; category?: string; barcode?: string },
+  rawQuery: string,
+): number {
+  const term = rawQuery.trim().toLowerCase();
+  const compactQuery = compactProductToken(rawQuery);
+  if (!term) return 0;
 
-/**
- * Build a Supabase `.or()` filter string for variant-level search.
- * Covers barcode, size, color on product_variants table.
- */
-export function buildVariantOrFilter(token: string): string {
-  return [
-    `barcode.ilike.%${token}%`,
-    `size.ilike.%${token}%`,
-    `color.ilike.%${token}%`,
-  ].join(',');
+  const name = (parts.product_name ?? "").toLowerCase();
+  const compactName = compactProductToken(parts.product_name ?? "");
+  const barcode = (parts.barcode ?? "").toLowerCase();
+  const style = (parts.style ?? "").toLowerCase();
+  const haystack = productHaystack(parts).toLowerCase();
+
+  if (barcode === term) return 1000;
+  if (compactName === compactQuery) return 900;
+  if (name === term) return 850;
+  if (compactName.startsWith(compactQuery)) return 800;
+  if (name.startsWith(term)) return 750;
+  if (barcode.startsWith(term)) return 700;
+  if (style.startsWith(term)) return 650;
+  if (compactName.includes(compactQuery)) return 600;
+  if (haystack.includes(term)) return 500;
+  if (matchesCompactProductSearch(parts, rawQuery)) return 400;
+  return 0;
 }

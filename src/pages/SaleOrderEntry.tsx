@@ -16,7 +16,14 @@ import { Switch } from "@/components/ui/switch";
 import { CalendarIcon, Plus, X, Search, Save, ClipboardList, AlertTriangle, CheckCircle, Printer, ChevronDown, Loader2, ChevronLeft, FileText } from "lucide-react";
 import { format } from "date-fns";
 import { UOM_OPTIONS, DEFAULT_UOM, UOMType } from "@/constants/uom";
-import { cn, sortSearchResults, buildProductDisplayName } from "@/lib/utils";
+import { cn, buildProductDisplayName } from "@/lib/utils";
+import {
+  buildProductTextOrFilter,
+  compactProductToken,
+  expandProductSearchTerms,
+  matchesCompactProductSearch,
+  scoreProductSearchMatch,
+} from "@/utils/productSearch";
 import { entryPageMainClass, entryPageSectionX, entryPageShellClass } from "@/lib/entryPageLayout";
 import { useEntryViewportSync } from "@/hooks/useEntryViewportSync";
 import { SizeGridDialog } from "@/components/SizeGridDialog";
@@ -125,6 +132,8 @@ export type SaleOrderProductSearchGroup = {
   colors: string[];
   mrpMin: number;
   mrpMax: number;
+  /** Stock qty grouped by MRP across all colors/sizes. */
+  mrpStockBreakdown: { mrp: number; stock: number }[];
   size_range?: string | null;
 };
 
@@ -135,8 +144,13 @@ function buildSaleOrderProductGroupKey(
   const term = searchTerm?.trim().toLowerCase();
   if (term && term.length >= 2) {
     const haystack = `${v.product_name} ${v.brand} ${v.style} ${v.category}`.toLowerCase();
-    if (haystack.includes(term)) {
-      return `search:${term}||${(v.brand || "").trim().toLowerCase()}`;
+    const compactHaystack = compactProductToken(haystack);
+    const compactTerm = compactProductToken(term);
+    if (
+      haystack.includes(term) ||
+      (compactTerm.length >= 2 && compactHaystack.includes(compactTerm))
+    ) {
+      return `search:${compactTerm || term}||${(v.brand || "").trim().toLowerCase()}`;
     }
   }
   const brand = (v.brand || "").trim().toLowerCase();
@@ -227,6 +241,7 @@ function groupVariantsByProductFamily(
       colors: Array.from(group.colors),
       mrpMin: mrps.length ? Math.min(...mrps) : 0,
       mrpMax: mrps.length ? Math.max(...mrps) : 0,
+      mrpStockBreakdown: [],
       size_range: representative.size_range,
     };
   });
@@ -255,24 +270,55 @@ async function sumVariantStockForProducts(orgId: string, productIds: string[]): 
   return (data || []).reduce((sum, row) => sum + Number(row.stock_qty || 0), 0);
 }
 
+async function sumVariantStockByMrp(
+  orgId: string,
+  productIds: string[],
+): Promise<{ mrp: number; stock: number }[]> {
+  if (!productIds.length) return [];
+  const { data, error } = await supabase
+    .from("product_variants")
+    .select("mrp, stock_qty")
+    .eq("organization_id", orgId)
+    .eq("active", true)
+    .is("deleted_at", null)
+    .in("product_id", productIds);
+  if (error) {
+    console.error("SaleOrderEntry: MRP stock breakdown failed", error);
+    return [];
+  }
+
+  const byMrp = new Map<number, number>();
+  for (const row of data || []) {
+    const mrp = Number(row.mrp || 0);
+    if (mrp <= 0) continue;
+    byMrp.set(mrp, (byMrp.get(mrp) || 0) + Number(row.stock_qty || 0));
+  }
+
+  return Array.from(byMrp.entries())
+    .map(([mrp, stock]) => ({ mrp, stock }))
+    .sort((a, b) => a.mrp - b.mrp);
+}
+
 /** Full merged stock across all colors/MRP rows — matches Size Stock grand total. */
 async function enrichSaleOrderSearchGroups(
   orgId: string,
   groups: SaleOrderProductSearchGroup[],
   rawQuery: string,
 ): Promise<SaleOrderProductSearchGroup[]> {
-  const primaryTerm = rawQuery.trim().split(/\s+/).filter(Boolean)[0] || rawQuery.trim();
+  const expandedTerms = expandProductSearchTerms(rawQuery);
+  const primaryTerm = expandedTerms[0] || rawQuery.trim().toLowerCase();
   if (!primaryTerm || groups.length === 0) return groups;
 
-  const { data: matchingProducts } = await supabase
-    .from("products")
-    .select("id, product_name, brand, category, style, color")
-    .eq("organization_id", orgId)
-    .eq("status", "active")
-    .is("deleted_at", null)
-    .or(
-      `product_name.ilike.%${primaryTerm}%,brand.ilike.%${primaryTerm}%,style.ilike.%${primaryTerm}%,category.ilike.%${primaryTerm}%`,
-    );
+  const productOrFilter = buildProductTextOrFilter(expandedTerms);
+  const { data: matchingProducts } = productOrFilter
+    ? await supabase
+        .from("products")
+        .select("id, product_name, brand, category, style, color")
+        .eq("organization_id", orgId)
+        .eq("status", "active")
+        .is("deleted_at", null)
+        .or(productOrFilter)
+    : { data: [] as { id: string; product_name: string; brand: string | null; category: string | null; style: string | null; color: string | null }[] };
 
   return Promise.all(
     groups.map(async (group) => {
@@ -289,17 +335,25 @@ async function enrichSaleOrderSearchGroups(
         }
       }
       const productIds = Array.from(mergedIds);
-      const totalStock = await sumVariantStockForProducts(orgId, productIds);
+      const [totalStock, mrpStockBreakdown] = await Promise.all([
+        sumVariantStockForProducts(orgId, productIds),
+        sumVariantStockByMrp(orgId, productIds),
+      ]);
 
       const colors = new Set(group.colors);
       for (const p of matchingProducts || []) {
         if (mergedIds.has(p.id) && p.color) colors.add(p.color);
       }
 
+      const mrps = mrpStockBreakdown.map((row) => row.mrp);
+
       return {
         ...group,
         productIds,
         totalStock,
+        mrpStockBreakdown,
+        mrpMin: mrps.length ? Math.min(...mrps) : group.mrpMin,
+        mrpMax: mrps.length ? Math.max(...mrps) : group.mrpMax,
         colorCount: colors.size,
         colors: Array.from(colors),
       };
@@ -335,29 +389,70 @@ async function searchSaleOrderVariants(
   const normalized = rawQuery.trim().toLowerCase().replace(/[%_(),."']/g, "");
   if (!normalized) return [];
 
+  const expandedTerms = expandProductSearchTerms(rawQuery);
   const searchTerms = normalized.split(/\s+/).filter(Boolean);
-  const primaryTerm = searchTerms[0] || normalized;
+  const compactQuery = compactProductToken(rawQuery);
 
-  const { data: matchingProducts } = await supabase
-    .from("products")
-    .select("id")
-    .is("deleted_at", null)
-    .eq("organization_id", orgId)
-    .eq("status", "active")
-    .or(
-      `product_name.ilike.%${primaryTerm}%,brand.ilike.%${primaryTerm}%,style.ilike.%${primaryTerm}%,category.ilike.%${primaryTerm}%`,
-    );
+  let productIds: string[] = [];
+  const productOrFilter = buildProductTextOrFilter(expandedTerms);
+  if (productOrFilter) {
+    const { data: matchingProducts } = await supabase
+      .from("products")
+      .select("id, product_name, brand, style, category")
+      .is("deleted_at", null)
+      .eq("organization_id", orgId)
+      .eq("status", "active")
+      .or(productOrFilter);
+    productIds = matchingProducts?.map((p) => p.id) || [];
+  }
 
-  const productIds = matchingProducts?.map((p) => p.id) || [];
+  // Compact code fallback: pul204 matches product_name "PUL 204" / "PUL-204"
+  if (productIds.length === 0 && compactQuery.length >= 3) {
+    const prefix = compactQuery.match(/^([a-z]+)\d/i)?.[1];
+    if (prefix && prefix.length >= 2) {
+      const { data: prefixProducts } = await supabase
+        .from("products")
+        .select("id, product_name, brand, style, category")
+        .is("deleted_at", null)
+        .eq("organization_id", orgId)
+        .eq("status", "active")
+        .ilike("product_name", `${prefix}%`)
+        .limit(250);
+      productIds = (prefixProducts || [])
+        .filter((p) =>
+          matchesCompactProductSearch(
+            {
+              product_name: p.product_name,
+              brand: p.brand || "",
+              style: p.style || "",
+              category: p.category || "",
+            },
+            rawQuery,
+          ),
+        )
+        .map((p) => p.id);
+    }
+  }
 
-  const { data: barcodeVariants } = await supabase
-    .from("product_variants")
-    .select(VARIANT_SEARCH_SELECT)
-    .eq("active", true)
-    .is("deleted_at", null)
-    .eq("organization_id", orgId)
-    .or(`barcode.ilike.%${primaryTerm}%,color.ilike.%${primaryTerm}%`)
-    .limit(50);
+  const barcodeOrTerms = expandedTerms
+    .map((term) => {
+      const safe = term.replace(/[%_]/g, "");
+      if (!safe) return [];
+      return [`barcode.ilike.%${safe}%`, `color.ilike.%${safe}%`];
+    })
+    .flat()
+    .join(",");
+
+  const { data: barcodeVariants } = barcodeOrTerms
+    ? await supabase
+        .from("product_variants")
+        .select(VARIANT_SEARCH_SELECT)
+        .eq("active", true)
+        .is("deleted_at", null)
+        .eq("organization_id", orgId)
+        .or(barcodeOrTerms)
+        .limit(50)
+    : { data: [] as any[] };
 
   let productVariants: any[] = [];
   if (productIds.length > 0) {
@@ -373,15 +468,25 @@ async function searchSaleOrderVariants(
   }
 
   if (productIds.length === 0) {
-    const { data: fuzzyVariants } = await supabase
-      .from("product_variants")
-      .select(VARIANT_SEARCH_SELECT)
-      .eq("active", true)
-      .is("deleted_at", null)
-      .eq("organization_id", orgId)
-      .or(`color.ilike.%${primaryTerm}%,size.ilike.%${primaryTerm}%`)
-      .limit(50);
-    productVariants = fuzzyVariants || [];
+    const fuzzyOr = expandedTerms
+      .map((term) => {
+        const safe = term.replace(/[%_]/g, "");
+        if (!safe) return [];
+        return [`color.ilike.%${safe}%`, `size.ilike.%${safe}%`];
+      })
+      .flat()
+      .join(",");
+    if (fuzzyOr) {
+      const { data: fuzzyVariants } = await supabase
+        .from("product_variants")
+        .select(VARIANT_SEARCH_SELECT)
+        .eq("active", true)
+        .is("deleted_at", null)
+        .eq("organization_id", orgId)
+        .or(fuzzyOr)
+        .limit(50);
+      productVariants = fuzzyVariants || [];
+    }
   }
 
   const uniqueMap = new Map<string, any>();
@@ -411,14 +516,45 @@ async function searchSaleOrderVariants(
         `${r.product_name} ${r.brand} ${r.category} ${r.style}`.toLowerCase();
       const variantHaystack = `${r.color} ${r.size} ${r.barcode}`.toLowerCase();
       const combined = `${haystack} ${variantHaystack}`;
-      return searchTerms.every((term) => combined.includes(term));
+      const compactCombined = compactProductToken(combined);
+      return searchTerms.every(
+        (term) =>
+          combined.includes(term) ||
+          (compactQuery.length >= 2 && compactCombined.includes(compactProductToken(term))),
+      );
     });
+  } else if (compactQuery.length >= 2) {
+    const compactMatches = results.filter((r) =>
+      matchesCompactProductSearch(
+        {
+          product_name: r.product_name,
+          brand: r.brand,
+          style: r.style,
+          category: r.category,
+          barcode: r.barcode,
+          color: r.color,
+          size: r.size,
+        },
+        rawQuery,
+      ),
+    );
+    if (compactMatches.length > 0) {
+      const compactIds = new Set(compactMatches.map((r) => r.id));
+      const rest = results.filter((r) => !compactIds.has(r.id));
+      results = [...compactMatches, ...rest];
+    }
   }
 
-  return sortSearchResults(results, normalized, {
-    barcode: "barcode",
-    style: "style",
-    productName: "product_name",
+  return [...results].sort((a, b) => {
+    const scoreA = scoreProductSearchMatch(
+      { product_name: a.product_name, brand: a.brand, style: a.style, category: a.category, barcode: a.barcode },
+      rawQuery,
+    );
+    const scoreB = scoreProductSearchMatch(
+      { product_name: b.product_name, brand: b.brand, style: b.style, category: b.category, barcode: b.barcode },
+      rawQuery,
+    );
+    return scoreB - scoreA;
   });
 }
 
@@ -1231,7 +1367,17 @@ export default function SaleOrderEntry() {
         const grouped = groupVariantsByProductFamily(results, query);
         const enriched = await enrichSaleOrderSearchGroups(orgId, grouped, query);
         setProductSearchGroups(
-          sortSearchResults(enriched, query.trim().toLowerCase(), { productName: "productName" }),
+          [...enriched].sort((a, b) => {
+            const scoreA = scoreProductSearchMatch(
+              { product_name: a.productName, brand: a.brand, style: a.style, category: a.category },
+              query,
+            );
+            const scoreB = scoreProductSearchMatch(
+              { product_name: b.productName, brand: b.brand, style: b.style, category: b.category },
+              query,
+            );
+            return scoreB - scoreA;
+          }),
         );
       } catch (error) {
         console.error("Product search error:", error);
@@ -1844,13 +1990,24 @@ export default function SaleOrderEntry() {
                               <div className="flex flex-wrap gap-2 text-muted-foreground">
                                 {group.style && <span>{group.style}</span>}
                                 {group.brand && <span>{group.brand}</span>}
-                                {group.mrpMax > 0 && (
+                                {group.mrpStockBreakdown.length > 0 ? (
                                   <span className="font-medium text-foreground">
-                                    MRP{" "}
-                                    {group.mrpMin > 0 && group.mrpMin !== group.mrpMax
-                                      ? `₹${group.mrpMin.toFixed(0)}–₹${group.mrpMax.toFixed(0)}`
-                                      : `₹${group.mrpMax.toFixed(0)}`}
+                                    {group.mrpStockBreakdown.map(({ mrp, stock }, index) => (
+                                      <span key={mrp}>
+                                        {index > 0 ? " · " : ""}
+                                        MRP ₹{mrp.toFixed(0)}: {stock} pcs
+                                      </span>
+                                    ))}
                                   </span>
+                                ) : (
+                                  group.mrpMax > 0 && (
+                                    <span className="font-medium text-foreground">
+                                      MRP{" "}
+                                      {group.mrpMin > 0 && group.mrpMin !== group.mrpMax
+                                        ? `₹${group.mrpMin.toFixed(0)}–₹${group.mrpMax.toFixed(0)}`
+                                        : `₹${group.mrpMax.toFixed(0)}`}
+                                    </span>
+                                  )
                                 )}
                               </div>
                               <span
@@ -1861,7 +2018,7 @@ export default function SaleOrderEntry() {
                                     : "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200",
                                 )}
                               >
-                                Stock: {group.totalStock}
+                                Total Qty: {group.totalStock}
                               </span>
                             </div>
                           </div>
