@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { isCustomerReceiptVoucher } from "@/utils/paymentVoucherFilters";
+import { fetchItemsGrossBySaleId as fetchItemsGrossBySaleIdRpc } from "@/utils/fetchItemsGrossBySaleId";
 
 /**
  * Fetch all customers for an organization using range pagination.
@@ -82,37 +83,13 @@ export async function fetchAllSalesSummary(organizationId: string) {
   return allRows;
 }
 
-const SALE_ITEMS_GROSS_CHUNK = 200;
-
 /** Σ(mrp × qty) per sale — for customer balance pre/post-return gating. */
 export async function fetchItemsGrossBySaleId(
   organizationId: string,
   saleIds: string[],
 ): Promise<Map<string, number>> {
-  const map = new Map<string, number>();
-  const unique = [...new Set(saleIds.filter(Boolean))];
-  if (!organizationId || unique.length === 0) return map;
-
-  for (let i = 0; i < unique.length; i += SALE_ITEMS_GROSS_CHUNK) {
-    const chunk = unique.slice(i, i + SALE_ITEMS_GROSS_CHUNK);
-    const { data, error } = await supabase
-      .from("sale_items")
-      .select("sale_id, quantity, mrp")
-      .in("sale_id", chunk)
-      .is("deleted_at", null);
-    if (error) throw error;
-    for (const it of data || []) {
-      const sid = String((it as { sale_id?: string }).sale_id || "");
-      if (!sid) continue;
-      map.set(
-        sid,
-        (map.get(sid) || 0) +
-          (Number((it as { quantity?: number }).quantity) || 0) *
-            (Number((it as { mrp?: number }).mrp) || 0),
-      );
-    }
-  }
-  return map;
+  if (!organizationId || saleIds.length === 0) return new Map();
+  return fetchItemsGrossBySaleIdRpc(supabase, saleIds);
 }
 
 const TRUE_OUTSTANDING_RPC_CHUNK = 25;

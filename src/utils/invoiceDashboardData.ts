@@ -6,6 +6,7 @@ import {
   reconcileSaleInvoiceWithSplit,
   type SaleReceiptVoucherSplit,
 } from "@/utils/customerBalanceUtils";
+import { fetchItemsGrossBySaleId } from "@/utils/fetchItemsGrossBySaleId";
 import {
   derivePaidAndStatus,
   warnSettlementPathMismatch,
@@ -472,7 +473,7 @@ export async function reconcileInvoiceDashboardRows(
     .filter((inv: any) => Number(inv.sale_return_adjust || 0) > SR_RECONCILE_TOLERANCE)
     .map((inv: any) => inv.id)
     .filter(Boolean);
-  const itemsGrossBySale = await fetchItemsGrossForSales(client, saleIdsNeedingItemsGross);
+  const itemsGrossBySale = await fetchItemsGrossBySaleId(client, saleIdsNeedingItemsGross);
 
   let linkedReturns: Array<{
     linked_sale_id: string | null;
@@ -513,29 +514,6 @@ export async function reconcileInvoiceDashboardRows(
       cn_adjust_date: cnAdjustYmd,
     };
   });
-}
-
-async function fetchItemsGrossForSales(
-  client: SupabaseClient,
-  saleIds: string[],
-): Promise<Map<string, number>> {
-  const itemsGrossBySale = new Map<string, number>();
-  if (saleIds.length === 0) return itemsGrossBySale;
-
-  for (let i = 0; i < saleIds.length; i += 200) {
-    const idBatch = saleIds.slice(i, i + 200);
-    const { data: itemRows } = await client
-      .from("sale_items")
-      .select("sale_id, quantity, mrp")
-      .in("sale_id", idBatch)
-      .is("deleted_at", null);
-    (itemRows || []).forEach((it: any) => {
-      if (!it.sale_id) return;
-      const g = (Number(it.quantity) || 0) * (Number(it.mrp) || 0);
-      itemsGrossBySale.set(it.sale_id, (itemsGrossBySale.get(it.sale_id) || 0) + g);
-    });
-  }
-  return itemsGrossBySale;
 }
 
 /** Server-side paginated invoice rows with per-page reconcile (stats via RPC). */
@@ -790,7 +768,7 @@ export async function syncVisibleInvoiceStaleFields(
     .filter((inv: any) => Number(inv.sale_return_adjust || 0) > SR_RECONCILE_TOLERANCE)
     .map((inv: any) => inv.id)
     .filter(Boolean);
-  const itemsGrossBySale = await fetchItemsGrossForSales(client, saleIdsNeedingItemsGross);
+  const itemsGrossBySale = await fetchItemsGrossBySaleId(client, saleIdsNeedingItemsGross);
 
   return syncStaleInvoicePaymentFields(
     client,
