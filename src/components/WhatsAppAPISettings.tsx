@@ -23,6 +23,7 @@ import {
   isWappConnectSendProvider,
 } from "@/constants/whatsappSendProvider";
 import { normalizeWhatsAppAccessToken } from "@/lib/whatsappApiAuth";
+import { getWhatsAppErrorHint } from "@/utils/whatsappErrorHints";
 import { normalizeWhatsAppApiBaseUrl, normalizeWhatsAppApiVersion } from "@/lib/whatsappApiUrl";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
@@ -952,7 +953,8 @@ export const WhatsAppAPISettings = () => {
         </CardContent>
       </Card>
 
-      {/* Meta Template Configuration */}
+      {/* Meta Template Configuration — official Meta API only */}
+      {!isWappConnect && (
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
@@ -1094,6 +1096,7 @@ export const WhatsAppAPISettings = () => {
           />
         </CardContent>
       </Card>
+      )}
 
       {/* Auto-Send Settings */}
       <Card>
@@ -1205,7 +1208,9 @@ export const WhatsAppAPISettings = () => {
             )}
           </CardTitle>
           <CardDescription>
-            Send invoice PDF document along with the WhatsApp template message
+            {isWappConnect
+              ? "Attach invoice PDF via WappConnect (text + file in one send — no Meta 24-hour window)"
+              : "Send invoice PDF document along with the WhatsApp template message"}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -1252,6 +1257,20 @@ export const WhatsAppAPISettings = () => {
 
               <Separator />
 
+              {isWappConnect ? (
+                <Alert className="border-emerald-300 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/30">
+                  <CheckCircle className="h-4 w-4 text-emerald-700 dark:text-emerald-300" />
+                  <AlertTitle className="text-emerald-900 dark:text-emerald-100 font-semibold">
+                    WappConnect PDF delivery
+                  </AlertTitle>
+                  <AlertDescription className="text-sm text-emerald-800 dark:text-emerald-200">
+                    Invoice text comes from <strong>Message Templates → Sales Invoice / POS Billing Message</strong>.
+                    PDF is sent with that caption in one message. WappConnect is unofficial — there is{" "}
+                    <strong>no Meta 24-hour reply window</strong>.
+                  </AlertDescription>
+                </Alert>
+              ) : (
+              <>
               {/* Method Selection */}
               <div className="space-y-3">
                 <Label className="font-medium">PDF Delivery Method</Label>
@@ -1354,23 +1373,6 @@ export const WhatsAppAPISettings = () => {
                 </div>
               </div>
 
-              {/* PDF Minimum Amount Threshold */}
-              <div className="space-y-2">
-                <Label htmlFor="pdf_min_amount">Minimum sale amount for PDF attachment (₹)</Label>
-                <Input
-                  id="pdf_min_amount"
-                  type="number"
-                  min={0}
-                  step={1}
-                  placeholder="0 (always send PDF)"
-                  value={formData.pdf_min_amount || ""}
-                  onChange={(e) => handleInputChange("pdf_min_amount", parseFloat(e.target.value) || 0)}
-                />
-                <p className="text-xs text-muted-foreground">
-                  PDF will only be generated and sent for sales above this amount. Set to 0 to always send PDF.
-                </p>
-              </div>
-
               {/* Configuration Summary */}
               <Alert className={formData.use_document_header_template 
                 ? 'border-purple-300 bg-purple-100 dark:border-purple-700 dark:bg-purple-900/40' 
@@ -1397,6 +1399,25 @@ export const WhatsAppAPISettings = () => {
                   )}
                 </AlertDescription>
               </Alert>
+              </>
+              )}
+
+              {/* PDF Minimum Amount Threshold */}
+              <div className="space-y-2">
+                <Label htmlFor="pdf_min_amount">Minimum sale amount for PDF attachment (₹)</Label>
+                <Input
+                  id="pdf_min_amount"
+                  type="number"
+                  min={0}
+                  step={1}
+                  placeholder="0 (always send PDF)"
+                  value={formData.pdf_min_amount || ""}
+                  onChange={(e) => handleInputChange("pdf_min_amount", parseFloat(e.target.value) || 0)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  PDF will only be generated and sent for sales above this amount. Set to 0 to always send PDF.
+                </p>
+              </div>
             </>
           )}
 
@@ -1664,37 +1685,81 @@ export const WhatsAppAPISettings = () => {
             </div>
           </CardHeader>
           <CardContent>
-            {!recentWappConnectLogs?.length ? (
-              <p className="text-sm text-muted-foreground">No sends logged yet.</p>
-            ) : (
-              <div className="space-y-2">
-                {recentWappConnectLogs
-                  .filter((log) => log.provider === 'wappconnect' || !log.provider)
-                  .slice(0, 5)
-                  .map((log) => {
-                    const wc = log.provider_response as Record<string, unknown> | null;
-                    const endpoint = wc?.endpoint ? String(wc.endpoint) : null;
-                    return (
-                      <div key={log.id} className="rounded-lg border p-3 text-sm space-y-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <Badge variant={log.status === 'sent' ? 'default' : log.status === 'failed' ? 'destructive' : 'secondary'}>
-                            {log.status}
-                          </Badge>
-                          <span className="font-mono tabular-nums text-xs text-muted-foreground">
-                            {log.phone_number}
-                          </span>
-                          <span className="text-xs text-muted-foreground">
-                            {log.sent_at ? format(new Date(log.sent_at), 'PPp') : format(new Date(log.created_at), 'PPp')}
-                          </span>
-                        </div>
-                        <p className="text-xs truncate">{log.message || log.template_type}</p>
-                        {endpoint && <p className="text-xs font-mono text-muted-foreground">{endpoint}</p>}
-                        {log.error_message && <p className="text-xs text-destructive">{log.error_message}</p>}
-                      </div>
-                    );
-                  })}
-              </div>
-            )}
+            {(() => {
+              const wappConnectOnly = recentWappConnectLogs?.filter((log) => log.provider === "wappconnect") ?? [];
+              const metaMisrouted = recentWappConnectLogs?.filter(
+                (log) => log.provider !== "wappconnect" && log.status === "failed",
+              ) ?? [];
+
+              return (
+                <>
+                  {metaMisrouted.length > 0 && (
+                    <Alert className="mb-3 border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30">
+                      <AlertCircle className="h-4 w-4 text-amber-700" />
+                      <AlertDescription className="text-sm text-amber-900 dark:text-amber-100">
+                        {metaMisrouted.length} recent failed send(s) used the <strong>Meta API path</strong> (Provider:
+                        Legacy), not WappConnect. Errors like &quot;Re-engagement message&quot; are Meta&apos;s 24-hour rule —
+                        they do <strong>not</strong> apply to WappConnect. Save Send provider = WappConnect, deploy{" "}
+                        <code className="text-xs">send-whatsapp</code>, hard refresh (↻), then retry.
+                      </AlertDescription>
+                    </Alert>
+                  )}
+                  {!wappConnectOnly.length ? (
+                    <p className="text-sm text-muted-foreground">
+                      No WappConnect sends logged yet.
+                      {metaMisrouted.length > 0
+                        ? " See the warning above — recent failures may be Meta path, not WappConnect."
+                        : ""}
+                    </p>
+                  ) : (
+                    <div className="space-y-2">
+                      {wappConnectOnly.slice(0, 5).map((log) => {
+                        const wc = log.provider_response as Record<string, unknown> | null;
+                        const endpoint = wc?.endpoint ? String(wc.endpoint) : null;
+                        const hint = getWhatsAppErrorHint(log.error_message, log.provider_response, log.provider);
+                        return (
+                          <div key={log.id} className="rounded-lg border p-3 text-sm space-y-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <Badge
+                                variant={
+                                  log.status === "sent"
+                                    ? "default"
+                                    : log.status === "failed"
+                                      ? "destructive"
+                                      : "secondary"
+                                }
+                              >
+                                {log.status}
+                              </Badge>
+                              <Badge variant="outline" className="bg-emerald-50 text-emerald-800 border-emerald-300">
+                                WappConnect
+                              </Badge>
+                              <span className="font-mono tabular-nums text-xs text-muted-foreground">
+                                {log.phone_number}
+                              </span>
+                              <span className="text-xs text-muted-foreground">
+                                {log.sent_at
+                                  ? format(new Date(log.sent_at), "PPp")
+                                  : format(new Date(log.created_at), "PPp")}
+                              </span>
+                            </div>
+                            <p className="text-xs truncate">{log.message || log.template_type}</p>
+                            {endpoint && <p className="text-xs font-mono text-muted-foreground">{endpoint}</p>}
+                            {hint ? (
+                              <p className="text-xs text-destructive font-medium">{hint.title}</p>
+                            ) : (
+                              log.error_message && (
+                                <p className="text-xs text-destructive">{log.error_message}</p>
+                              )
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </>
+              );
+            })()}
           </CardContent>
         </Card>
       )}
