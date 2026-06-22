@@ -78,6 +78,7 @@ export interface WhatsAppSettings {
   // Invoice PDF attachment settings
   send_invoice_pdf: boolean;
   invoice_pdf_template: string | null;
+  pdf_min_amount?: number | null;
   // Document header template (PDF embedded in template - bypasses 24h window)
   use_document_header_template: boolean;
   invoice_document_template_name: string | null;
