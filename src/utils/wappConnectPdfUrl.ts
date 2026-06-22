@@ -3,7 +3,11 @@ import { supabase } from "@/integrations/supabase/client";
 const WAPPCONNECT_PDF_SERVE_FUNCTION = "serve-wappconnect-pdf";
 
 /** Stable edge-function URL for a WappConnect staging PDF (no signed-URL expiry). */
-export function buildWappConnectPdfServeUrl(supabaseUrl: string, storagePath: string): string {
+export function buildWappConnectPdfServeUrl(
+  supabaseUrl: string,
+  storagePath: string,
+  apikey?: string | null,
+): string {
   const base = String(supabaseUrl ?? "").trim().replace(/\/$/, "");
   if (!base) {
     throw new Error("Supabase URL is not configured");
@@ -11,6 +15,10 @@ export function buildWappConnectPdfServeUrl(supabaseUrl: string, storagePath: st
 
   const params = new URLSearchParams();
   params.set("path", storagePath);
+  const key = String(apikey ?? "").trim();
+  if (key) {
+    params.set("apikey", key);
+  }
   return `${base}/functions/v1/${WAPPCONNECT_PDF_SERVE_FUNCTION}?${params.toString()}`;
 }
 
@@ -49,5 +57,6 @@ export async function uploadWappConnectInvoicePdfFromBase64(
     throw new Error("Supabase URL is not configured");
   }
 
-  return buildWappConnectPdfServeUrl(supabaseUrl, filePath);
+  const publishableKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+  return buildWappConnectPdfServeUrl(supabaseUrl, filePath, publishableKey);
 }

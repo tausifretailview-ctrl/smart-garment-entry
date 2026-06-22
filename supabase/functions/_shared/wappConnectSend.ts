@@ -5,6 +5,7 @@ import {
   extractInvoicePdfStoragePath,
   extractWappConnectErrorMessage,
   isAllowedWappConnectPdfPath,
+  isWappConnectSignedStorageUrl,
   normalizeWappConnectFileUrl,
 } from "./wappConnectResponse.ts";
 
@@ -12,6 +13,7 @@ export {
   buildWappConnectPdfServeUrl,
   classifyWappConnectResponse,
   extractWappConnectErrorMessage,
+  isWappConnectSignedStorageUrl,
 } from "./wappConnectResponse.ts";
 
 const WAPPCONNECT_API_ORIGIN = "https://api.wappconnect.com";
@@ -68,7 +70,54 @@ export function redactWappConnectInstanceId(
   return value;
 }
 
+function redactApiKeyInUrl(url: string): string {
+  try {
+    const parsed = new URL(url);
+    const apikey = parsed.searchParams.get("apikey");
+    if (apikey) {
+      const visible = apikey.length > 4 ? apikey.slice(-4) : "";
+      const masked = "*".repeat(Math.max(apikey.length - visible.length, 0)) + visible;
+      parsed.searchParams.set("apikey", masked);
+    }
+    return parsed.toString();
+  } catch {
+    return url;
+  }
+}
+
+async function verifyWappConnectPdfUrl(fileUrl: string): Promise<string | undefined> {
+  try {
+    const response = await fetch(fileUrl, { method: "HEAD" });
+    if (!response.ok) {
+      return `Invoice PDF link is not reachable (HTTP ${response.status}). Deploy the serve-wappconnect-pdf edge function in Supabase, then retry.`;
+    }
+    const contentType = (response.headers.get("content-type") || "").toLowerCase();
+    if (
+      contentType &&
+      !contentType.includes("application/pdf") &&
+      !contentType.includes("application/octet-stream")
+    ) {
+      return `Invoice PDF link returned "${contentType}" instead of a PDF. WappConnect cannot attach this file — use serve-wappconnect-pdf, not a signed storage URL.`;
+    }
+  } catch (fetchError) {
+    const errMsg = fetchError instanceof Error ? fetchError.message : "network error";
+    return `Could not verify invoice PDF link before send: ${errMsg}`;
+  }
+  return undefined;
+}
+
+function wappConnectAnonKey(): string | null {
+  return Deno.env.get("SUPABASE_ANON_KEY") ?? Deno.env.get("SUPABASE_PUBLISHABLE_KEY") ?? null;
+}
+
 function pickMessageId(payload: Record<string, unknown>): string | undefined {
+  const nestedData = payload.data as Record<string, unknown> | undefined;
+  const nestedIds = nestedData?.messageIDs ?? nestedData?.messageIds ?? nestedData?.message_ids;
+  if (Array.isArray(nestedIds) && nestedIds.length > 0) {
+    const first = String(nestedIds[0] ?? "").trim();
+    if (first) return first;
+  }
+
   const candidates = [
     payload.id,
     payload.messageId,
@@ -77,7 +126,7 @@ function pickMessageId(payload: Record<string, unknown>): string | undefined {
     payload.msg_id,
     payload.queue_id,
     (payload.message as Record<string, unknown> | undefined)?.id,
-    (payload.data as Record<string, unknown> | undefined)?.id,
+    nestedData?.id,
   ];
 
   for (const candidate of candidates) {
@@ -132,6 +181,28 @@ export async function sendViaWappConnect(
   let message = String(input.message ?? "").trim();
   const filename = String(input.filename ?? "").trim() || "document.pdf";
 
+  if (fileUrl && isWappConnectSignedStorageUrl(fileUrl)) {
+    return {
+      success: false,
+      error:
+        "Signed storage PDF links cannot be delivered by WappConnect. Deploy serve-wappconnect-pdf and send-whatsapp, hard refresh (↻), then retry.",
+      endpoint: "",
+      requestUrlRedacted: "",
+    };
+  }
+
+  if (fileUrl) {
+    const pdfVerifyError = await verifyWappConnectPdfUrl(fileUrl);
+    if (pdfVerifyError) {
+      return {
+        success: false,
+        error: pdfVerifyError,
+        endpoint: "",
+        requestUrlRedacted: redactApiKeyInUrl(fileUrl),
+      };
+    }
+  }
+
   // WappConnect file endpoints require a text body — never send file-only via sendFiles.
   if (fileUrl && !message) {
     message = "Please find your document attached.";
@@ -176,7 +247,10 @@ export async function sendViaWappConnect(
   const url = new URL(endpoint, WAPPCONNECT_API_ORIGIN);
   applyParams(url);
 
-  const requestUrlRedacted = redactWappConnectInstanceId(url.toString(), token) as string;
+  const requestUrlRedacted = redactWappConnectInstanceId(
+    redactApiKeyInUrl(url.toString()),
+    token,
+  ) as string;
 
   let response: Response;
   try {
@@ -286,7 +360,7 @@ export async function resolveWappConnectFileUrl(
     throw new Error(`Failed to upload PDF for WappConnect: ${uploadError.message}`);
   }
 
-  return buildWappConnectPdfServeUrl(supabaseUrl, filePath);
+  return buildWappConnectPdfServeUrl(supabaseUrl, filePath, wappConnectAnonKey());
 }
 
 type WappConnectStorageClient = {
@@ -331,7 +405,7 @@ export async function rehostStoragePdfForWappConnect(
     throw new Error(`Failed to rehost PDF for WappConnect: ${uploadError.message}`);
   }
 
-  return buildWappConnectPdfServeUrl(supabaseUrl, filePath);
+  return buildWappConnectPdfServeUrl(supabaseUrl, filePath, wappConnectAnonKey());
 }
 
 /**
@@ -359,7 +433,7 @@ export async function ensureWappConnectPdfUrl(
   }
 
   if (isAllowedWappConnectPdfPath(storagePath)) {
-    return buildWappConnectPdfServeUrl(supabaseUrl, storagePath);
+    return buildWappConnectPdfServeUrl(supabaseUrl, storagePath, wappConnectAnonKey());
   }
 
   return rehostStoragePdfForWappConnect(

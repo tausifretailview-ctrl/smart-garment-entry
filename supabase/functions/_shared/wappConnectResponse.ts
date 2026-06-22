@@ -13,11 +13,25 @@ function isProviderFailureStatus(status: unknown): boolean {
   return Number.isFinite(numeric) && numeric >= 400;
 }
 
+/** Signed Supabase storage URLs hide the .pdf extension — WappConnect rejects them. */
+export function isWappConnectSignedStorageUrl(url: string | null | undefined): boolean {
+  return /\/storage\/v1\/object\/sign\/invoice-pdfs\//i.test(String(url ?? ""));
+}
+
 /** WappConnect often returns HTTP 200 with status:"400" in JSON. */
 export function extractWappConnectErrorMessage(payload: unknown): string | undefined {
   if (!payload || typeof payload !== "object") return undefined;
 
   const obj = payload as Record<string, unknown>;
+  const nested = obj.data;
+  if (nested && typeof nested === "object") {
+    const data = nested as Record<string, unknown>;
+    if (data.connStatus === false) {
+      return String(data.message ?? data.error ?? "WappConnect instance is not connected").trim()
+        || "WappConnect instance is not connected";
+    }
+  }
+
   if (obj.error !== undefined && obj.error !== null && obj.error !== "") {
     if (typeof obj.error === "string") return obj.error;
     if (typeof obj.error === "object") {
@@ -73,7 +87,11 @@ export function isAllowedWappConnectPdfPath(storagePath: string): boolean {
 }
 
 /** Stable edge-function URL for a stored WappConnect PDF (no signed-URL expiry). */
-export function buildWappConnectPdfServeUrl(supabaseUrl: string, storagePath: string): string {
+export function buildWappConnectPdfServeUrl(
+  supabaseUrl: string,
+  storagePath: string,
+  apikey?: string | null,
+): string {
   const base = String(supabaseUrl ?? "").trim().replace(/\/$/, "");
   if (!base) {
     throw new Error("SUPABASE_URL is not configured");
@@ -81,6 +99,10 @@ export function buildWappConnectPdfServeUrl(supabaseUrl: string, storagePath: st
 
   const params = new URLSearchParams();
   params.set("path", storagePath);
+  const key = String(apikey ?? "").trim();
+  if (key) {
+    params.set("apikey", key);
+  }
   return `${base}/functions/v1/${WAPPCONNECT_PDF_SERVE_FUNCTION}?${params.toString()}`;
 }
 
