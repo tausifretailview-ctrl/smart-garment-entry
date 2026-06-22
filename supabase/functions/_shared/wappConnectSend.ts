@@ -139,13 +139,16 @@ export async function sendViaWappConnect(
   }
 
   const fileUrl = String(input.fileUrl ?? "").trim();
-  const message = String(input.message ?? "").trim();
+  let message = String(input.message ?? "").trim();
+
+  // WappConnect file endpoints require a text body — never send file-only via sendFiles.
+  if (fileUrl && !message) {
+    message = "Please find your document attached.";
+  }
 
   let endpoint: string;
-  if (fileUrl && message) {
+  if (fileUrl) {
     endpoint = "/api/sendFileWithCaption";
-  } else if (fileUrl) {
-    endpoint = "/api/sendFiles";
   } else if (message) {
     endpoint = "/api/sendText";
   } else {
@@ -157,25 +160,27 @@ export async function sendViaWappConnect(
     };
   }
 
+  const applyParams = (url: URL) => {
+    url.searchParams.set("token", token);
+    url.searchParams.set("phone", normalizedPhone);
+    if (fileUrl) {
+      url.searchParams.set("link", fileUrl);
+    }
+    if (endpoint === "/api/sendFileWithCaption") {
+      url.searchParams.set("message", message);
+      url.searchParams.set("caption", message);
+      url.searchParams.set("text", message);
+      url.searchParams.set("body", message);
+      url.searchParams.set("msg", message);
+    } else if (message) {
+      url.searchParams.set("message", message);
+      url.searchParams.set("text", message);
+      url.searchParams.set("msg", message);
+    }
+  };
+
   const url = new URL(endpoint, WAPPCONNECT_API_ORIGIN);
-  url.searchParams.set("token", token);
-  url.searchParams.set("phone", normalizedPhone);
-
-  if (fileUrl) {
-    url.searchParams.set("link", fileUrl);
-  }
-
-  // WappConnect endpoints use different param names across versions.
-  // sendFileWithCaption requires a text body — set all known aliases.
-  if (endpoint === "/api/sendFileWithCaption") {
-    url.searchParams.set("message", message);
-    url.searchParams.set("caption", message);
-    url.searchParams.set("text", message);
-    url.searchParams.set("body", message);
-  } else if (message) {
-    url.searchParams.set("message", message);
-    url.searchParams.set("text", message);
-  }
+  applyParams(url);
 
   const requestUrlRedacted = redactWappConnectInstanceId(url.toString(), token) as string;
 
@@ -193,13 +198,43 @@ export async function sendViaWappConnect(
     };
   }
 
-  const rawBody = await response.text();
-  const responseData = parseWappConnectResponseBody(rawBody);
-  const responseObject = typeof responseData === "object" && responseData !== null
+  let rawBody = await response.text();
+  let responseData = parseWappConnectResponseBody(rawBody);
+  let responseObject = typeof responseData === "object" && responseData !== null
     ? responseData as Record<string, unknown>
     : { raw: responseData };
 
-  const providerError = extractErrorMessage(responseObject);
+  let providerError = extractErrorMessage(responseObject);
+
+  // Some WappConnect builds expect POST JSON for file+caption — retry once on GET failure.
+  if (fileUrl && providerError && /text body is required/i.test(providerError)) {
+    try {
+      const postResponse = await fetch(`${WAPPCONNECT_API_ORIGIN}${endpoint}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          token,
+          phone: normalizedPhone,
+          link: fileUrl,
+          message,
+          caption: message,
+          text: message,
+          body: message,
+          msg: message,
+        }),
+      });
+      rawBody = await postResponse.text();
+      responseData = parseWappConnectResponseBody(rawBody);
+      responseObject = typeof responseData === "object" && responseData !== null
+        ? responseData as Record<string, unknown>
+        : { raw: responseData };
+      providerError = extractErrorMessage(responseObject);
+      response = postResponse;
+    } catch {
+      // keep original GET error
+    }
+  }
+
   const messageId = pickMessageId(responseObject);
   const success = response.ok && !providerError;
 

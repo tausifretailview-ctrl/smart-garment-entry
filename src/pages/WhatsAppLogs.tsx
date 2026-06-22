@@ -119,11 +119,22 @@ const getFriendlyErrorHint = (
     };
   }
 
-  // 401 / unauthorized (Meta or third-party BSP e.g. WappConnect)
+  // WappConnect: missing caption on PDF send
+  if (raw.includes('text body is required')) {
+    return {
+      title: 'Message text missing for PDF',
+      reason:
+        'WappConnect requires caption text when sending an invoice PDF. The message body was empty when the send was attempted.',
+      action:
+        'Go to Settings → WhatsApp → Message Templates → Sales Invoice / POS Billing Message, paste the invoice message, Save Template, then retry. Also redeploy the send-whatsapp edge function if you recently updated the app.',
+    };
+  }
+
+  // 401 / unauthorized (Meta or third-party BSP) — not generic success:false
   if (
     raw.includes('unauthorized') ||
     raw.includes('401') ||
-    (providerResponse?.success === false && typeof providerResponse?.error === 'string')
+    errCode === 401
   ) {
     return {
       title: 'WhatsApp API not authorized',
@@ -184,7 +195,7 @@ const WhatsAppLogs = () => {
   const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'));
 
   // Fetch logs with date filter
-  const { data: logs, isLoading, refetch } = useQuery({
+  const { data: logs, isLoading, isFetching, refetch } = useQuery({
     queryKey: ['whatsapp-logs', statusFilter, typeFilter, providerFilter, selectedDate],
     queryFn: () => {
       const dateStart = startOfDay(new Date(selectedDate)).toISOString();
@@ -266,6 +277,11 @@ const WhatsAppLogs = () => {
     retryMessage(logId);
   };
 
+  const handleReload = async () => {
+    await refetch();
+    toast.success("Logs refreshed");
+  };
+
   const handleExport = () => {
     if (!filteredLogs.length) {
       toast.error("No logs to export");
@@ -304,9 +320,13 @@ const WhatsAppLogs = () => {
             </p>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" onClick={() => refetch()}>
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Refresh
+            <Button variant="outline" onClick={() => void handleReload()} disabled={isFetching}>
+              {isFetching ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4 mr-2" />
+              )}
+              Reload
             </Button>
             <Button variant="outline" onClick={handleExport}>
               <Download className="h-4 w-4 mr-2" />

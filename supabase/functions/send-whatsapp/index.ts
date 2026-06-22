@@ -675,14 +675,22 @@ serve(async (req) => {
       }
 
       // PDF + caption: WappConnect requires non-empty text body with sendFileWithCaption
-      if (resolvedFileUrl && !resolvedMessage && saleData) {
+      if (resolvedFileUrl && !resolvedMessage) {
         const { data: companySettings } = await supabase
           .from('settings')
           .select('business_name')
           .eq('organization_id', organizationId)
           .maybeSingle();
         const orgName = companySettings?.business_name || orgSettings?.business_name || 'Our Company';
-        resolvedMessage = buildWappConnectInvoiceFallbackCaption(saleData, orgName);
+        if (saleData) {
+          resolvedMessage = buildWappConnectInvoiceFallbackCaption(saleData, orgName);
+        } else {
+          resolvedMessage = String(documentCaption ?? '').trim()
+            || `Invoice ${documentFilename || 'attached'}`;
+        }
+      }
+      if (resolvedFileUrl && !resolvedMessage) {
+        resolvedMessage = 'Please find your invoice attached.';
       }
       if (!resolvedMessage && (templateName || templateType)) {
         resolvedMessage = `WhatsApp notification (${templateName || templateType})`;

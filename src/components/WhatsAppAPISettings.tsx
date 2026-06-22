@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { useWhatsAppAPI, TemplateParam, SocialLinks } from "@/hooks/useWhatsAppAPI";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useTierBasedRefresh } from "@/hooks/useTierBasedRefresh";
 import { MetaTemplateSelector } from "@/components/MetaTemplateSelector";
@@ -47,7 +47,8 @@ import {
     Instagram,
     Facebook,
     Star,
-    FileText
+    FileText,
+    RefreshCw,
   } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -75,6 +76,7 @@ function formatLastSendProxyStatus(
 }
 
 export const WhatsAppAPISettings = () => {
+  const queryClient = useQueryClient();
   const { 
     settings, 
     settingsLoading, 
@@ -244,12 +246,22 @@ export const WhatsAppAPISettings = () => {
     staleTime: 5 * 60 * 1000,
   });
 
-  const { data: recentWappConnectLogs } = useQuery({
+  const { data: recentWappConnectLogs, isFetching: recentLogsFetching, refetch: refetchRecentLogs } = useQuery({
     queryKey: ['whatsapp-recent-wappconnect-logs'],
     queryFn: () => fetchMessageLogs({ limit: 8 }),
     enabled: formData.send_provider === 'wappconnect',
-    staleTime: 60 * 1000,
+    staleTime: 30 * 1000,
   });
+
+  const handleReloadWhatsAppLogs = async () => {
+    await Promise.all([
+      refetchRecentLogs(),
+      refetchLastSendStatus(),
+      queryClient.invalidateQueries({ queryKey: ['whatsapp-logs'] }),
+      queryClient.invalidateQueries({ queryKey: ['whatsapp-stats'] }),
+    ]);
+    toast.success("WhatsApp logs refreshed");
+  };
 
   const handleInputChange = (field: string, value: string | boolean | number | string[] | TemplateParam[] | SocialLinks) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -367,6 +379,23 @@ export const WhatsAppAPISettings = () => {
               : "Configure Official WhatsApp Business API for automated messaging"}
           </p>
         </div>
+        <div className="flex items-center gap-2">
+          {isWappConnect && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => void handleReloadWhatsAppLogs()}
+              disabled={recentLogsFetching}
+            >
+              {recentLogsFetching ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4 mr-2" />
+              )}
+              Reload logs
+            </Button>
+          )}
         <Badge variant={formData.is_active && isConfigured ? "default" : "secondary"}>
           {formData.is_active && isConfigured ? (
             <><CheckCircle className="h-3 w-3 mr-1" /> Connected</>
@@ -374,6 +403,7 @@ export const WhatsAppAPISettings = () => {
             <><XCircle className="h-3 w-3 mr-1" /> Disconnected</>
           )}
         </Badge>
+        </div>
       </div>
 
       {/* Setup Guide Alert */}
@@ -1606,13 +1636,32 @@ export const WhatsAppAPISettings = () => {
       {isWappConnect && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
-              <MessageSquare className="h-4 w-4" />
-              Recent WappConnect sends
-            </CardTitle>
-            <CardDescription>
-              Latest log entries for this org. Open WhatsApp Logs for full history and API response details.
-            </CardDescription>
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <MessageSquare className="h-4 w-4" />
+                  Recent WappConnect sends
+                </CardTitle>
+                <CardDescription>
+                  Latest log entries for this org. Open WhatsApp Logs for full history and API response details.
+                </CardDescription>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="shrink-0"
+                onClick={() => void handleReloadWhatsAppLogs()}
+                disabled={recentLogsFetching}
+              >
+                {recentLogsFetching ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4" />
+                )}
+                <span className="ml-2">Reload</span>
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
             {!recentWappConnectLogs?.length ? (
