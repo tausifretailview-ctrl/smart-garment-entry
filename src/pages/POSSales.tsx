@@ -138,6 +138,7 @@ import { MixPaymentDialog } from "@/components/MixPaymentDialog";
 import { PriceSelectionDialog } from "@/components/PriceSelectionDialog";
 import { QuickServiceProductDialog } from "@/components/QuickServiceProductDialog";
 import { printInvoicePDF, generateInvoiceFromHTML, printInvoiceDirectly, printA5BillFormat, generateInvoiceBase64 } from "@/utils/pdfGenerator";
+import { isWappConnectSendProvider } from "@/constants/whatsappSendProvider";
 import { useWhatsAppAPI } from "@/hooks/useWhatsAppAPI";
 import { format } from "date-fns";
 import { useReactToPrint } from "react-to-print";
@@ -4387,7 +4388,36 @@ export default function POSSales() {
         items_count: items.reduce((s, i) => s + i.quantity, 0),
         organization_name: currentOrganization?.name,
         organization_id: currentOrganization?.id,
+        bill_context: 'pos',
+        sale_source: 'pos',
       };
+
+      if (isWappConnectSendProvider(waSettings.send_provider)) {
+        if (!waSettings.auto_send_invoice) return;
+
+        const invoiceDom = invoicePrintRef.current;
+        let pdfBase64: string | undefined;
+        const shouldAttachPdf =
+          waSettings.send_invoice_pdf &&
+          netAmount >= (waSettings.pdf_min_amount ?? 0);
+
+        if (shouldAttachPdf && invoiceDom) {
+          await new Promise(r => setTimeout(r, 500));
+          pdfBase64 = (await generateInvoiceBase64(invoiceDom)) || undefined;
+        }
+
+        await sendMessageAsync({
+          phone,
+          message: '',
+          templateType: 'sales_invoice',
+          referenceId: saleId,
+          referenceType: 'sale',
+          saleData,
+          pdfBlob: pdfBase64,
+          documentFilename: `Invoice_${saleNumber.replace(/\//g, '-')}.pdf`,
+        });
+        return;
+      }
 
       // If send_invoice_pdf is OFF — just send text template
       if (!waSettings.send_invoice_pdf) {

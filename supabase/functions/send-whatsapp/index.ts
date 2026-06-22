@@ -13,6 +13,7 @@ import {
   resolveWappConnectFileUrl,
   sendViaWappConnect,
 } from "../_shared/wappConnectSend.ts";
+import { buildMessageFromWhatsAppTemplate } from "../_shared/whatsappMessageTemplate.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -615,6 +616,25 @@ serve(async (req) => {
       }
 
       let resolvedMessage = String(message ?? '').trim();
+      if (!resolvedMessage && saleData && templateType) {
+        const { data: companySettings } = await supabase
+          .from('settings')
+          .select('business_name')
+          .eq('organization_id', organizationId)
+          .maybeSingle();
+        const orgName = companySettings?.business_name || orgSettings?.business_name || 'Our Company';
+
+        const templateMessage = await buildMessageFromWhatsAppTemplate({
+          supabase,
+          organizationId,
+          templateType,
+          saleData,
+          orgName,
+        });
+        if (templateMessage) {
+          resolvedMessage = templateMessage;
+        }
+      }
       if (!resolvedMessage && saleData && orgSettings && templateType) {
         const paramMappingKey = `${templateType.replace('sales_', '')}_template_params`;
         const paramMapping = orgSettings[paramMappingKey] as TemplateParamMapping[] | null;

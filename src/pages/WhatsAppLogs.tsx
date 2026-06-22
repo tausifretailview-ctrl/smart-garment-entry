@@ -155,18 +155,37 @@ const getFriendlyErrorHint = (
   return null;
 };
 
+const getProviderBadge = (provider?: string | null) => {
+  if (provider === 'wappconnect') {
+    return <Badge variant="outline" className="bg-emerald-50 text-emerald-800 border-emerald-300">WappConnect</Badge>;
+  }
+  if (provider === 'existing') {
+    return <Badge variant="outline" className="bg-blue-50 text-blue-800 border-blue-300">Meta/BSP</Badge>;
+  }
+  return <Badge variant="outline" className="text-muted-foreground">Legacy</Badge>;
+};
+
+const getWappConnectLogDetails = (providerResponse?: Record<string, unknown> | null) => {
+  if (!providerResponse) return null;
+  const endpoint = String(providerResponse.endpoint || '');
+  const requestUrl = String(providerResponse.requestUrl || '');
+  if (!endpoint && !requestUrl) return null;
+  return { endpoint, requestUrl };
+};
+
 const WhatsAppLogs = () => {
   const { fetchMessageLogs, retryMessage, isRetrying } = useWhatsAppAPI();
   
   const [statusFilter, setStatusFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
+  const [providerFilter, setProviderFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedLog, setSelectedLog] = useState<WhatsAppLog | null>(null);
   const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'));
 
   // Fetch logs with date filter
   const { data: logs, isLoading, refetch } = useQuery({
-    queryKey: ['whatsapp-logs', statusFilter, typeFilter, selectedDate],
+    queryKey: ['whatsapp-logs', statusFilter, typeFilter, providerFilter, selectedDate],
     queryFn: () => {
       const dateStart = startOfDay(new Date(selectedDate)).toISOString();
       const dateEnd = endOfDay(new Date(selectedDate)).toISOString();
@@ -195,6 +214,11 @@ const WhatsAppLogs = () => {
   }, [logs]);
 
   const filteredLogs = logs?.filter(log => {
+    if (providerFilter !== 'all') {
+      const logProvider = log.provider || 'existing';
+      if (providerFilter === 'wappconnect' && logProvider !== 'wappconnect') return false;
+      if (providerFilter === 'existing' && logProvider !== 'existing') return false;
+    }
     if (!searchQuery) return true;
     const query = searchQuery.toLowerCase();
     return (
@@ -253,6 +277,7 @@ const WhatsAppLogs = () => {
       'Phone': log.phone_number,
       'Type': log.template_type,
       'Status': log.status,
+      'Provider': log.provider || 'existing',
       'Message': log.message?.substring(0, 100) || '',
       'Error': log.error_message || '',
       'Message ID': log.wamid || '',
@@ -275,7 +300,7 @@ const WhatsAppLogs = () => {
               WhatsApp Message Logs
             </h1>
             <p className="text-muted-foreground">
-              Track all WhatsApp messages sent via the Business API
+              Track WhatsApp messages — Meta/BSP and WappConnect sends
             </p>
           </div>
           <div className="flex gap-2">
@@ -402,6 +427,16 @@ const WhatsAppLogs = () => {
                   <SelectItem value="test">Test</SelectItem>
                 </SelectContent>
               </Select>
+              <Select value={providerFilter} onValueChange={setProviderFilter}>
+                <SelectTrigger className="w-[160px]">
+                  <SelectValue placeholder="Provider" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Providers</SelectItem>
+                  <SelectItem value="wappconnect">WappConnect</SelectItem>
+                  <SelectItem value="existing">Meta/BSP</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </CardContent>
         </Card>
@@ -429,6 +464,7 @@ const WhatsAppLogs = () => {
                       <TableHead>Date/Time</TableHead>
                       <TableHead>Phone</TableHead>
                       <TableHead>Type</TableHead>
+                      <TableHead>Provider</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Message</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
@@ -442,6 +478,7 @@ const WhatsAppLogs = () => {
                         </TableCell>
                         <TableCell className="font-mono">{log.phone_number}</TableCell>
                         <TableCell>{getTypeBadge(log.template_type)}</TableCell>
+                        <TableCell>{getProviderBadge(log.provider)}</TableCell>
                         <TableCell>{getStatusBadge(log.status)}</TableCell>
                         <TableCell className="max-w-[200px] truncate">
                           {log.status === 'failed' && getFriendlyErrorHint(log.error_message, log.provider_response) ? (
@@ -506,6 +543,10 @@ const WhatsAppLogs = () => {
                   <div>
                     <label className="text-sm font-medium text-muted-foreground">Type</label>
                     <div className="mt-1">{getTypeBadge(selectedLog.template_type)}</div>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-muted-foreground">Provider</label>
+                    <div className="mt-1">{getProviderBadge(selectedLog.provider)}</div>
                   </div>
                   <div>
                     <label className="text-sm font-medium text-muted-foreground">Sent At</label>
@@ -578,6 +619,27 @@ const WhatsAppLogs = () => {
                     </div>
                   </div>
                 )}
+                {selectedLog.provider === 'wappconnect' && (() => {
+                  const wc = getWappConnectLogDetails(selectedLog.provider_response as Record<string, unknown> | null);
+                  if (!wc) return null;
+                  return (
+                    <div className="rounded-lg border bg-emerald-50/50 dark:bg-emerald-950/20 p-3 space-y-2">
+                      <p className="text-sm font-medium text-emerald-900 dark:text-emerald-100">WappConnect send details</p>
+                      {wc.endpoint && (
+                        <div>
+                          <label className="text-xs text-muted-foreground">API endpoint</label>
+                          <p className="font-mono text-xs">{wc.endpoint}</p>
+                        </div>
+                      )}
+                      {wc.requestUrl && (
+                        <div>
+                          <label className="text-xs text-muted-foreground">Request URL (instance id redacted)</label>
+                          <p className="font-mono text-xs break-all">{wc.requestUrl}</p>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
                 {selectedLog.provider_response && (
                   <div>
                     <label className="text-sm font-medium text-muted-foreground">API Response</label>

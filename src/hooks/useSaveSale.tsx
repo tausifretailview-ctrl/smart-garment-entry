@@ -838,14 +838,13 @@ export const useSaveSale = () => {
           // Check WhatsApp settings
           const { data: whatsappSettings } = await supabase
             .from('whatsapp_api_settings')
-            .select('is_active, auto_send_invoice, invoice_template_name, auto_send_invoice_link, invoice_link_message, social_links, send_invoice_pdf, invoice_pdf_template, use_document_header_template, invoice_document_template_name, pdf_min_amount')
+            .select('is_active, auto_send_invoice, send_provider, invoice_template_name, auto_send_invoice_link, invoice_link_message, social_links, send_invoice_pdf, invoice_pdf_template, use_document_header_template, invoice_document_template_name, pdf_min_amount')
             .eq('organization_id', currentOrganization.id)
             .maybeSingle();
 
           if (whatsappSettings?.is_active && whatsappSettings?.auto_send_invoice) {
             // Read cached org settings (centralized)
             const companySettings = orgSettings as any;
-            const logoUrl = (companySettings?.bill_barcode_settings as Record<string, any> | null)?.logo_url as string | undefined;
             const companyName = companySettings?.business_name || currentOrganization.name || 'Our Company';
             
             // Build invoice message for template parameters
@@ -879,13 +878,76 @@ export const useSaveSale = () => {
               pos_bill_format: (saleSettings as any)?.pos_bill_format || '',
               invoice_template: (saleSettings as any)?.invoice_template || '',
               sale_source: 'pos',
-              // Include social links from settings
               website: (whatsappSettings.social_links as Record<string, string> | null)?.website || '',
               instagram: (whatsappSettings.social_links as Record<string, string> | null)?.instagram || '',
               facebook: (whatsappSettings.social_links as Record<string, string> | null)?.facebook || '',
               google_review_link: (whatsappSettings.social_links as Record<string, string> | null)?.google_review || '',
             };
 
+            const isWappConnect = whatsappSettings.send_provider === 'wappconnect';
+
+            if (isWappConnect) {
+              try {
+                const documentFilename = `Invoice_${saleNumber.replace(/\//g, '-')}.pdf`;
+                let pdfBase64: string | null = null;
+                const shouldAttachPdf =
+                  whatsappSettings.send_invoice_pdf &&
+                  (saleData.netAmount ?? 0) >= (whatsappSettings.pdf_min_amount ?? 0);
+
+                if (shouldAttachPdf) {
+                  const taxAmount = saleData.items.reduce((sum, item) => {
+                    const taxableAmount = item.netAmount / (1 + item.gstPer / 100);
+                    return sum + (item.netAmount - taxableAmount);
+                  }, 0);
+
+                  const pdfData: InvoicePdfData = {
+                    billNo: saleNumber,
+                    billDate: new Date(sale.sale_date || sale.created_at || Date.now()),
+                    customerName: saleData.customerName,
+                    customerPhone: saleData.customerPhone || undefined,
+                    items: saleData.items.map(item => ({
+                      particulars: item.productName,
+                      size: item.size,
+                      quantity: item.quantity,
+                      rate: item.unitCost,
+                      mrp: item.mrp,
+                      discount: item.discountPercent,
+                      gstPercent: item.gstPer,
+                      total: item.netAmount,
+                      hsnCode: item.hsnCode,
+                      color: item.color,
+                    })),
+                    grossAmount: saleData.grossAmount,
+                    discountAmount: saleData.discountAmount,
+                    taxAmount: taxAmount,
+                    netAmount: saleData.netAmount,
+                    paymentMethod: finalPaymentMethod,
+                    paidAmount: paidAmt,
+                    companyName: companyName,
+                    companyAddress: companySettings?.address || undefined,
+                    companyPhone: companySettings?.mobile_number || undefined,
+                    companyGst: companySettings?.gst_number || undefined,
+                  };
+                  pdfBase64 = generateInvoicePdfBase64(pdfData);
+                }
+
+                await supabase.functions.invoke('send-whatsapp', {
+                  body: {
+                    organizationId: currentOrganization.id,
+                    phone: saleData.customerPhone,
+                    message: '',
+                    templateType: 'sales_invoice',
+                    saleData: saleDataForWhatsApp,
+                    referenceId: sale.id,
+                    referenceType: 'sale',
+                    pdfBlob: pdfBase64 || undefined,
+                    documentFilename,
+                  },
+                });
+              } catch (wappConnectError) {
+                console.error('WhatsApp WappConnect invoice send failed:', wappConnectError);
+              }
+            } else {
             // ============================================
             // FLOW A: Utility/Text Template (TEXT or NONE header)
             // Always send when a utility template is configured
@@ -905,7 +967,6 @@ export const useSaveSale = () => {
                     saleData: saleDataForWhatsApp,
                     referenceId: sale.id,
                     referenceType: 'sale',
-                    // Flow A: No PDF attachment
                     documentUrl: undefined,
                     documentFilename: undefined,
                     documentCaption: undefined,
@@ -915,7 +976,6 @@ export const useSaveSale = () => {
                   }
                 });
               } catch (flowAError) {
-                // Log Flow A failure but continue to Flow B if enabled
                 console.error('WhatsApp Flow A (utility template) failed:', flowAError);
               }
             }
@@ -923,7 +983,6 @@ export const useSaveSale = () => {
             // ============================================
             // FLOW B: Document Header Template with PDF
             // Only if "Direct PDF Delivery" is enabled AND document template is set
-            // This uses DOCUMENT header template (bypasses 24h window)
             // ============================================
             const shouldSendPdfFlow = whatsappSettings.use_document_header_template && 
               !!whatsappSettings.invoice_document_template_name &&
@@ -931,7 +990,6 @@ export const useSaveSale = () => {
 
             if (shouldSendPdfFlow) {
               try {
-                // Calculate tax amount for PDF
                 const taxAmount = saleData.items.reduce((sum, item) => {
                   const taxableAmount = item.netAmount / (1 + item.gstPer / 100);
                   return sum + (item.netAmount - taxableAmount);
@@ -967,8 +1025,6 @@ export const useSaveSale = () => {
                 };
 
                 const documentFilename = `Invoice_${saleNumber.replace(/\//g, '-')}.pdf`;
-                
-                // Generate base64 PDF for Meta upload
                 const pdfBase64 = generateInvoicePdfBase64(pdfData);
 
                 if (pdfBase64) {
@@ -978,11 +1034,10 @@ export const useSaveSale = () => {
                       phone: saleData.customerPhone,
                       message: `Invoice ${saleNumber} PDF attached`,
                       templateType: 'sales_invoice_pdf',
-                      templateName: null, // Don't use regular template for PDF flow
+                      templateName: null,
                       saleData: saleDataForWhatsApp,
                       referenceId: sale.id,
                       referenceType: 'sale',
-                      // Flow B: PDF embedded in document header template
                       useDocumentHeaderTemplate: true,
                       documentHeaderTemplateName: whatsappSettings.invoice_document_template_name,
                       pdfBlob: pdfBase64,
@@ -991,9 +1046,9 @@ export const useSaveSale = () => {
                   });
                 }
               } catch (flowBError) {
-                // Flow B failure should NOT block the sale
                 console.error('WhatsApp Flow B (PDF delivery) failed:', flowBError);
               }
+            }
             }
           }
         } catch (whatsappError) {

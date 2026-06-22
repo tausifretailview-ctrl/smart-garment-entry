@@ -82,6 +82,8 @@ export const WhatsAppAPISettings = () => {
     isUpdating,
     maskedWappConnectInstanceId,
     lastSendStatus,
+    refetchLastSendStatus,
+    fetchMessageLogs,
     saveWappConnectInstanceAsync,
     isSavingWappConnectInstance,
     testConnection,
@@ -240,6 +242,13 @@ export const WhatsAppAPISettings = () => {
     queryFn: getMessageStats,
     refetchInterval: false,
     staleTime: 5 * 60 * 1000,
+  });
+
+  const { data: recentWappConnectLogs } = useQuery({
+    queryKey: ['whatsapp-recent-wappconnect-logs'],
+    queryFn: () => fetchMessageLogs({ limit: 8 }),
+    enabled: formData.send_provider === 'wappconnect',
+    staleTime: 60 * 1000,
   });
 
   const handleInputChange = (field: string, value: string | boolean | number | string[] | TemplateParam[] | SocialLinks) => {
@@ -730,6 +739,27 @@ export const WhatsAppAPISettings = () => {
               <Label htmlFor="is_active">Enable WhatsApp API Integration</Label>
             </div>
           </div>
+
+          {!formData.is_active && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Integration disabled</AlertTitle>
+              <AlertDescription className="text-sm">
+                When this is off, no WhatsApp messages are sent — including invoice auto-send, test messages, and manual sends.
+                Turn it <strong>on</strong> and save to deliver invoices via WappConnect.
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {isWappConnect && formData.is_active && (
+            <Alert>
+              <Info className="h-4 w-4" />
+              <AlertDescription className="text-sm">
+                Invoice message text comes from <strong>Settings → WhatsApp → Message Templates → Sales Invoice / POS Billing Message</strong> (placeholders like {"{customer_name}"}, {"{invoice_number}"}, {"{amount}"}).
+                Enable <strong>Send Invoice PDF</strong> below to attach the PDF via WappConnect.
+              </AlertDescription>
+            </Alert>
+          )}
 
           <Separator />
 
@@ -1572,6 +1602,53 @@ export const WhatsAppAPISettings = () => {
           </div>
         </CardContent>
       </Card>
+
+      {isWappConnect && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <MessageSquare className="h-4 w-4" />
+              Recent WappConnect sends
+            </CardTitle>
+            <CardDescription>
+              Latest log entries for this org. Open WhatsApp Logs for full history and API response details.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {!recentWappConnectLogs?.length ? (
+              <p className="text-sm text-muted-foreground">No sends logged yet.</p>
+            ) : (
+              <div className="space-y-2">
+                {recentWappConnectLogs
+                  .filter((log) => log.provider === 'wappconnect' || !log.provider)
+                  .slice(0, 5)
+                  .map((log) => {
+                    const wc = log.provider_response as Record<string, unknown> | null;
+                    const endpoint = wc?.endpoint ? String(wc.endpoint) : null;
+                    return (
+                      <div key={log.id} className="rounded-lg border p-3 text-sm space-y-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Badge variant={log.status === 'sent' ? 'default' : log.status === 'failed' ? 'destructive' : 'secondary'}>
+                            {log.status}
+                          </Badge>
+                          <span className="font-mono tabular-nums text-xs text-muted-foreground">
+                            {log.phone_number}
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            {log.sent_at ? format(new Date(log.sent_at), 'PPp') : format(new Date(log.created_at), 'PPp')}
+                          </span>
+                        </div>
+                        <p className="text-xs truncate">{log.message || log.template_type}</p>
+                        {endpoint && <p className="text-xs font-mono text-muted-foreground">{endpoint}</p>}
+                        {log.error_message && <p className="text-xs text-destructive">{log.error_message}</p>}
+                      </div>
+                    );
+                  })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Save Button */}
       <div className="flex justify-end">
