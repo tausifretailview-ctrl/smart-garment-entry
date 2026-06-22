@@ -25,6 +25,7 @@ import {
 } from "@/utils/insertSaleItemsInChunks";
 import { invalidateAfterSaleSave } from "@/utils/invalidateDashboardQueries";
 import { istCalendarYmd, saleDateIsoIst } from "@/lib/localDayBounds";
+import { buildSalesInvoiceWhatsAppCaption } from "@/utils/whatsappInvoiceCaption";
 
 interface CartItem {
   id: string;
@@ -931,11 +932,17 @@ export const useSaveSale = () => {
                   pdfBase64 = generateInvoicePdfBase64(pdfData);
                 }
 
+                const invoiceCaption = await buildSalesInvoiceWhatsAppCaption(
+                  currentOrganization.id,
+                  saleDataForWhatsApp,
+                  companyName,
+                );
+
                 await supabase.functions.invoke('send-whatsapp', {
                   body: {
                     organizationId: currentOrganization.id,
                     phone: saleData.customerPhone,
-                    message: '',
+                    message: invoiceCaption,
                     templateType: 'sales_invoice',
                     saleData: saleDataForWhatsApp,
                     referenceId: sale.id,

@@ -52,13 +52,25 @@ import * as XLSX from "xlsx";
  */
 const getFriendlyErrorHint = (
   errorMessage?: string | null,
-  providerResponse?: any
+  providerResponse?: any,
+  provider?: string | null,
 ): { title: string; reason: string; action: string } | null => {
   const raw = `${errorMessage || ''} ${JSON.stringify(providerResponse || {})}`.toLowerCase();
   const errCode =
     providerResponse?.error?.code ||
     providerResponse?.errors?.[0]?.code ||
     providerResponse?.message?.error?.code;
+
+  // WappConnect PDF on an old edge build (provider column empty → "Legacy" badge)
+  if (raw.includes('text body is required') && provider !== 'wappconnect') {
+    return {
+      title: 'Message text missing for PDF (old send path)',
+      reason:
+        'Your Message Template is saved, but this send used an older server path that did not attach the caption. Provider shows Legacy instead of WappConnect.',
+      action:
+        'Settings → WhatsApp API → Send provider = WappConnect (Save). Then deploy the latest send-whatsapp edge function + DB migrations. Hard refresh (↻) and retry.',
+    };
+  }
 
   // 131026 — Message undeliverable (recipient not on WhatsApp / inactive / blocked)
   if (errCode === 131026 || raw.includes('message undeliverable') || raw.includes('undeliverable')) {
@@ -126,7 +138,7 @@ const getFriendlyErrorHint = (
       reason:
         'WappConnect requires caption text when sending an invoice PDF. The message body was empty when the send was attempted.',
       action:
-        'Go to Settings → WhatsApp → Message Templates → Sales Invoice / POS Billing Message, paste the invoice message, Save Template, then retry. Also redeploy the send-whatsapp edge function if you recently updated the app.',
+        'Your Message Template text is probably fine — check Settings → WhatsApp API → Send provider is WappConnect (saved), then redeploy the send-whatsapp edge function and apply pending DB migrations. Retry after a hard refresh (top-bar ↻).',
     };
   }
 
@@ -501,10 +513,10 @@ const WhatsAppLogs = () => {
                         <TableCell>{getProviderBadge(log.provider)}</TableCell>
                         <TableCell>{getStatusBadge(log.status)}</TableCell>
                         <TableCell className="max-w-[200px] truncate">
-                          {log.status === 'failed' && getFriendlyErrorHint(log.error_message, log.provider_response) ? (
-                            <span className="text-red-600 text-xs flex items-center gap-1" title={getFriendlyErrorHint(log.error_message, log.provider_response)?.reason}>
+                          {log.status === 'failed' && getFriendlyErrorHint(log.error_message, log.provider_response, log.provider) ? (
+                            <span className="text-red-600 text-xs flex items-center gap-1" title={getFriendlyErrorHint(log.error_message, log.provider_response, log.provider)?.reason}>
                               <Info className="h-3 w-3 shrink-0" />
-                              {getFriendlyErrorHint(log.error_message, log.provider_response)?.title}
+                              {getFriendlyErrorHint(log.error_message, log.provider_response, log.provider)?.title}
                             </span>
                           ) : (
                             <>{log.message?.substring(0, 50)}...</>
@@ -612,7 +624,7 @@ const WhatsAppLogs = () => {
                       {selectedLog.error_message}
                     </div>
                     {(() => {
-                      const hint = getFriendlyErrorHint(selectedLog.error_message, selectedLog.provider_response);
+                      const hint = getFriendlyErrorHint(selectedLog.error_message, selectedLog.provider_response, selectedLog.provider);
                       if (!hint) return null;
                       return (
                         <div className="mt-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm space-y-2">

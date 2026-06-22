@@ -139,6 +139,7 @@ import { PriceSelectionDialog } from "@/components/PriceSelectionDialog";
 import { QuickServiceProductDialog } from "@/components/QuickServiceProductDialog";
 import { printInvoicePDF, generateInvoiceFromHTML, printInvoiceDirectly, printA5BillFormat, generateInvoiceBase64 } from "@/utils/pdfGenerator";
 import { isWappConnectSendProvider } from "@/constants/whatsappSendProvider";
+import { buildSalesInvoiceWhatsAppCaption } from "@/utils/whatsappInvoiceCaption";
 import { useWhatsAppAPI } from "@/hooks/useWhatsAppAPI";
 import { format } from "date-fns";
 import { useReactToPrint } from "react-to-print";
@@ -4406,9 +4407,17 @@ export default function POSSales() {
           pdfBase64 = (await generateInvoiceBase64(invoiceDom)) || undefined;
         }
 
+        const invoiceCaption = currentOrganization?.id
+          ? await buildSalesInvoiceWhatsAppCaption(
+              currentOrganization.id,
+              saleData,
+              currentOrganization.name || "",
+            )
+          : `Your invoice ${saleNumber} is attached.`;
+
         await sendMessageAsync({
           phone,
-          message: '',
+          message: invoiceCaption,
           templateType: 'sales_invoice',
           referenceId: saleId,
           referenceType: 'sale',
