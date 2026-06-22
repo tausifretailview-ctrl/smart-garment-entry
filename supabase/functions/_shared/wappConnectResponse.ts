@@ -83,3 +83,45 @@ export function buildWappConnectPdfServeUrl(supabaseUrl: string, storagePath: st
   params.set("path", storagePath);
   return `${base}/functions/v1/${WAPPCONNECT_PDF_SERVE_FUNCTION}?${params.toString()}`;
 }
+
+const INVOICE_PDF_BUCKET_MARKER = "/invoice-pdfs/";
+
+/** Parse invoice-pdfs storage path from serve URL, public URL, or signed URL. */
+export function extractInvoicePdfStoragePath(fileUrl: string): string | null {
+  const trimmed = String(fileUrl ?? "").trim();
+  if (!trimmed) return null;
+
+  try {
+    const parsed = new URL(trimmed);
+    if (parsed.pathname.includes(`/${WAPPCONNECT_PDF_SERVE_FUNCTION}`)) {
+      const path = parsed.searchParams.get("path")?.trim();
+      return path || null;
+    }
+
+    const markerIndex = parsed.pathname.indexOf(INVOICE_PDF_BUCKET_MARKER);
+    if (markerIndex >= 0) {
+      const rawPath = parsed.pathname.slice(markerIndex + INVOICE_PDF_BUCKET_MARKER.length);
+      return decodeURIComponent(rawPath).replace(/^\/+/, "") || null;
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+}
+
+/** Rewrite signed/public storage URLs to serve-wappconnect-pdf when path is allowed. */
+export function normalizeWappConnectFileUrl(supabaseUrl: string, fileUrl: string): string {
+  const trimmed = String(fileUrl ?? "").trim();
+  if (!trimmed) return trimmed;
+  if (trimmed.includes(`/functions/v1/${WAPPCONNECT_PDF_SERVE_FUNCTION}`)) {
+    return trimmed;
+  }
+
+  const storagePath = extractInvoicePdfStoragePath(trimmed);
+  if (storagePath && isAllowedWappConnectPdfPath(storagePath)) {
+    return buildWappConnectPdfServeUrl(supabaseUrl, storagePath);
+  }
+
+  return trimmed;
+}

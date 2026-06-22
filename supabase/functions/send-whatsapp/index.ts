@@ -9,6 +9,7 @@ import { normalizeWhatsAppApiBaseUrl, normalizeWhatsAppApiVersion } from "../_sh
 import { buildPublicInvoiceViewUrl } from "../_shared/publicInvoiceLink.ts";
 import { formatPhoneNumber } from "../_shared/whatsappPhone.ts";
 import {
+  ensureWappConnectPdfUrl,
   redactWappConnectInstanceId,
   resolveWappConnectFileUrl,
   sendViaWappConnect,
@@ -712,6 +713,24 @@ serve(async (req) => {
           );
         } catch (uploadError) {
           const errMsg = uploadError instanceof Error ? uploadError.message : 'PDF upload failed';
+          return new Response(
+            JSON.stringify({ success: false, error: errMsg }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+          );
+        }
+      }
+
+      if (resolvedFileUrl) {
+        try {
+          resolvedFileUrl = await ensureWappConnectPdfUrl(
+            supabase,
+            organizationId,
+            resolvedFileUrl,
+            documentFilename || 'Invoice.pdf',
+            Deno.env.get('SUPABASE_URL') ?? '',
+          );
+        } catch (normalizeError) {
+          const errMsg = normalizeError instanceof Error ? normalizeError.message : 'PDF URL normalization failed';
           return new Response(
             JSON.stringify({ success: false, error: errMsg }),
             { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },

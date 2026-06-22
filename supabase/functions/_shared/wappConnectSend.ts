@@ -2,7 +2,10 @@ import { formatPhoneNumber } from "./whatsappPhone.ts";
 import {
   buildWappConnectPdfServeUrl,
   classifyWappConnectResponse,
+  extractInvoicePdfStoragePath,
   extractWappConnectErrorMessage,
+  isAllowedWappConnectPdfPath,
+  normalizeWappConnectFileUrl,
 } from "./wappConnectResponse.ts";
 
 export {
@@ -284,4 +287,86 @@ export async function resolveWappConnectFileUrl(
   }
 
   return buildWappConnectPdfServeUrl(supabaseUrl, filePath);
+}
+
+type WappConnectStorageClient = {
+  storage: {
+    from: (bucket: string) => {
+      upload: (
+        path: string,
+        body: Uint8Array,
+        opts: { contentType: string; upsert: boolean },
+      ) => Promise<{ error: { message: string } | null }>;
+      download: (path: string) => Promise<{ data: Blob | null; error: { message: string } | null }>;
+    };
+  };
+};
+
+/** Copy an existing invoice-pdfs object into org/wappconnect/ and return serve URL. */
+export async function rehostStoragePdfForWappConnect(
+  supabase: WappConnectStorageClient,
+  organizationId: string,
+  sourcePath: string,
+  filename: string,
+  supabaseUrl: string,
+): Promise<string> {
+  const { data, error } = await supabase.storage.from("invoice-pdfs").download(sourcePath);
+  if (error || !data) {
+    throw new Error(`Failed to download PDF for WappConnect: ${error?.message ?? "not found"}`);
+  }
+
+  const bytes = new Uint8Array(await data.arrayBuffer());
+  const timestamp = Date.now();
+  const safeName = String(filename || "document.pdf").replace(/[^a-zA-Z0-9-_.]/g, "_");
+  const filePath = `${organizationId}/wappconnect/${timestamp}_${safeName}`;
+
+  const { error: uploadError } = await supabase.storage
+    .from("invoice-pdfs")
+    .upload(filePath, bytes, {
+      contentType: "application/pdf",
+      upsert: true,
+    });
+
+  if (uploadError) {
+    throw new Error(`Failed to rehost PDF for WappConnect: ${uploadError.message}`);
+  }
+
+  return buildWappConnectPdfServeUrl(supabaseUrl, filePath);
+}
+
+/**
+ * Ensure WappConnect receives a serve-wappconnect-pdf URL (not a signed storage URL).
+ * Signed URLs hide the .pdf extension and cause "unsupported media type" 400 errors.
+ */
+export async function ensureWappConnectPdfUrl(
+  supabase: WappConnectStorageClient,
+  organizationId: string,
+  fileUrl: string,
+  filename: string,
+  supabaseUrl: string,
+): Promise<string> {
+  const trimmed = String(fileUrl ?? "").trim();
+  if (!trimmed) return trimmed;
+
+  const normalized = normalizeWappConnectFileUrl(supabaseUrl, trimmed);
+  if (normalized.includes("/functions/v1/serve-wappconnect-pdf")) {
+    return normalized;
+  }
+
+  const storagePath = extractInvoicePdfStoragePath(trimmed);
+  if (!storagePath || !storagePath.startsWith(`${organizationId}/`)) {
+    return trimmed;
+  }
+
+  if (isAllowedWappConnectPdfPath(storagePath)) {
+    return buildWappConnectPdfServeUrl(supabaseUrl, storagePath);
+  }
+
+  return rehostStoragePdfForWappConnect(
+    supabase,
+    organizationId,
+    storagePath,
+    filename,
+    supabaseUrl,
+  );
 }
