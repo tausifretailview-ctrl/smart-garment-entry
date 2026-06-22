@@ -24,6 +24,8 @@ import {
 } from "@/constants/whatsappSendProvider";
 import { normalizeWhatsAppAccessToken } from "@/lib/whatsappApiAuth";
 import { getWhatsAppErrorHint } from "@/utils/whatsappErrorHints";
+import { getEffectiveWhatsAppLogStatus, getWappConnectRequestUrl } from "@/utils/whatsappLogStatus";
+import { isWappConnectSignedStorageUrl } from "@/utils/wappConnectPdfUrl";
 import { normalizeWhatsAppApiBaseUrl, normalizeWhatsAppApiVersion } from "@/lib/whatsappApiUrl";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
@@ -1712,9 +1714,23 @@ export const WhatsAppAPISettings = () => {
               const metaMisrouted = recentWappConnectLogs?.filter(
                 (log) => log.provider !== "wappconnect" && log.status === "failed",
               ) ?? [];
+              const needsEdgeDeploy = wappConnectOnly.some((log) =>
+                isWappConnectSignedStorageUrl(getWappConnectRequestUrl(log.provider_response)),
+              );
 
               return (
                 <>
+                  {needsEdgeDeploy && (
+                    <Alert className="mb-3 border-red-300 bg-red-50 dark:border-red-800 dark:bg-red-950/30">
+                      <AlertCircle className="h-4 w-4 text-red-700" />
+                      <AlertDescription className="text-sm text-red-900 dark:text-red-100">
+                        Recent invoice PDF sends still used a <strong>signed storage URL</strong> — WappConnect cannot read
+                        that link. Deploy <code className="text-xs">serve-wappconnect-pdf</code> and{" "}
+                        <code className="text-xs">send-whatsapp</code> in Supabase, hard refresh (↻), then save a new
+                        POS sale to test. The app now uploads PDFs to a stable serve URL before sending.
+                      </AlertDescription>
+                    </Alert>
+                  )}
                   {metaMisrouted.length > 0 && (
                     <Alert className="mb-3 border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30">
                       <AlertCircle className="h-4 w-4 text-amber-700" />
@@ -1738,20 +1754,21 @@ export const WhatsAppAPISettings = () => {
                       {wappConnectOnly.slice(0, 5).map((log) => {
                         const wc = log.provider_response as Record<string, unknown> | null;
                         const endpoint = wc?.endpoint ? String(wc.endpoint) : null;
+                        const effectiveStatus = getEffectiveWhatsAppLogStatus(log);
                         const hint = getWhatsAppErrorHint(log.error_message, log.provider_response, log.provider);
                         return (
                           <div key={log.id} className="rounded-lg border p-3 text-sm space-y-1">
                             <div className="flex flex-wrap items-center gap-2">
                               <Badge
                                 variant={
-                                  log.status === "sent"
+                                  effectiveStatus === "sent"
                                     ? "default"
-                                    : log.status === "failed"
+                                    : effectiveStatus === "failed"
                                       ? "destructive"
                                       : "secondary"
                                 }
                               >
-                                {log.status}
+                                {effectiveStatus}
                               </Badge>
                               <Badge variant="outline" className="bg-emerald-50 text-emerald-800 border-emerald-300">
                                 WappConnect
