@@ -245,12 +245,26 @@ function syncRendererViewportFromMain() {
 
 /** Mimics the manual maximize/restore resize that fixes clipped POS/bill footers in the WebView. */
 function nudgeMaximizedLayout() {
-  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.isMaximized()) return;
-  const [w, h] = mainWindow.getContentSize();
-  if (w <= 0 || h <= 0) return;
-  mainWindow.setContentSize(w, h - 1);
-  mainWindow.setContentSize(w, h);
-  syncRendererViewportFromMain();
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  // Real unmaximize → remaximize replicates exactly what clicking the Windows
+  // restore/maximize buttons does — sends a genuine WM_SIZE message that forces
+  // Chromium's compositor to recompute the full viewport height.
+  // The old setContentSize nudge does NOT trigger the same compositor path.
+  if (mainWindow.isMaximized()) {
+    mainWindow.unmaximize();
+    setTimeout(() => {
+      if (!mainWindow || mainWindow.isDestroyed()) return;
+      mainWindow.maximize();
+      setTimeout(syncRendererViewportFromMain, 80);
+    }, 80);
+  } else {
+    // Fallback for non-maximized windows
+    const [w, h] = mainWindow.getContentSize();
+    if (w <= 0 || h <= 0) return;
+    mainWindow.setContentSize(w, h - 1);
+    mainWindow.setContentSize(w, h);
+    syncRendererViewportFromMain();
+  }
 }
 
 function notifyRendererLayoutSync() {
@@ -625,17 +639,36 @@ function createWindow() {
     setTimeout(notifyRendererLayoutSync, 500);
   });
 
+  // SPA route changes — re-sync viewport on every in-page navigation (POS tab click,
+  // menu shortcut, Alt+P etc.) so footer is correct without any manual maximize toggle.
+  mainWindow.webContents.on('did-navigate-in-page', () => {
+    setTimeout(notifyRendererLayoutSync, 80);
+    setTimeout(notifyRendererLayoutSync, 300);
+  });
+
   // Show maximized by default so bill entry footers and fields fit without manual resize
   mainWindow.once('ready-to-show', () => {
     try { closeSplash(); } catch {}
     ensureMainWindowMaximized();
     mainWindow.show();
     mainWindow.focus();
-    const layoutPasses = [0, 50, 150, 400, 900];
-    layoutPasses.forEach((ms) => {
+
+    // Early passes: sync CSS vars only — window is not yet painted, nudge would be ignored
+    [0, 60, 200].forEach((ms) => {
       setTimeout(() => {
         ensureMainWindowMaximized();
-        if (ms <= 150) nudgeMaximizedLayout();
+        notifyRendererLayoutSync();
+      }, ms);
+    });
+
+    // 800ms: real unmaximize → remaximize once Chromium has committed its first frame.
+    // This is the key fix — forces full viewport recompute so POS/Sale footer appears.
+    setTimeout(() => nudgeMaximizedLayout(), 800);
+
+    // Late passes: re-sync CSS vars after the nudge has settled
+    [1100, 1800, 2500].forEach((ms) => {
+      setTimeout(() => {
+        ensureMainWindowMaximized();
         notifyRendererLayoutSync();
       }, ms);
     });
