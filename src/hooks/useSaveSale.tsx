@@ -9,6 +9,7 @@ import type { SaveSaleRuntimeOptions } from "@/utils/saveSaleRuntimeOptions";
 import { useShopName } from "@/hooks/useShopName";
 import { useSettings } from "@/hooks/useSettings";
 import { generateAndUploadInvoicePDF, InvoicePdfData, generateInvoicePdfBase64 } from "@/utils/invoicePdfUploader";
+import { uploadWappConnectInvoicePdfFromBase64 } from "@/utils/wappConnectPdfUrl";
 import { insertLedgerDebit, insertLedgerCredit, deleteLedgerEntries } from "@/lib/customerLedger";
 import { deleteJournalEntryByReference, postSaleJournalInBackground } from "@/utils/accounting/journalService";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
@@ -938,6 +939,15 @@ export const useSaveSale = () => {
                   companyName,
                 );
 
+                let wappConnectDocumentUrl: string | undefined;
+                if (pdfBase64) {
+                  wappConnectDocumentUrl = await uploadWappConnectInvoicePdfFromBase64(
+                    pdfBase64,
+                    currentOrganization.id,
+                    documentFilename,
+                  );
+                }
+
                 await supabase.functions.invoke('send-whatsapp', {
                   body: {
                     organizationId: currentOrganization.id,
@@ -947,7 +957,7 @@ export const useSaveSale = () => {
                     saleData: saleDataForWhatsApp,
                     referenceId: sale.id,
                     referenceType: 'sale',
-                    pdfBlob: pdfBase64 || undefined,
+                    documentUrl: wappConnectDocumentUrl,
                     documentFilename,
                     useWappConnect: true,
                   },

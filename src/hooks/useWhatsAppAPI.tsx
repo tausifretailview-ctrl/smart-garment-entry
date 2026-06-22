@@ -6,6 +6,7 @@ import {
   type WhatsAppSendProvider,
   isWappConnectSendProvider,
 } from "@/constants/whatsappSendProvider";
+import { uploadWappConnectInvoicePdfFromBase64 } from "@/utils/wappConnectPdfUrl";
 
 export interface TemplateParam {
   index: number;
@@ -325,6 +326,21 @@ export const useWhatsAppAPI = () => {
     mutationFn: async (params: SendMessageParams) => {
       if (!currentOrganization?.id) throw new Error('No organization selected');
 
+      const useWappConnect = isWappConnectSendProvider(settings?.send_provider);
+      let documentUrl = params.documentUrl;
+      let pdfBlob = params.pdfBlob;
+
+      // Upload PDF client-side so WappConnect gets serve-wappconnect-pdf URL even when
+      // production still runs an older send-whatsapp build that returns signed URLs.
+      if (useWappConnect && pdfBlob) {
+        documentUrl = await uploadWappConnectInvoicePdfFromBase64(
+          pdfBlob,
+          currentOrganization.id,
+          params.documentFilename || 'Invoice.pdf',
+        );
+        pdfBlob = undefined;
+      }
+
       const { data, error } = await supabase.functions.invoke('send-whatsapp', {
         body: {
           organizationId: currentOrganization.id,
@@ -336,7 +352,7 @@ export const useWhatsAppAPI = () => {
           referenceType: params.referenceType,
           saleData: params.saleData, // Pass saleData for template parameter building
           // Document attachment for PDF
-          documentUrl: params.documentUrl,
+          documentUrl,
           documentFilename: params.documentFilename,
           documentCaption: params.documentCaption,
           // Image attachment (e.g., logo)
@@ -345,8 +361,8 @@ export const useWhatsAppAPI = () => {
           // Document header template (PDF embedded in template)
           useDocumentHeaderTemplate: params.useDocumentHeaderTemplate,
           documentHeaderTemplateName: params.documentHeaderTemplateName,
-          pdfBlob: params.pdfBlob,
-          useWappConnect: isWappConnectSendProvider(settings?.send_provider),
+          pdfBlob,
+          useWappConnect,
         },
       });
 

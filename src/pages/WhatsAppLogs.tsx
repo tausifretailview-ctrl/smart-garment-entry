@@ -46,6 +46,7 @@ import {
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 import { getWhatsAppErrorHint } from "@/utils/whatsappErrorHints";
+import { getEffectiveWhatsAppLogStatus } from "@/utils/whatsappLogStatus";
 
 /** @deprecated use getWhatsAppErrorHint — kept as alias for this file */
 const getFriendlyErrorHint = (
@@ -101,14 +102,18 @@ const WhatsAppLogs = () => {
   // Calculate stats from the fetched logs for the selected date
   const stats = useMemo(() => {
     if (!logs) return null;
+    const withEffectiveStatus = logs.map((log) => ({
+      ...log,
+      effectiveStatus: getEffectiveWhatsAppLogStatus(log),
+    }));
     return {
       total: logs.length,
-      sent: logs.filter(l => l.status === 'sent').length,
-      delivered: logs.filter(l => l.status === 'delivered').length,
-      read: logs.filter(l => l.status === 'read').length,
-      failed: logs.filter(l => l.status === 'failed').length,
-      pending: logs.filter(l => l.status === 'pending').length,
-      retried: logs.filter(l => l.status === 'retried').length,
+      sent: withEffectiveStatus.filter((l) => l.effectiveStatus === 'sent').length,
+      delivered: withEffectiveStatus.filter((l) => l.effectiveStatus === 'delivered').length,
+      read: withEffectiveStatus.filter((l) => l.effectiveStatus === 'read').length,
+      failed: withEffectiveStatus.filter((l) => l.effectiveStatus === 'failed').length,
+      pending: withEffectiveStatus.filter((l) => l.effectiveStatus === 'pending').length,
+      retried: withEffectiveStatus.filter((l) => l.effectiveStatus === 'retried').length,
     };
   }, [logs]);
 
@@ -379,7 +384,10 @@ const WhatsAppLogs = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredLogs.map((log) => (
+                    {filteredLogs.map((log) => {
+                      const effectiveStatus = getEffectiveWhatsAppLogStatus(log);
+                      const errorHint = getFriendlyErrorHint(log.error_message, log.provider_response, log.provider);
+                      return (
                       <TableRow key={log.id}>
                         <TableCell className="whitespace-nowrap">
                           {format(new Date(log.created_at), 'dd/MM/yyyy HH:mm')}
@@ -387,12 +395,12 @@ const WhatsAppLogs = () => {
                         <TableCell className="font-mono">{log.phone_number}</TableCell>
                         <TableCell>{getTypeBadge(log.template_type)}</TableCell>
                         <TableCell>{getProviderBadge(log.provider)}</TableCell>
-                        <TableCell>{getStatusBadge(log.status)}</TableCell>
+                        <TableCell>{getStatusBadge(effectiveStatus)}</TableCell>
                         <TableCell className="max-w-[200px] truncate">
-                          {log.status === 'failed' && getFriendlyErrorHint(log.error_message, log.provider_response, log.provider) ? (
-                            <span className="text-red-600 text-xs flex items-center gap-1" title={getFriendlyErrorHint(log.error_message, log.provider_response, log.provider)?.reason}>
+                          {effectiveStatus === 'failed' && errorHint ? (
+                            <span className="text-red-600 text-xs flex items-center gap-1" title={errorHint.reason}>
                               <Info className="h-3 w-3 shrink-0" />
-                              {getFriendlyErrorHint(log.error_message, log.provider_response, log.provider)?.title}
+                              {errorHint.title}
                             </span>
                           ) : (
                             <>{log.message?.substring(0, 50)}...</>
@@ -407,7 +415,7 @@ const WhatsAppLogs = () => {
                             >
                               <Eye className="h-4 w-4" />
                             </Button>
-                            {log.status === 'failed' && (
+                            {effectiveStatus === 'failed' && (
                               <Button
                                 variant="ghost"
                                 size="sm"
@@ -420,7 +428,7 @@ const WhatsAppLogs = () => {
                           </div>
                         </TableCell>
                       </TableRow>
-                    ))}
+                    );})}
                   </TableBody>
                 </Table>
               </div>
@@ -437,7 +445,9 @@ const WhatsAppLogs = () => {
                 Message Details
               </DialogTitle>
             </DialogHeader>
-            {selectedLog && (
+            {selectedLog && (() => {
+              const effectiveStatus = getEffectiveWhatsAppLogStatus(selectedLog);
+              return (
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
@@ -446,7 +456,7 @@ const WhatsAppLogs = () => {
                   </div>
                   <div>
                     <label className="text-sm font-medium text-muted-foreground">Status</label>
-                    <div className="mt-1">{getStatusBadge(selectedLog.status)}</div>
+                    <div className="mt-1">{getStatusBadge(effectiveStatus)}</div>
                   </div>
                   <div>
                     <label className="text-sm font-medium text-muted-foreground">Type</label>
@@ -493,11 +503,11 @@ const WhatsAppLogs = () => {
                     </div>
                   </div>
                 )}
-                {selectedLog.error_message && selectedLog.status !== 'retried' && (
+                {effectiveStatus === 'failed' && selectedLog.status !== 'retried' && (
                   <div>
                     <label className="text-sm font-medium text-red-600">Error</label>
                     <div className="mt-1 p-3 bg-red-50 text-red-800 rounded-lg text-sm">
-                      {selectedLog.error_message}
+                      {selectedLog.error_message || getFriendlyErrorHint(selectedLog.error_message, selectedLog.provider_response, selectedLog.provider)?.reason || 'WappConnect rejected the send.'}
                     </div>
                     {(() => {
                       const hint = getFriendlyErrorHint(selectedLog.error_message, selectedLog.provider_response, selectedLog.provider);
@@ -557,7 +567,7 @@ const WhatsAppLogs = () => {
                   </div>
                 )}
               </div>
-            )}
+            );})()}
           </DialogContent>
       </Dialog>
     </div>
