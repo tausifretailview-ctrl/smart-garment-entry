@@ -4395,16 +4395,22 @@ export default function POSSales() {
 
       if (isWappConnectSendProvider(waSettings.send_provider)) {
         if (!waSettings.auto_send_invoice) return;
+        if (waSettings.send_invoice_pdf === false) return;
 
         const invoiceDom = invoicePrintRef.current;
         let pdfBase64: string | undefined;
         const shouldAttachPdf =
-          waSettings.send_invoice_pdf &&
+          waSettings.send_invoice_pdf !== false &&
           netAmount >= (waSettings.pdf_min_amount ?? 0);
 
         if (shouldAttachPdf && invoiceDom) {
           await new Promise(r => setTimeout(r, 500));
           pdfBase64 = (await generateInvoiceBase64(invoiceDom)) || undefined;
+        }
+
+        if (shouldAttachPdf && !pdfBase64) {
+          console.error('WhatsApp WappConnect invoice PDF was enabled but PDF generation failed; skipping text-only send.');
+          return;
         }
 
         const invoiceCaption = currentOrganization?.id
