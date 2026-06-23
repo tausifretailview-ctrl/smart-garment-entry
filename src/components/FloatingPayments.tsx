@@ -39,6 +39,7 @@ import { safeMapGet } from "@/lib/coerceToMap";
 import { loadSupplierBalanceMapForOrg } from "@/utils/supplierBalanceUtils";
 import { whatsappPaymentReceiptDiscountLines } from "@/utils/paymentReceiptWhatsApp";
 import { confirmInvoiceOverpaymentIfNeeded } from "@/utils/invoiceOverpaymentGuard";
+import { confirmSupplierOverpaymentIfNeeded } from "@/utils/supplierOverpaymentGuard";
 import { PaymentReceipt } from "@/components/PaymentReceipt";
 import { useReactToPrint } from "react-to-print";
 import { AdaptiveCustomerPicker } from "@/components/mobile/AdaptiveCustomerPicker";
@@ -755,6 +756,20 @@ function SupplierPaymentForm({ organizationId }: { organizationId: string }) {
       if (!referenceId) throw new Error("Please select a supplier");
       if (!amount || parseFloat(amount) <= 0) throw new Error("Enter valid amount");
       const paymentAmount = parseFloat(amount);
+
+      const supplierName =
+        suppliersWithBalance?.find((s) => s.id === referenceId)?.supplier_name || "Supplier";
+      const overpayConfirmed = await confirmSupplierOverpaymentIfNeeded(supabase, {
+        organizationId,
+        supplierId: referenceId,
+        supplierName,
+        proposedSettlement: paymentAmount,
+        selectedBillIds: selectedBillIds,
+      });
+      if (!overpayConfirmed) {
+        throw new Error("Payment cancelled");
+      }
+
       let remainingAmount = paymentAmount;
       const processedBills: any[] = [];
 
@@ -781,7 +796,6 @@ function SupplierPaymentForm({ organizationId }: { organizationId: string }) {
       if (paymentMethod === 'cheque' && chequeNumber) paymentDetails = ` | Cheque No: ${chequeNumber}`;
       else if ((paymentMethod === 'upi' || paymentMethod === 'bank_transfer') && transactionId) paymentDetails = ` | Transaction ID: ${transactionId}`;
 
-      const supplierName = suppliersWithBalance?.find(s => s.id === referenceId)?.supplier_name || 'Supplier';
       const isOBPayment = selectedBillIds.length === 0;
       const billNumbers = processedBills.map(p => p.bill.software_bill_no || p.bill.supplier_invoice_no || p.bill.id.slice(0, 8)).join(', ');
       const finalDesc = description || (isOBPayment ? `Opening Balance Payment to ${supplierName}${paymentDetails}` : `Payment for Bills: ${billNumbers}${paymentDetails}`);

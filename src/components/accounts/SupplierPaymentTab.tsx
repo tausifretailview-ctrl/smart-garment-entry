@@ -54,6 +54,7 @@ import {
   SETTLEMENT_TOLERANCE_RUPEE,
   voucherSettlementCredit,
 } from "@/utils/paymentSettlementBreakdown";
+import { confirmSupplierOverpaymentIfNeeded } from "@/utils/supplierOverpaymentGuard";
 
 function roundMoney(n: number): number {
   return Math.round(n * 100) / 100;
@@ -391,6 +392,18 @@ export function SupplierPaymentTab({
       const discountValue = breakdown.discount;
       if (paymentAmount <= 0 && discountValue <= 0) {
         throw new Error("Cash payment or discount must be greater than zero");
+      }
+
+      const overpayConfirmed = await confirmSupplierOverpaymentIfNeeded(supabase, {
+        organizationId,
+        supplierId: referenceId,
+        supplierName:
+          suppliersWithBalance?.find((s: { id: string }) => s.id === referenceId)?.supplier_name,
+        proposedSettlement: breakdown.settlement,
+        selectedBillIds: selectedSupplierBillIds,
+      });
+      if (!overpayConfirmed) {
+        throw new Error("Payment cancelled");
       }
 
       let remainingCash = paymentAmount;
