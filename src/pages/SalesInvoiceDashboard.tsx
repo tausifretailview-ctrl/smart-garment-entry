@@ -113,6 +113,7 @@ import {
   fetchInvoiceDashboardPage,
   fetchInvoiceDashboardStats,
   patchInvoiceDashboardDeliveryStatus,
+  patchInvoiceDashboardPaymentFields,
   reconcileInvoiceDashboardRows,
   refetchInvoiceDashboardQueries,
   syncVisibleInvoiceStaleFields,
@@ -2369,6 +2370,16 @@ export default function SalesInvoiceDashboard() {
       effectivePaidAmount = reconciledPaid;
       effectiveCNAdjust = latestSRAdjust;
 
+      const orgId = currentOrganization!.id;
+      const saleId = selectedInvoiceForPayment.id;
+      const paymentOutstanding = Math.max(0, Math.round(payableCap - reconciledPaid));
+      patchInvoiceDashboardPaymentFields(queryClient, orgId, saleId, {
+        paid_amount: reconciledPaid,
+        payment_status: reconciledStatus,
+        outstanding: paymentOutstanding,
+        sale_return_adjust: latestSRAdjust,
+      });
+
       toast({
         title: "Payment Recorded",
         description: `Payment of ₹${amount.toFixed(2)} recorded successfully`,
@@ -2394,9 +2405,8 @@ export default function SalesInvoiceDashboard() {
       setReceiptData(newReceiptData);
       setShowPaymentDialog(false);
       setShowReceiptDialog(true);
-      invalidateSalesQueriesNow(queryClient, currentOrganization?.id);
-      void queryClient.invalidateQueries({ queryKey: ["invoice-dashboard-unified"] });
-      void queryClient.invalidateQueries({ queryKey: ["sales-invoice-dashboard"] });
+      invalidateSalesQueriesNow(queryClient, orgId);
+      await refetchInvoiceDashboardQueries(queryClient, orgId);
       queryClient.invalidateQueries({ queryKey: ["journal-vouchers"] });
     } catch (error: unknown) {
       toast({
@@ -2516,7 +2526,7 @@ export default function SalesInvoiceDashboard() {
       }));
 
       if (orgId) {
-        void refetchInvoiceDashboardQueries(queryClient, orgId);
+        await refetchInvoiceDashboardQueries(queryClient, orgId);
       }
 
       toast({

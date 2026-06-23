@@ -613,16 +613,11 @@ export function invalidateInvoiceDashboardQueries(
   });
 }
 
-/** Instant delivery badge update — avoids waiting on reconcile refetch + keepPreviousData. */
-export function patchInvoiceDashboardDeliveryStatus(
+function patchInvoiceDashboardCachedRows(
   queryClient: QueryClient,
   organizationId: string,
-  saleId: string,
-  deliveryStatus: string,
+  patchRow: (inv: any) => any,
 ) {
-  const patchRow = (inv: any) =>
-    inv?.id === saleId ? { ...inv, delivery_status: deliveryStatus } : inv;
-
   queryClient.setQueriesData(
     { queryKey: [INVOICE_DASHBOARD_QUERY_KEY, organizationId] },
     (old: unknown) => {
@@ -634,8 +629,6 @@ export function patchInvoiceDashboardDeliveryStatus(
         const row = old as {
           invoices?: any[];
           sourceRows?: any[];
-          deliveredCount?: number;
-          undeliveredCount?: number;
         };
         if (Array.isArray(row.invoices) || Array.isArray(row.sourceRows)) {
           return {
@@ -648,6 +641,51 @@ export function patchInvoiceDashboardDeliveryStatus(
       return old;
     },
   );
+}
+
+/** Instant delivery badge update — avoids waiting on reconcile refetch + keepPreviousData. */
+export function patchInvoiceDashboardDeliveryStatus(
+  queryClient: QueryClient,
+  organizationId: string,
+  saleId: string,
+  deliveryStatus: string,
+) {
+  patchInvoiceDashboardCachedRows(queryClient, organizationId, (inv) =>
+    inv?.id === saleId ? { ...inv, delivery_status: deliveryStatus } : inv,
+  );
+}
+
+export type InvoiceDashboardPaymentPatch = {
+  paid_amount: number;
+  payment_status: string;
+  outstanding?: number;
+  sale_return_adjust?: number;
+};
+
+/** Instant payment-status badge update — mirrors delivery patch for reconcile + page caches. */
+export function patchInvoiceDashboardPaymentFields(
+  queryClient: QueryClient,
+  organizationId: string,
+  saleId: string,
+  patch: InvoiceDashboardPaymentPatch,
+) {
+  patchInvoiceDashboardCachedRows(queryClient, organizationId, (inv) => {
+    if (inv?.id !== saleId) return inv;
+    const net = Number(inv.net_amount || 0);
+    const sra = patch.sale_return_adjust ?? Number(inv.sale_return_adjust || 0);
+    const outstanding =
+      patch.outstanding ??
+      Math.max(0, Math.round(net - sra - Number(patch.paid_amount || 0)));
+    return {
+      ...inv,
+      paid_amount: patch.paid_amount,
+      payment_status: patch.payment_status,
+      outstanding,
+      ...(patch.sale_return_adjust !== undefined
+        ? { sale_return_adjust: patch.sale_return_adjust }
+        : {}),
+    };
+  });
 }
 
 export async function refetchInvoiceDashboardQueries(
