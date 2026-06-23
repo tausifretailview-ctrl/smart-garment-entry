@@ -1,6 +1,6 @@
 -- Parity gate for get_customer_party_balances vs canonical reconcile_customer_balances.
 -- Run in Supabase SQL editor AFTER applying migrations through
--- 20260909120200_fix_get_customer_party_balances_advance_parity.sql.
+-- 20260909120300_fix_get_customer_party_balances_sql_wrapper.sql.
 --
 -- Replace :org_id with target organization UUID (e.g. ELLA NOOR 3fdca631-1e0c-4417-9704-421f5129ff67).
 
