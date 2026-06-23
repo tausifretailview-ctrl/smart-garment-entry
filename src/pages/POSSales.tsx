@@ -3041,8 +3041,8 @@ export default function POSSales() {
 
     // Use updateSale if editing existing sale, otherwise create new
     const result = currentSaleId
-      ? await updateSale(currentSaleId, saleData, effectiveMethod, undefined, POS_DEFERRED_INVALIDATION_OPTS)
-      : await saveSale(saleData, effectiveMethod, undefined, "pos", POS_DEFERRED_INVALIDATION_OPTS);
+      ? await updateSale(currentSaleId, saleData, effectiveMethod, undefined, buildPosRuntimeOpts())
+      : await saveSale(saleData, effectiveMethod, undefined, "pos", buildPosRuntimeOpts());
     
     if (result) {
       // Save financer details if provided
@@ -3294,11 +3294,11 @@ export default function POSSales() {
     // Use resumeHeldSale if this is a held sale, updateSale if editing, otherwise create new
     let result;
     if (isHeldSale && currentSaleId) {
-      result = await resumeHeldSale(currentSaleId, saleData, method, undefined, POS_DEFERRED_INVALIDATION_OPTS);
+      result = await resumeHeldSale(currentSaleId, saleData, method, undefined, buildPosRuntimeOpts());
     } else if (currentSaleId) {
-      result = await updateSale(currentSaleId, saleData, method, undefined, POS_DEFERRED_INVALIDATION_OPTS);
+      result = await updateSale(currentSaleId, saleData, method, undefined, buildPosRuntimeOpts());
     } else {
-      result = await saveSale(saleData, method, undefined, 'pos', POS_DEFERRED_INVALIDATION_OPTS);
+      result = await saveSale(saleData, method, undefined, 'pos', buildPosRuntimeOpts());
     }
     
     // Release lock after save attempt completes
@@ -3509,8 +3509,8 @@ export default function POSSales() {
 
     // Use updateSale if editing existing sale, otherwise create new
     const result = currentSaleId 
-      ? await updateSale(currentSaleId, saleData, paymentMethodType as any, breakdownForSave, POS_DEFERRED_INVALIDATION_OPTS)
-      : await saveSale(saleData, paymentMethodType as any, breakdownForSave, 'pos', POS_DEFERRED_INVALIDATION_OPTS);
+      ? await updateSale(currentSaleId, saleData, paymentMethodType as any, breakdownForSave, buildPosRuntimeOpts())
+      : await saveSale(saleData, paymentMethodType as any, breakdownForSave, 'pos', buildPosRuntimeOpts());
     
     if (result) {
       // Save financer details if provided
