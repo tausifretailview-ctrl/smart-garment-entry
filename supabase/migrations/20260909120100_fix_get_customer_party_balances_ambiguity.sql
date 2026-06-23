@@ -1,7 +1,6 @@
--- Set-based customer party balance list (Tally-style Balance List — customers only).
--- signed_balance inlines the SAME component sum as reconcile_customer_balance /
--- get_customer_true_outstanding (migration 20260817120000_fix_advance_double_count_outstanding).
--- No per-customer LATERAL calls to get_customer_true_outstanding.
+-- Fix PL/pgSQL 42702: RETURNS TABLE output names (customer_id, signed_balance, …)
+-- shadowed unqualified column refs in receipt_payments / paid_at_sale_drift / final SELECT.
+-- Math unchanged — internal CTE columns renamed; table refs qualified.
 
 CREATE OR REPLACE FUNCTION public.get_customer_party_balances(p_organization_id uuid)
 RETURNS TABLE (
@@ -310,9 +309,3 @@ BEGIN
   ORDER BY wf.party_name;
 END;
 $$;
-
-COMMENT ON FUNCTION public.get_customer_party_balances(uuid) IS
-  'Set-based customer balance list for Tally-style Balance List. signed_balance = SUM(reconcile_customer_balance components) '
-  'matching get_customer_true_outstanding. advance_available is unused advance pool; net_position is secondary (signed − advance).';
-
-GRANT EXECUTE ON FUNCTION public.get_customer_party_balances(uuid) TO authenticated, service_role;
