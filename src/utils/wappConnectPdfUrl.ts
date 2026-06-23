@@ -57,6 +57,7 @@ export async function uploadWappConnectInvoicePdfFromBase64(
     throw new Error("Supabase URL is not configured");
   }
 
-  const publishableKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-  return buildWappConnectPdfServeUrl(supabaseUrl, filePath, publishableKey);
+  // Do NOT append apikey — serve-wappconnect-pdf has verify_jwt=false, and a
+  // trailing JWT confuses WappConnect's URL-based media-type sniffing.
+  return buildWappConnectPdfServeUrl(supabaseUrl, filePath);
 }
