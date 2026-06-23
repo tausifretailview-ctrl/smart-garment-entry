@@ -216,7 +216,16 @@ export async function sendViaWappConnect(
     message = "Please find your document attached.";
   }
   if (fileUrl) {
-    await ensurePdfDownloadable(fileUrl);
+    try {
+      await ensurePdfDownloadable(fileUrl);
+    } catch (downloadError) {
+      return {
+        success: false,
+        error: downloadError instanceof Error ? downloadError.message : "PDF download failed before send",
+        endpoint: "",
+        requestUrlRedacted: redactApiKeyInUrl(fileUrl),
+      };
+    }
   }
 
   let endpoint: string;
