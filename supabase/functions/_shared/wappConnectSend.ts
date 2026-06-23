@@ -18,6 +18,24 @@ export {
 
 const WAPPCONNECT_API_ORIGIN = "https://api.wappconnect.com";
 
+/**
+ * WappConnect's URL parser fails on very long URLs (>2048 chars) with a misleading
+ * "Invalid phone number" 400. Strip the apikey JWT from serve-wappconnect-pdf links
+ * (the function has verify_jwt=false, so it isn't needed) to keep the URL short.
+ */
+function stripApikeyFromServeUrl(fileUrl: string): string {
+  try {
+    const parsed = new URL(fileUrl);
+    if (parsed.pathname.includes("/functions/v1/serve-wappconnect-pdf")) {
+      parsed.searchParams.delete("apikey");
+      return parsed.toString();
+    }
+  } catch {
+    // fall through
+  }
+  return fileUrl;
+}
+
 export interface WappConnectSendInput {
   message?: string;
   fileUrl?: string;
