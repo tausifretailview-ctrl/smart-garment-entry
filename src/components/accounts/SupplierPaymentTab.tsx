@@ -47,6 +47,7 @@ import {
 } from "@/utils/supplierBillOutstanding";
 import { ChequePrintDialog } from "@/components/ChequePrintDialog";
 import { useUserRoles } from "@/hooks/useUserRoles";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   resolvePaymentBreakdown,
   roundToRupee,
@@ -91,6 +92,7 @@ export function SupplierPaymentTab({
 }: SupplierPaymentTabProps) {
   const queryClient = useQueryClient();
   const { isAdmin } = useUserRoles();
+  const { user } = useAuth();
 
   // Form states
   const [voucherDate, setVoucherDate] = useState<Date>(new Date());
@@ -511,6 +513,7 @@ export function SupplierPaymentTab({
               discount_amount: processed.discountApplied,
               discount_reason: processed.discountApplied > 0 ? discountReason.trim() || null : null,
               payment_method: paymentMethod,
+              created_by: user?.id ?? null,
             })
             .select("id")
             .single();
@@ -560,6 +563,7 @@ export function SupplierPaymentTab({
             discount_amount: discountValue,
             discount_reason: discountValue > 0 ? discountReason.trim() || null : null,
             payment_method: paymentMethod,
+            created_by: user?.id ?? null,
           })
           .select("id")
           .single();

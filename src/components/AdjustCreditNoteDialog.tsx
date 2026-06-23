@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -42,6 +43,7 @@ export function AdjustCreditNoteDialog({
 }: AdjustCreditNoteDialogProps) {
   const { toast } = useToast();
   const { currentOrganization } = useOrganization();
+  const { user } = useAuth();
   const queryClient = useQueryClient();
   const [adjustmentType, setAdjustmentType] = useState<"bill" | "refund" | "outstanding">("bill");
   const [selectedBillId, setSelectedBillId] = useState<string>("");
@@ -244,6 +246,7 @@ export function AdjustCreditNoteDialog({
               reference_id: supplierId,
               description: `Credit Note adjusted against Bill: ${selectedBill.supplier_invoice_no || selectedBill.software_bill_no}`,
               total_amount: creditAmount,
+              created_by: user?.id ?? null,
             })
             .select()
             .single();
@@ -291,6 +294,7 @@ export function AdjustCreditNoteDialog({
             description: `Refund received for Credit Note: ${creditNoteNumber}`,
             total_amount: creditAmount,
             payment_method: refundMode,
+            created_by: user?.id ?? null,
           });
 
         if (receiptError) throw receiptError;
@@ -365,6 +369,7 @@ export function AdjustCreditNoteDialog({
               reference_id: supplierId,
               description: `Credit Note adjusted to Outstanding Balance: ${creditNoteNumber}`,
               total_amount: creditAmount,
+              created_by: user?.id ?? null,
             })
             .select()
             .single();

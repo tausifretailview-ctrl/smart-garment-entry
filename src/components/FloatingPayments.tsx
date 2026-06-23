@@ -688,6 +688,7 @@ function CustomerPaymentForm({
 // ═══════════════════════════════════════════════════════════════
 function SupplierPaymentForm({ organizationId }: { organizationId: string }) {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   const [voucherDate, setVoucherDate] = useState<Date>(new Date());
   const [referenceId, setReferenceId] = useState("");
   const [selectedBillIds, setSelectedBillIds] = useState<string[]>([]);
@@ -794,6 +795,7 @@ function SupplierPaymentForm({ organizationId }: { organizationId: string }) {
         reference_id: referenceId,
         description: finalDesc,
         total_amount: paymentAmount,
+        created_by: user?.id ?? null,
       });
     },
     onSuccess: () => {

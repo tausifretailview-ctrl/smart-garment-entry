@@ -1307,6 +1307,7 @@ const PurchaseBillDashboard = () => {
           reference_id: selectedBillForPayment.id,
           description: paymentDescription,
           total_amount: amount,
+          created_by: user?.id ?? null,
         });
 
       if (voucherError) throw voucherError;

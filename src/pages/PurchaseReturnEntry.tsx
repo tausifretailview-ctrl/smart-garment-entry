@@ -4,6 +4,7 @@ import { useSearchParams, useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { useSettings } from "@/hooks/useSettings";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -152,6 +153,7 @@ async function fetchPurchaseReturnProductsByIds(
 const PurchaseReturnEntry = () => {
   useEntryViewportSync();
   const { toast } = useToast();
+  const { user } = useAuth();
   const { orgNavigate: navigate } = useOrgNavigation();
   const { currentOrganization, loading: orgLoading } = useOrganization();
   const [searchParams] = useSearchParams();
@@ -1442,6 +1444,7 @@ const PurchaseReturnEntry = () => {
               reference_id: returnData.supplier_id,
               description: `Supplier Credit Note for Purchase Return: ${returnNumber}`,
               total_amount: netAmount,
+              created_by: user?.id ?? null,
             })
             .select()
             .single();
