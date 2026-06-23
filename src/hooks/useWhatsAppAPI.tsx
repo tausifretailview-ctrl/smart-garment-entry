@@ -594,6 +594,25 @@ export const useWhatsAppAPI = () => {
       // send-whatsapp validates that `message` is present; ensure we always send a non-empty fallback
       const messageToSend = (logEntry.message && logEntry.message.trim()) ? logEntry.message : 'WhatsApp notification';
 
+      // If the original send included a PDF attachment, reuse the already-uploaded
+      // serve-wappconnect-pdf URL so the retry attaches the PDF (not text-only).
+      let retryDocumentUrl: string | undefined;
+      let retryDocumentFilename: string | undefined;
+      const providerResp = (logEntry.provider_response ?? null) as Record<string, unknown> | null;
+      const previousReqUrl = providerResp ? String(providerResp.requestUrl ?? '').trim() : '';
+      if (previousReqUrl && previousReqUrl.includes('serve-wappconnect-pdf')) {
+        retryDocumentUrl = previousReqUrl;
+        try {
+          const parsed = new URL(previousReqUrl);
+          const pathParam = parsed.searchParams.get('path') || '';
+          const baseName = pathParam.split('/').pop() || '';
+          // Strip the leading "<timestamp>_" prefix added by resolveWappConnectFileUrl
+          retryDocumentFilename = baseName.replace(/^\d+_/, '') || undefined;
+        } catch {
+          // ignore parse errors — server can derive a name
+        }
+      }
+
       // Resend the message - pass saleData instead of templateParams
       // The edge function will build params dynamically from the configured mapping
       const { data, error } = await supabase.functions.invoke('send-whatsapp', {
@@ -607,6 +626,8 @@ export const useWhatsAppAPI = () => {
           referenceId: logEntry.reference_id,
           referenceType: logEntry.reference_type,
           useWappConnect: isWappConnectSendProvider(settings?.send_provider),
+          documentUrl: retryDocumentUrl,
+          documentFilename: retryDocumentFilename,
         },
       });
 
