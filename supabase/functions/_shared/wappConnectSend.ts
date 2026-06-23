@@ -106,9 +106,9 @@ async function verifyWappConnectPdfUrl(fileUrl: string): Promise<string | undefi
   return undefined;
 }
 
-function wappConnectAnonKey(): string | null {
-  return Deno.env.get("SUPABASE_ANON_KEY") ?? Deno.env.get("SUPABASE_PUBLISHABLE_KEY") ?? null;
-}
+// serve-wappconnect-pdf has verify_jwt=false — appending ?apikey=<JWT>
+// confuses WappConnect's URL-based media-type sniffing ("unsupported media type"),
+// so we deliberately build the serve URL WITHOUT an apikey query parameter.
 
 function pickMessageId(payload: Record<string, unknown>): string | undefined {
   const nestedData = payload.data as Record<string, unknown> | undefined;
@@ -360,7 +360,7 @@ export async function resolveWappConnectFileUrl(
     throw new Error(`Failed to upload PDF for WappConnect: ${uploadError.message}`);
   }
 
-  return buildWappConnectPdfServeUrl(supabaseUrl, filePath, wappConnectAnonKey());
+  return buildWappConnectPdfServeUrl(supabaseUrl, filePath);
 }
 
 type WappConnectStorageClient = {
@@ -405,7 +405,7 @@ export async function rehostStoragePdfForWappConnect(
     throw new Error(`Failed to rehost PDF for WappConnect: ${uploadError.message}`);
   }
 
-  return buildWappConnectPdfServeUrl(supabaseUrl, filePath, wappConnectAnonKey());
+  return buildWappConnectPdfServeUrl(supabaseUrl, filePath);
 }
 
 /**
@@ -433,7 +433,7 @@ export async function ensureWappConnectPdfUrl(
   }
 
   if (isAllowedWappConnectPdfPath(storagePath)) {
-    return buildWappConnectPdfServeUrl(supabaseUrl, storagePath, wappConnectAnonKey());
+    return buildWappConnectPdfServeUrl(supabaseUrl, storagePath);
   }
 
   return rehostStoragePdfForWappConnect(
