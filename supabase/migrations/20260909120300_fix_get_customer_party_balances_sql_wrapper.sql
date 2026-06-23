@@ -5,6 +5,8 @@
 -- Sale-population rules match reconcile_customer_balance exactly:
 --   total_invoiced / sale_return_adjust / paid_at_sale_drift → valid_sales (excl cancelled/hold)
 --   sale_receipt_vouchers → sales with deleted_at IS NULL only (receipt EXISTS path; incl cancelled/hold)
+--
+-- Parity gate org (ELLA NOOR): 3fdca631-1e0c-4417-9704-421f5129ff67
 
 CREATE OR REPLACE FUNCTION public._get_customer_party_balances_rows(p_organization_id uuid)
 RETURNS TABLE (
@@ -358,3 +360,26 @@ COMMENT ON FUNCTION public.get_customer_party_balances(uuid) IS
 
 GRANT EXECUTE ON FUNCTION public._get_customer_party_balances_rows(uuid) TO authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.get_customer_party_balances(uuid) TO authenticated, service_role;
+
+-- =============================================================================
+-- Post-apply parity smoke (ELLA NOOR 3fdca631-1e0c-4417-9704-421f5129ff67)
+-- Must return zero rows. Full script: scripts/verify-customer-party-balances-parity.sql
+-- =============================================================================
+-- WITH party AS (
+--   SELECT customer_id, signed_balance, advance_available
+--   FROM public.get_customer_party_balances('3fdca631-1e0c-4417-9704-421f5129ff67'::uuid)
+-- ),
+-- canonical AS (
+--   SELECT c.id AS customer_id,
+--     public.get_customer_true_outstanding(c.id, '3fdca631-1e0c-4417-9704-421f5129ff67'::uuid)::numeric AS calculated_balance,
+--     public._customer_advance_available(c.id, '3fdca631-1e0c-4417-9704-421f5129ff67'::uuid)::numeric AS canon_advance
+--   FROM public.customers c
+--   WHERE c.organization_id = '3fdca631-1e0c-4417-9704-421f5129ff67'::uuid AND c.deleted_at IS NULL
+-- )
+-- SELECT cu.customer_name, p.signed_balance, c.calculated_balance,
+--   ROUND(p.signed_balance - c.calculated_balance, 2) AS drift
+-- FROM party p
+-- JOIN canonical c ON c.customer_id = p.customer_id
+-- JOIN public.customers cu ON cu.id = p.customer_id
+-- WHERE ABS(p.signed_balance - c.calculated_balance) > 0.01
+--    OR ABS(COALESCE(p.advance_available, 0) - COALESCE(c.canon_advance, 0)) > 0.01;

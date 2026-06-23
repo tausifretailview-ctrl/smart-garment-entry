@@ -2,7 +2,7 @@
 -- Run in Supabase SQL editor AFTER applying migrations through
 -- 20260909120300_fix_get_customer_party_balances_sql_wrapper.sql.
 --
--- Replace :org_id with target organization UUID (e.g. ELLA NOOR 3fdca631-1e0c-4417-9704-421f5129ff67).
+-- Org: ELLA NOOR 3fdca631-1e0c-4417-9704-421f5129ff67
 
 -- =============================================================================
 -- 0) Three-customer sign-off (ELLA NOOR): Samiya, ALOK, SHEHNAZ HALAI — drift must be 0
@@ -31,15 +31,15 @@ ORDER BY p.customer_name;
 -- =============================================================================
 WITH party AS (
   SELECT customer_id, signed_balance, advance_available, total_dr, total_cr, net_receivable
-  FROM public.get_customer_party_balances(:'org_id'::uuid)
+  FROM public.get_customer_party_balances('3fdca631-1e0c-4417-9704-421f5129ff67'::uuid)
 ),
 canonical AS (
   SELECT
     c.id AS customer_id,
-    public.get_customer_true_outstanding(c.id, :'org_id'::uuid)::numeric AS calculated_balance,
-    public._customer_advance_available(c.id, :'org_id'::uuid)::numeric AS canon_advance
+    public.get_customer_true_outstanding(c.id, '3fdca631-1e0c-4417-9704-421f5129ff67'::uuid)::numeric AS calculated_balance,
+    public._customer_advance_available(c.id, '3fdca631-1e0c-4417-9704-421f5129ff67'::uuid)::numeric AS canon_advance
   FROM public.customers c
-  WHERE c.organization_id = :'org_id'::uuid
+  WHERE c.organization_id = '3fdca631-1e0c-4417-9704-421f5129ff67'::uuid
     AND c.deleted_at IS NULL
 )
 SELECT
@@ -64,11 +64,11 @@ ORDER BY ABS(COALESCE(p.signed_balance, 0) - COALESCE(c.calculated_balance, 0)) 
 -- =============================================================================
 WITH party AS (
   SELECT customer_id, signed_balance, advance_available
-  FROM public.get_customer_party_balances(:'org_id'::uuid)
+  FROM public.get_customer_party_balances('3fdca631-1e0c-4417-9704-421f5129ff67'::uuid)
 ),
 reconcile AS (
   SELECT customer_id, calculated_balance, advance_available AS reconcile_advance
-  FROM public.reconcile_customer_balances(:'org_id'::uuid)
+  FROM public.reconcile_customer_balances('3fdca631-1e0c-4417-9704-421f5129ff67'::uuid)
 )
 SELECT
   r.customer_id,
@@ -88,10 +88,10 @@ WHERE ABS(r.calculated_balance - p.signed_balance) > 0.01
 -- =============================================================================
 SELECT c.id, c.customer_name
 FROM public.customers c
-WHERE c.organization_id = :'org_id'::uuid
+WHERE c.organization_id = '3fdca631-1e0c-4417-9704-421f5129ff67'::uuid
   AND c.deleted_at IS NULL
   AND NOT EXISTS (
-    SELECT 1 FROM public.get_customer_party_balances(:'org_id'::uuid) p
+    SELECT 1 FROM public.get_customer_party_balances('3fdca631-1e0c-4417-9704-421f5129ff67'::uuid) p
     WHERE p.customer_id = c.id
   );
 
@@ -101,12 +101,12 @@ WHERE c.organization_id = :'org_id'::uuid
 -- =============================================================================
 WITH party AS (
   SELECT total_dr, total_cr, net_receivable
-  FROM public.get_customer_party_balances(:'org_id'::uuid)
+  FROM public.get_customer_party_balances('3fdca631-1e0c-4417-9704-421f5129ff67'::uuid)
   LIMIT 1
 ),
 summary AS (
   SELECT gross_receivable_dr, customer_credit_pool_cr, net_receivable
-  FROM public.get_organization_receivables_summary(:'org_id'::uuid)
+  FROM public.get_organization_receivables_summary('3fdca631-1e0c-4417-9704-421f5129ff67'::uuid)
 )
 SELECT
   p.total_dr AS party_total_dr,
@@ -128,7 +128,7 @@ CROSS JOIN summary s;
 -- =============================================================================
 WITH picks AS (
   SELECT customer_id, calculated_balance, advance_available, notes
-  FROM public.reconcile_customer_balances(:'org_id'::uuid)
+  FROM public.reconcile_customer_balances('3fdca631-1e0c-4417-9704-421f5129ff67'::uuid)
   ORDER BY
     CASE
       WHEN advance_available > 0.01 THEN 0
@@ -153,7 +153,7 @@ SELECT
   pk.notes AS reconcile_notes
 FROM picks pk
 JOIN public.customers cu ON cu.id = pk.customer_id
-JOIN public.get_customer_party_balances(:'org_id'::uuid) pb ON pb.customer_id = pk.customer_id
+JOIN public.get_customer_party_balances('3fdca631-1e0c-4417-9704-421f5129ff67'::uuid) pb ON pb.customer_id = pk.customer_id
 ORDER BY ABS(pk.calculated_balance) DESC;
 
 
@@ -162,4 +162,4 @@ ORDER BY ABS(pk.calculated_balance) DESC;
 -- =============================================================================
 EXPLAIN (ANALYZE, BUFFERS, FORMAT TEXT)
 SELECT COUNT(*), SUM(signed_balance)
-FROM public.get_customer_party_balances(:'org_id'::uuid);
+FROM public.get_customer_party_balances('3fdca631-1e0c-4417-9704-421f5129ff67'::uuid);
