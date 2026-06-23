@@ -814,14 +814,14 @@ export function FloatingStockReport({ open, onOpenChange }: { open: boolean; onO
 // Floating Barcode Sale Lookup Dialog
 export function FloatingSaleReport({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const { currentOrganization } = useOrganization();
-  const [query, setQuery] = useState("");
-  const [searchTerm, setSearchTerm] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!open) {
-      setQuery("");
-      setSearchTerm("");
+      setSearchQuery("");
+      setDebouncedQuery("");
       return;
     }
     const t = setTimeout(() => {
@@ -831,16 +831,18 @@ export function FloatingSaleReport({ open, onOpenChange }: { open: boolean; onOp
     return () => clearTimeout(t);
   }, [open]);
 
-  const runSearch = () => {
-    const term = query.trim();
-    if (!term) return;
-    setSearchTerm(term);
-  };
+  useEffect(() => {
+    if (!open) return;
+    const t = setTimeout(() => setDebouncedQuery(searchQuery.trim()), 300);
+    return () => clearTimeout(t);
+  }, [searchQuery, open]);
+
+  const flushSearch = () => setDebouncedQuery(searchQuery.trim());
 
   const { data: saleRows = [], isFetching, error, refetch } = useQuery({
-    queryKey: ["floating-barcode-sale-report", currentOrganization?.id, searchTerm],
-    queryFn: () => lookupBarcodeSales(currentOrganization!.id, searchTerm),
-    enabled: !!currentOrganization?.id && open && searchTerm.length > 0,
+    queryKey: ["floating-barcode-sale-report", currentOrganization?.id, debouncedQuery],
+    queryFn: () => lookupBarcodeSales(currentOrganization!.id, debouncedQuery),
+    enabled: !!currentOrganization?.id && open && debouncedQuery.length > 0,
     staleTime: STALE_LIVE,
     refetchOnWindowFocus: false,
   });
@@ -859,48 +861,43 @@ export function FloatingSaleReport({ open, onOpenChange }: { open: boolean; onOp
           </DialogTitle>
         </DialogHeader>
 
-        <div className="relative flex gap-2">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              ref={inputRef}
-              placeholder="Scan or enter barcode..."
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  runSearch();
-                }
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            ref={inputRef}
+            placeholder="Search by barcode, product name, brand, size, color... (multi-word AND)"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                flushSearch();
+              }
+            }}
+            className="pl-9"
+            autoFocus
+            autoComplete="off"
+          />
+          {searchQuery && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7"
+              onClick={() => {
+                setSearchQuery("");
+                setDebouncedQuery("");
               }}
-              className="pl-9"
-              autoFocus
-              autoComplete="off"
-            />
-            {query && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7"
-                onClick={() => {
-                  setQuery("");
-                  setSearchTerm("");
-                }}
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            )}
-          </div>
-          <Button type="button" onClick={runSearch} disabled={!query.trim()}>
-            Check
-          </Button>
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          )}
         </div>
 
-        {!searchTerm ? (
+        {searchQuery.trim().length < 1 ? (
           <div className="text-center py-8 text-muted-foreground">
-            Scan or enter a barcode to see sale history...
+            Start typing to search sale history...
           </div>
-        ) : isFetching ? (
+        ) : debouncedQuery !== searchQuery.trim() || isFetching ? (
           <div className="text-center py-8 text-muted-foreground">Loading sales...</div>
         ) : error ? (
           <div className="text-center py-8 text-destructive">
@@ -981,7 +978,7 @@ export function FloatingSaleReport({ open, onOpenChange }: { open: boolean; onOp
           </>
         ) : (
           <div className="text-center py-8 text-muted-foreground">
-            No sales found for barcode &quot;{searchTerm}&quot;
+            No sales found matching &quot;{debouncedQuery}&quot;
           </div>
         )}
       </DialogContent>

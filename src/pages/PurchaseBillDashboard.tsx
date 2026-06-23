@@ -83,8 +83,10 @@ import { MobileBottomNav } from "@/components/mobile/MobileBottomNav";
 import { Skeleton } from "@/components/ui/skeleton";
 import { fetchProductsByIds, fetchPurchaseItemsByBillId } from "@/utils/fetchAllRows";
 
-/** Supplier invoice image column — hidden by default; enable via Columns menu. */
+/** Purchase bills table — hidden by default; enable via Columns menu. */
 const PURCHASE_BILLS_DEFAULT_COLUMN_VISIBILITY: Record<string, boolean> = {
+  discount_amount: false,
+  gst_amount: false,
   bill_image: false,
 };
 
@@ -1599,7 +1601,7 @@ const PurchaseBillDashboard = () => {
         const bill = row.original;
         return (
           <div className={cn("flex items-center gap-1", bill.is_cancelled && "opacity-60")}>
-            <span className={cn("font-mono text-base font-bold bg-primary/8 text-primary px-1.5 py-0 rounded leading-tight", bill.is_cancelled && "line-through")}>
+            <span className={cn("font-mono text-sm font-bold bg-primary/8 text-primary px-1.5 py-0 rounded leading-tight", bill.is_cancelled && "line-through")}>
               {bill.software_bill_no || "N/A"}
             </span>
             {bill.is_dc_purchase && (
@@ -1630,31 +1632,31 @@ const PurchaseBillDashboard = () => {
           </div>
         );
       },
-      size: 120,
-      minSize: 90,
+      size: 108,
+      minSize: 85,
     },
     {
       accessorKey: "bill_date",
       header: "Dates",
       cell: ({ row }) => (
-        <div className="text-sm whitespace-nowrap tabular-nums leading-tight">
+        <div className="text-xs whitespace-nowrap tabular-nums leading-tight">
           <div className="text-foreground font-medium">{format(new Date(row.original.bill_date), "dd MMM yyyy")}</div>
-          <div className="text-xs text-muted-foreground" title="Bill saved in EzzyERP">
+          <div className="text-[11px] text-muted-foreground" title="Bill saved in EzzyERP">
             {formatPurchaseBillEntryAt(row.original, "dd MMM yyyy, hh:mm a")}
           </div>
         </div>
       ),
-      size: 130,
-      minSize: 110,
+      size: 112,
+      minSize: 95,
     },
     {
       accessorKey: "supplier_invoice_no",
       header: "Inv. No.",
       cell: ({ row }) => (
-        <span className="font-mono text-sm font-medium">{row.original.supplier_invoice_no}</span>
+        <span className="font-mono text-xs font-medium">{row.original.supplier_invoice_no}</span>
       ),
-      size: 90,
-      minSize: 70,
+      size: 72,
+      minSize: 60,
     },
     {
       accessorKey: "supplier_name",
@@ -1681,17 +1683,17 @@ const PurchaseBillDashboard = () => {
           </div>
         );
       },
-      size: 180,
-      minSize: 120,
+      size: 140,
+      minSize: 100,
     },
     {
       accessorKey: "gross_amount",
-      header: "Gross Amt",
+      header: "Gross",
       cell: ({ row }) => (
-        <span className="text-right block tabular-nums text-sm font-medium text-slate-600 dark:text-slate-400">₹{row.original.gross_amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+        <span className="text-right block tabular-nums text-xs font-medium text-slate-600 dark:text-slate-400">₹{row.original.gross_amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
       ),
-      size: 100,
-      minSize: 80,
+      size: 88,
+      minSize: 72,
     },
     {
       accessorKey: "discount_amount",
@@ -1718,21 +1720,46 @@ const PurchaseBillDashboard = () => {
     },
     {
       accessorKey: "net_amount",
-      header: "Net Amt",
+      header: "Net",
       cell: ({ row }) => (
-        <span className="text-right block text-sm font-bold text-primary tabular-nums font-mono">
+        <span className="text-right block text-xs font-bold text-primary tabular-nums font-mono">
           ₹{row.original.net_amount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
         </span>
       ),
-      size: 100,
-      minSize: 80,
+      size: 88,
+      minSize: 72,
+    },
+    {
+      id: "balance_due",
+      header: "Balance",
+      cell: ({ row }) => {
+        const bill = row.original;
+        if (bill.is_cancelled) {
+          return <span className="text-right block text-sm text-muted-foreground">—</span>;
+        }
+        const pending = getPurchaseBillPendingAmount(bill);
+        const settled = pending <= 0.01;
+        return (
+          <span
+            className={cn(
+              "text-right block text-xs font-bold tabular-nums font-mono",
+              settled ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400",
+            )}
+            title={settled ? "Fully paid" : `Pending ₹${pending.toLocaleString("en-IN")}`}
+          >
+            ₹{pending.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </span>
+        );
+      },
+      size: 88,
+      minSize: 72,
     },
     {
       id: "payment_status",
       header: "Status",
       cell: ({ row }) => getPaymentStatusBadge(row.original),
-      size: 85,
-      minSize: 75,
+      size: 78,
+      minSize: 68,
     },
     {
       id: "items_count",
@@ -1742,10 +1769,10 @@ const PurchaseBillDashboard = () => {
         const countFromQuery = bill.purchase_items?.[0]?.count;
         const countFromExpand = billItems[bill.id]?.length;
         const displayCount = countFromExpand ?? countFromQuery ?? 0;
-        return <span className="text-center block text-sm font-medium">{displayCount}</span>;
+        return <span className="text-center block text-xs font-medium">{displayCount}</span>;
       },
-      size: 55,
-      minSize: 45,
+      size: 48,
+      minSize: 40,
     },
     {
       id: "bill_image",
@@ -1851,8 +1878,8 @@ const PurchaseBillDashboard = () => {
           </div>
         );
       },
-      size: 170,
-      minSize: 150,
+      size: 96,
+      minSize: 88,
     },
   ], [selectedBills, paginatedBills, toggleSelectAll, toggleSelectBill, billItems, currentPage, itemsPerPage, printingBill, deletingBill, uploadingImageForBill, togglingLock]);
 
@@ -2513,6 +2540,7 @@ const PurchaseBillDashboard = () => {
                 defaultColumnVisibility={PURCHASE_BILLS_DEFAULT_COLUMN_VISIBILITY}
                 defaultDensity="compact"
                 stickyFirstColumn={false}
+                fitToContainer
                 isLoading={loading}
                 emptyMessage="No purchase bills found"
                 renderSubRow={renderSubRow}

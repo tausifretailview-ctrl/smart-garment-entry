@@ -55,6 +55,8 @@ export interface ERPTableProps<T> {
   getRowId?: (row: T) => string;
   /** Optional className for each row based on row data */
   getRowClassName?: (row: T) => string;
+  /** When true, table uses full container width (no horizontal scroll for typical viewports). */
+  fitToContainer?: boolean;
   /** Render prop that receives toolbar element for custom placement */
   renderToolbar?: (toolbar: React.ReactNode) => React.ReactNode;
 }
@@ -79,6 +81,7 @@ export function ERPTable<T>({
   getRowId,
   getRowClassName,
   renderToolbar,
+  fitToContainer = false,
 }: ERPTableProps<T>) {
   const defaultColIds = useMemo(() => columns.map((c) => (c as any).accessorKey ?? (c as any).id ?? ""), [columns]);
 
@@ -156,15 +159,22 @@ export function ERPTable<T>({
     <div className={cn("space-y-0", className)}>
       {renderToolbar ? renderToolbar(toolbarElement) : showToolbar && <div className="mb-2">{toolbarElement}</div>}
 
-      <div className="border border-border rounded-md overflow-hidden">
-        <div className="overflow-x-auto">
+      <div className={cn("border border-border rounded-md overflow-hidden", fitToContainer && "overflow-x-hidden")}>
+        <div className={cn(fitToContainer ? "overflow-x-hidden" : "overflow-x-auto")}>
           <DndContext
             sensors={sensors}
             collisionDetection={closestCenter}
             onDragEnd={handleDragEnd}
             
           >
-            <table className="w-full erp-desktop-table" style={{ tableLayout: "fixed", width: "max-content", minWidth: "100%" }}>
+            <table
+              className="w-full erp-desktop-table"
+              style={{
+                tableLayout: "fixed",
+                width: fitToContainer ? "100%" : "max-content",
+                minWidth: fitToContainer ? undefined : "100%",
+              }}
+            >
               <thead className="sticky top-0 z-20 bg-black text-white">
                 {headerGroups.map((headerGroup) => (
                   <tr key={headerGroup.id}>
