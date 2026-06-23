@@ -4400,7 +4400,6 @@ export default function POSSales() {
         const invoiceDom = invoicePrintRef.current;
         let pdfBase64: string | undefined;
         const shouldAttachPdf =
-          waSettings.send_invoice_pdf !== false &&
           netAmount >= (waSettings.pdf_min_amount ?? 0);
 
         if (shouldAttachPdf && invoiceDom) {
