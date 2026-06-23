@@ -103,7 +103,10 @@ export function buildWappConnectPdfServeUrl(
   if (key) {
     params.set("apikey", key);
   }
-  return `${base}/functions/v1/${WAPPCONNECT_PDF_SERVE_FUNCTION}?${params.toString()}`;
+  const fileName = storagePath.split("/").pop() || "invoice.pdf";
+  // Some WappConnect/WhatsApp-Web stacks infer media type from URL pathname.
+  // Include the PDF filename before the query string while still reading `path`.
+  return `${base}/functions/v1/${WAPPCONNECT_PDF_SERVE_FUNCTION}/${encodeURIComponent(fileName)}?${params.toString()}`;
 }
 
 const INVOICE_PDF_BUCKET_MARKER = "/invoice-pdfs/";

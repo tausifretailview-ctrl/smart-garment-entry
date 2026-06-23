@@ -106,6 +106,14 @@ async function verifyWappConnectPdfUrl(fileUrl: string): Promise<string | undefi
   return undefined;
 }
 
+async function ensurePdfDownloadable(fileUrl: string): Promise<void> {
+  const response = await fetch(fileUrl, { method: "GET" });
+  if (!response.ok) {
+    throw new Error(`PDF download failed before send (HTTP ${response.status})`);
+  }
+  await response.body?.cancel();
+}
+
 // serve-wappconnect-pdf has verify_jwt=false — appending ?apikey=<JWT>
 // confuses WappConnect's URL-based media-type sniffing ("unsupported media type"),
 // so we deliberately build the serve URL WITHOUT an apikey query parameter.
@@ -207,6 +215,18 @@ export async function sendViaWappConnect(
   if (fileUrl && !message) {
     message = "Please find your document attached.";
   }
+  if (fileUrl) {
+    try {
+      await ensurePdfDownloadable(fileUrl);
+    } catch (downloadError) {
+      return {
+        success: false,
+        error: downloadError instanceof Error ? downloadError.message : "PDF download failed before send",
+        endpoint: "",
+        requestUrlRedacted: redactApiKeyInUrl(fileUrl),
+      };
+    }
+  }
 
   let endpoint: string;
   if (fileUrl) {
@@ -227,6 +247,10 @@ export async function sendViaWappConnect(
     url.searchParams.set("phone", normalizedPhone);
     if (fileUrl) {
       url.searchParams.set("link", fileUrl);
+      url.searchParams.set("url", fileUrl);
+      url.searchParams.set("type", "document");
+      url.searchParams.set("mime", "application/pdf");
+      url.searchParams.set("mimetype", "application/pdf");
       // Some WappConnect builds sniff media type from URL extension. Signed-URL
       // tokens hide the .pdf extension, so pass filename explicitly.
       url.searchParams.set("filename", filename);

@@ -890,10 +890,11 @@ export const useSaveSale = () => {
 
             if (isWappConnect) {
               try {
+                if (whatsappSettings.send_invoice_pdf === false) return;
+
                 const documentFilename = `Invoice_${saleNumber.replace(/\//g, '-')}.pdf`;
                 let pdfBase64: string | null = null;
                 const shouldAttachPdf =
-                  whatsappSettings.send_invoice_pdf &&
                   (saleData.netAmount ?? 0) >= (whatsappSettings.pdf_min_amount ?? 0);
 
                 if (shouldAttachPdf) {
@@ -931,6 +932,11 @@ export const useSaveSale = () => {
                     companyGst: companySettings?.gst_number || undefined,
                   };
                   pdfBase64 = generateInvoicePdfBase64(pdfData);
+                }
+
+                if (shouldAttachPdf && !pdfBase64) {
+                  console.error('WhatsApp WappConnect invoice PDF was enabled but PDF generation failed; skipping text-only send.');
+                  return;
                 }
 
                 const invoiceCaption = await buildSalesInvoiceWhatsAppCaption(
