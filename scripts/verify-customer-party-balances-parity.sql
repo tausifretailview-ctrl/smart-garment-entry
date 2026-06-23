@@ -1,8 +1,33 @@
 -- Parity gate for get_customer_party_balances vs canonical reconcile_customer_balances.
 -- Run in Supabase SQL editor AFTER applying migrations through
--- 20260909120300_fix_get_customer_party_balances_sql_wrapper.sql.
+-- 20260909120400_fix_get_customer_party_balances_receipt_parity.sql.
 --
 -- Org: ELLA NOOR 3fdca631-1e0c-4417-9704-421f5129ff67
+
+-- =============================================================================
+-- 0a) Six-customer sign-off — drift must be 0
+--     SHEHNAZ HALAI, Fariba Qureshi, Sana Nasir, Shumama Baireli, Samiya Nursumar, ALOK
+-- =============================================================================
+WITH party AS (
+  SELECT customer_id, customer_name, signed_balance, advance_available
+  FROM public.get_customer_party_balances('3fdca631-1e0c-4417-9704-421f5129ff67'::uuid)
+  WHERE customer_id = 'a7b7e39c-fde8-4df5-8ac5-cb312460234e'::uuid
+     OR customer_name = 'Fariba Qureshi'
+     OR customer_name ILIKE '%sana%nasir%'
+     OR customer_name ILIKE '%shumama%baireli%'
+     OR customer_name ILIKE '%samiya%nursumar%'
+     OR customer_name ILIKE '%alok%kumar%tazim%'
+)
+SELECT
+  p.customer_name,
+  p.signed_balance AS party_balance,
+  public.get_customer_true_outstanding(p.customer_id, '3fdca631-1e0c-4417-9704-421f5129ff67'::uuid) AS canonical_balance,
+  ROUND(p.signed_balance - public.get_customer_true_outstanding(p.customer_id, '3fdca631-1e0c-4417-9704-421f5129ff67'::uuid), 2) AS drift,
+  p.advance_available AS party_advance,
+  public._customer_advance_available(p.customer_id, '3fdca631-1e0c-4417-9704-421f5129ff67'::uuid) AS canonical_advance
+FROM party p
+ORDER BY p.customer_name;
+
 
 -- =============================================================================
 -- 0) Three-customer sign-off (ELLA NOOR): Samiya, ALOK, SHEHNAZ HALAI — drift must be 0
