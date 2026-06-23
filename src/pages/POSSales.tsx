@@ -138,6 +138,8 @@ import { MixPaymentDialog } from "@/components/MixPaymentDialog";
 import { PriceSelectionDialog } from "@/components/PriceSelectionDialog";
 import { QuickServiceProductDialog } from "@/components/QuickServiceProductDialog";
 import { printInvoicePDF, generateInvoiceFromHTML, printInvoiceDirectly, printA5BillFormat, generateInvoiceBase64 } from "@/utils/pdfGenerator";
+import { captureElementToPdfBase64 } from "@/utils/captureInvoicePdf";
+import type { SaveSaleRuntimeOptions } from "@/utils/saveSaleRuntimeOptions";
 import { isWappConnectSendProvider } from "@/constants/whatsappSendProvider";
 import { buildSalesInvoiceWhatsAppCaption } from "@/utils/whatsappInvoiceCaption";
 import { useWhatsAppAPI } from "@/hooks/useWhatsAppAPI";
