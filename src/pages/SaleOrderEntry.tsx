@@ -60,6 +60,7 @@ import { useDraftSave } from "@/hooks/useDraftSave";
 import { fetchCustomerProductPrice } from "@/hooks/useCustomerProductPrice";
 import { ProductHistoryDialog } from "@/components/ProductHistoryDialog";
 import { ERPVariantRow, groupVariantsByProduct } from "@/components/ERPVariantSearchDropdown";
+import { mergeSizeColorVariantsForGrid } from "@/utils/mergeSizeColorVariantsForGrid";
 
 interface LineItem {
   id: string;
@@ -999,32 +1000,6 @@ export default function SaleOrderEntry() {
       return;
     }
 
-    const uniqueMap = new Map<string, (typeof data)[0]>();
-    for (const v of data) {
-      const key = `${(v.size || "").toLowerCase()}_${(v.color || "").toLowerCase()}`;
-      const existing = uniqueMap.get(key);
-      if (!existing) {
-        uniqueMap.set(key, v);
-        continue;
-      }
-      const existingStock = existing.stock_qty || 0;
-      const newStock = v.stock_qty || 0;
-      if (selectedSalePrice) {
-        const existingMatchesPrice =
-          Math.round(existing.sale_price || 0) === Math.round(selectedSalePrice);
-        const newMatchesPrice = Math.round(v.sale_price || 0) === Math.round(selectedSalePrice);
-        if (newMatchesPrice && !existingMatchesPrice) {
-          uniqueMap.set(key, v);
-        } else if (!newMatchesPrice && existingMatchesPrice) {
-          // keep existing
-        } else if (newStock > existingStock) {
-          uniqueMap.set(key, v);
-        }
-      } else if (newStock > existingStock) {
-        uniqueMap.set(key, v);
-      }
-    }
-
     const cartQtyByVariant = new Map<string, number>();
     for (const item of lineItems) {
       if (item.variantId) {
@@ -1037,15 +1012,11 @@ export default function SaleOrderEntry() {
 
     setSizeGridProduct(productRow);
     setSizeGridVariants(
-      Array.from(uniqueMap.values()).map((v) => ({
-        id: v.id,
-        size: v.size,
-        stock_qty: Math.max(0, (v.stock_qty || 0) - (cartQtyByVariant.get(v.id) || 0)),
-        sale_price: v.sale_price || 0,
-        mrp: v.mrp || 0,
-        color: v.color || productRow.color || "",
-        barcode: v.barcode,
-      })),
+      mergeSizeColorVariantsForGrid(data, {
+        selectedSalePrice,
+        cartQtyByVariant,
+        defaultColor: productRow.color || "",
+      }),
     );
     setShowSizeGrid(true);
     setOpenProductSearch(false);

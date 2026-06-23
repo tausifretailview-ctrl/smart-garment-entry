@@ -103,6 +103,7 @@ import {
   buildMultipleStockIssues,
   type StockIssuePresentation,
 } from "@/utils/stockErrorMessages";
+import { mergeSizeColorVariantsForGrid } from "@/utils/mergeSizeColorVariantsForGrid";
 import { useShopName } from "@/hooks/useShopName";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { logError } from "@/lib/errorLogger";
@@ -1337,41 +1338,6 @@ export default function SalesInvoice() {
       return;
     }
 
-    // Deduplicate by size+color (prefer matching selected price, then higher stock)
-    const uniqueMap = new Map<string, any>();
-    for (const v of data) {
-      const key = `${(v.size || '').toLowerCase()}_${(v.color || '').toLowerCase()}`;
-      const existing = uniqueMap.get(key);
-      if (!existing) {
-        uniqueMap.set(key, v);
-        continue;
-      }
-
-      const existingStock = existing.stock_qty || 0;
-      const newStock = v.stock_qty || 0;
-
-      if (selectedSalePrice) {
-        const existingMatchesPrice = Math.round(existing.sale_price || 0) === Math.round(selectedSalePrice);
-        const newMatchesPrice = Math.round(v.sale_price || 0) === Math.round(selectedSalePrice);
-
-        if (newMatchesPrice && !existingMatchesPrice) {
-          // New matches user's selected price, existing doesn't — new wins
-          uniqueMap.set(key, v);
-        } else if (!newMatchesPrice && existingMatchesPrice) {
-          // Existing matches price — keep it
-        } else {
-          // Both match price, or neither matches — tiebreak by higher stock
-          if (newStock > existingStock) uniqueMap.set(key, v);
-        }
-      } else {
-        // No selected price — prefer higher stock
-        if (newStock > existingStock) uniqueMap.set(key, v);
-      }
-    }
-
-    const mergedVariants = Array.from(uniqueMap.values());
-
-    // Subtract quantities already in the cart so the grid shows "effective available" stock
     const cartQtyByVariant = new Map<string, number>();
     for (const item of lineItems) {
       if (item.variantId) {
@@ -1379,16 +1345,14 @@ export default function SalesInvoice() {
       }
     }
 
+    const mergedVariants = mergeSizeColorVariantsForGrid(data, {
+      selectedSalePrice,
+      cartQtyByVariant,
+      defaultColor: product.color || "",
+    });
+
     setSizeGridProduct(product);
-    setSizeGridVariants(mergedVariants.map((v: any) => ({
-      id: v.id,
-      size: v.size,
-      stock_qty: Math.max(0, (v.stock_qty || 0) - (cartQtyByVariant.get(v.id) || 0)),
-      sale_price: v.sale_price || 0,
-      mrp: v.mrp || 0,
-      color: v.color || product.color || "",
-      barcode: v.barcode,
-    })));
+    setSizeGridVariants(mergedVariants);
     setShowSizeGrid(true);
 
     // Safety net: if the dropdown advertised stock for a specific size but the size-grid
