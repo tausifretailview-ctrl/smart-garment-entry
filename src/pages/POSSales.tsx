@@ -2741,6 +2741,124 @@ export default function POSSales() {
   // Align with amountBeforeRoundOff (includes exclusive GST + credit); avoids footer/print showing taxable-only total.
   const finalAmount = amountBeforeRoundOff + roundOff - pointsRedemptionValue;
   const amountBeforeCredit = finalAmount + creditApplied;
+
+  // ── WhatsApp invoice PDF capture wiring ──────────────────────────────────
+  // When `whatsappPdfSnapshot` is set the off-screen <InvoiceWrapper> mounts
+  // with the just-saved sale's props. Once React commits + the logo loads we
+  // rasterize that DOM with html2canvas + jsPDF and resolve the pending
+  // capture promise. The pending promise was created by `captureWhatsAppPdf`.
+  useEffect(() => {
+    if (!whatsappPdfSnapshot) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        if (!whatsappPdfRef.current) {
+          whatsappPdfResolverRef.current?.resolve(null);
+          return;
+        }
+        const base64 = await captureElementToPdfBase64(whatsappPdfRef.current, {
+          extraSettleMs: 700,
+        });
+        if (cancelled) return;
+        whatsappPdfResolverRef.current?.resolve(base64 || null);
+      } catch (err) {
+        console.error('WhatsApp PDF capture failed:', err);
+        whatsappPdfResolverRef.current?.resolve(null);
+      } finally {
+        whatsappPdfResolverRef.current = null;
+        if (!cancelled) setWhatsappPdfSnapshot(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [whatsappPdfSnapshot]);
+
+  const captureWhatsAppPdf = useCallback(
+    (meta: { saleNumber: string; saleId: string; saleDate: Date }): Promise<string | null> => {
+      try {
+        const props = {
+          format: 'a4' as const,
+          template: posInvoiceTemplate,
+          billNo: meta.saleNumber,
+          date: meta.saleDate,
+          customerName,
+          customerAddress: customers.find((c) => c.id === customerId)?.address || '',
+          customerMobile: customerPhone,
+          customerGSTIN: customers.find((c) => c.id === customerId)?.gst_number || '',
+          items: items.map((item, index) => ({
+            sr: index + 1,
+            particulars: item.productName,
+            itemNotes: item.itemNotes || '',
+            size: item.size,
+            barcode: item.barcode,
+            hsn: item.hsnCode || '',
+            sp: posLineNetUnitPrice(item),
+            mrp: item.originalMrp || item.mrp,
+            qty: item.quantity,
+            rate: posLineNetUnitPrice(item),
+            total: posLineDisplayTotal(item.netAmount, item.gstPer, invoiceTaxType),
+            gstPercent: item.gstPer || 0,
+            discountPercent: item.discountPercent || 0,
+          })),
+          subTotal: totals.subtotal,
+          discount: totals.discount + flatDiscountAmount,
+          saleReturnAdjust,
+          grandTotal: finalAmount,
+          cashPaid: paymentMethod === 'cash' ? finalAmount : 0,
+          upiPaid: paymentMethod === 'upi' ? finalAmount : 0,
+          paymentMethod,
+          paidAmount: paymentMethod === 'pay_later' ? 0 : finalAmount,
+          previousBalance: customerBalance || 0,
+          roundOff,
+          salesman: selectedSalesman || '',
+          taxType: invoiceTaxType,
+          financerDetails,
+          notes: saleNotes,
+        };
+        return new Promise<string | null>((resolve) => {
+          whatsappPdfResolverRef.current = { resolve };
+          setWhatsappPdfSnapshot(props);
+          // Safety: never block save flow more than 15s on PDF capture.
+          setTimeout(() => {
+            if (whatsappPdfResolverRef.current) {
+              whatsappPdfResolverRef.current.resolve(null);
+              whatsappPdfResolverRef.current = null;
+            }
+          }, 15000);
+        });
+      } catch (err) {
+        console.error('captureWhatsAppPdf failed to snapshot props:', err);
+        return Promise.resolve(null);
+      }
+    },
+    [
+      posInvoiceTemplate,
+      customerName,
+      customers,
+      customerId,
+      customerPhone,
+      items,
+      invoiceTaxType,
+      totals,
+      flatDiscountAmount,
+      saleReturnAdjust,
+      finalAmount,
+      paymentMethod,
+      customerBalance,
+      roundOff,
+      selectedSalesman,
+      financerDetails,
+      saleNotes,
+    ],
+  );
+
+  const buildPosRuntimeOpts = useCallback((): SaveSaleRuntimeOptions => ({
+    ...POS_DEFERRED_INVALIDATION_OPTS,
+    capturePdfBase64: captureWhatsAppPdf,
+  }), [captureWhatsAppPdf]);
+
   const paymentModeLabel =
     paymentMethod === 'pay_later'
       ? 'Credit'
