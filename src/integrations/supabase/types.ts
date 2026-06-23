@@ -8207,6 +8207,20 @@ export type Database = {
           voucher_type: string
         }[]
       }
+      get_customer_party_balances: {
+        Args: { p_organization_id: string }
+        Returns: {
+          advance_available: number
+          customer_id: string
+          customer_name: string
+          direction: string
+          net_position: number
+          net_receivable: number
+          signed_balance: number
+          total_cr: number
+          total_dr: number
+        }[]
+      }
       get_customer_true_outstanding: {
         Args: { p_customer_id: string; p_organization_id: string }
         Returns: number
