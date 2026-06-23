@@ -207,7 +207,9 @@ export async function sendViaWappConnect(
   let message = String(input.message ?? "").trim();
   const filename = String(input.filename ?? "").trim() || "document.pdf";
 
-  if (fileUrl && isWappConnectSignedStorageUrl(fileUrl)) {
+  const cleanFileUrl = fileUrl ? stripApikeyFromServeUrl(fileUrl) : "";
+
+  if (cleanFileUrl && isWappConnectSignedStorageUrl(cleanFileUrl)) {
     return {
       success: false,
       error:
@@ -217,37 +219,37 @@ export async function sendViaWappConnect(
     };
   }
 
-  if (fileUrl) {
-    const pdfVerifyError = await verifyWappConnectPdfUrl(fileUrl);
+  if (cleanFileUrl) {
+    const pdfVerifyError = await verifyWappConnectPdfUrl(cleanFileUrl);
     if (pdfVerifyError) {
       return {
         success: false,
         error: pdfVerifyError,
         endpoint: "",
-        requestUrlRedacted: redactApiKeyInUrl(fileUrl),
+        requestUrlRedacted: redactApiKeyInUrl(cleanFileUrl),
       };
     }
   }
 
   // WappConnect file endpoints require a text body — never send file-only via sendFiles.
-  if (fileUrl && !message) {
+  if (cleanFileUrl && !message) {
     message = "Please find your document attached.";
   }
-  if (fileUrl) {
+  if (cleanFileUrl) {
     try {
-      await ensurePdfDownloadable(fileUrl);
+      await ensurePdfDownloadable(cleanFileUrl);
     } catch (downloadError) {
       return {
         success: false,
         error: downloadError instanceof Error ? downloadError.message : "PDF download failed before send",
         endpoint: "",
-        requestUrlRedacted: redactApiKeyInUrl(fileUrl),
+        requestUrlRedacted: redactApiKeyInUrl(cleanFileUrl),
       };
     }
   }
 
   let endpoint: string;
-  if (fileUrl) {
+  if (cleanFileUrl) {
     endpoint = "/api/sendFileWithCaption";
   } else if (message) {
     endpoint = "/api/sendText";
@@ -263,26 +265,14 @@ export async function sendViaWappConnect(
   const applyParams = (url: URL) => {
     url.searchParams.set("token", token);
     url.searchParams.set("phone", normalizedPhone);
-    if (fileUrl) {
-      url.searchParams.set("link", fileUrl);
-      url.searchParams.set("url", fileUrl);
-      url.searchParams.set("type", "document");
-      url.searchParams.set("mime", "application/pdf");
-      url.searchParams.set("mimetype", "application/pdf");
-      // Some WappConnect builds sniff media type from URL extension. Signed-URL
-      // tokens hide the .pdf extension, so pass filename explicitly.
+    if (cleanFileUrl) {
+      // Keep the request URL short — WappConnect returns a misleading
+      // "Invalid phone number" 400 when the URL exceeds ~2KB.
+      url.searchParams.set("link", cleanFileUrl);
       url.searchParams.set("filename", filename);
-    }
-    if (endpoint === "/api/sendFileWithCaption") {
-      url.searchParams.set("message", message);
       url.searchParams.set("caption", message);
-      url.searchParams.set("text", message);
-      url.searchParams.set("body", message);
-      url.searchParams.set("msg", message);
     } else if (message) {
       url.searchParams.set("message", message);
-      url.searchParams.set("text", message);
-      url.searchParams.set("msg", message);
     }
   };
 
@@ -330,8 +320,8 @@ export async function sendViaWappConnect(
         body: JSON.stringify({
           token,
           phone: normalizedPhone,
-          link: fileUrl,
-          url: fileUrl,
+          link: cleanFileUrl,
+          url: cleanFileUrl,
           filename,
           mime: "application/pdf",
           mimetype: "application/pdf",
