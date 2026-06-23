@@ -54,10 +54,10 @@ describe("buildWappConnectPdfServeUrl", () => {
     const orgId = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
     const path = `${orgId}/wappconnect/1710000000000_Invoice.pdf`;
     expect(buildWappConnectPdfServeUrl("https://example.supabase.co", path)).toBe(
-      `https://example.supabase.co/functions/v1/serve-wappconnect-pdf?path=${encodeURIComponent(path)}`,
+      `https://example.supabase.co/functions/v1/serve-wappconnect-pdf/1710000000000_Invoice.pdf?path=${encodeURIComponent(path)}`,
     );
     expect(buildWappConnectPdfServeUrl("https://example.supabase.co", path, "anon-key")).toBe(
-      `https://example.supabase.co/functions/v1/serve-wappconnect-pdf?path=${encodeURIComponent(path)}&apikey=anon-key`,
+      `https://example.supabase.co/functions/v1/serve-wappconnect-pdf/1710000000000_Invoice.pdf?path=${encodeURIComponent(path)}&apikey=anon-key`,
     );
   });
 });

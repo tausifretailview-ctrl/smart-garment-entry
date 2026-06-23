@@ -138,6 +138,8 @@ import { MixPaymentDialog } from "@/components/MixPaymentDialog";
 import { PriceSelectionDialog } from "@/components/PriceSelectionDialog";
 import { QuickServiceProductDialog } from "@/components/QuickServiceProductDialog";
 import { printInvoicePDF, generateInvoiceFromHTML, printInvoiceDirectly, printA5BillFormat, generateInvoiceBase64 } from "@/utils/pdfGenerator";
+import { captureElementToPdfBase64 } from "@/utils/captureInvoicePdf";
+import type { SaveSaleRuntimeOptions } from "@/utils/saveSaleRuntimeOptions";
 import { isWappConnectSendProvider } from "@/constants/whatsappSendProvider";
 import { buildSalesInvoiceWhatsAppCaption } from "@/utils/whatsappInvoiceCaption";
 import { useWhatsAppAPI } from "@/hooks/useWhatsAppAPI";
@@ -521,6 +523,15 @@ export default function POSSales() {
   const printBtnRef = useRef<HTMLButtonElement>(null);
   const barcodeInputRef = useRef<HTMLInputElement>(null);
   const itemsContainerRef = useRef<HTMLDivElement>(null);
+  // ── WhatsApp invoice PDF capture ──────────────────────────────────────────
+  // A hidden off-screen InvoiceWrapper rendered with the user's selected A4
+  // template (logo, header, columns, totals) so the WhatsApp auto-send
+  // attaches the SAME design the customer would see when printing.
+  const whatsappPdfRef = useRef<HTMLDivElement>(null);
+  const [whatsappPdfSnapshot, setWhatsappPdfSnapshot] = useState<any>(null);
+  const whatsappPdfResolverRef = useRef<
+    { resolve: (v: string | null) => void } | null
+  >(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [highlightCartItemId, setHighlightCartItemId] = useState<string | null>(null);
   const highlightClearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -2730,6 +2741,124 @@ export default function POSSales() {
   // Align with amountBeforeRoundOff (includes exclusive GST + credit); avoids footer/print showing taxable-only total.
   const finalAmount = amountBeforeRoundOff + roundOff - pointsRedemptionValue;
   const amountBeforeCredit = finalAmount + creditApplied;
+
+  // ── WhatsApp invoice PDF capture wiring ──────────────────────────────────
+  // When `whatsappPdfSnapshot` is set the off-screen <InvoiceWrapper> mounts
+  // with the just-saved sale's props. Once React commits + the logo loads we
+  // rasterize that DOM with html2canvas + jsPDF and resolve the pending
+  // capture promise. The pending promise was created by `captureWhatsAppPdf`.
+  useEffect(() => {
+    if (!whatsappPdfSnapshot) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        if (!whatsappPdfRef.current) {
+          whatsappPdfResolverRef.current?.resolve(null);
+          return;
+        }
+        const base64 = await captureElementToPdfBase64(whatsappPdfRef.current, {
+          extraSettleMs: 700,
+        });
+        if (cancelled) return;
+        whatsappPdfResolverRef.current?.resolve(base64 || null);
+      } catch (err) {
+        console.error('WhatsApp PDF capture failed:', err);
+        whatsappPdfResolverRef.current?.resolve(null);
+      } finally {
+        whatsappPdfResolverRef.current = null;
+        if (!cancelled) setWhatsappPdfSnapshot(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [whatsappPdfSnapshot]);
+
+  const captureWhatsAppPdf = useCallback(
+    (meta: { saleNumber: string; saleId: string; saleDate: Date }): Promise<string | null> => {
+      try {
+        const props = {
+          format: 'a4' as const,
+          template: posInvoiceTemplate,
+          billNo: meta.saleNumber,
+          date: meta.saleDate,
+          customerName,
+          customerAddress: customers.find((c) => c.id === customerId)?.address || '',
+          customerMobile: customerPhone,
+          customerGSTIN: customers.find((c) => c.id === customerId)?.gst_number || '',
+          items: items.map((item, index) => ({
+            sr: index + 1,
+            particulars: item.productName,
+            itemNotes: item.itemNotes || '',
+            size: item.size,
+            barcode: item.barcode,
+            hsn: item.hsnCode || '',
+            sp: posLineNetUnitPrice(item),
+            mrp: item.originalMrp || item.mrp,
+            qty: item.quantity,
+            rate: posLineNetUnitPrice(item),
+            total: posLineDisplayTotal(item.netAmount, item.gstPer, invoiceTaxType),
+            gstPercent: item.gstPer || 0,
+            discountPercent: item.discountPercent || 0,
+          })),
+          subTotal: totals.subtotal,
+          discount: totals.discount + flatDiscountAmount,
+          saleReturnAdjust,
+          grandTotal: finalAmount,
+          cashPaid: paymentMethod === 'cash' ? finalAmount : 0,
+          upiPaid: paymentMethod === 'upi' ? finalAmount : 0,
+          paymentMethod,
+          paidAmount: paymentMethod === 'pay_later' ? 0 : finalAmount,
+          previousBalance: customerBalance || 0,
+          roundOff,
+          salesman: selectedSalesman || '',
+          taxType: invoiceTaxType,
+          financerDetails,
+          notes: saleNotes,
+        };
+        return new Promise<string | null>((resolve) => {
+          whatsappPdfResolverRef.current = { resolve };
+          setWhatsappPdfSnapshot(props);
+          // Safety: never block save flow more than 15s on PDF capture.
+          setTimeout(() => {
+            if (whatsappPdfResolverRef.current) {
+              whatsappPdfResolverRef.current.resolve(null);
+              whatsappPdfResolverRef.current = null;
+            }
+          }, 15000);
+        });
+      } catch (err) {
+        console.error('captureWhatsAppPdf failed to snapshot props:', err);
+        return Promise.resolve(null);
+      }
+    },
+    [
+      posInvoiceTemplate,
+      customerName,
+      customers,
+      customerId,
+      customerPhone,
+      items,
+      invoiceTaxType,
+      totals,
+      flatDiscountAmount,
+      saleReturnAdjust,
+      finalAmount,
+      paymentMethod,
+      customerBalance,
+      roundOff,
+      selectedSalesman,
+      financerDetails,
+      saleNotes,
+    ],
+  );
+
+  const buildPosRuntimeOpts = useCallback((): SaveSaleRuntimeOptions => ({
+    ...POS_DEFERRED_INVALIDATION_OPTS,
+    capturePdfBase64: captureWhatsAppPdf,
+  }), [captureWhatsAppPdf]);
+
   const paymentModeLabel =
     paymentMethod === 'pay_later'
       ? 'Credit'
@@ -2912,8 +3041,8 @@ export default function POSSales() {
 
     // Use updateSale if editing existing sale, otherwise create new
     const result = currentSaleId
-      ? await updateSale(currentSaleId, saleData, effectiveMethod, undefined, POS_DEFERRED_INVALIDATION_OPTS)
-      : await saveSale(saleData, effectiveMethod, undefined, "pos", POS_DEFERRED_INVALIDATION_OPTS);
+      ? await updateSale(currentSaleId, saleData, effectiveMethod, undefined, buildPosRuntimeOpts())
+      : await saveSale(saleData, effectiveMethod, undefined, "pos", buildPosRuntimeOpts());
     
     if (result) {
       // Save financer details if provided
@@ -3165,11 +3294,11 @@ export default function POSSales() {
     // Use resumeHeldSale if this is a held sale, updateSale if editing, otherwise create new
     let result;
     if (isHeldSale && currentSaleId) {
-      result = await resumeHeldSale(currentSaleId, saleData, method, undefined, POS_DEFERRED_INVALIDATION_OPTS);
+      result = await resumeHeldSale(currentSaleId, saleData, method, undefined, buildPosRuntimeOpts());
     } else if (currentSaleId) {
-      result = await updateSale(currentSaleId, saleData, method, undefined, POS_DEFERRED_INVALIDATION_OPTS);
+      result = await updateSale(currentSaleId, saleData, method, undefined, buildPosRuntimeOpts());
     } else {
-      result = await saveSale(saleData, method, undefined, 'pos', POS_DEFERRED_INVALIDATION_OPTS);
+      result = await saveSale(saleData, method, undefined, 'pos', buildPosRuntimeOpts());
     }
     
     // Release lock after save attempt completes
@@ -3380,8 +3509,8 @@ export default function POSSales() {
 
     // Use updateSale if editing existing sale, otherwise create new
     const result = currentSaleId 
-      ? await updateSale(currentSaleId, saleData, paymentMethodType as any, breakdownForSave, POS_DEFERRED_INVALIDATION_OPTS)
-      : await saveSale(saleData, paymentMethodType as any, breakdownForSave, 'pos', POS_DEFERRED_INVALIDATION_OPTS);
+      ? await updateSale(currentSaleId, saleData, paymentMethodType as any, breakdownForSave, buildPosRuntimeOpts())
+      : await saveSale(saleData, paymentMethodType as any, breakdownForSave, 'pos', buildPosRuntimeOpts());
     
     if (result) {
       // Save financer details if provided
@@ -4395,16 +4524,21 @@ export default function POSSales() {
 
       if (isWappConnectSendProvider(waSettings.send_provider)) {
         if (!waSettings.auto_send_invoice) return;
+        if (waSettings.send_invoice_pdf === false) return;
 
         const invoiceDom = invoicePrintRef.current;
         let pdfBase64: string | undefined;
         const shouldAttachPdf =
-          waSettings.send_invoice_pdf &&
           netAmount >= (waSettings.pdf_min_amount ?? 0);
 
         if (shouldAttachPdf && invoiceDom) {
           await new Promise(r => setTimeout(r, 500));
           pdfBase64 = (await generateInvoiceBase64(invoiceDom)) || undefined;
+        }
+
+        if (shouldAttachPdf && !pdfBase64) {
+          console.error('WhatsApp WappConnect invoice PDF was enabled but PDF generation failed; skipping text-only send.');
+          return;
         }
 
         const invoiceCaption = currentOrganization?.id
@@ -7011,6 +7145,28 @@ export default function POSSales() {
           }}
         />
       )}
+
+      {/*
+        Hidden off-screen A4 invoice used solely for WhatsApp PDF capture.
+        Positioned far off-canvas (not display:none) so html2canvas can read
+        actual layout / loaded images. Mounts only while a snapshot is active.
+      */}
+      <div
+        aria-hidden="true"
+        style={{
+          position: 'fixed',
+          left: '-100000px',
+          top: 0,
+          width: '210mm',
+          background: '#ffffff',
+          pointerEvents: 'none',
+          zIndex: -1,
+        }}
+      >
+        <div ref={whatsappPdfRef}>
+          {whatsappPdfSnapshot && <InvoiceWrapper {...whatsappPdfSnapshot} />}
+        </div>
+      </div>
     </div>
   );
 }

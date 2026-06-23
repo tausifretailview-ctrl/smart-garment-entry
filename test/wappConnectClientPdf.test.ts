@@ -7,7 +7,7 @@ describe("wappConnectPdfUrl", () => {
     const orgId = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
     const path = `${orgId}/wappconnect/171_Invoice.pdf`;
     expect(buildWappConnectPdfServeUrl("https://example.supabase.co", path)).toBe(
-      `https://example.supabase.co/functions/v1/serve-wappconnect-pdf?path=${encodeURIComponent(path)}`,
+      `https://example.supabase.co/functions/v1/serve-wappconnect-pdf/171_Invoice.pdf?path=${encodeURIComponent(path)}`,
     );
   });
 

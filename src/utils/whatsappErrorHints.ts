@@ -55,7 +55,9 @@ export function getWhatsAppErrorHint(
       raw.includes("mime") ||
       raw.includes("content-type") ||
       raw.includes("signed storage") ||
-      raw.includes("serve-wappconnect-pdf") ||
+      raw.includes("download file failed") ||
+      raw.includes("link not valid") ||
+      raw.includes("file not exist") ||
       raw.includes("invalid message")
     ) {
       return {

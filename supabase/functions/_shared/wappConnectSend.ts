@@ -18,6 +18,24 @@ export {
 
 const WAPPCONNECT_API_ORIGIN = "https://api.wappconnect.com";
 
+/**
+ * WappConnect's URL parser fails on very long URLs (>2048 chars) with a misleading
+ * "Invalid phone number" 400. Strip the apikey JWT from serve-wappconnect-pdf links
+ * (the function has verify_jwt=false, so it isn't needed) to keep the URL short.
+ */
+function stripApikeyFromServeUrl(fileUrl: string): string {
+  try {
+    const parsed = new URL(fileUrl);
+    if (parsed.pathname.includes("/functions/v1/serve-wappconnect-pdf")) {
+      parsed.searchParams.delete("apikey");
+      return parsed.toString();
+    }
+  } catch {
+    // fall through
+  }
+  return fileUrl;
+}
+
 export interface WappConnectSendInput {
   message?: string;
   fileUrl?: string;
@@ -106,9 +124,28 @@ async function verifyWappConnectPdfUrl(fileUrl: string): Promise<string | undefi
   return undefined;
 }
 
-function wappConnectAnonKey(): string | null {
-  return Deno.env.get("SUPABASE_ANON_KEY") ?? Deno.env.get("SUPABASE_PUBLISHABLE_KEY") ?? null;
+async function downloadPdfForWappConnect(fileUrl: string): Promise<Blob> {
+  const response = await fetch(fileUrl, { method: "GET" });
+  if (!response.ok) {
+    throw new Error(`PDF download failed before send (HTTP ${response.status})`);
+  }
+
+  const contentType = (response.headers.get("content-type") || "").toLowerCase();
+  if (
+    contentType &&
+    !contentType.includes("application/pdf") &&
+    !contentType.includes("application/octet-stream")
+  ) {
+    await response.body?.cancel();
+    throw new Error(`PDF download returned "${contentType}" before send`);
+  }
+
+  return await response.blob();
 }
+
+// serve-wappconnect-pdf has verify_jwt=false — appending ?apikey=<JWT>
+// confuses WappConnect's URL-based media-type sniffing ("unsupported media type"),
+// so we deliberately build the serve URL WITHOUT an apikey query parameter.
 
 function pickMessageId(payload: Record<string, unknown>): string | undefined {
   const nestedData = payload.data as Record<string, unknown> | undefined;
@@ -181,7 +218,9 @@ export async function sendViaWappConnect(
   let message = String(input.message ?? "").trim();
   const filename = String(input.filename ?? "").trim() || "document.pdf";
 
-  if (fileUrl && isWappConnectSignedStorageUrl(fileUrl)) {
+  const cleanFileUrl = fileUrl ? stripApikeyFromServeUrl(fileUrl) : "";
+
+  if (cleanFileUrl && isWappConnectSignedStorageUrl(cleanFileUrl)) {
     return {
       success: false,
       error:
@@ -191,25 +230,38 @@ export async function sendViaWappConnect(
     };
   }
 
-  if (fileUrl) {
-    const pdfVerifyError = await verifyWappConnectPdfUrl(fileUrl);
+  if (cleanFileUrl) {
+    const pdfVerifyError = await verifyWappConnectPdfUrl(cleanFileUrl);
     if (pdfVerifyError) {
       return {
         success: false,
         error: pdfVerifyError,
         endpoint: "",
-        requestUrlRedacted: redactApiKeyInUrl(fileUrl),
+        requestUrlRedacted: redactApiKeyInUrl(cleanFileUrl),
       };
     }
   }
 
   // WappConnect file endpoints require a text body — never send file-only via sendFiles.
-  if (fileUrl && !message) {
+  if (cleanFileUrl && !message) {
     message = "Please find your document attached.";
+  }
+  let downloadedPdf: Blob | null = null;
+  if (cleanFileUrl) {
+    try {
+      downloadedPdf = await downloadPdfForWappConnect(cleanFileUrl);
+    } catch (downloadError) {
+      return {
+        success: false,
+        error: downloadError instanceof Error ? downloadError.message : "PDF download failed before send",
+        endpoint: "",
+        requestUrlRedacted: redactApiKeyInUrl(cleanFileUrl),
+      };
+    }
   }
 
   let endpoint: string;
-  if (fileUrl) {
+  if (cleanFileUrl) {
     endpoint = "/api/sendFileWithCaption";
   } else if (message) {
     endpoint = "/api/sendText";
@@ -222,39 +274,39 @@ export async function sendViaWappConnect(
     };
   }
 
-  const applyParams = (url: URL) => {
+  const applyParams = (url: URL, mode: "link" | "multipart" | "text" = "text") => {
     url.searchParams.set("token", token);
     url.searchParams.set("phone", normalizedPhone);
-    if (fileUrl) {
-      url.searchParams.set("link", fileUrl);
-      // Some WappConnect builds sniff media type from URL extension. Signed-URL
-      // tokens hide the .pdf extension, so pass filename explicitly.
-      url.searchParams.set("filename", filename);
-    }
-    if (endpoint === "/api/sendFileWithCaption") {
+    if (mode === "link" && cleanFileUrl) {
+      // WappConnect docs require `message` (not `caption`) for URL-based file sends.
+      url.searchParams.set("link", cleanFileUrl);
       url.searchParams.set("message", message);
-      url.searchParams.set("caption", message);
-      url.searchParams.set("text", message);
-      url.searchParams.set("body", message);
-      url.searchParams.set("msg", message);
-    } else if (message) {
+    } else if ((mode === "multipart" || mode === "text") && message) {
       url.searchParams.set("message", message);
-      url.searchParams.set("text", message);
-      url.searchParams.set("msg", message);
     }
   };
 
   const url = new URL(endpoint, WAPPCONNECT_API_ORIGIN);
-  applyParams(url);
+  applyParams(url, cleanFileUrl ? "multipart" : "text");
 
-  const requestUrlRedacted = redactWappConnectInstanceId(
+  let requestUrlRedacted = redactWappConnectInstanceId(
     redactApiKeyInUrl(url.toString()),
     token,
   ) as string;
 
   let response: Response;
   try {
-    response = await fetch(url.toString(), { method: "GET" });
+    if (cleanFileUrl && downloadedPdf) {
+      // Upload the already-generated PDF as multipart form-data. This avoids WappConnect
+      // having to fetch our backend URL itself, which was causing "PDF link not readable"
+      // / missing-attachment cases even when the ERP log was marked sent.
+      const form = new FormData();
+      form.append("file", downloadedPdf, filename);
+      form.append("message", message);
+      response = await fetch(url.toString(), { method: "POST", body: form });
+    } else {
+      response = await fetch(url.toString(), { method: "GET" });
+    }
   } catch (fetchError) {
     const errMsg = fetchError instanceof Error ? fetchError.message : "Network error";
     return {
@@ -274,42 +326,30 @@ export async function sendViaWappConnect(
 
   let providerError = extractWappConnectErrorMessage(responseObject);
 
-  // Some WappConnect builds expect POST JSON for file+caption, or fail to detect
-  // the media type from a signed URL. Retry as POST with explicit filename/mime.
+  // If multipart upload is not accepted by a WappConnect build, fall back to the
+  // documented URL-link method using `message` (not `caption`).
   if (
-    fileUrl &&
+    cleanFileUrl &&
     providerError &&
-    /(text body is required|unsupported media type|mime|content[- ]type)/i.test(providerError)
+    /(save file|uploaded|unsupported media type|mime|content[- ]type|webclient|file)/i.test(providerError)
   ) {
     try {
-      const postResponse = await fetch(`${WAPPCONNECT_API_ORIGIN}${endpoint}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          token,
-          phone: normalizedPhone,
-          link: fileUrl,
-          url: fileUrl,
-          filename,
-          mime: "application/pdf",
-          mimetype: "application/pdf",
-          type: "document",
-          message,
-          caption: message,
-          text: message,
-          body: message,
-          msg: message,
-        }),
-      });
-      rawBody = await postResponse.text();
+      const linkUrl = new URL(endpoint, WAPPCONNECT_API_ORIGIN);
+      applyParams(linkUrl, "link");
+      requestUrlRedacted = redactWappConnectInstanceId(
+        redactApiKeyInUrl(linkUrl.toString()),
+        token,
+      ) as string;
+      const linkResponse = await fetch(linkUrl.toString(), { method: "GET" });
+      rawBody = await linkResponse.text();
       responseData = parseWappConnectResponseBody(rawBody);
       responseObject = typeof responseData === "object" && responseData !== null
         ? responseData as Record<string, unknown>
         : { raw: responseData };
       providerError = extractWappConnectErrorMessage(responseObject);
-      response = postResponse;
+      response = linkResponse;
     } catch {
-      // keep original GET error
+      // keep original multipart error
     }
   }
 
@@ -360,7 +400,7 @@ export async function resolveWappConnectFileUrl(
     throw new Error(`Failed to upload PDF for WappConnect: ${uploadError.message}`);
   }
 
-  return buildWappConnectPdfServeUrl(supabaseUrl, filePath, wappConnectAnonKey());
+  return buildWappConnectPdfServeUrl(supabaseUrl, filePath);
 }
 
 type WappConnectStorageClient = {
@@ -405,7 +445,7 @@ export async function rehostStoragePdfForWappConnect(
     throw new Error(`Failed to rehost PDF for WappConnect: ${uploadError.message}`);
   }
 
-  return buildWappConnectPdfServeUrl(supabaseUrl, filePath, wappConnectAnonKey());
+  return buildWappConnectPdfServeUrl(supabaseUrl, filePath);
 }
 
 /**
@@ -433,7 +473,7 @@ export async function ensureWappConnectPdfUrl(
   }
 
   if (isAllowedWappConnectPdfPath(storagePath)) {
-    return buildWappConnectPdfServeUrl(supabaseUrl, storagePath, wappConnectAnonKey());
+    return buildWappConnectPdfServeUrl(supabaseUrl, storagePath);
   }
 
   return rehostStoragePdfForWappConnect(

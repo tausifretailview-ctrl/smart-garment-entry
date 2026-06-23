@@ -19,7 +19,28 @@ export function buildWappConnectPdfServeUrl(
   if (key) {
     params.set("apikey", key);
   }
-  return `${base}/functions/v1/${WAPPCONNECT_PDF_SERVE_FUNCTION}?${params.toString()}`;
+  const fileName = storagePath.split("/").pop() || "invoice.pdf";
+  // Keep a .pdf suffix in the URL path too — some WappConnect builds sniff
+  // media type from pathname and ignore query params/Content-Type.
+  return `${base}/functions/v1/${WAPPCONNECT_PDF_SERVE_FUNCTION}/${encodeURIComponent(fileName)}?${params.toString()}`;
+}
+
+async function waitForReachablePdf(url: string): Promise<void> {
+  let lastStatus = "not checked";
+  for (let attempt = 1; attempt <= 5; attempt += 1) {
+    try {
+      const response = await fetch(url, { method: "HEAD" });
+      lastStatus = `HTTP ${response.status}`;
+      const contentType = (response.headers.get("content-type") || "").toLowerCase();
+      if (response.ok && (!contentType || contentType.includes("application/pdf") || contentType.includes("application/octet-stream"))) {
+        return;
+      }
+    } catch (error) {
+      lastStatus = error instanceof Error ? error.message : "network error";
+    }
+    await new Promise((resolve) => setTimeout(resolve, attempt * 300));
+  }
+  throw new Error(`Invoice PDF was uploaded but is not reachable yet (${lastStatus})`);
 }
 
 /** True when a logged WappConnect request still used a signed storage URL (old server path). */
@@ -57,6 +78,9 @@ export async function uploadWappConnectInvoicePdfFromBase64(
     throw new Error("Supabase URL is not configured");
   }
 
-  const publishableKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-  return buildWappConnectPdfServeUrl(supabaseUrl, filePath, publishableKey);
+  // Do NOT append apikey — serve-wappconnect-pdf has verify_jwt=false, and a
+  // trailing JWT confuses WappConnect's URL-based media-type sniffing.
+  const serveUrl = buildWappConnectPdfServeUrl(supabaseUrl, filePath);
+  await waitForReachablePdf(serveUrl);
+  return serveUrl;
 }

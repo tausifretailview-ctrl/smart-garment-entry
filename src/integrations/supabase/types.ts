@@ -8424,6 +8424,13 @@ export type Database = {
         Returns: Json
       }
       get_quotation_summary: { Args: { p_org_id: string }; Returns: Json }
+      get_sale_items_gross_batch: {
+        Args: { p_sale_ids: string[] }
+        Returns: {
+          items_gross: number
+          sale_id: string
+        }[]
+      }
       get_sales_invoice_dashboard_stats: {
         Args: {
           p_date_end?: string
