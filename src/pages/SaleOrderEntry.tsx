@@ -1981,12 +1981,12 @@ export default function SaleOrderEntry() {
                             setOpenProductSearch(false);
                             setSearchInput("");
                           }}
-                          className="p-0 cursor-pointer"
+                          className="group p-0 cursor-pointer"
                         >
                           <div className="flex w-full flex-col gap-1 px-4 py-3">
                             <div className="flex items-center justify-between gap-2">
                               <div className="flex min-w-0 items-center gap-2">
-                                <span className="truncate text-base font-bold">
+                                <span className="truncate text-base font-bold text-foreground group-data-[selected=true]:text-white">
                                   {buildProductDisplayName({
                                     product_name: group.productName,
                                     brand: group.brand,
@@ -1995,29 +1995,29 @@ export default function SaleOrderEntry() {
                                   })}
                                 </span>
                                 {group.size_range && (
-                                  <span className="shrink-0 rounded bg-primary/10 px-1.5 py-0.5 text-xs font-semibold text-primary">
+                                  <span className="shrink-0 rounded bg-blue-500/10 px-1.5 py-0.5 text-xs font-semibold text-blue-600 dark:text-blue-400 group-data-[selected=true]:bg-white/20 group-data-[selected=true]:text-white">
                                     {group.size_range}
                                   </span>
                                 )}
                                 {group.colorCount > 0 && (
-                                  <Badge variant="secondary" className="shrink-0 text-xs bg-violet-100 text-violet-700">
+                                  <span className="shrink-0 rounded border border-purple-200 bg-purple-50 px-1.5 py-0.5 text-[10px] font-semibold text-purple-700 dark:border-purple-800 dark:bg-purple-900/30 dark:text-purple-300 group-data-[selected=true]:border-white/30 group-data-[selected=true]:bg-white/20 group-data-[selected=true]:text-white">
                                     {group.colorCount} color{group.colorCount === 1 ? "" : "s"}
-                                  </Badge>
+                                  </span>
                                 )}
-                                <Badge variant="secondary" className="shrink-0 text-xs bg-blue-100 text-blue-700">
+                                <span className="shrink-0 rounded border border-blue-200 bg-blue-50 px-1.5 py-0.5 text-[10px] font-semibold text-blue-700 dark:border-blue-800 dark:bg-blue-900/30 dark:text-blue-300 group-data-[selected=true]:border-white/30 group-data-[selected=true]:bg-white/20 group-data-[selected=true]:text-white">
                                   {group.sizeCount} sizes
-                                </Badge>
+                                </span>
                               </div>
-                              <span className="shrink-0 text-base font-bold text-primary">
+                              <span className="shrink-0 text-base font-bold text-primary group-data-[selected=true]:text-white">
                                 ₹{(group.representative.sale_price || 0).toFixed(2)}
                               </span>
                             </div>
                             <div className="flex items-center justify-between gap-2 text-sm">
-                              <div className="flex flex-wrap gap-2 text-muted-foreground">
+                              <div className="flex flex-wrap gap-2 text-muted-foreground group-data-[selected=true]:text-white/85">
                                 {group.style && <span>{group.style}</span>}
                                 {group.brand && <span>{group.brand}</span>}
                                 {group.mrpStockBreakdown.length > 0 ? (
-                                  <span className="font-medium text-foreground">
+                                  <span className="font-medium text-foreground group-data-[selected=true]:text-white">
                                     {group.mrpStockBreakdown.map(({ mrp, stock }, index) => (
                                       <span key={mrp}>
                                         {index > 0 ? " · " : ""}
@@ -2027,7 +2027,7 @@ export default function SaleOrderEntry() {
                                   </span>
                                 ) : (
                                   group.mrpMax > 0 && (
-                                    <span className="font-medium text-foreground">
+                                    <span className="font-medium text-foreground group-data-[selected=true]:text-white">
                                       MRP{" "}
                                       {group.mrpMin > 0 && group.mrpMin !== group.mrpMax
                                         ? `₹${group.mrpMin.toFixed(0)}–₹${group.mrpMax.toFixed(0)}`
@@ -2038,10 +2038,10 @@ export default function SaleOrderEntry() {
                               </div>
                               <span
                                 className={cn(
-                                  "shrink-0 rounded-md px-2.5 py-1 text-base font-bold tabular-nums",
+                                  "shrink-0 rounded-md border px-2.5 py-1 text-base font-bold tabular-nums",
                                   group.totalStock > 0
-                                    ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200"
-                                    : "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200",
+                                    ? "border-emerald-200 bg-emerald-100 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200 group-data-[selected=true]:border-white/30 group-data-[selected=true]:bg-white/20 group-data-[selected=true]:text-white"
+                                    : "border-red-200 bg-red-100 text-red-800 dark:border-red-800 dark:bg-red-900/40 dark:text-red-200 group-data-[selected=true]:border-white/30 group-data-[selected=true]:bg-white/20 group-data-[selected=true]:text-white",
                                 )}
                               >
                                 Total Qty: {group.totalStock}
@@ -2062,7 +2062,7 @@ export default function SaleOrderEntry() {
                                 setOpenProductSearch(false);
                                 setSearchInput("");
                               }}
-                              className="p-0 cursor-pointer"
+                              className="group p-0 cursor-pointer"
                             >
                               <ERPVariantRow
                                 result={{

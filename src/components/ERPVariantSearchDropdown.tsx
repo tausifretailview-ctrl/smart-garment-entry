@@ -51,6 +51,9 @@ const formatBrandName = (brand: string): string => {
   return brand.charAt(0).toUpperCase() + brand.slice(1).toLowerCase();
 };
 
+const STOCK_BADGE_SELECTED =
+  "group-data-[selected=true]:bg-white/20 group-data-[selected=true]:text-white group-data-[selected=true]:border-white/30";
+
 const StockBadge = ({ qty, isSelected }: { qty: number; isSelected?: boolean }) => {
   if (isSelected) {
     // White-on-blue style when row is selected
@@ -64,20 +67,35 @@ const StockBadge = ({ qty, isSelected }: { qty: number; isSelected?: boolean }) 
 
   if (qty > 5) {
     return (
-      <span className="inline-flex items-center justify-center text-[12px] font-semibold px-2.5 py-1 rounded-md min-w-[70px] bg-[#DCFCE7] text-[#166534] dark:bg-green-900/50 dark:text-green-300 border border-green-200 dark:border-green-800">
+      <span
+        className={cn(
+          "inline-flex items-center justify-center text-[12px] font-semibold px-2.5 py-1 rounded-md min-w-[70px] bg-[#DCFCE7] text-[#166534] dark:bg-green-900/50 dark:text-green-300 border border-green-200 dark:border-green-800",
+          STOCK_BADGE_SELECTED,
+        )}
+      >
         Stock: {qty}
       </span>
     );
   }
   if (qty > 0) {
     return (
-      <span className="inline-flex items-center justify-center text-[12px] font-semibold px-2.5 py-1 rounded-md min-w-[70px] bg-[#FEF3C7] text-[#92400E] dark:bg-amber-900/50 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+      <span
+        className={cn(
+          "inline-flex items-center justify-center text-[12px] font-semibold px-2.5 py-1 rounded-md min-w-[70px] bg-[#FEF3C7] text-[#92400E] dark:bg-amber-900/50 dark:text-amber-300 border border-amber-200 dark:border-amber-800",
+          STOCK_BADGE_SELECTED,
+        )}
+      >
         Stock: {qty}
       </span>
     );
   }
   return (
-    <span className="inline-flex items-center justify-center text-[12px] font-semibold px-2.5 py-1 rounded-md min-w-[70px] bg-[#FEE2E2] text-[#991B1B] dark:bg-red-900/50 dark:text-red-300 border border-red-200 dark:border-red-800">
+    <span
+      className={cn(
+        "inline-flex items-center justify-center text-[12px] font-semibold px-2.5 py-1 rounded-md min-w-[70px] bg-[#FEE2E2] text-[#991B1B] dark:bg-red-900/50 dark:text-red-300 border border-red-200 dark:border-red-800",
+        STOCK_BADGE_SELECTED,
+      )}
+    >
       Out of Stock
     </span>
   );
@@ -105,8 +123,8 @@ export const ERPVariantRow = ({
       className={cn(
         "w-full text-left px-4 py-3 border-b border-border last:border-0 transition-colors duration-75 flex items-center gap-4",
         isSelected && "bg-primary text-primary-foreground shadow-md",
-        !isSelected && !isOutOfStock && "hover:bg-accent",
-        isOutOfStock && !isSelected && "opacity-60 cursor-not-allowed bg-muted/30"
+        !isSelected && !isOutOfStock && "hover:bg-accent group-data-[selected=true]:bg-transparent",
+        isOutOfStock && !isSelected && "opacity-60 cursor-not-allowed bg-muted/30",
       )}
       disabled={isOutOfStock}
     >
@@ -115,7 +133,7 @@ export const ERPVariantRow = ({
         {showProductName && (
           <div className={cn(
             "font-semibold text-[16px] leading-snug truncate",
-            isSelected ? "text-primary-foreground" : "text-foreground"
+            isSelected ? "text-primary-foreground" : "text-foreground group-data-[selected=true]:text-white",
           )}>
             {[result.product_name, result.style, result.brand, result.category].filter(p => p && p.trim() && p.trim() !== '-').join('-')}
           </div>
@@ -123,44 +141,44 @@ export const ERPVariantRow = ({
         <div className={cn(
           "flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[14px] font-semibold",
           showProductName ? "mt-1" : "mt-0",
-          isSelected ? "text-primary-foreground/90" : "text-foreground/80"
+          isSelected ? "text-primary-foreground/90" : "text-foreground/80 group-data-[selected=true]:text-white/90",
         )}>
           {color && (
             <span className="inline-flex items-center gap-1">
               <span className={cn(
                 "inline-block w-2.5 h-2.5 rounded-full shrink-0",
-                isSelected ? "bg-white" : "bg-foreground/50"
+                isSelected ? "bg-white" : "bg-foreground/50 group-data-[selected=true]:bg-white",
               )} />
               <span className={cn(
                 "font-bold tracking-wide text-[15px]",
-                isSelected ? "text-white" : "text-foreground dark:text-foreground"
+                isSelected ? "text-white" : "text-foreground dark:text-foreground group-data-[selected=true]:text-white",
               )}>{color}</span>
             </span>
           )}
           {color && result.size && (
-            <span className={isSelected ? "text-primary-foreground/40" : "text-foreground/30"}>|</span>
+            <span className={isSelected ? "text-primary-foreground/40" : "text-foreground/30 group-data-[selected=true]:text-white/40"}>|</span>
           )}
           {result.size && (
             <span>
-              <span className={isSelected ? "text-primary-foreground/70" : "text-muted-foreground"}>Size:</span>{" "}
-              <span className={cn("font-semibold", isSelected ? "text-primary-foreground" : "text-foreground")}>{result.size}</span>
+              <span className={isSelected ? "text-primary-foreground/70" : "text-muted-foreground group-data-[selected=true]:text-white/70"}>Size:</span>{" "}
+              <span className={cn("font-semibold", isSelected ? "text-primary-foreground" : "text-foreground group-data-[selected=true]:text-white")}>{result.size}</span>
             </span>
           )}
           {(color || result.size) && result.barcode && (
-            <span className={isSelected ? "text-primary-foreground/40" : "text-foreground/30"}>|</span>
+            <span className={isSelected ? "text-primary-foreground/40" : "text-foreground/30 group-data-[selected=true]:text-white/40"}>|</span>
           )}
           {result.barcode && (
             <span>
-              <span className={isSelected ? "text-primary-foreground/70" : "text-muted-foreground"}>SKU:</span>{" "}
-              <span className={cn("font-mono text-[13px]", isSelected ? "text-primary-foreground" : "text-foreground/80")}>{result.barcode}</span>
+              <span className={isSelected ? "text-primary-foreground/70" : "text-muted-foreground group-data-[selected=true]:text-white/70"}>SKU:</span>{" "}
+              <span className={cn("font-mono text-[13px]", isSelected ? "text-primary-foreground" : "text-foreground/80 group-data-[selected=true]:text-white")}>{result.barcode}</span>
             </span>
           )}
           {brand && (
             <>
-              <span className={isSelected ? "text-primary-foreground/40" : "text-foreground/30"}>|</span>
+              <span className={isSelected ? "text-primary-foreground/40" : "text-foreground/30 group-data-[selected=true]:text-white/40"}>|</span>
               <span>
-                <span className={isSelected ? "text-primary-foreground/70" : "text-muted-foreground"}>Brand:</span>{" "}
-                <span className={cn("font-semibold", isSelected ? "text-primary-foreground" : "text-foreground")}>{brand}</span>
+                <span className={isSelected ? "text-primary-foreground/70" : "text-muted-foreground group-data-[selected=true]:text-white/70"}>Brand:</span>{" "}
+                <span className={cn("font-semibold", isSelected ? "text-primary-foreground" : "text-foreground group-data-[selected=true]:text-white")}>{brand}</span>
               </span>
             </>
           )}
@@ -171,14 +189,14 @@ export const ERPVariantRow = ({
       <div className="text-right shrink-0 min-w-[85px]">
         <div className={cn(
           "font-bold text-[15px]",
-          isSelected ? "text-primary-foreground" : "text-primary"
+          isSelected ? "text-primary-foreground" : "text-primary group-data-[selected=true]:text-white",
         )}>
           ₹{(result.sale_price || 0).toFixed(2)}
         </div>
         {result.mrp && result.mrp !== result.sale_price && (
           <div className={cn(
             "text-[13px] line-through",
-            isSelected ? "text-primary-foreground/60" : "text-muted-foreground"
+            isSelected ? "text-primary-foreground/60" : "text-muted-foreground group-data-[selected=true]:text-white/60",
           )}>
             MRP: ₹{result.mrp}
           </div>
