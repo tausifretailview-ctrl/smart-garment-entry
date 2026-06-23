@@ -63,6 +63,7 @@ import {
   formatSnapshotInr,
   invalidateCustomerFinancialSnapshot,
 } from "@/utils/customerFinancialSnapshot";
+import { confirmInvoiceOverpaymentIfNeeded } from "@/utils/invoiceOverpaymentGuard";
 import {
   accountsHistoryFooterClass,
   accountsHistorySearchInputClass,
@@ -447,18 +448,19 @@ export default function PaymentsDashboard() {
       return;
     }
 
+    const overpayConfirmed = await confirmInvoiceOverpaymentIfNeeded(supabase, {
+      organizationId: currentOrganization!.id,
+      saleId: selectedInvoice.id,
+      saleNumber: selectedInvoice.sale_number,
+      proposedSettlement: amount,
+    });
+    if (!overpayConfirmed) {
+      return;
+    }
+
     const currentPaid = Number(selectedInvoice.paid_amount || 0);
     const netAmount = Number(selectedInvoice.net_amount || 0);
     const newPaidAmount = currentPaid + amount;
-
-    if (newPaidAmount > netAmount) {
-      toast({
-        title: "Amount Exceeds Total",
-        description: "Payment amount exceeds the invoice total",
-        variant: "destructive",
-      });
-      return;
-    }
 
     setIsRecordingPayment(true);
 

@@ -88,6 +88,7 @@ import { onWheelScrollContainer } from "@/lib/scrollWheel";
 import { notifyPosSalesChanged, POS_SALES_REFRESH_EVENT, type PosSalesChangedDetail } from "@/utils/posSalesRefresh";
 import { isSaleInvoiceCancelled } from "@/utils/saleInvoiceStatus";
 import { syncSalePaymentFromVouchers } from "@/utils/customerBalanceUtils";
+import { confirmInvoiceOverpaymentIfNeeded } from "@/utils/invoiceOverpaymentGuard";
 import {
   getEffectivePaidAmountForPosDashboard,
   getPosSaleOutstandingBalance,
@@ -1509,16 +1510,14 @@ const POSDashboard = () => {
 
     const currentPaid = getEffectivePaidAmountForDashboard(selectedSaleForPayment);
     const currentCNAdjust = selectedSaleForPayment.sale_return_adjust || 0;
-    const pendingAmount = Math.round(
-      selectedSaleForPayment.net_amount - currentPaid - (Number(currentCNAdjust) || 0),
-    );
 
-    if (amount > pendingAmount) {
-      toast({
-        title: "Amount Exceeds Pending",
-        description: `Payment amount cannot exceed pending amount of ₹${Math.round(pendingAmount).toLocaleString('en-IN')}`,
-        variant: "destructive",
-      });
+    const overpayConfirmed = await confirmInvoiceOverpaymentIfNeeded(supabase, {
+      organizationId: currentOrganization!.id,
+      saleId: selectedSaleForPayment.id,
+      saleNumber: selectedSaleForPayment.sale_number,
+      proposedSettlement: amount,
+    });
+    if (!overpayConfirmed) {
       return;
     }
 

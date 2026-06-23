@@ -41,6 +41,7 @@ import {
 import { formatCnApplyError } from "@/utils/saleReturnCnBalance";
 import { useCustomerFinancialSnapshot } from "@/hooks/useCustomerFinancialSnapshot";
 import { invalidateCustomerFinancialSnapshot } from "@/utils/customerFinancialSnapshot";
+import { confirmInvoiceOverpaymentIfNeeded } from "@/utils/invoiceOverpaymentGuard";
 
 export interface SettleCustomerAccountDialogProps {
   open: boolean;
@@ -397,6 +398,17 @@ export function SettleCustomerAccountDialog({
           );
 
           if (cashForThis > 0.01 || discForThis > 0.01) {
+            const settlementForInvoice = cashForThis + discForThis;
+            const confirmed = await confirmInvoiceOverpaymentIfNeeded(supabase, {
+              organizationId,
+              saleId: inv.id,
+              saleNumber: inv.sale_number,
+              proposedSettlement: settlementForInvoice,
+            });
+            if (!confirmed) {
+              throw new Error("Payment cancelled");
+            }
+
             await createReceiptVoucher(supabase, {
               organizationId,
               referenceId: inv.id,

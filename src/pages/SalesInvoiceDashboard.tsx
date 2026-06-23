@@ -108,6 +108,7 @@ import {
   type CnFifoVoucherChunk,
 } from "@/utils/saleSettlement";
 import { fetchCustomerBalanceSnapshot } from "@/utils/customerBalanceUtils";
+import { confirmInvoiceOverpaymentIfNeeded } from "@/utils/invoiceOverpaymentGuard";
 import {
   fetchInvoiceDashboardPage,
   fetchInvoiceDashboardStats,
@@ -1966,14 +1967,14 @@ export default function SalesInvoiceDashboard() {
 
     const currentPaid = selectedInvoiceForPayment.paid_amount || 0;
     const currentCNAdjust = selectedInvoiceForPayment.sale_return_adjust || 0;
-    const pendingAmount = Math.max(0, Math.round(selectedInvoiceForPayment.net_amount - currentPaid - currentCNAdjust));
 
-    if (amount > pendingAmount) {
-      toast({
-        title: "Amount Exceeds Pending",
-        description: `Payment amount cannot exceed pending amount of ₹${pendingAmount.toFixed(2)}`,
-        variant: "destructive",
-      });
+    const overpayConfirmed = await confirmInvoiceOverpaymentIfNeeded(supabase, {
+      organizationId: currentOrganization!.id,
+      saleId: selectedInvoiceForPayment.id,
+      saleNumber: selectedInvoiceForPayment.sale_number,
+      proposedSettlement: amount,
+    });
+    if (!overpayConfirmed) {
       return;
     }
 

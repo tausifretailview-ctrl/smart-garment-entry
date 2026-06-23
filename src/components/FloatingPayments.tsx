@@ -38,6 +38,7 @@ import { setCloudUsageRoutePath } from "@/lib/cloudUsageDiagnostics";
 import { safeMapGet } from "@/lib/coerceToMap";
 import { loadSupplierBalanceMapForOrg } from "@/utils/supplierBalanceUtils";
 import { whatsappPaymentReceiptDiscountLines } from "@/utils/paymentReceiptWhatsApp";
+import { confirmInvoiceOverpaymentIfNeeded } from "@/utils/invoiceOverpaymentGuard";
 import { PaymentReceipt } from "@/components/PaymentReceipt";
 import { useReactToPrint } from "react-to-print";
 import { AdaptiveCustomerPicker } from "@/components/mobile/AdaptiveCustomerPicker";
@@ -316,6 +317,18 @@ function CustomerPaymentForm({
           });
           processedInvoices.push({ invoice, amountApplied: amountToApply, previousBalance: outstanding, currentBalance: outstanding - amountToApply });
           remainingAmount -= amountToApply;
+        }
+      }
+
+      for (const processed of processedInvoices) {
+        const confirmed = await confirmInvoiceOverpaymentIfNeeded(supabase, {
+          organizationId,
+          saleId: processed.invoice.id,
+          saleNumber: processed.invoice.sale_number,
+          proposedSettlement: processed.amountApplied,
+        });
+        if (!confirmed) {
+          throw new Error("Payment cancelled");
         }
       }
 

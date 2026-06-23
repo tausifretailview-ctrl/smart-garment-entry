@@ -67,6 +67,7 @@ import {
 import { useCustomerFinancialSnapshot } from "@/hooks/useCustomerFinancialSnapshot";
 import { invalidateCustomerFinancialSnapshot } from "@/utils/customerFinancialSnapshot";
 import { invalidateAfterCustomerPaymentMutation } from "@/utils/invalidateDashboardQueries";
+import { confirmInvoiceOverpaymentIfNeeded } from "@/utils/invoiceOverpaymentGuard";
 import {
   fetchCustomerOpeningBalanceRemaining,
   readCustomerOpeningBalanceFromOrgLedgerCache,
@@ -859,6 +860,18 @@ export function CustomerPaymentTab({
             previousBalance: outstanding,
             currentBalance: outstanding - amountToApply,
           });
+        }
+      }
+
+      for (const processed of processedInvoices) {
+        const confirmed = await confirmInvoiceOverpaymentIfNeeded(supabase, {
+          organizationId,
+          saleId: processed.invoice.id,
+          saleNumber: processed.invoice.sale_number,
+          proposedSettlement: processed.amountApplied,
+        });
+        if (!confirmed) {
+          throw new Error("Payment cancelled");
         }
       }
 
