@@ -30,7 +30,9 @@ import { LoadingButton } from "@/components/ui/loading-button";
 import { Search, Printer, Edit, ChevronDown, ChevronUp, Trash2, Loader2, MessageCircle, Link2, Settings2, Package, IndianRupee, Send, FileText, TrendingUp, CheckCircle2, Clock, CalendarIcon, Download, Percent, Zap, FileDown, Lock, X, Plus, RefreshCw, Copy, Ban, Eye, MoreHorizontal, FileSpreadsheet, User, Phone, AlertTriangle, Receipt } from "lucide-react";
 import * as XLSX from "xlsx";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
+import { captureElementToPdfBase64 } from "@/utils/captureInvoicePdf";
 import { captureElementToPdfBlob } from "@/utils/invoiceElementToPdf";
+import { resendSaleInvoiceWhatsApp } from "@/utils/resendSaleInvoiceWhatsApp";
 import { deliverPdfBlob, shouldUseMobileDocumentDelivery } from "@/utils/mobileDocumentDelivery";
 import { useIsNativeApp } from "@/hooks/useNativeApp";
 import html2canvas from "html2canvas";
@@ -1704,6 +1706,40 @@ export default function SalesInvoiceDashboard() {
     setShowPrintPreview(true);
   };
 
+  const waitForInvoicePrintDom = useCallback((): Promise<HTMLElement | null> => {
+    const MAX_WAIT = 10000;
+    const startTime = Date.now();
+    return new Promise((resolve) => {
+      const poll = () => {
+        const el = printRef.current;
+        const text = (el?.textContent || "").trim();
+        const hasLoadingAttr = el?.querySelector("[data-invoice-loading]") !== null;
+        const isReady =
+          !!el &&
+          el.childElementCount > 0 &&
+          !hasLoadingAttr &&
+          text.length > 32 &&
+          !/^loading\.?\.?\.?$/i.test(text);
+        if (isReady) return resolve(el);
+        if (Date.now() - startTime > MAX_WAIT) return resolve(null);
+        setTimeout(poll, 250);
+      };
+      poll();
+    });
+  }, []);
+
+  const captureInvoicePdfForWhatsApp = useCallback(
+    async (invoice: any): Promise<string | null> => {
+      const invoiceWithItems = await ensureSaleItems(invoice);
+      setInvoiceToPrint(invoiceWithItems);
+      await new Promise((resolve) => setTimeout(resolve, isMobile ? 600 : 200));
+      const el = await waitForInvoicePrintDom();
+      if (!el) return null;
+      return (await captureElementToPdfBase64(el, { extraSettleMs: 300 })) || null;
+    },
+    [ensureSaleItems, isMobile, waitForInvoicePrintDom],
+  );
+
   const handleDownloadPDF = async (invoice: any) => {
     const invoiceWithItems = await ensureSaleItems(invoice);
     setInvoiceToPrint(invoiceWithItems);
@@ -1715,23 +1751,8 @@ export default function SalesInvoiceDashboard() {
     try {
       await new Promise((resolve) => setTimeout(resolve, isMobile ? 600 : 200));
 
-      const MAX_WAIT = 10000;
-      const startTime = Date.now();
-      const waitForReady = () => new Promise<boolean>((resolve) => {
-        const poll = () => {
-          const el = printRef.current;
-          const text = (el?.textContent || '').trim();
-          const hasLoadingAttr = el?.querySelector('[data-invoice-loading]') !== null;
-          const isReady = !!el && el.childElementCount > 0 && !hasLoadingAttr && text.length > 32 && !/^loading\.?\.?\.?$/i.test(text);
-          if (isReady) return resolve(true);
-          if (Date.now() - startTime > MAX_WAIT) return resolve(false);
-          setTimeout(poll, 250);
-        };
-        poll();
-      });
-
-      const ready = await waitForReady();
-      if (!ready || !printRef.current) {
+      const ready = await waitForInvoicePrintDom();
+      if (!ready) {
         throw new Error('Invoice template failed to render');
       }
 
@@ -1742,7 +1763,7 @@ export default function SalesInvoiceDashboard() {
             ? 'a5'
             : 'a4';
 
-      const blob = await captureElementToPdfBlob(printRef.current, {
+      const blob = await captureElementToPdfBlob(ready, {
         pageFormat,
         thermalPaper: saleThermalPaper,
         mobileOptimized: isNativeApp || shouldUseMobileDocumentDelivery(),
@@ -1831,39 +1852,53 @@ export default function SalesInvoiceDashboard() {
       return;
     }
 
+    if (!whatsAppAPISettings?.is_active || !currentOrganization?.id) {
+      toast({
+        title: "WhatsApp API Inactive",
+        description: "Enable WhatsApp API integration before resending",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
       const totalQty = invoice.total_qty || 0;
-      
-      await sendMessageAsync({
+      const saleData = {
+        sale_id: invoice.id,
+        org_slug: currentOrganization?.slug,
+        sale_number: invoice.sale_number,
+        customer_name: invoice.customer_name,
+        customer_phone: invoice.customer_phone,
+        sale_date: invoice.sale_date,
+        net_amount: invoice.net_amount,
+        gross_amount: invoice.gross_amount,
+        discount_amount: invoice.discount_amount,
+        payment_status: invoice.payment_status,
+        items_count: totalQty,
+        salesman: invoice.salesman,
+        organization_name: currentOrganization?.name,
+        organization_id: currentOrganization?.id,
+        bill_context: "sale",
+        invoice_paper_format: saleSettings?.invoice_paper_format || "",
+        sales_bill_format: saleSettings?.sales_bill_format || "",
+        pos_bill_format: saleSettings?.pos_bill_format || "",
+        invoice_template: saleSettings?.invoice_template || "",
+      };
+
+      await resendSaleInvoiceWhatsApp({
         phone: invoice.customer_phone,
-        message: '',
-        templateType: 'sales_invoice',
-        templateName: whatsAppAPISettings?.invoice_template_name || undefined,
-        referenceId: invoice.id,
-        referenceType: 'sale',
-        saleData: {
-          sale_id: invoice.id,
-          org_slug: currentOrganization?.slug,
-          sale_number: invoice.sale_number,
-          customer_name: invoice.customer_name,
-          customer_phone: invoice.customer_phone,
-          sale_date: invoice.sale_date,
-          net_amount: invoice.net_amount,
-          gross_amount: invoice.gross_amount,
-          discount_amount: invoice.discount_amount,
-          payment_status: invoice.payment_status,
-          items_count: totalQty,
-          salesman: invoice.salesman,
-          organization_name: currentOrganization?.name,
-          organization_id: currentOrganization?.id,
-          bill_context: 'sale',
-          invoice_paper_format: saleSettings?.invoice_paper_format || '',
-          sales_bill_format: saleSettings?.sales_bill_format || '',
-          pos_bill_format: saleSettings?.pos_bill_format || '',
-          invoice_template: saleSettings?.invoice_template || '',
-        },
+        saleId: invoice.id,
+        saleNumber: invoice.sale_number,
+        customerName: invoice.customer_name,
+        netAmount: Number(invoice.net_amount || 0),
+        saleData,
+        waSettings: whatsAppAPISettings,
+        organizationId: currentOrganization.id,
+        organizationName: currentOrganization.name || "",
+        sendMessageAsync,
+        capturePdfBase64: () => captureInvoicePdfForWhatsApp(invoice),
       });
-      
+
       toast({
         title: "Message Sent",
         description: "WhatsApp message sent successfully via API",
@@ -1874,6 +1909,8 @@ export default function SalesInvoiceDashboard() {
         description: error.message || "Failed to send WhatsApp message",
         variant: "destructive",
       });
+    } finally {
+      setInvoiceToPrint(null);
     }
   };
 
