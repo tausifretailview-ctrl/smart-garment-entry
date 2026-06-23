@@ -931,7 +931,14 @@ export const useSaveSale = () => {
                     companyPhone: companySettings?.mobile_number || undefined,
                     companyGst: companySettings?.gst_number || undefined,
                   };
-                  pdfBase64 = generateInvoicePdfBase64(pdfData);
+                  try {
+                    pdfBase64 = runtimeOptions?.capturePdfBase64
+                      ? await runtimeOptions.capturePdfBase64()
+                      : generateInvoicePdfBase64(pdfData);
+                  } catch (captureErr) {
+                    console.error('WhatsApp invoice PDF capture failed, falling back to basic PDF:', captureErr);
+                    pdfBase64 = generateInvoicePdfBase64(pdfData);
+                  }
                 }
 
                 if (shouldAttachPdf && !pdfBase64) {
