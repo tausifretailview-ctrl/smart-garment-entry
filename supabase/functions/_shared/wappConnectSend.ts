@@ -106,18 +106,12 @@ async function verifyWappConnectPdfUrl(fileUrl: string): Promise<string | undefi
   return undefined;
 }
 
-async function fetchPdfAsDataUrl(fileUrl: string): Promise<string> {
+async function ensurePdfDownloadable(fileUrl: string): Promise<void> {
   const response = await fetch(fileUrl, { method: "GET" });
   if (!response.ok) {
     throw new Error(`PDF download failed before send (HTTP ${response.status})`);
   }
-  const bytes = new Uint8Array(await response.arrayBuffer());
-  let binary = "";
-  const chunkSize = 0x8000;
-  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
-    binary += String.fromCharCode(...bytes.subarray(offset, offset + chunkSize));
-  }
-  return `data:application/pdf;base64,${btoa(binary)}`;
+  await response.body?.cancel();
 }
 
 // serve-wappconnect-pdf has verify_jwt=false — appending ?apikey=<JWT>
@@ -221,7 +215,9 @@ export async function sendViaWappConnect(
   if (fileUrl && !message) {
     message = "Please find your document attached.";
   }
-  const fileDataUrl = fileUrl ? await fetchPdfAsDataUrl(fileUrl).catch(() => "") : "";
+  if (fileUrl) {
+    await ensurePdfDownloadable(fileUrl);
+  }
 
   let endpoint: string;
   if (fileUrl) {
