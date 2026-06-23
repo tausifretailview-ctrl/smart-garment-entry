@@ -523,6 +523,15 @@ export default function POSSales() {
   const printBtnRef = useRef<HTMLButtonElement>(null);
   const barcodeInputRef = useRef<HTMLInputElement>(null);
   const itemsContainerRef = useRef<HTMLDivElement>(null);
+  // ── WhatsApp invoice PDF capture ──────────────────────────────────────────
+  // A hidden off-screen InvoiceWrapper rendered with the user's selected A4
+  // template (logo, header, columns, totals) so the WhatsApp auto-send
+  // attaches the SAME design the customer would see when printing.
+  const whatsappPdfRef = useRef<HTMLDivElement>(null);
+  const [whatsappPdfSnapshot, setWhatsappPdfSnapshot] = useState<any>(null);
+  const whatsappPdfResolverRef = useRef<
+    { resolve: (v: string | null) => void } | null
+  >(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [highlightCartItemId, setHighlightCartItemId] = useState<string | null>(null);
   const highlightClearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
