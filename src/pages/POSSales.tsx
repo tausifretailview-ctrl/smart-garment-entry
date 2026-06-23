@@ -7145,6 +7145,28 @@ export default function POSSales() {
           }}
         />
       )}
+
+      {/*
+        Hidden off-screen A4 invoice used solely for WhatsApp PDF capture.
+        Positioned far off-canvas (not display:none) so html2canvas can read
+        actual layout / loaded images. Mounts only while a snapshot is active.
+      */}
+      <div
+        aria-hidden="true"
+        style={{
+          position: 'fixed',
+          left: '-100000px',
+          top: 0,
+          width: '210mm',
+          background: '#ffffff',
+          pointerEvents: 'none',
+          zIndex: -1,
+        }}
+      >
+        <div ref={whatsappPdfRef}>
+          {whatsappPdfSnapshot && <InvoiceWrapper {...whatsappPdfSnapshot} />}
+        </div>
+      </div>
     </div>
   );
 }
