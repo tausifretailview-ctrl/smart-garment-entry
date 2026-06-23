@@ -7873,6 +7873,20 @@ export type Database = {
         }
         Returns: number
       }
+      _get_customer_party_balances_rows: {
+        Args: { p_organization_id: string }
+        Returns: {
+          out_advance_available: number
+          out_customer_id: string
+          out_customer_name: string
+          out_direction: string
+          out_net_position: number
+          out_net_receivable: number
+          out_signed_balance: number
+          out_total_cr: number
+          out_total_dr: number
+        }[]
+      }
       _increment_supplier_invoice_no: {
         Args: { prev: string }
         Returns: string
@@ -8205,6 +8219,20 @@ export type Database = {
           transaction_date: string
           voucher_no: string
           voucher_type: string
+        }[]
+      }
+      get_customer_party_balances: {
+        Args: { p_organization_id: string }
+        Returns: {
+          advance_available: number
+          customer_id: string
+          customer_name: string
+          direction: string
+          net_position: number
+          net_receivable: number
+          signed_balance: number
+          total_cr: number
+          total_dr: number
         }[]
       }
       get_customer_true_outstanding: {
