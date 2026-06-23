@@ -933,7 +933,11 @@ export const useSaveSale = () => {
                   };
                   try {
                     pdfBase64 = runtimeOptions?.capturePdfBase64
-                      ? await runtimeOptions.capturePdfBase64()
+                      ? await runtimeOptions.capturePdfBase64({
+                          saleNumber,
+                          saleId: sale.id,
+                          saleDate: new Date(sale.sale_date || sale.created_at || Date.now()),
+                        })
                       : generateInvoicePdfBase64(pdfData);
                   } catch (captureErr) {
                     console.error('WhatsApp invoice PDF capture failed, falling back to basic PDF:', captureErr);
