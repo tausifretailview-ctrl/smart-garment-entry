@@ -360,7 +360,7 @@ export async function resolveWappConnectFileUrl(
     throw new Error(`Failed to upload PDF for WappConnect: ${uploadError.message}`);
   }
 
-  return buildWappConnectPdfServeUrl(supabaseUrl, filePath, wappConnectAnonKey());
+  return buildWappConnectPdfServeUrl(supabaseUrl, filePath);
 }
 
 type WappConnectStorageClient = {
@@ -405,7 +405,7 @@ export async function rehostStoragePdfForWappConnect(
     throw new Error(`Failed to rehost PDF for WappConnect: ${uploadError.message}`);
   }
 
-  return buildWappConnectPdfServeUrl(supabaseUrl, filePath, wappConnectAnonKey());
+  return buildWappConnectPdfServeUrl(supabaseUrl, filePath);
 }
 
 /**
@@ -433,7 +433,7 @@ export async function ensureWappConnectPdfUrl(
   }
 
   if (isAllowedWappConnectPdfPath(storagePath)) {
-    return buildWappConnectPdfServeUrl(supabaseUrl, storagePath, wappConnectAnonKey());
+    return buildWappConnectPdfServeUrl(supabaseUrl, storagePath);
   }
 
   return rehostStoragePdfForWappConnect(
