@@ -123,6 +123,84 @@ export async function fetchCustomerPhoneMap(organizationId: string): Promise<Map
   return map;
 }
 
+export type SupplierPartyBalanceRpcRow = {
+  supplier_id: string;
+  supplier_name: string;
+  signed_balance: number;
+  direction: string;
+  total_cr: number;
+  total_dr: number;
+  net_payable: number;
+};
+
+/**
+ * Fetch all rows from get_supplier_party_balances (PostgREST default cap is 1000).
+ */
+export async function fetchAllSupplierPartyBalances(
+  organizationId: string,
+): Promise<SupplierPartyBalanceRpcRow[]> {
+  const allRows: SupplierPartyBalanceRpcRow[] = [];
+  let offset = 0;
+  const pageSize = 1000;
+
+  while (true) {
+    const { data, error } = await supabase
+      .rpc("get_supplier_party_balances", {
+        p_organization_id: organizationId,
+      })
+      .range(offset, offset + pageSize - 1);
+
+    if (error) {
+      console.error("Error fetching supplier party balances:", error);
+      throw error;
+    }
+
+    const page = (data ?? []) as SupplierPartyBalanceRpcRow[];
+    if (page.length === 0) break;
+
+    allRows.push(...page);
+    if (page.length < pageSize) break;
+    offset += pageSize;
+  }
+
+  return allRows;
+}
+
+/** Fetch id → phone map for supplier party balance search. */
+export async function fetchSupplierPhoneMap(organizationId: string): Promise<Map<string, string>> {
+  const map = new Map<string, string>();
+  let offset = 0;
+  const pageSize = 1000;
+  let hasMore = true;
+
+  while (hasMore) {
+    const { data, error } = await supabase
+      .from("suppliers")
+      .select("id, phone")
+      .eq("organization_id", organizationId)
+      .is("deleted_at", null)
+      .order("id")
+      .range(offset, offset + pageSize - 1);
+
+    if (error) {
+      console.error("Error fetching supplier phones:", error);
+      throw error;
+    }
+
+    if (data && data.length > 0) {
+      for (const row of data) {
+        if (row.id) map.set(row.id, row.phone ?? "");
+      }
+      offset += pageSize;
+      hasMore = data.length === pageSize;
+    } else {
+      hasMore = false;
+    }
+  }
+
+  return map;
+}
+
 /**
  * Fetch all sales summary for an organization using range pagination.
  * Uses minimal fields for performance.

@@ -53,6 +53,7 @@ const BACK_MAP: Record<string, string> = {
   "customer-account-statement-audit": "/",
   "customer-balance-activity":        "/",
   "customer-party-balances":          "accounts",
+  "supplier-party-balances":          "accounts",
   "customer-audit-report":            "/",
   // Masters
   "customers":                "/",

@@ -1507,6 +1507,31 @@ main:has(.customer-party-balances-workspace) {
   }
 }
 
+/* Supplier Balances — sidebar-only full workspace */
+.supplier-party-balances-workspace {
+  height: 100%;
+  min-height: 0;
+  max-height: 100%;
+  overflow: hidden;
+}
+main:has(.supplier-party-balances-workspace) {
+  overflow: hidden;
+  padding: 0;
+  scrollbar-gutter: auto;
+}
+@media (min-width: 1024px) {
+  main:has(.supplier-party-balances-workspace) {
+    display: flex;
+    flex-direction: column;
+  }
+  main:has(.supplier-party-balances-workspace) .supplier-party-balances-workspace {
+    flex: 1 1 0%;
+    height: auto;
+    max-height: 100%;
+    min-height: 0;
+  }
+}
+
 /* Fallback: keep POS/Sales Invoice readable even if body class races on refresh */
 @media (min-width: 1024px) {
   .pos-desktop-readable {

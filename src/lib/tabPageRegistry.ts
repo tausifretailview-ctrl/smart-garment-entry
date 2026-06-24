@@ -130,6 +130,10 @@ export const TAB_PAGE_REGISTRY: Record<string, TabPageDef> = {
     loader: () => import("@/pages/CustomerPartyBalancesPage"),
     layout: "layout",
   },
+  "supplier-party-balances": {
+    loader: () => import("@/pages/SupplierPartyBalancesPage"),
+    layout: "layout",
+  },
   "customer-audit-report": { loader: () => import("@/pages/CustomerAuditReport"), layout: "layout" },
   "customer-reconciliation": {
     loader: () => import("@/pages/CustomerReconciliation"),

@@ -120,6 +120,14 @@ const REPORT_CATEGORIES: ReportCategory[] = [
         permission: "purchase_return_dashboard",
         permissionAlt: "purchase_return",
       },
+      {
+        icon: Scale,
+        label: "Supplier Balances",
+        path: "/supplier-party-balances",
+        desc: "Tally-style Cr/Dr payables list (one RPC)",
+        permission: "accounts_dashboard",
+        permissionAlt: "purchase_dashboard",
+      },
     ],
   },
   {

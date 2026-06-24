@@ -101,6 +101,16 @@ async function main() {
     fetchSupplierBalanceSnapshotsForOrg(supabase, orgId),
   ]);
 
+  if (canonMap.size === 0 && rpcRows.length > 0) {
+    console.error(
+      "\nCanonical TS snapshots returned 0 suppliers — likely RLS without auth session.",
+    );
+    console.error(
+      "Set SUPABASE_SERVICE_ROLE_KEY in .env, or run parity while logged in via SQL editor spot-checks.",
+    );
+    process.exit(2);
+  }
+
   const drifts: {
     name: string;
     id: string;
