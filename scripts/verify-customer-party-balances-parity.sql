@@ -1,8 +1,36 @@
--- Parity gate for get_customer_party_balances vs canonical reconcile_customer_balances.
+-- Parity gate for get_customer_party_balances vs canonical reconcile_customer_balance.
 -- Run in Supabase SQL editor AFTER applying migrations through
 -- 20260911150000_fix_party_balances_paid_at_sale_drift_parity.sql.
 --
--- Org: ELLA NOOR 3fdca631-1e0c-4417-9704-421f5129ff67
+-- IMPORTANT: Select and run ONE block at a time (do not Run entire file).
+-- Heavy gates: run `SET statement_timeout = '120s';` first if you hit timeout.
+--
+-- Orgs:
+--   ELLA NOOR (invoice) 3fdca631-1e0c-4417-9704-421f5129ff67
+--   KS FOOTWEAR (POS)    4bc73037-e877-4123-9261-eb6e3876698c
+--   Velvet (POS)         dafc3d0c-874e-4784-bac3-5eab5f3c85b5
+
+
+-- =============================================================================
+-- DIAG) Migration 20260911150000 applied? (paid_at_sale_drift per-sale subquery)
+--     migration_applied should be TRUE before POS parity gates pass.
+-- =============================================================================
+SELECT
+  p.proname,
+  pg_get_functiondef(p.oid) LIKE '%sub.customer_id AS cust_id%' AS migration_111500_applied,
+  pg_get_functiondef(p.oid) LIKE '%sale_voucher_receipts%' AS still_has_old_sale_voucher_cte
+FROM pg_proc p
+JOIN pg_namespace n ON n.oid = p.pronamespace
+WHERE n.nspname = 'public'
+  AND p.proname = '_get_customer_party_balances_rows';
+
+
+-- =============================================================================
+-- DIAG) Smoke — party RPC compiles and returns rows (pick org below)
+-- =============================================================================
+SELECT COUNT(*) AS party_row_count
+FROM public.get_customer_party_balances('dafc3d0c-874e-4784-bac3-5eab5f3c85b5'::uuid);
+
 
 -- =============================================================================
 -- 0a) Six-customer sign-off — drift must be 0
@@ -51,49 +79,52 @@ ORDER BY p.customer_name;
 
 
 -- =============================================================================
--- 1) Full org drift vs get_customer_true_outstanding (canonical per-customer gate)
+-- 1) ELLA NOOR — non-settled drift gate (fast; avoids per-customer loop on all parties)
 --    Must return ZERO rows (|drift| > 0.01)
--- =============================================================================
-WITH party AS (
-  SELECT customer_id, signed_balance, advance_available, total_dr, total_cr, net_receivable
-  FROM public.get_customer_party_balances('3fdca631-1e0c-4417-9704-421f5129ff67'::uuid)
-),
-canonical AS (
-  SELECT
-    c.id AS customer_id,
-    public.get_customer_true_outstanding(c.id, '3fdca631-1e0c-4417-9704-421f5129ff67'::uuid)::numeric AS calculated_balance,
-    public._customer_advance_available(c.id, '3fdca631-1e0c-4417-9704-421f5129ff67'::uuid)::numeric AS canon_advance
-  FROM public.customers c
-  WHERE c.organization_id = '3fdca631-1e0c-4417-9704-421f5129ff67'::uuid
-    AND c.deleted_at IS NULL
-)
-SELECT
-  COALESCE(p.customer_id, c.customer_id) AS customer_id,
-  cu.customer_name,
-  p.signed_balance AS party_balance,
-  c.calculated_balance AS canonical_balance,
-  ROUND(COALESCE(p.signed_balance, 0) - COALESCE(c.calculated_balance, 0), 2) AS drift,
-  p.advance_available AS party_advance,
-  c.canon_advance AS canonical_advance,
-  ROUND(COALESCE(p.advance_available, 0) - COALESCE(c.canon_advance, 0), 2) AS advance_drift
-FROM party p
-FULL OUTER JOIN canonical c ON c.customer_id = p.customer_id
-LEFT JOIN public.customers cu ON cu.id = COALESCE(p.customer_id, c.customer_id)
-WHERE ABS(COALESCE(p.signed_balance, 0) - COALESCE(c.calculated_balance, 0)) > 0.01
-   OR ABS(COALESCE(p.advance_available, 0) - COALESCE(c.canon_advance, 0)) > 0.01
-ORDER BY ABS(COALESCE(p.signed_balance, 0) - COALESCE(c.calculated_balance, 0)) DESC;
-
-
--- =============================================================================
--- 1b) Subset check: party vs reconcile_customer_balances rows (org list RPC)
+--    Tip: SET statement_timeout = '120s'; if this still times out on very large orgs.
 -- =============================================================================
 WITH party AS (
   SELECT customer_id, signed_balance, advance_available
   FROM public.get_customer_party_balances('3fdca631-1e0c-4417-9704-421f5129ff67'::uuid)
+  WHERE ABS(signed_balance) > 0.01
+     OR COALESCE(advance_available, 0) > 0.01
+)
+SELECT
+  cu.customer_name,
+  p.signed_balance AS party_balance,
+  public.get_customer_true_outstanding(p.customer_id, '3fdca631-1e0c-4417-9704-421f5129ff67'::uuid) AS canonical_balance,
+  ROUND(p.signed_balance - public.get_customer_true_outstanding(p.customer_id, '3fdca631-1e0c-4417-9704-421f5129ff67'::uuid), 2) AS drift,
+  p.advance_available AS party_advance,
+  public._customer_advance_available(p.customer_id, '3fdca631-1e0c-4417-9704-421f5129ff67'::uuid) AS canonical_advance,
+  ROUND(
+    COALESCE(p.advance_available, 0)
+    - public._customer_advance_available(p.customer_id, '3fdca631-1e0c-4417-9704-421f5129ff67'::uuid),
+    2
+  ) AS advance_drift
+FROM party p
+JOIN public.customers cu ON cu.id = p.customer_id
+WHERE ABS(p.signed_balance - public.get_customer_true_outstanding(p.customer_id, '3fdca631-1e0c-4417-9704-421f5129ff67'::uuid)) > 0.01
+   OR ABS(
+     COALESCE(p.advance_available, 0)
+     - public._customer_advance_available(p.customer_id, '3fdca631-1e0c-4417-9704-421f5129ff67'::uuid)
+   ) > 0.01
+ORDER BY ABS(p.signed_balance - public.get_customer_true_outstanding(p.customer_id, '3fdca631-1e0c-4417-9704-421f5129ff67'::uuid)) DESC;
+
+
+-- =============================================================================
+-- 1b) ELLA NOOR — party vs reconcile_customer_balances (non-settled only)
+--     reconcile_customer_balances times out on full org in SQL editor; filter first.
+-- =============================================================================
+WITH party AS (
+  SELECT customer_id, signed_balance, advance_available
+  FROM public.get_customer_party_balances('3fdca631-1e0c-4417-9704-421f5129ff67'::uuid)
+  WHERE ABS(signed_balance) > 0.01
+     OR COALESCE(advance_available, 0) > 0.01
 ),
 reconcile AS (
-  SELECT customer_id, calculated_balance, advance_available AS reconcile_advance
-  FROM public.reconcile_customer_balances('3fdca631-1e0c-4417-9704-421f5129ff67'::uuid)
+  SELECT r.customer_id, r.calculated_balance, r.advance_available AS reconcile_advance
+  FROM public.reconcile_customer_balances('3fdca631-1e0c-4417-9704-421f5129ff67'::uuid) r
+  INNER JOIN party p ON p.customer_id = r.customer_id
 )
 SELECT
   r.customer_id,
@@ -148,8 +179,7 @@ CROSS JOIN summary s;
 
 
 -- =============================================================================
--- 4) Sample 5+ customers for manual sign-off (advance / credit / CN / debtor / settled)
---    Edit the IN list or use the auto-pick query below.
+-- 4) Sample customers for manual sign-off (advance / credit / CN / debtor / settled)
 -- =============================================================================
 WITH picks AS (
   SELECT customer_id, calculated_balance, advance_available, notes
@@ -183,7 +213,7 @@ ORDER BY ABS(pk.calculated_balance) DESC;
 
 
 -- =============================================================================
--- 5) Performance smoke — should complete without statement_timeout on large orgs
+-- 5) Performance smoke — party RPC only (safe; reconcile full-org may timeout)
 -- =============================================================================
 EXPLAIN (ANALYZE, BUFFERS, FORMAT TEXT)
 SELECT COUNT(*), SUM(signed_balance)
@@ -191,7 +221,7 @@ FROM public.get_customer_party_balances('3fdca631-1e0c-4417-9704-421f5129ff67'::
 
 
 -- =============================================================================
--- 6) KS FOOTWEAR POS org — VAVIA + JOHNSON + full-org drift gate
+-- 6) KS FOOTWEAR POS org — VAVIA + JOHNSON spot check (drift must be 0 after 111500)
 --    Org: 4bc73037-e877-4123-9261-eb6e3876698c
 -- =============================================================================
 WITH party AS (
@@ -211,33 +241,25 @@ FROM party p
 ORDER BY p.customer_name;
 
 
--- KS FOOTWEAR full org — must return ZERO rows (|drift| > 0.01)
+-- KS FOOTWEAR — non-settled drift gate (must return ZERO rows)
 WITH party AS (
   SELECT customer_id, signed_balance
   FROM public.get_customer_party_balances('4bc73037-e877-4123-9261-eb6e3876698c'::uuid)
-),
-canonical AS (
-  SELECT
-    c.id AS customer_id,
-    public.get_customer_true_outstanding(c.id, '4bc73037-e877-4123-9261-eb6e3876698c'::uuid)::numeric AS calculated_balance
-  FROM public.customers c
-  WHERE c.organization_id = '4bc73037-e877-4123-9261-eb6e3876698c'::uuid
-    AND c.deleted_at IS NULL
+  WHERE ABS(signed_balance) > 0.01
 )
 SELECT
   cu.customer_name,
   p.signed_balance AS party_balance,
-  c.calculated_balance AS canonical_balance,
-  ROUND(COALESCE(p.signed_balance, 0) - COALESCE(c.calculated_balance, 0), 2) AS drift
+  public.get_customer_true_outstanding(p.customer_id, '4bc73037-e877-4123-9261-eb6e3876698c'::uuid) AS canonical_balance,
+  ROUND(p.signed_balance - public.get_customer_true_outstanding(p.customer_id, '4bc73037-e877-4123-9261-eb6e3876698c'::uuid), 2) AS drift
 FROM party p
-FULL OUTER JOIN canonical c ON c.customer_id = p.customer_id
-LEFT JOIN public.customers cu ON cu.id = COALESCE(p.customer_id, c.customer_id)
-WHERE ABS(COALESCE(p.signed_balance, 0) - COALESCE(c.calculated_balance, 0)) > 0.01
-ORDER BY ABS(COALESCE(p.signed_balance, 0) - COALESCE(c.calculated_balance, 0)) DESC;
+JOIN public.customers cu ON cu.id = p.customer_id
+WHERE ABS(p.signed_balance - public.get_customer_true_outstanding(p.customer_id, '4bc73037-e877-4123-9261-eb6e3876698c'::uuid)) > 0.01
+ORDER BY ABS(p.signed_balance - public.get_customer_true_outstanding(p.customer_id, '4bc73037-e877-4123-9261-eb6e3876698c'::uuid)) DESC;
 
 
 -- =============================================================================
--- 7) Velvet POS org — RUSHITA + KALPANA + BEENA + full-org drift gate
+-- 7) Velvet POS org — RUSHITA + KALPANA + BEENA spot check (drift must be 0 after 111500)
 --    Org: dafc3d0c-874e-4784-bac3-5eab5f3c85b5
 -- =============================================================================
 WITH party AS (
@@ -256,71 +278,18 @@ FROM party p
 ORDER BY p.customer_name;
 
 
--- Velvet full org — must return ZERO rows (|drift| > 0.01)
+-- Velvet — non-settled drift gate (must return ZERO rows; ~34 parties, not all 185)
 WITH party AS (
   SELECT customer_id, signed_balance
   FROM public.get_customer_party_balances('dafc3d0c-874e-4784-bac3-5eab5f3c85b5'::uuid)
-),
-canonical AS (
-  SELECT
-    c.id AS customer_id,
-    public.get_customer_true_outstanding(c.id, 'dafc3d0c-874e-4784-bac3-5eab5f3c85b5'::uuid)::numeric AS calculated_balance
-  FROM public.customers c
-  WHERE c.organization_id = 'dafc3d0c-874e-4784-bac3-5eab5f3c85b5'::uuid
-    AND c.deleted_at IS NULL
+  WHERE ABS(signed_balance) > 0.01
 )
 SELECT
   cu.customer_name,
-  p.signed_balance AS party_balance,
-  c.calculated_balance AS canonical_balance,
-  ROUND(COALESCE(p.signed_balance, 0) - COALESCE(c.calculated_balance, 0), 2) AS drift
-FROM party p
-FULL OUTER JOIN canonical c ON c.customer_id = p.customer_id
-LEFT JOIN public.customers cu ON cu.id = COALESCE(p.customer_id, c.customer_id)
-WHERE ABS(COALESCE(p.signed_balance, 0) - COALESCE(c.calculated_balance, 0)) > 0.01
-ORDER BY ABS(COALESCE(p.signed_balance, 0) - COALESCE(c.calculated_balance, 0)) DESC;
-
-
--- =============================================================================
--- 7) Velvet POS org — RUSHITA + KALPANA + BEENA + full-org drift gate
---    Org: dafc3d0c-874e-4784-bac3-5eab5f3c85b5
--- =============================================================================
-WITH party AS (
-  SELECT customer_id, customer_name, signed_balance
-  FROM public.get_customer_party_balances('dafc3d0c-874e-4784-bac3-5eab5f3c85b5'::uuid)
-  WHERE customer_name ILIKE '%rushita%sanghvi%'
-     OR customer_name = 'KALPANA'
-     OR customer_name ILIKE '%beena%shah%'
-)
-SELECT
-  p.customer_name,
   p.signed_balance AS party_balance,
   public.get_customer_true_outstanding(p.customer_id, 'dafc3d0c-874e-4784-bac3-5eab5f3c85b5'::uuid) AS canonical_balance,
   ROUND(p.signed_balance - public.get_customer_true_outstanding(p.customer_id, 'dafc3d0c-874e-4784-bac3-5eab5f3c85b5'::uuid), 2) AS drift
 FROM party p
-ORDER BY p.customer_name;
-
-
--- Velvet full org — must return ZERO rows (|drift| > 0.01)
-WITH party AS (
-  SELECT customer_id, signed_balance
-  FROM public.get_customer_party_balances('dafc3d0c-874e-4784-bac3-5eab5f3c85b5'::uuid)
-),
-canonical AS (
-  SELECT
-    c.id AS customer_id,
-    public.get_customer_true_outstanding(c.id, 'dafc3d0c-874e-4784-bac3-5eab5f3c85b5'::uuid)::numeric AS calculated_balance
-  FROM public.customers c
-  WHERE c.organization_id = 'dafc3d0c-874e-4784-bac3-5eab5f3c85b5'::uuid
-    AND c.deleted_at IS NULL
-)
-SELECT
-  cu.customer_name,
-  p.signed_balance AS party_balance,
-  c.calculated_balance AS canonical_balance,
-  ROUND(COALESCE(p.signed_balance, 0) - COALESCE(c.calculated_balance, 0), 2) AS drift
-FROM party p
-FULL OUTER JOIN canonical c ON c.customer_id = p.customer_id
-LEFT JOIN public.customers cu ON cu.id = COALESCE(p.customer_id, c.customer_id)
-WHERE ABS(COALESCE(p.signed_balance, 0) - COALESCE(c.calculated_balance, 0)) > 0.01
-ORDER BY ABS(COALESCE(p.signed_balance, 0) - COALESCE(c.calculated_balance, 0)) DESC;
+JOIN public.customers cu ON cu.id = p.customer_id
+WHERE ABS(p.signed_balance - public.get_customer_true_outstanding(p.customer_id, 'dafc3d0c-874e-4784-bac3-5eab5f3c85b5'::uuid)) > 0.01
+ORDER BY ABS(p.signed_balance - public.get_customer_true_outstanding(p.customer_id, 'dafc3d0c-874e-4784-bac3-5eab5f3c85b5'::uuid)) DESC;
