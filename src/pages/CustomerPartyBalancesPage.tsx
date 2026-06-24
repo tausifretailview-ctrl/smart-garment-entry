@@ -305,7 +305,7 @@ export default function CustomerPartyBalancesPage() {
     return (
       <div
         className={cn(
-          "customer-party-balances-workspace customer-party-balances-dashboard flex flex-col bg-slate-200/80 px-2 sm:px-3 py-2 min-h-0 h-full overflow-hidden w-full",
+          "customer-party-balances-workspace customer-party-balances-dashboard flex flex-col bg-slate-50 px-2 sm:px-3 py-2 min-h-0 h-full overflow-hidden w-full",
         )}
       >
         <div className="w-full min-w-0 flex flex-col flex-1 min-h-0 gap-2">
@@ -313,25 +313,25 @@ export default function CustomerPartyBalancesPage() {
             <Button
               variant="outline"
               size="sm"
-              className="h-9 px-3 text-sm shrink-0 bg-white"
+              className="h-9 px-3 text-sm shrink-0"
               onClick={closeCustomerLedger}
             >
               <ArrowLeft className="h-4 w-4 mr-1" />
               Back to Balances
             </Button>
             <div className="min-w-0">
-              <h1 className="text-lg font-bold text-slate-800 tracking-tight truncate">
+              <h1 className="text-xl font-bold text-teal-700 tracking-tight truncate flex items-center gap-2">
+                <Users className="h-5 w-5 shrink-0" />
                 {ledgerCustomerName}
               </h1>
-              <p className="text-xs text-muted-foreground">Customer ledger · A4 view</p>
+              <p className="text-sm text-muted-foreground mt-0.5">Customer ledger</p>
             </div>
           </div>
-          <div className="customer-party-balances-ledger-a4 flex-1 min-h-0 flex flex-col overflow-hidden">
+          <div className="customer-party-balances-ledger-panel flex-1 min-h-0 flex flex-col overflow-hidden w-full">
             <CustomerLedger
               organizationId={orgId}
               preSelectedCustomerId={ledgerCustomerId}
               embedMode
-              embeddedA4Layout
               skipUrlSync
               embeddedBackLabel="Back to Balances"
               onEmbeddedBack={closeCustomerLedger}
