@@ -1,8 +1,8 @@
 /** Matches RPC `_get_customer_party_balances_rows` settled threshold. */
 export const PARTY_BALANCE_SETTLED_THRESHOLD = 0.5;
 
-/** Client-side page size for Customer Balances (single RPC load, slice in memory). */
-export const CUSTOMER_PARTY_BALANCES_PAGE_SIZE = 50;
+/** A4-style rows per screen page — no in-table scroll; use Previous/Next. */
+export const CUSTOMER_PARTY_BALANCES_PAGE_SIZE = 30;
 
 export type PartyBalanceDisplayInput = {
   direction?: string | null;

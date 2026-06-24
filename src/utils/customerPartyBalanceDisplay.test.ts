@@ -70,17 +70,17 @@ describe("matchesPartyBalanceSearch", () => {
 describe("client-side pagination helpers", () => {
   const rows = Array.from({ length: 120 }, (_, i) => i + 1);
 
-  it("slices 50 rows per page", () => {
+  it("slices one screen page at a time", () => {
     expect(slicePartyBalancePage(rows, 1)).toHaveLength(CUSTOMER_PARTY_BALANCES_PAGE_SIZE);
     expect(slicePartyBalancePage(rows, 1)[0]).toBe(1);
-    expect(slicePartyBalancePage(rows, 2)[0]).toBe(51);
-    expect(slicePartyBalancePage(rows, 3)).toHaveLength(20);
+    expect(slicePartyBalancePage(rows, 2)[0]).toBe(CUSTOMER_PARTY_BALANCES_PAGE_SIZE + 1);
+    expect(slicePartyBalancePage(rows, 4)).toHaveLength(120 - CUSTOMER_PARTY_BALANCES_PAGE_SIZE * 3);
   });
 
   it("computes total pages", () => {
-    expect(partyBalanceTotalPages(120)).toBe(3);
-    expect(partyBalanceTotalPages(50)).toBe(1);
-    expect(partyBalanceTotalPages(51)).toBe(2);
+    expect(partyBalanceTotalPages(120)).toBe(4);
+    expect(partyBalanceTotalPages(CUSTOMER_PARTY_BALANCES_PAGE_SIZE)).toBe(1);
+    expect(partyBalanceTotalPages(CUSTOMER_PARTY_BALANCES_PAGE_SIZE + 1)).toBe(2);
     expect(partyBalanceTotalPages(0)).toBe(1);
   });
 });
