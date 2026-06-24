@@ -23,7 +23,7 @@ export function isFillHeightWorkspacePath(pathname: string): boolean {
 
 /** List dashboards with fixed header/cards and an internal scrolling table. */
 export const FILL_HEIGHT_DASHBOARD_PATH =
-  /\/(pos-dashboard|sales-invoice-dashboard|purchase-bills|purchase-bill-dashboard|customer-party-balances|supplier-party-balances)(\/|$)/;
+  /\/(pos-dashboard|sales-invoice-dashboard|purchase-bills|purchase-bill-dashboard|customer-party-balances|supplier-party-balances|stock-report)(\/|$)/;
 
 export function isFillHeightDashboardPath(pathname: string): boolean {
   return FILL_HEIGHT_DASHBOARD_PATH.test(pathname);
@@ -34,7 +34,8 @@ export function isFillHeightShellPath(pathname: string): boolean {
 }
 
 /** Sidebar + content only — hide global header menu and window tab strip (e.g. Customer Balances). */
-export const SIDEBAR_ONLY_WORKSPACE_PATH = /\/(customer-party-balances|supplier-party-balances)(\/|$)/;
+export const SIDEBAR_ONLY_WORKSPACE_PATH =
+  /\/(customer-party-balances|supplier-party-balances|stock-report)(\/|$)/;
 
 export function isSidebarOnlyWorkspacePath(pathname: string): boolean {
   return SIDEBAR_ONLY_WORKSPACE_PATH.test(pathname);

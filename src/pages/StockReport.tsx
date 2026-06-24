@@ -6,10 +6,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Package, Search, Filter, ChevronDown, ChevronUp, Grid3X3, IndianRupee, ChevronLeft, ChevronRight, FileSpreadsheet, FileText, Loader2, Printer } from "lucide-react";
-import { BackToDashboard } from "@/components/BackToDashboard";
+import { Package, Search, Filter, ChevronDown, ChevronUp, Grid3X3, IndianRupee, ChevronLeft, ChevronRight, FileSpreadsheet, FileText, Loader2, Printer, ArrowLeft } from "lucide-react";
 import type { ReportKpiItem } from "@/components/reports/ReportKpiCards";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { cn } from "@/lib/utils";
 import { MobilePageHeader } from "@/components/mobile/MobilePageHeader";
 import { MobileStatStrip } from "@/components/mobile/MobileStatStrip";
@@ -77,9 +77,9 @@ interface SizeWiseRow {
 
 /** Override ui/table defaults (bg-black + text-white on thead/th) for light report headers */
 const STOCK_TABLE_HEAD =
-  "sticky top-0 z-20 !bg-transparent [&_tr]:!bg-transparent [&_tr]:border-slate-200";
+  "sticky top-0 z-20 !bg-slate-800 [&_tr]:!bg-slate-800 [&_tr]:border-none [&_tr]:hover:!bg-slate-800";
 const STOCK_NEUTRAL_TH =
-  "text-xs font-semibold whitespace-nowrap bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-100 normal-case tracking-normal px-2 py-1 shadow-[0_1px_0_0_rgba(0,0,0,0.06)]";
+  "text-xs font-bold uppercase tracking-wide whitespace-nowrap bg-slate-800 text-white px-3 py-2.5 h-10 shadow-none border-none";
 /** Single vertical scroll — header sticky top, footer sticky bottom inside this box */
 const STOCK_TABLE_SCROLL =
   "flex-1 min-h-0 overflow-auto overscroll-contain min-w-0";
@@ -136,6 +136,7 @@ function stockItemMatchesSearch(item: StockItem, query: string): boolean {
 
 export default function StockReport() {
   const { currentOrganization } = useOrganization();
+  const { orgNavigate } = useOrgNavigation();
   const fieldLabels = useProductFieldLabels();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -1579,14 +1580,14 @@ export default function StockReport() {
   ]);
 
   const compactStockKpiStrip = (
-    <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5 print:hidden">
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 w-full shrink-0 print:hidden">
       {stockKpiItems.map((item) => (
         <div
           key={item.label}
-          className={cn("rounded-lg px-2 py-1.5 min-w-0 shadow-sm", item.gradient)}
+          className={cn("rounded-lg px-3 py-2 min-w-0 shadow-sm", item.gradient)}
         >
-          <p className="text-[10px] font-medium text-white/80 leading-none truncate">{item.label}</p>
-          <p className="text-base font-black text-white tabular-nums leading-tight truncate mt-0.5">{item.value}</p>
+          <p className="text-xs font-medium text-white/80 leading-none truncate">{item.label}</p>
+          <p className="text-base sm:text-lg font-black text-white tabular-nums leading-tight mt-1 truncate">{item.value}</p>
         </div>
       ))}
     </div>
@@ -1672,47 +1673,66 @@ export default function StockReport() {
   }
 
   return (
-    <div className="stock-report-page flex flex-col h-[calc(100vh-4.5rem)] min-h-0 bg-slate-50 px-1.5 sm:px-2 py-1 overflow-hidden print:min-h-screen print:h-auto print:overflow-visible print:bg-white print:p-4">
-      <div className="w-full min-w-0 max-w-none flex flex-col flex-1 min-h-0 space-y-1 print:space-y-2">
-      <div className="print:hidden shrink-0">
-        <BackToDashboard />
-      </div>
-      <div className="flex flex-wrap items-center justify-between gap-1 shrink-0 print:hidden">
-        <h1 className="text-lg font-bold text-blue-600 tracking-tight leading-none">
-          Stock Report
-        </h1>
-        <div className="flex items-center gap-1.5 flex-wrap">
-          <Button
-            variant="outline"
-            className="h-8 text-sm border-slate-300 text-slate-600 hover:bg-slate-100 gap-1.5 px-2.5"
-            onClick={() => window.print()}
-            disabled={!hasSearched || filteredStockItems.length === 0}
-          >
-            <Printer className="h-3.5 w-3.5" />
-            Print
-          </Button>
-          <Button
-            variant="outline"
-            className="h-8 text-sm border-slate-300 text-slate-600 hover:bg-slate-100 gap-1.5 px-2.5"
-            onClick={() => {
-              if (hasSearched && filteredStockItems.length > 0) {
-                activeTab === "sizewise" ? exportSizeWiseToExcel() : exportAllStockToExcel();
-              } else {
-                exportFullStockToExcel();
-              }
-            }}
-            disabled={excelExporting}
-          >
-            {excelExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileSpreadsheet className="h-4 w-4" />}
-            {excelExporting ? "Exporting..." : "Excel"}
-          </Button>
+    <div className="stock-report-workspace stock-report-page flex flex-col bg-slate-50 px-2 sm:px-3 py-2 min-h-0 h-full overflow-hidden w-full print:min-h-screen print:h-auto print:overflow-visible print:bg-white print:p-4">
+      <div className="w-full min-w-0 flex flex-col flex-1 min-h-0 gap-2 print:space-y-2">
+        {/* Toolbar */}
+        <div className="flex flex-wrap items-center justify-between gap-2 shrink-0 print:hidden">
+          <div className="flex items-center gap-2 min-w-0">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9 px-3 text-sm shrink-0"
+              onClick={() => orgNavigate("/reports")}
+            >
+              <ArrowLeft className="h-4 w-4 mr-1" />
+              Reports
+            </Button>
+            <div className="min-w-0">
+              <h1 className="text-xl font-bold text-blue-700 tracking-tight leading-none flex items-center gap-2">
+                <Package className="h-5 w-5 shrink-0" />
+                Stock Report
+              </h1>
+              <p className="text-sm text-muted-foreground mt-1 truncate">
+                {globalTotals.isLoading
+                  ? "Loading totals…"
+                  : `${globalTotals.variantCount.toLocaleString("en-IN")} variants · apply filters and search`}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5 flex-wrap shrink-0">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9 text-sm border-slate-200 gap-1.5"
+              onClick={() => window.print()}
+              disabled={!hasSearched || filteredStockItems.length === 0}
+            >
+              <Printer className="h-4 w-4" />
+              Print
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9 text-sm border-slate-200 gap-1.5"
+              onClick={() => {
+                if (hasSearched && filteredStockItems.length > 0) {
+                  activeTab === "sizewise" ? exportSizeWiseToExcel() : exportAllStockToExcel();
+                } else {
+                  exportFullStockToExcel();
+                }
+              }}
+              disabled={excelExporting}
+            >
+              {excelExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileSpreadsheet className="h-4 w-4" />}
+              {excelExporting ? "Exporting…" : "Excel"}
+            </Button>
+          </div>
         </div>
-      </div>
 
       {compactStockKpiStrip}
 
-      <Card className="rounded-lg border border-slate-200 shadow-sm overflow-hidden print:hidden shrink-0">
-        <div className="space-y-1 p-1.5 border-b border-slate-100 bg-white">
+      <Card className="rounded-lg border border-slate-200 shadow-sm overflow-hidden shrink-0 print:hidden">
+        <div className="space-y-2 p-2 sm:p-3 border-b border-slate-100 bg-white">
         <div className="flex gap-1.5 items-center">
           <ProductSearchDropdown
             value={searchTerm}
@@ -1730,8 +1750,8 @@ export default function StockReport() {
             placeholder="Search name, brand, category, style or barcode..."
             className="flex-1"
           />
-          <Button onClick={handleSearch} disabled={loading || (!hasActiveFilters && pinnedProducts.length === 0)} className="h-8 px-4 text-sm font-semibold bg-blue-600 hover:bg-blue-700 shadow-sm gap-1.5">
-            {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
+          <Button onClick={handleSearch} disabled={loading || (!hasActiveFilters && pinnedProducts.length === 0)} className="h-10 px-4 text-sm font-semibold bg-blue-600 hover:bg-blue-700 shadow-sm gap-1.5">
+            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
             Search
           </Button>
           {(hasActiveFilters || pinnedProducts.length > 0) && (
@@ -1766,9 +1786,9 @@ export default function StockReport() {
         )}
 
         {/* Always visible multi-field filters */}
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-1.5">
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-2">
           <div className="space-y-0.5 relative">
-            <label className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Product Name</label>
+            <label className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Product Name</label>
             <SearchableSelect
               value={productNameFilter || "all"}
               onValueChange={(val) => {
@@ -1857,55 +1877,66 @@ export default function StockReport() {
         </div>
       </Card>
 
-      {!hasSearched ? (
-        <p className="text-xs text-muted-foreground text-center py-2 print:hidden shrink-0">
-          Apply filters or search, then click <strong>Search</strong> to view stock.
-        </p>
-      ) : loading ? (
-        <div className="flex items-center justify-center gap-2 py-3 text-sm text-muted-foreground print:hidden shrink-0">
-          <Loader2 className="h-5 w-5 animate-spin text-primary" />
-          Loading stock data…
-        </div>
-      ) : (
+      <Card className="rounded-lg border border-slate-200 shadow-sm overflow-hidden p-0 flex-1 min-h-0 flex flex-col print:block">
+        {!hasSearched ? (
+          <div className="flex-1 min-h-0 flex flex-col items-center justify-center gap-3 p-6 text-center print:hidden">
+            <Search className="h-10 w-10 text-muted-foreground/35" />
+            <p className="text-base text-muted-foreground max-w-md">
+              Apply filters or search, then click <strong>Search</strong> to view stock.
+            </p>
+            <Button
+              onClick={handleSearch}
+              disabled={loading || (!hasActiveFilters && pinnedProducts.length === 0 && !searchTerm.trim())}
+              className="h-10 px-5 text-sm font-semibold"
+            >
+              {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Search className="h-4 w-4 mr-2" />}
+              Search
+            </Button>
+          </div>
+        ) : loading ? (
+          <div className="flex-1 flex items-center justify-center gap-2 py-8 text-base text-muted-foreground print:hidden">
+            <Loader2 className="h-5 w-5 animate-spin text-primary" />
+            Loading stock data…
+          </div>
+        ) : (
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full flex-1 min-h-0 flex flex-col print:block">
-          <Card className="rounded-lg border border-slate-200 shadow-sm overflow-hidden flex-1 min-h-0 flex flex-col">
-            <div className="flex flex-wrap items-center justify-between gap-1 px-2 py-1 border-b border-slate-100 bg-white shrink-0">
-              <TabsList className="h-8 bg-slate-100 p-0.5 rounded-md">
-                <TabsTrigger value="all" className="rounded text-xs font-semibold px-2.5 data-[state=active]:bg-white data-[state=active]:text-blue-700">
-                  All Stock
-                </TabsTrigger>
-                <TabsTrigger value="sizewise" className="rounded text-xs font-semibold px-2.5 gap-1 data-[state=active]:bg-white data-[state=active]:text-blue-700">
-                  <Grid3X3 className="h-3 w-3" />
-                  Size-wise
-                </TabsTrigger>
-              </TabsList>
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <span className="text-xs font-medium text-slate-600">
-                  {activeTab === "all"
-                    ? `Showing ${filteredStockItems.length > 0 ? ((currentPage - 1) * ITEMS_PER_PAGE) + 1 : 0}–${Math.min(currentPage * ITEMS_PER_PAGE, filteredStockItems.length)} of ${filteredStockItems.length}`
-                    : `${sizeWiseData.rows.length} products`}
-                </span>
-                {activeTab === "all" ? (
-                  <>
-                    <Button variant="outline" size="sm" className="h-8 text-xs" onClick={exportAllStockToExcel} disabled={filteredStockItems.length === 0}>
-                      <FileSpreadsheet className="h-3.5 w-3.5 mr-1" /> Excel
-                    </Button>
-                    <Button variant="outline" size="sm" className="h-8 text-xs" onClick={printAllStock} disabled={filteredStockItems.length === 0}>
-                      <Printer className="h-3.5 w-3.5 mr-1" /> Print
-                    </Button>
-                  </>
-                ) : (
-                  <>
-                    <Button variant="outline" size="sm" className="h-8 text-xs" onClick={exportSizeWiseToExcel} disabled={sizeWiseData.rows.length === 0}>
-                      <FileSpreadsheet className="h-3.5 w-3.5 mr-1" /> Excel
-                    </Button>
-                    <Button variant="outline" size="sm" className="h-8 text-xs" onClick={exportSizeWiseToPDF} disabled={sizeWiseData.rows.length === 0}>
-                      <FileText className="h-3.5 w-3.5 mr-1" /> PDF
-                    </Button>
-                  </>
-                )}
-              </div>
+          <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 border-b border-slate-100 bg-white shrink-0">
+            <TabsList className="h-9 bg-slate-100 p-0.5 rounded-md">
+              <TabsTrigger value="all" className="rounded text-sm font-semibold px-3 data-[state=active]:bg-white data-[state=active]:text-blue-700">
+                All Stock
+              </TabsTrigger>
+              <TabsTrigger value="sizewise" className="rounded text-sm font-semibold px-3 gap-1.5 data-[state=active]:bg-white data-[state=active]:text-blue-700">
+                <Grid3X3 className="h-3.5 w-3.5" />
+                Size-wise
+              </TabsTrigger>
+            </TabsList>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-sm text-muted-foreground tabular-nums">
+                {activeTab === "all"
+                  ? `${filteredStockItems.length.toLocaleString("en-IN")} matching`
+                  : `${sizeWiseData.rows.length.toLocaleString("en-IN")} products`}
+              </span>
+              {activeTab === "all" ? (
+                <>
+                  <Button variant="outline" size="sm" className="h-9 text-sm" onClick={exportAllStockToExcel} disabled={filteredStockItems.length === 0}>
+                    <FileSpreadsheet className="h-4 w-4 mr-1.5" /> Excel
+                  </Button>
+                  <Button variant="outline" size="sm" className="h-9 text-sm" onClick={printAllStock} disabled={filteredStockItems.length === 0}>
+                    <Printer className="h-4 w-4 mr-1.5" /> Print
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button variant="outline" size="sm" className="h-9 text-sm" onClick={exportSizeWiseToExcel} disabled={sizeWiseData.rows.length === 0}>
+                    <FileSpreadsheet className="h-4 w-4 mr-1.5" /> Excel
+                  </Button>
+                  <Button variant="outline" size="sm" className="h-9 text-sm" onClick={exportSizeWiseToPDF} disabled={sizeWiseData.rows.length === 0}>
+                    <FileText className="h-4 w-4 mr-1.5" /> PDF
+                  </Button>
+                </>
+              )}
             </div>
+          </div>
 
             <TabsContent value="all" className="mt-0 flex-1 min-h-0 flex flex-col focus-visible:outline-none data-[state=inactive]:hidden">
               <CardContent className="p-0 flex flex-col flex-1 min-h-0">
@@ -1937,7 +1968,7 @@ export default function StockReport() {
                     <TableBody>
                       {paginatedStockItems.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={19} className="text-center text-muted-foreground py-3 text-sm">
+                          <TableCell colSpan={19} className="h-20 text-center text-base text-muted-foreground">
                             No products found matching your search
                           </TableCell>
                         </TableRow>
@@ -2261,9 +2292,9 @@ export default function StockReport() {
                   )}
               </CardContent>
             </TabsContent>
-          </Card>
         </Tabs>
-      )}
+        )}
+      </Card>
       </div>
     </div>
   );

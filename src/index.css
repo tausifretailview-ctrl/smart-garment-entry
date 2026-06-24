@@ -1548,6 +1548,31 @@ main:has(.customer-party-balances-workspace) {
   padding: 0.75rem 1rem 1rem;
 }
 
+/* Stock Report — sidebar-only full workspace (no header / tab strip) */
+.stock-report-workspace {
+  height: 100%;
+  min-height: 0;
+  max-height: 100%;
+  overflow: hidden;
+}
+main:has(.stock-report-workspace) {
+  overflow: hidden;
+  padding: 0;
+  scrollbar-gutter: auto;
+}
+@media (min-width: 1024px) {
+  main:has(.stock-report-workspace) {
+    display: flex;
+    flex-direction: column;
+  }
+  main:has(.stock-report-workspace) .stock-report-workspace {
+    flex: 1 1 0%;
+    height: auto;
+    max-height: 100%;
+    min-height: 0;
+  }
+}
+
 /* Supplier Balances — sidebar-only full workspace */
 .supplier-party-balances-workspace {
   height: 100%;
@@ -1987,7 +2012,7 @@ input.no-uppercase {
 }
 
 .stock-report-page table tbody tr {
-  height: 32px;
+  height: 44px;
 }
 
 .stock-report-page mark,
