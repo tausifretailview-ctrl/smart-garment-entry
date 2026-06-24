@@ -58,6 +58,16 @@ export function matchesPartyBalanceSearch(row: PartySearchRow, query: string): b
   return false;
 }
 
+export type PartyDirectionFilter = "all" | "Dr" | "Cr";
+
+export function matchesPartyDirectionFilter(
+  row: PartyBalanceDisplayInput,
+  filter: PartyDirectionFilter,
+): boolean {
+  if (filter === "all") return true;
+  return partyBalanceDirection(row) === filter;
+}
+
 export function isPartyBalanceSettled(signedBalance: number | null | undefined): boolean {
   return Math.abs(Number(signedBalance ?? 0)) < PARTY_BALANCE_SETTLED_THRESHOLD;
 }

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   CUSTOMER_PARTY_BALANCES_PAGE_SIZE,
   matchesPartyBalanceSearch,
+  matchesPartyDirectionFilter,
   partyBalanceDirection,
   partyBalanceDisplayAmount,
   partyBalanceTotalPages,
@@ -64,6 +65,21 @@ describe("matchesPartyBalanceSearch", () => {
   it("does not match unrelated queries", () => {
     expect(matchesPartyBalanceSearch(row, "unknown party")).toBe(false);
     expect(matchesPartyBalanceSearch(row, "11111")).toBe(false);
+  });
+});
+
+describe("matchesPartyDirectionFilter", () => {
+  it("passes all rows when filter is all", () => {
+    expect(matchesPartyDirectionFilter({ signed_balance: 100 }, "all")).toBe(true);
+    expect(matchesPartyDirectionFilter({ signed_balance: -100 }, "all")).toBe(true);
+    expect(matchesPartyDirectionFilter({ signed_balance: 0 }, "all")).toBe(true);
+  });
+
+  it("filters Dr and Cr rows", () => {
+    expect(matchesPartyDirectionFilter({ signed_balance: 100 }, "Dr")).toBe(true);
+    expect(matchesPartyDirectionFilter({ signed_balance: -100 }, "Dr")).toBe(false);
+    expect(matchesPartyDirectionFilter({ signed_balance: -100 }, "Cr")).toBe(true);
+    expect(matchesPartyDirectionFilter({ signed_balance: 0 }, "Cr")).toBe(false);
   });
 });
 

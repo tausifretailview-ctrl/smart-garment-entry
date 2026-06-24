@@ -1,9 +1,23 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Search, Users, RefreshCw, ChevronLeft, ChevronRight, ArrowLeft, Loader2 } from "lucide-react";
+import { format } from "date-fns";
+import {
+  Search,
+  Users,
+  RefreshCw,
+  ChevronLeft,
+  ChevronRight,
+  ArrowLeft,
+  Loader2,
+  FileSpreadsheet,
+  FileText,
+} from "lucide-react";
+import * as XLSX from "xlsx";
+import jsPDF from "jspdf";
 
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
+import { useToast } from "@/hooks/use-toast";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -18,10 +32,12 @@ import {
   clampPartyBalancePage,
   isPartyBalanceSettled,
   matchesPartyBalanceSearch,
+  matchesPartyDirectionFilter,
   partyBalanceDirection,
   partyBalanceDisplayAmount,
   partyBalanceTotalPages,
   slicePartyBalancePage,
+  type PartyDirectionFilter,
 } from "@/utils/customerPartyBalanceDisplay";
 
 export type CustomerPartyBalanceRow = {
@@ -46,8 +62,10 @@ function fmtAmt(n: number) {
 export default function CustomerPartyBalancesPage() {
   const { currentOrganization } = useOrganization();
   const { orgNavigate } = useOrgNavigation();
+  const { toast } = useToast();
   const [search, setSearch] = useState("");
   const [showSettled, setShowSettled] = useState(false);
+  const [directionFilter, setDirectionFilter] = useState<PartyDirectionFilter>("all");
   const [page, setPage] = useState(1);
 
   const orgId = currentOrganization?.id;
@@ -82,16 +100,19 @@ export default function CustomerPartyBalancesPage() {
       if (!showSettled && isPartyBalanceSettled(row.signed_balance)) {
         return false;
       }
+      if (!matchesPartyDirectionFilter(row, directionFilter)) {
+        return false;
+      }
       return matchesPartyBalanceSearch(row, search);
     });
-  }, [rows, search, showSettled]);
+  }, [rows, search, showSettled, directionFilter]);
 
   const totalPages = partyBalanceTotalPages(filteredRows.length);
   const currentPage = clampPartyBalancePage(page, totalPages);
 
   useEffect(() => {
     setPage(1);
-  }, [search, showSettled]);
+  }, [search, showSettled, directionFilter]);
 
   const paginatedRows = useMemo(
     () => slicePartyBalancePage(filteredRows, currentPage),
@@ -104,6 +125,153 @@ export default function CustomerPartyBalancesPage() {
   const openCustomerLedger = (customerId: string) => {
     orgNavigate(`/customer-ledger-report?customer=${customerId}`);
   };
+
+  const exportToExcel = useCallback(() => {
+    if (filteredRows.length === 0) {
+      toast({
+        title: "No data to export",
+        description: "Adjust filters or search to include customers.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const orgName = currentOrganization?.name || "";
+    const exportedAt = format(new Date(), "dd-MM-yyyy HH:mm");
+    const filterLabel =
+      directionFilter === "all" ? "All" : directionFilter === "Dr" ? "Debit only" : "Credit only";
+
+    const sheetRows: (string | number)[][] = [
+      ["Customer Balances"],
+      [orgName],
+      [`Exported: ${exportedAt}`],
+      [`Filter: ${filterLabel}${showSettled ? "" : " · settled hidden"}`],
+      [],
+      ["Total Receivable (Dr)", fmtAmt(Math.abs(orgTotals.totalDr))],
+      ["Total Credit (Cr)", fmtAmt(Math.abs(orgTotals.totalCr))],
+      ["Net Receivable", fmtAmt(Math.abs(orgTotals.netReceivable))],
+      [],
+      ["Sr No", "Party Name", "Phone", "Amount", "Dr/Cr"],
+      ...filteredRows.map((row, index) => [
+        index + 1,
+        row.customer_name,
+        row.phone || "",
+        partyBalanceDisplayAmount(row.signed_balance),
+        partyBalanceDirection(row),
+      ]),
+    ];
+
+    const ws = XLSX.utils.aoa_to_sheet(sheetRows);
+    ws["!cols"] = [{ wch: 8 }, { wch: 36 }, { wch: 16 }, { wch: 14 }, { wch: 8 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Customer Balances");
+    XLSX.writeFile(wb, `Customer_Balances_${format(new Date(), "yyyy-MM-dd")}.xlsx`);
+
+    toast({
+      title: "Exported",
+      description: `${filteredRows.length.toLocaleString("en-IN")} parties exported to Excel`,
+    });
+  }, [filteredRows, currentOrganization?.name, directionFilter, showSettled, orgTotals, toast]);
+
+  const exportToPdf = useCallback(() => {
+    if (filteredRows.length === 0) {
+      toast({
+        title: "No data to export",
+        description: "Adjust filters or search to include customers.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const doc = new jsPDF("p", "mm", "a4");
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const margin = 10;
+    let y = 14;
+
+    const addPageHeader = () => {
+      doc.setFontSize(14);
+      doc.setFont("helvetica", "bold");
+      doc.text("Customer Balances", margin, y);
+      y += 6;
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "normal");
+      doc.text(`${currentOrganization?.name || ""} · ${format(new Date(), "dd-MM-yyyy HH:mm")}`, margin, y);
+      y += 5;
+      const filterLabel =
+        directionFilter === "all" ? "All" : directionFilter === "Dr" ? "Debit only" : "Credit only";
+      doc.text(
+        `Filter: ${filterLabel}${showSettled ? "" : " · settled hidden"} · ${filteredRows.length.toLocaleString("en-IN")} parties`,
+        margin,
+        y,
+      );
+      y += 7;
+
+      doc.setFontSize(8);
+      doc.setFont("helvetica", "bold");
+      doc.text("Sr.", margin, y);
+      doc.text("Party Name", margin + 10, y);
+      doc.text("Phone", pageWidth - 78, y);
+      doc.text("Amount", pageWidth - 48, y, { align: "right" });
+      doc.text("Dr/Cr", pageWidth - margin, y, { align: "right" });
+      y += 1;
+      doc.line(margin, y, pageWidth - margin, y);
+      y += 4;
+      doc.setFont("helvetica", "normal");
+    };
+
+    addPageHeader();
+
+    filteredRows.forEach((row, index) => {
+      if (y > 275) {
+        doc.addPage();
+        y = 14;
+        addPageHeader();
+      }
+
+      const direction = partyBalanceDirection(row);
+      const amount = partyBalanceDisplayAmount(row.signed_balance);
+      const name = row.customer_name.length > 42 ? `${row.customer_name.slice(0, 42)}…` : row.customer_name;
+      const phone = (row.phone || "").slice(0, 14);
+
+      doc.setFontSize(8);
+      doc.text(String(index + 1), margin, y);
+      doc.text(name, margin + 10, y);
+      doc.text(phone, pageWidth - 78, y);
+      doc.text(fmtAmt(amount), pageWidth - 48, y, { align: "right" });
+      doc.text(direction, pageWidth - margin, y, { align: "right" });
+      y += 5;
+    });
+
+    if (y > 260) {
+      doc.addPage();
+      y = 14;
+    }
+    y += 3;
+    doc.line(margin, y, pageWidth - margin, y);
+    y += 5;
+    doc.setFont("helvetica", "bold");
+    doc.text("Total Receivable (Dr)", margin, y);
+    doc.text(`₹${fmtAmt(Math.abs(orgTotals.totalDr))}`, pageWidth - margin, y, { align: "right" });
+    y += 5;
+    doc.text("Total Credit (Cr)", margin, y);
+    doc.text(`₹${fmtAmt(Math.abs(orgTotals.totalCr))}`, pageWidth - margin, y, { align: "right" });
+    y += 5;
+    doc.text("Net Receivable", margin, y);
+    doc.text(`₹${fmtAmt(Math.abs(orgTotals.netReceivable))}`, pageWidth - margin, y, { align: "right" });
+
+    doc.save(`Customer_Balances_${format(new Date(), "yyyy-MM-dd")}.pdf`);
+
+    toast({
+      title: "Exported",
+      description: `${filteredRows.length.toLocaleString("en-IN")} parties exported to PDF`,
+    });
+  }, [filteredRows, currentOrganization?.name, directionFilter, showSettled, orgTotals, toast]);
+
+  const directionFilterOptions: { value: PartyDirectionFilter; label: string }[] = [
+    { value: "all", label: "All" },
+    { value: "Dr", label: "Dr" },
+    { value: "Cr", label: "Cr" },
+  ];
 
   if (!orgId) {
     return (
@@ -204,9 +372,54 @@ export default function CustomerPartyBalancesPage() {
                 Show settled (₹0)
               </Label>
             </div>
-            <span className="text-sm text-muted-foreground tabular-nums ml-auto">
-              {filteredRows.length.toLocaleString("en-IN")} matching
-            </span>
+            <div className="flex items-center rounded-md border border-slate-200 bg-slate-50 p-0.5 shrink-0">
+              {directionFilterOptions.map(({ value, label }) => (
+                <Button
+                  key={value}
+                  type="button"
+                  variant={directionFilter === value ? "default" : "ghost"}
+                  size="sm"
+                  className={cn(
+                    "h-8 px-3 text-sm font-semibold",
+                    directionFilter === value
+                      ? value === "Dr"
+                        ? "bg-red-600 hover:bg-red-600 text-white"
+                        : value === "Cr"
+                          ? "bg-emerald-600 hover:bg-emerald-600 text-white"
+                          : "bg-slate-700 hover:bg-slate-700 text-white"
+                      : "text-slate-600",
+                  )}
+                  onClick={() => setDirectionFilter(value)}
+                >
+                  {label}
+                </Button>
+              ))}
+            </div>
+            <div className="flex flex-wrap items-center gap-1.5 ml-auto shrink-0">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={exportToExcel}
+                disabled={isLoading || filteredRows.length === 0}
+                className="h-9 text-sm gap-1.5 border-slate-200"
+              >
+                <FileSpreadsheet className="h-4 w-4" />
+                Export Excel
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={exportToPdf}
+                disabled={isLoading || filteredRows.length === 0}
+                className="h-9 text-sm gap-1.5 border-slate-200"
+              >
+                <FileText className="h-4 w-4" />
+                Export PDF
+              </Button>
+              <span className="text-sm text-muted-foreground tabular-nums pl-1">
+                {filteredRows.length.toLocaleString("en-IN")} matching
+              </span>
+            </div>
           </div>
 
           {error ? (
