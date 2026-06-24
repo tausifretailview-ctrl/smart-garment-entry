@@ -86,6 +86,7 @@ import { validatePurchaseBill, validatePurchaseLineItem } from "@/lib/validation
 import { SizeGridDialog } from "@/components/SizeGridDialog";
 import { ProductEntryDialogGate } from "@/components/ProductEntryDialogGate";
 import { prefetchProductEntryDialog } from "@/lib/productEntryDialogLoad";
+import { scheduleIdleWork } from "@/lib/chunkLoadRetry";
 import ProductEditPanel from "@/components/ProductEditPanel";
 import QuickEditPopover from "@/components/QuickEditPopover";
 import { PriceUpdateConfirmDialog } from "@/components/PriceUpdateConfirmDialog";
@@ -656,6 +657,10 @@ const PurchaseEntry = () => {
   const entryPersistenceBlockedRef = useRef(false);
   const [showExcelImport, setShowExcelImport] = useState(false);
   const [showProductDialog, setShowProductDialog] = useState(false);
+  const openAddProductDialog = useCallback(() => {
+    prefetchProductEntryDialog();
+    setShowProductDialog(true);
+  }, []);
   const [showAddSupplierDialog, setShowAddSupplierDialog] = useState(false);
   // Inline search state for table row
   const [inlineSearchQuery, setInlineSearchQuery] = useState("");
@@ -1565,9 +1570,13 @@ const PurchaseEntry = () => {
     });
   }, [lineItems.length]);
 
-  // Warm Add Product dialog chunk so first click does not cold-load on slow networks.
+  // Warm Add Product dialog chunk after Purchase Entry is interactive — avoids
+  // competing with the purchase-entry chunk + post-login prefetch on first login.
   useEffect(() => {
-    prefetchProductEntryDialog();
+    return scheduleIdleWork(() => prefetchProductEntryDialog(), {
+      minDelay: 2_000,
+      timeout: 15_000,
+    });
   }, []);
 
   // Start auto-save once on mount. The useDraftSave hook itself persists the
@@ -2312,8 +2321,7 @@ const PurchaseEntry = () => {
   };
 
   const handleAddNewProductFromInline = () => {
-    prefetchProductEntryDialog();
-    setShowProductDialog(true);
+    openAddProductDialog();
   };
 
   // Handle product created from dialog - auto-add items with qty to bill
@@ -3485,12 +3493,12 @@ const PurchaseEntry = () => {
           return; // Allow normal typing
         }
         e.preventDefault();
-        setShowProductDialog(true);
+        openAddProductDialog();
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [lineItems, showProductDialog]);
+  }, [lineItems, showProductDialog, openAddProductDialog]);
 
   // Auto-focus search bar when ProductEntryDialog closes
   useEffect(() => {
@@ -6118,7 +6126,7 @@ const PurchaseEntry = () => {
                   Import Excel
                 </Button>
                 <Button
-                  onClick={() => setShowProductDialog(true)}
+                  onClick={openAddProductDialog}
                   onMouseEnter={prefetchProductEntryDialog}
                   onFocus={prefetchProductEntryDialog}
                   variant="outline"

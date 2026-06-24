@@ -1,4 +1,13 @@
-import { Component, Suspense, lazy, useCallback, useState, type ErrorInfo, type ReactNode } from "react";
+import {
+  Component,
+  Suspense,
+  lazy,
+  useCallback,
+  useEffect,
+  useState,
+  type ErrorInfo,
+  type ReactNode,
+} from "react";
 import { AlertCircle, Loader2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -9,6 +18,8 @@ import {
 } from "@/components/ui/dialog";
 import { isChunkLoadError } from "@/lib/chunkLoadRetry";
 import {
+  PRODUCT_ENTRY_DIALOG_UI_TIMEOUT_MS,
+  beginProductEntryDialogPriorityLoad,
   loadProductEntryDialog,
   resetProductEntryDialogChunk,
 } from "@/lib/productEntryDialogLoad";
@@ -31,6 +42,45 @@ function ProductDialogLoadingShell({ onClose }: { onClose: () => void }) {
           <p className="text-sm text-muted-foreground text-center">
             Loading product form… please wait.
           </p>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ProductDialogLoadTimeoutShell({
+  onClose,
+  onRetry,
+}: {
+  onClose: () => void;
+  onRetry: () => void;
+}) {
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Add New Product</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+            <div className="space-y-1 text-sm">
+              <p className="font-medium">The product form is taking longer than expected.</p>
+              <p className="text-muted-foreground text-xs">
+                This can happen on first login while the app loads in the background. Retry — your
+                purchase bill stays open.
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+            <Button variant="outline" size="sm" onClick={onClose} className="gap-1.5">
+              <X className="h-4 w-4" />
+              Close
+            </Button>
+            <Button size="sm" onClick={onRetry}>
+              Retry
+            </Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>
@@ -122,16 +172,41 @@ class ProductEntryDialogErrorBoundary extends Component<BoundaryProps, BoundaryS
 export function ProductEntryDialogGate(props: ProductEntryDialogProps) {
   const { open, onOpenChange, ...rest } = props;
   const [loadKey, setLoadKey] = useState(0);
+  const [loadTimedOut, setLoadTimedOut] = useState(false);
 
   const handleClose = useCallback(() => {
     onOpenChange(false);
   }, [onOpenChange]);
 
   const handleRetry = useCallback(() => {
+    resetProductEntryDialogChunk();
+    setLoadTimedOut(false);
     setLoadKey((k) => k + 1);
   }, []);
 
+  useEffect(() => {
+    if (!open) {
+      setLoadTimedOut(false);
+      return;
+    }
+
+    setLoadTimedOut(false);
+    const endPriority = beginProductEntryDialogPriorityLoad();
+    const timer = window.setTimeout(() => {
+      setLoadTimedOut(true);
+    }, PRODUCT_ENTRY_DIALOG_UI_TIMEOUT_MS);
+
+    return () => {
+      window.clearTimeout(timer);
+      endPriority();
+    };
+  }, [open, loadKey]);
+
   if (!open) return null;
+
+  if (loadTimedOut) {
+    return <ProductDialogLoadTimeoutShell onClose={handleClose} onRetry={handleRetry} />;
+  }
 
   return (
     <ProductEntryDialogErrorBoundary onClose={handleClose} onRetry={handleRetry}>
