@@ -140,7 +140,7 @@ AS $$
   ),
   paid_at_sale_drift AS (
     SELECT
-      s.customer_id AS cust_id,
+      sub.customer_id AS cust_id,
       COALESCE(SUM(sub.drift), 0)::numeric AS amt
     FROM (
       SELECT
