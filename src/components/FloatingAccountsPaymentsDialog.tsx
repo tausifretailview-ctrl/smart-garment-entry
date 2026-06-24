@@ -80,8 +80,8 @@ export function FloatingAccountsPaymentsDialog({
     showPaymentHistory ? "flex-[3]" : "flex-1"
   );
   const tabScrollClass = cn(
-    "flex-1 min-h-0 overflow-y-auto overflow-x-hidden",
-    showPaymentHistory && "max-h-[52vh]",
+    "flex-1 min-h-0 flex flex-col",
+    showPaymentHistory && "overflow-y-auto max-h-[48vh]",
   );
 
   return (
@@ -115,7 +115,7 @@ export function FloatingAccountsPaymentsDialog({
               </TabsTrigger>
             </TabsList>
 
-            <div className="flex-1 flex flex-col min-h-0 overflow-hidden px-3 pb-2 pt-1.5 gap-1">
+            <div className="flex-1 flex flex-col min-h-0 overflow-hidden px-3 pb-1.5 pt-1 gap-0.5">
               <TabsContent value="customer-payment" className={tabContentClass}>
                 <div className={tabScrollClass}>
                   <CustomerPaymentTab
@@ -184,7 +184,7 @@ export function FloatingAccountsPaymentsDialog({
                   </div>
                 </div>
               ) : (
-                <div className="shrink-0 flex justify-center py-1 border-t bg-muted/20">
+                <div className="shrink-0 flex justify-center py-0.5 border-t bg-muted/20">
                   <Button
                     type="button"
                     variant="outline"

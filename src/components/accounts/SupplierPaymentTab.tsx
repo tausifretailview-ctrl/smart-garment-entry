@@ -928,7 +928,7 @@ export function SupplierPaymentTab({
             {referenceId && (
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <Label className="text-base font-semibold">Select Bills (Optional)</Label>
+                  <Label className={cn(embedded ? "text-xs font-medium" : "text-base font-semibold")}>Select Bills (Optional)</Label>
                   {selectedSupplierBillIds.length > 0 && (
                     <Button type="button" variant="ghost" size="sm" onClick={() => { setSelectedSupplierBillIds([]); setAmount(""); }}>
                       <X className="h-4 w-4 mr-1" /> Clear Selection
@@ -937,12 +937,12 @@ export function SupplierPaymentTab({
                 </div>
                 {payableBills.length > 0 ? (
                   <div
-                    className="border rounded-lg overflow-y-auto overflow-x-auto"
+                    className="border rounded-lg overflow-y-auto overflow-x-auto bg-white dark:bg-background"
                     style={billGridMaxHeight ? { maxHeight: billGridMaxHeight } : undefined}
                   >
-                    <Table>
-                      <TableHeader>
-                        <TableRow className="bg-muted/50">
+                    <Table className={cn(embedded && "text-sm [&_td]:py-1.5")}>
+                      <TableHeader className="sticky top-0 z-10">
+                        <TableRow className="bg-slate-800 hover:bg-slate-800 border-none [&_th]:text-[11px] [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-wide [&_th]:text-white">
                           <TableHead className="w-[50px]">Select</TableHead>
                           <TableHead>Bill No</TableHead>
                           <TableHead>Date</TableHead>

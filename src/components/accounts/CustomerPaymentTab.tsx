@@ -40,6 +40,7 @@ import {
   resolveVoucherPartyName,
   sortCustomerReceiptVouchersByEntryNewestFirst,
   voucherDateInPeriod,
+  isSaleExcludedFromCustomerPaymentPicker,
 } from "@/utils/paymentVoucherFilters";
 import { fetchCustomersWithBalanceForPaymentPicker } from "@/utils/customerPaymentPickerList";
 import { useUserRoles } from "@/hooks/useUserRoles";
@@ -334,11 +335,16 @@ export function CustomerPaymentTab({
         .from("sales")
         .select("*")
         .eq("customer_id", referenceId)
+        .eq("organization_id", organizationId)
         .not("payment_status", "in", '("cancelled","hold")')
+        .eq("is_cancelled", false)
         .is("deleted_at", null)
         .order("sale_date", { ascending: false });
       if (error) throw error;
-      const salesRows = data || [];
+      const salesRows = (data || []).filter(
+        (sale: { payment_status?: string | null; sale_number?: string | null; is_cancelled?: boolean | null }) =>
+          !isSaleExcludedFromCustomerPaymentPicker(sale),
+      );
       const saleIds = salesRows.map((s: any) => s.id).filter(Boolean);
       if (saleIds.length === 0) return salesRows;
 
@@ -1481,15 +1487,16 @@ export function CustomerPaymentTab({
     const count =
       (customerInvoices?.length ?? 0) + (openingBalanceRemaining > 0 ? 1 : 0);
     if (count === 0) return undefined;
-    const headerPx = 40;
-    const rowPx = embedded ? 42 : 48;
+    const headerPx = embedded ? 36 : 40;
+    const rowPx = embedded ? 36 : 44;
     const contentPx = headerPx + count * rowPx;
-    const capPx = embedded ? 220 : 192;
+    const minVisiblePx = headerPx + Math.min(count, 8) * rowPx;
+    const capPx = embedded ? 420 : 480;
     const vhCapPx =
       typeof window !== "undefined"
-        ? Math.round(window.innerHeight * (embedded ? 0.26 : 0.32))
+        ? Math.round(window.innerHeight * (embedded ? 0.44 : 0.5))
         : capPx;
-    return Math.min(Math.max(contentPx, 100), capPx, vhCapPx);
+    return Math.min(Math.max(contentPx, minVisiblePx), capPx, vhCapPx);
   }, [customerInvoices?.length, openingBalanceRemaining, embedded]);
 
   useEffect(() => {
@@ -1661,17 +1668,17 @@ export function CustomerPaymentTab({
                 ) : (
                   <>
                     <div
-                      className="border rounded-lg overflow-y-auto overflow-x-auto"
+                      className="border rounded-lg overflow-y-auto overflow-x-auto bg-white dark:bg-background"
                       style={invoiceGridMaxHeight ? { maxHeight: invoiceGridMaxHeight } : undefined}
                     >
-                      <Table className={cn(embedded && "[&_td]:py-2 [&_th]:h-9 [&_th]:py-2")}>
-                        <TableHeader>
-                          <TableRow className="bg-muted/50">
+                      <Table className={cn(embedded && "text-sm [&_td]:py-1.5 [&_th]:h-9 [&_th]:py-2")}>
+                        <TableHeader className="sticky top-0 z-10">
+                          <TableRow className="bg-slate-800 hover:bg-slate-800 border-none [&_th]:text-[11px] [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-wide [&_th]:text-white">
                             <TableHead className="w-[50px]">Select</TableHead>
                             <TableHead>Invoice</TableHead>
-                            <TableHead>Date</TableHead>
+                            <TableHead className="w-[5.5rem]">Date</TableHead>
                             <TableHead className="text-center w-[4.5rem]">Days</TableHead>
-                            <TableHead className="text-right">Pending</TableHead>
+                            <TableHead className="text-right w-[7rem]">Pending</TableHead>
                             <TableHead className="w-28 text-right">Pay</TableHead>
                           </TableRow>
                         </TableHeader>
@@ -2071,7 +2078,7 @@ export function CustomerPaymentTab({
               const isZeroBalance = outstandingBalance <= 0;
               const isDisabled = isZeroBalance || isExcessPayment;
               return (
-                <div className="space-y-2">
+                <div className={cn("space-y-2", embedded && "space-y-1 pt-0.5")}>
                   {isExcessPayment && (
                     <p className="text-sm text-red-600 dark:text-red-400">
                       ⚠️ Payment (₹{Math.round(totalSettled).toLocaleString('en-IN')}) exceeds outstanding balance (₹{Math.round(outstandingBalance).toLocaleString('en-IN')})

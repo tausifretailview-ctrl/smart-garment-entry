@@ -7,6 +7,25 @@ import {
 } from "date-fns";
 import type { AccountsPaymentTabId } from "@/hooks/useAccountsVoucherData";
 
+/** POS hold bills and cancelled sales must not appear in Customer Payment invoice pickers. */
+export function isSaleExcludedFromCustomerPaymentPicker(sale: {
+  payment_status?: string | null;
+  sale_number?: string | null;
+  is_cancelled?: boolean | null;
+}): boolean {
+  if (sale.is_cancelled) return true;
+  const status = (sale.payment_status || "").toLowerCase();
+  if (status === "hold" || status === "cancelled") return true;
+  if (
+    status === "pending" &&
+    typeof sale.sale_number === "string" &&
+    sale.sale_number.startsWith("Hold/")
+  ) {
+    return true;
+  }
+  return false;
+}
+
 /** Preset periods for Accounts payment history panels. */
 export type AccountsHistoryPeriod = "daily" | "monthly" | "quarterly" | "yearly" | "all";
 

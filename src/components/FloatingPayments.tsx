@@ -48,6 +48,7 @@ import {
   AdaptivePaymentMethodPicker,
 } from "@/components/mobile/AdaptivePaymentMethodPicker";
 import { DEFAULT_RECEIPT_PAYMENT_METHODS } from "@/components/mobile/MobilePaymentMethodPickerSheet";
+import { isSaleExcludedFromCustomerPaymentPicker } from "@/utils/paymentVoucherFilters";
 
 interface FloatingPaymentsProps {
   open: boolean;
@@ -201,13 +202,14 @@ function CustomerPaymentForm({
     queryFn: async () => {
       const { data } = await supabase
         .from("sales")
-        .select("id, sale_number, sale_date, net_amount, paid_amount, payment_status, customer_name, customer_phone, customer_address")
+        .select("id, sale_number, sale_date, net_amount, paid_amount, payment_status, customer_name, customer_phone, customer_address, is_cancelled")
         .eq("organization_id", organizationId)
         .eq("customer_id", referenceId)
         .in("payment_status", ["pending", "partial"])
+        .eq("is_cancelled", false)
         .is("deleted_at", null)
         .order("sale_date", { ascending: false });
-      return data || [];
+      return (data || []).filter((sale) => !isSaleExcludedFromCustomerPaymentPicker(sale));
     },
     enabled: !!organizationId && !!referenceId && dialogOpen,
     ...DASHBOARD_TAB_RETURN_QUERY_OPTIONS,
@@ -613,7 +615,7 @@ function CustomerPaymentForm({
               </Button>
             )}
           </div>
-          <div className="border rounded max-h-32 overflow-y-auto">
+          <div className="border rounded max-h-[min(420px,44vh)] overflow-y-auto bg-white dark:bg-background">
             {customerInvoices.map(inv => {
               const balance = (inv.net_amount || 0) - (inv.paid_amount || 0);
               const isSelected = selectedInvoiceIds.includes(inv.id);
@@ -882,7 +884,7 @@ function SupplierPaymentForm({ organizationId }: { organizationId: string }) {
               </Button>
             )}
           </div>
-          <div className="border rounded max-h-32 overflow-y-auto">
+          <div className="border rounded max-h-[min(420px,44vh)] overflow-y-auto bg-white dark:bg-background">
             {supplierBills.map(bill => {
               const outstanding = (bill.net_amount || 0) - (bill.paid_amount || 0);
               const isSelected = selectedBillIds.includes(bill.id);
