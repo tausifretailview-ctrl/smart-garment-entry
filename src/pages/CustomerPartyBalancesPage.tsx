@@ -4,8 +4,6 @@ import { Search, Users, RefreshCw, ChevronLeft, ChevronRight, ArrowLeft, Loader2
 
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
-import { useTabCacheLayout } from "@/contexts/TabCacheLayoutContext";
-import { useSharedAppShell } from "@/contexts/SharedAppShellContext";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -48,8 +46,6 @@ function fmtAmt(n: number) {
 export default function CustomerPartyBalancesPage() {
   const { currentOrganization } = useOrganization();
   const { orgNavigate } = useOrgNavigation();
-  const inTabCache = useTabCacheLayout();
-  const sharedShell = useSharedAppShell();
   const [search, setSearch] = useState("");
   const [showSettled, setShowSettled] = useState(false);
   const [page, setPage] = useState(1);
@@ -120,29 +116,28 @@ export default function CustomerPartyBalancesPage() {
   return (
     <div
       className={cn(
-        "customer-party-balances-dashboard flex flex-col bg-slate-50 px-1.5 sm:px-2 md:px-3 py-1.5 min-h-0 overflow-hidden",
-        inTabCache || sharedShell ? "h-full w-full" : "h-[calc(100vh-3.5rem)]",
+        "customer-party-balances-workspace customer-party-balances-dashboard flex flex-col bg-slate-50 px-2 sm:px-3 py-2 min-h-0 h-full overflow-hidden w-full",
       )}
     >
-      <div className="w-full min-w-0 flex flex-col flex-1 min-h-0 gap-1.5">
+      <div className="w-full min-w-0 flex flex-col flex-1 min-h-0 gap-2">
         {/* Toolbar */}
         <div className="flex flex-wrap items-center justify-between gap-2 shrink-0">
           <div className="flex items-center gap-2 min-w-0">
             <Button
               variant="outline"
               size="sm"
-              className="h-8 px-2.5 text-xs shrink-0"
+              className="h-9 px-3 text-sm shrink-0"
               onClick={() => orgNavigate("/accounts")}
             >
-              <ArrowLeft className="h-3.5 w-3.5 mr-1" />
+              <ArrowLeft className="h-4 w-4 mr-1" />
               Accounts
             </Button>
             <div className="min-w-0">
-              <h1 className="text-lg font-bold text-teal-700 tracking-tight leading-none flex items-center gap-1.5">
-                <Users className="h-4 w-4 shrink-0" />
+              <h1 className="text-xl font-bold text-teal-700 tracking-tight leading-none flex items-center gap-2">
+                <Users className="h-5 w-5 shrink-0" />
                 Customer Balances
               </h1>
-              <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
+              <p className="text-sm text-muted-foreground mt-1 truncate">
                 {isFetching && !isLoading ? (
                   <span className="inline-flex items-center gap-1">
                     <Loader2 className="h-3 w-3 animate-spin" />
@@ -162,30 +157,30 @@ export default function CustomerPartyBalancesPage() {
             size="sm"
             onClick={() => refetch()}
             disabled={isFetching}
-            className="h-8 text-xs shrink-0"
+            className="h-9 text-sm shrink-0"
           >
-            <RefreshCw className={cn("h-3.5 w-3.5 mr-1", isFetching && "animate-spin")} />
+            <RefreshCw className={cn("h-4 w-4 mr-1.5", isFetching && "animate-spin")} />
             Refresh
           </Button>
         </div>
 
         {/* Org totals — compact strip */}
-        <div className="grid grid-cols-3 gap-1.5 w-full shrink-0">
-          <div className="rounded-lg bg-gradient-to-br from-red-500 to-red-600 px-2.5 py-1.5 min-w-0 shadow-sm">
-            <p className="text-[10px] font-medium text-white/80 leading-none">Total Receivable (Dr)</p>
-            <p className="text-sm sm:text-base font-black text-white tabular-nums leading-tight mt-0.5 truncate">
+        <div className="grid grid-cols-3 gap-2 w-full shrink-0">
+          <div className="rounded-lg bg-gradient-to-br from-red-500 to-red-600 px-3 py-2 min-w-0 shadow-sm">
+            <p className="text-xs font-medium text-white/80 leading-none">Total Receivable (Dr)</p>
+            <p className="text-base sm:text-lg font-black text-white tabular-nums leading-tight mt-1 truncate">
               ₹{fmtAmt(Math.abs(orgTotals.totalDr))}
             </p>
           </div>
-          <div className="rounded-lg bg-gradient-to-br from-emerald-500 to-emerald-600 px-2.5 py-1.5 min-w-0 shadow-sm">
-            <p className="text-[10px] font-medium text-white/80 leading-none">Total Credit (Cr)</p>
-            <p className="text-sm sm:text-base font-black text-white tabular-nums leading-tight mt-0.5 truncate">
+          <div className="rounded-lg bg-gradient-to-br from-emerald-500 to-emerald-600 px-3 py-2 min-w-0 shadow-sm">
+            <p className="text-xs font-medium text-white/80 leading-none">Total Credit (Cr)</p>
+            <p className="text-base sm:text-lg font-black text-white tabular-nums leading-tight mt-1 truncate">
               ₹{fmtAmt(Math.abs(orgTotals.totalCr))}
             </p>
           </div>
-          <div className="rounded-lg bg-gradient-to-br from-slate-600 to-slate-700 px-2.5 py-1.5 min-w-0 shadow-sm">
-            <p className="text-[10px] font-medium text-white/80 leading-none">Net Receivable</p>
-            <p className="text-sm sm:text-base font-black text-white tabular-nums leading-tight mt-0.5 truncate">
+          <div className="rounded-lg bg-gradient-to-br from-slate-600 to-slate-700 px-3 py-2 min-w-0 shadow-sm">
+            <p className="text-xs font-medium text-white/80 leading-none">Net Receivable</p>
+            <p className="text-base sm:text-lg font-black text-white tabular-nums leading-tight mt-1 truncate">
               ₹{fmtAmt(Math.abs(orgTotals.netReceivable))}
             </p>
           </div>
@@ -193,23 +188,23 @@ export default function CustomerPartyBalancesPage() {
 
         {/* Party list — primary focus */}
         <Card className="rounded-lg border border-slate-200 shadow-sm overflow-hidden p-0 flex-1 min-h-0 flex flex-col">
-          <div className="flex flex-wrap items-center gap-2 px-2 py-1.5 border-b border-slate-100 bg-white shrink-0">
-            <div className="relative flex-1 min-w-[180px] max-w-md">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+          <div className="flex flex-wrap items-center gap-2 px-3 py-2 border-b border-slate-100 bg-white shrink-0">
+            <div className="relative flex-1 min-w-[200px] max-w-lg">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search name or phone…"
-                className="pl-8 h-8 text-sm border-slate-200 bg-slate-50 focus:bg-white"
+                className="pl-10 h-10 text-base border-slate-200 bg-slate-50 focus:bg-white"
               />
             </div>
             <div className="flex items-center gap-2 shrink-0">
               <Switch id="show-settled" checked={showSettled} onCheckedChange={setShowSettled} />
-              <Label htmlFor="show-settled" className="text-xs font-normal cursor-pointer whitespace-nowrap">
+              <Label htmlFor="show-settled" className="text-sm font-normal cursor-pointer whitespace-nowrap">
                 Show settled (₹0)
               </Label>
             </div>
-            <span className="text-xs text-muted-foreground tabular-nums ml-auto">
+            <span className="text-sm text-muted-foreground tabular-nums ml-auto">
               {filteredRows.length.toLocaleString("en-IN")} matching
             </span>
           </div>
@@ -224,20 +219,20 @@ export default function CustomerPartyBalancesPage() {
             </div>
           ) : (
             <>
-              <div className="flex-1 min-h-0 overflow-hidden bg-white">
-                <Table>
-                  <TableHeader>
+              <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden bg-white tab-scroll-stable">
+                <Table className="[&_td]:px-4 [&_th]:px-4">
+                  <TableHeader className="sticky top-0 z-10">
                     <TableRow className="bg-slate-800 hover:bg-slate-800 border-none">
-                      <TableHead className="h-8 w-[52px] text-[11px] font-bold uppercase tracking-wide text-white">
+                      <TableHead className="h-10 w-[56px] text-xs font-bold uppercase tracking-wide text-white">
                         Sr.
                       </TableHead>
-                      <TableHead className="h-8 text-[11px] font-bold uppercase tracking-wide text-white">
+                      <TableHead className="h-10 text-xs font-bold uppercase tracking-wide text-white">
                         Party Name
                       </TableHead>
-                      <TableHead className="h-8 text-right text-[11px] font-bold uppercase tracking-wide text-white w-[130px]">
+                      <TableHead className="h-10 text-right text-xs font-bold uppercase tracking-wide text-white w-[150px]">
                         Amount
                       </TableHead>
-                      <TableHead className="h-8 text-center text-[11px] font-bold uppercase tracking-wide text-white w-[64px]">
+                      <TableHead className="h-10 text-center text-xs font-bold uppercase tracking-wide text-white w-[72px]">
                         Dr/Cr
                       </TableHead>
                     </TableRow>
@@ -245,7 +240,7 @@ export default function CustomerPartyBalancesPage() {
                   <TableBody>
                     {filteredRows.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={4} className="h-16 text-center text-sm text-muted-foreground">
+                        <TableCell colSpan={4} className="h-20 text-center text-base text-muted-foreground">
                           {rows.length === 0 ? "No customers found." : "No matching customers."}
                         </TableCell>
                       </TableRow>
@@ -260,29 +255,29 @@ export default function CustomerPartyBalancesPage() {
                         return (
                           <TableRow
                             key={row.customer_id}
-                            className="h-7 cursor-pointer hover:bg-teal-50/80 dark:hover:bg-teal-950/20"
+                            className="h-11 cursor-pointer hover:bg-teal-50/80 dark:hover:bg-teal-950/20"
                             onClick={() => openCustomerLedger(row.customer_id)}
                             title="Open Customer Ledger"
                           >
-                            <TableCell className="py-0 text-xs tabular-nums text-muted-foreground font-medium">
+                            <TableCell className="py-2.5 text-sm tabular-nums text-muted-foreground font-medium">
                               {srNo}
                             </TableCell>
-                            <TableCell className="py-0 text-sm font-medium truncate max-w-[1px]">
+                            <TableCell className="py-2.5 text-base font-medium">
                               {row.customer_name}
                             </TableCell>
                             <TableCell
                               className={cn(
-                                "py-0 text-right tabular-nums text-sm font-semibold",
+                                "py-2.5 text-right tabular-nums text-base font-semibold",
                                 isDr && "text-red-600 dark:text-red-400",
                                 isCr && "text-emerald-600 dark:text-emerald-400",
                               )}
                             >
                               {fmtAmt(displayAmount)}
                             </TableCell>
-                            <TableCell className="py-0 text-center">
+                            <TableCell className="py-2.5 text-center">
                               <span
                                 className={cn(
-                                  "inline-flex min-w-[2.25rem] justify-center rounded px-1.5 py-0 text-[10px] font-bold",
+                                  "inline-flex min-w-[2.75rem] justify-center rounded px-2 py-0.5 text-xs font-bold",
                                   isDr && "bg-red-100 text-red-700 dark:bg-red-950/50 dark:text-red-300",
                                   isCr && "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300",
                                   !isDr && !isCr && "bg-muted text-muted-foreground",
@@ -300,8 +295,8 @@ export default function CustomerPartyBalancesPage() {
               </div>
 
               {filteredRows.length > 0 && (
-                <div className="flex flex-wrap items-center justify-between gap-2 px-2 py-1.5 border-t border-slate-100 bg-white shrink-0">
-                  <p className="text-xs text-slate-500 tabular-nums">
+                <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 border-t border-slate-100 bg-white shrink-0">
+                  <p className="text-sm text-slate-600 tabular-nums">
                     Showing {pageStart.toLocaleString("en-IN")}–{pageEnd.toLocaleString("en-IN")} of{" "}
                     {filteredRows.length.toLocaleString("en-IN")}
                     <span className="hidden sm:inline text-slate-400">
@@ -315,12 +310,12 @@ export default function CustomerPartyBalancesPage() {
                       size="sm"
                       onClick={() => setPage((p) => Math.max(1, p - 1))}
                       disabled={currentPage === 1}
-                      className="h-7 text-xs px-2.5 border-slate-200"
+                      className="h-9 text-sm px-3 border-slate-200"
                     >
-                      <ChevronLeft className="h-3.5 w-3.5 mr-0.5" />
+                      <ChevronLeft className="h-4 w-4 mr-1" />
                       Previous
                     </Button>
-                    <span className="text-xs text-slate-600 font-medium tabular-nums px-0.5">
+                    <span className="text-sm text-slate-700 font-medium tabular-nums px-1">
                       Page {currentPage} of {totalPages}
                     </span>
                     <Button
@@ -328,10 +323,10 @@ export default function CustomerPartyBalancesPage() {
                       size="sm"
                       onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                       disabled={currentPage === totalPages}
-                      className="h-7 text-xs px-2.5 border-slate-200"
+                      className="h-9 text-sm px-3 border-slate-200"
                     >
                       Next
-                      <ChevronRight className="h-3.5 w-3.5 ml-0.5" />
+                      <ChevronRight className="h-4 w-4 ml-1" />
                     </Button>
                   </div>
                 </div>

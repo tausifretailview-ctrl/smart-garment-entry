@@ -16,7 +16,7 @@ import { DesktopViewEscapeHatch } from "@/components/mobile/DesktopViewToggle";
 import { IdleMount } from "@/components/IdleMount";
 import { DashboardToolbarProvider } from "@/contexts/DashboardToolbarContext";
 import { readSidebarLockedOpen } from "@/lib/sidebarPreference";
-import { isNoSidebarEntryPath } from "@/lib/entryPageLayout";
+import { isNoSidebarEntryPath, isSidebarOnlyWorkspacePath } from "@/lib/entryPageLayout";
 import { cn } from "@/lib/utils";
 
 interface DesktopAppShellProps {
@@ -31,6 +31,7 @@ interface DesktopAppShellProps {
 export function DesktopAppShell({ children, className }: DesktopAppShellProps) {
   const location = useLocation();
   const billingFullScreen = isNoSidebarEntryPath(location.pathname);
+  const sidebarOnlyWorkspace = isSidebarOnlyWorkspacePath(location.pathname);
 
   return (
     <ChatProvider>
@@ -43,8 +44,8 @@ export function DesktopAppShell({ children, className }: DesktopAppShellProps) {
               {!billingFullScreen && <AppSidebar />}
               {!billingFullScreen && <SidebarExpandStrip />}
               <SidebarInset className="flex min-h-0 flex-1 flex-col min-w-0 overflow-hidden">
-                {!billingFullScreen && <Header />}
-                <WindowTabsBar />
+                {!billingFullScreen && !sidebarOnlyWorkspace && <Header />}
+                {!sidebarOnlyWorkspace && <WindowTabsBar />}
                 <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{children}</div>
                 <StatusBar />
               </SidebarInset>

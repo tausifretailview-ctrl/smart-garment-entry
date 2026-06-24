@@ -25,6 +25,7 @@ import { DesktopViewToggle, DesktopViewEscapeHatch } from "@/components/mobile/D
 import { useTabCacheLayout } from "@/contexts/TabCacheLayoutContext";
 import { cn } from "@/lib/utils";
 import { readSidebarLockedOpen } from "@/lib/sidebarPreference";
+import { isSidebarOnlyWorkspacePath } from "@/lib/entryPageLayout";
 import { useSharedAppShell } from "@/contexts/SharedAppShellContext";
 
 interface LayoutProps {
@@ -35,6 +36,7 @@ export const Layout = ({ children }: LayoutProps) => {
   const { isOpen, setIsOpen } = useKeyboardShortcuts("general");
   const location = useLocation();
   const isSalesInvoicePage = /\/sales-invoice(\/|$)/.test(location.pathname);
+  const isSidebarOnlyPage = isSidebarOnlyWorkspacePath(location.pathname);
   const showDesktopChrome = useShowDesktopChrome();
   const inTabCachePane = useTabCacheLayout();
   const sharedShell = useSharedAppShell();
@@ -47,7 +49,10 @@ export const Layout = ({ children }: LayoutProps) => {
     return (
       <main
         className={cn(
-          "flex flex-1 flex-col min-h-0 min-w-0 overflow-y-auto tab-scroll-stable relative z-[1] p-3 sm:p-4 pb-14 animate-fade-in",
+          "flex flex-1 flex-col min-h-0 min-w-0 relative z-[1] animate-fade-in",
+          isSidebarOnlyPage
+            ? "overflow-hidden p-0"
+            : "overflow-y-auto tab-scroll-stable p-3 sm:p-4 pb-14",
           inTabCachePane && "data-tab-scroll",
         )}
       >
@@ -81,7 +86,7 @@ export const Layout = ({ children }: LayoutProps) => {
               >
                 {!isSalesInvoicePage && (
                   <>
-                    {showDesktopChrome && (
+                    {showDesktopChrome && !isSidebarOnlyPage && (
                       <>
                         <Header />
                         <WindowTabsBar />
@@ -97,12 +102,17 @@ export const Layout = ({ children }: LayoutProps) => {
                   className={
                     isSalesInvoicePage
                       ? mobileFullscreenMainClass
-                      : showDesktopChrome
+                      : isSidebarOnlyPage
                         ? cn(
-                            "flex-1 min-h-0 overflow-y-auto tab-scroll-stable relative z-[1] min-w-0 p-3 sm:p-4 animate-fade-in",
+                            "flex-1 min-h-0 overflow-hidden relative z-[1] min-w-0 p-0 animate-fade-in",
                             inTabCachePane && "data-tab-scroll",
                           )
-                        : mobileMainContentClass
+                        : showDesktopChrome
+                          ? cn(
+                              "flex-1 min-h-0 overflow-y-auto tab-scroll-stable relative z-[1] min-w-0 p-3 sm:p-4 animate-fade-in",
+                              inTabCachePane && "data-tab-scroll",
+                            )
+                          : mobileMainContentClass
                   }
                 >
                   {children}
