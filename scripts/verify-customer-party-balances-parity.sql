@@ -1,6 +1,6 @@
 -- Parity gate for get_customer_party_balances vs canonical reconcile_customer_balances.
 -- Run in Supabase SQL editor AFTER applying migrations through
--- 20260909120400_fix_get_customer_party_balances_receipt_parity.sql.
+-- 20260911150000_fix_party_balances_paid_at_sale_drift_parity.sql.
 --
 -- Org: ELLA NOOR 3fdca631-1e0c-4417-9704-421f5129ff67
 
@@ -188,3 +188,49 @@ ORDER BY ABS(pk.calculated_balance) DESC;
 EXPLAIN (ANALYZE, BUFFERS, FORMAT TEXT)
 SELECT COUNT(*), SUM(signed_balance)
 FROM public.get_customer_party_balances('3fdca631-1e0c-4417-9704-421f5129ff67'::uuid);
+
+
+-- =============================================================================
+-- 6) KS FOOTWEAR POS org — VAVIA + JOHNSON + full-org drift gate
+--    Org: 4bc73037-e877-4123-9261-eb6e3876698c
+-- =============================================================================
+WITH party AS (
+  SELECT customer_id, customer_name, signed_balance
+  FROM public.get_customer_party_balances('4bc73037-e877-4123-9261-eb6e3876698c'::uuid)
+  WHERE customer_id IN (
+    'a5727aac-8f3a-41c9-a8a5-f4af37ba160f'::uuid,
+    '970cffc5-4d1e-4ac0-bf4a-70d4188f5690'::uuid
+  )
+)
+SELECT
+  p.customer_name,
+  p.signed_balance AS party_balance,
+  public.get_customer_true_outstanding(p.customer_id, '4bc73037-e877-4123-9261-eb6e3876698c'::uuid) AS canonical_balance,
+  ROUND(p.signed_balance - public.get_customer_true_outstanding(p.customer_id, '4bc73037-e877-4123-9261-eb6e3876698c'::uuid), 2) AS drift
+FROM party p
+ORDER BY p.customer_name;
+
+
+-- KS FOOTWEAR full org — must return ZERO rows (|drift| > 0.01)
+WITH party AS (
+  SELECT customer_id, signed_balance
+  FROM public.get_customer_party_balances('4bc73037-e877-4123-9261-eb6e3876698c'::uuid)
+),
+canonical AS (
+  SELECT
+    c.id AS customer_id,
+    public.get_customer_true_outstanding(c.id, '4bc73037-e877-4123-9261-eb6e3876698c'::uuid)::numeric AS calculated_balance
+  FROM public.customers c
+  WHERE c.organization_id = '4bc73037-e877-4123-9261-eb6e3876698c'::uuid
+    AND c.deleted_at IS NULL
+)
+SELECT
+  cu.customer_name,
+  p.signed_balance AS party_balance,
+  c.calculated_balance AS canonical_balance,
+  ROUND(COALESCE(p.signed_balance, 0) - COALESCE(c.calculated_balance, 0), 2) AS drift
+FROM party p
+FULL OUTER JOIN canonical c ON c.customer_id = p.customer_id
+LEFT JOIN public.customers cu ON cu.id = COALESCE(p.customer_id, c.customer_id)
+WHERE ABS(COALESCE(p.signed_balance, 0) - COALESCE(c.calculated_balance, 0)) > 0.01
+ORDER BY ABS(COALESCE(p.signed_balance, 0) - COALESCE(c.calculated_balance, 0)) DESC;
