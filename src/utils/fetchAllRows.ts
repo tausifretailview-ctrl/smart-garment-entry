@@ -166,6 +166,50 @@ export async function fetchAllSupplierPartyBalances(
   return allRows;
 }
 
+export type OrphanedProductRpcRow = {
+  product_id: string;
+  product_name: string;
+  brand: string | null;
+  category: string | null;
+  created_at: string | null;
+  total_stock: number;
+  user_cancelled_at: string | null;
+  reason: string;
+};
+
+/**
+ * Fetch all rows from get_orphaned_products (PostgREST default cap is 1000).
+ */
+export async function fetchAllOrphanedProducts(
+  organizationId: string,
+): Promise<OrphanedProductRpcRow[]> {
+  const allRows: OrphanedProductRpcRow[] = [];
+  let offset = 0;
+  const pageSize = 1000;
+
+  while (true) {
+    const { data, error } = await supabase
+      .rpc("get_orphaned_products", {
+        p_organization_id: organizationId,
+      })
+      .range(offset, offset + pageSize - 1);
+
+    if (error) {
+      console.error("Error fetching orphaned products:", error);
+      throw error;
+    }
+
+    const page = (data ?? []) as OrphanedProductRpcRow[];
+    if (page.length === 0) break;
+
+    allRows.push(...page);
+    if (page.length < pageSize) break;
+    offset += pageSize;
+  }
+
+  return allRows;
+}
+
 /** Fetch id → phone map for supplier party balance search. */
 export async function fetchSupplierPhoneMap(organizationId: string): Promise<Map<string, string>> {
   const map = new Map<string, string>();
