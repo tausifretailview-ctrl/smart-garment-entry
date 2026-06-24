@@ -1,4 +1,4 @@
-import { Bell, Menu, Search, ShoppingCart, Package, TrendingUp, Download, LayoutGrid, BoxIcon, ChevronDown, Plus, FileText, Banknote, RefreshCw } from "lucide-react";
+import { Bell, Menu, Search, ShoppingCart, Package, TrendingUp, Download, LayoutGrid, BoxIcon, ChevronDown, Plus, FileText, Banknote, RefreshCw, Scale, BarChart3 } from "lucide-react";
 import { UIScaleSelector } from "@/components/UIScaleSelector";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -429,13 +429,39 @@ export const Header = () => {
           )}
 
           {canAccessReportsHub && (
-            <button
-              type="button"
-              onClick={() => orgNavigate("/reports")}
-              className="text-[14px] font-semibold text-white hover:bg-white/10 px-2.5 py-1.5 rounded transition-colors focus:outline-none"
-            >
-              Reports
-            </button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="text-[14px] font-semibold text-white hover:bg-white/10 px-2.5 py-1.5 rounded transition-colors focus:outline-none">
+                  Reports
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-56 text-sm">
+                <DropdownMenuItem onClick={() => orgNavigate("/reports")} className="cursor-pointer">
+                  <BarChart3 className="h-3.5 w-3.5 mr-2 opacity-60" /> Reports Hub
+                </DropdownMenuItem>
+                {can("customer_ledger") && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => orgNavigate("/customer-party-balances")} className="cursor-pointer">
+                      <Scale className="h-3.5 w-3.5 mr-2 opacity-60" /> Customer Balances
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => orgNavigate("/customer-ledger-report")} className="cursor-pointer">
+                      <FileText className="h-3.5 w-3.5 mr-2 opacity-60" /> Customer Ledger
+                    </DropdownMenuItem>
+                  </>
+                )}
+                {can("stock_report") && (
+                  <DropdownMenuItem onClick={() => orgNavigate("/stock-report")} className="cursor-pointer">
+                    <Package className="h-3.5 w-3.5 mr-2 opacity-60" /> Stock Report
+                  </DropdownMenuItem>
+                )}
+                {can("sales_invoice_dashboard") && (
+                  <DropdownMenuItem onClick={() => orgNavigate("/sales-invoice-dashboard")} className="cursor-pointer">
+                    <TrendingUp className="h-3.5 w-3.5 mr-2 opacity-60" /> Sales Dashboard
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
 
           {can("settings_view") && (
@@ -653,6 +679,17 @@ export const Header = () => {
           >
             <Banknote className="h-3.5 w-3.5" />
             Payment
+          </Button>
+        )}
+        {can("customer_ledger") && (
+          <Button
+            variant="ghost"
+            onClick={() => orgNavigate("/customer-party-balances")}
+            className={shortcutBtn("bg-rose-600 hover:bg-rose-700", "px-2.5")}
+            title="Tally-style customer Dr/Cr balances"
+          >
+            <Scale className="h-3.5 w-3.5" />
+            Customer Balance
           </Button>
         )}
         </div>
