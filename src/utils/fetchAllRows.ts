@@ -42,6 +42,43 @@ export async function fetchAllCustomers(organizationId: string) {
 }
 
 /**
+ * Fetch id → phone map for an organization (lightweight join for party balance search).
+ */
+export async function fetchCustomerPhoneMap(organizationId: string): Promise<Map<string, string>> {
+  const map = new Map<string, string>();
+  let offset = 0;
+  const pageSize = 1000;
+  let hasMore = true;
+
+  while (hasMore) {
+    const { data, error } = await supabase
+      .from("customers")
+      .select("id, phone")
+      .eq("organization_id", organizationId)
+      .is("deleted_at", null)
+      .order("id")
+      .range(offset, offset + pageSize - 1);
+
+    if (error) {
+      console.error("Error fetching customer phones:", error);
+      throw error;
+    }
+
+    if (data && data.length > 0) {
+      for (const row of data) {
+        if (row.id) map.set(row.id, row.phone ?? "");
+      }
+      offset += pageSize;
+      hasMore = data.length === pageSize;
+    } else {
+      hasMore = false;
+    }
+  }
+
+  return map;
+}
+
+/**
  * Fetch all sales summary for an organization using range pagination.
  * Uses minimal fields for performance.
  */

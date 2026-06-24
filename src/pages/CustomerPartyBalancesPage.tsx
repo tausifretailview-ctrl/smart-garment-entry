@@ -1,6 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Search, Users, RefreshCw } from "lucide-react";
+import { Search, Users, RefreshCw, ChevronLeft, ChevronRight } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -14,10 +14,22 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ReportSkeleton } from "@/components/ui/skeletons";
 import { cn } from "@/lib/utils";
+import { fetchCustomerPhoneMap } from "@/utils/fetchAllRows";
+import {
+  CUSTOMER_PARTY_BALANCES_PAGE_SIZE,
+  clampPartyBalancePage,
+  isPartyBalanceSettled,
+  matchesPartyBalanceSearch,
+  partyBalanceDirection,
+  partyBalanceDisplayAmount,
+  partyBalanceTotalPages,
+  slicePartyBalancePage,
+} from "@/utils/customerPartyBalanceDisplay";
 
 export type CustomerPartyBalanceRow = {
   customer_id: string;
   customer_name: string;
+  phone?: string;
   signed_balance: number;
   advance_available: number;
   direction: string;
@@ -27,11 +39,10 @@ export type CustomerPartyBalanceRow = {
   net_receivable: number;
 };
 
-const SETTLED_THRESHOLD = 0.5;
 const inr = new Intl.NumberFormat("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 function fmtAmt(n: number) {
-  return inr.format(Math.abs(n));
+  return inr.format(n);
 }
 
 export default function CustomerPartyBalancesPage() {
@@ -39,6 +50,7 @@ export default function CustomerPartyBalancesPage() {
   const { orgNavigate } = useOrgNavigation();
   const [search, setSearch] = useState("");
   const [showSettled, setShowSettled] = useState(false);
+  const [page, setPage] = useState(1);
 
   const orgId = currentOrganization?.id;
 
@@ -47,11 +59,17 @@ export default function CustomerPartyBalancesPage() {
     enabled: !!orgId,
     staleTime: 60_000,
     queryFn: async () => {
-      const { data, error: rpcError } = await supabase.rpc("get_customer_party_balances", {
-        p_organization_id: orgId!,
-      });
+      const [{ data, error: rpcError }, phoneMap] = await Promise.all([
+        supabase.rpc("get_customer_party_balances", {
+          p_organization_id: orgId!,
+        }),
+        fetchCustomerPhoneMap(orgId!),
+      ]);
       if (rpcError) throw rpcError;
-      return (data ?? []) as CustomerPartyBalanceRow[];
+      return ((data ?? []) as CustomerPartyBalanceRow[]).map((row) => ({
+        ...row,
+        phone: phoneMap.get(row.customer_id) ?? "",
+      }));
     },
   });
 
@@ -65,15 +83,28 @@ export default function CustomerPartyBalancesPage() {
   }, [rows]);
 
   const filteredRows = useMemo(() => {
-    const q = search.trim().toLowerCase();
     return rows.filter((row) => {
-      if (!showSettled && Math.abs(Number(row.signed_balance ?? 0)) < SETTLED_THRESHOLD) {
+      if (!showSettled && isPartyBalanceSettled(row.signed_balance)) {
         return false;
       }
-      if (!q) return true;
-      return (row.customer_name || "").toLowerCase().includes(q);
+      return matchesPartyBalanceSearch(row, search);
     });
   }, [rows, search, showSettled]);
+
+  const totalPages = partyBalanceTotalPages(filteredRows.length);
+  const currentPage = clampPartyBalancePage(page, totalPages);
+
+  useEffect(() => {
+    setPage(1);
+  }, [search, showSettled]);
+
+  const paginatedRows = useMemo(
+    () => slicePartyBalancePage(filteredRows, currentPage),
+    [filteredRows, currentPage],
+  );
+
+  const pageStart = filteredRows.length === 0 ? 0 : (currentPage - 1) * CUSTOMER_PARTY_BALANCES_PAGE_SIZE + 1;
+  const pageEnd = Math.min(currentPage * CUSTOMER_PARTY_BALANCES_PAGE_SIZE, filteredRows.length);
 
   const openCustomerLedger = (customerId: string) => {
     orgNavigate(`/customer-ledger-report?customer=${customerId}`);
@@ -123,7 +154,7 @@ export default function CustomerPartyBalancesPage() {
               <Input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search customer name…"
+                placeholder="Search name or phone…"
                 className="pl-9"
               />
             </div>
@@ -159,9 +190,9 @@ export default function CustomerPartyBalancesPage() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filteredRows.map((row) => {
-                      const signed = Number(row.signed_balance ?? 0);
-                      const direction = row.direction || (signed > SETTLED_THRESHOLD ? "Dr" : signed < -SETTLED_THRESHOLD ? "Cr" : "Settled");
+                    paginatedRows.map((row) => {
+                      const direction = partyBalanceDirection(row);
+                      const displayAmount = partyBalanceDisplayAmount(row.signed_balance);
                       const isDr = direction === "Dr";
                       const isCr = direction === "Cr";
 
@@ -180,7 +211,7 @@ export default function CustomerPartyBalancesPage() {
                               isCr && "text-emerald-600 dark:text-emerald-400",
                             )}
                           >
-                            {fmtAmt(signed)}
+                            {fmtAmt(displayAmount)}
                           </TableCell>
                           <TableCell className="text-center">
                             <span
@@ -201,30 +232,66 @@ export default function CustomerPartyBalancesPage() {
                 </TableBody>
               </Table>
 
-              <div className="border-t bg-muted/30 px-4 py-3">
+              <div className="border-t bg-muted/30 px-4 py-3 space-y-3">
+                {filteredRows.length > CUSTOMER_PARTY_BALANCES_PAGE_SIZE && (
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between text-sm">
+                    <p className="text-muted-foreground">
+                      Showing {pageStart.toLocaleString("en-IN")}–{pageEnd.toLocaleString("en-IN")} of{" "}
+                      {filteredRows.length.toLocaleString("en-IN")} filtered
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setPage((p) => Math.max(1, p - 1))}
+                        disabled={currentPage === 1}
+                      >
+                        <ChevronLeft className="h-4 w-4 mr-1" />
+                        Previous
+                      </Button>
+                      <span className="font-medium px-1 tabular-nums">
+                        Page {currentPage} of {totalPages}
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                        disabled={currentPage === totalPages}
+                      >
+                        Next
+                        <ChevronRight className="h-4 w-4 ml-1" />
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
                   <div className="flex items-center justify-between sm:block">
                     <span className="text-muted-foreground">Total Receivable (Dr)</span>
                     <span className="font-semibold tabular-nums text-red-600 dark:text-red-400 sm:mt-0.5 sm:block sm:text-right">
-                      ₹{fmtAmt(orgTotals.totalDr)}
+                      ₹{fmtAmt(Math.abs(orgTotals.totalDr))}
                     </span>
                   </div>
                   <div className="flex items-center justify-between sm:block">
                     <span className="text-muted-foreground">Total Credit (Cr)</span>
                     <span className="font-semibold tabular-nums text-emerald-600 dark:text-emerald-400 sm:mt-0.5 sm:block sm:text-right">
-                      ₹{fmtAmt(orgTotals.totalCr)}
+                      ₹{fmtAmt(Math.abs(orgTotals.totalCr))}
                     </span>
                   </div>
                   <div className="flex items-center justify-between sm:block">
                     <span className="text-muted-foreground">Net Receivable</span>
                     <span className="font-semibold tabular-nums sm:mt-0.5 sm:block sm:text-right">
-                      ₹{fmtAmt(orgTotals.netReceivable)}
+                      ₹{fmtAmt(Math.abs(orgTotals.netReceivable))}
                     </span>
                   </div>
                 </div>
-                <p className="text-[11px] text-muted-foreground mt-2">
-                  Showing {filteredRows.length.toLocaleString("en-IN")} of {rows.length.toLocaleString("en-IN")} parties
+                <p className="text-[11px] text-muted-foreground">
+                  {filteredRows.length.toLocaleString("en-IN")} of {rows.length.toLocaleString("en-IN")} parties
+                  match filters
                   {!showSettled ? " (settled hidden)" : ""}.
+                  {filteredRows.length <= CUSTOMER_PARTY_BALANCES_PAGE_SIZE && filteredRows.length > 0
+                    ? ` Showing all ${filteredRows.length.toLocaleString("en-IN")} on one page.`
+                    : ""}
                 </p>
               </div>
             </div>
