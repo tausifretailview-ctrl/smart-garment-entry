@@ -1924,22 +1924,25 @@ input.no-uppercase {
   padding-right: 12px;
 }
 
-/* Purchase dashboard — dense layout, prominent bill numbers */
+/* Purchase dashboard — readable grid, prominent bill numbers */
 .purchase-bill-dashboard .erp-desktop-table th {
-  padding: 4px 8px;
-  font-size: 11px;
-  height: 28px;
+  padding: 6px 10px;
+  font-size: 12px;
+  height: 34px;
 }
 
 .purchase-bill-dashboard .erp-desktop-table td {
-  padding: 2px 8px;
-  font-size: 13px;
-  height: 30px;
+  padding: 4px 10px;
+  font-size: 14px;
+  height: 38px;
 }
 
-.purchase-bill-dashboard .erp-desktop-table tbody tr.h-10,
+.purchase-bill-dashboard .erp-desktop-table tbody tr.h-10 {
+  height: 38px;
+}
+
 .purchase-bill-dashboard .erp-desktop-table tbody tr.h-14 {
-  height: 30px;
+  height: 44px;
 }
 
 /* Sales invoice dashboard — dense grid, prominent invoice numbers */

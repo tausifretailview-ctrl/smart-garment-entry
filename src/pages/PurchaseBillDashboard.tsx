@@ -1568,20 +1568,20 @@ const PurchaseBillDashboard = () => {
 
     if (displayStatus === "paid") {
       return (
-        <Badge className="min-w-[58px] justify-center text-xs px-1.5 py-0 bg-green-500 hover:bg-green-600 text-white" title={title}>
+        <Badge className="min-w-[64px] justify-center text-sm px-2 py-0.5 bg-green-500 hover:bg-green-600 text-white" title={title}>
           Paid
         </Badge>
       );
     }
     if (displayStatus === "partial") {
       return (
-        <Badge className="min-w-[58px] justify-center text-xs px-1.5 py-0 bg-orange-400 hover:bg-orange-500 text-white" title={title}>
+        <Badge className="min-w-[64px] justify-center text-sm px-2 py-0.5 bg-orange-400 hover:bg-orange-500 text-white" title={title}>
           Partial
         </Badge>
       );
     }
     return (
-      <Badge className="min-w-[58px] justify-center text-xs px-1.5 py-0 bg-red-500 hover:bg-red-600 text-white" title={title}>
+      <Badge className="min-w-[64px] justify-center text-sm px-2 py-0.5 bg-red-500 hover:bg-red-600 text-white" title={title}>
         Not Paid
       </Badge>
     );
@@ -1613,7 +1613,7 @@ const PurchaseBillDashboard = () => {
       header: "Sr.",
       cell: ({ row }) => {
         const globalIndex = paginatedBills.indexOf(row.original);
-        return <span className="font-medium text-sm tabular-nums">{(currentPage - 1) * itemsPerPage + globalIndex + 1}</span>;
+        return <span className="font-medium text-base tabular-nums">{(currentPage - 1) * itemsPerPage + globalIndex + 1}</span>;
       },
       size: 45,
       minSize: 40,
@@ -1625,7 +1625,7 @@ const PurchaseBillDashboard = () => {
         const bill = row.original;
         return (
           <div className={cn("flex items-center gap-1", bill.is_cancelled && "opacity-60")}>
-            <span className={cn("font-mono text-sm font-bold bg-primary/8 text-primary px-1.5 py-0 rounded leading-tight", bill.is_cancelled && "line-through")}>
+            <span className={cn("font-mono text-base font-bold bg-primary/8 text-primary px-1.5 py-0 rounded leading-tight", bill.is_cancelled && "line-through")}>
               {bill.software_bill_no || "N/A"}
             </span>
             {bill.is_dc_purchase && (
@@ -1663,9 +1663,9 @@ const PurchaseBillDashboard = () => {
       accessorKey: "bill_date",
       header: "Dates",
       cell: ({ row }) => (
-        <div className="text-xs whitespace-nowrap tabular-nums leading-tight">
+        <div className="text-sm whitespace-nowrap tabular-nums leading-tight">
           <div className="text-foreground font-medium">{format(new Date(row.original.bill_date), "dd MMM yyyy")}</div>
-          <div className="text-[11px] text-muted-foreground" title="Bill saved in EzzyERP">
+          <div className="text-xs text-muted-foreground" title="Bill saved in EzzyERP">
             {formatPurchaseBillEntryAt(row.original, "dd MMM yyyy, hh:mm a")}
           </div>
         </div>
@@ -1677,7 +1677,7 @@ const PurchaseBillDashboard = () => {
       accessorKey: "supplier_invoice_no",
       header: "Inv. No.",
       cell: ({ row }) => (
-        <span className="font-mono text-xs font-medium">{row.original.supplier_invoice_no}</span>
+        <span className="font-mono text-sm font-medium">{row.original.supplier_invoice_no}</span>
       ),
       size: 72,
       minSize: 60,
@@ -1690,7 +1690,7 @@ const PurchaseBillDashboard = () => {
         return (
           <div className="flex items-center gap-1.5">
             <span 
-              className={cn("truncate text-sm", bill.supplier_id ? "cursor-pointer text-blue-600 hover:underline font-medium" : "font-medium")}
+              className={cn("truncate text-base", bill.supplier_id ? "cursor-pointer text-blue-600 hover:underline font-medium" : "font-medium")}
               onClick={(e) => {
                 if (bill.supplier_id) {
                   e.stopPropagation();
@@ -1701,7 +1701,7 @@ const PurchaseBillDashboard = () => {
             >
               {bill.supplier_name}
             </span>
-            <Badge className="text-[11px] px-1 py-0 shrink-0 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-0 font-semibold tabular-nums">
+            <Badge className="text-xs px-1.5 py-0 shrink-0 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-0 font-semibold tabular-nums">
               {bill.total_qty || 0}
             </Badge>
           </div>
@@ -1714,7 +1714,7 @@ const PurchaseBillDashboard = () => {
       accessorKey: "gross_amount",
       header: "Gross",
       cell: ({ row }) => (
-        <span className="text-right block tabular-nums text-xs font-medium text-slate-600 dark:text-slate-400">₹{row.original.gross_amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+        <span className="text-right block tabular-nums text-sm font-medium text-slate-600 dark:text-slate-400">₹{row.original.gross_amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
       ),
       size: 88,
       minSize: 72,
@@ -1725,9 +1725,9 @@ const PurchaseBillDashboard = () => {
       cell: ({ row }) => {
         const disc = row.original.discount_amount || 0;
         return disc > 0 ? (
-          <span className="text-right block tabular-nums text-sm text-destructive">-₹{disc.toFixed(2)}</span>
+          <span className="text-right block tabular-nums text-base text-destructive">-₹{disc.toFixed(2)}</span>
         ) : (
-          <span className="text-right block tabular-nums text-sm text-muted-foreground/50">₹0.00</span>
+          <span className="text-right block tabular-nums text-base text-muted-foreground/50">₹0.00</span>
         );
       },
       size: 90,
@@ -1737,7 +1737,7 @@ const PurchaseBillDashboard = () => {
       accessorKey: "gst_amount",
       header: "GST",
       cell: ({ row }) => (
-        <span className="text-right block tabular-nums text-sm text-blue-600 dark:text-blue-400">₹{row.original.gst_amount.toFixed(2)}</span>
+        <span className="text-right block tabular-nums text-base text-blue-600 dark:text-blue-400">₹{row.original.gst_amount.toFixed(2)}</span>
       ),
       size: 85,
       minSize: 70,
@@ -1746,7 +1746,7 @@ const PurchaseBillDashboard = () => {
       accessorKey: "net_amount",
       header: "Net",
       cell: ({ row }) => (
-        <span className="text-right block text-xs font-bold text-primary tabular-nums font-mono">
+        <span className="text-right block text-sm font-bold text-primary tabular-nums font-mono">
           ₹{row.original.net_amount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
         </span>
       ),
@@ -1759,14 +1759,14 @@ const PurchaseBillDashboard = () => {
       cell: ({ row }) => {
         const bill = row.original;
         if (bill.is_cancelled) {
-          return <span className="text-right block text-sm text-muted-foreground">—</span>;
+          return <span className="text-right block text-base text-muted-foreground">—</span>;
         }
         const pending = getPurchaseBillPendingAmount(bill);
         const settled = pending <= 0.01;
         return (
           <span
             className={cn(
-              "text-right block text-xs font-bold tabular-nums font-mono",
+              "text-right block text-sm font-bold tabular-nums font-mono",
               settled ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400",
             )}
             title={settled ? "Fully paid" : `Pending ₹${pending.toLocaleString("en-IN")}`}
@@ -1793,7 +1793,7 @@ const PurchaseBillDashboard = () => {
         const countFromQuery = bill.purchase_items?.[0]?.count;
         const countFromExpand = billItems[bill.id]?.length;
         const displayCount = countFromExpand ?? countFromQuery ?? 0;
-        return <span className="text-center block text-xs font-medium">{displayCount}</span>;
+        return <span className="text-center block text-sm font-medium">{displayCount}</span>;
       },
       size: 48,
       minSize: 40,
@@ -1865,13 +1865,13 @@ const PurchaseBillDashboard = () => {
         const ownership = canModifyEntry((bill as any).created_by);
         return (
           <div className="flex items-center gap-0" onClick={(e) => e.stopPropagation()}>
-            <Button size="icon" variant="ghost" className="h-6 w-6 hover:bg-emerald-50 hover:text-emerald-600 dark:hover:bg-emerald-950" onClick={(e) => handleOpenPaymentDialog(bill, e)} title="Record Payment">
-              <Wallet className="h-3 w-3" />
+            <Button size="icon" variant="ghost" className="h-8 w-8 hover:bg-emerald-50 hover:text-emerald-600 dark:hover:bg-emerald-950" onClick={(e) => handleOpenPaymentDialog(bill, e)} title="Record Payment">
+              <Wallet className="h-4 w-4" />
             </Button>
             <Button
               size="icon"
               variant="ghost"
-              className={`h-6 w-6 ${(bill.is_cancelled || bill.is_locked || !ownership.allowed) ? 'opacity-40 cursor-not-allowed' : 'hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-950'}`}
+              className={`h-8 w-8 ${(bill.is_cancelled || bill.is_locked || !ownership.allowed) ? 'opacity-40 cursor-not-allowed' : 'hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-950'}`}
               onClick={(e) => {
                 e.stopPropagation();
                 if (bill.is_cancelled) {
@@ -1894,10 +1894,10 @@ const PurchaseBillDashboard = () => {
               }}
               title={bill.is_cancelled ? "Bill is cancelled" : bill.is_locked ? "Unlock bill to edit" : !ownership.allowed ? (ownership.reason || "Other user's bill") : "Edit bill"}
             >
-              <Edit className="h-3 w-3" />
+              <Edit className="h-4 w-4" />
             </Button>
-            <Button size="icon" variant="ghost" className="h-6 w-6 hover:bg-violet-50 hover:text-violet-600 dark:hover:bg-violet-950" onClick={(e) => handlePrintBarcodes(bill.id, e)} disabled={printingBill === bill.id} title="Print Barcodes">
-              {printingBill === bill.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Printer className="h-3 w-3" />}
+            <Button size="icon" variant="ghost" className="h-8 w-8 hover:bg-violet-50 hover:text-violet-600 dark:hover:bg-violet-950" onClick={(e) => handlePrintBarcodes(bill.id, e)} disabled={printingBill === bill.id} title="Print Barcodes">
+              {printingBill === bill.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Printer className="h-4 w-4" />}
             </Button>
           </div>
         );
@@ -2562,7 +2562,7 @@ const PurchaseBillDashboard = () => {
                 columns={columns}
                 data={paginatedBills}
                 defaultColumnVisibility={PURCHASE_BILLS_DEFAULT_COLUMN_VISIBILITY}
-                defaultDensity="compact"
+                defaultDensity="comfortable"
                 stickyFirstColumn={false}
                 fitToContainer
                 isLoading={loading}
