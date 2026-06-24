@@ -1,11 +1,17 @@
 -- POS paid_at_sale_drift parity: party RPC must mirror reconcile_customer_balance exactly.
--- KS Footwear VAVIA (+3402.40) and JOHNSON (+519.55): entire drift was in paid_at_sale_drift;
--- receipt_payments already matched canonical. Root cause: pre-aggregated sale_voucher_receipts
--- (trim(reference_id) GROUP BY + LEFT JOIN) attributed receipt totals differently than
--- canonical's per-sale correlated subquery (reference_id::text = s.id::text).
+-- Symptom: POS customers show full sale amount as outstanding (RPC too high) because
+-- at-counter cash/card/upi is not subtracted. Confirmed Velvet (RUSHITA +2500, KALPANA
+-- +2200, BEENA +1400) and KS Footwear (VAVIA +3402, JOHNSON +520).
+-- Root cause: pre-aggregated sale_voucher_receipts (trim(reference_id) GROUP BY + LEFT JOIN)
+-- attributed receipt totals differently than canonical's per-sale subquery
+-- (reference_id::text = s.id::text). Party drift was 0 (or too low) while canonical
+-- paid_at_sale_drift correctly credits POS tender not covered by receipt vouchers.
 -- Fix: replace sale_voucher_receipts / sale_drift_rows with literal reconcile mirror.
 --
--- Parity gates: ELLA NOOR 3fdca631-1e0c-4417-9704-421f5129ff67, KS FOOTWEAR 4bc73037-e877-4123-9261-eb6e3876698c
+-- Parity gates:
+--   ELLA NOOR (invoice) 3fdca631-1e0c-4417-9704-421f5129ff67
+--   KS FOOTWEAR (POS)    4bc73037-e877-4123-9261-eb6e3876698c
+--   Velvet (POS)         dafc3d0c-874e-4784-bac3-5eab5f3c85b5
 
 CREATE OR REPLACE FUNCTION public._get_customer_party_balances_rows(p_organization_id uuid)
 RETURNS TABLE (

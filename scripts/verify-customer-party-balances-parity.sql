@@ -234,3 +234,93 @@ FULL OUTER JOIN canonical c ON c.customer_id = p.customer_id
 LEFT JOIN public.customers cu ON cu.id = COALESCE(p.customer_id, c.customer_id)
 WHERE ABS(COALESCE(p.signed_balance, 0) - COALESCE(c.calculated_balance, 0)) > 0.01
 ORDER BY ABS(COALESCE(p.signed_balance, 0) - COALESCE(c.calculated_balance, 0)) DESC;
+
+
+-- =============================================================================
+-- 7) Velvet POS org — RUSHITA + KALPANA + BEENA + full-org drift gate
+--    Org: dafc3d0c-874e-4784-bac3-5eab5f3c85b5
+-- =============================================================================
+WITH party AS (
+  SELECT customer_id, customer_name, signed_balance
+  FROM public.get_customer_party_balances('dafc3d0c-874e-4784-bac3-5eab5f3c85b5'::uuid)
+  WHERE customer_name ILIKE '%rushita%sanghvi%'
+     OR customer_name = 'KALPANA'
+     OR customer_name ILIKE '%beena%shah%'
+)
+SELECT
+  p.customer_name,
+  p.signed_balance AS party_balance,
+  public.get_customer_true_outstanding(p.customer_id, 'dafc3d0c-874e-4784-bac3-5eab5f3c85b5'::uuid) AS canonical_balance,
+  ROUND(p.signed_balance - public.get_customer_true_outstanding(p.customer_id, 'dafc3d0c-874e-4784-bac3-5eab5f3c85b5'::uuid), 2) AS drift
+FROM party p
+ORDER BY p.customer_name;
+
+
+-- Velvet full org — must return ZERO rows (|drift| > 0.01)
+WITH party AS (
+  SELECT customer_id, signed_balance
+  FROM public.get_customer_party_balances('dafc3d0c-874e-4784-bac3-5eab5f3c85b5'::uuid)
+),
+canonical AS (
+  SELECT
+    c.id AS customer_id,
+    public.get_customer_true_outstanding(c.id, 'dafc3d0c-874e-4784-bac3-5eab5f3c85b5'::uuid)::numeric AS calculated_balance
+  FROM public.customers c
+  WHERE c.organization_id = 'dafc3d0c-874e-4784-bac3-5eab5f3c85b5'::uuid
+    AND c.deleted_at IS NULL
+)
+SELECT
+  cu.customer_name,
+  p.signed_balance AS party_balance,
+  c.calculated_balance AS canonical_balance,
+  ROUND(COALESCE(p.signed_balance, 0) - COALESCE(c.calculated_balance, 0), 2) AS drift
+FROM party p
+FULL OUTER JOIN canonical c ON c.customer_id = p.customer_id
+LEFT JOIN public.customers cu ON cu.id = COALESCE(p.customer_id, c.customer_id)
+WHERE ABS(COALESCE(p.signed_balance, 0) - COALESCE(c.calculated_balance, 0)) > 0.01
+ORDER BY ABS(COALESCE(p.signed_balance, 0) - COALESCE(c.calculated_balance, 0)) DESC;
+
+
+-- =============================================================================
+-- 7) Velvet POS org — RUSHITA + KALPANA + BEENA + full-org drift gate
+--    Org: dafc3d0c-874e-4784-bac3-5eab5f3c85b5
+-- =============================================================================
+WITH party AS (
+  SELECT customer_id, customer_name, signed_balance
+  FROM public.get_customer_party_balances('dafc3d0c-874e-4784-bac3-5eab5f3c85b5'::uuid)
+  WHERE customer_name ILIKE '%rushita%sanghvi%'
+     OR customer_name = 'KALPANA'
+     OR customer_name ILIKE '%beena%shah%'
+)
+SELECT
+  p.customer_name,
+  p.signed_balance AS party_balance,
+  public.get_customer_true_outstanding(p.customer_id, 'dafc3d0c-874e-4784-bac3-5eab5f3c85b5'::uuid) AS canonical_balance,
+  ROUND(p.signed_balance - public.get_customer_true_outstanding(p.customer_id, 'dafc3d0c-874e-4784-bac3-5eab5f3c85b5'::uuid), 2) AS drift
+FROM party p
+ORDER BY p.customer_name;
+
+
+-- Velvet full org — must return ZERO rows (|drift| > 0.01)
+WITH party AS (
+  SELECT customer_id, signed_balance
+  FROM public.get_customer_party_balances('dafc3d0c-874e-4784-bac3-5eab5f3c85b5'::uuid)
+),
+canonical AS (
+  SELECT
+    c.id AS customer_id,
+    public.get_customer_true_outstanding(c.id, 'dafc3d0c-874e-4784-bac3-5eab5f3c85b5'::uuid)::numeric AS calculated_balance
+  FROM public.customers c
+  WHERE c.organization_id = 'dafc3d0c-874e-4784-bac3-5eab5f3c85b5'::uuid
+    AND c.deleted_at IS NULL
+)
+SELECT
+  cu.customer_name,
+  p.signed_balance AS party_balance,
+  c.calculated_balance AS canonical_balance,
+  ROUND(COALESCE(p.signed_balance, 0) - COALESCE(c.calculated_balance, 0), 2) AS drift
+FROM party p
+FULL OUTER JOIN canonical c ON c.customer_id = p.customer_id
+LEFT JOIN public.customers cu ON cu.id = COALESCE(p.customer_id, c.customer_id)
+WHERE ABS(COALESCE(p.signed_balance, 0) - COALESCE(c.calculated_balance, 0)) > 0.01
+ORDER BY ABS(COALESCE(p.signed_balance, 0) - COALESCE(c.calculated_balance, 0)) DESC;
