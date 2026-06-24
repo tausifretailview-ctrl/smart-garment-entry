@@ -1487,16 +1487,17 @@ export function CustomerPaymentTab({
     const count =
       (customerInvoices?.length ?? 0) + (openingBalanceRemaining > 0 ? 1 : 0);
     if (count === 0) return undefined;
-    const headerPx = embedded ? 36 : 40;
-    const rowPx = embedded ? 36 : 44;
+    const headerPx = 44;
+    const rowPx = 36;
     const contentPx = headerPx + count * rowPx;
-    const minVisiblePx = headerPx + Math.min(count, 8) * rowPx;
     const capPx = embedded ? 420 : 480;
     const vhCapPx =
       typeof window !== "undefined"
-        ? Math.round(window.innerHeight * (embedded ? 0.44 : 0.5))
+        ? embedded
+          ? Math.round(window.innerHeight * 0.48)
+          : Math.round(window.innerHeight * 0.55)
         : capPx;
-    return Math.min(Math.max(contentPx, minVisiblePx), capPx, vhCapPx);
+    return Math.min(Math.max(contentPx, 200), capPx, vhCapPx);
   }, [customerInvoices?.length, openingBalanceRemaining, embedded]);
 
   useEffect(() => {
@@ -1655,10 +1656,11 @@ export function CustomerPaymentTab({
                   </div>
                 )}
               </div>
+            </div>
 
-              {/* Invoice Selection */}
-              <div className={cn("space-y-2 md:col-span-2", embedded && "space-y-1")}>
-                <Label className={embedded ? "text-xs" : undefined}>{(customerInvoices && customerInvoices.length > 0) || openingBalanceRemaining > 0 ? "Select Invoices (Required)" : "Select Invoices"}</Label>
+            {/* Invoice Selection — full width (same layout as Supplier bills) */}
+            <div className={cn("space-y-2", embedded && "space-y-1")}>
+                <Label className={embedded ? "text-xs font-medium" : "text-base font-semibold"}>{(customerInvoices && customerInvoices.length > 0) || openingBalanceRemaining > 0 ? "Select Invoices (Required)" : "Select Invoices"}</Label>
                 {!referenceId ? (
                   <p className="text-xs text-muted-foreground">Select a customer first</p>
                 ) : (customerInvoices?.length === 0 && openingBalanceRemaining <= 0) ? (
@@ -1669,9 +1671,15 @@ export function CustomerPaymentTab({
                   <>
                     <div
                       className="border rounded-lg overflow-y-auto overflow-x-auto bg-white dark:bg-background"
-                      style={invoiceGridMaxHeight ? { maxHeight: invoiceGridMaxHeight } : undefined}
+                      style={invoiceGridMaxHeight ? { maxHeight: invoiceGridMaxHeight, minHeight: 200 } : { minHeight: 200 }}
                     >
-                      <Table className={cn(embedded && "text-sm [&_td]:py-1.5 [&_th]:h-9 [&_th]:py-2")}>
+                      <Table
+                        className={cn(
+                          embedded
+                            ? "text-sm [&_td]:py-1.5 [&_td]:px-2 [&_th]:h-9 [&_th]:py-2 [&_th]:px-2"
+                            : "[&_td]:py-2 [&_td]:px-3 [&_th]:py-2 [&_th]:px-3",
+                        )}
+                      >
                         <TableHeader className="sticky top-0 z-10">
                           <TableRow className="bg-slate-800 hover:bg-slate-800 border-none [&_th]:text-[11px] [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-wide [&_th]:text-white">
                             <TableHead className="w-[50px]">Select</TableHead>
@@ -1744,7 +1752,7 @@ export function CustomerPaymentTab({
                                     {isSelected ? <Check className="h-3.5 w-3.5" /> : null}
                                   </span>
                                 </TableCell>
-                                <TableCell className={paymentPickerRefClass}>{invoice.sale_number}</TableCell>
+                                <TableCell className={cn(embedded ? "text-sm font-semibold" : paymentPickerRefClass)}>{invoice.sale_number}</TableCell>
                                 <TableCell className="font-mono tabular-nums text-muted-foreground">{invoiceDateText}</TableCell>
                                 <TableCell
                                   className={cn(
@@ -1826,6 +1834,7 @@ export function CustomerPaymentTab({
                 )}
               </div>
 
+            <div className={cn("grid grid-cols-1 md:grid-cols-2", embedded ? "gap-2" : "gap-4")}>
               <AdaptivePaymentMethodPicker
                 label={embedded ? <span className="text-xs">Payment Method</span> : "Payment Method"}
                 value={paymentMethod}
