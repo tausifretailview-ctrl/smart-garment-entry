@@ -27,6 +27,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { ReportSkeleton } from "@/components/ui/skeletons";
 import { cn } from "@/lib/utils";
 import { fetchAllCustomerPartyBalances, fetchCustomerPhoneMap } from "@/utils/fetchAllRows";
+import { CustomerLedger } from "@/components/CustomerLedger";
 import {
   CUSTOMER_PARTY_BALANCES_PAGE_SIZE,
   clampPartyBalancePage,
@@ -67,6 +68,8 @@ export default function CustomerPartyBalancesPage() {
   const [showSettled, setShowSettled] = useState(false);
   const [directionFilter, setDirectionFilter] = useState<PartyDirectionFilter>("all");
   const [page, setPage] = useState(1);
+  const [ledgerCustomerId, setLedgerCustomerId] = useState<string | null>(null);
+  const [ledgerCustomerName, setLedgerCustomerName] = useState("");
 
   const orgId = currentOrganization?.id;
 
@@ -122,9 +125,26 @@ export default function CustomerPartyBalancesPage() {
   const pageStart = filteredRows.length === 0 ? 0 : (currentPage - 1) * CUSTOMER_PARTY_BALANCES_PAGE_SIZE + 1;
   const pageEnd = Math.min(currentPage * CUSTOMER_PARTY_BALANCES_PAGE_SIZE, filteredRows.length);
 
-  const openCustomerLedger = (customerId: string) => {
-    orgNavigate(`/customer-ledger-report?customer=${customerId}`);
+  const openCustomerLedger = (row: CustomerPartyBalanceRow) => {
+    setLedgerCustomerId(row.customer_id);
+    setLedgerCustomerName(row.customer_name);
   };
+
+  const closeCustomerLedger = () => {
+    setLedgerCustomerId(null);
+    setLedgerCustomerName("");
+  };
+
+  useEffect(() => {
+    if (!ledgerCustomerId) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || e.defaultPrevented) return;
+      e.preventDefault();
+      closeCustomerLedger();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [ledgerCustomerId]);
 
   const exportToExcel = useCallback(() => {
     if (filteredRows.length === 0) {
@@ -277,6 +297,47 @@ export default function CustomerPartyBalancesPage() {
     return (
       <div className="flex items-center justify-center h-64 text-muted-foreground">
         Select an organization to view customer balances.
+      </div>
+    );
+  }
+
+  if (ledgerCustomerId) {
+    return (
+      <div
+        className={cn(
+          "customer-party-balances-workspace customer-party-balances-dashboard flex flex-col bg-slate-200/80 px-2 sm:px-3 py-2 min-h-0 h-full overflow-hidden w-full",
+        )}
+      >
+        <div className="w-full min-w-0 flex flex-col flex-1 min-h-0 gap-2">
+          <div className="flex flex-wrap items-center gap-2 shrink-0 px-1">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9 px-3 text-sm shrink-0 bg-white"
+              onClick={closeCustomerLedger}
+            >
+              <ArrowLeft className="h-4 w-4 mr-1" />
+              Back to Balances
+            </Button>
+            <div className="min-w-0">
+              <h1 className="text-lg font-bold text-slate-800 tracking-tight truncate">
+                {ledgerCustomerName}
+              </h1>
+              <p className="text-xs text-muted-foreground">Customer ledger · A4 view</p>
+            </div>
+          </div>
+          <div className="customer-party-balances-ledger-a4 flex-1 min-h-0 flex flex-col overflow-hidden">
+            <CustomerLedger
+              organizationId={orgId}
+              preSelectedCustomerId={ledgerCustomerId}
+              embedMode
+              embeddedA4Layout
+              skipUrlSync
+              embeddedBackLabel="Back to Balances"
+              onEmbeddedBack={closeCustomerLedger}
+            />
+          </div>
+        </div>
       </div>
     );
   }
@@ -469,8 +530,8 @@ export default function CustomerPartyBalancesPage() {
                           <TableRow
                             key={row.customer_id}
                             className="h-11 cursor-pointer hover:bg-teal-50/80 dark:hover:bg-teal-950/20"
-                            onClick={() => openCustomerLedger(row.customer_id)}
-                            title="Open Customer Ledger"
+                            onClick={() => openCustomerLedger(row)}
+                            title="Open customer ledger"
                           >
                             <TableCell className="py-2.5 text-sm tabular-nums text-muted-foreground font-medium">
                               {srNo}

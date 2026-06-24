@@ -77,6 +77,14 @@ interface CustomerLedgerProps {
   preSelectedCustomerId?: string | null;
   /** When set, persists filters + selected customer for tab/window restore. */
   persistenceWindowId?: string;
+  /** Embedded in Customer Balances — hide customer picker; back returns to balances list. */
+  embedMode?: boolean;
+  embeddedBackLabel?: string;
+  onEmbeddedBack?: () => void;
+  /** Do not write customer id into URL search params (embedded views). */
+  skipUrlSync?: boolean;
+  /** Center ledger in A4-width document panel (embedded balances view). */
+  embeddedA4Layout?: boolean;
 }
 
 interface Customer {
@@ -229,6 +237,11 @@ export function CustomerLedger({
   paymentFilter,
   preSelectedCustomerId,
   persistenceWindowId,
+  embedMode = false,
+  embeddedBackLabel,
+  onEmbeddedBack,
+  skipUrlSync = false,
+  embeddedA4Layout = false,
 }: CustomerLedgerProps) {
   const [, setSearchParams] = useSearchParams();
   const [searchQuery, setSearchQuery] = useState("");
@@ -238,6 +251,7 @@ export function CustomerLedger({
   const selectCustomer = useCallback(
     (customer: Customer | null) => {
       setSelectedCustomer(customer);
+      if (skipUrlSync) return;
       setSearchParams(
         (prev) => {
           const next = new URLSearchParams(prev);
@@ -252,7 +266,7 @@ export function CustomerLedger({
         { replace: true },
       );
     },
-    [setSearchParams],
+    [setSearchParams, skipUrlSync],
   );
   const [paymentStatusFilter, setPaymentStatusFilter] = useState<string>(paymentFilter || "all");
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
@@ -3703,22 +3717,27 @@ Please clear your dues at the earliest. Thank you!`;
     const ledgerLoading = transactionsPending && transactions === undefined;
     const isLedgerBackgroundRefresh = isTransactionsFetching && !ledgerLoading;
 
-    return (
-      <>
+    const ledgerBody = (
       <div className="space-y-3">
         <div className="flex flex-wrap items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-9 shrink-0"
-            onClick={() => {
-              setShowOverpaymentRefundDialog(false);
-              selectCustomer(null);
-            }}
-          >
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Customers
-          </Button>
+          {!embedMode && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9 shrink-0"
+              onClick={() => {
+                setShowOverpaymentRefundDialog(false);
+                if (onEmbeddedBack) {
+                  onEmbeddedBack();
+                } else {
+                  selectCustomer(null);
+                }
+              }}
+            >
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              {embeddedBackLabel ?? "Back to Customers"}
+            </Button>
+          )}
           
           <div className="flex flex-wrap items-center gap-2 flex-1 min-w-0 justify-end">
             {isSchool && (
@@ -5376,8 +5395,28 @@ Please clear your dues at the earliest. Thank you!`;
           </CardContent>
         </Card>
       </div>
-      {overpaymentRefundDialog}
+    );
+
+    return (
+      <>
+        {embeddedA4Layout ? (
+          <div className="customer-ledger-a4-sheet h-full min-h-0 overflow-y-auto overflow-x-hidden">
+            {ledgerBody}
+          </div>
+        ) : (
+          ledgerBody
+        )}
+        {overpaymentRefundDialog}
       </>
+    );
+  }
+
+  if (embedMode && !selectedCustomer) {
+    return (
+      <div className="flex flex-col items-center justify-center flex-1 min-h-[12rem] text-muted-foreground gap-2 py-12">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <span className="text-sm">Loading customer ledger…</span>
+      </div>
     );
   }
 

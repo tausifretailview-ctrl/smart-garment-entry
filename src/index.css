@@ -1507,6 +1507,30 @@ main:has(.customer-party-balances-workspace) {
   }
 }
 
+/* Customer Balances — inline ledger A4 document panel */
+.customer-party-balances-ledger-a4 {
+  flex: 1 1 0%;
+  min-height: 0;
+  max-height: 100%;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.customer-party-balances-ledger-a4 .customer-ledger-a4-sheet {
+  flex: 1 1 0%;
+  min-height: 0;
+  max-width: 210mm;
+  width: 100%;
+  margin: 0 auto;
+  background: #fff;
+  border: 1px solid rgb(203 213 225);
+  border-radius: 0.375rem;
+  box-shadow:
+    0 4px 6px -1px rgb(0 0 0 / 0.08),
+    0 12px 28px -4px rgb(0 0 0 / 0.12);
+  padding: 0.75rem 1rem 1rem;
+}
+
 /* Supplier Balances — sidebar-only full workspace */
 .supplier-party-balances-workspace {
   height: 100%;
