@@ -2134,27 +2134,38 @@ export function CustomerLedger({
             ? Math.min(amount, Number(linkedSale.sale_return_adjust || 0))
             : 0;
           const unusedAmount = Math.max(0, amount - appliedAmount);
-          const balanceCredit = Math.max(0, amount - absorbedOnInvoice);
+          // The amount is "consumed" if it was absorbed on a directly-linked invoice
+          // (sale_return_adjust) OR if FIFO distribution in srAppliedMap matched it
+          // to a credit_note_adjustment voucher on a different invoice (orphan SR
+          // with credit_status='adjusted'/'partially_adjusted' but linked_sale_id NULL).
+          // Without this guard the SR gets double-credited: once via the invoice's
+          // sale_return_adjust net-down, again as a standalone CN credit line.
+          const consumedAmount = Math.max(absorbedOnInvoice, appliedAmount);
+          const balanceCredit = Math.max(0, amount - consumedAmount);
 
           // Skip SRs fully absorbed on a linked invoice via sales.sale_return_adjust
           // (pending CN applied on Sales Dashboard — same as buildAuditRows / balance RPC).
           if (String(sr.credit_status || '').toLowerCase() === 'adjusted' && linkedSaleId) {
             return;
           }
-          if (balanceCredit <= 0 && absorbedOnInvoice > 0) {
+          if (balanceCredit <= 0 && consumedAmount > 0) {
+            const memoSaleNumber =
+              (absorbedOnInvoice > 0 && linkedSale?.sale_number) ||
+              appliedInfo?.saleNumber ||
+              'invoice';
             allTransactions.push({
               id: `cn-memo-${sr.id}`,
               date: sr.return_date,
               timestamp: item.timestamp || null,
               type: 'return' as const,
               reference: sr.return_number,
-              description: `Sale Return applied to ${sr.linkedSaleNumber || linkedSale?.sale_number || 'invoice'} via CN — ₹${absorbedOnInvoice.toLocaleString('en-IN')}`,
+              description: `Sale Return applied to ${memoSaleNumber} via CN — ₹${consumedAmount.toLocaleString('en-IN')}`,
               debit: 0,
               credit: 0,
-              displayCredit: absorbedOnInvoice,
+              displayCredit: consumedAmount,
               balance: runningBalance,
               status: 'adjusted',
-              amount: absorbedOnInvoice,
+              amount: consumedAmount,
               informational: true,
             });
             return;
