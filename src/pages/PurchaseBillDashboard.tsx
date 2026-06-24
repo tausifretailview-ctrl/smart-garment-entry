@@ -822,13 +822,25 @@ const PurchaseBillDashboard = () => {
 
     setDeletingBill(billToDelete.id);
     try {
-      const success = await softDelete("purchase_bills", billToDelete.id);
+      let zeroStockProductCount = 0;
+      const success = await softDelete("purchase_bills", billToDelete.id, {
+        onPurchaseBillZeroStock: (count) => {
+          zeroStockProductCount = count;
+        },
+      });
       if (!success) throw new Error("Failed to delete purchase bill");
 
       toast({
         title: "Success",
         description: "Purchase bill moved to recycle bin",
       });
+
+      if (zeroStockProductCount > 0) {
+        toast({
+          title: "Products at zero stock",
+          description: `${zeroStockProductCount} product(s) from this bill are now at 0 stock. Review in Inventory → Orphaned Products before cleaning up.`,
+        });
+      }
 
       setBillToDelete(null);
       setShowDependencyWarning(false);
@@ -991,12 +1003,24 @@ const PurchaseBillDashboard = () => {
     setIsDeleting(true);
     try {
       const billsToDelete = Array.from(selectedBills);
-      const count = await bulkSoftDelete("purchase_bills", billsToDelete);
+      let zeroStockProductCount = 0;
+      const count = await bulkSoftDelete("purchase_bills", billsToDelete, {
+        onPurchaseBillZeroStock: (n) => {
+          zeroStockProductCount = n;
+        },
+      });
 
       toast({
         title: "Success",
         description: `${count} purchase bill(s) moved to recycle bin`,
       });
+
+      if (zeroStockProductCount > 0) {
+        toast({
+          title: "Products at zero stock",
+          description: `${zeroStockProductCount} product(s) across deleted bills are now at 0 stock. Review in Inventory → Orphaned Products.`,
+        });
+      }
 
       setSelectedBills(new Set());
       setShowBulkDeleteDialog(false);

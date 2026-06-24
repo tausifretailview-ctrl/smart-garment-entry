@@ -210,6 +210,43 @@ export async function fetchAllOrphanedProducts(
   return allRows;
 }
 
+export type SoftDeleteOrphanedProductsResult = {
+  deleted_count: number;
+  skipped: Array<{ product_id: string; reason: string }>;
+};
+
+/**
+ * Soft-delete orphaned products (server re-checks orphan status). Product + variants atomically per id.
+ */
+export async function softDeleteOrphanedProducts(
+  organizationId: string,
+  productIds: string[],
+): Promise<SoftDeleteOrphanedProductsResult> {
+  if (productIds.length === 0) {
+    return { deleted_count: 0, skipped: [] };
+  }
+
+  const { data, error } = await supabase.rpc("soft_delete_orphaned_products", {
+    p_organization_id: organizationId,
+    p_product_ids: productIds,
+  });
+
+  if (error) {
+    console.error("Error soft-deleting orphaned products:", error);
+    throw error;
+  }
+
+  const payload = (data ?? { deleted_count: 0, skipped: [] }) as {
+    deleted_count?: number;
+    skipped?: Array<{ product_id: string; reason: string }>;
+  };
+
+  return {
+    deleted_count: Number(payload.deleted_count ?? 0),
+    skipped: Array.isArray(payload.skipped) ? payload.skipped : [],
+  };
+}
+
 /** Fetch id → phone map for supplier party balance search. */
 export async function fetchSupplierPhoneMap(organizationId: string): Promise<Map<string, string>> {
   const map = new Map<string, string>();

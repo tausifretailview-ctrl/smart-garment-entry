@@ -40,13 +40,22 @@ export interface StockDependency {
   purchased_qty: number;
 }
 
+export type SoftDeleteOptions = {
+  /** Called after purchase bill delete with zero-stock product count (review hint). */
+  onPurchaseBillZeroStock?: (count: number) => void;
+};
+
 export function useSoftDelete() {
   const { user } = useAuth();
   const { organizationRole } = useOrganization();
   const { toast } = useToast();
   const { checkVariantHasTransactions, checkProductHasTransactions } = useProductProtection();
 
-  const softDelete = async (entity: SoftDeleteEntity, id: string) => {
+  const softDelete = async (
+    entity: SoftDeleteEntity,
+    id: string,
+    options?: SoftDeleteOptions,
+  ) => {
     if (!user?.id) {
       toast({ title: "Error", description: "User not authenticated", variant: "destructive" });
       return false;
@@ -54,13 +63,18 @@ export function useSoftDelete() {
 
     try {
       switch (entity) {
-        case "purchase_bills":
-          const { error: pbError } = await supabase.rpc("soft_delete_purchase_bill", {
+        case "purchase_bills": {
+          const { data, error: pbError } = await supabase.rpc("soft_delete_purchase_bill", {
             p_bill_id: id,
             p_user_id: user.id,
           });
           if (pbError) throw pbError;
+          const zeroStock = Number(data ?? 0);
+          if (zeroStock > 0) {
+            options?.onPurchaseBillZeroStock?.(zeroStock);
+          }
           break;
+        }
 
         case "sales":
           const { error: saleError } = await supabase.rpc("soft_delete_sale", {
@@ -140,11 +154,28 @@ export function useSoftDelete() {
     }
   };
 
-  const bulkSoftDelete = async (entity: SoftDeleteEntity, ids: string[]) => {
+  const bulkSoftDelete = async (
+    entity: SoftDeleteEntity,
+    ids: string[],
+    options?: SoftDeleteOptions,
+  ) => {
     let successCount = 0;
+    let totalZeroStockProducts = 0;
     for (const id of ids) {
-      const success = await softDelete(entity, id);
-      if (success) successCount++;
+      if (entity === "purchase_bills") {
+        const ok = await softDelete(entity, id, {
+          onPurchaseBillZeroStock: (n) => {
+            totalZeroStockProducts += n;
+          },
+        });
+        if (ok) successCount++;
+      } else {
+        const success = await softDelete(entity, id);
+        if (success) successCount++;
+      }
+    }
+    if (entity === "purchase_bills" && totalZeroStockProducts > 0) {
+      options?.onPurchaseBillZeroStock?.(totalZeroStockProducts);
     }
     return successCount;
   };
