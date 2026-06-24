@@ -1,32 +1,42 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRegisterSW } from "virtual:pwa-register/react";
 import { Button } from "@/components/ui/button";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, X } from "lucide-react";
 import { useOrganization } from "@/contexts/OrganizationContext";
-import { readPosCartSnapshot } from "@/lib/posCartPersistence";
+import { confirmReloadIfPosCartBusy, reloadAppWithUpdateCheck } from "@/lib/appReload";
+import { isElectronShell } from "@/lib/electronShell";
 
-function hasAnyPosCartItems(): boolean {
+const SNOOZE_KEY = "ezzy_pwa_update_snooze_until";
+/** After "Later", hide the banner until this many ms elapse (or next browser session). */
+const SNOOZE_MS = 8 * 60 * 60 * 1000;
+
+function isUpdateSnoozed(): boolean {
   try {
-    for (let i = 0; i < sessionStorage.length; i++) {
-      const key = sessionStorage.key(i);
-      if (!key?.startsWith("pos_cart_")) continue;
-      const raw = sessionStorage.getItem(key);
-      if (!raw) continue;
-      const parsed = JSON.parse(raw) as { items?: unknown[] };
-      if (Array.isArray(parsed.items) && parsed.items.length > 0) return true;
-    }
+    const until = sessionStorage.getItem(SNOOZE_KEY);
+    if (!until) return false;
+    if (Date.now() < Number(until)) return true;
+    sessionStorage.removeItem(SNOOZE_KEY);
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+function snoozeUpdatePrompt(): void {
+  try {
+    sessionStorage.setItem(SNOOZE_KEY, String(Date.now() + SNOOZE_MS));
   } catch {
     // ignore
   }
-  return false;
 }
 
 /**
- * Prompt-mode PWA update banner — user must click Reload; never auto-reloads.
+ * Prompt-mode PWA update — unobtrusive top-right chip; Reload uses hard refresh fallback.
  */
 export function UpdatePrompt() {
   const { currentOrganization } = useOrganization();
-  const [dismissed, setDismissed] = useState(false);
+  const [snoozed, setSnoozed] = useState(isUpdateSnoozed);
+  const [reloading, setReloading] = useState(false);
   const prevNeedRefresh = useRef(false);
 
   const {
@@ -40,53 +50,81 @@ export function UpdatePrompt() {
 
   useEffect(() => {
     if (needRefresh && !prevNeedRefresh.current) {
-      setDismissed(false);
+      setSnoozed(isUpdateSnoozed());
     }
     prevNeedRefresh.current = needRefresh;
   }, [needRefresh]);
 
-  const posCartHasItems = useCallback(() => {
-    const orgId = currentOrganization?.id;
-    if (orgId && readPosCartSnapshot(orgId)) return true;
-    return hasAnyPosCartItems();
-  }, [currentOrganization?.id]);
-
   const handleReload = useCallback(async () => {
-    if (posCartHasItems()) {
-      const ok = window.confirm(
-        "You have an unsaved bill — reload anyway? Your cart is saved in this browser session and should restore after reload.",
-      );
-      if (!ok) return;
-    }
+    if (reloading) return;
+    if (!confirmReloadIfPosCartBusy(currentOrganization?.id)) return;
+
+    setReloading(true);
     try {
+      // Activate waiting worker when possible; may not reload on all browsers.
       await updateServiceWorker(true);
     } catch (error) {
-      console.error("SW update failed:", error);
+      console.warn("Service worker activate failed:", error);
     }
-  }, [posCartHasItems, updateServiceWorker]);
 
-  if (!needRefresh || dismissed) return null;
+    // Always hard-reload with cache bust — fixes "Reload clicked but nothing happens".
+    await reloadAppWithUpdateCheck();
+  }, [currentOrganization?.id, reloading, updateServiceWorker]);
+
+  const handleLater = useCallback(() => {
+    snoozeUpdatePrompt();
+    setSnoozed(true);
+  }, []);
+
+  if (isElectronShell()) return null;
+  if (!needRefresh || snoozed) return null;
 
   return (
     <div
       role="status"
-      className="fixed bottom-4 left-1/2 z-[100] flex w-[min(calc(100vw-2rem),28rem)] -translate-x-1/2 items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-lg dark:border-slate-700 dark:bg-slate-900"
+      aria-live="polite"
+      className="fixed right-3 top-3 z-[100] flex max-w-[min(calc(100vw-1.5rem),20rem)] items-start gap-2 rounded-lg border border-slate-200/90 bg-white/95 px-3 py-2 shadow-md backdrop-blur-sm dark:border-slate-700 dark:bg-slate-900/95 sm:right-4 sm:top-4"
     >
-      <RefreshCw className="h-4 w-4 shrink-0 text-blue-600" aria-hidden />
-      <p className="flex-1 text-sm text-slate-700 dark:text-slate-200">
-        A new version is ready.
-      </p>
-      <Button size="sm" className="h-8 shrink-0" onClick={() => void handleReload()}>
-        Reload
-      </Button>
-      <Button
-        size="sm"
-        variant="ghost"
-        className="h-8 shrink-0"
-        onClick={() => setDismissed(true)}
+      <RefreshCw
+        className={`mt-0.5 h-3.5 w-3.5 shrink-0 text-blue-600 ${reloading ? "animate-spin" : ""}`}
+        aria-hidden
+      />
+      <div className="min-w-0 flex-1">
+        <p className="text-xs font-medium text-slate-800 dark:text-slate-100">
+          Update available
+        </p>
+        <p className="text-[11px] leading-snug text-slate-500 dark:text-slate-400">
+          Reload when you are between tasks.
+        </p>
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          <Button
+            size="sm"
+            className="h-7 px-2.5 text-xs"
+            disabled={reloading}
+            onClick={() => void handleReload()}
+          >
+            {reloading ? "Reloading…" : "Reload"}
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7 px-2 text-xs text-slate-600"
+            disabled={reloading}
+            onClick={handleLater}
+          >
+            Later
+          </Button>
+        </div>
+      </div>
+      <button
+        type="button"
+        className="shrink-0 rounded p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800"
+        aria-label="Dismiss update reminder for now"
+        disabled={reloading}
+        onClick={handleLater}
       >
-        Later
-      </Button>
+        <X className="h-3.5 w-3.5" />
+      </button>
     </div>
   );
 }
