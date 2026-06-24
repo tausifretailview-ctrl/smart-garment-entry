@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Search, Users, RefreshCw, ChevronLeft, ChevronRight } from "lucide-react";
 
-import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { BackToDashboard } from "@/components/BackToDashboard";
@@ -14,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ReportSkeleton } from "@/components/ui/skeletons";
 import { cn } from "@/lib/utils";
-import { fetchCustomerPhoneMap } from "@/utils/fetchAllRows";
+import { fetchAllCustomerPartyBalances, fetchCustomerPhoneMap } from "@/utils/fetchAllRows";
 import {
   CUSTOMER_PARTY_BALANCES_PAGE_SIZE,
   clampPartyBalancePage,
@@ -59,14 +58,11 @@ export default function CustomerPartyBalancesPage() {
     enabled: !!orgId,
     staleTime: 60_000,
     queryFn: async () => {
-      const [{ data, error: rpcError }, phoneMap] = await Promise.all([
-        supabase.rpc("get_customer_party_balances", {
-          p_organization_id: orgId!,
-        }),
+      const [partyRows, phoneMap] = await Promise.all([
+        fetchAllCustomerPartyBalances(orgId!),
         fetchCustomerPhoneMap(orgId!),
       ]);
-      if (rpcError) throw rpcError;
-      return ((data ?? []) as CustomerPartyBalanceRow[]).map((row) => ({
+      return partyRows.map((row) => ({
         ...row,
         phone: phoneMap.get(row.customer_id) ?? "",
       }));
@@ -119,11 +115,11 @@ export default function CustomerPartyBalancesPage() {
   }
 
   return (
-    <div className="space-y-4 p-4 md:p-6 max-w-5xl mx-auto">
+    <div className="flex min-h-0 flex-col gap-4 p-4 md:p-6 max-w-6xl mx-auto w-full">
       <BackToDashboard label="Back to Accounts" to="/accounts" />
 
-      <Card>
-        <CardHeader className="pb-3">
+      <Card className="flex min-h-0 flex-1 flex-col">
+        <CardHeader className="pb-3 shrink-0">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <CardTitle className="flex items-center gap-2 text-lg">
@@ -131,7 +127,7 @@ export default function CustomerPartyBalancesPage() {
                 Customer Balances
               </CardTitle>
               <CardDescription className="mt-1">
-                Tally-style party list — one RPC load, same signed balance as Customer Ledger.
+                Tally-style party list — full org load, same signed balance as Customer Ledger.
               </CardDescription>
             </div>
             <Button
@@ -147,9 +143,9 @@ export default function CustomerPartyBalancesPage() {
           </div>
         </CardHeader>
 
-        <CardContent className="space-y-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="relative w-full sm:max-w-sm">
+        <CardContent className="flex min-h-0 flex-1 flex-col gap-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between shrink-0">
+            <div className="relative w-full sm:max-w-md">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
                 value={search}
@@ -158,11 +154,20 @@ export default function CustomerPartyBalancesPage() {
                 className="pl-9"
               />
             </div>
-            <div className="flex items-center gap-2">
-              <Switch id="show-settled" checked={showSettled} onCheckedChange={setShowSettled} />
-              <Label htmlFor="show-settled" className="text-sm font-normal cursor-pointer">
-                Show settled (₹0)
-              </Label>
+            <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
+              <span>
+                Loaded{" "}
+                <span className="font-medium text-foreground tabular-nums">
+                  {rows.length.toLocaleString("en-IN")}
+                </span>{" "}
+                parties
+              </span>
+              <div className="flex items-center gap-2">
+                <Switch id="show-settled" checked={showSettled} onCheckedChange={setShowSettled} />
+                <Label htmlFor="show-settled" className="text-sm font-normal cursor-pointer">
+                  Show settled (₹0)
+                </Label>
+              </div>
             </div>
           </div>
 
@@ -173,71 +178,73 @@ export default function CustomerPartyBalancesPage() {
           ) : isLoading ? (
             <ReportSkeleton />
           ) : (
-            <div className="rounded-md border overflow-hidden">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-muted/50 hover:bg-muted/50">
-                    <TableHead className="font-semibold">Party Name</TableHead>
-                    <TableHead className="text-right font-semibold w-[140px]">Amount</TableHead>
-                    <TableHead className="text-center font-semibold w-[72px]">Dr/Cr</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredRows.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={3} className="h-24 text-center text-muted-foreground">
-                        {rows.length === 0 ? "No customers found." : "No matching customers."}
-                      </TableCell>
+            <div className="flex min-h-0 flex-1 flex-col rounded-md border overflow-hidden">
+              <div className="min-h-0 flex-1 overflow-auto max-h-[calc(100vh-22rem)]">
+                <Table>
+                  <TableHeader className="sticky top-0 z-10 bg-background shadow-sm">
+                    <TableRow className="bg-muted/50 hover:bg-muted/50">
+                      <TableHead className="font-semibold">Party Name</TableHead>
+                      <TableHead className="text-right font-semibold w-[140px]">Amount</TableHead>
+                      <TableHead className="text-center font-semibold w-[72px]">Dr/Cr</TableHead>
                     </TableRow>
-                  ) : (
-                    paginatedRows.map((row) => {
-                      const direction = partyBalanceDirection(row);
-                      const displayAmount = partyBalanceDisplayAmount(row.signed_balance);
-                      const isDr = direction === "Dr";
-                      const isCr = direction === "Cr";
+                  </TableHeader>
+                  <TableBody>
+                    {filteredRows.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={3} className="h-24 text-center text-muted-foreground">
+                          {rows.length === 0 ? "No customers found." : "No matching customers."}
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      paginatedRows.map((row) => {
+                        const direction = partyBalanceDirection(row);
+                        const displayAmount = partyBalanceDisplayAmount(row.signed_balance);
+                        const isDr = direction === "Dr";
+                        const isCr = direction === "Cr";
 
-                      return (
-                        <TableRow
-                          key={row.customer_id}
-                          className="cursor-pointer hover:bg-muted/40"
-                          onClick={() => openCustomerLedger(row.customer_id)}
-                          title="Open Customer Ledger"
-                        >
-                          <TableCell className="font-medium">{row.customer_name}</TableCell>
-                          <TableCell
-                            className={cn(
-                              "text-right tabular-nums font-medium",
-                              isDr && "text-red-600 dark:text-red-400",
-                              isCr && "text-emerald-600 dark:text-emerald-400",
-                            )}
+                        return (
+                          <TableRow
+                            key={row.customer_id}
+                            className="cursor-pointer hover:bg-muted/40"
+                            onClick={() => openCustomerLedger(row.customer_id)}
+                            title="Open Customer Ledger"
                           >
-                            {fmtAmt(displayAmount)}
-                          </TableCell>
-                          <TableCell className="text-center">
-                            <span
+                            <TableCell className="font-medium">{row.customer_name}</TableCell>
+                            <TableCell
                               className={cn(
-                                "inline-flex min-w-[2.5rem] justify-center rounded px-2 py-0.5 text-xs font-semibold",
-                                isDr && "bg-red-100 text-red-700 dark:bg-red-950/50 dark:text-red-300",
-                                isCr && "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300",
-                                !isDr && !isCr && "bg-muted text-muted-foreground",
+                                "text-right tabular-nums font-medium",
+                                isDr && "text-red-600 dark:text-red-400",
+                                isCr && "text-emerald-600 dark:text-emerald-400",
                               )}
                             >
-                              {direction}
-                            </span>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })
-                  )}
-                </TableBody>
-              </Table>
+                              {fmtAmt(displayAmount)}
+                            </TableCell>
+                            <TableCell className="text-center">
+                              <span
+                                className={cn(
+                                  "inline-flex min-w-[2.5rem] justify-center rounded px-2 py-0.5 text-xs font-semibold",
+                                  isDr && "bg-red-100 text-red-700 dark:bg-red-950/50 dark:text-red-300",
+                                  isCr && "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300",
+                                  !isDr && !isCr && "bg-muted text-muted-foreground",
+                                )}
+                              >
+                                {direction}
+                              </span>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
 
-              <div className="border-t bg-muted/30 px-4 py-3 space-y-3">
+              <div className="shrink-0 border-t bg-muted/30 px-4 py-3 space-y-3">
                 {filteredRows.length > CUSTOMER_PARTY_BALANCES_PAGE_SIZE && (
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between text-sm">
                     <p className="text-muted-foreground">
                       Showing {pageStart.toLocaleString("en-IN")}–{pageEnd.toLocaleString("en-IN")} of{" "}
-                      {filteredRows.length.toLocaleString("en-IN")} filtered
+                      {filteredRows.length.toLocaleString("en-IN")} matching
                     </p>
                     <div className="flex items-center gap-2">
                       <Button
@@ -286,12 +293,14 @@ export default function CustomerPartyBalancesPage() {
                   </div>
                 </div>
                 <p className="text-[11px] text-muted-foreground">
-                  {filteredRows.length.toLocaleString("en-IN")} of {rows.length.toLocaleString("en-IN")} parties
+                  {filteredRows.length.toLocaleString("en-IN")} of {rows.length.toLocaleString("en-IN")} loaded parties
                   match filters
-                  {!showSettled ? " (settled hidden)" : ""}.
-                  {filteredRows.length <= CUSTOMER_PARTY_BALANCES_PAGE_SIZE && filteredRows.length > 0
-                    ? ` Showing all ${filteredRows.length.toLocaleString("en-IN")} on one page.`
-                    : ""}
+                  {!showSettled ? " (settled hidden — turn on “Show settled” to see all)" : ""}.
+                  {filteredRows.length > 0 && filteredRows.length <= CUSTOMER_PARTY_BALANCES_PAGE_SIZE
+                    ? ` Showing all ${filteredRows.length.toLocaleString("en-IN")} matches on this page.`
+                    : filteredRows.length > CUSTOMER_PARTY_BALANCES_PAGE_SIZE
+                      ? ` Use Previous/Next for more (${CUSTOMER_PARTY_BALANCES_PAGE_SIZE} per page).`
+                      : ""}
                 </p>
               </div>
             </div>

@@ -41,6 +41,51 @@ export async function fetchAllCustomers(organizationId: string) {
   return allRows;
 }
 
+export type CustomerPartyBalanceRpcRow = {
+  customer_id: string;
+  customer_name: string;
+  signed_balance: number;
+  advance_available: number;
+  direction: string;
+  net_position: number;
+  total_dr: number;
+  total_cr: number;
+  net_receivable: number;
+};
+
+/**
+ * Fetch all rows from get_customer_party_balances (PostgREST default cap is 1000).
+ */
+export async function fetchAllCustomerPartyBalances(
+  organizationId: string,
+): Promise<CustomerPartyBalanceRpcRow[]> {
+  const allRows: CustomerPartyBalanceRpcRow[] = [];
+  let offset = 0;
+  const pageSize = 1000;
+
+  while (true) {
+    const { data, error } = await supabase
+      .rpc("get_customer_party_balances", {
+        p_organization_id: organizationId,
+      })
+      .range(offset, offset + pageSize - 1);
+
+    if (error) {
+      console.error("Error fetching customer party balances:", error);
+      throw error;
+    }
+
+    const page = (data ?? []) as CustomerPartyBalanceRpcRow[];
+    if (page.length === 0) break;
+
+    allRows.push(...page);
+    if (page.length < pageSize) break;
+    offset += pageSize;
+  }
+
+  return allRows;
+}
+
 /**
  * Fetch id → phone map for an organization (lightweight join for party balance search).
  */
