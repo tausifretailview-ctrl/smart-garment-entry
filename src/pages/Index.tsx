@@ -15,8 +15,6 @@ import {
 } from "@/lib/dashboardQueryOptions";
 import { fetchCustomerSegmentCounts, type CustomerSegmentCounts } from "@/utils/customerSegments";
 import type { OrganizationReceivablesSummary } from "@/utils/organizationReceivables";
-import { useIsLgUp } from "@/hooks/use-mobile";
-import { useDashboardToolbar } from "@/contexts/DashboardToolbarContext";
 import { PageContextMenu, ContextMenuItem } from "@/components/DesktopContextMenu";
 import { DashboardSkeleton, MetricCardSkeleton } from "@/components/ui/skeletons";
 import {
@@ -47,7 +45,6 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { StatsChartsSection } from "@/components/dashboard/StatsChartsSection";
-import { isElectronShell } from "@/lib/electronShell";
 import {
   Select,
   SelectContent,
@@ -247,8 +244,6 @@ const DesktopDashboard = () => {
   const { orgNavigate: navigate } = useOrgNavigation();
   const { hasAccess: hasFieldSalesAccess, employeeName } = useFieldSalesAccess();
   const { isAdmin, hasSpecialPermission, hasMenuAccess, permissions, loading: permissionsLoading } = useUserPermissions();
-  const canNetProfit =
-    !permissionsLoading && (permissions === null || hasMenuAccess("net_profit_analysis"));
   const [dateRange, setDateRange] = useState<DateRangeType>("monthly");
 
   useDashboardFilterPersistence(
@@ -490,59 +485,6 @@ const DesktopDashboard = () => {
     [liveCustomerSegments, queryClient, customerSegmentsQueryKey, cacheTick],
   );
 
-  const isLgUp = useIsLgUp();
-  const isDesktopApp = isElectronShell();
-  const { setToolbar } = useDashboardToolbar();
-
-  /** Shown in Header row 2 on lg+ — period selector (+ Net Profit when permitted). */
-  const dashboardHeaderToolbar = useMemo(
-    () => (
-      <div className="flex items-center gap-1.5 flex-nowrap shrink-0">
-        <div className="flex items-center gap-1 bg-sky-600 hover:bg-sky-700 border-0 rounded-md px-1.5 h-7 shrink-0 shadow-sm text-white">
-          <Calendar className="h-3.5 w-3.5 text-white shrink-0" />
-          <Select value={dateRange} onValueChange={(v: DateRangeType) => setDateRange(v)}>
-            <SelectTrigger className="w-[76px] h-7 border-0 shadow-none text-[11px] bg-transparent text-white px-0.5 gap-1 [&_svg]:text-white">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent className="bg-popover border-border">
-              <SelectItem value="monthly">Monthly</SelectItem>
-              <SelectItem value="quarterly">Quarterly</SelectItem>
-              <SelectItem value="yearly">Yearly</SelectItem>
-              <SelectItem value="all">All Time</SelectItem>
-            </SelectContent>
-          </Select>
-          {isLoading ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin text-white shrink-0" />
-          ) : (
-            <span className="text-[11px] font-semibold text-white whitespace-nowrap max-w-[6rem] truncate">
-              {dateLabel}
-            </span>
-          )}
-        </div>
-        {!isDesktopApp && canNetProfit && (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 text-[11px] px-2.5 shrink-0 font-semibold text-white bg-fuchsia-600 hover:bg-fuchsia-700 border-0 shadow-sm hover:text-white"
-            onClick={() => navigate(`/net-profit-analysis?from=${startDate}&to=${endDate}`)}
-          >
-            <TrendingUp className="h-3.5 w-3.5 mr-1" />
-            Net Profit
-          </Button>
-        )}
-      </div>
-    ),
-    [dateRange, isLoading, dateLabel, startDate, endDate, navigate, canNetProfit, isDesktopApp]
-  );
-
-  useEffect(() => {
-    if (!isLgUp) {
-      setToolbar(null);
-      return;
-    }
-    setToolbar(dashboardHeaderToolbar);
-    return () => setToolbar(null);
-  }, [isLgUp, setToolbar, dashboardHeaderToolbar]);
 
   // Extract metrics from single RPC result (live or persisted cache)
   const salesData = { total: displayedDashStats?.total_sales || 0, count: displayedDashStats?.invoice_count || 0, soldQty: displayedDashStats?.sold_qty || 0 };
@@ -861,57 +803,33 @@ const DesktopDashboard = () => {
         title="Quick Actions"
       />
 
-      {/* lg+: period / Net Profit sit in header toolbar; here: refresh + status only */}
-      {!isLgUp ? (
-        <div className="dashboard-toolbar flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-border shrink-0">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleRefreshAll}
-            disabled={isRefreshing || isLoading}
-            className="h-8 text-xs border-border bg-card hover:bg-muted shrink-0"
-          >
-            <RefreshCw className={cn("h-3.5 w-3.5 mr-1", (isRefreshing || isLoading) && "animate-spin")} />
-            Refresh
-          </Button>
-          <div className="flex items-center gap-1.5 flex-nowrap shrink-0 overflow-x-auto">
-            <div className="flex items-center gap-2 bg-card border border-border rounded-md px-2 py-0.5 shadow-sm h-8 shrink-0">
-              <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
-              <Select value={dateRange} onValueChange={(v: DateRangeType) => setDateRange(v)}>
-                <SelectTrigger className="w-[92px] h-7 border-0 shadow-none text-xs bg-transparent text-foreground">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="bg-popover border-border">
-                  <SelectItem value="monthly">Monthly</SelectItem>
-                  <SelectItem value="quarterly">Quarterly</SelectItem>
-                  <SelectItem value="yearly">Yearly</SelectItem>
-                  <SelectItem value="all">All Time</SelectItem>
-                </SelectContent>
-              </Select>
-              {isLoading ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
-              ) : (
-                <span className="text-xs font-medium text-primary whitespace-nowrap">{dateLabel}</span>
-              )}
-            </div>
-            {!isDesktopApp && canNetProfit && (
-              <Button
-                variant="default"
-                size="sm"
-                onClick={() => navigate(`/net-profit-analysis?from=${startDate}&to=${endDate}`)}
-                className="h-8 text-xs shrink-0"
-              >
-                <TrendingUp className="h-3.5 w-3.5 mr-1" />
-                Net Profit
-              </Button>
-            )}
-          </div>
+      {/* Dashboard toolbar — refresh + status (period / net profit live on dashboard only, not global header) */}
+      <div className="dashboard-toolbar flex flex-wrap items-center justify-between gap-2 py-1 border-b border-border/70 shrink-0">
+        <div className="flex items-center gap-2 text-[11px] sm:text-xs text-muted-foreground min-w-0">
+          <div className={cn("h-2 w-2 rounded-full shrink-0", isLoading ? "bg-amber-400 animate-pulse" : "bg-success")} />
+          <span className="truncate">{statusLabel}</span>
         </div>
-      ) : (
-        <div className="dashboard-toolbar flex flex-wrap items-center justify-between gap-2 py-1 border-b border-border/70 shrink-0">
-          <div className="flex items-center gap-2 text-[11px] sm:text-xs text-muted-foreground min-w-0">
-            <div className={cn("h-2 w-2 rounded-full shrink-0", isLoading ? "bg-amber-400 animate-pulse" : "bg-success")} />
-            <span className="truncate">{statusLabel}</span>
+        <div className="flex items-center gap-2 shrink-0 flex-nowrap">
+          <div className="flex items-center gap-1.5 bg-card border border-border rounded-md px-2 h-7 shadow-sm">
+            <Calendar className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+            <Select value={dateRange} onValueChange={(v: DateRangeType) => setDateRange(v)}>
+              <SelectTrigger className="w-[88px] h-6 border-0 shadow-none text-xs bg-transparent px-0.5">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="bg-popover border-border">
+                <SelectItem value="monthly">Monthly</SelectItem>
+                <SelectItem value="quarterly">Quarterly</SelectItem>
+                <SelectItem value="yearly">Yearly</SelectItem>
+                <SelectItem value="all">All Time</SelectItem>
+              </SelectContent>
+            </Select>
+            {isLoading ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin text-primary shrink-0" />
+            ) : (
+              <span className="text-xs font-medium text-primary whitespace-nowrap max-w-[7rem] truncate">
+                {dateLabel}
+              </span>
+            )}
           </div>
           <Button
             variant="outline"
@@ -925,7 +843,7 @@ const DesktopDashboard = () => {
             Refresh
           </Button>
         </div>
-      )}
+      </div>
 
       {/* Main Content — fixed shell; skeletons while first RPC loads */}
       <div className="dashboard-body flex-1 min-h-0 overflow-y-auto overflow-x-hidden">

@@ -23,7 +23,6 @@ import { useState, useEffect, useMemo } from "react";
 import { SizeStockDialog } from "@/components/SizeStockDialog";
 import { FloatingAccountsPaymentsDialog } from "@/components/FloatingAccountsPaymentsDialog";
 import { FloatingStockReport, FloatingSaleReport } from "@/components/FloatingPOSReports";
-import { useDashboardToolbarOptional } from "@/contexts/DashboardToolbarContext";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { resolveFirstAllowedPath } from "@/lib/menuPermissions";
 import { confirmReloadIfPosCartBusy, reloadAppWithUpdateCheck } from "@/lib/appReload";
@@ -54,7 +53,6 @@ export const Header = () => {
   const [paymentsOpen, setPaymentsOpen] = useState(false);
   const { isInstallable, isInstalled, promptInstall } = useInstallPrompt();
   const isDesktopApp = isElectronShell();
-  const dashboardToolbar = useDashboardToolbarOptional();
   const { hasMenuAccess, hasMainMenuAccess, hasSpecialPermission, permissions, loading: permissionsLoading } = useUserPermissions();
   const can = (menuId: string) =>
     !permissionsLoading && (permissions === null || hasMenuAccess(menuId));
@@ -710,14 +708,7 @@ export const Header = () => {
         )}
         </div>
 
-        <div className="flex items-center gap-2 shrink-0 flex-nowrap ml-1">
-        {dashboardToolbar?.toolbar ? (
-          <>
-            {dashboardToolbar.toolbar}
-            <div className="w-px h-4 bg-sidebar-border shrink-0" />
-          </>
-        ) : null}
-
+        <div className="flex items-center gap-2 shrink-0 flex-nowrap ml-auto">
         {/* Organization name */}
         <span className="text-xs font-semibold text-sidebar-foreground/80 truncate max-w-[150px]" title={currentOrganization?.name || ""}>
           {currentOrganization?.name || ""}
