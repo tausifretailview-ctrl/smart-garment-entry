@@ -18,6 +18,7 @@ import {
   Coins,
   ShieldCheck,
   FileSpreadsheet,
+  Scale,
   Search,
   ChevronRight,
   type LucideIcon,
@@ -211,6 +212,13 @@ const REPORT_CATEGORIES: ReportCategory[] = [
         label: "Customer Ledger",
         path: "/customer-ledger-report",
         desc: "Outstanding and ledger balances",
+        permission: "customer_ledger",
+      },
+      {
+        icon: Scale,
+        label: "Customer Balances",
+        path: "/customer-party-balances",
+        desc: "Tally-style Dr/Cr party list (one RPC)",
         permission: "customer_ledger",
       },
       {
