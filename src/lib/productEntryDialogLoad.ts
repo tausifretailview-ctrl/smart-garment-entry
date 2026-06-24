@@ -44,6 +44,16 @@ export function loadProductEntryDialog(): Promise<{ default: ProductEntryDialogM
   return loadPromise!.then((m) => ({ default: m.ProductEntryDialog }));
 }
 
+/**
+ * Pause background prefetch and wait until the dialog chunk is ready.
+ * Call before opening the gate so first login does not race post-login prefetch.
+ */
+export async function warmProductEntryDialogForOpen(): Promise<void> {
+  pauseBackgroundPrefetch(60_000);
+  prefetchProductEntryDialog();
+  await loadProductEntryDialog();
+}
+
 /** Clear cached import so Retry can fetch a fresh chunk after deploy / cache mismatch / timeout. */
 export function resetProductEntryDialogChunk(): void {
   loadPromise = null;

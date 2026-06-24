@@ -85,7 +85,7 @@ import {
 import { validatePurchaseBill, validatePurchaseLineItem } from "@/lib/validations";
 import { SizeGridDialog } from "@/components/SizeGridDialog";
 import { ProductEntryDialogGate } from "@/components/ProductEntryDialogGate";
-import { prefetchProductEntryDialog } from "@/lib/productEntryDialogLoad";
+import { prefetchProductEntryDialog, warmProductEntryDialogForOpen } from "@/lib/productEntryDialogLoad";
 import { scheduleIdleWork } from "@/lib/chunkLoadRetry";
 import ProductEditPanel from "@/components/ProductEditPanel";
 import QuickEditPopover from "@/components/QuickEditPopover";
@@ -657,10 +657,20 @@ const PurchaseEntry = () => {
   const entryPersistenceBlockedRef = useRef(false);
   const [showExcelImport, setShowExcelImport] = useState(false);
   const [showProductDialog, setShowProductDialog] = useState(false);
-  const openAddProductDialog = useCallback(() => {
-    prefetchProductEntryDialog();
-    setShowProductDialog(true);
-  }, []);
+  const [addProductWarming, setAddProductWarming] = useState(false);
+  const openAddProductDialog = useCallback(async () => {
+    if (showProductDialog || addProductWarming) return;
+    setAddProductWarming(true);
+    try {
+      await warmProductEntryDialogForOpen();
+      setShowProductDialog(true);
+    } catch {
+      // Gate error boundary handles chunk failures; still open so user sees Retry.
+      setShowProductDialog(true);
+    } finally {
+      setAddProductWarming(false);
+    }
+  }, [showProductDialog, addProductWarming]);
   const [showAddSupplierDialog, setShowAddSupplierDialog] = useState(false);
   // Inline search state for table row
   const [inlineSearchQuery, setInlineSearchQuery] = useState("");
@@ -1574,7 +1584,7 @@ const PurchaseEntry = () => {
   // competing with the purchase-entry chunk + post-login prefetch on first login.
   useEffect(() => {
     return scheduleIdleWork(() => prefetchProductEntryDialog(), {
-      minDelay: 2_000,
+      minDelay: 800,
       timeout: 15_000,
     });
   }, []);
@@ -2321,7 +2331,7 @@ const PurchaseEntry = () => {
   };
 
   const handleAddNewProductFromInline = () => {
-    openAddProductDialog();
+    void openAddProductDialog();
   };
 
   // Handle product created from dialog - auto-add items with qty to bill
@@ -6126,16 +6136,20 @@ const PurchaseEntry = () => {
                   Import Excel
                 </Button>
                 <Button
-                  onClick={openAddProductDialog}
+                  onClick={() => void openAddProductDialog()}
                   onMouseEnter={prefetchProductEntryDialog}
                   onFocus={prefetchProductEntryDialog}
                   variant="outline"
                   size="sm"
                   className="h-10 gap-2 border-slate-300"
-                  disabled={isBillLocked}
+                  disabled={isBillLocked || addProductWarming}
                 >
-                  <Plus className="h-4 w-4" />
-                  Add New Product
+                  {addProductWarming ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Plus className="h-4 w-4" />
+                  )}
+                  {addProductWarming ? "Loading form…" : "Add New Product"}
                 </Button>
               </div>
 

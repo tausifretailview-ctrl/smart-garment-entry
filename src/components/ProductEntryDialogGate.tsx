@@ -192,11 +192,25 @@ export function ProductEntryDialogGate(props: ProductEntryDialogProps) {
 
     setLoadTimedOut(false);
     const endPriority = beginProductEntryDialogPriorityLoad();
+    let cancelled = false;
+    let loadSettled = false;
+
+    loadProductEntryDialog()
+      .then(() => {
+        if (!cancelled) loadSettled = true;
+      })
+      .catch(() => {
+        if (!cancelled) loadSettled = true;
+      });
+
     const timer = window.setTimeout(() => {
-      setLoadTimedOut(true);
+      if (!cancelled && !loadSettled) {
+        setLoadTimedOut(true);
+      }
     }, PRODUCT_ENTRY_DIALOG_UI_TIMEOUT_MS);
 
     return () => {
+      cancelled = true;
       window.clearTimeout(timer);
       endPriority();
     };
