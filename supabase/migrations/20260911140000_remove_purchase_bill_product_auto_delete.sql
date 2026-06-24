@@ -3,6 +3,9 @@
 -- soft_delete_purchase_bill now returns count of bill products at zero stock after reversal
 -- (non-blocking hint for Orphaned Products review — not all will qualify as orphans).
 
+-- Return type changes void → integer; CREATE OR REPLACE cannot alter that.
+DROP FUNCTION IF EXISTS public.soft_delete_purchase_bill(uuid, uuid);
+
 CREATE OR REPLACE FUNCTION public.soft_delete_purchase_bill(p_bill_id uuid, p_user_id uuid)
 RETURNS integer
 LANGUAGE plpgsql
