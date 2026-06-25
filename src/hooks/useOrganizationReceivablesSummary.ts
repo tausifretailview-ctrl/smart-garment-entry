@@ -38,7 +38,7 @@ export function useOrganizationReceivablesSummary(
   });
 
   return {
-    summary: data ?? EMPTY,
+    summary: data ? { ...EMPTY, ...data } : EMPTY,
     isLoading,
     isFetching,
     error,

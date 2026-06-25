@@ -165,6 +165,7 @@ export async function fetchOrganizationReceivablesSummary(
     | undefined;
   if (!row) return { ...EMPTY_SUMMARY };
   return {
+    ...EMPTY_SUMMARY,
     customerCount: Number(row.customer_count ?? 0),
     customersOwing: Number(row.customers_owing ?? 0),
     customersInCredit: Number(row.customers_in_credit ?? 0),

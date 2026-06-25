@@ -2684,11 +2684,11 @@ export function CustomerLedger({
       };
     }
     return {
-      totalCustomers: orgReceivablesSummary.customerCount,
-      totalOutstanding: orgReceivablesSummary.grossReceivableDr,
-      totalReceivable: orgReceivablesSummary.totalSales,
-      customerCreditPool: orgReceivablesSummary.customerCreditPoolCr,
-      netReceivable: orgReceivablesSummary.netReceivable,
+      totalCustomers: orgReceivablesSummary.customerCount ?? 0,
+      totalOutstanding: orgReceivablesSummary.grossReceivableDr ?? 0,
+      totalReceivable: orgReceivablesSummary.totalSales ?? 0,
+      customerCreditPool: orgReceivablesSummary.customerCreditPoolCr ?? 0,
+      netReceivable: orgReceivablesSummary.netReceivable ?? 0,
     };
   }, [isSchool, filteredCustomers, orgReceivablesSummary]);
 
@@ -5482,7 +5482,7 @@ Please clear your dues at the earliest. Thank you!`;
                   {kpiCardsLoading ? (
                     <Skeleton className="h-8 w-28 bg-white/30" />
                   ) : (
-                    <>₹{summary.totalOutstanding.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</>
+                    <>₹{(summary.totalOutstanding ?? 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</>
                   )}
                 </div>
                 <p className="text-xs text-white/65 mt-0.5 truncate">
@@ -5510,7 +5510,7 @@ Please clear your dues at the earliest. Thank you!`;
                   {kpiCardsLoading ? (
                     <Skeleton className="h-8 w-28 bg-white/30" />
                   ) : (
-                    <>₹{summary.totalReceivable.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</>
+                    <>₹{(summary.totalReceivable ?? 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</>
                   )}
                 </div>
                 <p className="text-xs text-white/65 mt-0.5 truncate">
@@ -5538,7 +5538,7 @@ Please clear your dues at the earliest. Thank you!`;
                       {kpiCardsLoading ? (
                         <Skeleton className="h-8 w-28 bg-white/30" />
                       ) : (
-                        <>₹{summary.netReceivable.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</>
+                        <>₹{(summary.netReceivable ?? 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</>
                       )}
                     </div>
                     <p className="text-xs text-white/65 mt-0.5 truncate">Outstanding − credit pool</p>
@@ -5562,7 +5562,7 @@ Please clear your dues at the earliest. Thank you!`;
                       {kpiCardsLoading ? (
                         <Skeleton className="h-8 w-28 bg-white/30" />
                       ) : (
-                        <>₹{summary.customerCreditPool.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</>
+                        <>₹{(summary.customerCreditPool ?? 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</>
                       )}
                     </div>
                     <p className="text-xs text-white/65 mt-0.5 truncate">Advances / overpayments held</p>
