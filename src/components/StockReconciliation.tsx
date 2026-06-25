@@ -7,19 +7,25 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Loader2, Search, CheckCircle, AlertTriangle, RefreshCw, RotateCcw, Package, Activity, Clock } from "lucide-react";
+import { Loader2, Search, CheckCircle, AlertTriangle, RefreshCw, RotateCcw, Package, Activity, Clock, ExternalLink } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 
 interface Discrepancy {
   variant_id: string;
-  product_name: string;
-  size: string;
-  color: string;
-  current_stock: number;
-  expected_stock: number;
+  barcode: string | null;
+  product_name: string | null;
+  size: string | null;
+  color: string | null;
+  current_stock_qty: number;
+  calculated_stock_qty: number;
   discrepancy: number;
-  last_purchase: string | null;
-  last_sale: string | null;
+  opening_qty?: number;
+  purchases?: number;
+  sales?: number;
+  purchase_returns?: number;
+  sale_returns?: number;
+  pending_dc?: number;
 }
 
 interface FixResult {
@@ -45,6 +51,7 @@ interface HealthSummary {
 
 export const StockReconciliation = () => {
   const { toast } = useToast();
+  const { orgNavigate } = useOrgNavigation();
   const { currentOrganization } = useOrganization();
   const [isScanning, setIsScanning] = useState(false);
   const [isFixing, setIsFixing] = useState(false);
@@ -104,13 +111,14 @@ export const StockReconciliation = () => {
 
       if (error) throw error;
 
-      setDiscrepancies(data || []);
+      setDiscrepancies((data || []) as Discrepancy[]);
       setLastScanTime(new Date());
+      setHealth(prev => ({ ...prev, discrepancyCount: data?.length || 0 }));
 
       if (!data || data.length === 0) {
         toast({
           title: "All Clear!",
-          description: "No stock discrepancies found. Stock levels are accurate.",
+          description: "No stock discrepancies found. Stock levels match transaction history.",
         });
       } else {
         toast({
@@ -210,11 +218,21 @@ export const StockReconciliation = () => {
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <RefreshCw className="h-5 w-5" />
-          Stock Reconciliation
+          Stock Reconciliation (Settings)
         </CardTitle>
         <CardDescription>
-          Detect and fix discrepancies between recorded stock levels and calculated movements.
-          <span className="block text-xs mt-1 text-muted-foreground/70">Note: Service &amp; combo products are excluded from stock tracking.</span>
+          Scan and optionally fix drift between stored stock and transaction history.
+          For read-only investigation with full breakdown, use the{" "}
+          <button
+            type="button"
+            className="text-primary underline underline-offset-2 inline-flex items-center gap-0.5"
+            onClick={() => orgNavigate("/stock-reconciliation")}
+          >
+            Stock Reconciliation Report
+            <ExternalLink className="h-3 w-3" />
+          </button>
+          .
+          <span className="block text-xs mt-1 text-muted-foreground/70">Service &amp; combo products are excluded.</span>
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -251,7 +269,7 @@ export const StockReconciliation = () => {
           </div>
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex flex-wrap items-center gap-4">
           <Button onClick={handleScanDiscrepancies} disabled={isScanning || isFixing}>
             {isScanning ? (
               <>
@@ -305,24 +323,21 @@ export const StockReconciliation = () => {
           </Button>
         </div>
 
-        {/* Last Scan Time */}
         {lastScanTime && (
           <p className="text-sm text-muted-foreground">
             Last scanned: {lastScanTime.toLocaleString()}
           </p>
         )}
 
-        {/* Status Badge */}
         {lastScanTime && discrepancies.length === 0 && (
           <div className="flex items-center gap-2 p-4 bg-green-500/10 rounded-lg border border-green-500/20">
             <CheckCircle className="h-5 w-5 text-green-500" />
             <span className="text-green-600 dark:text-green-400 font-medium">
-              Stock levels are accurate - no discrepancies found
+              Stock levels match transaction history — no discrepancies found
             </span>
           </div>
         )}
 
-        {/* Discrepancies Table */}
         {discrepancies.length > 0 && (
           <div className="border rounded-lg overflow-hidden">
             <div className="flex items-center gap-2 p-3 bg-destructive/10 border-b">
@@ -336,10 +351,10 @@ export const StockReconciliation = () => {
                 <TableRow>
                   <TableHead>Product</TableHead>
                   <TableHead>Size</TableHead>
-                  <TableHead>Color</TableHead>
-                  <TableHead className="text-right">Current</TableHead>
-                  <TableHead className="text-right">Expected</TableHead>
-                  <TableHead className="text-right">Discrepancy</TableHead>
+                  <TableHead>Barcode</TableHead>
+                  <TableHead className="text-right">Stored</TableHead>
+                  <TableHead className="text-right">Recomputed</TableHead>
+                  <TableHead className="text-right">Drift</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -347,9 +362,9 @@ export const StockReconciliation = () => {
                   <TableRow key={item.variant_id}>
                     <TableCell>{item.product_name}</TableCell>
                     <TableCell>{item.size}</TableCell>
-                    <TableCell>{item.color}</TableCell>
-                    <TableCell className="text-right">{item.current_stock}</TableCell>
-                    <TableCell className="text-right">{item.expected_stock}</TableCell>
+                    <TableCell className="font-mono text-xs">{item.barcode}</TableCell>
+                    <TableCell className="text-right font-mono tabular-nums">{item.current_stock_qty}</TableCell>
+                    <TableCell className="text-right font-mono tabular-nums">{item.calculated_stock_qty}</TableCell>
                     <TableCell className="text-right">
                       <Badge variant={item.discrepancy > 0 ? "destructive" : "secondary"}>
                         {item.discrepancy > 0 ? "+" : ""}{item.discrepancy}
@@ -362,15 +377,13 @@ export const StockReconciliation = () => {
           </div>
         )}
 
-        {/* Fix Confirmation Dialog */}
         <AlertDialog open={showFixDialog} onOpenChange={setShowFixDialog}>
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>Fix Stock Discrepancies?</AlertDialogTitle>
               <AlertDialogDescription>
-                This will update {discrepancies.length} product variant(s) to match their calculated 
-                stock levels based on stock movements. A reconciliation record will be created in 
-                stock movements for audit purposes.
+                This will update {discrepancies.length} product variant(s) to match transaction-history
+                stock levels. A reconciliation record will be created in stock movements for audit.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
@@ -382,18 +395,16 @@ export const StockReconciliation = () => {
           </AlertDialogContent>
         </AlertDialog>
 
-        {/* Reset Confirmation Dialog */}
         <AlertDialog open={showResetDialog} onOpenChange={setShowResetDialog}>
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>Reset Stock from Transaction History?</AlertDialogTitle>
               <AlertDialogDescription>
-                This will recalculate ALL stock levels based on actual transaction records:
+                This will recalculate ALL stock levels from transaction records:
                 <br /><br />
-                <strong>Stock = Opening Qty + Purchases - Sales - Purchase Returns + Sale Returns</strong>
+                <strong>Stock = Opening + Purchases − Sales − Pur. Returns + Sale Returns − Pending DC</strong>
                 <br /><br />
-                Use this to fix negative stock or corrupted data from old bugs. This ignores all 
-                previous stock movements and recalculates from scratch.
+                Use after investigating drift on the reconciliation report. This writes corrected stock_qty values.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
@@ -405,7 +416,6 @@ export const StockReconciliation = () => {
           </AlertDialogContent>
         </AlertDialog>
 
-        {/* Results Dialog */}
         <AlertDialog open={showResultsDialog} onOpenChange={setShowResultsDialog}>
           <AlertDialogContent className="max-w-3xl">
             <AlertDialogHeader>

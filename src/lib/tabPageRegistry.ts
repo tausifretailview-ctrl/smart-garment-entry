@@ -140,6 +140,11 @@ export const TAB_PAGE_REGISTRY: Record<string, TabPageDef> = {
     layout: "layout",
     roles: ["admin"],
   },
+  "stock-reconciliation": {
+    loader: () => import("@/pages/StockReconciliationReport"),
+    layout: "layout",
+    roles: ["admin"],
+  },
   "accounting-reports": {
     loader: () => import("@/pages/AccountingReports"),
     layout: "layout",

@@ -93,6 +93,7 @@ export const POST_LOGIN_IDLE_PREFETCH_TAB_PATHS = [
   "customer-balance-activity",
   "customer-audit-report",
   "customer-reconciliation",
+  "stock-reconciliation",
   "accounting-reports",
   "expense-salary-report",
   "gst-reports",

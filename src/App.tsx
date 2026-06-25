@@ -118,6 +118,7 @@ const CustomerPartyBalancesPage = lazyWithRetry(() => import("./pages/CustomerPa
 const SupplierPartyBalancesPage = lazyWithRetry(() => import("./pages/SupplierPartyBalancesPage"));
 const OrphanedProductsPage = lazyWithRetry(() => import("./pages/OrphanedProductsPage"));
 const CustomerReconciliation = lazyWithRetry(() => import("./pages/CustomerReconciliation"));
+const StockReconciliationReport = lazyWithRetry(() => import("./pages/StockReconciliationReport"));
 const BulkProductUpdate = lazyWithRetry(() => import("./pages/BulkProductUpdate"));
 const DeliveryChallanEntry = lazyWithRetry(() => import("./pages/DeliveryChallanEntry"));
 const DeliveryChallanDashboard = lazyWithRetry(() => import("./pages/DeliveryChallanDashboard"));
@@ -657,6 +658,18 @@ const App = () => {
                       <RoleProtectedRoute allowedRoles={["admin"]}>
                         <Layout>
                           <CustomerReconciliation />
+                        </Layout>
+                      </RoleProtectedRoute>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="stock-reconciliation"
+                  element={
+                    <ProtectedRoute>
+                      <RoleProtectedRoute allowedRoles={["admin"]}>
+                        <Layout>
+                          <StockReconciliationReport />
                         </Layout>
                       </RoleProtectedRoute>
                     </ProtectedRoute>

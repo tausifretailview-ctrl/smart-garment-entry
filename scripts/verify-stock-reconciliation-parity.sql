@@ -260,9 +260,11 @@ LIMIT 20;
 
 
 -- =============================================================================
--- 3) DIAG — deployed detect_stock_discrepancies may be broken (20260422081353)
---     If this errors on variant_id / opening_stock, ignore RPC; use blocks 0–2.
+-- 3) RPC smoke — get_stock_reconciliation (after migration 20260911160000)
 -- =============================================================================
-SELECT *
-FROM public.detect_stock_discrepancies('dafc3d0c-874e-4784-bac3-5eab5f3c85b5'::uuid)
-LIMIT 5;
+SELECT COUNT(*) AS row_count
+FROM public.get_stock_reconciliation('dafc3d0c-874e-4784-bac3-5eab5f3c85b5'::uuid);
+
+-- Drift-only via detect_stock_discrepancies (same formula, drift <> 0):
+SELECT COUNT(*) AS drift_count
+FROM public.detect_stock_discrepancies('dafc3d0c-874e-4784-bac3-5eab5f3c85b5'::uuid);

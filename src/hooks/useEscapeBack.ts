@@ -71,6 +71,7 @@ const BACK_MAP: Record<string, string> = {
   "delivery-dashboard":       "/",
   "payments-dashboard":       "/",
   "customer-reconciliation":  "customers",
+  "stock-reconciliation":     "stock-report",
   "whatsapp-inbox":           "/",
   "whatsapp-logs":            "/",
   // Dashboards → Home

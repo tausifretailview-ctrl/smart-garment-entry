@@ -5579,6 +5579,20 @@ export default function Settings() {
               </LazySettingsPanel>
             </div>
 
+            <Card className="mt-6">
+              <CardHeader>
+                <CardTitle>Stock Reconciliation Report</CardTitle>
+                <CardDescription>
+                  Read-only parity check: stored stock vs purchase/sale/return/challan transaction history
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Button onClick={() => navigate("/stock-reconciliation")}>
+                  🔍 Open Stock Reconciliation Report
+                </Button>
+              </CardContent>
+            </Card>
+
             {/* Customer Balance Reconciliation */}
             <Card className="mt-6">
               <CardHeader>

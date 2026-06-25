@@ -86,6 +86,56 @@ export async function fetchAllCustomerPartyBalances(
   return allRows;
 }
 
+export type StockReconciliationRow = {
+  variant_id: string;
+  barcode: string | null;
+  product_name: string | null;
+  size: string | null;
+  color: string | null;
+  stored_stock_qty: number;
+  opening_qty: number;
+  purchases: number;
+  sales: number;
+  purchase_returns: number;
+  sale_returns: number;
+  pending_dc: number;
+  recomputed_stock_qty: number;
+  drift: number;
+};
+
+/**
+ * Fetch all rows from get_stock_reconciliation (PostgREST default cap is 1000).
+ */
+export async function fetchAllStockReconciliation(
+  organizationId: string,
+): Promise<StockReconciliationRow[]> {
+  const allRows: StockReconciliationRow[] = [];
+  let offset = 0;
+  const pageSize = 1000;
+
+  while (true) {
+    const { data, error } = await supabase
+      .rpc("get_stock_reconciliation", {
+        p_organization_id: organizationId,
+      })
+      .range(offset, offset + pageSize - 1);
+
+    if (error) {
+      console.error("Error fetching stock reconciliation:", error);
+      throw error;
+    }
+
+    const page = (data ?? []) as StockReconciliationRow[];
+    if (page.length === 0) break;
+
+    allRows.push(...page);
+    if (page.length < pageSize) break;
+    offset += pageSize;
+  }
+
+  return allRows;
+}
+
 /**
  * Fetch id → phone map for an organization (lightweight join for party balance search).
  */
