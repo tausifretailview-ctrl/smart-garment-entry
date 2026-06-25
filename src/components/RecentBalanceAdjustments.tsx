@@ -23,6 +23,7 @@ const PAGE_SIZE = 10;
 
 interface Props {
   organizationId: string;
+  visitedTabs?: ReadonlySet<string>;
 }
 
 // Shared helper to apply advance effects
@@ -78,7 +79,8 @@ async function applyAdvanceEffects(
   }
 }
 
-export function RecentBalanceAdjustments({ organizationId }: Props) {
+export function RecentBalanceAdjustments({ organizationId, visitedTabs }: Props) {
+  const tabActive = visitedTabs?.has("balance-adjustment") ?? true;
   const { user } = useAuth();
   const { hasSpecialPermission } = useUserPermissions();
   const queryClient = useQueryClient();
@@ -107,7 +109,7 @@ export function RecentBalanceAdjustments({ organizationId }: Props) {
       if (error) throw error;
       return data as any[];
     },
-    enabled: !!organizationId,
+    enabled: !!organizationId && tabActive,
   });
 
   const allAdjustments = data || [];

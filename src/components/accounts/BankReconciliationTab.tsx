@@ -26,9 +26,11 @@ const fmtInr = (n: number) => `₹${round2(n).toLocaleString("en-IN", { minimumF
 
 interface BankReconciliationTabProps {
   organizationId: string;
+  visitedTabs?: ReadonlySet<string>;
 }
 
-export function BankReconciliationTab({ organizationId }: BankReconciliationTabProps) {
+export function BankReconciliationTab({ organizationId, visitedTabs }: BankReconciliationTabProps) {
+  const tabActive = visitedTabs?.has("reconciliation") ?? true;
   const queryClient = useQueryClient();
   const [bankLedgerId, setBankLedgerId] = useState<string>("");
   const [statementDate, setStatementDate] = useState<Date>(new Date());
@@ -50,7 +52,7 @@ export function BankReconciliationTab({ organizationId }: BankReconciliationTabP
       if (error) throw error;
       return (data ?? []) as Array<{ id: string; account_code: string; account_name: string; account_type: string }>;
     },
-    enabled: !!organizationId,
+    enabled: !!organizationId && tabActive,
   });
 
   useEffect(() => {
@@ -61,7 +63,7 @@ export function BankReconciliationTab({ organizationId }: BankReconciliationTabP
     queryKey: ["bank-recon-system-balance", organizationId, bankLedgerId, statementYmd],
     queryFn: () =>
       fetchBankLedgerNetBalance(organizationId, bankLedgerId, statementYmd, supabase),
-    enabled: !!organizationId && !!bankLedgerId,
+    enabled: !!organizationId && !!bankLedgerId && tabActive,
   });
 
   const { data: unclearedRows = [], isLoading: rowsLoading } = useQuery({
@@ -70,7 +72,7 @@ export function BankReconciliationTab({ organizationId }: BankReconciliationTabP
       fetchUnclearedBankTransactions(organizationId, bankLedgerId, supabase, {
         statementDateEnd: statementYmd,
       }),
-    enabled: !!organizationId && !!bankLedgerId,
+    enabled: !!organizationId && !!bankLedgerId && tabActive,
   });
 
   const selectedNetSum = useMemo(() => {

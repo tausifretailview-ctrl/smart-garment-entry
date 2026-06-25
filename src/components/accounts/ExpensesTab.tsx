@@ -36,6 +36,7 @@ interface ExpensesTabProps {
   organizationId: string;
   vouchers: any[] | undefined;
   embedded?: boolean;
+  visitedTabs?: ReadonlySet<string>;
 }
 
 const PAYMENT_METHODS = [
@@ -46,7 +47,13 @@ const PAYMENT_METHODS = [
   { value: "cheque", label: "Cheque" },
 ];
 
-export function ExpensesTab({ organizationId, vouchers, embedded = false }: ExpensesTabProps) {
+export function ExpensesTab({
+  organizationId,
+  vouchers,
+  embedded = false,
+  visitedTabs,
+}: ExpensesTabProps) {
+  const tabActive = embedded || (visitedTabs?.has("expenses") ?? true);
   const queryClient = useQueryClient();
   const formatEntryDateTime = (value: string | null | undefined) => {
     if (!value) return "-";
@@ -127,7 +134,7 @@ export function ExpensesTab({ organizationId, vouchers, embedded = false }: Expe
       if (error) throw error;
       return data || [];
     },
-    enabled: !!organizationId,
+    enabled: !!organizationId && tabActive,
   });
 
   const { data: expenseChartAccounts } = useQuery({
@@ -142,7 +149,7 @@ export function ExpensesTab({ organizationId, vouchers, embedded = false }: Expe
       if (error) throw error;
       return data || [];
     },
-    enabled: !!organizationId,
+    enabled: !!organizationId && tabActive,
   });
 
   const mapCategoryLedger = useMutation({
@@ -205,7 +212,7 @@ export function ExpensesTab({ organizationId, vouchers, embedded = false }: Expe
       if (error) throw error;
       return data || [];
     },
-    enabled: !!organizationId,
+    enabled: !!organizationId && tabActive,
   });
 
   const { data: settings } = useSettings();

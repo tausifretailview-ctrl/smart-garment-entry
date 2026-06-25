@@ -36,6 +36,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface SupplierLedgerProps {
   organizationId: string;
+  visitedTabs?: ReadonlySet<string>;
 }
 
 interface Supplier {
@@ -66,7 +67,8 @@ interface Transaction {
   category?: Exclude<LedgerTab, 'all'>;
 }
 
-export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
+export function SupplierLedger({ organizationId, visitedTabs }: SupplierLedgerProps) {
+  const tabActive = visitedTabs?.has("supplier-ledger") ?? true;
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
   const [paymentStatusFilter, setPaymentStatusFilter] = useState<string>("all");
@@ -133,7 +135,7 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
 
       return { suppliers, balanceSnapshotError };
     },
-    enabled: !!organizationId,
+    enabled: !!organizationId && tabActive,
   });
 
   const suppliers = ledgerData?.suppliers;
@@ -153,7 +155,7 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
     queryKey: ["supplier-balance-snapshot", organizationId, selectedSupplier?.id],
     queryFn: async () =>
       fetchSupplierBalanceSnapshot(supabase, organizationId, selectedSupplier!.id),
-    enabled: !!organizationId && !!selectedSupplier?.id,
+    enabled: !!organizationId && !!selectedSupplier?.id && tabActive,
   });
 
   // Fetch detailed transactions for selected supplier
@@ -538,7 +540,7 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
 
       return allTransactions;
     },
-    enabled: !!selectedSupplier?.id,
+    enabled: !!selectedSupplier?.id && tabActive,
   });
 
   const ledgerClosingBalance = useMemo(() => {
@@ -614,7 +616,7 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
       if (error) throw error;
       return (data?.length ?? 0) > 0;
     },
-    enabled: !!organizationId,
+    enabled: !!organizationId && tabActive,
   });
 
   const transactionTotals = useMemo(() => {

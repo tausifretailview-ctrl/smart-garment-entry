@@ -220,6 +220,7 @@ interface CustomerPaymentTabProps {
   onEditPayment: (voucher: any) => void;
   /** Hide recent-payments list (floating payments window shows shared history panel). */
   embedded?: boolean;
+  visitedTabs?: ReadonlySet<string>;
 }
 
 export function CustomerPaymentTab({
@@ -232,7 +233,9 @@ export function CustomerPaymentTab({
   onShowAdvanceDialog,
   onEditPayment,
   embedded = false,
+  visitedTabs,
 }: CustomerPaymentTabProps) {
+  const tabActive = embedded || (visitedTabs?.has("customer-payment") ?? true);
   const queryClient = useQueryClient();
   const { isAdmin } = useUserRoles();
   const isMobile = useIsMobile();
@@ -281,7 +284,7 @@ export function CustomerPaymentTab({
   } = useQuery({
     queryKey: ["customer-receipt-vouchers", organizationId],
     queryFn: () => fetchCustomerReceiptVouchers(organizationId),
-    enabled: !!organizationId && !embedded,
+    enabled: !!organizationId && !embedded && tabActive,
     staleTime: 60 * 1000,
     gcTime: 30 * 60 * 1000,
     refetchOnWindowFocus: false,
@@ -304,7 +307,7 @@ export function CustomerPaymentTab({
       if (error) throw error;
       return data;
     },
-    enabled: !!organizationId,
+    enabled: !!organizationId && tabActive,
     staleTime: 5000,
   });
 
@@ -320,7 +323,7 @@ export function CustomerPaymentTab({
   } = useQuery({
     queryKey: ["customers-with-balance", organizationId, "payment-picker-v2"],
     queryFn: () => fetchCustomersWithBalanceForPaymentPicker(organizationId, supabase, queryClient),
-    enabled: !!organizationId,
+    enabled: !!organizationId && tabActive,
     staleTime: 2 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
     refetchOnWindowFocus: false,
@@ -423,7 +426,7 @@ export function CustomerPaymentTab({
         return rec.outstanding >= MIN_PENDING_RUPEE;
       });
     },
-    enabled: !!referenceId,
+    enabled: !!referenceId && tabActive,
   });
 
   const { data: customerInvoiceVoucherSplitsRaw } = useQuery({
@@ -447,7 +450,7 @@ export function CustomerPaymentTab({
         return EMPTY_INVOICE_VOUCHER_SPLITS;
       }
     },
-    enabled: !!organizationId && !!referenceId && !!customerInvoices && customerInvoices.length > 0,
+    enabled: !!organizationId && !!referenceId && !!customerInvoices && customerInvoices.length > 0 && tabActive,
   });
 
   const invoiceVoucherSplitsKey = voucherSplitsDepKey(customerInvoiceVoucherSplitsRaw);
@@ -474,7 +477,7 @@ export function CustomerPaymentTab({
     queryKey: ["customer-opening-balance-remaining", referenceId, organizationId, openingBalanceSeed],
     queryFn: () =>
       fetchCustomerOpeningBalanceRemaining(supabase, organizationId!, referenceId!, queryClient),
-    enabled: !!referenceId && !!organizationId,
+    enabled: !!referenceId && !!organizationId && tabActive,
     staleTime: STALE_FREQUENT,
     refetchOnWindowFocus: false,
   });

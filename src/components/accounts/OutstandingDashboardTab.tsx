@@ -31,6 +31,7 @@ import { accountsHistoryTableClass, accountsHistoryThClass } from "@/components/
 
 interface OutstandingDashboardTabProps {
   organizationId: string;
+  visitedTabs?: ReadonlySet<string>;
 }
 
 interface AgingBucket {
@@ -56,7 +57,8 @@ interface CustomerOutstanding {
 type SortField = "name" | "totalOutstanding" | "invoiceCount" | "oldestDays";
 type SortDir = "asc" | "desc";
 
-export function OutstandingDashboardTab({ organizationId }: OutstandingDashboardTabProps) {
+export function OutstandingDashboardTab({ organizationId, visitedTabs }: OutstandingDashboardTabProps) {
+  const tabActive = visitedTabs?.has("outstanding") ?? true;
   const queryClient = useQueryClient();
   const isMobile = useIsMobile();
   const [search, setSearch] = useState("");
@@ -269,7 +271,7 @@ export function OutstandingDashboardTab({ organizationId }: OutstandingDashboard
       });
       return result;
     },
-    enabled: !!organizationId,
+    enabled: !!organizationId && tabActive,
     staleTime: 60000,
   });
 

@@ -82,6 +82,7 @@ interface SupplierPaymentTabProps {
   suppliers: any[] | undefined;
   onEditPayment?: (voucher: any) => void;
   embedded?: boolean;
+  visitedTabs?: ReadonlySet<string>;
 }
 
 export function SupplierPaymentTab({
@@ -90,7 +91,9 @@ export function SupplierPaymentTab({
   suppliers,
   onEditPayment,
   embedded = false,
+  visitedTabs,
 }: SupplierPaymentTabProps) {
+  const tabActive = embedded || (visitedTabs?.has("supplier-payment") ?? true);
   const queryClient = useQueryClient();
   const { isAdmin } = useUserRoles();
   const { user } = useAuth();
@@ -143,7 +146,7 @@ export function SupplierPaymentTab({
         })) || [];
       return { suppliers, balanceSnapshotDegraded: degraded };
     },
-    enabled: !!organizationId,
+    enabled: !!organizationId && tabActive,
   });
   const suppliersWithBalance = suppliersWithBalanceResult?.suppliers;
   const balanceSnapshotDegraded = suppliersWithBalanceResult?.balanceSnapshotDegraded ?? false;
@@ -159,7 +162,7 @@ export function SupplierPaymentTab({
         return EMPTY_SUPPLIER_SNAPSHOT(referenceId);
       }
     },
-    enabled: !!referenceId && !!organizationId,
+    enabled: !!referenceId && !!organizationId && tabActive,
   });
 
   const lifetimePayable = supplierSnapshot?.balance ?? 0;
@@ -229,7 +232,7 @@ export function SupplierPaymentTab({
         voucherPaidByBill,
       };
     },
-    enabled: !!referenceId && !!organizationId,
+    enabled: !!referenceId && !!organizationId && tabActive,
   });
 
   const supplierBills = supplierBillsData?.bills;
@@ -252,7 +255,7 @@ export function SupplierPaymentTab({
       if (error) throw error;
       return (data || []).reduce((sum: number, row: any) => sum + Number(row.net_amount || 0), 0);
     },
-    enabled: !!organizationId && !!referenceId,
+    enabled: !!organizationId && !!referenceId && tabActive,
   });
 
   // Credit available to FIFO-allocate against bills = genuinely unapplied CN vouchers

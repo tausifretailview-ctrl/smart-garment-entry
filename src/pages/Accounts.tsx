@@ -268,6 +268,9 @@ export default function Accounts() {
   const urlTab = searchParams.get("tab");
   const urlCustomerId = searchParams.get("customer");
   const [selectedTab, setSelectedTab] = useState(urlTab || "customer-ledger");
+  const [visitedTabs, setVisitedTabs] = useState<Set<string>>(
+    () => new Set([urlTab || "customer-ledger"]),
+  );
   const [migrationExpanded, setMigrationExpanded] = useState(false);
   const [periodLockExpanded, setPeriodLockExpanded] = useState(false);
   const [managementSectionExpanded, setManagementSectionExpanded] = useState(false);
@@ -275,6 +278,7 @@ export default function Accounts() {
   const handleAccountsTabChange = useCallback(
     (tab: string) => {
       setSelectedTab(tab);
+      setVisitedTabs((prev) => new Set([...prev, tab]));
       setSearchParams(
         (prev) => {
           const next = new URLSearchParams(prev);
@@ -290,6 +294,7 @@ export default function Accounts() {
   useEffect(() => {
     const tab = urlTab || "customer-ledger";
     if (tab !== selectedTab) setSelectedTab(tab);
+    setVisitedTabs((prev) => (prev.has(tab) ? prev : new Set([...prev, tab])));
   }, [urlTab, selectedTab]);
 
   useDashboardFilterPersistence(
@@ -693,14 +698,15 @@ export default function Accounts() {
     }
   };
 
-  const outstandingTabActive = selectedTab === "outstanding";
-
-  const needsSales = selectedTab === "customer-payment" || selectedTab === "customer-ledger" || outstandingTabActive;
+  const needsSales =
+    visitedTabs.has("customer-payment") ||
+    visitedTabs.has("customer-ledger") ||
+    visitedTabs.has("outstanding");
   const needsCustomers =
-    selectedTab === "customer-payment" ||
-    selectedTab === "reconciliation" ||
-    selectedTab === "customer-ledger" ||
-    outstandingTabActive;
+    visitedTabs.has("customer-payment") ||
+    visitedTabs.has("reconciliation") ||
+    visitedTabs.has("customer-ledger") ||
+    visitedTabs.has("outstanding");
 
   const {
     data: totalSupplierPayable = 0,
@@ -712,7 +718,7 @@ export default function Accounts() {
       const { balanceMap } = await loadSupplierBalanceMapForOrg(supabase, currentOrganization!.id);
       return sumOrgSupplierPayableFromSnapshots(balanceMap);
     },
-    enabled: !!currentOrganization?.id && outstandingTabActive,
+    enabled: !!currentOrganization?.id && visitedTabs.has("outstanding"),
     staleTime: 2 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
     refetchOnWindowFocus: false,
@@ -725,7 +731,8 @@ export default function Accounts() {
   });
 
   // Fetch suppliers only when supplier tab is active
-  const needsSuppliers = selectedTab === "supplier-payment" || selectedTab === "supplier-ledger";
+  const needsSuppliers =
+    visitedTabs.has("supplier-payment") || visitedTabs.has("supplier-ledger");
   const { data: suppliers } = useQuery({
     queryKey: ["suppliers", currentOrganization?.id],
     queryFn: async () => fetchAllSuppliers(currentOrganization!.id),
@@ -736,7 +743,12 @@ export default function Accounts() {
   });
 
   // Fetch vouchers only when tabs that need them are active
-  const needsVouchers = selectedTab === "customer-payment" || selectedTab === "supplier-payment" || selectedTab === "employee-salary" || selectedTab === "expenses" || selectedTab === "voucher-entry";
+  const needsVouchers =
+    visitedTabs.has("customer-payment") ||
+    visitedTabs.has("supplier-payment") ||
+    visitedTabs.has("employee-salary") ||
+    visitedTabs.has("expenses") ||
+    visitedTabs.has("voucher-entry");
   const { data: vouchers } = useQuery({
     queryKey: ["voucher-entries", currentOrganization?.id],
     queryFn: async () => {
@@ -1057,25 +1069,25 @@ export default function Accounts() {
                 />
               </div>
               <div className={cn(selectedTab !== "supplier-ledger" && "hidden")} aria-hidden={selectedTab !== "supplier-ledger"}>
-                <SupplierLedger organizationId={currentOrganization.id} />
+                <SupplierLedger organizationId={currentOrganization.id} visitedTabs={visitedTabs} />
               </div>
               <div className={cn(selectedTab !== "outstanding" && "hidden")} aria-hidden={selectedTab !== "outstanding"}>
                 {outstandingHeadlineCards}
                 <div id="accounts-outstanding-detail">
-                  <OutstandingDashboardTab organizationId={currentOrganization.id} />
+                  <OutstandingDashboardTab organizationId={currentOrganization.id} visitedTabs={visitedTabs} />
                 </div>
               </div>
               <div className={cn(selectedTab !== "customer-payment" && "hidden")} aria-hidden={selectedTab !== "customer-payment"}>
-                <CustomerPaymentTab organizationId={currentOrganization.id} vouchers={vouchers} sales={sales} customers={customers} settings={settings} onShowReceipt={paymentDialogs.handleShowReceipt} onShowAdvanceDialog={() => setShowAdvanceDialog(true)} onEditPayment={paymentDialogs.openEditPaymentDialog} />
+                <CustomerPaymentTab organizationId={currentOrganization.id} vouchers={vouchers} sales={sales} customers={customers} settings={settings} onShowReceipt={paymentDialogs.handleShowReceipt} onShowAdvanceDialog={() => setShowAdvanceDialog(true)} onEditPayment={paymentDialogs.openEditPaymentDialog} visitedTabs={visitedTabs} />
               </div>
               <div className={cn(selectedTab !== "supplier-payment" && "hidden")} aria-hidden={selectedTab !== "supplier-payment"}>
-                <SupplierPaymentTab organizationId={currentOrganization.id} vouchers={vouchers} suppliers={suppliers} onEditPayment={paymentDialogs.openEditPaymentDialog} />
+                <SupplierPaymentTab organizationId={currentOrganization.id} vouchers={vouchers} suppliers={suppliers} onEditPayment={paymentDialogs.openEditPaymentDialog} visitedTabs={visitedTabs} />
               </div>
               <div className={cn(selectedTab !== "employee-salary" && "hidden")} aria-hidden={selectedTab !== "employee-salary"}>
-                <EmployeeSalaryTab organizationId={currentOrganization.id} vouchers={vouchers} />
+                <EmployeeSalaryTab organizationId={currentOrganization.id} vouchers={vouchers} visitedTabs={visitedTabs} />
               </div>
               <div className={cn(selectedTab !== "expenses" && "hidden")} aria-hidden={selectedTab !== "expenses"}>
-                <ExpensesTab organizationId={currentOrganization.id} vouchers={vouchers} />
+                <ExpensesTab organizationId={currentOrganization.id} vouchers={vouchers} visitedTabs={visitedTabs} />
               </div>
             </>
           )}
@@ -1094,10 +1106,10 @@ export default function Accounts() {
                   </TabsTrigger>
                 </TabsList>
                 <TabsContent value="payments" forceMount className="mt-0 space-y-0 outline-none data-[state=inactive]:hidden">
-                  <ReconciliationTab organizationId={currentOrganization.id} customers={customers} />
+                  <ReconciliationTab organizationId={currentOrganization.id} customers={customers} visitedTabs={visitedTabs} />
                 </TabsContent>
                 <TabsContent value="bank-gl" forceMount className="mt-0 outline-none data-[state=inactive]:hidden">
-                  <BankReconciliationTab organizationId={currentOrganization.id} />
+                  <BankReconciliationTab organizationId={currentOrganization.id} visitedTabs={visitedTabs} />
                 </TabsContent>
               </Tabs>
             </div>
@@ -1189,14 +1201,14 @@ export default function Accounts() {
         </TabsContent>
 
         <TabsContent value="supplier-ledger" forceMount className={STICKY_TAB_CONTENT_CLASS}>
-          {currentOrganization?.id && <SupplierLedger organizationId={currentOrganization.id} />}
+          {currentOrganization?.id && <SupplierLedger organizationId={currentOrganization.id} visitedTabs={visitedTabs} />}
         </TabsContent>
 
         <TabsContent value="outstanding" forceMount className={STICKY_TAB_CONTENT_CLASS}>
           {outstandingHeadlineCards}
           {currentOrganization?.id && (
             <div id="accounts-outstanding-detail">
-              <OutstandingDashboardTab organizationId={currentOrganization.id} />
+              <OutstandingDashboardTab organizationId={currentOrganization.id} visitedTabs={visitedTabs} />
             </div>
           )}
         </TabsContent>
@@ -1212,22 +1224,23 @@ export default function Accounts() {
               onShowReceipt={paymentDialogs.handleShowReceipt}
               onShowAdvanceDialog={() => setShowAdvanceDialog(true)}
               onEditPayment={paymentDialogs.openEditPaymentDialog}
+              visitedTabs={visitedTabs}
             />
           )}
         </TabsContent>
 
         <TabsContent value="supplier-payment" forceMount className={STICKY_TAB_CONTENT_CLASS}>
           {currentOrganization?.id && (
-            <SupplierPaymentTab organizationId={currentOrganization.id} vouchers={vouchers} suppliers={suppliers} onEditPayment={paymentDialogs.openEditPaymentDialog} />
+            <SupplierPaymentTab organizationId={currentOrganization.id} vouchers={vouchers} suppliers={suppliers} onEditPayment={paymentDialogs.openEditPaymentDialog} visitedTabs={visitedTabs} />
           )}
         </TabsContent>
 
         <TabsContent value="employee-salary" forceMount className={STICKY_TAB_CONTENT_CLASS}>
-          {currentOrganization?.id && <EmployeeSalaryTab organizationId={currentOrganization.id} vouchers={vouchers} />}
+          {currentOrganization?.id && <EmployeeSalaryTab organizationId={currentOrganization.id} vouchers={vouchers} visitedTabs={visitedTabs} />}
         </TabsContent>
 
         <TabsContent value="expenses" forceMount className={STICKY_TAB_CONTENT_CLASS}>
-          {currentOrganization?.id && <ExpensesTab organizationId={currentOrganization.id} vouchers={vouchers} />}
+          {currentOrganization?.id && <ExpensesTab organizationId={currentOrganization.id} vouchers={vouchers} visitedTabs={visitedTabs} />}
         </TabsContent>
 
         <TabsContent value="voucher-entry" forceMount className={STICKY_TAB_CONTENT_CLASS}>
@@ -1246,10 +1259,10 @@ export default function Accounts() {
                 </TabsTrigger>
               </TabsList>
               <TabsContent value="payments" forceMount className="mt-0 space-y-0 outline-none data-[state=inactive]:hidden">
-                <ReconciliationTab organizationId={currentOrganization.id} customers={customers} />
+                <ReconciliationTab organizationId={currentOrganization.id} customers={customers} visitedTabs={visitedTabs} />
               </TabsContent>
               <TabsContent value="bank-gl" forceMount className="mt-0 outline-none data-[state=inactive]:hidden">
-                <BankReconciliationTab organizationId={currentOrganization.id} />
+                <BankReconciliationTab organizationId={currentOrganization.id} visitedTabs={visitedTabs} />
               </TabsContent>
             </Tabs>
           )}
@@ -1268,7 +1281,7 @@ export default function Accounts() {
                 </Button>
               </CardContent>
             </Card>
-            <RecentBalanceAdjustments organizationId={currentOrganization?.id || ""} />
+            <RecentBalanceAdjustments organizationId={currentOrganization?.id || ""} visitedTabs={visitedTabs} />
           </TabsContent>
         )}
         {accountsManagementFooter}

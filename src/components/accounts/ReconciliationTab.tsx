@@ -21,6 +21,7 @@ import * as XLSX from "xlsx";
 interface ReconciliationTabProps {
   organizationId: string;
   customers: any[] | undefined;
+  visitedTabs?: ReadonlySet<string>;
 }
 
 const RECON_LOOKUP_BATCH = 200;
@@ -67,7 +68,8 @@ async function fetchCustomersMapForReconciliation(
   return map;
 }
 
-export function ReconciliationTab({ organizationId, customers }: ReconciliationTabProps) {
+export function ReconciliationTab({ organizationId, customers, visitedTabs }: ReconciliationTabProps) {
+  const tabActive = visitedTabs?.has("reconciliation") ?? true;
   const queryClient = useQueryClient();
   const { isAdmin } = useUserRoles();
 
@@ -141,7 +143,7 @@ export function ReconciliationTab({ organizationId, customers }: ReconciliationT
 
       return enhanced;
     },
-    enabled: !!organizationId,
+    enabled: !!organizationId && tabActive,
   });
 
   // Delete receipt mutation

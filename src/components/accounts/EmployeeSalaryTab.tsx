@@ -41,9 +41,16 @@ interface EmployeeSalaryTabProps {
   organizationId: string;
   vouchers: any[] | undefined;
   embedded?: boolean;
+  visitedTabs?: ReadonlySet<string>;
 }
 
-export function EmployeeSalaryTab({ organizationId, vouchers, embedded = false }: EmployeeSalaryTabProps) {
+export function EmployeeSalaryTab({
+  organizationId,
+  vouchers,
+  embedded = false,
+  visitedTabs,
+}: EmployeeSalaryTabProps) {
+  const tabActive = embedded || (visitedTabs?.has("employee-salary") ?? true);
   const queryClient = useQueryClient();
   const formatEntryDateTime = (value: string | null | undefined) => {
     if (!value) return "-";
@@ -70,7 +77,7 @@ export function EmployeeSalaryTab({ organizationId, vouchers, embedded = false }
       if (error) throw error;
       return data;
     },
-    enabled: !!organizationId,
+    enabled: !!organizationId && tabActive,
   });
 
   const createSalaryVoucher = useMutation({
