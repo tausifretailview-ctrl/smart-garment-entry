@@ -20,6 +20,12 @@ function escapeIlike(term: string) {
   return term.replace(/[%_\\]/g, "\\$&");
 }
 
+/** Barcode / scanner input — skip for plain text like "FANCY" to avoid wasted round-trips. */
+function looksLikeBarcode(term: string): boolean {
+  const t = term.trim();
+  return t.length >= 4 && /\d/.test(t) && /^[a-zA-Z0-9-]+$/.test(t);
+}
+
 /** Same AND logic as Quick Stock — split on spaces and hyphens. */
 function matchesProductSearch(query: string, ...fields: (string | number | null | undefined)[]): boolean {
   const tokens = query.trim().toLowerCase().split(/[\s-]+/).filter(Boolean);
@@ -116,12 +122,13 @@ async function fetchProductMeta(
   productIds: string[],
 ): Promise<Record<string, { brand: string; category: string }>> {
   if (productIds.length === 0) return {};
+  const unique = [...new Set(productIds)];
   const { data, error } = await supabase
     .from("products")
     .select("id, brand, category")
     .eq("organization_id", organizationId)
     .is("deleted_at", null)
-    .in("id", productIds);
+    .in("id", unique.slice(0, 100));
   if (error) throw error;
   const map: Record<string, { brand: string; category: string }> = {};
   (data ?? []).forEach((row) => {
@@ -161,14 +168,15 @@ async function lookupExactBarcodeSales(
   organizationId: string,
   barcode: string,
 ): Promise<BarcodeSaleRecord[]> {
-  let rows = await fetchSaleItemsForOrg(organizationId, (q) => q.eq("barcode", barcode));
+  const [exactRows, fuzzyRows] = await Promise.all([
+    fetchSaleItemsForOrg(organizationId, (q) => q.eq("barcode", barcode)),
+    fetchSaleItemsForOrg(organizationId, (q) => {
+      const escaped = escapeIlike(barcode);
+      return q.ilike("barcode", `${escaped}%`);
+    }),
+  ]);
 
-  if (rows.length === 0) {
-    const escaped = escapeIlike(barcode);
-    rows = await fetchSaleItemsForOrg(organizationId, (q) =>
-      q.ilike("barcode", `%${escaped}%`),
-    );
-  }
+  let rows = mergeSaleItemRows(exactRows, fuzzyRows);
 
   if (rows.length === 0) {
     const { data: variants, error: variantErr } = await supabase
@@ -197,84 +205,75 @@ async function lookupProductDetailSales(
   query: string,
 ): Promise<BarcodeSaleRecord[]> {
   const term = query.trim();
-  const tokens = term.toLowerCase().split(/[\s-]+/).filter(Boolean);
-  let rows: any[] = [];
-
-  const addRows = (incoming: any[]) => {
-    rows = mergeSaleItemRows(rows, incoming);
-  };
-
   const escapedFull = escapeIlike(term);
-  addRows(
-    await fetchSaleItemsForOrg(
+
+  // Wave 1 — resolve products/variants and a direct line-item probe in parallel.
+  const [productsRes, variantsRes, directSaleItems] = await Promise.all([
+    supabase
+      .from("products")
+      .select("id")
+      .eq("organization_id", organizationId)
+      .is("deleted_at", null)
+      .or(
+        `product_name.ilike.%${escapedFull}%,brand.ilike.%${escapedFull}%,category.ilike.%${escapedFull}%`,
+      )
+      .limit(50),
+    supabase
+      .from("product_variants")
+      .select("id, product_id")
+      .eq("organization_id", organizationId)
+      .is("deleted_at", null)
+      .or(`barcode.ilike.%${escapedFull}%,size.ilike.%${escapedFull}%,color.ilike.%${escapedFull}%`)
+      .limit(100),
+    fetchSaleItemsForOrg(
       organizationId,
       (q) =>
         q.or(
           `product_name.ilike.%${escapedFull}%,barcode.ilike.%${escapedFull}%,size.ilike.%${escapedFull}%,color.ilike.%${escapedFull}%`,
         ),
-      250,
+      200,
     ),
-  );
+  ]);
 
-  const { data: products } = await supabase
-    .from("products")
-    .select("id")
-    .eq("organization_id", organizationId)
-    .is("deleted_at", null)
-    .or(
-      `product_name.ilike.%${escapedFull}%,brand.ilike.%${escapedFull}%,category.ilike.%${escapedFull}%`,
-    )
-    .limit(50);
-  const productIds = (products ?? []).map((p) => p.id);
+  if (productsRes.error) throw productsRes.error;
+  if (variantsRes.error) throw variantsRes.error;
+
+  const productIds = [
+    ...new Set([
+      ...(productsRes.data ?? []).map((p) => p.id),
+      ...(variantsRes.data ?? [])
+        .map((v) => v.product_id)
+        .filter((id): id is string => !!id),
+    ]),
+  ];
+  const variantIds = (variantsRes.data ?? []).map((v) => v.id);
+
+  // Wave 2 — fetch sale lines for matched products/variants in parallel (no per-token DB loop).
+  const wave2: Promise<any[]>[] = [];
   if (productIds.length > 0) {
-    addRows(
-      await fetchSaleItemsForOrg(organizationId, (q) => q.in("product_id", productIds), 250),
-    );
-  }
-
-  const { data: variants } = await supabase
-    .from("product_variants")
-    .select("id, product_id")
-    .eq("organization_id", organizationId)
-    .is("deleted_at", null)
-    .or(`barcode.ilike.%${escapedFull}%,size.ilike.%${escapedFull}%,color.ilike.%${escapedFull}%`)
-    .limit(100);
-  const variantIds = (variants ?? []).map((v) => v.id);
-  if (variantIds.length > 0) {
-    addRows(
-      await fetchSaleItemsForOrg(organizationId, (q) => q.in("variant_id", variantIds), 250),
-    );
-  }
-
-  for (const token of tokens) {
-    const escaped = escapeIlike(token);
-    addRows(
-      await fetchSaleItemsForOrg(
+    wave2.push(
+      fetchSaleItemsForOrg(
         organizationId,
-        (q) =>
-          q.or(
-            `product_name.ilike.%${escaped}%,barcode.ilike.%${escaped}%,size.ilike.%${escaped}%,color.ilike.%${escaped}%`,
-          ),
-        150,
+        (q) => q.in("product_id", productIds.slice(0, 50)),
+        250,
       ),
     );
+  }
+  if (variantIds.length > 0) {
+    wave2.push(
+      fetchSaleItemsForOrg(
+        organizationId,
+        (q) => q.in("variant_id", variantIds.slice(0, 100)),
+        250,
+      ),
+    );
+  }
 
-    const { data: tokenProducts } = await supabase
-      .from("products")
-      .select("id")
-      .eq("organization_id", organizationId)
-      .is("deleted_at", null)
-      .or(`product_name.ilike.%${escaped}%,brand.ilike.%${escaped}%,category.ilike.%${escaped}%`)
-      .limit(30);
-    const tokenProductIds = (tokenProducts ?? []).map((p) => p.id);
-    if (tokenProductIds.length > 0) {
-      addRows(
-        await fetchSaleItemsForOrg(
-          organizationId,
-          (q) => q.in("product_id", tokenProductIds),
-          150,
-        ),
-      );
+  let rows = directSaleItems;
+  if (wave2.length > 0) {
+    const batches = await Promise.all(wave2);
+    for (const batch of batches) {
+      rows = mergeSaleItemRows(rows, batch);
     }
   }
 
@@ -295,11 +294,8 @@ export async function lookupBarcodeSales(
   const term = searchQuery.trim();
   if (!term || !organizationId) return [];
 
-  const tokens = term.toLowerCase().split(/[\s-]+/).filter(Boolean);
-  const isSingleToken = tokens.length === 1;
-
-  if (isSingleToken) {
-    const exact = await lookupExactBarcodeSales(organizationId, tokens[0]);
+  if (looksLikeBarcode(term)) {
+    const exact = await lookupExactBarcodeSales(organizationId, term);
     if (exact.length > 0) return exact;
   }
 

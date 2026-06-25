@@ -833,19 +833,22 @@ export function FloatingSaleReport({ open, onOpenChange }: { open: boolean; onOp
 
   useEffect(() => {
     if (!open) return;
-    const t = setTimeout(() => setDebouncedQuery(searchQuery.trim()), 300);
+    const t = setTimeout(() => setDebouncedQuery(searchQuery.trim()), 400);
     return () => clearTimeout(t);
   }, [searchQuery, open]);
 
   const flushSearch = () => setDebouncedQuery(searchQuery.trim());
 
-  const { data: saleRows = [], isFetching, error, refetch } = useQuery({
+  const { data: saleRows = [], isPending, error, refetch } = useQuery({
     queryKey: ["floating-barcode-sale-report", currentOrganization?.id, debouncedQuery],
     queryFn: () => lookupBarcodeSales(currentOrganization!.id, debouncedQuery),
     enabled: !!currentOrganization?.id && open && debouncedQuery.length > 0,
     staleTime: STALE_LIVE,
     refetchOnWindowFocus: false,
   });
+
+  const isDebouncing = debouncedQuery !== searchQuery.trim();
+  const showLoading = isDebouncing || (isPending && saleRows.length === 0);
 
   const totalQty = saleRows.reduce((sum, row) => sum + row.quantity, 0);
   const totalAmount = saleRows.reduce((sum, row) => sum + row.lineTotal, 0);
@@ -897,7 +900,7 @@ export function FloatingSaleReport({ open, onOpenChange }: { open: boolean; onOp
           <div className="text-center py-8 text-muted-foreground">
             Start typing to search sale history...
           </div>
-        ) : debouncedQuery !== searchQuery.trim() || isFetching ? (
+        ) : showLoading ? (
           <div className="text-center py-8 text-muted-foreground">Loading sales...</div>
         ) : error ? (
           <div className="text-center py-8 text-destructive">
