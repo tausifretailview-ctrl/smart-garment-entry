@@ -238,19 +238,26 @@ export const useWhatsAppAPI = () => {
     mutationFn: async (instanceId: string) => {
       if (!currentOrganization?.id) throw new Error('No organization selected');
 
+      const trimmed = instanceId.trim();
       const { error } = await supabase.rpc('upsert_wappconnect_instance_secret', {
         p_organization_id: currentOrganization.id,
-        p_instance_id: instanceId.trim(),
+        p_instance_id: trimmed,
       });
 
       if (error) throw error;
+      return trimmed.length > 0 ? ('saved' as const) : ('cleared' as const);
     },
-    onSuccess: () => {
+    onSuccess: (action) => {
       queryClient.invalidateQueries({ queryKey: ['wappconnect-instance-masked'] });
+      if (action === 'cleared') {
+        toast.success('WappConnect instance id cleared');
+      } else {
+        toast.success('WappConnect instance id updated');
+      }
     },
     onError: (error) => {
       console.error('Error saving WappConnect instance id:', error);
-      toast.error('Failed to save WappConnect instance id');
+      toast.error('Failed to update WappConnect instance id');
     },
   });
 
@@ -692,6 +699,7 @@ export const useWhatsAppAPI = () => {
     refetchLastSendStatus,
     saveWappConnectInstance: saveWappConnectInstanceMutation.mutate,
     saveWappConnectInstanceAsync: saveWappConnectInstanceMutation.mutateAsync,
+    clearWappConnectInstanceAsync: () => saveWappConnectInstanceMutation.mutateAsync(''),
     isSavingWappConnectInstance: saveWappConnectInstanceMutation.isPending,
     updateSettings: updateSettingsMutation.mutate,
     updateSettingsAsync: updateSettingsMutation.mutateAsync,

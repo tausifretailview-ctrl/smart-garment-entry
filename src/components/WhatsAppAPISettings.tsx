@@ -52,7 +52,18 @@ import {
     Star,
     FileText,
     RefreshCw,
+    Trash2,
   } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import {
@@ -90,6 +101,7 @@ export const WhatsAppAPISettings = () => {
     refetchLastSendStatus,
     fetchMessageLogs,
     saveWappConnectInstanceAsync,
+    clearWappConnectInstanceAsync,
     isSavingWappConnectInstance,
     testConnection,
     isTesting,
@@ -166,6 +178,7 @@ export const WhatsAppAPISettings = () => {
 
   const [showToken, setShowToken] = useState(false);
   const [showWappConnectInstanceId, setShowWappConnectInstanceId] = useState(false);
+  const [showClearInstanceDialog, setShowClearInstanceDialog] = useState(false);
   const [testPhone, setTestPhone] = useState("");
   const [openTemplateSection, setOpenTemplateSection] = useState<string | null>(null);
 
@@ -507,7 +520,22 @@ export const WhatsAppAPISettings = () => {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="wappconnect_instance_id">Instance id</Label>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <Label htmlFor="wappconnect_instance_id">Instance id</Label>
+                  {maskedWappConnectInstanceId && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-8 text-destructive hover:text-destructive"
+                      disabled={isSavingWappConnectInstance}
+                      onClick={() => setShowClearInstanceDialog(true)}
+                    >
+                      <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+                      Clear saved id
+                    </Button>
+                  )}
+                </div>
                 {maskedWappConnectInstanceId && (
                   <p className="text-xs text-muted-foreground font-mono">
                     Saved: {maskedWappConnectInstanceId}
@@ -545,6 +573,8 @@ export const WhatsAppAPISettings = () => {
                 </div>
                 <p className="text-xs text-muted-foreground">
                   Stored server-side only — the full value is never shown again after save.
+                  Paste a new id and click <strong>Save Settings</strong> to replace, or use{" "}
+                  <strong>Clear saved id</strong> to remove it before connecting a new instance.
                 </p>
               </div>
 
@@ -1813,6 +1843,35 @@ export const WhatsAppAPISettings = () => {
           )}
         </Button>
       </div>
+
+      <AlertDialog open={showClearInstanceDialog} onOpenChange={setShowClearInstanceDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Clear WappConnect instance id?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This removes the saved instance id for this shop. WhatsApp sends via WappConnect will fail
+              until you paste and save a new instance id from the WappConnect dashboard.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={async () => {
+                setShowClearInstanceDialog(false);
+                try {
+                  await clearWappConnectInstanceAsync();
+                  setFormData((prev) => ({ ...prev, wappconnect_instance_id: "" }));
+                } catch {
+                  /* toast handled in hook */
+                }
+              }}
+            >
+              Clear instance id
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
