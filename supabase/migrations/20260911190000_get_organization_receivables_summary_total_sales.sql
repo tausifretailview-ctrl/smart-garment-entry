@@ -1,4 +1,6 @@
 -- Add total_sales to org receivables summary for Customer Ledger KPI cards (fast mount).
+DROP FUNCTION IF EXISTS public.get_organization_receivables_summary(uuid);
+
 CREATE OR REPLACE FUNCTION public.get_organization_receivables_summary(p_organization_id uuid)
  RETURNS TABLE(
    customer_count integer,
