@@ -404,6 +404,8 @@ export async function loadSupplierBalanceMapForOrg(
   }
 }
 
+export type SupplierBalanceMapForOrg = Awaited<ReturnType<typeof loadSupplierBalanceMapForOrg>>;
+
 /** One supplier (e.g. payment form header). */
 export async function fetchSupplierBalanceSnapshot(
   client: SupabaseClient,

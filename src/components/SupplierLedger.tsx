@@ -18,7 +18,7 @@ import { accountsHistoryTableClass, accountsHistoryTableWrapClass, accountsHisto
 import { safeMapGet } from "@/lib/coerceToMap";
 import {
   fetchSupplierBalanceSnapshot,
-  loadSupplierBalanceMapForOrg,
+  type SupplierBalanceMapForOrg,
 } from "@/utils/supplierBalanceUtils";
 import { fetchAllSuppliers } from "@/utils/fetchAllRows";
 import { voucherSettlementCredit } from "@/utils/paymentSettlementBreakdown";
@@ -37,6 +37,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 interface SupplierLedgerProps {
   organizationId: string;
   visitedTabs?: ReadonlySet<string>;
+  supplierBalanceMap?: SupplierBalanceMapForOrg;
 }
 
 interface Supplier {
@@ -67,7 +68,7 @@ interface Transaction {
   category?: Exclude<LedgerTab, 'all'>;
 }
 
-export function SupplierLedger({ organizationId, visitedTabs }: SupplierLedgerProps) {
+export function SupplierLedger({ organizationId, visitedTabs, supplierBalanceMap }: SupplierLedgerProps) {
   const tabActive = visitedTabs?.has("supplier-ledger") ?? true;
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
@@ -108,37 +109,36 @@ export function SupplierLedger({ organizationId, visitedTabs }: SupplierLedgerPr
     },
   );
 
-  // Suppliers list + balances: keep list loading even if balance aggregation fails (RLS / schema).
-  const { data: ledgerData, isLoading } = useQuery({
+  // Suppliers list (balances from shared org-level map in Accounts.tsx).
+  const { data: suppliersData, isLoading: suppliersLoading } = useQuery({
     queryKey: ["supplier-ledger", organizationId],
-    queryFn: async () => {
-      const suppliersData = await fetchAllSuppliers(organizationId);
-
-      let balanceSnapshotError: string | null = null;
-      const { balanceMap, degraded } = await loadSupplierBalanceMapForOrg(supabase, organizationId);
-      if (degraded) {
-        balanceSnapshotError = "Could not compute balances from bills and vouchers.";
-      }
-
-      const suppliers = (suppliersData || []).map((supplier: any) => {
-        const snap = safeMapGet(balanceMap, supplier.id);
-        const openingBalance = snap?.openingBalance ?? (Number(supplier.opening_balance) || 0);
-        return {
-          ...supplier,
-          opening_balance: openingBalance,
-          totalPurchases: snap?.totalPurchases ?? 0,
-          totalPaid: snap?.totalPaid ?? 0,
-          totalCreditNotes: (snap?.totalCreditNotesNet ?? 0) + (snap?.unreflectedReturns ?? 0),
-          balance: snap?.balance ?? openingBalance,
-        };
-      });
-
-      return { suppliers, balanceSnapshotError };
-    },
+    queryFn: () => fetchAllSuppliers(organizationId),
     enabled: !!organizationId && tabActive,
   });
 
-  const suppliers = ledgerData?.suppliers;
+  const balanceSnapshotError = supplierBalanceMap?.degraded
+    ? "Could not compute balances from bills and vouchers."
+    : null;
+
+  const suppliers = useMemo(() => {
+    if (!suppliersData) return undefined;
+    const balanceMap = supplierBalanceMap?.balanceMap;
+    return (suppliersData || []).map((supplier: any) => {
+      const snap = balanceMap ? safeMapGet(balanceMap, supplier.id) : undefined;
+      const openingBalance = snap?.openingBalance ?? (Number(supplier.opening_balance) || 0);
+      return {
+        ...supplier,
+        opening_balance: openingBalance,
+        totalPurchases: snap?.totalPurchases ?? 0,
+        totalPaid: snap?.totalPaid ?? 0,
+        totalCreditNotes: (snap?.totalCreditNotesNet ?? 0) + (snap?.unreflectedReturns ?? 0),
+        balance: snap?.balance ?? openingBalance,
+      };
+    });
+  }, [suppliersData, supplierBalanceMap]);
+
+  const isLoading =
+    suppliersLoading || (!!organizationId && tabActive && supplierBalanceMap === undefined);
 
   useEffect(() => {
     const idToSelect = pendingRestoredSupplierIdRef.current;
@@ -149,7 +149,6 @@ export function SupplierLedger({ organizationId, visitedTabs }: SupplierLedgerPr
       pendingRestoredSupplierIdRef.current = null;
     }
   }, [suppliers, selectedSupplier]);
-  const balanceSnapshotError = ledgerData?.balanceSnapshotError ?? null;
 
   const { data: selectedSupplierSnapshot } = useQuery({
     queryKey: ["supplier-balance-snapshot", organizationId, selectedSupplier?.id],

@@ -708,6 +708,18 @@ export default function Accounts() {
     visitedTabs.has("customer-ledger") ||
     visitedTabs.has("outstanding");
 
+  const needsSupplierBalanceMap =
+    visitedTabs.has("supplier-ledger") || visitedTabs.has("supplier-payment");
+
+  const { data: supplierBalanceMapData } = useQuery({
+    queryKey: ["supplier-balance-map", currentOrganization?.id],
+    queryFn: () => loadSupplierBalanceMapForOrg(supabase, currentOrganization!.id),
+    enabled: !!currentOrganization?.id && needsSupplierBalanceMap,
+    staleTime: 2 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  });
+
   const {
     data: totalSupplierPayable = 0,
     isLoading: supplierPayableLoading,
@@ -1069,7 +1081,11 @@ export default function Accounts() {
                 />
               </div>
               <div className={cn(selectedTab !== "supplier-ledger" && "hidden")} aria-hidden={selectedTab !== "supplier-ledger"}>
-                <SupplierLedger organizationId={currentOrganization.id} visitedTabs={visitedTabs} />
+                <SupplierLedger
+                  organizationId={currentOrganization.id}
+                  visitedTabs={visitedTabs}
+                  supplierBalanceMap={supplierBalanceMapData}
+                />
               </div>
               <div className={cn(selectedTab !== "outstanding" && "hidden")} aria-hidden={selectedTab !== "outstanding"}>
                 {outstandingHeadlineCards}
@@ -1081,7 +1097,7 @@ export default function Accounts() {
                 <CustomerPaymentTab organizationId={currentOrganization.id} vouchers={vouchers} sales={sales} customers={customers} settings={settings} onShowReceipt={paymentDialogs.handleShowReceipt} onShowAdvanceDialog={() => setShowAdvanceDialog(true)} onEditPayment={paymentDialogs.openEditPaymentDialog} visitedTabs={visitedTabs} />
               </div>
               <div className={cn(selectedTab !== "supplier-payment" && "hidden")} aria-hidden={selectedTab !== "supplier-payment"}>
-                <SupplierPaymentTab organizationId={currentOrganization.id} vouchers={vouchers} suppliers={suppliers} onEditPayment={paymentDialogs.openEditPaymentDialog} visitedTabs={visitedTabs} />
+                <SupplierPaymentTab organizationId={currentOrganization.id} vouchers={vouchers} suppliers={suppliers} onEditPayment={paymentDialogs.openEditPaymentDialog} visitedTabs={visitedTabs} supplierBalanceMap={supplierBalanceMapData} />
               </div>
               <div className={cn(selectedTab !== "employee-salary" && "hidden")} aria-hidden={selectedTab !== "employee-salary"}>
                 <EmployeeSalaryTab organizationId={currentOrganization.id} vouchers={vouchers} visitedTabs={visitedTabs} />
@@ -1201,7 +1217,13 @@ export default function Accounts() {
         </TabsContent>
 
         <TabsContent value="supplier-ledger" forceMount className={STICKY_TAB_CONTENT_CLASS}>
-          {currentOrganization?.id && <SupplierLedger organizationId={currentOrganization.id} visitedTabs={visitedTabs} />}
+          {currentOrganization?.id && (
+            <SupplierLedger
+              organizationId={currentOrganization.id}
+              visitedTabs={visitedTabs}
+              supplierBalanceMap={supplierBalanceMapData}
+            />
+          )}
         </TabsContent>
 
         <TabsContent value="outstanding" forceMount className={STICKY_TAB_CONTENT_CLASS}>
@@ -1231,7 +1253,7 @@ export default function Accounts() {
 
         <TabsContent value="supplier-payment" forceMount className={STICKY_TAB_CONTENT_CLASS}>
           {currentOrganization?.id && (
-            <SupplierPaymentTab organizationId={currentOrganization.id} vouchers={vouchers} suppliers={suppliers} onEditPayment={paymentDialogs.openEditPaymentDialog} visitedTabs={visitedTabs} />
+            <SupplierPaymentTab organizationId={currentOrganization.id} vouchers={vouchers} suppliers={suppliers} onEditPayment={paymentDialogs.openEditPaymentDialog} visitedTabs={visitedTabs} supplierBalanceMap={supplierBalanceMapData} />
           )}
         </TabsContent>
 

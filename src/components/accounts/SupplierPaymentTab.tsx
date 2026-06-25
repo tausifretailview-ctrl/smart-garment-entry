@@ -36,6 +36,7 @@ import {
 import {
   fetchSupplierBalanceSnapshot,
   loadSupplierBalanceMapForOrg,
+  type SupplierBalanceMapForOrg,
   type SupplierBalanceSnapshot,
 } from "@/utils/supplierBalanceUtils";
 import {
@@ -83,6 +84,8 @@ interface SupplierPaymentTabProps {
   onEditPayment?: (voucher: any) => void;
   embedded?: boolean;
   visitedTabs?: ReadonlySet<string>;
+  /** Shared org balance map from Accounts.tsx — omit in floating/embedded dialogs. */
+  supplierBalanceMap?: SupplierBalanceMapForOrg;
 }
 
 export function SupplierPaymentTab({
@@ -92,8 +95,10 @@ export function SupplierPaymentTab({
   onEditPayment,
   embedded = false,
   visitedTabs,
+  supplierBalanceMap: supplierBalanceMapFromParent,
 }: SupplierPaymentTabProps) {
   const tabActive = embedded || (visitedTabs?.has("supplier-payment") ?? true);
+  const usesParentBalanceMap = visitedTabs !== undefined;
   const queryClient = useQueryClient();
   const { isAdmin } = useUserRoles();
   const { user } = useAuth();
@@ -127,29 +132,47 @@ export function SupplierPaymentTab({
   const [selectedPaymentIds, setSelectedPaymentIds] = useState<string[]>([]);
   const [paymentSearchTerm, setPaymentSearchTerm] = useState("");
 
-  // Suppliers with balance
-  const { data: suppliersWithBalanceResult } = useQuery({
+  const { data: supplierBalanceMapLocal } = useQuery({
+    queryKey: ["supplier-balance-map", organizationId],
+    queryFn: () => loadSupplierBalanceMapForOrg(supabase, organizationId),
+    enabled: !!organizationId && !usesParentBalanceMap && (embedded || tabActive),
+    staleTime: 2 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  });
+
+  const supplierBalanceMap = usesParentBalanceMap
+    ? supplierBalanceMapFromParent
+    : supplierBalanceMapLocal;
+
+  // Suppliers with balance (picker list — uses shared org balance map).
+  const { data: allSuppliers } = useQuery({
     queryKey: ["suppliers-with-balance", organizationId],
     queryFn: async () => {
-      const { data: allSuppliers, error: suppError } = await supabase
+      const { data, error: suppError } = await supabase
         .from("suppliers")
         .select("*")
         .eq("organization_id", organizationId)
         .is("deleted_at", null)
         .order("supplier_name");
       if (suppError) throw suppError;
-      const { balanceMap, degraded } = await loadSupplierBalanceMapForOrg(supabase, organizationId);
-      const suppliers =
-        allSuppliers?.filter((s: any) => (safeMapGet<SupplierBalanceSnapshot>(balanceMap, s.id)?.balance ?? 0) > 0.01).map((s: any) => ({
-          ...s,
-          outstandingBalance: safeMapGet<SupplierBalanceSnapshot>(balanceMap, s.id)?.balance ?? 0,
-        })) || [];
-      return { suppliers, balanceSnapshotDegraded: degraded };
+      return data || [];
     },
     enabled: !!organizationId && tabActive,
   });
-  const suppliersWithBalance = suppliersWithBalanceResult?.suppliers;
-  const balanceSnapshotDegraded = suppliersWithBalanceResult?.balanceSnapshotDegraded ?? false;
+
+  const suppliersWithBalance = useMemo(() => {
+    if (!allSuppliers || !supplierBalanceMap) return undefined;
+    const { balanceMap } = supplierBalanceMap;
+    return allSuppliers
+      .filter((s: any) => (safeMapGet<SupplierBalanceSnapshot>(balanceMap, s.id)?.balance ?? 0) > 0.01)
+      .map((s: any) => ({
+        ...s,
+        outstandingBalance: safeMapGet<SupplierBalanceSnapshot>(balanceMap, s.id)?.balance ?? 0,
+      }));
+  }, [allSuppliers, supplierBalanceMap]);
+
+  const balanceSnapshotDegraded = supplierBalanceMap?.degraded ?? false;
 
   // Supplier balance snapshot (same source as Supplier Ledger)
   const { data: supplierSnapshot } = useQuery({
@@ -613,6 +636,7 @@ export function SupplierPaymentTab({
       queryClient.invalidateQueries({ queryKey: ["supplier-bills"] });
       queryClient.invalidateQueries({ queryKey: ["supplier-balance"] });
       queryClient.invalidateQueries({ queryKey: ["supplier-balance-snapshot"] });
+      queryClient.invalidateQueries({ queryKey: ["supplier-balance-map"] });
       queryClient.invalidateQueries({ queryKey: ["suppliers-with-balance"] });
       queryClient.invalidateQueries({ queryKey: ["supplier-ledger"] });
       queryClient.invalidateQueries({ queryKey: ["purchase-bills"] });
@@ -693,6 +717,7 @@ export function SupplierPaymentTab({
       toast.success("Payment deleted");
       queryClient.invalidateQueries({ queryKey: ["voucher-entries"] });
       queryClient.invalidateQueries({ queryKey: ["supplier-bills"] });
+      queryClient.invalidateQueries({ queryKey: ["supplier-balance-map"] });
       queryClient.invalidateQueries({ queryKey: ["suppliers-with-balance"] });
       queryClient.invalidateQueries({ queryKey: ["supplier-ledger"] });
       queryClient.invalidateQueries({ queryKey: ["supplier-balance"] });
