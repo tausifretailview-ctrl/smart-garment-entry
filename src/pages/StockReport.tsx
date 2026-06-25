@@ -97,6 +97,45 @@ function buildStockReportRpcSearch(
   return null;
 }
 
+function buildStockReportFilterOptions(payload: {
+  rawProducts: Array<{ id: string; product_name: string; brand: string; category: string; style: string }>;
+  variantRows: Array<{ product_id: string; size: string | null; color: string | null }>;
+  supplierPairs: SupplierPair[];
+}) {
+  const allProducts = payload.rawProducts;
+  const allVariants = payload.variantRows;
+  const batchData = payload.supplierPairs;
+
+  const variantsByProductId: Record<string, { sizes: string[]; colors: string[] }> = {};
+  allVariants.forEach((v) => {
+    if (!v.product_id) return;
+    if (!variantsByProductId[v.product_id]) {
+      variantsByProductId[v.product_id] = { sizes: [], colors: [] };
+    }
+    const entry = variantsByProductId[v.product_id];
+    if (v.size && !entry.sizes.includes(v.size)) entry.sizes.push(v.size);
+    if (v.color && !entry.colors.includes(v.color)) entry.colors.push(v.color);
+  });
+
+  return {
+    brands: [...new Set(allProducts.map((p) => p.brand).filter(Boolean))].sort() as string[],
+    categories: [...new Set(allProducts.map((p) => p.category).filter(Boolean))].sort() as string[],
+    departments: [...new Set(allProducts.map((p) => p.style).filter(Boolean))].sort() as string[],
+    sizes: [...new Set(allVariants.map((v) => v.size).filter(Boolean))].sort() as string[],
+    colors: [...new Set(allVariants.map((v) => v.color).filter(Boolean))].sort() as string[],
+    suppliers: [...new Set(batchData.map((b) => b.supplier_name).filter(Boolean))].sort() as string[],
+    supplierInvoices: [...new Set(batchData.map((b) => b.supplier_invoice_no).filter(Boolean))].sort() as string[],
+    supplierPairs: batchData.map((b) => ({
+      supplier_name: b.supplier_name || null,
+      supplier_invoice_no: b.supplier_invoice_no || null,
+    })),
+    productNames: [...new Set(allProducts.map((p) => p.product_name).filter(Boolean))].sort() as string[],
+    rawProducts: allProducts,
+    variantRows: allVariants,
+    variantsByProductId,
+  };
+}
+
 
 interface SizeWiseRow {
   productKey: string;
@@ -346,72 +385,36 @@ export default function StockReport() {
     ...REPORT_CACHE,
   });
 
-  // Paginated fetch helper to bypass 1000-row PostgREST default
-  // Uses a factory pattern — each page gets a fresh query builder so .range() works correctly
-  const fetchAllPages = async (queryFactory: () => any) => {
-    const PAGE_SIZE = 1000;
-    let all: any[] = [];
-    let from = 0;
-    while (true) {
-      const { data: page } = await queryFactory().range(from, from + PAGE_SIZE - 1);
-      if (!page || page.length === 0) break;
-      all = [...all, ...page];
-      if (page.length < PAGE_SIZE) break;
-      from += PAGE_SIZE;
-    }
-    return all;
-  };
-
-  // Fetch filter options with useQuery for caching
+  // Filter dropdown source — one RPC instead of paginated full-table client scans
   const { data: cachedFilterOptions } = useQuery({
     queryKey: ["stock-report-filter-options", currentOrganization?.id],
     queryFn: async () => {
       if (!currentOrganization?.id) return null;
 
-      // Paginate products, variants, and batch_stock in parallel
-      const [allProducts, allVariants, batchData] = await Promise.all([
-        fetchAllPages(
-          () => supabase.from("products").select("id, product_name, brand, category, style").eq("organization_id", currentOrganization.id).is("deleted_at", null).neq("product_type", "service").order("product_name")
-        ),
-        fetchAllPages(
-          () => supabase.from("product_variants").select("product_id, size, color").eq("organization_id", currentOrganization.id).eq("active", true).is("deleted_at", null)
-        ),
-        fetchAllPages(
-          // Query purchase_bills directly (small table) instead of batch_stock (huge),
-          // since we only need the unique supplier names and invoice numbers for filters.
-          () => supabase.from("purchase_bills").select("supplier_name, supplier_invoice_no").eq("organization_id", currentOrganization.id).is("deleted_at", null)
-        ),
-      ]);
-
-      // Build variants-by-product map for cascading filters
-      const variantsByProductId: Record<string, { sizes: string[]; colors: string[] }> = {};
-      allVariants.forEach((v: any) => {
-        if (!v.product_id) return;
-        if (!variantsByProductId[v.product_id]) {
-          variantsByProductId[v.product_id] = { sizes: [], colors: [] };
+      const { data, error } = await (
+        supabase as unknown as {
+          rpc: (
+            fn: string,
+            args: Record<string, unknown>,
+          ) => ReturnType<typeof supabase.rpc>;
         }
-        const entry = variantsByProductId[v.product_id];
-        if (v.size && !entry.sizes.includes(v.size)) entry.sizes.push(v.size);
-        if (v.color && !entry.colors.includes(v.color)) entry.colors.push(v.color);
+      ).rpc("get_stock_report_filter_options", {
+        p_org_id: currentOrganization.id,
       });
 
-      return {
-        brands: [...new Set(allProducts.map((p: any) => p.brand).filter(Boolean))].sort() as string[],
-        categories: [...new Set(allProducts.map((p: any) => p.category).filter(Boolean))].sort() as string[],
-        departments: [...new Set(allProducts.map((p: any) => p.style).filter(Boolean))].sort() as string[],
-        sizes: [...new Set(allVariants.map((v: any) => v.size).filter(Boolean))].sort() as string[],
-        colors: [...new Set(allVariants.map((v: any) => v.color).filter(Boolean))].sort() as string[],
-        suppliers: [...new Set(batchData.map((b: any) => b.supplier_name).filter(Boolean))].sort() as string[],
-        supplierInvoices: [...new Set(batchData.map((b: any) => b.supplier_invoice_no).filter(Boolean))].sort() as string[],
-        supplierPairs: (batchData || []).map((b: any) => ({
-          supplier_name: b.supplier_name || null,
-          supplier_invoice_no: b.supplier_invoice_no || null,
-        })),
-        productNames: [...new Set(allProducts.map((p: any) => p.product_name).filter(Boolean))].sort() as string[],
-        rawProducts: allProducts as Array<{ id: string; product_name: string; brand: string; category: string; style: string }>,
-        variantRows: allVariants as Array<{ product_id: string; size: string | null; color: string | null }>,
-        variantsByProductId,
-      };
+      if (error) throw error;
+
+      const payload = data as {
+        rawProducts?: Array<{ id: string; product_name: string; brand: string; category: string; style: string }>;
+        variantRows?: Array<{ product_id: string; size: string | null; color: string | null }>;
+        supplierPairs?: SupplierPair[];
+      } | null;
+
+      return buildStockReportFilterOptions({
+        rawProducts: payload?.rawProducts ?? [],
+        variantRows: payload?.variantRows ?? [],
+        supplierPairs: payload?.supplierPairs ?? [],
+      });
     },
     enabled: !!currentOrganization?.id,
     ...REPORT_CACHE,
@@ -525,64 +528,6 @@ export default function StockReport() {
     if (supplierFilter !== "all" && !derivedFilterOptions.suppliers.includes(supplierFilter)) setSupplierFilter("all");
     if (supplierInvoiceFilter !== "all" && !derivedFilterOptions.supplierInvoices.includes(supplierInvoiceFilter)) setSupplierInvoiceFilter("all");
   }, [derivedFilterOptions, productNameFilter, brandFilter, categoryFilter, departmentFilter, sizeFilter, colorFilter, supplierFilter, supplierInvoiceFilter]);
-
-  // Pre-load filter dropdown options from products and variants (non-cached fallback)
-  const fetchFilterOptions = async () => {
-    if (!currentOrganization?.id) return;
-    
-    try {
-      const [allProducts, allVariants, batchData] = await Promise.all([
-        fetchAllPages(
-          () => supabase.from("products").select("id, product_name, brand, category, style").eq("organization_id", currentOrganization.id).is("deleted_at", null).neq("product_type", "service").order("product_name")
-        ),
-        fetchAllPages(
-          () => supabase.from("product_variants").select("product_id, size, color").eq("organization_id", currentOrganization.id).eq("active", true).is("deleted_at", null)
-        ),
-        fetchAllPages(
-          () => supabase.from("purchase_bills").select("supplier_name, supplier_invoice_no").eq("organization_id", currentOrganization.id).is("deleted_at", null)
-        ),
-      ]);
-
-      const variantsByProductId: Record<string, { sizes: string[]; colors: string[] }> = {};
-      allVariants.forEach((v: any) => {
-        if (!v.product_id) return;
-        if (!variantsByProductId[v.product_id]) {
-          variantsByProductId[v.product_id] = { sizes: [], colors: [] };
-        }
-        const entry = variantsByProductId[v.product_id];
-        if (v.size && !entry.sizes.includes(v.size)) entry.sizes.push(v.size);
-        if (v.color && !entry.colors.includes(v.color)) entry.colors.push(v.color);
-      });
-
-      const brands = [...new Set(allProducts.map((p: any) => p.brand).filter(Boolean))].sort() as string[];
-      const categories = [...new Set(allProducts.map((p: any) => p.category).filter(Boolean))].sort() as string[];
-      const departments = [...new Set(allProducts.map((p: any) => p.style).filter(Boolean))].sort() as string[];
-      const sizes = [...new Set(allVariants.map((v: any) => v.size).filter(Boolean))].sort() as string[];
-      const colors = [...new Set(allVariants.map((v: any) => v.color).filter(Boolean))].sort() as string[];
-      const suppliers = [...new Set(batchData.map((b: any) => b.supplier_name).filter(Boolean))].sort() as string[];
-      const supplierInvoices = [...new Set(batchData.map((b: any) => b.supplier_invoice_no).filter(Boolean))].sort() as string[];
-      
-      setFilterOptions({
-        brands,
-        categories,
-        departments,
-        sizes,
-        colors,
-        suppliers,
-        supplierInvoices,
-        supplierPairs: (batchData || []).map((b: any) => ({
-          supplier_name: b.supplier_name || null,
-          supplier_invoice_no: b.supplier_invoice_no || null,
-        })),
-        productNames: [...new Set(allProducts.map((p: any) => p.product_name).filter(Boolean))].sort() as string[],
-        rawProducts: allProducts as Array<{ id: string; product_name: string; brand: string; category: string; style: string }>,
-        variantRows: allVariants as Array<{ product_id: string; size: string | null; color: string | null }>,
-        variantsByProductId,
-      });
-    } catch (error) {
-      console.error("Error fetching filter options:", error);
-    }
-  };
 
   // Search for variant IDs by barcode in purchase_items and sale_items (for old/changed barcodes)
   const searchOldBarcodes = async (barcode: string) => {
