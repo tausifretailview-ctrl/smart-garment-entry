@@ -4,19 +4,21 @@ import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 interface MobilePageHeaderProps {
   title: string;
   backTo?: string;
+  onBackClick?: () => void;
   rightContent?: React.ReactNode;
   subtitle?: string;
 }
 
-export const MobilePageHeader = ({ title, backTo, rightContent, subtitle }: MobilePageHeaderProps) => {
+export const MobilePageHeader = ({ title, backTo, onBackClick, rightContent, subtitle }: MobilePageHeaderProps) => {
   const { orgNavigate } = useOrgNavigation();
+  const showBack = Boolean(onBackClick || backTo);
   return (
     <div className="sticky top-0 z-20 bg-background/95 backdrop-blur-md border-b border-border">
       <div className="flex items-center justify-between px-4 py-3">
         <div className="flex items-center gap-2.5 min-w-0">
-          {backTo && (
+          {showBack && (
             <button
-              onClick={() => orgNavigate(backTo)}
+              onClick={() => (onBackClick ? onBackClick() : orgNavigate(backTo!))}
               className="w-8 h-8 rounded-full bg-muted flex items-center justify-center shrink-0 active:scale-90 touch-manipulation"
             >
               <ChevronLeft className="h-5 w-5" />

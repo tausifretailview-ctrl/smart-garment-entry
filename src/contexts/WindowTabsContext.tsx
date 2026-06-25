@@ -29,6 +29,10 @@ interface WindowTabsContextType {
   closeWindow: (path: string) => void;
   switchWindow: (path: string) => void;
   isWindowOpen: (path: string) => boolean;
+  /** Tab immediately before `fromPath` in the window strip (restores saved search on switch). */
+  getPreviousWindow: (fromPath?: string) => WindowTab | null;
+  /** Switch to the previous window tab; returns false when none is available. */
+  switchToPreviousWindow: (fromPath?: string) => boolean;
 }
 
 const WindowTabsContext = createContext<WindowTabsContextType | undefined>(undefined);
@@ -344,6 +348,26 @@ export function WindowTabsProvider({ children }: { children: React.ReactNode }) 
     return openWindows.some(w => w.path === cleanPath);
   }, [openWindows]);
 
+  const getPreviousWindow = useCallback(
+    (fromPath?: string) => {
+      const current = resolveTabCachePath(fromPath ?? activeWindow);
+      const idx = openWindows.findIndex((w) => w.path === current);
+      if (idx > 0) return openWindows[idx - 1];
+      return openWindows.find((w) => w.path !== current) ?? null;
+    },
+    [openWindows, activeWindow],
+  );
+
+  const switchToPreviousWindow = useCallback(
+    (fromPath?: string) => {
+      const previous = getPreviousWindow(fromPath);
+      if (!previous) return false;
+      switchWindow(previous.path);
+      return true;
+    },
+    [getPreviousWindow, switchWindow],
+  );
+
   return (
     <WindowTabsContext.Provider value={{
       openWindows,
@@ -354,6 +378,8 @@ export function WindowTabsProvider({ children }: { children: React.ReactNode }) 
       closeWindow,
       switchWindow,
       isWindowOpen,
+      getPreviousWindow,
+      switchToPreviousWindow,
     }}>
       {children}
     </WindowTabsContext.Provider>

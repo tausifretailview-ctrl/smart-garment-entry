@@ -1548,6 +1548,31 @@ main:has(.customer-party-balances-workspace) {
   padding: 0.75rem 1rem 1rem;
 }
 
+/* Accounts Management — full-height workspace (window tabs stay visible) */
+.accounts-management-workspace {
+  height: 100%;
+  min-height: 0;
+  max-height: 100%;
+  overflow: hidden;
+}
+main:has(.accounts-management-workspace) {
+  overflow: hidden;
+  padding: 0;
+  scrollbar-gutter: auto;
+}
+@media (min-width: 1024px) {
+  main:has(.accounts-management-workspace) {
+    display: flex;
+    flex-direction: column;
+  }
+  main:has(.accounts-management-workspace) .accounts-management-workspace {
+    flex: 1 1 0%;
+    height: auto;
+    max-height: 100%;
+    min-height: 0;
+  }
+}
+
 /* Stock Report — sidebar-only full workspace (no header / tab strip) */
 .stock-report-workspace {
   height: 100%;

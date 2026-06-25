@@ -7,6 +7,7 @@ import { MobilePageHeader } from "@/components/mobile/MobilePageHeader";
 import { MobileBottomNav } from "@/components/mobile/MobileBottomNav";
 import {
   ArrowDownLeft,
+  ArrowLeft,
   ArrowUpRight,
   BookOpen,
   AlertCircle,
@@ -59,6 +60,7 @@ import {
   recordSaleJournalEntry,
 } from "@/utils/accounting/journalService";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
+import { useWindowTabs } from "@/contexts/WindowTabsContext";
 import { useOrganizationReceivablesSummary } from "@/hooks/useOrganizationReceivablesSummary";
 import { AllOrgBackfillStatus } from "@/components/accounts/AllOrgBackfillStatus";
 import { PendingGlBackfillStatus } from "@/components/accounts/PendingGlBackfillStatus";
@@ -86,7 +88,10 @@ import { OutstandingDashboardTab } from "@/components/accounts/OutstandingDashbo
 import { AccountingPeriodLockCard } from "@/components/accounts/AccountingPeriodLockCard";
 
 /** Keep sub-tab DOM mounted (hidden) so ledger/payment state survives tab switches. */
-const STICKY_TAB_CONTENT_CLASS = "mt-0 space-y-4 outline-none data-[state=inactive]:hidden";
+const STICKY_TAB_CONTENT_CLASS = "mt-0 space-y-2 outline-none data-[state=inactive]:hidden";
+
+const ACCOUNTS_TAB_TRIGGER_CLASS =
+  "h-8 px-2.5 text-xs sm:text-sm font-medium shrink-0 rounded-md data-[state=active]:bg-teal-700 data-[state=active]:text-white data-[state=inactive]:text-slate-600";
 
 const PERF_PATH = "accounts";
 
@@ -252,6 +257,13 @@ function AccountsOutstandingHeadlineCards({
 export default function Accounts() {
   const { currentOrganization } = useOrganization();
   const { orgNavigate } = useOrgNavigation();
+  const { getPreviousWindow, switchToPreviousWindow } = useWindowTabs();
+  const previousWindow = useMemo(() => getPreviousWindow("accounts"), [getPreviousWindow]);
+  const handleAccountsBack = useCallback(() => {
+    if (!switchToPreviousWindow("accounts")) {
+      orgNavigate("/");
+    }
+  }, [switchToPreviousWindow, orgNavigate]);
   const {
     summary: receivablesSummary,
     isLoading: receivablesSummaryLoading,
@@ -1047,7 +1059,11 @@ export default function Accounts() {
 
     return (
       <div className="flex flex-col h-full min-h-0 overflow-hidden bg-muted/30">
-        <MobilePageHeader title="Accounts" backTo="/payments-dashboard" />
+        <MobilePageHeader
+          title="Accounts"
+          onBackClick={handleAccountsBack}
+          subtitle={previousWindow ? `Back to ${previousWindow.label}` : undefined}
+        />
 
         {/* Tab chips — work first */}
         <div className="flex gap-2 px-4 overflow-x-auto no-scrollbar py-2 shrink-0 border-b border-slate-200/80 bg-white">
@@ -1143,14 +1159,7 @@ export default function Accounts() {
   }
 
   return (
-    <div className="h-full min-h-0 flex flex-col overflow-hidden bg-slate-50">
-
-      <div className="shrink-0 px-3 sm:px-4 py-2 border-b border-slate-200 bg-white">
-        <h1 className="text-lg font-bold text-blue-600 tracking-tight leading-tight">
-          Accounts Management
-        </h1>
-        <p className="text-xs text-slate-500 mt-0.5">Payments · Ledgers · Vouchers · Reconciliation</p>
-      </div>
+    <div className="accounts-management-workspace accounts-management-dashboard flex flex-col bg-slate-50 px-2 sm:px-3 py-2 min-h-0 h-full overflow-hidden w-full">
 
       <AlertDialog open={resetLedgerDialogOpen} onOpenChange={setResetLedgerDialogOpen}>
         <AlertDialogContent>
@@ -1185,26 +1194,47 @@ export default function Accounts() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <Tabs value={selectedTab} onValueChange={handleAccountsTabChange} className="flex flex-col flex-1 min-h-0 gap-0">
-        <div className="shrink-0 border-b border-slate-200 bg-white">
-          <TabsList className="w-full h-auto p-0 bg-slate-50/80 rounded-none flex flex-nowrap justify-start overflow-x-auto gap-0 px-3 sm:px-4">
-          <TabsTrigger value="customer-ledger" className="rounded-none border-b-2 border-transparent px-3 py-2.5 text-xs sm:text-sm font-medium shrink-0 data-[state=active]:border-blue-600 data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-none">Customer Ledger</TabsTrigger>
-          <TabsTrigger value="supplier-ledger" className="rounded-none border-b-2 border-transparent px-3 py-2.5 text-xs sm:text-sm font-medium shrink-0 data-[state=active]:border-blue-600 data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-none">Supplier Ledger</TabsTrigger>
-          <TabsTrigger value="outstanding" className="rounded-none border-b-2 border-transparent px-3 py-2.5 text-xs sm:text-sm font-medium shrink-0 data-[state=active]:border-blue-600 data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-none">Outstanding</TabsTrigger>
-          <TabsTrigger value="customer-payment" className="rounded-none border-b-2 border-transparent px-3 py-2.5 text-xs sm:text-sm font-medium shrink-0 data-[state=active]:border-blue-600 data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-none">Customer Payment</TabsTrigger>
-          <TabsTrigger value="supplier-payment" className="rounded-none border-b-2 border-transparent px-3 py-2.5 text-xs sm:text-sm font-medium shrink-0 data-[state=active]:border-blue-600 data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-none">Supplier Payment</TabsTrigger>
-          <TabsTrigger value="employee-salary" className="rounded-none border-b-2 border-transparent px-3 py-2.5 text-xs sm:text-sm font-medium shrink-0 data-[state=active]:border-blue-600 data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-none">Employee Salary</TabsTrigger>
-          <TabsTrigger value="expenses" className="rounded-none border-b-2 border-transparent px-3 py-2.5 text-xs sm:text-sm font-medium shrink-0 data-[state=active]:border-blue-600 data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-none">Expenses</TabsTrigger>
-          <TabsTrigger value="voucher-entry" className="rounded-none border-b-2 border-transparent px-3 py-2.5 text-xs sm:text-sm font-medium shrink-0 data-[state=active]:border-blue-600 data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-none">Voucher Entry</TabsTrigger>
-          <TabsTrigger value="reconciliation" className="rounded-none border-b-2 border-transparent px-3 py-2.5 text-xs sm:text-sm font-medium shrink-0 data-[state=active]:border-blue-600 data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-none">Reconciliation</TabsTrigger>
-          {isAdmin && <TabsTrigger value="balance-adjustment" className="rounded-none border-b-2 border-transparent px-3 py-2.5 text-xs sm:text-sm font-medium shrink-0 data-[state=active]:border-blue-600 data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-none">Balance Adj.</TabsTrigger>}
-          </TabsList>
+      <div className="w-full min-w-0 flex flex-col flex-1 min-h-0 gap-2">
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-9 px-3 text-sm shrink-0"
+            onClick={handleAccountsBack}
+          >
+            <ArrowLeft className="h-4 w-4 mr-1" />
+            {previousWindow?.label ?? "Dashboard"}
+          </Button>
+          <div className="min-w-0">
+            <h1 className="text-xl font-bold text-teal-700 tracking-tight leading-none flex items-center gap-2">
+              <BookOpen className="h-5 w-5 shrink-0" />
+              Accounts Management
+            </h1>
+            <p className="text-sm text-muted-foreground mt-1 truncate">
+              Payments · Ledgers · Vouchers · Reconciliation
+            </p>
+          </div>
         </div>
 
-        <div
-          data-tab-scroll
-          className="flex-1 min-h-0 overflow-y-auto tab-scroll-stable bg-white px-3 sm:px-4 pt-3 pb-4"
-        >
+        <Tabs value={selectedTab} onValueChange={handleAccountsTabChange} className="flex flex-col flex-1 min-h-0 gap-2">
+          <TabsList className="shrink-0 h-auto w-full flex flex-nowrap justify-start overflow-x-auto gap-0.5 bg-slate-100/80 p-1 rounded-lg border border-slate-200">
+          <TabsTrigger value="customer-ledger" className={ACCOUNTS_TAB_TRIGGER_CLASS}>Customer Ledger</TabsTrigger>
+          <TabsTrigger value="supplier-ledger" className={ACCOUNTS_TAB_TRIGGER_CLASS}>Supplier Ledger</TabsTrigger>
+          <TabsTrigger value="outstanding" className={ACCOUNTS_TAB_TRIGGER_CLASS}>Outstanding</TabsTrigger>
+          <TabsTrigger value="customer-payment" className={ACCOUNTS_TAB_TRIGGER_CLASS}>Customer Payment</TabsTrigger>
+          <TabsTrigger value="supplier-payment" className={ACCOUNTS_TAB_TRIGGER_CLASS}>Supplier Payment</TabsTrigger>
+          <TabsTrigger value="employee-salary" className={ACCOUNTS_TAB_TRIGGER_CLASS}>Employee Salary</TabsTrigger>
+          <TabsTrigger value="expenses" className={ACCOUNTS_TAB_TRIGGER_CLASS}>Expenses</TabsTrigger>
+          <TabsTrigger value="voucher-entry" className={ACCOUNTS_TAB_TRIGGER_CLASS}>Voucher Entry</TabsTrigger>
+          <TabsTrigger value="reconciliation" className={ACCOUNTS_TAB_TRIGGER_CLASS}>Reconciliation</TabsTrigger>
+          {isAdmin && <TabsTrigger value="balance-adjustment" className={ACCOUNTS_TAB_TRIGGER_CLASS}>Balance Adj.</TabsTrigger>}
+          </TabsList>
+
+          <Card className="rounded-lg border border-slate-200 shadow-sm overflow-hidden p-0 flex-1 min-h-0 flex flex-col">
+            <div
+              data-tab-scroll
+              className="flex-1 min-h-0 overflow-y-auto tab-scroll-stable px-2 sm:px-3 py-2"
+            >
         <TabsContent value="customer-ledger" forceMount className={STICKY_TAB_CONTENT_CLASS}>
           {currentOrganization?.id && (
             <CustomerLedger
@@ -1307,8 +1337,10 @@ export default function Accounts() {
           </TabsContent>
         )}
         {accountsManagementFooter}
-        </div>
-      </Tabs>
+            </div>
+          </Card>
+        </Tabs>
+      </div>
 
       <AccountsPaymentDialogs dialogs={paymentDialogs} />
 
