@@ -383,7 +383,7 @@ export function CustomerLedger({
     staleTime: 30_000,
   });
 
-  const { data: academicYears = [] } = useQuery({
+  const { data: academicYearsData } = useQuery({
     queryKey: ["customer-ledger-academic-years", organizationId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -398,6 +398,7 @@ export function CustomerLedger({
     staleTime: STALE_REFERENCE,
     refetchOnWindowFocus: false,
   });
+  const academicYears = academicYearsData ?? [];
 
   useEffect(() => {
     if (!isSchool || !academicYears.length) return;

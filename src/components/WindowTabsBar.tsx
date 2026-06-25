@@ -71,7 +71,7 @@ export function WindowTabsBar() {
       hasMenuAccess("customer_account_statement") ||
       hasMenuAccess("customer_ledger"));
 
-  if (openWindows.length === 0) return null;
+  if (!Array.isArray(openWindows) || openWindows.length === 0) return null;
 
   const groupedPages = QUICK_OPEN_PAGES.reduce((acc, page) => {
     if (!acc[page.category]) acc[page.category] = [];

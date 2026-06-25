@@ -39,7 +39,7 @@ export function BankReconciliationTab({ organizationId, visitedTabs }: BankRecon
 
   const statementYmd = format(statementDate, "yyyy-MM-dd");
 
-  const { data: bankLedgers = [], isLoading: banksLoading } = useQuery({
+  const { data: bankLedgersData, isLoading: banksLoading } = useQuery({
     queryKey: ["bank-recon-ledgers", organizationId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -55,6 +55,8 @@ export function BankReconciliationTab({ organizationId, visitedTabs }: BankRecon
     enabled: !!organizationId && tabActive,
   });
 
+  const bankLedgers = bankLedgersData ?? [];
+
   useEffect(() => {
     setSelectedIds(new Set());
   }, [bankLedgerId, statementYmd, organizationId]);
@@ -66,7 +68,7 @@ export function BankReconciliationTab({ organizationId, visitedTabs }: BankRecon
     enabled: !!organizationId && !!bankLedgerId && tabActive,
   });
 
-  const { data: unclearedRows = [], isLoading: rowsLoading } = useQuery({
+  const { data: unclearedRowsData, isLoading: rowsLoading } = useQuery({
     queryKey: ["bank-recon-uncleared", organizationId, bankLedgerId, statementYmd],
     queryFn: () =>
       fetchUnclearedBankTransactions(organizationId, bankLedgerId, supabase, {
@@ -74,6 +76,7 @@ export function BankReconciliationTab({ organizationId, visitedTabs }: BankRecon
       }),
     enabled: !!organizationId && !!bankLedgerId && tabActive,
   });
+  const unclearedRows = unclearedRowsData ?? [];
 
   const selectedNetSum = useMemo(() => {
     let s = 0;

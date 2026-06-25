@@ -241,7 +241,7 @@ export function CustomerPaymentTab({
   const isMobile = useIsMobile();
   const { accounts: bankAccounts } = useOrganizationBankAccounts(organizationId);
   const bankAccountById = useMemo(
-    () => new Map(bankAccounts.map((a) => [a.id, a])),
+    () => new Map((bankAccounts ?? []).map((a) => [a.id, a])),
     [bankAccounts],
   );
 

@@ -86,7 +86,7 @@ export function EmployeeSalaryTab({
     },
     initialPageParam: 0,
     getNextPageParam: (lastPage, _allPages, lastPageParam) =>
-      lastPage.length < EMPLOYEE_PAGE_SIZE ? undefined : lastPageParam + EMPLOYEE_PAGE_SIZE,
+      (lastPage?.length ?? 0) < EMPLOYEE_PAGE_SIZE ? undefined : lastPageParam + EMPLOYEE_PAGE_SIZE,
     enabled: !!organizationId && tabActive,
   });
 

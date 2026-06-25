@@ -258,11 +258,15 @@ export default function Accounts() {
   const { currentOrganization } = useOrganization();
   const { orgNavigate } = useOrgNavigation();
   const { getPreviousWindow, switchToPreviousWindow } = useWindowTabs();
-  const previousWindow = useMemo(() => getPreviousWindow("accounts"), [getPreviousWindow]);
+  const previousWindow = useMemo(
+    () => getPreviousWindow?.("accounts") ?? null,
+    [getPreviousWindow],
+  );
   const handleAccountsBack = useCallback(() => {
-    if (!switchToPreviousWindow("accounts")) {
-      orgNavigate("/");
+    if (switchToPreviousWindow?.("accounts")) {
+      return;
     }
+    orgNavigate("/");
   }, [switchToPreviousWindow, orgNavigate]);
   const {
     summary: receivablesSummary,

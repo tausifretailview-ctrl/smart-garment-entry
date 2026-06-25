@@ -104,10 +104,12 @@ export const OrgLayout = () => {
 
   const tabPaths = useMemo(() => {
     const set = new Set<string>();
-    openWindows.forEach((w) => {
-      const resolved = resolveTabCachePath(w.path);
-      if (isCacheableTabPath(resolved)) set.add(resolved);
-    });
+    if (Array.isArray(openWindows)) {
+      openWindows.forEach((w) => {
+        const resolved = resolveTabCachePath(w.path);
+        if (isCacheableTabPath(resolved)) set.add(resolved);
+      });
+    }
     pinnedCacheableEntryPaths.forEach((p) => {
       const resolved = resolveTabCachePath(p);
       if (isCacheableTabPath(resolved)) set.add(resolved);

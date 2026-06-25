@@ -227,7 +227,7 @@ export function ExpensesTab({
     },
     initialPageParam: 0,
     getNextPageParam: (lastPage, _allPages, lastPageParam) =>
-      lastPage.length < EXPENSE_PAGE_SIZE ? undefined : lastPageParam + EXPENSE_PAGE_SIZE,
+      (lastPage?.length ?? 0) < EXPENSE_PAGE_SIZE ? undefined : lastPageParam + EXPENSE_PAGE_SIZE,
     enabled: !!organizationId && tabActive,
   });
 
