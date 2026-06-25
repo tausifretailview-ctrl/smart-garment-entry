@@ -27,8 +27,8 @@ import {
   paymentPickerRefClass,
 } from "@/components/accounts/accountsHistoryUi";
 import { format } from "date-fns";
-import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState, useMemo } from "react";
+import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import {
@@ -36,6 +36,9 @@ import {
   recordSalaryVoucherJournalEntry,
 } from "@/utils/accounting/journalService";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
+
+const EMPLOYEE_PAGE_SIZE = 200;
+const EMPLOYEE_LIST_COLUMNS = "id, employee_name, phone, designation, status";
 
 interface EmployeeSalaryTabProps {
   organizationId: string;
@@ -66,19 +69,28 @@ export function EmployeeSalaryTab({
     null
   );
 
-  const { data: employees } = useQuery({
+  const { data: employeePages, hasNextPage, isFetchingNextPage, fetchNextPage } = useInfiniteQuery({
     queryKey: ["employees", organizationId],
-    queryFn: async () => {
+    queryFn: async ({ pageParam = 0 }) => {
+      const from = pageParam;
+      const to = pageParam + EMPLOYEE_PAGE_SIZE - 1;
       const { data, error } = await supabase
         .from("employees")
-        .select("*")
+        .select(EMPLOYEE_LIST_COLUMNS)
         .eq("organization_id", organizationId)
-        .order("employee_name");
+        .is("deleted_at", null)
+        .order("employee_name")
+        .range(from, to);
       if (error) throw error;
-      return data;
+      return data || [];
     },
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, _allPages, lastPageParam) =>
+      lastPage.length < EMPLOYEE_PAGE_SIZE ? undefined : lastPageParam + EMPLOYEE_PAGE_SIZE,
     enabled: !!organizationId && tabActive,
   });
+
+  const employees = useMemo(() => employeePages?.pages.flat() ?? [], [employeePages]);
 
   const createSalaryVoucher = useMutation({
     mutationFn: async () => {
@@ -239,6 +251,18 @@ export function EmployeeSalaryTab({
                     ))}
                   </SelectContent>
                 </Select>
+                {hasNextPage && (
+                  <Button
+                    type="button"
+                    variant="link"
+                    size="sm"
+                    className="h-auto p-0 text-xs text-muted-foreground"
+                    disabled={isFetchingNextPage}
+                    onClick={() => fetchNextPage()}
+                  >
+                    {isFetchingNextPage ? "Loading employees…" : "Load more employees"}
+                  </Button>
+                )}
               </div>
 
               <div className="space-y-2">

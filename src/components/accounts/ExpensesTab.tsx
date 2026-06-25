@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils";
 import { useState, useMemo, useRef } from "react";
 import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
 import { restoreDashboardFilters, WINDOW_FILTER_IDS } from "@/lib/dashboardFilterPersistence";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useSettings } from "@/hooks/useSettings";
 import {
@@ -46,6 +46,10 @@ const PAYMENT_METHODS = [
   { value: "bank_transfer", label: "Bank Transfer" },
   { value: "cheque", label: "Cheque" },
 ];
+
+const EXPENSE_PAGE_SIZE = 100;
+const EXPENSE_VOUCHER_COLUMNS =
+  "id, voucher_number, voucher_date, created_at, category, description, payment_method, total_amount, paid_by, receipt_number";
 
 export function ExpensesTab({
   organizationId,
@@ -198,22 +202,39 @@ export function ExpensesTab({
     onError: (e: any) => toast.error(e?.message || "Could not add category"),
   });
 
-  // Fetch all expense vouchers
-  const { data: expenseVouchers, isLoading } = useQuery({
+  // Fetch expense vouchers (paginated — 100 per page, newest first).
+  const {
+    data: expenseVoucherPages,
+    isLoading,
+    isFetchingNextPage,
+    hasNextPage,
+    fetchNextPage,
+  } = useInfiniteQuery({
     queryKey: ["expense-vouchers", organizationId],
-    queryFn: async () => {
+    queryFn: async ({ pageParam = 0 }) => {
+      const from = pageParam;
+      const to = pageParam + EXPENSE_PAGE_SIZE - 1;
       const { data, error } = await supabase
         .from("voucher_entries")
-        .select("*")
+        .select(EXPENSE_VOUCHER_COLUMNS)
         .eq("organization_id", organizationId)
         .eq("voucher_type", "expense")
         .is("deleted_at", null)
-        .order("voucher_date", { ascending: false });
+        .order("voucher_date", { ascending: false })
+        .range(from, to);
       if (error) throw error;
       return data || [];
     },
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, _allPages, lastPageParam) =>
+      lastPage.length < EXPENSE_PAGE_SIZE ? undefined : lastPageParam + EXPENSE_PAGE_SIZE,
     enabled: !!organizationId && tabActive,
   });
+
+  const expenseVouchers = useMemo(
+    () => expenseVoucherPages?.pages.flat() ?? [],
+    [expenseVoucherPages],
+  );
 
   const { data: settings } = useSettings();
 
@@ -824,6 +845,20 @@ export function ExpensesTab({
                 )}
               </TableBody>
             </Table>
+            {hasNextPage && (
+              <div className="flex justify-center pt-3 pb-1">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-8 text-xs"
+                  disabled={isFetchingNextPage}
+                  onClick={() => fetchNextPage()}
+                >
+                  {isFetchingNextPage ? "Loading…" : "Load more"}
+                </Button>
+              </div>
+            )}
       </AccountsHistoryPanel>
       )}
 

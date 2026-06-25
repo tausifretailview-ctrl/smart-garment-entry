@@ -25,6 +25,11 @@ interface ReconciliationTabProps {
 }
 
 const RECON_LOOKUP_BATCH = 200;
+const RECON_VOUCHER_LIMIT = 500;
+const RECON_VOUCHER_COLUMNS =
+  "id, voucher_number, voucher_date, reference_id, total_amount, description, payment_method";
+const RECON_SALE_COLUMNS =
+  "id, customer_id, customer_name, customer_phone, sale_number, sale_date, net_amount, paid_amount, cash_amount, card_amount, upi_amount, payment_status, payment_method";
 
 async function fetchSalesMapForReconciliation(
   organizationId: string,
@@ -36,7 +41,7 @@ async function fetchSalesMapForReconciliation(
     const chunk = unique.slice(i, i + RECON_LOOKUP_BATCH);
     const { data, error } = await supabase
       .from("sales")
-      .select("*")
+      .select(RECON_SALE_COLUMNS)
       .eq("organization_id", organizationId)
       .in("id", chunk);
     if (error) throw error;
@@ -89,9 +94,18 @@ export function ReconciliationTab({ organizationId, customers, visitedTabs }: Re
         salesIdsFilter = customerSales?.map(s => s.id) || [];
         if (salesIdsFilter.length === 0) return [];
       }
-      let query = supabase.from("voucher_entries").select("*").eq("organization_id", organizationId).or("voucher_type.eq.receipt,voucher_type.eq.RECEIPT").is("deleted_at", null).gte("voucher_date", format(reconStartDate, "yyyy-MM-dd")).lte("voucher_date", format(reconEndDate, "yyyy-MM-dd"));
+      let query = supabase
+        .from("voucher_entries")
+        .select(RECON_VOUCHER_COLUMNS)
+        .eq("organization_id", organizationId)
+        .or("voucher_type.eq.receipt,voucher_type.eq.RECEIPT")
+        .is("deleted_at", null)
+        .gte("voucher_date", format(reconStartDate, "yyyy-MM-dd"))
+        .lte("voucher_date", format(reconEndDate, "yyyy-MM-dd"));
       if (salesIdsFilter !== null) query = query.in("reference_id", salesIdsFilter);
-      const { data: payments, error } = await query.order("voucher_date", { ascending: false });
+      const { data: payments, error } = await query
+        .order("voucher_date", { ascending: false })
+        .limit(RECON_VOUCHER_LIMIT);
       if (error) throw error;
 
       const paymentRows = payments || [];
