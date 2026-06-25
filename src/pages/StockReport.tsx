@@ -281,61 +281,31 @@ export default function StockReport() {
     placeholderData: keepPreviousData,
   };
 
-  // Org-wide summary cards — slim paginated fetch, cached 5 min, non-blocking
+  // Org-wide summary cards — single RPC aggregate, cached 5 min, non-blocking
   const { data: cachedGlobalTotals, isLoading: globalTotalsQueryLoading } = useQuery({
     queryKey: ["stock-report-global-totals", currentOrganization?.id],
     queryFn: async () => {
       if (!currentOrganization?.id) return null;
 
-      const allVariants: Array<{ stock_qty?: number | null; pur_price?: number | null; sale_price?: number | null }> = [];
-      const PAGE_SIZE = 1000;
-      let offset = 0;
-      let hasMore = true;
+      const { data, error } = await supabase.rpc("get_stock_report_totals", {
+        p_organization_id: currentOrganization.id,
+      });
 
-      while (hasMore) {
-        const { data, error } = await supabase
-          .from("product_variants")
-          .select(`
-            stock_qty,
-            sale_price,
-            pur_price,
-            products!inner (
-              product_type,
-              deleted_at
-            )
-          `)
-          .eq("organization_id", currentOrganization.id)
-          .eq("active", true)
-          .is("deleted_at", null)
-          .is("products.deleted_at", null)
-          .neq("products.product_type", "service")
-          .range(offset, offset + PAGE_SIZE - 1);
+      if (error) throw error;
 
-        if (error) throw error;
+      const row = data as {
+        total_stock?: number;
+        stock_value?: number;
+        sale_value?: number;
+        variant_count?: number;
+      } | null;
 
-        if (data && data.length > 0) {
-          allVariants.push(...data);
-          offset += PAGE_SIZE;
-          hasMore = data.length === PAGE_SIZE;
-        } else {
-          hasMore = false;
-        }
-      }
-
-      return allVariants.reduce(
-        (acc, item) => {
-          const qty = item.stock_qty || 0;
-          const purPrice = item.pur_price || 0;
-          const salePrice = item.sale_price || 0;
-          return {
-            totalStock: acc.totalStock + qty,
-            stockValue: acc.stockValue + purPrice * qty,
-            saleValue: acc.saleValue + salePrice * qty,
-            variantCount: acc.variantCount + 1,
-          };
-        },
-        { totalStock: 0, stockValue: 0, saleValue: 0, variantCount: 0 },
-      );
+      return {
+        totalStock: row?.total_stock ?? 0,
+        stockValue: Number(row?.stock_value ?? 0),
+        saleValue: Number(row?.sale_value ?? 0),
+        variantCount: row?.variant_count ?? 0,
+      };
     },
     enabled: !!currentOrganization?.id,
     ...REPORT_CACHE,
