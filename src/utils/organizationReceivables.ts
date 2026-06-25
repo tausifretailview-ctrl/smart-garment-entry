@@ -40,6 +40,8 @@ export type OrganizationReceivablesSummary = {
   netReceivable: number;
   /** Σ advance_available — unused advances on file. */
   advanceAvailable: number;
+  /** Σ sales.total_amount — lifetime gross sales value for KPI cards. */
+  totalSales: number;
 };
 
 type ReconcileRpcRow = {
@@ -58,6 +60,7 @@ const EMPTY_SUMMARY: OrganizationReceivablesSummary = {
   customerCreditPoolCr: 0,
   netReceivable: 0,
   advanceAvailable: 0,
+  totalSales: 0,
 };
 
 export type SignedBalanceFacetSummary = {
@@ -157,6 +160,7 @@ export async function fetchOrganizationReceivablesSummary(
         customer_credit_pool_cr: number | null;
         net_receivable: number | null;
         advance_available: number | null;
+        total_sales: number | null;
       }
     | undefined;
   if (!row) return { ...EMPTY_SUMMARY };
@@ -168,6 +172,7 @@ export async function fetchOrganizationReceivablesSummary(
     customerCreditPoolCr: Math.round(Number(row.customer_credit_pool_cr ?? 0)),
     netReceivable: Math.round(Number(row.net_receivable ?? 0)),
     advanceAvailable: Math.round(Number(row.advance_available ?? 0) * 100) / 100,
+    totalSales: Math.round(Number(row.total_sales ?? 0)),
   };
 }
 

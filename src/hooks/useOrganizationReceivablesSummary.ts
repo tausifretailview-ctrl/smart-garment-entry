@@ -15,6 +15,7 @@ const EMPTY: OrganizationReceivablesSummary = {
   customerCreditPoolCr: 0,
   netReceivable: 0,
   advanceAvailable: 0,
+  totalSales: 0,
 };
 
 /**

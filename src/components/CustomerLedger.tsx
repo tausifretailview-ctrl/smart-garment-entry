@@ -37,6 +37,8 @@ import { useCustomerFinancialSnapshot } from "@/hooks/useCustomerFinancialSnapsh
 import {
   summarizeSignedBalanceFacets,
 } from "@/utils/organizationReceivables";
+import { useOrganizationReceivablesSummary } from "@/hooks/useOrganizationReceivablesSummary";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   computeCustomerOutstanding,
   reconcileSaleInvoiceDisplay,
@@ -333,6 +335,13 @@ export function CustomerLedger({
   const isMobile = useIsMobile();
   const { sendWhatsApp } = useWhatsAppSend();
   const { isSchool } = useSchoolFeatures();
+  const {
+    summary: orgReceivablesSummary,
+    isLoading: orgReceivablesSummaryLoading,
+  } = useOrganizationReceivablesSummary(organizationId, {
+    enabled: !!organizationId && !isSchool,
+  });
+  const kpiCardsLoading = !isSchool && orgReceivablesSummaryLoading;
   const openCustomerAccount = useOpenCustomerAccount();
   const [showOverpaymentRefundDialog, setShowOverpaymentRefundDialog] = useState(false);
   const [overpaymentRefundAmount, setOverpaymentRefundAmount] = useState('');
@@ -2653,29 +2662,35 @@ export function CustomerLedger({
     }
   }, [selectedCustomer, showOverpaymentRefundDialog]);
 
-  // Calculate summary statistics
+  // KPI cards: org RPC for business (fast mount); school still derives from student list.
   const summary = useMemo(() => {
-    if (!filteredCustomers)
+    if (isSchool) {
+      if (!filteredCustomers) {
+        return {
+          totalCustomers: 0,
+          totalOutstanding: 0,
+          totalReceivable: 0,
+          customerCreditPool: 0,
+          netReceivable: 0,
+        };
+      }
+      const facets = summarizeSignedBalanceFacets(filteredCustomers);
       return {
-        totalCustomers: 0,
-        totalOutstanding: 0,
-        totalReceivable: 0,
-        customerCreditPool: 0,
-        netReceivable: 0,
+        totalCustomers: filteredCustomers.length,
+        totalOutstanding: facets.grossReceivableDr,
+        totalReceivable: filteredCustomers.reduce((sum, c) => sum + c.totalSales, 0),
+        customerCreditPool: facets.customerCreditPoolCr,
+        netReceivable: facets.netReceivable,
       };
-
-    // balance is the signed Master Reconciliation value: > 0 owes us (Dr),
-    // < 0 in credit (advance / overpayment). Surface the credit pool and the
-    // true net instead of silently clamping negatives to zero.
-    const facets = summarizeSignedBalanceFacets(filteredCustomers);
+    }
     return {
-      totalCustomers: filteredCustomers.length,
-      totalOutstanding: facets.grossReceivableDr,
-      totalReceivable: filteredCustomers.reduce((sum, c) => sum + c.totalSales, 0),
-      customerCreditPool: facets.customerCreditPoolCr,
-      netReceivable: facets.netReceivable,
+      totalCustomers: orgReceivablesSummary.customerCount,
+      totalOutstanding: orgReceivablesSummary.grossReceivableDr,
+      totalReceivable: orgReceivablesSummary.totalSales,
+      customerCreditPool: orgReceivablesSummary.customerCreditPoolCr,
+      netReceivable: orgReceivablesSummary.netReceivable,
     };
-  }, [filteredCustomers]);
+  }, [isSchool, filteredCustomers, orgReceivablesSummary]);
 
   // Export customer list to Excel
   const handleExportCustomerListExcel = useCallback(() => {
@@ -5436,7 +5451,11 @@ Please clear your dues at the earliest. Thank you!`;
                   {isSchool ? "Total Students" : "Total Customers"}
                 </p>
                 <div className="text-2xl font-black text-white tabular-nums mt-0.5">
-                  {summary.totalCustomers}
+                  {kpiCardsLoading ? (
+                    <Skeleton className="h-8 w-16 bg-white/30" />
+                  ) : (
+                    summary.totalCustomers
+                  )}
                 </div>
                 <p className="text-xs text-white/65 mt-0.5 truncate">
                   {isSchool ? "Active student accounts" : "Active customer accounts"}
@@ -5460,7 +5479,11 @@ Please clear your dues at the earliest. Thank you!`;
                   {isSchool ? "Total Fees Due" : "Total Outstanding"}
                 </p>
                 <div className="text-2xl font-black text-white tabular-nums mt-0.5">
-                  ₹{summary.totalOutstanding.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                  {kpiCardsLoading ? (
+                    <Skeleton className="h-8 w-28 bg-white/30" />
+                  ) : (
+                    <>₹{summary.totalOutstanding.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</>
+                  )}
                 </div>
                 <p className="text-xs text-white/65 mt-0.5 truncate">
                   {isSchool ? "Fees pending collection" : "Amount pending collection"}
@@ -5484,7 +5507,11 @@ Please clear your dues at the earliest. Thank you!`;
                   {isSchool ? "Total Fees Charged" : "Total Receivable"}
                 </p>
                 <div className="text-2xl font-black text-white tabular-nums mt-0.5">
-                  ₹{summary.totalReceivable.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                  {kpiCardsLoading ? (
+                    <Skeleton className="h-8 w-28 bg-white/30" />
+                  ) : (
+                    <>₹{summary.totalReceivable.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</>
+                  )}
                 </div>
                 <p className="text-xs text-white/65 mt-0.5 truncate">
                   {isSchool ? "Total fees value" : "Total sales value"}
@@ -5508,7 +5535,11 @@ Please clear your dues at the earliest. Thank you!`;
                   <div className="min-w-0">
                     <p className="text-xs font-medium text-white/80">Net AR</p>
                     <div className="text-2xl font-black text-white tabular-nums mt-0.5">
-                      ₹{summary.netReceivable.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                      {kpiCardsLoading ? (
+                        <Skeleton className="h-8 w-28 bg-white/30" />
+                      ) : (
+                        <>₹{summary.netReceivable.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</>
+                      )}
                     </div>
                     <p className="text-xs text-white/65 mt-0.5 truncate">Outstanding − credit pool</p>
                   </div>
@@ -5528,7 +5559,11 @@ Please clear your dues at the earliest. Thank you!`;
                   <div className="min-w-0">
                     <p className="text-xs font-medium text-white/80">Customer Credit Pool</p>
                     <div className="text-2xl font-black text-white tabular-nums mt-0.5">
-                      ₹{summary.customerCreditPool.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                      {kpiCardsLoading ? (
+                        <Skeleton className="h-8 w-28 bg-white/30" />
+                      ) : (
+                        <>₹{summary.customerCreditPool.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</>
+                      )}
                     </div>
                     <p className="text-xs text-white/65 mt-0.5 truncate">Advances / overpayments held</p>
                   </div>
