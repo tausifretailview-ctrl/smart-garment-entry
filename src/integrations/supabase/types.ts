@@ -7873,6 +7873,10 @@ export type Database = {
         }
         Returns: number
       }
+      _draft_references_product: {
+        Args: { p_draft_data: Json; p_product_id: string }
+        Returns: boolean
+      }
       _get_customer_party_balances_rows: {
         Args: { p_organization_id: string }
         Returns: {
@@ -7886,6 +7890,41 @@ export type Database = {
           out_total_cr: number
           out_total_dr: number
         }[]
+      }
+      _get_stock_reconciliation_rows: {
+        Args: { p_organization_id: string }
+        Returns: {
+          out_barcode: string
+          out_color: string
+          out_drift: number
+          out_opening_qty: number
+          out_pending_dc: number
+          out_product_name: string
+          out_purchase_returns: number
+          out_purchases: number
+          out_recomputed_stock_qty: number
+          out_sale_returns: number
+          out_sales: number
+          out_size: string
+          out_stored_stock_qty: number
+          out_variant_id: string
+        }[]
+      }
+      _get_supplier_party_balances_rows: {
+        Args: { p_organization_id: string }
+        Returns: {
+          out_direction: string
+          out_net_payable: number
+          out_signed_balance: number
+          out_supplier_id: string
+          out_supplier_name: string
+          out_total_cr: number
+          out_total_dr: number
+        }[]
+      }
+      _held_cart_references_product: {
+        Args: { p_held_cart_data: Json; p_product_id: string }
+        Returns: boolean
       }
       _increment_supplier_invoice_no: {
         Args: { prev: string }
@@ -7904,6 +7943,14 @@ export type Database = {
       _next_supplier_invoice_in_series: {
         Args: { p_organization_id: string }
         Returns: string
+      }
+      _product_has_active_references: {
+        Args: { p_organization_id: string; p_product_id: string }
+        Returns: boolean
+      }
+      _product_is_orphan: {
+        Args: { p_organization_id: string; p_product_id: string }
+        Returns: boolean
       }
       _supplier_invoice_serial_parts: {
         Args: { inv: string }
@@ -8032,15 +8079,20 @@ export type Database = {
         Returns: undefined
       }
       detect_stock_discrepancies: {
-        Args: { p_organization_id?: string }
+        Args: { p_organization_id: string }
         Returns: {
+          barcode: string
+          calculated_stock_qty: number
           color: string
-          current_stock: number
+          current_stock_qty: number
           discrepancy: number
-          expected_stock: number
-          last_purchase: string
-          last_sale: string
+          opening_qty: number
+          pending_dc: number
           product_name: string
+          purchase_returns: number
+          purchases: number
+          sale_returns: number
+          sales: number
           size: string
           variant_id: string
         }[]
@@ -8363,6 +8415,19 @@ export type Database = {
           supplier_count: number
         }[]
       }
+      get_orphaned_products: {
+        Args: { p_organization_id: string }
+        Returns: {
+          brand: string
+          category: string
+          created_at: string
+          product_id: string
+          product_name: string
+          reason: string
+          total_stock: number
+          user_cancelled_at: string
+        }[]
+      }
       get_outstanding_summary: { Args: { p_org_id: string }; Returns: Json }
       get_pending_gl_backfill_counts: {
         Args: { p_org_id: string }
@@ -8494,11 +8559,42 @@ export type Database = {
           variant_id: string
         }[]
       }
+      get_stock_reconciliation: {
+        Args: { p_organization_id: string }
+        Returns: {
+          barcode: string
+          color: string
+          drift: number
+          opening_qty: number
+          pending_dc: number
+          product_name: string
+          purchase_returns: number
+          purchases: number
+          recomputed_stock_qty: number
+          sale_returns: number
+          sales: number
+          size: string
+          stored_stock_qty: number
+          variant_id: string
+        }[]
+      }
       get_stock_report_totals: {
         Args: { p_organization_id: string }
         Returns: Json
       }
       get_stock_value: { Args: { p_org_id: string }; Returns: number }
+      get_supplier_party_balances: {
+        Args: { p_organization_id: string }
+        Returns: {
+          direction: string
+          net_payable: number
+          signed_balance: number
+          supplier_id: string
+          supplier_name: string
+          total_cr: number
+          total_dr: number
+        }[]
+      }
       get_trial_balance_aggregates: {
         Args: { p_as_of_date: string; p_org_id: string }
         Returns: Json
@@ -8726,9 +8822,13 @@ export type Database = {
         Args: { p_challan_id: string; p_user_id: string }
         Returns: undefined
       }
+      soft_delete_orphaned_products: {
+        Args: { p_organization_id: string; p_product_ids: string[] }
+        Returns: Json
+      }
       soft_delete_purchase_bill: {
         Args: { p_bill_id: string; p_user_id: string }
-        Returns: undefined
+        Returns: number
       }
       soft_delete_purchase_return: {
         Args: { p_return_id: string; p_user_id: string }
