@@ -63,6 +63,40 @@ interface SupplierPair {
   supplier_invoice_no: string | null;
 }
 
+interface StockReportRpcRow {
+  variant_id: string;
+  product_name: string | null;
+  brand: string | null;
+  category: string | null;
+  style: string | null;
+  product_type: string | null;
+  uom: string | null;
+  size: string | null;
+  color: string | null;
+  barcode: string | null;
+  sale_price: number | null;
+  pur_price: number | null;
+  current_stock: number | null;
+  purchase_qty: number | null;
+  sales_qty: number | null;
+  purchase_return_qty: number | null;
+  sale_return_qty: number | null;
+  total_rows: number | null;
+}
+
+function buildStockReportRpcSearch(
+  searchTerm: string,
+  productNameFilter: string,
+  pinnedProducts: Array<{ product_name: string }>,
+): string | null {
+  const term = searchTerm.trim();
+  if (term) return term;
+  const name = productNameFilter.trim();
+  if (name) return name;
+  if (pinnedProducts.length > 0) return pinnedProducts[0].product_name;
+  return null;
+}
+
 
 interface SizeWiseRow {
   productKey: string;
@@ -189,8 +223,9 @@ export default function StockReport() {
     variantsByProductId: {} as Record<string, { sizes: string[]; colors: string[] }>,
   });
   
-  // Pagination for All Stock tab
+  // Pagination for All Stock tab (server-side via get_stock_report)
   const [currentPage, setCurrentPage] = useState(1);
+  const [serverTotalRows, setServerTotalRows] = useState(0);
   const ITEMS_PER_PAGE = 100;
   const searchRequestIdRef = useRef(0);
 
@@ -609,408 +644,121 @@ export default function StockReport() {
     }
   };
 
-  const handleSearch = useCallback(async () => {
-    if (!currentOrganization?.id) return;
-    
-    // Check if any filter is applied
-    const hasFilters = searchTerm.trim() || productNameFilter.trim() || 
-      brandFilter !== "all" || departmentFilter !== "all" || sizeFilter !== "all" || 
-      categoryFilter !== "all" || colorFilter !== "all" || supplierFilter !== "all" || 
-      supplierInvoiceFilter !== "all" || stockStatusFilter !== "all";
-    
-    if (!hasFilters) return;
+  const stockReportHasFilters =
+    !!searchTerm.trim() ||
+    !!productNameFilter.trim() ||
+    brandFilter !== "all" ||
+    departmentFilter !== "all" ||
+    sizeFilter !== "all" ||
+    categoryFilter !== "all" ||
+    colorFilter !== "all" ||
+    supplierFilter !== "all" ||
+    supplierInvoiceFilter !== "all" ||
+    stockStatusFilter !== "all" ||
+    pinnedProducts.length > 0;
 
-    const requestId = ++searchRequestIdRef.current;
-    
-    setLoading(true);
-    setHasSearched(true);
-    
-    try {
-      // Search old barcodes in parallel (don't await before main search)
-      const oldBarcodePromise = (searchTerm && searchTerm.length >= 4)
-        ? searchOldBarcodes(searchTerm)
-        : Promise.resolve();
+  const fetchStockReportPage = useCallback(
+    async (page: number) => {
+      if (!currentOrganization?.id || !stockReportHasFilters) return;
 
-      // Detect if search looks like a barcode (has digits and 5+ chars)
-      const trimmedSearch = searchTerm.trim();
-      const looksLikeBarcode = trimmedSearch && /\d/.test(trimmedSearch) && trimmedSearch.length >= 5;
+      const requestId = ++searchRequestIdRef.current;
+      setLoading(true);
 
-      // Fetch product variants with search/filter
-      const allVariants: any[] = [];
-      const PAGE_SIZE = 1000;
-      let offset = 0;
-      let hasMore = true;
-      
-      while (hasMore) {
-        let query = supabase
-          .from("product_variants")
-          .select(`
-            id,
-            size,
-            color,
-            stock_qty,
-            opening_qty,
-            sale_price,
-            pur_price,
-            barcode,
-            products!inner (
-              product_name,
-              brand,
-              color,
-              category,
-              style,
-              product_type,
-              deleted_at,
-              uom
-            )
-          `)
-          .eq("organization_id", currentOrganization.id)
-          .eq("active", true)
-          .is("deleted_at", null)
-          .is("products.deleted_at", null)
-          .neq("products.product_type", "service");
-        
-        // Apply search filter — unified fields: name, brand, style, category, color, hsn + barcode
-        if (trimmedSearch) {
-          if (looksLikeBarcode) {
-            // Barcode search: exact match OR prefix match (fast B-tree index)
-            query = query.or(`barcode.eq.${trimmedSearch},barcode.ilike.${trimmedSearch}%`);
-          } else {
-            // Text search: filter on referenced table for all product fields
-            query = query.or(
-              `product_name.ilike.%${trimmedSearch}%,brand.ilike.%${trimmedSearch}%,style.ilike.%${trimmedSearch}%,category.ilike.%${trimmedSearch}%,color.ilike.%${trimmedSearch}%,hsn_code.ilike.%${trimmedSearch}%`,
-              { referencedTable: "products" }
-            );
+      try {
+        const oldBarcodePromise =
+          searchTerm && searchTerm.length >= 4
+            ? searchOldBarcodes(searchTerm)
+            : Promise.resolve();
+
+        const { data, error } = await (
+          supabase as unknown as {
+            rpc: (
+              fn: string,
+              args: Record<string, unknown>,
+            ) => ReturnType<typeof supabase.rpc>;
           }
-        }
-        
-        // Apply stock status filter at query level for efficiency
-        if (stockStatusFilter === "out") {
-          query = query.eq("stock_qty", 0);
-        } else if (stockStatusFilter === "in") {
-          query = query.gt("stock_qty", 0);
-        }
-
-        // Push dropdown filters server-side (supplier narrowed before stock loop when active)
-        if (productNameFilter.trim()) {
-          query = query.eq("products.product_name", productNameFilter.trim());
-        }
-        if (brandFilter !== "all") {
-          query = query.eq("products.brand", brandFilter);
-        }
-        if (categoryFilter !== "all") {
-          query = query.eq("products.category", categoryFilter);
-        }
-        if (departmentFilter !== "all") {
-          query = query.eq("products.style", departmentFilter);
-        }
-        if (sizeFilter !== "all") {
-          query = query.eq("size", sizeFilter);
-        }
-        if (colorFilter !== "all") {
-          query = query.eq("color", colorFilter);
-        }
-        
-        const { data, error } = await query
-          .order("stock_qty", { ascending: true })
-          .range(offset, offset + PAGE_SIZE - 1);
+        ).rpc("get_stock_report", {
+          p_org_id: currentOrganization.id,
+          p_limit: ITEMS_PER_PAGE,
+          p_offset: (page - 1) * ITEMS_PER_PAGE,
+          p_search: buildStockReportRpcSearch(searchTerm, productNameFilter, pinnedProducts),
+          p_category: categoryFilter !== "all" ? categoryFilter : null,
+          p_brand: brandFilter !== "all" ? brandFilter : null,
+          p_low_stock: stockStatusFilter === "out" ? true : null,
+        });
 
         if (error) throw error;
-        
-        if (data && data.length > 0) {
-          allVariants.push(...data);
-          offset += PAGE_SIZE;
-          hasMore = data.length === PAGE_SIZE;
-        } else {
-          hasMore = false;
-        }
-      }
-
-      if (requestId !== searchRequestIdRef.current) return;
-
-      // Wait for old barcode search to complete
-      await oldBarcodePromise;
-
-      if (requestId !== searchRequestIdRef.current) return;
-      
-      let data = allVariants;
-
-      // When supplier / supplier-invoice filter is active, resolve purchased variant ids FIRST
-      // so the heavy stock batch loop runs only on that subset (not the full catalog).
-      const hasSupplierScope = supplierFilter !== "all" || supplierInvoiceFilter !== "all";
-      if (hasSupplierScope) {
-        const SUPPLIER_BILL_PAGE = 1000;
-        const SUPPLIER_BILL_ID_CHUNK = 200;
-
-        const billIds: string[] = [];
-        let billOffset = 0;
-        let moreBills = true;
-        while (moreBills) {
-          let billQuery = supabase
-            .from("purchase_bills")
-            .select("id")
-            .eq("organization_id", currentOrganization.id)
-            .is("deleted_at", null);
-          if (supplierFilter !== "all") {
-            billQuery = billQuery.eq("supplier_name", supplierFilter);
-          }
-          if (supplierInvoiceFilter !== "all") {
-            billQuery = billQuery.eq("supplier_invoice_no", supplierInvoiceFilter);
-          }
-          const { data: billRows, error: billError } = await billQuery
-            .order("id")
-            .range(billOffset, billOffset + SUPPLIER_BILL_PAGE - 1);
-          if (billError) throw billError;
-          if (billRows && billRows.length > 0) {
-            billIds.push(...billRows.map((b) => b.id));
-            billOffset += SUPPLIER_BILL_PAGE;
-            moreBills = billRows.length === SUPPLIER_BILL_PAGE;
-          } else {
-            moreBills = false;
-          }
-        }
-
         if (requestId !== searchRequestIdRef.current) return;
 
-        if (billIds.length === 0) {
-          setStockItems([]);
-          return;
-        }
-
-        const supplierVariantIds = new Set<string>();
-        for (let bi = 0; bi < billIds.length; bi += SUPPLIER_BILL_ID_CHUNK) {
-          const billChunk = billIds.slice(bi, bi + SUPPLIER_BILL_ID_CHUNK);
-          let itemOffset = 0;
-          let moreItems = true;
-          while (moreItems) {
-            const { data: itemRows, error: itemError } = await supabase
-              .from("purchase_items")
-              .select("sku_id")
-              .in("bill_id", billChunk)
-              .is("deleted_at", null)
-              .not("sku_id", "is", null)
-              .order("id")
-              .range(itemOffset, itemOffset + SUPPLIER_BILL_PAGE - 1);
-            if (itemError) throw itemError;
-            if (itemRows && itemRows.length > 0) {
-              itemRows.forEach((row) => {
-                if (row.sku_id) supplierVariantIds.add(row.sku_id);
-              });
-              itemOffset += SUPPLIER_BILL_PAGE;
-              moreItems = itemRows.length === SUPPLIER_BILL_PAGE;
-            } else {
-              moreItems = false;
-            }
-          }
-        }
-
+        await oldBarcodePromise;
         if (requestId !== searchRequestIdRef.current) return;
 
-        if (supplierVariantIds.size === 0) {
+        const rows = (data || []) as unknown as StockReportRpcRow[];
+        setServerTotalRows(Number(rows[0]?.total_rows ?? 0));
+
+        setStockItems(
+          rows.map((row) => ({
+            id: row.variant_id,
+            product_name: row.product_name || "",
+            brand: row.brand || "",
+            color: row.color || "",
+            size: row.size || "",
+            stock_qty: row.current_stock ?? 0,
+            opening_qty: 0,
+            purchase_qty: Number(row.purchase_qty ?? 0),
+            purchase_return_qty: Number(row.purchase_return_qty ?? 0),
+            sales_qty: Number(row.sales_qty ?? 0),
+            sale_return_qty: Number(row.sale_return_qty ?? 0),
+            sale_price: Number(row.sale_price ?? 0),
+            pur_price: row.pur_price != null ? Number(row.pur_price) : null,
+            barcode: row.barcode || "",
+            supplier_name: "",
+            supplier_invoice_no: "",
+            category: row.category || "",
+            department: row.style || "",
+            uom: row.uom || "NOS",
+          })),
+        );
+      } catch (error: unknown) {
+        console.error("Error fetching stock data:", error);
+        if (requestId === searchRequestIdRef.current) {
           setStockItems([]);
-          return;
+          setServerTotalRows(0);
+          const message = error instanceof Error ? error.message : "Could not load stock data. Try again.";
+          toast.error("Search failed", { description: message });
         }
-
-        data = allVariants.filter((v: any) => supplierVariantIds.has(v.id));
-
-        if (data.length === 0) {
-          setStockItems([]);
-          return;
-        }
-      }
-
-      // Fetch purchase/sales/return quantities directly from transaction tables
-      // This is more accurate than stock_movements which may have incomplete historical data
-      const variantIds = data.map((v: any) => v.id);
-      const BATCH_SIZE = 200;
-
-      // Paginated fetch helpers for each table
-      const fetchPurchaseItems = async (batchIds: string[]) => {
-        const rows: any[] = [];
-        let offset = 0;
-        const pageSize = 1000;
-        let hasMore = true;
-        while (hasMore) {
-          const { data, error } = await supabase
-            .from("purchase_items")
-            .select("sku_id, qty")
-            .in("sku_id", batchIds)
-            .is("deleted_at", null)
-            .order("id")
-            .range(offset, offset + pageSize - 1);
-          if (error) throw error;
-          if (data && data.length > 0) { rows.push(...data); offset += pageSize; hasMore = data.length === pageSize; } else { hasMore = false; }
-        }
-        return rows;
-      };
-
-      const fetchSaleItems = async (batchIds: string[]) => {
-        const rows: any[] = [];
-        let offset = 0;
-        const pageSize = 1000;
-        let hasMore = true;
-        while (hasMore) {
-          const { data, error } = await supabase
-            .from("sale_items")
-            .select("variant_id, quantity")
-            .in("variant_id", batchIds)
-            .is("deleted_at", null)
-            .order("id")
-            .range(offset, offset + pageSize - 1);
-          if (error) throw error;
-          if (data && data.length > 0) { rows.push(...data); offset += pageSize; hasMore = data.length === pageSize; } else { hasMore = false; }
-        }
-        return rows;
-      };
-
-      const fetchPurchaseReturnItems = async (batchIds: string[]) => {
-        const rows: any[] = [];
-        let offset = 0;
-        const pageSize = 1000;
-        let hasMore = true;
-        while (hasMore) {
-          const { data, error } = await supabase
-            .from("purchase_return_items")
-            .select("sku_id, qty")
-            .in("sku_id", batchIds)
-            .is("deleted_at", null)
-            .order("id")
-            .range(offset, offset + pageSize - 1);
-          if (error) throw error;
-          if (data && data.length > 0) { rows.push(...data); offset += pageSize; hasMore = data.length === pageSize; } else { hasMore = false; }
-        }
-        return rows;
-      };
-
-      const fetchSaleReturnItems = async (batchIds: string[]) => {
-        const rows: any[] = [];
-        let offset = 0;
-        const pageSize = 1000;
-        let hasMore = true;
-        while (hasMore) {
-          const { data, error } = await supabase
-            .from('sale_return_items')
-            .select('variant_id, quantity')
-            .in('variant_id', batchIds)
-            .is('deleted_at', null)
-            .order('id')
-            .range(offset, offset + pageSize - 1);
-          if (error) throw error;
-          if (data && data.length > 0) { rows.push(...data); offset += pageSize; hasMore = data.length === pageSize; }
-          else { hasMore = false; }
-        }
-        return rows;
-      };
-
-      // Aggregate quantities from all transaction tables
-      const variantMovements: Record<string, { purchase: number; purchaseReturn: number; sales: number; saleReturn: number }> = {};
-
-      // Fetch batch stock for supplier info (batched)
-      const allBatchData: any[] = [];
-
-      for (let i = 0; i < variantIds.length; i += BATCH_SIZE) {
-        const batchIds = variantIds.slice(i, i + BATCH_SIZE);
-
-        // Run all 5 queries in parallel for each batch
-        const [purchaseRows, saleRows, purReturnRows, saleReturnRows, batchStockData] = await Promise.all([
-          fetchPurchaseItems(batchIds),
-          fetchSaleItems(batchIds),
-          fetchPurchaseReturnItems(batchIds),
-          fetchSaleReturnItems(batchIds),
-          supabase
-            .from("batch_stock")
-            .select(`variant_id, purchase_bills ( supplier_name, supplier_invoice_no )`)
-            .eq("organization_id", currentOrganization.id)
-            .in("variant_id", batchIds)
-            .then(({ data, error }) => { if (error) throw error; return data || []; }),
-        ]);
-
-        if (batchStockData) allBatchData.push(...batchStockData);
-
-        for (const row of purchaseRows) {
-          if (!variantMovements[row.sku_id]) variantMovements[row.sku_id] = { purchase: 0, purchaseReturn: 0, sales: 0, saleReturn: 0 };
-          variantMovements[row.sku_id].purchase += (row.qty || 0);
-        }
-        for (const row of saleRows) {
-          if (!variantMovements[row.variant_id]) variantMovements[row.variant_id] = { purchase: 0, purchaseReturn: 0, sales: 0, saleReturn: 0 };
-          variantMovements[row.variant_id].sales += (row.quantity || 0);
-        }
-        for (const row of purReturnRows) {
-          if (!variantMovements[row.sku_id]) variantMovements[row.sku_id] = { purchase: 0, purchaseReturn: 0, sales: 0, saleReturn: 0 };
-          variantMovements[row.sku_id].purchaseReturn += (row.qty || 0);
-        }
-        for (const row of saleReturnRows) {
-          if (!variantMovements[row.variant_id]) variantMovements[row.variant_id] = { purchase: 0, purchaseReturn: 0, sales: 0, saleReturn: 0 };
-          variantMovements[row.variant_id].saleReturn += (row.quantity || 0);
+      } finally {
+        if (requestId === searchRequestIdRef.current) {
+          setLoading(false);
         }
       }
+    },
+    [
+      currentOrganization?.id,
+      stockReportHasFilters,
+      searchTerm,
+      productNameFilter,
+      pinnedProducts,
+      categoryFilter,
+      brandFilter,
+      stockStatusFilter,
+      ITEMS_PER_PAGE,
+    ],
+  );
 
-      // Map variant_id to supplier names and invoice numbers
-      const variantSuppliers = allBatchData.reduce((acc: any, batch: any) => {
-        if (!acc[batch.variant_id] && batch.purchase_bills?.supplier_name) {
-          acc[batch.variant_id] = {
-            supplier_name: batch.purchase_bills.supplier_name,
-            supplier_invoice_no: batch.purchase_bills.supplier_invoice_no || ''
-          };
-        }
-        return acc;
-      }, {});
+  const handleSearch = useCallback(async () => {
+    if (!stockReportHasFilters) return;
+    setHasSearched(true);
+    setCurrentPage(1);
+    await fetchStockReportPage(1);
+  }, [stockReportHasFilters, fetchStockReportPage]);
 
-      const formattedData = data?.map((item: any) => {
-        const movements = variantMovements[item.id] || { purchase: 0, purchaseReturn: 0, sales: 0, saleReturn: 0 };
-        const supplierInfo = variantSuppliers[item.id] || { supplier_name: '', supplier_invoice_no: '' };
-        const netSalesQty = Math.max(0, movements.sales);
-        
-        return {
-          id: item.id,
-          product_name: item.products?.product_name || "",
-          brand: item.products?.brand || "",
-          color: item.color || item.products?.color || "",
-          size: item.size,
-          stock_qty: item.stock_qty,
-          opening_qty: item.opening_qty || 0,
-          purchase_qty: Math.max(0, movements.purchase),
-          purchase_return_qty: Math.max(0, movements.purchaseReturn),
-          sales_qty: netSalesQty,
-          sale_return_qty: Math.max(0, movements.saleReturn || 0),
-          sale_price: item.sale_price,
-          pur_price: item.pur_price || null,
-          barcode: item.barcode || "",
-          supplier_name: supplierInfo.supplier_name || "",
-          supplier_invoice_no: supplierInfo.supplier_invoice_no || "",
-          category: item.products?.category || "",
-          department: item.products?.style || "",
-          uom: item.products?.uom || "NOS",
-        };
-      }) || [];
-
-      if (requestId !== searchRequestIdRef.current) return;
-
-      // Update filter options from fetched data
-      setFilterOptions(prev => ({
-        ...prev,
-        brands: [...new Set(formattedData.map(i => i.brand).filter(Boolean))].sort() as string[],
-        departments: [...new Set(formattedData.map(i => i.department).filter(Boolean))].sort() as string[],
-        sizes: [...new Set(formattedData.map(i => i.size).filter(Boolean))].sort() as string[],
-        categories: [...new Set(formattedData.map(i => i.category).filter(Boolean))].sort() as string[],
-        colors: [...new Set(formattedData.map(i => i.color).filter(Boolean))].sort() as string[],
-        suppliers: [...new Set(formattedData.map(i => i.supplier_name).filter(Boolean))].sort() as string[],
-        supplierInvoices: [...new Set(formattedData.map(i => i.supplier_invoice_no).filter(Boolean))].sort() as string[]
-      }));
-
-      setStockItems(formattedData);
-    } catch (error: any) {
-      console.error("Error fetching stock data:", error);
-      if (requestId === searchRequestIdRef.current) {
-        setStockItems([]);
-        toast.error("Search failed", { description: error.message || "Could not load stock data. Try again." });
-      }
-    } finally {
-      if (requestId === searchRequestIdRef.current) {
-        setLoading(false);
-      }
-    }
-  }, [currentOrganization?.id, searchTerm, productNameFilter, brandFilter, departmentFilter, sizeFilter, colorFilter, categoryFilter, supplierFilter, supplierInvoiceFilter, stockStatusFilter]);
+  // Server pagination: page 1 is loaded by handleSearch; page 2+ on control click
+  useEffect(() => {
+    if (!hasSearched || currentPage <= 1) return;
+    if (isDashboardFilterRestoring()) return;
+    fetchStockReportPage(currentPage);
+  }, [currentPage, hasSearched, fetchStockReportPage]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
@@ -1166,12 +914,25 @@ export default function StockReport() {
     [filteredStockItems],
   );
 
-  // Pagination calculations for All Stock tab
-  const totalPages = Math.ceil(filteredStockItems.length / ITEMS_PER_PAGE);
-  const paginatedStockItems = useMemo(() => {
-    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-    return filteredStockItems.slice(startIndex, startIndex + ITEMS_PER_PAGE);
-  }, [filteredStockItems, currentPage, ITEMS_PER_PAGE]);
+  // Server-side pagination total; client-only filters apply within the current page
+  const hasClientOnlyFilters =
+    departmentFilter !== "all" ||
+    sizeFilter !== "all" ||
+    colorFilter !== "all" ||
+    supplierFilter !== "all" ||
+    supplierInvoiceFilter !== "all" ||
+    stockStatusFilter === "in" ||
+    stockStatusFilter === "low" ||
+    pinnedProducts.length > 1;
+
+  const matchingVariantCount = hasSearched
+    ? hasClientOnlyFilters
+      ? filteredStockItems.length
+      : serverTotalRows
+    : globalTotals.variantCount;
+
+  const totalPages = Math.max(1, Math.ceil(serverTotalRows / ITEMS_PER_PAGE));
+  const paginatedStockItems = filteredStockItems;
 
   // Reset to page 1 when filters change
   useEffect(() => {
@@ -1191,10 +952,22 @@ export default function StockReport() {
     setSupplierInvoiceFilter("all");
     setStockStatusFilter("all");
     setStockItems([]);
+    setServerTotalRows(0);
     setHasSearched(false);
   };
 
-  const hasActiveFilters = searchTerm || productNameFilter || brandFilter !== "all" || departmentFilter !== "all" || sizeFilter !== "all" || colorFilter !== "all" || categoryFilter !== "all" || supplierFilter !== "all" || supplierInvoiceFilter !== "all" || stockStatusFilter !== "all";
+  const hasActiveFilters =
+    searchTerm ||
+    productNameFilter ||
+    pinnedProducts.length > 0 ||
+    brandFilter !== "all" ||
+    departmentFilter !== "all" ||
+    sizeFilter !== "all" ||
+    colorFilter !== "all" ||
+    categoryFilter !== "all" ||
+    supplierFilter !== "all" ||
+    supplierInvoiceFilter !== "all" ||
+    stockStatusFilter !== "all";
 
   // Export Size-wise to Excel
   const exportSizeWiseToExcel = () => {
@@ -1512,7 +1285,7 @@ export default function StockReport() {
 
   const stockKpiItems = useMemo((): ReportKpiItem[] => {
     const qty = hasSearched ? totalStock : globalTotals.totalStock;
-    const variants = hasSearched ? filteredStockItems.length : globalTotals.variantCount;
+    const variants = hasSearched ? matchingVariantCount : globalTotals.variantCount;
     const costVal = Math.round(hasSearched ? totalStockValue : globalTotals.stockValue);
     const saleVal = Math.round(hasSearched ? totalSaleValue : globalTotals.saleValue);
     const loading = globalTotals.isLoading && !hasSearched;
@@ -1545,6 +1318,7 @@ export default function StockReport() {
     totalStock,
     globalTotals,
     filteredStockItems.length,
+    matchingVariantCount,
     totalStockValue,
     totalSaleValue,
   ]);
@@ -1587,7 +1361,7 @@ export default function StockReport() {
         <MobileStatStrip stats={[
           { label: "Stock Value", value: `₹${(hasSearched ? totalStockValue : globalTotals.stockValue) >= 100000 ? ((hasSearched ? totalStockValue : globalTotals.stockValue)/100000).toFixed(1)+"L" : Math.round(hasSearched ? totalStockValue : globalTotals.stockValue).toLocaleString("en-IN")}`, color: "text-blue-600", bg: "bg-blue-50" },
           { label: "Total Qty", value: globalTotals.isLoading ? "…" : (hasSearched ? totalStock : globalTotals.totalStock).toLocaleString("en-IN"), color: "text-amber-600", bg: "bg-amber-50" },
-          { label: "Variants", value: globalTotals.isLoading ? "…" : (hasSearched ? `${filteredStockItems.length}` : `${globalTotals.variantCount}`), color: "text-purple-600", bg: "bg-purple-50" },
+          { label: "Variants", value: globalTotals.isLoading ? "…" : (hasSearched ? `${matchingVariantCount}` : `${globalTotals.variantCount}`), color: "text-purple-600", bg: "bg-purple-50" },
         ]} />
 
         <div className="flex-1 px-4 py-2 space-y-2">
@@ -1883,7 +1657,7 @@ export default function StockReport() {
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-sm text-muted-foreground tabular-nums">
                 {activeTab === "all"
-                  ? `${filteredStockItems.length.toLocaleString("en-IN")} matching`
+                  ? `${matchingVariantCount.toLocaleString("en-IN")} matching`
                   : `${sizeWiseData.rows.length.toLocaleString("en-IN")} products`}
               </span>
               {activeTab === "all" ? (
@@ -2052,11 +1826,11 @@ export default function StockReport() {
                   </Table>
                 </div>
 
-                  {/* Pagination Controls */}
-                  {totalPages > 1 && (
+                  {/* Pagination Controls — server-side pages via get_stock_report */}
+                  {hasSearched && serverTotalRows > ITEMS_PER_PAGE && (
                     <div className="flex items-center justify-between px-3 py-2.5 border-t border-slate-200 dark:border-slate-700 bg-slate-50/80 shrink-0">
                       <div className="text-xs text-slate-500">
-                        Page {currentPage} of {totalPages}
+                        Page {currentPage} of {totalPages} · {matchingVariantCount.toLocaleString("en-IN")} variants
                       </div>
                       <div className="flex items-center gap-2">
                         <Button
