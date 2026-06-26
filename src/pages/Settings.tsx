@@ -357,6 +357,8 @@ export default function Settings() {
   const { orgNavigate: navigate } = useOrgNavigation();
   const { toast } = useToast();
   const { currentOrganization, organizations } = useOrganization();
+  const [visitedTabs, setVisitedTabs] = useState<Set<string>>(new Set(["company"]));
+  const [currentTab, setCurrentTab] = useState("company");
   const [loading, setLoading] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [sizeGroups, setSizeGroups] = useState<any[]>([]);
@@ -1069,7 +1071,14 @@ export default function Settings() {
           </Button>
         </div>
 
-        <Tabs defaultValue="company" className="w-full">
+        <Tabs
+          value={currentTab}
+          onValueChange={(value) => {
+            setCurrentTab(value);
+            setVisitedTabs((prev) => new Set([...prev, value]));
+          }}
+          className="w-full"
+        >
           <TabsList className="flex flex-wrap gap-1 h-auto p-1 bg-muted/60 rounded-xl mb-2">
             <TabsTrigger value="company" className="flex items-center gap-1.5 text-xs font-medium"><Building2 className="h-3.5 w-3.5" /> Company</TabsTrigger>
             <TabsTrigger value="product" className="flex items-center gap-1.5 text-xs font-medium"><Package className="h-3.5 w-3.5" /> Product</TabsTrigger>
