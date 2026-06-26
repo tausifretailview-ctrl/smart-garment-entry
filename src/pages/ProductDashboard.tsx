@@ -28,6 +28,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Loader2, Package, Search, Download, Upload, Filter, Plus, MoreHorizontal, Home, ChevronDown, ChevronRight, X, Trash2, Settings2, Barcode, RefreshCw, Eye, Edit, ShoppingCart, History, Ban, Merge, Boxes, Tags, TrendingDown, TrendingUp, AlertTriangle } from "lucide-react";
+import { cn } from "@/lib/utils";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -96,6 +97,30 @@ const EMPTY_DASHBOARD_STATS: DashboardStats = {
   purchase_value: 0,
   sale_value: 0,
 };
+
+function ProductKpiCard({
+  title,
+  subtitle,
+  value,
+  shellClass,
+  valueClass,
+}: {
+  title: string;
+  subtitle: string;
+  value: string;
+  shellClass: string;
+  valueClass: string;
+}) {
+  return (
+    <Card className={cn("rounded-xl border shadow-sm transition-shadow hover:shadow-md", shellClass)}>
+      <CardContent className="flex min-h-[84px] flex-col items-center justify-center px-2 py-3 text-center sm:min-h-[92px] sm:px-3">
+        <p className="text-sm font-semibold leading-snug text-slate-600">{title}</p>
+        <p className={cn("mt-1.5 text-xl font-bold tabular-nums leading-none sm:text-2xl", valueClass)}>{value}</p>
+        <p className="mt-1 text-xs text-slate-500">{subtitle}</p>
+      </CardContent>
+    </Card>
+  );
+}
 
 const ProductDashboard = () => {
   useNavPerfPage(PERF_PATH);
@@ -393,7 +418,7 @@ const ProductDashboard = () => {
     gst: false,
     purPrice: true,
     salePrice: true,
-    status: false,
+    status: true,
     totalQty: true,
     variants: true,
   };
@@ -1133,8 +1158,8 @@ const ProductDashboard = () => {
       {
         id: "srno",
         header: "Sr.",
-        cell: ({ row }) => <span className="font-medium">{startIndex + row.index + 1}</span>,
-        size: 50,
+        cell: ({ row }) => <span className="font-medium tabular-nums text-muted-foreground">{startIndex + row.index + 1}</span>,
+        size: 56,
       },
     ];
 
@@ -1154,56 +1179,56 @@ const ProductDashboard = () => {
             />
           </div>
         ),
-        size: 80,
+        size: 88,
       });
     }
 
     if (columnVisibility.productName) {
       cols.push({
         accessorKey: "product_name",
-        header: "Product Name",
+        header: "Name",
         cell: ({ row }) => (
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-2 min-w-0">
             <span
-              className="cursor-pointer text-primary hover:underline font-medium"
+              className="cursor-pointer text-blue-600 hover:text-blue-800 hover:underline font-semibold truncate"
               onClick={(e) => {
                 e.stopPropagation();
                 setSelectedProductForHistory({ id: row.original.product_id, name: row.original.product_name });
                 setShowProductHistory(true);
               }}
             >
-              {row.original.product_name?.toUpperCase()}
+              {row.original.product_name}
             </span>
             {row.original.user_cancelled_at && (
               <Badge
-                className="bg-red-100 text-red-700 border-red-200 dark:bg-red-900 dark:text-red-300 text-[10px] px-1.5 py-0 h-4"
+                className="bg-red-100 text-red-700 border-red-200 dark:bg-red-900 dark:text-red-300 text-[11px] px-1.5 py-0 h-5 shrink-0"
                 title="Added in Purchase Entry but removed before saving the bill"
               >
                 User Cancelled
               </Badge>
             )}
             {row.original.total_stock === 0 && (
-              <Badge className="bg-red-100 text-red-700 border-red-200 dark:bg-red-900 dark:text-red-300 text-[10px] px-1.5 py-0 h-4">
+              <Badge className="bg-red-100 text-red-700 border-red-200 dark:bg-red-900 dark:text-red-300 text-[11px] px-1.5 py-0 h-5 shrink-0">
                 No Stock
               </Badge>
             )}
           </div>
         ),
-        size: 200,
+        size: 260,
       });
     }
 
-    if (columnVisibility.category) cols.push({ accessorKey: "category", header: "Category", cell: ({ getValue }) => getValue() || "—", size: 120 });
-    if (columnVisibility.brand) cols.push({ accessorKey: "brand", header: "Brand", cell: ({ getValue }) => getValue() || "—", size: 120 });
-    if (columnVisibility.style) cols.push({ accessorKey: "style", header: "Style", cell: ({ getValue }) => getValue() || "—", size: 100 });
-    if (columnVisibility.color) cols.push({ accessorKey: "color", header: "Color", cell: ({ getValue }) => getValue() || "—", size: 100 });
-    if (columnVisibility.hsn) cols.push({ accessorKey: "hsn_code", header: "HSN", cell: ({ getValue }) => <span className="text-xs">{getValue() || "—"}</span>, size: 90 });
-    if (columnVisibility.gst) cols.push({ accessorKey: "gst_per", header: "GST%", cell: ({ getValue }) => <span className="text-right block">{getValue()}%</span>, size: 70 });
-    if (columnVisibility.purPrice) cols.push({ accessorKey: "default_pur_price", header: "Pur Price", cell: ({ getValue }) => <span className="text-right block text-orange-700 dark:text-orange-400 font-medium">₹{(getValue() as number).toFixed(2)}</span>, size: 110 });
-    if (columnVisibility.salePrice) cols.push({ accessorKey: "default_sale_price", header: "Sale Price", cell: ({ getValue }) => <span className="text-right block text-emerald-700 dark:text-emerald-400 font-medium">₹{(getValue() as number).toFixed(2)}</span>, size: 110 });
-    if (columnVisibility.status) cols.push({ accessorKey: "status", header: "Status", cell: ({ getValue }) => { const status = getValue() as string; return (<Badge className={status === "active" ? "bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-900 dark:text-emerald-300" : "bg-gray-100 text-gray-500 border-gray-200 dark:bg-gray-800 dark:text-gray-400"}>{status}</Badge>); }, size: 90 });
-    if (columnVisibility.totalQty) cols.push({ accessorKey: "total_stock", header: "Total Qty", cell: ({ getValue }) => { const qty = getValue() as number; return (<span className={`text-right block font-bold tabular-nums ${qty === 0 ? 'text-red-500' : qty <= 5 ? 'text-orange-500' : 'text-foreground'}`}>{qty}</span>); }, size: 90 });
-    if (columnVisibility.variants) cols.push({ id: "variants", header: "Variants", cell: ({ row }) => (<Badge className="bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900 dark:text-blue-300 font-semibold tabular-nums">{row.original.variant_count || row.original.variants.length}</Badge>), size: 80 });
+    if (columnVisibility.category) cols.push({ accessorKey: "category", header: "Category", cell: ({ getValue }) => <span className="text-slate-700">{getValue() || "—"}</span>, size: 130 });
+    if (columnVisibility.brand) cols.push({ accessorKey: "brand", header: "Brand", cell: ({ getValue }) => <span className="text-slate-700">{getValue() || "—"}</span>, size: 130 });
+    if (columnVisibility.style) cols.push({ accessorKey: "style", header: "Style", cell: ({ getValue }) => getValue() || "—", size: 110 });
+    if (columnVisibility.color) cols.push({ accessorKey: "color", header: "Color", cell: ({ getValue }) => getValue() || "—", size: 110 });
+    if (columnVisibility.hsn) cols.push({ accessorKey: "hsn_code", header: "HSN", cell: ({ getValue }) => <span>{getValue() || "—"}</span>, size: 100 });
+    if (columnVisibility.gst) cols.push({ accessorKey: "gst_per", header: "GST%", cell: ({ getValue }) => <span className="text-right block tabular-nums">{getValue()}%</span>, size: 80 });
+    if (columnVisibility.purPrice) cols.push({ accessorKey: "default_pur_price", header: "Pur Price", cell: ({ getValue }) => <span className="text-right block text-orange-700 dark:text-orange-400 font-semibold tabular-nums">₹{(getValue() as number).toFixed(2)}</span>, size: 120 });
+    if (columnVisibility.salePrice) cols.push({ accessorKey: "default_sale_price", header: "Selling Price", cell: ({ getValue }) => <span className="text-right block text-emerald-700 dark:text-emerald-400 font-semibold tabular-nums">₹{(getValue() as number).toFixed(2)}</span>, size: 120 });
+    if (columnVisibility.status) cols.push({ accessorKey: "status", header: "Status", cell: ({ getValue }) => { const status = getValue() as string; const isActive = status === "active"; return (<Badge className={cn("rounded-full px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wide", isActive ? "bg-emerald-500 text-white border-0 hover:bg-emerald-500" : "bg-slate-200 text-slate-600 border-0")}>{isActive ? "Active" : status || "Inactive"}</Badge>); }, size: 100 });
+    if (columnVisibility.totalQty) cols.push({ accessorKey: "total_stock", header: "Qty", cell: ({ getValue }) => { const qty = getValue() as number; return (<span className={`text-right block font-bold tabular-nums text-base ${qty === 0 ? 'text-red-500' : qty <= 5 ? 'text-orange-500' : 'text-foreground'}`}>{qty}</span>); }, size: 95 });
+    if (columnVisibility.variants) cols.push({ id: "variants", header: "Variants", cell: ({ row }) => (<Badge className="bg-sky-100 text-sky-800 border-sky-200 dark:bg-sky-900 dark:text-sky-200 font-semibold tabular-nums">{row.original.variant_count || row.original.variants.length}</Badge>), size: 90 });
 
     cols.push({
       id: "actions",
@@ -1278,27 +1303,27 @@ const ProductDashboard = () => {
     });
 
     return (
-      <div className="p-4">
-        <h4 className="font-semibold text-sm mb-3">Product Variants Details</h4>
-        <div className="border rounded-lg overflow-hidden">
+      <div className="p-4 bg-slate-50/80">
+        <h4 className="font-semibold text-base mb-3 text-slate-700">Product Variants Details</h4>
+        <div className="border border-slate-200 rounded-lg overflow-hidden bg-white">
           <Table>
             <TableHeader>
-              <TableRow className="bg-muted/30">
-                <TableHead>Size</TableHead>
-                <TableHead>Barcode</TableHead>
-                <TableHead>Color</TableHead>
-                <TableHead className="text-right">Purchase Price</TableHead>
-                <TableHead className="text-right">Sale Price</TableHead>
-                {showMrp && <TableHead className="text-right">MRP</TableHead>}
-                <TableHead className="text-right">Stock Qty</TableHead>
+              <TableRow className="bg-slate-800 hover:bg-slate-800">
+                <TableHead className="text-white text-sm font-semibold h-11">Size</TableHead>
+                <TableHead className="text-white text-sm font-semibold h-11">Barcode</TableHead>
+                <TableHead className="text-white text-sm font-semibold h-11">Color</TableHead>
+                <TableHead className="text-white text-sm font-semibold h-11 text-right">Purchase Price</TableHead>
+                <TableHead className="text-white text-sm font-semibold h-11 text-right">Selling Price</TableHead>
+                {showMrp && <TableHead className="text-white text-sm font-semibold h-11 text-right">MRP</TableHead>}
+                <TableHead className="text-white text-sm font-semibold h-11 text-right">Remain Qty</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {row.variants.map((variant) => (
-                <TableRow key={variant.variant_id}>
-                  <TableCell className="font-medium">{variant.size}</TableCell>
-                  <TableCell>
-                    <span className="font-mono text-xs">{variant.barcode || "—"}</span>
+              {row.variants.map((variant, vIdx) => (
+                <TableRow key={variant.variant_id} className={cn("h-11", vIdx % 2 === 1 && "bg-slate-50/80")}>
+                  <TableCell className="text-base font-medium py-2.5">{variant.size}</TableCell>
+                  <TableCell className="py-2.5">
+                    <span className="font-mono text-sm">{variant.barcode || "—"}</span>
                     {variant.barcode && variant.barcode.length > 6 && (barcodeCount.get(variant.barcode) || 0) > 1 && (
                       <div className="flex items-start gap-1.5 mt-1 text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded px-2 py-1.5">
                         <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
@@ -1306,11 +1331,11 @@ const ProductDashboard = () => {
                       </div>
                     )}
                   </TableCell>
-                  <TableCell>{variant.color || "—"}</TableCell>
-                  <TableCell className="text-right">₹{variant.pur_price.toFixed(2)}</TableCell>
-                  <TableCell className="text-right">₹{variant.sale_price.toFixed(2)}</TableCell>
-                  {showMrp && <TableCell className="text-right">₹{variant.mrp.toFixed(2)}</TableCell>}
-                  <TableCell className="text-right font-medium">{variant.stock_qty}</TableCell>
+                  <TableCell className="text-base py-2.5">{variant.color || "—"}</TableCell>
+                  <TableCell className="text-right text-base tabular-nums py-2.5">₹{variant.pur_price.toFixed(2)}</TableCell>
+                  <TableCell className="text-right text-base tabular-nums py-2.5">₹{variant.sale_price.toFixed(2)}</TableCell>
+                  {showMrp && <TableCell className="text-right text-base tabular-nums py-2.5">₹{variant.mrp.toFixed(2)}</TableCell>}
+                  <TableCell className="text-right text-base font-bold tabular-nums py-2.5">{variant.stock_qty}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -1327,80 +1352,77 @@ const ProductDashboard = () => {
   const totalSaleValue = dashboardStats.sale_value;
 
   return (
-    <div className="min-h-screen bg-slate-50 px-2 sm:px-3 md:px-4 lg:px-5 py-6 pb-24 lg:pb-6">
-      <div className="w-full min-w-0 max-w-none space-y-5">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+    <>
+    <div className="product-dashboard-workspace flex h-full min-h-0 w-full flex-col overflow-hidden bg-slate-50 px-2 py-2 sm:px-3">
+      <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col gap-2">
+        {/* Page header — Vasy-style full workspace */}
+        <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
           <div>
-            <h1 className="text-3xl font-extrabold text-blue-600 tracking-tight leading-tight">
-              Product Catalog
+            <h1 className="flex items-center gap-2 text-xl font-bold leading-none tracking-tight text-teal-700">
+              <Home className="h-4 w-4 shrink-0 opacity-70" />
+              Products
             </h1>
-            <p className="text-slate-400 text-base mt-0.5">Browse inventory, variants, and pricing</p>
+            <p className="mt-1 text-sm text-slate-500">Browse inventory, variants, and pricing</p>
           </div>
-          <Button
-            onClick={() => navigate("/product-entry")}
-            className="h-10 px-5 text-base font-semibold bg-blue-600 hover:bg-blue-700 text-white shadow-md hover:shadow-lg transition-all gap-2"
-          >
-            <Plus className="h-4 w-4" />
-            Create New
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9 gap-1.5 border-slate-200 text-sm"
+              onClick={() => void fetchProductVariants()}
+              disabled={catalogFetching || statsFetching}
+            >
+              {(catalogFetching || statsFetching) ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4" />
+              )}
+              Refresh
+            </Button>
+            <Button
+              onClick={() => navigate("/product-entry")}
+              className="h-9 px-4 text-sm font-semibold bg-blue-600 hover:bg-blue-700 text-white shadow-sm gap-1.5"
+            >
+              <Plus className="h-4 w-4" />
+              Create New
+            </Button>
+          </div>
         </div>
 
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 w-full">
-          <Card className="hover:shadow-xl transition-all duration-200 bg-gradient-to-br from-blue-500 to-blue-600 border-0 shadow-md rounded-xl">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-3 px-3">
-              <CardDescription className="text-base font-medium text-white/80">Total Stock Qty</CardDescription>
-              <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
-                <Boxes className="h-4 w-4 text-white" />
-              </div>
-            </CardHeader>
-            <CardContent className="px-3 pb-3 pt-0">
-              <div className="text-2xl font-black text-white tabular-nums">{totalStockQty.toLocaleString()}</div>
-              <p className="text-sm text-white/65 mt-0.5">Units on hand</p>
-            </CardContent>
-          </Card>
-
-          <Card className="hover:shadow-xl transition-all duration-200 bg-gradient-to-br from-violet-500 to-violet-600 border-0 shadow-md rounded-xl">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-3 px-3">
-              <CardDescription className="text-base font-medium text-white/80">Total Items</CardDescription>
-              <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
-                <Tags className="h-4 w-4 text-white" />
-              </div>
-            </CardHeader>
-            <CardContent className="px-3 pb-3 pt-0">
-              <div className="text-2xl font-black text-white tabular-nums">{totalItems.toLocaleString()}</div>
-              <p className="text-sm text-white/65 mt-0.5">Active products</p>
-            </CardContent>
-          </Card>
-
-          <Card className="hover:shadow-xl transition-all duration-200 bg-gradient-to-br from-orange-500 to-orange-600 border-0 shadow-md rounded-xl">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-3 px-3">
-              <CardDescription className="text-base font-medium text-white/80">Purchase Value</CardDescription>
-              <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
-                <TrendingDown className="h-4 w-4 text-white" />
-              </div>
-            </CardHeader>
-            <CardContent className="px-3 pb-3 pt-0">
-              <div className="text-2xl font-black text-white tabular-nums">₹{Math.round(totalPurchaseValue).toLocaleString("en-IN")}</div>
-              <p className="text-sm text-white/65 mt-0.5">At purchase price</p>
-            </CardContent>
-          </Card>
-
-          <Card className="hover:shadow-xl transition-all duration-200 bg-gradient-to-br from-emerald-500 to-emerald-600 border-0 shadow-md rounded-xl">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-3 px-3">
-              <CardDescription className="text-base font-medium text-white/80">Sale Value</CardDescription>
-              <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
-                <TrendingUp className="h-4 w-4 text-white" />
-              </div>
-            </CardHeader>
-            <CardContent className="px-3 pb-3 pt-0">
-              <div className="text-2xl font-black text-white tabular-nums">₹{Math.round(totalSaleValue).toLocaleString("en-IN")}</div>
-              <p className="text-sm text-white/65 mt-0.5">At sale price</p>
-            </CardContent>
-          </Card>
+        {/* KPI strip — remaining stock / value (Vasy pastel style) */}
+        <div className="grid shrink-0 grid-cols-2 gap-2 lg:grid-cols-4 lg:gap-3">
+          <ProductKpiCard
+            title="Remaining Stock"
+            subtitle="Units on hand"
+            value={totalStockQty.toLocaleString("en-IN")}
+            shellClass="bg-sky-50 border-sky-200/70 hover:bg-sky-100/80"
+            valueClass="text-sky-800"
+          />
+          <ProductKpiCard
+            title="Active Products"
+            subtitle="In catalog"
+            value={totalItems.toLocaleString("en-IN")}
+            shellClass="bg-violet-50 border-violet-200/70 hover:bg-violet-100/80"
+            valueClass="text-violet-800"
+          />
+          <ProductKpiCard
+            title="Remain Value (Pur)"
+            subtitle="At purchase price"
+            value={`₹${Math.round(totalPurchaseValue).toLocaleString("en-IN")}`}
+            shellClass="bg-orange-50 border-orange-200/70 hover:bg-orange-100/80"
+            valueClass="text-orange-800"
+          />
+          <ProductKpiCard
+            title="Remain Value (Sale)"
+            subtitle="At selling price"
+            value={`₹${Math.round(totalSaleValue).toLocaleString("en-IN")}`}
+            shellClass="bg-emerald-50 border-emerald-200/70 hover:bg-emerald-100/80"
+            valueClass="text-emerald-800"
+          />
         </div>
 
-        <Card className="rounded-xl border border-slate-200 shadow-sm overflow-hidden p-0">
-          <div className="flex flex-wrap items-center gap-2 px-4 py-2.5 border-b border-slate-100 bg-white">
+        <Card className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-slate-200 shadow-sm p-0">
+          <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-slate-100 bg-white px-3 py-2.5">
             <Button
               variant={showFilters ? "default" : "outline"}
               className="h-10 text-base gap-2 border-slate-200"
@@ -1435,7 +1457,7 @@ const ProductDashboard = () => {
             <div className="relative flex-1 min-w-[200px] max-w-full sm:max-w-md md:max-w-lg lg:max-w-xl">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
               <Input
-                placeholder="Search name, brand, barcode, HSN..."
+                placeholder="Search list..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-11 pr-8 h-10 text-base border-slate-200 bg-slate-50 focus:bg-white no-uppercase"
@@ -1459,7 +1481,7 @@ const ProductDashboard = () => {
 
         {/* Filters Panel */}
         {showFilters && (
-          <Card className="mb-4">
+          <Card className="mx-3 mb-2 shrink-0 border-slate-200 shadow-none">
             <CardContent className="p-4">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-sm font-semibold text-foreground">Filter Products</h3>
@@ -1648,7 +1670,7 @@ const ProductDashboard = () => {
 
         {/* Bulk Actions */}
         {selectedProducts.size > 0 && (
-          <Card className="mb-4 border-primary bg-primary/5 shadow-sm">
+          <Card className="mx-3 mb-2 shrink-0 border-primary bg-primary/5 shadow-sm">
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
@@ -1726,10 +1748,10 @@ const ProductDashboard = () => {
           </Card>
         )}
 
-          <div className="p-0">
+          <div className="product-dashboard-table-panel min-h-0 flex-1 overflow-y-auto overflow-x-auto">
             {filteredRows.length === 0 && !loading ? (
-              <div className="text-center py-12 text-muted-foreground">
-                <Package className="h-12 w-12 mx-auto mb-4 opacity-50" />
+              <div className="text-center py-16 text-muted-foreground">
+                <Package className="h-14 w-14 mx-auto mb-4 opacity-50" />
                 {fetchError ? (
                   <>
                     <p className="text-lg text-destructive">Failed to load products</p>
@@ -1740,7 +1762,7 @@ const ProductDashboard = () => {
                   </>
                 ) : (
                   <>
-                    <p className="text-lg">No products found</p>
+                    <p className="text-lg font-medium">No products found</p>
                     <p className="text-sm">Add your first product to get started</p>
                   </>
                 )}
@@ -1753,7 +1775,8 @@ const ProductDashboard = () => {
                 isLoading={loading && productRows.length === 0}
                 emptyMessage="No products found"
                 defaultDensity="comfortable"
-                className="[&_td]:!text-[15px] [&_th]:!text-[13px]"
+                fitToContainer
+                className="product-dashboard-table [&_td]:!text-base [&_th]:!text-sm [&_th]:!font-semibold [&_th]:!uppercase [&_th]:!tracking-wide [&_tbody_tr:nth-child(even)]:bg-slate-50/80 [&_tbody_tr:hover]:bg-sky-50/70"
                 renderSubRow={renderProductSubRow}
                 expandedRows={expandedRows}
                 onToggleExpand={toggleExpanded}
@@ -1769,7 +1792,7 @@ const ProductDashboard = () => {
           </div>
 
           {filteredRows.length > 0 && (
-            <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-t border-slate-100 bg-white">
+            <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-slate-100 bg-white px-4 py-2.5">
               <div className="flex flex-wrap items-center gap-4">
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-slate-500">Show:</span>
@@ -2040,6 +2063,7 @@ const ProductDashboard = () => {
         </DialogContent>
       </Dialog>
     </div>
+    </>
   );
 };
 

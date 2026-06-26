@@ -1558,6 +1558,39 @@ main:has(.customer-party-balances-workspace) {
   padding: 0.75rem 1rem 1rem;
 }
 
+/* Product Dashboard — full workspace (Vasy-style) */
+.product-dashboard-workspace {
+  height: 100%;
+  min-height: 0;
+  max-height: 100%;
+  overflow: hidden;
+}
+main:has(.product-dashboard-workspace) {
+  overflow: hidden;
+  padding: 0;
+  scrollbar-gutter: auto;
+}
+@media (min-width: 1024px) {
+  main:has(.product-dashboard-workspace) {
+    display: flex;
+    flex-direction: column;
+  }
+  main:has(.product-dashboard-workspace) .product-dashboard-workspace {
+    flex: 1 1 0%;
+    height: auto;
+    max-height: 100%;
+    min-height: 0;
+  }
+}
+.product-dashboard-table-panel {
+  flex: 1 1 0%;
+  min-height: 0;
+  max-height: 100%;
+  overflow-y: auto;
+  overflow-x: auto;
+  overscroll-behavior-y: contain;
+}
+
 /* Accounts Management — sidebar-only full workspace (no header / tab strip) */
 .accounts-management-workspace {
   height: 100%;
