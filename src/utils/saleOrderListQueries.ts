@@ -3,6 +3,10 @@ import { supabase } from "@/integrations/supabase/client";
 
 export const SALE_ORDER_LIST_PAGE_SIZE = 50;
 
+// Narrow list-only column set. Wide fields (tax_type, invoice_format, gross/discount/gst,
+// round_off, notes, terms_conditions, shipping_address, customer_email, customer_address,
+// salesman, quotation_id) are re-fetched on demand via fetchSaleOrderWithItems(id) for
+// Convert / Print / WhatsApp actions — never rendered in the list itself.
 const SALE_ORDER_LIST_COLUMNS = [
   "id",
   "order_number",
@@ -11,22 +15,9 @@ const SALE_ORDER_LIST_COLUMNS = [
   "customer_id",
   "customer_name",
   "customer_phone",
-  "customer_email",
-  "customer_address",
   "net_amount",
   "status",
   "customer_accepted",
-  "tax_type",
-  "invoice_format",
-  "gross_amount",
-  "discount_amount",
-  "gst_amount",
-  "round_off",
-  "notes",
-  "terms_conditions",
-  "shipping_address",
-  "salesman",
-  "quotation_id",
   "created_at",
   "organization_id",
 ].join(", ");
