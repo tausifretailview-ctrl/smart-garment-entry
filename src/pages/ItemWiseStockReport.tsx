@@ -1,20 +1,33 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
 import { restoreDashboardFilters, WINDOW_FILTER_IDS } from "@/lib/dashboardFilterPersistence";
 import { useQuery } from "@tanstack/react-query";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useProductFieldLabels } from "@/hooks/useSettings";
-import { BackToDashboard } from "@/components/BackToDashboard";
-import { ReportKpiCards, type ReportKpiItem } from "@/components/reports/ReportKpiCards";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ReportSkeleton } from "@/components/ui/skeletons";
 import { format } from "date-fns";
-import { Search, Printer, FileSpreadsheet, Package, IndianRupee, TrendingUp, X, FileText, ChevronLeft, ChevronRight } from "lucide-react";
+import {
+  Search,
+  Printer,
+  FileSpreadsheet,
+  Package,
+  ArrowLeft,
+  RefreshCw,
+  Loader2,
+  X,
+  FileText,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
 import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
+import { cn } from "@/lib/utils";
 import {
   fetchAllItemWiseStockRows,
   fetchItemWiseStockFilterOptions,
@@ -26,7 +39,6 @@ import {
   type ItemWiseStockRow,
 } from "@/utils/itemWiseStockQueries";
 
-// Tab-return stable: keep cached data, never auto-refetch on focus/mount/reconnect.
 const STABLE_TAB_OPTIONS = {
   staleTime: 5 * 60 * 1000,
   gcTime: 30 * 60 * 1000,
@@ -35,8 +47,15 @@ const STABLE_TAB_OPTIONS = {
   refetchOnReconnect: false as const,
 };
 
+const ALL_VALUE = "__all__";
+
+function normalizeFilterValue(value: string | undefined): string {
+  return value && value !== ALL_VALUE ? value : ALL_VALUE;
+}
+
 export default function ItemWiseStockReport() {
   const { currentOrganization } = useOrganization();
+  const { orgNavigate } = useOrgNavigation();
   const fieldLabels = useProductFieldLabels();
   const GROUP_BY_LABELS: Record<ItemWiseStockGroupBy, string> = {
     product_name: "Product Name",
@@ -45,12 +64,13 @@ export default function ItemWiseStockReport() {
     category: fieldLabels.category,
     department: fieldLabels.style,
   };
+
   const [searchQuery, setSearchQuery] = useState("");
   const [groupBy, setGroupBy] = useState<ItemWiseStockGroupBy>("product_name");
-  const [brandFilter, setBrandFilter] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState("");
-  const [departmentFilter, setDepartmentFilter] = useState("");
-  const [supplierFilter, setSupplierFilter] = useState("");
+  const [brandFilter, setBrandFilter] = useState(ALL_VALUE);
+  const [categoryFilter, setCategoryFilter] = useState(ALL_VALUE);
+  const [departmentFilter, setDepartmentFilter] = useState(ALL_VALUE);
+  const [supplierFilter, setSupplierFilter] = useState(ALL_VALUE);
   const [currentPage, setCurrentPage] = useState(1);
   const [isExporting, setIsExporting] = useState(false);
 
@@ -74,10 +94,10 @@ export default function ItemWiseStockReport() {
         strings: [
           ["searchQuery", setSearchQuery],
           ["groupBy", (v) => setGroupBy(v as ItemWiseStockGroupBy)],
-          ["brandFilter", setBrandFilter],
-          ["categoryFilter", setCategoryFilter],
-          ["departmentFilter", setDepartmentFilter],
-          ["supplierFilter", setSupplierFilter],
+          ["brandFilter", (v) => setBrandFilter(normalizeFilterValue(v))],
+          ["categoryFilter", (v) => setCategoryFilter(normalizeFilterValue(v))],
+          ["departmentFilter", (v) => setDepartmentFilter(normalizeFilterValue(v))],
+          ["supplierFilter", (v) => setSupplierFilter(normalizeFilterValue(v))],
         ],
         numbers: [["currentPage", setCurrentPage]],
       });
@@ -107,16 +127,22 @@ export default function ItemWiseStockReport() {
     data: listPageData,
     isLoading: listLoading,
     isFetching: listFetching,
+    error: listError,
+    refetch: refetchList,
   } = useQuery({
     queryKey: ["item-wise-stock", currentOrganization?.id, listFilters, currentPage],
     queryFn: () =>
       fetchItemWiseStockPage(currentOrganization!.id, listFilters, currentPage, ITEM_WISE_STOCK_PAGE_SIZE),
     enabled: !!currentOrganization?.id,
-    placeholderData: (previous) => previous,
     ...STABLE_TAB_OPTIONS,
   });
 
-  const { data: grandTotalsData, isLoading: totalsLoading } = useQuery({
+  const {
+    data: grandTotalsData,
+    isLoading: totalsLoading,
+    isFetching: totalsFetching,
+    refetch: refetchTotals,
+  } = useQuery({
     queryKey: ["item-wise-stock-totals", currentOrganization?.id, listFilters],
     queryFn: () => fetchItemWiseStockTotals(currentOrganization!.id, listFilters),
     enabled: !!currentOrganization?.id,
@@ -134,28 +160,41 @@ export default function ItemWiseStockReport() {
     group_count: 0,
   };
 
-  const isLoading = listLoading || totalsLoading;
+  const isInitialLoading = listLoading || totalsLoading;
+  const isRefreshing = (listFetching || totalsFetching) && !isInitialLoading;
+  const showTableLoading = isInitialLoading || listFetching;
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
 
   const clearFilters = useCallback(() => {
-    setBrandFilter("");
-    setCategoryFilter("");
-    setDepartmentFilter("");
-    setSupplierFilter("");
+    setBrandFilter(ALL_VALUE);
+    setCategoryFilter(ALL_VALUE);
+    setDepartmentFilter(ALL_VALUE);
+    setSupplierFilter(ALL_VALUE);
     setSearchQuery("");
     setCurrentPage(1);
   }, []);
 
   const hasActiveFilters =
-    (brandFilter && brandFilter !== "__all__") ||
-    (categoryFilter && categoryFilter !== "__all__") ||
-    (departmentFilter && departmentFilter !== "__all__") ||
-    (supplierFilter && supplierFilter !== "__all__") ||
-    searchQuery;
+    brandFilter !== ALL_VALUE ||
+    categoryFilter !== ALL_VALUE ||
+    departmentFilter !== ALL_VALUE ||
+    supplierFilter !== ALL_VALUE ||
+    !!searchQuery.trim();
 
   const loadAllRowsForExport = useCallback(async () => {
     if (!currentOrganization?.id) return [];
     return fetchAllItemWiseStockRows(currentOrganization.id, listFilters);
   }, [currentOrganization?.id, listFilters]);
+
+  const handleRefresh = () => {
+    void refetchList();
+    void refetchTotals();
+  };
 
   const exportToExcel = async () => {
     if (!currentOrganization?.id) return;
@@ -260,322 +299,357 @@ export default function ItemWiseStockReport() {
 
   const handlePrint = () => window.print();
 
-  const pageNumbers = useMemo(() => {
-    if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i + 1);
-    const pages: (number | "...")[] = [1];
-    if (currentPage > 3) pages.push("...");
-    for (let i = Math.max(2, currentPage - 1); i <= Math.min(totalPages - 1, currentPage + 1); i++) {
-      pages.push(i);
-    }
-    if (currentPage < totalPages - 2) pages.push("...");
-    if (totalPages > 1) pages.push(totalPages);
-    return pages;
-  }, [totalPages, currentPage]);
+  const groupLabel = GROUP_BY_LABELS[groupBy];
+  const pageStart = totalCount === 0 ? 0 : (currentPage - 1) * ITEM_WISE_STOCK_PAGE_SIZE + 1;
+  const pageEnd = Math.min(currentPage * ITEM_WISE_STOCK_PAGE_SIZE, totalCount);
 
-  const stockKpiItems = useMemo((): ReportKpiItem[] => {
-    if (grandTotals.group_count === 0 && !isLoading) return [];
-    return [
-      {
-        label: "Total Stock",
-        value: grandTotals.total_qty.toLocaleString("en-IN"),
-        sub: `${grandTotals.group_count} groups`,
-        gradient: "bg-gradient-to-br from-blue-500 to-blue-600",
-        icon: Package,
-      },
-      {
-        label: "Purchase Value",
-        value: `₹${Math.round(grandTotals.purchase_value).toLocaleString("en-IN")}`,
-        sub: "At purchase price",
-        gradient: "bg-gradient-to-br from-amber-500 to-amber-600",
-        icon: IndianRupee,
-      },
-      {
-        label: "Sale Value",
-        value: `₹${Math.round(grandTotals.sale_value).toLocaleString("en-IN")}`,
-        sub: "At sale price",
-        gradient: "bg-gradient-to-br from-emerald-500 to-emerald-600",
-        icon: TrendingUp,
-      },
-    ];
-  }, [grandTotals, isLoading]);
+  if (!currentOrganization?.id) {
+    return (
+      <div className="flex h-64 items-center justify-center text-muted-foreground">
+        Select an organization to view stock report.
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-slate-50 p-4 md:p-6 space-y-5 print:p-2 print:space-y-2 print:bg-white">
-      <div className="print:hidden">
-        <BackToDashboard />
-      </div>
-
-      <div className="flex flex-col md:flex-row md:items-start justify-between gap-4 print:hidden">
-        <div>
-          <h1 className="text-3xl font-extrabold text-blue-600 tracking-tight leading-tight print:text-lg print:text-foreground">
-            {GROUP_BY_LABELS[groupBy]} Wise Stock Report
-          </h1>
-          <p className="text-slate-400 text-base mt-0.5 print:text-xs print:text-muted-foreground">
-            {currentOrganization?.name || ""} · {format(new Date(), "dd-MM-yyyy hh:mm:ss a")}
-          </p>
+    <div className="item-wise-stock-workspace flex h-full min-h-0 w-full flex-col overflow-hidden bg-slate-50 px-2 py-2 sm:px-3 print:bg-white print:p-2">
+      <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col gap-2">
+        {/* Toolbar */}
+        <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 print:hidden">
+          <div className="flex min-w-0 items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9 shrink-0 px-3 text-sm"
+              onClick={() => orgNavigate("/reports")}
+            >
+              <ArrowLeft className="mr-1 h-4 w-4" />
+              Reports
+            </Button>
+            <div className="min-w-0">
+              <h1 className="flex items-center gap-2 text-xl font-bold leading-none tracking-tight text-teal-700">
+                <Package className="h-5 w-5 shrink-0" />
+                {groupLabel} Wise Stock
+              </h1>
+              <p className="mt-1 truncate text-sm text-muted-foreground">
+                {isRefreshing ? (
+                  <span className="inline-flex items-center gap-1">
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    Refreshing…
+                  </span>
+                ) : (
+                  <>
+                    {currentOrganization.name} · {format(new Date(), "dd-MM-yyyy hh:mm a")}
+                    {grandTotals.group_count > 0
+                      ? ` · ${grandTotals.group_count.toLocaleString("en-IN")} groups`
+                      : ""}
+                  </>
+                )}
+              </p>
+            </div>
+          </div>
+          <div className="flex shrink-0 flex-wrap items-center gap-1.5">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9 text-sm"
+              onClick={handleRefresh}
+              disabled={listFetching || totalsFetching}
+            >
+              <RefreshCw className={cn("mr-1.5 h-4 w-4", (listFetching || totalsFetching) && "animate-spin")} />
+              Refresh
+            </Button>
+            <Button variant="outline" size="sm" className="h-9 gap-1.5 text-sm" onClick={handlePrint}>
+              <Printer className="h-4 w-4" />
+              Print
+            </Button>
+          </div>
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          <Button variant="outline" className="h-10 border-slate-300 text-slate-600 gap-2" onClick={handlePrint}>
-            <Printer className="h-4 w-4" />
-            Print
-          </Button>
-          <Button
-            variant="outline"
-            className="h-10 border-slate-300 text-slate-600 gap-2"
-            onClick={() => void exportToExcel()}
-            disabled={isExporting || grandTotals.group_count === 0}
-          >
-            <FileSpreadsheet className="h-4 w-4" />
-            Excel
-          </Button>
-          <Button
-            variant="outline"
-            className="h-10 border-slate-300 text-slate-600 gap-2"
-            onClick={() => void exportToPDF()}
-            disabled={isExporting || grandTotals.group_count === 0}
-          >
-            <FileText className="h-4 w-4" />
-            PDF
-          </Button>
+
+        {/* KPI strip */}
+        <div className="grid shrink-0 grid-cols-3 gap-2 print:hidden">
+          <div className="min-w-0 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 px-3 py-2 shadow-sm">
+            <p className="text-xs font-medium leading-none text-white/80">Total Stock</p>
+            <p className="mt-1 truncate text-base font-black tabular-nums leading-tight text-white sm:text-lg">
+              {grandTotals.total_qty.toLocaleString("en-IN")}
+            </p>
+          </div>
+          <div className="min-w-0 rounded-lg bg-gradient-to-br from-amber-500 to-amber-600 px-3 py-2 shadow-sm">
+            <p className="text-xs font-medium leading-none text-white/80">Purchase Value</p>
+            <p className="mt-1 truncate text-base font-black tabular-nums leading-tight text-white sm:text-lg">
+              ₹{Math.round(grandTotals.purchase_value).toLocaleString("en-IN")}
+            </p>
+          </div>
+          <div className="min-w-0 rounded-lg bg-gradient-to-br from-emerald-500 to-emerald-600 px-3 py-2 shadow-sm">
+            <p className="text-xs font-medium leading-none text-white/80">Sale Value</p>
+            <p className="mt-1 truncate text-base font-black tabular-nums leading-tight text-white sm:text-lg">
+              ₹{Math.round(grandTotals.sale_value).toLocaleString("en-IN")}
+            </p>
+          </div>
         </div>
-      </div>
 
-      <ReportKpiCards items={stockKpiItems} />
-
-      <div className="flex flex-wrap gap-3 print:hidden">
-        <Select
-          value={groupBy}
-          onValueChange={(v) => {
-            setGroupBy(v as ItemWiseStockGroupBy);
-            setCurrentPage(1);
-          }}
-        >
-          <SelectTrigger className="w-[170px] border-primary/50 font-medium">
-            <SelectValue placeholder="Group By" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="product_name">Product Name</SelectItem>
-            <SelectItem value="supplier">Supplier</SelectItem>
-            <SelectItem value="brand">{fieldLabels.brand}</SelectItem>
-            <SelectItem value="category">{fieldLabels.category}</SelectItem>
-            <SelectItem value="department">{fieldLabels.style}</SelectItem>
-          </SelectContent>
-        </Select>
-
-        <div className="flex-1 min-w-[200px] max-w-md">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder={`Search ${GROUP_BY_LABELS[groupBy]}...`}
-              value={searchQuery}
-              onChange={(e) => {
-                setSearchQuery(e.target.value);
+        {/* Main panel */}
+        <Card className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-slate-200 p-0 shadow-sm print:border-0 print:shadow-none">
+          <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-slate-100 bg-white px-3 py-2 print:hidden">
+            <Select
+              value={groupBy}
+              onValueChange={(v) => {
+                setGroupBy(v as ItemWiseStockGroupBy);
+                setSearchQuery("");
                 setCurrentPage(1);
               }}
-              className="pl-9"
-            />
-          </div>
-        </div>
+            >
+              <SelectTrigger className="h-10 w-[160px] border-slate-200 bg-slate-50 text-sm font-medium">
+                <SelectValue placeholder="Group By" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="product_name">Product Name</SelectItem>
+                <SelectItem value="supplier">Supplier</SelectItem>
+                <SelectItem value="brand">{fieldLabels.brand}</SelectItem>
+                <SelectItem value="category">{fieldLabels.category}</SelectItem>
+                <SelectItem value="department">{fieldLabels.style}</SelectItem>
+              </SelectContent>
+            </Select>
 
-        <Select
-          value={brandFilter}
-          onValueChange={(v) => {
-            setBrandFilter(v);
-            setCurrentPage(1);
-          }}
-        >
-          <SelectTrigger className="w-[150px]">
-            <SelectValue placeholder={`All ${fieldLabels.brand}`} />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="__all__">All {fieldLabels.brand}</SelectItem>
-            {(filterOptions?.brands || []).map((brand) => (
-              <SelectItem key={brand} value={brand}>
-                {brand}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <Select
-          value={categoryFilter}
-          onValueChange={(v) => {
-            setCategoryFilter(v);
-            setCurrentPage(1);
-          }}
-        >
-          <SelectTrigger className="w-[150px]">
-            <SelectValue placeholder={`All ${fieldLabels.category}`} />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="__all__">All {fieldLabels.category}</SelectItem>
-            {(filterOptions?.categories || []).map((cat) => (
-              <SelectItem key={cat} value={cat}>
-                {cat}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <Select
-          value={departmentFilter}
-          onValueChange={(v) => {
-            setDepartmentFilter(v);
-            setCurrentPage(1);
-          }}
-        >
-          <SelectTrigger className="w-[150px]">
-            <SelectValue placeholder={`All ${fieldLabels.style}`} />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="__all__">All {fieldLabels.style}</SelectItem>
-            {(filterOptions?.departments || []).map((dept) => (
-              <SelectItem key={dept} value={dept}>
-                {dept}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <Select
-          value={supplierFilter}
-          onValueChange={(v) => {
-            setSupplierFilter(v);
-            setCurrentPage(1);
-          }}
-        >
-          <SelectTrigger className="w-[150px]">
-            <SelectValue placeholder="All Suppliers" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="__all__">All Suppliers</SelectItem>
-            {(filterOptions?.suppliers || []).map((sup) => (
-              <SelectItem key={sup} value={sup}>
-                {sup}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        {hasActiveFilters && (
-          <Button variant="ghost" size="sm" onClick={clearFilters} className="gap-1">
-            <X className="h-4 w-4" />
-            Clear
-          </Button>
-        )}
-      </div>
-
-      <Card className="print:shadow-none print:border-0">
-        <CardContent className="p-0">
-          <div className="border rounded-lg overflow-hidden print:border-0">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-muted/50 print:bg-transparent">
-                  <TableHead className="w-[80px] print:text-xs print:py-1">Sr.No</TableHead>
-                  <TableHead className="print:text-xs print:py-1">{GROUP_BY_LABELS[groupBy]}</TableHead>
-                  <TableHead className="text-right print:text-xs print:py-1">Stock</TableHead>
-                  <TableHead className="text-right print:text-xs print:py-1">Purchase Value</TableHead>
-                  <TableHead className="text-right print:text-xs print:py-1">Sales Value</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {isLoading ? (
-                  <TableRow>
-                    <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                      Loading...
-                    </TableCell>
-                  </TableRow>
-                ) : paginatedData.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                      No stock data found
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  paginatedData.map((item, idx) => (
-                    <TableRow key={`${item.key}-${idx}`} className="hover:bg-muted/30 print:hover:bg-transparent">
-                      <TableCell className="print:text-xs print:py-1">
-                        {(currentPage - 1) * ITEM_WISE_STOCK_PAGE_SIZE + idx + 1}
-                      </TableCell>
-                      <TableCell className="font-medium print:text-xs print:py-1">{item.key}</TableCell>
-                      <TableCell className="text-right print:text-xs print:py-1 tabular-nums">{item.total_qty}</TableCell>
-                      <TableCell className="text-right print:text-xs print:py-1 tabular-nums">
-                        {item.purchase_value.toFixed(2)}
-                      </TableCell>
-                      <TableCell className="text-right print:text-xs print:py-1 tabular-nums">
-                        {item.sale_value.toFixed(2)}
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-              {grandTotals.group_count > 0 && !isLoading && (
-                <TableFooter className="border-t-2 border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-800 [&>tr]:border-0 [&>tr]:hover:bg-transparent">
-                  <TableRow>
-                    <TableCell className="print:text-xs print:py-1" />
-                    <TableCell className="font-bold text-primary print:text-xs py-2.5 align-middle">Grand Totals:</TableCell>
-                    <TableCell className="text-right font-bold tabular-nums print:text-xs py-2.5 align-middle">
-                      {grandTotals.total_qty}
-                    </TableCell>
-                    <TableCell className="text-right font-bold tabular-nums print:text-xs py-2.5 align-middle">
-                      {grandTotals.purchase_value.toFixed(2)}
-                    </TableCell>
-                    <TableCell className="text-right font-bold tabular-nums print:text-xs py-2.5 align-middle">
-                      {grandTotals.sale_value.toFixed(2)}
-                    </TableCell>
-                  </TableRow>
-                </TableFooter>
-              )}
-            </Table>
-          </div>
-
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between px-4 py-2.5 border-t border-slate-200 dark:border-slate-700 print:hidden">
-              <p className="text-sm text-muted-foreground">
-                Page {currentPage} of {totalPages} ({totalCount} records)
-                {listFetching && !listLoading ? " · refreshing…" : ""}
-              </p>
-              <div className="flex items-center gap-1">
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="h-8 w-8"
-                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                  disabled={currentPage === 1}
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-                {pageNumbers.map((pg, i) =>
-                  pg === "..." ? (
-                    <span key={`dots-${i}`} className="px-1 text-muted-foreground">
-                      …
-                    </span>
-                  ) : (
-                    <Button
-                      key={pg}
-                      variant={currentPage === pg ? "default" : "outline"}
-                      size="sm"
-                      className="h-8 w-8 p-0"
-                      onClick={() => setCurrentPage(pg as number)}
-                    >
-                      {pg}
-                    </Button>
-                  ),
-                )}
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="h-8 w-8"
-                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                  disabled={currentPage >= totalPages}
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-              </div>
+            <div className="relative min-w-[200px] max-w-lg flex-1">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder={`Search ${groupLabel}…`}
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="h-10 border-slate-200 bg-slate-50 pl-10 text-base focus:bg-white"
+              />
             </div>
+
+            <Select
+              value={brandFilter}
+              onValueChange={(v) => {
+                setBrandFilter(v);
+                setCurrentPage(1);
+              }}
+            >
+              <SelectTrigger className="h-10 w-[140px] border-slate-200 bg-slate-50 text-sm">
+                <SelectValue placeholder={`All ${fieldLabels.brand}`} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL_VALUE}>All {fieldLabels.brand}</SelectItem>
+                {(filterOptions?.brands || []).map((brand) => (
+                  <SelectItem key={brand} value={brand}>
+                    {brand}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select
+              value={categoryFilter}
+              onValueChange={(v) => {
+                setCategoryFilter(v);
+                setCurrentPage(1);
+              }}
+            >
+              <SelectTrigger className="h-10 w-[140px] border-slate-200 bg-slate-50 text-sm">
+                <SelectValue placeholder={`All ${fieldLabels.category}`} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL_VALUE}>All {fieldLabels.category}</SelectItem>
+                {(filterOptions?.categories || []).map((cat) => (
+                  <SelectItem key={cat} value={cat}>
+                    {cat}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select
+              value={departmentFilter}
+              onValueChange={(v) => {
+                setDepartmentFilter(v);
+                setCurrentPage(1);
+              }}
+            >
+              <SelectTrigger className="h-10 w-[140px] border-slate-200 bg-slate-50 text-sm">
+                <SelectValue placeholder={`All ${fieldLabels.style}`} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL_VALUE}>All {fieldLabels.style}</SelectItem>
+                {(filterOptions?.departments || []).map((dept) => (
+                  <SelectItem key={dept} value={dept}>
+                    {dept}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select
+              value={supplierFilter}
+              onValueChange={(v) => {
+                setSupplierFilter(v);
+                setCurrentPage(1);
+              }}
+            >
+              <SelectTrigger className="h-10 w-[140px] border-slate-200 bg-slate-50 text-sm">
+                <SelectValue placeholder="All Suppliers" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL_VALUE}>All Suppliers</SelectItem>
+                {(filterOptions?.suppliers || []).map((sup) => (
+                  <SelectItem key={sup} value={sup}>
+                    {sup}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {hasActiveFilters && (
+              <Button variant="ghost" size="sm" onClick={clearFilters} className="h-10 gap-1 text-sm">
+                <X className="h-4 w-4" />
+                Clear
+              </Button>
+            )}
+
+            <div className="ml-auto flex shrink-0 flex-wrap items-center gap-1.5">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => void exportToExcel()}
+                disabled={isExporting || grandTotals.group_count === 0}
+                className="h-9 gap-1.5 border-slate-200 text-sm"
+              >
+                <FileSpreadsheet className="h-4 w-4" />
+                Excel
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => void exportToPDF()}
+                disabled={isExporting || grandTotals.group_count === 0}
+                className="h-9 gap-1.5 border-slate-200 text-sm"
+              >
+                <FileText className="h-4 w-4" />
+                PDF
+              </Button>
+            </div>
+          </div>
+
+          {listError ? (
+            <div className="m-2 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+              Failed to load stock data: {(listError as Error).message}
+            </div>
+          ) : showTableLoading ? (
+            <div className="p-2">
+              <ReportSkeleton />
+            </div>
+          ) : (
+            <>
+              <div className="tab-scroll-stable min-h-0 flex-1 overflow-y-auto overflow-x-hidden bg-white">
+                <Table className="[&_td]:px-4 [&_th]:px-4">
+                  <TableHeader className="sticky top-0 z-10">
+                    <TableRow className="border-none bg-slate-800 hover:bg-slate-800">
+                      <TableHead className="h-10 w-[72px] text-xs font-bold uppercase tracking-wide text-white">
+                        Sr.No
+                      </TableHead>
+                      <TableHead className="h-10 text-xs font-bold uppercase tracking-wide text-white">
+                        {groupLabel}
+                      </TableHead>
+                      <TableHead className="h-10 w-[120px] text-right text-xs font-bold uppercase tracking-wide text-white">
+                        Stock
+                      </TableHead>
+                      <TableHead className="h-10 w-[150px] text-right text-xs font-bold uppercase tracking-wide text-white">
+                        Purchase Value
+                      </TableHead>
+                      <TableHead className="h-10 w-[150px] text-right text-xs font-bold uppercase tracking-wide text-white">
+                        Sales Value
+                      </TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {paginatedData.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={5} className="h-24 text-center text-base text-muted-foreground">
+                          {hasActiveFilters ? "No stock data matches your filters." : "No stock data found."}
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      paginatedData.map((item, idx) => (
+                        <TableRow key={`${item.key}-${idx}`} className="h-11 hover:bg-teal-50/80">
+                          <TableCell className="py-2.5 text-sm font-medium tabular-nums text-muted-foreground">
+                            {(currentPage - 1) * ITEM_WISE_STOCK_PAGE_SIZE + idx + 1}
+                          </TableCell>
+                          <TableCell className="py-2.5 text-base font-medium">{item.key}</TableCell>
+                          <TableCell className="py-2.5 text-right text-base font-semibold tabular-nums">
+                            {item.total_qty.toLocaleString("en-IN")}
+                          </TableCell>
+                          <TableCell className="py-2.5 text-right text-base tabular-nums">
+                            {item.purchase_value.toFixed(2)}
+                          </TableCell>
+                          <TableCell className="py-2.5 text-right text-base tabular-nums">
+                            {item.sale_value.toFixed(2)}
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                  {grandTotals.group_count > 0 && (
+                    <TableFooter className="sticky bottom-0 z-10 border-t-2 border-slate-300 bg-slate-100 [&>tr]:border-0">
+                      <TableRow className="hover:bg-slate-100">
+                        <TableCell />
+                        <TableCell className="py-3 text-base font-bold text-teal-700">Grand Totals</TableCell>
+                        <TableCell className="py-3 text-right text-base font-bold tabular-nums">
+                          {grandTotals.total_qty.toLocaleString("en-IN")}
+                        </TableCell>
+                        <TableCell className="py-3 text-right text-base font-bold tabular-nums">
+                          {grandTotals.purchase_value.toFixed(2)}
+                        </TableCell>
+                        <TableCell className="py-3 text-right text-base font-bold tabular-nums">
+                          {grandTotals.sale_value.toFixed(2)}
+                        </TableCell>
+                      </TableRow>
+                    </TableFooter>
+                  )}
+                </Table>
+              </div>
+
+              {totalPages > 1 && (
+                <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-slate-100 bg-white px-3 py-2 print:hidden">
+                  <p className="text-sm tabular-nums text-slate-600">
+                    Showing {pageStart.toLocaleString("en-IN")}–{pageEnd.toLocaleString("en-IN")} of{" "}
+                    {totalCount.toLocaleString("en-IN")}
+                  </p>
+                  <div className="flex items-center gap-1.5">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-9 border-slate-200 px-3 text-sm"
+                      onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                      disabled={currentPage === 1}
+                    >
+                      <ChevronLeft className="mr-1 h-4 w-4" />
+                      Previous
+                    </Button>
+                    <span className="px-1 text-sm font-medium tabular-nums text-slate-700">
+                      Page {currentPage} / {totalPages}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-9 border-slate-200 px-3 text-sm"
+                      onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                      disabled={currentPage >= totalPages}
+                    >
+                      Next
+                      <ChevronRight className="ml-1 h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </>
           )}
-        </CardContent>
-      </Card>
+        </Card>
+      </div>
     </div>
   );
 }
