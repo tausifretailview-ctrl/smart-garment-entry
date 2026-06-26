@@ -620,11 +620,19 @@ export default function Settings() {
   useEffect(() => {
     if (currentOrganization?.id) {
       fetchSettings();
-      fetchSizeGroups();
-      fetchDbPresets();
-      fetchAllOrgPresets();
     }
-  }, [currentOrganization?.id, organizations.length]);
+  }, [currentOrganization?.id]);
+
+  useEffect(() => {
+    if (!currentOrganization?.id || !visitedTabs.has("bill")) return;
+    fetchDbPresets();
+    fetchAllOrgPresets();
+  }, [visitedTabs, currentOrganization?.id, organizations.length]);
+
+  useEffect(() => {
+    if (!currentOrganization?.id || !visitedTabs.has("product")) return;
+    fetchSizeGroups();
+  }, [visitedTabs, currentOrganization?.id]);
 
   const fetchSizeGroups = async () => {
     if (!currentOrganization?.id) return;
