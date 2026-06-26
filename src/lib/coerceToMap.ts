@@ -24,3 +24,8 @@ export const safeMapGet = lookupMap;
 export function ensureMap<K extends string, V>(value: unknown): Map<K, V> {
   return coerceToMap<K, V>(value);
 }
+
+/** TanStack Query persist can restore array-shaped data as plain objects — guard before .map/.filter. */
+export function coerceToArray<T>(value: unknown): T[] {
+  return Array.isArray(value) ? value : [];
+}

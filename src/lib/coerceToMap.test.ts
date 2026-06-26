@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { coerceToMap, lookupMap } from "./coerceToMap";
+import { coerceToMap, lookupMap, coerceToArray } from "./coerceToMap";
 
 describe("coerceToMap", () => {
   it("returns Map instances unchanged", () => {
@@ -17,5 +17,16 @@ describe("coerceToMap", () => {
     expect(lookupMap({ x: { software_bill_no: "B1" } }, "x")).toEqual({
       software_bill_no: "B1",
     });
+  });
+});
+
+describe("coerceToArray", () => {
+  it("returns arrays unchanged", () => {
+    const arr = [{ id: "1" }];
+    expect(coerceToArray(arr)).toBe(arr);
+  });
+
+  it("returns empty array for plain objects from persisted cache", () => {
+    expect(coerceToArray({ 0: { id: "1" } })).toEqual([]);
   });
 });

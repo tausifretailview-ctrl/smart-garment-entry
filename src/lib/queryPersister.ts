@@ -45,6 +45,9 @@ const VOLATILE_PREFIXES = [
   "customer-invoice-voucher-splits",
   "employees",
   "expense-vouchers",
+  "supplier-ledger",
+  "suppliers",
+  "supplier-balance-map",
   "auth",
   "session",
 ] as const;

@@ -15,7 +15,7 @@ import { format } from "date-fns";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import { accountsHistoryTableClass, accountsHistoryTableWrapClass, accountsHistoryThClass } from "@/components/accounts/accountsHistoryUi";
-import { safeMapGet } from "@/lib/coerceToMap";
+import { safeMapGet, coerceToArray } from "@/lib/coerceToMap";
 import {
   fetchSupplierBalanceSnapshot,
   type SupplierBalanceMapForOrg,
@@ -113,6 +113,7 @@ export function SupplierLedger({ organizationId, visitedTabs, supplierBalanceMap
   const { data: suppliersData, isLoading: suppliersLoading } = useQuery({
     queryKey: ["supplier-ledger", organizationId],
     queryFn: () => fetchAllSuppliers(organizationId),
+    select: (data) => coerceToArray(data),
     enabled: !!organizationId && tabActive,
   });
 
@@ -121,9 +122,9 @@ export function SupplierLedger({ organizationId, visitedTabs, supplierBalanceMap
     : null;
 
   const suppliers = useMemo(() => {
-    if (!suppliersData) return undefined;
+    if (suppliersData === undefined) return undefined;
     const balanceMap = supplierBalanceMap?.balanceMap;
-    return (suppliersData || []).map((supplier: any) => {
+    return suppliersData.map((supplier: any) => {
       const snap = balanceMap ? safeMapGet(balanceMap, supplier.id) : undefined;
       const openingBalance = snap?.openingBalance ?? (Number(supplier.opening_balance) || 0);
       return {

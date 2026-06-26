@@ -50,7 +50,7 @@ import { CustomerBalanceAdjustmentDialog } from "@/components/CustomerBalanceAdj
 import { RecentBalanceAdjustments } from "@/components/RecentBalanceAdjustments";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { coerceToMap } from "@/lib/coerceToMap";
+import { coerceToMap, coerceToArray } from "@/lib/coerceToMap";
 import { loadSupplierBalanceMapForOrg } from "@/utils/supplierBalanceUtils";
 import { fetchAllSuppliers } from "@/utils/fetchAllRows";
 import { useOrgLedgerReferenceData } from "@/hooks/useOrgLedgerReferenceData";
@@ -770,6 +770,7 @@ export default function Accounts() {
   const { data: suppliers } = useQuery({
     queryKey: ["suppliers", currentOrganization?.id],
     queryFn: async () => fetchAllSuppliers(currentOrganization!.id),
+    select: (data) => coerceToArray(data),
     enabled: !!currentOrganization?.id && needsSuppliers,
     staleTime: 2 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
