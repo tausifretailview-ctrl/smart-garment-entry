@@ -145,61 +145,37 @@ export async function fetchSaleOrderListPage(
 export async function fetchSaleOrderDashboardStats(
   organizationId: string,
 ): Promise<SaleOrderDashboardStats> {
-  const orders: Array<{ id: string; status: string; net_amount: number | null }> = [];
-  let offset = 0;
-  const pageSize = 1000;
+  const { data, error } = await (supabase.rpc as any)("get_sale_order_dashboard_stats", {
+    p_organization_id: organizationId,
+  });
 
-  while (true) {
-    const { data, error } = await supabase
-      .from("sale_orders")
-      .select("id, status, net_amount")
-      .eq("organization_id", organizationId)
-      .is("deleted_at", null)
-      .order("created_at", { ascending: false })
-      .range(offset, offset + pageSize - 1);
+  if (error) throw error;
 
-    if (error) throw error;
+  const row = (Array.isArray(data) ? data[0] : data) as
+    | {
+        total?: number | null;
+        total_value?: number | null;
+        pending?: number | null;
+        partial?: number | null;
+        confirmed?: number | null;
+        pending_items?: number | null;
+        pending_value?: number | null;
+        conversion_rate?: number | null;
+      }
+    | null
+    | undefined;
 
-    const page = data ?? [];
-    if (page.length === 0) break;
-    orders.push(...page);
-    if (page.length < pageSize) break;
-    offset += pageSize;
-  }
-
-  const orderIds = orders.map((row) => row.id);
-  let pendingItems = 0;
-
-  for (let i = 0; i < orderIds.length; i += 500) {
-    const chunk = orderIds.slice(i, i + 500);
-    if (chunk.length === 0) continue;
-
-    const { data, error } = await supabase
-      .from("sale_order_items")
-      .select("pending_qty")
-      .in("order_id", chunk);
-
-    if (error) throw error;
-    pendingItems += (data ?? []).reduce((sum, row) => sum + Number(row.pending_qty || 0), 0);
-  }
-
-  const total = orders.length;
-  const pending = orders.filter((row) => row.status === "pending").length;
-  const partial = orders.filter((row) => row.status === "partial").length;
-  const confirmed = orders.filter((row) => row.status === "confirmed").length;
-  const totalValue = orders.reduce((sum, row) => sum + Number(row.net_amount || 0), 0);
-  const pendingValue = orders
-    .filter((row) => row.status === "pending" || row.status === "partial")
-    .reduce((sum, row) => sum + Number(row.net_amount || 0), 0);
+  const total = Number(row?.total ?? 0);
+  const confirmed = Number(row?.confirmed ?? 0);
 
   return {
     total,
-    totalValue,
-    pending,
-    partial,
+    totalValue: Number(row?.total_value ?? 0),
+    pending: Number(row?.pending ?? 0),
+    partial: Number(row?.partial ?? 0),
     confirmed,
-    pendingItems,
-    pendingValue,
+    pendingItems: Number(row?.pending_items ?? 0),
+    pendingValue: Number(row?.pending_value ?? 0),
     conversionRate: total > 0 ? ((confirmed / total) * 100).toFixed(1) : "0",
   };
 }
