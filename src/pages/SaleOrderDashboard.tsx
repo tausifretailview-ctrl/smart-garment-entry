@@ -1,5 +1,5 @@
-import { useState, useRef, useEffect, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useState, useRef, useEffect, useMemo, useCallback } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useSettings } from "@/hooks/useSettings";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -51,6 +51,16 @@ import { formatDistanceToNow } from "date-fns";
 import { useOpenCustomerAccount } from "@/hooks/useOpenCustomerAccount";
 import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
 import { restoreDashboardFilters } from "@/lib/dashboardFilterPersistence";
+import {
+  fetchSaleOrderCustomerOptions,
+  fetchSaleOrderDashboardStats,
+  fetchSaleOrderLineItems,
+  fetchSaleOrderListPage,
+  fetchSaleOrderWithItems,
+  SALE_ORDER_LIST_PAGE_SIZE,
+  sumSaleOrderItemQtys,
+  type SaleOrderListFilters,
+} from "@/utils/saleOrderListQueries";
 
 interface ConversionItem {
   id: string;
@@ -84,7 +94,10 @@ export default function SaleOrderDashboard() {
   const [orderToDelete, setOrderToDelete] = useState<any>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage] = useState(50);
+  const queryClient = useQueryClient();
+  const [expandedLineItems, setExpandedLineItems] = useState<Record<string, any[]>>({});
+  const [expandedLoadingIds, setExpandedLoadingIds] = useState<Set<string>>(new Set());
+  const [rowActionLoadingId, setRowActionLoadingId] = useState<string | null>(null);
   
   // Conversion dialog state
   const [showConversionDialog, setShowConversionDialog] = useState(false);
@@ -152,32 +165,83 @@ export default function SaleOrderDashboard() {
   // Fetch settings for print (centralized, cached 5min)
   const { data: settings } = useSettings();
 
-  const { data: ordersData, isLoading, refetch } = useQuery({
-    queryKey: ['sale-orders', currentOrganization?.id],
-    queryFn: async () => {
-      if (!currentOrganization?.id) return [];
-      
-      const { data, error } = await supabase
-        .from('sale_orders')
-        .select(`*, sale_order_items (*)`)
-        .eq('organization_id', currentOrganization.id)
-        .is('deleted_at', null)
-        .order('created_at', { ascending: false });
+  const listFilters = useMemo<SaleOrderListFilters>(
+    () => ({
+      searchQuery,
+      statusFilter,
+      customerFilter,
+      fromDate,
+      toDate,
+    }),
+    [searchQuery, statusFilter, customerFilter, fromDate, toDate],
+  );
 
-      if (error) throw error;
-      return data || [];
-    },
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, statusFilter, customerFilter, fromDate, toDate]);
+
+  const invalidateSaleOrderQueries = useCallback(() => {
+    const orgId = currentOrganization?.id;
+    if (!orgId) return;
+    void queryClient.invalidateQueries({ queryKey: ["sale-orders-list", orgId] });
+    void queryClient.invalidateQueries({ queryKey: ["sale-orders-stats", orgId] });
+    void queryClient.invalidateQueries({ queryKey: ["sale-order-customers", orgId] });
+  }, [currentOrganization?.id, queryClient]);
+
+  const {
+    data: listPageData,
+    isLoading,
+    isFetching,
+  } = useQuery({
+    queryKey: ["sale-orders-list", currentOrganization?.id, listFilters, currentPage],
+    queryFn: () =>
+      fetchSaleOrderListPage(
+        currentOrganization!.id,
+        listFilters,
+        currentPage,
+        SALE_ORDER_LIST_PAGE_SIZE,
+      ),
     enabled: !!currentOrganization?.id,
+    placeholderData: (previous) => previous,
   });
 
-  const handleWhatsAppShare = (order: any) => {
+  const { data: statsData } = useQuery({
+    queryKey: ["sale-orders-stats", currentOrganization?.id],
+    queryFn: () => fetchSaleOrderDashboardStats(currentOrganization!.id),
+    enabled: !!currentOrganization?.id,
+    staleTime: 60_000,
+  });
+
+  const { data: uniqueCustomers = [] } = useQuery({
+    queryKey: ["sale-order-customers", currentOrganization?.id],
+    queryFn: () => fetchSaleOrderCustomerOptions(currentOrganization!.id),
+    enabled: !!currentOrganization?.id,
+    staleTime: 5 * 60_000,
+  });
+
+  const paginatedOrders = listPageData?.rows ?? [];
+  const totalCount = listPageData?.totalCount ?? 0;
+  const totalPages = Math.max(1, Math.ceil(totalCount / SALE_ORDER_LIST_PAGE_SIZE));
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
+
+  const handleWhatsAppShare = async (order: any) => {
     if (!order.customer_phone) {
       toast({ title: "Error", description: "Customer phone number not available", variant: "destructive" });
       return;
     }
 
+    setRowActionLoadingId(order.id);
+    try {
+      const fullOrder = await fetchSaleOrderWithItems(order.id);
+      if (!fullOrder) throw new Error("Order not found");
+
     // Build itemized list with color
-    const itemLines = (order.sale_order_items || [])
+    const itemLines = (fullOrder.sale_order_items || [])
       .filter((item: any) => !item.deleted_at)
       .map((item: any) => {
         const colorPart = item.color ? ` - ${item.color}` : '';
@@ -210,6 +274,11 @@ export default function SaleOrderDashboard() {
     setTimeout(() => {
       window.open(whatsappUrl, '_blank');
     }, 300);
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message || "Could not load order items", variant: "destructive" });
+    } finally {
+      setRowActionLoadingId(null);
+    }
   };
 
   // Fetch current stock for conversion
@@ -254,10 +323,19 @@ export default function SaleOrderDashboard() {
   };
 
   const handleOpenConversion = async (order: any) => {
-    const items = await fetchStockForConversion(order);
-    setConversionItems(items);
-    setSelectedOrder(order);
-    setShowConversionDialog(true);
+    setRowActionLoadingId(order.id);
+    try {
+      const fullOrder = await fetchSaleOrderWithItems(order.id);
+      if (!fullOrder) throw new Error("Order not found");
+      const items = await fetchStockForConversion(fullOrder);
+      setConversionItems(items);
+      setSelectedOrder(fullOrder);
+      setShowConversionDialog(true);
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message || "Could not load order", variant: "destructive" });
+    } finally {
+      setRowActionLoadingId(null);
+    }
   };
 
   const handleConvertToSaleBill = async () => {
@@ -370,7 +448,7 @@ export default function SaleOrderDashboard() {
 
       toast({ title: "Success", description: `Sale Bill ${saleNumber} created from order` });
       setShowConversionDialog(false);
-      refetch();
+      invalidateSaleOrderQueries();
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
     } finally {
@@ -389,7 +467,7 @@ export default function SaleOrderDashboard() {
       if (!success) throw new Error("Failed to delete sale order");
 
       toast({ title: "Success", description: `Sale Order ${orderToDelete.order_number} moved to recycle bin` });
-      refetch();
+      invalidateSaleOrderQueries();
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
     } finally {
@@ -411,7 +489,7 @@ export default function SaleOrderDashboard() {
       if (error) throw error;
 
       toast({ title: "Success", description: `Sale Order ${orderToAccept.order_number} accepted` });
-      refetch();
+      invalidateSaleOrderQueries();
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
     } finally {
@@ -420,53 +498,74 @@ export default function SaleOrderDashboard() {
     }
   };
 
-  const toggleExpanded = (id: string) => {
-    const newExpanded = new Set(expandedRows);
-    if (newExpanded.has(id)) {
-      newExpanded.delete(id);
-    } else {
-      newExpanded.add(id);
+  const toggleExpanded = async (id: string) => {
+    if (expandedRows.has(id)) {
+      const next = new Set(expandedRows);
+      next.delete(id);
+      setExpandedRows(next);
+      return;
     }
-    setExpandedRows(newExpanded);
+
+    const next = new Set(expandedRows);
+    next.add(id);
+    setExpandedRows(next);
+
+    if (expandedLineItems[id]) return;
+
+    setExpandedLoadingIds((prev) => new Set(prev).add(id));
+    try {
+      const items = await fetchSaleOrderLineItems(id);
+      setExpandedLineItems((prev) => ({ ...prev, [id]: items }));
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message || "Could not load line items", variant: "destructive" });
+      const rolledBack = new Set(expandedRows);
+      rolledBack.delete(id);
+      setExpandedRows(rolledBack);
+    } finally {
+      setExpandedLoadingIds((prev) => {
+        const copy = new Set(prev);
+        copy.delete(id);
+        return copy;
+      });
+    }
   };
 
-  // Get unique customers for dropdown
-  const uniqueCustomers = Array.from(
-    new Map((ordersData || []).map((o: any) => [o.customer_id || o.customer_name, { id: o.customer_id, name: o.customer_name }]))
-  ).map(([_, customer]) => customer).filter((c: any) => c.name);
+  const handleEditOrder = async (order: any) => {
+    setRowActionLoadingId(order.id);
+    try {
+      const fullOrder = await fetchSaleOrderWithItems(order.id);
+      if (!fullOrder) throw new Error("Order not found");
+      navigate("/sale-order-entry", { state: { orderData: fullOrder } });
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message || "Could not load order", variant: "destructive" });
+    } finally {
+      setRowActionLoadingId(null);
+    }
+  };
 
-  const filteredOrders = (ordersData || []).filter((o: any) => {
-    // Apply status filter
-    if (statusFilter !== 'all' && o.status !== statusFilter) return false;
-    // Apply customer filter
-    if (customerFilter !== 'all') {
-      if (o.customer_id && o.customer_id !== customerFilter) return false;
-      if (!o.customer_id && o.customer_name !== customerFilter) return false;
+  const handlePrintOrder = async (order: any) => {
+    setRowActionLoadingId(order.id);
+    try {
+      const fullOrder = await fetchSaleOrderWithItems(order.id);
+      if (!fullOrder) throw new Error("Order not found");
+      setOrderToPrint(fullOrder);
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message || "Could not load order", variant: "destructive" });
+    } finally {
+      setRowActionLoadingId(null);
     }
-    // Apply date range filter
-    if (fromDate) {
-      const oDate = new Date(o.order_date);
-      if (oDate < fromDate) return false;
-    }
-    if (toDate) {
-      const oDate = new Date(o.order_date);
-      const endOfDay = new Date(toDate);
-      endOfDay.setHours(23, 59, 59, 999);
-      if (oDate > endOfDay) return false;
-    }
-    // Apply search filter
-    if (!searchQuery) return true;
-    const searchLower = searchQuery.toLowerCase();
-    return o.order_number?.toLowerCase().includes(searchLower) ||
-      o.customer_name?.toLowerCase().includes(searchLower) ||
-      o.customer_phone?.toLowerCase().includes(searchLower);
-  });
+  };
 
-  const totalPages = Math.ceil(filteredOrders.length / itemsPerPage);
-  const paginatedOrders = filteredOrders.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
+  const stats = statsData ?? {
+    total: 0,
+    totalValue: 0,
+    pending: 0,
+    partial: 0,
+    confirmed: 0,
+    pendingItems: 0,
+    pendingValue: 0,
+    conversionRate: "0",
+  };
 
   const getStatusBadge = (status: string) => {
     const variants: Record<string, { className: string, label: string }> = {
@@ -479,24 +578,6 @@ export default function SaleOrderDashboard() {
     return <Badge className={config.className}>{config.label}</Badge>;
   };
 
-  // Calculate statistics
-  const allOrders = ordersData || [];
-  const stats = {
-    total: allOrders.length,
-    totalValue: allOrders.reduce((sum: number, o: any) => sum + (o.net_amount || 0), 0),
-    pending: allOrders.filter((o: any) => o.status === 'pending').length,
-    partial: allOrders.filter((o: any) => o.status === 'partial').length,
-    confirmed: allOrders.filter((o: any) => o.status === 'confirmed').length,
-    pendingItems: allOrders.reduce((sum: number, o: any) => {
-      return sum + (o.sale_order_items?.reduce((s: number, i: any) => s + (i.pending_qty || 0), 0) || 0);
-    }, 0),
-    pendingValue: allOrders
-      .filter((o: any) => o.status === 'pending' || o.status === 'partial')
-      .reduce((sum: number, o: any) => sum + (o.net_amount || 0), 0),
-    conversionRate: allOrders.length > 0 
-      ? ((allOrders.filter((o: any) => o.status === 'confirmed').length / allOrders.length) * 100).toFixed(1)
-      : '0',
-  };
 
   const handleCardClick = (status: string) => {
     setStatusFilter(status);
@@ -758,14 +839,15 @@ export default function SaleOrderDashboard() {
               </TableHeader>
               <TableBody>
                 {paginatedOrders.map((order: any) => {
-                  const totalItems = order.sale_order_items?.reduce((sum: number, i: any) => sum + i.order_qty, 0) || 0;
-                  const fulfilledItems = order.sale_order_items?.reduce((sum: number, i: any) => sum + i.fulfilled_qty, 0) || 0;
+                  const { totalItems, fulfilledItems } = sumSaleOrderItemQtys(order.sale_order_items);
+                  const expandedItems = expandedLineItems[order.id];
+                  const isRowBusy = rowActionLoadingId === order.id;
                   
                   return (
                     <>
                       <TableRow key={order.id}>
                         <TableCell>
-                          <Button variant="ghost" size="icon" onClick={() => toggleExpanded(order.id)}>
+                          <Button variant="ghost" size="icon" onClick={() => void toggleExpanded(order.id)}>
                             {expandedRows.has(order.id) ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                           </Button>
                         </TableCell>
@@ -814,13 +896,13 @@ export default function SaleOrderDashboard() {
                         </TableCell>
                         <TableCell>
                           <div className="flex gap-1">
-                            <Button variant="ghost" size="icon" onClick={() => handleWhatsAppShare(order)} title="WhatsApp">
+                            <Button variant="ghost" size="icon" disabled={isRowBusy} onClick={() => void handleWhatsAppShare(order)} title="WhatsApp">
                               <MessageCircle className="h-4 w-4" />
                             </Button>
-                            <Button variant="ghost" size="icon" onClick={() => setOrderToPrint(order)} title="Print">
+                            <Button variant="ghost" size="icon" disabled={isRowBusy} onClick={() => void handlePrintOrder(order)} title="Print">
                               <Printer className="h-4 w-4" />
                             </Button>
-                            <Button variant="ghost" size="icon" onClick={() => navigate('/sale-order-entry', { state: { orderData: order } })}>
+                            <Button variant="ghost" size="icon" disabled={isRowBusy} onClick={() => void handleEditOrder(order)}>
                               <Edit className="h-4 w-4" />
                             </Button>
                             {order.status !== 'confirmed' && (
@@ -844,6 +926,12 @@ export default function SaleOrderDashboard() {
                           <TableCell colSpan={8} className="bg-muted/50">
                             <div className="p-4">
                               <h4 className="font-medium mb-2">Order Items</h4>
+                              {expandedLoadingIds.has(order.id) ? (
+                                <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                  Loading line items…
+                                </div>
+                              ) : (
                               <Table>
                                 <TableHeader>
                                   <TableRow>
@@ -858,7 +946,7 @@ export default function SaleOrderDashboard() {
                                   </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                  {order.sale_order_items?.map((item: any) => (
+                                  {(expandedItems ?? []).map((item: any) => (
                                     <TableRow key={item.id}>
                                       <TableCell>{item.product_name}</TableCell>
                                       <TableCell>{item.size}</TableCell>
@@ -872,6 +960,7 @@ export default function SaleOrderDashboard() {
                                   ))}
                                 </TableBody>
                               </Table>
+                              )}
                             </div>
                           </TableCell>
                         </TableRow>
@@ -888,7 +977,8 @@ export default function SaleOrderDashboard() {
         {totalPages > 1 && (
           <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-t border-slate-100 bg-white">
             <div className="text-sm text-slate-500">
-              Showing {(currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, filteredOrders.length)} of {filteredOrders.length}
+              Showing {totalCount === 0 ? 0 : (currentPage - 1) * SALE_ORDER_LIST_PAGE_SIZE + 1} to {Math.min(currentPage * SALE_ORDER_LIST_PAGE_SIZE, totalCount)} of {totalCount}
+              {isFetching && !isLoading ? " · refreshing…" : ""}
             </div>
             <div className="flex gap-2">
               <Button variant="outline" className="h-9 text-sm border-slate-200" onClick={() => setCurrentPage(p => p - 1)} disabled={currentPage === 1}>Previous</Button>
