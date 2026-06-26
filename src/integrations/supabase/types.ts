@@ -8402,6 +8402,7 @@ export type Database = {
           customers_owing: number
           gross_receivable_dr: number
           net_receivable: number
+          total_sales: number
         }[]
       }
       get_organization_supplier_payable_summary: {
@@ -8524,6 +8525,19 @@ export type Database = {
           sale_id: string
         }[]
       }
+      get_sale_order_dashboard_stats: {
+        Args: { p_organization_id: string }
+        Returns: {
+          confirmed: number
+          conversion_rate: number
+          partial: number
+          pending: number
+          pending_items: number
+          pending_value: number
+          total: number
+          total_value: number
+        }[]
+      }
       get_sales_invoice_dashboard_stats: {
         Args: {
           p_date_end?: string
@@ -8577,6 +8591,41 @@ export type Database = {
           stored_stock_qty: number
           variant_id: string
         }[]
+      }
+      get_stock_report: {
+        Args: {
+          p_brand?: string
+          p_category?: string
+          p_limit?: number
+          p_low_stock?: boolean
+          p_offset?: number
+          p_org_id: string
+          p_search?: string
+        }
+        Returns: {
+          barcode: string
+          brand: string
+          category: string
+          color: string
+          current_stock: number
+          product_name: string
+          product_type: string
+          pur_price: number
+          purchase_qty: number
+          purchase_return_qty: number
+          sale_price: number
+          sale_return_qty: number
+          sales_qty: number
+          size: string
+          style: string
+          total_rows: number
+          uom: string
+          variant_id: string
+        }[]
+      }
+      get_stock_report_filter_options: {
+        Args: { p_org_id: string }
+        Returns: Json
       }
       get_stock_report_totals: {
         Args: { p_organization_id: string }
