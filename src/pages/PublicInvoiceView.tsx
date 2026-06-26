@@ -15,6 +15,7 @@ import { CompactTemplate } from "@/components/invoice-templates/CompactTemplate"
 import { DetailedTemplate } from "@/components/invoice-templates/DetailedTemplate";
 import { TaxInvoiceTemplate } from "@/components/invoice-templates/TaxInvoiceTemplate";
 import { TallyTaxInvoiceTemplate } from "@/components/invoice-templates/TallyTaxInvoiceTemplate";
+import { GiftTallyInvoiceTemplate } from "@/components/invoice-templates/GiftTallyInvoiceTemplate";
 import { RetailTemplate } from "@/components/invoice-templates/RetailTemplate";
 import { RetailERPTemplate } from "@/components/invoice-templates/RetailERPTemplate";
 import { RetailTaxEzzyTemplate } from "@/components/invoice-templates/RetailTaxEzzyTemplate";
@@ -307,6 +308,7 @@ export default function PublicInvoiceView() {
       case 'detailed': return <DetailedTemplate {...templateProps} />;
       case 'tax-invoice': return <TaxInvoiceTemplate {...templateProps} />;
       case 'tally-tax-invoice': return <TallyTaxInvoiceTemplate {...templateProps} />;
+      case 'gift_tally': return <GiftTallyInvoiceTemplate {...templateProps} />;
       case 'a4-electronic': return <A4ElectronicTemplate {...templateProps} />;
       case 'retail': return <RetailTemplate {...templateProps} />;
       case 'retail-erp': return <RetailERPTemplate {...templateProps} />;

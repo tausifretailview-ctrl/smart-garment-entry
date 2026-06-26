@@ -12,6 +12,7 @@ import { CompactTemplate } from './invoice-templates/CompactTemplate';
 import { DetailedTemplate } from './invoice-templates/DetailedTemplate';
 import { TaxInvoiceTemplate } from './invoice-templates/TaxInvoiceTemplate';
 import { TallyTaxInvoiceTemplate } from './invoice-templates/TallyTaxInvoiceTemplate';
+import { GiftTallyInvoiceTemplate } from './invoice-templates/GiftTallyInvoiceTemplate';
 import { RetailTemplate } from './invoice-templates/RetailTemplate';
 import { RetailERPTemplate } from './invoice-templates/RetailERPTemplate';
 import { RetailTaxEzzyTemplate } from './invoice-templates/RetailTaxEzzyTemplate';
@@ -248,6 +249,10 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
     }
     // Real Tast is A4 Bill of Supply only.
     if (templateForFormat === 'real-tast') {
+      format = 'a4';
+    }
+    // Gift Tally is A4 GST tax invoice only.
+    if (templateForFormat === 'gift_tally') {
       format = 'a4';
     }
     
@@ -629,6 +634,8 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
           return <TaxInvoiceTemplate {...commonProps} />;
         case 'tally-tax-invoice':
           return <TallyTaxInvoiceTemplate {...commonProps} />;
+        case 'gift_tally':
+          return <GiftTallyInvoiceTemplate {...commonProps} />;
         case 'a4-electronic':
           return <A4ElectronicTemplate {...commonProps} />;
         case 'retail':
