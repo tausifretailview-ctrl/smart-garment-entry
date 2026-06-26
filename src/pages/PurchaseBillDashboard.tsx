@@ -168,6 +168,30 @@ interface PurchaseBill {
   purchase_items?: { count: number }[];
 }
 
+function PurchaseKpiCard({
+  title,
+  subtitle,
+  value,
+  shellClass,
+  valueClass,
+}: {
+  title: string;
+  subtitle?: string;
+  value: string;
+  shellClass: string;
+  valueClass: string;
+}) {
+  return (
+    <Card className={cn("rounded-xl border shadow-sm transition-shadow hover:shadow-md", shellClass)}>
+      <CardContent className="flex min-h-[84px] flex-col items-center justify-center px-2 py-3 text-center sm:min-h-[92px] sm:px-3">
+        <p className="text-sm font-semibold leading-snug text-slate-600">{title}</p>
+        <p className={cn("mt-1.5 text-xl font-bold tabular-nums leading-none sm:text-2xl", valueClass)}>{value}</p>
+        {subtitle ? <p className="mt-1 text-xs text-slate-500">{subtitle}</p> : null}
+      </CardContent>
+    </Card>
+  );
+}
+
 const PERF_PATH = "purchase-bills";
 
 const PurchaseBillDashboard = () => {
@@ -1549,7 +1573,7 @@ const PurchaseBillDashboard = () => {
     if (bill.is_cancelled) {
       return (
         <Badge
-          className="min-w-[70px] justify-center bg-gray-500 hover:bg-gray-600 text-white"
+          className="min-w-[72px] justify-center rounded-full px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wide border-0 bg-slate-500 text-white hover:bg-slate-500"
           title={bill.cancelled_reason ? `Cancelled: ${bill.cancelled_reason}` : 'Cancelled'}
         >
           Cancelled
@@ -1568,20 +1592,20 @@ const PurchaseBillDashboard = () => {
 
     if (displayStatus === "paid") {
       return (
-        <Badge className="min-w-[64px] justify-center text-sm px-2 py-0.5 bg-green-500 hover:bg-green-600 text-white" title={title}>
+        <Badge className="min-w-[72px] justify-center rounded-full px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wide border-0 bg-emerald-500 text-white hover:bg-emerald-500" title={title}>
           Paid
         </Badge>
       );
     }
     if (displayStatus === "partial") {
       return (
-        <Badge className="min-w-[64px] justify-center text-sm px-2 py-0.5 bg-orange-400 hover:bg-orange-500 text-white" title={title}>
+        <Badge className="min-w-[72px] justify-center rounded-full px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wide border-0 bg-orange-500 text-white hover:bg-orange-500" title={title}>
           Partial
         </Badge>
       );
     }
     return (
-      <Badge className="min-w-[64px] justify-center text-sm px-2 py-0.5 bg-red-500 hover:bg-red-600 text-white" title={title}>
+      <Badge className="min-w-[72px] justify-center rounded-full px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wide border-0 bg-red-500 text-white hover:bg-red-500" title={title}>
         Not Paid
       </Badge>
     );
@@ -1605,18 +1629,18 @@ const PurchaseBillDashboard = () => {
           />
         </div>
       ),
-      size: 36,
-      minSize: 36,
+      size: 44,
+      minSize: 40,
     },
     {
       id: "srNo",
       header: "Sr.",
       cell: ({ row }) => {
         const globalIndex = paginatedBills.indexOf(row.original);
-        return <span className="font-medium text-base tabular-nums">{(currentPage - 1) * itemsPerPage + globalIndex + 1}</span>;
+        return <span className="font-medium text-base tabular-nums text-muted-foreground">{(currentPage - 1) * itemsPerPage + globalIndex + 1}</span>;
       },
-      size: 45,
-      minSize: 40,
+      size: 52,
+      minSize: 44,
     },
     {
       accessorKey: "software_bill_no",
@@ -1624,8 +1648,8 @@ const PurchaseBillDashboard = () => {
       cell: ({ row }) => {
         const bill = row.original;
         return (
-          <div className={cn("flex items-center gap-1", bill.is_cancelled && "opacity-60")}>
-            <span className={cn("font-mono text-base font-bold bg-primary/8 text-primary px-1.5 py-0 rounded leading-tight", bill.is_cancelled && "line-through")}>
+          <div className={cn("flex items-center gap-1.5", bill.is_cancelled && "opacity-60")}>
+            <span className={cn("font-mono text-base font-semibold text-blue-600 hover:text-blue-800 px-0.5 leading-tight", bill.is_cancelled && "line-through")}>
               {bill.software_bill_no || "N/A"}
             </span>
             {bill.is_dc_purchase && (
@@ -1656,31 +1680,31 @@ const PurchaseBillDashboard = () => {
           </div>
         );
       },
-      size: 108,
-      minSize: 85,
+      size: 120,
+      minSize: 95,
     },
     {
       accessorKey: "bill_date",
       header: "Dates",
       cell: ({ row }) => (
-        <div className="text-sm whitespace-nowrap tabular-nums leading-tight">
+        <div className="text-base whitespace-nowrap tabular-nums leading-tight">
           <div className="text-foreground font-medium">{format(new Date(row.original.bill_date), "dd MMM yyyy")}</div>
           <div className="text-xs text-muted-foreground" title="Bill saved in EzzyERP">
             {formatPurchaseBillEntryAt(row.original, "dd MMM yyyy, hh:mm a")}
           </div>
         </div>
       ),
-      size: 112,
-      minSize: 95,
+      size: 120,
+      minSize: 100,
     },
     {
       accessorKey: "supplier_invoice_no",
       header: "Inv. No.",
       cell: ({ row }) => (
-        <span className="font-mono text-sm font-medium">{row.original.supplier_invoice_no}</span>
+        <span className="font-mono text-base font-medium">{row.original.supplier_invoice_no}</span>
       ),
-      size: 72,
-      minSize: 60,
+      size: 88,
+      minSize: 72,
     },
     {
       accessorKey: "supplier_name",
@@ -1688,9 +1712,9 @@ const PurchaseBillDashboard = () => {
       cell: ({ row }) => {
         const bill = row.original;
         return (
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-2 min-w-0">
             <span 
-              className={cn("truncate text-base", bill.supplier_id ? "cursor-pointer text-blue-600 hover:underline font-medium" : "font-medium")}
+              className={cn("truncate text-base", bill.supplier_id ? "cursor-pointer text-blue-600 hover:text-blue-800 hover:underline font-semibold" : "font-semibold text-slate-800")}
               onClick={(e) => {
                 if (bill.supplier_id) {
                   e.stopPropagation();
@@ -1707,17 +1731,17 @@ const PurchaseBillDashboard = () => {
           </div>
         );
       },
-      size: 140,
-      minSize: 100,
+      size: 160,
+      minSize: 120,
     },
     {
       accessorKey: "gross_amount",
       header: "Gross",
       cell: ({ row }) => (
-        <span className="text-right block tabular-nums text-sm font-medium text-slate-600 dark:text-slate-400">₹{row.original.gross_amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+        <span className="text-right block tabular-nums text-base font-medium text-slate-600 dark:text-slate-400">₹{row.original.gross_amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
       ),
-      size: 88,
-      minSize: 72,
+      size: 100,
+      minSize: 85,
     },
     {
       accessorKey: "discount_amount",
@@ -1746,12 +1770,12 @@ const PurchaseBillDashboard = () => {
       accessorKey: "net_amount",
       header: "Net",
       cell: ({ row }) => (
-        <span className="text-right block text-sm font-bold text-primary tabular-nums font-mono">
+        <span className="text-right block text-base font-bold text-primary tabular-nums font-mono">
           ₹{row.original.net_amount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
         </span>
       ),
-      size: 88,
-      minSize: 72,
+      size: 100,
+      minSize: 85,
     },
     {
       id: "balance_due",
@@ -1766,7 +1790,7 @@ const PurchaseBillDashboard = () => {
         return (
           <span
             className={cn(
-              "text-right block text-sm font-bold tabular-nums font-mono",
+              "text-right block text-base font-bold tabular-nums font-mono",
               settled ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400",
             )}
             title={settled ? "Fully paid" : `Pending ₹${pending.toLocaleString("en-IN")}`}
@@ -1775,15 +1799,15 @@ const PurchaseBillDashboard = () => {
           </span>
         );
       },
-      size: 88,
-      minSize: 72,
+      size: 100,
+      minSize: 85,
     },
     {
       id: "payment_status",
       header: "Status",
       cell: ({ row }) => getPaymentStatusBadge(row.original),
-      size: 78,
-      minSize: 68,
+      size: 100,
+      minSize: 88,
     },
     {
       id: "items_count",
@@ -2224,57 +2248,74 @@ const PurchaseBillDashboard = () => {
   return (
     <div
       className={cn(
-        "flex flex-col bg-slate-50 px-1.5 sm:px-2 md:px-3 py-1.5 min-h-0 overflow-hidden purchase-bill-dashboard",
-        inTabCache || sharedShell ? "h-full w-full" : "h-[calc(100vh-3.5rem)]",
+        "purchase-dashboard-workspace purchase-bill-dashboard flex h-full min-h-0 w-full flex-col overflow-hidden bg-slate-50 px-2 py-2 sm:px-3",
+        !inTabCache && !sharedShell && "h-[calc(100vh-3.5rem)]",
       )}
     >
-      <div className="w-full min-w-0 flex flex-col flex-1 min-h-0 gap-1.5">
-        <div className="flex items-center justify-between shrink-0">
+      <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col gap-2">
+        <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
           <div>
-            <h1 className="text-lg font-bold text-blue-600 tracking-tight leading-none">
+            <h1 className="flex items-center gap-2 text-xl font-bold leading-none tracking-tight text-teal-700">
+              <Home className="h-4 w-4 shrink-0 opacity-70" />
               Purchase Bills
             </h1>
-            <p className="text-[11px] text-muted-foreground mt-0.5 h-3.5 flex items-center gap-1">
-              {isDashboardBackgroundRefresh && (
+            <p className="mt-1 flex items-center gap-1.5 text-sm text-slate-500">
+              {isDashboardBackgroundRefresh ? (
                 <>
-                  <Loader2 className="h-3 w-3 animate-spin" />
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
                   Updating…
                 </>
+              ) : (
+                `${summaryStats.totalBills.toLocaleString("en-IN")} bills`
               )}
             </p>
           </div>
-          <div className="flex items-center gap-1.5 flex-wrap justify-end">
+          <div className="flex flex-wrap items-center gap-2 justify-end">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9 gap-1.5 border-slate-200 text-sm"
+              onClick={() => void refetchBills()}
+              disabled={isDashboardBackgroundRefresh}
+            >
+              {isDashboardBackgroundRefresh ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4" />
+              )}
+              Refresh
+            </Button>
             <Button
               onClick={handleExportExcel}
               variant="outline"
-              className="gap-1.5 h-8 text-sm border-slate-300 text-slate-600 hover:bg-slate-100 font-medium px-2.5"
+              className="gap-1.5 h-9 text-sm border-slate-300 text-slate-600 hover:bg-slate-100 font-medium px-3"
             >
-              <FileSpreadsheet className="h-3.5 w-3.5" />
+              <FileSpreadsheet className="h-4 w-4" />
               Export Excel
             </Button>
             <Button
               onClick={handleFixMissingProductNames}
               variant="outline"
-              className="gap-1.5 h-8 text-sm border-slate-300 text-slate-600 hover:bg-slate-100 font-medium px-2.5"
+              className="gap-1.5 h-9 text-sm border-slate-300 text-slate-600 hover:bg-slate-100 font-medium px-3"
               disabled={isFixing}
             >
               {isFixing ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
-                <Database className="h-3.5 w-3.5" />
+                <Database className="h-4 w-4" />
               )}
               Fix Missing Data
             </Button>
             <Button
               onClick={handleFixMissingMrp}
               variant="outline"
-              className="gap-1.5 h-8 text-sm border-slate-300 text-slate-600 hover:bg-slate-100 font-medium px-2.5"
+              className="gap-1.5 h-9 text-sm border-slate-300 text-slate-600 hover:bg-slate-100 font-medium px-3"
               disabled={isFixing}
             >
               {isFixing ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
-                <IndianRupee className="h-3.5 w-3.5" />
+                <IndianRupee className="h-4 w-4" />
               )}
               Fix Missing MRP
             </Button>
@@ -2282,23 +2323,23 @@ const PurchaseBillDashboard = () => {
               <Button
                 onClick={handleVerifyMrpRpcEquivalence}
                 variant="outline"
-                className="gap-1.5 h-8 text-sm border-dashed border-amber-400 text-amber-700 hover:bg-amber-50 font-medium px-2.5"
+                className="gap-1.5 h-9 text-sm border-dashed border-amber-400 text-amber-700 hover:bg-amber-50 font-medium px-3"
                 disabled={isFixing}
                 title="Phase 2: dry-run compare loop vs RPC for current org (no writes)"
               >
                 {isFixing ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
-                  <RefreshCw className="h-3.5 w-3.5" />
+                  <RefreshCw className="h-4 w-4" />
                 )}
                 Verify MRP RPC
               </Button>
             )}
             <Button
               onClick={() => navigate("/purchase-entry", { state: { newBill: true } })}
-              className="h-8 px-3 text-sm font-semibold bg-blue-600 hover:bg-blue-700 text-white shadow-sm gap-1.5"
+              className="h-9 px-4 text-sm font-semibold bg-blue-600 hover:bg-blue-700 text-white shadow-sm gap-1.5"
             >
-              <Plus className="h-3.5 w-3.5" />
+              <Plus className="h-4 w-4" />
               New Purchase
             </Button>
             {selectedBills.size > 0 && (
@@ -2306,22 +2347,22 @@ const PurchaseBillDashboard = () => {
                 {canDelete && (
                   <Button
                     variant="destructive"
-                    className="h-8 text-sm"
+                    className="h-9 text-sm"
                     onClick={handleBulkDeleteClick}
                     disabled={isDeleting}
                   >
-                    {isDeleting ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5 mr-1.5" />}
+                    {isDeleting ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <Trash2 className="h-4 w-4 mr-1.5" />}
                     Delete Selected ({selectedBills.size})
                   </Button>
                 )}
                 {canCancel && (
                   <Button
                     variant="outline"
-                    className="h-8 text-sm border-orange-500 text-orange-600 hover:bg-orange-50"
+                    className="h-9 text-sm border-orange-500 text-orange-600 hover:bg-orange-50"
                     onClick={() => setShowBulkCancelDialog(true)}
                     disabled={isBulkCancelling}
                   >
-                    {isBulkCancelling ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Ban className="h-3.5 w-3.5 mr-1.5" />}
+                    {isBulkCancelling ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <Ban className="h-4 w-4 mr-1.5" />}
                     Cancel Selected ({selectedBills.size})
                   </Button>
                 )}
@@ -2400,71 +2441,54 @@ const PurchaseBillDashboard = () => {
           </Card>
         )}
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-1.5 w-full shrink-0">
-          <div className="rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 px-2 py-1.5 flex items-center justify-between min-w-0 shadow-sm">
-            <div className="min-w-0">
-              <p className="text-[10px] font-medium text-white/75 leading-none">Total Bills</p>
-              <p className="text-base font-black text-white tabular-nums leading-tight mt-0.5">{summaryStats.totalBills}</p>
-              <p className="text-[10px] text-white/60 leading-none mt-0.5 truncate">{summaryStats.totalQty.toLocaleString("en-IN")} items</p>
-            </div>
-            <Receipt className="h-3.5 w-3.5 text-white/70 shrink-0" />
-          </div>
-
-          <div className="rounded-lg bg-gradient-to-br from-emerald-500 to-emerald-600 px-2 py-1.5 flex items-center justify-between min-w-0 shadow-sm">
-            <div className="min-w-0">
-              <p className="text-[10px] font-medium text-white/75 leading-none">Paid</p>
-              <p className="text-base font-black text-white tabular-nums leading-tight mt-0.5 truncate">
-                ₹{summaryStats.paidAmount.toLocaleString("en-IN", { maximumFractionDigits: 0 })}
-              </p>
-            </div>
-            <CheckCircle2 className="h-3.5 w-3.5 text-white/70 shrink-0" />
-          </div>
-
-          <div className="rounded-lg bg-gradient-to-br from-amber-500 to-amber-600 px-2 py-1.5 flex items-center justify-between min-w-0 shadow-sm">
-            <div className="min-w-0">
-              <p className="text-[10px] font-medium text-white/75 leading-none">Partial</p>
-              <p className="text-base font-black text-white tabular-nums leading-tight mt-0.5 truncate">
-                ₹{summaryStats.partialAmount.toLocaleString("en-IN", { maximumFractionDigits: 0 })}
-              </p>
-            </div>
-            <Clock className="h-3.5 w-3.5 text-white/70 shrink-0" />
-          </div>
-
-          <div className="rounded-lg bg-gradient-to-br from-red-500 to-red-600 px-2 py-1.5 flex items-center justify-between min-w-0 shadow-sm">
-            <div className="min-w-0">
-              <p className="text-[10px] font-medium text-white/75 leading-none">Unpaid</p>
-              <p className="text-base font-black text-white tabular-nums leading-tight mt-0.5 truncate">
-                ₹{summaryStats.unpaidAmount.toLocaleString("en-IN", { maximumFractionDigits: 0 })}
-              </p>
-            </div>
-            <Wallet className="h-3.5 w-3.5 text-white/70 shrink-0" />
-          </div>
-
-          <div className="rounded-lg bg-gradient-to-br from-violet-500 to-violet-600 px-2 py-1.5 flex items-center justify-between min-w-0 shadow-sm">
-            <div className="min-w-0">
-              <p className="text-[10px] font-medium text-white/75 leading-none">Total Amount</p>
-              <p className="text-base font-black text-white tabular-nums leading-tight mt-0.5 truncate">
-                ₹{summaryStats.totalAmount.toLocaleString("en-IN", { maximumFractionDigits: 0 })}
-              </p>
-            </div>
-            <IndianRupee className="h-3.5 w-3.5 text-white/70 shrink-0" />
-          </div>
+        <div className="grid shrink-0 grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5 lg:gap-3">
+          <PurchaseKpiCard
+            title="Total Bills"
+            subtitle={`${summaryStats.totalQty.toLocaleString("en-IN")} items`}
+            value={summaryStats.totalBills.toLocaleString("en-IN")}
+            shellClass="bg-sky-50 border-sky-200/70 hover:bg-sky-100/80"
+            valueClass="text-sky-800"
+          />
+          <PurchaseKpiCard
+            title="Paid"
+            value={`₹${summaryStats.paidAmount.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`}
+            shellClass="bg-emerald-50 border-emerald-200/70 hover:bg-emerald-100/80"
+            valueClass="text-emerald-800"
+          />
+          <PurchaseKpiCard
+            title="Partial"
+            value={`₹${summaryStats.partialAmount.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`}
+            shellClass="bg-orange-50 border-orange-200/70 hover:bg-orange-100/80"
+            valueClass="text-orange-800"
+          />
+          <PurchaseKpiCard
+            title="Unpaid"
+            value={`₹${summaryStats.unpaidAmount.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`}
+            shellClass="bg-rose-50 border-rose-200/70 hover:bg-rose-100/80"
+            valueClass="text-rose-800"
+          />
+          <PurchaseKpiCard
+            title="Total Amount"
+            value={`₹${summaryStats.totalAmount.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`}
+            shellClass="bg-violet-50 border-violet-200/70 hover:bg-violet-100/80"
+            valueClass="text-violet-800"
+          />
         </div>
 
-        <Card className="rounded-lg border border-slate-200 shadow-sm overflow-hidden p-0 flex-1 min-h-0 flex flex-col">
+        <Card className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-slate-200 shadow-sm p-0">
           <div className="flex flex-col flex-1 min-h-0">
-            <div className="flex flex-wrap items-center gap-1.5 px-2 py-1.5 border-b border-slate-100 bg-white overflow-x-auto shrink-0">
-              <div className="relative flex-1 min-w-[160px] max-w-full sm:max-w-sm md:max-w-md">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-slate-100 bg-white px-3 py-2.5 overflow-x-auto">
+              <div className="relative flex-1 min-w-[180px] max-w-full sm:max-w-md md:max-w-lg">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Search by bill no, supplier, barcode..."
+                  placeholder="Search list..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-8 h-8 text-sm border-slate-200 bg-slate-50 focus:bg-white"
+                  className="pl-9 h-9 text-sm border-slate-200 bg-slate-50 focus:bg-white no-uppercase"
                 />
               </div>
               <Select value={periodFilter} onValueChange={(v) => setPeriodFilter(v as PurchaseDashboardPeriodFilter)}>
-                <SelectTrigger className="w-[130px] h-8 text-sm border-slate-200 bg-slate-50 hover:bg-white">
+                <SelectTrigger className="w-[130px] h-9 text-sm border-slate-200 bg-slate-50 hover:bg-white">
                   <SelectValue placeholder="Period" />
                 </SelectTrigger>
                 <SelectContent>
@@ -2481,20 +2505,20 @@ const PurchaseBillDashboard = () => {
                     aria-label="Start date"
                     value={startDate}
                     onChange={(e) => setStartDate(e.target.value)}
-                    className="w-[130px] h-8 text-sm border-slate-200 bg-slate-50 hover:bg-white"
+                    className="w-[130px] h-9 text-sm border-slate-200 bg-slate-50 hover:bg-white"
                   />
                   <Input
                     type="date"
                     aria-label="End date"
                     value={endDate}
                     onChange={(e) => setEndDate(e.target.value)}
-                    className="w-[130px] h-8 text-sm border-slate-200 bg-slate-50 hover:bg-white"
+                    className="w-[130px] h-9 text-sm border-slate-200 bg-slate-50 hover:bg-white"
                   />
                 </>
               )}
               <Select value={sortOrder} onValueChange={(value: "asc" | "desc") => setSortOrder(value)}>
-                <SelectTrigger className="w-[150px] h-8 text-sm gap-1.5 border-slate-200 bg-slate-50 hover:bg-white">
-                  <ArrowUpDown className="h-3.5 w-3.5" />
+                <SelectTrigger className="w-[150px] h-9 text-sm gap-1.5 border-slate-200 bg-slate-50 hover:bg-white">
+                  <ArrowUpDown className="h-4 w-4" />
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -2503,8 +2527,8 @@ const PurchaseBillDashboard = () => {
                 </SelectContent>
               </Select>
               <Select value={paymentStatusFilter} onValueChange={setPaymentStatusFilter}>
-                <SelectTrigger className="w-[130px] h-8 text-sm gap-1.5 border-slate-200 bg-slate-50 hover:bg-white">
-                  <Wallet className="h-3.5 w-3.5" />
+                <SelectTrigger className="w-[130px] h-9 text-sm gap-1.5 border-slate-200 bg-slate-50 hover:bg-white">
+                  <Wallet className="h-4 w-4" />
                   <SelectValue placeholder="Payment" />
                 </SelectTrigger>
                 <SelectContent>
@@ -2517,8 +2541,8 @@ const PurchaseBillDashboard = () => {
                 </SelectContent>
               </Select>
               <Select value={dcFilter} onValueChange={setDcFilter}>
-                <SelectTrigger className="w-[115px] h-8 text-sm gap-1.5 border-slate-200 bg-slate-50 hover:bg-white">
-                  <FileText className="h-3.5 w-3.5" />
+                <SelectTrigger className="w-[115px] h-9 text-sm gap-1.5 border-slate-200 bg-slate-50 hover:bg-white">
+                  <FileText className="h-4 w-4" />
                   <SelectValue placeholder="Bill Type" />
                 </SelectTrigger>
                 <SelectContent>
@@ -2534,11 +2558,11 @@ const PurchaseBillDashboard = () => {
               ref={tableContainerRef}
               data-tab-scroll
               onWheel={onWheelScrollContainer}
-              className="flex-1 min-h-0 overflow-auto tab-scroll-stable"
+              className="purchase-dashboard-table-panel flex-1 min-h-0 overflow-y-auto overflow-x-auto tab-scroll-stable overscroll-y-contain"
             >
             {billsQueryError ? (
-              <div className="text-center py-12 bg-white border border-destructive/20 rounded-lg mx-2">
-                <Receipt className="h-12 w-12 mx-auto mb-4 text-destructive/60" />
+              <div className="text-center py-16 bg-white border border-destructive/20 rounded-lg mx-2">
+                <Receipt className="h-14 w-14 mx-auto mb-4 text-destructive/60" />
                 <p className="text-lg font-medium text-foreground">Could not load purchase bills</p>
                 <p className="text-sm text-muted-foreground mt-1 mb-4 max-w-md mx-auto">
                   {(billsQueryErrorDetail as Error)?.message?.includes("Failed to fetch")
@@ -2567,6 +2591,7 @@ const PurchaseBillDashboard = () => {
                 fitToContainer
                 isLoading={loading}
                 emptyMessage="No purchase bills found"
+                className="purchase-dashboard-table [&_td]:!text-base [&_th]:!text-sm [&_th]:!font-semibold [&_th]:!uppercase [&_th]:!tracking-wide [&_tbody_tr:nth-child(even)]:bg-slate-50/80 [&_tbody_tr:hover]:bg-sky-50/70"
                 renderSubRow={renderSubRow}
                 expandedRows={expandedRows}
                 onToggleExpand={handleToggleExpand}
@@ -2583,16 +2608,16 @@ const PurchaseBillDashboard = () => {
             </div>
 
             {filteredBills.length > 0 && (
-              <div className="flex flex-wrap items-center justify-between gap-2 px-2 py-1.5 border-t border-slate-100 bg-white shrink-0">
-                <div className="flex flex-wrap items-center gap-3">
-                  <div className="text-xs text-slate-500 tabular-nums">
+              <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-slate-100 bg-white px-4 py-2.5">
+                <div className="flex flex-wrap items-center gap-4">
+                  <div className="text-sm text-slate-500 tabular-nums">
                     Showing {(currentPage - 1) * itemsPerPage + 1} to{" "}
                     {Math.min(currentPage * itemsPerPage, filteredBills.length)} of {filteredBills.length} bills
                   </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-xs text-slate-500">Show:</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-slate-500">Show:</span>
                     <Select value={itemsPerPage.toString()} onValueChange={handlePageSizeChange}>
-                      <SelectTrigger className="w-[4.5rem] h-7 text-xs border-slate-200">
+                      <SelectTrigger className="w-20 h-9 text-sm border-slate-200">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -2605,17 +2630,17 @@ const PurchaseBillDashboard = () => {
                     </Select>
                   </div>
                 </div>
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-2">
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={handlePreviousPage}
                     disabled={currentPage === 1}
-                    className="h-7 text-xs px-2.5 border-slate-200"
+                    className="h-9 text-sm px-3 border-slate-200"
                   >
                     Previous
                   </Button>
-                  <span className="text-xs text-slate-600 font-medium tabular-nums px-0.5">
+                  <span className="text-sm text-slate-600 font-medium tabular-nums px-1">
                     Page {currentPage} of {totalPages}
                   </span>
                   <Button
@@ -2623,7 +2648,7 @@ const PurchaseBillDashboard = () => {
                     size="sm"
                     onClick={handleNextPage}
                     disabled={currentPage === totalPages}
-                    className="h-7 text-xs px-2.5 border-slate-200"
+                    className="h-9 text-sm px-3 border-slate-200"
                   >
                     Next
                   </Button>
