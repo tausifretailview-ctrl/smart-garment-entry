@@ -70,6 +70,7 @@ export default function CustomerPartyBalancesPage() {
   const [page, setPage] = useState(1);
   const [ledgerCustomerId, setLedgerCustomerId] = useState<string | null>(null);
   const [ledgerCustomerName, setLedgerCustomerName] = useState("");
+  const [ledgerCustomerPhone, setLedgerCustomerPhone] = useState<string | undefined>();
 
   const orgId = currentOrganization?.id;
 
@@ -128,11 +129,13 @@ export default function CustomerPartyBalancesPage() {
   const openCustomerLedger = (row: CustomerPartyBalanceRow) => {
     setLedgerCustomerId(row.customer_id);
     setLedgerCustomerName(row.customer_name);
+    setLedgerCustomerPhone(row.phone);
   };
 
   const closeCustomerLedger = () => {
     setLedgerCustomerId(null);
     setLedgerCustomerName("");
+    setLedgerCustomerPhone(undefined);
   };
 
   useEffect(() => {
@@ -331,6 +334,8 @@ export default function CustomerPartyBalancesPage() {
             <CustomerLedger
               organizationId={orgId}
               preSelectedCustomerId={ledgerCustomerId}
+              preSelectedCustomerName={ledgerCustomerName}
+              preSelectedCustomerPhone={ledgerCustomerPhone}
               embedMode
               skipUrlSync
               embeddedBackLabel="Back to Balances"

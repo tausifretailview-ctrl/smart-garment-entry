@@ -77,6 +77,9 @@ interface CustomerLedgerProps {
   organizationId: string;
   paymentFilter?: string | null;
   preSelectedCustomerId?: string | null;
+  /** When embedMode — show ledger immediately without loading the full customer list. */
+  preSelectedCustomerName?: string | null;
+  preSelectedCustomerPhone?: string | null;
   /** When set, persists filters + selected customer for tab/window restore. */
   persistenceWindowId?: string;
   /** Embedded in Customer Balances — hide customer picker; back returns to balances list. */
@@ -111,6 +114,26 @@ interface Customer {
   division?: string;
   /** When fees are shown per student, this is the linked `customers.id` (if any). */
   customerRecordId?: string | null;
+}
+
+function buildEmbeddedCustomerStub(
+  id: string,
+  name: string,
+  phone?: string | null,
+  extra?: Partial<Customer>,
+): Customer {
+  return {
+    id,
+    customer_name: name,
+    phone: phone ?? null,
+    email: null,
+    address: null,
+    opening_balance: 0,
+    totalSales: 0,
+    totalPaid: 0,
+    balance: 0,
+    ...extra,
+  };
 }
 
 interface Transaction {
@@ -238,6 +261,8 @@ export function CustomerLedger({
   organizationId,
   paymentFilter,
   preSelectedCustomerId,
+  preSelectedCustomerName,
+  preSelectedCustomerPhone,
   persistenceWindowId,
   embedMode = false,
   embeddedBackLabel,
@@ -245,9 +270,19 @@ export function CustomerLedger({
   skipUrlSync = false,
   embeddedA4Layout = false,
 }: CustomerLedgerProps) {
+  const embeddedSingleCustomer = embedMode && Boolean(preSelectedCustomerId);
   const [, setSearchParams] = useSearchParams();
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(() => {
+    if (embeddedSingleCustomer && preSelectedCustomerId && preSelectedCustomerName?.trim()) {
+      return buildEmbeddedCustomerStub(
+        preSelectedCustomerId,
+        preSelectedCustomerName.trim(),
+        preSelectedCustomerPhone,
+      );
+    }
+    return null;
+  });
   const pendingRestoredCustomerIdRef = useRef<string | null>(null);
 
   const selectCustomer = useCallback(
@@ -339,7 +374,7 @@ export function CustomerLedger({
     summary: orgReceivablesSummary,
     isLoading: orgReceivablesSummaryLoading,
   } = useOrganizationReceivablesSummary(organizationId, {
-    enabled: !!organizationId && !isSchool,
+    enabled: !!organizationId && !isSchool && !embeddedSingleCustomer,
   });
   const kpiCardsLoading = !isSchool && orgReceivablesSummaryLoading;
   const openCustomerAccount = useOpenCustomerAccount();
@@ -422,6 +457,60 @@ export function CustomerLedger({
       setPaymentStatusFilter(paymentFilter || "all");
     }
   }, [paymentFilter]);
+
+
+  const { data: embeddedCustomerProfile } = useQuery({
+    queryKey: ["customer-ledger-profile", organizationId, preSelectedCustomerId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("customers")
+        .select(
+          "id, customer_name, phone, email, address, gst_number, opening_balance, points_balance, discount_percent",
+        )
+        .eq("organization_id", organizationId)
+        .eq("id", preSelectedCustomerId!)
+        .is("deleted_at", null)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: embeddedSingleCustomer && !!organizationId && !!preSelectedCustomerId && !isSchool,
+    staleTime: STALE_REFERENCE,
+    refetchOnWindowFocus: false,
+  });
+
+  useEffect(() => {
+    if (!embeddedSingleCustomer || !embeddedCustomerProfile || !preSelectedCustomerId) return;
+    setSelectedCustomer((prev) => {
+      if (!prev || prev.id !== preSelectedCustomerId) return prev;
+      return {
+        ...prev,
+        customer_name: embeddedCustomerProfile.customer_name ?? prev.customer_name,
+        phone: embeddedCustomerProfile.phone ?? prev.phone,
+        email: embeddedCustomerProfile.email ?? prev.email,
+        address: embeddedCustomerProfile.address ?? prev.address,
+        opening_balance: Number(embeddedCustomerProfile.opening_balance ?? 0),
+      };
+    });
+  }, [embeddedCustomerProfile, embeddedSingleCustomer, preSelectedCustomerId]);
+
+  useEffect(() => {
+    if (!embeddedSingleCustomer || selectedCustomer || !embeddedCustomerProfile || !preSelectedCustomerId) {
+      return;
+    }
+    setSelectedCustomer(
+      buildEmbeddedCustomerStub(preSelectedCustomerId, embeddedCustomerProfile.customer_name || "Customer", embeddedCustomerProfile.phone, {
+        email: embeddedCustomerProfile.email,
+        address: embeddedCustomerProfile.address,
+        opening_balance: Number(embeddedCustomerProfile.opening_balance ?? 0),
+      }),
+    );
+  }, [
+    embeddedSingleCustomer,
+    embeddedCustomerProfile,
+    preSelectedCustomerId,
+    selectedCustomer,
+  ]);
 
 
   // Fetch all customers with their transaction summary using pagination
@@ -893,7 +982,7 @@ export function CustomerLedger({
 
       return customerTotals;
     },
-    enabled: !!organizationId,
+    enabled: !!organizationId && !embeddedSingleCustomer,
     staleTime: STALE_DASHBOARD_TAB_RETURN,
     refetchOnWindowFocus: false,
     gcTime: 30 * 60 * 1000,
@@ -5431,7 +5520,7 @@ Please clear your dues at the earliest. Thank you!`;
     return (
       <div className="flex flex-col items-center justify-center flex-1 min-h-[12rem] text-muted-foreground gap-2 py-12">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        <span className="text-sm">Loading customer ledger…</span>
+        <span className="text-sm">Loading customer details…</span>
       </div>
     );
   }

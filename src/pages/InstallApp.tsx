@@ -10,13 +10,36 @@ import { toast } from "sonner";
 import { isValidOrgSlug, storeOrgSlug } from "@/lib/orgSlug";
 import {
   APP_VERSION,
+  WINDOWS_PORTABLE_FILE,
   WINDOWS_PORTABLE_URL,
+  WINDOWS_SETUP_FILE,
   WINDOWS_SETUP_URL,
   buildAndroidApkDownloadUrl,
   isAndroidApkConfigured,
   isWindowsInstallerConfigured,
   isWindowsPortableConfigured,
 } from "@/config/downloads";
+
+type InstallerProbeStatus = "idle" | "checking" | "available" | "unavailable";
+
+/** HEAD first; fall back to a tiny ranged GET when HEAD is blocked. */
+async function probeInstallerDownload(url: string): Promise<boolean> {
+  try {
+    const head = await fetch(url, { method: "HEAD", cache: "no-store" });
+    if (head.ok || head.status === 405) return true;
+    if (head.status === 404) return false;
+    const ranged = await fetch(url, {
+      method: "GET",
+      headers: { Range: "bytes=0-0" },
+      cache: "no-store",
+    });
+    if (ranged.ok || ranged.status === 206) return true;
+    return ranged.status !== 404;
+  } catch {
+    // Offline / CORS — allow click; server may still serve GET.
+    return true;
+  }
+}
 
 type Platform = "android" | "ios" | "desktop" | "other";
 
@@ -73,6 +96,9 @@ export default function InstallApp() {
   const { isInstallable, isInstalled, promptInstall } = useInstallPrompt();
   const [orgName, setOrgName] = useState<string>("");
   const [loading, setLoading] = useState(true);
+  const [windowsSetupStatus, setWindowsSetupStatus] = useState<InstallerProbeStatus>("idle");
+  const [windowsPortableStatus, setWindowsPortableStatus] = useState<InstallerProbeStatus>("idle");
+  const [windowsDownloadBusy, setWindowsDownloadBusy] = useState(false);
   const androidApkConfigured = isAndroidApkConfigured();
   const platform = detectPlatform();
   const isStandalone = isStandaloneDisplay();
@@ -147,6 +173,30 @@ export default function InstallApp() {
   const windowsPortableConfigured = isWindowsPortableConfigured();
   const appStartUrl = `${window.location.origin}/${orgSlug}`;
 
+  const probeWindowsInstallers = async () => {
+    if (!windowsInstallerConfigured) return;
+    setWindowsSetupStatus("checking");
+    if (windowsPortableConfigured) setWindowsPortableStatus("checking");
+
+    const [setupOk, portableOk] = await Promise.all([
+      probeInstallerDownload(windowsSetupUrl),
+      windowsPortableConfigured
+        ? probeInstallerDownload(windowsPortableUrl)
+        : Promise.resolve(true),
+    ]);
+
+    setWindowsSetupStatus(setupOk ? "available" : "unavailable");
+    if (windowsPortableConfigured) {
+      setWindowsPortableStatus(portableOk ? "available" : "unavailable");
+    }
+  };
+
+  useEffect(() => {
+    if (!windowsInstallerConfigured || platform !== "desktop") return;
+    void probeWindowsInstallers();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- probe when install URLs are known
+  }, [windowsInstallerConfigured, windowsPortableConfigured, platform]);
+
   const copyApkLink = () => {
     navigator.clipboard.writeText(androidApkUrl);
     toast.success("Android APK link copied");
@@ -172,6 +222,29 @@ export default function InstallApp() {
   const copyWindowsSetupLink = () => {
     navigator.clipboard.writeText(windowsSetupUrl);
     toast.success("Windows installer link copied");
+  };
+
+  const handleWindowsDownload = async (
+    url: string,
+    fileLabel: string,
+    setStatus: (status: InstallerProbeStatus) => void,
+  ) => {
+    setWindowsDownloadBusy(true);
+    setStatus("checking");
+    try {
+      const ok = await probeInstallerDownload(url);
+      if (!ok) {
+        setStatus("unavailable");
+        toast.error(
+          `Windows installer (${fileLabel}) is not on the server yet. Ask your admin to upload it, or use the web app.`,
+        );
+        return;
+      }
+      setStatus("available");
+      window.location.assign(`${url}${url.includes("?") ? "&" : "?"}t=${Date.now()}`);
+    } finally {
+      setWindowsDownloadBusy(false);
+    }
   };
 
   const handleInstall = async () => {
@@ -387,18 +460,69 @@ export default function InstallApp() {
                 Desktop app — opens like Tally/Vyapar, no browser needed.
               </p>
             </div>
-            <Button asChild className="w-full h-14 text-base" size="lg">
-              <a href={windowsSetupUrl}>
-                <Download className="mr-2 h-5 w-5" />
-                Download EzzyERP for Windows
-              </a>
+            <Button
+              className="w-full h-14 text-base"
+              size="lg"
+              disabled={windowsDownloadBusy || windowsSetupStatus === "checking"}
+              onClick={() =>
+                void handleWindowsDownload(
+                  windowsSetupUrl,
+                  WINDOWS_SETUP_FILE,
+                  setWindowsSetupStatus,
+                )
+              }
+            >
+              <Download className="mr-2 h-5 w-5" />
+              {windowsSetupStatus === "checking" ? "Checking installer…" : "Download EzzyERP for Windows"}
             </Button>
+            {windowsSetupStatus === "unavailable" && (
+              <Card className="p-4 space-y-2 bg-destructive/5 border-destructive/40">
+                <p className="text-sm font-semibold text-destructive">Windows installer not available</p>
+                <p className="text-xs text-muted-foreground">
+                  The server could not find <span className="font-mono text-foreground">{WINDOWS_SETUP_FILE}</span> (version{" "}
+                  {APP_VERSION}). Your admin must upload the installer to Supabase storage, then tap{" "}
+                  <strong>Check again</strong> below.
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                  disabled={windowsDownloadBusy}
+                  onClick={() => void probeWindowsInstallers()}
+                >
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                  Check again
+                </Button>
+              </Card>
+            )}
             {windowsPortableConfigured && (
-              <Button asChild variant="outline" className="w-full" size="sm">
-                <a href={windowsPortableUrl}>
-                  Portable version (no install needed)
-                </a>
+              <Button
+                variant="outline"
+                className="w-full"
+                size="sm"
+                disabled={
+                  windowsDownloadBusy ||
+                  windowsPortableStatus === "checking" ||
+                  windowsPortableStatus === "unavailable"
+                }
+                onClick={() =>
+                  void handleWindowsDownload(
+                    windowsPortableUrl,
+                    WINDOWS_PORTABLE_FILE,
+                    setWindowsPortableStatus,
+                  )
+                }
+              >
+                {windowsPortableStatus === "checking"
+                  ? "Checking portable…"
+                  : "Portable version (no install needed)"}
               </Button>
+            )}
+            {windowsPortableStatus === "unavailable" && (
+              <p className="text-xs text-center text-destructive">
+                Portable file <span className="font-mono">{WINDOWS_PORTABLE_FILE}</span> is not on the server yet.
+              </p>
             )}
             <div className="flex items-center gap-2 bg-muted rounded-md px-3 py-2">
               <span className="text-xs flex-1 truncate font-mono">{windowsSetupUrl}</span>
@@ -410,6 +534,22 @@ export default function InstallApp() {
               Windows 10/11 (64-bit) · Version {APP_VERSION}. If Windows shows &quot;Unknown publisher&quot;, click{" "}
               <strong>More info → Run anyway</strong>.
             </p>
+            <Card className="p-4 space-y-2 bg-amber-500/5 border-amber-500/30">
+              <div className="flex items-start gap-2">
+                <RefreshCw className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                <div className="space-y-1 text-xs text-muted-foreground">
+                  <p className="font-semibold text-foreground">Download failed or blank page?</p>
+                  <p>
+                    Open this install page in Chrome and tap <strong>Download</strong> again — do not reuse an old link
+                    from chat. Share the <strong>install page</strong> link ({installUrl}), not a one-time download URL.
+                  </p>
+                  <p>
+                    Until the installer is uploaded, use <strong>Open Web App instead</strong> below — daily updates work
+                    in the browser without reinstalling.
+                  </p>
+                </div>
+              </div>
+            </Card>
             <div className="pt-2 border-t">
               <Button asChild variant="ghost" className="w-full" size="lg">
                 <a href={appStartUrl}>Open Web App instead</a>
