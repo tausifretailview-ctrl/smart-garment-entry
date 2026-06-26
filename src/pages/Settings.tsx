@@ -318,6 +318,10 @@ interface Settings {
   sale_settings?: SaleSettings;
   bill_barcode_settings?: BillBarcodeSettings;
   report_settings?: ReportSettings;
+  auto_backup_enabled?: boolean;
+  backup_email?: string;
+  backup_retention_days?: number;
+  last_auto_backup_at?: string | null;
 }
 
 const QZStatusBadge = () => {
@@ -378,6 +382,10 @@ export default function Settings() {
     sale_settings: {},
     bill_barcode_settings: {},
     report_settings: {},
+    auto_backup_enabled: false,
+    backup_email: "",
+    backup_retention_days: 0,
+    last_auto_backup_at: null,
   });
 
   const [detectedPrinters, setDetectedPrinters] = useState<string[]>([]);
@@ -675,6 +683,10 @@ export default function Settings() {
           sale_settings: (settingsData.sale_settings as SaleSettings) || {},
           bill_barcode_settings: (settingsData.bill_barcode_settings as BillBarcodeSettings) || {},
           report_settings: (settingsData.report_settings as ReportSettings) || {},
+          auto_backup_enabled: settingsData.auto_backup_enabled || false,
+          backup_email: settingsData.backup_email || "",
+          backup_retention_days: settingsData.backup_retention_days ?? 0,
+          last_auto_backup_at: settingsData.last_auto_backup_at ?? null,
         });
       }
     } catch (error) {
@@ -4386,6 +4398,7 @@ export default function Settings() {
                     >
                       <LazySettingsPanel>
                       <LazyInvoiceWrapper
+                        orgSettings={settings}
                         billNo={sampleInvoiceData.billNo}
                         date={sampleInvoiceData.date}
                         customerName={sampleInvoiceData.customerName}
@@ -5676,7 +5689,12 @@ export default function Settings() {
 
           <TabsContent value="backup">
             <LazySettingsPanel>
-              <LazyBackupSettings />
+              <LazyBackupSettings
+                autoBackupEnabled={settings.auto_backup_enabled}
+                backupEmail={settings.backup_email}
+                backupRetentionDays={settings.backup_retention_days}
+                lastAutoBackupAt={settings.last_auto_backup_at}
+              />
             </LazySettingsPanel>
           </TabsContent>
 

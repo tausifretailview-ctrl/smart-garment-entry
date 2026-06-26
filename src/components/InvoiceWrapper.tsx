@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useOrganization } from '@/contexts/OrganizationContext';
-import { useSettings } from '@/hooks/useSettings';
+import { STALE_SETTINGS } from '@/lib/queryStaleTimes';
 import { ProfessionalTemplate } from './invoice-templates/ProfessionalTemplate';
 import { ClassicTemplate } from './invoice-templates/ClassicTemplate';
 import { ModernTemplate } from './invoice-templates/ModernTemplate';
@@ -148,6 +149,8 @@ interface InvoiceWrapperProps {
     tenure?: number;
     down_payment?: number;
   } | null;
+  /** When provided (e.g. Settings preview), skips org-settings fetch. */
+  orgSettings?: Record<string, unknown> | null;
 }
 
 export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperProps>(
@@ -156,10 +159,30 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
     const [settings, setSettings] = useState<any>(null);
     const [qrCodeUrl, setQrCodeUrl] = useState<string>('');
 
-    const { data: orgSettings } = useSettings();
+    const useParentOrgSettings = props.orgSettings !== undefined;
+    const orgId = currentOrganization?.id;
+
+    const { data: fetchedOrgSettings } = useQuery({
+      queryKey: ['org-settings', orgId],
+      queryFn: async () => {
+        if (!orgId) return null;
+        const { data, error } = await supabase
+          .from('settings')
+          .select('*')
+          .eq('organization_id', orgId)
+          .maybeSingle();
+        if (error) throw error;
+        return data;
+      },
+      staleTime: STALE_SETTINGS,
+      refetchOnWindowFocus: false,
+      enabled: !!orgId && !useParentOrgSettings,
+    });
+
     useEffect(() => {
-      if (orgSettings) setSettings(orgSettings);
-    }, [orgSettings]);
+      const source = useParentOrgSettings ? props.orgSettings : fetchedOrgSettings;
+      if (source) setSettings(source);
+    }, [useParentOrgSettings, props.orgSettings, fetchedOrgSettings]);
 
     useEffect(() => {
       if (settings?.bill_barcode_settings?.upi_id || settings?.bill_barcode_settings?.dc_upi_id) {

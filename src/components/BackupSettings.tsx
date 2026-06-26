@@ -22,7 +22,19 @@ import { toast } from "sonner";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import OrganizationResetDialog from "./OrganizationResetDialog";
 
-const BackupSettings = () => {
+interface BackupSettingsProps {
+  autoBackupEnabled?: boolean;
+  backupEmail?: string;
+  backupRetentionDays?: number;
+  lastAutoBackupAt?: string | null;
+}
+
+const BackupSettings = ({
+  autoBackupEnabled: autoBackupEnabledProp = false,
+  backupEmail: backupEmailProp = "",
+  backupRetentionDays: backupRetentionDaysProp = 0,
+  lastAutoBackupAt: lastAutoBackupAtProp = null,
+}: BackupSettingsProps) => {
   const { organizationRole, currentOrganization } = useOrganization();
   const { 
     backupLogs, isLoadingLogs, isBackingUp, isDownloading, 
@@ -48,31 +60,13 @@ const BackupSettings = () => {
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [restoreTarget, setRestoreTarget] = useState<BackupLog | null>(null);
 
-  // Load settings
   useEffect(() => {
-    const loadSettings = async () => {
-      if (!currentOrganization?.id) return;
-      try {
-        const { data } = await supabase
-          .from('settings')
-          .select('auto_backup_enabled, backup_email, backup_retention_days, last_auto_backup_at')
-          .eq('organization_id', currentOrganization.id)
-          .maybeSingle();
-        
-        if (data) {
-          setAutoBackupEnabled((data as any).auto_backup_enabled || false);
-          setBackupEmail((data as any).backup_email || "");
-          setRetentionDays(String((data as any).backup_retention_days || 0));
-          setLastAutoBackupAt((data as any).last_auto_backup_at);
-        }
-      } catch (e) {
-        console.error('Failed to load backup settings:', e);
-      } finally {
-        setIsLoadingSettings(false);
-      }
-    };
-    loadSettings();
-  }, [currentOrganization?.id]);
+    setAutoBackupEnabled(autoBackupEnabledProp);
+    setBackupEmail(backupEmailProp);
+    setRetentionDays(String(backupRetentionDaysProp));
+    setLastAutoBackupAt(lastAutoBackupAtProp);
+    setIsLoadingSettings(false);
+  }, [autoBackupEnabledProp, backupEmailProp, backupRetentionDaysProp, lastAutoBackupAtProp]);
 
   const handleSaveAutoBackupSettings = async (enabled?: boolean) => {
     if (!currentOrganization?.id) return;
