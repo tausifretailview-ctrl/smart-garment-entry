@@ -8503,6 +8503,51 @@ export type Database = {
           sample_references: string[]
         }[]
       }
+      get_product_wise_stock_filter_options: {
+        Args: { p_org_id: string }
+        Returns: Json
+      }
+      get_product_wise_stock_report: {
+        Args: {
+          p_brand?: string
+          p_category?: string
+          p_department?: string
+          p_group_by?: string
+          p_limit?: number
+          p_offset?: number
+          p_org_id: string
+          p_search?: string
+          p_supplier?: string
+        }
+        Returns: {
+          brand: string
+          category: string
+          department: string
+          group_key: string
+          product_id: string
+          purchase_value: number
+          sale_value: number
+          total_rows: number
+          total_stock: number
+        }[]
+      }
+      get_product_wise_stock_report_totals: {
+        Args: {
+          p_brand?: string
+          p_category?: string
+          p_department?: string
+          p_group_by?: string
+          p_org_id: string
+          p_search?: string
+          p_supplier?: string
+        }
+        Returns: {
+          group_count: number
+          purchase_value: number
+          sale_value: number
+          total_qty: number
+        }[]
+      }
       get_purchase_bill_dashboard_stats: {
         Args: {
           p_dc_filter?: string
