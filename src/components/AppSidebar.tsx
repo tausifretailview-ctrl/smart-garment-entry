@@ -46,7 +46,6 @@ import {
   ShieldCheck,
   LayoutList,
   Scale,
-  Truck,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { UIScaleSelector } from "@/components/UIScaleSelector";

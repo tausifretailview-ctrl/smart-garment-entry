@@ -182,7 +182,7 @@ export function POSSkeleton() {
 }
 
 // Report skeleton - for reports and data tables
-export function ReportSkeleton() {
+export function ReportSkeleton({ rows = 10, cols = 7 }: { rows?: number; cols?: number } = {}) {
   return (
     <div className="space-y-4 p-4 animate-in fade-in-0 duration-300">
       {/* Filters */}
@@ -203,7 +203,7 @@ export function ReportSkeleton() {
 
       {/* Data table */}
       <div className="bg-card border border-border rounded-md p-4">
-        <TableSkeleton rows={10} columns={7} />
+        <TableSkeleton rows={rows} columns={cols} />
       </div>
     </div>
   );

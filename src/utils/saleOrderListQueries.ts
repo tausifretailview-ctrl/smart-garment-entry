@@ -128,7 +128,7 @@ export async function fetchSaleOrderListPage(
     .eq("organization_id", organizationId)
     .is("deleted_at", null);
 
-  query = applySaleOrderListFilters(query, filters);
+  query = applySaleOrderListFilters(query as any, filters) as any;
 
   const { data, error, count } = await query
     .order("created_at", { ascending: false })
