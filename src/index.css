@@ -1439,6 +1439,7 @@ body.pos-large-ui .pos-desktop-readable table td {
 /* Single inner scroll — no outer main gutter gap beside the cards */
 main:has(.dashboard-workspace) {
   overflow: hidden;
+  padding: 0;
   scrollbar-gutter: auto;
 }
 @media (min-width: 1024px) {
@@ -1455,24 +1456,33 @@ main:has(.dashboard-workspace) {
 }
 .dashboard-toolbar {
   flex-shrink: 0;
-  min-height: 36px;
+  min-height: 44px;
 }
 .dashboard-body {
   flex: 1 1 0%;
   min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+  contain: layout style;
 }
 .dashboard-metric-grid {
   flex-shrink: 0;
 }
 .dashboard-metric-card-inner {
-  min-height: 88px;
+  min-height: 100px;
+}
+.dashboard-charts-panel {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 320px;
 }
 .dashboard-chart-shell .dashboard-chart-placeholder {
   min-height: 260px;
   max-height: 260px;
 }
 .dashboard-segment-grid > [class*="rounded"] {
-  min-height: 72px;
+  min-height: 88px;
 }
 @media (max-width: 1023px) {
   .dashboard-workspace {

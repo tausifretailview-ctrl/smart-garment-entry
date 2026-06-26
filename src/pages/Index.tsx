@@ -72,7 +72,25 @@ const formatCurrency = (value: number) => {
   }).format(value);
 };
 
-// Odoo-style Dashboard Metric Card — clean, professional, left-accent
+// Vasy-style pastel KPI card — centered value, soft background, large readable type
+const METRIC_PASTEL: Record<string, { shell: string; value: string }> = {
+  "bg-blue-500": { shell: "bg-sky-50 border-sky-200/70 hover:bg-sky-100/80", value: "text-sky-800" },
+  "bg-blue-600": { shell: "bg-sky-50 border-sky-200/70 hover:bg-sky-100/80", value: "text-sky-800" },
+  "bg-green-500": { shell: "bg-emerald-50 border-emerald-200/70 hover:bg-emerald-100/80", value: "text-emerald-800" },
+  "bg-green-600": { shell: "bg-emerald-50 border-emerald-200/70 hover:bg-emerald-100/80", value: "text-emerald-800" },
+  "bg-emerald-500": { shell: "bg-emerald-50 border-emerald-200/70 hover:bg-emerald-100/80", value: "text-emerald-800" },
+  "bg-orange-500": { shell: "bg-orange-50 border-orange-200/70 hover:bg-orange-100/80", value: "text-orange-800" },
+  "bg-amber-500": { shell: "bg-amber-50 border-amber-200/70 hover:bg-amber-100/80", value: "text-amber-900" },
+  "bg-red-500": { shell: "bg-rose-50 border-rose-200/70 hover:bg-rose-100/80", value: "text-rose-800" },
+  "bg-pink-500": { shell: "bg-pink-50 border-pink-200/70 hover:bg-pink-100/80", value: "text-pink-800" },
+  "bg-purple-500": { shell: "bg-violet-50 border-violet-200/70 hover:bg-violet-100/80", value: "text-violet-800" },
+  "bg-violet-500": { shell: "bg-violet-50 border-violet-200/70 hover:bg-violet-100/80", value: "text-violet-800" },
+  "bg-indigo-500": { shell: "bg-indigo-50 border-indigo-200/70 hover:bg-indigo-100/80", value: "text-indigo-800" },
+  "bg-cyan-500": { shell: "bg-cyan-50 border-cyan-200/70 hover:bg-cyan-100/80", value: "text-cyan-800" },
+  "bg-teal-500": { shell: "bg-teal-50 border-teal-200/70 hover:bg-teal-100/80", value: "text-teal-800" },
+  "bg-slate-500": { shell: "bg-slate-50 border-slate-200/70 hover:bg-slate-100/80", value: "text-slate-800" },
+};
+
 const AnimatedMetricCard = ({
   title,
   value,
@@ -100,29 +118,7 @@ const AnimatedMetricCard = ({
       ? formatCurrency(value)
       : value.toLocaleString("en-IN");
 
-  // Map accent colors to semantic left-border classes
-  const getAccentBorder = (color: string) => {
-    const colorMap: Record<string, string> = {
-      'bg-blue-500': 'border-l-primary',
-      'bg-blue-600': 'border-l-primary',
-      'bg-green-500': 'border-l-success',
-      'bg-green-600': 'border-l-success',
-      'bg-emerald-500': 'border-l-success',
-      'bg-orange-500': 'border-l-warning',
-      'bg-amber-500': 'border-l-warning',
-      'bg-red-500': 'border-l-destructive',
-      'bg-pink-500': 'border-l-accent',
-      'bg-purple-500': 'border-l-accent',
-      'bg-violet-500': 'border-l-accent',
-      'bg-indigo-500': 'border-l-primary',
-      'bg-cyan-500': 'border-l-primary',
-      'bg-teal-500': 'border-l-success',
-      'bg-slate-500': 'border-l-muted-foreground',
-    };
-    return colorMap[color] || 'border-l-primary';
-  };
-
-  const accentBorder = getAccentBorder(accentColor);
+  const pastel = METRIC_PASTEL[accentColor] ?? METRIC_PASTEL["bg-blue-500"];
 
   return (
     <Tooltip>
@@ -130,41 +126,31 @@ const AnimatedMetricCard = ({
         <div className="group dashboard-metric-card" onClick={placeholder ? undefined : onClick}>
           <Card
             className={cn(
-              "bg-card relative overflow-hidden border border-border dashboard-metric-card-inner",
-              "shadow-sm border-l-[3px] min-h-[88px]",
-              accentBorder,
+              "dashboard-metric-card-inner relative overflow-hidden rounded-xl border shadow-sm transition-colors duration-150",
+              pastel.shell,
               placeholder
-                ? "opacity-90 cursor-default"
-                : "cursor-pointer hover:shadow-md transition-shadow duration-150"
+                ? "cursor-default opacity-90"
+                : "cursor-pointer hover:shadow-md",
             )}
           >
-            <CardContent className="p-4 flex items-start justify-between gap-2 h-full">
-              <div className="min-w-0 flex-1">
-                <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground truncate">
-                  {title}
-                </p>
-                <p
-                  className={cn(
-                    "text-xl font-semibold tabular-nums font-mono mt-1 truncate min-h-[28px] flex items-center",
-                    placeholder ? "text-muted-foreground/50" : "text-foreground"
-                  )}
-                >
-                  {loading && !placeholder ? (
-                    <Loader2 className="h-5 w-5 animate-spin text-primary/70" />
-                  ) : (
-                    displayValue
-                  )}
-                </p>
-                <span className="text-[10px] text-muted-foreground mt-0.5 block">
-                  {isCurrency ? "Amount" : "Count"}
-                </span>
-              </div>
+            <CardContent className="flex h-full min-h-[100px] flex-col items-center justify-center px-3 py-4 text-center">
+              <p className="text-sm font-semibold leading-snug text-slate-600 line-clamp-2">{title}</p>
+              <p
+                className={cn(
+                  "mt-2 text-2xl font-bold tabular-nums leading-none sm:text-[1.65rem]",
+                  placeholder ? "text-slate-400" : pastel.value,
+                )}
+              >
+                {loading && !placeholder ? (
+                  <Loader2 className="mx-auto h-6 w-6 animate-spin opacity-70" />
+                ) : (
+                  displayValue
+                )}
+              </p>
               <Icon
                 className={cn(
-                  "h-4 w-4 flex-shrink-0 mt-0.5",
-                  placeholder
-                    ? "text-muted-foreground/35"
-                    : "text-muted-foreground/60 group-hover:text-foreground transition-colors"
+                  "absolute right-2.5 top-2.5 h-4 w-4 opacity-25",
+                  placeholder ? "text-slate-400" : "text-slate-500",
                 )}
               />
             </CardContent>
@@ -172,8 +158,8 @@ const AnimatedMetricCard = ({
         </div>
       </TooltipTrigger>
       {tooltip && (
-        <TooltipContent side="bottom" className="bg-popover text-popover-foreground border-border max-w-[200px]">
-          <p className="text-xs">{tooltip}</p>
+        <TooltipContent side="bottom" className="max-w-[220px] border-border bg-popover text-popover-foreground">
+          <p className="text-sm">{tooltip}</p>
         </TooltipContent>
       )}
     </Tooltip>
@@ -791,7 +777,7 @@ const DesktopDashboard = () => {
     <>
     <TooltipProvider>
     <div 
-      className="dashboard-workspace w-full flex flex-col bg-background -mx-3 sm:-mx-4 -mt-3 sm:-mt-4 pl-3 sm:pl-4 pr-0 pt-2 pb-2 min-h-0"
+      className="dashboard-workspace flex w-full min-h-0 flex-col bg-slate-50 px-2 py-2 sm:px-3"
       onContextMenu={handlePageContextMenu}
     >
       {/* Desktop Context Menu */}
@@ -803,20 +789,25 @@ const DesktopDashboard = () => {
         title="Quick Actions"
       />
 
-      {/* Dashboard toolbar — refresh + status (period / net profit live on dashboard only, not global header) */}
-      <div className="dashboard-toolbar flex flex-wrap items-center justify-between gap-2 py-1 border-b border-border/70 shrink-0">
-        <div className="flex items-center gap-2 text-[11px] sm:text-xs text-muted-foreground min-w-0">
-          <div className={cn("h-2 w-2 rounded-full shrink-0", isLoading ? "bg-amber-400 animate-pulse" : "bg-success")} />
-          <span className="truncate">{statusLabel}</span>
+      {/* Dashboard toolbar */}
+      <div className="dashboard-toolbar mb-2 flex shrink-0 flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-sm">
+        <div className="min-w-0">
+          <h1 className="text-lg font-bold leading-none tracking-tight text-teal-700 sm:text-xl">
+            Dashboard
+          </h1>
+          <div className="mt-1 flex items-center gap-2 text-sm text-muted-foreground">
+            <div className={cn("h-2 w-2 shrink-0 rounded-full", isLoading ? "animate-pulse bg-amber-400" : "bg-emerald-500")} />
+            <span className="truncate">{statusLabel}</span>
+          </div>
         </div>
-        <div className="flex items-center gap-2 shrink-0 flex-nowrap">
-          <div className="flex items-center gap-1.5 bg-card border border-border rounded-md px-2 h-7 shadow-sm">
-            <Calendar className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+        <div className="flex shrink-0 flex-nowrap items-center gap-2">
+          <div className="flex h-9 items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-2.5 shadow-sm">
+            <Calendar className="h-4 w-4 shrink-0 text-muted-foreground" />
             <Select value={dateRange} onValueChange={(v: DateRangeType) => setDateRange(v)}>
-              <SelectTrigger className="w-[88px] h-6 border-0 shadow-none text-xs bg-transparent px-0.5">
+              <SelectTrigger className="h-8 w-[100px] border-0 bg-transparent px-1 text-sm shadow-none">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent className="bg-popover border-border">
+              <SelectContent className="border-border bg-popover">
                 <SelectItem value="monthly">Monthly</SelectItem>
                 <SelectItem value="quarterly">Quarterly</SelectItem>
                 <SelectItem value="yearly">Yearly</SelectItem>
@@ -824,11 +815,9 @@ const DesktopDashboard = () => {
               </SelectContent>
             </Select>
             {isLoading ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin text-primary shrink-0" />
+              <Loader2 className="h-4 w-4 shrink-0 animate-spin text-primary" />
             ) : (
-              <span className="text-xs font-medium text-primary whitespace-nowrap max-w-[7rem] truncate">
-                {dateLabel}
-              </span>
+              <span className="max-w-[8rem] truncate text-sm font-medium text-primary">{dateLabel}</span>
             )}
           </div>
           <Button
@@ -837,20 +826,20 @@ const DesktopDashboard = () => {
             onClick={handleRefreshAll}
             disabled={isRefreshing || isLoading}
             title="Load latest sales, stock, and charts from the server (F5)"
-            className="h-7 text-xs shrink-0 border-border bg-card hover:bg-muted"
+            className="h-9 shrink-0 border-slate-200 bg-white text-sm hover:bg-slate-50"
           >
-            <RefreshCw className={cn("h-3.5 w-3.5 mr-1", (isRefreshing || isLoading) && "animate-spin")} />
+            <RefreshCw className={cn("mr-1.5 h-4 w-4", (isRefreshing || isLoading) && "animate-spin")} />
             Refresh
           </Button>
         </div>
       </div>
 
-      {/* Main Content — fixed shell; skeletons while first RPC loads */}
-      <div className="dashboard-body flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
-        <div className="space-y-3 pr-3 sm:pr-4 pb-2">
-        <div className="space-y-3 dashboard-metrics-panel">
+      {/* Main Content — single scroll region */}
+      <div className="dashboard-body tab-scroll-stable flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
+        <div className="space-y-4 pb-3 pr-1">
+        <div className="space-y-4 dashboard-metrics-panel">
           {/* Row 1 - Sales Metrics */}
-          <div className="dashboard-metric-grid grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
+          <div className="dashboard-metric-grid grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
             <AnimatedMetricCard
               title="Total Sales"
               value={salesData?.total || 0}
@@ -916,7 +905,7 @@ const DesktopDashboard = () => {
           </div>
 
           {/* Row 2 - Purchase Metrics */}
-          <div className="dashboard-metric-grid grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
+          <div className="dashboard-metric-grid grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
             <AnimatedMetricCard
               title="Total Purchase"
               value={purchaseData?.total || 0}
@@ -981,13 +970,13 @@ const DesktopDashboard = () => {
             />
           </div>
 
-          {/* Row 3 - Inventory & Financial Metrics (Grouped Section) */}
-          <div className="bg-muted/30 rounded-lg p-3 border border-border shrink-0">
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-2">
-              <Layers className="h-3.5 w-3.5" />
+          {/* Row 3 - Inventory & Financial Metrics */}
+          <div className="shrink-0 rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
+            <h3 className="mb-3 flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-slate-600">
+              <Layers className="h-4 w-4 text-teal-600" />
               Inventory &amp; Financial Overview
             </h3>
-            <div className="dashboard-metric-grid grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
+            <div className="dashboard-metric-grid grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
             <AnimatedMetricCard
               title="Products"
               value={productsCount || 0}
@@ -1059,9 +1048,9 @@ const DesktopDashboard = () => {
 
           {/* Field Sales App Section - Only visible for users with field sales access */}
           {hasFieldSalesAccess && (
-            <div>
-              <h2 className="text-base font-semibold mb-3 text-foreground flex items-center gap-2">
-                <div className="h-1 w-8 bg-primary rounded-full" />
+            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+              <h2 className="mb-3 flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-slate-600">
+                <div className="h-1 w-8 rounded-full bg-amber-500" />
                 Field Sales App
               </h2>
               <Card className="border border-border bg-card shadow-sm border-l-[3px] border-l-warning">
@@ -1126,87 +1115,87 @@ const DesktopDashboard = () => {
         </div>
 
         {/* Customer Category Cards */}
-        <div className="dashboard-segment-grid grid grid-cols-2 sm:grid-cols-4 gap-3 shrink-0">
+        <div className="dashboard-segment-grid grid shrink-0 grid-cols-2 gap-3 sm:grid-cols-4">
           <Card
-            className="border border-border bg-card shadow-sm hover:shadow-md transition-shadow border-l-[3px] border-l-warning cursor-pointer min-h-[72px]"
+            className="min-h-[88px] cursor-pointer rounded-xl border border-amber-200/70 bg-amber-50 shadow-sm transition-shadow hover:bg-amber-100/80 hover:shadow-md"
             onClick={() => navigate("/sales-analytics?tab=customers")}
             title="Last sale within 90 days and (5+ invoices or ₹50k+ lifetime revenue)"
           >
-            <CardContent className="p-3 text-center min-h-[72px] flex flex-col justify-center">
-              <div className="text-xl font-semibold tabular-nums text-warning min-h-[28px] flex items-center justify-center">
+            <CardContent className="flex min-h-[88px] flex-col items-center justify-center p-4 text-center">
+              <div className="flex min-h-[32px] items-center justify-center text-2xl font-bold tabular-nums text-amber-900 sm:text-[1.65rem]">
                 {showPlaceholders ? (
-                  <span className="text-muted-foreground/50">—</span>
+                  <span className="text-slate-400">—</span>
                 ) : segmentsBusy ? (
                   <Loader2 className="h-6 w-6 animate-spin opacity-70" />
                 ) : (
                   displayedCustomerSegments?.vip ?? 0
                 )}
               </div>
-              <div className="text-xs text-muted-foreground font-medium">VIP Customer</div>
+              <div className="mt-1 text-sm font-semibold text-slate-600">VIP Customer</div>
             </CardContent>
           </Card>
           <Card
-            className="border border-border bg-card shadow-sm hover:shadow-md transition-shadow border-l-[3px] border-l-success cursor-pointer min-h-[72px]"
+            className="min-h-[88px] cursor-pointer rounded-xl border border-emerald-200/70 bg-emerald-50 shadow-sm transition-shadow hover:bg-emerald-100/80 hover:shadow-md"
             onClick={() => navigate("/sales-analytics?tab=customers")}
             title="Active in last 90 days, below VIP thresholds, or no sales yet (CRM only)"
           >
-            <CardContent className="p-3 text-center min-h-[72px] flex flex-col justify-center">
-              <div className="text-xl font-semibold tabular-nums text-success min-h-[28px] flex items-center justify-center">
+            <CardContent className="flex min-h-[88px] flex-col items-center justify-center p-4 text-center">
+              <div className="flex min-h-[32px] items-center justify-center text-2xl font-bold tabular-nums text-emerald-800 sm:text-[1.65rem]">
                 {showPlaceholders ? (
-                  <span className="text-muted-foreground/50">—</span>
+                  <span className="text-slate-400">—</span>
                 ) : segmentsBusy ? (
                   <Loader2 className="h-6 w-6 animate-spin opacity-70" />
                 ) : (
                   displayedCustomerSegments?.regular ?? 0
                 )}
               </div>
-              <div className="text-xs text-muted-foreground font-medium">Regular Customer</div>
+              <div className="mt-1 text-sm font-semibold text-slate-600">Regular Customer</div>
             </CardContent>
           </Card>
           <Card
-            className="border border-border bg-card shadow-sm hover:shadow-md transition-shadow border-l-[3px] border-l-warning cursor-pointer min-h-[72px]"
+            className="min-h-[88px] cursor-pointer rounded-xl border border-orange-200/70 bg-orange-50 shadow-sm transition-shadow hover:bg-orange-100/80 hover:shadow-md"
             onClick={() => navigate("/sales-analytics?tab=customers")}
             title="Last sale between 91 and 365 days ago"
           >
-            <CardContent className="p-3 text-center min-h-[72px] flex flex-col justify-center">
-              <div className="text-xl font-semibold tabular-nums text-warning min-h-[28px] flex items-center justify-center">
+            <CardContent className="flex min-h-[88px] flex-col items-center justify-center p-4 text-center">
+              <div className="flex min-h-[32px] items-center justify-center text-2xl font-bold tabular-nums text-orange-900 sm:text-[1.65rem]">
                 {showPlaceholders ? (
-                  <span className="text-muted-foreground/50">—</span>
+                  <span className="text-slate-400">—</span>
                 ) : segmentsBusy ? (
                   <Loader2 className="h-6 w-6 animate-spin opacity-70" />
                 ) : (
                   displayedCustomerSegments?.risk ?? 0
                 )}
               </div>
-              <div className="text-xs text-muted-foreground font-medium">Risk Customer</div>
+              <div className="mt-1 text-sm font-semibold text-slate-600">Risk Customer</div>
             </CardContent>
           </Card>
           <Card
-            className="border border-border bg-card shadow-sm hover:shadow-md transition-shadow border-l-[3px] border-l-destructive cursor-pointer min-h-[72px]"
+            className="min-h-[88px] cursor-pointer rounded-xl border border-rose-200/70 bg-rose-50 shadow-sm transition-shadow hover:bg-rose-100/80 hover:shadow-md"
             onClick={() => navigate("/sales-analytics?tab=customers")}
             title="Last sale over 365 days ago (inactive)"
           >
-            <CardContent className="p-3 text-center min-h-[72px] flex flex-col justify-center">
-              <div className="text-xl font-semibold tabular-nums text-destructive min-h-[28px] flex items-center justify-center">
+            <CardContent className="flex min-h-[88px] flex-col items-center justify-center p-4 text-center">
+              <div className="flex min-h-[32px] items-center justify-center text-2xl font-bold tabular-nums text-rose-800 sm:text-[1.65rem]">
                 {showPlaceholders ? (
-                  <span className="text-muted-foreground/50">—</span>
+                  <span className="text-slate-400">—</span>
                 ) : segmentsBusy ? (
                   <Loader2 className="h-6 w-6 animate-spin opacity-70" />
                 ) : (
                   displayedCustomerSegments?.lost ?? 0
                 )}
               </div>
-              <div className="text-xs text-muted-foreground font-medium">Lost Customer</div>
+              <div className="mt-1 text-sm font-semibold text-slate-600">Lost Customer</div>
             </CardContent>
           </Card>
         </div>
 
         {/* New Updates — Collapsible below main content */}
-        <details className="group shrink-0">
-          <summary className="cursor-pointer text-xs font-medium uppercase tracking-wider text-muted-foreground flex items-center gap-2 py-2 select-none">
-            <Megaphone className="h-3.5 w-3.5" />
+        <details className="group shrink-0 rounded-lg border border-slate-200 bg-white px-3 py-1 shadow-sm">
+          <summary className="flex cursor-pointer select-none items-center gap-2 py-2 text-sm font-semibold uppercase tracking-wide text-slate-600">
+            <Megaphone className="h-4 w-4 text-teal-600" />
             New Updates &amp; Changelog
-            <span className="text-[10px] group-open:rotate-180 transition-transform">▼</span>
+            <span className="text-xs transition-transform group-open:rotate-180">▼</span>
           </summary>
           <div className="mt-2">
             <NewUpdatesPanel />

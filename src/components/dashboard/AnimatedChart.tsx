@@ -136,17 +136,17 @@ export const AnimatedChart = ({
   };
 
   return (
-    <Card className="border border-border bg-card shadow-elevated overflow-hidden">
-      <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-semibold flex items-center gap-2 text-card-foreground">
-          <div className="p-1.5 rounded-md bg-primary/10">
-            <TrendingUp className="h-4 w-4 text-primary" />
+    <Card className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+      <CardHeader className="pb-2 pt-4">
+        <CardTitle className="flex items-center gap-2 text-base font-bold text-slate-700">
+          <div className="rounded-md bg-teal-50 p-1.5">
+            <TrendingUp className="h-4 w-4 text-teal-600" />
           </div>
           {title}
         </CardTitle>
       </CardHeader>
       
-      <CardContent className="pt-0">
+      <CardContent className="pt-0 pb-4">
         <ResponsiveContainer width="100%" height={height}>
           {renderChart()}
         </ResponsiveContainer>

@@ -137,8 +137,8 @@ export const StatsChartsSection = ({ loadEnabled = false }: StatsChartsSectionPr
   const accentColor = "hsl(var(--accent))";
 
   return (
-    <div className="dashboard-charts-panel space-y-3 shrink-0">
-      <div className="grid gap-3 lg:grid-cols-2">
+    <div className="dashboard-charts-panel shrink-0 space-y-4">
+      <div className="grid gap-4 lg:grid-cols-2">
         {/* Sales vs Purchase Comparison */}
         <AnimatedChart
           title="Sales vs Purchases (Last 7 Days)"
