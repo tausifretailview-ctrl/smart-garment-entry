@@ -40,6 +40,24 @@ npm run electron:publish   # builds + uploads to GitHub Releases
 Installed clients check on launch, download in the background, and prompt to
 restart when ready.
 
+## Web app updates vs desktop installer
+
+The `.exe` only wraps a browser pointed at **https://app.inventoryshop.in**.
+Account page and all ERP features come from that live URL — **not** from files
+inside the installer.
+
+| What changed | What to do |
+| --- | --- |
+| Web UI (Accounts, reports, etc.) | **F5** or **File → Refresh App** (clears cache + reloads from server). Help → Check for Updates checks the **installer** only. |
+| Desktop shell (printing, menus, tray) | Help → Check for Updates, or reinstall from GitHub Releases. |
+
+If Accounts looks old after a deploy: press **F5**, use the header **↻** button,
+or wait for the **“New version on server”** banner and click **Reload now**.
+
+Stale data can also come from the React Query offline cache — a hard refresh
+(F5) clears it. The web build ID changes on every `vite build` so persisted
+cache is discarded after reload.
+
 ## Performance switches (already enabled in `main.cjs`)
 
 | Switch | Why |

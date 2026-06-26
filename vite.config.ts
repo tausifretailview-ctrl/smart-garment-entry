@@ -10,7 +10,7 @@ const pkg = JSON.parse(readFileSync(path.resolve(__dirname, "package.json"), "ut
 const appBuildId =
   process.env.VITE_APP_BUILD_ID ??
   process.env.GITHUB_SHA?.slice(0, 12) ??
-  pkg.version;
+  `${pkg.version}-${Date.now()}`;
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({

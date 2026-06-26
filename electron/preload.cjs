@@ -18,6 +18,25 @@ if (typeof document !== 'undefined') {
   }
 }
 
+// Desktop shell is always online — unregister PWA service workers so stale JS
+// bundles are not served from cache after a server deploy.
+function unregisterServiceWorkersInDesktopShell() {
+  try {
+    if (typeof navigator === 'undefined' || !navigator.serviceWorker) return;
+    navigator.serviceWorker.getRegistrations().then((regs) => {
+      for (const reg of regs) {
+        void reg.unregister();
+      }
+    });
+    if ('caches' in window) {
+      caches.keys().then((names) => Promise.all(names.map((n) => caches.delete(n)))).catch(() => {});
+    }
+  } catch {}
+}
+if (typeof window !== 'undefined') {
+  unregisterServiceWorkersInDesktopShell();
+}
+
 // Expose a minimal, safe API to the renderer (the web app).
 // This is additive only — the web app works identically with or without it.
 contextBridge.exposeInMainWorld('electronAPI', {

@@ -29,7 +29,7 @@ import { NativeAppBridge } from "@/components/NativeAppBridge";
 import { AppBootSplash } from "@/components/AppBootSplash";
 import { isAppBootRoute } from "@/lib/appBootSplash";
 import { isEntryFullscreenPath } from "@/lib/entryPageLayout";
-import { UpdatePrompt } from "@/components/UpdatePrompt";
+import { AppUpdatePrompt } from "@/components/AppUpdatePrompt";
 import { NavigationPerfPanel } from "@/components/NavigationPerfPanel";
 import { ElectronOAuthRecovery } from "@/components/ElectronOAuthRecovery";
 import { initNavigationPerfDiagnostics } from "@/lib/navigationPerfDiagnostics";
@@ -368,7 +368,7 @@ const App = () => {
         <NativeAppBridge />
         <AuthProvider>
           <OrganizationProvider>
-            <UpdatePrompt />
+            <AppUpdatePrompt />
             <WindowTabsProvider>
             <Suspense fallback={<LazyFallback />}>
             <SuspensionGate>
