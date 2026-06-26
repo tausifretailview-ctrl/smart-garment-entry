@@ -205,12 +205,37 @@ export default function SaleOrderDashboard() {
     placeholderData: (previous) => previous,
   });
 
-  const { data: statsData } = useQuery({
+  const {
+    data: statsData,
+    isLoading: statsLoading,
+    isError: statsError,
+    error: statsQueryError,
+  } = useQuery({
     queryKey: ["sale-orders-stats", currentOrganization?.id],
     queryFn: () => fetchSaleOrderDashboardStats(currentOrganization!.id),
     enabled: !!currentOrganization?.id,
     staleTime: 60_000,
+    retry: (failureCount, error) => {
+      const code = (error as { code?: string })?.code;
+      if (code === "PGRST202" || code === "42883") return false;
+      return failureCount < 2;
+    },
   });
+
+  useEffect(() => {
+    if (!statsError || !statsQueryError) return;
+    const code = (statsQueryError as { code?: string })?.code;
+    const missingRpc = code === "PGRST202" || code === "42883";
+    toast({
+      title: "Dashboard stats unavailable",
+      description: missingRpc
+        ? "Run docs/deploy-get_sale_order_dashboard_stats.sql in Supabase SQL Editor, then refresh."
+        : statsQueryError instanceof Error
+          ? statsQueryError.message
+          : "Could not load sale order summary.",
+      variant: "destructive",
+    });
+  }, [statsError, statsQueryError, toast]);
 
   const { data: uniqueCustomers = [] } = useQuery({
     queryKey: ["sale-order-customers", currentOrganization?.id],
@@ -567,6 +592,11 @@ export default function SaleOrderDashboard() {
     conversionRate: "0",
   };
 
+  const formatKpiValue = (value: number | string) => {
+    if (statsLoading) return "…";
+    return value;
+  };
+
   const getStatusBadge = (status: string) => {
     const variants: Record<string, { className: string, label: string }> = {
       pending: { className: "min-w-[80px] justify-center bg-pink-400 hover:bg-pink-500 text-white", label: "Pending" },
@@ -667,7 +697,7 @@ export default function SaleOrderDashboard() {
             </div>
           </CardHeader>
           <CardContent className="px-3 pb-3 pt-0">
-            <div className="text-2xl font-black text-white tabular-nums">{stats.total}</div>
+            <div className="text-2xl font-black text-white tabular-nums">{formatKpiValue(stats.total)}</div>
             <p className="text-sm text-white/65 mt-0.5">All orders</p>
           </CardContent>
         </Card>
@@ -683,7 +713,7 @@ export default function SaleOrderDashboard() {
             </div>
           </CardHeader>
           <CardContent className="px-3 pb-3 pt-0">
-            <div className="text-2xl font-black text-white tabular-nums">{stats.pending}</div>
+            <div className="text-2xl font-black text-white tabular-nums">{formatKpiValue(stats.pending)}</div>
             <p className="text-sm text-white/65 mt-0.5">Awaiting action</p>
           </CardContent>
         </Card>
@@ -699,7 +729,7 @@ export default function SaleOrderDashboard() {
             </div>
           </CardHeader>
           <CardContent className="px-3 pb-3 pt-0">
-            <div className="text-2xl font-black text-white tabular-nums">{stats.partial}</div>
+            <div className="text-2xl font-black text-white tabular-nums">{formatKpiValue(stats.partial)}</div>
             <p className="text-sm text-white/65 mt-0.5">Partially fulfilled</p>
           </CardContent>
         </Card>
@@ -715,7 +745,7 @@ export default function SaleOrderDashboard() {
             </div>
           </CardHeader>
           <CardContent className="px-3 pb-3 pt-0">
-            <div className="text-2xl font-black text-white tabular-nums">{stats.confirmed}</div>
+            <div className="text-2xl font-black text-white tabular-nums">{formatKpiValue(stats.confirmed)}</div>
             <p className="text-sm text-white/65 mt-0.5">Completed</p>
           </CardContent>
         </Card>
@@ -728,7 +758,7 @@ export default function SaleOrderDashboard() {
             </div>
           </CardHeader>
           <CardContent className="px-3 pb-3 pt-0">
-            <div className="text-2xl font-black text-white tabular-nums">{stats.pendingItems}</div>
+            <div className="text-2xl font-black text-white tabular-nums">{formatKpiValue(stats.pendingItems)}</div>
             <p className="text-sm text-white/65 mt-0.5">To be fulfilled</p>
           </CardContent>
         </Card>
@@ -741,7 +771,9 @@ export default function SaleOrderDashboard() {
             </div>
           </CardHeader>
           <CardContent className="px-3 pb-3 pt-0">
-            <div className="text-2xl font-black text-white tabular-nums">₹{stats.pendingValue.toLocaleString('en-IN')}</div>
+            <div className="text-2xl font-black text-white tabular-nums">
+              {statsLoading ? "…" : `₹${stats.pendingValue.toLocaleString("en-IN")}`}
+            </div>
             <p className="text-sm text-white/65 mt-0.5">Outstanding</p>
           </CardContent>
         </Card>
