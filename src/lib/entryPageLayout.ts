@@ -33,9 +33,9 @@ export function isFillHeightShellPath(pathname: string): boolean {
   return isFillHeightWorkspacePath(pathname) || isFillHeightDashboardPath(pathname);
 }
 
-/** Sidebar + content only — hide global header menu and window tab strip (e.g. Customer Balances). */
+/** Sidebar + content only — hide global header menu and window tab strip (e.g. Customer Balances, Accounts). */
 export const SIDEBAR_ONLY_WORKSPACE_PATH =
-  /\/(customer-party-balances|supplier-party-balances|stock-report)(\/|$)/;
+  /\/(customer-party-balances|supplier-party-balances|stock-report|accounts)(\/|$)/;
 
 export function isSidebarOnlyWorkspacePath(pathname: string): boolean {
   return SIDEBAR_ONLY_WORKSPACE_PATH.test(pathname);
