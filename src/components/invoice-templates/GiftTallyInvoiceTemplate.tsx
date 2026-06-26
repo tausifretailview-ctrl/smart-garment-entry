@@ -35,6 +35,7 @@ export interface GiftTallyInvoiceTemplateProps {
   logoUrl?: string;
   invoiceNumber: string;
   invoiceDate: Date;
+  invoiceTime?: string;
   customerName: string;
   customerAddress?: string;
   customerMobile?: string;
@@ -74,12 +75,17 @@ export interface GiftTallyInvoiceTemplateProps {
 }
 
 const DEFAULT_GIFT_TERMS = [
-  "Goods once sold not taken back or exchanged",
-  "Seller not responsible for transit loss/damage",
-  "Disputes subject to seller jurisdiction",
-  "Payment 50% advance",
-  "By payee A/C Cheque/NEFT",
+  "Goods once sold will not be taken back or exchanged",
+  "Seller is not responsible for any loss or damaged of goods in transit",
+  "Buyer undertakes to submit prescribed ST declaration to sender on demand. Disputes if any will be subject to seller court jurisdiction",
+  "Payment 50% advance and rest against each delivery OR as per final Term",
+  "By Payees A/C Cheque/Draft/NEFT Only",
 ];
+
+const DEFAULT_GST_DECLARATION =
+  "I/We certify that our registration certificate under the GST Act is in force on the date on which supply of goods specified in the invoice is made by me/us and the transaction of supply covered under this invoice has been effected by me/us in the regular course of my/our business.";
+
+const MIN_ITEM_ROWS = 10;
 
 const dash = (value?: string | null) => (value && String(value).trim() ? value : "—");
 
@@ -165,6 +171,7 @@ export const GiftTallyInvoiceTemplate: React.FC<GiftTallyInvoiceTemplateProps> =
   logoUrl,
   invoiceNumber,
   invoiceDate,
+  invoiceTime,
   customerName,
   customerAddress,
   customerMobile,
@@ -182,6 +189,7 @@ export const GiftTallyInvoiceTemplate: React.FC<GiftTallyInvoiceTemplateProps> =
   totalTax: totalTaxProp,
   roundOff,
   grandTotal,
+  declarationText,
   termsConditions,
   bankDetails,
   showHSN = true,
@@ -213,12 +221,14 @@ export const GiftTallyInvoiceTemplate: React.FC<GiftTallyInvoiceTemplateProps> =
   let totalSgst = 0;
   let totalIgst = 0;
   let computedTaxable = 0;
+  let totalQty = 0;
 
   const lineRows = items.map((item, index) => {
     const gstPct = item.gstPercent || 0;
     const { taxable, gst: gstAmt } = splitLineGstFromTotal(item.total, gstPct);
     const { displayRate, displayAmount } = computeTallyLineDisplay(item.total, gstPct, item.qty, taxType);
     computedTaxable += taxable;
+    totalQty += item.qty;
     let cgstAmt = 0;
     let sgstAmt = 0;
     let igstAmt = 0;
@@ -255,7 +265,6 @@ export const GiftTallyInvoiceTemplate: React.FC<GiftTallyInvoiceTemplateProps> =
   const totalCgstFinal = totalCgst > 0 ? totalCgst : cgstAmountProp;
   const totalSgstFinal = totalSgst > 0 ? totalSgst : sgstAmountProp;
   const totalIgstFinal = totalIgst > 0 ? totalIgst : igstAmountProp;
-  const totalTax = totalCgstFinal + totalSgstFinal + totalIgstFinal || totalTaxProp;
 
   const terms =
     termsConditions && termsConditions.filter((t) => t?.trim()).length > 0
@@ -264,6 +273,11 @@ export const GiftTallyInvoiceTemplate: React.FC<GiftTallyInvoiceTemplateProps> =
 
   const shippingAddress = customerAddress;
   const tagline = customHeaderText?.trim() || documentTitle?.trim() || "";
+  const gstDeclaration = declarationText?.trim() || DEFAULT_GST_DECLARATION;
+  const supplyDateTime = [
+    formatDate(invoiceDate),
+    invoiceTime?.trim() || null,
+  ].filter(Boolean).join("  ");
 
   // TODO: add field to sales table — challan_number, challan_date, po_number, po_date, vehicle_number, reverse_charge
   const challanNumber = "";
@@ -274,12 +288,15 @@ export const GiftTallyInvoiceTemplate: React.FC<GiftTallyInvoiceTemplateProps> =
   const reverseCharge = "N";
   const modeOfTransport = customerTransportDetails?.trim() || "";
 
+  const blankRows = Math.max(0, MIN_ITEM_ROWS - lineRows.length);
+  const titleText = grandTotal < 0 ? "CREDIT NOTE" : "TAX INVOICE";
+
   const b = "1px solid #000";
   const cell: React.CSSProperties = {
     border: b,
-    padding: "3px 5px",
-    fontSize: "9px",
-    lineHeight: "1.35",
+    padding: "4px 6px",
+    fontSize: "11px",
+    lineHeight: "1.4",
     verticalAlign: "top",
   };
   const hCell: React.CSSProperties = {
@@ -287,13 +304,15 @@ export const GiftTallyInvoiceTemplate: React.FC<GiftTallyInvoiceTemplateProps> =
     fontWeight: "bold",
     textAlign: "center",
     backgroundColor: "#f0f0f0",
-    fontSize: "9px",
+    fontSize: "11px",
+    padding: "5px 6px",
   };
   const labelCell: React.CSSProperties = {
     ...cell,
     fontWeight: "bold",
     backgroundColor: "#fafafa",
-    width: "22%",
+    fontSize: "11px",
+    whiteSpace: "nowrap",
   };
 
   return (
@@ -302,12 +321,15 @@ export const GiftTallyInvoiceTemplate: React.FC<GiftTallyInvoiceTemplateProps> =
       style={{
         width: "210mm",
         minHeight: "297mm",
-        padding: "6mm",
-        fontFamily: "Georgia, 'Times New Roman', serif",
-        fontSize: "10px",
+        height: "297mm",
+        padding: "5mm",
+        fontFamily: "Arial, Helvetica, sans-serif",
+        fontSize: "12px",
         color: "#000",
         background: "#fff",
         boxSizing: "border-box",
+        display: "flex",
+        flexDirection: "column",
       }}
     >
       <style>{`
@@ -315,90 +337,108 @@ export const GiftTallyInvoiceTemplate: React.FC<GiftTallyInvoiceTemplateProps> =
           @page { size: A4 portrait; margin: 5mm; }
           body { margin: 0; padding: 0; }
           .gift-tally-invoice-root {
-            width: 100% !important;
-            min-height: auto !important;
+            width: 200mm !important;
+            min-height: 287mm !important;
+            height: auto !important;
             padding: 0 !important;
           }
           .gift-tally-page-break { page-break-before: always; }
         }
       `}</style>
 
-      <div style={{ border: b }}>
-        {/* Title row */}
-        <div style={{ display: "flex", borderBottom: b, alignItems: "stretch" }}>
-          <div style={{ flex: 1, padding: "6px 8px", fontWeight: "bold", fontSize: "14px", letterSpacing: "0.5px" }}>
-            {grandTotal < 0 ? "CREDIT NOTE" : "TAX INVOICE"}
-          </div>
+      <div style={{ border: b, flex: 1, display: "flex", flexDirection: "column" }}>
+        {/* Title — TAX INVOICE centered, ORIGINAL right */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr auto 1fr",
+            alignItems: "center",
+            borderBottom: b,
+            padding: "8px 10px",
+            backgroundColor: "#f8f8f8",
+          }}
+        >
+          <div />
           <div
             style={{
-              borderLeft: b,
-              padding: "6px 10px",
               fontWeight: "bold",
-              fontSize: "11px",
-              display: "flex",
-              alignItems: "center",
+              fontSize: "18px",
+              letterSpacing: "1px",
+              textAlign: "center",
+              textTransform: "uppercase",
             }}
           >
-            ORIGINAL
+            {titleText}
           </div>
+          <div style={{ textAlign: "right", fontWeight: "bold", fontSize: "12px" }}>ORIGINAL</div>
         </div>
 
-        {/* Seller header */}
-        <div style={{ borderBottom: b, padding: "8px 10px" }}>
-          <div style={{ display: "flex", gap: "10px", alignItems: "flex-start" }}>
+        {/* Seller */}
+        <div style={{ borderBottom: b, padding: "10px 12px" }}>
+          <div style={{ display: "flex", gap: "12px", alignItems: "flex-start" }}>
             {logoUrl && (
-              <img src={logoUrl} alt="" style={{ width: "50px", height: "50px", objectFit: "contain" }} />
+              <img src={logoUrl} alt="" style={{ width: "58px", height: "58px", objectFit: "contain" }} />
             )}
             <div style={{ flex: 1 }}>
-              <div style={{ fontSize: "18px", fontWeight: "bold", textTransform: "uppercase" }}>{businessName}</div>
+              <div style={{ fontSize: "20px", fontWeight: "bold", textTransform: "uppercase", lineHeight: 1.2 }}>
+                {businessName}
+              </div>
               {tagline && (
-                <div style={{ fontSize: "10px", fontStyle: "italic", marginTop: "2px" }}>{tagline}</div>
+                <div style={{ fontSize: "12px", fontStyle: "italic", marginTop: "3px" }}>{tagline}</div>
               )}
-              <div style={{ fontSize: "10px", whiteSpace: "pre-line", marginTop: "4px" }}>{address}</div>
-              <div style={{ fontSize: "10px", marginTop: "3px" }}>
-                {[mobile && `Tel: ${mobile}`, email && `Email: ${email}`].filter(Boolean).join(" | ")}
+              <div style={{ fontSize: "12px", whiteSpace: "pre-line", marginTop: "5px", lineHeight: 1.35 }}>
+                {address}
               </div>
-              <div style={{ fontSize: "10px", marginTop: "3px" }}>
-                GSTIN: {dash(gstNumber)}
-                {sellerState.name ? ` | State: ${sellerState.name} | State Code: ${sellerState.code}` : ""}
+              <div style={{ fontSize: "12px", marginTop: "4px" }}>
+                {mobile && <span>Tel: {mobile}</span>}
+                {mobile && email && <span> &nbsp;|&nbsp; </span>}
+                {email && <span>E-Mail: {email}</span>}
               </div>
+              <div style={{ fontSize: "12px", marginTop: "4px", fontWeight: "bold" }}>
+                GSTIN/Unique ID: {dash(gstNumber)}
+              </div>
+              {sellerState.code && (
+                <div style={{ fontSize: "12px", marginTop: "2px" }}>
+                  State: {sellerState.name} &nbsp;|&nbsp; State Code: {sellerState.code}
+                </div>
+              )}
             </div>
           </div>
         </div>
 
         {/* Billed / Shipped */}
         <div style={{ display: "flex", borderBottom: b }}>
-          <div style={{ flex: 1, borderRight: b, padding: "6px 8px" }}>
-            <div style={{ fontWeight: "bold", fontSize: "10px", marginBottom: "4px", textDecoration: "underline" }}>
-              BILLED TO
+          <div style={{ flex: 1, borderRight: b, padding: "8px 10px" }}>
+            <div style={{ fontWeight: "bold", fontSize: "12px", marginBottom: "5px", textDecoration: "underline" }}>
+              Name &amp; Address of Receiver (Billed To)
             </div>
-            <div style={{ fontWeight: "bold", fontSize: "11px" }}>{customerName || "Walk-in Customer"}</div>
+            <div style={{ fontWeight: "bold", fontSize: "13px" }}>{customerName || "Walk-in Customer"}</div>
             {customerAddress && (
-              <div style={{ fontSize: "9px", whiteSpace: "pre-line", marginTop: "2px" }}>{customerAddress}</div>
-            )}
-            <div style={{ fontSize: "9px", marginTop: "3px" }}>GSTIN: {dash(customerGSTIN)}</div>
-            {buyerState.name && (
-              <div style={{ fontSize: "9px" }}>
-                State: {buyerState.name} | Code: {buyerState.code}
+              <div style={{ fontSize: "12px", whiteSpace: "pre-line", marginTop: "3px", lineHeight: 1.35 }}>
+                {customerAddress}
               </div>
             )}
-            {customerMobile && <div style={{ fontSize: "9px" }}>Tel: {customerMobile}</div>}
+            <div style={{ fontSize: "12px", marginTop: "4px" }}>GSTIN/Unique ID: {dash(customerGSTIN)}</div>
+            {buyerState.code && (
+              <div style={{ fontSize: "12px" }}>State Code: {buyerState.code}</div>
+            )}
+            {customerMobile && <div style={{ fontSize: "12px" }}>Tel: {customerMobile}</div>}
           </div>
-          <div style={{ flex: 1, padding: "6px 8px" }}>
-            <div style={{ fontWeight: "bold", fontSize: "10px", marginBottom: "4px", textDecoration: "underline" }}>
-              SHIPPED TO
+          <div style={{ flex: 1, padding: "8px 10px" }}>
+            <div style={{ fontWeight: "bold", fontSize: "12px", marginBottom: "5px", textDecoration: "underline" }}>
+              Name &amp; Address of Consignee (Shipped To)
             </div>
-            <div style={{ fontWeight: "bold", fontSize: "11px" }}>{customerName || "Walk-in Customer"}</div>
+            <div style={{ fontWeight: "bold", fontSize: "13px" }}>{customerName || "Walk-in Customer"}</div>
             {shippingAddress ? (
-              <div style={{ fontSize: "9px", whiteSpace: "pre-line", marginTop: "2px" }}>{shippingAddress}</div>
-            ) : (
-              <div style={{ fontSize: "9px", marginTop: "2px" }}>—</div>
-            )}
-            <div style={{ fontSize: "9px", marginTop: "3px" }}>GSTIN: {dash(customerGSTIN)}</div>
-            {buyerState.name && (
-              <div style={{ fontSize: "9px" }}>
-                State: {buyerState.name} | Code: {buyerState.code}
+              <div style={{ fontSize: "12px", whiteSpace: "pre-line", marginTop: "3px", lineHeight: 1.35 }}>
+                {shippingAddress}
               </div>
+            ) : (
+              <div style={{ fontSize: "12px", marginTop: "3px" }}>—</div>
+            )}
+            <div style={{ fontSize: "12px", marginTop: "4px" }}>GSTIN/Unique ID: {dash(customerGSTIN)}</div>
+            {buyerState.code && (
+              <div style={{ fontSize: "12px" }}>State Code: {buyerState.code}</div>
             )}
           </div>
         </div>
@@ -409,7 +449,7 @@ export const GiftTallyInvoiceTemplate: React.FC<GiftTallyInvoiceTemplateProps> =
             <tr>
               <td style={labelCell}>Invoice No:</td>
               <td style={cell}>{invoiceNumber}</td>
-              <td style={labelCell}>Date:</td>
+              <td style={labelCell}>Invoice Date:</td>
               <td style={cell}>{formatDate(invoiceDate)}</td>
               <td style={labelCell}>Place of Supply:</td>
               <td style={cell}>{placeOfSupply}</td>
@@ -417,7 +457,7 @@ export const GiftTallyInvoiceTemplate: React.FC<GiftTallyInvoiceTemplateProps> =
             <tr>
               <td style={labelCell}>Challan No:</td>
               <td style={cell}>{dash(challanNumber)}</td>
-              <td style={labelCell}>Date:</td>
+              <td style={labelCell}>Challan Date:</td>
               <td style={cell}>{dash(challanDate)}</td>
               <td style={labelCell}>Reverse Charge (Y/N):</td>
               <td style={cell}>{reverseCharge}</td>
@@ -425,68 +465,120 @@ export const GiftTallyInvoiceTemplate: React.FC<GiftTallyInvoiceTemplateProps> =
             <tr>
               <td style={labelCell}>PO No:</td>
               <td style={cell}>{dash(poNumber)}</td>
-              <td style={labelCell}>Date:</td>
+              <td style={labelCell}>PO Date:</td>
               <td style={cell}>{dash(poDate)}</td>
               <td style={labelCell}>Mode of Transport:</td>
               <td style={cell}>{dash(modeOfTransport)}</td>
             </tr>
             <tr>
-              <td style={labelCell}>Vehicle No:</td>
-              <td style={cell} colSpan={5}>{dash(vehicleNumber)}</td>
+              <td style={labelCell}>Veh. No:</td>
+              <td style={cell}>{dash(vehicleNumber)}</td>
+              <td style={labelCell}>Date &amp; Time of Supply:</td>
+              <td style={cell} colSpan={3}>{supplyDateTime || "—"}</td>
             </tr>
           </tbody>
         </table>
 
         {/* Line items */}
-        <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
-          <thead>
-            <tr>
-              <th style={{ ...hCell, width: "28px" }}>S.No</th>
-              <th style={{ ...hCell, textAlign: "left" }}>Description</th>
-              {showHSN && <th style={{ ...hCell, width: "52px" }}>HSN</th>}
-              <th style={{ ...hCell, width: "36px" }}>Qty</th>
-              <th style={{ ...hCell, width: "52px" }}>Rate</th>
-              <th style={{ ...hCell, width: "58px" }}>Amount</th>
-              <th style={{ ...hCell, width: "44px" }}>CGST</th>
-              <th style={{ ...hCell, width: "44px" }}>SGST</th>
-              <th style={{ ...hCell, width: "44px" }}>IGST</th>
-            </tr>
-          </thead>
-          <tbody>
-            {lineRows.map((row) => (
-              <tr key={row.index} style={{ backgroundColor: row.index % 2 === 0 ? "#fafafa" : "#fff" }}>
-                <td style={{ ...cell, textAlign: "center" }}>{row.index}</td>
-                <td style={cell}>
-                  <div style={{ fontWeight: "bold" }}>{row.item.particulars}</div>
-                  {row.item.color && <div style={{ fontSize: "8px" }}>Color: {row.item.color}</div>}
-                  {row.item.size && <div style={{ fontSize: "8px" }}>Size: {row.item.size}</div>}
-                </td>
-                {showHSN && <td style={{ ...cell, textAlign: "center" }}>{row.item.hsn || "—"}</td>}
-                <td style={{ ...cell, textAlign: "center" }}>{row.item.qty}</td>
-                <td style={{ ...cell, textAlign: "right" }}>{fmt(row.displayRate)}</td>
-                <td style={{ ...cell, textAlign: "right", fontWeight: "bold" }}>{fmt(row.displayAmount)}</td>
-                <td style={{ ...cell, textAlign: "right", fontSize: "8px" }}>
-                  {row.cgstPct > 0 ? `${row.cgstPct}%\n${fmt(row.cgstAmt)}` : "—"}
-                </td>
-                <td style={{ ...cell, textAlign: "right", fontSize: "8px" }}>
-                  {row.sgstPct > 0 ? `${row.sgstPct}%\n${fmt(row.sgstAmt)}` : "—"}
-                </td>
-                <td style={{ ...cell, textAlign: "right", fontSize: "8px" }}>
-                  {row.igstPct > 0 ? `${row.igstPct}%\n${fmt(row.igstAmt)}` : "—"}
-                </td>
+        <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed", flex: 1 }}>
+            <thead>
+              <tr>
+                <th style={{ ...hCell, width: "32px" }}>S.No.</th>
+                <th style={{ ...hCell, textAlign: "left" }}>Description of Goods</th>
+                {showHSN && <th style={{ ...hCell, width: "58px" }}>HSN Code</th>}
+                <th style={{ ...hCell, width: "40px" }}>QTY.</th>
+                <th style={{ ...hCell, width: "58px" }}>RATE<br />Rs. P.</th>
+                <th style={{ ...hCell, width: "64px" }}>AMOUNT<br />Rs. P.</th>
+                <th style={{ ...hCell, width: "50px" }}>CGST %</th>
+                <th style={{ ...hCell, width: "50px" }}>SGST %</th>
+                <th style={{ ...hCell, width: "50px" }}>IGST %</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {lineRows.map((row) => (
+                <tr key={row.index}>
+                  <td style={{ ...cell, textAlign: "center", fontWeight: "bold" }}>{row.index}</td>
+                  <td style={cell}>
+                    <div style={{ fontWeight: "bold", fontSize: "12px" }}>{row.item.particulars}</div>
+                    {row.item.size && <div style={{ fontSize: "11px" }}>Size: {row.item.size}</div>}
+                    {row.item.color && <div style={{ fontSize: "11px" }}>Color: {row.item.color}</div>}
+                  </td>
+                  {showHSN && <td style={{ ...cell, textAlign: "center" }}>{row.item.hsn || "—"}</td>}
+                  <td style={{ ...cell, textAlign: "center", fontWeight: "bold" }}>{row.item.qty}</td>
+                  <td style={{ ...cell, textAlign: "right" }}>{fmt(row.displayRate)}</td>
+                  <td style={{ ...cell, textAlign: "right", fontWeight: "bold" }}>{fmt(row.displayAmount)}</td>
+                  <td style={{ ...cell, textAlign: "right", fontSize: "10px", lineHeight: 1.3 }}>
+                    {row.cgstPct > 0 ? (
+                      <>
+                        {row.cgstPct}%
+                        <br />
+                        {fmt(row.cgstAmt)}
+                      </>
+                    ) : (
+                      "—"
+                    )}
+                  </td>
+                  <td style={{ ...cell, textAlign: "right", fontSize: "10px", lineHeight: 1.3 }}>
+                    {row.sgstPct > 0 ? (
+                      <>
+                        {row.sgstPct}%
+                        <br />
+                        {fmt(row.sgstAmt)}
+                      </>
+                    ) : (
+                      "—"
+                    )}
+                  </td>
+                  <td style={{ ...cell, textAlign: "right", fontSize: "10px", lineHeight: 1.3 }}>
+                    {row.igstPct > 0 ? (
+                      <>
+                        {row.igstPct}%
+                        <br />
+                        {fmt(row.igstAmt)}
+                      </>
+                    ) : (
+                      "—"
+                    )}
+                  </td>
+                </tr>
+              ))}
+              {Array.from({ length: blankRows }).map((_, i) => (
+                <tr key={`blank-${i}`} style={{ height: "22px" }}>
+                  <td style={cell}>&nbsp;</td>
+                  <td style={cell} />
+                  {showHSN && <td style={cell} />}
+                  <td style={cell} />
+                  <td style={cell} />
+                  <td style={cell} />
+                  <td style={cell} />
+                  <td style={cell} />
+                  <td style={cell} />
+                </tr>
+              ))}
+              <tr style={{ backgroundColor: "#f0f0f0", fontWeight: "bold" }}>
+                <td colSpan={showHSN ? 3 : 2} style={{ ...cell, textAlign: "right" }}>Total</td>
+                <td style={{ ...cell, textAlign: "center" }}>{totalQty}</td>
+                <td style={cell} />
+                <td style={{ ...cell, textAlign: "right" }}>{fmt(lineRows.reduce((s, r) => s + r.displayAmount, 0))}</td>
+                <td style={{ ...cell, textAlign: "right" }}>{totalCgstFinal > 0 ? fmt(totalCgstFinal) : "—"}</td>
+                <td style={{ ...cell, textAlign: "right" }}>{totalSgstFinal > 0 ? fmt(totalSgstFinal) : "—"}</td>
+                <td style={{ ...cell, textAlign: "right" }}>{totalIgstFinal > 0 ? fmt(totalIgstFinal) : "—"}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
 
-        {/* Totals — page break if many items */}
         <div className={items.length > 20 ? "gift-tally-page-break" : undefined}>
+          {/* Amount in words + totals */}
           <div style={{ display: "flex", borderTop: b }}>
-            <div style={{ flex: 1, borderRight: b, padding: "6px 8px", fontSize: "10px" }}>
-              <div style={{ fontWeight: "bold", marginBottom: "2px" }}>Amount in Words:</div>
-              <div style={{ textTransform: "capitalize" }}>INR {numberToIndianWords(grandTotal)}</div>
+            <div style={{ flex: 1, borderRight: b, padding: "8px 10px", fontSize: "12px" }}>
+              <div style={{ fontWeight: "bold", marginBottom: "3px" }}>Invoice Total (In Words):</div>
+              <div style={{ textTransform: "capitalize", lineHeight: 1.4 }}>
+                INR {numberToIndianWords(grandTotal)}
+              </div>
             </div>
-            <div style={{ width: "42%", fontSize: "9px" }}>
+            <div style={{ width: "44%", fontSize: "12px" }}>
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <tbody>
                   {discount > 0 && (
@@ -521,8 +613,8 @@ export const GiftTallyInvoiceTemplate: React.FC<GiftTallyInvoiceTemplateProps> =
                     </tr>
                   )}
                   <tr style={{ backgroundColor: "#f0f0f0" }}>
-                    <td style={{ ...labelCell, fontSize: "11px" }}>GRAND TOTAL:</td>
-                    <td style={{ ...cell, textAlign: "right", fontWeight: "bold", fontSize: "11px" }}>
+                    <td style={{ ...labelCell, fontSize: "13px" }}>Invoice Total:</td>
+                    <td style={{ ...cell, textAlign: "right", fontWeight: "bold", fontSize: "14px" }}>
                       ₹{fmt(grandTotal)}
                     </td>
                   </tr>
@@ -531,36 +623,41 @@ export const GiftTallyInvoiceTemplate: React.FC<GiftTallyInvoiceTemplateProps> =
             </div>
           </div>
 
+          {/* GST declaration */}
+          <div style={{ borderTop: b, padding: "8px 10px", fontSize: "11px", lineHeight: 1.45 }}>
+            {gstDeclaration}
+          </div>
+
           {/* Bank + Terms */}
           <div style={{ display: "flex", borderTop: b }}>
-            <div style={{ flex: 1, borderRight: b, padding: "6px 8px", fontSize: "9px" }}>
-              <div style={{ fontWeight: "bold", marginBottom: "4px", textDecoration: "underline" }}>
-                Bank Details:
+            <div style={{ flex: 1, borderRight: b, padding: "8px 10px", fontSize: "12px" }}>
+              <div style={{ fontWeight: "bold", marginBottom: "5px", textDecoration: "underline" }}>
+                Bank Details
               </div>
               {showBankDetails && normBank && (normBank.bankName || normBank.accountNumber) ? (
                 <>
                   <div>Bank: {dash(normBank.bankName)}</div>
-                  <div>A/C: {dash(normBank.accountNumber)}</div>
-                  <div>IFSC: {dash(normBank.ifscCode)}</div>
+                  <div>A/C No: {dash(normBank.accountNumber)}</div>
+                  <div>IFS CODE: {dash(normBank.ifscCode)}</div>
                   <div>Branch: {dash(normBank.branch)}</div>
-                  <div>PAN: {dash(panFromGst)}</div>
+                  <div>PAN NO.: {dash(panFromGst)}</div>
                 </>
               ) : (
                 <>
                   <div>Bank: —</div>
-                  <div>A/C: —</div>
-                  <div>IFSC: —</div>
+                  <div>A/C No: —</div>
+                  <div>IFS CODE: —</div>
                   <div>Branch: —</div>
-                  <div>PAN: {dash(panFromGst)}</div>
+                  <div>PAN NO.: {dash(panFromGst)}</div>
                 </>
               )}
             </div>
-            <div style={{ flex: 1, padding: "6px 8px", fontSize: "9px" }}>
-              <div style={{ fontWeight: "bold", marginBottom: "4px", textDecoration: "underline" }}>
-                Terms &amp; Conditions:
+            <div style={{ flex: 1, padding: "8px 10px", fontSize: "12px" }}>
+              <div style={{ fontWeight: "bold", marginBottom: "5px", textDecoration: "underline" }}>
+                TERMS OF SALE
               </div>
               {terms.map((term, idx) => (
-                <div key={idx} style={{ lineHeight: "1.45" }}>
+                <div key={idx} style={{ lineHeight: 1.45, marginBottom: "2px" }}>
                   {idx + 1}) {term}
                 </div>
               ))}
@@ -568,40 +665,49 @@ export const GiftTallyInvoiceTemplate: React.FC<GiftTallyInvoiceTemplateProps> =
           </div>
 
           {/* Signatures */}
-          <div style={{ display: "flex", borderTop: b, minHeight: "70px" }}>
-            <div style={{ flex: 1, borderRight: b, padding: "8px", fontSize: "9px", display: "flex", alignItems: "flex-end" }}>
-              Receiver Stamp/Sign
+          <div style={{ display: "flex", borderTop: b, minHeight: "80px" }}>
+            <div
+              style={{
+                flex: 1,
+                borderRight: b,
+                padding: "10px",
+                fontSize: "12px",
+                display: "flex",
+                alignItems: "flex-end",
+              }}
+            >
+              Receiver&apos;s Stamp/Sign.
             </div>
-            <div style={{ flex: 1, padding: "8px", textAlign: "center", fontSize: "9px" }}>
+            <div style={{ flex: 1, padding: "10px", textAlign: "center", fontSize: "12px" }}>
               <div style={{ fontWeight: "bold" }}>For {businessName}</div>
               {stampImageBase64 && (
                 <img
                   src={stampImageBase64}
                   alt=""
                   style={{
-                    width: stampSize === "small" ? "80px" : stampSize === "large" ? "130px" : "100px",
-                    maxHeight: "50px",
+                    width: stampSize === "small" ? "90px" : stampSize === "large" ? "140px" : "110px",
+                    maxHeight: "55px",
                     objectFit: "contain",
-                    margin: "4px auto",
+                    margin: "6px auto",
                     display: "block",
                   }}
                 />
               )}
-              <div style={{ fontWeight: "bold", marginTop: "8px" }}>Authorised Signatory</div>
+              <div style={{ fontWeight: "bold", marginTop: "10px" }}>Prop./Authorised Signatory</div>
             </div>
           </div>
 
-          {/* Footer */}
           <div
             style={{
               borderTop: b,
               display: "flex",
               justifyContent: "space-between",
-              padding: "4px 8px",
-              fontSize: "8px",
+              padding: "5px 10px",
+              fontSize: "11px",
+              fontWeight: "bold",
             }}
           >
-            <span>E &amp; O E</span>
+            <span>EOE</span>
             <span>Subject to {jurisdictionCity} Jurisdiction</span>
           </div>
         </div>
