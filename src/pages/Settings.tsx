@@ -324,6 +324,12 @@ interface Settings {
   last_auto_backup_at?: string | null;
 }
 
+/** Settings columns read by this page (excludes id, timestamps, dashboard_settings, accounting_engine_enabled, books_closed_before_date). */
+const SETTINGS_FETCH_COLUMNS =
+  "business_name,address,mobile_number,owner_phone,email_id,gst_number," +
+  "product_settings,purchase_settings,sale_settings,bill_barcode_settings,report_settings," +
+  "auto_backup_enabled,backup_email,backup_retention_days,last_auto_backup_at";
+
 const QZStatusBadge = () => {
   const [status, setStatus] = useState<'checking' | 'connected' | 'disconnected'>('checking');
   
@@ -664,7 +670,7 @@ export default function Settings() {
     try {
       const { data, error } = await supabase
         .from("settings" as any)
-        .select("*")
+        .select(SETTINGS_FETCH_COLUMNS)
         .eq("organization_id", currentOrganization.id)
         .maybeSingle();
 
