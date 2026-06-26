@@ -20,23 +20,28 @@ const LEFT_FEATURE_CARDS = [
   { icon: BarChart3, title: "Accounts & Ledgers", desc: "Payments & outstanding" },
 ] as const;
 
-function EzzyBrandRow({ centered = false, onLightBackground = false }: { centered?: boolean; onLightBackground?: boolean }) {
+function EzzyBrandRow({ centered = false, onLightBackground = false, large = false }: { centered?: boolean; onLightBackground?: boolean; large?: boolean }) {
+  const iconSize = large ? "h-11 w-11" : "h-[34px] w-[34px]";
+  const storeIcon = large ? "h-5 w-5" : "h-4 w-4";
+  const titleSize = large ? 20 : 16;
+  const tagSize = large ? 12 : 10;
+
   return (
-    <div className={`flex items-center gap-2.5 ${centered ? "justify-center" : ""}`}>
+    <div className={`flex items-center gap-3 ${centered ? "justify-center" : ""}`}>
       <div
-        className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-lg"
+        className={`flex ${iconSize} shrink-0 items-center justify-center rounded-lg`}
         style={{ background: "#378ADD" }}
       >
-        <Store className="h-4 w-4 text-white" />
+        <Store className={`${storeIcon} text-white`} />
       </div>
       <div className={centered ? "text-left" : undefined}>
         <p
-          className={`font-medium leading-tight ${onLightBackground ? "text-card-foreground" : "text-white"}`}
-          style={{ fontSize: 16 }}
+          className={`font-semibold leading-tight ${onLightBackground ? "text-card-foreground" : "text-white"}`}
+          style={{ fontSize: titleSize }}
         >
           EzzyERP
         </p>
-        <p className="leading-tight" style={{ fontSize: 10, color: onLightBackground ? "#185FA5" : "#85B7EB" }}>
+        <p className="leading-tight" style={{ fontSize: tagSize, color: onLightBackground ? "#185FA5" : "#85B7EB" }}>
           Easy Billing, Smart Business
         </p>
       </div>
@@ -548,47 +553,62 @@ export default function OrgAuth() {
   const showNetworkWarning = orgFetchErrorType === "network" && !organization;
 
   return (
-    <div className="flex min-h-screen w-full overflow-hidden bg-background">
+    <div className="flex h-screen w-full overflow-hidden bg-background">
       {/* Left Panel — Deep Navy (desktop only) */}
       <div
-        className="hidden md:flex md:w-[55%] flex-col"
+        className="relative hidden md:flex md:w-1/2 flex-col overflow-hidden"
         style={{ background: "#0f2744" }}
       >
-        <div className="flex h-full flex-col justify-between px-10 py-8">
-          <EzzyBrandRow />
+        {/* Decorative grid + glow (Vasy-style depth) */}
+        <div
+          className="pointer-events-none absolute inset-0 opacity-[0.07]"
+          style={{
+            backgroundImage:
+              "linear-gradient(#85B7EB 1px, transparent 1px), linear-gradient(90deg, #85B7EB 1px, transparent 1px)",
+            backgroundSize: "48px 48px",
+          }}
+        />
+        <div
+          className="pointer-events-none absolute -bottom-32 -right-32 h-[420px] w-[420px] rounded-full opacity-20"
+          style={{ background: "radial-gradient(circle, #378ADD 0%, transparent 70%)" }}
+        />
 
-          <div className="my-8 flex flex-1 flex-col justify-center space-y-6">
-            <div>
+        <div className="relative z-10 flex h-full flex-col justify-between px-12 py-10 lg:px-16 lg:py-12">
+          <EzzyBrandRow large />
+
+          <div className="my-6 flex flex-1 flex-col justify-center space-y-8 lg:space-y-10">
+            <div className="max-w-xl">
               <h2
-                className="font-medium leading-[1.2] text-white"
-                style={{ fontSize: 28, letterSpacing: "-0.5px" }}
+                className="font-semibold leading-[1.15] text-white"
+                style={{ fontSize: "clamp(2rem, 3.2vw, 2.75rem)", letterSpacing: "-0.75px" }}
               >
-                Run your retail business smarter.
+                Run your retail business{" "}
+                <span style={{ color: "#378ADD" }}>smarter.</span>
               </h2>
               <p
-                className="mt-3 leading-[1.6]"
-                style={{ fontSize: 13, color: "#85B7EB" }}
+                className="mt-5 max-w-lg leading-relaxed"
+                style={{ fontSize: "clamp(1rem, 1.4vw, 1.125rem)", color: "#85B7EB" }}
               >
                 Complete billing, inventory & accounting for Indian retail businesses.
               </p>
             </div>
 
-            <div className="space-y-2.5">
+            <div className="max-w-lg space-y-3">
               {LEFT_FEATURE_CARDS.map(({ icon: Icon, title, desc }) => (
                 <div
                   key={title}
-                  className="flex gap-2.5 rounded-lg px-3.5 py-3"
+                  className="flex gap-3.5 rounded-xl px-4 py-4"
                   style={{
                     background: "#0C447C",
                     border: "0.5px solid #185FA5",
                   }}
                 >
-                  <Icon className="mt-0.5 h-4 w-4 shrink-0" style={{ color: "#85B7EB" }} />
+                  <Icon className="mt-0.5 h-5 w-5 shrink-0" style={{ color: "#85B7EB" }} />
                   <div>
-                    <p className="font-medium text-white" style={{ fontSize: 12 }}>
+                    <p className="font-semibold text-white" style={{ fontSize: 15 }}>
                       {title}
                     </p>
-                    <p className="mt-0.5" style={{ fontSize: 11, color: "#85B7EB" }}>
+                    <p className="mt-1" style={{ fontSize: 13, color: "#85B7EB" }}>
                       {desc}
                     </p>
                   </div>
@@ -597,7 +617,7 @@ export default function OrgAuth() {
             </div>
           </div>
 
-          <div className="pt-5" style={{ borderTop: "0.5px solid #185FA5" }}>
+          <div className="pt-6" style={{ borderTop: "0.5px solid #185FA5" }}>
             <div className="flex justify-around">
               {[
                 ["500+", "Businesses"],
@@ -605,12 +625,12 @@ export default function OrgAuth() {
                 ["99.9%", "Uptime"],
               ].map(([value, label]) => (
                 <div key={label} className="text-center">
-                  <p className="font-medium text-white" style={{ fontSize: 20 }}>
+                  <p className="font-semibold text-white" style={{ fontSize: "clamp(1.5rem, 2vw, 1.875rem)" }}>
                     {value}
                   </p>
                   <p
-                    className="mt-1 uppercase"
-                    style={{ fontSize: 10, color: "#85B7EB", letterSpacing: "0.3px" }}
+                    className="mt-1.5 uppercase tracking-wide"
+                    style={{ fontSize: 12, color: "#85B7EB", letterSpacing: "0.4px" }}
                   >
                     {label}
                   </p>
@@ -622,17 +642,19 @@ export default function OrgAuth() {
       </div>
 
       {/* Right Panel — Sign-in Form */}
-      <div className="flex min-h-screen flex-1 flex-col overflow-y-auto bg-card md:w-[45%]">
-        <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-6 py-8 md:px-10">
+      <div className="flex h-screen flex-1 flex-col overflow-y-auto bg-card md:w-1/2">
+        <div className="mx-auto flex w-full max-w-lg flex-1 flex-col justify-center px-8 py-10 md:px-12 lg:px-16">
           {/* Mobile compact logo */}
-          <div className="mb-6 md:hidden">
-            <EzzyBrandRow centered onLightBackground />
+          <div className="mb-8 md:hidden">
+            <EzzyBrandRow centered onLightBackground large />
           </div>
 
-          <div className="space-y-6">
+          <div className="space-y-8">
             <div>
-              <h1 className="text-[22px] font-medium text-card-foreground">Welcome back</h1>
-              <p className="mt-1 text-[13px] text-muted-foreground">
+              <h1 className="text-3xl font-semibold tracking-tight text-card-foreground md:text-4xl">
+                Welcome back
+              </h1>
+              <p className="mt-2 text-base text-muted-foreground md:text-lg">
                 Sign in to your store account
               </p>
             </div>
@@ -640,35 +662,35 @@ export default function OrgAuth() {
             {/* Organization Branding — conditional logic unchanged */}
             <div className="text-center">
               {orgLoading ? (
-                <div className="mx-auto mb-3 flex h-16 w-16 animate-pulse items-center justify-center rounded-xl bg-muted shadow-lg">
-                  <Building2 className="h-8 w-8 text-muted-foreground" />
+                <div className="mx-auto mb-4 flex h-24 w-24 animate-pulse items-center justify-center rounded-2xl bg-muted shadow-lg">
+                  <Building2 className="h-10 w-10 text-muted-foreground" />
                 </div>
               ) : logoUrl ? (
                 <img
                   src={logoUrl}
                   alt={displayName}
-                  className="mx-auto mb-3 h-16 w-auto object-contain"
+                  className="mx-auto mb-4 h-24 w-auto max-w-[280px] object-contain md:h-28"
                 />
               ) : (
                 <div
-                  className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-xl shadow-lg"
+                  className="mx-auto mb-4 flex h-24 w-24 items-center justify-center rounded-2xl shadow-lg md:h-28 md:w-28"
                   style={{
                     background: `linear-gradient(145deg, ${brandColor} 0%, #5849c4 100%)`,
                   }}
                 >
-                  <Building2 className="h-8 w-8 text-white" />
+                  <Building2 className="h-11 w-11 text-white md:h-12 md:w-12" />
                 </div>
               )}
 
               <h2
-                className="text-xl font-bold tracking-tight"
+                className="text-2xl font-bold tracking-tight md:text-3xl"
                 style={{ color: brandColor }}
               >
                 {displayName}
               </h2>
             </div>
 
-            <div className="space-y-4">
+            <div className="space-y-5">
               {/* Network warning banner — non-blocking */}
               {showNetworkWarning && (
                 <Alert className="rounded-lg border-yellow-500/50 bg-yellow-50 py-2 dark:bg-yellow-900/20">
@@ -725,13 +747,13 @@ export default function OrgAuth() {
                 </Alert>
               )}
 
-              <form onSubmit={handleSignIn} className="space-y-4">
-                <div className="space-y-1.5">
-                  <Label htmlFor="email" className="text-[12px] text-muted-foreground">
+              <form onSubmit={handleSignIn} className="space-y-5">
+                <div className="space-y-2">
+                  <Label htmlFor="email" className="text-sm font-semibold text-foreground md:text-base">
                     Email address
                   </Label>
                   <div className="relative">
-                    <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Mail className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
                     <Input
                       id="email"
                       type="email"
@@ -740,19 +762,19 @@ export default function OrgAuth() {
                       onChange={(e) => setEmail(e.target.value)}
                       disabled={loading}
                       required
-                      className="no-uppercase h-10 rounded-lg border-border bg-secondary/50 pl-9"
+                      className="no-uppercase h-12 rounded-xl border-border bg-secondary/50 pl-12 text-base md:h-14 md:pl-14 md:text-lg"
                     />
                   </div>
                 </div>
 
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="password" className="text-[12px] text-muted-foreground">
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between gap-3">
+                    <Label htmlFor="password" className="text-sm font-semibold text-foreground md:text-base">
                       Password
                     </Label>
                     <button
                       type="button"
-                      className="text-[12px] hover:underline"
+                      className="text-sm font-medium hover:underline md:text-base"
                       style={{ color: "#185FA5" }}
                       onClick={async () => {
                         if (!email) {
@@ -773,7 +795,7 @@ export default function OrgAuth() {
                     </button>
                   </div>
                   <div className="relative">
-                    <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Lock className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
                     <Input
                       id="password"
                       type={showPassword ? "text" : "password"}
@@ -782,29 +804,29 @@ export default function OrgAuth() {
                       onChange={(e) => setPassword(e.target.value)}
                       disabled={loading}
                       required
-                      className="no-uppercase h-10 rounded-lg border-border bg-secondary/50 pl-9 pr-10"
+                      className="no-uppercase h-12 rounded-xl border-border bg-secondary/50 pl-12 pr-12 text-base md:h-14 md:pl-14 md:pr-14 md:text-lg"
                     />
                     <button
                       type="button"
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                       onClick={() => setShowPassword(!showPassword)}
                       tabIndex={-1}
                     >
-                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                     </button>
                   </div>
                   {loginAttempts > 0 && (
-                    <div className="mt-1.5 flex items-center gap-1.5">
+                    <div className="mt-2 flex items-center gap-1.5">
                       {Array.from({ length: MAX_LOGIN_ATTEMPTS }).map((_, i) => (
                         <div
                           key={i}
-                          className="h-1 flex-1 rounded-full"
+                          className="h-1.5 flex-1 rounded-full"
                           style={{
                             background: i < loginAttempts ? "#ef4444" : "hsl(var(--muted))",
                           }}
                         />
                       ))}
-                      <span className="ml-1 text-xs text-muted-foreground">
+                      <span className="ml-1 text-sm text-muted-foreground">
                         {MAX_LOGIN_ATTEMPTS - loginAttempts} attempt
                         {MAX_LOGIN_ATTEMPTS - loginAttempts !== 1 ? "s" : ""} left
                       </span>
@@ -814,31 +836,31 @@ export default function OrgAuth() {
 
                 <Button
                   type="submit"
-                  className="h-11 w-full rounded-lg text-sm font-medium text-white hover:opacity-90"
+                  className="h-12 w-full rounded-xl text-base font-semibold text-white shadow-md hover:opacity-90 md:h-14 md:text-lg"
                   disabled={loading}
                   style={{ background: "#185FA5" }}
                 >
                   {loading ? (
                     <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      <Loader2 className="mr-2 h-5 w-5 animate-spin" />
                       Signing in...
                     </>
                   ) : (
                     <>
                       Sign in
-                      <ArrowRight className="ml-2 h-4 w-4" />
+                      <ArrowRight className="ml-2 h-5 w-5" />
                     </>
                   )}
                 </Button>
               </form>
 
               {/* Divider */}
-              <div className="relative my-1">
+              <div className="relative my-2">
                 <div className="absolute inset-0 flex items-center">
                   <span className="w-full border-t border-border" />
                 </div>
-                <div className="relative flex justify-center text-xs">
-                  <span className="bg-card px-2 text-muted-foreground">or</span>
+                <div className="relative flex justify-center text-sm">
+                  <span className="bg-card px-3 text-muted-foreground">or</span>
                 </div>
               </div>
 
@@ -846,7 +868,7 @@ export default function OrgAuth() {
               <Button
                 type="button"
                 variant="outline"
-                className="h-11 w-full rounded-lg border bg-background text-sm font-medium"
+                className="h-12 w-full rounded-xl border bg-background text-base font-medium md:h-14 md:text-lg"
                 disabled={loading}
                 onClick={async () => {
                   setLoading(true);
@@ -862,7 +884,7 @@ export default function OrgAuth() {
                   setLoading(false);
                 }}
               >
-                <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24">
+                <svg className="mr-2.5 h-5 w-5 md:h-6 md:w-6" viewBox="0 0 24 24">
                   <path
                     fill="#4285F4"
                     d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
@@ -883,7 +905,7 @@ export default function OrgAuth() {
                 Sign in with Google
               </Button>
 
-              <p className="text-center text-xs text-muted-foreground">
+              <p className="text-center text-sm text-muted-foreground md:text-base">
                 Don&apos;t have access?{" "}
                 <button
                   type="button"
@@ -897,17 +919,17 @@ export default function OrgAuth() {
               </p>
 
               {/* Trust Badges */}
-              <div className="flex flex-wrap items-center justify-center gap-4 pt-1">
-                <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                  <ShieldCheck className="h-[13px] w-[13px] text-green-600" />
+              <div className="flex flex-wrap items-center justify-center gap-5 pt-2">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <ShieldCheck className="h-4 w-4 text-green-600" />
                   ISO 27001
                 </div>
-                <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                  <ShieldCheck className="h-[13px] w-[13px] text-green-600" />
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <ShieldCheck className="h-4 w-4 text-green-600" />
                   SOC 2 Type II
                 </div>
-                <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                  <MapPin className="h-[13px] w-[13px] text-blue-600" />
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <MapPin className="h-4 w-4 text-blue-600" />
                   Data in India
                 </div>
               </div>
