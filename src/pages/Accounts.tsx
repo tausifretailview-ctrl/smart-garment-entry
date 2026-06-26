@@ -287,6 +287,10 @@ export default function Accounts() {
   const [visitedTabs, setVisitedTabs] = useState<Set<string>>(
     () => new Set([urlTab || "customer-ledger"]),
   );
+  const shouldMountTab = useCallback(
+    (tab: string) => visitedTabs.has(tab),
+    [visitedTabs],
+  );
   const [migrationExpanded, setMigrationExpanded] = useState(false);
   const [periodLockExpanded, setPeriodLockExpanded] = useState(false);
   const [managementSectionExpanded, setManagementSectionExpanded] = useState(false);
@@ -420,7 +424,7 @@ export default function Accounts() {
     refetchOnWindowFocus: false,
   });
 
-  const { data: failedJournalRows = [], isLoading: failedRowsLoading } = useQuery({
+  const { data: failedJournalRowsRaw, isLoading: failedRowsLoading } = useQuery({
     queryKey: ["failed-journal-rows", currentOrganization?.id, showFailedJournalsDialog],
     enabled: !!currentOrganization?.id && showFailedJournalsDialog,
     queryFn: async () => {
@@ -475,6 +479,8 @@ export default function Accounts() {
       );
     },
   });
+
+  const failedJournalRows = failedJournalRowsRaw ?? [];
 
   const retryJournal = useMutation({
     mutationFn: async (row: {
@@ -1092,6 +1098,7 @@ export default function Accounts() {
         >
           {currentOrganization?.id && (
             <>
+              {shouldMountTab("customer-ledger") && (
               <div className={cn(selectedTab !== "customer-ledger" && "hidden")} aria-hidden={selectedTab !== "customer-ledger"}>
                 <CustomerLedger
                   organizationId={currentOrganization.id}
@@ -1100,6 +1107,8 @@ export default function Accounts() {
                   persistenceWindowId={WINDOW_FILTER_IDS.accountsCustomerLedger}
                 />
               </div>
+              )}
+              {shouldMountTab("supplier-ledger") && (
               <div className={cn(selectedTab !== "supplier-ledger" && "hidden")} aria-hidden={selectedTab !== "supplier-ledger"}>
                 <SupplierLedger
                   organizationId={currentOrganization.id}
@@ -1107,30 +1116,43 @@ export default function Accounts() {
                   supplierBalanceMap={supplierBalanceMapData}
                 />
               </div>
+              )}
+              {shouldMountTab("outstanding") && (
               <div className={cn(selectedTab !== "outstanding" && "hidden")} aria-hidden={selectedTab !== "outstanding"}>
                 {outstandingHeadlineCards}
                 <div id="accounts-outstanding-detail">
                   <OutstandingDashboardTab organizationId={currentOrganization.id} visitedTabs={visitedTabs} />
                 </div>
               </div>
+              )}
+              {shouldMountTab("customer-payment") && (
               <div className={cn(selectedTab !== "customer-payment" && "hidden")} aria-hidden={selectedTab !== "customer-payment"}>
                 <CustomerPaymentTab organizationId={currentOrganization.id} vouchers={vouchers} sales={sales} customers={customers} settings={settings} onShowReceipt={paymentDialogs.handleShowReceipt} onShowAdvanceDialog={() => setShowAdvanceDialog(true)} onEditPayment={paymentDialogs.openEditPaymentDialog} visitedTabs={visitedTabs} />
               </div>
+              )}
+              {shouldMountTab("supplier-payment") && (
               <div className={cn(selectedTab !== "supplier-payment" && "hidden")} aria-hidden={selectedTab !== "supplier-payment"}>
                 <SupplierPaymentTab organizationId={currentOrganization.id} vouchers={vouchers} suppliers={suppliers} onEditPayment={paymentDialogs.openEditPaymentDialog} visitedTabs={visitedTabs} supplierBalanceMap={supplierBalanceMapData} />
               </div>
+              )}
+              {shouldMountTab("employee-salary") && (
               <div className={cn(selectedTab !== "employee-salary" && "hidden")} aria-hidden={selectedTab !== "employee-salary"}>
                 <EmployeeSalaryTab organizationId={currentOrganization.id} vouchers={vouchers} visitedTabs={visitedTabs} />
               </div>
+              )}
+              {shouldMountTab("expenses") && (
               <div className={cn(selectedTab !== "expenses" && "hidden")} aria-hidden={selectedTab !== "expenses"}>
                 <ExpensesTab organizationId={currentOrganization.id} vouchers={vouchers} visitedTabs={visitedTabs} />
               </div>
+              )}
             </>
           )}
+          {shouldMountTab("voucher-entry") && (
           <div className={cn(selectedTab !== "voucher-entry" && "hidden")} aria-hidden={selectedTab !== "voucher-entry"}>
             <VoucherEntryTab vouchers={vouchers} />
           </div>
-          {currentOrganization?.id && (
+          )}
+          {currentOrganization?.id && shouldMountTab("reconciliation") && (
             <div className={cn(selectedTab !== "reconciliation" && "hidden")} aria-hidden={selectedTab !== "reconciliation"}>
               <Tabs defaultValue="payments" className="w-full space-y-4">
                 <TabsList className="grid w-full max-w-lg grid-cols-2 h-9 bg-muted/60 p-1 rounded-lg">
@@ -1141,10 +1163,10 @@ export default function Accounts() {
                     Bank GL
                   </TabsTrigger>
                 </TabsList>
-                <TabsContent value="payments" forceMount className="mt-0 space-y-0 outline-none data-[state=inactive]:hidden">
+                <TabsContent value="payments" forceMount={shouldMountTab("reconciliation")} className="mt-0 space-y-0 outline-none data-[state=inactive]:hidden">
                   <ReconciliationTab organizationId={currentOrganization.id} customers={customers} visitedTabs={visitedTabs} />
                 </TabsContent>
-                <TabsContent value="bank-gl" forceMount className="mt-0 outline-none data-[state=inactive]:hidden">
+                <TabsContent value="bank-gl" forceMount={shouldMountTab("reconciliation")} className="mt-0 outline-none data-[state=inactive]:hidden">
                   <BankReconciliationTab organizationId={currentOrganization.id} visitedTabs={visitedTabs} />
                 </TabsContent>
               </Tabs>
@@ -1239,7 +1261,7 @@ export default function Accounts() {
               data-tab-scroll
               className="flex-1 min-h-0 overflow-y-auto tab-scroll-stable px-2 sm:px-3 py-2"
             >
-        <TabsContent value="customer-ledger" forceMount className={STICKY_TAB_CONTENT_CLASS}>
+        <TabsContent value="customer-ledger" forceMount={shouldMountTab("customer-ledger")} className={STICKY_TAB_CONTENT_CLASS}>
           {currentOrganization?.id && (
             <CustomerLedger
               organizationId={currentOrganization.id}
@@ -1250,8 +1272,8 @@ export default function Accounts() {
           )}
         </TabsContent>
 
-        <TabsContent value="supplier-ledger" forceMount className={STICKY_TAB_CONTENT_CLASS}>
-          {currentOrganization?.id && (
+        <TabsContent value="supplier-ledger" forceMount={shouldMountTab("supplier-ledger")} className={STICKY_TAB_CONTENT_CLASS}>
+          {currentOrganization?.id && shouldMountTab("supplier-ledger") && (
             <SupplierLedger
               organizationId={currentOrganization.id}
               visitedTabs={visitedTabs}
@@ -1260,17 +1282,21 @@ export default function Accounts() {
           )}
         </TabsContent>
 
-        <TabsContent value="outstanding" forceMount className={STICKY_TAB_CONTENT_CLASS}>
-          {outstandingHeadlineCards}
-          {currentOrganization?.id && (
-            <div id="accounts-outstanding-detail">
-              <OutstandingDashboardTab organizationId={currentOrganization.id} visitedTabs={visitedTabs} />
-            </div>
+        <TabsContent value="outstanding" forceMount={shouldMountTab("outstanding")} className={STICKY_TAB_CONTENT_CLASS}>
+          {shouldMountTab("outstanding") && (
+            <>
+              {outstandingHeadlineCards}
+              {currentOrganization?.id && (
+                <div id="accounts-outstanding-detail">
+                  <OutstandingDashboardTab organizationId={currentOrganization.id} visitedTabs={visitedTabs} />
+                </div>
+              )}
+            </>
           )}
         </TabsContent>
 
-        <TabsContent value="customer-payment" forceMount className={STICKY_TAB_CONTENT_CLASS}>
-          {currentOrganization?.id && (
+        <TabsContent value="customer-payment" forceMount={shouldMountTab("customer-payment")} className={STICKY_TAB_CONTENT_CLASS}>
+          {currentOrganization?.id && shouldMountTab("customer-payment") && (
             <CustomerPaymentTab
               organizationId={currentOrganization.id}
               vouchers={vouchers}
@@ -1285,26 +1311,30 @@ export default function Accounts() {
           )}
         </TabsContent>
 
-        <TabsContent value="supplier-payment" forceMount className={STICKY_TAB_CONTENT_CLASS}>
-          {currentOrganization?.id && (
+        <TabsContent value="supplier-payment" forceMount={shouldMountTab("supplier-payment")} className={STICKY_TAB_CONTENT_CLASS}>
+          {currentOrganization?.id && shouldMountTab("supplier-payment") && (
             <SupplierPaymentTab organizationId={currentOrganization.id} vouchers={vouchers} suppliers={suppliers} onEditPayment={paymentDialogs.openEditPaymentDialog} visitedTabs={visitedTabs} supplierBalanceMap={supplierBalanceMapData} />
           )}
         </TabsContent>
 
-        <TabsContent value="employee-salary" forceMount className={STICKY_TAB_CONTENT_CLASS}>
-          {currentOrganization?.id && <EmployeeSalaryTab organizationId={currentOrganization.id} vouchers={vouchers} visitedTabs={visitedTabs} />}
+        <TabsContent value="employee-salary" forceMount={shouldMountTab("employee-salary")} className={STICKY_TAB_CONTENT_CLASS}>
+          {currentOrganization?.id && shouldMountTab("employee-salary") && (
+            <EmployeeSalaryTab organizationId={currentOrganization.id} vouchers={vouchers} visitedTabs={visitedTabs} />
+          )}
         </TabsContent>
 
-        <TabsContent value="expenses" forceMount className={STICKY_TAB_CONTENT_CLASS}>
-          {currentOrganization?.id && <ExpensesTab organizationId={currentOrganization.id} vouchers={vouchers} visitedTabs={visitedTabs} />}
+        <TabsContent value="expenses" forceMount={shouldMountTab("expenses")} className={STICKY_TAB_CONTENT_CLASS}>
+          {currentOrganization?.id && shouldMountTab("expenses") && (
+            <ExpensesTab organizationId={currentOrganization.id} vouchers={vouchers} visitedTabs={visitedTabs} />
+          )}
         </TabsContent>
 
-        <TabsContent value="voucher-entry" forceMount className={STICKY_TAB_CONTENT_CLASS}>
-          <VoucherEntryTab vouchers={vouchers} />
+        <TabsContent value="voucher-entry" forceMount={shouldMountTab("voucher-entry")} className={STICKY_TAB_CONTENT_CLASS}>
+          {shouldMountTab("voucher-entry") && <VoucherEntryTab vouchers={vouchers} />}
         </TabsContent>
 
-        <TabsContent value="reconciliation" forceMount className={STICKY_TAB_CONTENT_CLASS}>
-          {currentOrganization?.id && (
+        <TabsContent value="reconciliation" forceMount={shouldMountTab("reconciliation")} className={STICKY_TAB_CONTENT_CLASS}>
+          {currentOrganization?.id && shouldMountTab("reconciliation") && (
             <Tabs defaultValue="payments" className="w-full space-y-4">
               <TabsList className="grid w-full max-w-lg grid-cols-2 h-9 bg-muted/60 p-1 rounded-lg">
                 <TabsTrigger value="payments" className="rounded-md text-xs font-medium">
@@ -1314,10 +1344,10 @@ export default function Accounts() {
                   Bank GL
                 </TabsTrigger>
               </TabsList>
-              <TabsContent value="payments" forceMount className="mt-0 space-y-0 outline-none data-[state=inactive]:hidden">
+              <TabsContent value="payments" forceMount={shouldMountTab("reconciliation")} className="mt-0 space-y-0 outline-none data-[state=inactive]:hidden">
                 <ReconciliationTab organizationId={currentOrganization.id} customers={customers} visitedTabs={visitedTabs} />
               </TabsContent>
-              <TabsContent value="bank-gl" forceMount className="mt-0 outline-none data-[state=inactive]:hidden">
+              <TabsContent value="bank-gl" forceMount={shouldMountTab("reconciliation")} className="mt-0 outline-none data-[state=inactive]:hidden">
                 <BankReconciliationTab organizationId={currentOrganization.id} visitedTabs={visitedTabs} />
               </TabsContent>
             </Tabs>
@@ -1325,7 +1355,9 @@ export default function Accounts() {
         </TabsContent>
 
         {isAdmin && (
-          <TabsContent value="balance-adjustment" forceMount className={STICKY_TAB_CONTENT_CLASS}>
+          <TabsContent value="balance-adjustment" forceMount={shouldMountTab("balance-adjustment")} className={STICKY_TAB_CONTENT_CLASS}>
+            {shouldMountTab("balance-adjustment") && (
+            <>
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2"><Coins className="h-5 w-5" /> Customer Balance Adjustment</CardTitle>
@@ -1338,6 +1370,8 @@ export default function Accounts() {
               </CardContent>
             </Card>
             <RecentBalanceAdjustments organizationId={currentOrganization?.id || ""} visitedTabs={visitedTabs} />
+            </>
+            )}
           </TabsContent>
         )}
         {accountsManagementFooter}

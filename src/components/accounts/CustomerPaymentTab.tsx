@@ -693,7 +693,7 @@ export function CustomerPaymentTab({
             voucherDate: advYmd,
           });
           createdAdvanceVoucherIds.push(...vouchers);
-          const lastVoucherId = vouchers.length ? vouchers[vouchers.length - 1] : null;
+          const lastVoucherId = vouchers?.length ? vouchers[vouchers.length - 1] : null;
           if (postLedgerAdv && lastVoucherId) {
             await recordCustomerAdvanceApplicationJournalEntry(
               lastVoucherId,

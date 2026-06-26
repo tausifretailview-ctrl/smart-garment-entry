@@ -46,7 +46,7 @@ export function ReceivingBankAccountPicker({
     );
   }
 
-  if (accounts.length === 0) {
+  if ((accounts ?? []).length === 0) {
     return (
       <div className="space-y-2">
         <Label>Bank Account (optional)</Label>
