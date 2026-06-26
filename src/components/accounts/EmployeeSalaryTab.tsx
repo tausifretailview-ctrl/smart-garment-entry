@@ -27,8 +27,8 @@ import {
   paymentPickerRefClass,
 } from "@/components/accounts/accountsHistoryUi";
 import { format } from "date-fns";
-import { useState, useMemo } from "react";
-import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import {
@@ -69,28 +69,26 @@ export function EmployeeSalaryTab({
     null
   );
 
-  const { data: employeePages, hasNextPage, isFetchingNextPage, fetchNextPage } = useInfiniteQuery({
-    queryKey: ["employees", organizationId],
-    queryFn: async ({ pageParam = 0 }) => {
-      const from = pageParam;
-      const to = pageParam + EMPLOYEE_PAGE_SIZE - 1;
+  const [employeePageCount, setEmployeePageCount] = useState(1);
+
+  const { data: employees = [], isFetching: isFetchingEmployees } = useQuery({
+    queryKey: ["employees", organizationId, "list", employeePageCount],
+    queryFn: async () => {
+      const limit = employeePageCount * EMPLOYEE_PAGE_SIZE;
       const { data, error } = await supabase
         .from("employees")
         .select(EMPLOYEE_LIST_COLUMNS)
         .eq("organization_id", organizationId)
         .is("deleted_at", null)
         .order("employee_name")
-        .range(from, to);
+        .range(0, limit - 1);
       if (error) throw error;
-      return data || [];
+      return data ?? [];
     },
-    initialPageParam: 0,
-    getNextPageParam: (lastPage, _allPages, lastPageParam) =>
-      (lastPage?.length ?? 0) < EMPLOYEE_PAGE_SIZE ? undefined : lastPageParam + EMPLOYEE_PAGE_SIZE,
     enabled: !!organizationId && tabActive,
   });
 
-  const employees = useMemo(() => employeePages?.pages.flat() ?? [], [employeePages]);
+  const hasMoreEmployees = employees.length >= employeePageCount * EMPLOYEE_PAGE_SIZE;
 
   const createSalaryVoucher = useMutation({
     mutationFn: async () => {
@@ -251,16 +249,16 @@ export function EmployeeSalaryTab({
                     ))}
                   </SelectContent>
                 </Select>
-                {hasNextPage && (
+                {hasMoreEmployees && (
                   <Button
                     type="button"
                     variant="link"
                     size="sm"
                     className="h-auto p-0 text-xs text-muted-foreground"
-                    disabled={isFetchingNextPage}
-                    onClick={() => fetchNextPage()}
+                    disabled={isFetchingEmployees}
+                    onClick={() => setEmployeePageCount((c) => c + 1)}
                   >
-                    {isFetchingNextPage ? "Loading employees…" : "Load more employees"}
+                    {isFetchingEmployees ? "Loading employees…" : "Load more employees"}
                   </Button>
                 )}
               </div>

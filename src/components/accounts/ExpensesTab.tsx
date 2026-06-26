@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils";
 import { useState, useMemo, useRef } from "react";
 import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
 import { restoreDashboardFilters, WINDOW_FILTER_IDS } from "@/lib/dashboardFilterPersistence";
-import { useMutation, useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useSettings } from "@/hooks/useSettings";
 import {
@@ -202,18 +202,17 @@ export function ExpensesTab({
     onError: (e: any) => toast.error(e?.message || "Could not add category"),
   });
 
-  // Fetch expense vouchers (paginated — 100 per page, newest first).
+  // Fetch expense vouchers (paginated — grows by 100 rows per "Load more").
+  const [expensePageCount, setExpensePageCount] = useState(1);
+
   const {
-    data: expenseVoucherPages,
+    data: expenseVouchers = [],
     isLoading,
-    isFetchingNextPage,
-    hasNextPage,
-    fetchNextPage,
-  } = useInfiniteQuery({
-    queryKey: ["expense-vouchers", organizationId],
-    queryFn: async ({ pageParam = 0 }) => {
-      const from = pageParam;
-      const to = pageParam + EXPENSE_PAGE_SIZE - 1;
+    isFetching: isFetchingExpenses,
+  } = useQuery({
+    queryKey: ["expense-vouchers", organizationId, expensePageCount],
+    queryFn: async () => {
+      const limit = expensePageCount * EXPENSE_PAGE_SIZE;
       const { data, error } = await supabase
         .from("voucher_entries")
         .select(EXPENSE_VOUCHER_COLUMNS)
@@ -221,20 +220,14 @@ export function ExpensesTab({
         .eq("voucher_type", "expense")
         .is("deleted_at", null)
         .order("voucher_date", { ascending: false })
-        .range(from, to);
+        .range(0, limit - 1);
       if (error) throw error;
-      return data || [];
+      return data ?? [];
     },
-    initialPageParam: 0,
-    getNextPageParam: (lastPage, _allPages, lastPageParam) =>
-      (lastPage?.length ?? 0) < EXPENSE_PAGE_SIZE ? undefined : lastPageParam + EXPENSE_PAGE_SIZE,
     enabled: !!organizationId && tabActive,
   });
 
-  const expenseVouchers = useMemo(
-    () => expenseVoucherPages?.pages.flat() ?? [],
-    [expenseVoucherPages],
-  );
+  const hasMoreExpenses = expenseVouchers.length >= expensePageCount * EXPENSE_PAGE_SIZE;
 
   const { data: settings } = useSettings();
 
@@ -845,17 +838,17 @@ export function ExpensesTab({
                 )}
               </TableBody>
             </Table>
-            {hasNextPage && (
+            {hasMoreExpenses && (
               <div className="flex justify-center pt-3 pb-1">
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
                   className="h-8 text-xs"
-                  disabled={isFetchingNextPage}
-                  onClick={() => fetchNextPage()}
+                  disabled={isFetchingExpenses}
+                  onClick={() => setExpensePageCount((c) => c + 1)}
                 >
-                  {isFetchingNextPage ? "Loading…" : "Load more"}
+                  {isFetchingExpenses ? "Loading…" : "Load more"}
                 </Button>
               </div>
             )}
