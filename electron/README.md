@@ -59,9 +59,10 @@ restart when ready.
 | --- | --- |
 | Blank window on launch | Internet down? App auto-retries up to 4 times. Press **F5**, use **File → Refresh App**, or right-click → **Refresh App**. |
 | Blank window after minimize / tab switch | Renderer may have crashed (memory). A **Reload app** dialog should appear; if not, press **F5**. Close unused ERP tabs to reduce memory use. |
-| Stale data / screen stuck | **F5** or **Ctrl+R** reloads the app. Tray icon → **Refresh App** also works. Unsaved work on the current screen may be lost. |
+| Stale data / screen stuck | **F5** or **Ctrl+R** reloads the app (cache is cleared). Tray icon → **Refresh App** also works. If a web deploy landed, an **Update available** banner may appear — click **Reload now**. |
+| Web changes missing but desktop is current | The `.exe` only wraps the browser — UI changes ship to `app.inventoryshop.in`. Press **F5** after deploy; no new installer needed unless `electron/` or `package.json` version changed. |
 | POS / dashboard shows half width or clipped footer on launch | Update to the latest desktop build (100% zoom + auto viewport sync). Use header **Display Scale** (monitor icon) → **Standard** if text is too large. Press **F5** once after login if layout still looks wrong. |
 | "Not responding" dialog | Click **Reload now** — work on the current screen may be lost. |
 | App stays in background after Close | That's intentional. Right-click tray icon → **Quit** to fully exit. |
 | Printing dialog still appears | The web app calls `electronAPI.silentPrint()` only when running inside the desktop shell. Verify `window.electronAPI?.isElectron === true` in DevTools. |
-| Auto-update never prompts | Only works in the installed `.exe` (not `electron:dev`). Confirm `app-update.yml` is present next to the executable. |
+| Auto-update never prompts | Only works in the installed **Setup** `.exe` (not portable, not `electron:dev`). Confirm `app-update.yml` is present next to the executable. Bump `package.json` version and run `npm run electron:publish` to ship a new installer. |

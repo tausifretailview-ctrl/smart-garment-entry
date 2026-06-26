@@ -63,6 +63,7 @@ export async function reloadAppWithUpdateCheck(): Promise<void> {
   const api = getElectronAPI();
 
   if (isElectronShell()) {
+    await clearServiceWorkerAndCaches();
     void api?.checkForUpdates?.();
     if (api?.reloadApp) {
       await api.reloadApp();

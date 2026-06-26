@@ -71,6 +71,17 @@ function initAutoUpdater() {
     autoUpdater.autoDownload = true;
     autoUpdater.autoInstallOnAppQuit = true;
 
+    autoUpdater.on('update-available', (info) => {
+      const ver = info && info.version ? info.version : 'new';
+      dialog.showMessageBox(mainWindow, {
+        type: 'info',
+        title: 'Update available',
+        message: `EzzyERP ${ver} is downloading in the background.`,
+        detail: 'You will be prompted to restart when the update is ready. You can keep working meanwhile.',
+        buttons: ['OK'],
+      }).catch(() => {});
+    });
+
     autoUpdater.on('update-downloaded', (info) => {
       const choice = dialog.showMessageBoxSync(mainWindow, {
         type: 'info',
@@ -113,11 +124,13 @@ function checkForUpdatesManually() {
     .checkForUpdates()
     .then((result) => {
       const latest = result && result.updateInfo ? result.updateInfo.version : null;
-      if (latest && latest === app.getVersion()) {
+      const current = app.getVersion();
+      if (latest && latest === current) {
         dialog.showMessageBox(mainWindow, {
           type: 'info',
           title: 'Check for Updates',
-          message: `You're on the latest version (${app.getVersion()}).`,
+          message: `You're on the latest desktop version (${current}).`,
+          detail: 'Press F5 or use Refresh App to load the newest web features from the server.',
           buttons: ['OK'],
         });
       }
@@ -184,12 +197,16 @@ function reloadMainWindow(reason) {
   }, delayMs);
 }
 
-/** User-initiated full reload (menu, F5, right-click, in-app button). */
-function manualReloadMainWindow(source) {
+async function manualReloadMainWindow(source) {
   if (!mainWindow || mainWindow.isDestroyed()) return;
   loadRetryCount = 0;
   console.log('[EzzyERP] Manual refresh:', source || 'unknown');
-  mainWindow.webContents.reload();
+  try {
+    await mainWindow.webContents.session.clearCache();
+  } catch (err) {
+    console.warn('[EzzyERP] clearCache failed', err);
+  }
+  mainWindow.webContents.reloadIgnoringCache();
 }
 
 /** Stuck on Supabase OAuth JSON error (e.g. missing Google client secret). */

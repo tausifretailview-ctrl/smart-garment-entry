@@ -76,8 +76,11 @@ export function UpdatePrompt() {
     setSnoozed(true);
   }, []);
 
-  if (isElectronShell()) return null;
   if (!needRefresh || snoozed) return null;
+
+  const versionHint = isElectronShell()
+    ? "Reload to load the latest features from the server."
+    : "Reload when you are between tasks.";
 
   return (
     <div
@@ -94,7 +97,7 @@ export function UpdatePrompt() {
           Update available
         </p>
         <p className="text-[11px] leading-snug text-slate-500 dark:text-slate-400">
-          Reload when you are between tasks.
+          {versionHint}
         </p>
         <div className="mt-2 flex flex-wrap gap-1.5">
           <Button
