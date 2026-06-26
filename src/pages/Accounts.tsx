@@ -1,7 +1,7 @@
 import { useMemo, useState, useCallback, useEffect } from "react";
 import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
 import { restoreDashboardFilters, WINDOW_FILTER_IDS } from "@/lib/dashboardFilterPersistence";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { MobilePageHeader } from "@/components/mobile/MobilePageHeader";
 import { MobileBottomNav } from "@/components/mobile/MobileBottomNav";
@@ -60,7 +60,6 @@ import {
   recordSaleJournalEntry,
 } from "@/utils/accounting/journalService";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
-import { useWindowTabs } from "@/contexts/WindowTabsContext";
 import { useOrganizationReceivablesSummary } from "@/hooks/useOrganizationReceivablesSummary";
 import { AllOrgBackfillStatus } from "@/components/accounts/AllOrgBackfillStatus";
 import { PendingGlBackfillStatus } from "@/components/accounts/PendingGlBackfillStatus";
@@ -257,17 +256,14 @@ function AccountsOutstandingHeadlineCards({
 export default function Accounts() {
   const { currentOrganization } = useOrganization();
   const { orgNavigate } = useOrgNavigation();
-  const { getPreviousWindow, switchToPreviousWindow } = useWindowTabs();
-  const previousWindow = useMemo(
-    () => getPreviousWindow?.("accounts") ?? null,
-    [getPreviousWindow],
-  );
+  const navigate = useNavigate();
   const handleAccountsBack = useCallback(() => {
-    if (switchToPreviousWindow?.("accounts")) {
+    if (window.history.length > 1) {
+      navigate(-1);
       return;
     }
     orgNavigate("/");
-  }, [switchToPreviousWindow, orgNavigate]);
+  }, [navigate, orgNavigate]);
   const {
     summary: receivablesSummary,
     isLoading: receivablesSummaryLoading,
@@ -1073,7 +1069,6 @@ export default function Accounts() {
         <MobilePageHeader
           title="Accounts"
           onBackClick={handleAccountsBack}
-          subtitle={previousWindow ? `Back to ${previousWindow.label}` : undefined}
         />
 
         {/* Tab chips — work first */}
@@ -1230,7 +1225,7 @@ export default function Accounts() {
             onClick={handleAccountsBack}
           >
             <ArrowLeft className="h-4 w-4 mr-1" />
-            {previousWindow?.label ?? "Dashboard"}
+            Back
           </Button>
           <div className="min-w-0">
             <h1 className="text-xl font-bold text-teal-700 tracking-tight leading-none flex items-center gap-2">
