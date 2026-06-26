@@ -5,18 +5,44 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent } from "@/components/ui/card";
-import { Loader2, Building2, AlertCircle, Phone, ArrowRight, Check, Globe, Facebook, Instagram, Eye, EyeOff, RefreshCw, Trash2 } from "lucide-react";
+import { Card } from "@/components/ui/card";
+import { Loader2, Building2, AlertCircle, ArrowRight, Eye, EyeOff, RefreshCw, Trash2, Store, Receipt, Package, BarChart3, Mail, Lock, ShieldCheck, MapPin } from "lucide-react";
 import { toast } from "sonner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { validateAuth } from "@/lib/validations";
 import { isValidOrgSlug, normalizeOrgSlug, storeOrgSlug } from "@/lib/orgSlug";
 import { signInWithGoogleOAuth } from "@/lib/googleOAuthSignIn";
-import ezzyerpLogo from "@/assets/ezzyerp-logo.jpg";
-import ezzyerpLogoFull from "@/assets/ezzyerp-logo-full.png";
-import posIllustration from "@/assets/pos-illustration.png";
-import isoCertifiedLogo from "@/assets/iso-certified-logo.png";
 import { hideAppBootSplash } from "@/lib/appBootSplash";
+
+const LEFT_FEATURE_CARDS = [
+  { icon: Receipt, title: "POS & Sales Billing", desc: "Fast billing, GST invoices" },
+  { icon: Package, title: "Inventory Management", desc: "Size-wise stock control" },
+  { icon: BarChart3, title: "Accounts & Ledgers", desc: "Payments & outstanding" },
+] as const;
+
+function EzzyBrandRow({ centered = false, onLightBackground = false }: { centered?: boolean; onLightBackground?: boolean }) {
+  return (
+    <div className={`flex items-center gap-2.5 ${centered ? "justify-center" : ""}`}>
+      <div
+        className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-lg"
+        style={{ background: "#378ADD" }}
+      >
+        <Store className="h-4 w-4 text-white" />
+      </div>
+      <div className={centered ? "text-left" : undefined}>
+        <p
+          className={`font-medium leading-tight ${onLightBackground ? "text-card-foreground" : "text-white"}`}
+          style={{ fontSize: 16 }}
+        >
+          EzzyERP
+        </p>
+        <p className="leading-tight" style={{ fontSize: 10, color: onLightBackground ? "#185FA5" : "#85B7EB" }}>
+          Easy Billing, Smart Business
+        </p>
+      </div>
+    </div>
+  );
+}
 
 const BRAND_COLOR = "#6C5CE7";
 
@@ -522,236 +548,190 @@ export default function OrgAuth() {
   const showNetworkWarning = orgFetchErrorType === "network" && !organization;
 
   return (
-    <div className="h-screen flex w-full bg-background overflow-hidden">
-      {/* Left Panel — Dark Branded */}
-      <div className="hidden lg:flex lg:w-1/2 flex-col relative overflow-hidden" style={{ background: 'linear-gradient(160deg, #0f0c29 0%, #1a1145 40%, #302b63 70%, #24243e 100%)' }}>
-        {/* Background decorative circles */}
-        <div className="absolute -top-32 -left-32 w-96 h-96 rounded-full" style={{ background: 'radial-gradient(circle, rgba(108,92,231,0.15) 0%, transparent 70%)' }} />
-        <div className="absolute -bottom-48 -right-48 w-[500px] h-[500px] rounded-full" style={{ background: 'radial-gradient(circle, rgba(99,102,241,0.1) 0%, transparent 70%)' }} />
+    <div className="flex min-h-screen w-full overflow-hidden bg-background">
+      {/* Left Panel — Deep Navy (desktop only) */}
+      <div
+        className="hidden md:flex md:w-[55%] flex-col"
+        style={{ background: "#0f2744" }}
+      >
+        <div className="flex h-full flex-col justify-between px-10 py-8">
+          <EzzyBrandRow />
 
-        <div className="relative z-10 h-full flex flex-col justify-between px-8 py-6">
-          {/* Brand */}
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #6C5CE7, #4F46E5)' }}>
-              <img src={ezzyerpLogo} alt="EzzyERP" className="w-6 h-6 rounded" />
-            </div>
+          <div className="my-8 flex flex-1 flex-col justify-center space-y-6">
             <div>
-              <p className="font-bold leading-tight" style={{ color: '#ffffff', fontSize: 18 }}>EzzyERP</p>
-              <p className="font-medium leading-tight" style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12 }}>Easy Billing, Smart Business</p>
-            </div>
-          </div>
-
-          {/* Hero */}
-          <div className="flex-1 flex flex-col justify-center -mt-4">
-            <h2 className="font-extrabold leading-snug" style={{ color: '#ffffff', fontSize: 24, letterSpacing: '-0.5px' }}>
-              Run your business smarter{'\n'}with{' '}
-              <span style={{ color: '#a78bfa' }}>EzzyERP</span>
-            </h2>
-            <p className="mt-2 font-medium leading-relaxed" style={{ color: 'rgba(255,255,255,0.65)', fontSize: 13 }}>
-              Complete billing, inventory & accounting for Indian retail businesses.
-            </p>
-
-            {/* POS Counter Image */}
-            <div className="mt-5 flex justify-center">
-              <div className="rounded-xl overflow-hidden" style={{ border: '1px solid rgba(255,255,255,0.08)', maxWidth: '85%' }}>
-                <img
-                  src={posIllustration}
-                  alt="POS Counter"
-                  className="w-full h-auto object-cover"
-                  style={{ maxHeight: '22vh', filter: 'brightness(0.95) contrast(1.05)' }}
-                />
-              </div>
+              <h2
+                className="font-medium leading-[1.2] text-white"
+                style={{ fontSize: 28, letterSpacing: "-0.5px" }}
+              >
+                Run your retail business smarter.
+              </h2>
+              <p
+                className="mt-3 leading-[1.6]"
+                style={{ fontSize: 13, color: "#85B7EB" }}
+              >
+                Complete billing, inventory & accounting for Indian retail businesses.
+              </p>
             </div>
 
-            {/* 7 Features — 2-column grid */}
-            <div className="mt-6 grid grid-cols-2 gap-2">
-              {[
-                { color: 'rgba(108,92,231,0.22)', stroke: '#a78bfa', path: 'M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4zM3 6h18', title: 'POS & Sales Billing', desc: 'Fast billing, GST invoices' },
-                { color: 'rgba(52,211,153,0.15)', stroke: '#34d399', path: 'M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z', title: 'Inventory Management', desc: 'Size-wise stock control' },
-                { color: 'rgba(251,191,36,0.15)', stroke: '#fbbf24', path: 'M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6', title: 'Accounts & Ledgers', desc: 'Payments & outstanding' },
-                { color: 'rgba(248,113,113,0.15)', stroke: '#f87171', path: 'M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5.586a1 1 0 0 1 .707.293l5.414 5.414a1 1 0 0 1 .293.707V19a2 2 0 0 1-2 2z', title: 'GST & Tally Export', desc: 'GSTR-1, e-invoice, XML' },
-                { color: 'rgba(56,189,248,0.15)', stroke: '#38bdf8', path: 'M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM9 22V12h6v10', title: 'Barcoding Management', desc: 'Label print, thermal, scan' },
-                { color: 'rgba(34,197,94,0.15)', stroke: '#22c55e', path: 'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z', title: 'WhatsApp Integration', desc: 'Auto invoices & reminders' },
-              ].map((f, i) => (
-                <div key={i} className="flex items-start gap-2.5 rounded-lg p-2"
-                  style={{ background: 'rgba(255,255,255,0.04)', border: '0.5px solid rgba(255,255,255,0.07)' }}>
-                  <div className="w-7 h-7 rounded-md flex items-center justify-center flex-shrink-0 mt-0.5"
-                    style={{ background: f.color }}>
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={f.stroke} strokeWidth="2">
-                      <path d={f.path} />
-                    </svg>
-                  </div>
+            <div className="space-y-2.5">
+              {LEFT_FEATURE_CARDS.map(({ icon: Icon, title, desc }) => (
+                <div
+                  key={title}
+                  className="flex gap-2.5 rounded-lg px-3.5 py-3"
+                  style={{
+                    background: "#0C447C",
+                    border: "0.5px solid #185FA5",
+                  }}
+                >
+                  <Icon className="mt-0.5 h-4 w-4 shrink-0" style={{ color: "#85B7EB" }} />
                   <div>
-                    <p className="font-semibold" style={{ color: '#ffffff', fontSize: 12 }}>{f.title}</p>
-                    <p className="mt-0.5" style={{ color: 'rgba(255,255,255,0.6)', fontSize: 10.5, lineHeight: 1.4 }}>{f.desc}</p>
+                    <p className="font-medium text-white" style={{ fontSize: 12 }}>
+                      {title}
+                    </p>
+                    <p className="mt-0.5" style={{ fontSize: 11, color: "#85B7EB" }}>
+                      {desc}
+                    </p>
                   </div>
                 </div>
               ))}
-              {/* Mobile App — full width */}
-              <div className="col-span-2 flex items-start gap-2.5 rounded-lg p-2"
-                style={{ background: 'rgba(255,255,255,0.04)', border: '0.5px solid rgba(255,255,255,0.07)' }}>
-                <div className="w-7 h-7 rounded-md flex items-center justify-center flex-shrink-0 mt-0.5"
-                  style={{ background: 'rgba(244,114,182,0.15)' }}>
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#f472b6" strokeWidth="2">
-                    <rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12" y2="18.01"/>
-                  </svg>
-                </div>
-                <div>
-                  <p className="font-semibold" style={{ color: '#ffffff', fontSize: 12 }}>Mobile Application</p>
-                  <p className="mt-0.5" style={{ color: 'rgba(255,255,255,0.6)', fontSize: 10.5, lineHeight: 1.4 }}>
-                    Owner dashboard, POS sales, stock & reports — anywhere, anytime
+            </div>
+          </div>
+
+          <div className="pt-5" style={{ borderTop: "0.5px solid #185FA5" }}>
+            <div className="flex justify-around">
+              {[
+                ["500+", "Businesses"],
+                ["10L+", "Invoices"],
+                ["99.9%", "Uptime"],
+              ].map(([value, label]) => (
+                <div key={label} className="text-center">
+                  <p className="font-medium text-white" style={{ fontSize: 20 }}>
+                    {value}
+                  </p>
+                  <p
+                    className="mt-1 uppercase"
+                    style={{ fontSize: 10, color: "#85B7EB", letterSpacing: "0.3px" }}
+                  >
+                    {label}
                   </p>
                 </div>
-              </div>
+              ))}
             </div>
-          </div>
-
-          {/* Contact & Website Bar */}
-          <div className="flex items-center gap-4 rounded-lg px-4 py-3 mt-4"
-            style={{ background: 'rgba(108,92,231,0.28)', border: '1px solid rgba(108,92,231,0.55)' }}>
-            {/* Phone */}
-            <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-md flex items-center justify-center" style={{ background: 'rgba(34,197,94,0.15)' }}>
-                <Phone className="w-4 h-4" style={{ color: '#22c55e' }} />
-              </div>
-              <div>
-                <p className="font-medium uppercase tracking-wide" style={{ color: 'rgba(255,255,255,0.55)', fontSize: 9.5, lineHeight: 1 }}>For Sales Contact</p>
-                <p className="font-extrabold mt-1" style={{ color: '#ffffff', fontSize: 15, lineHeight: 1, letterSpacing: '-0.2px' }}>+91-7385432144</p>
-              </div>
-            </div>
-
-            {/* Divider */}
-            <div className="h-8 w-px" style={{ background: 'rgba(255,255,255,0.15)' }} />
-
-            {/* Website */}
-            <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-md flex items-center justify-center" style={{ background: 'rgba(99,102,241,0.15)' }}>
-                <Globe className="w-4 h-4" style={{ color: '#818cf8' }} />
-              </div>
-              <div>
-                <p className="font-medium uppercase tracking-wide" style={{ color: 'rgba(255,255,255,0.55)', fontSize: 9.5, lineHeight: 1 }}>Website</p>
-                <a href="https://ezzyerp.in" target="_blank" rel="noopener noreferrer"
-                  className="font-extrabold mt-1 block hover:underline"
-                  style={{ color: '#ffffff', fontSize: 15, lineHeight: 1 }}>
-                  ezzyerp.in
-                </a>
-              </div>
-            </div>
-          </div>
-
-          {/* Stats row */}
-          <div className="flex justify-around mt-3 mb-1">
-            {[['500+', 'Businesses'], ['10L+', 'Invoices'], ['99.9%', 'Uptime']].map(([num, label]) => (
-              <div key={label} className="text-center">
-                <p className="font-extrabold" style={{ color: '#a78bfa', fontSize: 20 }}>{num}</p>
-                <p className="mt-1 font-medium" style={{ color: 'rgba(255,255,255,0.55)', fontSize: 11 }}>{label}</p>
-              </div>
-            ))}
           </div>
         </div>
       </div>
 
-      {/* Right Panel - Login Form */}
-      <div className="flex-1 lg:w-1/2 flex items-center justify-center p-4 lg:p-6 bg-card overflow-y-auto">
-        <div className="w-full max-w-md space-y-3">
+      {/* Right Panel — Sign-in Form */}
+      <div className="flex min-h-screen flex-1 flex-col overflow-y-auto bg-card md:w-[45%]">
+        <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-6 py-8 md:px-10">
+          {/* Mobile compact logo */}
+          <div className="mb-6 md:hidden">
+            <EzzyBrandRow centered onLightBackground />
+          </div>
 
+          <div className="space-y-6">
+            <div>
+              <h1 className="text-[22px] font-medium text-card-foreground">Welcome back</h1>
+              <p className="mt-1 text-[13px] text-muted-foreground">
+                Sign in to your store account
+              </p>
+            </div>
 
-
-          {/* Login Section */}
-          <div className="space-y-4">
-            {/* Organization Branding */}
+            {/* Organization Branding — conditional logic unchanged */}
             <div className="text-center">
               {orgLoading ? (
-                <div className="mx-auto w-16 h-16 rounded-xl flex items-center justify-center mb-3 shadow-lg animate-pulse bg-muted">
+                <div className="mx-auto mb-3 flex h-16 w-16 animate-pulse items-center justify-center rounded-xl bg-muted shadow-lg">
                   <Building2 className="h-8 w-8 text-muted-foreground" />
                 </div>
               ) : logoUrl ? (
-                <img 
-                  src={logoUrl} 
-                  alt={displayName} 
-                  className="h-16 w-auto mx-auto object-contain mb-3"
+                <img
+                  src={logoUrl}
+                  alt={displayName}
+                  className="mx-auto mb-3 h-16 w-auto object-contain"
                 />
               ) : (
-                <div 
-                  className="mx-auto w-16 h-16 rounded-xl flex items-center justify-center mb-3 shadow-lg"
-                  style={{ 
-                    background: `linear-gradient(145deg, ${brandColor} 0%, #5849c4 100%)` 
+                <div
+                  className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-xl shadow-lg"
+                  style={{
+                    background: `linear-gradient(145deg, ${brandColor} 0%, #5849c4 100%)`,
                   }}
                 >
                   <Building2 className="h-8 w-8 text-white" />
                 </div>
               )}
-              
-              <h1 
-                className="text-2xl font-bold tracking-tight"
+
+              <h2
+                className="text-xl font-bold tracking-tight"
                 style={{ color: brandColor }}
               >
                 {displayName}
-              </h1>
-              <p className="mt-1 text-muted-foreground text-sm">
-                Sign in to access your account
-              </p>
+              </h2>
             </div>
 
-            {/* Login Form Card */}
-            <Card className="shadow-elevated border-border bg-card rounded-md">
-              <CardContent className="p-5 space-y-4">
-                {/* Network warning banner — non-blocking */}
-                {showNetworkWarning && (
-                  <Alert className="rounded-md py-2 border-yellow-500/50 bg-yellow-50 dark:bg-yellow-900/20">
-                    <AlertCircle className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />
-                    <AlertDescription className="text-sm text-yellow-800 dark:text-yellow-200">
-                      Connection issue detected. You can still sign in — we'll verify your access after login.
-                      <div className="flex gap-2 mt-2">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="h-7 text-xs"
-                          onClick={handleRetryOrganizationLoad}
-                        >
-                          <RefreshCw className="mr-1 h-3 w-3" />
-                          Retry
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="h-7 text-xs"
-                          onClick={handleClearCacheAndRetry}
-                        >
-                          <Trash2 className="mr-1 h-3 w-3" />
-                          Reset Cache & Reload
-                        </Button>
-                      </div>
-                    </AlertDescription>
-                  </Alert>
-                )}
+            <div className="space-y-4">
+              {/* Network warning banner — non-blocking */}
+              {showNetworkWarning && (
+                <Alert className="rounded-lg border-yellow-500/50 bg-yellow-50 py-2 dark:bg-yellow-900/20">
+                  <AlertCircle className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />
+                  <AlertDescription className="text-sm text-yellow-800 dark:text-yellow-200">
+                    Connection issue detected. You can still sign in — we'll verify your access after login.
+                    <div className="mt-2 flex gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-7 text-xs"
+                        onClick={handleRetryOrganizationLoad}
+                      >
+                        <RefreshCw className="mr-1 h-3 w-3" />
+                        Retry
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-7 text-xs"
+                        onClick={handleClearCacheAndRetry}
+                      >
+                        <Trash2 className="mr-1 h-3 w-3" />
+                        Reset Cache & Reload
+                      </Button>
+                    </div>
+                  </AlertDescription>
+                </Alert>
+              )}
 
-                {error && !showNetworkWarning && (
-                  <Alert variant={showCacheRecovery ? "default" : "destructive"} className={`rounded-md py-2 ${showCacheRecovery ? 'border-yellow-500/50 bg-yellow-50 dark:bg-yellow-900/20' : ''}`}>
-                    <AlertCircle className="h-4 w-4" />
-                    <AlertDescription className="text-sm">
-                      {error}
-                      {showCacheRecovery && (
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="mt-2 h-7 text-xs w-full"
-                          onClick={handleClearCacheAndRetry}
-                        >
-                          <Trash2 className="mr-1 h-3 w-3" />
-                          Clear App Cache & Retry
-                        </Button>
-                      )}
-                    </AlertDescription>
-                  </Alert>
-                )}
-                
-                <form onSubmit={handleSignIn} className="space-y-4">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="email" className="text-card-foreground font-medium text-sm">Email Address</Label>
+              {error && !showNetworkWarning && (
+                <Alert
+                  variant={showCacheRecovery ? "default" : "destructive"}
+                  className={`rounded-lg py-2 ${showCacheRecovery ? "border-yellow-500/50 bg-yellow-50 dark:bg-yellow-900/20" : ""}`}
+                >
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription className="text-sm">
+                    {error}
+                    {showCacheRecovery && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="mt-2 h-7 w-full text-xs"
+                        onClick={handleClearCacheAndRetry}
+                      >
+                        <Trash2 className="mr-1 h-3 w-3" />
+                        Clear App Cache & Retry
+                      </Button>
+                    )}
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              <form onSubmit={handleSignIn} className="space-y-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor="email" className="text-[12px] text-muted-foreground">
+                    Email address
+                  </Label>
+                  <div className="relative">
+                    <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                     <Input
                       id="email"
                       type="email"
@@ -760,132 +740,154 @@ export default function OrgAuth() {
                       onChange={(e) => setEmail(e.target.value)}
                       disabled={loading}
                       required
-                      className="h-10 rounded-md no-uppercase"
+                      className="no-uppercase h-10 rounded-lg border-border bg-secondary/50 pl-9"
                     />
-                  </div>
-                  
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <Label htmlFor="password" className="text-card-foreground font-medium text-sm">Password</Label>
-                      <button type="button" className="text-xs hover:underline" style={{ color: brandColor }}
-                        onClick={async () => {
-                          if (!email) {
-                            toast.error('Enter your email first');
-                            return;
-                          }
-                          const { error } = await supabase.auth.resetPasswordForEmail(email, {
-                            redirectTo: `${window.location.origin}/reset-password`,
-                          });
-                          if (error) {
-                            toast.error(error.message);
-                          } else {
-                            toast.success('Password reset link sent. Check your email.');
-                          }
-                        }}>
-                        Forgot password?
-                      </button>
-                    </div>
-                    <div className="relative">
-                      <Input
-                        id="password"
-                        type={showPassword ? "text" : "password"}
-                        placeholder="••••••••"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        disabled={loading}
-                        required
-                        className="h-10 rounded-md pr-10 no-uppercase"
-                      />
-                      <button
-                        type="button"
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                        onClick={() => setShowPassword(!showPassword)}
-                        tabIndex={-1}
-                      >
-                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                      </button>
-                    </div>
-                    {loginAttempts > 0 && (
-                      <div className="flex items-center gap-1.5 mt-1.5">
-                        {Array.from({ length: MAX_LOGIN_ATTEMPTS }).map((_, i) => (
-                          <div key={i} className="h-1 flex-1 rounded-full" style={{ background: i < loginAttempts ? '#ef4444' : 'hsl(var(--muted))' }} />
-                        ))}
-                        <span className="text-xs text-muted-foreground ml-1">
-                          {MAX_LOGIN_ATTEMPTS - loginAttempts} attempt{MAX_LOGIN_ATTEMPTS - loginAttempts !== 1 ? 's' : ''} left
-                        </span>
-                      </div>
-                    )}
-                  </div>
-
-                  <Button 
-                    type="submit" 
-                    className="w-full h-10 text-sm font-semibold rounded-md shadow-sm" 
-                    disabled={loading}
-                    style={{ 
-                      background: `linear-gradient(135deg, ${brandColor} 0%, #4F46E5 100%)`
-                    }}
-                  >
-                    {loading ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Signing in...
-                      </>
-                    ) : (
-                      <>
-                        Sign In
-                        <ArrowRight className="ml-2 h-4 w-4" />
-                      </>
-                    )}
-                  </Button>
-                </form>
-
-                {/* Divider */}
-                <div className="relative my-1">
-                  <div className="absolute inset-0 flex items-center">
-                    <span className="w-full border-t border-border" />
-                  </div>
-                  <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-card px-2 text-muted-foreground">or</span>
                   </div>
                 </div>
 
-                {/* Google Sign-In */}
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full h-10 text-sm font-medium rounded-md"
-                  disabled={loading}
-                  onClick={async () => {
-                    setLoading(true);
-                    setError("");
-                    const result = await signInWithGoogleOAuth({ orgSlug });
-                    if (!result.ok) {
-                      const msg = (result as { ok: false; message: string }).message;
-                      setError(msg);
-                      if (msg.includes("browser")) {
-                        toast.info(msg);
-                      }
-                    }
-                    setLoading(false);
-                  }}
-                >
-                  <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24">
-                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-                  </svg>
-                  Sign in with Google
-                </Button>
-              </CardContent>
-            </Card>
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="password" className="text-[12px] text-muted-foreground">
+                      Password
+                    </Label>
+                    <button
+                      type="button"
+                      className="text-[12px] hover:underline"
+                      style={{ color: "#185FA5" }}
+                      onClick={async () => {
+                        if (!email) {
+                          toast.error("Enter your email first");
+                          return;
+                        }
+                        const { error } = await supabase.auth.resetPasswordForEmail(email, {
+                          redirectTo: `${window.location.origin}/reset-password`,
+                        });
+                        if (error) {
+                          toast.error(error.message);
+                        } else {
+                          toast.success("Password reset link sent. Check your email.");
+                        }
+                      }}
+                    >
+                      Forgot password?
+                    </button>
+                  </div>
+                  <div className="relative">
+                    <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      id="password"
+                      type={showPassword ? "text" : "password"}
+                      placeholder="••••••••"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      disabled={loading}
+                      required
+                      className="no-uppercase h-10 rounded-lg border-border bg-secondary/50 pl-9 pr-10"
+                    />
+                    <button
+                      type="button"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      onClick={() => setShowPassword(!showPassword)}
+                      tabIndex={-1}
+                    >
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                  {loginAttempts > 0 && (
+                    <div className="mt-1.5 flex items-center gap-1.5">
+                      {Array.from({ length: MAX_LOGIN_ATTEMPTS }).map((_, i) => (
+                        <div
+                          key={i}
+                          className="h-1 flex-1 rounded-full"
+                          style={{
+                            background: i < loginAttempts ? "#ef4444" : "hsl(var(--muted))",
+                          }}
+                        />
+                      ))}
+                      <span className="ml-1 text-xs text-muted-foreground">
+                        {MAX_LOGIN_ATTEMPTS - loginAttempts} attempt
+                        {MAX_LOGIN_ATTEMPTS - loginAttempts !== 1 ? "s" : ""} left
+                      </span>
+                    </div>
+                  )}
+                </div>
 
-            {/* Footer Section */}
-            <div className="text-center space-y-3">
-              <p className="text-muted-foreground text-xs">
-                Don't have access?{" "}
+                <Button
+                  type="submit"
+                  className="h-11 w-full rounded-lg text-sm font-medium text-white hover:opacity-90"
+                  disabled={loading}
+                  style={{ background: "#185FA5" }}
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Signing in...
+                    </>
+                  ) : (
+                    <>
+                      Sign in
+                      <ArrowRight className="ml-2 h-4 w-4" />
+                    </>
+                  )}
+                </Button>
+              </form>
+
+              {/* Divider */}
+              <div className="relative my-1">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t border-border" />
+                </div>
+                <div className="relative flex justify-center text-xs">
+                  <span className="bg-card px-2 text-muted-foreground">or</span>
+                </div>
+              </div>
+
+              {/* Google Sign-In */}
+              <Button
+                type="button"
+                variant="outline"
+                className="h-11 w-full rounded-lg border bg-background text-sm font-medium"
+                disabled={loading}
+                onClick={async () => {
+                  setLoading(true);
+                  setError("");
+                  const result = await signInWithGoogleOAuth({ orgSlug });
+                  if (!result.ok) {
+                    const msg = (result as { ok: false; message: string }).message;
+                    setError(msg);
+                    if (msg.includes("browser")) {
+                      toast.info(msg);
+                    }
+                  }
+                  setLoading(false);
+                }}
+              >
+                <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24">
+                  <path
+                    fill="#4285F4"
+                    d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                  />
+                  <path
+                    fill="#34A853"
+                    d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                  />
+                  <path
+                    fill="#FBBC05"
+                    d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+                  />
+                  <path
+                    fill="#EA4335"
+                    d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+                  />
+                </svg>
+                Sign in with Google
+              </Button>
+
+              <p className="text-center text-xs text-muted-foreground">
+                Don&apos;t have access?{" "}
                 <button
-                  className="font-semibold hover:underline transition-colors text-card-foreground"
+                  type="button"
+                  className="font-semibold text-card-foreground transition-colors hover:underline"
                   onClick={() => {
                     toast.info("Please contact your organization administrator for access.");
                   }}
@@ -895,16 +897,20 @@ export default function OrgAuth() {
               </p>
 
               {/* Trust Badges */}
-              <div className="flex justify-center gap-3 flex-wrap">
-                {['ISO 27001 Certified', 'SOC 2 Type II', 'Data stored in India'].map((label) => (
-                  <div key={label} className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs text-muted-foreground"
-                    style={{ background: 'hsl(var(--muted) / 0.5)', border: '1px solid hsl(var(--border))' }}>
-                    <Check className="w-3 h-3 text-green-600" />
-                    {label}
-                  </div>
-                ))}
+              <div className="flex flex-wrap items-center justify-center gap-4 pt-1">
+                <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                  <ShieldCheck className="h-[13px] w-[13px] text-green-600" />
+                  ISO 27001
+                </div>
+                <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                  <ShieldCheck className="h-[13px] w-[13px] text-green-600" />
+                  SOC 2 Type II
+                </div>
+                <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                  <MapPin className="h-[13px] w-[13px] text-blue-600" />
+                  Data in India
+                </div>
               </div>
-
             </div>
           </div>
         </div>
