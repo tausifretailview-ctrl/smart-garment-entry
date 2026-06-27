@@ -133,6 +133,39 @@ interface LineItem {
   brand?: string;
 }
 
+type InvoiceUnavailableVariantRow = {
+  id: string;
+  barcode?: string | null;
+  size?: string | null;
+  color?: string | null;
+  stock_qty?: number | null;
+  sale_price?: number | null;
+  mrp?: number | null;
+  pur_price?: number | null;
+  product_id?: string | null;
+  active?: boolean | null;
+  products?: {
+    id: string;
+    product_name?: string | null;
+    brand?: string | null;
+    hsn_code?: string | null;
+    gst_per?: number | null;
+    sale_gst_percent?: number | null;
+    purchase_gst_percent?: number | null;
+    category?: string | null;
+    style?: string | null;
+    color?: string | null;
+    product_type?: string | null;
+    organization_id?: string | null;
+    size_group_id?: string | null;
+    sale_discount_type?: string | null;
+    sale_discount_value?: number | null;
+    uom?: string | null;
+    status?: string | null;
+    deleted_at?: string | null;
+  } | null;
+};
+
 function isStockTrackedInvoiceProduct(product: { product_type?: string | null } | null | undefined): boolean {
   return product?.product_type !== 'service' && product?.product_type !== 'combo';
 }
@@ -166,10 +199,11 @@ async function fetchUnavailableInvoiceVariantByProductName(
 
   if (error) throw error;
 
-  const row = (data || []).find((variant: any) => {
+  const rows = (data || []) as unknown as InvoiceUnavailableVariantRow[];
+  const row = rows.find((variant) => {
     const product = variant.products;
     return isStockTrackedInvoiceProduct(product) && Number(variant.stock_qty || 0) <= 0;
-  }) as any | undefined;
+  });
 
   if (!row?.products) return null;
   return { product: row.products, variant: row };

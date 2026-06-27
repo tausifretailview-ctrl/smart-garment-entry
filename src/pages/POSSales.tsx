@@ -378,10 +378,11 @@ async function fetchUnavailablePosVariantByProductName(
   const { data, error } = await query.order('stock_qty', { ascending: false }).limit(20);
   if (error) throw error;
 
-  const row = (data || []).find((item: any) => {
-    const product = item.products as PosProductRow | undefined;
+  const rows = (data || []) as unknown as Array<PosVariantRow & { products?: PosProductRow }>;
+  const row = rows.find((item) => {
+    const product = item.products;
     return isStockTrackedPosProduct(product) && Number(item.stock_qty || 0) <= 0;
-  }) as unknown as (PosVariantRow & { products?: PosProductRow }) | undefined;
+  });
 
   if (!row?.products) return null;
   return { product: row.products, variant: row };
@@ -2304,14 +2305,15 @@ export default function POSSales() {
 
           if (variantError) throw variantError;
 
-          if (variant && (variant as any).products) {
-            const prod = (variant as any).products;
+          const typedVariant = variant as unknown as PosVariantRow & { products?: PosProductRow };
+          if (typedVariant?.products) {
+            const prod = typedVariant.products;
             setSearchInput("");
-            const variantWithIMEI = { ...variant, barcode: searchTerm };
-            const stockQty = Number((variant as any).stock_qty || 0);
+            const variantWithIMEI = { ...typedVariant, barcode: searchTerm };
+            const stockQty = Number(typedVariant.stock_qty || 0);
             if (isStockTrackedPosProduct(prod) && stockQty <= 0) {
               openStockIssueDialog(
-                buildInsufficientStockIssue(prod.product_name, (variant as any).size, 1, stockQty),
+                buildInsufficientStockIssue(prod.product_name, typedVariant.size, 1, stockQty),
                 { productId: prod.id, productName: prod.product_name },
               );
               return;
