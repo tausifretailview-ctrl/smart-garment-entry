@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from "react";
 import { isDecimalUOM } from "@/constants/uom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSettings } from "@/hooks/useSettings";
@@ -132,6 +132,9 @@ interface LineItem {
    * reconciled without re-looking it up from productsData (which can miss). */
   brand?: string;
 }
+
+const SALE_BILL_MIN_DISPLAY_ROWS = 7;
+const SALE_BILL_ROW_HEIGHT_PX = 44;
 
 type InvoiceUnavailableVariantRow = {
   id: string;
@@ -389,6 +392,34 @@ export default function SalesInvoice() {
       hsnCode: '',
     }))
   );
+  const [tablePadRowCount, setTablePadRowCount] = useState(SALE_BILL_MIN_DISPLAY_ROWS);
+
+  const syncTablePadRows = useCallback(() => {
+    const el = tableContainerRef.current;
+    if (!el) return;
+    const height = el.clientHeight;
+    if (height <= 0) return;
+    const filledCount = lineItems.filter((item) => item.productId !== "").length;
+    const rowsForViewport = Math.max(
+      SALE_BILL_MIN_DISPLAY_ROWS,
+      Math.floor(height / SALE_BILL_ROW_HEIGHT_PX),
+    );
+    if (filledCount === 0) {
+      setTablePadRowCount(rowsForViewport);
+      return;
+    }
+    setTablePadRowCount(Math.max(0, Math.max(rowsForViewport, filledCount) - filledCount));
+  }, [lineItems]);
+
+  useLayoutEffect(() => {
+    const el = tableContainerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => syncTablePadRows());
+    ro.observe(el);
+    syncTablePadRows();
+    return () => ro.disconnect();
+  }, [syncTablePadRows]);
+
   const [openProductSearch, setOpenProductSearch] = useState(false);
   const [searchInput, setSearchInput] = useState("");
   const [productSearchResults, setProductSearchResults] = useState<any[]>([]);
@@ -3316,7 +3347,7 @@ Thank you for choosing us!`;
   }
 
   return (
-    <div className={cn(entryPageShellClass, "bg-slate-50 dark:bg-background pos-desktop-readable sale-bill-readable")} data-entry-form>
+    <div className={cn(entryPageShellClass, "sale-bill-workspace bg-slate-50 dark:bg-background pos-desktop-readable sale-bill-readable")} data-entry-form>
       {/* Professional Header Bar */}
       <header className="bg-gradient-to-r from-slate-900 to-slate-800 shrink-0 flex flex-col">
         <div className={cn("entry-page-header-row h-[52px] flex items-center gap-2", entryPageSectionX)}>
@@ -3466,7 +3497,7 @@ Thank you for choosing us!`;
       <main className={entryPageMainClass}>
 
       {/* Invoice & Customer Details Section */}
-      <section className={cn("bg-white border-b border-slate-100 py-2 shrink-0 shadow-sm", entryPageSectionX)}>
+      <section className={cn("sale-bill-details-section bg-white border-b border-slate-100 py-2 shrink-0 shadow-sm", entryPageSectionX)}>
 
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 items-start">
           {/* Customer Selection */}
@@ -3924,12 +3955,12 @@ Thank you for choosing us!`;
       </section>
 
       {/* Line Items Table — fills remaining space; only this area scrolls */}
-      <section className={cn("flex-1 min-h-0 pb-2 overflow-hidden bg-slate-100 relative w-full min-w-0", entryPageSectionX)}>
+      <section className={cn("sale-bill-lines-panel flex-1 min-h-0 pb-2 overflow-hidden bg-slate-100 relative w-full min-w-0", entryPageSectionX)}>
         <div
           ref={tableContainerRef}
-          className="h-full w-full min-w-0 overflow-x-auto overflow-y-auto isolate rounded-lg border border-slate-200 shadow-sm bg-slate-100"
+          className="sale-bill-lines-scroll h-full w-full min-w-0 overflow-x-auto overflow-y-auto isolate rounded-lg border border-slate-200 shadow-sm bg-white"
         >
-         <div className="bg-white min-h-full pb-4 w-full min-w-full">
+         <div className="w-full min-w-full">
           <table className="w-full min-w-full table-fixed border-separate border-spacing-0 erp-desktop-table erp-entry-lines-table">
             <thead className="sticky top-0 z-10">
               <tr className="bg-slate-800 border-b-2 border-blue-600">
@@ -3958,8 +3989,8 @@ Thank you for choosing us!`;
                   const baseCols = 8; // #, product, size, barcode, qty, price, total, action
                   const optCols = [showCol.color, showCol.hsn, showCol.box, showCol.mrp, showCol.disc_percent, showCol.disc_amount, showCol.gst].filter(Boolean).length;
                   const totalCols = baseCols + optCols;
-                  return Array.from({ length: 7 }, (_, i) => (
-                    <tr key={`empty-${i}`} className="h-[38px] border-b border-muted/30">
+                  return Array.from({ length: tablePadRowCount }, (_, i) => (
+                    <tr key={`empty-${i}`} className="sale-bill-pad-row border-b border-muted/30">
                       <td className="text-center text-[12px] text-muted-foreground/40 px-3">{i + 1}</td>
                       {Array.from({ length: totalCols - 1 }, (_, j) => (
                         <td key={j} className="px-3"></td>
@@ -3974,7 +4005,7 @@ Thank you for choosing us!`;
                 const baseCols = 8;
                 const optCols = [showCol.color, showCol.hsn, showCol.box, showCol.mrp, showCol.disc_percent, showCol.disc_amount, showCol.gst].filter(Boolean).length;
                 const totalCols = baseCols + optCols;
-                const padCount = Math.max(0, 7 - displayItems.length);
+                const padCount = tablePadRowCount;
 
                 const itemRows = displayItems.map((item, displayIndex) => {
                   const originalIndex = lineItems.findIndex(li => li.id === item.id);
@@ -4107,7 +4138,7 @@ Thank you for choosing us!`;
                 const padRows = Array.from({ length: padCount }, (_, i) => {
                   const srNo = displayItems.length + i + 1;
                   return (
-                    <tr key={`pad-${i}`} className="h-[42px] border-b border-border/40 bg-white">
+                    <tr key={`pad-${i}`} className="sale-bill-pad-row border-b border-border/40 bg-white">
                       <td className="text-center text-[12px] text-muted-foreground/40 px-3">{srNo}</td>
                       {Array.from({ length: totalCols - 1 }, (_, j) => (
                         <td key={j} className="px-3"></td>

@@ -1715,6 +1715,50 @@ main:has(.supplier-party-balances-workspace) {
   .sale-bill-readable .pos-sales-footer .text-\[12px\] { font-size: 13px !important; }
   .sale-bill-readable kbd { font-size: 11px !important; }
 
+  /* Sale Bill — Vasy-style lines grid (full view, uniform rows/columns) */
+  .sale-bill-readable .sale-bill-details-section {
+    padding-top: 0.375rem !important;
+    padding-bottom: 0.375rem !important;
+  }
+  .sale-bill-readable .sale-bill-details-section .grid {
+    gap: 0.625rem !important;
+  }
+  .sale-bill-readable .sale-bill-lines-scroll {
+    min-height: 0;
+    overscroll-behavior-y: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+  .sale-bill-readable .erp-entry-lines-table thead th {
+    height: 2.5rem !important;
+    padding-top: 0.375rem !important;
+    padding-bottom: 0.375rem !important;
+    font-size: 12px !important;
+    letter-spacing: 0.04em !important;
+  }
+  .sale-bill-readable .erp-entry-lines-table tbody tr,
+  .sale-bill-readable .erp-entry-lines-table tbody tr.sale-bill-pad-row {
+    height: 44px;
+  }
+  .sale-bill-readable .erp-entry-lines-table tbody td {
+    vertical-align: middle;
+    padding-top: 0.25rem !important;
+    padding-bottom: 0.25rem !important;
+  }
+  .sale-bill-readable .erp-entry-lines-table tbody input,
+  .sale-bill-readable .erp-entry-lines-table tbody button[role="combobox"] {
+    height: 2rem !important;
+    min-height: 2rem !important;
+    font-size: 14px !important;
+  }
+  .sale-bill-readable .entry-page-header-row {
+    height: 3rem !important;
+    min-height: 3rem !important;
+  }
+  .sale-bill-readable .entry-page-footer > div {
+    padding-top: 0.5rem !important;
+    padding-bottom: 0.5rem !important;
+  }
+
   /* POS Sales — grid-based cart readability (div grid, not table th/td) */
   .pos-sales-readable .text-xs { font-size: 13px !important; line-height: 1.25 !important; }
   .pos-sales-readable .text-\[10px\] { font-size: 12px !important; }
@@ -2224,6 +2268,19 @@ main:has(.item-wise-stock-workspace) {
   overflow-x: auto;
   overscroll-behavior-y: contain;
   background: #fff;
+}
+
+/* Sale Bill — full viewport workspace (fixed header / scroll lines / pinned footer) */
+.sale-bill-workspace {
+  height: 100%;
+  min-height: 0;
+  max-height: 100%;
+  overflow: hidden;
+}
+
+body.entry-bill-screen [data-entry-form].sale-bill-workspace {
+  flex: 1 1 0%;
+  min-height: 0;
 }
 
 /* Bill entry — use full content width; product column absorbs extra space */
