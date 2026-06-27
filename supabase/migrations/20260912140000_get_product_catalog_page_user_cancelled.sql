@@ -1,4 +1,9 @@
 -- Product Master catalog page: include user_cancelled_at to avoid a second products query per page.
+-- Return type change requires drop first (PostgreSQL 42P13).
+
+DROP FUNCTION IF EXISTS public.get_product_catalog_page(
+  uuid, integer, integer, text, text, text, uuid, text, numeric, numeric
+);
 
 CREATE OR REPLACE FUNCTION public.get_product_catalog_page(
   p_org_id uuid,
