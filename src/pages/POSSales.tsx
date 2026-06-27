@@ -191,6 +191,9 @@ interface POSBarcodeRuntimeSettings {
 
 const POS_CART_BARCODE_COL_MIN = 110;
 const POS_CART_BARCODE_COL_MAX = 240;
+const POS_CART_MIN_DISPLAY_ROWS = 5;
+/** Approximate row height for viewport-fill blank rows (px). */
+const POS_CART_ROW_HEIGHT_PX = 44;
 
 function formatPosCartBarcode(barcode: string | null | undefined): string {
   return (barcode || "").trim();
@@ -563,6 +566,35 @@ export default function POSSales() {
   const printBtnRef = useRef<HTMLButtonElement>(null);
   const barcodeInputRef = useRef<HTMLInputElement>(null);
   const itemsContainerRef = useRef<HTMLDivElement>(null);
+  const [cartPadRowCount, setCartPadRowCount] = useState(POS_CART_MIN_DISPLAY_ROWS);
+
+  const syncCartPadRows = useCallback(() => {
+    const el = itemsContainerRef.current;
+    if (!el) return;
+    const height = el.clientHeight;
+    if (height <= 0) return;
+    const itemCount = itemsRef.current.length;
+    const targetTotal = Math.max(
+      POS_CART_MIN_DISPLAY_ROWS,
+      Math.floor(height / POS_CART_ROW_HEIGHT_PX),
+      itemCount,
+    );
+    setCartPadRowCount(Math.max(0, targetTotal - itemCount));
+  }, []);
+
+  useLayoutEffect(() => {
+    const el = itemsContainerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => syncCartPadRows());
+    ro.observe(el);
+    syncCartPadRows();
+    return () => ro.disconnect();
+  }, [syncCartPadRows]);
+
+  useLayoutEffect(() => {
+    syncCartPadRows();
+  }, [items.length, syncCartPadRows]);
+
   // ── WhatsApp invoice PDF capture ──────────────────────────────────────────
   // A hidden off-screen InvoiceWrapper rendered with the user's selected A4
   // template (logo, header, columns, totals) so the WhatsApp auto-send
@@ -5144,7 +5176,7 @@ export default function POSSales() {
 
   // Desktop POS Layout
   return (
-    <div className="pos-sales-workspace flex-1 min-h-0 h-full w-full bg-background flex items-stretch overflow-hidden pos-desktop-readable">
+    <div className="pos-sales-workspace flex-1 min-h-0 h-full w-full bg-background flex items-stretch overflow-hidden pos-desktop-readable pos-sales-readable">
       {/* Left Action Button Bar */}
       <div className="w-[88px] self-stretch min-h-0 bg-slate-50 dark:bg-slate-900 border-r border-border/60 flex flex-col gap-1.5 p-1.5 z-30 relative overflow-y-auto shrink-0">
         {/* Buttons in sequence: Cash, UPI, Card, Credit, Mix, Hold, New, Last, Print, Clear, WhatsApp */}
@@ -5864,7 +5896,7 @@ export default function POSSales() {
           <div className="w-full h-full min-h-0 flex flex-col overflow-hidden">
           <Card className="flex-1 min-h-0 overflow-hidden flex flex-col border-border/60 shadow-sm">
             <div className="bg-slate-900 text-white">
-              <div className="grid gap-1.5 px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wider" style={{ gridTemplateColumns: posCartGridCols }}>
+              <div className="pos-sales-cart-header grid gap-1.5 px-3 py-2 text-[11px] font-semibold uppercase tracking-wider" style={{ gridTemplateColumns: posCartGridCols }}>
                 <div className="text-center">Sr No</div>
                 <div>Barcode</div>
                 <div>Product</div>
@@ -5930,10 +5962,9 @@ export default function POSSales() {
                 </Button>
               )}
               {(() => {
-                  const MIN_DISPLAY_ROWS = 5;
-                  const blankRowsNeeded = Math.max(0, MIN_DISPLAY_ROWS - items.length);
+                  const blankRowsNeeded = cartPadRowCount;
                   const blankRow = (idx: number) => (
-                    <div key={`blank-${idx}`} className={`grid gap-1.5 px-3 py-2.5 border-b border-border/40 text-sm ${(items.length + idx) % 2 === 1 ? 'bg-muted/20' : ''}`} style={{ gridTemplateColumns: posCartGridCols }}>
+                    <div key={`blank-${idx}`} className={`pos-sales-cart-row grid gap-1.5 px-3 py-2 border-b border-border/40 text-sm ${(items.length + idx) % 2 === 1 ? 'bg-muted/20' : ''}`} style={{ gridTemplateColumns: posCartGridCols }}>
                       <div className="flex items-center justify-center text-muted-foreground/30 font-medium">{items.length + idx + 1}</div>
                       <div className="flex items-center text-muted-foreground/20">—</div>
                       <div className="flex items-center text-muted-foreground/20">—</div>
@@ -5959,7 +5990,7 @@ export default function POSSales() {
                           }}
                           data-pos-cart-row={item.id}
                           className={cn(
-                            "grid gap-1.5 px-3 py-2 border-b border-border/40 hover:bg-accent/30 text-sm transition-colors duration-500",
+                            "pos-sales-cart-row grid gap-1.5 px-3 py-2 border-b border-border/40 hover:bg-accent/30 text-sm transition-colors duration-500",
                             index % 2 === 1 ? "bg-muted/20" : "",
                             highlightCartItemId === item.id &&
                               "ring-2 ring-inset ring-primary/70 bg-primary/10 shadow-[inset_0_0_0_1px_rgba(59,130,246,0.35)] z-[1] relative"

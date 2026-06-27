@@ -1715,6 +1715,23 @@ main:has(.supplier-party-balances-workspace) {
   .sale-bill-readable .pos-sales-footer .text-\[12px\] { font-size: 13px !important; }
   .sale-bill-readable kbd { font-size: 11px !important; }
 
+  /* POS Sales — grid-based cart readability (div grid, not table th/td) */
+  .pos-sales-readable .text-xs { font-size: 13px !important; line-height: 1.25 !important; }
+  .pos-sales-readable .text-\[10px\] { font-size: 12px !important; }
+  .pos-sales-readable .text-\[11px\] { font-size: 13px !important; }
+  .pos-sales-readable .text-\[12px\] { font-size: 14px !important; }
+  .pos-sales-readable .text-sm { font-size: 14px !important; }
+  .pos-sales-readable .pos-sales-cart-header { font-size: 13px !important; }
+  .pos-sales-readable .pos-sales-cart-row input,
+  .pos-sales-readable .pos-sales-cart-row select {
+    font-size: 13px !important;
+    height: 2rem !important;
+    min-height: 2rem !important;
+  }
+  .pos-sales-readable label { font-size: 13px !important; }
+  .pos-sales-readable .pos-sales-footer .text-\[11px\],
+  .pos-sales-readable .pos-sales-footer .text-\[12px\] { font-size: 13px !important; }
+
   /* Sale Order — same typography scale as Sale Bill, inverted white/black chrome */
   .sale-order-readable {
     background: #ffffff !important;
