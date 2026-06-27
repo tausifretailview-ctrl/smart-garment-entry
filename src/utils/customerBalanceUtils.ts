@@ -322,10 +322,6 @@ function normalizeSaleNumberToken(value: string): string {
   return value.trim().toUpperCase();
 }
 
-function escapeIlikePattern(value: string): string {
-  return value.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
-}
-
 function invoiceAmountDue(inv: {
   net_amount?: number | null;
   sale_return_adjust?: number | null;
@@ -599,27 +595,6 @@ export async function fetchSaleReceiptSplitsForInvoices(
         merged.push(...rows);
       } catch (custErr) {
         console.warn("[customerBalance] skip customer receipt rows", customerId, custErr);
-      }
-    }
-
-    const saleNumbers = [
-      ...new Set(
-        invoices.map((i) => i.sale_number?.trim()).filter((n): n is string => Boolean(n)),
-      ),
-    ];
-    const DESC_OR_CHUNK = 12;
-    for (let i = 0; i < saleNumbers.length; i += DESC_OR_CHUNK) {
-      const batch = saleNumbers.slice(i, i + DESC_OR_CHUNK);
-      const orFilter = batch
-        .map((num) => `description.ilike.%${escapeIlikePattern(num)}%`)
-        .join(",");
-      try {
-        const rows = await fetchPaginatedReceiptRows(client, organizationId, (q) =>
-          applyVoucherDateBounds(q.or(orFilter)),
-        );
-        merged.push(...rows);
-      } catch (descErr) {
-        console.warn("[customerBalance] skip description receipt chunk", descErr);
       }
     }
 
