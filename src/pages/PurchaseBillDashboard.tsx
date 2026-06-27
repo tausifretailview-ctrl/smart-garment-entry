@@ -157,6 +157,7 @@ interface PurchaseBill {
   payment_status?: string;
   paid_amount?: number;
   total_qty?: number;
+  total_items?: number;
   is_dc_purchase?: boolean;
   bill_image_url?: string | null;
   is_locked?: boolean;
@@ -165,7 +166,6 @@ interface PurchaseBill {
   cancelled_reason?: string | null;
   created_by?: string | null;
   items?: PurchaseItem[];
-  purchase_items?: { count: number }[];
 }
 
 function PurchaseKpiCard({
@@ -610,7 +610,7 @@ const PurchaseBillDashboard = () => {
 
       let query = supabase
         .from("purchase_bills")
-        .select("id, supplier_id, supplier_name, supplier_invoice_no, software_bill_no, bill_date, bill_entry_at, gross_amount, discount_amount, gst_amount, net_amount, notes, created_at, created_by, payment_status, paid_amount, total_qty, is_dc_purchase, bill_image_url, is_locked, is_cancelled, cancelled_at, cancelled_reason, purchase_items(count)", { count: "exact" })
+        .select("id, supplier_id, supplier_name, supplier_invoice_no, software_bill_no, bill_date, bill_entry_at, gross_amount, discount_amount, gst_amount, net_amount, notes, created_at, created_by, payment_status, paid_amount, total_qty, total_items, is_dc_purchase, bill_image_url, is_locked, is_cancelled, cancelled_at, cancelled_reason", { count: "exact" })
         .eq("organization_id", currentOrganization.id)
         .is("deleted_at", null);
 
@@ -831,7 +831,7 @@ const PurchaseBillDashboard = () => {
     // Large bills (many line items) can exceed the 60-second DB statement
     // timeout during stock reversal. Warn the user up front so a timeout
     // isn't read as "delete not allowed".
-    const lineCount = bill.purchase_items?.[0]?.count ?? 0;
+    const lineCount = bill.total_items ?? 0;
     if (lineCount > 1500) {
       toast({
         title: "Large bill",
@@ -1814,9 +1814,8 @@ const PurchaseBillDashboard = () => {
       header: "Items",
       cell: ({ row }) => {
         const bill = row.original;
-        const countFromQuery = bill.purchase_items?.[0]?.count;
         const countFromExpand = billItems[bill.id]?.length;
-        const displayCount = countFromExpand ?? countFromQuery ?? 0;
+        const displayCount = countFromExpand ?? bill.total_items ?? 0;
         return <span className="text-center block text-sm font-medium">{displayCount}</span>;
       },
       size: 48,
