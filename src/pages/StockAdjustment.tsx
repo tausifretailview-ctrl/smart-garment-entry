@@ -17,6 +17,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { AlertTriangle, Package, Calculator, Save, RefreshCw, Search, Filter } from "lucide-react";
 import { format } from "date-fns";
+import { invalidateStatusBarSummary } from "@/utils/invalidateDashboardQueries";
 
 interface VariantWithMovements {
   id: string;
@@ -383,6 +384,9 @@ const StockAdjustment = () => {
         description: `Updated opening quantity for ${count} item(s)`,
       });
       queryClient.invalidateQueries({ queryKey: ["stock-adjustment-variants"] });
+      if (currentOrganization?.id) {
+        invalidateStatusBarSummary(queryClient, currentOrganization.id);
+      }
       refetch();
     },
     onError: (error: any) => {

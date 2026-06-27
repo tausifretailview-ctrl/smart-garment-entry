@@ -12,6 +12,13 @@ export function invalidateInvoiceDashboardQueries(queryClient: QueryClient) {
   void queryClient.invalidateQueries({ queryKey: ["invoice-dashboard-unified"] });
 }
 
+/** Status bar stock + receivables tile (v_dashboard_stock_summary / v_dashboard_receivables). */
+export function invalidateStatusBarSummary(queryClient: QueryClient, organizationId?: string) {
+  void queryClient.invalidateQueries({
+    queryKey: organizationId ? ["statusbar-summary", organizationId] : ["statusbar-summary"],
+  });
+}
+
 /** Purchase bill list + summary tiles + shared dashboard stats. */
 export function invalidatePurchaseDashboardQueries(queryClient: QueryClient) {
   queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
@@ -49,6 +56,7 @@ export function invalidateAfterSaleSave(
   } else {
     invalidateSalesQueriesNow(queryClient, organizationId);
   }
+  invalidateStatusBarSummary(queryClient, organizationId);
 }
 
 /** After customer receipt / advance / delete that affects invoice settlement. */

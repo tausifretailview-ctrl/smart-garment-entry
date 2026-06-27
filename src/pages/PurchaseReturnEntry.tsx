@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useSearchParams, useLocation } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -37,6 +37,7 @@ import {
 } from "@/utils/accounting/journalService";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
 import { coerceToMap } from "@/lib/coerceToMap";
+import { invalidateStatusBarSummary } from "@/utils/invalidateDashboardQueries";
 
 function parseReturnQty(uom: string | undefined, raw: string): number {
   if (isDecimalUOM(uom)) {
@@ -156,6 +157,7 @@ const PurchaseReturnEntry = () => {
   const { user } = useAuth();
   const { orgNavigate: navigate } = useOrgNavigation();
   const { currentOrganization, loading: orgLoading } = useOrganization();
+  const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
   const location = useLocation();
   const routeState = location.state as PurchaseReturnRouteState | null;
@@ -1468,6 +1470,9 @@ const PurchaseReturnEntry = () => {
         });
       }
 
+      if (currentOrganization?.id) {
+        invalidateStatusBarSummary(queryClient, currentOrganization.id);
+      }
       // Clear draft on successful save
       await deleteDraft();
       navigate("/purchase-returns");

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { logError } from "@/lib/errorLogger";
 import { insertLedgerCredit, deleteLedgerEntries } from "@/lib/customerLedger";
 import {
@@ -34,6 +35,7 @@ import { isSaleInvoiceCancelled } from "@/utils/saleInvoiceStatus";
 import { entryPageMainClass, entryPageSectionX, entryPageShellClass } from "@/lib/entryPageLayout";
 import { useEntryViewportSync } from "@/hooks/useEntryViewportSync";
 import { cn } from "@/lib/utils";
+import { invalidateStatusBarSummary } from "@/utils/invalidateDashboardQueries";
 
 interface Customer {
   id: string;
@@ -83,6 +85,7 @@ export default function SaleReturnEntry() {
   const { editId } = useParams<{ editId?: string }>();
   const { toast } = useToast();
   const { currentOrganization } = useOrganization();
+  const queryClient = useQueryClient();
 
   const isEditMode = !!editId;
 
@@ -1074,6 +1077,9 @@ export default function SaleReturnEntry() {
         }
       }
 
+      if (currentOrganization?.id) {
+        invalidateStatusBarSummary(queryClient, currentOrganization.id);
+      }
       orgNavigate("/sale-returns");
     } catch (error) {
       logError(

@@ -77,6 +77,8 @@ export const StatusBar = () => {
     },
     enabled: !!currentOrganization?.id,
     staleTime: STALE_FREQUENT,
+    refetchInterval: 120_000,
+    refetchIntervalInBackground: false,
     refetchOnWindowFocus: false,
   });
 

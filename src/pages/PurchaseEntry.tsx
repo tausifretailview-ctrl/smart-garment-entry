@@ -93,6 +93,7 @@ import { PriceUpdateConfirmDialog } from "@/components/PriceUpdateConfirmDialog"
 import { AddSupplierDialog } from "@/components/AddSupplierDialog";
 import { useDraftSave } from "@/hooks/useDraftSave";
 import { useDashboardInvalidation } from "@/hooks/useDashboardInvalidation";
+import { invalidateStatusBarSummary } from "@/utils/invalidateDashboardQueries";
 import {
   incrementSupplierInvoiceNumber,
   nextGlobalNumericSupplierInvoice,
@@ -1054,6 +1055,7 @@ const PurchaseEntry = () => {
         void queryClient.invalidateQueries({ queryKey: ["last-purchase-bill", currentOrganization.id] });
         void queryClient.invalidateQueries({ queryKey: ["org-supplier-invoice-numbers", currentOrganization.id] });
         void queryClient.invalidateQueries({ queryKey: ["peek-next-supplier-invoice", currentOrganization.id] });
+        invalidateStatusBarSummary(queryClient, currentOrganization.id);
       }
       if (currentOrganization?.id && user?.id) {
         dispatchPurchaseDraftSaved(currentOrganization.id, user.id);
