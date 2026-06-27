@@ -16,7 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format, startOfDay, endOfDay, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear } from "date-fns";
-import { CalendarIcon, Search, Package, IndianRupee, TrendingUp, Printer, FileSpreadsheet, FileText, Filter, X } from "lucide-react";
+import { CalendarIcon, Search, Printer, FileSpreadsheet, Filter, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import * as XLSX from "xlsx";
 import { multiTokenMatch } from "@/utils/multiTokenSearch";
@@ -47,12 +47,16 @@ interface FilterOptions {
   users: string[];
 }
 
-const SALES_TABLE_SCROLL = "flex-1 min-h-0 overflow-auto overscroll-contain min-w-0";
+const SALES_TABLE_SCROLL = "item-wise-sales-table-scroll tab-scroll-stable min-w-0";
+const SALES_VASY_HEAD_ROW = "border-none bg-slate-800 hover:bg-slate-800";
+const SALES_VASY_TH = "h-10 text-xs font-bold uppercase tracking-wide text-white whitespace-nowrap";
+const SALES_VASY_FOOTER = "sticky bottom-0 z-10 border-t-2 border-slate-300 bg-slate-100 [&>tr]:border-0";
+const SALES_BODY_ROW = "h-11 hover:bg-teal-50/80";
 const SALES_PRODUCT_CELL =
-  "py-1 px-2 align-middle text-base font-bold text-foreground bg-blue-50/40 dark:bg-blue-950/20 whitespace-nowrap";
-const SALES_DETAIL_CELL = "py-1 px-2 align-middle text-sm font-semibold text-foreground whitespace-nowrap";
-const SALES_QTY_CELL = "py-1 px-2 align-middle text-base font-bold text-right tabular-nums text-foreground";
-const SALES_AMOUNT_CELL = "py-1 px-2 align-middle text-base font-bold text-right tabular-nums text-primary";
+  "py-2.5 px-4 align-middle text-sm font-semibold text-foreground bg-blue-50/40 dark:bg-blue-950/20 whitespace-nowrap";
+const SALES_DETAIL_CELL = "py-2.5 px-4 align-middle text-sm text-foreground whitespace-nowrap";
+const SALES_QTY_CELL = "py-2.5 px-4 align-middle text-sm font-semibold text-right tabular-nums text-foreground";
+const SALES_AMOUNT_CELL = "py-2.5 px-4 align-middle text-sm font-bold text-right tabular-nums text-primary";
 
 function highlightSearchText(text: string, query: string): ReactNode {
   const raw = text || "";
@@ -699,39 +703,51 @@ export default function ItemWiseSalesReport() {
   );
 
   return (
-    <div className="item-wise-sales-report flex flex-col h-[calc(100vh-3.25rem)] min-h-0 bg-slate-50 px-1 sm:px-1.5 py-0.5 overflow-hidden print:min-h-screen print:h-auto print:overflow-visible print:p-4">
-      <div className="w-full min-w-0 flex flex-col flex-1 min-h-0 gap-0.5 print:gap-2">
-      <div className="print:hidden shrink-0 flex flex-wrap items-center gap-1.5 [&_button]:mb-0">
-        <BackToDashboard />
-        <h1 className="text-base font-bold text-blue-600 tracking-tight leading-none">Item-wise Sales Report</h1>
-        <div className="flex items-center gap-1 ml-auto">
-          <Button variant="outline" className="h-7 text-xs border-slate-300 text-slate-600 gap-1 px-2" onClick={handlePrint}>
-            <Printer className="h-3 w-3" />
+    <div className="item-wise-sales-workspace item-wise-sales-report flex h-full min-h-0 w-full flex-col overflow-hidden bg-slate-50 px-2 py-2 sm:px-3 print:min-h-screen print:h-auto print:overflow-visible print:bg-white print:p-4">
+      <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col gap-2">
+      <div className="print:hidden shrink-0 flex flex-wrap items-center justify-between gap-2 [&_button]:mb-0">
+        <div className="flex min-w-0 items-center gap-2">
+          <BackToDashboard />
+          <div className="min-w-0">
+            <h1 className="text-xl font-bold leading-none tracking-tight text-blue-700">Item-wise Sales Report</h1>
+            <p className="mt-1 truncate text-sm text-muted-foreground">
+              {format(dateRange.from, "dd MMM yyyy")} – {format(dateRange.to, "dd MMM yyyy")}
+              {searchQuery && (
+                <span className="ml-2 font-semibold text-amber-700 dark:text-amber-400">
+                  · {filteredData.length.toLocaleString("en-IN")} of {aggregatedData.length.toLocaleString("en-IN")} items
+                </span>
+              )}
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-1.5 shrink-0">
+          <Button variant="outline" size="sm" className="h-9 gap-1.5 text-sm border-slate-300" onClick={handlePrint}>
+            <Printer className="h-4 w-4" />
             Print
           </Button>
-          <Button variant="outline" className="h-7 text-xs border-slate-300 text-slate-600 gap-1 px-2" onClick={exportToExcel}>
-            <FileSpreadsheet className="h-3 w-3" />
+          <Button variant="outline" size="sm" className="h-9 gap-1.5 text-sm border-slate-300" onClick={exportToExcel}>
+            <FileSpreadsheet className="h-4 w-4" />
             Excel
           </Button>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-1 shrink-0 print:hidden">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 shrink-0 print:hidden">
         {salesKpiItems.map((item) => (
-          <div key={item.label} className={cn("rounded-md px-1.5 py-1 min-w-0 shadow-sm", item.gradient)}>
-            <p className="text-[9px] font-medium text-white/80 leading-none truncate">{item.label}</p>
-            <p className="text-sm font-black text-white tabular-nums leading-tight truncate">{item.value}</p>
+          <div key={item.label} className={cn("rounded-lg px-3 py-2 min-w-0 shadow-sm", item.gradient)}>
+            <p className="text-xs font-medium text-white/80 leading-none truncate">{item.label}</p>
+            <p className="mt-1 text-base font-black text-white tabular-nums leading-tight truncate sm:text-lg">{item.value}</p>
           </div>
         ))}
       </div>
 
       <Card className="rounded-lg border border-slate-200 shadow-sm shrink-0 print:hidden">
-        <CardContent className="p-1 space-y-0.5">
-            <div className="grid grid-cols-1 md:grid-cols-12 gap-1.5 items-end">
-              <div className="md:col-span-2 space-y-0.5">
-                <label className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Period</label>
+        <CardContent className="p-2 space-y-1.5">
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-2 items-end">
+              <div className="md:col-span-2 space-y-1">
+                <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Period</label>
                 <Select value={periodType} onValueChange={(v) => setPeriodType(v as PeriodType)}>
-                  <SelectTrigger className="h-8 text-sm">
+                  <SelectTrigger className="h-10 text-sm border-slate-200 bg-slate-50">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -746,11 +762,11 @@ export default function ItemWiseSalesReport() {
               </div>
 
               {periodType !== "custom" && periodType !== "all" && (
-                <div className="md:col-span-2 space-y-0.5">
-                  <label className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Date</label>
+                <div className="md:col-span-2 space-y-1">
+                  <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Date</label>
                   <Popover>
                     <PopoverTrigger asChild>
-                      <Button variant="outline" className="h-8 w-full justify-start text-left font-normal text-sm px-2">
+                      <Button variant="outline" className="h-10 w-full justify-start text-left font-normal text-sm px-2 border-slate-200 bg-slate-50">
                         <CalendarIcon className="mr-1.5 h-3.5 w-3.5 shrink-0" />
                         <span className="truncate">{format(selectedDate, "dd MMM yyyy")}</span>
                       </Button>
@@ -764,11 +780,11 @@ export default function ItemWiseSalesReport() {
 
               {periodType === "custom" && (
                 <>
-                  <div className="md:col-span-2 space-y-0.5">
-                    <label className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">From</label>
+                  <div className="md:col-span-2 space-y-1">
+                    <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">From</label>
                     <Popover>
                       <PopoverTrigger asChild>
-                        <Button variant="outline" className="h-8 w-full justify-start text-left font-normal text-sm px-2">
+                        <Button variant="outline" className="h-10 w-full justify-start text-left font-normal text-sm px-2 border-slate-200 bg-slate-50">
                           <CalendarIcon className="mr-1.5 h-3.5 w-3.5 shrink-0" />
                           <span className="truncate">{format(customDateRange.from, "dd MMM yyyy")}</span>
                         </Button>
@@ -778,11 +794,11 @@ export default function ItemWiseSalesReport() {
                       </PopoverContent>
                     </Popover>
                   </div>
-                  <div className="md:col-span-2 space-y-0.5">
-                    <label className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">To</label>
+                  <div className="md:col-span-2 space-y-1">
+                    <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">To</label>
                     <Popover>
                       <PopoverTrigger asChild>
-                        <Button variant="outline" className="h-8 w-full justify-start text-left font-normal text-sm px-2">
+                        <Button variant="outline" className="h-10 w-full justify-start text-left font-normal text-sm px-2 border-slate-200 bg-slate-50">
                           <CalendarIcon className="mr-1.5 h-3.5 w-3.5 shrink-0" />
                           <span className="truncate">{format(customDateRange.to, "dd MMM yyyy")}</span>
                         </Button>
@@ -795,114 +811,106 @@ export default function ItemWiseSalesReport() {
                 </>
               )}
 
-              <div className={cn("space-y-0.5", periodType === "custom" ? "md:col-span-4" : periodType === "all" ? "md:col-span-8" : "md:col-span-6")}>
-                <label className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Search</label>
-                <div className="flex gap-1.5 items-center">
+              <div className={cn("space-y-1", periodType === "custom" ? "md:col-span-4" : periodType === "all" ? "md:col-span-8" : "md:col-span-6")}>
+                <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Search</label>
+                <div className="flex gap-2 items-center">
                   <div className="relative flex-1 min-w-0">
-                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
                       placeholder="Name, brand, barcode, color… (multi-word AND)"
                       value={searchInput}
                       onChange={(e) => setSearchInput(e.target.value)}
                       onKeyDown={(e) => { if (e.key === "Enter") handleSearch(); }}
-                      className="h-8 pl-8 pr-8 text-sm no-uppercase"
+                      className="h-10 pl-10 pr-9 text-sm no-uppercase border-slate-200 bg-slate-50 focus:bg-white"
                     />
                     {searchInput && (
                       <button type="button" onClick={handleClearSearch} className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded-full hover:bg-muted">
-                        <X className="h-3.5 w-3.5 text-muted-foreground" />
+                        <X className="h-4 w-4 text-muted-foreground" />
                       </button>
                     )}
                   </div>
-                  <Button onClick={handleSearch} className="h-8 px-4 text-sm font-semibold bg-blue-600 hover:bg-blue-700 shrink-0 gap-1.5">
-                    <Search className="h-3.5 w-3.5" />
+                  <Button onClick={handleSearch} className="h-10 px-4 text-sm font-semibold bg-blue-600 hover:bg-blue-700 shrink-0 gap-1.5">
+                    <Search className="h-4 w-4" />
                     Search
                   </Button>
                 </div>
               </div>
 
-              <div className="md:col-span-2 space-y-0.5">
-                <label className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 invisible md:visible">Filters</label>
+              <div className="md:col-span-2 space-y-1">
+                <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 invisible md:visible">Filters</label>
                 <Button
                   variant={showFilters ? "secondary" : "outline"}
                   onClick={() => setShowFilters(!showFilters)}
-                  className="h-8 w-full text-sm"
+                  className="h-10 w-full text-sm border-slate-200"
                 >
-                  <Filter className="h-3.5 w-3.5 mr-1.5" />
+                  <Filter className="h-4 w-4 mr-1.5" />
                   Filters
                 </Button>
               </div>
             </div>
 
             {showFilters && (
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-1.5 pt-1 border-t border-slate-100">
-                <div className="space-y-0.5">
-                  <label className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{fieldLabels.brand}</label>
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2 pt-1.5 border-t border-slate-100">
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">{fieldLabels.brand}</label>
                   <SearchableSelect value={selectedBrand} onValueChange={setSelectedBrand} options={filterOptions.brands} placeholder={`All ${fieldLabels.brand}`} allLabel={`All ${fieldLabels.brand}`} allValue="all" />
                 </div>
-                <div className="space-y-0.5">
-                  <label className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{fieldLabels.category}</label>
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">{fieldLabels.category}</label>
                   <SearchableSelect value={selectedCategory} onValueChange={setSelectedCategory} options={filterOptions.categories} placeholder={`All ${fieldLabels.category}`} allLabel={`All ${fieldLabels.category}`} allValue="all" />
                 </div>
                 <div className="space-y-0.5">
-                  <label className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{fieldLabels.style}</label>
+                  <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">{fieldLabels.style}</label>
                   <SearchableSelect value={selectedDepartment} onValueChange={setSelectedDepartment} options={filterOptions.departments} placeholder={`All ${fieldLabels.style}`} allLabel={`All ${fieldLabels.style}`} allValue="all" />
                 </div>
                 <div className="space-y-0.5">
-                  <label className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{fieldLabels.color}</label>
+                  <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">{fieldLabels.color}</label>
                   <SearchableSelect value={selectedColor} onValueChange={setSelectedColor} options={filterOptions.colors} placeholder={`All ${fieldLabels.color}`} allLabel={`All ${fieldLabels.color}`} allValue="all" />
                 </div>
                 <div className="space-y-0.5">
-                  <label className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Customer</label>
+                  <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Customer</label>
                   <SearchableSelect value={selectedCustomer} onValueChange={setSelectedCustomer} options={filterOptions.customers} placeholder="All Customers" allLabel="All Customers" allValue="all" />
                 </div>
                 <div className="space-y-0.5">
-                  <label className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">User</label>
+                  <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">User</label>
                   <SearchableSelect value={selectedUser} onValueChange={setSelectedUser} options={filterOptions.users} placeholder="All Users" allLabel="All Users" allValue="all" />
                 </div>
               </div>
             )}
 
-            <div className="text-xs text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-0.5">
-              <span>{format(dateRange.from, "dd MMM yyyy")} – {format(dateRange.to, "dd MMM yyyy")}</span>
-              {searchQuery && (
-                <span className="font-semibold text-amber-700 dark:text-amber-400">
-                  {filteredData.length.toLocaleString("en-IN")} of {aggregatedData.length.toLocaleString("en-IN")} items
-                </span>
-              )}
-              {(selectedBrand !== "all" || selectedCategory !== "all" || selectedDepartment !== "all" || selectedColor !== "all" || selectedCustomer !== "all" || selectedUser !== "all") && (
-                <span className="text-primary font-medium">Filters applied</span>
-              )}
-            </div>
+            {(selectedBrand !== "all" || selectedCategory !== "all" || selectedDepartment !== "all" || selectedColor !== "all" || selectedCustomer !== "all" || selectedUser !== "all") && (
+              <p className="text-sm text-primary font-medium">Filters applied</p>
+            )}
         </CardContent>
       </Card>
 
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "itemwise" | "customerwise" | "brandwise" | "saledetails")} className="flex-1 min-h-0 flex flex-col mt-0">
-        <TabsList className="h-7 bg-slate-100 p-0.5 rounded-md shrink-0 w-fit">
-          <TabsTrigger value="itemwise" className="rounded text-xs font-semibold px-2.5 data-[state=active]:bg-white data-[state=active]:text-blue-700">Item-wise</TabsTrigger>
-          <TabsTrigger value="customerwise" className="rounded text-xs font-semibold px-2.5 data-[state=active]:bg-white data-[state=active]:text-blue-700">Customer-wise</TabsTrigger>
-          <TabsTrigger value="brandwise" className="rounded text-xs font-semibold px-2.5 data-[state=active]:bg-white data-[state=active]:text-blue-700">Brand-wise</TabsTrigger>
-          <TabsTrigger value="saledetails" className="rounded text-xs font-semibold px-2.5 data-[state=active]:bg-white data-[state=active]:text-blue-700">Sale Details</TabsTrigger>
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "itemwise" | "customerwise" | "brandwise" | "saledetails")} className="flex min-h-0 flex-1 flex-col">
+        <TabsList className="h-9 bg-slate-100 p-1 rounded-md shrink-0 w-fit print:hidden">
+          <TabsTrigger value="itemwise" className="rounded text-sm font-semibold px-3 data-[state=active]:bg-white data-[state=active]:text-blue-700">Item-wise</TabsTrigger>
+          <TabsTrigger value="customerwise" className="rounded text-sm font-semibold px-3 data-[state=active]:bg-white data-[state=active]:text-blue-700">Customer-wise</TabsTrigger>
+          <TabsTrigger value="brandwise" className="rounded text-sm font-semibold px-3 data-[state=active]:bg-white data-[state=active]:text-blue-700">Brand-wise</TabsTrigger>
+          <TabsTrigger value="saledetails" className="rounded text-sm font-semibold px-3 data-[state=active]:bg-white data-[state=active]:text-blue-700">Sale Details</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="itemwise" className="mt-0.5 flex-1 min-h-0 flex flex-col focus-visible:outline-none data-[state=inactive]:hidden">
-          <Card className="rounded-lg border border-slate-200 shadow-sm flex-1 min-h-0 flex flex-col overflow-hidden">
-            <CardHeader className="py-1 px-2 shrink-0">
-              <CardTitle className="text-xs font-semibold">Item-wise Details ({filteredData.length} items)</CardTitle>
+        <TabsContent value="itemwise" className="mt-2 flex-1 min-h-0 flex flex-col focus-visible:outline-none data-[state=inactive]:hidden">
+          <Card className="rounded-lg border border-slate-200 shadow-sm flex-1 min-h-0 flex flex-col overflow-hidden print:border-0 print:shadow-none">
+            <CardHeader className="py-2 px-3 shrink-0 border-b border-slate-100 bg-white">
+              <CardTitle className="text-sm font-semibold text-slate-700">Item-wise Details ({filteredData.length.toLocaleString("en-IN")} items)</CardTitle>
             </CardHeader>
             <CardContent className="p-0 flex-1 min-h-0 flex flex-col">
               <div className={SALES_TABLE_SCROLL}>
-                <Table className="text-sm min-w-max">
-                  <TableHeader>
-                    <TableRow className="bg-muted/50">
-                      <TableHead className="w-[100px] text-xs font-semibold">Barcode</TableHead>
-                      <TableHead className="text-xs font-semibold">Product Name</TableHead>
-                      <TableHead className="text-xs font-semibold">{fieldLabels.brand}</TableHead>
-                      <TableHead className="text-xs font-semibold">{fieldLabels.category}</TableHead>
-                      <TableHead className="text-xs font-semibold">{fieldLabels.color}</TableHead>
-                      <TableHead className="text-xs font-semibold">Size</TableHead>
-                      <TableHead className="text-right text-xs font-semibold">Qty Sold</TableHead>
-                      <TableHead className="text-right text-xs font-semibold">Stock Qty</TableHead>
-                      <TableHead className="text-right text-xs font-semibold">Total Amount</TableHead>
+                <Table className="w-full min-w-max [&_td]:px-4 [&_th]:px-4">
+                  <TableHeader className="sticky top-0 z-10">
+                    <TableRow className={SALES_VASY_HEAD_ROW}>
+                      <TableHead className={cn("w-[110px]", SALES_VASY_TH)}>Barcode</TableHead>
+                      <TableHead className={cn("min-w-[180px]", SALES_VASY_TH)}>Product Name</TableHead>
+                      <TableHead className={cn("w-[100px]", SALES_VASY_TH)}>{fieldLabels.brand}</TableHead>
+                      <TableHead className={cn("w-[100px]", SALES_VASY_TH)}>{fieldLabels.category}</TableHead>
+                      <TableHead className={cn("w-[90px]", SALES_VASY_TH)}>{fieldLabels.color}</TableHead>
+                      <TableHead className={cn("w-[70px] text-center", SALES_VASY_TH)}>Size</TableHead>
+                      <TableHead className={cn("w-[90px] text-right", SALES_VASY_TH)}>Qty Sold</TableHead>
+                      <TableHead className={cn("w-[90px] text-right", SALES_VASY_TH)}>Stock Qty</TableHead>
+                      <TableHead className={cn("w-[120px] text-right", SALES_VASY_TH)}>Total Amount</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -912,86 +920,83 @@ export default function ItemWiseSalesReport() {
                       </TableRow>
                     ) : filteredData.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={9} className="text-center py-4 text-muted-foreground">No sales data found for the selected period</TableCell>
+                        <TableCell colSpan={9} className="h-24 text-center text-sm text-muted-foreground">No sales data found for the selected period</TableCell>
                       </TableRow>
                     ) : (() => {
                       const totalPages = Math.ceil(filteredData.length / ITEMS_PER_PAGE);
                       const paginatedData = filteredData.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
                       const rowMatches = (item: SaleItemData) =>
                         searchQuery.trim() && multiTokenMatch(searchQuery, item.product_name, item.barcode, item.brand, item.category, item.color, item.size);
-                      return (
-                        <>
-                          {paginatedData.map((item, idx) => (
+                      return paginatedData.map((item, idx) => (
                             <TableRow
                               key={idx}
                               className={cn(
-                                "hover:bg-muted/30",
+                                SALES_BODY_ROW,
                                 rowMatches(item) && "bg-amber-50/80 dark:bg-amber-950/25 ring-1 ring-inset ring-amber-300/50",
                               )}
                             >
-                              <TableCell className="font-mono text-sm font-semibold">{highlightSearchText(item.barcode || "-", searchQuery)}</TableCell>
+                              <TableCell className="font-mono text-sm">{highlightSearchText(item.barcode || "-", searchQuery)}</TableCell>
                               <TableCell className={SALES_PRODUCT_CELL}>{highlightSearchText(item.product_name, searchQuery)}</TableCell>
                               <TableCell className={SALES_DETAIL_CELL}>{highlightSearchText(item.brand || "-", searchQuery)}</TableCell>
                               <TableCell className={SALES_DETAIL_CELL}>{highlightSearchText(item.category || "-", searchQuery)}</TableCell>
                               <TableCell className={SALES_DETAIL_CELL}>{highlightSearchText(item.color || "-", searchQuery)}</TableCell>
-                              <TableCell className={SALES_DETAIL_CELL}>{highlightSearchText(item.size, searchQuery)}</TableCell>
+                              <TableCell className={cn(SALES_DETAIL_CELL, "text-center")}>{highlightSearchText(item.size, searchQuery)}</TableCell>
                               <TableCell className={SALES_QTY_CELL}>{item.total_qty.toLocaleString("en-IN")}</TableCell>
                               <TableCell className={SALES_QTY_CELL}>{item.stock_qty.toLocaleString("en-IN")}</TableCell>
                               <TableCell className={SALES_AMOUNT_CELL}>₹{item.total_amount.toLocaleString("en-IN")}</TableCell>
                             </TableRow>
-                          ))}
-                          {totalPages > 1 && (
-                            <TableRow>
-                              <TableCell colSpan={9}>
-                                <div className="flex items-center justify-between py-1">
-                                  <p className="text-xs text-muted-foreground">
-                                    {(currentPage - 1) * ITEMS_PER_PAGE + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filteredData.length)} of {filteredData.length}
-                                  </p>
-                                  <div className="flex items-center gap-1.5">
-                                    <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}>Previous</Button>
-                                    <span className="text-xs text-muted-foreground">Page {currentPage} of {totalPages}</span>
-                                    <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}>Next</Button>
-                                  </div>
-                                </div>
-                              </TableCell>
-                            </TableRow>
-                          )}
-                        </>
-                      );
+                          ));
                     })()}
                   </TableBody>
                   {filteredData.length > 0 && (
-                    <TableFooter>
-                      <TableRow>
-                        <TableCell colSpan={6} className="font-bold text-sm">Grand Total</TableCell>
-                        <TableCell className={SALES_QTY_CELL}>{itemWiseTotals.total_qty.toLocaleString()}</TableCell>
-                        <TableCell className={SALES_QTY_CELL}>{itemWiseTotals.stock_qty.toLocaleString()}</TableCell>
-                        <TableCell className={SALES_AMOUNT_CELL}>₹{itemWiseTotals.total_amount.toLocaleString("en-IN")}</TableCell>
+                    <TableFooter className={SALES_VASY_FOOTER}>
+                      <TableRow className="hover:bg-slate-100">
+                        <TableCell colSpan={6} className="py-3 text-sm font-bold text-teal-700">Grand Total</TableCell>
+                        <TableCell className={cn(SALES_QTY_CELL, "py-3 text-base font-bold")}>{itemWiseTotals.total_qty.toLocaleString()}</TableCell>
+                        <TableCell className={cn(SALES_QTY_CELL, "py-3 text-base font-bold")}>{itemWiseTotals.stock_qty.toLocaleString()}</TableCell>
+                        <TableCell className={cn(SALES_AMOUNT_CELL, "py-3 text-base font-bold")}>₹{itemWiseTotals.total_amount.toLocaleString("en-IN")}</TableCell>
                       </TableRow>
                     </TableFooter>
                   )}
                 </Table>
               </div>
+              {filteredData.length > ITEMS_PER_PAGE && (() => {
+                const totalPages = Math.ceil(filteredData.length / ITEMS_PER_PAGE);
+                const pageStart = (currentPage - 1) * ITEMS_PER_PAGE + 1;
+                const pageEnd = Math.min(currentPage * ITEMS_PER_PAGE, filteredData.length);
+                return (
+                  <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-slate-100 bg-white px-3 py-2 print:hidden">
+                    <p className="text-sm tabular-nums text-slate-600">
+                      Showing {pageStart.toLocaleString("en-IN")}–{pageEnd.toLocaleString("en-IN")} of {filteredData.length.toLocaleString("en-IN")}
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <Button variant="outline" size="sm" className="h-9 text-sm" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}>Previous</Button>
+                      <span className="text-sm text-muted-foreground">Page {currentPage} of {totalPages}</span>
+                      <Button variant="outline" size="sm" className="h-9 text-sm" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}>Next</Button>
+                    </div>
+                  </div>
+                );
+              })()}
             </CardContent>
           </Card>
         </TabsContent>
 
-        <TabsContent value="customerwise" className="mt-1 flex-1 min-h-0 flex flex-col focus-visible:outline-none data-[state=inactive]:hidden">
+        <TabsContent value="customerwise" className="mt-2 flex-1 min-h-0 flex flex-col focus-visible:outline-none data-[state=inactive]:hidden">
           <Card className="rounded-lg border border-slate-200 shadow-sm flex-1 min-h-0 flex flex-col overflow-hidden">
-            <CardHeader className="py-1.5 px-2 shrink-0">
-              <CardTitle className="text-sm font-semibold">Customer-wise Sale ({customerWiseData.length} customers)</CardTitle>
+            <CardHeader className="py-2 px-3 shrink-0 border-b border-slate-100 bg-white">
+              <CardTitle className="text-sm font-semibold text-slate-700">Customer-wise Sale ({customerWiseData.length.toLocaleString("en-IN")} customers)</CardTitle>
             </CardHeader>
-            <CardContent className="p-0 flex-1 min-h-0">
+            <CardContent className="p-0 flex-1 min-h-0 flex flex-col">
               <div className={SALES_TABLE_SCROLL}>
-                <Table className="text-sm min-w-max">
-                  <TableHeader>
-                     <TableRow className="bg-muted/50">
-                      <TableHead className="w-12 font-bold text-foreground">#</TableHead>
-                      <TableHead className="font-bold text-foreground">Customer Name</TableHead>
-                      <TableHead className="text-center font-bold text-foreground">Items</TableHead>
-                      <TableHead className="text-right font-bold text-foreground">Total Qty</TableHead>
-                      <TableHead className="text-right font-bold text-foreground">Total Value (₹)</TableHead>
-                      <TableHead className="text-right font-bold text-foreground">Avg Item Value (₹)</TableHead>
+                <Table className="w-full min-w-max [&_td]:px-4 [&_th]:px-4">
+                  <TableHeader className="sticky top-0 z-10">
+                     <TableRow className={SALES_VASY_HEAD_ROW}>
+                      <TableHead className={cn("w-14", SALES_VASY_TH)}>#</TableHead>
+                      <TableHead className={SALES_VASY_TH}>Customer Name</TableHead>
+                      <TableHead className={cn("w-[90px] text-center", SALES_VASY_TH)}>Items</TableHead>
+                      <TableHead className={cn("w-[110px] text-right", SALES_VASY_TH)}>Total Qty</TableHead>
+                      <TableHead className={cn("w-[130px] text-right", SALES_VASY_TH)}>Total Value (₹)</TableHead>
+                      <TableHead className={cn("w-[130px] text-right", SALES_VASY_TH)}>Avg Item Value (₹)</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -1005,11 +1010,11 @@ export default function ItemWiseSalesReport() {
                             return (
                               <React.Fragment key={row.customer_name}>
                                 <TableRow
-                                  className={cn("cursor-pointer hover:bg-muted/40", globalIdx % 2 === 0 ? "" : "bg-muted/30")}
+                                  className={cn(SALES_BODY_ROW, "cursor-pointer", globalIdx % 2 === 0 ? "" : "bg-muted/20")}
                                   onClick={() => setExpandedCustomer(expandedCustomer === row.customer_name ? null : row.customer_name)}
                                 >
-                                  <TableCell className="font-mono text-xs text-muted-foreground">{globalIdx + 1}</TableCell>
-                                  <TableCell className="text-base font-bold text-foreground">
+                                  <TableCell className="font-mono text-sm text-muted-foreground">{globalIdx + 1}</TableCell>
+                                  <TableCell className="text-sm font-semibold text-primary">
                                     <span className="mr-1 text-xs">{expandedCustomer === row.customer_name ? "▼" : "▶"}</span>
                                     {row.customer_name}
                                   </TableCell>
@@ -1024,11 +1029,11 @@ export default function ItemWiseSalesReport() {
                                       <div className="bg-muted/20 border-y">
                                         <Table>
                                           <TableHeader>
-                                            <TableRow className="bg-muted/40">
-                                              <TableHead className="w-12 pl-10 font-bold text-foreground">#</TableHead>
-                                              <TableHead className="pl-10 font-bold text-foreground">Product Name</TableHead>
-                                              <TableHead className="text-right font-bold text-foreground">Qty</TableHead>
-                                              <TableHead className="text-right font-bold text-foreground">Amount (₹)</TableHead>
+                                            <TableRow className={SALES_VASY_HEAD_ROW}>
+                                              <TableHead className={cn("w-14 pl-10", SALES_VASY_TH)}>#</TableHead>
+                                              <TableHead className={cn("pl-10", SALES_VASY_TH)}>Product Name</TableHead>
+                                              <TableHead className={cn("w-[90px] text-right", SALES_VASY_TH)}>Qty</TableHead>
+                                              <TableHead className={cn("w-[120px] text-right", SALES_VASY_TH)}>Amount (₹)</TableHead>
                                             </TableRow>
                                           </TableHeader>
                                           <TableBody>
@@ -1070,13 +1075,13 @@ export default function ItemWiseSalesReport() {
                     })()}
                   </TableBody>
                   {customerWiseData.length > 0 && (
-                    <TableFooter>
-                      <TableRow>
-                        <TableCell colSpan={2} className="font-bold">Grand Total</TableCell>
-                        <TableCell className="text-center font-bold">{customerWiseData.reduce((s, r) => s + r.item_count, 0)}</TableCell>
-                        <TableCell className="text-right font-bold">{customerWiseData.reduce((s, r) => s + r.total_qty, 0).toLocaleString()}</TableCell>
-                        <TableCell className="text-right font-bold text-primary">₹{Math.round(customerWiseData.reduce((s, r) => s + r.total_amount, 0)).toLocaleString("en-IN")}</TableCell>
-                        <TableCell className="text-right font-bold">-</TableCell>
+                    <TableFooter className={SALES_VASY_FOOTER}>
+                      <TableRow className="hover:bg-slate-100">
+                        <TableCell colSpan={2} className="py-3 text-sm font-bold text-teal-700">Grand Total</TableCell>
+                        <TableCell className="py-3 text-center text-sm font-bold">{customerWiseData.reduce((s, r) => s + r.item_count, 0)}</TableCell>
+                        <TableCell className="py-3 text-right text-sm font-bold tabular-nums">{customerWiseData.reduce((s, r) => s + r.total_qty, 0).toLocaleString()}</TableCell>
+                        <TableCell className="py-3 text-right text-sm font-bold tabular-nums text-primary">₹{Math.round(customerWiseData.reduce((s, r) => s + r.total_amount, 0)).toLocaleString("en-IN")}</TableCell>
+                        <TableCell className="py-3 text-right text-sm font-bold">-</TableCell>
                       </TableRow>
                     </TableFooter>
                   )}
@@ -1086,20 +1091,20 @@ export default function ItemWiseSalesReport() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="brandwise" className="mt-1 flex-1 min-h-0 flex flex-col focus-visible:outline-none data-[state=inactive]:hidden">
+        <TabsContent value="brandwise" className="mt-2 flex-1 min-h-0 flex flex-col focus-visible:outline-none data-[state=inactive]:hidden">
           <Card className="rounded-lg border border-slate-200 shadow-sm flex-1 min-h-0 flex flex-col overflow-hidden">
-            <CardHeader className="py-1.5 px-2 shrink-0">
-              <CardTitle className="text-sm font-semibold">Brand-wise Sale by Customer ({brandWiseData.length} rows)</CardTitle>
+            <CardHeader className="py-2 px-3 shrink-0 border-b border-slate-100 bg-white">
+              <CardTitle className="text-sm font-semibold text-slate-700">Brand-wise Sale by Customer ({brandWiseData.length.toLocaleString("en-IN")} rows)</CardTitle>
             </CardHeader>
-            <CardContent className="p-0 flex-1 min-h-0">
+            <CardContent className="p-0 flex-1 min-h-0 flex flex-col">
               <div className={SALES_TABLE_SCROLL}>
-                <Table className="text-sm min-w-max">
-                  <TableHeader>
-                     <TableRow className="bg-muted/50">
-                      <TableHead className="font-bold text-foreground">Customer Name</TableHead>
-                      <TableHead className="font-bold text-foreground">Brand</TableHead>
-                      <TableHead className="text-right font-bold text-foreground">Total Qty</TableHead>
-                      <TableHead className="text-right font-bold text-foreground">Total Amount</TableHead>
+                <Table className="w-full min-w-max [&_td]:px-4 [&_th]:px-4">
+                  <TableHeader className="sticky top-0 z-10">
+                     <TableRow className={SALES_VASY_HEAD_ROW}>
+                      <TableHead className={SALES_VASY_TH}>Customer Name</TableHead>
+                      <TableHead className={cn("w-[140px]", SALES_VASY_TH)}>Brand</TableHead>
+                      <TableHead className={cn("w-[110px] text-right", SALES_VASY_TH)}>Total Qty</TableHead>
+                      <TableHead className={cn("w-[130px] text-right", SALES_VASY_TH)}>Total Amount</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -1131,8 +1136,8 @@ export default function ItemWiseSalesReport() {
                             const showCustomer = item.customer_name !== lastCustomer;
                             lastCustomer = item.customer_name;
                             return (
-                              <TableRow key={idx} className={cn("hover:bg-muted/30", showCustomer && idx > 0 && "border-t-2 border-border")}>
-                                <TableCell className="text-base font-bold text-foreground">
+                              <TableRow key={idx} className={cn(SALES_BODY_ROW, showCustomer && idx > 0 && "border-t-2 border-border")}>
+                                <TableCell className="text-sm font-semibold text-primary">
                                   {showCustomer ? item.customer_name : ""}
                                 </TableCell>
                                 <TableCell className={SALES_DETAIL_CELL}>{item.brand}</TableCell>
@@ -1162,13 +1167,13 @@ export default function ItemWiseSalesReport() {
                     })()}
                   </TableBody>
                   {brandWiseData.length > 0 && (
-                    <TableFooter>
-                      <TableRow>
-                        <TableCell colSpan={2} className="font-bold">Grand Total</TableCell>
-                        <TableCell className="text-right font-bold">
+                    <TableFooter className={SALES_VASY_FOOTER}>
+                      <TableRow className="hover:bg-slate-100">
+                        <TableCell colSpan={2} className="py-3 text-sm font-bold text-teal-700">Grand Total</TableCell>
+                        <TableCell className="py-3 text-right text-sm font-bold tabular-nums">
                           {brandWiseData.reduce((s, r) => s + r.total_qty, 0).toLocaleString()}
                         </TableCell>
-                        <TableCell className="text-right font-bold text-primary">
+                        <TableCell className="py-3 text-right text-sm font-bold tabular-nums text-primary">
                           ₹{brandWiseData.reduce((s, r) => s + r.total_amount, 0).toLocaleString()}
                         </TableCell>
                       </TableRow>
@@ -1181,115 +1186,75 @@ export default function ItemWiseSalesReport() {
         </TabsContent>
 
         {/* Sale Details Tab */}
-        <TabsContent value="saledetails">
-          <Card>
-            <CardHeader className="pb-3">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-                <CardTitle className="text-lg">
-                  {({ product_name: "Product Name", brand: fieldLabels.brand, category: fieldLabels.category, department: fieldLabels.style, barcode: "Barcode" })[saleDetailsGroupBy]} Wise Sale Details ({saleDetailsData.length} rows)
+        <TabsContent value="saledetails" className="mt-2 flex-1 min-h-0 flex flex-col focus-visible:outline-none data-[state=inactive]:hidden">
+          <Card className="rounded-lg border border-slate-200 shadow-sm flex-1 min-h-0 flex flex-col overflow-hidden">
+            <CardHeader className="py-2 px-3 shrink-0 border-b border-slate-100 bg-white space-y-2">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-2">
+                <CardTitle className="text-sm font-semibold text-slate-700">
+                  {({ product_name: "Product Name", brand: fieldLabels.brand, category: fieldLabels.category, department: fieldLabels.style, barcode: "Barcode" })[saleDetailsGroupBy]} Wise Sale Details ({saleDetailsData.length.toLocaleString("en-IN")} rows)
                 </CardTitle>
-                <div className="flex items-center gap-2">
-                  <Button variant="outline" size="sm" onClick={exportToExcel}>
-                    <FileSpreadsheet className="h-4 w-4 mr-2" />
-                    Excel
-                  </Button>
-                </div>
               </div>
-            </CardHeader>
-            <CardContent>
-              {/* Group By + Search */}
-              <div className="flex flex-col md:flex-row gap-3 mb-4">
-                <div className="w-full md:w-48">
-                  <Select value={saleDetailsGroupBy} onValueChange={(v) => { setSaleDetailsGroupBy(v as any); setSaleDetailsPage(1); }}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="product_name">Product Name</SelectItem>
-                      <SelectItem value="brand">{fieldLabels.brand}</SelectItem>
-                      <SelectItem value="category">{fieldLabels.category}</SelectItem>
-                      <SelectItem value="department">{fieldLabels.style}</SelectItem>
-                      <SelectItem value="barcode">Barcode</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex-1 relative">
+              <div className="flex flex-col md:flex-row gap-2">
+                <Select value={saleDetailsGroupBy} onValueChange={(v) => { setSaleDetailsGroupBy(v as any); setSaleDetailsPage(1); }}>
+                  <SelectTrigger className="h-10 w-full md:w-48 border-slate-200 bg-slate-50 text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="product_name">Product Name</SelectItem>
+                    <SelectItem value="brand">{fieldLabels.brand}</SelectItem>
+                    <SelectItem value="category">{fieldLabels.category}</SelectItem>
+                    <SelectItem value="department">{fieldLabels.style}</SelectItem>
+                    <SelectItem value="barcode">Barcode</SelectItem>
+                  </SelectContent>
+                </Select>
+                <div className="relative flex-1">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
                     placeholder={`Search ${({ product_name: "product name", brand: "brand", category: "category", department: "department", barcode: "barcode / product / brand" })[saleDetailsGroupBy]}...`}
                     value={saleDetailsSearch}
                     onChange={(e) => { setSaleDetailsSearch(e.target.value); setSaleDetailsPage(1); }}
-                    className="pl-9 pr-8 no-uppercase"
+                    className="h-10 pl-10 pr-9 no-uppercase border-slate-200 bg-slate-50 focus:bg-white text-sm"
                   />
                   {saleDetailsSearch && (
-                    <button onClick={() => setSaleDetailsSearch("")} className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded-full hover:bg-muted">
-                      <X className="h-3.5 w-3.5 text-muted-foreground" />
+                    <button type="button" onClick={() => setSaleDetailsSearch("")} className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded-full hover:bg-muted">
+                      <X className="h-4 w-4 text-muted-foreground" />
                     </button>
                   )}
                 </div>
               </div>
-
-              {/* Summary Cards */}
-              <div className="grid grid-cols-3 gap-4 mb-4">
-                <Card>
-                  <CardContent className="p-3">
-                    <div className="flex items-center gap-2">
-                      <div className="p-1.5 bg-primary/10 rounded-lg">
-                        <Package className="h-4 w-4 text-primary" />
-                      </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground">Total Stock</p>
-                        <p className="text-lg font-bold">{saleDetailsTotals.total_qty.toLocaleString()}</p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardContent className="p-3">
-                    <div className="flex items-center gap-2">
-                      <div className="p-1.5 bg-green-500/10 rounded-lg">
-                        <IndianRupee className="h-4 w-4 text-green-600" />
-                      </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground">Purchase Value</p>
-                        <p className="text-lg font-bold">₹{saleDetailsTotals.purchase_value.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardContent className="p-3">
-                    <div className="flex items-center gap-2">
-                      <div className="p-1.5 bg-orange-500/10 rounded-lg">
-                        <TrendingUp className="h-4 w-4 text-orange-600" />
-                      </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground">Sale Value</p>
-                        <p className="text-lg font-bold">₹{saleDetailsTotals.sale_value.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+              <div className="grid grid-cols-3 gap-2">
+                <div className="rounded-md bg-blue-50 px-3 py-2 border border-blue-100">
+                  <p className="text-xs text-muted-foreground">Total Qty</p>
+                  <p className="text-base font-bold tabular-nums">{saleDetailsTotals.total_qty.toLocaleString()}</p>
+                </div>
+                <div className="rounded-md bg-emerald-50 px-3 py-2 border border-emerald-100">
+                  <p className="text-xs text-muted-foreground">Purchase Value</p>
+                  <p className="text-base font-bold tabular-nums">₹{saleDetailsTotals.purchase_value.toLocaleString("en-IN", { maximumFractionDigits: 0 })}</p>
+                </div>
+                <div className="rounded-md bg-amber-50 px-3 py-2 border border-amber-100">
+                  <p className="text-xs text-muted-foreground">Sale Value</p>
+                  <p className="text-base font-bold tabular-nums">₹{saleDetailsTotals.sale_value.toLocaleString("en-IN", { maximumFractionDigits: 0 })}</p>
+                </div>
               </div>
-
-              {/* Table */}
-              <div className="border rounded-lg overflow-hidden">
-                <Table>
-                  <TableHeader>
-                     <TableRow className="bg-muted/50">
-                      <TableHead className="w-12 font-bold text-foreground">SR.NO</TableHead>
-                      <TableHead className="font-bold text-foreground">{({ product_name: "PRODUCT NAME", brand: "BRAND", category: "CATEGORY", department: "DEPARTMENT", barcode: "BARCODE" })[saleDetailsGroupBy]}</TableHead>
+            </CardHeader>
+            <CardContent className="p-0 flex-1 min-h-0 flex flex-col">
+              <div className={SALES_TABLE_SCROLL}>
+                <Table className="w-full min-w-max [&_td]:px-4 [&_th]:px-4">
+                  <TableHeader className="sticky top-0 z-10">
+                     <TableRow className={SALES_VASY_HEAD_ROW}>
+                      <TableHead className={cn("w-14", SALES_VASY_TH)}>Sr No</TableHead>
+                      <TableHead className={SALES_VASY_TH}>{({ product_name: "Product Name", brand: "Brand", category: "Category", department: "Department", barcode: "Barcode" })[saleDetailsGroupBy]}</TableHead>
                       {saleDetailsGroupBy === "barcode" && (
                         <>
-                          <TableHead className="font-bold text-foreground">PRODUCT</TableHead>
-                          <TableHead className="font-bold text-foreground">BRAND</TableHead>
-                          <TableHead className="font-bold text-foreground">SIZE</TableHead>
-                          <TableHead className="font-bold text-foreground">COLOR</TableHead>
+                          <TableHead className={SALES_VASY_TH}>Product</TableHead>
+                          <TableHead className={SALES_VASY_TH}>Brand</TableHead>
+                          <TableHead className={cn("w-[70px]", SALES_VASY_TH)}>Size</TableHead>
+                          <TableHead className={cn("w-[90px]", SALES_VASY_TH)}>Color</TableHead>
                         </>
                       )}
-                      <TableHead className="text-right font-bold text-foreground">STOCK</TableHead>
-                      <TableHead className="text-right font-bold text-foreground">PURCHASE VALUE</TableHead>
-                      <TableHead className="text-right font-bold text-foreground">SALES VALUE</TableHead>
+                      <TableHead className={cn("w-[90px] text-right", SALES_VASY_TH)}>Stock</TableHead>
+                      <TableHead className={cn("w-[130px] text-right", SALES_VASY_TH)}>Purchase Value</TableHead>
+                      <TableHead className={cn("w-[120px] text-right", SALES_VASY_TH)}>Sales Value</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -1307,9 +1272,9 @@ export default function ItemWiseSalesReport() {
                       return (
                         <>
                           {pageData.map((row, idx) => (
-                            <TableRow key={row.key} className="hover:bg-muted/30">
-                              <TableCell className="font-mono text-muted-foreground">{(saleDetailsPage - 1) * SALE_DETAILS_PAGE_SIZE + idx + 1}</TableCell>
-                              <TableCell className="font-medium text-primary">{row.key}</TableCell>
+                            <TableRow key={row.key} className={SALES_BODY_ROW}>
+                              <TableCell className="font-mono text-sm text-muted-foreground">{(saleDetailsPage - 1) * SALE_DETAILS_PAGE_SIZE + idx + 1}</TableCell>
+                              <TableCell className="text-sm font-semibold text-primary">{row.key}</TableCell>
                               {saleDetailsGroupBy === "barcode" && (
                                 <>
                                   <TableCell>{row.product_name || "-"}</TableCell>
@@ -1318,9 +1283,9 @@ export default function ItemWiseSalesReport() {
                                   <TableCell>{row.color || "-"}</TableCell>
                                 </>
                               )}
-                              <TableCell className="text-right font-mono">{row.total_qty}</TableCell>
-                              <TableCell className="text-right font-mono">{row.purchase_value.toFixed(2)}</TableCell>
-                              <TableCell className="text-right font-mono font-semibold">{row.sale_value.toFixed(2)}</TableCell>
+                              <TableCell className={SALES_QTY_CELL}>{row.total_qty}</TableCell>
+                              <TableCell className={SALES_DETAIL_CELL + " text-right tabular-nums"}>{row.purchase_value.toFixed(2)}</TableCell>
+                              <TableCell className={SALES_AMOUNT_CELL}>{row.sale_value.toFixed(2)}</TableCell>
                             </TableRow>
                           ))}
                           {totalPages > 1 && (
@@ -1344,12 +1309,12 @@ export default function ItemWiseSalesReport() {
                     })()}
                   </TableBody>
                   {saleDetailsData.length > 0 && (
-                    <TableFooter>
-                      <TableRow>
-                        <TableCell colSpan={saleDetailsGroupBy === "barcode" ? 6 : 2} className="font-bold">Grand Total</TableCell>
-                        <TableCell className="text-right font-bold">{saleDetailsTotals.total_qty.toLocaleString()}</TableCell>
-                        <TableCell className="text-right font-bold">{saleDetailsTotals.purchase_value.toFixed(2)}</TableCell>
-                        <TableCell className="text-right font-bold text-primary">₹{saleDetailsTotals.sale_value.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</TableCell>
+                    <TableFooter className={SALES_VASY_FOOTER}>
+                      <TableRow className="hover:bg-slate-100">
+                        <TableCell colSpan={saleDetailsGroupBy === "barcode" ? 6 : 2} className="py-3 text-sm font-bold text-teal-700">Grand Total</TableCell>
+                        <TableCell className="py-3 text-right text-sm font-bold tabular-nums">{saleDetailsTotals.total_qty.toLocaleString()}</TableCell>
+                        <TableCell className="py-3 text-right text-sm font-bold tabular-nums">{saleDetailsTotals.purchase_value.toFixed(2)}</TableCell>
+                        <TableCell className="py-3 text-right text-sm font-bold tabular-nums text-primary">₹{saleDetailsTotals.sale_value.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</TableCell>
                       </TableRow>
                     </TableFooter>
                   )}

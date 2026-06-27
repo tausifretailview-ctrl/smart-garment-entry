@@ -25,7 +25,7 @@ import { DesktopViewToggle, DesktopViewEscapeHatch } from "@/components/mobile/D
 import { useTabCacheLayout } from "@/contexts/TabCacheLayoutContext";
 import { cn } from "@/lib/utils";
 import { readSidebarLockedOpen } from "@/lib/sidebarPreference";
-import { isSidebarOnlyWorkspacePath } from "@/lib/entryPageLayout";
+import { isFillHeightDashboardPath, isSidebarOnlyWorkspacePath } from "@/lib/entryPageLayout";
 import { useSharedAppShell } from "@/contexts/SharedAppShellContext";
 
 interface LayoutProps {
@@ -37,6 +37,8 @@ export const Layout = ({ children }: LayoutProps) => {
   const location = useLocation();
   const isSalesInvoicePage = /\/sales-invoice(\/|$)/.test(location.pathname);
   const isSidebarOnlyPage = isSidebarOnlyWorkspacePath(location.pathname);
+  const isFillHeightDashboard = isFillHeightDashboardPath(location.pathname);
+  const isFullHeightWorkspace = isSidebarOnlyPage || isFillHeightDashboard;
   const showDesktopChrome = useShowDesktopChrome();
   const inTabCachePane = useTabCacheLayout();
   const sharedShell = useSharedAppShell();
@@ -50,7 +52,7 @@ export const Layout = ({ children }: LayoutProps) => {
       <main
         className={cn(
           "flex flex-1 flex-col min-h-0 min-w-0 relative z-[1] animate-fade-in",
-          isSidebarOnlyPage
+          isFullHeightWorkspace
             ? "overflow-hidden p-0"
             : "overflow-y-auto tab-scroll-stable p-3 sm:p-4 pb-14",
           inTabCachePane && "data-tab-scroll",
@@ -102,7 +104,7 @@ export const Layout = ({ children }: LayoutProps) => {
                   className={
                     isSalesInvoicePage
                       ? mobileFullscreenMainClass
-                      : isSidebarOnlyPage
+                      : isFullHeightWorkspace
                         ? cn(
                             "flex-1 min-h-0 overflow-hidden relative z-[1] min-w-0 p-0 animate-fade-in",
                             inTabCachePane && "data-tab-scroll",

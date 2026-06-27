@@ -2180,8 +2180,46 @@ main:has(.pos-dashboard-workspace) {
   line-height: inherit;
 }
 
+/* Item-wise Sales Report — full workspace + Vasy-style dense grid */
+.item-wise-sales-workspace {
+  height: 100%;
+  min-height: 0;
+  max-height: 100%;
+  overflow: hidden;
+}
+main:has(.item-wise-sales-workspace) {
+  overflow: hidden;
+  padding: 0;
+  scrollbar-gutter: auto;
+}
+@media (min-width: 1024px) {
+  main:has(.item-wise-sales-workspace) {
+    display: flex;
+    flex-direction: column;
+  }
+  main:has(.item-wise-sales-workspace) .item-wise-sales-workspace {
+    flex: 1 1 0%;
+    height: auto;
+    max-height: 100%;
+    min-height: 0;
+  }
+}
+
+.item-wise-sales-report table tbody td {
+  vertical-align: middle;
+}
+
 .item-wise-sales-report table tbody tr {
-  height: 32px;
+  height: 44px;
+}
+
+.item-wise-sales-report .item-wise-sales-table-scroll {
+  min-height: 0;
+  flex: 1 1 0%;
+  overflow-y: auto;
+  overflow-x: auto;
+  overscroll-behavior-y: contain;
+  background: #fff;
 }
 
 /* Bill entry — use full content width; product column absorbs extra space */
