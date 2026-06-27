@@ -84,7 +84,7 @@ export default function CustomerReconciliation() {
       return (data || []) as RawBalance[];
     },
     enabled: !!currentOrganization?.id,
-    staleTime: 0,
+    staleTime: 30_000,
     refetchOnWindowFocus: false,
   });
 
@@ -254,7 +254,7 @@ export default function CustomerReconciliation() {
       return result;
     },
     enabled: !!currentOrganization?.id,
-    staleTime: 0,
+    staleTime: 30_000,
     refetchOnWindowFocus: false,
   });
 
