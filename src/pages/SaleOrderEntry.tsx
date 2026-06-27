@@ -131,10 +131,6 @@ export type SaleOrderProductSearchGroup = {
   sizeCount: number;
   colorCount: number;
   colors: string[];
-  mrpMin: number;
-  mrpMax: number;
-  /** Stock qty grouped by MRP across all colors/sizes. */
-  mrpStockBreakdown: { mrp: number; stock: number }[];
   size_range?: string | null;
 };
 
@@ -223,7 +219,6 @@ function groupVariantsByProductFamily(
       (best, v) => ((v.stock_qty || 0) > (best.stock_qty || 0) ? v : best),
       group.variants[0],
     );
-    const mrps = group.variants.map((v) => v.mrp || 0).filter((m) => m > 0);
     const uniqueSizes = new Set(group.variants.map((v) => v.size).filter(Boolean));
     return {
       productName: representative.product_name,
@@ -240,9 +235,6 @@ function groupVariantsByProductFamily(
       sizeCount: uniqueSizes.size || group.variants.length,
       colorCount: group.colors.size,
       colors: Array.from(group.colors),
-      mrpMin: mrps.length ? Math.min(...mrps) : 0,
-      mrpMax: mrps.length ? Math.max(...mrps) : 0,
-      mrpStockBreakdown: [],
       size_range: representative.size_range,
     };
   });
@@ -271,36 +263,6 @@ async function sumVariantStockForProducts(orgId: string, productIds: string[]): 
   return (data || []).reduce((sum, row) => sum + Number(row.stock_qty || 0), 0);
 }
 
-async function sumVariantStockByMrp(
-  orgId: string,
-  productIds: string[],
-): Promise<{ mrp: number; stock: number }[]> {
-  if (!productIds.length) return [];
-  const { data, error } = await supabase
-    .from("product_variants")
-    .select("mrp, stock_qty")
-    .eq("organization_id", orgId)
-    .eq("active", true)
-    .is("deleted_at", null)
-    .in("product_id", productIds);
-  if (error) {
-    console.error("SaleOrderEntry: MRP stock breakdown failed", error);
-    return [];
-  }
-
-  const byMrp = new Map<number, number>();
-  for (const row of data || []) {
-    const mrp = Number(row.mrp || 0);
-    if (mrp <= 0) continue;
-    byMrp.set(mrp, (byMrp.get(mrp) || 0) + Number(row.stock_qty || 0));
-  }
-
-  return Array.from(byMrp.entries())
-    .map(([mrp, stock]) => ({ mrp, stock }))
-    .sort((a, b) => a.mrp - b.mrp);
-}
-
-/** Full merged stock across all colors/MRP rows — matches Size Stock grand total. */
 async function enrichSaleOrderSearchGroups(
   orgId: string,
   groups: SaleOrderProductSearchGroup[],
@@ -336,25 +298,17 @@ async function enrichSaleOrderSearchGroups(
         }
       }
       const productIds = Array.from(mergedIds);
-      const [totalStock, mrpStockBreakdown] = await Promise.all([
-        sumVariantStockForProducts(orgId, productIds),
-        sumVariantStockByMrp(orgId, productIds),
-      ]);
+      const totalStock = await sumVariantStockForProducts(orgId, productIds);
 
       const colors = new Set(group.colors);
       for (const p of matchingProducts || []) {
         if (mergedIds.has(p.id) && p.color) colors.add(p.color);
       }
 
-      const mrps = mrpStockBreakdown.map((row) => row.mrp);
-
       return {
         ...group,
         productIds,
         totalStock,
-        mrpStockBreakdown,
-        mrpMin: mrps.length ? Math.min(...mrps) : group.mrpMin,
-        mrpMax: mrps.length ? Math.max(...mrps) : group.mrpMax,
         colorCount: colors.size,
         colors: Array.from(colors),
       };
@@ -2016,25 +1970,6 @@ export default function SaleOrderEntry() {
                               <div className="flex flex-wrap gap-2 text-muted-foreground group-data-[selected=true]:text-white/85">
                                 {group.style && <span>{group.style}</span>}
                                 {group.brand && <span>{group.brand}</span>}
-                                {group.mrpStockBreakdown.length > 0 ? (
-                                  <span className="font-medium text-foreground group-data-[selected=true]:text-white">
-                                    {group.mrpStockBreakdown.map(({ mrp, stock }, index) => (
-                                      <span key={mrp}>
-                                        {index > 0 ? " · " : ""}
-                                        MRP ₹{mrp.toFixed(0)}: {stock} pcs
-                                      </span>
-                                    ))}
-                                  </span>
-                                ) : (
-                                  group.mrpMax > 0 && (
-                                    <span className="font-medium text-foreground group-data-[selected=true]:text-white">
-                                      MRP{" "}
-                                      {group.mrpMin > 0 && group.mrpMin !== group.mrpMax
-                                        ? `₹${group.mrpMin.toFixed(0)}–₹${group.mrpMax.toFixed(0)}`
-                                        : `₹${group.mrpMax.toFixed(0)}`}
-                                    </span>
-                                  )
-                                )}
                               </div>
                               <span
                                 className={cn(
