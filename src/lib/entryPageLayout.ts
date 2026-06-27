@@ -23,7 +23,7 @@ export function isFillHeightWorkspacePath(pathname: string): boolean {
 
 /** List dashboards with fixed header/cards and an internal scrolling table. */
 export const FILL_HEIGHT_DASHBOARD_PATH =
-  /\/(pos-dashboard|sales-invoice-dashboard|purchase-bills|purchase-bill-dashboard|accounts|customer-party-balances|supplier-party-balances|stock-report|item-wise-sales|item-wise-stock)(\/|$)/;
+  /\/(pos-dashboard|sales-invoice-dashboard|purchase-bills|purchase-bill-dashboard|accounts|customer-party-balances|supplier-party-balances|stock-report|item-wise-sales|item-wise-stock|customer-master)(\/|$)/;
 
 export function isFillHeightDashboardPath(pathname: string): boolean {
   return FILL_HEIGHT_DASHBOARD_PATH.test(pathname);

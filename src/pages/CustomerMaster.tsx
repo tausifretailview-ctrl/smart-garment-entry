@@ -50,7 +50,7 @@ import {
   UserX,
   Loader2,
 } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import {
   fetchCustomerSegmentIndex,
@@ -782,7 +782,7 @@ const CustomerMaster = () => {
       id: "srNo",
       header: "Sr No",
       cell: ({ row }) => (
-        <span className="tabular-nums text-muted-foreground text-[15px]">
+        <span className="tabular-nums text-muted-foreground text-sm">
           {startIndex + row.index + 1}
         </span>
       ),
@@ -811,7 +811,7 @@ const CustomerMaster = () => {
       header: "Mobile",
       size: 130,
       cell: ({ getValue }) => (
-        <span className="tabular-nums text-[15px]">{getValue() || "-"}</span>
+        <span className="tabular-nums text-sm">{getValue() || "-"}</span>
       ),
     },
     {
@@ -887,7 +887,7 @@ const CustomerMaster = () => {
         if (segmentsError) return <span className="text-right text-destructive text-sm">—</span>;
         const st = segmentIndex?.stats[row.original.id];
         return (
-          <span className="text-right font-medium tabular-nums block text-[15px]">
+          <span className="text-right font-medium tabular-nums block text-sm">
             {st ? fmtInr(st.revenue) : "-"}
           </span>
         );
@@ -904,7 +904,7 @@ const CustomerMaster = () => {
         if (segmentsError) return <span className="text-right text-destructive text-sm">—</span>;
         const st = segmentIndex?.stats[row.original.id];
         return (
-          <span className="text-right tabular-nums block text-[15px]">
+          <span className="text-right tabular-nums block text-sm">
             {st ? st.orders : "-"}
           </span>
         );
@@ -920,7 +920,7 @@ const CustomerMaster = () => {
         }
         if (segmentsError) return <span className="text-destructive text-sm">—</span>;
         const sd = segmentIndex?.stats[row.original.id]?.lastSaleDate;
-        return <span className="tabular-nums text-muted-foreground text-[15px]">{sd || "-"}</span>;
+        return <span className="tabular-nums text-muted-foreground text-sm">{sd || "-"}</span>;
       },
     },
     {
@@ -1138,49 +1138,46 @@ const CustomerMaster = () => {
   }
 
   return (
-    <div className="bg-slate-50/50 min-h-screen pb-24 lg:pb-0" onContextMenu={handlePageContextMenu}>
-      <div className="space-y-4 p-4">
-        <div>
-          <h1 className="text-2xl font-bold text-blue-700">Customer Master</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
+    <div
+      className="customer-master-workspace customer-master-dashboard flex h-full min-h-0 w-full flex-col overflow-hidden bg-slate-50 px-2 py-2 sm:px-3"
+      onContextMenu={handlePageContextMenu}
+    >
+      <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col gap-2">
+        <div className="shrink-0">
+          <h1 className="text-xl font-bold leading-none tracking-tight text-blue-700">Customer Master</h1>
+          <p className="mt-1 truncate text-sm text-muted-foreground">
             Segments use lifetime sales: VIP = recent + (5+ orders or ₹50k+), Risk = 91–365 days, Lost = 365+ days.
           </p>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 w-full">
+        <div className="grid shrink-0 grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
           {segmentCards.map((card) => (
-            <Card
+            <button
               key={card.key}
+              type="button"
               className={cn(
-                "cursor-pointer hover:shadow-xl transition-all duration-200 hover:scale-[1.02] bg-gradient-to-br border-0 shadow-md rounded-xl min-w-0",
+                "min-w-0 rounded-lg bg-gradient-to-br px-3 py-2 text-left shadow-sm transition-all hover:shadow-md",
                 card.gradient,
-                segmentFilter === card.key && "ring-4 ring-white ring-offset-2 ring-offset-slate-100 scale-[1.02]",
+                segmentFilter === card.key && "ring-2 ring-white ring-offset-2 ring-offset-slate-100",
               )}
               onClick={() => handleSegmentFilter(card.key)}
               title={CUSTOMER_SEGMENT_HINTS[card.key]}
             >
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-3 px-3">
-                <CardDescription className="text-base font-medium text-white/80">
-                  {card.label}
-                </CardDescription>
-                <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
+              <div className="flex items-center justify-between gap-2">
+                <p className="truncate text-xs font-medium leading-none text-white/80">{card.label}</p>
+                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-white/20">
                   {card.icon}
                 </div>
-              </CardHeader>
-              <CardContent className="px-3 pb-3 pt-0">
-                <div className="text-2xl font-black text-white tabular-nums leading-tight truncate">
-                  {segmentsLoading ? "…" : card.count.toLocaleString("en-IN")}
-                </div>
-                <p className="text-sm text-white/65 mt-0.5 line-clamp-2">
-                  {CUSTOMER_SEGMENT_HINTS[card.key]}
-                </p>
-              </CardContent>
-            </Card>
+              </div>
+              <p className="mt-1 truncate text-base font-black tabular-nums leading-tight text-white sm:text-lg">
+                {segmentsLoading ? "…" : card.count.toLocaleString("en-IN")}
+              </p>
+            </button>
           ))}
         </div>
 
         {segmentsError && (
-          <div className="flex flex-wrap items-center gap-3 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-2.5 text-sm">
+          <div className="flex shrink-0 flex-wrap items-center gap-3 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-2.5 text-sm">
             <span className="text-destructive font-medium">
               Could not load lifetime sales / segment data for this organization.
             </span>
@@ -1192,7 +1189,7 @@ const CustomerMaster = () => {
         )}
 
         {segmentFilter !== "all" && (
-          <p className="text-sm text-muted-foreground">
+          <p className="shrink-0 text-sm text-muted-foreground">
             Showing{" "}
             <span className="font-semibold text-foreground">
               {filteredCount.toLocaleString("en-IN")}
@@ -1209,21 +1206,21 @@ const CustomerMaster = () => {
           </p>
         )}
 
-        <Card className="rounded-xl border border-slate-200 shadow-sm overflow-hidden p-0">
-          <div className="flex flex-wrap items-center gap-2 px-4 py-2.5 border-b border-slate-100 bg-white">
-            <span className="text-sm text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full font-medium shrink-0">
+        <Card className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-slate-200 p-0 shadow-sm">
+          <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-slate-100 bg-white px-3 py-2">
+            <span className="shrink-0 rounded-full bg-slate-100 px-2.5 py-1 text-sm font-medium tabular-nums text-slate-600">
               {segmentFilter === "all"
                 ? `${filteredCount.toLocaleString("en-IN")} of ${totalCount.toLocaleString("en-IN")} records`
                 : `${filteredCount.toLocaleString("en-IN")} in ${CUSTOMER_SEGMENT_LABELS[segmentFilter]}`}
             </span>
 
-            <div className="relative flex-1 min-w-[200px] max-w-full sm:max-w-md md:max-w-lg">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+            <div className="relative min-w-[200px] max-w-full flex-1 sm:max-w-md md:max-w-xl">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
-                placeholder="Search by name, phone, email..."
+                placeholder="SEARCH BY NAME, PHONE, EMAIL..."
                 value={searchQuery}
                 onChange={(e) => handleSearchChange(e.target.value)}
-                className="pl-11 h-10 text-base border-slate-200 bg-slate-50 focus:bg-white"
+                className="h-10 border-slate-200 bg-slate-50 pl-10 text-sm uppercase placeholder:normal-case focus:bg-white"
               />
             </div>
 
@@ -1340,30 +1337,33 @@ const CustomerMaster = () => {
             </div>
           </div>
 
-          <ERPTable
-            tableId="customer_master"
-            columns={tableColumns}
-            data={customers}
-            stickyFirstColumn={false}
-            isLoading={isLoading || (segmentFilter !== "all" && segmentsLoading)}
-            emptyMessage={
-              segmentFilter !== "all"
-                ? `No ${CUSTOMER_SEGMENT_LABELS[segmentFilter].toLowerCase()} customers match your search`
-                : "No customers found"
-            }
-            defaultColumnVisibility={CUSTOMER_MASTER_DEFAULT_COLUMN_VISIBILITY}
-            defaultDensity="comfortable"
-            className="[&_td]:!text-[15px] [&_th]:!text-[13px]"
-            onRowContextMenu={handleRowContextMenu}
-            showToolbar={false}
-            renderToolbar={(toolbar) => {
-              const el = document.getElementById("erp-toolbar-portal-customer");
-              return el ? createPortal(toolbar, el) : toolbar;
-            }}
-          />
+          <div className="customer-master-table-panel min-h-0 flex-1 overflow-y-auto overflow-x-auto tab-scroll-stable">
+            <ERPTable
+              tableId="customer_master"
+              columns={tableColumns}
+              data={customers}
+              stickyFirstColumn={false}
+              fitToContainer
+              isLoading={isLoading || (segmentFilter !== "all" && segmentsLoading)}
+              emptyMessage={
+                segmentFilter !== "all"
+                  ? `No ${CUSTOMER_SEGMENT_LABELS[segmentFilter].toLowerCase()} customers match your search`
+                  : "No customers found"
+              }
+              defaultColumnVisibility={CUSTOMER_MASTER_DEFAULT_COLUMN_VISIBILITY}
+              defaultDensity="compact"
+              className="customer-master-table [&_td]:!text-sm [&_th]:!text-xs [&_th]:!font-bold [&_th]:!uppercase [&_th]:!tracking-wide [&_tbody_tr:nth-child(even)]:bg-slate-50/80 [&_tbody_tr:hover]:bg-sky-50/70"
+              onRowContextMenu={handleRowContextMenu}
+              showToolbar={false}
+              renderToolbar={(toolbar) => {
+                const el = document.getElementById("erp-toolbar-portal-customer");
+                return el ? createPortal(toolbar, el) : toolbar;
+              }}
+            />
+          </div>
 
           {totalPages > 1 && (
-            <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-t border-slate-100 bg-white">
+            <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-slate-100 bg-white px-3 py-2">
               <p className="text-sm text-slate-500 tabular-nums">
                 Showing {startIndex + 1}–{Math.min(startIndex + ITEMS_PER_PAGE, filteredCount)} of{" "}
                 {filteredCount.toLocaleString("en-IN")} customers

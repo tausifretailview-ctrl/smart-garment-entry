@@ -1558,6 +1558,53 @@ main:has(.customer-party-balances-workspace) {
   padding: 0.75rem 1rem 1rem;
 }
 
+/* Customer Master — full workspace (Vasy-style list) */
+.customer-master-workspace {
+  height: 100%;
+  min-height: 0;
+  max-height: 100%;
+  overflow: hidden;
+}
+main:has(.customer-master-workspace) {
+  overflow: hidden;
+  padding: 0;
+  scrollbar-gutter: auto;
+}
+@media (min-width: 1024px) {
+  main:has(.customer-master-workspace) {
+    display: flex;
+    flex-direction: column;
+  }
+  main:has(.customer-master-workspace) .customer-master-workspace {
+    flex: 1 1 0%;
+    height: auto;
+    max-height: 100%;
+    min-height: 0;
+  }
+}
+.customer-master-table-panel {
+  flex: 1 1 0%;
+  min-height: 0;
+  max-height: 100%;
+  overflow-y: auto;
+  overflow-x: auto;
+  overscroll-behavior-y: contain;
+  background: #fff;
+}
+.customer-master-dashboard .customer-master-table .erp-desktop-table th {
+  height: 2.5rem;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+.customer-master-dashboard .customer-master-table .erp-desktop-table tbody tr.h-10 {
+  height: 44px;
+}
+.customer-master-dashboard .customer-master-table .erp-desktop-table td {
+  height: 44px;
+  font-size: 14px;
+  vertical-align: middle;
+}
+
 /* Product Dashboard — full workspace (Vasy-style) */
 .product-dashboard-workspace {
   height: 100%;
