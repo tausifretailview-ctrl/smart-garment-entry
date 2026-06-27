@@ -63,6 +63,32 @@ interface SupplierPair {
   supplier_invoice_no: string | null;
 }
 
+interface PurchaseSourceInfo {
+  supplier_name: string;
+  supplier_invoice_no: string;
+}
+
+interface PurchaseSourceRow {
+  sku_id: string | null;
+  created_at: string | null;
+  purchase_bills:
+    | {
+        supplier_name: string | null;
+        supplier_invoice_no: string | null;
+        software_bill_no: string | null;
+        bill_date: string | null;
+        created_at: string | null;
+      }
+    | Array<{
+        supplier_name: string | null;
+        supplier_invoice_no: string | null;
+        software_bill_no: string | null;
+        bill_date: string | null;
+        created_at: string | null;
+      }>
+    | null;
+}
+
 interface StockReportRpcRow {
   variant_id: string;
   product_name: string | null;
@@ -82,6 +108,73 @@ interface StockReportRpcRow {
   purchase_return_qty: number | null;
   sale_return_qty: number | null;
   total_rows: number | null;
+}
+
+function getPurchaseBillFromSourceRow(row: PurchaseSourceRow) {
+  return Array.isArray(row.purchase_bills)
+    ? row.purchase_bills[0]
+    : row.purchase_bills;
+}
+
+function purchaseSourceSortTime(row: PurchaseSourceRow): number {
+  const bill = getPurchaseBillFromSourceRow(row);
+  const value = bill?.bill_date || bill?.created_at || row.created_at || "";
+  const time = value ? new Date(value).getTime() : 0;
+  return Number.isFinite(time) ? time : 0;
+}
+
+async function fetchLatestPurchaseSourceByVariantId(
+  organizationId: string,
+  variantIds: string[],
+): Promise<Map<string, PurchaseSourceInfo>> {
+  const result = new Map<string, PurchaseSourceInfo>();
+  const uniqueIds = [...new Set(variantIds.filter(Boolean))];
+  if (uniqueIds.length === 0) return result;
+
+  for (let i = 0; i < uniqueIds.length; i += 100) {
+    const batch = uniqueIds.slice(i, i + 100);
+    const { data, error } = await supabase
+      .from("purchase_items")
+      .select(`
+        sku_id,
+        created_at,
+        purchase_bills!inner (
+          supplier_name,
+          supplier_invoice_no,
+          software_bill_no,
+          bill_date,
+          created_at,
+          organization_id,
+          deleted_at
+        )
+      `)
+      .in("sku_id", batch)
+      .is("deleted_at", null)
+      .eq("purchase_bills.organization_id", organizationId)
+      .is("purchase_bills.deleted_at", null)
+      .order("created_at", { ascending: false })
+      .limit(1000);
+
+    if (error) throw error;
+
+    const rows = ((data || []) as unknown as PurchaseSourceRow[])
+      .filter((row) => row.sku_id)
+      .sort((a, b) => purchaseSourceSortTime(b) - purchaseSourceSortTime(a));
+
+    for (const row of rows) {
+      const variantId = row.sku_id;
+      if (!variantId || result.has(variantId)) continue;
+      const bill = getPurchaseBillFromSourceRow(row);
+      if (!bill) continue;
+
+      result.set(variantId, {
+        supplier_name: bill.supplier_name || "",
+        supplier_invoice_no: bill.supplier_invoice_no || bill.software_bill_no || "",
+      });
+    }
+  }
+
+  return result;
 }
 
 function buildStockReportRpcSearch(
@@ -640,29 +733,37 @@ export default function StockReport() {
 
         const rows = (data || []) as unknown as StockReportRpcRow[];
         setServerTotalRows(Number(rows[0]?.total_rows ?? 0));
+        const purchaseSourceByVariantId = await fetchLatestPurchaseSourceByVariantId(
+          currentOrganization.id,
+          rows.map((row) => row.variant_id),
+        );
+        if (requestId !== searchRequestIdRef.current) return;
 
         setStockItems(
-          rows.map((row) => ({
-            id: row.variant_id,
-            product_name: row.product_name || "",
-            brand: row.brand || "",
-            color: row.color || "",
-            size: row.size || "",
-            stock_qty: row.current_stock ?? 0,
-            opening_qty: 0,
-            purchase_qty: Number(row.purchase_qty ?? 0),
-            purchase_return_qty: Number(row.purchase_return_qty ?? 0),
-            sales_qty: Number(row.sales_qty ?? 0),
-            sale_return_qty: Number(row.sale_return_qty ?? 0),
-            sale_price: Number(row.sale_price ?? 0),
-            pur_price: row.pur_price != null ? Number(row.pur_price) : null,
-            barcode: row.barcode || "",
-            supplier_name: "",
-            supplier_invoice_no: "",
-            category: row.category || "",
-            department: row.style || "",
-            uom: row.uom || "NOS",
-          })),
+          rows.map((row) => {
+            const purchaseSource = purchaseSourceByVariantId.get(row.variant_id);
+            return {
+              id: row.variant_id,
+              product_name: row.product_name || "",
+              brand: row.brand || "",
+              color: row.color || "",
+              size: row.size || "",
+              stock_qty: row.current_stock ?? 0,
+              opening_qty: 0,
+              purchase_qty: Number(row.purchase_qty ?? 0),
+              purchase_return_qty: Number(row.purchase_return_qty ?? 0),
+              sales_qty: Number(row.sales_qty ?? 0),
+              sale_return_qty: Number(row.sale_return_qty ?? 0),
+              sale_price: Number(row.sale_price ?? 0),
+              pur_price: row.pur_price != null ? Number(row.pur_price) : null,
+              barcode: row.barcode || "",
+              supplier_name: purchaseSource?.supplier_name || "",
+              supplier_invoice_no: purchaseSource?.supplier_invoice_no || "",
+              category: row.category || "",
+              department: row.style || "",
+              uom: row.uom || "NOS",
+            };
+          }),
         );
       } catch (error: unknown) {
         console.error("Error fetching stock data:", error);
