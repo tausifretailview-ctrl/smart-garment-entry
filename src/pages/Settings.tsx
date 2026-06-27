@@ -46,7 +46,9 @@ const LazyInvoiceWrapper = lazyWithRetry(() =>
 ) as unknown as React.ComponentType<
   React.ComponentProps<typeof import("@/components/InvoiceWrapper").InvoiceWrapper>
 >;
-const LazyBackupSettings = lazyWithRetry(() => import("@/components/BackupSettings"));
+const LazyBackupSettings = lazyWithRetry(() => import("@/components/BackupSettings")) as unknown as React.ComponentType<
+  React.ComponentProps<typeof import("@/components/BackupSettings").default>
+>;
 import { CompanyProfileBankAccounts } from "@/components/settings/CompanyProfileBankAccounts";
 
 const LazyDesktopPrintSettings = lazyWithRetry(() =>
@@ -4412,7 +4414,7 @@ export default function Settings() {
                     >
                       <LazySettingsPanel>
                       <LazyInvoiceWrapper
-                        orgSettings={settings}
+                        orgSettings={settings as unknown as Record<string, unknown>}
                         billNo={sampleInvoiceData.billNo}
                         date={sampleInvoiceData.date}
                         customerName={sampleInvoiceData.customerName}
