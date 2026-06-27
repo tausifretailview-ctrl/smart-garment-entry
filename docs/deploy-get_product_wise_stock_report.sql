@@ -270,7 +270,8 @@ BEGIN
   grouped AS (
     SELECT
       CASE
-        WHEN v_group_by = 'product_name' THEN MIN(bv.product_id)
+        WHEN v_group_by = 'product_name' THEN
+          (array_agg(bv.product_id ORDER BY bv.product_id::text))[1]
         ELSE NULL::uuid
       END AS product_id,
       CASE v_group_by
