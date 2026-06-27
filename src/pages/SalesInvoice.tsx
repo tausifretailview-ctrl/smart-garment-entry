@@ -133,6 +133,82 @@ interface LineItem {
   brand?: string;
 }
 
+type InvoiceUnavailableVariantRow = {
+  id: string;
+  barcode?: string | null;
+  size?: string | null;
+  color?: string | null;
+  stock_qty?: number | null;
+  sale_price?: number | null;
+  mrp?: number | null;
+  pur_price?: number | null;
+  product_id?: string | null;
+  active?: boolean | null;
+  products?: {
+    id: string;
+    product_name?: string | null;
+    brand?: string | null;
+    hsn_code?: string | null;
+    gst_per?: number | null;
+    sale_gst_percent?: number | null;
+    purchase_gst_percent?: number | null;
+    category?: string | null;
+    style?: string | null;
+    color?: string | null;
+    product_type?: string | null;
+    organization_id?: string | null;
+    size_group_id?: string | null;
+    sale_discount_type?: string | null;
+    sale_discount_value?: number | null;
+    uom?: string | null;
+    status?: string | null;
+    deleted_at?: string | null;
+  } | null;
+};
+
+function isStockTrackedInvoiceProduct(product: { product_type?: string | null } | null | undefined): boolean {
+  return product?.product_type !== 'service' && product?.product_type !== 'combo';
+}
+
+async function fetchUnavailableInvoiceVariantByProductName(
+  organizationId: string,
+  searchTerm: string,
+) {
+  const term = searchTerm.trim();
+  if (!term) return null;
+
+  const { data, error } = await supabase
+    .from('product_variants')
+    .select(`
+      id, barcode, size, color, stock_qty, sale_price, mrp, pur_price, product_id, active,
+      products!inner(
+        id, product_name, brand, hsn_code, gst_per, sale_gst_percent, purchase_gst_percent,
+        category, style, color, product_type, organization_id, size_group_id,
+        sale_discount_type, sale_discount_value, uom, status, deleted_at
+      )
+    `)
+    .eq('organization_id', organizationId)
+    .eq('active', true)
+    .is('deleted_at', null)
+    .eq('products.organization_id', organizationId)
+    .eq('products.status', 'active')
+    .is('products.deleted_at', null)
+    .ilike('products.product_name', `%${term}%`)
+    .order('stock_qty', { ascending: false })
+    .limit(20);
+
+  if (error) throw error;
+
+  const rows = (data || []) as unknown as InvoiceUnavailableVariantRow[];
+  const row = rows.find((variant) => {
+    const product = variant.products;
+    return isStockTrackedInvoiceProduct(product) && Number(variant.stock_qty || 0) <= 0;
+  });
+
+  if (!row?.products) return null;
+  return { product: row.products, variant: row };
+}
+
 const customerSchema = z.object({
   customer_name: z.string().trim().max(100).optional().or(z.literal("")),
   phone: z.string().trim().max(20, "Mobile number must be less than 20 characters").optional().or(z.literal("")),
@@ -1599,7 +1675,7 @@ export default function SalesInvoice() {
 
     if (foundVariant && foundProduct) {
       const isServiceOrCombo =
-        foundProduct.product_type === 'service' || foundProduct.product_type === 'combo';
+        !isStockTrackedInvoiceProduct(foundProduct);
       const stockQty = Number(foundVariant.stock_qty) || 0;
 
       if (!isServiceOrCombo && stockQty <= 0) {
@@ -1623,6 +1699,31 @@ export default function SalesInvoice() {
       setSearchInput("");
       setTimeout(() => barcodeInputRef.current?.focus(), 50);
       return;
+    }
+
+    if (currentOrganization?.id) {
+      try {
+        const unavailableMatch = await fetchUnavailableInvoiceVariantByProductName(
+          currentOrganization.id,
+          searchTerm,
+        );
+        if (unavailableMatch) {
+          playErrorBeep();
+          openStockIssueDialog(
+            buildInsufficientStockIssue(
+              buildProductDisplayName(unavailableMatch.product),
+              unavailableMatch.variant.size,
+              1,
+              Number(unavailableMatch.variant.stock_qty || 0),
+            ),
+          );
+          setSearchInput("");
+          setTimeout(() => barcodeInputRef.current?.focus(), 50);
+          return;
+        }
+      } catch (error) {
+        console.error('Unavailable stock lookup failed:', error);
+      }
     }
 
     playErrorBeep();
