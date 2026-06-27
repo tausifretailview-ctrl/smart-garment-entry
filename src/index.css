@@ -2180,24 +2180,28 @@ main:has(.pos-dashboard-workspace) {
   line-height: inherit;
 }
 
-/* Item-wise Sales Report — full workspace + Vasy-style dense grid */
-.item-wise-sales-workspace {
+/* Item-wise Sales / Stock reports — sidebar-only full workspace (no header / tab strip) */
+.item-wise-sales-workspace,
+.item-wise-stock-workspace {
   height: 100%;
   min-height: 0;
   max-height: 100%;
   overflow: hidden;
 }
-main:has(.item-wise-sales-workspace) {
+main:has(.item-wise-sales-workspace),
+main:has(.item-wise-stock-workspace) {
   overflow: hidden;
   padding: 0;
   scrollbar-gutter: auto;
 }
 @media (min-width: 1024px) {
-  main:has(.item-wise-sales-workspace) {
+  main:has(.item-wise-sales-workspace),
+  main:has(.item-wise-stock-workspace) {
     display: flex;
     flex-direction: column;
   }
-  main:has(.item-wise-sales-workspace) .item-wise-sales-workspace {
+  main:has(.item-wise-sales-workspace) .item-wise-sales-workspace,
+  main:has(.item-wise-stock-workspace) .item-wise-stock-workspace {
     flex: 1 1 0%;
     height: auto;
     max-height: 100%;

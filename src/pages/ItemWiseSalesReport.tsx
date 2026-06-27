@@ -3,9 +3,9 @@ import React, { useState, useMemo, useEffect, type ReactNode } from "react";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useProductFieldLabels } from "@/hooks/useSettings";
 import { fetchAllSaleItems } from "@/utils/fetchAllRows";
-import { BackToDashboard } from "@/components/BackToDashboard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -16,7 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format, startOfDay, endOfDay, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear } from "date-fns";
-import { CalendarIcon, Search, Printer, FileSpreadsheet, Filter, X } from "lucide-react";
+import { CalendarIcon, Search, ArrowLeft, Printer, FileSpreadsheet, Filter, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import * as XLSX from "xlsx";
 import { multiTokenMatch } from "@/utils/multiTokenSearch";
@@ -81,6 +81,7 @@ function highlightSearchText(text: string, query: string): ReactNode {
 
 export default function ItemWiseSalesReport() {
   const { currentOrganization } = useOrganization();
+  const { orgNavigate } = useOrgNavigation();
   const fieldLabels = useProductFieldLabels();
   const [periodType, setPeriodType] = useState<PeriodType>("daily");
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
@@ -707,7 +708,15 @@ export default function ItemWiseSalesReport() {
       <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col gap-2">
       <div className="print:hidden shrink-0 flex flex-wrap items-center justify-between gap-2 [&_button]:mb-0">
         <div className="flex min-w-0 items-center gap-2">
-          <BackToDashboard />
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-9 shrink-0 px-3 text-sm"
+            onClick={() => orgNavigate("/reports")}
+          >
+            <ArrowLeft className="mr-1 h-4 w-4" />
+            Reports
+          </Button>
           <div className="min-w-0">
             <h1 className="text-xl font-bold leading-none tracking-tight text-blue-700">Item-wise Sales Report</h1>
             <p className="mt-1 truncate text-sm text-muted-foreground">
