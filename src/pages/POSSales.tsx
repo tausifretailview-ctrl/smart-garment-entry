@@ -348,6 +348,46 @@ async function fetchPosVariantByBarcode(orgId: string, barcode: string) {
   return { product: row.products, variant: row };
 }
 
+function isStockTrackedPosProduct(product: { product_type?: string | null } | null | undefined): boolean {
+  return product?.product_type !== 'service' && product?.product_type !== 'combo';
+}
+
+async function fetchUnavailablePosVariantByProductName(
+  orgId: string,
+  searchTerm: string,
+  productTypeFilter: string,
+) {
+  const term = searchTerm.trim();
+  if (!term || productTypeFilter === 'service' || productTypeFilter === 'combo') return null;
+
+  let query = supabase
+    .from('product_variants')
+    .select(POS_VARIANT_LOOKUP_SELECT)
+    .eq('organization_id', orgId)
+    .eq('products.organization_id', orgId)
+    .eq('products.status', 'active')
+    .eq('active', true)
+    .is('deleted_at', null)
+    .is('products.deleted_at', null)
+    .ilike('products.product_name', `%${term}%`);
+
+  if (productTypeFilter !== 'all') {
+    query = query.eq('products.product_type', productTypeFilter);
+  }
+
+  const { data, error } = await query.order('stock_qty', { ascending: false }).limit(20);
+  if (error) throw error;
+
+  const rows = (data || []) as unknown as Array<PosVariantRow & { products?: PosProductRow }>;
+  const row = rows.find((item) => {
+    const product = item.products;
+    return isStockTrackedPosProduct(product) && Number(item.stock_qty || 0) <= 0;
+  });
+
+  if (!row?.products) return null;
+  return { product: row.products, variant: row };
+}
+
 /** Recompute line net, then Sale GST % from post-discount unit price vs threshold. */
 function applyPosGarmentGstToItem(
   item: CartItem,
@@ -2187,7 +2227,7 @@ export default function POSSales() {
         const stockQty = dbVariant.stock_qty || 0;
 
         setSearchInput("");
-        if (stockQty > 0 || prod.product_type === 'service' || prod.product_type === 'combo') {
+        if (stockQty > 0 || !isStockTrackedPosProduct(prod)) {
           await addItemToCart(prod, dbVariant, undefined, 'barcode');
           return;
         }
@@ -2222,6 +2262,25 @@ export default function POSSales() {
           await addItemToCart(prod, match, undefined, 'manual');
           return;
         }
+
+        const unavailableMatch = await fetchUnavailablePosVariantByProductName(
+          orgId,
+          searchTerm,
+          selectedProductType,
+        );
+        if (unavailableMatch) {
+          setSearchInput("");
+          openStockIssueDialog(
+            buildInsufficientStockIssue(
+              unavailableMatch.product.product_name,
+              unavailableMatch.variant.size,
+              1,
+              Number(unavailableMatch.variant.stock_qty || 0),
+            ),
+            { productId: unavailableMatch.product.id, productName: unavailableMatch.product.product_name },
+          );
+          return;
+        }
       }
 
       // Fallback: search purchase_items for IMEI barcode (for legacy IMEI purchases)
@@ -2246,10 +2305,19 @@ export default function POSSales() {
 
           if (variantError) throw variantError;
 
-          if (variant && (variant as any).products) {
-            const prod = (variant as any).products;
+          const typedVariant = variant as unknown as PosVariantRow & { products?: PosProductRow };
+          if (typedVariant?.products) {
+            const prod = typedVariant.products;
             setSearchInput("");
-            const variantWithIMEI = { ...variant, barcode: searchTerm };
+            const variantWithIMEI = { ...typedVariant, barcode: searchTerm };
+            const stockQty = Number(typedVariant.stock_qty || 0);
+            if (isStockTrackedPosProduct(prod) && stockQty <= 0) {
+              openStockIssueDialog(
+                buildInsufficientStockIssue(prod.product_name, typedVariant.size, 1, stockQty),
+                { productId: prod.id, productName: prod.product_name },
+              );
+              return;
+            }
             await addItemToCart(prod, variantWithIMEI, undefined, 'barcode');
             return;
           }
