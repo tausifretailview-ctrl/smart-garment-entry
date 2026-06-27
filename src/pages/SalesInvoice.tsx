@@ -756,67 +756,46 @@ export default function SalesInvoice() {
     (settingsData as any)?.bill_barcode_settings
   );
 
-  // Fetch products with variants and size groups
-  const { data: productsData } = useQuery({
-    queryKey: ['products-with-variants', currentOrganization?.id],
+  // Size groups (reference data) — standalone cached query, reused by product search.
+  // Replaces the old mount-time products+variants+size_groups catalog embed.
+  const { data: sizeGroupsData } = useQuery({
+    queryKey: ['size-groups', currentOrganization?.id],
     queryFn: async () => {
       if (!currentOrganization?.id) return [];
-      
-      // Fetch all products using pagination to bypass 1000 row limit
-      const allProducts: any[] = [];
-      const PAGE_SIZE = 1000;
-      let offset = 0;
-      let hasMore = true;
-      
-      while (hasMore) {
-        const { data, error } = await supabase
-          .from('products')
-          .select(`
-            id, product_name, brand, hsn_code, gst_per, sale_gst_percent, purchase_gst_percent, product_type, status, category, style, color, sale_discount_type, sale_discount_value, uom,
-            product_variants (
-              id, barcode, size, color, stock_qty, sale_price, mrp, pur_price, product_id, active, deleted_at,
-              last_purchase_sale_price, last_purchase_mrp, last_purchase_date
-            ),
-            size_groups (id, group_name, sizes)
-          `)
-          .eq('organization_id', currentOrganization.id)
-          .eq('status', 'active')
-          .is('deleted_at', null)
-          .order('product_name')
-          .order('id')
-          .range(offset, offset + PAGE_SIZE - 1);
-        
-        if (error) throw error;
-        
-        if (data && data.length > 0) {
-          allProducts.push(...data);
-          offset += PAGE_SIZE;
-          hasMore = data.length === PAGE_SIZE;
-        } else {
-          hasMore = false;
-        }
-      }
-      
-      // Calculate size_range for each product and filter deleted variants
-      return allProducts.map((product: any) => {
-        const sizeGroup = product.size_groups;
-        let size_range: string | null = null;
-        if (sizeGroup && Array.isArray(sizeGroup.sizes) && sizeGroup.sizes.length > 0) {
-          size_range = sizeGroup.sizes.length > 1
-            ? `${sizeGroup.sizes[0]}-${sizeGroup.sizes[sizeGroup.sizes.length - 1]}`
-            : sizeGroup.sizes[0];
-        }
-        return { 
-          ...product, 
-          size_range,
-          product_variants: product.product_variants?.filter((v: any) => !v.deleted_at)
-        };
-      });
+      const { data, error } = await supabase
+        .from('size_groups')
+        .select('id, group_name, sizes')
+        .eq('organization_id', currentOrganization.id)
+        .order('group_name');
+      if (error) throw error;
+      return data || [];
     },
     enabled: !!currentOrganization?.id,
-    staleTime: 300000, // 5 minutes - reduces multi-tab load
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
     refetchOnWindowFocus: false,
   });
+
+  const sizeGroupSizesById = useMemo(() => {
+    const map = new Map<string, string[]>();
+    (sizeGroupsData || []).forEach((sg: { id: string; sizes: string[] | null }) => {
+      map.set(sg.id, Array.isArray(sg.sizes) ? sg.sizes : []);
+    });
+    return map;
+  }, [sizeGroupsData]);
+
+  // Brand fallback for invoice line items (targeted: only product_ids added to this invoice).
+  // Used by the brand-discount effect when a line item's own brand is empty.
+  const [productBrandById, setProductBrandById] = useState<Map<string, string>>(new Map());
+  const recordProductBrand = useCallback((productId?: string | null, brand?: string | null) => {
+    if (!productId || !brand) return;
+    setProductBrandById((prev) => {
+      if (prev.get(productId) === brand) return prev;
+      const next = new Map(prev);
+      next.set(productId, brand);
+      return next;
+    });
+  }, []);
 
   // Fetch employees for Salesman dropdown
   const { data: employeesData } = useQuery({
@@ -1188,9 +1167,8 @@ export default function SalesInvoice() {
       const updatedItems = prev.map((item) => {
         if (!item.productId || item.discountPercent !== 0) return item;
 
-        const product = productsData?.find((p: any) => p.id === item.productId);
-        const brand = item.brand || product?.brand;
-        const brandDiscount = getBrandDiscountForProduct(brand, item.productName || product?.product_name);
+        const brand = item.brand || productBrandById.get(item.productId);
+        const brandDiscount = getBrandDiscountForProduct(brand, item.productName);
         if (brandDiscount <= 0) return item;
 
         hasChanges = true;
@@ -1216,31 +1194,17 @@ export default function SalesInvoice() {
     brandDiscounts,
     hasBrandDiscounts,
     isBrandDiscountsLoading,
-    productsData,
+    productBrandById,
     selectedCustomer?.discount_percent,
     selectedCustomerId,
     lineItems.length,
     getBrandDiscountForProduct,
   ]);
 
-  // Build in-memory barcode index for O(1) lookup (like POS)
-  const barcodeIndex = useMemo(() => {
-    const index = new Map<string, { product: any; variant: any }>();
-    if (!productsData) return index;
-    for (const product of productsData) {
-      for (const variant of product.product_variants || []) {
-        if (variant.barcode) {
-          index.set(variant.barcode.toLowerCase(), { product, variant });
-        }
-      }
-    }
-    return index;
-  }, [productsData]);
-
   // Product search with server-side filtering and smart sorting
   useEffect(() => {
     const searchProducts = async () => {
-      if (!searchInput || searchInput.length < 1 || !currentOrganization?.id) {
+      if (!searchInput || searchInput.length < 2 || !currentOrganization?.id) {
         setProductSearchResults([]);
         return;
       }
@@ -1265,22 +1229,12 @@ export default function SalesInvoice() {
           .or(`product_name.ilike.%${textQuery}%,brand.ilike.%${textQuery}%,style.ilike.%${textQuery}%,category.ilike.%${textQuery}%`);
 
         const productIds = matchingProducts?.map(p => p.id) || [];
-        const sizeGroupIds = [...new Set(matchingProducts?.map(p => p.size_group_id).filter(Boolean) || [])];
 
-        // Fetch size groups
-        let sizeGroupsMap: Record<string, { sizes: string[] }> = {};
-        if (sizeGroupIds.length > 0) {
-          const { data: sizeGroups } = await supabase
-            .from("size_groups")
-            .select("id, sizes")
-            .in("id", sizeGroupIds);
-          
-          if (sizeGroups) {
-            sizeGroups.forEach((sg: any) => {
-              sizeGroupsMap[sg.id] = { sizes: sg.sizes || [] };
-            });
-          }
-        }
+        // Size ranges come from the standalone cached size_groups query (no per-search fetch).
+        const sizeGroupsMap: Record<string, { sizes: string[] }> = {};
+        sizeGroupSizesById.forEach((sizes, id) => {
+          sizeGroupsMap[id] = { sizes };
+        });
 
         // Search product_variants by barcode OR matching product IDs
         let variantsQuery = supabase
@@ -1384,9 +1338,9 @@ export default function SalesInvoice() {
       }
     };
 
-    const debounceTimer = setTimeout(searchProducts, 150);
+    const debounceTimer = setTimeout(searchProducts, 300);
     return () => clearTimeout(debounceTimer);
-  }, [searchInput, currentOrganization?.id]);
+  }, [searchInput, currentOrganization?.id, sizeGroupSizesById]);
   // Open size grid modal for a product - fetch ALL variants fresh from DB
   const openSizeGridForProduct = async (product: any, selectedSalePrice?: number) => {
     if (!currentOrganization) return;
@@ -1622,27 +1576,12 @@ export default function SalesInvoice() {
     const normalizedSearchTerm = searchTerm.trim().toLowerCase();
     if (!normalizedSearchTerm) return;
 
-    // O(1) barcode lookup from in-memory index
-    const indexMatch = barcodeIndex.get(normalizedSearchTerm);
-    let foundVariant: any = indexMatch?.variant || null;
-    let foundProduct: any = indexMatch?.product || null;
+    let foundVariant: any = null;
+    let foundProduct: any = null;
 
-    // Fallback: local linear search when cache/index misses (match barcode even if stock is 0)
-    if (!foundVariant && productsData) {
-      for (const product of productsData) {
-        const variantMatch = product.product_variants?.find(
-          (v: any) => v.barcode?.toLowerCase() === normalizedSearchTerm,
-        );
-        if (variantMatch) {
-          foundVariant = variantMatch;
-          foundProduct = product;
-          break;
-        }
-      }
-    }
-
-    // Recovery path: exact DB barcode lookup when cache is stale/not loaded
-    if (!foundVariant && currentOrganization?.id) {
+    // Targeted DB barcode lookup (fires on scan only, not on mount).
+    // No `active` filter — resolve inactive variants too if the barcode matches.
+    if (currentOrganization?.id) {
       const { data: dbVariant, error: dbError } = await supabase
         .from('product_variants')
         .select(`
@@ -1656,11 +1595,12 @@ export default function SalesInvoice() {
         `)
         .eq('organization_id', currentOrganization.id)
         .eq('barcode', searchTerm.trim())
-        .eq('active', true)
         .is('deleted_at', null)
         .eq('products.organization_id', currentOrganization.id)
         .eq('products.status', 'active')
         .is('products.deleted_at', null)
+        .order('active', { ascending: false })
+        .limit(1)
         .maybeSingle();
 
       if (dbError) {
@@ -1730,8 +1670,6 @@ export default function SalesInvoice() {
     setSearchInput("");
     barcodeInputRef.current?.focus();
   }, [
-    productsData,
-    barcodeIndex,
     currentOrganization?.id,
     playSuccessBeep,
     playErrorBeep,
@@ -1739,6 +1677,10 @@ export default function SalesInvoice() {
   ]);
 
   const addProductToInvoice = async (product: any, variant: any, overridePrice?: { sale_price: number; mrp: number }, options?: { skipSizeGrid?: boolean }) => {
+    // Cache this product's brand (targeted) so the brand-discount effect has a fallback
+    // when a line item's own brand is empty.
+    recordProductBrand(product?.id, product?.brand);
+
     // If in grid mode, open size grid dialog
     // For MTR/roll products, barcode uniquely identifies the variant — skip size grid
     // skipSizeGrid: passed from barcode scan path — barcode already identifies exact variant
@@ -3208,7 +3150,7 @@ Thank you for choosing us!`;
               />
             </div>
             {/* Mobile Search Results Dropdown */}
-            {productSearchResults.length > 0 && searchInput.length >= 1 && (
+            {productSearchResults.length > 0 && searchInput.length >= 2 && (
               <div className="bg-popover border border-border rounded-xl shadow-lg max-h-72 overflow-auto -mx-0.5">
                 {productSearchResults.slice(0, 50).map(({ product, variant }) => (
                   <button
@@ -3897,7 +3839,7 @@ Thank you for choosing us!`;
                       <div className="flex items-center justify-center py-6">
                         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                       </div>
-                    ) : productSearchResults.length === 0 && searchInput.length >= 1 ? (
+                    ) : productSearchResults.length === 0 && searchInput.length >= 2 ? (
                       <CommandEmpty>No products found</CommandEmpty>
                     ) : productSearchResults.length === 0 ? (
                       <div className="py-6 text-center text-sm text-muted-foreground">
