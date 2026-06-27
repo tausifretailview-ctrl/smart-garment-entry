@@ -3926,6 +3926,7 @@ export type Database = {
           supplier_inv_auto_generated: boolean
           supplier_invoice_no: string | null
           supplier_name: string
+          total_items: number
           total_qty: number | null
           updated_at: string
         }
@@ -3961,6 +3962,7 @@ export type Database = {
           supplier_inv_auto_generated?: boolean
           supplier_invoice_no?: string | null
           supplier_name: string
+          total_items?: number
           total_qty?: number | null
           updated_at?: string
         }
@@ -3996,6 +3998,7 @@ export type Database = {
           supplier_inv_auto_generated?: boolean
           supplier_invoice_no?: string | null
           supplier_name?: string
+          total_items?: number
           total_qty?: number | null
           updated_at?: string
         }
@@ -8287,6 +8290,15 @@ export type Database = {
           total_dr: number
         }[]
       }
+      get_customer_segment_counts: {
+        Args: { p_org_id: string }
+        Returns: {
+          lost_count: number
+          regular_count: number
+          risk_count: number
+          vip_count: number
+        }[]
+      }
       get_customer_true_outstanding: {
         Args: { p_customer_id: string; p_organization_id: string }
         Returns: number
@@ -8479,6 +8491,7 @@ export type Database = {
           style: string
           total_count: number
           total_stock: number
+          user_cancelled_at: string
           variant_count: number
         }[]
       }
@@ -8495,6 +8508,7 @@ export type Database = {
         }
         Returns: Json
       }
+      get_product_filter_options: { Args: { p_org_id: string }; Returns: Json }
       get_product_relations: {
         Args: { p_product_id: string }
         Returns: {
@@ -8581,6 +8595,14 @@ export type Database = {
           pending_value: number
           total: number
           total_value: number
+        }[]
+      }
+      get_sales_daily_summary: {
+        Args: { p_days?: number; p_org_id: string }
+        Returns: {
+          sale_count: number
+          sale_day: string
+          total_amount: number
         }[]
       }
       get_sales_invoice_dashboard_stats: {
