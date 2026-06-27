@@ -99,7 +99,7 @@ const DailyCashierReport = () => {
       return data || [];
     },
     enabled: !!currentOrganization?.id,
-    staleTime: 0,
+    staleTime: 30_000,
   });
 
   // Fetch payment receipts (RCP) for selected period using range pagination
