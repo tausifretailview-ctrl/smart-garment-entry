@@ -2050,6 +2050,48 @@ main:has(.purchase-dashboard-workspace) {
   overscroll-behavior-y: contain;
 }
 
+/* POS dashboard — full workspace (Vasy-style) */
+.pos-dashboard-workspace {
+  height: 100%;
+  min-height: 0;
+  max-height: 100%;
+  overflow: hidden;
+}
+main:has(.pos-dashboard-workspace) {
+  overflow: hidden;
+  padding: 0;
+  scrollbar-gutter: auto;
+}
+@media (min-width: 1024px) {
+  main:has(.pos-dashboard-workspace) {
+    display: flex;
+    flex-direction: column;
+  }
+  main:has(.pos-dashboard-workspace) .pos-dashboard-workspace {
+    flex: 1 1 0%;
+    height: auto;
+    max-height: 100%;
+    min-height: 0;
+  }
+}
+.pos-dashboard-table-panel {
+  flex: 1 1 0%;
+  min-height: 0;
+  max-height: 100%;
+  overflow-y: auto;
+  overflow-x: auto;
+  overscroll-behavior-y: contain;
+}
+.pos-dashboard-table thead th {
+  padding: 10px 8px;
+  height: auto;
+  vertical-align: middle;
+}
+.pos-dashboard-table tbody td {
+  padding: 8px;
+  vertical-align: middle;
+}
+
 /* Purchase dashboard — readable grid, prominent bill numbers */
 .purchase-bill-dashboard .erp-desktop-table th {
   padding: 10px 14px;
