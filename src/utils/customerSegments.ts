@@ -242,6 +242,31 @@ export async function fetchCustomerSaleStats(
 export async function fetchCustomerSegmentCounts(
   organizationId: string,
 ): Promise<CustomerSegmentCounts> {
-  const { counts } = await fetchCustomerSegmentIndex(organizationId);
-  return counts;
+  const { data, error } = await supabase.rpc("get_customer_segment_counts", {
+    p_org_id: organizationId,
+  });
+  if (error) throw error;
+
+  const row = (Array.isArray(data) ? data[0] : data) as
+    | {
+        vip_count?: number | string | null;
+        regular_count?: number | string | null;
+        risk_count?: number | string | null;
+        lost_count?: number | string | null;
+      }
+    | null
+    | undefined;
+
+  const vip = Number(row?.vip_count ?? 0);
+  const regular = Number(row?.regular_count ?? 0);
+  const risk = Number(row?.risk_count ?? 0);
+  const lost = Number(row?.lost_count ?? 0);
+
+  return {
+    vip,
+    regular,
+    risk,
+    lost,
+    total: vip + regular + risk + lost,
+  };
 }
