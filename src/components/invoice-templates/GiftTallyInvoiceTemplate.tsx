@@ -84,7 +84,7 @@ const DEFAULT_GIFT_TERMS = [
 const DEFAULT_GST_DECLARATION =
   "I/We certify that our registration certificate under the GST Act is in force on the date on which supply of goods specified in the invoice is made by me/us and the transaction of supply covered under this invoice has been effected by me/us in the regular course of my/our business.";
 
-const MIN_ITEM_ROWS = 4;
+const MIN_ITEM_ROWS = 6;
 
 const dash = (value?: string | null) => (value && String(value).trim() ? value : "—");
 
@@ -364,37 +364,42 @@ export const GiftTallyInvoiceTemplate: React.FC<GiftTallyInvoiceTemplateProps> =
           <div style={{ textAlign: "right", fontWeight: "bold", fontSize: "12px" }}>ORIGINAL</div>
         </div>
 
-        {/* Seller — centered */}
-        <div style={{ borderBottom: b, padding: "10px 12px", textAlign: "center" }}>
-          {logoUrl && (
-            <img
-              src={logoUrl}
-              alt=""
-              style={{ width: "58px", height: "58px", objectFit: "contain", margin: "0 auto 8px", display: "block" }}
-            />
-          )}
-          <div style={{ fontSize: "20px", fontWeight: "bold", textTransform: "uppercase", lineHeight: 1.2 }}>
-            {businessName}
-          </div>
-          {tagline && (
-            <div style={{ fontSize: "12px", fontStyle: "italic", marginTop: "3px" }}>{tagline}</div>
-          )}
-          <div style={{ fontSize: "12px", whiteSpace: "pre-line", marginTop: "5px", lineHeight: 1.35 }}>
-            {address}
-          </div>
-          <div style={{ fontSize: "12px", marginTop: "4px" }}>
-            {mobile && <span>Tel: {mobile}</span>}
-            {mobile && email && <span> &nbsp;|&nbsp; </span>}
-            {email && <span>E-Mail: {email}</span>}
-          </div>
-          <div style={{ fontSize: "12px", marginTop: "4px", fontWeight: "bold" }}>
-            GSTIN/Unique ID: {dash(gstNumber)}
-          </div>
-          {sellerState.code && (
-            <div style={{ fontSize: "12px", marginTop: "2px" }}>
-              State: {sellerState.name} &nbsp;|&nbsp; State Code: {sellerState.code}
+        {/* Seller — logo left, company details centered */}
+        <div style={{ borderBottom: b, padding: "8px 12px", display: "flex", gap: "10px", alignItems: "flex-start" }}>
+          {logoUrl ? (
+            <div style={{ width: "58px", flexShrink: 0 }}>
+              <img
+                src={logoUrl}
+                alt=""
+                style={{ width: "58px", height: "58px", objectFit: "contain", display: "block" }}
+              />
             </div>
-          )}
+          ) : null}
+          <div style={{ flex: 1, textAlign: "center", minWidth: 0 }}>
+            <div style={{ fontSize: "20px", fontWeight: "bold", textTransform: "uppercase", lineHeight: 1.2 }}>
+              {businessName}
+            </div>
+            {tagline && (
+              <div style={{ fontSize: "12px", fontStyle: "italic", marginTop: "2px" }}>{tagline}</div>
+            )}
+            <div style={{ fontSize: "12px", whiteSpace: "pre-line", marginTop: "4px", lineHeight: 1.3 }}>
+              {address}
+            </div>
+            <div style={{ fontSize: "12px", marginTop: "3px" }}>
+              {mobile && <span>Tel: {mobile}</span>}
+              {mobile && email && <span> &nbsp;|&nbsp; </span>}
+              {email && <span>E-Mail: {email}</span>}
+            </div>
+            <div style={{ fontSize: "12px", marginTop: "3px", fontWeight: "bold" }}>
+              GSTIN/Unique ID: {dash(gstNumber)}
+            </div>
+            {sellerState.code && (
+              <div style={{ fontSize: "12px", marginTop: "2px" }}>
+                State: {sellerState.name} &nbsp;|&nbsp; State Code: {sellerState.code}
+              </div>
+            )}
+          </div>
+          {logoUrl ? <div style={{ width: "58px", flexShrink: 0 }} aria-hidden="true" /> : null}
         </div>
 
         {/* Billed / Shipped */}
@@ -499,7 +504,7 @@ export const GiftTallyInvoiceTemplate: React.FC<GiftTallyInvoiceTemplateProps> =
                 </tr>
               ))}
               {Array.from({ length: blankRows }).map((_, i) => (
-                <tr key={`blank-${i}`} style={{ height: "16px" }}>
+                <tr key={`blank-${i}`} style={{ height: "14px" }}>
                   <td style={cell}>&nbsp;</td>
                   <td style={cell} />
                   {showHSN && <td style={cell} />}
