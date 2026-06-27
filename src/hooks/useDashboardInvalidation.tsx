@@ -23,11 +23,13 @@ export const useDashboardInvalidation = () => {
     queryClient.invalidateQueries({ queryKey: ["sales-trend"] });
     queryClient.invalidateQueries({ queryKey: ["purchase-trend"] });
     queryClient.invalidateQueries({ queryKey: ["top-products"] });
+    queryClient.invalidateQueries({ queryKey: ["statusbar-summary"] });
   }, [queryClient]);
 
   const invalidateSales = useCallback(
     (organizationId?: string) => {
       invalidateSalesQueriesNow(queryClient, organizationId);
+      queryClient.invalidateQueries({ queryKey: ["statusbar-summary"] });
     },
     [queryClient],
   );
@@ -48,6 +50,7 @@ export const useDashboardInvalidation = () => {
 
   const invalidatePurchases = useCallback(() => {
     invalidatePurchaseDashboardQueries(queryClient);
+    queryClient.invalidateQueries({ queryKey: ["statusbar-summary"] });
   }, [queryClient]);
 
   const invalidateCustomers = useCallback(
@@ -55,6 +58,7 @@ export const useDashboardInvalidation = () => {
       queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
       queryClient.invalidateQueries({ queryKey: ["mobile-dashboard-stats"] });
       invalidateCustomerFinancialSnapshot(queryClient, organizationId);
+      queryClient.invalidateQueries({ queryKey: ["statusbar-summary"] });
     },
     [queryClient],
   );
