@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -136,54 +136,51 @@ export default function DeliveryChallanEntry() {
     defaultValues: { customer_name: "", phone: "", email: "", address: "", gst_number: "" },
   });
 
-  // Fetch products with pagination
-  const { data: productsData } = useQuery({
-    queryKey: ['products-with-variants', currentOrganization?.id],
+  // Size groups (reference data) — standalone cached query, reused for size_range display.
+  // Replaces the old mount-time products+variants+size_groups catalog embed.
+  const { data: sizeGroupsData } = useQuery({
+    queryKey: ['size-groups', currentOrganization?.id],
     queryFn: async () => {
       if (!currentOrganization?.id) return [];
-      
-      const allProducts: any[] = [];
-      const PAGE_SIZE = 1000;
-      let offset = 0;
-      let hasMore = true;
-      
-      while (hasMore) {
-        const { data, error } = await supabase
-          .from('products')
-          .select(`id, product_name, brand, hsn_code, gst_per, product_type, status, category, style, color, size_group_id, uom, product_variants (id, barcode, size, color, stock_qty, sale_price, mrp, pur_price, product_id, active, deleted_at, organization_id), size_groups (id, group_name, sizes)`)
-          .eq('organization_id', currentOrganization.id)
-          .eq('status', 'active')
-          .is('deleted_at', null)
-          .range(offset, offset + PAGE_SIZE - 1);
-        if (error) throw error;
-        if (data && data.length > 0) {
-          allProducts.push(...data);
-          offset += PAGE_SIZE;
-          hasMore = data.length === PAGE_SIZE;
-        } else {
-          hasMore = false;
-        }
-      }
-      
-      return allProducts.map((product: any) => {
-        const sizeGroup = product.size_groups;
-        let size_range: string | null = null;
-        if (sizeGroup && Array.isArray(sizeGroup.sizes) && sizeGroup.sizes.length > 0) {
-          size_range = sizeGroup.sizes.length > 1
-            ? `${sizeGroup.sizes[0]}-${sizeGroup.sizes[sizeGroup.sizes.length - 1]}`
-            : sizeGroup.sizes[0];
-        }
-        return { 
-          ...product, 
-          size_range,
-          product_variants: product.product_variants?.filter((v: any) => !v.deleted_at)
-        };
-      });
+      const { data, error } = await supabase
+        .from('size_groups')
+        .select('id, group_name, sizes')
+        .eq('organization_id', currentOrganization.id)
+        .order('group_name');
+      if (error) throw error;
+      return data || [];
     },
     enabled: !!currentOrganization?.id,
-    staleTime: 300000,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
     refetchOnWindowFocus: false,
   });
+
+  const sizeGroupSizesById = useMemo(() => {
+    const map = new Map<string, string[]>();
+    (sizeGroupsData || []).forEach((sg: { id: string; sizes: string[] | null }) => {
+      map.set(sg.id, Array.isArray(sg.sizes) ? sg.sizes : []);
+    });
+    return map;
+  }, [sizeGroupsData]);
+
+  // Lazy per-product variant fetch (replaces mount-embedded variants). No `active` filter —
+  // matches the previous mount embed which included all non-deleted variants.
+  const loadVariantsForProduct = useCallback(async (productId: string) => {
+    if (!currentOrganization?.id || !productId) return [];
+    const { data, error } = await supabase
+      .from('product_variants')
+      .select('id, size, color, barcode, sale_price, mrp, stock_qty, pur_price, active, product_id')
+      .eq('organization_id', currentOrganization.id)
+      .eq('product_id', productId)
+      .is('deleted_at', null)
+      .order('size');
+    if (error) {
+      console.error('Variant load failed:', error);
+      return [];
+    }
+    return data || [];
+  }, [currentOrganization?.id]);
 
   // Fetch employees
   const { data: employeesData } = useQuery({
@@ -290,23 +287,54 @@ export default function DeliveryChallanEntry() {
     setLineItems(items);
   };
 
-  // Product search
+  // Product search — search-on-demand (>= 2 chars, 300ms debounce). Mirrors the previous
+  // client-side filter fields (product_name | style | brand); size_range from cached size groups.
   useEffect(() => {
-    if (searchInput.length < 2) {
+    if (!currentOrganization?.id || searchInput.trim().length < 2) {
       setProductSearchResults([]);
       return;
     }
+    let cancelled = false;
     setIsSearching(true);
-    const searchLower = searchInput.toLowerCase();
-    const results = (productsData || []).filter((product: any) => {
-      return product.product_name?.toLowerCase().includes(searchLower) ||
-        product.style?.toLowerCase().includes(searchLower) ||
-        product.brand?.toLowerCase().includes(searchLower);
-    });
-    setProductSearchResults(results.slice(0, 100));
-    setProductDisplayLimit(100);
-    setIsSearching(false);
-  }, [searchInput, productsData]);
+    const debounceTimer = setTimeout(async () => {
+      try {
+        const term = searchInput.trim();
+        const esc = term.replace(/[%_,]/g, '');
+        const { data, error } = await supabase
+          .from('products')
+          .select('id, product_name, brand, hsn_code, gst_per, product_type, status, category, style, color, size_group_id, uom')
+          .eq('organization_id', currentOrganization.id)
+          .eq('status', 'active')
+          .is('deleted_at', null)
+          .or(`product_name.ilike.%${esc}%,style.ilike.%${esc}%,brand.ilike.%${esc}%`)
+          .order('product_name')
+          .limit(100);
+        if (error) throw error;
+        if (cancelled) return;
+        const mapped = (data || []).map((product: any) => {
+          const sizes = product.size_group_id ? sizeGroupSizesById.get(product.size_group_id) : null;
+          let size_range: string | null = null;
+          if (sizes && sizes.length > 0) {
+            size_range = sizes.length > 1 ? `${sizes[0]}-${sizes[sizes.length - 1]}` : sizes[0];
+          }
+          return { ...product, size_range };
+        });
+        setProductSearchResults(mapped);
+        setProductDisplayLimit(100);
+      } catch (error) {
+        if (!cancelled) {
+          console.error('Product search error:', error);
+          setProductSearchResults([]);
+        }
+      } finally {
+        if (!cancelled) setIsSearching(false);
+      }
+    }, 300);
+    return () => {
+      cancelled = true;
+      clearTimeout(debounceTimer);
+    };
+  }, [searchInput, currentOrganization?.id, sizeGroupSizesById]);
 
   const addProductToLine = (product: any, variant: any) => {
     const firstEmptyIdx = lineItems.findIndex(item => item.productId === '');
@@ -356,39 +384,49 @@ export default function DeliveryChallanEntry() {
     }
   };
 
-  const searchAndAddProduct = (searchTerm: string) => {
-    if (!productsData) return;
+  const searchAndAddProduct = async (searchTerm: string) => {
+    const term = searchTerm.trim();
+    if (!term || !currentOrganization?.id) return;
 
-    // Search by barcode first (exact match)
-    let foundVariant: any = null;
-    let foundProduct: any = null;
+    // Targeted DB barcode lookup (fires on scan only). No `active` filter — resolve inactive
+    // variants too if the barcode matches; order active-first for the rare duplicate-barcode case.
+    const { data: dbVariant, error } = await supabase
+      .from('product_variants')
+      .select(`id, size, color, barcode, sale_price, mrp, stock_qty, pur_price, active, product_id,
+        products!inner(id, product_name, brand, hsn_code, gst_per, product_type, category, style, color, size_group_id, uom, organization_id, status, deleted_at)`)
+      .eq('organization_id', currentOrganization.id)
+      .eq('barcode', term)
+      .is('deleted_at', null)
+      .eq('products.organization_id', currentOrganization.id)
+      .eq('products.status', 'active')
+      .is('products.deleted_at', null)
+      .order('active', { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
-    for (const product of productsData) {
-      const variantMatch = product.product_variants?.find((v: any) => 
-        v.barcode?.toLowerCase() === searchTerm.toLowerCase() && v.stock_qty > 0
-      );
-      
-      if (variantMatch) {
-        foundVariant = variantMatch;
-        foundProduct = product;
-        break;
-      }
+    if (error) {
+      console.error('Barcode lookup failed:', error);
     }
 
-    if (foundVariant && foundProduct) {
-      // If in grid mode, open size grid dialog
+    const foundVariant: any = dbVariant || null;
+    const foundProduct: any = dbVariant ? (dbVariant as any).products : null;
+
+    // Preserve previous behavior: only add when the matched variant has stock.
+    if (foundVariant && foundProduct && (foundVariant.stock_qty || 0) > 0) {
+      // If in grid mode, open size grid dialog (load all variants for the product).
       if (entryMode === "grid") {
+        const variants = await loadVariantsForProduct(foundProduct.id);
         setSizeGridProduct(foundProduct);
-        setSizeGridVariants(foundProduct.product_variants || []);
+        setSizeGridVariants(variants);
         setShowSizeGrid(true);
         setSearchInput("");
         barcodeInputRef.current?.focus();
         return;
       }
-      
+
       // Check if product already exists in filled rows
       const existingIndex = lineItems.findIndex(item => item.variantId === foundVariant.id && item.productId !== '');
-      
+
       if (existingIndex >= 0) {
         // Increment quantity
         const newItems = [...lineItems];
@@ -399,7 +437,7 @@ export default function DeliveryChallanEntry() {
         // Add as new line
         addProductToLine(foundProduct, foundVariant);
       }
-      
+
       setSearchInput("");
       // Keep focus on barcode input for continuous scanning
       setTimeout(() => barcodeInputRef.current?.focus(), 50);
@@ -414,16 +452,18 @@ export default function DeliveryChallanEntry() {
     }
   };
 
-  const handleProductSelect = (product: any) => {
-    if (entryMode === 'grid' && product.product_variants?.length > 1) {
+  const handleProductSelect = async (product: any) => {
+    // Variants are no longer embedded in search results — load them on demand.
+    const variants = await loadVariantsForProduct(product.id);
+    if (entryMode === 'grid' && variants.length > 1) {
       setSizeGridProduct(product);
-      setSizeGridVariants(product.product_variants || []);
+      setSizeGridVariants(variants);
       setShowSizeGrid(true);
-    } else if (product.product_variants?.length === 1) {
-      addProductToLine(product, product.product_variants[0]);
+    } else if (variants.length === 1) {
+      addProductToLine(product, variants[0]);
     } else {
       setSizeGridProduct(product);
-      setSizeGridVariants(product.product_variants || []);
+      setSizeGridVariants(variants);
       setShowSizeGrid(true);
     }
     setOpenProductSearch(false);
