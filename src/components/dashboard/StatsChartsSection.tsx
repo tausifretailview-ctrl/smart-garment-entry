@@ -14,42 +14,38 @@ export const StatsChartsSection = ({ loadEnabled = false }: StatsChartsSectionPr
   const { currentOrganization } = useOrganization();
   const chartsEnabled = loadEnabled && !!currentOrganization?.id;
 
-  // Fetch last 7 days sales data
+  // Last 7 days sales — server-side daily summary (replaces unbounded sales row fetch)
   const { data: salesData } = useQuery({
     queryKey: ["sales-trend", currentOrganization?.id],
     queryFn: async () => {
       if (!currentOrganization) return [];
-      
+
       const last7Days = Array.from({ length: 7 }, (_, i) => {
         const date = subDays(new Date(), 6 - i);
         return {
           date: startOfDay(date),
           name: format(date, "MMM dd"),
+          key: format(date, "yyyy-MM-dd"),
         };
       });
 
-      const { data, error } = await supabase
-        .from("sales")
-        .select("net_amount, sale_date")
-        .eq("organization_id", currentOrganization.id)
-        .is("deleted_at", null)
-        .gte("sale_date", format(last7Days[0].date, "yyyy-MM-dd"))
-        .order("sale_date", { ascending: true });
-
+      const { data, error } = await supabase.rpc("get_sales_daily_summary", {
+        p_org_id: currentOrganization.id,
+        p_days: 7,
+      });
       if (error) throw error;
 
-      const salesByDay = last7Days.map(day => {
-        const daySales = data?.filter(
-          sale => format(new Date(sale.sale_date), "MMM dd") === day.name
-        ) || [];
-        
-        return {
-          name: day.name,
-          sales: daySales.reduce((sum, sale) => sum + (sale.net_amount || 0), 0),
-        };
-      });
+      const amountByDay = new Map(
+        (data ?? []).map((row: { sale_day: string; total_amount: number | null }) => [
+          String(row.sale_day).slice(0, 10),
+          Number(row.total_amount) || 0,
+        ]),
+      );
 
-      return salesByDay;
+      return last7Days.map((day) => ({
+        name: day.name,
+        sales: amountByDay.get(day.key) ?? 0,
+      }));
     },
     enabled: chartsEnabled,
     ...DASHBOARD_MANUAL_REFRESH_OPTIONS,
