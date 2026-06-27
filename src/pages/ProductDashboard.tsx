@@ -549,36 +549,28 @@ const ProductDashboard = () => {
     staleTime: STALE_REFERENCE,
   });
 
+  const PRODUCT_FILTER_OPTIONS_STALE_MS = 5 * 60 * 1000;
+
   const { data: filterOptions } = useQuery({
     queryKey: ["product-filter-options", currentOrganization?.id],
     queryFn: async () => {
       if (!currentOrganization?.id) return { categories: [] as string[], productTypes: [] as string[] };
-      const [catRes, typeRes] = await Promise.all([
-        supabase
-          .from("products")
-          .select("category")
-          .eq("organization_id", currentOrganization.id)
-          .is("deleted_at", null)
-          .not("category", "is", null),
-        supabase
-          .from("products")
-          .select("product_type")
-          .eq("organization_id", currentOrganization.id)
-          .is("deleted_at", null)
-          .not("product_type", "is", null),
-      ]);
-      if (catRes.error) throw catRes.error;
-      if (typeRes.error) throw typeRes.error;
-      const categories = Array.from(
-        new Set((catRes.data || []).map((p: { category: string }) => p.category).filter(Boolean)),
-      ).sort() as string[];
-      const productTypes = Array.from(
-        new Set((typeRes.data || []).map((p: { product_type: string }) => p.product_type).filter(Boolean)),
-      ).sort() as string[];
-      return { categories, productTypes };
+
+      const { data, error } = await supabase.rpc("get_product_filter_options", {
+        p_org_id: currentOrganization.id,
+      });
+      if (error) throw error;
+
+      const payload = (data || {}) as { categories?: string[] | null; product_types?: string[] | null };
+      return {
+        categories: (payload.categories ?? []).filter(Boolean) as string[],
+        productTypes: (payload.product_types ?? []).filter(Boolean) as string[],
+      };
     },
     enabled: !!currentOrganization?.id,
-    staleTime: STALE_REFERENCE,
+    staleTime: PRODUCT_FILTER_OPTIONS_STALE_MS,
+    gcTime: 30 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 
   const categories = filterOptions?.categories ?? [];
@@ -617,6 +609,7 @@ const ProductDashboard = () => {
         default_pur_price: Number(p.default_pur_price) || 0,
         default_sale_price: Number(p.default_sale_price) || 0,
         status: p.status || "active",
+        user_cancelled_at: p.user_cancelled_at ?? null,
         variants: [],
         total_stock: Number(p.total_stock) || 0,
         variant_count: Number(p.variant_count) || 0,
@@ -627,21 +620,6 @@ const ProductDashboard = () => {
         totalCount = Number((data as any)[0].total_count) || 0;
       } else if (currentPage === 1) {
         totalCount = 0;
-      }
-
-      if (rows.length > 0) {
-        const ids = rows.map((r) => r.product_id);
-        const { data: cancelledData } = await supabase
-          .from("products")
-          .select("id, user_cancelled_at")
-          .in("id", ids)
-          .not("user_cancelled_at", "is", null);
-        const cancelledMap = new Map<string, string>(
-          (cancelledData || []).map((p: any) => [p.id, p.user_cancelled_at]),
-        );
-        rows.forEach((r) => {
-          r.user_cancelled_at = cancelledMap.get(r.product_id) || null;
-        });
       }
 
       return { rows, totalCount };
