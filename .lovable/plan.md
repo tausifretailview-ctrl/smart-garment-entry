@@ -1,55 +1,40 @@
+# Fix App-Wide Slowness — Phase C Rollout
 
-## Part A — Build fixes (2 lines in `src/pages/Settings.tsx`)
+The earlier read-only audit (`docs/cloud-usage-audit-2026-06-27.md`) already identified the hotspots. The slowness you're now seeing across all pages matches those findings — especially the global StatusBar refetching every 10 seconds, wide `SELECT *` queries, and a few unindexed/unfiltered scans. This plan applies the approved-style fixes in safe batches.
 
-1. **Line 4415** — cast settings prop:
-   ```diff
-   - orgSettings={settings}
-   + orgSettings={settings as unknown as Record<string, unknown>}
-   ```
+## What I will change (in order)
 
-2. **Line 49** — re-type `LazyBackupSettings` so its props propagate (mirrors the existing pattern used by `LazyInvoiceWrapper` on line 44):
-   ```diff
-   - const LazyBackupSettings = lazyWithRetry(() => import("@/components/BackupSettings"));
-   + const LazyBackupSettings = lazyWithRetry(() => import("@/components/BackupSettings")) as unknown as React.ComponentType<
-   +   React.ComponentProps<typeof import("@/components/BackupSettings").default>
-   + >;
-   ```
+### Batch C1 — Biggest wins, LOW risk
+1. **StatusBar polling (F2)** — global footer currently refetches stock + receivables every ~10s on every page. Raise to 2 min stale, invalidate on Sale/Receipt save. Expected: largest single reduction in cloud reads + fewer background fetches blocking UI.
+2. **Customer Master narrow SELECT (F4)** — drop from `SELECT *` (22 cols) to the 9 displayed columns.
+3. **Customer Master count mode (F8)** — switch `{count:'exact'}` → `{count:'planned'}` on paginated list.
+4. **Sale items LATERAL join (F1)** — remove redundant inner `sales` re-join in `fetchSaleItemsByOrg` callers where org scope is already known.
 
-The S3 "Reduce your concurrent request rate" error from the previous build is infrastructure-side upload throttling, not a code issue — the rebuild after these TS fixes will clear it.
+### Batch C2 — Correctness + cost, LOW risk
+5. **Unfiltered `product_variants` scan (F6)** — add explicit `.eq('organization_id', orgId)` to the caller(s).
+6. **Unfiltered `customer_product_prices` scan (F7)** — same fix.
+7. **`fixMissingMrp` UPDATE loop (F10)** — collapse 1,000 single-row updates into one `WHERE id = ANY($ids)` statement.
 
----
+### Batch C3 — MED risk, isolated paths
+8. **2.6s products+variants+size_groups embed (F3)** — locate caller and route through paginated RPC.
+9. **POS variant-lookup audit (F9)** — verify all callers use the indexed `lookupBarcodeStock` path.
 
-## Part B — Read-only query-time audit
+### Batch C4 — Optional polish
+10. Confirm 250 ms debounce on Inventory / Product Master search.
+11. Lift `staleTime: 0` → 30 s on `DailyCashierReport` and `CustomerReconciliation`.
 
-For each of the **top 20 hotspots** from `pg_stat_statements`, the report will include:
+## Verification after each batch
+- `pg_stat_statements` mean/total ms before vs after for the targeted query.
+- Manual smoke: open StatusBar pages, Customer Master, POS, Sales Invoice.
+- No business-logic changes — only SELECT shape, filters, stale times, and one UPDATE batching.
 
-| Column | Meaning |
-|---|---|
-| rank, calls, mean ms, total ms | from `pg_stat_statements` |
-| **page(s) that trigger it** | traced from the SELECT shape back to the source file |
-| **call-pattern classification** | `keystroke-driven` (calls ≫ page loads) vs `list-mount` (calls ≈ page loads) vs `per-row N+1` |
-| **ILIKE on unindexed text?** | YES/NO — cross-checked against `pg_indexes` for the searched column, looking specifically for `gin_trgm_ops` |
-| **GIN trigram present?** | for every ILIKE hotspot, list the existing trigram indexes on those columns (so we know whether the slowness is a missing index vs a missing debounce/cache) |
+## Out of scope
+- No RLS, no formula changes, no schema migrations beyond what each fix needs.
+- Already-fixed items (Sales Dashboard, Settings, Sale Order Dashboard, Product Master pagination, trigram indexes) are not touched.
 
-Specific deep-dive items you asked for:
+## Technical notes
+- StatusBar fix: change `STALE_FREQUENT` → `STALE_REFERENCE` in the StatusBar query options, then add `queryClient.invalidateQueries({ queryKey: ['stock-summary'] })` inside `useDashboardInvalidation` save paths.
+- F6/F7 callers will be located via `rg` for the raw query patterns; they are RLS-only scans today.
+- F10 is the `fixMissingMrp` repair utility — already has an equivalence test (`test/money/fixMissingMrpEquivalence.test.ts`) to guard the batching change.
 
-- **Rank 1 — `sale_items` ILIKE on barcode / product_name / size / color filtered by `sale_id IN`**: I'll run `\d+ public.sale_items` + `pg_indexes` to confirm whether any of (`barcode`, `product_name`, `size`, `color`) have `gin_trgm_ops`, and I'll trace the call site (suspect: `src/utils/lookupBarcodeSales.ts` and the POS dashboard search in `src/utils/posDashboardSearch.ts`) to decide whether the right fix is a trigram index, a debounce, or skipping the line-item union when the query is short.
-- **Rank 2 — `voucher_entries` description ILIKE × 12 OR-patterns**: same checks on `voucher_entries(description)`.
-- Plus the next 18 — full table.
-
-Client-side: walk the baseline journey (Login → POS → Sales Dashboard → Accounts → Customer Ledger → Reports → Settings) with `__ezzyCloudUsage` + `__ezzyNavPerf` to record per-route request counts and blocking waits.
-
-### Deliverable
-
-A single markdown report in chat with:
-
-```
-1. Top 20 server queries — full table with all flags above
-2. Top 5 slow pages — wall-clock to interactive, # requests, blocking?
-3. Suspected root causes per query (missing trigram / N+1 / no debounce / oversized SELECT)
-4. Phase 1 fix proposal ranked by (impact ÷ risk) — for your approval
-```
-
-Also saved to `docs/phase-0-query-time-audit-2026-06-26.md`.
-
-**No DDL, no migrations, no code edits in Part B beyond the doc file.** All Phase 1 fixes wait for your explicit approval.
+Reply **"Approve C1"** (or list which batches) and I'll apply them in that order, reporting before/after numbers after each.
