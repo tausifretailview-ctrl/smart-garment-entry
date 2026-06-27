@@ -1,6 +1,7 @@
 import { useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useOrganization } from "@/contexts/OrganizationContext";
 
 interface StockCheckResult {
   isAvailable: boolean;
@@ -20,6 +21,7 @@ interface OldItem {
  */
 export const useStockValidation = () => {
   const { toast } = useToast();
+  const { currentOrganization } = useOrganization();
   const [checking, setChecking] = useState(false);
 
   /**
@@ -36,6 +38,10 @@ export const useStockValidation = () => {
   ): Promise<StockCheckResult> => {
     setChecking(true);
     try {
+      if (!currentOrganization?.id) {
+        throw new Error("No organization selected");
+      }
+
       const { data: variant, error } = await supabase
         .from("product_variants")
         .select(`
@@ -46,6 +52,7 @@ export const useStockValidation = () => {
             product_type
           )
         `)
+        .eq("organization_id", currentOrganization.id)
         .eq("id", variantId)
         .single();
 
@@ -89,7 +96,7 @@ export const useStockValidation = () => {
     } finally {
       setChecking(false);
     }
-  }, [toast]);
+  }, [toast, currentOrganization?.id]);
 
   /**
    * Validate stock for multiple items in a cart/invoice
@@ -144,6 +151,10 @@ export const useStockValidation = () => {
     }
 
     try {
+      if (!currentOrganization?.id) {
+        throw new Error("No organization selected");
+      }
+
       const variantIds = [...aggregatedNewItems.keys()];
       if (variantIds.length === 0) return insufficientItems;
 
@@ -159,6 +170,7 @@ export const useStockValidation = () => {
             product_type
           )
         `)
+        .eq("organization_id", currentOrganization.id)
         .in("id", variantIds);
 
       if (error) throw error;
@@ -203,7 +215,7 @@ export const useStockValidation = () => {
     }
 
     return insufficientItems;
-  }, [checkStock]);
+  }, [toast, currentOrganization?.id]);
 
   /**
    * Show toast notification for stock validation errors
