@@ -1,7 +1,5 @@
 import React from "react";
 import {
-  computeTallyLineDisplay,
-  normalizeGstTaxType,
   splitLineGstFromTotal,
   type GstTaxType,
 } from "@/utils/gstRegisterUtils";
@@ -182,6 +180,7 @@ export const GiftTallyInvoiceTemplate: React.FC<GiftTallyInvoiceTemplateProps> =
   documentTitle,
   taxType: taxTypeProp = "inclusive",
   items,
+  subtotal,
   discount,
   taxableAmount: taxableAmountProp,
   cgstAmount: cgstAmountProp = 0,
@@ -198,7 +197,6 @@ export const GiftTallyInvoiceTemplate: React.FC<GiftTallyInvoiceTemplateProps> =
   stampImageBase64,
   stampSize = "medium",
 }) => {
-  const taxType = normalizeGstTaxType(taxTypeProp);
   const sellerState = getStateFromGSTIN(gstNumber);
   const buyerState = getStateFromGSTIN(customerGSTIN);
   const isInterState =
@@ -227,38 +225,23 @@ export const GiftTallyInvoiceTemplate: React.FC<GiftTallyInvoiceTemplateProps> =
   const lineRows = items.map((item, index) => {
     const gstPct = item.gstPercent || 0;
     const { taxable, gst: gstAmt } = splitLineGstFromTotal(item.total, gstPct);
-    const { displayRate, displayAmount } = computeTallyLineDisplay(item.total, gstPct, item.qty, taxType);
+    const safeQty = item.qty > 0 ? item.qty : 1;
+    const taxableRate = taxable / safeQty;
     computedTaxable += taxable;
     totalQty += item.qty;
-    let cgstAmt = 0;
-    let sgstAmt = 0;
-    let igstAmt = 0;
-    let cgstPct = 0;
-    let sgstPct = 0;
-    let igstPct = 0;
     if (isInterState) {
-      igstAmt = gstAmt;
-      igstPct = gstPct;
       totalIgst += gstAmt;
     } else {
-      cgstAmt = gstAmt / 2;
-      sgstAmt = gstAmt / 2;
-      cgstPct = gstPct / 2;
-      sgstPct = gstPct / 2;
-      totalCgst += cgstAmt;
-      totalSgst += sgstAmt;
+      totalCgst += gstAmt / 2;
+      totalSgst += gstAmt / 2;
     }
     return {
       index: index + 1,
       item,
-      displayRate,
-      displayAmount,
-      cgstPct,
-      sgstPct,
-      igstPct,
-      cgstAmt,
-      sgstAmt,
-      igstAmt,
+      taxable,
+      taxableRate,
+      gstPct,
+      gstAmt,
     };
   });
 
@@ -266,6 +249,11 @@ export const GiftTallyInvoiceTemplate: React.FC<GiftTallyInvoiceTemplateProps> =
   const totalCgstFinal = totalCgst > 0 ? totalCgst : cgstAmountProp;
   const totalSgstFinal = totalSgst > 0 ? totalSgst : sgstAmountProp;
   const totalIgstFinal = totalIgst > 0 ? totalIgst : igstAmountProp;
+  const totalGstAmount =
+    totalTaxProp > 0
+      ? totalTaxProp
+      : totalCgstFinal + totalSgstFinal + totalIgstFinal;
+  const lineTaxableTotal = lineRows.reduce((s, r) => s + r.taxable, 0);
 
   const terms =
     termsConditions && termsConditions.filter((t) => t?.trim()).length > 0
@@ -376,37 +364,37 @@ export const GiftTallyInvoiceTemplate: React.FC<GiftTallyInvoiceTemplateProps> =
           <div style={{ textAlign: "right", fontWeight: "bold", fontSize: "12px" }}>ORIGINAL</div>
         </div>
 
-        {/* Seller */}
-        <div style={{ borderBottom: b, padding: "10px 12px" }}>
-          <div style={{ display: "flex", gap: "12px", alignItems: "flex-start" }}>
-            {logoUrl && (
-              <img src={logoUrl} alt="" style={{ width: "58px", height: "58px", objectFit: "contain" }} />
-            )}
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: "20px", fontWeight: "bold", textTransform: "uppercase", lineHeight: 1.2 }}>
-                {businessName}
-              </div>
-              {tagline && (
-                <div style={{ fontSize: "12px", fontStyle: "italic", marginTop: "3px" }}>{tagline}</div>
-              )}
-              <div style={{ fontSize: "12px", whiteSpace: "pre-line", marginTop: "5px", lineHeight: 1.35 }}>
-                {address}
-              </div>
-              <div style={{ fontSize: "12px", marginTop: "4px" }}>
-                {mobile && <span>Tel: {mobile}</span>}
-                {mobile && email && <span> &nbsp;|&nbsp; </span>}
-                {email && <span>E-Mail: {email}</span>}
-              </div>
-              <div style={{ fontSize: "12px", marginTop: "4px", fontWeight: "bold" }}>
-                GSTIN/Unique ID: {dash(gstNumber)}
-              </div>
-              {sellerState.code && (
-                <div style={{ fontSize: "12px", marginTop: "2px" }}>
-                  State: {sellerState.name} &nbsp;|&nbsp; State Code: {sellerState.code}
-                </div>
-              )}
-            </div>
+        {/* Seller — centered */}
+        <div style={{ borderBottom: b, padding: "10px 12px", textAlign: "center" }}>
+          {logoUrl && (
+            <img
+              src={logoUrl}
+              alt=""
+              style={{ width: "58px", height: "58px", objectFit: "contain", margin: "0 auto 8px", display: "block" }}
+            />
+          )}
+          <div style={{ fontSize: "20px", fontWeight: "bold", textTransform: "uppercase", lineHeight: 1.2 }}>
+            {businessName}
           </div>
+          {tagline && (
+            <div style={{ fontSize: "12px", fontStyle: "italic", marginTop: "3px" }}>{tagline}</div>
+          )}
+          <div style={{ fontSize: "12px", whiteSpace: "pre-line", marginTop: "5px", lineHeight: 1.35 }}>
+            {address}
+          </div>
+          <div style={{ fontSize: "12px", marginTop: "4px" }}>
+            {mobile && <span>Tel: {mobile}</span>}
+            {mobile && email && <span> &nbsp;|&nbsp; </span>}
+            {email && <span>E-Mail: {email}</span>}
+          </div>
+          <div style={{ fontSize: "12px", marginTop: "4px", fontWeight: "bold" }}>
+            GSTIN/Unique ID: {dash(gstNumber)}
+          </div>
+          {sellerState.code && (
+            <div style={{ fontSize: "12px", marginTop: "2px" }}>
+              State: {sellerState.name} &nbsp;|&nbsp; State Code: {sellerState.code}
+            </div>
+          )}
         </div>
 
         {/* Billed / Shipped */}
@@ -492,10 +480,8 @@ export const GiftTallyInvoiceTemplate: React.FC<GiftTallyInvoiceTemplateProps> =
                 {showHSN && <th style={{ ...hCell, width: "58px" }}>HSN Code</th>}
                 <th style={{ ...hCell, width: "40px" }}>QTY.</th>
                 <th style={{ ...hCell, width: "58px" }}>RATE<br />Rs. P.</th>
-                <th style={{ ...hCell, width: "64px" }}>AMOUNT<br />Rs. P.</th>
-                <th style={{ ...hCell, width: "50px" }}>CGST %</th>
-                <th style={{ ...hCell, width: "50px" }}>SGST %</th>
-                <th style={{ ...hCell, width: "50px" }}>IGST %</th>
+                <th style={{ ...hCell, width: "44px" }}>GST<br />%</th>
+                <th style={{ ...hCell, width: "72px" }}>AMOUNT<br />(Excl. GST)</th>
               </tr>
             </thead>
             <tbody>
@@ -507,41 +493,9 @@ export const GiftTallyInvoiceTemplate: React.FC<GiftTallyInvoiceTemplateProps> =
                   </td>
                   {showHSN && <td style={{ ...cell, textAlign: "center" }}>{row.item.hsn || "—"}</td>}
                   <td style={{ ...cell, textAlign: "center", fontWeight: "bold" }}>{row.item.qty}</td>
-                  <td style={{ ...cell, textAlign: "right" }}>{fmt(row.displayRate)}</td>
-                  <td style={{ ...cell, textAlign: "right", fontWeight: "bold" }}>{fmt(row.displayAmount)}</td>
-                  <td style={{ ...cell, textAlign: "right", fontSize: "10px", lineHeight: 1.3 }}>
-                    {row.cgstPct > 0 ? (
-                      <>
-                        {row.cgstPct}%
-                        <br />
-                        {fmt(row.cgstAmt)}
-                      </>
-                    ) : (
-                      "—"
-                    )}
-                  </td>
-                  <td style={{ ...cell, textAlign: "right", fontSize: "10px", lineHeight: 1.3 }}>
-                    {row.sgstPct > 0 ? (
-                      <>
-                        {row.sgstPct}%
-                        <br />
-                        {fmt(row.sgstAmt)}
-                      </>
-                    ) : (
-                      "—"
-                    )}
-                  </td>
-                  <td style={{ ...cell, textAlign: "right", fontSize: "10px", lineHeight: 1.3 }}>
-                    {row.igstPct > 0 ? (
-                      <>
-                        {row.igstPct}%
-                        <br />
-                        {fmt(row.igstAmt)}
-                      </>
-                    ) : (
-                      "—"
-                    )}
-                  </td>
+                  <td style={{ ...cell, textAlign: "right" }}>{fmt(row.taxableRate)}</td>
+                  <td style={{ ...cell, textAlign: "center" }}>{row.gstPct > 0 ? `${row.gstPct}%` : "—"}</td>
+                  <td style={{ ...cell, textAlign: "right", fontWeight: "bold" }}>{fmt(row.taxable)}</td>
                 </tr>
               ))}
               {Array.from({ length: blankRows }).map((_, i) => (
@@ -553,31 +507,38 @@ export const GiftTallyInvoiceTemplate: React.FC<GiftTallyInvoiceTemplateProps> =
                   <td style={cell} />
                   <td style={cell} />
                   <td style={cell} />
-                  <td style={cell} />
-                  <td style={cell} />
                 </tr>
               ))}
               <tr style={{ backgroundColor: "#f0f0f0", fontWeight: "bold" }}>
                 <td colSpan={showHSN ? 3 : 2} style={{ ...cell, textAlign: "right" }}>Total</td>
                 <td style={{ ...cell, textAlign: "center" }}>{totalQty}</td>
                 <td style={cell} />
-                <td style={{ ...cell, textAlign: "right" }}>{fmt(lineRows.reduce((s, r) => s + r.displayAmount, 0))}</td>
-                <td style={{ ...cell, textAlign: "right" }}>{totalCgstFinal > 0 ? fmt(totalCgstFinal) : "—"}</td>
-                <td style={{ ...cell, textAlign: "right" }}>{totalSgstFinal > 0 ? fmt(totalSgstFinal) : "—"}</td>
-                <td style={{ ...cell, textAlign: "right" }}>{totalIgstFinal > 0 ? fmt(totalIgstFinal) : "—"}</td>
+                <td style={cell} />
+                <td style={{ ...cell, textAlign: "right" }}>{fmt(lineTaxableTotal)}</td>
               </tr>
             </tbody>
           </table>
         </div>
 
         <div className={`gift-tally-footer-block${items.length > 20 ? " gift-tally-page-break" : ""}`}>
-          {/* Amount in words + totals */}
+          {/* Amount in words + GST summary | totals */}
           <div style={{ display: "flex", borderTop: b }}>
             <div style={{ flex: 1, borderRight: b, padding: "8px 10px", fontSize: "12px" }}>
               <div style={{ fontWeight: "bold", marginBottom: "3px" }}>Invoice Total (In Words):</div>
-              <div style={{ textTransform: "capitalize", lineHeight: 1.4 }}>
+              <div style={{ textTransform: "capitalize", lineHeight: 1.4, marginBottom: "8px" }}>
                 INR {numberToIndianWords(grandTotal)}
               </div>
+              <div style={{ fontWeight: "bold", marginBottom: "4px", textDecoration: "underline" }}>
+                GST Summary
+              </div>
+              {totalIgstFinal > 0 ? (
+                <div>IGST: {fmt(totalIgstFinal)}</div>
+              ) : (
+                <>
+                  <div>CGST: {fmt(totalCgstFinal)}</div>
+                  <div>SGST: {fmt(totalSgstFinal)}</div>
+                </>
+              )}
             </div>
             <div style={{ width: "44%", fontSize: "12px" }}>
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
@@ -589,20 +550,16 @@ export const GiftTallyInvoiceTemplate: React.FC<GiftTallyInvoiceTemplateProps> =
                     </tr>
                   )}
                   <tr>
-                    <td style={labelCell}>Taxable Value:</td>
+                    <td style={labelCell}>Sub Total:</td>
+                    <td style={{ ...cell, textAlign: "right" }}>{fmt(subtotal)}</td>
+                  </tr>
+                  <tr>
+                    <td style={labelCell}>Taxable Amount:</td>
                     <td style={{ ...cell, textAlign: "right" }}>{fmt(taxableAmount)}</td>
                   </tr>
                   <tr>
-                    <td style={labelCell}>CGST:</td>
-                    <td style={{ ...cell, textAlign: "right" }}>{fmt(totalCgstFinal)}</td>
-                  </tr>
-                  <tr>
-                    <td style={labelCell}>SGST:</td>
-                    <td style={{ ...cell, textAlign: "right" }}>{fmt(totalSgstFinal)}</td>
-                  </tr>
-                  <tr>
-                    <td style={labelCell}>IGST:</td>
-                    <td style={{ ...cell, textAlign: "right" }}>{fmt(totalIgstFinal)}</td>
+                    <td style={labelCell}>GST Amount:</td>
+                    <td style={{ ...cell, textAlign: "right" }}>{fmt(totalGstAmount)}</td>
                   </tr>
                   {roundOff !== 0 && (
                     <tr>
@@ -614,7 +571,7 @@ export const GiftTallyInvoiceTemplate: React.FC<GiftTallyInvoiceTemplateProps> =
                     </tr>
                   )}
                   <tr style={{ backgroundColor: "#f0f0f0" }}>
-                    <td style={{ ...labelCell, fontSize: "13px" }}>Invoice Total:</td>
+                    <td style={{ ...labelCell, fontSize: "13px" }}>Grand Total:</td>
                     <td style={{ ...cell, textAlign: "right", fontWeight: "bold", fontSize: "14px" }}>
                       ₹{fmt(grandTotal)}
                     </td>
