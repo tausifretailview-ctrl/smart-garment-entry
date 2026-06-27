@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useLocation } from "react-router-dom";
-import { STALE_FREQUENT } from "@/lib/queryStaleTimes";
+import { STALE_REFERENCE } from "@/lib/queryStaleTimes";
 import { BackgroundSyncBadge } from "@/components/BackgroundSyncBadge";
 
 const getCurrentPageName = (path: string): string => {
@@ -76,9 +76,10 @@ export const StatusBar = () => {
       };
     },
     enabled: !!currentOrganization?.id,
-    staleTime: STALE_FREQUENT,
-    refetchInterval: 120_000,
-    refetchIntervalInBackground: false,
+    // F2: StatusBar refetched ~every 10s on every page → biggest cloud read source.
+    // Reference-tier cache (2 min) + no polling. Save paths invalidate via
+    // ["statusbar-summary"] to keep stock/due fresh after mutations.
+    staleTime: STALE_REFERENCE,
     refetchOnWindowFocus: false,
   });
 

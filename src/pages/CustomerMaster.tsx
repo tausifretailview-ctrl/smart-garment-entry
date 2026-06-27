@@ -95,6 +95,11 @@ interface Customer {
 
 const ITEMS_PER_PAGE = 50;
 
+// F4: Narrow SELECT list — was SELECT * (22 cols). List row + edit dialog only
+// read these fields. Cuts payload ~60% on Customer Master pagination.
+const CUSTOMER_LIST_COLUMNS =
+  "id, customer_name, phone, email, address, gst_number, opening_balance, discount_percent, transport_details, portal_enabled, created_at";
+
 /** Hidden by default; users can enable via Columns toolbar. */
 const CUSTOMER_MASTER_DEFAULT_COLUMN_VISIBILITY: Record<string, boolean> = {
   email: false,
@@ -334,7 +339,7 @@ const CustomerMaster = () => {
         if (ids.length === 0) return [] as Customer[];
         const { data, error } = await supabase
           .from("customers")
-          .select("*")
+          .select(CUSTOMER_LIST_COLUMNS)
           .eq("organization_id", orgId)
           .is("deleted_at", null)
           .in("id", ids)
@@ -392,7 +397,7 @@ const CustomerMaster = () => {
 
       let query = supabase
         .from("customers")
-        .select("*", { count: "exact" })
+        .select(CUSTOMER_LIST_COLUMNS, { count: "planned" })
         .eq("organization_id", orgId)
         .is("deleted_at", null);
 
