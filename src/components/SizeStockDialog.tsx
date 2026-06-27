@@ -1,4 +1,5 @@
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -71,6 +72,34 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
   const [popoverOpen, setPopoverOpen] = useState(false);
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Size groups (reference data) — standalone cached query, shared via React Query with
+  // SalesInvoice / DeliveryChallanEntry (identical ['size-groups', orgId] key → warm cache).
+  const { data: sizeGroupsData } = useQuery({
+    queryKey: ['size-groups', currentOrganization?.id],
+    queryFn: async () => {
+      if (!currentOrganization?.id) return [];
+      const { data, error } = await supabase
+        .from('size_groups')
+        .select('id, group_name, sizes')
+        .eq('organization_id', currentOrganization.id)
+        .order('group_name');
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!currentOrganization?.id,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  });
+
+  const sizeGroupNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    (sizeGroupsData || []).forEach((sg: { id: string; group_name: string | null }) => {
+      if (sg.group_name) map.set(sg.id, sg.group_name);
+    });
+    return map;
+  }, [sizeGroupsData]);
+
   // Clear data when dialog closes
   useEffect(() => {
     if (!open) {
@@ -88,7 +117,7 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
 
   // Search products when typing - includes barcode search
   const searchProducts = useCallback(async (query: string) => {
-    if (!currentOrganization?.id || query.length < 1) {
+    if (!currentOrganization?.id || query.length < 2) {
       setProducts([]);
       return;
     }
@@ -146,8 +175,7 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
           const { data: siblingData } = await supabase
             .from("products")
             .select(`
-              id, product_name, brand, color, category, style,
-              size_groups(group_name),
+              id, product_name, brand, color, category, style, size_group_id,
               product_variants(mrp, pur_price, sale_price, barcode)
             `)
             .eq("organization_id", currentOrganization.id)
@@ -166,7 +194,7 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
                 color: p.color,
                 category: p.category,
                 style: p.style,
-                size_group_name: p.size_groups?.group_name || null,
+                size_group_name: (p.size_group_id ? sizeGroupNameById.get(p.size_group_id) : null) || null,
                 mrp: firstVariant?.mrp || 0,
                 barcode: firstVariant?.barcode || '',
                 pur_price: firstVariant?.pur_price || 0,
@@ -187,8 +215,7 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
       let productQuery = supabase
         .from("products")
         .select(`
-          id, product_name, brand, color, category, style, hsn_code,
-          size_groups(group_name),
+          id, product_name, brand, color, category, style, hsn_code, size_group_id,
           product_variants(mrp, pur_price, sale_price, barcode)
         `)
         .eq("organization_id", currentOrganization.id)
@@ -227,7 +254,7 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
             color: p.color,
             category: p.category,
             style: p.style,
-            size_group_name: p.size_groups?.group_name || null,
+            size_group_name: (p.size_group_id ? sizeGroupNameById.get(p.size_group_id) : null) || null,
             mrp: variant?.mrp || null,
             barcode: variant?.barcode || null,
             pur_price: variant?.pur_price || null,
@@ -262,7 +289,7 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
     } finally {
       setProductsLoading(false);
     }
-  }, [currentOrganization?.id]);
+  }, [currentOrganization?.id, sizeGroupNameById]);
 
   const handleProductSearchChange = (value: string) => {
     setProductSearch(value);
@@ -273,7 +300,7 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
 
     searchTimeoutRef.current = setTimeout(() => {
       searchProducts(value);
-    }, 200);
+    }, 300);
   };
 
   // Add product to selection (grouped - use grouping key to avoid duplicates)
