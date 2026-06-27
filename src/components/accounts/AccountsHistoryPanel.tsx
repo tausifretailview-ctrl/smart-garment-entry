@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Search } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -28,6 +28,8 @@ interface AccountsHistoryPanelProps {
   disableTableScroll?: boolean;
 }
 
+const SEARCH_DEBOUNCE_MS = 200;
+
 export function AccountsHistoryPanel({
   title,
   toolbar,
@@ -41,6 +43,17 @@ export function AccountsHistoryPanel({
   disableTableScroll,
 }: AccountsHistoryPanelProps) {
   const showSearchRow = onSearchChange != null || filters;
+  const [draftSearch, setDraftSearch] = useState(searchValue ?? "");
+
+  useEffect(() => {
+    setDraftSearch(searchValue ?? "");
+  }, [searchValue]);
+
+  useEffect(() => {
+    if (!onSearchChange || draftSearch === (searchValue ?? "")) return;
+    const timer = setTimeout(() => onSearchChange(draftSearch), SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [draftSearch, searchValue, onSearchChange]);
 
   return (
     <Card className={cn(accountsHistoryCardClass, className)}>
@@ -56,8 +69,8 @@ export function AccountsHistoryPanel({
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
               <Input
                 placeholder={searchPlaceholder ?? "Search…"}
-                value={searchValue ?? ""}
-                onChange={(e) => onSearchChange(e.target.value)}
+                value={draftSearch}
+                onChange={(e) => setDraftSearch(e.target.value)}
                 className={accountsHistorySearchInputClass}
               />
             </div>
