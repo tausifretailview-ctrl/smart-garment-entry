@@ -303,6 +303,8 @@ const DesktopDashboard = () => {
   };
   
   const canViewGrossProfit = isAdmin || hasSpecialPermission("view_gross_profit");
+  const canViewNetProfit =
+    !permissionsLoading && (permissions === null || hasMenuAccess("net_profit_analysis"));
   
   const { start: startDate, end: endDate, label: dateLabel } = getDateRange(dateRange);
 
@@ -831,6 +833,18 @@ const DesktopDashboard = () => {
             <RefreshCw className={cn("mr-1.5 h-4 w-4", (isRefreshing || isLoading) && "animate-spin")} />
             Refresh
           </Button>
+          {canViewNetProfit && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate("/net-profit-analysis")}
+              title="Open Net Profit Analysis report"
+              className="h-9 shrink-0 border-emerald-200 bg-emerald-50 text-sm font-medium text-emerald-800 hover:bg-emerald-100"
+            >
+              <TrendingUp className="mr-1.5 h-4 w-4" />
+              Net Profit
+            </Button>
+          )}
         </div>
       </div>
 
