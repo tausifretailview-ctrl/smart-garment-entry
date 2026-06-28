@@ -2271,6 +2271,34 @@ main:has(.pos-dashboard-workspace) {
   line-height: inherit;
 }
 
+/* Reports Hub — full workspace (Vasy-style tabbed sections) */
+.reports-hub-workspace {
+  height: 100%;
+  min-height: 0;
+  max-height: 100%;
+  overflow: hidden;
+}
+main:has(.reports-hub-workspace) {
+  overflow: hidden;
+  padding: 0;
+  scrollbar-gutter: auto;
+}
+@media (min-width: 1024px) {
+  main:has(.reports-hub-workspace) {
+    display: flex;
+    flex-direction: column;
+  }
+  main:has(.reports-hub-workspace) .reports-hub-workspace {
+    flex: 1 1 0%;
+    height: auto;
+    max-height: 100%;
+    min-height: 0;
+  }
+}
+.reports-hub-grid {
+  overscroll-behavior-y: contain;
+}
+
 /* Net Profit Analysis — sidebar-only full workspace (Customer Balances style) */
 .net-profit-workspace {
   height: 100%;
