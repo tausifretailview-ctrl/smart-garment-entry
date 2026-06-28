@@ -100,6 +100,7 @@ import {
   resolveNextSupplierInvoiceNumber,
 } from "@/utils/purchaseSupplierInvoiceNumber";
 import { checkBarcodeExists } from "@/utils/barcodeValidation";
+import { syncVariantPriceFromPurchase } from "@/utils/syncVariantPriceFromPurchase";
 import { IMEIScanDialog } from "@/components/IMEIScanDialog";
 import { RollEntryDialog } from "@/components/RollEntryDialog";
 import { compareSizes } from "@/utils/sizeSort";
@@ -720,6 +721,44 @@ const PurchaseEntry = () => {
   const barcodeCheckGenRef = useRef(0);
   const lineItemsForBarcodeCheckRef = useRef(lineItems);
   lineItemsForBarcodeCheckRef.current = lineItems;
+  const lineItemsRef = useRef(lineItems);
+  const syncDebounceRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+
+  useEffect(() => {
+    lineItemsRef.current = lineItems;
+  }, [lineItems]);
+
+  useEffect(() => {
+    return () => {
+      Object.values(syncDebounceRef.current).forEach(clearTimeout);
+    };
+  }, []);
+
+  const scheduleVariantPriceSync = useCallback(
+    (tempId: string) => {
+      const orgId = currentOrganization?.id;
+      if (!orgId) return;
+
+      clearTimeout(syncDebounceRef.current[tempId]);
+      syncDebounceRef.current[tempId] = setTimeout(() => {
+        const item = lineItemsRef.current.find((i) => i.temp_id === tempId);
+        if (!item?.barcode && !item?.sku_id) return;
+
+        const purPrice = Number(item.pur_price) || 0;
+        const salePrice = Number(item.sale_price) || 0;
+        if (purPrice <= 0 || salePrice <= 0) return;
+
+        void syncVariantPriceFromPurchase({
+          barcode: item.barcode,
+          purPrice,
+          salePrice,
+          organizationId: orgId,
+          variantId: item.sku_id || undefined,
+        });
+      }, 600);
+    },
+    [currentOrganization?.id],
+  );
 
   // Helper: For MTR/roll items, use meters (from size field) as multiplier instead of qty
   const getMtrMultiplier = (item: { uom?: string; size?: string; qty: number }): number => {
@@ -1099,6 +1138,7 @@ const PurchaseEntry = () => {
   // Handle product edit panel updates
   const handleProductUpdated = useCallback((tempId: string, updates: Partial<LineItem>, applyToProductId?: string) => {
     const touched = new Set<string>();
+    const priceFieldsTouched = "pur_price" in updates || "sale_price" in updates;
     setLineItems(prev => prev.map(item => {
       // Apply to the edited row, OR to ALL rows of the same product in this bill
       const matches = item.temp_id === tempId || (applyToProductId && item.product_id === applyToProductId);
@@ -1108,12 +1148,15 @@ const PurchaseEntry = () => {
       const sub = computePurchaseLineSubTotal(merged);
       return { ...merged, line_total: roundMoney(sub * (1 - item.discount_percent / 100)) };
     }));
+    if (priceFieldsTouched) {
+      touched.forEach((id) => scheduleVariantPriceSync(id));
+    }
     // Show updated badge briefly on all touched rows
     setUpdatedRows(prev => { const next = new Set(prev); touched.forEach(id => next.add(id)); return next; });
     setTimeout(() => {
       setUpdatedRows(prev => { const next = new Set(prev); touched.forEach(id => next.delete(id)); return next; });
     }, 3000);
-  }, []);
+  }, [scheduleVariantPriceSync]);
 
   const openEditPanel = useCallback((index: number, focusField?: string) => {
     setEditPanelIndex(index);
@@ -3263,6 +3306,10 @@ const PurchaseEntry = () => {
         return item;
       })
     );
+
+    if (field === "pur_price" || field === "sale_price") {
+      scheduleVariantPriceSync(temp_id);
+    }
   };
 
   // Handle IMEI scan confirmation - each IMEI becomes its own product_variant
@@ -5606,7 +5653,7 @@ const PurchaseEntry = () => {
                       <div className="text-right shrink-0 ml-3">
                         <CalculatorInput
                           value={item.pur_price}
-                          onChange={(val) => { const u = [...lineItems]; u[realIdx] = { ...u[realIdx], pur_price: val }; setLineItems(u); }}
+                          onChange={(val) => updateLineItem(item.temp_id, "pur_price", val)}
                           className="w-20 h-8 text-right text-sm rounded-lg border"
                           placeholder="Price"
                         />
