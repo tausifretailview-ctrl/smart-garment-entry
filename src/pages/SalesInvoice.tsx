@@ -418,6 +418,8 @@ export default function SalesInvoice() {
   const [flatDiscountRupees, setFlatDiscountRupees] = useState<number>(0);
   const [otherCharges, setOtherCharges] = useState<number>(0);
   const [roundOff, setRoundOff] = useState<number>(0);
+  // When the user types a round-off, stop the auto-calc effect from overwriting it.
+  const [isManualRoundOff, setIsManualRoundOff] = useState<boolean>(false);
   const [nextInvoicePreview, setNextInvoicePreview] = useState<string>("");
 
   // Payment override (default = credit / pay_later). Footer Cash/UPI/Mix buttons set this.
@@ -2914,6 +2916,7 @@ Thank you for choosing us!`;
         setFlatDiscountRupees(0);
         setOtherCharges(0);
         setRoundOff(0);
+        setIsManualRoundOff(false);
         setEditingInvoiceId(null);
         setOriginalItemsForEdit([]);
         setPaymentOverride(null);
@@ -3069,6 +3072,8 @@ Thank you for choosing us!`;
   // Auto-update roundOff when line items change (new invoices only — preserve saved round on edit)
   useEffect(() => {
     if (editingInvoiceId || isInitializingEditRef.current) return;
+    // User typed a manual round-off — leave it untouched until the form is reset.
+    if (isManualRoundOff) return;
     if (lineItems.filter(i => i.productId).length > 0) {
       const newRoundOff = parseFloat(calculatedRoundOff.toFixed(2));
       if (Math.abs(newRoundOff - roundOff) > 0.001) {
@@ -3077,7 +3082,7 @@ Thank you for choosing us!`;
     } else if (roundOff !== 0) {
       setRoundOff(0);
     }
-  }, [netBeforeRoundOff, lineItems, editingInvoiceId, roundOff]);
+  }, [netBeforeRoundOff, lineItems, editingInvoiceId, roundOff, isManualRoundOff]);
   
   const netAmount = Math.round(netBeforeRoundOff + roundOff);
 
@@ -3384,6 +3389,7 @@ Thank you for choosing us!`;
                 setFlatDiscountRupees(0);
                 setOtherCharges(0);
                 setRoundOff(0);
+                setIsManualRoundOff(false);
                 setSalesman("");
                 setNavInvoiceIndex(null);
                 setShowNotesSection(false);
@@ -4212,7 +4218,10 @@ Thank you for choosing us!`;
               type="number" step="0.01"
               value={roundOff || ""}
               placeholder="0"
-              onChange={(e) => setRoundOff(parseFloat(e.target.value) || 0)}
+              onChange={(e) => {
+                setRoundOff(parseFloat(e.target.value) || 0);
+                setIsManualRoundOff(true);
+              }}
               onWheel={(e) => (e.target as HTMLInputElement).blur()}
               className="w-[110px] h-10 text-[17px] text-right bg-white text-slate-900 font-extrabold font-mono border-0 rounded-sm"
             />
