@@ -50,6 +50,12 @@ import { ProductImageViewer } from "@/components/ProductImageViewer";
 import { ProductImageUploader } from "@/components/ProductImageUploader";
 import { MergeProductsDialog } from "@/components/MergeProductsDialog";
 import { useSettings } from "@/hooks/useSettings";
+import {
+  fetchCatalogRowsForProductIds,
+  fetchProductIdsByBarcodeSearch,
+  looksLikeBarcodeSearch,
+  normalizeProductSearchTerm,
+} from "@/utils/productDashboardBarcodeSearch";
 
 interface ProductVariant {
   variant_id: string;
@@ -514,7 +520,7 @@ const ProductDashboard = () => {
   );
 
   const buildRpcParams = useCallback(() => {
-    const term = debouncedSearch.trim() || undefined;
+    const term = normalizeProductSearchTerm(debouncedSearch) || undefined;
     return {
       p_org_id: currentOrganization!.id,
       p_search: term || null,
@@ -606,14 +612,16 @@ const ProductDashboard = () => {
       currentPage,
       itemsPerPage,
       rpcFilterKey,
+      lowStockThreshold,
     ],
     queryFn: async () => {
       if (!currentOrganization?.id) return { rows: [] as ProductRow[], totalCount: 0 };
       const params = { ...buildRpcParams(), p_page: currentPage, p_page_size: itemsPerPage };
+      const searchTerm = normalizeProductSearchTerm(debouncedSearch);
       const { data, error } = await supabase.rpc("get_product_catalog_page", params);
       if (error) throw error;
 
-      const rows: ProductRow[] = (data || []).map((p: any) => ({
+      const mapRpcRow = (p: any): ProductRow => ({
         product_id: p.product_id,
         product_name: p.product_name || "",
         product_type: p.product_type || "",
@@ -631,13 +639,61 @@ const ProductDashboard = () => {
         variants: [],
         total_stock: Number(p.total_stock) || 0,
         variant_count: Number(p.variant_count) || 0,
-      }));
+      });
+
+      let rows: ProductRow[] = (data || []).map(mapRpcRow);
+
+      // Barcode supplement: direct variant lookup so barcode / IMEI search always resolves
+      if (searchTerm.length >= 3) {
+        const barcodeProductIds = await fetchProductIdsByBarcodeSearch(
+          currentOrganization.id,
+          searchTerm,
+        );
+        const existingIds = new Set(rows.map((r) => r.product_id));
+        const missingIds = barcodeProductIds.filter((id) => !existingIds.has(id));
+
+        if (missingIds.length > 0) {
+          const supplemental = await fetchCatalogRowsForProductIds(
+            currentOrganization.id,
+            missingIds,
+          );
+          const passesFilters = (row: (typeof supplemental)[number]) => {
+            if (selectedCategory !== "all" && row.category !== selectedCategory) return false;
+            if (selectedProductType !== "all" && row.product_type !== selectedProductType) return false;
+            if (selectedStockLevel === "in_stock" && row.total_stock <= 0) return false;
+            if (selectedStockLevel === "out_of_stock" && row.total_stock > 0) return false;
+            if (selectedStockLevel === "low_stock") {
+              if (row.total_stock < 1 || row.total_stock > lowStockThreshold) return false;
+            }
+            return true;
+          };
+
+          for (const row of supplemental.filter(passesFilters)) {
+            rows.push({
+              ...row,
+              variants: [],
+            });
+          }
+        }
+
+        // Exact barcode match: show matching product first
+        if (looksLikeBarcodeSearch(searchTerm) && rows.length > 1) {
+          const barcodeSet = new Set(barcodeProductIds);
+          rows = [
+            ...rows.filter((r) => barcodeSet.has(r.product_id)),
+            ...rows.filter((r) => !barcodeSet.has(r.product_id)),
+          ];
+        }
+      }
 
       let totalCount = 0;
       if (data && data.length > 0) {
         totalCount = Number((data as any)[0].total_count) || 0;
       } else if (currentPage === 1) {
-        totalCount = 0;
+        totalCount = rows.length;
+      }
+      if (currentPage === 1 && rows.length > totalCount) {
+        totalCount = rows.length;
       }
 
       return { rows, totalCount };
@@ -712,6 +768,22 @@ const ProductDashboard = () => {
       variant: "destructive",
     });
   }, [catalogError, toast]);
+
+  // Barcode search: auto-expand single product so the matching variant row is visible
+  const barcodeAutoExpandRef = useRef<string | null>(null);
+  useEffect(() => {
+    const term = normalizeProductSearchTerm(debouncedSearch);
+    if (!term || !looksLikeBarcodeSearch(term) || productRows.length !== 1) {
+      if (!term) barcodeAutoExpandRef.current = null;
+      return;
+    }
+    const productId = productRows[0].product_id;
+    const key = `${term}:${productId}`;
+    if (barcodeAutoExpandRef.current === key) return;
+    barcodeAutoExpandRef.current = key;
+    setExpandedRows((prev) => new Set(prev).add(productId));
+    void fetchVariantsForProduct(productId);
+  }, [debouncedSearch, productRows, fetchVariantsForProduct]);
 
   const refreshProductDashboard = useCallback(async () => {
     await Promise.all([
@@ -1298,6 +1370,20 @@ const ProductDashboard = () => {
       });
     });
 
+    const term = normalizeProductSearchTerm(debouncedSearch);
+    const variants = [...row.variants].sort((a, b) => {
+      if (!term) return 0;
+      const aHit =
+        a.barcode === term ||
+        (a.barcode?.toLowerCase().includes(term.toLowerCase()) ?? false);
+      const bHit =
+        b.barcode === term ||
+        (b.barcode?.toLowerCase().includes(term.toLowerCase()) ?? false);
+      if (aHit && !bHit) return -1;
+      if (!aHit && bHit) return 1;
+      return 0;
+    });
+
     return (
       <div className="p-4 bg-slate-50/80">
         <h4 className="font-semibold text-base mb-3 text-slate-700">Product Variants Details</h4>
@@ -1315,11 +1401,26 @@ const ProductDashboard = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {row.variants.map((variant, vIdx) => (
-                <TableRow key={variant.variant_id} className={cn("h-11", vIdx % 2 === 1 && "bg-slate-50/80")}>
+              {variants.map((variant, vIdx) => {
+                const isBarcodeHit =
+                  !!term &&
+                  !!variant.barcode &&
+                  (variant.barcode === term ||
+                    variant.barcode.toLowerCase().includes(term.toLowerCase()));
+                return (
+                <TableRow
+                  key={variant.variant_id}
+                  className={cn(
+                    "h-11",
+                    vIdx % 2 === 1 && "bg-slate-50/80",
+                    isBarcodeHit && "bg-primary/10 ring-1 ring-inset ring-primary/25",
+                  )}
+                >
                   <TableCell className="text-base font-medium py-2.5">{variant.size}</TableCell>
                   <TableCell className="py-2.5">
-                    <span className="font-mono text-sm">{variant.barcode || "—"}</span>
+                    <span className={cn("font-mono text-sm", isBarcodeHit && "font-semibold text-primary")}>
+                      {variant.barcode || "—"}
+                    </span>
                     {variant.barcode && variant.barcode.length > 6 && (barcodeCount.get(variant.barcode) || 0) > 1 && (
                       <div className="flex items-start gap-1.5 mt-1 text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded px-2 py-1.5">
                         <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
@@ -1333,13 +1434,14 @@ const ProductDashboard = () => {
                   {showMrp && <TableCell className="text-right text-base tabular-nums py-2.5">₹{variant.mrp.toFixed(2)}</TableCell>}
                   <TableCell className="text-right text-base font-bold tabular-nums py-2.5">{variant.stock_qty}</TableCell>
                 </TableRow>
-              ))}
+                );
+              })}
             </TableBody>
           </Table>
         </div>
       </div>
     );
-  }, [showMrp, filteredRows, variantCache, variantsLoading]);
+  }, [showMrp, filteredRows, variantCache, variantsLoading, debouncedSearch]);
 
   // Use server-side stats from RPC
   const totalStockQty = dashboardStats.total_stock_qty;
@@ -1453,7 +1555,7 @@ const ProductDashboard = () => {
             <div className="relative flex-1 min-w-[200px] max-w-full sm:max-w-md md:max-w-lg lg:max-w-xl">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
               <Input
-                placeholder="Search list..."
+                placeholder="Search name, brand, or barcode..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-11 pr-8 h-10 text-base border-slate-200 bg-slate-50 focus:bg-white no-uppercase"
