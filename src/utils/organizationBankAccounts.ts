@@ -44,6 +44,32 @@ export function pickDefaultBankAccountId(accounts: OrganizationBankAccount[]): s
   return (def ?? accounts[0]).id;
 }
 
+/** Default receiving bank from Settings → Company → Receiving Bank Accounts. */
+export function pickDefaultReceivingBankAccount(
+  accounts: OrganizationBankAccount[],
+): OrganizationBankAccount | null {
+  if (!accounts.length) return null;
+  return accounts.find((a) => a.is_default) ?? accounts[0];
+}
+
+/** Map org receiving bank to invoice template bank_details shape. */
+export function organizationBankAccountToInvoiceDetails(
+  account: OrganizationBankAccount | null | undefined,
+) {
+  if (!account) return undefined;
+  return {
+    bank_name: account.bank_name,
+    bankName: account.bank_name,
+    account_holder: account.account_holder || "",
+    accountHolder: account.account_holder || "",
+    account_number: account.account_number || "",
+    accountNumber: account.account_number || "",
+    ifsc_code: account.ifsc_code || "",
+    ifscCode: account.ifsc_code || "",
+    branch: account.branch || "",
+  };
+}
+
 const RECEIVED_IN_MARKER = " | Received in: ";
 
 export function appendReceivingBankToDescription(

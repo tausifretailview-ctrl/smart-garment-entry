@@ -31,6 +31,11 @@ import {
   type GstTaxType,
 } from '@/utils/gstRegisterUtils';
 import { resolvePosThermalPaper, type PosThermalPaper } from '@/utils/invoicePrintFormat';
+import {
+  organizationBankAccountToInvoiceDetails,
+  pickDefaultReceivingBankAccount,
+} from '@/utils/organizationBankAccounts';
+import { organizationBankAccountsQueryKey } from '@/hooks/useOrganizationBankAccounts';
 
 interface InvoiceItem {
   sr: number;
@@ -178,6 +183,27 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
       staleTime: STALE_SETTINGS,
       refetchOnWindowFocus: false,
       enabled: !!orgId && !useParentOrgSettings,
+    });
+
+    const { data: orgBankAccounts = [] } = useQuery({
+      queryKey: organizationBankAccountsQueryKey(orgId),
+      queryFn: async () => {
+        if (!orgId) return [];
+        const { data, error } = await supabase
+          .from('organization_bank_accounts')
+          .select(
+            'id, organization_id, bank_name, account_holder, account_number, ifsc_code, branch, is_default, created_at, updated_at, deleted_at',
+          )
+          .eq('organization_id', orgId)
+          .is('deleted_at', null)
+          .order('is_default', { ascending: false })
+          .order('created_at', { ascending: true });
+        if (error) throw error;
+        return data || [];
+      },
+      staleTime: STALE_SETTINGS,
+      refetchOnWindowFocus: false,
+      enabled: !!orgId,
     });
 
     useEffect(() => {
@@ -358,6 +384,17 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
     const roundOff = props.roundOff ?? 
       (props.grandTotal - (props.subTotal - props.discount - (props.saleReturnAdjust || 0) + totalTax - (props.pointsRedemptionValue || 0)));
 
+    const defaultReceivingBank = pickDefaultReceivingBankAccount(orgBankAccounts);
+    const receivingBankDetails = organizationBankAccountToInvoiceDetails(defaultReceivingBank);
+    const resolvedBankDetails =
+      templateForFormat === 'gift_tally'
+        ? receivingBankDetails || settings?.sale_settings?.bank_details
+        : settings?.sale_settings?.bank_details;
+    const resolvedShowBankDetails =
+      templateForFormat === 'gift_tally'
+        ? !!(receivingBankDetails || settings?.sale_settings?.bank_details)
+        : showBankDetails;
+
     // Common props for all templates
     const commonProps = {
       businessName: settings?.business_name || '',
@@ -408,14 +445,14 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
       upiId: (props.isDcInvoice && settings?.bill_barcode_settings?.dc_upi_id)
         ? settings.bill_barcode_settings.dc_upi_id
         : settings?.bill_barcode_settings?.upi_id,
-      bankDetails: settings?.sale_settings?.bank_details,
+      bankDetails: resolvedBankDetails,
       declarationText,
       termsConditions: filteredTerms,
       
       showHSN,
       showBarcode,
       showGSTBreakdown,
-      showBankDetails,
+      showBankDetails: resolvedShowBankDetails,
       showMRP,
       showDiscountOnRate,
       minItemRows,

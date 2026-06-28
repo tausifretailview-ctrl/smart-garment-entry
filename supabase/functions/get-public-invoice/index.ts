@@ -61,7 +61,7 @@ Deno.serve(async (req) => {
     // This avoids the "first load missing EMI/GST/financer" issue where
     // sequential awaits caused the page to occasionally paint before the
     // financer/customer/settings calls completed.
-    const [financerRes, custRes, settingsRes, orgRes] = await Promise.all([
+    const [financerRes, custRes, settingsRes, orgRes, bankRes] = await Promise.all([
       supabase
         .from('sale_financer_details')
         .select('financer_name, loan_number, emi_amount, tenure, down_payment, down_payment_mode, finance_discount, bank_transfer_amount')
@@ -84,6 +84,13 @@ Deno.serve(async (req) => {
         .select('slug, name')
         .eq('id', sale.organization_id)
         .single(),
+      supabase
+        .from('organization_bank_accounts')
+        .select('bank_name, account_holder, account_number, ifsc_code, branch, is_default')
+        .eq('organization_id', sale.organization_id)
+        .is('deleted_at', null)
+        .order('is_default', { ascending: false })
+        .order('created_at', { ascending: true }),
     ])
 
     const financerDetails = financerRes.data
@@ -92,6 +99,30 @@ Deno.serve(async (req) => {
     const org = orgRes.data
 
     const saleSettings = settings?.sale_settings as any || {};
+    const invoiceTemplate = saleSettings?.invoice_template || 'professional';
+    const orgBankAccounts = (bankRes.data || []) as Array<{
+      bank_name: string;
+      account_holder: string | null;
+      account_number: string | null;
+      ifsc_code: string | null;
+      branch: string | null;
+      is_default: boolean;
+    }>;
+    const defaultReceivingBank =
+      orgBankAccounts.find((a) => a.is_default) ?? orgBankAccounts[0] ?? null;
+    const receivingBankDetails = defaultReceivingBank
+      ? {
+          bank_name: defaultReceivingBank.bank_name,
+          account_holder: defaultReceivingBank.account_holder || '',
+          account_number: defaultReceivingBank.account_number || '',
+          ifsc_code: defaultReceivingBank.ifsc_code || '',
+          branch: defaultReceivingBank.branch || '',
+        }
+      : null;
+    const resolvedBankDetails =
+      invoiceTemplate === 'gift_tally' && receivingBankDetails
+        ? receivingBankDetails
+        : saleSettings?.bank_details || null;
     const sanitizedSettings = settings ? {
       business_name: settings.business_name,
       address: settings.address,
@@ -113,8 +144,11 @@ Deno.serve(async (req) => {
       declaration_text: saleSettings?.declaration_text || '',
       terms_list: saleSettings?.terms_list || [],
       font_family: saleSettings?.font_family || 'inter',
-      bank_details: saleSettings?.bank_details || null,
-      show_bank_details: saleSettings?.show_bank_details ?? false,
+      bank_details: resolvedBankDetails,
+      show_bank_details:
+        invoiceTemplate === 'gift_tally'
+          ? !!resolvedBankDetails
+          : saleSettings?.show_bank_details ?? false,
       pos_bill_format: saleSettings?.pos_bill_format || 'thermal',
       thermal_receipt_style: saleSettings?.thermal_receipt_style || 'classic',
       bill_barcode_settings: settings?.bill_barcode_settings ? {
