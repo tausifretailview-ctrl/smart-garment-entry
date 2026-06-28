@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useOrganization } from "@/contexts/OrganizationContext";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,9 +16,10 @@ import { toast } from "sonner";
 import * as XLSX from "xlsx";
 import { supabase } from "@/integrations/supabase/client";
 import { getIndiaFinancialYear, getCurrentQuarter } from "@/utils/accountingReportUtils";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { fetchAllSaleItems, fetchAllPurchaseItems } from "@/utils/fetchAllRows";
+import { cn } from "@/lib/utils";
 
 interface SupplierProfitData {
   supplierId: string | null;
@@ -125,10 +126,11 @@ const FYPresets = ({
   const monthEnd = format(endOfMonth(now), "yyyy-MM-dd");
   
   return (
-    <div className="flex flex-wrap gap-2">
+    <div className="flex flex-wrap gap-1.5">
       <Button
         variant={currentSelection === "today" ? "default" : "outline"}
         size="sm"
+        className="h-9 text-sm"
         onClick={() => onSelect(todayStart, todayEnd, "today")}
       >
         Today
@@ -136,6 +138,7 @@ const FYPresets = ({
       <Button
         variant={currentSelection === "week" ? "default" : "outline"}
         size="sm"
+        className="h-9 text-sm"
         onClick={() => onSelect(weekStart, weekEnd, "week")}
       >
         This Week
@@ -143,6 +146,7 @@ const FYPresets = ({
       <Button
         variant={currentSelection === "month" ? "default" : "outline"}
         size="sm"
+        className="h-9 text-sm"
         onClick={() => onSelect(monthStart, monthEnd, "month")}
       >
         This Month
@@ -150,6 +154,7 @@ const FYPresets = ({
       <Button
         variant={currentSelection === "currentQ" ? "default" : "outline"}
         size="sm"
+        className="h-9 text-sm"
         onClick={() => onSelect(currentQ.fromDate, currentQ.toDate, "currentQ")}
       >
         {currentQ.label}
@@ -157,14 +162,16 @@ const FYPresets = ({
       <Button
         variant={currentSelection === "currentFY" ? "default" : "outline"}
         size="sm"
+        className="h-9 text-sm"
         onClick={() => onSelect(currentFY.fromDate, currentFY.toDate, "currentFY")}
       >
-        <Calendar className="h-3 w-3 mr-1" />
+        <Calendar className="mr-1 h-3.5 w-3.5" />
         {currentFY.label}
       </Button>
       <Button
         variant={currentSelection === "previousFY" ? "default" : "outline"}
         size="sm"
+        className="h-9 text-sm"
         onClick={() => onSelect(previousFY.fromDate, previousFY.toDate, "previousFY")}
       >
         {previousFY.label}
@@ -175,7 +182,6 @@ const FYPresets = ({
 
 export default function NetProfitAnalysis() {
   const { currentOrganization } = useOrganization();
-  const navigate = useNavigate();
   const location = useLocation();
   const { orgNavigate } = useOrgNavigation();
   
@@ -596,178 +602,224 @@ export default function NetProfitAnalysis() {
     { grossSales: 0, discounts: 0, netSales: 0, cogs: 0, profit: 0, qty: 0 }
   );
 
+  const activeTotals = activeTab === "supplier-wise" ? supplierTotals : productTotals;
+  const activeMarginPct =
+    activeTotals.netSales > 0 ? (activeTotals.profit / activeTotals.netSales) * 100 : 0;
+
+  const kpiItems = useMemo(
+    () => [
+      {
+        label: "Gross Sales",
+        value: formatCurrency(activeTotals.grossSales),
+        gradient: "bg-gradient-to-br from-blue-500 to-blue-600",
+      },
+      {
+        label: "Net Sales",
+        value: formatCurrency(activeTotals.netSales),
+        gradient: "bg-gradient-to-br from-violet-500 to-violet-600",
+      },
+      {
+        label: "Gross Profit",
+        value: formatCurrency(activeTotals.profit),
+        gradient: "bg-gradient-to-br from-emerald-500 to-emerald-600",
+      },
+      {
+        label: "Margin",
+        value: `${activeMarginPct.toFixed(1)}%`,
+        gradient: "bg-gradient-to-br from-amber-500 to-amber-600",
+      },
+    ],
+    [activeTotals, activeMarginPct],
+  );
+
+  const tableHeadClass = "h-10 px-4 text-xs font-bold uppercase tracking-wide text-white";
+  const tableRowClass = "h-11 hover:bg-teal-50/80 dark:hover:bg-teal-950/20";
+
   return (
-    <div className="h-full min-h-0 flex flex-col">
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b bg-background/95 backdrop-blur">
-        <div className="flex items-center gap-3">
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            onClick={() => orgNavigate("/accounting-reports")}
-            className="gap-1"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Back
-          </Button>
-          <div>
-            <h1 className="text-lg font-semibold flex items-center gap-2">
-              <TrendingUp className="h-5 w-5 text-primary" />
-              Net Profit Analysis
-            </h1>
-            <p className="text-xs text-muted-foreground">
-              {currentOrganization?.name || "Organization"} • Supplier & Product-wise Profit Breakdown
+    <div className="net-profit-workspace net-profit-report flex h-full min-h-0 w-full flex-col overflow-hidden bg-slate-50 px-2 py-2 sm:px-3 print:min-h-screen print:h-auto print:overflow-visible print:bg-white print:p-4">
+      <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col gap-2">
+        <div className="print:hidden shrink-0 flex flex-wrap items-center justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9 shrink-0 px-3 text-sm"
+              onClick={() => orgNavigate("/reports")}
+            >
+              <ArrowLeft className="mr-1 h-4 w-4" />
+              Reports
+            </Button>
+            <div className="min-w-0">
+              <h1 className="flex items-center gap-2 text-xl font-bold leading-none tracking-tight text-blue-700">
+                <TrendingUp className="h-5 w-5 shrink-0" />
+                Net Profit Analysis
+              </h1>
+              <p className="mt-1 truncate text-sm text-muted-foreground">
+                {currentOrganization?.name || "Organization"} · Supplier &amp; Product-wise Profit Breakdown
+              </p>
+            </div>
+          </div>
+          <div className="flex shrink-0 items-center gap-1.5">
+            <Button variant="outline" size="sm" className="h-9 gap-1.5 border-slate-300 text-sm" onClick={() => window.print()}>
+              <Printer className="h-4 w-4" />
+              Print
+            </Button>
+            <Button variant="outline" size="sm" className="h-9 gap-1.5 border-slate-300 text-sm" onClick={handleExportExcel}>
+              <Download className="h-4 w-4" />
+              Excel
+            </Button>
+          </div>
+        </div>
+
+        {hasGenerated && !loading && (
+          <div className="grid shrink-0 grid-cols-2 gap-2 print:hidden lg:grid-cols-4">
+            {kpiItems.map((item) => (
+              <div key={item.label} className={cn("min-w-0 rounded-lg px-3 py-2 shadow-sm", item.gradient)}>
+                <p className="truncate text-xs font-medium leading-none text-white/80">{item.label}</p>
+                <p className="mt-1 truncate text-base font-black tabular-nums leading-tight text-white sm:text-lg">
+                  {item.value}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <Card className="shrink-0 rounded-lg border border-slate-200 shadow-sm print:hidden">
+          <CardContent className="space-y-2 p-2">
+            <div className="flex flex-wrap items-end gap-2">
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold uppercase tracking-wide text-slate-500">From</Label>
+                <Input
+                  type="date"
+                  value={fromDate}
+                  onChange={(e) => setFromDate(e.target.value)}
+                  className="h-10 w-36 border-slate-200 bg-slate-50 text-sm"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold uppercase tracking-wide text-slate-500">To</Label>
+                <Input
+                  type="date"
+                  value={toDate}
+                  onChange={(e) => setToDate(e.target.value)}
+                  className="h-10 w-36 border-slate-200 bg-slate-50 text-sm"
+                />
+              </div>
+              <Button onClick={handleGenerate} disabled={loading} size="sm" className="h-10 px-4 text-sm">
+                {loading && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+                Generate
+              </Button>
+              <FYPresets onSelect={handleFYPresetSelect} currentSelection={fyPreset} />
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Period: {format(new Date(fromDate), "dd MMM yyyy")} – {format(new Date(toDate), "dd MMM yyyy")}
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* Print Header */}
+        <div className="hidden border-b p-4 print:block">
+          <div className="text-center">
+            <div className="mb-2 flex items-center justify-center gap-2">
+              <Building2 className="h-6 w-6" />
+            </div>
+            <h1 className="text-xl font-bold">{currentOrganization?.name || "Organization"}</h1>
+            <h2 className="mt-1 text-lg font-semibold">
+              Net Profit Analysis - {activeTab === "supplier-wise" ? "Supplier-wise" : "Product-wise"}
+            </h2>
+            <p className="text-sm text-gray-600">
+              Period: {format(new Date(fromDate), "dd MMM yyyy")} - {format(new Date(toDate), "dd MMM yyyy")}
+            </p>
+            <p className="mt-1 flex items-center justify-center gap-1 text-xs text-gray-500">
+              <Clock className="h-3 w-3" />
+              Generated: {format(new Date(), "dd MMM yyyy, hh:mm a")}
             </p>
           </div>
         </div>
-        
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => window.print()}>
-            <Printer className="h-4 w-4 mr-1" />
-            Print
-          </Button>
-          <Button variant="outline" size="sm" onClick={handleExportExcel}>
-            <Download className="h-4 w-4 mr-1" />
-            Export Excel
-          </Button>
-        </div>
-      </div>
 
-      {/* Filter Bar */}
-      <div className="px-4 py-3 border-b bg-muted/30 print:hidden">
-        <div className="flex flex-wrap items-end gap-4">
-          <div className="flex items-center gap-2">
-            <div>
-              <Label className="text-xs">From</Label>
-              <Input
-                type="date"
-                value={fromDate}
-                onChange={(e) => setFromDate(e.target.value)}
-                className="h-8 w-36"
-              />
+        {/* Main panel */}
+        <Card className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-slate-200 p-0 shadow-sm">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="flex h-full min-h-0 flex-col">
+            <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-slate-100 bg-white px-3 py-2 print:hidden">
+              <TabsList className="grid h-9 w-full max-w-xs grid-cols-2 bg-slate-100 p-0.5">
+                <TabsTrigger value="supplier-wise" className="flex h-8 items-center gap-1.5 text-sm data-[state=active]:bg-white">
+                  <Users className="h-4 w-4" />
+                  Supplier-wise
+                </TabsTrigger>
+                <TabsTrigger value="product-wise" className="flex h-8 items-center gap-1.5 text-sm data-[state=active]:bg-white">
+                  <Package className="h-4 w-4" />
+                  Product-wise
+                </TabsTrigger>
+              </TabsList>
             </div>
-            <div>
-              <Label className="text-xs">To</Label>
-              <Input
-                type="date"
-                value={toDate}
-                onChange={(e) => setToDate(e.target.value)}
-                className="h-8 w-36"
-              />
-            </div>
-            <div className="self-end">
-              <Button onClick={handleGenerate} disabled={loading} size="sm">
-                {loading && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
-                Generate
-              </Button>
-            </div>
-          </div>
-          
-          <FYPresets onSelect={handleFYPresetSelect} currentSelection={fyPreset} />
-        </div>
-        
-        <p className="text-xs text-muted-foreground mt-2">
-          Period: {format(new Date(fromDate), "dd MMM yyyy")} - {format(new Date(toDate), "dd MMM yyyy")}
-        </p>
-      </div>
-
-      {/* Print Header */}
-      <div className="hidden print:block p-4 border-b">
-        <div className="text-center">
-          <div className="flex items-center justify-center gap-2 mb-2">
-            <Building2 className="h-6 w-6" />
-          </div>
-          <h1 className="text-xl font-bold">{currentOrganization?.name || "Organization"}</h1>
-          <h2 className="text-lg font-semibold mt-1">Net Profit Analysis - {activeTab === "supplier-wise" ? "Supplier-wise" : "Product-wise"}</h2>
-          <p className="text-sm text-gray-600">
-            Period: {format(new Date(fromDate), "dd MMM yyyy")} - {format(new Date(toDate), "dd MMM yyyy")}
-          </p>
-          <p className="text-xs text-gray-500 mt-1 flex items-center justify-center gap-1">
-            <Clock className="h-3 w-3" />
-            Generated: {format(new Date(), "dd MMM yyyy, hh:mm a")}
-          </p>
-        </div>
-      </div>
-
-      {/* Main Content */}
-      <div className="flex-1 min-h-0 overflow-hidden p-4">
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full min-h-0 flex flex-col">
-          <TabsList className="grid w-full max-w-md grid-cols-2 mb-4 print:hidden">
-            <TabsTrigger value="supplier-wise" className="flex items-center gap-2">
-              <Users className="h-4 w-4" />
-              Supplier-wise
-            </TabsTrigger>
-            <TabsTrigger value="product-wise" className="flex items-center gap-2">
-              <Package className="h-4 w-4" />
-              Product-wise
-            </TabsTrigger>
-          </TabsList>
 
           {/* Supplier-wise Tab */}
-          <TabsContent value="supplier-wise" className="flex-1 min-h-0 flex flex-col mt-0 data-[state=inactive]:hidden">
-            <div className="flex items-center gap-2 mb-3 print:hidden">
-              <Search className="h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search supplier..."
-                value={supplierSearch}
-                onChange={(e) => setSupplierSearch(e.target.value)}
-                className="max-w-sm h-8"
-              />
-              <span className="text-xs text-muted-foreground ml-auto">
-                {filteredSupplierData.length} suppliers
+          <TabsContent value="supplier-wise" className="mt-0 flex min-h-0 flex-1 flex-col data-[state=inactive]:hidden">
+            <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-slate-100 bg-white px-3 py-2 print:hidden">
+              <div className="relative min-w-[200px] max-w-md flex-1">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  placeholder="SEARCH SUPPLIER..."
+                  value={supplierSearch}
+                  onChange={(e) => setSupplierSearch(e.target.value)}
+                  className="h-10 border-slate-200 bg-slate-50 pl-10 text-sm uppercase placeholder:normal-case"
+                />
+              </div>
+              <span className="ml-auto shrink-0 text-sm tabular-nums text-muted-foreground">
+                {filteredSupplierData.length.toLocaleString("en-IN")} suppliers
               </span>
             </div>
-            <p className="text-[11px] text-muted-foreground mb-2 print:hidden">
+            <p className="shrink-0 px-3 py-1.5 text-xs text-muted-foreground print:hidden">
               Discounts include item discount, bill-level flat discount, and round-off adjustment.
             </p>
 
             {loading ? (
-              <div className="flex items-center justify-center py-16">
+              <div className="flex flex-1 items-center justify-center py-16">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
               </div>
             ) : !hasGenerated ? (
-              <div className="flex-1 flex items-center justify-center text-muted-foreground">
-                <p>Click Generate to load supplier-wise profit data</p>
+              <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
+                Click Generate to load supplier-wise profit data
               </div>
             ) : (
-              <div className="flex-1 min-h-0 overflow-y-auto overflow-x-auto border rounded-lg">
-                <Table>
-                  <TableHeader className="sticky top-0 z-10 bg-muted/95 backdrop-blur">
-                    <TableRow>
-                      <TableHead className="w-[200px] text-foreground font-semibold">Supplier</TableHead>
-                      <TableHead className="text-right text-foreground font-semibold">Items Sold</TableHead>
-                      <TableHead className="text-right text-foreground font-semibold">Gross Sales</TableHead>
+              <div className="net-profit-table-scroll min-h-0 flex-1 overflow-y-auto overflow-x-auto tab-scroll-stable bg-white">
+                <Table className="[&_td]:px-4 [&_th]:px-4">
+                  <TableHeader className="sticky top-0 z-10">
+                    <TableRow className="border-none bg-slate-800 hover:bg-slate-800">
+                      <TableHead className={cn(tableHeadClass, "w-[200px]")}>Supplier</TableHead>
+                      <TableHead className={cn(tableHeadClass, "text-right")}>Items Sold</TableHead>
+                      <TableHead className={cn(tableHeadClass, "text-right")}>Gross Sales</TableHead>
                       <TableHead
-                        className="text-right text-foreground font-semibold text-orange-600 dark:text-orange-400"
+                        className={cn(tableHeadClass, "text-right text-orange-300")}
                         title="Includes item discount, bill-level flat discount, and round-off adjustment"
                       >
                         Discounts
                       </TableHead>
-                      <TableHead className="text-right text-foreground font-semibold">Net Sales</TableHead>
-                      <TableHead className="text-right text-foreground font-semibold">COGS</TableHead>
-                      <TableHead className="text-right text-foreground font-semibold">Gross Profit</TableHead>
-                      <TableHead className="text-right text-foreground font-semibold">Margin %</TableHead>
+                      <TableHead className={cn(tableHeadClass, "text-right")}>Net Sales</TableHead>
+                      <TableHead className={cn(tableHeadClass, "text-right")}>COGS</TableHead>
+                      <TableHead className={cn(tableHeadClass, "text-right")}>Gross Profit</TableHead>
+                      <TableHead className={cn(tableHeadClass, "text-right")}>Margin %</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {filteredSupplierData.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                        <TableCell colSpan={8} className="h-20 text-center text-sm text-muted-foreground">
                           No data available for the selected period
                         </TableCell>
                       </TableRow>
                     ) : (
                       filteredSupplierData.map((supplier, idx) => (
-                        <TableRow key={supplier.supplierId || idx}>
-                          <TableCell className="font-medium">{supplier.supplierName}</TableCell>
-                          <TableCell className="text-right">{supplier.itemsSold}</TableCell>
-                          <TableCell className="text-right font-mono">{formatCurrency(supplier.grossSales)}</TableCell>
-                          <TableCell className="text-right font-mono text-orange-600 dark:text-orange-400">
+                        <TableRow key={supplier.supplierId || idx} className={tableRowClass}>
+                          <TableCell className="text-sm font-medium">{supplier.supplierName}</TableCell>
+                          <TableCell className="text-right text-sm tabular-nums">{supplier.itemsSold}</TableCell>
+                          <TableCell className="text-right font-mono text-sm tabular-nums">{formatCurrency(supplier.grossSales)}</TableCell>
+                          <TableCell className="text-right font-mono text-sm tabular-nums text-orange-600 dark:text-orange-400">
                             −{formatCurrency(supplier.totalDiscounts)}
                           </TableCell>
-                          <TableCell className="text-right font-mono">{formatCurrency(supplier.netSales)}</TableCell>
+                          <TableCell className="text-right font-mono text-sm tabular-nums">{formatCurrency(supplier.netSales)}</TableCell>
                           <TableCell
-                            className="text-right font-mono text-amber-600 dark:text-amber-400"
+                            className="text-right font-mono text-sm tabular-nums text-amber-600 dark:text-amber-400"
                             title={supplier.zeroCostQty > 0 ? `${supplier.zeroCostQty} qty sold with no purchase rate (COGS treated as 0)` : undefined}
                           >
                             {formatCurrency(supplier.totalCOGS)}
@@ -775,12 +827,12 @@ export default function NetProfitAnalysis() {
                               <span className="ml-1 text-xs text-amber-700 dark:text-amber-300" aria-hidden>⚠</span>
                             )}
                           </TableCell>
-                          <TableCell className="text-right font-mono font-semibold text-green-600 dark:text-green-400">
+                          <TableCell className="text-right font-mono text-sm font-semibold tabular-nums text-green-600 dark:text-green-400">
                             {formatCurrency(supplier.grossProfit)}
                           </TableCell>
                           <TableCell className="text-right">
                             <Badge variant={supplier.marginPercent >= 20 ? "default" : supplier.marginPercent >= 0 ? "secondary" : "destructive"}>
-                              <TrendingUp className="h-3 w-3 mr-1" />
+                              <TrendingUp className="mr-1 h-3 w-3" />
                               {supplier.marginPercent.toFixed(1)}%
                             </Badge>
                           </TableCell>
@@ -789,19 +841,19 @@ export default function NetProfitAnalysis() {
                     )}
                   </TableBody>
                   {filteredSupplierData.length > 0 && (
-                    <TableFooter className="sticky bottom-0 bg-muted font-bold">
-                      <TableRow>
-                        <TableCell>TOTAL</TableCell>
-                        <TableCell className="text-right">{supplierTotals.items}</TableCell>
-                        <TableCell className="text-right font-mono">{formatCurrency(supplierTotals.grossSales)}</TableCell>
-                        <TableCell className="text-right font-mono text-orange-600 dark:text-orange-400">
+                    <TableFooter className="sticky bottom-0 z-10 border-t-2 bg-slate-100 font-bold">
+                      <TableRow className="h-11">
+                        <TableCell className="text-sm">TOTAL</TableCell>
+                        <TableCell className="text-right text-sm tabular-nums">{supplierTotals.items}</TableCell>
+                        <TableCell className="text-right font-mono text-sm tabular-nums">{formatCurrency(supplierTotals.grossSales)}</TableCell>
+                        <TableCell className="text-right font-mono text-sm tabular-nums text-orange-600 dark:text-orange-400">
                           −{formatCurrency(supplierTotals.discounts)}
                         </TableCell>
-                        <TableCell className="text-right font-mono">{formatCurrency(supplierTotals.netSales)}</TableCell>
-                        <TableCell className="text-right font-mono text-amber-600 dark:text-amber-400">
+                        <TableCell className="text-right font-mono text-sm tabular-nums">{formatCurrency(supplierTotals.netSales)}</TableCell>
+                        <TableCell className="text-right font-mono text-sm tabular-nums text-amber-600 dark:text-amber-400">
                           {formatCurrency(supplierTotals.cogs)}
                         </TableCell>
-                        <TableCell className="text-right font-mono text-green-600 dark:text-green-400">
+                        <TableCell className="text-right font-mono text-sm tabular-nums text-green-600 dark:text-green-400">
                           {formatCurrency(supplierTotals.profit)}
                         </TableCell>
                         <TableCell className="text-right">
@@ -818,78 +870,80 @@ export default function NetProfitAnalysis() {
           </TabsContent>
 
           {/* Product-wise Tab */}
-          <TabsContent value="product-wise" className="flex-1 min-h-0 flex flex-col mt-0 data-[state=inactive]:hidden">
-            <div className="flex items-center gap-2 mb-3 print:hidden">
-              <Search className="h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search product, brand, or category..."
-                value={productSearch}
-                onChange={(e) => setProductSearch(e.target.value)}
-                className="max-w-sm h-8"
-              />
-              <span className="text-xs text-muted-foreground ml-auto">
-                {filteredProductData.length} products
+          <TabsContent value="product-wise" className="mt-0 flex min-h-0 flex-1 flex-col data-[state=inactive]:hidden">
+            <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-slate-100 bg-white px-3 py-2 print:hidden">
+              <div className="relative min-w-[200px] max-w-md flex-1">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  placeholder="SEARCH PRODUCT, BRAND, CATEGORY..."
+                  value={productSearch}
+                  onChange={(e) => setProductSearch(e.target.value)}
+                  className="h-10 border-slate-200 bg-slate-50 pl-10 text-sm uppercase placeholder:normal-case"
+                />
+              </div>
+              <span className="ml-auto shrink-0 text-sm tabular-nums text-muted-foreground">
+                {filteredProductData.length.toLocaleString("en-IN")} products
               </span>
             </div>
-            <p className="text-[11px] text-muted-foreground mb-2 print:hidden">
+            <p className="shrink-0 px-3 py-1.5 text-xs text-muted-foreground print:hidden">
               Discounts include item discount, bill-level flat discount, and round-off adjustment.
             </p>
 
             {loading ? (
-              <div className="flex items-center justify-center py-16">
+              <div className="flex flex-1 items-center justify-center py-16">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
               </div>
             ) : !hasGenerated ? (
-              <div className="flex-1 flex items-center justify-center text-muted-foreground">
-                <p>Click Generate to load product-wise profit data</p>
+              <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
+                Click Generate to load product-wise profit data
               </div>
             ) : (
-              <div className="flex-1 min-h-0 overflow-y-auto overflow-x-auto border rounded-lg">
-                <Table>
-                  <TableHeader className="sticky top-0 z-10 bg-muted/95 backdrop-blur">
-                    <TableRow>
-                      <TableHead className="w-[200px] text-foreground font-semibold">Product</TableHead>
-                      <TableHead className="text-foreground font-semibold">Brand</TableHead>
-                      <TableHead className="text-right text-foreground font-semibold">Qty Sold</TableHead>
-                      <TableHead className="text-right text-foreground font-semibold">Gross Sales</TableHead>
+              <div className="net-profit-table-scroll min-h-0 flex-1 overflow-y-auto overflow-x-auto tab-scroll-stable bg-white">
+                <Table className="[&_td]:px-4 [&_th]:px-4">
+                  <TableHeader className="sticky top-0 z-10">
+                    <TableRow className="border-none bg-slate-800 hover:bg-slate-800">
+                      <TableHead className={cn(tableHeadClass, "w-[200px]")}>Product</TableHead>
+                      <TableHead className={tableHeadClass}>Brand</TableHead>
+                      <TableHead className={cn(tableHeadClass, "text-right")}>Qty Sold</TableHead>
+                      <TableHead className={cn(tableHeadClass, "text-right")}>Gross Sales</TableHead>
                       <TableHead
-                        className="text-right text-foreground font-semibold text-orange-600 dark:text-orange-400"
+                        className={cn(tableHeadClass, "text-right text-orange-300")}
                         title="Includes item discount, bill-level flat discount, and round-off adjustment"
                       >
                         Discounts
                       </TableHead>
-                      <TableHead className="text-right text-foreground font-semibold">Net Sales</TableHead>
-                      <TableHead className="text-right text-foreground font-semibold">COGS</TableHead>
-                      <TableHead className="text-right text-foreground font-semibold">Gross Profit</TableHead>
-                      <TableHead className="text-right text-foreground font-semibold">Margin %</TableHead>
+                      <TableHead className={cn(tableHeadClass, "text-right")}>Net Sales</TableHead>
+                      <TableHead className={cn(tableHeadClass, "text-right")}>COGS</TableHead>
+                      <TableHead className={cn(tableHeadClass, "text-right")}>Gross Profit</TableHead>
+                      <TableHead className={cn(tableHeadClass, "text-right")}>Margin %</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {filteredProductData.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                        <TableCell colSpan={9} className="h-20 text-center text-sm text-muted-foreground">
                           No data available for the selected period
                         </TableCell>
                       </TableRow>
                     ) : (
                       filteredProductData.map((product, idx) => (
-                        <TableRow key={product.productId || idx}>
-                          <TableCell className="font-medium max-w-[200px] truncate" title={product.productName}>
+                        <TableRow key={product.productId || idx} className={tableRowClass}>
+                          <TableCell className="max-w-[200px] truncate text-sm font-medium" title={product.productName}>
                             {product.productName}
                           </TableCell>
-                          <TableCell>
+                          <TableCell className="text-sm">
                             {product.brand ? (
                               <Badge variant="outline">{product.brand}</Badge>
                             ) : "-"}
                           </TableCell>
-                          <TableCell className="text-right">{product.quantitySold}</TableCell>
-                          <TableCell className="text-right font-mono">{formatCurrency(product.grossSales)}</TableCell>
-                          <TableCell className="text-right font-mono text-orange-600 dark:text-orange-400">
+                          <TableCell className="text-right text-sm tabular-nums">{product.quantitySold}</TableCell>
+                          <TableCell className="text-right font-mono text-sm tabular-nums">{formatCurrency(product.grossSales)}</TableCell>
+                          <TableCell className="text-right font-mono text-sm tabular-nums text-orange-600 dark:text-orange-400">
                             −{formatCurrency(product.totalDiscounts)}
                           </TableCell>
-                          <TableCell className="text-right font-mono">{formatCurrency(product.netSales)}</TableCell>
+                          <TableCell className="text-right font-mono text-sm tabular-nums">{formatCurrency(product.netSales)}</TableCell>
                           <TableCell
-                            className="text-right font-mono text-amber-600 dark:text-amber-400"
+                            className="text-right font-mono text-sm tabular-nums text-amber-600 dark:text-amber-400"
                             title={product.zeroCostQty > 0 ? `${product.zeroCostQty} qty with no purchase rate (COGS treated as 0)` : undefined}
                           >
                             {formatCurrency(product.totalCOGS)}
@@ -897,12 +951,12 @@ export default function NetProfitAnalysis() {
                               <span className="ml-1 text-xs text-amber-700 dark:text-amber-300" aria-hidden>⚠</span>
                             )}
                           </TableCell>
-                          <TableCell className="text-right font-mono font-semibold text-green-600 dark:text-green-400">
+                          <TableCell className="text-right font-mono text-sm font-semibold tabular-nums text-green-600 dark:text-green-400">
                             {formatCurrency(product.grossProfit)}
                           </TableCell>
                           <TableCell className="text-right">
                             <Badge variant={product.marginPercent >= 20 ? "default" : product.marginPercent >= 0 ? "secondary" : "destructive"}>
-                              <TrendingUp className="h-3 w-3 mr-1" />
+                              <TrendingUp className="mr-1 h-3 w-3" />
                               {product.marginPercent.toFixed(1)}%
                             </Badge>
                           </TableCell>
@@ -911,20 +965,20 @@ export default function NetProfitAnalysis() {
                     )}
                   </TableBody>
                   {filteredProductData.length > 0 && (
-                    <TableFooter className="sticky bottom-0 bg-muted font-bold">
-                      <TableRow>
-                        <TableCell>TOTAL</TableCell>
-                        <TableCell>-</TableCell>
-                        <TableCell className="text-right">{productTotals.qty}</TableCell>
-                        <TableCell className="text-right font-mono">{formatCurrency(productTotals.grossSales)}</TableCell>
-                        <TableCell className="text-right font-mono text-orange-600 dark:text-orange-400">
+                    <TableFooter className="sticky bottom-0 z-10 border-t-2 bg-slate-100 font-bold">
+                      <TableRow className="h-11">
+                        <TableCell className="text-sm">TOTAL</TableCell>
+                        <TableCell className="text-sm">-</TableCell>
+                        <TableCell className="text-right text-sm tabular-nums">{productTotals.qty}</TableCell>
+                        <TableCell className="text-right font-mono text-sm tabular-nums">{formatCurrency(productTotals.grossSales)}</TableCell>
+                        <TableCell className="text-right font-mono text-sm tabular-nums text-orange-600 dark:text-orange-400">
                           −{formatCurrency(productTotals.discounts)}
                         </TableCell>
-                        <TableCell className="text-right font-mono">{formatCurrency(productTotals.netSales)}</TableCell>
-                        <TableCell className="text-right font-mono text-amber-600 dark:text-amber-400">
+                        <TableCell className="text-right font-mono text-sm tabular-nums">{formatCurrency(productTotals.netSales)}</TableCell>
+                        <TableCell className="text-right font-mono text-sm tabular-nums text-amber-600 dark:text-amber-400">
                           {formatCurrency(productTotals.cogs)}
                         </TableCell>
-                        <TableCell className="text-right font-mono text-green-600 dark:text-green-400">
+                        <TableCell className="text-right font-mono text-sm tabular-nums text-green-600 dark:text-green-400">
                           {formatCurrency(productTotals.profit)}
                         </TableCell>
                         <TableCell className="text-right">
@@ -939,7 +993,8 @@ export default function NetProfitAnalysis() {
               </div>
             )}
           </TabsContent>
-        </Tabs>
+          </Tabs>
+        </Card>
       </div>
     </div>
   );
