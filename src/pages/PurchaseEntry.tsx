@@ -7017,6 +7017,7 @@ const PurchaseEntry = () => {
           onIndexChange={setEditPanelIndex}
           onProductUpdated={handleProductUpdated}
           focusField={editPanelFocusField}
+          showMrp={showMrp}
         />
 
       {/* Unlock Confirmation Dialog */}

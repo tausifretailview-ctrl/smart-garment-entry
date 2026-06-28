@@ -48,6 +48,8 @@ interface ProductEditPanelProps {
   onIndexChange: (index: number) => void;
   onProductUpdated: (tempId: string, updates: Partial<LineItem>, applyToProductId?: string) => void;
   focusField?: string;
+  /** When false, MRP field is hidden (matches purchase bill column visibility). */
+  showMrp?: boolean;
 }
 
 interface ProductData {
@@ -71,7 +73,7 @@ const MARGIN_CHIPS = [10, 15, 20, 25, 30, 50];
 const GST_RATES = [0, 5, 12, 18, 28];
 
 const ProductEditPanel = ({
-  open, onClose, lineItems, currentIndex, onIndexChange, onProductUpdated, focusField
+  open, onClose, lineItems, currentIndex, onIndexChange, onProductUpdated, focusField, showMrp = false,
 }: ProductEditPanelProps) => {
   const { currentOrganization } = useOrganization();
   const { toast } = useToast();
@@ -229,16 +231,22 @@ const ProductEditPanel = ({
 
       if (error) throw error;
 
-      // Update variant MRP if changed
+      // Update variant prices if changed (MRP only when enabled in settings)
       if (modifiedFields.has("default_mrp") || modifiedFields.has("default_pur_price") || modifiedFields.has("default_sale_price")) {
-        // Pricing changes apply ONLY to the currently selected variant (size-specific)
+        const variantUpdate: {
+          pur_price: number;
+          sale_price: number;
+          mrp?: number | null;
+        } = {
+          pur_price: form.default_pur_price,
+          sale_price: form.default_sale_price,
+        };
+        if (showMrp) {
+          variantUpdate.mrp = form.default_mrp || null;
+        }
         await supabase
           .from("product_variants")
-          .update({
-            pur_price: form.default_pur_price,
-            sale_price: form.default_sale_price,
-            mrp: form.default_mrp || null,
-          })
+          .update(variantUpdate)
           .eq("id", item.sku_id);
       }
 
@@ -253,7 +261,7 @@ const ProductEditPanel = ({
       if (modifiedFields.has("gst_per")) lineUpdates.gst_per = form.gst_per;
       if (modifiedFields.has("default_pur_price")) lineUpdates.pur_price = form.default_pur_price;
       if (modifiedFields.has("default_sale_price")) lineUpdates.sale_price = form.default_sale_price;
-      if (modifiedFields.has("default_mrp")) lineUpdates.mrp = form.default_mrp;
+      if (showMrp && modifiedFields.has("default_mrp")) lineUpdates.mrp = form.default_mrp;
 
       if (Object.keys(lineUpdates).length > 0) {
         // Pricing fields → only the current row. Master fields → all rows of same product.
@@ -479,7 +487,7 @@ const ProductEditPanel = ({
                 <div className="grid grid-cols-2 gap-3">
                   {renderField("Purchase Price", "default_pur_price", "number", { ref: focusField === "pur_price" ? focusRef : undefined })}
                   {renderField("Sale Price", "default_sale_price", "number", { ref: focusField === "sale_price" ? focusRef : undefined })}
-                  {renderField("MRP", "default_mrp", "number", { ref: focusField === "mrp" ? focusRef : undefined })}
+                  {showMrp && renderField("MRP", "default_mrp", "number", { ref: focusField === "mrp" ? focusRef : undefined })}
                   
                   {/* Margin Display */}
                   <div className="space-y-1">
@@ -510,7 +518,7 @@ const ProductEditPanel = ({
                 </div>
 
                 {/* MRP Validation */}
-                {form.default_mrp > 0 && form.default_sale_price > form.default_mrp && (
+                {showMrp && form.default_mrp > 0 && form.default_sale_price > form.default_mrp && (
                   <p className="text-xs text-destructive flex items-center gap-1 mt-1">
                     <AlertTriangle className="h-3 w-3" /> Sale Price exceeds MRP
                   </p>
@@ -646,7 +654,7 @@ const ProductEditPanel = ({
                         <p className="text-[11px] text-amber-600">⚠️ Updates product master. Existing records unchanged.</p>
                       </div>
                     )}
-                    <div className="grid grid-cols-3 gap-2 pt-1 border-t border-border/50">
+                    <div className={cn("grid gap-2 pt-1 border-t border-border/50", showMrp ? "grid-cols-3" : "grid-cols-2")}>
                       <div className="text-center">
                         <p className="text-[10px] text-muted-foreground">Pur Price</p>
                         <p className="text-sm font-semibold text-amber-700 dark:text-amber-400">₹{currentVariant.pur_price || 0}</p>
@@ -655,10 +663,12 @@ const ProductEditPanel = ({
                         <p className="text-[10px] text-muted-foreground">Sale Price</p>
                         <p className="text-sm font-semibold text-green-700 dark:text-green-400">₹{currentVariant.sale_price || 0}</p>
                       </div>
-                      <div className="text-center">
-                        <p className="text-[10px] text-muted-foreground">MRP</p>
-                        <p className="text-sm font-semibold">₹{currentVariant.mrp || "—"}</p>
-                      </div>
+                      {showMrp && (
+                        <div className="text-center">
+                          <p className="text-[10px] text-muted-foreground">MRP</p>
+                          <p className="text-sm font-semibold">₹{currentVariant.mrp || "—"}</p>
+                        </div>
+                      )}
                     </div>
                   </div>
                 ) : (
