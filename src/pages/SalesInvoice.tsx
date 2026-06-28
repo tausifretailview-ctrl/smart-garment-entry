@@ -1735,6 +1735,30 @@ export default function SalesInvoice() {
         .reduce((sum, orig) => sum + orig.quantity, 0);
     }
 
+    // Stock guard BEFORE any price prompt or staging — never add an out-of-stock product.
+    // Message shows immediately on scan/select; the item is not added to the bill.
+    if (isStockTrackedInvoiceProduct(product)) {
+      const existingForStock = lineItems.find(
+        (item) => item.variantId === variant.id && item.productId !== '',
+      );
+      const requestedQty = (existingForStock?.quantity || 0) + 1;
+      const stockCheck = await checkStock(variant.id, requestedQty, freedQty);
+      if (!stockCheck.isAvailable) {
+        playErrorBeep();
+        openStockIssueDialog(
+          buildInsufficientStockIssue(
+            stockCheck.productName,
+            stockCheck.size,
+            requestedQty,
+            stockCheck.availableStock,
+          ),
+        );
+        setSearchInput("");
+        setTimeout(() => barcodeInputRef.current?.focus(), 50);
+        return;
+      }
+    }
+
     // Check if last_purchase prices differ from master prices (for new items only)
     // We need to prepare the new item data before the functional update,
     // but the duplicate check MUST happen inside setLineItems to avoid stale state during rapid scans
@@ -1800,30 +1824,6 @@ export default function SalesInvoice() {
       return 0;
     })();
     const discountPercent = brandDiscount > 0 ? brandDiscount : (productSaleDiscount > 0 ? productSaleDiscount : 0);
-
-    const isServiceOrCombo =
-      product.product_type === 'service' || product.product_type === 'combo';
-    if (!isServiceOrCombo) {
-      const existingItem = lineItems.find(
-        (item) => item.variantId === variant.id && item.productId !== '',
-      );
-      const requestedQty = (existingItem?.quantity || 0) + 1;
-      const stockCheck = await checkStock(variant.id, requestedQty, freedQty);
-      if (!stockCheck.isAvailable) {
-        playErrorBeep();
-        openStockIssueDialog(
-          buildInsufficientStockIssue(
-            stockCheck.productName,
-            stockCheck.size,
-            requestedQty,
-            stockCheck.availableStock,
-          ),
-        );
-        setSearchInput("");
-        setTimeout(() => barcodeInputRef.current?.focus(), 50);
-        return;
-      }
-    }
 
     // Use functional update with duplicate check INSIDE to prevent stale state during rapid barcode scans
     hasManuallyAddedNewItemRef.current = true;
