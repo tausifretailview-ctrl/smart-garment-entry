@@ -10,6 +10,7 @@ import {
   TrendingUp,
   TrendingDown,
   BarChart3,
+  LineChart,
   Settings,
   User,
   Building2,
@@ -1093,6 +1094,28 @@ export function AppSidebar() {
                 </SidebarGroupContent>
               </CollapsibleContent>
             </Collapsible>
+          </SidebarGroup>
+        )}
+
+        {/* Business Insights */}
+        {(isAdminPermissions || hasMainMenuAccess("reports")) && (
+          <SidebarGroup>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={isActive("/insights")} tooltip="Insights">
+                    <NavLink to="/insights" className="flex items-center gap-2 group">
+                      <LineChart className="h-4 w-4 sidebar-icon text-primary" />
+                      {open && (
+                        <span className="font-extrabold text-[0.9375rem] uppercase tracking-wider text-sidebar-foreground group-hover:text-primary">
+                          Insights
+                        </span>
+                      )}
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </SidebarMenu>
+            </SidebarGroupContent>
           </SidebarGroup>
         )}
 
