@@ -811,8 +811,8 @@ export default function SalesInvoice() {
 
   const sizeGroupSizesById = useMemo(() => {
     const map = new Map<string, string[]>();
-    (sizeGroupsData || []).forEach((sg: { id: string; sizes: string[] | null }) => {
-      map.set(sg.id, Array.isArray(sg.sizes) ? sg.sizes : []);
+    (sizeGroupsData || []).forEach((sg: any) => {
+      map.set(sg.id, Array.isArray(sg.sizes) ? (sg.sizes as string[]) : []);
     });
     return map;
   }, [sizeGroupsData]);
