@@ -9,6 +9,7 @@ import { getIndiaFinancialYear } from "@/utils/accountingReportUtils";
 import { ProfitabilityTab } from "@/components/business-insights/ProfitabilityTab";
 import { StockHealthTab } from "@/components/business-insights/StockHealthTab";
 import { SupplierAnalysisTab } from "@/components/business-insights/SupplierAnalysisTab";
+import { SalesTrendsTab } from "@/components/business-insights/SalesTrendsTab";
 
 type InsightsTabId =
   | "profitability"
@@ -22,15 +23,6 @@ function defaultDateRange(): { startDate: string; endDate: string } {
     startDate: fy.fromDate,
     endDate: format(new Date(), "yyyy-MM-dd"),
   };
-}
-
-function TabPlaceholder({ title }: { title: string }) {
-  return (
-    <div className="rounded-xl border bg-card p-8 text-center text-muted-foreground">
-      <p className="text-sm font-medium text-foreground">{title}</p>
-      <p className="mt-1 text-sm">Content loads when this tab is opened.</p>
-    </div>
-  );
 }
 
 export default function BusinessInsights() {
@@ -144,7 +136,7 @@ export default function BusinessInsights() {
 
         <TabsContent value="sales-trends" className="mt-0">
           {shouldMountTab("sales-trends") ? (
-            <TabPlaceholder title="Sales Trends" />
+            <SalesTrendsTab startDate={startDate} endDate={endDate} />
           ) : (
             <p className="text-sm text-muted-foreground">Select this tab to load sales trend insights.</p>
           )}
