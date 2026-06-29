@@ -8,7 +8,7 @@ import { MobileDashboardSummary } from "./MobileDashboardSummary";
 import { MobileBusinessOverview, type BusinessOverviewPeriod } from "./MobileBusinessOverview";
 import { 
   BarChart3, Package, AlertCircle, WifiOff, RefreshCw, 
-  ShoppingCart, Receipt, ShoppingBag, Calculator, Users, Building2, CreditCard, Calendar,
+  ShoppingBag, Calculator, Users, Building2, CreditCard, Calendar,
   Layers,
 } from "lucide-react";
 import { format } from "date-fns";
@@ -21,6 +21,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { localDayBounds, todayLocalYmd } from "@/lib/localDayBounds";
 import { MOBILE_HOME_SALE_TYPES } from "@/lib/mobileShell";
+import { withMobileQueryTimeout } from "@/lib/mobileQueryTimeout";
 
 type ErpDashboardStats = {
   total_sales: number;
@@ -120,23 +121,25 @@ export const MobileDashboard = () => {
     queryKey: ["mobile-dashboard-today-sales", currentOrganization?.id, today],
     queryFn: async () => {
       if (!currentOrganization) return null;
-      const { data, error } = await supabase
-        .from("sales")
-        .select("net_amount, sale_type")
-        .eq("organization_id", currentOrganization.id)
-        .is("deleted_at", null)
-        .eq("is_cancelled", false)
-        .in("sale_type", [...MOBILE_HOME_SALE_TYPES])
-        .gte("sale_date", todayStartIso)
-        .lte("sale_date", todayEndIso);
-      if (error) throw error;
-      const rows = data || [];
-      const total = rows.reduce((sum, r) => sum + (Number(r.net_amount) || 0), 0);
-      return { total, count: rows.length };
+      return withMobileQueryTimeout(async () => {
+        const { data, error } = await supabase
+          .from("sales")
+          .select("net_amount, sale_type")
+          .eq("organization_id", currentOrganization.id)
+          .is("deleted_at", null)
+          .eq("is_cancelled", false)
+          .in("sale_type", [...MOBILE_HOME_SALE_TYPES])
+          .gte("sale_date", todayStartIso)
+          .lte("sale_date", todayEndIso);
+        if (error) throw error;
+        const rows = data || [];
+        const total = rows.reduce((sum, r) => sum + (Number(r.net_amount) || 0), 0);
+        return { total, count: rows.length };
+      });
     },
-    enabled: !!currentOrganization && isOnline,
+    enabled: !!currentOrganization?.id,
     staleTime: 60000,
-    retry: 2,
+    retry: 1,
   });
 
   // Single RPC call replaces 4 separate queries (month + stock use this; today uses live query above)
@@ -149,19 +152,20 @@ export const MobileDashboard = () => {
     queryKey: ["mobile-dashboard-stats", currentOrganization?.id, today],
     queryFn: async () => {
       if (!currentOrganization) return null;
-      
-      const { data, error } = await supabase.rpc('get_erp_dashboard_stats', {
-        p_org_id: currentOrganization.id,
-        p_start_date: today,
-        p_end_date: today,
+      return withMobileQueryTimeout(async () => {
+        const { data, error } = await supabase.rpc('get_erp_dashboard_stats', {
+          p_org_id: currentOrganization.id,
+          p_start_date: today,
+          p_end_date: today,
+        });
+        if (error) throw error;
+        return data as ErpDashboardStats;
       });
-      if (error) throw error;
-      return data as ErpDashboardStats;
     },
-    enabled: !!currentOrganization && isOnline,
+    enabled: !!currentOrganization?.id,
     staleTime: 60000,
     refetchInterval: false,
-    retry: 2,
+    retry: 1,
   });
 
   // Also fetch month stats with a separate RPC call (different date range)
@@ -172,18 +176,20 @@ export const MobileDashboard = () => {
     queryKey: ["mobile-dashboard-stats", currentOrganization?.id, monthStart, monthEnd],
     queryFn: async () => {
       if (!currentOrganization) return null;
-      const { data, error } = await supabase.rpc("get_erp_dashboard_stats", {
-        p_org_id: currentOrganization.id,
-        p_start_date: monthStart,
-        p_end_date: monthEnd,
+      return withMobileQueryTimeout(async () => {
+        const { data, error } = await supabase.rpc("get_erp_dashboard_stats", {
+          p_org_id: currentOrganization.id,
+          p_start_date: monthStart,
+          p_end_date: monthEnd,
+        });
+        if (error) throw error;
+        return data as ErpDashboardStats;
       });
-      if (error) throw error;
-      return data as ErpDashboardStats;
     },
-    enabled: !!currentOrganization && isOnline,
+    enabled: !!currentOrganization?.id,
     staleTime: 120000,
     refetchInterval: false,
-    retry: 2,
+    retry: 1,
   });
 
   const overviewStats = overviewPeriod === "today" ? dashStats : monthDashStats;
@@ -349,10 +355,10 @@ export const MobileDashboard = () => {
         <h2 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">Quick Actions</h2>
         <div className="grid grid-cols-4 gap-2.5">
           {[
-            { icon: ShoppingCart, label: "POS", nav: "/pos-sales", gradient: "from-emerald-400 to-green-500" },
-            { icon: Receipt, label: "New Sale", nav: "/sales-invoice-dashboard", gradient: "from-blue-400 to-indigo-500" },
             { icon: ShoppingBag, label: "Purchase", nav: "/purchase-entry", gradient: "from-orange-400 to-amber-500" },
+            { icon: Package, label: "Stock", nav: "/owner-stock", gradient: "from-amber-400 to-orange-500" },
             { icon: Calculator, label: "Cashier", nav: "/daily-cashier-report", gradient: "from-purple-400 to-violet-500" },
+            { icon: BarChart3, label: "Reports", nav: "/owner-reports", gradient: "from-teal-400 to-cyan-500" },
           ].map((a) => {
             const Icon = a.icon;
             return (

@@ -1,5 +1,6 @@
-import { ShoppingCart, ShoppingBag, Package, Calculator, Users, Building2, CreditCard, BarChart3 } from "lucide-react";
+import { ShoppingBag, Package, Calculator, Users, Building2, CreditCard, BarChart3, ScanBarcode } from "lucide-react";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
+import { useMobileScan } from "@/contexts/MobileScanContext";
 import { cn } from "@/lib/utils";
 
 interface QuickAction {
@@ -11,29 +12,29 @@ interface QuickAction {
 }
 
 const primaryActions: QuickAction[] = [
-  { 
-    icon: ShoppingCart, 
-    label: "POS", 
-    path: "/pos-sales",
-    gradient: "from-green-500 to-emerald-600"
+  {
+    icon: ScanBarcode,
+    label: "Scan",
+    path: "/owner-stock",
+    gradient: "from-primary to-blue-600",
   },
-  { 
-    icon: ShoppingBag, 
-    label: "Purchase", 
+  {
+    icon: ShoppingBag,
+    label: "Purchase",
     path: "/purchase-entry",
-    gradient: "from-blue-500 to-indigo-600"
+    gradient: "from-blue-500 to-indigo-600",
   },
-  { 
-    icon: Package, 
-    label: "Stock", 
-    path: "/stock-report",
-    gradient: "from-amber-500 to-orange-600"
+  {
+    icon: Package,
+    label: "Stock",
+    path: "/owner-stock",
+    gradient: "from-amber-500 to-orange-600",
   },
-  { 
-    icon: Calculator, 
-    label: "Cashier", 
+  {
+    icon: Calculator,
+    label: "Cashier",
     path: "/daily-cashier-report",
-    gradient: "from-purple-500 to-violet-600"
+    gradient: "from-purple-500 to-violet-600",
   },
 ];
 
@@ -46,6 +47,15 @@ const secondaryActions: QuickAction[] = [
 
 export const MobileQuickActions = () => {
   const { orgNavigate } = useOrgNavigation();
+  const { openScan } = useMobileScan();
+
+  const handleAction = (action: QuickAction) => {
+    if (action.label === "Scan") {
+      openScan();
+      return;
+    }
+    orgNavigate(action.path);
+  };
 
   return (
     <div className="space-y-3 lg:hidden">
@@ -56,7 +66,7 @@ export const MobileQuickActions = () => {
           return (
             <button
               key={action.path}
-              onClick={() => orgNavigate(action.path)}
+              onClick={() => handleAction(action)}
               className={cn(
                 "flex flex-col items-center justify-center p-3 rounded-xl",
                 "bg-gradient-to-br shadow-sm",
@@ -81,7 +91,7 @@ export const MobileQuickActions = () => {
           return (
             <button
               key={action.path}
-              onClick={() => orgNavigate(action.path)}
+              onClick={() => handleAction(action)}
               className={cn(
                 "flex flex-col items-center justify-center p-3 rounded-xl",
                 "bg-card border border-border shadow-sm",

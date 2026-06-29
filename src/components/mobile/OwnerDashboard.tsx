@@ -15,6 +15,7 @@ import { useEffect } from "react";
 import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 import { PullToRefreshIndicator } from "@/components/mobile/PullToRefreshIndicator";
 import { invalidateOwnerDashboardQueries } from "@/lib/mobileHubRefresh";
+import { withMobileQueryTimeout } from "@/lib/mobileQueryTimeout";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -65,21 +66,24 @@ export const OwnerDashboard = () => {
     queryKey: ["owner-dashboard", currentOrganization?.id, today],
     queryFn: async () => {
       if (!currentOrganization) return { total: 0, count: 0 };
-      const { data } = await supabase
-        .from("sales")
-        .select("net_amount")
-        .eq("organization_id", currentOrganization.id)
-        .is("deleted_at", null)
-        .eq("is_cancelled", false)
-        .in("sale_type", [...MOBILE_HOME_SALE_TYPES])
-        .gte("sale_date", todayStartIso)
-        .lte("sale_date", todayEndIso);
-      const total = data?.reduce((s, r) => s + (r.net_amount || 0), 0) || 0;
-      return { total, count: data?.length || 0 };
+      return withMobileQueryTimeout(async () => {
+        const { data } = await supabase
+          .from("sales")
+          .select("net_amount")
+          .eq("organization_id", currentOrganization.id)
+          .is("deleted_at", null)
+          .eq("is_cancelled", false)
+          .in("sale_type", [...MOBILE_HOME_SALE_TYPES])
+          .gte("sale_date", todayStartIso)
+          .lte("sale_date", todayEndIso);
+        const total = data?.reduce((s, r) => s + (r.net_amount || 0), 0) || 0;
+        return { total, count: data?.length || 0 };
+      });
     },
-    enabled: !!currentOrganization && isOnline,
+    enabled: !!currentOrganization?.id,
     staleTime: 60000,
     refetchInterval: false,
+    retry: 1,
   });
 
   /* ── Query: Today's purchases ── */
@@ -87,19 +91,22 @@ export const OwnerDashboard = () => {
     queryKey: ["owner-purchase-today", currentOrganization?.id, today],
     queryFn: async () => {
       if (!currentOrganization) return { total: 0, count: 0 };
-      const { data } = await supabase
-        .from("purchase_bills")
-        .select("net_amount")
-        .eq("organization_id", currentOrganization.id)
-        .is("deleted_at", null)
-        .gte("bill_date", today)
-        .lte("bill_date", today);
-      const total = data?.reduce((s, r) => s + (Number(r.net_amount) || 0), 0) || 0;
-      return { total, count: data?.length || 0 };
+      return withMobileQueryTimeout(async () => {
+        const { data } = await supabase
+          .from("purchase_bills")
+          .select("net_amount")
+          .eq("organization_id", currentOrganization.id)
+          .is("deleted_at", null)
+          .gte("bill_date", today)
+          .lte("bill_date", today);
+        const total = data?.reduce((s, r) => s + (Number(r.net_amount) || 0), 0) || 0;
+        return { total, count: data?.length || 0 };
+      });
     },
-    enabled: !!currentOrganization && isOnline,
+    enabled: !!currentOrganization?.id,
     staleTime: 60000,
     refetchInterval: false,
+    retry: 1,
   });
 
   /* ── Query: Payments received today (from voucher receipts) ── */
@@ -107,19 +114,22 @@ export const OwnerDashboard = () => {
     queryKey: ["owner-payments-today", currentOrganization?.id, today],
     queryFn: async () => {
       if (!currentOrganization) return 0;
-      const { data } = await supabase
-        .from("voucher_entries")
-        .select("total_amount")
-        .eq("organization_id", currentOrganization.id)
-        .eq("voucher_type", "receipt")
-        .is("deleted_at", null)
-        .gte("voucher_date", today)
-        .lte("voucher_date", today);
-      return data?.reduce((s, r) => s + (Number(r.total_amount) || 0), 0) || 0;
+      return withMobileQueryTimeout(async () => {
+        const { data } = await supabase
+          .from("voucher_entries")
+          .select("total_amount")
+          .eq("organization_id", currentOrganization.id)
+          .eq("voucher_type", "receipt")
+          .is("deleted_at", null)
+          .gte("voucher_date", today)
+          .lte("voucher_date", today);
+        return data?.reduce((s, r) => s + (Number(r.total_amount) || 0), 0) || 0;
+      });
     },
-    enabled: !!currentOrganization && isOnline,
+    enabled: !!currentOrganization?.id,
     staleTime: 60000,
     refetchInterval: false,
+    retry: 1,
   });
 
   /* ── Query: Outstanding balances ── */
@@ -127,17 +137,20 @@ export const OwnerDashboard = () => {
     queryKey: ["owner-outstanding", currentOrganization?.id],
     queryFn: async () => {
       if (!currentOrganization) return { customer: 0, supplier: 0 };
-      const [{ data: cust }, { data: supp }] = await Promise.all([
-        supabase.from("customers").select("opening_balance").eq("organization_id", currentOrganization.id).is("deleted_at", null),
-        supabase.from("suppliers").select("opening_balance").eq("organization_id", currentOrganization.id).is("deleted_at", null),
-      ]);
-      return {
-        customer: cust?.reduce((s, r) => s + (r.opening_balance || 0), 0) || 0,
-        supplier: supp?.reduce((s, r) => s + (r.opening_balance || 0), 0) || 0,
-      };
+      return withMobileQueryTimeout(async () => {
+        const [{ data: cust }, { data: supp }] = await Promise.all([
+          supabase.from("customers").select("opening_balance").eq("organization_id", currentOrganization.id).is("deleted_at", null),
+          supabase.from("suppliers").select("opening_balance").eq("organization_id", currentOrganization.id).is("deleted_at", null),
+        ]);
+        return {
+          customer: cust?.reduce((s, r) => s + (r.opening_balance || 0), 0) || 0,
+          supplier: supp?.reduce((s, r) => s + (r.opening_balance || 0), 0) || 0,
+        };
+      });
     },
-    enabled: !!currentOrganization && isOnline,
+    enabled: !!currentOrganization?.id,
     staleTime: 120000,
+    retry: 1,
   });
 
   /* ── Query: Sales trend (7 days) ── */
@@ -145,29 +158,32 @@ export const OwnerDashboard = () => {
     queryKey: ["owner-sales-trend", currentOrganization?.id],
     queryFn: async () => {
       if (!currentOrganization) return [];
-      const days = Array.from({ length: 7 }, (_, i) => subDays(new Date(), 6 - i));
-      const startDate = format(days[0], "yyyy-MM-dd");
-      const endDate = format(days[6], "yyyy-MM-dd");
-      const { startIso, endIso } = localDayBounds(startDate, endDate);
-      const { data } = await supabase
-        .from("sales")
-        .select("net_amount, sale_date, created_at")
-        .eq("organization_id", currentOrganization.id)
-        .is("deleted_at", null)
-        .eq("is_cancelled", false)
-        .in("sale_type", [...MOBILE_HOME_SALE_TYPES])
-        .gte("sale_date", startIso)
-        .lte("sale_date", endIso)
-        .order("sale_date");
-      return days.map((d) => {
-        const dayStr = format(d, "yyyy-MM-dd");
-        const label = format(d, "EEE");
-        const daySales = data?.filter((s) => saleRowCalendarYmd(s) === dayStr) || [];
-        return { name: label, sales: daySales.reduce((s, r) => s + (r.net_amount || 0), 0) };
+      return withMobileQueryTimeout(async () => {
+        const days = Array.from({ length: 7 }, (_, i) => subDays(new Date(), 6 - i));
+        const startDate = format(days[0], "yyyy-MM-dd");
+        const endDate = format(days[6], "yyyy-MM-dd");
+        const { startIso, endIso } = localDayBounds(startDate, endDate);
+        const { data } = await supabase
+          .from("sales")
+          .select("net_amount, sale_date, created_at")
+          .eq("organization_id", currentOrganization.id)
+          .is("deleted_at", null)
+          .eq("is_cancelled", false)
+          .in("sale_type", [...MOBILE_HOME_SALE_TYPES])
+          .gte("sale_date", startIso)
+          .lte("sale_date", endIso)
+          .order("sale_date");
+        return days.map((d) => {
+          const dayStr = format(d, "yyyy-MM-dd");
+          const label = format(d, "EEE");
+          const daySales = data?.filter((s) => saleRowCalendarYmd(s) === dayStr) || [];
+          return { name: label, sales: daySales.reduce((s, r) => s + (r.net_amount || 0), 0) };
+        });
       });
     },
-    enabled: !!currentOrganization && isOnline,
+    enabled: !!currentOrganization?.id,
     staleTime: 120000,
+    retry: 1,
   });
 
   /* ── Query: Recent activity (last 10) ── */
@@ -175,50 +191,53 @@ export const OwnerDashboard = () => {
     queryKey: ["owner-recent-activity", currentOrganization?.id],
     queryFn: async () => {
       if (!currentOrganization) return [];
-      const [{ data: sales }, { data: purchases }, { data: vouchers }] = await Promise.all([
-        supabase
-          .from("sales")
-          .select("id, sale_number, net_amount, created_at, customer_name")
-          .eq("organization_id", currentOrganization.id)
-          .is("deleted_at", null)
-          .order("created_at", { ascending: false })
-          .limit(5),
-        supabase
-          .from("purchase_bills")
-          .select("id, software_bill_no, net_amount, created_at, supplier_name")
-          .eq("organization_id", currentOrganization.id)
-          .is("deleted_at", null)
-          .order("created_at", { ascending: false })
-          .limit(5),
-        supabase
-          .from("voucher_entries")
-          .select("id, voucher_number, total_amount, created_at, voucher_type, description")
-          .eq("organization_id", currentOrganization.id)
-          .eq("voucher_type", "receipt")
-          .is("deleted_at", null)
-          .order("created_at", { ascending: false })
-          .limit(5),
-      ]);
+      return withMobileQueryTimeout(async () => {
+        const [{ data: sales }, { data: purchases }, { data: vouchers }] = await Promise.all([
+          supabase
+            .from("sales")
+            .select("id, sale_number, net_amount, created_at, customer_name")
+            .eq("organization_id", currentOrganization.id)
+            .is("deleted_at", null)
+            .order("created_at", { ascending: false })
+            .limit(5),
+          supabase
+            .from("purchase_bills")
+            .select("id, software_bill_no, net_amount, created_at, supplier_name")
+            .eq("organization_id", currentOrganization.id)
+            .is("deleted_at", null)
+            .order("created_at", { ascending: false })
+            .limit(5),
+          supabase
+            .from("voucher_entries")
+            .select("id, voucher_number, total_amount, created_at, voucher_type, description")
+            .eq("organization_id", currentOrganization.id)
+            .eq("voucher_type", "receipt")
+            .is("deleted_at", null)
+            .order("created_at", { ascending: false })
+            .limit(5),
+        ]);
 
-      const items = [
-        ...(sales || []).map((s) => ({
-          id: s.id, type: "sale" as const, desc: `Sale ${s.sale_number} — ${s.customer_name || "Walk-in"}`,
-          amount: s.net_amount || 0, time: s.created_at,
-        })),
-        ...(purchases || []).map((p) => ({
-          id: p.id, type: "purchase" as const, desc: `Purchase ${p.software_bill_no || ""} — ${p.supplier_name || ""}`,
-          amount: Number(p.net_amount) || 0, time: p.created_at,
-        })),
-        ...(vouchers || []).map((v) => ({
-          id: v.id, type: "payment" as const, desc: `Receipt ${v.voucher_number} — ${v.description || ""}`,
-          amount: Number(v.total_amount) || 0, time: v.created_at,
-        })),
-      ];
-      items.sort((a, b) => new Date(b.time!).getTime() - new Date(a.time!).getTime());
-      return items.slice(0, 10);
+        const items = [
+          ...(sales || []).map((s) => ({
+            id: s.id, type: "sale" as const, desc: `Sale ${s.sale_number} — ${s.customer_name || "Walk-in"}`,
+            amount: s.net_amount || 0, time: s.created_at,
+          })),
+          ...(purchases || []).map((p) => ({
+            id: p.id, type: "purchase" as const, desc: `Purchase ${p.software_bill_no || ""} — ${p.supplier_name || ""}`,
+            amount: Number(p.net_amount) || 0, time: p.created_at,
+          })),
+          ...(vouchers || []).map((v) => ({
+            id: v.id, type: "payment" as const, desc: `Receipt ${v.voucher_number} — ${v.description || ""}`,
+            amount: Number(v.total_amount) || 0, time: v.created_at,
+          })),
+        ];
+        items.sort((a, b) => new Date(b.time!).getTime() - new Date(a.time!).getTime());
+        return items.slice(0, 10);
+      });
     },
-    enabled: !!currentOrganization && isOnline,
+    enabled: !!currentOrganization?.id,
     staleTime: 60000,
+    retry: 1,
   });
 
   /* ── Query: CN drift alerts (nightly reconciliation) ── */
@@ -226,23 +245,26 @@ export const OwnerDashboard = () => {
     queryKey: ["owner-cn-drift", currentOrganization?.id, today],
     queryFn: async () => {
       if (!currentOrganization) return { count: 0, customers: [] as string[] };
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const sb = supabase as any;
-      const { data, error } = await sb
-        .from("cn_drift_alerts")
-        .select("customer_id, delta, severity")
-        .eq("organization_id", currentOrganization.id)
-        .eq("check_date", today)
-        .neq("severity", "ok");
-      if (error) {
-        console.warn("cn_drift_alerts query failed (table may not be deployed yet):", error.message);
-        return { count: 0, customers: [] };
-      }
-      const rows = (data || []) as unknown as Array<{ customer_id: string }>;
-      return { count: rows.length, customers: rows.map((r) => r.customer_id) };
+      return withMobileQueryTimeout(async () => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const sb = supabase as any;
+        const { data, error } = await sb
+          .from("cn_drift_alerts")
+          .select("customer_id, delta, severity")
+          .eq("organization_id", currentOrganization.id)
+          .eq("check_date", today)
+          .neq("severity", "ok");
+        if (error) {
+          console.warn("cn_drift_alerts query failed (table may not be deployed yet):", error.message);
+          return { count: 0, customers: [] };
+        }
+        const rows = (data || []) as unknown as Array<{ customer_id: string }>;
+        return { count: rows.length, customers: rows.map((r) => r.customer_id) };
+      });
     },
-    enabled: !!currentOrganization && isOnline,
+    enabled: !!currentOrganization?.id,
     staleTime: 300000,
+    retry: 1,
   });
 
   /* ── Query: Low stock (qty < 5) ── */
@@ -250,26 +272,29 @@ export const OwnerDashboard = () => {
     queryKey: ["owner-low-stock", currentOrganization?.id],
     queryFn: async () => {
       if (!currentOrganization) return [];
-      const { data } = await supabase
-        .from("product_variants")
-        .select("id, size, color, stock_qty, barcode, products!inner(product_name, brand, organization_id)")
-        .eq("organization_id", currentOrganization.id)
-        .eq("products.organization_id", currentOrganization.id)
-        .lt("stock_qty", 5)
-        .gte("stock_qty", 0)
-        .order("stock_qty", { ascending: true })
-        .limit(5);
-      return (data || []).map((v) => ({
-        id: v.id,
-        name: v.products.product_name,
-        brand: v.products.brand,
-        size: v.size,
-        color: v.color,
-        qty: v.stock_qty || 0,
-      }));
+      return withMobileQueryTimeout(async () => {
+        const { data } = await supabase
+          .from("product_variants")
+          .select("id, size, color, stock_qty, barcode, products!inner(product_name, brand, organization_id)")
+          .eq("organization_id", currentOrganization.id)
+          .eq("products.organization_id", currentOrganization.id)
+          .lt("stock_qty", 5)
+          .gte("stock_qty", 0)
+          .order("stock_qty", { ascending: true })
+          .limit(5);
+        return (data || []).map((v) => ({
+          id: v.id,
+          name: v.products.product_name,
+          brand: v.products.brand,
+          size: v.size,
+          color: v.color,
+          qty: v.stock_qty || 0,
+        }));
+      });
     },
-    enabled: !!currentOrganization && isOnline,
+    enabled: !!currentOrganization?.id,
     staleTime: 120000,
+    retry: 1,
   });
 
   /* ── Query: Top selling today ── */
@@ -277,27 +302,29 @@ export const OwnerDashboard = () => {
     queryKey: ["owner-top-selling", currentOrganization?.id, today],
     queryFn: async () => {
       if (!currentOrganization) return [];
-      const { data } = await supabase
-        .from("sale_items")
-        .select("product_name, size, quantity, line_total, sales!inner(organization_id, sale_date, deleted_at)")
-        .eq("sales.organization_id", currentOrganization.id)
-        .is("sales.deleted_at", null)
-        .gte("sales.sale_date", todayStartIso)
-        .lte("sales.sale_date", todayEndIso);
-      
-      // aggregate by product_name + size
-      const map = new Map<string, { name: string; size: string; qty: number; revenue: number }>();
-      (data || []).forEach((item) => {
-        const key = `${item.product_name}||${item.size}`;
-        const existing = map.get(key) || { name: item.product_name, size: item.size, qty: 0, revenue: 0 };
-        existing.qty += item.quantity || 0;
-        existing.revenue += item.line_total || 0;
-        map.set(key, existing);
+      return withMobileQueryTimeout(async () => {
+        const { data } = await supabase
+          .from("sale_items")
+          .select("product_name, size, quantity, line_total, sales!inner(organization_id, sale_date, deleted_at)")
+          .eq("sales.organization_id", currentOrganization.id)
+          .is("sales.deleted_at", null)
+          .gte("sales.sale_date", todayStartIso)
+          .lte("sales.sale_date", todayEndIso);
+
+        const map = new Map<string, { name: string; size: string; qty: number; revenue: number }>();
+        (data || []).forEach((item) => {
+          const key = `${item.product_name}||${item.size}`;
+          const existing = map.get(key) || { name: item.product_name, size: item.size, qty: 0, revenue: 0 };
+          existing.qty += item.quantity || 0;
+          existing.revenue += item.line_total || 0;
+          map.set(key, existing);
+        });
+        return [...map.values()].sort((a, b) => b.qty - a.qty).slice(0, 5);
       });
-      return [...map.values()].sort((a, b) => b.qty - a.qty).slice(0, 5);
     },
-    enabled: !!currentOrganization && isOnline,
+    enabled: !!currentOrganization?.id,
     staleTime: 60000,
+    retry: 1,
   });
 
   const allLoading = salesLoading || purchaseLoading;
@@ -387,7 +414,7 @@ export const OwnerDashboard = () => {
             </CardTitle>
           </CardHeader>
           <CardContent className="px-2 pb-3">
-            {salesTrend && salesTrend.length > 0 ? (
+            {salesTrend !== undefined ? (
               <ResponsiveContainer width="100%" height={160}>
                 <AreaChart data={salesTrend} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
                   <defs>

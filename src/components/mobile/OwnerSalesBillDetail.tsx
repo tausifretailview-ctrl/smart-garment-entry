@@ -1,14 +1,14 @@
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useOrganization } from "@/contexts/OrganizationContext";
 import { format } from "date-fns";
 import { formatTimestampIST } from "@/lib/localDayBounds";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
+import { MobileSalePrintPreviewDialog } from "@/components/mobile/MobileSalePrintPreviewDialog";
 import {
-  ArrowLeft, FileText, User, Phone, Calendar, CreditCard, Share2,
+  ArrowLeft, FileText, User, Phone, Calendar, CreditCard, Share2, Eye,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
 
 const fmt = (v: number) =>
   new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 2 }).format(v);
@@ -19,7 +19,7 @@ interface Props {
 }
 
 export const OwnerSalesBillDetail = ({ billId, onBack }: Props) => {
-  const { currentOrganization } = useOrganization();
+  const [previewOpen, setPreviewOpen] = useState(false);
 
   const { data: bill, isLoading } = useQuery({
     queryKey: ["owner-bill-detail", billId],
@@ -35,19 +35,9 @@ export const OwnerSalesBillDetail = ({ billId, onBack }: Props) => {
     enabled: !!billId,
   });
 
-  const { data: items, isLoading: itemsLoading } = useQuery({
-    queryKey: ["owner-bill-items", billId],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("sale_items")
-        .select("*")
-        .eq("sale_id", billId)
-        .is("deleted_at", null)
-        .order("created_at");
-      return data || [];
-    },
-    enabled: !!billId,
-  });
+  useEffect(() => {
+    if (bill && !isLoading) setPreviewOpen(true);
+  }, [bill, isLoading]);
 
   const handleShare = () => {
     if (!bill) return;
@@ -160,138 +150,46 @@ export const OwnerSalesBillDetail = ({ billId, onBack }: Props) => {
         </Card>
       </div>
 
-      {/* Items */}
+      {/* Invoice preview */}
       <div className="px-4 mt-4">
-        <Card className="border-border/40">
-          <CardHeader className="pb-2 px-4 pt-4">
-            <CardTitle className="text-sm font-semibold">
-              Items ({items?.length || 0})
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="px-4 pb-3">
-            {itemsLoading ? (
-              <div className="space-y-2">
-                {[1, 2, 3].map((i) => <Skeleton key={i} className="h-16 w-full rounded-xl" />)}
-              </div>
-            ) : items && items.length > 0 ? (
-              <div className="space-y-2">
-                {items.map((item, idx) => (
-                  <div
-                    key={item.id}
-                    className={cn("bg-muted/30 rounded-xl p-3", idx % 2 === 0 ? "bg-muted/20" : "bg-muted/40")}
-                  >
-                    <div className="flex justify-between items-start">
-                      <div className="min-w-0 flex-1">
-                        <p className="text-xs font-semibold text-foreground truncate">{item.product_name}</p>
-                        <p className="text-[10px] text-muted-foreground mt-0.5">
-                          Size: {item.size} {item.color ? `• ${item.color}` : ""} • Qty: {item.quantity}
-                        </p>
-                      </div>
-                      <div className="text-right shrink-0 ml-2">
-                        <p className="text-xs font-bold text-foreground tabular-nums">{fmt(item.line_total)}</p>
-                        <p className="text-[10px] text-muted-foreground">@{fmt(item.unit_price)}</p>
-                      </div>
-                    </div>
-                    {item.discount_percent > 0 && (
-                      <p className="text-[10px] text-success mt-1">Discount: {item.discount_percent}%</p>
-                    )}
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-xs text-muted-foreground text-center py-4">No items</p>
-            )}
-          </CardContent>
-        </Card>
+        <button
+          type="button"
+          onClick={() => setPreviewOpen(true)}
+          className="w-full flex items-center justify-center gap-2 rounded-2xl bg-primary text-primary-foreground py-3.5 text-sm font-semibold active:scale-[0.98] touch-manipulation shadow-sm"
+        >
+          <Eye className="h-4 w-4" />
+          Invoice PDF Preview
+        </button>
       </div>
 
-      {/* Totals */}
-      <div className="px-4 mt-4">
+      {/* Totals summary */}
+      <div className="px-4 mt-4 mb-6">
         <Card className="border-border/40">
           <CardContent className="p-4 space-y-2">
             <div className="flex justify-between text-xs">
               <span className="text-muted-foreground">Subtotal</span>
               <span className="font-medium tabular-nums">{fmt(bill.gross_amount || 0)}</span>
             </div>
-            {(bill.discount_amount || 0) > 0 && (
-              <div className="flex justify-between text-xs">
-                <span className="text-muted-foreground">Discount</span>
-                <span className="font-medium text-success tabular-nums">-{fmt(bill.discount_amount || 0)}</span>
-              </div>
-            )}
-            {(bill.flat_discount_amount || 0) > 0 && (
-              <div className="flex justify-between text-xs">
-                <span className="text-muted-foreground">Flat Discount</span>
-                <span className="font-medium text-success tabular-nums">-{fmt(bill.flat_discount_amount || 0)}</span>
-              </div>
-            )}
-            {(bill.other_charges || 0) > 0 && (
-              <div className="flex justify-between text-xs">
-                <span className="text-muted-foreground">Other Charges</span>
-                <span className="font-medium tabular-nums">+{fmt(bill.other_charges || 0)}</span>
-              </div>
-            )}
-            {(bill.round_off || 0) !== 0 && (
-              <div className="flex justify-between text-xs">
-                <span className="text-muted-foreground">Round Off</span>
-                <span className="font-medium tabular-nums">{fmt(bill.round_off || 0)}</span>
-              </div>
-            )}
             <div className="border-t border-border pt-2 flex justify-between">
               <span className="text-sm font-bold text-foreground">Grand Total</span>
               <span className="text-lg font-bold text-foreground tabular-nums">{fmt(bill.net_amount || 0)}</span>
+            </div>
+            <div className="flex justify-between text-xs pt-1">
+              <span className="text-muted-foreground flex items-center gap-1">
+                <CreditCard className="h-3.5 w-3.5" />
+                {bill.payment_method}
+              </span>
+              <span className="font-semibold tabular-nums">{fmt(bill.paid_amount || 0)} paid</span>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Payment Info */}
-      <div className="px-4 mt-4 mb-6">
-        <Card className="border-border/40">
-          <CardHeader className="pb-2 px-4 pt-4">
-            <CardTitle className="text-sm font-semibold flex items-center gap-2">
-              <CreditCard className="h-4 w-4 text-primary" />
-              Payment Info
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="px-4 pb-3 space-y-1.5">
-            <div className="flex justify-between text-xs">
-              <span className="text-muted-foreground">Method</span>
-              <span className="font-medium capitalize">{bill.payment_method}</span>
-            </div>
-            {(bill.cash_amount || 0) > 0 && (
-              <div className="flex justify-between text-xs">
-                <span className="text-muted-foreground">Cash</span>
-                <span className="font-medium tabular-nums">{fmt(bill.cash_amount || 0)}</span>
-              </div>
-            )}
-            {(bill.upi_amount || 0) > 0 && (
-              <div className="flex justify-between text-xs">
-                <span className="text-muted-foreground">UPI</span>
-                <span className="font-medium tabular-nums">{fmt(bill.upi_amount || 0)}</span>
-              </div>
-            )}
-            {(bill.card_amount || 0) > 0 && (
-              <div className="flex justify-between text-xs">
-                <span className="text-muted-foreground">Card</span>
-                <span className="font-medium tabular-nums">{fmt(bill.card_amount || 0)}</span>
-              </div>
-            )}
-            <div className="flex justify-between text-xs">
-              <span className="text-muted-foreground">Paid Amount</span>
-              <span className="font-semibold text-success tabular-nums">{fmt(bill.paid_amount || 0)}</span>
-            </div>
-            {(bill.net_amount || 0) - (bill.paid_amount || 0) > 0 && (
-              <div className="flex justify-between text-xs">
-                <span className="text-muted-foreground">Balance Due</span>
-                <span className="font-semibold text-destructive tabular-nums">
-                  {fmt((bill.net_amount || 0) - (bill.paid_amount || 0))}
-                </span>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+      <MobileSalePrintPreviewDialog
+        saleId={billId}
+        open={previewOpen}
+        onOpenChange={setPreviewOpen}
+      />
     </div>
   );
 };

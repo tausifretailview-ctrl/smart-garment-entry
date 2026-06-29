@@ -1508,9 +1508,11 @@ const App = () => {
                   path="mobile-sales"
                   element={
                     <ProtectedRoute>
-                      <Suspense fallback={<LazyFallback />}>
-                        <MobileSalesHub />
-                      </Suspense>
+                      <FullScreenLayout>
+                        <Suspense fallback={<LazyFallback />}>
+                          <MobileSalesHub />
+                        </Suspense>
+                      </FullScreenLayout>
                     </ProtectedRoute>
                   }
                 />

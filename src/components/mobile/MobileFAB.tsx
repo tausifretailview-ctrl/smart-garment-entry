@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useLocation } from "react-router-dom";
-import { Plus, X, ShoppingCart, CreditCard, Package, Users, Building2, Box, Undo2 } from "lucide-react";
+import { Plus, X, CreditCard, Package, Users, Building2, Box, Undo2 } from "lucide-react";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { cn } from "@/lib/utils";
 import { QuickAddCustomerDialog } from "./QuickAddCustomerDialog";
@@ -16,7 +16,6 @@ interface FABAction {
 }
 
 const fabActions: FABAction[] = [
-  { icon: ShoppingCart, label: "Add Sale", path: "/pos-sales", color: "bg-green-500" },
   { icon: Package, label: "Purchase", path: "/purchase-entry", color: "bg-amber-500" },
   { icon: CreditCard, label: "Payment", path: "/payments-dashboard", color: "bg-blue-500" },
   { icon: Users, label: "Customer", action: "quick-add-customer", color: "bg-purple-500" },
@@ -33,8 +32,8 @@ export const MobileFAB = () => {
   const { orgNavigate, getOrgPath } = useOrgNavigation();
   const location = useLocation();
 
-  // Hide FAB on POS page - POS has its own interface
-  const hiddenRoutes = ["/pos-sales", "/pos"];
+  // Hide FAB on entry screens that provide their own chrome
+  const hiddenRoutes = ["/pos-sales", "/pos", "/purchase-entry"];
   const shouldHide = hiddenRoutes.some(route => 
     location.pathname === getOrgPath(route) || 
     location.pathname.includes("/pos-sales") ||
@@ -57,13 +56,9 @@ export const MobileFAB = () => {
     }
   };
 
-  // Single tap on main FAB goes directly to POS
+  // Single tap toggles the action menu (no direct POS shortcut).
   const handleMainFABClick = () => {
-    if (isOpen) {
-      setIsOpen(false);
-    } else {
-      orgNavigate("/pos-sales");
-    }
+    setIsOpen((prev) => !prev);
   };
 
   // Long press expands the menu
@@ -138,9 +133,9 @@ export const MobileFAB = () => {
           id="main-fab"
           className={cn(
             "w-14 h-14 rounded-full shadow-lg flex items-center justify-center",
-            "bg-green-500 text-white",
+            "bg-primary text-primary-foreground",
             "transition-all duration-200 active:scale-95 touch-manipulation",
-            isOpen && "rotate-45 bg-muted text-muted-foreground"
+            isOpen && "rotate-45"
           )}
         >
           {isOpen ? <X className="h-6 w-6" /> : <Plus className="h-6 w-6" />}
