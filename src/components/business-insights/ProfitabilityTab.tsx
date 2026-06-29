@@ -1,25 +1,5 @@
 import { useMemo, useState } from "react";
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Cell,
-  Legend,
-  Pie,
-  PieChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
-import {
-  AlertTriangle,
-  IndianRupee,
-  Loader2,
-  Search,
-  TrendingUp,
-  Trophy,
-} from "lucide-react";
+import { AlertTriangle, Loader2, Search } from "lucide-react";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import {
   formatInsightsINR,
@@ -30,23 +10,19 @@ import {
   type CategoryPerformanceRow,
   type ProductPerformanceRow,
 } from "@/hooks/useBusinessInsights";
-import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
+import { marginBorderClass } from "@/components/business-insights/insightsMarginUtils";
 import {
-  INSIGHTS_CHART_COLORS,
-  marginBarColor,
-  marginBorderClass,
-} from "@/components/business-insights/insightsMarginUtils";
+  INSIGHTS_TAB_SHELL,
+  InsightsKpiCard,
+  InsightsKpiStrip,
+  InsightsPanel,
+  InsightsSortableTh,
+  InsightsStaticTh,
+  InsightsTableHeader,
+} from "@/components/business-insights/insightsLayout";
 
 type SortDir = "asc" | "desc";
 
@@ -85,27 +61,6 @@ function sortRows<T>(rows: T[], key: keyof T, dir: SortDir): T[] {
   });
 }
 
-function SortableHead({
-  label,
-  active,
-  dir,
-  onClick,
-  className,
-}: {
-  label: string;
-  active: boolean;
-  dir: SortDir;
-  onClick: () => void;
-  className?: string;
-}) {
-  return (
-    <TableHead className={cn("cursor-pointer select-none whitespace-nowrap", className)} onClick={onClick}>
-      {label}
-      {active ? (dir === "asc" ? " ↑" : " ↓") : ""}
-    </TableHead>
-  );
-}
-
 interface ProfitabilityTabProps {
   startDate: string;
   endDate: string;
@@ -134,7 +89,6 @@ export function ProfitabilityTab({ startDate, endDate }: ProfitabilityTabProps) 
   } = useCategoryPerformance(orgId, range);
 
   const [productSearch, setProductSearch] = useState("");
-  const [showAllProducts, setShowAllProducts] = useState(false);
   const [productSortKey, setProductSortKey] = useState<ProductSortKey>("gross_profit");
   const [productSortDir, setProductSortDir] = useState<SortDir>("desc");
 
@@ -201,44 +155,15 @@ export function ProfitabilityTab({ startDate, endDate }: ProfitabilityTabProps) 
     return rows;
   }, [products, productSearch, productSortKey, productSortDir]);
 
-  const displayedProducts = showAllProducts
-    ? filteredProducts
-    : filteredProducts.slice(0, 10);
-
   const sortedBrands = useMemo(
     () => sortRows(brands, brandSortKey, brandSortDir),
     [brands, brandSortKey, brandSortDir],
-  );
-
-  const topBrandChart = useMemo(
-    () =>
-      [...brands]
-        .sort((a, b) => num(b.gross_profit) - num(a.gross_profit))
-        .slice(0, 10)
-        .map((b) => ({
-          name: b.brand || "—",
-          gross_profit: num(b.gross_profit),
-          margin: num(b.profit_margin_pct),
-        })),
-    [brands],
   );
 
   const sortedCategories = useMemo(
     () => sortRows(categories, categorySortKey, categorySortDir),
     [categories, categorySortKey, categorySortDir],
   );
-
-  const categoryPie = useMemo(() => {
-    const withRevenue = categories.filter((c) => num(c.revenue) > 0);
-    const total = withRevenue.reduce((s, c) => s + num(c.revenue), 0);
-    return {
-      total,
-      slices: withRevenue.map((c) => ({
-        name: c.category || "—",
-        value: num(c.revenue),
-      })),
-    };
-  }, [categories]);
 
   const isLoading = productsLoading || brandsLoading || categoriesLoading;
   const error = productsError || brandsError || categoriesError;
@@ -263,429 +188,292 @@ export function ProfitabilityTab({ startDate, endDate }: ProfitabilityTabProps) 
   }
 
   return (
-    <div className="space-y-6">
-      {/* Section A — KPI cards */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        <Card className="border-l-4 border-l-emerald-500">
-          <CardContent className="p-4">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  Total Gross Profit
-                </p>
-                <p className="mt-1 text-2xl font-bold tabular-nums text-emerald-700 dark:text-emerald-400">
-                  {formatInsightsINR(kpis.totalGrossProfit)}
-                </p>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Margin: {kpis.overallMargin.toFixed(1)}%
-                </p>
-              </div>
-              <div className="rounded-lg bg-emerald-50 p-2 dark:bg-emerald-950/40">
-                <IndianRupee className="h-5 w-5 text-emerald-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+    <div className={INSIGHTS_TAB_SHELL}>
+      <InsightsKpiStrip>
+        <InsightsKpiCard
+          label="Total Gross Profit"
+          value={formatInsightsINR(kpis.totalGrossProfit)}
+          sub={`Margin: ${kpis.overallMargin.toFixed(1)}%`}
+          gradient="bg-gradient-to-br from-emerald-500 to-emerald-600"
+        />
+        <InsightsKpiCard
+          label="Best Performing Brand"
+          value={kpis.bestBrand?.brand ?? "—"}
+          sub={
+            kpis.bestBrand
+              ? `${formatInsightsINR(num(kpis.bestBrand.gross_profit))} gross profit`
+              : "No brand sales in period"
+          }
+          gradient="bg-gradient-to-br from-blue-500 to-blue-600"
+        />
+        <InsightsKpiCard
+          label="Lowest Margin Category"
+          value={kpis.lowestCategory?.category ?? "—"}
+          sub={
+            kpis.lowestCategory
+              ? `${num(kpis.lowestCategory.profit_margin_pct).toFixed(1)}% margin — needs attention`
+              : "No category sales in period"
+          }
+          gradient="bg-gradient-to-br from-amber-500 to-amber-600"
+        />
+      </InsightsKpiStrip>
 
-        <Card className="border-l-4 border-l-blue-500">
-          <CardContent className="p-4">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  Best Performing Brand
-                </p>
-                <p className="mt-1 text-xl font-bold truncate max-w-[200px]">
-                  {kpis.bestBrand?.brand ?? "—"}
-                </p>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  {kpis.bestBrand
-                    ? `${formatInsightsINR(num(kpis.bestBrand.gross_profit))} gross profit`
-                    : "No brand sales in period"}
-                </p>
-              </div>
-              <div className="rounded-lg bg-blue-50 p-2 dark:bg-blue-950/40">
-                <Trophy className="h-5 w-5 text-blue-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-l-4 border-l-amber-500">
-          <CardContent className="p-4">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  Lowest Margin Category
-                </p>
-                <p className="mt-1 text-xl font-bold truncate max-w-[200px]">
-                  {kpis.lowestCategory?.category ?? "—"}
-                </p>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  {kpis.lowestCategory
-                    ? `${num(kpis.lowestCategory.profit_margin_pct).toFixed(1)}% margin — needs attention`
-                    : "No category sales in period"}
-                </p>
-              </div>
-              <div className="rounded-lg bg-amber-50 p-2 dark:bg-amber-950/40">
-                <TrendingUp className="h-5 w-5 text-amber-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Section B — Top products */}
-      <Card>
-        <CardContent className="p-4 space-y-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <h3 className="font-semibold text-base">Top Products by Profit</h3>
-            <div className="relative w-full sm:max-w-xs">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                placeholder="Search product or brand…"
-                value={productSearch}
-                onChange={(e) => setProductSearch(e.target.value)}
-                className="h-9 pl-9 text-sm no-uppercase"
-              />
-            </div>
+      <InsightsPanel
+        className="flex-1"
+        title="Top Products by Profit"
+        toolbar={
+          <div className="relative w-full sm:w-64">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Search product or brand…"
+              value={productSearch}
+              onChange={(e) => setProductSearch(e.target.value)}
+              className="h-8 pl-9 text-sm no-uppercase"
+            />
           </div>
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-10">#</TableHead>
-                  <SortableHead
-                    label="Product Name"
-                    active={productSortKey === "product_name"}
-                    dir={productSortDir}
-                    onClick={() => toggleProductSort("product_name")}
-                  />
-                  <SortableHead
-                    label="Brand"
-                    active={productSortKey === "brand"}
-                    dir={productSortDir}
-                    onClick={() => toggleProductSort("brand")}
-                  />
-                  <SortableHead
-                    label="Units Sold"
-                    active={productSortKey === "units_sold"}
-                    dir={productSortDir}
-                    onClick={() => toggleProductSort("units_sold")}
-                    className="text-right"
-                  />
-                  <SortableHead
-                    label="Revenue"
-                    active={productSortKey === "revenue"}
-                    dir={productSortDir}
-                    onClick={() => toggleProductSort("revenue")}
-                    className="text-right"
-                  />
-                  <SortableHead
-                    label="Cost"
-                    active={productSortKey === "cost"}
-                    dir={productSortDir}
-                    onClick={() => toggleProductSort("cost")}
-                    className="text-right"
-                  />
-                  <SortableHead
-                    label="Gross Profit"
-                    active={productSortKey === "gross_profit"}
-                    dir={productSortDir}
-                    onClick={() => toggleProductSort("gross_profit")}
-                    className="text-right"
-                  />
-                  <SortableHead
-                    label="Margin %"
-                    active={productSortKey === "profit_margin_pct"}
-                    dir={productSortDir}
-                    onClick={() => toggleProductSort("profit_margin_pct")}
-                    className="text-right"
-                  />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {displayedProducts.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
-                      No product sales in the selected period
+        }
+        footer={
+          <p className="text-xs text-muted-foreground tabular-nums">
+            {filteredProducts.length.toLocaleString("en-IN")} product
+            {filteredProducts.length !== 1 ? "s" : ""} in period
+          </p>
+        }
+      >
+        <Table>
+          <InsightsTableHeader>
+            <InsightsStaticTh label="#" className="w-10" />
+            <InsightsSortableTh
+              label="Product Name"
+              active={productSortKey === "product_name"}
+              dir={productSortDir}
+              onClick={() => toggleProductSort("product_name")}
+            />
+            <InsightsSortableTh
+              label="Brand"
+              active={productSortKey === "brand"}
+              dir={productSortDir}
+              onClick={() => toggleProductSort("brand")}
+            />
+            <InsightsSortableTh
+              label="Units Sold"
+              active={productSortKey === "units_sold"}
+              dir={productSortDir}
+              onClick={() => toggleProductSort("units_sold")}
+              className="text-right"
+            />
+            <InsightsSortableTh
+              label="Revenue"
+              active={productSortKey === "revenue"}
+              dir={productSortDir}
+              onClick={() => toggleProductSort("revenue")}
+              className="text-right"
+            />
+            <InsightsSortableTh
+              label="Cost"
+              active={productSortKey === "cost"}
+              dir={productSortDir}
+              onClick={() => toggleProductSort("cost")}
+              className="text-right"
+            />
+            <InsightsSortableTh
+              label="Gross Profit"
+              active={productSortKey === "gross_profit"}
+              dir={productSortDir}
+              onClick={() => toggleProductSort("gross_profit")}
+              className="text-right"
+            />
+            <InsightsSortableTh
+              label="Margin %"
+              active={productSortKey === "profit_margin_pct"}
+              dir={productSortDir}
+              onClick={() => toggleProductSort("profit_margin_pct")}
+              className="text-right"
+            />
+          </InsightsTableHeader>
+          <TableBody>
+            {filteredProducts.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
+                  No product sales in the selected period
+                </TableCell>
+              </TableRow>
+            ) : (
+              filteredProducts.map((row, idx) => {
+                const margin = num(row.profit_margin_pct);
+                return (
+                  <TableRow
+                    key={row.product_id}
+                    className={cn(marginBorderClass(margin))}
+                  >
+                    <TableCell className="tabular-nums text-muted-foreground px-3">{idx + 1}</TableCell>
+                    <TableCell className="font-medium px-3">{row.product_name}</TableCell>
+                    <TableCell className="px-3">{row.brand || "—"}</TableCell>
+                    <TableCell className="text-right tabular-nums px-3">{num(row.units_sold)}</TableCell>
+                    <TableCell className="text-right tabular-nums px-3">
+                      {formatInsightsINR(num(row.revenue))}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums px-3">
+                      {formatInsightsINR(num(row.cost))}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums font-semibold px-3">
+                      {formatInsightsINR(num(row.gross_profit))}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums px-3">{margin.toFixed(1)}%</TableCell>
+                  </TableRow>
+                );
+              })
+            )}
+          </TableBody>
+        </Table>
+      </InsightsPanel>
+
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-2 shrink-0 min-h-[180px] max-h-[min(36vh,320px)]">
+        <InsightsPanel title="Brand Performance" subtitle="By gross profit in period">
+          <Table>
+            <InsightsTableHeader>
+              <InsightsSortableTh
+                label="Brand"
+                active={brandSortKey === "brand"}
+                dir={brandSortDir}
+                onClick={() => toggleBrandSort("brand")}
+              />
+              <InsightsSortableTh
+                label="Products"
+                active={brandSortKey === "product_count"}
+                dir={brandSortDir}
+                onClick={() => toggleBrandSort("product_count")}
+                className="text-right"
+              />
+              <InsightsSortableTh
+                label="Revenue"
+                active={brandSortKey === "revenue"}
+                dir={brandSortDir}
+                onClick={() => toggleBrandSort("revenue")}
+                className="text-right"
+              />
+              <InsightsSortableTh
+                label="Gross Profit"
+                active={brandSortKey === "gross_profit"}
+                dir={brandSortDir}
+                onClick={() => toggleBrandSort("gross_profit")}
+                className="text-right"
+              />
+              <InsightsSortableTh
+                label="Margin %"
+                active={brandSortKey === "profit_margin_pct"}
+                dir={brandSortDir}
+                onClick={() => toggleBrandSort("profit_margin_pct")}
+                className="text-right"
+              />
+              <InsightsSortableTh
+                label="Return %"
+                active={brandSortKey === "return_rate_pct"}
+                dir={brandSortDir}
+                onClick={() => toggleBrandSort("return_rate_pct")}
+                className="text-right"
+              />
+            </InsightsTableHeader>
+            <TableBody>
+              {sortedBrands.map((row) => {
+                const margin = num(row.profit_margin_pct);
+                return (
+                  <TableRow key={row.brand} className={cn(marginBorderClass(margin))}>
+                    <TableCell className="font-medium px-3">{row.brand}</TableCell>
+                    <TableCell className="text-right tabular-nums px-3">{num(row.product_count)}</TableCell>
+                    <TableCell className="text-right tabular-nums px-3">
+                      {formatInsightsINR(num(row.revenue))}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums font-semibold px-3">
+                      {formatInsightsINR(num(row.gross_profit))}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums px-3">{margin.toFixed(1)}%</TableCell>
+                    <TableCell className="text-right tabular-nums px-3">
+                      {num(row.return_rate_pct).toFixed(1)}%
                     </TableCell>
                   </TableRow>
-                ) : (
-                  displayedProducts.map((row, idx) => {
-                    const margin = num(row.profit_margin_pct);
-                    return (
-                      <TableRow
-                        key={row.product_id}
-                        className={cn(marginBorderClass(margin))}
-                      >
-                        <TableCell className="tabular-nums text-muted-foreground">{idx + 1}</TableCell>
-                        <TableCell className="font-medium">{row.product_name}</TableCell>
-                        <TableCell>{row.brand || "—"}</TableCell>
-                        <TableCell className="text-right tabular-nums">{num(row.units_sold)}</TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          {formatInsightsINR(num(row.revenue))}
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          {formatInsightsINR(num(row.cost))}
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums font-semibold">
-                          {formatInsightsINR(num(row.gross_profit))}
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums">{margin.toFixed(1)}%</TableCell>
-                      </TableRow>
-                    );
-                  })
-                )}
-              </TableBody>
-            </Table>
-          </div>
-          {filteredProducts.length > 10 && (
-            <div className="flex justify-center">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowAllProducts((v) => !v)}
-              >
-                {showAllProducts
-                  ? "Show top 10"
-                  : `Show all (${filteredProducts.length})`}
-              </Button>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </InsightsPanel>
 
-      {/* Section C — Brand performance */}
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-        <Card>
-          <CardContent className="p-4">
-            <h3 className="mb-3 font-semibold text-base">Brand Profit (Top 10)</h3>
-            {topBrandChart.length === 0 ? (
-              <p className="py-8 text-center text-sm text-muted-foreground">No brand data</p>
-            ) : (
-              <ResponsiveContainer width="100%" height={320}>
-                <BarChart data={topBrandChart} layout="vertical" margin={{ left: 8, right: 16 }}>
-                  <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                  <XAxis
-                    type="number"
-                    tick={{ fontSize: 10 }}
-                    tickFormatter={(v) => formatInsightsINR(v)}
-                  />
-                  <YAxis type="category" dataKey="name" width={100} tick={{ fontSize: 10 }} />
-                  <Tooltip formatter={(v: number) => [formatInsightsINR(v), "Gross profit"]} />
-                  <Bar dataKey="gross_profit" radius={[0, 4, 4, 0]}>
-                    {topBrandChart.map((entry) => (
-                      <Cell key={entry.name} fill={marginBarColor(entry.margin)} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <h3 className="mb-3 font-semibold text-base">Brand Details</h3>
-            <div className="overflow-x-auto max-h-[360px] overflow-y-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <SortableHead
-                      label="Brand"
-                      active={brandSortKey === "brand"}
-                      dir={brandSortDir}
-                      onClick={() => toggleBrandSort("brand")}
-                    />
-                    <SortableHead
-                      label="Products"
-                      active={brandSortKey === "product_count"}
-                      dir={brandSortDir}
-                      onClick={() => toggleBrandSort("product_count")}
-                      className="text-right"
-                    />
-                    <SortableHead
-                      label="Revenue"
-                      active={brandSortKey === "revenue"}
-                      dir={brandSortDir}
-                      onClick={() => toggleBrandSort("revenue")}
-                      className="text-right"
-                    />
-                    <SortableHead
-                      label="Gross Profit"
-                      active={brandSortKey === "gross_profit"}
-                      dir={brandSortDir}
-                      onClick={() => toggleBrandSort("gross_profit")}
-                      className="text-right"
-                    />
-                    <SortableHead
-                      label="Margin %"
-                      active={brandSortKey === "profit_margin_pct"}
-                      dir={brandSortDir}
-                      onClick={() => toggleBrandSort("profit_margin_pct")}
-                      className="text-right"
-                    />
-                    <SortableHead
-                      label="Return Rate %"
-                      active={brandSortKey === "return_rate_pct"}
-                      dir={brandSortDir}
-                      onClick={() => toggleBrandSort("return_rate_pct")}
-                      className="text-right"
-                    />
+        <InsightsPanel title="Category Breakdown" subtitle="Revenue and margin by category">
+          <Table>
+            <InsightsTableHeader>
+              <InsightsSortableTh
+                label="Category"
+                active={categorySortKey === "category"}
+                dir={categorySortDir}
+                onClick={() => toggleCategorySort("category")}
+              />
+              <InsightsSortableTh
+                label="Products"
+                active={categorySortKey === "product_count"}
+                dir={categorySortDir}
+                onClick={() => toggleCategorySort("product_count")}
+                className="text-right"
+              />
+              <InsightsSortableTh
+                label="Units"
+                active={categorySortKey === "units_sold"}
+                dir={categorySortDir}
+                onClick={() => toggleCategorySort("units_sold")}
+                className="text-right"
+              />
+              <InsightsSortableTh
+                label="Revenue"
+                active={categorySortKey === "revenue"}
+                dir={categorySortDir}
+                onClick={() => toggleCategorySort("revenue")}
+                className="text-right"
+              />
+              <InsightsSortableTh
+                label="Profit"
+                active={categorySortKey === "gross_profit"}
+                dir={categorySortDir}
+                onClick={() => toggleCategorySort("gross_profit")}
+                className="text-right"
+              />
+              <InsightsSortableTh
+                label="Margin %"
+                active={categorySortKey === "profit_margin_pct"}
+                dir={categorySortDir}
+                onClick={() => toggleCategorySort("profit_margin_pct")}
+                className="text-right"
+              />
+              <InsightsSortableTh
+                label="Sell-through %"
+                active={categorySortKey === "sell_through_rate"}
+                dir={categorySortDir}
+                onClick={() => toggleCategorySort("sell_through_rate")}
+                className="text-right"
+              />
+            </InsightsTableHeader>
+            <TableBody>
+              {sortedCategories.map((row) => {
+                const margin = num(row.profit_margin_pct);
+                return (
+                  <TableRow key={row.category} className={cn(marginBorderClass(margin))}>
+                    <TableCell className="font-medium px-3">{row.category}</TableCell>
+                    <TableCell className="text-right tabular-nums px-3">{num(row.product_count)}</TableCell>
+                    <TableCell className="text-right tabular-nums px-3">{num(row.units_sold)}</TableCell>
+                    <TableCell className="text-right tabular-nums px-3">
+                      {formatInsightsINR(num(row.revenue))}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums font-semibold px-3">
+                      {formatInsightsINR(num(row.gross_profit))}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums px-3">{margin.toFixed(1)}%</TableCell>
+                    <TableCell className="text-right tabular-nums px-3">
+                      {num(row.sell_through_rate).toFixed(1)}%
+                    </TableCell>
                   </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {sortedBrands.map((row) => {
-                    const margin = num(row.profit_margin_pct);
-                    return (
-                      <TableRow key={row.brand} className={cn(marginBorderClass(margin))}>
-                        <TableCell className="font-medium">{row.brand}</TableCell>
-                        <TableCell className="text-right tabular-nums">{num(row.product_count)}</TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          {formatInsightsINR(num(row.revenue))}
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums font-semibold">
-                          {formatInsightsINR(num(row.gross_profit))}
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums">{margin.toFixed(1)}%</TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          {num(row.return_rate_pct).toFixed(1)}%
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </div>
-          </CardContent>
-        </Card>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </InsightsPanel>
       </div>
-
-      {/* Section D — Category breakdown */}
-      <Card>
-        <CardContent className="p-4 space-y-4">
-          <h3 className="font-semibold text-base">Category Breakdown</h3>
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-            <div className="relative mx-auto w-full max-w-sm">
-              {categoryPie.slices.length === 0 ? (
-                <p className="py-12 text-center text-sm text-muted-foreground">No category revenue</p>
-              ) : (
-                <>
-                  <ResponsiveContainer width="100%" height={280}>
-                    <PieChart>
-                      <Pie
-                        data={categoryPie.slices}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={65}
-                        outerRadius={100}
-                        dataKey="value"
-                        paddingAngle={2}
-                      >
-                        {categoryPie.slices.map((_, i) => (
-                          <Cell
-                            key={i}
-                            fill={INSIGHTS_CHART_COLORS[i % INSIGHTS_CHART_COLORS.length]}
-                          />
-                        ))}
-                      </Pie>
-                      <Tooltip formatter={(v: number) => formatInsightsINR(v)} />
-                      <Legend iconSize={10} wrapperStyle={{ fontSize: 11 }} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                  <div className="pointer-events-none absolute inset-0 flex items-center justify-center pb-8">
-                    <div className="text-center">
-                      <p className="text-xs text-muted-foreground">Total Revenue</p>
-                      <p className="text-sm font-bold tabular-nums">
-                        {formatInsightsINR(categoryPie.total)}
-                      </p>
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
-
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <SortableHead
-                      label="Category"
-                      active={categorySortKey === "category"}
-                      dir={categorySortDir}
-                      onClick={() => toggleCategorySort("category")}
-                    />
-                    <SortableHead
-                      label="Products"
-                      active={categorySortKey === "product_count"}
-                      dir={categorySortDir}
-                      onClick={() => toggleCategorySort("product_count")}
-                      className="text-right"
-                    />
-                    <SortableHead
-                      label="Units Sold"
-                      active={categorySortKey === "units_sold"}
-                      dir={categorySortDir}
-                      onClick={() => toggleCategorySort("units_sold")}
-                      className="text-right"
-                    />
-                    <SortableHead
-                      label="Revenue"
-                      active={categorySortKey === "revenue"}
-                      dir={categorySortDir}
-                      onClick={() => toggleCategorySort("revenue")}
-                      className="text-right"
-                    />
-                    <SortableHead
-                      label="Profit"
-                      active={categorySortKey === "gross_profit"}
-                      dir={categorySortDir}
-                      onClick={() => toggleCategorySort("gross_profit")}
-                      className="text-right"
-                    />
-                    <SortableHead
-                      label="Margin %"
-                      active={categorySortKey === "profit_margin_pct"}
-                      dir={categorySortDir}
-                      onClick={() => toggleCategorySort("profit_margin_pct")}
-                      className="text-right"
-                    />
-                    <SortableHead
-                      label="Sell-through %"
-                      active={categorySortKey === "sell_through_rate"}
-                      dir={categorySortDir}
-                      onClick={() => toggleCategorySort("sell_through_rate")}
-                      className="text-right"
-                    />
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {sortedCategories.map((row) => {
-                    const margin = num(row.profit_margin_pct);
-                    return (
-                      <TableRow key={row.category} className={cn(marginBorderClass(margin))}>
-                        <TableCell className="font-medium">{row.category}</TableCell>
-                        <TableCell className="text-right tabular-nums">{num(row.product_count)}</TableCell>
-                        <TableCell className="text-right tabular-nums">{num(row.units_sold)}</TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          {formatInsightsINR(num(row.revenue))}
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums font-semibold">
-                          {formatInsightsINR(num(row.gross_profit))}
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums">{margin.toFixed(1)}%</TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          {num(row.sell_through_rate).toFixed(1)}%
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 }

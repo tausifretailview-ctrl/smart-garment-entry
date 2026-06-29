@@ -17,16 +17,16 @@ import {
   type SupplierPerformanceRow,
 } from "@/hooks/useBusinessInsights";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
+import {
+  INSIGHTS_TAB_SHELL,
+  InsightsKpiCard,
+  InsightsKpiStrip,
+  InsightsPanel,
+  InsightsSortableTh,
+  InsightsTableHeader,
+} from "@/components/business-insights/insightsLayout";
 
 type SortDir = "asc" | "desc";
 
@@ -74,27 +74,6 @@ function estimatedSoldValue(row: SupplierPerformanceRow): number {
   if (unitsPurchased <= 0 || unitsSold <= 0) return 0;
   const avgUnitCost = totalPurchased / unitsPurchased;
   return unitsSold * avgUnitCost;
-}
-
-function SortableHead({
-  label,
-  active,
-  dir,
-  onClick,
-  className,
-}: {
-  label: string;
-  active: boolean;
-  dir: SortDir;
-  onClick: () => void;
-  className?: string;
-}) {
-  return (
-    <TableHead className={cn("cursor-pointer select-none whitespace-nowrap", className)} onClick={onClick}>
-      {label}
-      {active ? (dir === "asc" ? " ↑" : " ↓") : ""}
-    </TableHead>
-  );
 }
 
 interface SupplierAnalysisTabProps {
@@ -175,6 +154,15 @@ export function SupplierAnalysisTab({ startDate, endDate }: SupplierAnalysisTabP
         .slice(0, 3),
     [suppliers],
   );
+
+  const totalPurchased = useMemo(
+    () => suppliers.reduce((s, r) => s + num(r.total_purchased), 0),
+    [suppliers],
+  );
+  const avgSellThrough = useMemo(() => {
+    if (!suppliers.length) return 0;
+    return suppliers.reduce((s, r) => s + num(r.sell_through_rate_pct), 0) / suppliers.length;
+  }, [suppliers]);
 
   if (error) {
     return (

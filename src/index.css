@@ -1492,6 +1492,31 @@ main:has(.dashboard-workspace) {
   }
 }
 
+/* Business Insights — full workspace (same shell as Customer Balances) */
+.business-insights-workspace {
+  height: 100%;
+  min-height: 0;
+  max-height: 100%;
+  overflow: hidden;
+}
+main:has(.business-insights-workspace) {
+  overflow: hidden;
+  padding: 0;
+  scrollbar-gutter: auto;
+}
+@media (min-width: 1024px) {
+  main:has(.business-insights-workspace) {
+    display: flex;
+    flex-direction: column;
+  }
+  main:has(.business-insights-workspace) .business-insights-workspace {
+    flex: 1 1 0%;
+    height: auto;
+    max-height: 100%;
+    min-height: 0;
+  }
+}
+
 /* Customer Balances — sidebar-only full workspace (no header / tab strip) */
 .customer-party-balances-workspace {
   height: 100%;
