@@ -4022,20 +4022,34 @@ Please clear your dues at the earliest. Thank you!`;
                 "text-right px-5 py-4 rounded-xl min-w-[160px]",
                 effectiveBalance > 0
                   ? "bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800"
-                  : "bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700"
+                  : effectiveBalance < 0
+                    ? "bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800"
+                    : "bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700"
               )}>
                 <div className="text-sm text-muted-foreground mb-1">
-                  {effectiveBalance > 0 ? "Outstanding (Dr)" : "Balance"}
+                  {effectiveBalance > 0
+                    ? "Outstanding (Dr)"
+                    : effectiveBalance < 0
+                      ? "Outstanding (Cr)"
+                      : "Balance"}
                 </div>
                 <div className={cn(
                   "text-3xl font-bold tabular-nums",
-                  effectiveBalance > 0 ? "text-red-600 dark:text-red-400" : "text-foreground"
+                  effectiveBalance > 0
+                    ? "text-red-600 dark:text-red-400"
+                    : effectiveBalance < 0
+                      ? "text-emerald-600 dark:text-emerald-400"
+                      : "text-foreground"
                 )}>
                   ₹{Math.abs(effectiveBalance).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                 </div>
                 <div className="mt-2">
                   {effectiveBalance > 0 ? (
                     <Badge variant="destructive">Customer Owes</Badge>
+                  ) : effectiveBalance < 0 ? (
+                    <Badge variant="outline" className="border-emerald-400 text-emerald-800 dark:text-emerald-200">
+                      Credit Balance
+                    </Badge>
                   ) : (
                     <Badge variant="outline">Fully Settled</Badge>
                   )}
