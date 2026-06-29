@@ -3,14 +3,13 @@ import type { QueryClient } from "@tanstack/react-query";
 /** Invalidate queries used by the owner mobile home dashboard */
 export async function invalidateOwnerDashboardQueries(qc: QueryClient) {
   await Promise.all([
-    qc.invalidateQueries({ queryKey: ["owner-dashboard"] }),
+    qc.invalidateQueries({ queryKey: ["owner-erp-dashboard-stats"] }),
+    qc.invalidateQueries({ queryKey: ["organization-receivables"] }),
+    qc.invalidateQueries({ queryKey: ["organization-supplier-payable"] }),
     qc.invalidateQueries({ queryKey: ["owner-sales-trend"] }),
     qc.invalidateQueries({ queryKey: ["owner-recent-activity"] }),
     qc.invalidateQueries({ queryKey: ["owner-low-stock"] }),
     qc.invalidateQueries({ queryKey: ["owner-top-selling"] }),
-    qc.invalidateQueries({ queryKey: ["owner-purchase-today"] }),
-    qc.invalidateQueries({ queryKey: ["owner-payments-today"] }),
-    qc.invalidateQueries({ queryKey: ["owner-outstanding"] }),
     qc.invalidateQueries({ queryKey: ["owner-cn-drift"] }),
   ]);
 }

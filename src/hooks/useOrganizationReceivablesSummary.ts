@@ -24,17 +24,18 @@ const EMPTY: OrganizationReceivablesSummary = {
  */
 export function useOrganizationReceivablesSummary(
   organizationId: string | null | undefined,
-  options?: { manualRefreshOnly?: boolean; enabled?: boolean },
+  options?: { manualRefreshOnly?: boolean; enabled?: boolean; staleTime?: number },
 ) {
   const queryEnabled =
     options?.enabled !== undefined ? options.enabled : !!organizationId;
+  const staleTime = options?.staleTime ?? STALE_FREQUENT;
   const { data, isLoading, isFetching, error, refetch } = useQuery({
     queryKey: [ORGANIZATION_RECEIVABLES_QUERY_KEY, "summary", organizationId],
     queryFn: () => fetchOrganizationReceivablesSummary(organizationId!),
     enabled: queryEnabled && !!organizationId,
     ...(options?.manualRefreshOnly
       ? DASHBOARD_MANUAL_REFRESH_OPTIONS
-      : { staleTime: STALE_FREQUENT, refetchOnWindowFocus: false }),
+      : { staleTime, refetchOnWindowFocus: false }),
   });
 
   return {

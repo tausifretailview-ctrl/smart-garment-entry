@@ -2,16 +2,15 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
-import { useTierBasedRefresh } from "@/hooks/useTierBasedRefresh";
 import {
-  TrendingUp, BarChart3, Package, AlertTriangle, WifiOff, RefreshCw,
+  TrendingUp, BarChart3, AlertTriangle, WifiOff, RefreshCw,
   IndianRupee, ShoppingCart, Wallet, Users, Building2, ArrowUpRight,
   ArrowDownRight, Clock, Star, AlertCircle,
 } from "lucide-react";
 import { format, subDays, formatDistanceToNow } from "date-fns";
 import { localDayBounds, saleRowCalendarYmd, todayLocalYmd } from "@/lib/localDayBounds";
-import { MOBILE_HOME_SALE_TYPES, MOBILE_SALES_PATH, MOBILE_ACCOUNTS_PATH, MOBILE_REPORTS_PATH } from "@/lib/mobileShell";
-import { useEffect } from "react";
+import { MOBILE_HOME_SALE_TYPES, MOBILE_SALES_PATH, MOBILE_REPORTS_PATH } from "@/lib/mobileShell";
+import { useEffect, useState } from "react";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 import { PullToRefreshIndicator } from "@/components/mobile/PullToRefreshIndicator";
@@ -25,6 +24,11 @@ import {
   BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip as RechartsTooltip,
   AreaChart, Area,
 } from "recharts";
+import { useOrganizationReceivablesSummary } from "@/hooks/useOrganizationReceivablesSummary";
+import {
+  ORGANIZATION_SUPPLIER_PAYABLE_QUERY_KEY,
+  fetchOrganizationSupplierPayableSummary,
+} from "@/utils/organizationReceivables";
 
 /* ─── helpers ─── */
 const fmt = (v: number) =>
@@ -36,9 +40,33 @@ const fmtShort = (v: number) =>
   v >= 1000 ? `₹${(v / 1000).toFixed(1)}K` :
   `₹${Math.round(v).toLocaleString("en-IN")}`;
 
+const BALANCE_STALE_MS = 2 * 60 * 1000;
+
+type ErpDashboardStats = {
+  total_sales: number;
+  invoice_count: number;
+  total_purchase: number;
+  purchase_count: number;
+  gross_profit: number;
+  cash_collection: number;
+};
+
+type StatCardConfig = {
+  label: string;
+  value: number;
+  sub: string;
+  icon: React.ElementType;
+  gradient: string;
+  iconBg: string;
+  iconColor: string;
+  valueClass?: string;
+  loading: boolean;
+  path: string;
+};
+
 /* ─── Skeleton for stat cards ─── */
 const StatCardSkeleton = () => (
-  <div className="bg-card rounded-2xl p-3.5 border border-border/40 shadow-sm">
+  <div className="rounded-2xl p-3.5 border border-border/30 shadow-sm bg-card">
     <Skeleton className="h-3 w-16 mb-2" />
     <Skeleton className="h-6 w-24 mb-1" />
     <Skeleton className="h-3 w-12" />
@@ -51,10 +79,10 @@ export const OwnerDashboard = () => {
   const { orgNavigate } = useOrgNavigation();
   const { isOnline } = useNetworkStatus();
   const queryClient = useQueryClient();
-  const { getRefreshInterval } = useTierBasedRefresh();
 
   const today = todayLocalYmd();
   const { startIso: todayStartIso, endIso: todayEndIso } = localDayBounds(today, today);
+  const orgId = currentOrganization?.id;
 
   const { scrollRef, isRefreshing, pullHandlers, refresh: handleRefresh } = usePullToRefresh(
     () => invalidateOwnerDashboardQueries(queryClient)
@@ -64,99 +92,66 @@ export const OwnerDashboard = () => {
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good Morning" : hour < 17 ? "Good Afternoon" : "Good Evening";
 
-  /* ── Query: Today's sales ── */
-  const { data: todaySales, isLoading: salesLoading } = useQuery({
-    queryKey: ["owner-dashboard", currentOrganization?.id, today],
+  /* ── Primary KPI: today's stats (single RPC) ── */
+  const { data: dashStats, isLoading: dashLoading, isSuccess: dashReady } = useQuery({
+    queryKey: ["owner-erp-dashboard-stats", orgId, today],
     queryFn: async () => {
-      if (!currentOrganization) return { total: 0, count: 0 };
+      if (!orgId) return null;
       return withMobileQueryTimeout(async () => {
-        const { data } = await supabase
-          .from("sales")
-          .select("net_amount")
-          .eq("organization_id", currentOrganization.id)
-          .is("deleted_at", null)
-          .eq("is_cancelled", false)
-          .in("sale_type", [...MOBILE_HOME_SALE_TYPES])
-          .gte("sale_date", todayStartIso)
-          .lte("sale_date", todayEndIso);
-        const total = data?.reduce((s, r) => s + (r.net_amount || 0), 0) || 0;
-        return { total, count: data?.length || 0 };
+        const { data, error } = await supabase.rpc("get_erp_dashboard_stats", {
+          p_org_id: orgId,
+          p_start_date: today,
+          p_end_date: today,
+        });
+        if (error) throw error;
+        return data as ErpDashboardStats;
       });
     },
-    enabled: !!currentOrganization?.id,
-    staleTime: 60000,
+    enabled: !!orgId,
+    staleTime: BALANCE_STALE_MS,
     refetchInterval: false,
     retry: 1,
   });
 
-  /* ── Query: Today's purchases ── */
-  const { data: todayPurchase, isLoading: purchaseLoading } = useQuery({
-    queryKey: ["owner-purchase-today", currentOrganization?.id, today],
-    queryFn: async () => {
-      if (!currentOrganization) return { total: 0, count: 0 };
-      return withMobileQueryTimeout(async () => {
-        const { data } = await supabase
-          .from("purchase_bills")
-          .select("net_amount")
-          .eq("organization_id", currentOrganization.id)
-          .is("deleted_at", null)
-          .gte("bill_date", today)
-          .lte("bill_date", today);
-        const total = data?.reduce((s, r) => s + (Number(r.net_amount) || 0), 0) || 0;
-        return { total, count: data?.length || 0 };
-      });
-    },
-    enabled: !!currentOrganization?.id,
-    staleTime: 60000,
-    refetchInterval: false,
+  /* ── Primary KPI: org receivables (canonical RPC, shared with Accounts) ── */
+  const { summary: receivablesSummary, isLoading: receivablesLoading } =
+    useOrganizationReceivablesSummary(orgId, { staleTime: BALANCE_STALE_MS });
+
+  /* ── Primary KPI: org supplier payables (canonical RPC) ── */
+  const { data: supplierSummary, isLoading: supplierLoading } = useQuery({
+    queryKey: [ORGANIZATION_SUPPLIER_PAYABLE_QUERY_KEY, "summary", orgId],
+    queryFn: () =>
+      withMobileQueryTimeout(() => fetchOrganizationSupplierPayableSummary(orgId!)),
+    enabled: !!orgId,
+    staleTime: BALANCE_STALE_MS,
     retry: 1,
   });
 
-  /* ── Query: Payments received today (from voucher receipts) ── */
-  const { data: paymentsToday, isLoading: paymentsLoading } = useQuery({
-    queryKey: ["owner-payments-today", currentOrganization?.id, today],
-    queryFn: async () => {
-      if (!currentOrganization) return 0;
-      return withMobileQueryTimeout(async () => {
-        const { data } = await supabase
-          .from("voucher_entries")
-          .select("total_amount")
-          .eq("organization_id", currentOrganization.id)
-          .eq("voucher_type", "receipt")
-          .is("deleted_at", null)
-          .gte("voucher_date", today)
-          .lte("voucher_date", today);
-        return data?.reduce((s, r) => s + (Number(r.total_amount) || 0), 0) || 0;
-      });
-    },
-    enabled: !!currentOrganization?.id,
-    staleTime: 60000,
-    refetchInterval: false,
-    retry: 1,
-  });
+  /* Defer secondary sections until main KPI cards are ready */
+  const [deferredReady, setDeferredReady] = useState(false);
+  useEffect(() => {
+    if (!dashReady) return;
+    let cancelled = false;
+    const enable = () => {
+      if (!cancelled) setDeferredReady(true);
+    };
+    if (typeof requestIdleCallback !== "undefined") {
+      const id = requestIdleCallback(enable, { timeout: 1200 });
+      return () => {
+        cancelled = true;
+        cancelIdleCallback(id);
+      };
+    }
+    const t = window.setTimeout(enable, 400);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(t);
+    };
+  }, [dashReady]);
 
-  /* ── Query: Outstanding balances ── */
-  const { data: outstanding, isLoading: outstandingLoading } = useQuery({
-    queryKey: ["owner-outstanding", currentOrganization?.id],
-    queryFn: async () => {
-      if (!currentOrganization) return { customer: 0, supplier: 0 };
-      return withMobileQueryTimeout(async () => {
-        const [{ data: cust }, { data: supp }] = await Promise.all([
-          supabase.from("customers").select("opening_balance").eq("organization_id", currentOrganization.id).is("deleted_at", null),
-          supabase.from("suppliers").select("opening_balance").eq("organization_id", currentOrganization.id).is("deleted_at", null),
-        ]);
-        return {
-          customer: cust?.reduce((s, r) => s + (r.opening_balance || 0), 0) || 0,
-          supplier: supp?.reduce((s, r) => s + (r.opening_balance || 0), 0) || 0,
-        };
-      });
-    },
-    enabled: !!currentOrganization?.id,
-    staleTime: 120000,
-    retry: 1,
-  });
+  const deferredEnabled = deferredReady && !!orgId;
 
-  /* ── Query: Sales trend (7 days) ── */
+  /* ── Deferred: Sales trend (7 days) ── */
   const { data: salesTrend } = useQuery({
     queryKey: ["owner-sales-trend", currentOrganization?.id],
     queryFn: async () => {
@@ -184,12 +179,12 @@ export const OwnerDashboard = () => {
         });
       });
     },
-    enabled: !!currentOrganization?.id,
+    enabled: deferredEnabled,
     staleTime: 120000,
     retry: 1,
   });
 
-  /* ── Query: Recent activity (last 10) ── */
+  /* ── Deferred: Recent activity (last 10) ── */
   const { data: recentActivity, isLoading: activityLoading } = useQuery({
     queryKey: ["owner-recent-activity", currentOrganization?.id],
     queryFn: async () => {
@@ -238,12 +233,12 @@ export const OwnerDashboard = () => {
         return items.slice(0, 10);
       });
     },
-    enabled: !!currentOrganization?.id,
+    enabled: deferredEnabled,
     staleTime: 60000,
     retry: 1,
   });
 
-  /* ── Query: CN drift alerts (nightly reconciliation) ── */
+  /* ── Deferred: CN drift alerts ── */
   const { data: cnDrift, isLoading: cnDriftLoading } = useQuery({
     queryKey: ["owner-cn-drift", currentOrganization?.id, today],
     queryFn: async () => {
@@ -265,12 +260,12 @@ export const OwnerDashboard = () => {
         return { count: rows.length, customers: rows.map((r) => r.customer_id) };
       });
     },
-    enabled: !!currentOrganization?.id,
+    enabled: deferredEnabled,
     staleTime: 300000,
     retry: 1,
   });
 
-  /* ── Query: Low stock (qty < 5) ── */
+  /* ── Deferred: Low stock (qty < 5) ── */
   const { data: lowStock, isLoading: lowStockLoading } = useQuery({
     queryKey: ["owner-low-stock", currentOrganization?.id],
     queryFn: async () => {
@@ -295,12 +290,12 @@ export const OwnerDashboard = () => {
         }));
       });
     },
-    enabled: !!currentOrganization?.id,
+    enabled: deferredEnabled,
     staleTime: 120000,
     retry: 1,
   });
 
-  /* ── Query: Top selling today ── */
+  /* ── Deferred: Top selling today ── */
   const { data: topSelling, isLoading: topSellingLoading } = useQuery({
     queryKey: ["owner-top-selling", currentOrganization?.id, today],
     queryFn: async () => {
@@ -325,22 +320,96 @@ export const OwnerDashboard = () => {
         return [...map.values()].sort((a, b) => b.qty - a.qty).slice(0, 5);
       });
     },
-    enabled: !!currentOrganization?.id,
+    enabled: deferredEnabled,
     staleTime: 60000,
     retry: 1,
   });
 
-  const allLoading = salesLoading || purchaseLoading;
-  const profitToday = (todaySales?.total || 0) - (todayPurchase?.total || 0);
+  const totalSales = dashStats?.total_sales ?? 0;
+  const salesCount = dashStats?.invoice_count ?? 0;
+  const totalPurchase = dashStats?.total_purchase ?? 0;
+  const purchaseCount = dashStats?.purchase_count ?? 0;
+  const grossProfit = dashStats?.gross_profit ?? 0;
+  const cashCollection = dashStats?.cash_collection ?? 0;
+  const profitMarginPct =
+    totalSales > 0 ? ((grossProfit / totalSales) * 100).toFixed(1) : "0.0";
+
+  const customerOs = receivablesSummary.netReceivable;
+  const customersPending = receivablesSummary.customersOwing;
+  const supplierOs = Math.max(0, supplierSummary?.netOutstanding ?? 0);
+  const suppliersPending = supplierSummary?.supplierCount ?? 0;
 
   /* ── Stat cards config ── */
-  const statCards = [
-    { label: "Today's Sale", value: todaySales?.total || 0, sub: `${todaySales?.count || 0} bills`, icon: IndianRupee, tint: "bg-success/10", iconColor: "text-success", loading: salesLoading, path: MOBILE_SALES_PATH },
-    { label: "Today's Purchase", value: todayPurchase?.total || 0, sub: `${todayPurchase?.count || 0} bills`, icon: ShoppingCart, tint: "bg-warning/10", iconColor: "text-warning", loading: purchaseLoading, path: "/owner-purchases" },
-    { label: "Today's Profit", value: profitToday, sub: profitToday >= 0 ? "Positive" : "Loss", icon: TrendingUp, tint: "bg-primary/10", iconColor: "text-primary", loading: allLoading, path: MOBILE_REPORTS_PATH },
-    { label: "Payment Received", value: paymentsToday || 0, sub: "Today", icon: Wallet, tint: "bg-success/10", iconColor: "text-success", loading: paymentsLoading, path: MOBILE_ACCOUNTS_PATH },
-    { label: "Customer O/S", value: outstanding?.customer || 0, sub: "Pending", icon: Users, tint: "bg-destructive/10", iconColor: "text-destructive", loading: outstandingLoading, path: `${MOBILE_REPORTS_PATH}?report=customer-balance` },
-    { label: "Supplier O/S", value: outstanding?.supplier || 0, sub: "Pending", icon: Building2, tint: "bg-destructive/10", iconColor: "text-destructive", loading: outstandingLoading, path: `${MOBILE_REPORTS_PATH}?report=supplier-balance` },
+  const statCards: StatCardConfig[] = [
+    {
+      label: "Today's Sale",
+      value: totalSales,
+      sub: `${salesCount} bill${salesCount === 1 ? "" : "s"} today`,
+      icon: IndianRupee,
+      gradient: "bg-gradient-to-br from-emerald-500/15 via-emerald-500/8 to-card",
+      iconBg: "bg-emerald-500/20",
+      iconColor: "text-emerald-600",
+      loading: dashLoading,
+      path: MOBILE_SALES_PATH,
+    },
+    {
+      label: "Today's Purchase",
+      value: totalPurchase,
+      sub: `${purchaseCount} bill${purchaseCount === 1 ? "" : "s"} today`,
+      icon: ShoppingCart,
+      gradient: "bg-gradient-to-br from-amber-500/15 via-amber-500/8 to-card",
+      iconBg: "bg-amber-500/20",
+      iconColor: "text-amber-600",
+      loading: dashLoading,
+      path: "/owner-purchases",
+    },
+    {
+      label: "Today's Profit",
+      value: grossProfit,
+      sub: `${profitMarginPct}% margin`,
+      icon: TrendingUp,
+      gradient: "bg-gradient-to-br from-primary/15 via-primary/8 to-card",
+      iconBg: "bg-primary/20",
+      iconColor: "text-primary",
+      valueClass: grossProfit >= 0 ? "text-emerald-600" : "text-destructive",
+      loading: dashLoading,
+      path: `${MOBILE_REPORTS_PATH}?report=profit-loss`,
+    },
+    {
+      label: "Payment Received",
+      value: cashCollection,
+      sub: "Cash + UPI + Card",
+      icon: Wallet,
+      gradient: "bg-gradient-to-br from-teal-500/15 via-teal-500/8 to-card",
+      iconBg: "bg-teal-500/20",
+      iconColor: "text-teal-600",
+      loading: dashLoading,
+      path: `${MOBILE_REPORTS_PATH}?report=payment-collection`,
+    },
+    {
+      label: "Customer O/S",
+      value: customerOs,
+      sub: `${customersPending} customer${customersPending === 1 ? "" : "s"} pending`,
+      icon: Users,
+      gradient: "bg-gradient-to-br from-rose-500/15 via-rose-500/8 to-card",
+      iconBg: "bg-rose-500/20",
+      iconColor: "text-rose-600",
+      valueClass: "text-destructive",
+      loading: receivablesLoading,
+      path: `${MOBILE_REPORTS_PATH}?report=customer-balance`,
+    },
+    {
+      label: "Supplier O/S",
+      value: supplierOs,
+      sub: `${suppliersPending} supplier${suppliersPending === 1 ? "" : "s"} pending`,
+      icon: Building2,
+      gradient: "bg-gradient-to-br from-orange-500/15 via-orange-500/8 to-card",
+      iconBg: "bg-orange-500/20",
+      iconColor: "text-orange-600",
+      valueClass: "text-destructive",
+      loading: supplierLoading,
+      path: `${MOBILE_REPORTS_PATH}?report=supplier-balance`,
+    },
   ];
 
   const activityIcon = { sale: ArrowUpRight, purchase: ArrowDownRight, payment: Wallet };
@@ -389,17 +458,21 @@ export const OwnerDashboard = () => {
                 type="button"
                 key={card.label}
                 onClick={() => orgNavigate(card.path)}
-                className="bg-card rounded-2xl p-3.5 border border-border/40 shadow-sm text-left active:scale-[0.98] touch-manipulation transition-transform"
+                className={cn(
+                  "rounded-2xl p-3.5 border border-border/30 shadow-sm text-left",
+                  "active:scale-[0.98] touch-manipulation transition-transform",
+                  card.gradient,
+                )}
               >
                 <div className="flex items-center justify-between mb-1.5">
                   <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
                     {card.label}
                   </span>
-                  <div className={cn("w-7 h-7 rounded-lg flex items-center justify-center", card.tint)}>
+                  <div className={cn("w-7 h-7 rounded-full flex items-center justify-center", card.iconBg)}>
                     <Icon className={cn("h-3.5 w-3.5", card.iconColor)} />
                   </div>
                 </div>
-                <p className="text-lg font-bold text-foreground tabular-nums leading-tight">
+                <p className={cn("text-lg font-bold tabular-nums leading-tight", card.valueClass || "text-foreground")}>
                   {fmtShort(card.value)}
                 </p>
                 <p className="text-[10px] text-muted-foreground mt-0.5">{card.sub}</p>
@@ -488,7 +561,7 @@ export const OwnerDashboard = () => {
                       onClick={() => {
                         if (item.type === "sale") orgNavigate(MOBILE_SALES_PATH);
                         else if (item.type === "purchase") orgNavigate("/owner-purchases");
-                        else orgNavigate(MOBILE_ACCOUNTS_PATH);
+                        else orgNavigate(`${MOBILE_REPORTS_PATH}?report=payment-collection`);
                       }}
                       className={cn(
                         "w-full flex items-center gap-3 py-2.5 touch-manipulation active:bg-muted/50 transition-colors",
