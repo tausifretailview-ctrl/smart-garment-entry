@@ -4042,6 +4042,7 @@ export type Database = {
           hsn_code: string | null
           id: string
           is_dc_item: boolean | null
+          line_number: number
           line_total: number
           mrp: number | null
           product_id: string
@@ -4069,6 +4070,7 @@ export type Database = {
           hsn_code?: string | null
           id?: string
           is_dc_item?: boolean | null
+          line_number?: number
           line_total?: number
           mrp?: number | null
           product_id: string
@@ -4096,6 +4098,7 @@ export type Database = {
           hsn_code?: string | null
           id?: string
           is_dc_item?: boolean | null
+          line_number?: number
           line_total?: number
           mrp?: number | null
           product_id?: string
@@ -8753,11 +8756,15 @@ export type Database = {
         Args: {
           p_brand?: string
           p_category?: string
+          p_color?: string
           p_limit?: number
           p_low_stock?: boolean
           p_offset?: number
           p_org_id: string
+          p_product_name?: string
           p_search?: string
+          p_size?: string
+          p_style?: string
         }
         Returns: {
           barcode: string
