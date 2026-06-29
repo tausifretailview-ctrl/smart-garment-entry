@@ -40,7 +40,7 @@ BEGIN
   WITH last_sale AS (
     SELECT
       si.variant_id,
-      MAX(s.sale_date)              AS last_sold_date,
+      MAX(s.sale_date::date)        AS last_sold_date,
       SUM(si.quantity)              AS total_sold_ever
     FROM public.sale_items si
     INNER JOIN public.sales s ON s.id = si.sale_id
@@ -65,7 +65,7 @@ BEGIN
     ls.last_sold_date,
     CASE
       WHEN ls.last_sold_date IS NULL THEN NULL
-      ELSE (CURRENT_DATE - ls.last_sold_date)::integer
+      ELSE (CURRENT_DATE - ls.last_sold_date::date)
     END                             AS days_since_sold,
     COALESCE(ls.total_sold_ever, 0) AS total_sold_ever
   FROM public.product_variants pv

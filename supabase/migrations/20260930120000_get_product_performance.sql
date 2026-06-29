@@ -48,7 +48,7 @@ BEGIN
       SUM(si.quantity)              AS units_sold,
       SUM(si.line_total)            AS revenue,
       SUM(si.quantity * COALESCE(pv.pur_price, 0)) AS cost,
-      MAX(s.sale_date)              AS last_sold_date
+      MAX(s.sale_date::date)        AS last_sold_date
     FROM public.sale_items si
     INNER JOIN public.sales s ON s.id = si.sale_id
     INNER JOIN public.product_variants pv ON pv.id = si.variant_id
@@ -124,7 +124,7 @@ BEGIN
     ps.last_sold_date,
     CASE
       WHEN ps.last_sold_date IS NULL THEN NULL
-      ELSE (CURRENT_DATE - ps.last_sold_date)::integer
+      ELSE (CURRENT_DATE - ps.last_sold_date::date)
     END                             AS days_since_sold
   FROM public.products p
   LEFT JOIN product_sales ps ON ps.product_id = p.id

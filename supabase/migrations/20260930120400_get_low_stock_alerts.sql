@@ -42,7 +42,7 @@ BEGIN
       si.variant_id,
       SUM(si.quantity)::numeric
         / GREATEST(
-            CURRENT_DATE - MIN(s.sale_date),
+            CURRENT_DATE - MIN(s.sale_date::date),
             1
           )                         AS avg_daily_sales
     FROM public.sale_items si
@@ -52,7 +52,7 @@ BEGIN
       AND s.deleted_at IS NULL
       AND COALESCE(s.is_cancelled, false) = false
       AND si.variant_id IS NOT NULL
-      AND s.sale_date >= CURRENT_DATE - 30
+      AND s.sale_date::date >= CURRENT_DATE - 30
     GROUP BY si.variant_id
   ),
   last_purchase AS (
