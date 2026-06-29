@@ -18,6 +18,7 @@ import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { AccountsHistoryPanel } from "@/components/accounts/AccountsHistoryPanel";
 import { accountsHistoryTableClass, accountsHistoryThClass } from "@/components/accounts/accountsHistoryUi";
 import { cn } from "@/lib/utils";
+import { reverseBalanceAdjustmentVouchers } from "@/utils/applyAdjustmentToInvoices";
 
 const PAGE_SIZE = 10;
 
@@ -137,6 +138,7 @@ export function RecentBalanceAdjustments({ organizationId, visitedTabs }: Props)
     queryClient.invalidateQueries({ queryKey: ["all-balance-adjustments"] });
     queryClient.invalidateQueries({ queryKey: ["customer-balance"] });
     queryClient.invalidateQueries({ queryKey: ["customer-advances"] });
+    queryClient.invalidateQueries({ queryKey: ["invoices"] });
   };
 
   // UPDATE (modify) mutation - now supports outstanding/advance changes
@@ -184,12 +186,17 @@ export function RecentBalanceAdjustments({ organizationId, visitedTabs }: Props)
   // DELETE mutation
   const deleteMutation = useMutation({
     mutationFn: async (adj: any) => {
-      // Reverse advance effects
+      await reverseBalanceAdjustmentVouchers({
+        organizationId,
+        adjustmentRowId: adj.id,
+        deletedBy: user?.id,
+      });
+
       const advDiff = -(adj.advance_difference || 0);
       if (advDiff !== 0) {
         await applyAdvanceEffects(supabase, organizationId, adj.customer_id, advDiff, `Delete reversal: ${adj.reason}`, user?.id);
       }
-      // Delete the record and verify it was actually removed
+
       const { error, data: deletedRows } = await (supabase as any)
         .from("customer_balance_adjustments")
         .delete()
@@ -209,15 +216,19 @@ export function RecentBalanceAdjustments({ organizationId, visitedTabs }: Props)
   // REVERSE mutation
   const reverseMutation = useMutation({
     mutationFn: async (adj: any) => {
+      await reverseBalanceAdjustmentVouchers({
+        organizationId,
+        adjustmentRowId: adj.id,
+        deletedBy: user?.id,
+      });
+
       const reversedOutDiff = -(adj.outstanding_difference || 0);
       const reversedAdvDiff = -(adj.advance_difference || 0);
 
-      // Apply reverse advance effects
       if (reversedAdvDiff !== 0) {
         await applyAdvanceEffects(supabase, organizationId, adj.customer_id, reversedAdvDiff, `Reversal of: ${adj.reason}`, user?.id);
       }
 
-      // Insert counter-record
       const { error } = await (supabase as any)
         .from("customer_balance_adjustments")
         .insert({

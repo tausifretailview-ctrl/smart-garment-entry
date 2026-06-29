@@ -17,6 +17,11 @@ import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { fetchAllCustomers } from "@/utils/fetchAllRows";
+import {
+  applyAdjustmentToInvoices,
+  reverseBalanceAdjustmentVouchers,
+  type AdjustmentAllocation,
+} from "@/utils/applyAdjustmentToInvoices";
 
 interface CustomerBalanceAdjustmentDialogProps {
   open: boolean;
@@ -34,6 +39,7 @@ const INVALIDATION_KEYS = [
   ["customer-advances"],
   ["customer-advance-balance"],
   ["advance-dashboard"],
+  ["invoices"],
 ];
 
 export function CustomerBalanceAdjustmentDialog({
@@ -319,32 +325,93 @@ export function CustomerBalanceAdjustmentDialog({
   };
 
   const saveAdjustment = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (): Promise<{
+      allocations: AdjustmentAllocation[];
+      uncoveredAmount: number;
+    }> => {
       if (!selectedCustomerId || !reason.trim()) throw new Error("Customer and reason are required");
       if (newOutstanding === "" && newAdvance === "") throw new Error("Enter at least one adjustment value");
 
-      const { error } = await (supabase as any)
-        .from("customer_balance_adjustments")
-        .insert({
-          organization_id: organizationId,
-          customer_id: selectedCustomerId,
-          previous_outstanding: currentBalance?.outstanding || 0,
-          new_outstanding: newOutstanding !== "" ? parseFloat(newOutstanding) : currentBalance?.outstanding || 0,
-          outstanding_difference: newOutstanding !== "" ? outstandingDiff : 0,
-          previous_advance: currentBalance?.advance || 0,
-          new_advance: newAdvance !== "" ? parseFloat(newAdvance) : currentBalance?.advance || 0,
-          advance_difference: newAdvance !== "" ? advanceDiff : 0,
-          reason: reason.trim(),
-          created_by: user?.id,
-        });
-      if (error) throw error;
-
-      const effectiveOutDiff = newOutstanding !== "" ? outstandingDiff : 0;
+      const outDelta = newOutstanding !== "" ? outstandingDiff : 0;
       const effectiveAdvDiff = newAdvance !== "" ? advanceDiff : 0;
-      await applyAdjustmentEffects(selectedCustomerId, effectiveOutDiff, effectiveAdvDiff, reason.trim());
+      const isOutstandingReduction = newOutstanding !== "" && outDelta < -0.5;
+
+      const baseInsert = {
+        organization_id: organizationId,
+        customer_id: selectedCustomerId,
+        previous_outstanding: currentBalance?.outstanding || 0,
+        new_outstanding: newOutstanding !== "" ? parseFloat(newOutstanding) : currentBalance?.outstanding || 0,
+        previous_advance: currentBalance?.advance || 0,
+        new_advance: newAdvance !== "" ? parseFloat(newAdvance) : currentBalance?.advance || 0,
+        advance_difference: effectiveAdvDiff,
+        reason: reason.trim(),
+        created_by: user?.id,
+      };
+
+      let allocations: AdjustmentAllocation[] = [];
+      let uncoveredAmount = 0;
+
+      if (isOutstandingReduction) {
+        const { data: adjRow, error: adjErr } = await (supabase as any)
+          .from("customer_balance_adjustments")
+          .insert({
+            ...baseInsert,
+            outstanding_difference: 0,
+          })
+          .select("id")
+          .single();
+        if (adjErr || !adjRow?.id) {
+          throw adjErr || new Error("Failed to create adjustment record");
+        }
+
+        const result = await applyAdjustmentToInvoices({
+          organizationId,
+          customerId: selectedCustomerId,
+          adjustmentAmount: Math.abs(outDelta),
+          reason: reason.trim(),
+          adjustmentRowId: adjRow.id,
+          createdBy: user?.id,
+        });
+        allocations = result.allocations;
+        uncoveredAmount = result.uncoveredAmount;
+
+        const { error: updErr } = await (supabase as any)
+          .from("customer_balance_adjustments")
+          .update({ outstanding_difference: -uncoveredAmount })
+          .eq("id", adjRow.id);
+        if (updErr) throw updErr;
+      } else {
+        const { error } = await (supabase as any)
+          .from("customer_balance_adjustments")
+          .insert({
+            ...baseInsert,
+            outstanding_difference: newOutstanding !== "" ? outDelta : 0,
+          });
+        if (error) throw error;
+      }
+
+      if (effectiveAdvDiff !== 0) {
+        await applyAdjustmentEffects(selectedCustomerId, 0, effectiveAdvDiff, reason.trim());
+      }
+
+      return { allocations, uncoveredAmount };
     },
-    onSuccess: () => {
-      toast.success("Balance adjustment saved successfully");
+    onSuccess: ({ allocations, uncoveredAmount }) => {
+      if (allocations.length > 0) {
+        const settled = allocations.filter((a) => a.newStatus === "completed").length;
+        const partial = allocations.filter((a) => a.newStatus === "partial").length;
+        const parts: string[] = ["Adjustment saved."];
+        if (settled > 0) parts.push(`${settled} invoice(s) completed.`);
+        if (partial > 0) parts.push(`${partial} invoice(s) partially settled.`);
+        if (uncoveredAmount > 0.5) {
+          parts.push(
+            `₹${uncoveredAmount.toLocaleString("en-IN")} held as credit (no open invoices).`,
+          );
+        }
+        toast.success(parts.join(" "));
+      } else {
+        toast.success("Balance adjustment saved successfully");
+      }
       invalidateAll();
       setNewOutstanding("");
       setNewAdvance("");
@@ -358,14 +425,22 @@ export function CustomerBalanceAdjustmentDialog({
   // Delete adjustment mutation
   const deleteAdjustment = useMutation({
     mutationFn: async (adj: any) => {
-      // Reverse the financial effects (negate the original differences)
-      await applyAdjustmentEffects(
-        adj.customer_id,
-        -(adj.outstanding_difference || 0),
-        -(adj.advance_difference || 0),
-        `Delete reversal: ${adj.reason}`
-      );
-      // Remove the record
+      await reverseBalanceAdjustmentVouchers({
+        organizationId,
+        adjustmentRowId: adj.id,
+        deletedBy: user?.id,
+      });
+
+      const advDiff = -(adj.advance_difference || 0);
+      if (advDiff !== 0) {
+        await applyAdjustmentEffects(
+          adj.customer_id,
+          0,
+          advDiff,
+          `Delete reversal: ${adj.reason}`,
+        );
+      }
+
       const { error } = await (supabase as any)
         .from("customer_balance_adjustments")
         .delete()
@@ -382,10 +457,15 @@ export function CustomerBalanceAdjustmentDialog({
   // Reverse adjustment mutation
   const reverseAdjustment = useMutation({
     mutationFn: async (adj: any) => {
+      await reverseBalanceAdjustmentVouchers({
+        organizationId,
+        adjustmentRowId: adj.id,
+        deletedBy: user?.id,
+      });
+
       const reversedOutDiff = -(adj.outstanding_difference || 0);
       const reversedAdvDiff = -(adj.advance_difference || 0);
 
-      // Insert counter-adjustment record
       const { error } = await (supabase as any)
         .from("customer_balance_adjustments")
         .insert({
@@ -402,8 +482,14 @@ export function CustomerBalanceAdjustmentDialog({
         });
       if (error) throw error;
 
-      // Apply the reverse financial effects
-      await applyAdjustmentEffects(adj.customer_id, reversedOutDiff, reversedAdvDiff, `Reversal of: ${adj.reason}`);
+      if (reversedAdvDiff !== 0) {
+        await applyAdjustmentEffects(
+          adj.customer_id,
+          0,
+          reversedAdvDiff,
+          `Reversal of: ${adj.reason}`,
+        );
+      }
     },
     onSuccess: () => {
       toast.success("Adjustment reversed successfully");
