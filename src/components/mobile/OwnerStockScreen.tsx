@@ -2,8 +2,14 @@ import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { OwnerStockOverview } from "./OwnerStockOverview";
 import { OwnerStockProductDetail } from "./OwnerStockProductDetail";
+import { mobilePageScrollWithNavClass } from "@/lib/mobileShell";
+import { cn } from "@/lib/utils";
 
 type Screen = "overview" | "detail";
+
+const StockScroll = ({ children }: { children: React.ReactNode }) => (
+  <div className={cn(mobilePageScrollWithNavClass, "bg-muted/30")}>{children}</div>
+);
 
 export const OwnerStockScreen = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -25,20 +31,26 @@ export const OwnerStockScreen = () => {
 
   if (screen === "detail" && selectedProductId) {
     return (
-      <OwnerStockProductDetail
-        productId={selectedProductId}
-        onBack={() => {
-          setScreen("overview");
-          setSelectedProductId(null);
-          if (searchParams.has("product")) {
-            const next = new URLSearchParams(searchParams);
-            next.delete("product");
-            setSearchParams(next, { replace: true });
-          }
-        }}
-      />
+      <StockScroll>
+        <OwnerStockProductDetail
+          productId={selectedProductId}
+          onBack={() => {
+            setScreen("overview");
+            setSelectedProductId(null);
+            if (searchParams.has("product")) {
+              const next = new URLSearchParams(searchParams);
+              next.delete("product");
+              setSearchParams(next, { replace: true });
+            }
+          }}
+        />
+      </StockScroll>
     );
   }
 
-  return <OwnerStockOverview onViewProduct={handleViewProduct} />;
+  return (
+    <StockScroll>
+      <OwnerStockOverview onViewProduct={handleViewProduct} />
+    </StockScroll>
+  );
 };

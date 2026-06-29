@@ -148,7 +148,7 @@ export default function MobileSalesHub() {
   return (
     <div
       ref={scrollRef}
-      className="min-h-screen bg-slate-50 dark:bg-background pb-24"
+      className="h-full min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain bg-slate-50 dark:bg-background pb-24"
       {...pullHandlers}
     >
       <PullToRefreshIndicator visible={isRefreshing} />

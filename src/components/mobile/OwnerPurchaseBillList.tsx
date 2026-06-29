@@ -92,7 +92,7 @@ export const OwnerPurchaseBillList = ({ period, customRange, onBack, onViewBill 
   const visibleBills = filtered.slice(0, visibleCount);
 
   return (
-    <div className="min-h-screen bg-muted/30 pb-24">
+    <div className="bg-muted/30">
       {/* Header */}
       <div className="sticky top-0 z-20 bg-background/95 backdrop-blur-md border-b border-border">
         <div className="flex items-center gap-3 px-4 py-3">

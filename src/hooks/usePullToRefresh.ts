@@ -3,8 +3,11 @@ import { useCallback, useRef, useState } from "react";
 const DEFAULT_THRESHOLD = 80;
 
 function isScrollContainerAtTop(el: HTMLElement | null | undefined): boolean {
-  if (el && el.scrollHeight > el.clientHeight + 1 && el.scrollTop > 2) {
-    return false;
+  if (el) {
+    if (el.scrollHeight > el.clientHeight + 1 && el.scrollTop > 2) {
+      return false;
+    }
+    return true;
   }
   const main = typeof document !== "undefined" ? document.querySelector("main") : null;
   if (main && main.scrollHeight > main.clientHeight + 1 && main.scrollTop > 2) {

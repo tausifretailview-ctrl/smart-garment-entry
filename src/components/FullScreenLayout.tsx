@@ -15,7 +15,12 @@ import { MobileScanProvider } from "@/contexts/MobileScanContext";
 import { StatusBar } from "@/components/StatusBar";
 import { useLocation } from "react-router-dom";
 import { DashboardToolbarProvider } from "@/contexts/DashboardToolbarContext";
-import { mobileFullscreenMainClass, mobileMainContentClass } from "@/lib/mobileShell";
+import {
+  mobileFullscreenMainClass,
+  mobileMainContentClass,
+  mobileShellInsetClass,
+  mobileShellOuterClass,
+} from "@/lib/mobileShell";
 import { useShowDesktopChrome } from "@/hooks/useDesktopViewPreference";
 import { DesktopViewToggle, DesktopViewEscapeHatch } from "@/components/mobile/DesktopViewToggle";
 import { IdleMount } from "@/components/IdleMount";
@@ -37,6 +42,7 @@ export const FullScreenLayout = ({ children }: FullScreenLayoutProps) => {
   const showDesktopChrome = useShowDesktopChrome();
   const sharedShell = useSharedAppShell();
   const inTabCachePane = useTabCacheLayout();
+  const isMobileShell = !showDesktopChrome && !isEntryFullscreenPage;
 
   useEffect(() => {
     if (isEntryFullscreenPage) initUIScale();
@@ -88,15 +94,17 @@ export const FullScreenLayout = ({ children }: FullScreenLayoutProps) => {
               className={
                 isEntryFullscreenPage
                   ? "flex h-full min-h-0 max-h-full w-full flex-1 overflow-hidden bg-background"
-                  : "flex min-h-screen w-full bg-background"
+                  : isMobileShell
+                    ? mobileShellOuterClass
+                    : "flex min-h-screen w-full bg-background"
               }
             >
               {showSidebar && <AppSidebar />}
               {showSidebar && <SidebarExpandStrip />}
               <SidebarInset
                 className={
-                  isEntryFullscreenPage
-                    ? "flex flex-col flex-1 min-h-0 overflow-hidden min-w-0"
+                  isEntryFullscreenPage || isMobileShell
+                    ? mobileShellInsetClass
                     : "flex flex-col flex-1 min-w-0"
                 }
               >

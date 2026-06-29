@@ -2,8 +2,14 @@ import { useState } from "react";
 import { OwnerSalesDashboard } from "./OwnerSalesDashboard";
 import { OwnerSalesBillList } from "./OwnerSalesBillList";
 import { MobileSalePrintPreviewDialog } from "./MobileSalePrintPreviewDialog";
+import { mobilePageScrollWithNavClass } from "@/lib/mobileShell";
+import { cn } from "@/lib/utils";
 
 type Screen = "dashboard" | "bills";
+
+const SalesScroll = ({ children }: { children: React.ReactNode }) => (
+  <div className={cn(mobilePageScrollWithNavClass, "bg-muted/30")}>{children}</div>
+);
 
 export const OwnerSalesScreen = () => {
   const [screen, setScreen] = useState<Screen>("dashboard");
@@ -20,12 +26,14 @@ export const OwnerSalesScreen = () => {
   if (screen === "bills") {
     return (
       <>
-        <OwnerSalesBillList
-          period={period}
-          customRange={customRange}
-          onBack={() => setScreen("dashboard")}
-          onViewBill={handleViewBill}
-        />
+        <SalesScroll>
+          <OwnerSalesBillList
+            period={period}
+            customRange={customRange}
+            onBack={() => setScreen("dashboard")}
+            onViewBill={handleViewBill}
+          />
+        </SalesScroll>
         <MobileSalePrintPreviewDialog
           saleId={previewSaleId}
           open={previewOpen}
@@ -40,14 +48,16 @@ export const OwnerSalesScreen = () => {
 
   return (
     <>
-      <OwnerSalesDashboard
-        period={period}
-        setPeriod={setPeriod}
-        customRange={customRange}
-        setCustomRange={setCustomRange}
-        onViewAllBills={() => setScreen("bills")}
-        onViewBill={handleViewBill}
-      />
+      <SalesScroll>
+        <OwnerSalesDashboard
+          period={period}
+          setPeriod={setPeriod}
+          customRange={customRange}
+          setCustomRange={setCustomRange}
+          onViewAllBills={() => setScreen("bills")}
+          onViewBill={handleViewBill}
+        />
+      </SalesScroll>
       <MobileSalePrintPreviewDialog
         saleId={previewSaleId}
         open={previewOpen}

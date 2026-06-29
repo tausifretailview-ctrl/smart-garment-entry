@@ -104,7 +104,7 @@ export default function MobileMoreMenu() {
   return (
     <div
       ref={scrollRef}
-      className="min-h-screen bg-background pb-24"
+      className="h-full min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain bg-background pb-24"
       {...pullHandlers}
     >
       <PullToRefreshIndicator visible={isRefreshing} />

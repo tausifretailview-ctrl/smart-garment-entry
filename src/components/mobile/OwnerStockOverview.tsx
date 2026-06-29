@@ -21,10 +21,6 @@ const fmtShort = (v: number) =>
 /** Clears OwnerBottomNav + safe-area when the desktop status bar is hidden on mobile. */
 const LIST_BOTTOM_CLEARANCE = `calc(${MOBILE_BOTTOM_NAV_HEIGHT} + env(safe-area-inset-bottom, 0px) + 0.5rem)`;
 
-/** Viewport below MobileAppHeader (h-12) and main top padding (p-3). */
-const STOCK_VIEWPORT_HEIGHT =
-  "calc(100dvh - 3rem - env(safe-area-inset-top, 0px) - 0.75rem)";
-
 interface Props {
   onViewProduct: (productId: string) => void;
 }
@@ -150,10 +146,7 @@ export const OwnerStockOverview = ({ onViewProduct }: Props) => {
     qty <= 0 ? "bg-destructive" : qty <= 5 ? "bg-warning" : "bg-success";
 
   return (
-    <div
-      className="flex flex-col min-h-0 bg-muted/30 -mx-3 sm:-mx-4"
-      style={{ height: STOCK_VIEWPORT_HEIGHT }}
-    >
+    <div className="bg-muted/30 -mx-3 sm:-mx-4 pb-6">
       <div className="sticky top-0 z-20 shrink-0 bg-background/95 backdrop-blur-md border-b border-border">
         <div className="px-4 py-3">
           <h1 className="text-base font-semibold text-foreground mb-3">Stock Overview</h1>
@@ -262,10 +255,7 @@ export const OwnerStockOverview = ({ onViewProduct }: Props) => {
         )}
       </div>
 
-      <div
-        className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 mt-3"
-        style={{ paddingBottom: LIST_BOTTOM_CLEARANCE }}
-      >
+      <div className="px-4 mt-3" style={{ paddingBottom: LIST_BOTTOM_CLEARANCE }}>
         {isLoading ? (
           <div className="space-y-2">
             {Array.from({ length: 8 }).map((_, i) => (
