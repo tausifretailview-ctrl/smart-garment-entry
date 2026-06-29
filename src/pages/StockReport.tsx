@@ -177,16 +177,13 @@ async function fetchLatestPurchaseSourceByVariantId(
   return result;
 }
 
-function buildStockReportRpcSearch(
-  searchTerm: string,
+function buildStockReportRpcProductName(
   productNameFilter: string,
   pinnedProducts: Array<{ product_name: string }>,
 ): string | null {
-  const term = searchTerm.trim();
-  if (term) return term;
   const name = productNameFilter.trim();
   if (name) return name;
-  if (pinnedProducts.length > 0) return pinnedProducts[0].product_name;
+  if (pinnedProducts.length === 1) return pinnedProducts[0].product_name;
   return null;
 }
 
@@ -719,10 +716,14 @@ export default function StockReport() {
           p_org_id: currentOrganization.id,
           p_limit: ITEMS_PER_PAGE,
           p_offset: (page - 1) * ITEMS_PER_PAGE,
-          p_search: buildStockReportRpcSearch(searchTerm, productNameFilter, pinnedProducts),
+          p_search: searchTerm.trim() || null,
           p_category: categoryFilter !== "all" ? categoryFilter : null,
           p_brand: brandFilter !== "all" ? brandFilter : null,
           p_low_stock: stockStatusFilter === "out" ? true : null,
+          p_style: departmentFilter !== "all" ? departmentFilter : null,
+          p_size: sizeFilter !== "all" ? sizeFilter : null,
+          p_color: colorFilter !== "all" ? colorFilter : null,
+          p_product_name: buildStockReportRpcProductName(productNameFilter, pinnedProducts),
         });
 
         if (error) throw error;
@@ -787,6 +788,9 @@ export default function StockReport() {
       pinnedProducts,
       categoryFilter,
       brandFilter,
+      departmentFilter,
+      sizeFilter,
+      colorFilter,
       stockStatusFilter,
       ITEMS_PER_PAGE,
     ],
@@ -841,7 +845,7 @@ export default function StockReport() {
       // General search filter — multi-token AND
       if (searchTerm) {
         const matchesOldBarcode = variantIdsFromOldBarcodes.has(item.id);
-        if (!matchesOldBarcode && !multiTokenMatch(searchTerm, item.product_name, item.brand, item.color, item.size, item.barcode, item.supplier_name, item.supplier_invoice_no, (item as any).category, (item as any).hsn_code)) return false;
+        if (!matchesOldBarcode && !multiTokenMatch(searchTerm, item.product_name, item.brand, item.color, item.size, item.barcode, item.supplier_name, item.supplier_invoice_no, item.category, item.department, (item as any).hsn_code)) return false;
       }
       
       // Brand filter
@@ -960,11 +964,8 @@ export default function StockReport() {
     [filteredStockItems],
   );
 
-  // Server-side pagination total; client-only filters apply within the current page
+  // Server-side pagination total; supplier / stock-status / multi-pin filters apply within the page
   const hasClientOnlyFilters =
-    departmentFilter !== "all" ||
-    sizeFilter !== "all" ||
-    colorFilter !== "all" ||
     supplierFilter !== "all" ||
     supplierInvoiceFilter !== "all" ||
     stockStatusFilter === "in" ||
