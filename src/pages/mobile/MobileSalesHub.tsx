@@ -9,6 +9,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { MobileModuleNavStrip } from "@/components/mobile/MobileModuleNavStrip";
 import { MobileSalePrintPreviewDialog } from "@/components/mobile/MobileSalePrintPreviewDialog";
+import { MobileInvoiceDetail } from "@/components/mobile/MobileInvoiceDetail";
+import { buildSaleWhatsAppMessage } from "@/utils/mobileInvoicePreviewData";
 import { MobileDateFilterChips } from "@/components/mobile/MobileDateFilterChips";
 import { MOBILE_HOME_SALE_TYPES, mobileSalesDateBounds } from "@/lib/mobileShell";
 import { formatTimestampIST } from "@/lib/localDayBounds";
@@ -30,6 +32,8 @@ export default function MobileSalesHub() {
   const [search, setSearch] = useState("");
 
   const openCustomerAccount = useOpenCustomerAccount();
+  const [detailSaleId, setDetailSaleId] = useState<string | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
   const [previewSaleId, setPreviewSaleId] = useState<string | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
 
@@ -140,7 +144,12 @@ export default function MobileSalesHub() {
     }
   };
 
-  const handleOpenPreview = (saleId: string) => {
+  const handleOpenDetail = (saleId: string) => {
+    setDetailSaleId(saleId);
+    setDetailOpen(true);
+  };
+
+  const handleOpenPrint = (saleId: string) => {
     setPreviewSaleId(saleId);
     setPreviewOpen(true);
   };
@@ -242,7 +251,11 @@ export default function MobileSalesHub() {
               key={sale.id}
               className="w-full bg-white dark:bg-card rounded-2xl border border-border/40 shadow-sm text-left overflow-hidden"
             >
-              <div className="p-4">
+              <button
+                type="button"
+                onClick={() => handleOpenDetail(sale.id)}
+                className="w-full p-4 text-left active:bg-muted/30 touch-manipulation"
+              >
                 <div className="flex items-start justify-between">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
@@ -279,22 +292,20 @@ export default function MobileSalesHub() {
                     )}
                   </div>
                 </div>
-              </div>
+              </button>
               {/* Action buttons row */}
               <div className="flex items-center border-t border-border/40 divide-x divide-border/40">
                 <button
-                  onClick={() => handleOpenPreview(sale.id)}
+                  onClick={() => handleOpenDetail(sale.id)}
                   className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium text-primary active:bg-primary/5 transition-colors touch-manipulation"
                 >
                   <Eye className="h-3.5 w-3.5" />
-                  <span>Preview</span>
+                  <span>Details</span>
                 </button>
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    const invoiceUrl = `https://app.inventoryshop.in/invoice/view/${sale.id}`;
-                    const message = `Invoice ${sale.sale_number}%0AAmount: ₹${(sale.net_amount || 0).toLocaleString("en-IN")}%0ACustomer: ${sale.customer_name || 'Walk-in'}%0A%0AView: ${invoiceUrl}`;
-                    window.open(`https://wa.me/?text=${message}`, '_blank');
+                    window.open(`https://wa.me/?text=${buildSaleWhatsAppMessage(sale)}`, "_blank");
                   }}
                   className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium text-emerald-600 active:bg-emerald-50 transition-colors touch-manipulation"
                 >
@@ -304,7 +315,7 @@ export default function MobileSalesHub() {
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    handleOpenPreview(sale.id);
+                    handleOpenPrint(sale.id);
                   }}
                   className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium text-violet-600 active:bg-violet-50 transition-colors touch-manipulation"
                 >
@@ -316,6 +327,15 @@ export default function MobileSalesHub() {
           ))
         )}
       </div>
+
+      <MobileInvoiceDetail
+        saleId={detailSaleId}
+        open={detailOpen}
+        onOpenChange={(open) => {
+          setDetailOpen(open);
+          if (!open) setDetailSaleId(null);
+        }}
+      />
 
       <MobileSalePrintPreviewDialog
         saleId={previewSaleId}

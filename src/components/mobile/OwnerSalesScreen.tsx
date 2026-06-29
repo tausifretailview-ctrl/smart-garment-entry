@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { OwnerSalesDashboard } from "./OwnerSalesDashboard";
 import { OwnerSalesBillList } from "./OwnerSalesBillList";
-import { MobileSalePrintPreviewDialog } from "./MobileSalePrintPreviewDialog";
+import { MobileInvoiceDetail } from "./MobileInvoiceDetail";
 import { mobilePageScrollWithNavClass } from "@/lib/mobileShell";
 import { cn } from "@/lib/utils";
 
@@ -13,14 +13,14 @@ const SalesScroll = ({ children }: { children: React.ReactNode }) => (
 
 export const OwnerSalesScreen = () => {
   const [screen, setScreen] = useState<Screen>("dashboard");
-  const [previewSaleId, setPreviewSaleId] = useState<string | null>(null);
-  const [previewOpen, setPreviewOpen] = useState(false);
+  const [detailSaleId, setDetailSaleId] = useState<string | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
   const [period, setPeriod] = useState<"today" | "week" | "month" | "custom">("today");
   const [customRange, setCustomRange] = useState<{ from: Date; to: Date } | null>(null);
 
   const handleViewBill = (billId: string) => {
-    setPreviewSaleId(billId);
-    setPreviewOpen(true);
+    setDetailSaleId(billId);
+    setDetailOpen(true);
   };
 
   if (screen === "bills") {
@@ -34,12 +34,12 @@ export const OwnerSalesScreen = () => {
             onViewBill={handleViewBill}
           />
         </SalesScroll>
-        <MobileSalePrintPreviewDialog
-          saleId={previewSaleId}
-          open={previewOpen}
+        <MobileInvoiceDetail
+          saleId={detailSaleId}
+          open={detailOpen}
           onOpenChange={(open) => {
-            setPreviewOpen(open);
-            if (!open) setPreviewSaleId(null);
+            setDetailOpen(open);
+            if (!open) setDetailSaleId(null);
           }}
         />
       </>
@@ -58,12 +58,12 @@ export const OwnerSalesScreen = () => {
           onViewBill={handleViewBill}
         />
       </SalesScroll>
-      <MobileSalePrintPreviewDialog
-        saleId={previewSaleId}
-        open={previewOpen}
+      <MobileInvoiceDetail
+        saleId={detailSaleId}
+        open={detailOpen}
         onOpenChange={(open) => {
-          setPreviewOpen(open);
-          if (!open) setPreviewSaleId(null);
+          setDetailOpen(open);
+          if (!open) setDetailSaleId(null);
         }}
       />
     </>

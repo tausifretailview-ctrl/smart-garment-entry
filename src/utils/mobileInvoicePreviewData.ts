@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { CUSTOMER_RECEIPT_REFERENCE_TYPE_VALUES } from "@/utils/paymentVoucherFilters";
 
 export type SaleInvoicePreviewRow = {
   id: string;
@@ -12,6 +13,8 @@ export type SaleInvoicePreviewRow = {
   flat_discount_amount?: number | null;
   sale_return_adjust?: number | null;
   net_amount: number;
+  paid_amount?: number | null;
+  payment_status?: string | null;
   payment_method?: string | null;
   salesman?: string | null;
   notes?: string | null;
@@ -41,7 +44,7 @@ export async function fetchSaleForInvoicePreview(
   const { data: sale, error } = await supabase
     .from("sales")
     .select(
-      "id, sale_number, sale_date, customer_name, customer_address, customer_phone, gross_amount, discount_amount, flat_discount_amount, sale_return_adjust, net_amount, payment_method, salesman, notes, customers(gst_number)",
+      "id, sale_number, sale_date, customer_name, customer_address, customer_phone, gross_amount, discount_amount, flat_discount_amount, sale_return_adjust, net_amount, paid_amount, payment_status, payment_method, salesman, notes, customers(gst_number)",
     )
     .eq("id", saleId)
     .eq("organization_id", organizationId)
@@ -76,4 +79,40 @@ export async function fetchSaleForInvoicePreview(
   }
 
   return { ...sale, sale_items: saleItems };
+}
+
+export type SalePaymentHistoryRow = {
+  id: string;
+  voucher_number: string;
+  voucher_date: string;
+  total_amount: number;
+  discount_amount: number | null;
+  payment_method: string | null;
+};
+
+export async function fetchSalePaymentHistory(
+  saleId: string,
+  organizationId: string,
+): Promise<SalePaymentHistoryRow[]> {
+  const { data, error } = await supabase
+    .from("voucher_entries")
+    .select("id, voucher_number, voucher_date, total_amount, discount_amount, payment_method")
+    .eq("organization_id", organizationId)
+    .eq("reference_id", saleId)
+    .in("reference_type", [...CUSTOMER_RECEIPT_REFERENCE_TYPE_VALUES])
+    .ilike("voucher_type", "receipt")
+    .is("deleted_at", null)
+    .order("voucher_date", { ascending: false });
+  if (error) throw error;
+  return (data || []) as SalePaymentHistoryRow[];
+}
+
+export function buildSaleWhatsAppMessage(sale: {
+  id: string;
+  sale_number: string;
+  net_amount: number;
+  customer_name?: string | null;
+}): string {
+  const invoiceUrl = `https://app.inventoryshop.in/invoice/view/${sale.id}`;
+  return `Invoice ${sale.sale_number}%0AAmount: ₹${(sale.net_amount || 0).toLocaleString("en-IN")}%0ACustomer: ${sale.customer_name || "Walk-in"}%0A%0AView: ${invoiceUrl}`;
 }
