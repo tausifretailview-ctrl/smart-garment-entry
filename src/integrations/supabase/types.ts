@@ -6089,6 +6089,7 @@ export type Database = {
         Row: {
           bill_number: string | null
           created_at: string
+          deleted_at: string | null
           id: string
           movement_type: string
           notes: string | null
@@ -6101,6 +6102,7 @@ export type Database = {
         Insert: {
           bill_number?: string | null
           created_at?: string
+          deleted_at?: string | null
           id?: string
           movement_type: string
           notes?: string | null
@@ -6113,6 +6115,7 @@ export type Database = {
         Update: {
           bill_number?: string | null
           created_at?: string
+          deleted_at?: string | null
           id?: string
           movement_type?: string
           notes?: string | null
