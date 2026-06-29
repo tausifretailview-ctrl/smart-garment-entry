@@ -3,7 +3,6 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
-  Cell,
   Legend,
   ResponsiveContainer,
   Tooltip,
@@ -17,20 +16,17 @@ import {
   useCategoryPerformance,
   useProductPerformance,
 } from "@/hooks/useBusinessInsights";
-import { Card, CardContent } from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
+import { marginBorderClass } from "@/components/business-insights/insightsMarginUtils";
 import {
-  marginBarColor,
-  marginBorderClass,
-} from "@/components/business-insights/insightsMarginUtils";
+  INSIGHTS_TAB_SHELL,
+  InsightsKpiCard,
+  InsightsKpiStrip,
+  InsightsPanel,
+  InsightsStaticTh,
+  InsightsTableHeader,
+} from "@/components/business-insights/insightsLayout";
 
 function num(v: unknown): number {
   const n = Number(v);
@@ -71,17 +67,6 @@ export function SalesTrendsTab({ startDate, endDate }: SalesTrendsTabProps) {
         .sort((a, b) => num(b.units_sold) - num(a.units_sold))
         .slice(0, 10),
     [products],
-  );
-
-  const topProductsChart = useMemo(
-    () =>
-      topProducts.map((p) => ({
-        name: truncateLabel(p.product_name || "—"),
-        fullName: p.product_name,
-        units_sold: num(p.units_sold),
-        margin: num(p.profit_margin_pct),
-      })),
-    [topProducts],
   );
 
   const slowMovers = useMemo(
@@ -130,137 +115,126 @@ export function SalesTrendsTab({ startDate, endDate }: SalesTrendsTabProps) {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Section A — top products */}
-      <Card>
-        <CardContent className="space-y-4 p-4">
-          <h3 className="text-base font-semibold">Top 10 Products This Period</h3>
+    <div className={INSIGHTS_TAB_SHELL}>
+      <InsightsKpiStrip>
+        <InsightsKpiCard
+          label="Top Product (Units)"
+          value={topProducts[0]?.product_name ?? "—"}
+          sub={
+            topProducts[0]
+              ? `${num(topProducts[0].units_sold)} units · ${formatInsightsINR(num(topProducts[0].revenue))}`
+              : "No sales in period"
+          }
+          gradient="bg-gradient-to-br from-blue-500 to-blue-600"
+        />
+        <InsightsKpiCard
+          label="Slow Movers"
+          value={slowMovers.length}
+          sub="Stock on hand, &lt; 5 units sold"
+          gradient="bg-gradient-to-br from-amber-500 to-amber-600"
+        />
+        <InsightsKpiCard
+          label="Categories with Sales"
+          value={categoryChart.length}
+          sub={
+            categoryChart[0]
+              ? `Top: ${categoryChart[0].fullName}`
+              : "No category data"
+          }
+          gradient="bg-gradient-to-br from-emerald-500 to-emerald-600"
+        />
+      </InsightsKpiStrip>
 
-          {topProductsChart.length === 0 ? (
-            <p className="py-8 text-center text-sm text-muted-foreground">No sales in selected period</p>
-          ) : (
-            <ResponsiveContainer width="100%" height={320}>
-              <BarChart data={topProductsChart} layout="vertical" margin={{ left: 4, right: 16 }}>
-                <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                <XAxis type="number" tick={{ fontSize: 10 }} allowDecimals={false} />
-                <YAxis type="category" dataKey="name" width={120} tick={{ fontSize: 9 }} />
-                <Tooltip
-                  formatter={(v: number) => [`${v} units`, "Units sold"]}
-                  labelFormatter={(_, payload) => payload?.[0]?.payload?.fullName ?? ""}
-                />
-                <Bar dataKey="units_sold" name="Units sold" radius={[0, 4, 4, 0]}>
-                  {topProductsChart.map((entry) => (
-                    <Cell key={entry.fullName} fill={marginBarColor(entry.margin)} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          )}
+      <InsightsPanel className="flex-1" title="Top 10 Products This Period">
+        <Table>
+          <InsightsTableHeader>
+            <InsightsStaticTh label="#" className="w-10" />
+            <InsightsStaticTh label="Product" />
+            <InsightsStaticTh label="Brand" />
+            <InsightsStaticTh label="Units Sold" className="text-right" />
+            <InsightsStaticTh label="Revenue" className="text-right" />
+            <InsightsStaticTh label="Margin %" className="text-right" />
+          </InsightsTableHeader>
+          <TableBody>
+            {topProducts.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={6} className="py-6 text-center text-muted-foreground">
+                  No product sales in period
+                </TableCell>
+              </TableRow>
+            ) : (
+              topProducts.map((row, idx) => {
+                const margin = num(row.profit_margin_pct);
+                return (
+                  <TableRow
+                    key={row.product_id}
+                    className={cn(marginBorderClass(margin))}
+                  >
+                    <TableCell className="tabular-nums text-muted-foreground px-3">{idx + 1}</TableCell>
+                    <TableCell className="font-medium px-3">{row.product_name}</TableCell>
+                    <TableCell className="px-3">{row.brand || "—"}</TableCell>
+                    <TableCell className="text-right tabular-nums font-semibold px-3">
+                      {num(row.units_sold)}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums px-3">
+                      {formatInsightsINR(num(row.revenue))}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums px-3">{margin.toFixed(1)}%</TableCell>
+                  </TableRow>
+                );
+              })
+            )}
+          </TableBody>
+        </Table>
+      </InsightsPanel>
 
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-2 shrink-0 min-h-[180px] max-h-[min(36vh,320px)]">
+        <InsightsPanel
+          title="Slow Movers This Period"
+          subtitle="In stock but &lt; 5 units sold in date range"
+          className="min-h-0"
+        >
+          <Table>
+            <InsightsTableHeader>
+              <InsightsStaticTh label="Product" />
+              <InsightsStaticTh label="Brand" />
+              <InsightsStaticTh label="Units Sold" className="text-right" />
+              <InsightsStaticTh label="Stock Qty" className="text-right" />
+              <InsightsStaticTh label="Stock Value" className="text-right" />
+            </InsightsTableHeader>
+            <TableBody>
+              {slowMovers.length === 0 ? (
                 <TableRow>
-                  <TableHead className="w-10">#</TableHead>
-                  <TableHead>Product</TableHead>
-                  <TableHead>Brand</TableHead>
-                  <TableHead className="text-right">Units Sold</TableHead>
-                  <TableHead className="text-right">Revenue</TableHead>
-                  <TableHead className="text-right">Margin %</TableHead>
+                  <TableCell colSpan={5} className="py-6 text-center text-muted-foreground">
+                    No slow movers matching criteria
+                  </TableCell>
                 </TableRow>
-              </TableHeader>
-              <TableBody>
-                {topProducts.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={6} className="py-6 text-center text-muted-foreground">
-                      No product sales in period
+              ) : (
+                slowMovers.map((row) => (
+                  <TableRow key={row.product_id}>
+                    <TableCell className="font-medium px-3">{row.product_name}</TableCell>
+                    <TableCell className="px-3">{row.brand || "—"}</TableCell>
+                    <TableCell className="text-right tabular-nums px-3">{num(row.units_sold)}</TableCell>
+                    <TableCell className="text-right tabular-nums px-3">{num(row.current_stock)}</TableCell>
+                    <TableCell className="text-right tabular-nums px-3">
+                      {formatInsightsINR(num(row.stock_value))}
                     </TableCell>
                   </TableRow>
-                ) : (
-                  topProducts.map((row, idx) => {
-                    const margin = num(row.profit_margin_pct);
-                    return (
-                      <TableRow
-                        key={row.product_id}
-                        className={cn(marginBorderClass(margin))}
-                      >
-                        <TableCell className="tabular-nums text-muted-foreground">{idx + 1}</TableCell>
-                        <TableCell className="font-medium">{row.product_name}</TableCell>
-                        <TableCell>{row.brand || "—"}</TableCell>
-                        <TableCell className="text-right tabular-nums font-semibold">
-                          {num(row.units_sold)}
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          {formatInsightsINR(num(row.revenue))}
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums">{margin.toFixed(1)}%</TableCell>
-                      </TableRow>
-                    );
-                  })
-                )}
-              </TableBody>
-            </Table>
-          </div>
-        </CardContent>
-      </Card>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </InsightsPanel>
 
-      {/* Section B — slow movers in period */}
-      <Card>
-        <CardContent className="space-y-4 p-4">
-          <div>
-            <h3 className="text-base font-semibold">Slow Movers This Period</h3>
-            <p className="text-sm text-muted-foreground">
-              These products have stock but low sales in the selected period (&lt; 5 units sold).
-            </p>
-          </div>
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Product</TableHead>
-                  <TableHead>Brand</TableHead>
-                  <TableHead className="text-right">Units Sold</TableHead>
-                  <TableHead className="text-right">Stock Qty</TableHead>
-                  <TableHead className="text-right">Stock Value</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {slowMovers.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={5} className="py-6 text-center text-muted-foreground">
-                      No slow movers matching criteria
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  slowMovers.map((row) => (
-                    <TableRow key={row.product_id}>
-                      <TableCell className="font-medium">{row.product_name}</TableCell>
-                      <TableCell>{row.brand || "—"}</TableCell>
-                      <TableCell className="text-right tabular-nums">{num(row.units_sold)}</TableCell>
-                      <TableCell className="text-right tabular-nums">{num(row.current_stock)}</TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {formatInsightsINR(num(row.stock_value))}
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Section C — category value breakdown */}
-      <Card>
-        <CardContent className="space-y-4 p-4">
-          <h3 className="text-base font-semibold">Category Revenue &amp; Profit</h3>
-          <p className="text-sm text-muted-foreground">
-            Revenue, cost, and gross profit by category for the selected period.
-          </p>
+        <InsightsPanel
+          title="Category Revenue & Profit"
+          subtitle="By category for selected period"
+          className="min-h-0"
+        >
           {categoryChart.length === 0 ? (
             <p className="py-8 text-center text-sm text-muted-foreground">No category sales data</p>
           ) : (
-            <ResponsiveContainer width="100%" height={360}>
+            <ResponsiveContainer width="100%" height={260}>
               <BarChart data={categoryChart} margin={{ top: 8, right: 16, left: 8, bottom: 48 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
                 <XAxis
@@ -289,8 +263,8 @@ export function SalesTrendsTab({ startDate, endDate }: SalesTrendsTabProps) {
               </BarChart>
             </ResponsiveContainer>
           )}
-        </CardContent>
-      </Card>
+        </InsightsPanel>
+      </div>
     </div>
   );
 }

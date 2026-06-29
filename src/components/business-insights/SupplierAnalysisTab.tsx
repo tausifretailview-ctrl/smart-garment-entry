@@ -184,129 +184,145 @@ export function SupplierAnalysisTab({ startDate, endDate }: SupplierAnalysisTabP
   }
 
   return (
-    <div className="space-y-6">
-      {/* Section A — scorecard */}
-      <Card>
-        <CardContent className="space-y-4 p-4">
-          <h3 className="text-base font-semibold">Supplier Scorecard</h3>
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <SortableHead
-                    label="Supplier"
-                    active={sortKey === "supplier_name"}
-                    dir={sortDir}
-                    onClick={() => toggleSort("supplier_name")}
-                  />
-                  <SortableHead
-                    label="Bills"
-                    active={sortKey === "bill_count"}
-                    dir={sortDir}
-                    onClick={() => toggleSort("bill_count")}
-                    className="text-right"
-                  />
-                  <SortableHead
-                    label="Total Purchased"
-                    active={sortKey === "total_purchased"}
-                    dir={sortDir}
-                    onClick={() => toggleSort("total_purchased")}
-                    className="text-right"
-                  />
-                  <SortableHead
-                    label="Units Sold"
-                    active={sortKey === "units_sold"}
-                    dir={sortDir}
-                    onClick={() => toggleSort("units_sold")}
-                    className="text-right"
-                  />
-                  <SortableHead
-                    label="Sell-through %"
-                    active={sortKey === "sell_through_rate_pct"}
-                    dir={sortDir}
-                    onClick={() => toggleSort("sell_through_rate_pct")}
-                    className="text-right"
-                  />
-                  <SortableHead
-                    label="Returns"
-                    active={sortKey === "return_to_supplier"}
-                    dir={sortDir}
-                    onClick={() => toggleSort("return_to_supplier")}
-                    className="text-right"
-                  />
-                  <SortableHead
-                    label="Stock Sitting"
-                    active={sortKey === "current_stock_value"}
-                    dir={sortDir}
-                    onClick={() => toggleSort("current_stock_value")}
-                    className="text-right"
-                  />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {sortedSuppliers.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
-                      No supplier purchases in the selected period
+    <div className={INSIGHTS_TAB_SHELL}>
+      <InsightsKpiStrip>
+        <InsightsKpiCard
+          label="Suppliers Active"
+          value={suppliers.length}
+          sub="With purchases in period"
+          gradient="bg-gradient-to-br from-blue-500 to-blue-600"
+        />
+        <InsightsKpiCard
+          label="Total Purchased"
+          value={formatInsightsINR(totalPurchased)}
+          sub={`Avg sell-through ${avgSellThrough.toFixed(1)}%`}
+          gradient="bg-gradient-to-br from-emerald-500 to-emerald-600"
+        />
+        <InsightsKpiCard
+          label="Top Performer"
+          value={topPerformers[0]?.supplier_name ?? "—"}
+          sub={
+            topPerformers[0]
+              ? `${num(topPerformers[0].sell_through_rate_pct).toFixed(1)}% sell-through`
+              : "No data"
+          }
+          gradient="bg-gradient-to-br from-slate-600 to-slate-700"
+        />
+      </InsightsKpiStrip>
+
+      <InsightsPanel className="flex-1" title="Supplier Scorecard">
+        <Table>
+          <InsightsTableHeader>
+            <InsightsSortableTh
+              label="Supplier"
+              active={sortKey === "supplier_name"}
+              dir={sortDir}
+              onClick={() => toggleSort("supplier_name")}
+            />
+            <InsightsSortableTh
+              label="Bills"
+              active={sortKey === "bill_count"}
+              dir={sortDir}
+              onClick={() => toggleSort("bill_count")}
+              className="text-right"
+            />
+            <InsightsSortableTh
+              label="Total Purchased"
+              active={sortKey === "total_purchased"}
+              dir={sortDir}
+              onClick={() => toggleSort("total_purchased")}
+              className="text-right"
+            />
+            <InsightsSortableTh
+              label="Units Sold"
+              active={sortKey === "units_sold"}
+              dir={sortDir}
+              onClick={() => toggleSort("units_sold")}
+              className="text-right"
+            />
+            <InsightsSortableTh
+              label="Sell-through %"
+              active={sortKey === "sell_through_rate_pct"}
+              dir={sortDir}
+              onClick={() => toggleSort("sell_through_rate_pct")}
+              className="text-right"
+            />
+            <InsightsSortableTh
+              label="Returns"
+              active={sortKey === "return_to_supplier"}
+              dir={sortDir}
+              onClick={() => toggleSort("return_to_supplier")}
+              className="text-right"
+            />
+            <InsightsSortableTh
+              label="Stock Sitting"
+              active={sortKey === "current_stock_value"}
+              dir={sortDir}
+              onClick={() => toggleSort("current_stock_value")}
+              className="text-right"
+            />
+          </InsightsTableHeader>
+          <TableBody>
+            {sortedSuppliers.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
+                  No supplier purchases in the selected period
+                </TableCell>
+              </TableRow>
+            ) : (
+              sortedSuppliers.map((row) => {
+                const rate = num(row.sell_through_rate_pct);
+                return (
+                  <TableRow key={row.supplier_id}>
+                    <TableCell className="min-w-[160px] px-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-medium">{row.supplier_name}</span>
+                        {row.supplier_id === highlights.bestValueId && (
+                          <Badge variant="outline" className="text-xs border-emerald-300 text-emerald-700">
+                            Best Value
+                          </Badge>
+                        )}
+                        {row.supplier_id === highlights.reviewId && (
+                          <Badge variant="outline" className="text-xs border-amber-300 text-amber-700">
+                            Review
+                          </Badge>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums px-3">{num(row.bill_count)}</TableCell>
+                    <TableCell className="text-right tabular-nums px-3">
+                      {formatInsightsINR(num(row.total_purchased))}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums px-3">{num(row.units_sold)}</TableCell>
+                    <TableCell className="text-right px-3">
+                      <Badge className={cn("tabular-nums font-semibold", sellThroughBadgeClass(rate))}>
+                        {rate.toFixed(1)}%
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums px-3">
+                      {num(row.return_to_supplier)}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums px-3">
+                      {formatInsightsINR(num(row.current_stock_value))}
                     </TableCell>
                   </TableRow>
-                ) : (
-                  sortedSuppliers.map((row) => {
-                    const rate = num(row.sell_through_rate_pct);
-                    return (
-                      <TableRow key={row.supplier_id}>
-                        <TableCell className="min-w-[160px]">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="font-medium">{row.supplier_name}</span>
-                            {row.supplier_id === highlights.bestValueId && (
-                              <Badge variant="outline" className="text-xs border-emerald-300 text-emerald-700">
-                                ⭐ Best Value
-                              </Badge>
-                            )}
-                            {row.supplier_id === highlights.reviewId && (
-                              <Badge variant="outline" className="text-xs border-amber-300 text-amber-700">
-                                ⚠️ Review
-                              </Badge>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums">{num(row.bill_count)}</TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          {formatInsightsINR(num(row.total_purchased))}
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums">{num(row.units_sold)}</TableCell>
-                        <TableCell className="text-right">
-                          <Badge className={cn("tabular-nums font-semibold", sellThroughBadgeClass(rate))}>
-                            {rate.toFixed(1)}%
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          {num(row.return_to_supplier)}
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          {formatInsightsINR(num(row.current_stock_value))}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })
-                )}
-              </TableBody>
-            </Table>
-          </div>
-        </CardContent>
-      </Card>
+                );
+              })
+            )}
+          </TableBody>
+        </Table>
+      </InsightsPanel>
 
-      {/* Section B — chart */}
-      <Card>
-        <CardContent className="p-4">
-          <h3 className="mb-1 text-base font-semibold">Purchase vs Estimated Sold Value</h3>
-          <p className="mb-4 text-sm text-muted-foreground">
-            Top 8 suppliers by purchase volume. Green bar ≈ units sold × avg purchase cost.
-          </p>
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-2 shrink-0 min-h-[160px] max-h-[min(32vh,280px)]">
+        <InsightsPanel
+          title="Purchase vs Sold Value"
+          subtitle="Top 8 by purchase volume"
+          className="xl:col-span-2 min-h-0"
+        >
           {chartData.length === 0 ? (
-            <p className="py-12 text-center text-sm text-muted-foreground">No chart data</p>
+            <p className="py-8 text-center text-sm text-muted-foreground">No chart data</p>
           ) : (
-            <ResponsiveContainer width="100%" height={340}>
+            <ResponsiveContainer width="100%" height={220}>
               <BarChart data={chartData} margin={{ top: 8, right: 16, left: 8, bottom: 48 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
                 <XAxis
@@ -322,9 +338,7 @@ export function SupplierAnalysisTab({ startDate, endDate }: SupplierAnalysisTabP
                     formatInsightsINR(v),
                     name === "purchased" ? "Total purchased" : "Est. sold value",
                   ]}
-                  labelFormatter={(_, payload) =>
-                    payload?.[0]?.payload?.fullName ?? ""
-                  }
+                  labelFormatter={(_, payload) => payload?.[0]?.payload?.fullName ?? ""}
                 />
                 <Legend />
                 <Bar dataKey="purchased" name="Total purchased" fill="hsl(210, 70%, 50%)" radius={[4, 4, 0, 0]} />
@@ -332,73 +346,55 @@ export function SupplierAnalysisTab({ startDate, endDate }: SupplierAnalysisTabP
               </BarChart>
             </ResponsiveContainer>
           )}
-        </CardContent>
-      </Card>
+        </InsightsPanel>
 
-      {/* Section C — top vs bottom */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <Card className="border-l-4 border-l-emerald-500">
-          <CardContent className="p-4 space-y-3">
-            <div className="flex items-center gap-2">
-              <Star className="h-5 w-5 text-emerald-600" />
-              <h3 className="font-semibold">Best Suppliers</h3>
+        <div className="grid grid-rows-2 gap-2 min-h-0">
+          <div className="rounded-lg border border-slate-200 bg-white shadow-sm p-3 overflow-hidden min-h-0">
+            <div className="flex items-center gap-2 mb-2">
+              <Star className="h-4 w-4 text-emerald-600 shrink-0" />
+              <h3 className="text-sm font-bold text-slate-800">Best Suppliers</h3>
             </div>
             {topPerformers.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No supplier data</p>
+              <p className="text-xs text-muted-foreground">No supplier data</p>
             ) : (
-              <ul className="space-y-3">
+              <ul className="space-y-2 text-sm">
                 {topPerformers.map((s, i) => (
-                  <li key={s.supplier_id} className="flex items-start justify-between gap-2 border-b pb-2 last:border-0">
-                    <div>
-                      <span className="text-xs text-muted-foreground">#{i + 1}</span>{" "}
-                      <span className="font-medium">{s.supplier_name}</span>
-                    </div>
-                    <div className="text-right text-sm shrink-0">
-                      <Badge className={cn("tabular-nums", sellThroughBadgeClass(num(s.sell_through_rate_pct)))}>
-                        {num(s.sell_through_rate_pct).toFixed(1)}%
-                      </Badge>
-                      <p className="mt-1 text-xs text-muted-foreground tabular-nums">
-                        {formatInsightsINR(num(s.total_purchased))} purchased
-                      </p>
-                    </div>
+                  <li key={s.supplier_id} className="flex justify-between gap-2 border-b border-slate-100 pb-1.5 last:border-0">
+                    <span className="truncate font-medium">
+                      <span className="text-muted-foreground text-xs">#{i + 1}</span> {s.supplier_name}
+                    </span>
+                    <Badge className={cn("tabular-nums shrink-0 text-xs", sellThroughBadgeClass(num(s.sell_through_rate_pct)))}>
+                      {num(s.sell_through_rate_pct).toFixed(1)}%
+                    </Badge>
                   </li>
                 ))}
               </ul>
             )}
-          </CardContent>
-        </Card>
-
-        <Card className="border-l-4 border-l-amber-500">
-          <CardContent className="p-4 space-y-3">
-            <div className="flex items-center gap-2">
-              <TrendingDown className="h-5 w-5 text-amber-600" />
-              <h3 className="font-semibold">Needs Review</h3>
-              <span className="text-xs text-muted-foreground">(min. 5 bills)</span>
+          </div>
+          <div className="rounded-lg border border-slate-200 bg-white shadow-sm p-3 overflow-hidden min-h-0">
+            <div className="flex items-center gap-2 mb-2">
+              <TrendingDown className="h-4 w-4 text-amber-600 shrink-0" />
+              <h3 className="text-sm font-bold text-slate-800">Needs Review</h3>
+              <span className="text-xs text-muted-foreground">(5+ bills)</span>
             </div>
             {needsReview.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No qualifying suppliers</p>
+              <p className="text-xs text-muted-foreground">No qualifying suppliers</p>
             ) : (
-              <ul className="space-y-3">
+              <ul className="space-y-2 text-sm">
                 {needsReview.map((s, i) => (
-                  <li key={s.supplier_id} className="flex items-start justify-between gap-2 border-b pb-2 last:border-0">
-                    <div>
-                      <span className="text-xs text-muted-foreground">#{i + 1}</span>{" "}
-                      <span className="font-medium">{s.supplier_name}</span>
-                    </div>
-                    <div className="text-right text-sm shrink-0">
-                      <Badge className={cn("tabular-nums", sellThroughBadgeClass(num(s.sell_through_rate_pct)))}>
-                        {num(s.sell_through_rate_pct).toFixed(1)}%
-                      </Badge>
-                      <p className="mt-1 text-xs text-muted-foreground tabular-nums">
-                        {formatInsightsINR(num(s.current_stock_value))} stock sitting
-                      </p>
-                    </div>
+                  <li key={s.supplier_id} className="flex justify-between gap-2 border-b border-slate-100 pb-1.5 last:border-0">
+                    <span className="truncate font-medium">
+                      <span className="text-muted-foreground text-xs">#{i + 1}</span> {s.supplier_name}
+                    </span>
+                    <Badge className={cn("tabular-nums shrink-0 text-xs", sellThroughBadgeClass(num(s.sell_through_rate_pct)))}>
+                      {num(s.sell_through_rate_pct).toFixed(1)}%
+                    </Badge>
                   </li>
                 ))}
               </ul>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
     </div>
   );
