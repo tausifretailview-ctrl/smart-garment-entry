@@ -5896,7 +5896,7 @@ export default function POSSales() {
           <div className="w-full h-full min-h-0 flex flex-col overflow-hidden">
           <Card className="flex-1 min-h-0 overflow-hidden flex flex-col border-border/60 shadow-sm">
             <div className="bg-slate-900 text-white">
-              <div className="pos-sales-cart-header grid gap-1.5 px-3 py-2 text-[11px] font-semibold uppercase tracking-wider" style={{ gridTemplateColumns: posCartGridCols }}>
+              <div className="pos-sales-cart-header grid gap-1.5 px-3 py-2.5 text-xs font-semibold uppercase tracking-wider" style={{ gridTemplateColumns: posCartGridCols }}>
                 <div className="text-center">Sr No</div>
                 <div>Barcode</div>
                 <div>Product</div>
@@ -5964,7 +5964,7 @@ export default function POSSales() {
               {(() => {
                   const blankRowsNeeded = cartPadRowCount;
                   const blankRow = (idx: number) => (
-                    <div key={`blank-${idx}`} className={`pos-sales-cart-row grid gap-1.5 px-3 py-2 border-b border-border/40 text-sm ${(items.length + idx) % 2 === 1 ? 'bg-muted/20' : ''}`} style={{ gridTemplateColumns: posCartGridCols }}>
+                    <div key={`blank-${idx}`} className={`pos-sales-cart-row grid gap-1.5 px-3 py-2.5 border-b border-border/40 text-base ${(items.length + idx) % 2 === 1 ? 'bg-muted/20' : ''}`} style={{ gridTemplateColumns: posCartGridCols }}>
                       <div className="flex items-center justify-center text-muted-foreground/30 font-medium">{items.length + idx + 1}</div>
                       <div className="flex items-center text-muted-foreground/20">—</div>
                       <div className="flex items-center text-muted-foreground/20">—</div>
@@ -5990,7 +5990,7 @@ export default function POSSales() {
                           }}
                           data-pos-cart-row={item.id}
                           className={cn(
-                            "pos-sales-cart-row grid gap-1.5 px-3 py-2 border-b border-border/40 hover:bg-accent/30 text-sm transition-colors duration-500",
+                            "pos-sales-cart-row grid gap-1.5 px-3 py-2.5 border-b border-border/40 hover:bg-accent/30 text-base transition-colors duration-500",
                             index % 2 === 1 ? "bg-muted/20" : "",
                             highlightCartItemId === item.id &&
                               "ring-2 ring-inset ring-primary/70 bg-primary/10 shadow-[inset_0_0_0_1px_rgba(59,130,246,0.35)] z-[1] relative"
@@ -6001,13 +6001,13 @@ export default function POSSales() {
                           <div
                             className={cn(
                               "flex items-center font-mono text-foreground/80 min-w-0",
-                              formatPosCartBarcode(item.barcode).length > 10 ? "text-[11px] leading-tight" : "text-sm",
+                              formatPosCartBarcode(item.barcode).length > 10 ? "text-sm leading-tight" : "text-base",
                             )}
                             title={formatPosCartBarcode(item.barcode) || undefined}
                           >
                             {formatPosCartBarcode(item.barcode)}
                           </div>
-                          <div className="flex items-center font-medium text-sm min-w-0 gap-1">
+                          <div className="flex items-center font-semibold text-base min-w-0 gap-1">
                             <span className="truncate">{item.productName}</span>
                             {item.isDcProduct && (
                               <span className="px-1 py-0.5 text-[9px] font-bold bg-orange-100 text-orange-700 border border-orange-300 rounded flex-shrink-0">DC</span>
@@ -6018,8 +6018,8 @@ export default function POSSales() {
                               </span>
                             )}
                           </div>
-                          <div className="flex items-center justify-center text-sm font-medium">{item.size}</div>
-                          <div className="flex items-center justify-center text-sm text-muted-foreground">{item.color || '-'}</div>
+                          <div className="flex items-center justify-center text-base font-medium">{item.size}</div>
+                          <div className="flex items-center justify-center text-base text-muted-foreground">{item.color || '-'}</div>
                           <div>
                             <Input
                               type="number"
@@ -6027,7 +6027,7 @@ export default function POSSales() {
                               onChange={(e) => updateQuantity(index, isDecimalUOM(item.uom) ? (parseFloat(e.target.value) || 0.001) : (parseInt(e.target.value) || 1))}
                               placeholder="1"
                               step={isDecimalUOM(item.uom) ? "0.001" : "1"}
-                              className="h-7 text-xs w-full text-center bg-muted/30 border-border/60"
+                              className="h-8 text-sm w-full text-center bg-muted/30 border-border/60"
                               min={isDecimalUOM(item.uom) ? "0.001" : "1"}
                             />
                             {item.uom && item.uom !== 'NOS' && item.uom !== 'PCS' && (
@@ -6040,7 +6040,7 @@ export default function POSSales() {
                               value={item.mrp || ""}
                               onChange={(e) => updateMrp(index, parseFloat(e.target.value) || 0)}
                               placeholder="0"
-                              className="h-7 text-xs w-full text-right bg-muted/30 border-border/60"
+                              className="h-8 text-sm w-full text-right bg-muted/30 border-border/60"
                               min="0"
                               step="0.01"
                             />
@@ -6049,7 +6049,7 @@ export default function POSSales() {
                             <select
                               value={String(item.gstPer ?? 0)}
                               onChange={(e) => updateGstPer(index, parseInt(e.target.value, 10))}
-                              className="h-7 w-full rounded-md text-xs border border-border/60 bg-muted/30 px-1.5 text-center focus:outline-none focus:ring-2 focus:ring-ring"
+                              className="h-8 w-full rounded-md text-sm border border-border/60 bg-muted/30 px-1.5 text-center focus:outline-none focus:ring-2 focus:ring-ring"
                             >
                               <option value="0">0%</option>
                               <option value="5">5%</option>
@@ -6064,7 +6064,7 @@ export default function POSSales() {
                               value={item.discountPercent || ""}
                               onChange={(e) => updateDiscountPercent(index, parseFloat(e.target.value) || 0)}
                               placeholder="0"
-                              className="h-7 text-xs w-full text-center bg-muted/30 border-border/60"
+                              className="h-8 text-sm w-full text-center bg-muted/30 border-border/60"
                               min="0"
                               max="100"
                               step="0.01"
@@ -6087,13 +6087,13 @@ export default function POSSales() {
                               }
                               onChange={(e) => updateDiscountAmount(index, parseFloat(e.target.value) || 0)}
                               placeholder="0"
-                              className="h-7 text-xs w-full text-right bg-muted/30 border-border/60"
+                              className="h-8 text-sm w-full text-right bg-muted/30 border-border/60"
                               min="0"
                               step="0.01"
                             />
                           </div>
                           <div
-                            className="flex items-center justify-end text-sm text-muted-foreground"
+                            className="flex items-center justify-end text-base font-medium text-muted-foreground"
                             title={
                               taxType === "exclusive"
                                 ? "Taxable unit (GST added in line total)"
