@@ -1,4 +1,4 @@
-import { Home, IndianRupee, ShoppingBag, Package, MoreHorizontal, ScanBarcode } from "lucide-react";
+import { Home, IndianRupee, BarChart3, MoreHorizontal, ScanBarcode } from "lucide-react";
 import { useLocation } from "react-router-dom";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useMobileScan } from "@/contexts/MobileScanContext";
@@ -32,8 +32,12 @@ const sideTabs: NavTab[] = [
     path: MOBILE_SALES_PATH,
     matchPaths: [MOBILE_SALES_PATH, MOBILE_OWNER_SALES_PATH],
   },
-  { icon: ShoppingBag, label: "Purchase", path: "/owner-purchases", matchPaths: ["/owner-purchases"] },
-  { icon: Package, label: "Stock", path: "/owner-stock", matchPaths: ["/owner-stock"] },
+  {
+    icon: BarChart3,
+    label: "Reports",
+    path: MOBILE_REPORTS_PATH,
+    matchPaths: [MOBILE_REPORTS_PATH],
+  },
   {
     icon: MoreHorizontal,
     label: "More",
@@ -41,7 +45,8 @@ const sideTabs: NavTab[] = [
     matchPaths: [
       "/mobile-more",
       MOBILE_ACCOUNTS_PATH,
-      MOBILE_REPORTS_PATH,
+      "/owner-purchases",
+      "/owner-stock",
       "/settings",
       "/daily-cashier-report",
       "/gst-reports",
