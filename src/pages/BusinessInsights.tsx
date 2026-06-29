@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getIndiaFinancialYear } from "@/utils/accountingReportUtils";
 import { ProfitabilityTab } from "@/components/business-insights/ProfitabilityTab";
 import { StockHealthTab } from "@/components/business-insights/StockHealthTab";
+import { SupplierAnalysisTab } from "@/components/business-insights/SupplierAnalysisTab";
 
 type InsightsTabId =
   | "profitability"
@@ -135,7 +136,7 @@ export default function BusinessInsights() {
 
         <TabsContent value="supplier-analysis" className="mt-0">
           {shouldMountTab("supplier-analysis") ? (
-            <TabPlaceholder title="Supplier Analysis" />
+            <SupplierAnalysisTab startDate={startDate} endDate={endDate} />
           ) : (
             <p className="text-sm text-muted-foreground">Select this tab to load supplier insights.</p>
           )}
