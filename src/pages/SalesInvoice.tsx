@@ -983,15 +983,22 @@ export default function SalesInvoice() {
           const fyEnd = fyStart + 1;
           const series = `INV/${String(fyStart).slice(2)}-${String(fyEnd).slice(2)}`;
           
-          // Read current last_number from sequences table
-          const { data: seqRow } = await supabase
-            .from('bill_number_sequences')
-            .select('last_number')
+          // Preview = MAX(active sale seq) + 1 — matches generate_sale_number_atomic (no counter increment)
+          const { data: lastSales } = await supabase
+            .from('sales')
+            .select('sale_number')
             .eq('organization_id', currentOrganization.id)
-            .eq('series', series)
-            .maybeSingle();
-          
-          const nextNum = (seqRow?.last_number || 0) + 1;
+            .is('deleted_at', null)
+            .like('sale_number', `${series}/%`)
+            .order('created_at', { ascending: false })
+            .limit(50);
+
+          let maxSeq = 0;
+          for (const s of lastSales || []) {
+            const matches = s.sale_number.match(/(\d+)$/);
+            if (matches) maxSeq = Math.max(maxSeq, parseInt(matches[1], 10));
+          }
+          const nextNum = maxSeq + 1;
           setNextInvoicePreview(`${series}/${nextNum}`);
         }
       } catch (error) {
