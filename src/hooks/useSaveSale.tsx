@@ -19,6 +19,7 @@ import {
   preSaveInvariants,
   warnSettlementPathMismatch,
 } from "@/utils/saleSettlement";
+import { generateOrgSaleNumber } from "@/utils/saleNumber";
 import {
   insertSaleItemsInChunks,
   isStatementTimeoutError,
@@ -96,51 +97,16 @@ export const useSaveSale = () => {
    * Auto-correct FY year in literal formats like "INV/25-26/1" → "INV/26-27/1"
    * so stale settings don't produce wrong-year invoices after April 1.
    */
-  const autoCorrectFY = (fmt: string): string => {
-    const ist = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
-    const m = ist.getMonth() + 1;
-    const y = ist.getFullYear();
-    const fyStart = m >= 4 ? y : y - 1;
-    const currentFY = `${String(fyStart).slice(-2)}-${String(fyStart + 1).slice(-2)}`;
-    // Match patterns like /25-26/ or /24-25/ in the format string
-    return fmt.replace(/\/(\d{2})-(\d{2})\//, `/${currentFY}/`);
-  };
-
   const generateInvoiceNumber = async (
     format: string,
     seriesStart?: string,
     kind: 'sale' | 'pos' = 'sale'
   ) => {
-    const now = new Date();
-    const year = String(now.getFullYear());
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-
-    // Auto-correct stale FY in literal formats
-    const correctedFormat = autoCorrectFY(format);
-    const correctedStart = seriesStart ? autoCorrectFY(seriesStart) : seriesStart;
-
-    // Determine minimum sequence from seriesStart trailing digits
-    let minSequence = 1;
-    if (correctedStart && correctedStart.trim()) {
-      const startMatches = correctedStart.match(/(\d+)$/);
-      if (startMatches) {
-        minSequence = parseInt(startMatches[1]);
-      }
-    }
-
-    const rpcName =
-      kind === 'pos' ? 'generate_custom_pos_number' : 'generate_custom_sale_number';
-
-    const { data, error } = await supabase.rpc(rpcName as any, {
-      p_organization_id: currentOrganization!.id,
-      p_format: correctedFormat,
-      p_year: year,
-      p_month: month,
-      p_min_sequence: minSequence,
-    } as any);
-
-    if (error) throw error;
-    return data as string;
+    const saleSettings =
+      kind === 'pos'
+        ? { pos_numbering_format: format, pos_series_start: seriesStart }
+        : { invoice_numbering_format: format, invoice_series_start: seriesStart };
+    return generateOrgSaleNumber(currentOrganization!.id, saleSettings, kind);
   };
 
   const roundMoney = (value: number) => Math.round((Number(value) || 0) * 100) / 100;

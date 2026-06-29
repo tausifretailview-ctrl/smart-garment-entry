@@ -1574,23 +1574,29 @@ export default function POSSales() {
           
           setNextInvoicePreview(`${basePattern}${sequence}`);
         } else {
-          // Peek at the next POS number WITHOUT incrementing the sequence
+          // Preview = MAX(active POS seq) + 1 — matches generate_pos_number_atomic
           const ist = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
           const m = ist.getMonth() + 1;
           const y = ist.getFullYear();
           const fyStart = m >= 4 ? y : y - 1;
           const fyEnd = fyStart + 1;
           const series = `POS/${String(fyStart).slice(-2)}-${String(fyEnd).slice(-2)}`;
-          
-          const { data: seqRow } = await supabase
-            .from('bill_number_sequences')
-            .select('last_number')
+
+          const { data: lastSales } = await supabase
+            .from('sales')
+            .select('sale_number')
             .eq('organization_id', currentOrganization.id)
-            .eq('series', series)
-            .maybeSingle();
-          
-          const nextNum = (seqRow?.last_number || 0) + 1;
-          setNextInvoicePreview(`${series}/${nextNum}`);
+            .is('deleted_at', null)
+            .like('sale_number', `${series}/%`)
+            .order('created_at', { ascending: false })
+            .limit(50);
+
+          let maxSeq = 0;
+          for (const s of lastSales || []) {
+            const matches = s.sale_number.match(/(\d+)$/);
+            if (matches) maxSeq = Math.max(maxSeq, parseInt(matches[1], 10));
+          }
+          setNextInvoicePreview(`${series}/${maxSeq + 1}`);
         }
       } catch (error) {
         console.error('Error previewing next invoice:', error);
