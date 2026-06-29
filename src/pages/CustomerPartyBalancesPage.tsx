@@ -18,6 +18,8 @@ import jsPDF from "jspdf";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import { STALE_REFERENCE } from "@/lib/queryStaleTimes";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -73,6 +75,33 @@ export default function CustomerPartyBalancesPage() {
   const [ledgerCustomerPhone, setLedgerCustomerPhone] = useState<string | undefined>();
 
   const orgId = currentOrganization?.id;
+
+  /** Profile fetch before embedded ledger — avoids CustomerLedger stub with opening_balance=0. */
+  const {
+    data: ledgerCustomerProfile,
+    isLoading: ledgerProfileLoading,
+    error: ledgerProfileError,
+  } = useQuery({
+    queryKey: ["party-balances-ledger-customer", orgId, ledgerCustomerId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("customers")
+        .select("id, customer_name, phone, address, opening_balance, created_at")
+        .eq("organization_id", orgId!)
+        .eq("id", ledgerCustomerId!)
+        .is("deleted_at", null)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!orgId && !!ledgerCustomerId,
+    staleTime: STALE_REFERENCE,
+    refetchOnWindowFocus: false,
+  });
+
+  /** Non-zero OB: omit name/phone so CustomerLedger loads profile before building transactions. */
+  const ledgerOpeningBalance = Number(ledgerCustomerProfile?.opening_balance ?? 0);
+  const deferLedgerCustomerStub = ledgerOpeningBalance !== 0;
 
   const { data: rows = [], isLoading, isFetching, error, refetch } = useQuery({
     queryKey: ["customer-party-balances", orgId],
@@ -305,6 +334,9 @@ export default function CustomerPartyBalancesPage() {
   }
 
   if (ledgerCustomerId) {
+    const ledgerDisplayName =
+      ledgerCustomerProfile?.customer_name?.trim() || ledgerCustomerName || "Customer";
+
     return (
       <div
         className={cn(
@@ -325,22 +357,42 @@ export default function CustomerPartyBalancesPage() {
             <div className="min-w-0">
               <h1 className="text-xl font-bold text-teal-700 tracking-tight truncate flex items-center gap-2">
                 <Users className="h-5 w-5 shrink-0" />
-                {ledgerCustomerName}
+                {ledgerDisplayName}
               </h1>
               <p className="text-sm text-muted-foreground mt-0.5">Customer ledger</p>
             </div>
           </div>
           <div className="customer-party-balances-ledger-panel flex-1 min-h-0 flex flex-col overflow-hidden w-full">
-            <CustomerLedger
-              organizationId={orgId}
-              preSelectedCustomerId={ledgerCustomerId}
-              preSelectedCustomerName={ledgerCustomerName}
-              preSelectedCustomerPhone={ledgerCustomerPhone}
-              embedMode
-              skipUrlSync
-              embeddedBackLabel="Back to Balances"
-              onEmbeddedBack={closeCustomerLedger}
-            />
+            {ledgerProfileLoading ? (
+              <div className="flex flex-col items-center justify-center flex-1 min-h-[12rem] text-muted-foreground gap-2 py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                <span className="text-sm">Loading customer details…</span>
+              </div>
+            ) : ledgerProfileError ? (
+              <div className="m-2 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-4 text-sm text-destructive">
+                Failed to load customer: {(ledgerProfileError as Error).message}
+              </div>
+            ) : (
+              <CustomerLedger
+                key={`${ledgerCustomerId}-${deferLedgerCustomerStub ? "ob" : "std"}`}
+                organizationId={orgId!}
+                preSelectedCustomerId={ledgerCustomerId}
+                preSelectedCustomerName={
+                  deferLedgerCustomerStub
+                    ? undefined
+                    : ledgerCustomerProfile?.customer_name?.trim() || ledgerCustomerName
+                }
+                preSelectedCustomerPhone={
+                  deferLedgerCustomerStub
+                    ? undefined
+                    : ledgerCustomerProfile?.phone ?? ledgerCustomerPhone
+                }
+                embedMode
+                skipUrlSync
+                embeddedBackLabel="Back to Balances"
+                onEmbeddedBack={closeCustomerLedger}
+              />
+            )}
           </div>
         </div>
       </div>
