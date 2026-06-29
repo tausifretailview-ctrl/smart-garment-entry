@@ -8221,6 +8221,35 @@ export type Database = {
         Args: { p_org_id: string }
         Returns: Json
       }
+      get_brand_performance: {
+        Args: { p_end_date?: string; p_org_id: string; p_start_date?: string }
+        Returns: {
+          brand: string
+          cost: number
+          current_stock_value: number
+          gross_profit: number
+          product_count: number
+          profit_margin_pct: number
+          return_qty: number
+          return_rate_pct: number
+          revenue: number
+          units_sold: number
+        }[]
+      }
+      get_category_performance: {
+        Args: { p_end_date?: string; p_org_id: string; p_start_date?: string }
+        Returns: {
+          category: string
+          cost: number
+          gross_profit: number
+          product_count: number
+          profit_margin_pct: number
+          revenue: number
+          sell_through_rate: number
+          stock_value: number
+          units_sold: number
+        }[]
+      }
       get_customer_financial_snapshot: {
         Args: { p_customer_id: string; p_organization_id: string }
         Returns: {
@@ -8389,6 +8418,24 @@ export type Database = {
         }
         Returns: Json
       }
+      get_low_stock_alerts: {
+        Args: { p_org_id: string; p_threshold?: number }
+        Returns: {
+          avg_daily_sales: number
+          barcode: string
+          brand: string
+          category: string
+          color: string
+          current_stock: number
+          days_of_stock_left: number
+          last_purchase_date: string
+          primary_supplier: string
+          product_id: string
+          product_name: string
+          size: string
+          variant_id: string
+        }[]
+      }
       get_net_profit_aggregates: {
         Args: { p_from_date: string; p_org_id: string; p_to_date: string }
         Returns: Json
@@ -8512,6 +8559,28 @@ export type Database = {
         Returns: Json
       }
       get_product_filter_options: { Args: { p_org_id: string }; Returns: Json }
+      get_product_performance: {
+        Args: { p_end_date?: string; p_org_id: string; p_start_date?: string }
+        Returns: {
+          brand: string
+          category: string
+          cost: number
+          current_stock: number
+          days_since_sold: number
+          gross_profit: number
+          last_sold_date: string
+          net_revenue: number
+          product_id: string
+          product_name: string
+          profit_margin_pct: number
+          return_amount: number
+          return_qty: number
+          revenue: number
+          stock_value: number
+          style: string
+          units_sold: number
+        }[]
+      }
       get_product_relations: {
         Args: { p_product_id: string }
         Returns: {
@@ -8632,6 +8701,24 @@ export type Database = {
         Args: { p_end_date: string; p_org_id: string; p_start_date: string }
         Returns: Json
       }
+      get_slow_moving_stock: {
+        Args: { p_days_threshold?: number; p_org_id: string }
+        Returns: {
+          barcode: string
+          brand: string
+          category: string
+          color: string
+          current_stock: number
+          days_since_sold: number
+          last_sold_date: string
+          product_id: string
+          product_name: string
+          size: string
+          stock_value: number
+          total_sold_ever: number
+          variant_id: string
+        }[]
+      }
       get_stock_at_time: {
         Args: { p_timestamp: string; p_variant_id: string }
         Returns: number
@@ -8712,6 +8799,20 @@ export type Database = {
           supplier_name: string
           total_cr: number
           total_dr: number
+        }[]
+      }
+      get_supplier_performance: {
+        Args: { p_end_date?: string; p_org_id: string; p_start_date?: string }
+        Returns: {
+          bill_count: number
+          current_stock_value: number
+          return_to_supplier: number
+          sell_through_rate_pct: number
+          supplier_id: string
+          supplier_name: string
+          total_purchased: number
+          units_purchased: number
+          units_sold: number
         }[]
       }
       get_trial_balance_aggregates: {
