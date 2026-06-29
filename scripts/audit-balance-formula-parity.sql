@@ -1,36 +1,46 @@
--- Org-wide parity audit between the two canonical customer-outstanding paths:
---   * DB:  public.get_customer_true_outstanding(customer_id, organization_id)
---   * RPC: public.reconcile_customer_balances(organization_id).calculated_balance
+-- Parity gate: detects future drift between sales.sale_return_adjust and
+-- the actual sale_returns + credit_notes records that should back it.
+-- Run per-organization. A non-empty result indicates phantom CN/SR adjustments
+-- (same class of bug as the 2026-06-06 cn_over_apply_repair phantom rows).
 --
--- These MUST agree (the RPC literally calls the DB function for
--- calculated_balance). Drift here = the function changed under one but the
--- other was not re-run / cached / there is an RLS visibility gap.
---
--- Replace :org_id with the target organization UUID.
+-- Usage:
+--   \set org_id '3fdca631-1e0c-4417-9704-421f5129ff67'
+--   \i scripts/audit-balance-formula-parity.sql
 
-WITH rpc AS (
-  SELECT customer_id, calculated_balance
-  FROM public.reconcile_customer_balances(:'org_id'::uuid)
+WITH applied AS (
+  SELECT customer_id,
+         COALESCE(SUM(sale_return_adjust), 0) AS applied_amt
+  FROM sales
+  WHERE organization_id = :'org_id'
+    AND deleted_at IS NULL
+    AND COALESCE(is_cancelled, false) = false
+  GROUP BY customer_id
 ),
-direct AS (
-  SELECT c.id AS customer_id,
-         public.get_customer_true_outstanding(c.id, :'org_id'::uuid) AS direct_balance
-  FROM public.customers c
-  WHERE c.organization_id = :'org_id'::uuid
-    AND c.deleted_at IS NULL
+real_sr AS (
+  SELECT customer_id,
+         COALESCE(SUM(net_amount), 0) AS sr_amt
+  FROM sale_returns
+  WHERE organization_id = :'org_id'
+    AND deleted_at IS NULL
+  GROUP BY customer_id
+),
+real_cn AS (
+  SELECT customer_id,
+         COALESCE(SUM(used_amount), 0) AS cn_used_amt
+  FROM credit_notes
+  WHERE organization_id = :'org_id'
+    AND deleted_at IS NULL
+  GROUP BY customer_id
 )
-SELECT
-  d.customer_id,
-  c.customer_name,
-  rpc.calculated_balance,
-  d.direct_balance,
-  ROUND(rpc.calculated_balance - d.direct_balance, 2) AS drift
-FROM direct d
-LEFT JOIN rpc ON rpc.customer_id = d.customer_id
-JOIN public.customers c ON c.id = d.customer_id
-WHERE ABS(COALESCE(rpc.calculated_balance, 0) - COALESCE(d.direct_balance, 0)) > 1
-ORDER BY ABS(COALESCE(rpc.calculated_balance, 0) - COALESCE(d.direct_balance, 0)) DESC;
-
--- Then, for each row above, compare against the front-end ledger:
---   SELECT * FROM public.reconcile_customer_balance('<cust_id>', '<org_id>');
--- and identify which source bucket disagrees with the on-screen number.
+SELECT c.id              AS customer_id,
+       c.customer_name,
+       a.applied_amt     AS applied_to_invoices,
+       COALESCE(rs.sr_amt, 0)   AS real_sale_returns,
+       COALESCE(rc.cn_used_amt, 0) AS real_credit_note_used,
+       a.applied_amt - COALESCE(rs.sr_amt, 0) - COALESCE(rc.cn_used_amt, 0) AS phantom_inflation
+FROM applied a
+JOIN customers c ON c.id = a.customer_id
+LEFT JOIN real_sr rs ON rs.customer_id = a.customer_id
+LEFT JOIN real_cn rc ON rc.customer_id = a.customer_id
+WHERE a.applied_amt - COALESCE(rs.sr_amt, 0) - COALESCE(rc.cn_used_amt, 0) > 1
+ORDER BY phantom_inflation DESC;
