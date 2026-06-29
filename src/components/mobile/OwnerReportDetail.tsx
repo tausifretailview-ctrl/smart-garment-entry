@@ -14,8 +14,12 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { localDayBounds } from "@/lib/localDayBounds";
-import { fetchCustomerFinancialSnapshotMap } from "@/utils/customerFinancialSnapshot";
 import type { ReportType } from "./OwnerReportsHub";
+import {
+  SizeWiseStockReport,
+  CustomerBalanceReport,
+  SupplierBalanceReport,
+} from "./MobileOwnerBalanceReports";
 
 /* ─── Helpers ─── */
 const fmt = (v: number) =>
@@ -39,12 +43,15 @@ function getDateRange(period: Period, custom: { from: Date; to: Date } | null) {
 }
 
 const TITLES: Record<ReportType, string> = {
+  "size-wise-stock": "Size-wise Stock",
+  "customer-balance": "Customer Balance",
+  "supplier-balance": "Supplier Balance",
   "daily-sales": "Daily Sales Report",
   "daily-purchase": "Daily Purchase Report",
   "profit-loss": "Profit & Loss",
   "stock-summary": "Stock Summary",
-  "customer-outstanding": "Customer Outstanding",
-  "supplier-outstanding": "Supplier Outstanding",
+  "customer-outstanding": "Customer Balance",
+  "supplier-outstanding": "Supplier Balance",
   "gst": "GST Report",
   "brand-sales": "Brand-wise Sales",
   "size-sales": "Size-wise Sales",
@@ -76,7 +83,14 @@ export const OwnerReportDetail = ({ reportType, onBack }: Props) => {
   const [showToCal, setShowToCal] = useState(false);
   const { start, end } = getDateRange(period, customRange);
 
-  const needsDateFilter = !["stock-summary", "customer-outstanding", "supplier-outstanding"].includes(reportType);
+  const needsDateFilter = ![
+    "stock-summary",
+    "size-wise-stock",
+    "customer-balance",
+    "supplier-balance",
+    "customer-outstanding",
+    "supplier-outstanding",
+  ].includes(reportType);
 
   return (
     <div
@@ -139,12 +153,17 @@ export const OwnerReportDetail = ({ reportType, onBack }: Props) => {
 
       {/* Report Body */}
       <div className="px-4 pt-3">
+        {reportType === "size-wise-stock" && <SizeWiseStockReport orgId={orgId} />}
+        {(reportType === "customer-balance" || reportType === "customer-outstanding") && (
+          <CustomerBalanceReport orgId={orgId} />
+        )}
+        {(reportType === "supplier-balance" || reportType === "supplier-outstanding") && (
+          <SupplierBalanceReport orgId={orgId} />
+        )}
         {reportType === "daily-sales" && <DailySalesReport orgId={orgId} start={start} end={end} />}
         {reportType === "daily-purchase" && <DailyPurchaseReport orgId={orgId} start={start} end={end} />}
         {reportType === "profit-loss" && <ProfitLossReport orgId={orgId} start={start} end={end} />}
         {reportType === "stock-summary" && <StockSummaryReport orgId={orgId} />}
-        {reportType === "customer-outstanding" && <CustomerOutstandingReport orgId={orgId} />}
-        {reportType === "supplier-outstanding" && <SupplierOutstandingReport orgId={orgId} />}
         {reportType === "gst" && <GSTReport orgId={orgId} start={start} end={end} />}
         {reportType === "brand-sales" && <BrandSalesReport orgId={orgId} start={start} end={end} />}
         {reportType === "size-sales" && <SizeSalesReport orgId={orgId} start={start} end={end} />}
@@ -385,107 +404,8 @@ const StockSummaryReport = ({ orgId }: { orgId?: string }) => {
   );
 };
 
-/* 5. Customer Outstanding */
-const CustomerOutstandingReport = ({ orgId }: { orgId?: string }) => {
-  const { data, isLoading } = useQuery({
-    queryKey: ["rpt-cust-outstanding", orgId],
-    enabled: !!orgId,
-    queryFn: async () => {
-      const { data: customers } = await supabase.from("customers")
-        .select("id, customer_name, phone, opening_balance")
-        .eq("organization_id", orgId!).is("deleted_at", null);
-      if (!customers?.length) return [];
-
-      const snapMap = await fetchCustomerFinancialSnapshotMap(
-        orgId!,
-        customers.map((c) => c.id),
-      );
-
-      return customers
-        .map((c) => ({
-          ...c,
-          outstanding: snapMap.get(c.id)?.outstandingDr ?? 0,
-        }))
-        .filter((c) => c.outstanding > 0)
-        .sort((a, b) => b.outstanding - a.outstanding);
-    },
-  });
-
-  const total = useMemo(() => (data || []).reduce((s, r) => s + r.outstanding, 0), [data]);
-
-  if (isLoading) return <LoadingRows />;
-  if (!data?.length) return <EmptyState message="No outstanding balances" />;
-
-  return (
-    <div className="space-y-3">
-      <MetricCard label="Total Outstanding" value={fmt(total)} color="text-destructive" />
-      <div className="space-y-2">
-        {data.map((c: any) => (
-          <div key={c.id} className="flex items-center justify-between p-3 bg-card rounded-xl border border-border/40">
-            <div>
-              <p className="text-sm font-semibold">{c.customer_name}</p>
-              <p className="text-[11px] text-muted-foreground">{c.phone || "—"}</p>
-            </div>
-            <p className="text-sm font-bold text-destructive">{fmt(c.outstanding)}</p>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-};
-
-/* 6. Supplier Outstanding */
-const SupplierOutstandingReport = ({ orgId }: { orgId?: string }) => {
-  const { data, isLoading } = useQuery({
-    queryKey: ["rpt-supp-outstanding", orgId],
-    enabled: !!orgId,
-    queryFn: async () => {
-      const { data: suppliers } = await supabase.from("suppliers")
-        .select("id, supplier_name, phone, opening_balance")
-        .eq("organization_id", orgId!).is("deleted_at", null);
-      if (!suppliers?.length) return [];
-
-      const { data: bills } = await supabase.from("purchase_bills")
-        .select("supplier_id, net_amount, paid_amount")
-        .eq("organization_id", orgId!).is("deleted_at", null);
-
-      const outMap = new Map<string, number>();
-      (bills || []).forEach((b: any) => {
-        if (b.supplier_id) {
-          const due = (b.net_amount || 0) - (b.paid_amount || 0);
-          if (due > 0) outMap.set(b.supplier_id, (outMap.get(b.supplier_id) || 0) + due);
-        }
-      });
-
-      return suppliers
-        .map((s) => ({ ...s, outstanding: (s.opening_balance || 0) + (outMap.get(s.id) || 0) }))
-        .filter((s) => s.outstanding > 0)
-        .sort((a, b) => b.outstanding - a.outstanding);
-    },
-  });
-
-  const total = useMemo(() => (data || []).reduce((s, r) => s + r.outstanding, 0), [data]);
-
-  if (isLoading) return <LoadingRows />;
-  if (!data?.length) return <EmptyState message="No outstanding balances" />;
-
-  return (
-    <div className="space-y-3">
-      <MetricCard label="Total Outstanding" value={fmt(total)} color="text-destructive" />
-      <div className="space-y-2">
-        {data.map((s: any) => (
-          <div key={s.id} className="flex items-center justify-between p-3 bg-card rounded-xl border border-border/40">
-            <div>
-              <p className="text-sm font-semibold">{s.supplier_name}</p>
-              <p className="text-[11px] text-muted-foreground">{s.phone || "—"}</p>
-            </div>
-            <p className="text-sm font-bold text-destructive">{fmt(s.outstanding)}</p>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-};
+/* 5. Customer Outstanding — legacy; use CustomerBalanceReport */
+/* 6. Supplier Outstanding — legacy; use SupplierBalanceReport */
 
 /* 7. GST Report */
 const GSTReport = ({ orgId, start, end }: RProps) => {

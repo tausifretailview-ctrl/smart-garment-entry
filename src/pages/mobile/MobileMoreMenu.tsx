@@ -13,6 +13,8 @@ import {
   ShoppingBag,
   BookOpen,
   ShieldCheck,
+  Users,
+  Building2,
 } from "lucide-react";
 import { useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -69,6 +71,9 @@ export default function MobileMoreMenu() {
       title: "Reports",
       items: [
         { icon: BarChart3, label: "All Reports", path: MOBILE_REPORTS_PATH, color: "text-green-500" },
+        { icon: Package, label: "Size-wise Stock", path: `${MOBILE_REPORTS_PATH}?report=size-wise-stock`, color: "text-violet-500" },
+        { icon: Users, label: "Customer Balance", path: `${MOBILE_REPORTS_PATH}?report=customer-balance`, color: "text-rose-500" },
+        { icon: Building2, label: "Supplier Balance", path: `${MOBILE_REPORTS_PATH}?report=supplier-balance`, color: "text-red-500" },
         { icon: TrendingUp, label: "Daily Cashier", path: "/daily-cashier-report", color: "text-purple-500" },
         { icon: Package, label: "Stock Report", path: "/stock-report", color: "text-amber-500" },
         { icon: Receipt, label: "GST Reports", path: "/gst-reports", color: "text-indigo-500" },

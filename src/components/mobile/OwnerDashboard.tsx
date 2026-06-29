@@ -339,8 +339,8 @@ export const OwnerDashboard = () => {
     { label: "Today's Purchase", value: todayPurchase?.total || 0, sub: `${todayPurchase?.count || 0} bills`, icon: ShoppingCart, tint: "bg-warning/10", iconColor: "text-warning", loading: purchaseLoading, path: "/owner-purchases" },
     { label: "Today's Profit", value: profitToday, sub: profitToday >= 0 ? "Positive" : "Loss", icon: TrendingUp, tint: "bg-primary/10", iconColor: "text-primary", loading: allLoading, path: MOBILE_REPORTS_PATH },
     { label: "Payment Received", value: paymentsToday || 0, sub: "Today", icon: Wallet, tint: "bg-success/10", iconColor: "text-success", loading: paymentsLoading, path: MOBILE_ACCOUNTS_PATH },
-    { label: "Customer O/S", value: outstanding?.customer || 0, sub: "Pending", icon: Users, tint: "bg-destructive/10", iconColor: "text-destructive", loading: outstandingLoading, path: MOBILE_ACCOUNTS_PATH },
-    { label: "Supplier O/S", value: outstanding?.supplier || 0, sub: "Pending", icon: Building2, tint: "bg-destructive/10", iconColor: "text-destructive", loading: outstandingLoading, path: MOBILE_ACCOUNTS_PATH },
+    { label: "Customer O/S", value: outstanding?.customer || 0, sub: "Pending", icon: Users, tint: "bg-destructive/10", iconColor: "text-destructive", loading: outstandingLoading, path: `${MOBILE_REPORTS_PATH}?report=customer-balance` },
+    { label: "Supplier O/S", value: outstanding?.supplier || 0, sub: "Pending", icon: Building2, tint: "bg-destructive/10", iconColor: "text-destructive", loading: outstandingLoading, path: `${MOBILE_REPORTS_PATH}?report=supplier-balance` },
   ];
 
   const activityIcon = { sale: ArrowUpRight, purchase: ArrowDownRight, payment: Wallet };
