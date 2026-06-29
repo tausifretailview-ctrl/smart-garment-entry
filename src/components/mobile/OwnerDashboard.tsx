@@ -73,6 +73,18 @@ const StatCardSkeleton = () => (
   </div>
 );
 
+const TodayHeroSkeleton = () => (
+  <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4">
+    <Skeleton className="h-3 w-28 mb-4 bg-white/10" />
+    <div className="grid grid-cols-2 gap-4 mb-4">
+      <Skeleton className="h-10 w-full bg-white/10" />
+      <Skeleton className="h-10 w-full bg-white/10" />
+    </div>
+    <Skeleton className="h-3 w-full mb-2 bg-white/10" />
+    <Skeleton className="h-3 w-4/5 bg-white/10" />
+  </div>
+);
+
 /* ─── Main Component ─── */
 export const OwnerDashboard = () => {
   const { currentOrganization } = useOrganization();
@@ -424,30 +436,73 @@ export const OwnerDashboard = () => {
     >
       <PullToRefreshIndicator visible={isRefreshing} />
 
-      {/* ── HEADER ── */}
-      <div className="relative bg-gradient-to-br from-[#0a0f1e] via-[#111827] to-[#1e2a4a] px-4 pt-5 pb-14 overflow-hidden">
+      {/* ── HEADER + TODAY HERO ── */}
+      <div className="relative bg-gradient-to-br from-[#0a0f1e] via-[#111827] to-[#1e2a4a] px-4 pt-5 pb-5 overflow-hidden">
         <div className="absolute top-0 right-0 w-40 h-40 bg-primary/10 rounded-full blur-3xl" />
-        <div className="flex items-start justify-between mb-1">
+        <div className="absolute bottom-0 left-0 w-32 h-32 bg-blue-500/5 rounded-full blur-2xl" />
+        <div className="relative flex items-start justify-between mb-1">
           <div>
             <h1 className="text-lg font-semibold text-white">{greeting}!</h1>
             <p className="text-xs text-white/60 mt-0.5">{currentOrganization?.name}</p>
           </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={handleRefresh}
-              className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center active:scale-90 transition-all touch-manipulation"
-            >
-              <RefreshCw className={cn("h-4 w-4 text-white/70", isRefreshing && "animate-spin")} />
-            </button>
-            <div className="text-right">
-              <p className="text-sm font-semibold text-white">{format(new Date(), "EEE, d MMM yyyy")}</p>
-            </div>
-          </div>
+          <button
+            onClick={handleRefresh}
+            className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center active:scale-90 transition-all touch-manipulation"
+            aria-label="Refresh dashboard"
+          >
+            <RefreshCw className={cn("h-4 w-4 text-white/70", isRefreshing && "animate-spin")} />
+          </button>
         </div>
+
+        {/* Today at a glance — reuses dashStats + receivables (no extra query) */}
+        {dashLoading ? (
+          <TodayHeroSkeleton />
+        ) : (
+          <div className="relative mt-4 rounded-2xl border border-white/10 bg-white/[0.07] backdrop-blur-sm p-4 shadow-lg shadow-black/20">
+            <p className="text-xs font-medium text-white/70">
+              Today · {format(new Date(), "EEE, d MMM")}
+            </p>
+
+            <div className="mt-3 grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-[10px] uppercase tracking-wider text-white/50">Revenue</p>
+                <p className="text-xl font-bold text-white tabular-nums mt-0.5">{fmtShort(totalSales)}</p>
+              </div>
+              <div>
+                <p className="text-[10px] uppercase tracking-wider text-white/50">Profit</p>
+                <p
+                  className={cn(
+                    "text-xl font-bold tabular-nums mt-0.5",
+                    grossProfit >= 0 ? "text-emerald-300" : "text-rose-300",
+                  )}
+                >
+                  {fmtShort(grossProfit)}
+                </p>
+              </div>
+            </div>
+
+            <p className="mt-3 text-xs text-white/60 tabular-nums">
+              Bills:{" "}
+              <span className="text-white/90 font-medium">{salesCount}</span> sales ·{" "}
+              <span className="text-white/90 font-medium">{purchaseCount}</span> purchases
+            </p>
+            <p className="mt-1.5 text-xs text-white/60 tabular-nums">
+              Collected:{" "}
+              <span className="text-emerald-300 font-medium">{fmtShort(cashCollection)}</span>
+              {" · "}
+              Outstanding:{" "}
+              {receivablesLoading ? (
+                <span className="text-white/40">…</span>
+              ) : (
+                <span className="text-rose-300 font-medium">{fmtShort(customerOs)}</span>
+              )}
+            </p>
+          </div>
+        )}
       </div>
 
       {/* ── STAT CARDS 2×3 ── */}
-      <div className="px-4 -mt-8 relative z-10">
+      <div className="px-4 mt-3 relative z-10">
         <div className="grid grid-cols-2 gap-2.5">
           {statCards.map((card) => {
             const Icon = card.icon;
