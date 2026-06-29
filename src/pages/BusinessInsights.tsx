@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getIndiaFinancialYear } from "@/utils/accountingReportUtils";
 import { ProfitabilityTab } from "@/components/business-insights/ProfitabilityTab";
+import { StockHealthTab } from "@/components/business-insights/StockHealthTab";
 
 type InsightsTabId =
   | "profitability"
@@ -126,7 +127,7 @@ export default function BusinessInsights() {
 
         <TabsContent value="stock-health" className="mt-0">
           {shouldMountTab("stock-health") ? (
-            <TabPlaceholder title="Stock Health" />
+            <StockHealthTab />
           ) : (
             <p className="text-sm text-muted-foreground">Select this tab to load stock health insights.</p>
           )}
