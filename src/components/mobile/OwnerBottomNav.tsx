@@ -1,9 +1,15 @@
-import { Home, IndianRupee, ShoppingCart, Package, MoreHorizontal, ScanBarcode } from "lucide-react";
+import { Home, IndianRupee, ShoppingBag, Package, MoreHorizontal, ScanBarcode } from "lucide-react";
 import { useLocation } from "react-router-dom";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useMobileScan } from "@/contexts/MobileScanContext";
 import { cn } from "@/lib/utils";
-import { MOBILE_DEFAULT_LANDING_PATH, MOBILE_OWNER_SALES_PATH, MOBILE_SALES_PATH } from "@/lib/mobileShell";
+import {
+  MOBILE_ACCOUNTS_PATH,
+  MOBILE_DEFAULT_LANDING_PATH,
+  MOBILE_OWNER_SALES_PATH,
+  MOBILE_REPORTS_PATH,
+  MOBILE_SALES_PATH,
+} from "@/lib/mobileShell";
 
 interface NavTab {
   icon: React.ElementType;
@@ -12,6 +18,7 @@ interface NavTab {
   matchPaths: string[];
 }
 
+/** Bottom nav — reporting hubs only (no data entry). */
 const sideTabs: NavTab[] = [
   {
     icon: Home,
@@ -25,7 +32,7 @@ const sideTabs: NavTab[] = [
     path: MOBILE_SALES_PATH,
     matchPaths: [MOBILE_SALES_PATH, MOBILE_OWNER_SALES_PATH],
   },
-  { icon: ShoppingCart, label: "Purchase", path: "/owner-purchases", matchPaths: ["/owner-purchases"] },
+  { icon: ShoppingBag, label: "Purchase", path: "/owner-purchases", matchPaths: ["/owner-purchases"] },
   { icon: Package, label: "Stock", path: "/owner-stock", matchPaths: ["/owner-stock"] },
   {
     icon: MoreHorizontal,
@@ -33,13 +40,16 @@ const sideTabs: NavTab[] = [
     path: "/mobile-more",
     matchPaths: [
       "/mobile-more",
+      MOBILE_ACCOUNTS_PATH,
+      MOBILE_REPORTS_PATH,
       "/settings",
-      "/customers",
-      "/suppliers",
-      "/products",
       "/daily-cashier-report",
-      "/pos-dashboard",
       "/gst-reports",
+      "/customer-ledger-report",
+      "/customer-audit-report",
+      "/payments-dashboard",
+      "/purchase-bills",
+      "/stock-report",
     ],
   },
 ];
@@ -102,7 +112,6 @@ export const OwnerBottomNav = () => {
           );
         })}
 
-        {/* Center scan — Vyapar-style */}
         <button
           type="button"
           onClick={openScan}

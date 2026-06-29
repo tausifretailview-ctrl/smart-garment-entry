@@ -1481,9 +1481,9 @@ const App = () => {
                   path="mobile-more"
                   element={
                     <ProtectedRoute>
-                      <Layout>
+                      <FullScreenLayout>
                         <MobileMoreMenu />
-                      </Layout>
+                      </FullScreenLayout>
                     </ProtectedRoute>
                   }
                 />

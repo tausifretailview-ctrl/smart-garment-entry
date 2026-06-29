@@ -3,7 +3,7 @@ import { localDayBounds } from "@/lib/localDayBounds";
 /** Shared mobile shell spacing (bottom nav + safe area). */
 export const MOBILE_BOTTOM_NAV_HEIGHT = "4.25rem";
 
-/** Default mobile / native home — business overview dashboard. */
+/** Default mobile / native home — business overview dashboard (reporting-only APK). */
 export const MOBILE_DEFAULT_LANDING_PATH = "/mobile-dashboard";
 
 /** Mobile sales invoice hub. */
@@ -11,6 +11,12 @@ export const MOBILE_SALES_PATH = "/mobile-sales";
 
 /** Owner-style sales screen (FullScreenLayout + OwnerBottomNav). */
 export const MOBILE_OWNER_SALES_PATH = "/owner-sales";
+
+/** Mobile accounts summary hub. */
+export const MOBILE_ACCOUNTS_PATH = "/mobile-accounts";
+
+/** Mobile reports hub (owner-native reports). */
+export const MOBILE_REPORTS_PATH = "/owner-reports";
 
 export const mobileMainPaddingClass =
   "pb-[calc(4.25rem+env(safe-area-inset-bottom,0px)+0.75rem)] lg:pb-14";

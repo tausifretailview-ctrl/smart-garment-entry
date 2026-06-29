@@ -2,7 +2,7 @@ import { Home, Receipt, Wallet, MoreHorizontal } from "lucide-react";
 import { useLocation } from "react-router-dom";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { cn } from "@/lib/utils";
-import { MOBILE_DEFAULT_LANDING_PATH, MOBILE_SALES_PATH } from "@/lib/mobileShell";
+import { MOBILE_ACCOUNTS_PATH, MOBILE_DEFAULT_LANDING_PATH, MOBILE_REPORTS_PATH, MOBILE_SALES_PATH } from "@/lib/mobileShell";
 
 interface NavItem {
   icon: React.ElementType;
@@ -11,7 +11,7 @@ interface NavItem {
   matchPaths?: string[];
 }
 
-/** Mobile nav — view sales list only; no POS / new-invoice creation. */
+/** Legacy mobile nav — reporting hubs only. */
 const navItems: NavItem[] = [
   {
     icon: Home,
@@ -28,8 +28,8 @@ const navItems: NavItem[] = [
   {
     icon: Wallet,
     label: "Accounts",
-    path: "/mobile-accounts",
-    matchPaths: ["/mobile-accounts", "/accounts", "/payments-dashboard", "/customer-ledger-report", "/customer-audit-report"],
+    path: MOBILE_ACCOUNTS_PATH,
+    matchPaths: [MOBILE_ACCOUNTS_PATH, "/payments-dashboard", "/customer-ledger-report", "/customer-audit-report"],
   },
   {
     icon: MoreHorizontal,
@@ -37,18 +37,14 @@ const navItems: NavItem[] = [
     path: "/mobile-more",
     matchPaths: [
       "/mobile-more",
+      MOBILE_REPORTS_PATH,
       "/settings",
-      "/customers",
-      "/suppliers",
-      "/products",
-      "/barcode-printing",
-      "/stock-adjustment",
-      "/mobile-reports",
       "/stock-report",
       "/purchase-bills",
-      "/purchase-entry",
       "/owner-purchases",
       "/owner-stock",
+      "/daily-cashier-report",
+      "/gst-reports",
     ],
   },
 ];

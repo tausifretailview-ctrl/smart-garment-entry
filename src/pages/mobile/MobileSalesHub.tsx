@@ -7,7 +7,6 @@ import { invalidateMobileSalesHubQueries } from "@/lib/mobileHubRefresh";
 import { withMobileQueryTimeout } from "@/lib/mobileQueryTimeout";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
-import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { MobileModuleNavStrip } from "@/components/mobile/MobileModuleNavStrip";
 import { MobileSalePrintPreviewDialog } from "@/components/mobile/MobileSalePrintPreviewDialog";
 import { MobileDateFilterChips } from "@/components/mobile/MobileDateFilterChips";
@@ -17,13 +16,12 @@ import { useOpenCustomerAccount } from "@/hooks/useOpenCustomerAccount";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
-import { Search, ChevronRight, TrendingUp, FileText, RotateCcw, Eye, MessageCircle, Download } from "lucide-react";
+import { Search, TrendingUp, FileText, Eye, MessageCircle, Download } from "lucide-react";
 import { format, subDays } from "date-fns";
 import { cn } from "@/lib/utils";
 
 export default function MobileSalesHub() {
   const { currentOrganization } = useOrganization();
-  const { orgNavigate } = useOrgNavigation();
   const queryClient = useQueryClient();
   const { scrollRef, isRefreshing, pullHandlers } = usePullToRefresh(
     useCallback(() => invalidateMobileSalesHubQueries(queryClient), [queryClient])
@@ -157,7 +155,8 @@ export default function MobileSalesHub() {
       {/* Header */}
       <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-md border-b border-border px-4 py-3 space-y-3">
         <div className="flex items-center justify-between">
-          <h1 className="text-xl font-semibold text-foreground">Sales</h1>
+          <h1 className="text-xl font-semibold text-foreground">Sales Summary</h1>
+          <p className="text-xs text-muted-foreground">View bills & share PDF — read only</p>
         </div>
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -316,22 +315,6 @@ export default function MobileSalesHub() {
             </div>
           ))
         )}
-      </div>
-
-      {/* Sale Return quick link */}
-      <div className="px-4 pb-4">
-        <button
-          onClick={() => orgNavigate("/sale-return-entry")}
-          className="w-full bg-white dark:bg-card rounded-2xl px-4 py-3.5 border border-border/40 flex items-center justify-between active:bg-muted/30 transition-colors touch-manipulation"
-        >
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-rose-50 flex items-center justify-center">
-              <RotateCcw className="h-4 w-4 text-rose-500" />
-            </div>
-            <span className="text-sm font-medium text-foreground">Sale Return Entry</span>
-          </div>
-          <ChevronRight className="h-4 w-4 text-muted-foreground" />
-        </button>
       </div>
 
       <MobileSalePrintPreviewDialog

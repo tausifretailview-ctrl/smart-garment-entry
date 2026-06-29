@@ -10,12 +10,14 @@ import {
 } from "lucide-react";
 import { format, subDays, formatDistanceToNow } from "date-fns";
 import { localDayBounds, saleRowCalendarYmd, todayLocalYmd } from "@/lib/localDayBounds";
-import { MOBILE_HOME_SALE_TYPES } from "@/lib/mobileShell";
+import { MOBILE_HOME_SALE_TYPES, MOBILE_SALES_PATH, MOBILE_ACCOUNTS_PATH, MOBILE_REPORTS_PATH } from "@/lib/mobileShell";
 import { useEffect } from "react";
+import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 import { PullToRefreshIndicator } from "@/components/mobile/PullToRefreshIndicator";
 import { invalidateOwnerDashboardQueries } from "@/lib/mobileHubRefresh";
 import { withMobileQueryTimeout } from "@/lib/mobileQueryTimeout";
+import { MobileModuleNavStrip } from "@/components/mobile/MobileModuleNavStrip";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -46,6 +48,7 @@ const StatCardSkeleton = () => (
 /* ─── Main Component ─── */
 export const OwnerDashboard = () => {
   const { currentOrganization } = useOrganization();
+  const { orgNavigate } = useOrgNavigation();
   const { isOnline } = useNetworkStatus();
   const queryClient = useQueryClient();
   const { getRefreshInterval } = useTierBasedRefresh();
@@ -332,12 +335,12 @@ export const OwnerDashboard = () => {
 
   /* ── Stat cards config ── */
   const statCards = [
-    { label: "Today's Sale", value: todaySales?.total || 0, sub: `${todaySales?.count || 0} bills`, icon: IndianRupee, tint: "bg-success/10", iconColor: "text-success", loading: salesLoading },
-    { label: "Today's Purchase", value: todayPurchase?.total || 0, sub: `${todayPurchase?.count || 0} bills`, icon: ShoppingCart, tint: "bg-warning/10", iconColor: "text-warning", loading: purchaseLoading },
-    { label: "Today's Profit", value: profitToday, sub: profitToday >= 0 ? "Positive" : "Loss", icon: TrendingUp, tint: "bg-primary/10", iconColor: "text-primary", loading: allLoading },
-    { label: "Payment Received", value: paymentsToday || 0, sub: "Today", icon: Wallet, tint: "bg-success/10", iconColor: "text-success", loading: paymentsLoading },
-    { label: "Customer O/S", value: outstanding?.customer || 0, sub: "Pending", icon: Users, tint: "bg-destructive/10", iconColor: "text-destructive", loading: outstandingLoading },
-    { label: "Supplier O/S", value: outstanding?.supplier || 0, sub: "Pending", icon: Building2, tint: "bg-destructive/10", iconColor: "text-destructive", loading: outstandingLoading },
+    { label: "Today's Sale", value: todaySales?.total || 0, sub: `${todaySales?.count || 0} bills`, icon: IndianRupee, tint: "bg-success/10", iconColor: "text-success", loading: salesLoading, path: MOBILE_SALES_PATH },
+    { label: "Today's Purchase", value: todayPurchase?.total || 0, sub: `${todayPurchase?.count || 0} bills`, icon: ShoppingCart, tint: "bg-warning/10", iconColor: "text-warning", loading: purchaseLoading, path: "/owner-purchases" },
+    { label: "Today's Profit", value: profitToday, sub: profitToday >= 0 ? "Positive" : "Loss", icon: TrendingUp, tint: "bg-primary/10", iconColor: "text-primary", loading: allLoading, path: MOBILE_REPORTS_PATH },
+    { label: "Payment Received", value: paymentsToday || 0, sub: "Today", icon: Wallet, tint: "bg-success/10", iconColor: "text-success", loading: paymentsLoading, path: MOBILE_ACCOUNTS_PATH },
+    { label: "Customer O/S", value: outstanding?.customer || 0, sub: "Pending", icon: Users, tint: "bg-destructive/10", iconColor: "text-destructive", loading: outstandingLoading, path: MOBILE_ACCOUNTS_PATH },
+    { label: "Supplier O/S", value: outstanding?.supplier || 0, sub: "Pending", icon: Building2, tint: "bg-destructive/10", iconColor: "text-destructive", loading: outstandingLoading, path: MOBILE_ACCOUNTS_PATH },
   ];
 
   const activityIcon = { sale: ArrowUpRight, purchase: ArrowDownRight, payment: Wallet };
@@ -382,9 +385,11 @@ export const OwnerDashboard = () => {
             return card.loading ? (
               <StatCardSkeleton key={card.label} />
             ) : (
-              <div
+              <button
+                type="button"
                 key={card.label}
-                className="bg-card rounded-2xl p-3.5 border border-border/40 shadow-sm"
+                onClick={() => orgNavigate(card.path)}
+                className="bg-card rounded-2xl p-3.5 border border-border/40 shadow-sm text-left active:scale-[0.98] touch-manipulation transition-transform"
               >
                 <div className="flex items-center justify-between mb-1.5">
                   <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
@@ -398,11 +403,13 @@ export const OwnerDashboard = () => {
                   {fmtShort(card.value)}
                 </p>
                 <p className="text-[10px] text-muted-foreground mt-0.5">{card.sub}</p>
-              </div>
+              </button>
             );
           })}
         </div>
       </div>
+
+      <MobileModuleNavStrip className="mt-4" />
 
       {/* ── SALES TREND — Last 7 Days ── */}
       <div className="px-4 mt-5">
@@ -477,7 +484,12 @@ export const OwnerDashboard = () => {
                   return (
                     <button
                       key={item.id}
-                      onClick={() => alert(`ID: ${item.id}`)}
+                      type="button"
+                      onClick={() => {
+                        if (item.type === "sale") orgNavigate(MOBILE_SALES_PATH);
+                        else if (item.type === "purchase") orgNavigate("/owner-purchases");
+                        else orgNavigate(MOBILE_ACCOUNTS_PATH);
+                      }}
                       className={cn(
                         "w-full flex items-center gap-3 py-2.5 touch-manipulation active:bg-muted/50 transition-colors",
                         idx < recentActivity.length - 1 && "border-b border-border/40"
@@ -580,7 +592,11 @@ export const OwnerDashboard = () => {
                     </span>
                   </div>
                 ))}
-                <button className="w-full text-center text-[11px] font-medium text-primary pt-2 touch-manipulation">
+                <button
+                  type="button"
+                  onClick={() => orgNavigate("/owner-stock")}
+                  className="w-full text-center text-[11px] font-medium text-primary pt-2 touch-manipulation"
+                >
                   View All →
                 </button>
               </div>

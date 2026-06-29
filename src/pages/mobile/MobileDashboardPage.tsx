@@ -1,7 +1,7 @@
 import { FullScreenLayout } from "@/components/FullScreenLayout";
 import { OwnerDashboard } from "@/components/mobile/OwnerDashboard";
 
-/** Native / mobile business overview — default home after org login (Scan + Purchase + Stock nav). */
+/** Native / mobile home — transaction summaries & reports (read-only on mobile). */
 export default function MobileDashboardPage() {
   return (
     <FullScreenLayout>

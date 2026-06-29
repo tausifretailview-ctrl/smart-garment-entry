@@ -6,28 +6,27 @@ import { invalidateMobileAccountsHubQueries } from "@/lib/mobileHubRefresh";
 import { MobileAccountsSummary } from "@/components/mobile/MobileAccountsSummary";
 import { CustomerStatementFloatingDialog } from "@/components/CustomerStatementFloatingDialog";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
-import { ChevronRight, ArrowDownLeft, ArrowUpRight, BookOpen, Building2, Users, Receipt, ShieldCheck, FileText } from "lucide-react";
+import { ChevronRight, BookOpen, Building2, ShieldCheck, FileText, Receipt, BarChart3 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import { DesktopViewToggle } from "@/components/mobile/DesktopViewToggle";
+import { MOBILE_REPORTS_PATH } from "@/lib/mobileShell";
 
 export default function MobileAccountsPage() {
   const { orgNavigate } = useOrgNavigation();
   const queryClient = useQueryClient();
   const [statementOpen, setStatementOpen] = useState(false);
   const { scrollRef, isRefreshing, pullHandlers } = usePullToRefresh(
-    useCallback(() => invalidateMobileAccountsHubQueries(queryClient), [queryClient])
+    useCallback(() => invalidateMobileAccountsHubQueries(queryClient), [queryClient]),
   );
 
-  const quickLinks = [
-    { icon: ArrowDownLeft, label: "Receive Payment", nav: "/accounts", color: "text-emerald-500", bg: "bg-emerald-50", desc: "Record customer receipt" },
-    { icon: ArrowUpRight, label: "Make Payment", nav: "/accounts", color: "text-rose-500", bg: "bg-rose-50", desc: "Record supplier payment" },
-    { icon: BookOpen, label: "Customer Ledger", nav: "/customer-ledger-report", color: "text-purple-500", bg: "bg-purple-50", desc: "Full transaction log" },
-    { icon: FileText, label: "Account statement (audit)", action: "statement" as const, color: "text-indigo-500", bg: "bg-indigo-50", desc: "Quick customer balance lookup" },
+  const reportLinks = [
+    { icon: BookOpen, label: "Customer Ledger", nav: "/customer-ledger-report", color: "text-purple-500", bg: "bg-purple-50", desc: "Full customer transaction log" },
+    { icon: FileText, label: "Account Statement", action: "statement" as const, color: "text-indigo-500", bg: "bg-indigo-50", desc: "Quick customer balance lookup" },
     { icon: ShieldCheck, label: "Customer Audit", nav: "/customer-audit-report", color: "text-violet-500", bg: "bg-violet-50", desc: "Verified outstanding balance" },
-    { icon: Building2, label: "Supplier Ledger", nav: "/accounts", color: "text-orange-500", bg: "bg-orange-50", desc: "Payables & payments" },
-    { icon: Users, label: "Customers", nav: "/customers", color: "text-blue-500", bg: "bg-blue-50", desc: "Customer master" },
-    { icon: Receipt, label: "Payment History", nav: "/payments-dashboard", color: "text-teal-500", bg: "bg-teal-50", desc: "All voucher entries" },
+    { icon: Building2, label: "Supplier Ledger", nav: "/accounts", color: "text-orange-500", bg: "bg-orange-50", desc: "Payables & payment history" },
+    { icon: Receipt, label: "Payment History", nav: "/payments-dashboard", color: "text-teal-500", bg: "bg-teal-50", desc: "All receipt & payment vouchers" },
+    { icon: BarChart3, label: "All Reports", nav: MOBILE_REPORTS_PATH, color: "text-emerald-500", bg: "bg-emerald-50", desc: "Sales, purchase, GST & more" },
   ];
 
   return (
@@ -37,9 +36,9 @@ export default function MobileAccountsPage() {
       {...pullHandlers}
     >
       <PullToRefreshIndicator visible={isRefreshing} />
-      {/* Header */}
       <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-md border-b border-border px-4 py-4">
-        <h1 className="text-xl font-semibold text-foreground">Accounts</h1>
+        <h1 className="text-xl font-semibold text-foreground">Accounts Summary</h1>
+        <p className="text-xs text-muted-foreground mt-0.5">Receivables, payables & collection overview</p>
       </div>
 
       <div className="px-4 py-4 space-y-5">
@@ -47,14 +46,12 @@ export default function MobileAccountsPage() {
           <DesktopViewToggle variant="menu-row" />
         </div>
 
-        {/* Summary Cards (receivables, payables, collection, net) */}
         <MobileAccountsSummary />
 
-        {/* Quick Links */}
         <div>
-          <h2 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3 px-1">Quick Access</h2>
+          <h2 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3 px-1">Reports & Ledgers</h2>
           <div className="bg-white dark:bg-card rounded-2xl border border-border/40 shadow-sm overflow-hidden">
-            {quickLinks.map((link, i) => {
+            {reportLinks.map((link, i) => {
               const Icon = link.icon;
               return (
                 <div key={link.label}>
@@ -79,7 +76,7 @@ export default function MobileAccountsPage() {
                     </div>
                     <ChevronRight className="h-4 w-4 text-muted-foreground" />
                   </button>
-                  {i < quickLinks.length - 1 && <Separator className="ml-16" />}
+                  {i < reportLinks.length - 1 && <Separator className="ml-16" />}
                 </div>
               );
             })}
