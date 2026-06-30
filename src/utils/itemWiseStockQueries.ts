@@ -7,7 +7,10 @@ export type ItemWiseStockGroupBy =
   | "supplier"
   | "brand"
   | "category"
-  | "department";
+  | "department"
+  | "barcode";
+
+export type ItemWiseStockClosingFilter = "all" | "in_stock" | "zero_stock";
 
 export type ItemWiseStockFilters = {
   groupBy: ItemWiseStockGroupBy;
@@ -16,6 +19,8 @@ export type ItemWiseStockFilters = {
   categoryFilter: string;
   departmentFilter: string;
   supplierFilter: string;
+  barcodeFilter: string;
+  closingStockFilter: ItemWiseStockClosingFilter;
 };
 
 export type ItemWiseStockRow = {
@@ -47,6 +52,8 @@ function buildRpcFilters(filters: ItemWiseStockFilters) {
     p_category: normalizeFilter(filters.categoryFilter),
     p_department: normalizeFilter(filters.departmentFilter),
     p_supplier: normalizeFilter(filters.supplierFilter),
+    p_barcode: filters.barcodeFilter.trim() || null,
+    p_closing_stock: filters.closingStockFilter === "all" ? null : filters.closingStockFilter,
   };
 }
 
