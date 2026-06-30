@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { Capacitor } from "@capacitor/core";
 import { supabase } from "@/integrations/supabase/client";
@@ -10,17 +10,25 @@ import { toast } from "sonner";
 import { isValidOrgSlug, storeOrgSlug } from "@/lib/orgSlug";
 import {
   APP_VERSION,
+  ANDROID_APK_DOWNLOAD_NAME,
   WINDOWS_PORTABLE_FILE,
   WINDOWS_PORTABLE_URL,
   WINDOWS_SETUP_FILE,
   WINDOWS_SETUP_URL,
   buildAndroidApkDownloadUrl,
   isAndroidApkConfigured,
+  isAndroidApkStorageUrl,
   isWindowsInstallerConfigured,
   isWindowsPortableConfigured,
 } from "@/config/downloads";
 
 type InstallerProbeStatus = "idle" | "checking" | "available" | "unavailable";
+
+declare global {
+  interface Window {
+    __pwaInstallPrompt?: Event;
+  }
+}
 
 /** HEAD first; fall back to a tiny ranged GET when HEAD is blocked. */
 async function probeInstallerDownload(url: string): Promise<boolean> {
@@ -59,50 +67,47 @@ function isStandaloneDisplay(): boolean {
   );
 }
 
-function buildOrgManifestJson(orgSlug: string, orgName: string): string {
-  const origin = window.location.origin;
-  const label = orgName || orgSlug;
-  return JSON.stringify({
-    name: `EzzyERP — ${label}`,
-    short_name: label.length > 16 ? `${label.slice(0, 14)}…` : label,
-    description: "EzzyERP - Easy Billing, Smart Business for garment & retail businesses",
-    theme_color: "#1e40af",
-    background_color: "#ffffff",
-    display: "standalone",
-    orientation: "portrait",
-    scope: `${origin}/`,
-    start_url: `${origin}/${orgSlug}`,
-    id: `${origin}/${orgSlug}`,
-    categories: ["business", "finance", "productivity"],
-    icons: [
-      {
-        src: `${origin}/icon-192.png`,
-        sizes: "192x192",
-        type: "image/png",
-        purpose: "any maskable",
-      },
-      {
-        src: `${origin}/icon-512.png`,
-        sizes: "512x512",
-        type: "image/png",
-        purpose: "any maskable",
-      },
-    ],
-  });
+/** Install page is APK-only — do not register as an installable PWA. */
+function useDisablePwaOnInstallPage(active: boolean) {
+  useLayoutEffect(() => {
+    if (!active) return;
+
+    const manifestLink = document.querySelector<HTMLLinkElement>('link[rel="manifest"]');
+    const previousManifestHref = manifestLink?.getAttribute("href") ?? null;
+    manifestLink?.remove();
+    window.__pwaInstallPrompt = undefined;
+
+    const blockInstallPrompt = (e: Event) => {
+      e.preventDefault();
+      window.__pwaInstallPrompt = undefined;
+    };
+    window.addEventListener("beforeinstallprompt", blockInstallPrompt);
+
+    return () => {
+      window.removeEventListener("beforeinstallprompt", blockInstallPrompt);
+      if (manifestLink && previousManifestHref && !document.querySelector('link[rel="manifest"]')) {
+        manifestLink.href = previousManifestHref;
+        document.head.appendChild(manifestLink);
+      }
+    };
+  }, [active]);
 }
 
 export default function InstallApp() {
   const { orgSlug } = useParams<{ orgSlug: string }>();
-  const { isInstallable, isInstalled, promptInstall } = useInstallPrompt();
+  const { isInstalled } = useInstallPrompt();
   const [orgName, setOrgName] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [windowsSetupStatus, setWindowsSetupStatus] = useState<InstallerProbeStatus>("idle");
   const [windowsPortableStatus, setWindowsPortableStatus] = useState<InstallerProbeStatus>("idle");
   const [windowsDownloadBusy, setWindowsDownloadBusy] = useState(false);
   const androidApkConfigured = isAndroidApkConfigured();
+  const androidApkUsesStorageUrl = isAndroidApkStorageUrl();
   const platform = detectPlatform();
   const isStandalone = isStandaloneDisplay();
-  const manifestRevokeRef = useRef<(() => void) | null>(null);
+  const isNativeShell = Capacitor.isNativePlatform();
+
+  useDisablePwaOnInstallPage(!!orgSlug && isValidOrgSlug(orgSlug));
 
   // PWA / native shell: install page is only for downloading; open the org app once installed.
   useLayoutEffect(() => {
@@ -118,31 +123,6 @@ export default function InstallApp() {
     if (!orgSlug || !isValidOrgSlug(orgSlug)) return;
     storeOrgSlug(orgSlug);
   }, [orgSlug]);
-
-  useEffect(() => {
-    if (!orgSlug || !isValidOrgSlug(orgSlug)) return;
-
-    const link = document.querySelector<HTMLLinkElement>('link[rel="manifest"]');
-    if (!link) return;
-
-    const apply = () => {
-      manifestRevokeRef.current?.();
-      manifestRevokeRef.current = null;
-      const json = buildOrgManifestJson(orgSlug, orgName);
-      const blob = new Blob([json], { type: "application/manifest+json" });
-      const url = URL.createObjectURL(blob);
-      link.href = url;
-      manifestRevokeRef.current = () => URL.revokeObjectURL(url);
-    };
-
-    apply();
-    return () => {
-      manifestRevokeRef.current?.();
-      manifestRevokeRef.current = null;
-      link.removeAttribute("href");
-      link.href = "/manifest.webmanifest";
-    };
-  }, [orgSlug, orgName]);
 
   const linkOrigin =
     window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
@@ -213,10 +193,24 @@ export default function InstallApp() {
         return;
       }
     } catch {
-      // Offline or CORS on HEAD — still try navigation (GET works on edge function).
+      // Offline or CORS on HEAD — still try download (GET works on edge function).
     }
 
-    window.location.assign(downloadUrl);
+    const anchor = document.createElement("a");
+    anchor.href = downloadUrl;
+    anchor.download = ANDROID_APK_DOWNLOAD_NAME;
+    anchor.rel = "noopener";
+    anchor.style.display = "none";
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+
+    // Fallback when cross-origin download attribute is ignored (common on Android Chrome).
+    window.setTimeout(() => {
+      if (document.visibilityState === "visible") {
+        window.location.assign(downloadUrl);
+      }
+    }, 400);
   };
 
   const copyWindowsSetupLink = () => {
@@ -244,15 +238,6 @@ export default function InstallApp() {
       window.location.assign(`${url}${url.includes("?") ? "&" : "?"}t=${Date.now()}`);
     } finally {
       setWindowsDownloadBusy(false);
-    }
-  };
-
-  const handleInstall = async () => {
-    if (isInstallable) {
-      const accepted = await promptInstall();
-      if (accepted) toast.success("App installed!");
-    } else if (platform === "android") {
-      toast.info("Open Chrome menu (⋮) → 'Install app' or 'Add to Home screen'");
     }
   };
 
@@ -306,12 +291,24 @@ export default function InstallApp() {
           </div>
         </div>
 
-        {isStandalone || isInstalled ? (
+        {isNativeShell ? (
           <Card className="p-6 text-center space-y-3 border-green-500/30 bg-green-500/5">
             <CheckCircle2 className="h-12 w-12 text-green-600 mx-auto" />
-            <h2 className="font-semibold text-lg">App already installed</h2>
+            <h2 className="font-semibold text-lg">Native app installed</h2>
             <Button asChild className="w-full" size="lg">
               <a href={appStartUrl}>Open App</a>
+            </Button>
+          </Card>
+        ) : isStandalone || isInstalled ? (
+          <Card className="p-6 text-center space-y-3 border-amber-500/30 bg-amber-500/5">
+            <CheckCircle2 className="h-12 w-12 text-amber-600 mx-auto" />
+            <h2 className="font-semibold text-lg">Browser shortcut installed</h2>
+            <p className="text-sm text-muted-foreground">
+              This is a web shortcut, not the native APK. For USB printing and full Android features, tap{" "}
+              <strong>Download EzzyERP for Android</strong> below.
+            </p>
+            <Button asChild variant="outline" className="w-full" size="lg">
+              <a href={appStartUrl}>Open Web Shortcut</a>
             </Button>
           </Card>
         ) : platform === "ios" ? (
@@ -352,7 +349,7 @@ export default function InstallApp() {
         ) : null}
 
         {/* Android APK — shown on Android phones and on desktop (for sharing / sideload) */}
-        {!(isStandalone || isInstalled) && platform !== "ios" && (
+        {platform !== "ios" && (
           <Card className="p-6 space-y-4">
             <div className="text-center space-y-1">
               <h2 className="font-semibold text-lg">Download Android App</h2>
@@ -378,6 +375,11 @@ export default function InstallApp() {
             )}
             {androidApkConfigured && (
               <>
+                {androidApkUsesStorageUrl && (
+                  <p className="text-xs text-center text-amber-700 dark:text-amber-400">
+                    Using secure download server (storage links cannot install as APK).
+                  </p>
+                )}
                 <div className="flex items-center gap-2 bg-muted rounded-md px-3 py-2">
                   <span className="text-xs flex-1 truncate font-mono">{androidApkUrl}</span>
                   <Button variant="ghost" size="sm" className="shrink-0 h-8 px-2" onClick={copyApkLink}>
@@ -406,9 +408,12 @@ export default function InstallApp() {
                     <div className="space-y-1 text-xs text-muted-foreground">
                       <p className="font-semibold text-foreground">Download error (InvalidJWT / link expired)?</p>
                       <p>
-                        Open this install page in Chrome and tap <strong>Download</strong> again — do not reuse an old APK
-                        link from chat. Share the <strong>install page</strong> link ({installUrl}), not a downloaded
-                        file URL.
+                        Tap <strong>Download EzzyERP for Android</strong> on this page — do not reuse an old APK link
+                        from chat. Share the <strong>install page</strong> link ({installUrl}), not a storage file URL.
+                      </p>
+                      <p>
+                        If Chrome offers <strong>Install app</strong>, dismiss it — that adds a web shortcut only. You
+                        need the APK file from the blue Download button.
                       </p>
                     </div>
                   </div>
@@ -425,23 +430,10 @@ export default function InstallApp() {
                 </>
               )}
             </p>
-            {platform === "android" && isInstallable && (
-              <>
-                <div className="pt-2 border-t text-center text-xs text-muted-foreground">or add to home screen (PWA)</div>
-                <Button onClick={handleInstall} variant="outline" className="w-full" size="lg">
-                  Install Web App Shortcut
-                </Button>
-              </>
-            )}
-            {platform === "android" && !isInstallable && (
-              <p className="text-xs text-center text-muted-foreground">
-                Prefer a home-screen shortcut? Chrome menu (⋮) → <strong>Install app</strong>
-              </p>
-            )}
             {platform !== "desktop" && (
               <div className="pt-2 border-t">
                 <Button asChild variant="ghost" className="w-full" size="lg">
-                  <a href={appStartUrl}>Open in Browser</a>
+                  <a href={appStartUrl}>Open in Browser (no install)</a>
                 </Button>
               </div>
             )}

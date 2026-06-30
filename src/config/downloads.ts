@@ -16,10 +16,22 @@ function resolveFunctionsOrigin(): string {
 
 const FUNCTIONS_ORIGIN = resolveFunctionsOrigin();
 
-/** Stable install link — edge function mints a fresh signed URL on each request. */
-export const ANDROID_APK_URL =
-  import.meta.env.VITE_ANDROID_APK_URL?.trim() ||
-  `${FUNCTIONS_ORIGIN}/functions/v1/download-apk`;
+/** Edge function — serves APK with correct Content-Disposition (never use raw storage URLs). */
+export const ANDROID_APK_EDGE_URL = `${FUNCTIONS_ORIGIN}/functions/v1/download-apk`;
+
+/** Legacy public/signed storage links miss APK headers and expire — always route through edge function. */
+function normalizeAndroidApkUrl(url: string): string {
+  const trimmed = url.trim();
+  if (!trimmed) return ANDROID_APK_EDGE_URL;
+  if (/\/storage\/v1\/object\//i.test(trimmed)) {
+    return ANDROID_APK_EDGE_URL;
+  }
+  return trimmed;
+}
+
+export const ANDROID_APK_URL = normalizeAndroidApkUrl(
+  import.meta.env.VITE_ANDROID_APK_URL?.trim() || ANDROID_APK_EDGE_URL,
+);
 
 export const WINDOWS_SETUP_FILE = `EzzyERP-Setup-${APP_VERSION}.exe`;
 export const WINDOWS_PORTABLE_FILE = `EzzyERP-Portable-${APP_VERSION}.exe`;
@@ -55,6 +67,7 @@ export function isWindowsInstallerConfigured(): boolean {
   return isHostedUrl(WINDOWS_SETUP_URL);
 }
 
-export function isWindowsPortableConfigured(): boolean {
-  return isHostedUrl(WINDOWS_PORTABLE_URL);
+/** True when env still points at Supabase storage (wrong — use edge function in VITE_ANDROID_APK_URL). */
+export function isAndroidApkStorageUrl(url: string = import.meta.env.VITE_ANDROID_APK_URL?.trim() ?? ""): boolean {
+  return /\/storage\/v1\/object\//i.test(url.trim());
 }
