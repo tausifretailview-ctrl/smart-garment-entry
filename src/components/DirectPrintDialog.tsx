@@ -21,7 +21,12 @@ import {
   TSPLLabelConfig,
   TSPLTemplateConfig
 } from '@/utils/tsplGenerator';
-import { generatePrecisionProTSCLabel } from '@/utils/labels/precisionProTSPL';
+import {
+  generatePrecisionProTSCLabel,
+  PRECISION_PRO_TSC_GAP_MM,
+  PRECISION_PRO_TSC_HEIGHT_MM,
+  PRECISION_PRO_TSC_WIDTH_MM,
+} from '@/utils/labels/precisionProTSPL';
 import {
   PRNTemplate,
   SAMPLE_PRN_TEMPLATES,
@@ -179,9 +184,9 @@ export const DirectPrintDialog = ({
 
     if (labelSize === 'precision_pro_tsc') {
       return {
-        width: 102,
-        height: 50,
-        gap: 2,
+        width: PRECISION_PRO_TSC_WIDTH_MM,
+        height: PRECISION_PRO_TSC_HEIGHT_MM,
+        gap: PRECISION_PRO_TSC_GAP_MM,
         ...printerOverrides,
       };
     }

@@ -338,7 +338,7 @@ const sheetPresets = {
   // Large / Shipping
   thermal_100x50_1up: { cols: 1, width: "100mm", height: "50mm", gap: "0mm", category: "thermal", thermal: true },
   thermal_100x100_1up: { cols: 1, width: "100mm", height: "100mm", gap: "0mm", category: "thermal", thermal: true },
-  precision_pro_tsc: { cols: 1, width: "102mm", height: "50mm", gap: "2mm", category: "thermal", thermal: true },
+  precision_pro_tsc: { cols: 1, width: "102mm", height: "53mm", gap: "2mm", category: "thermal", thermal: true },
 
   // ===== Thermal Roll Presets (2UP - Two Columns) =====
   thermal_40x20_2up: { cols: 2, width: "40mm", height: "20mm", gap: "2mm", category: "thermal", thermal: true },
@@ -395,7 +395,7 @@ const sheetPresetLabels: Record<string, { label: string; description: string; gr
   // Thermal 1UP - Large
   thermal_100x50_1up: { label: "100×50mm (1UP)", description: "Shipping label", group: "Thermal 1UP - Large" },
   thermal_100x100_1up: { label: "100×100mm (1UP)", description: "Large shipping", group: "Thermal 1UP - Large" },
-  precision_pro_tsc: { label: "Precision Pro TSC (102×50mm — Box + Pair)", description: "Footwear box + 2 pair labels", group: "Thermal 1UP - Large" },
+  precision_pro_tsc: { label: "Precision Pro TSC (102×53mm — Box + Pair)", description: "Footwear box + 2 pair labels", group: "Thermal 1UP - Large" },
   
   // Thermal 2UP
   thermal_40x20_2up: { label: "40×20mm (2UP)", description: "Dual small", group: "Thermal 2UP" },
@@ -5005,7 +5005,7 @@ export default function BarcodePrinting() {
                   <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50 mt-1">🔥 Thermal 1UP - Large</div>
                   <SelectItem value="thermal_100x50_1up">100×50mm (shipping)</SelectItem>
                   <SelectItem value="thermal_100x100_1up">100×100mm (large shipping)</SelectItem>
-                  <SelectItem value="precision_pro_tsc">Precision Pro TSC (102×50mm — Box + Pair)</SelectItem>
+                  <SelectItem value="precision_pro_tsc">Precision Pro TSC (102×53mm — Box + Pair)</SelectItem>
                   
                   {/* Thermal Roll Presets - 2UP */}
                   <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50 mt-1">🔥 Thermal 2UP (Dual Column)</div>
@@ -5058,7 +5058,7 @@ export default function BarcodePrinting() {
                   {sheetType === "precision_pro_tsc" ? (
                     <>
                       <li>TSC TTP-244 Pro / 245 — use Direct Print (WebUSB) for raw TSPL</li>
-                      <li>Label roll: 102×50mm with 2mm gap</li>
+                      <li>Label roll: 102×53mm with 2mm gap</li>
                     </>
                   ) : (
                     <>
@@ -6328,7 +6328,7 @@ export default function BarcodePrinting() {
           ) : sheetType === "precision_pro_tsc" ? (
             <div className="mt-4 border rounded-md p-4 bg-white overflow-auto">
               <div className="mb-3 p-3 rounded-lg text-center font-bold text-sm" style={{ background: "hsl(var(--primary) / 0.1)", color: "hsl(var(--primary))" }}>
-                Total: {labelItems.reduce((s, i) => s + (i.qty || 0), 0)} labels (102×50mm box + pair)
+                Total: {labelItems.reduce((s, i) => s + (i.qty || 0), 0)} labels (102×53mm box + pair)
               </div>
               <div className="flex flex-col items-center gap-4">
                 {labelItems

@@ -1,5 +1,9 @@
-// Precision Pro TSC — 102×50mm footwear label (box + 2 pair labels)
-// TSC TTP-244 Pro / 245 at 203 DPI (8 dots/mm → 816×400 dots)
+// Precision Pro TSC — 102×53mm footwear label (box + 2 pair labels)
+// TSC TTP-244 Pro / 245 at 203 DPI (8 dots/mm → 816×424 dots)
+
+export const PRECISION_PRO_TSC_WIDTH_MM = 102;
+export const PRECISION_PRO_TSC_HEIGHT_MM = 53;
+export const PRECISION_PRO_TSC_GAP_MM = 2;
 
 export interface PrecisionProTSCLabelData {
   businessName: string;
@@ -14,69 +18,89 @@ export interface PrecisionProTSCLabelData {
   category?: string;
 }
 
+const LABEL_H_DOTS = 424;
+const BOX_DIVIDER_X = 495;
+const PAIR_X = 505;
+const PAIR_MID_Y = 212;
+
 const esc = (s: string) => s.replace(/"/g, '\\"');
+
+function truncFields(data: PrecisionProTSCLabelData, compact: boolean) {
+  const maxOrg = compact ? 12 : 20;
+  const maxProduct = compact ? 10 : 12;
+  const maxStyle = compact ? 14 : 18;
+  const maxBrand = compact ? 8 : 10;
+  const maxColor = compact ? 8 : 10;
+  const maxCategory = compact ? 6 : 8;
+
+  return {
+    org: (data.businessName || '').slice(0, maxOrg),
+    product: (data.productName || '').slice(0, maxProduct),
+    style: (data.style || '').slice(0, maxStyle),
+    brand: (data.brand || '').slice(0, maxBrand),
+    color: (data.color || '').slice(0, maxColor),
+    category: (data.category || '').slice(0, maxCategory),
+    barcode: data.barcode || '',
+    size: data.size || '',
+    mrp: data.mrp ?? data.salePrice ?? 0,
+  };
+}
+
+/** Box label — full-size fields (left panel). */
+function boxPanelCommands(t: ReturnType<typeof truncFields>): string[] {
+  return [
+    `TEXT 10,10,"3",0,1,1,"${esc(t.org)}"`,
+    `BARCODE 10,45,"128",60,1,0,2,2,"${t.barcode}"`,
+    `TEXT 10,118,"2",0,1,1,"${t.barcode}"`,
+    `TEXT 10,143,"2",0,1,1,"MRP: Rs.${t.mrp}/-"`,
+    `TEXT 10,168,"4",0,1,1,"${esc(t.product)}"`,
+    `TEXT 10,210,"3",0,1,1,"${esc(t.style)}"`,
+    `TEXT 10,242,"2",0,1,1,"${esc(t.brand)}"`,
+    `TEXT 220,242,"2",0,1,1,"${esc(t.category)}"`,
+    `TEXT 10,268,"2",0,1,1,"${esc(t.color)}"`,
+    `TEXT 320,200,"5",0,2,2,"${t.size}"`,
+  ];
+}
+
+/** Pair label — same fields, compact layout (right top or bottom). */
+function pairPanelCommands(y0: number, t: ReturnType<typeof truncFields>): string[] {
+  return [
+    `TEXT ${PAIR_X},${y0 + 4},"1",0,1,1,"${esc(t.org)}"`,
+    `BARCODE ${PAIR_X},${y0 + 16},"128",26,1,0,1,2,"${t.barcode}"`,
+    `TEXT ${PAIR_X},${y0 + 44},"1",0,1,1,"${t.barcode}"`,
+    `TEXT ${PAIR_X},${y0 + 54},"1",0,1,1,"MRP:Rs.${t.mrp}/-"`,
+    `TEXT ${PAIR_X},${y0 + 66},"2",0,1,1,"${esc(t.product)}"`,
+    `TEXT ${PAIR_X},${y0 + 82},"1",0,1,1,"${esc(t.style)}"`,
+    `TEXT ${PAIR_X},${y0 + 94},"1",0,1,1,"${esc(t.brand)}"`,
+    `TEXT ${PAIR_X + 115},${y0 + 94},"1",0,1,1,"${esc(t.category)}"`,
+    `TEXT ${PAIR_X},${y0 + 106},"1",0,1,1,"${esc(t.color)}"`,
+    `TEXT ${PAIR_X + 168},${y0 + 66},"3",0,1,1,"${t.size}"`,
+  ];
+}
 
 export function generatePrecisionProTSCLabel(
   data: PrecisionProTSCLabelData,
   copies: number = 1,
 ): string {
-  const {
-    businessName,
-    barcode,
-    productName,
-    style,
-    brand,
-    color,
-    size,
-    mrp,
-    category,
-  } = data;
+  const box = truncFields(data, false);
+  const pair = truncFields(data, true);
 
-  const orgTrunc = (businessName || '').slice(0, 20);
-  const productTrunc = (productName || '').slice(0, 12);
-  const styleTrunc = (style || '').slice(0, 18);
-  const brandTrunc = (brand || '').slice(0, 10);
-  const colorTrunc = (color || '').slice(0, 10);
-  const categoryTrunc = (category || '').slice(0, 8);
+  const commands = [
+    `SIZE ${PRECISION_PRO_TSC_WIDTH_MM} mm, ${PRECISION_PRO_TSC_HEIGHT_MM} mm`,
+    `GAP ${PRECISION_PRO_TSC_GAP_MM} mm, 0 mm`,
+    'DIRECTION 1',
+    'REFERENCE 0,0',
+    'CODEPAGE UTF-8',
+    'CLS',
+    ...boxPanelCommands(box),
+    `BAR ${BOX_DIVIDER_X},0,2,${LABEL_H_DOTS}`,
+    ...pairPanelCommands(4, pair),
+    `BAR 497,${PAIR_MID_Y},315,2`,
+    ...pairPanelCommands(PAIR_MID_Y + 4, pair),
+    `PRINT 1,${copies}`,
+  ];
 
-  return `
-SIZE 102 mm, 50 mm
-GAP 2 mm, 0 mm
-DIRECTION 1
-REFERENCE 0,0
-CODEPAGE UTF-8
-CLS
-
-TEXT 10,10,"3",0,1,1,"${esc(orgTrunc)}"
-BARCODE 10,45,"128",60,1,0,2,2,"${barcode}"
-TEXT 10,115,"2",0,1,1,"${barcode}"
-TEXT 10,140,"2",0,1,1,"MRP: Rs.${mrp}/-"
-TEXT 10,165,"4",0,1,1,"${esc(productTrunc)}"
-TEXT 10,205,"3",0,1,1,"${esc(styleTrunc)}"
-TEXT 10,235,"2",0,1,1,"${esc(brandTrunc)}"
-TEXT 220,235,"2",0,1,1,"${esc(categoryTrunc)}"
-TEXT 10,260,"2",0,1,1,"${esc(colorTrunc)}"
-TEXT 320,195,"5",0,2,2,"${size}"
-BAR 495,0,2,400
-
-BARCODE 505,5,"128",40,1,0,2,2,"${barcode}"
-TEXT 505,50,"1",0,1,1,"${barcode}"
-TEXT 505,70,"2",0,1,1,"${esc(productTrunc)}"
-TEXT 720,70,"2",0,1,1,"${size}"
-TEXT 505,95,"2",0,1,1,"${esc(brandTrunc)}"
-TEXT 505,120,"2",0,1,1,"${esc(colorTrunc)}"
-
-BAR 497,195,315,2
-
-BARCODE 505,200,"128",40,1,0,2,2,"${barcode}"
-TEXT 505,245,"1",0,1,1,"${barcode}"
-TEXT 505,265,"2",0,1,1,"${esc(productTrunc)}"
-TEXT 720,265,"2",0,1,1,"${size}"
-TEXT 505,290,"2",0,1,1,"${esc(brandTrunc)}"
-TEXT 505,315,"2",0,1,1,"${esc(colorTrunc)}"
-
-PRINT 1,${copies}
-`.trim();
+  return commands.join('\n');
 }
 
 export function generatePrecisionProTSCBatch(
