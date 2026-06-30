@@ -28,6 +28,10 @@ import {
 } from "@/components/ui/table";
 import { Plus, Trash2, Pencil, Save, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import {
+  customerBrandDiscountsDialogQueryKey,
+  invalidateCustomerBrandDiscountQueries,
+} from "@/hooks/useCustomerBrandDiscounts";
 
 interface BrandDiscount {
   id: string;
@@ -80,7 +84,7 @@ export function BrandDiscountDialog({
 
   // Fetch existing brand discounts for this customer
   const { data: brandDiscounts = [], isLoading } = useQuery({
-    queryKey: ["customer-brand-discounts", customer?.id],
+    queryKey: customerBrandDiscountsDialogQueryKey(customer?.id),
     queryFn: async () => {
       if (!customer?.id || !currentOrganization?.id) return [];
       
@@ -114,7 +118,7 @@ export function BrandDiscountDialog({
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["customer-brand-discounts", customer?.id] });
+      invalidateCustomerBrandDiscountQueries(queryClient, customer?.id);
       toast({ title: "Brand discount added" });
       setNewBrand("");
       setNewDiscount("");
@@ -143,7 +147,7 @@ export function BrandDiscountDialog({
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["customer-brand-discounts", customer?.id] });
+      invalidateCustomerBrandDiscountQueries(queryClient, customer?.id);
       toast({ title: "Discount updated" });
       setEditingId(null);
       setEditDiscount("");
@@ -164,7 +168,7 @@ export function BrandDiscountDialog({
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["customer-brand-discounts", customer?.id] });
+      invalidateCustomerBrandDiscountQueries(queryClient, customer?.id);
       toast({ title: "Brand discount removed" });
     },
     onError: (error) => {

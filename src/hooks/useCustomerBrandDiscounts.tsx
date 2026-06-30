@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 
@@ -8,11 +8,30 @@ interface BrandDiscount {
   discount_percent: number;
 }
 
+/** React Query key used by Sales Invoice / POS brand-discount lookup. */
+export function customerBrandDiscountsMapQueryKey(customerId: string | null | undefined) {
+  return ["customer-brand-discounts-map", customerId] as const;
+}
+
+/** React Query key used by BrandDiscountDialog list. */
+export function customerBrandDiscountsDialogQueryKey(customerId: string | null | undefined) {
+  return ["customer-brand-discounts", customerId] as const;
+}
+
+/** Invalidate every cache that reads customer_brand_discounts for a customer. */
+export function invalidateCustomerBrandDiscountQueries(
+  queryClient: QueryClient,
+  customerId: string | null | undefined,
+) {
+  queryClient.invalidateQueries({ queryKey: customerBrandDiscountsDialogQueryKey(customerId) });
+  queryClient.invalidateQueries({ queryKey: customerBrandDiscountsMapQueryKey(customerId) });
+}
+
 export function useCustomerBrandDiscounts(customerId: string | null) {
   const { currentOrganization } = useOrganization();
 
   const { data: brandDiscounts = [], isLoading } = useQuery({
-    queryKey: ["customer-brand-discounts-map", customerId],
+    queryKey: customerBrandDiscountsMapQueryKey(customerId),
     queryFn: async () => {
       if (!customerId || !currentOrganization?.id) return [];
       
