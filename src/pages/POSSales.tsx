@@ -28,8 +28,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Scan, X, Plus, Trash2, Banknote, CreditCard, Smartphone, Printer, ChevronLeft, ChevronRight, ChevronDown, FileText, RotateCcw, Check, UserPlus, MessageCircle, Link2, Wallet, IndianRupee, ArrowUp, Pause, Play, Loader2, AlertCircle, Clock, Coins, Package, History, BookmarkPlus, Search, Receipt } from "lucide-react";
-import { SettleCustomerAccountDialog } from "@/components/SettleCustomerAccountDialog";
+import { Scan, X, Plus, Trash2, Banknote, CreditCard, Smartphone, Printer, ChevronLeft, ChevronRight, ChevronDown, FileText, RotateCcw, Check, UserPlus, MessageCircle, Link2, Wallet, IndianRupee, ArrowUp, Pause, Play, Loader2, AlertCircle, Clock, Coins, Package, History, BookmarkPlus, Search } from "lucide-react";
 import { MobilePOSLayout } from "@/components/mobile/MobilePOSLayout";
 import { FloatingPOSReports } from "@/components/FloatingPOSReports";
 import { FloatingSaleReturn } from "@/components/FloatingSaleReturn";
@@ -476,7 +475,6 @@ export default function POSSales() {
   const _savedCart = readPosCartSnapshot(currentOrganization?.id || "default");
 
   const [customerId, setCustomerId] = useState<string>(_savedCart?.customerId || "");
-  const [showSettleDialog, setShowSettleDialog] = useState(false);
   const [customerName, setCustomerName] = useState(_savedCart?.customerName || "");
   const [customerPhone, setCustomerPhone] = useState(_savedCart?.customerPhone || "");
   const [searchInput, setSearchInput] = useState("");
@@ -6503,18 +6501,6 @@ export default function POSSales() {
                       ? "..."
                       : `₹${Math.abs(customerBalance).toLocaleString('en-IN')}`}
                   </div>
-                  {customerBalance > 0 && (
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="secondary"
-                      className="mt-1.5 h-7 text-[10px] px-2 bg-emerald-100 text-emerald-800 hover:bg-emerald-200 border-0"
-                      onClick={() => setShowSettleDialog(true)}
-                    >
-                      <Receipt className="h-3 w-3 mr-1" />
-                      Settle Account
-                    </Button>
-                  )}
                 </div>
               )}
             </div>
@@ -7234,21 +7220,6 @@ export default function POSSales() {
             </div>
           </div>
         </div>
-      )}
-
-      {currentOrganization?.id && (
-        <SettleCustomerAccountDialog
-          open={showSettleDialog}
-          onOpenChange={setShowSettleDialog}
-          customerId={customerId || null}
-          customerName={customerName || "Customer"}
-          organizationId={currentOrganization.id}
-          onSuccess={() => {
-            setShowSettleDialog(false);
-            queryClient.invalidateQueries({ queryKey: ["sales-invoices"] });
-            queryClient.invalidateQueries({ queryKey: ["customer-balance"] });
-          }}
-        />
       )}
 
       {/*

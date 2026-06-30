@@ -46,6 +46,7 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useReactToPrint } from "react-to-print";
 import { InvoiceWrapper } from "@/components/InvoiceWrapper";
+import { SettleCustomerAccountDialog } from "@/components/SettleCustomerAccountDialog";
 import { PrintPreviewDialog } from "@/components/PrintPreviewDialog";
 import { EInvoicePrint } from "@/components/EInvoicePrint";
 import html2canvas from "html2canvas";
@@ -279,6 +280,9 @@ const POSDashboard = () => {
   const [userFilter, setUserFilter] = useState<string>("__pending__");
   // Cancellation visibility filter — default hides cancelled invoices so reports stay accurate
   const [cancelFilter, setCancelFilter] = useState<string>("active"); // active | cancelled | all
+  const [showSettleDialog, setShowSettleDialog] = useState(false);
+  const [settleCustomerId, setSettleCustomerId] = useState<string | null>(null);
+  const [settleCustomerName, setSettleCustomerName] = useState("");
 
   const { data: orgUsers = [], isFetched: orgUsersFetched } = useQuery({
     queryKey: ["org-users-filter", currentOrganization?.id],
@@ -689,6 +693,19 @@ const POSDashboard = () => {
   const paginatedSales = salesPayload?.sales ?? [];
   const creditNoteUsage = salesPayload?.creditNoteUsage ?? {};
   const totalCount = salesPayload?.totalCount ?? 0;
+
+  const filteredCustomer = useMemo(() => {
+    if (!debouncedSearch || !paginatedSales.length) return null;
+    const customerIds = new Set(
+      paginatedSales.map((sale) => sale.customer_id).filter(Boolean),
+    );
+    if (customerIds.size === 1) {
+      const sale = paginatedSales.find((s) => s.customer_id);
+      return sale ? { id: sale.customer_id!, name: sale.customer_name } : null;
+    }
+    return null;
+  }, [debouncedSearch, paginatedSales]);
+
   const sales = paginatedSales;
   const loading = salesQueryLoading && paginatedSales.length === 0;
   const isRefreshing = salesQueryFetching && paginatedSales.length > 0;
@@ -2768,6 +2785,21 @@ const POSDashboard = () => {
                   </div>
                 </PopoverContent>
               </Popover>
+              {filteredCustomer && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-9 shrink-0 gap-1.5 border-emerald-400 bg-emerald-50 text-sm font-medium text-emerald-700 hover:bg-emerald-100"
+                  onClick={() => {
+                    setSettleCustomerId(filteredCustomer.id);
+                    setSettleCustomerName(filteredCustomer.name || "");
+                    setShowSettleDialog(true);
+                  }}
+                >
+                  <Receipt className="h-3.5 w-3.5" />
+                  Settle Account
+                </Button>
+              )}
           </div>
 
           <div className="flex-1 min-h-0 flex flex-col">
@@ -3958,6 +3990,20 @@ const POSDashboard = () => {
           />
         </div>
       )}
+
+      <SettleCustomerAccountDialog
+        open={showSettleDialog}
+        onOpenChange={setShowSettleDialog}
+        customerId={settleCustomerId}
+        customerName={settleCustomerName}
+        organizationId={currentOrganization?.id || ""}
+        onSuccess={() => {
+          setShowSettleDialog(false);
+          refreshPosDashboard();
+          queryClient.invalidateQueries({ queryKey: ["sales-invoices"] });
+          queryClient.invalidateQueries({ queryKey: ["customer-balance"] });
+        }}
+      />
     </>
   );
 };
