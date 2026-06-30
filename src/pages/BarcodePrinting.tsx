@@ -83,10 +83,10 @@ import { TestLabelPrint } from "@/components/precision-barcode/TestLabelPrint";
 import { PrecisionPrintCSS } from "@/components/precision-barcode/PrecisionPrintCSS";
 import { PrecisionLabelDesigner, DEFAULT_PRECISION_CONFIG } from "@/components/precision-barcode/PrecisionLabelDesigner";
 import {
-  isKidszonePresetName,
-  resolveKidszoneLabelConfig,
-  KIDSZONE_50X40_DIMENSIONS,
-} from "@/constants/kidszoneLabelTemplate";
+  getFixedBuiltinLabelDimensions,
+  isFixedBuiltinLabelPreset,
+  resolveFixedBuiltinLabelConfig,
+} from "@/constants/fixedBuiltinLabelPresets";
 
 const precisionPresetStorageKey = (orgId: string) => `precision_active_preset_${orgId}`;
 
@@ -94,9 +94,8 @@ const resolvePresetLabelConfig = (
   presetName: string,
   stored?: Partial<LabelDesignConfig> | null,
 ): LabelDesignConfig => {
-  if (isKidszonePresetName(presetName)) {
-    return resolveKidszoneLabelConfig();
-  }
+  const fixed = resolveFixedBuiltinLabelConfig(presetName);
+  if (fixed) return fixed;
   return ensureCompleteFieldOrder(stored || {});
 };
 
@@ -274,6 +273,7 @@ type SheetType =
   "thermal_60x30_1up" | "thermal_60x40_1up" | "thermal_100x50_1up" | 
   "thermal_75x50_1up" | "thermal_100x100_1up" | "thermal_80x40_1up" |
   "precision_pro_tsc" |
+  "jewellery_100x15_1up" |
   // Thermal 2UP Types
   "thermal_50x30_2up" | "thermal_50x25_2up" | "thermal_38x25_2up" |
   "thermal_40x20_2up" | "thermal_40x30_2up" | "thermal_60x30_2up" | 
@@ -339,6 +339,7 @@ const sheetPresets = {
   thermal_100x50_1up: { cols: 1, width: "100mm", height: "50mm", gap: "0mm", category: "thermal", thermal: true },
   thermal_100x100_1up: { cols: 1, width: "100mm", height: "100mm", gap: "0mm", category: "thermal", thermal: true },
   precision_pro_tsc: { cols: 1, width: "102mm", height: "53mm", gap: "2mm", category: "thermal", thermal: true },
+  jewellery_100x15_1up: { cols: 1, width: "100mm", height: "15mm", gap: "2mm", category: "thermal", thermal: true },
 
   // ===== Thermal Roll Presets (2UP - Two Columns) =====
   thermal_40x20_2up: { cols: 2, width: "40mm", height: "20mm", gap: "2mm", category: "thermal", thermal: true },
@@ -396,6 +397,7 @@ const sheetPresetLabels: Record<string, { label: string; description: string; gr
   thermal_100x50_1up: { label: "100×50mm (1UP)", description: "Shipping label", group: "Thermal 1UP - Large" },
   thermal_100x100_1up: { label: "100×100mm (1UP)", description: "Large shipping", group: "Thermal 1UP - Large" },
   precision_pro_tsc: { label: "Precision Pro TSC (102×53mm — Box + Pair)", description: "Footwear box + 2 pair labels", group: "Thermal 1UP - Large" },
+  jewellery_100x15_1up: { label: "Jewellery Tag (100×15mm 1UP)", description: "Jewellery tag with G/L/N weight", group: "Thermal 1UP - Jewellery" },
   
   // Thermal 2UP
   thermal_40x20_2up: { label: "40×20mm (2UP)", description: "Dual small", group: "Thermal 2UP" },
@@ -1368,25 +1370,22 @@ export default function BarcodePrinting() {
 
   /** Kids Zone uses a hard-coded layout so every PC/login renders the same design. */
   const effectivePrecisionLabelConfig = useMemo((): LabelDesignConfig => {
-    if (isKidszonePresetName(activePrecisionTemplateBaseName)) {
-      return resolveKidszoneLabelConfig();
-    }
+    const fixed = resolveFixedBuiltinLabelConfig(activePrecisionTemplateBaseName);
+    if (fixed) return fixed;
     return precisionSettings.labelConfig || DEFAULT_PRECISION_CONFIG;
   }, [activePrecisionTemplateBaseName, precisionSettings.labelConfig]);
 
   const effectivePrecisionLabelWidth = useMemo(
     () =>
-      isKidszonePresetName(activePrecisionTemplateBaseName)
-        ? KIDSZONE_50X40_DIMENSIONS.width
-        : precisionSettings.labelWidth,
+      getFixedBuiltinLabelDimensions(activePrecisionTemplateBaseName)?.width
+        ?? precisionSettings.labelWidth,
     [activePrecisionTemplateBaseName, precisionSettings.labelWidth],
   );
 
   const effectivePrecisionLabelHeight = useMemo(
     () =>
-      isKidszonePresetName(activePrecisionTemplateBaseName)
-        ? KIDSZONE_50X40_DIMENSIONS.height
-        : precisionSettings.labelHeight,
+      getFixedBuiltinLabelDimensions(activePrecisionTemplateBaseName)?.height
+        ?? precisionSettings.labelHeight,
     [activePrecisionTemplateBaseName, precisionSettings.labelHeight],
   );
 
@@ -1449,14 +1448,15 @@ export default function BarcodePrinting() {
 
   // Auto-save precision label config changes to active template/preset (debounced)
   const autoSavePrecisionConfig = useCallback(async (targetName: string, labelConfig: LabelDesignConfig, labelWidth: number, labelHeight: number, orgId: string) => {
-    const configToSave = isKidszonePresetName(targetName)
-      ? resolveKidszoneLabelConfig()
+    const configToSave = isFixedBuiltinLabelPreset(targetName)
+      ? resolveFixedBuiltinLabelConfig(targetName.replace(/^preset:/, ""))!
       : { ...labelConfig };
     const cleanName = targetName.startsWith("preset:")
       ? targetName.replace("preset:", "")
       : targetName;
-    const saveWidth = isKidszonePresetName(targetName) ? KIDSZONE_50X40_DIMENSIONS.width : labelWidth;
-    const saveHeight = isKidszonePresetName(targetName) ? KIDSZONE_50X40_DIMENSIONS.height : labelHeight;
+    const fixedDims = getFixedBuiltinLabelDimensions(cleanName);
+    const saveWidth = fixedDims?.width ?? labelWidth;
+    const saveHeight = fixedDims?.height ?? labelHeight;
 
     // Skip the write entirely when nothing material has changed since the last
     // persist. Without this the auto-save effects re-write printer_presets on
@@ -1537,13 +1537,15 @@ export default function BarcodePrinting() {
       const templateName = activePrecisionTemplateName.startsWith("preset:")
         ? activePrecisionTemplateName.replace("preset:", "")
         : activePrecisionTemplateName;
-      if (isKidszonePresetName(templateName)) {
+      const fixedConfig = resolveFixedBuiltinLabelConfig(templateName);
+      const fixedDims = getFixedBuiltinLabelDimensions(templateName);
+      if (fixedConfig && fixedDims) {
         hasLoadedPrecisionConfigRef.current = true;
         setPrecisionSettings(prev => ({
           ...prev,
-          labelConfig: resolveKidszoneLabelConfig(),
-          labelWidth: KIDSZONE_50X40_DIMENSIONS.width,
-          labelHeight: KIDSZONE_50X40_DIMENSIONS.height,
+          labelConfig: fixedConfig,
+          labelWidth: fixedDims.width,
+          labelHeight: fixedDims.height,
         }));
       } else {
         const freshTemplate = dbLabelTemplates.find((t: LabelTemplate) => t.name === templateName);
@@ -1765,15 +1767,17 @@ export default function BarcodePrinting() {
     purchaseNavKey,
   ]);
 
-  // Push canonical Kids Zone layout to DB whenever that preset is active (repairs stale rows).
+  // Push canonical fixed built-in layouts to DB whenever those presets are active.
   useEffect(() => {
     if (!activePrecisionTemplateName || !currentOrganization?.id) return;
-    if (!isKidszonePresetName(activePrecisionTemplateBaseName)) return;
+    const fixedConfig = resolveFixedBuiltinLabelConfig(activePrecisionTemplateBaseName);
+    const fixedDims = getFixedBuiltinLabelDimensions(activePrecisionTemplateBaseName);
+    if (!fixedConfig || !fixedDims) return;
     void autoSavePrecisionConfig(
       activePrecisionTemplateName,
-      resolveKidszoneLabelConfig(),
-      KIDSZONE_50X40_DIMENSIONS.width,
-      KIDSZONE_50X40_DIMENSIONS.height,
+      fixedConfig,
+      fixedDims.width,
+      fixedDims.height,
       currentOrganization.id,
     );
   }, [activePrecisionTemplateName, activePrecisionTemplateBaseName, currentOrganization?.id, autoSavePrecisionConfig]);
@@ -1781,7 +1785,7 @@ export default function BarcodePrinting() {
   // Debounced auto-save for precision designer changes
   useEffect(() => {
     if (!activePrecisionTemplateName || !precisionSettings.labelConfig || !currentOrganization?.id) return;
-    if (isKidszonePresetName(activePrecisionTemplateBaseName)) return;
+    if (isFixedBuiltinLabelPreset(activePrecisionTemplateBaseName)) return;
 
     if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
     
@@ -1932,8 +1936,8 @@ export default function BarcodePrinting() {
             : mapped.find((p: any) => p.isDefault);
           
           if (presetToLoad) {
-            const kidszone = isKidszonePresetName(presetToLoad.name);
-            const resolvedConfig = kidszone || presetToLoad.labelConfig
+            const fixedDims = getFixedBuiltinLabelDimensions(presetToLoad.name);
+            const resolvedConfig = fixedDims || presetToLoad.labelConfig
               ? resolvePresetLabelConfig(presetToLoad.name, presetToLoad.labelConfig)
               : undefined;
             setPrecisionSettings((prev) => ({
@@ -1941,8 +1945,8 @@ export default function BarcodePrinting() {
               xOffset: presetToLoad.xOffset,
               yOffset: presetToLoad.yOffset,
               vGap: presetToLoad.vGap,
-              labelWidth: kidszone ? KIDSZONE_50X40_DIMENSIONS.width : presetToLoad.width,
-              labelHeight: kidszone ? KIDSZONE_50X40_DIMENSIONS.height : presetToLoad.height,
+              labelWidth: fixedDims?.width ?? presetToLoad.width,
+              labelHeight: fixedDims?.height ?? presetToLoad.height,
               ...(presetToLoad.a4Cols ? { a4Cols: presetToLoad.a4Cols } : {}),
               ...(presetToLoad.a4Rows ? { a4Rows: presetToLoad.a4Rows } : {}),
               printMode: presetToLoad.printMode || (presetToLoad.a4Cols && presetToLoad.a4Rows ? 'a4' : (presetToLoad.thermalCols && presetToLoad.thermalCols > 1) ? 'thermal2up' : 'thermal'),
@@ -2041,7 +2045,7 @@ export default function BarcodePrinting() {
 
   /** Load a precision preset/template and keep Label Designer + Standard tabs in sync. */
   const handlePrecisionPresetLoad = useCallback((preset: CalibrationPreset) => {
-    const kidszone = isKidszonePresetName(preset.name);
+    const fixedDims = getFixedBuiltinLabelDimensions(preset.name);
     const migratedConfig = resolvePresetLabelConfig(preset.name, preset.labelConfig);
     const mode =
       preset.printMode ||
@@ -2054,10 +2058,10 @@ export default function BarcodePrinting() {
     setPrecisionSettings((prev) => ({
       ...prev,
       labelConfig: migratedConfig,
-      ...(kidszone
+      ...(fixedDims
         ? {
-            labelWidth: KIDSZONE_50X40_DIMENSIONS.width,
-            labelHeight: KIDSZONE_50X40_DIMENSIONS.height,
+            labelWidth: fixedDims.width,
+            labelHeight: fixedDims.height,
           }
         : {
             labelWidth: preset.width ?? prev.labelWidth,
@@ -5001,6 +5005,10 @@ export default function BarcodePrinting() {
                   <SelectItem value="thermal_75x50_1up">75×50mm (medium shipping)</SelectItem>
                   <SelectItem value="thermal_80x40_1up">80×40mm (wide shipping)</SelectItem>
                   
+                  {/* Thermal Roll Presets - Jewellery */}
+                  <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50 mt-1">💎 Thermal 1UP - Jewellery</div>
+                  <SelectItem value="jewellery_100x15_1up">Jewellery Tag (100×15mm 1UP)</SelectItem>
+
                   {/* Thermal Roll Presets - 1UP Large */}
                   <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50 mt-1">🔥 Thermal 1UP - Large</div>
                   <SelectItem value="thermal_100x50_1up">100×50mm (shipping)</SelectItem>
@@ -5034,7 +5042,7 @@ export default function BarcodePrinting() {
                   )}
                 </SelectContent>
               </Select>
-              {sheetType !== "custom" && !sheetType.startsWith("thermal") && sheetType !== "precision_pro_tsc" && (
+              {sheetType !== "custom" && !sheetType.startsWith("thermal") && sheetType !== "precision_pro_tsc" && sheetType !== "jewellery_100x15_1up" && (
                 <Button 
                   variant="outline" 
                   size="icon"
@@ -5051,7 +5059,7 @@ export default function BarcodePrinting() {
                 <strong>Starting Offsets:</strong> Top 2mm, Left 1mm (auto-loaded, adjust as needed)
               </p>
             )}
-            {(sheetType.startsWith("thermal") || sheetType === "precision_pro_tsc") && (
+            {(sheetType.startsWith("thermal") || sheetType === "precision_pro_tsc" || sheetType === "jewellery_100x15_1up") && (
               <div className="mt-2 p-3 bg-orange-50 dark:bg-orange-950/30 rounded-lg border border-orange-200 dark:border-orange-800">
                 <p className="text-xs text-orange-700 dark:text-orange-300 font-medium mb-1">🔥 Thermal Printer Tips:</p>
                 <ul className="text-xs text-orange-600 dark:text-orange-400 space-y-0.5 list-disc list-inside">
@@ -5059,6 +5067,11 @@ export default function BarcodePrinting() {
                     <>
                       <li>TSC TTP-244 Pro / 245 — use Direct Print (WebUSB) for raw TSPL</li>
                       <li>Label roll: 102×53mm with 2mm gap</li>
+                    </>
+                  ) : sheetType === "jewellery_100x15_1up" ? (
+                    <>
+                      <li>Jewellery tag roll: 100×15mm with 2mm gap</li>
+                      <li>Load matching layout from Label Designer → Jewellery Tag preset</li>
                     </>
                   ) : (
                     <>
@@ -5910,7 +5923,7 @@ export default function BarcodePrinting() {
             🖨️ Print Test Label
           </Button>
         )}
-        {(sheetType.startsWith('thermal') || sheetType === 'precision_pro_tsc' || sheetType === 'custom') && (
+        {(isThermal1Up() || sheetType === 'precision_pro_tsc' || sheetType === 'custom') && (
           <Button 
             onClick={() => setIsDirectPrintDialogOpen(true)} 
             variant="outline"
@@ -6091,22 +6104,17 @@ export default function BarcodePrinting() {
                     if (name.startsWith("preset:")) {
                       const presetName = name.replace("preset:", "");
                       const preset = dbPresets.find((p) => p.name === presetName);
-                      const kidszone = isKidszonePresetName(presetName);
-                      if (preset || kidszone) {
+                      const fixedDims = getFixedBuiltinLabelDimensions(presetName);
+                      const fixedConfig = resolveFixedBuiltinLabelConfig(presetName);
+                      if (preset || fixedConfig) {
                         handlePrecisionPresetLoad({
                           name: presetName,
                           xOffset: preset?.xOffset ?? precisionSettings.xOffset,
                           yOffset: preset?.yOffset ?? precisionSettings.yOffset,
                           vGap: preset?.vGap ?? precisionSettings.vGap,
-                          width: kidszone
-                            ? KIDSZONE_50X40_DIMENSIONS.width
-                            : (preset?.width ?? precisionSettings.labelWidth),
-                          height: kidszone
-                            ? KIDSZONE_50X40_DIMENSIONS.height
-                            : (preset?.height ?? precisionSettings.labelHeight),
-                          labelConfig: kidszone
-                            ? resolveKidszoneLabelConfig()
-                            : preset?.labelConfig,
+                          width: fixedDims?.width ?? preset?.width ?? precisionSettings.labelWidth,
+                          height: fixedDims?.height ?? preset?.height ?? precisionSettings.labelHeight,
+                          labelConfig: fixedConfig ?? preset?.labelConfig,
                           printMode: preset?.printMode,
                           thermalCols: preset?.thermalCols,
                           a4Cols: preset?.a4Cols,
@@ -6143,6 +6151,9 @@ export default function BarcodePrinting() {
                     <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50">📌 Built-in</div>
                     <SelectItem value="preset:kidszone" className="text-xs">
                       kidszone (50×40mm) — fixed layout
+                    </SelectItem>
+                    <SelectItem value="preset:jewellery" className="text-xs">
+                      Jewellery Tag (100×15mm 1UP) — fixed layout
                     </SelectItem>
                     {savedLabelTemplates.length === 0 && dbPresets.filter(p => p.labelConfig).length === 0 ? (
                       <div className="px-2 py-2 text-xs text-muted-foreground">No other saved templates yet.</div>
@@ -6184,7 +6195,7 @@ export default function BarcodePrinting() {
                     ✏️ Editing: {activePrecisionTemplateName.replace("preset:", "")}
                   </span>
                   <span className="text-muted-foreground text-[10px]">
-                    {isKidszonePresetName(activePrecisionTemplateBaseName)
+                    {isFixedBuiltinLabelPreset(activePrecisionTemplateBaseName)
                       ? "(fixed layout — same on all PCs)"
                       : "(changes auto-save)"}
                   </span>
@@ -6223,15 +6234,12 @@ export default function BarcodePrinting() {
                 if (!currentOrganization?.id) return;
                 try {
                   const templateName = activePrecisionTemplateBaseName || "";
-                  const configToSave = isKidszonePresetName(templateName)
-                    ? resolveKidszoneLabelConfig()
-                    : (precisionSettings.labelConfig || DEFAULT_PRECISION_CONFIG);
-                  const saveWidth = isKidszonePresetName(templateName)
-                    ? KIDSZONE_50X40_DIMENSIONS.width
-                    : precisionSettings.labelWidth;
-                  const saveHeight = isKidszonePresetName(templateName)
-                    ? KIDSZONE_50X40_DIMENSIONS.height
-                    : precisionSettings.labelHeight;
+                  const fixedConfig = resolveFixedBuiltinLabelConfig(templateName);
+                  const fixedDims = getFixedBuiltinLabelDimensions(templateName);
+                  const configToSave = fixedConfig
+                    ?? (precisionSettings.labelConfig || DEFAULT_PRECISION_CONFIG);
+                  const saveWidth = fixedDims?.width ?? precisionSettings.labelWidth;
+                  const saveHeight = fixedDims?.height ?? precisionSettings.labelHeight;
                   await savePrecisionConfigToSettings(configToSave, currentOrganization.id);
 
                   // Also save to active template if one is loaded
