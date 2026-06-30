@@ -27,7 +27,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { CalendarIcon, Home, Plus, X, Search, Eye, Check, Loader2, AlertCircle, Scan, Printer, ChevronLeft, ChevronRight, SkipBack, Lock, CreditCard, FileText, Coins, Trash2, Save } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { CalendarIcon, Home, Plus, X, Search, Eye, Check, Loader2, AlertCircle, Scan, Printer, ChevronLeft, ChevronRight, SkipBack, Lock, CreditCard, FileText, Coins, Trash2, Save, RefreshCw } from "lucide-react";
 import { Banknote, Smartphone, Wallet } from "lucide-react";
 import { MixPaymentDialog } from "@/components/MixPaymentDialog";
 import { useBarcodeScanner } from "@/hooks/useBarcodeScanner";
@@ -451,6 +452,7 @@ export default function SalesInvoice() {
   const [roundOff, setRoundOff] = useState<number>(0);
   // When the user types a round-off, stop the auto-calc effect from overwriting it.
   const [isManualRoundOff, setIsManualRoundOff] = useState<boolean>(false);
+  const [showRefreshDiscountsDialog, setShowRefreshDiscountsDialog] = useState(false);
   const [nextInvoicePreview, setNextInvoicePreview] = useState<string>("");
 
   // Payment override (default = credit / pay_later). Footer Cash/UPI/Mix buttons set this.
@@ -2214,6 +2216,48 @@ export default function SalesInvoice() {
     setLineItems(updatedItems);
   };
 
+  const customerHasMasterFlatDiscount =
+    !!selectedCustomer?.discount_percent && selectedCustomer.discount_percent > 0;
+
+  const getCurrentBrandDiscountForLineItem = useCallback(
+    (item: LineItem): number => {
+      if (customerHasMasterFlatDiscount || !item.productId) return 0;
+      const brand = item.brand || productBrandById.get(item.productId);
+      return getBrandDiscountForProduct(brand, item.productName);
+    },
+    [customerHasMasterFlatDiscount, getBrandDiscountForProduct, productBrandById],
+  );
+
+  const lineItemsWithStaleBrandDiscount = useMemo(() => {
+    if (!editingInvoiceId || customerHasMasterFlatDiscount) return 0;
+    return lineItems.filter((item) => {
+      if (!item.productId) return false;
+      const current = getCurrentBrandDiscountForLineItem(item);
+      return Math.abs((item.discountPercent || 0) - current) > 0.009;
+    }).length;
+  }, [
+    editingInvoiceId,
+    customerHasMasterFlatDiscount,
+    lineItems,
+    getCurrentBrandDiscountForLineItem,
+  ]);
+
+  const handleRefreshDiscountsToCurrentRates = useCallback(() => {
+    setLineItems((prev) =>
+      prev.map((item) => {
+        if (!item.productId) return item;
+        const newDiscount = getCurrentBrandDiscountForLineItem(item);
+        if (Math.abs((item.discountPercent || 0) - newDiscount) <= 0.009) return item;
+        return calculateLineTotal({ ...item, discountPercent: newDiscount, discountAmount: 0 });
+      }),
+    );
+    setShowRefreshDiscountsDialog(false);
+    toast({
+      title: "Discounts refreshed",
+      description: "Review the lines and click Save Invoice to persist changes.",
+    });
+  }, [getCurrentBrandDiscountForLineItem, toast]);
+
   const updateGSTPercent = (id: string, gstPercent: number) => {
     const updatedItems = lineItems.map(item => 
       item.id === id ? calculateLineTotal({ ...item, gstPercent }) : item
@@ -3359,6 +3403,7 @@ Thank you for choosing us!`;
   }
 
   return (
+    <TooltipProvider delayDuration={200}>
     <div className={cn(entryPageShellClass, "sale-bill-workspace bg-slate-50 dark:bg-background pos-desktop-readable sale-bill-readable")} data-entry-form>
       {/* Professional Header Bar */}
       <header className="bg-gradient-to-r from-slate-900 to-slate-800 shrink-0 flex flex-col">
@@ -3676,16 +3721,38 @@ Thank you for choosing us!`;
                     Loading brand discounts...
                   </span>
                 ) : hasBrandDiscounts && brandDiscounts.length > 0 ? (
-                  <div className="flex flex-wrap gap-1 items-center">
-                    <span className="text-xs text-muted-foreground">Brand Discounts:</span>
-                    {brandDiscounts.map((bd, idx) => (
-                      <span 
-                        key={idx} 
-                        className="text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded font-medium"
-                      >
-                        {bd.brand}: {bd.discount_percent}%
+                  <div className="flex flex-col gap-1">
+                    <div className="flex flex-wrap gap-1 items-center">
+                      <span className="text-xs text-muted-foreground">
+                        {editingInvoiceId ? "Current Brand Rates:" : "Brand Discounts:"}
                       </span>
-                    ))}
+                      {brandDiscounts.map((bd, idx) => (
+                        <span
+                          key={idx}
+                          className="text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded font-medium"
+                        >
+                          {bd.brand}: {bd.discount_percent}%
+                        </span>
+                      ))}
+                      {editingInvoiceId && lineItemsWithStaleBrandDiscount > 0 && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-6 px-2 text-[11px] gap-1 ml-1"
+                          onClick={() => setShowRefreshDiscountsDialog(true)}
+                        >
+                          <RefreshCw className="h-3 w-3" />
+                          Refresh discounts to current rates
+                        </Button>
+                      )}
+                    </div>
+                    {editingInvoiceId && (
+                      <p className="text-[11px] text-muted-foreground leading-snug">
+                        ℹ️ Line items below use the discount saved at time of sale — may differ from
+                        current rates
+                      </p>
+                    )}
                   </div>
                 ) : selectedCustomer.discount_percent > 0 ? (
                   <div className="flex items-center gap-1">
@@ -4109,16 +4176,45 @@ Thank you for choosing us!`;
                         />
                       </td>
                       {showCol.disc_percent && <td className="text-right px-1.5 py-1">
-                        <Input
-                          type="number"
-                          min="0"
-                          max="100"
-                          value={item.discountPercent || ""}
-                          placeholder="0"
-                          onChange={(e) => updateDiscountPercent(item.id, parseFloat(e.target.value) || 0)}
-                          onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                          className="w-16 h-10 text-right text-[17px] tabular-nums ml-auto"
-                        />
+                        <div className="flex items-center justify-end gap-0.5">
+                          <Input
+                            type="number"
+                            min="0"
+                            max="100"
+                            value={item.discountPercent || ""}
+                            placeholder="0"
+                            onChange={(e) => updateDiscountPercent(item.id, parseFloat(e.target.value) || 0)}
+                            onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                            className="w-16 h-10 text-right text-[17px] tabular-nums ml-auto"
+                          />
+                          {editingInvoiceId &&
+                            item.productId &&
+                            !customerHasMasterFlatDiscount &&
+                            (() => {
+                              const currentRate = getCurrentBrandDiscountForLineItem(item);
+                              if (
+                                currentRate <= 0 ||
+                                Math.abs((item.discountPercent || 0) - currentRate) <= 0.009
+                              ) {
+                                return null;
+                              }
+                              return (
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <span
+                                      className="text-muted-foreground cursor-help text-xs leading-none select-none shrink-0"
+                                      aria-label="Historical discount rate"
+                                    >
+                                      ⓘ
+                                    </span>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="top" className="max-w-xs text-xs">
+                                    Saved at {item.discountPercent}% (current rate: {currentRate}%)
+                                  </TooltipContent>
+                                </Tooltip>
+                              );
+                            })()}
+                        </div>
                       </td>}
                       {showCol.disc_amount && <td className="text-right px-1.5 py-1">
                         <Input
@@ -4564,6 +4660,32 @@ Thank you for choosing us!`;
         </DialogContent>
       </Dialog>
 
+      {/* Refresh brand discounts (edit mode — in-memory only until save) */}
+      <AlertDialog open={showRefreshDiscountsDialog} onOpenChange={setShowRefreshDiscountsDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Refresh discounts to current rates?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will update {lineItemsWithStaleBrandDiscount} line item
+              {lineItemsWithStaleBrandDiscount === 1 ? "" : "s"} from their saved discount to
+              current brand rates. This does not save automatically — review and click Save Invoice
+              to apply.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                handleRefreshDiscountsToCurrentRates();
+              }}
+            >
+              Refresh line discounts
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* Print Confirmation Dialog */}
       <AlertDialog
         open={showPrintDialog}
@@ -4687,5 +4809,6 @@ Thank you for choosing us!`;
         issue={stockIssuePresentation}
       />
     </div>
+    </TooltipProvider>
   );
 }
