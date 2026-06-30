@@ -155,14 +155,19 @@ function pickMessageId(payload: Record<string, unknown>): string | undefined {
     if (first) return first;
   }
 
+  const queueId = String(
+    nestedData?.queue_id ?? nestedData?.queueId ?? payload.queue_id ?? payload.queueId ?? "",
+  ).trim();
+  if (queueId) return queueId;
+
   const candidates = [
     payload.id,
     payload.messageId,
     payload.message_id,
     payload.msgId,
     payload.msg_id,
-    payload.queue_id,
     (payload.message as Record<string, unknown> | undefined)?.id,
+    (payload.message as Record<string, unknown> | undefined)?.queue_id,
     nestedData?.id,
   ];
 

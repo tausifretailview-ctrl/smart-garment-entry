@@ -3,6 +3,8 @@ type WhatsAppLogLike = {
   provider?: string | null;
   provider_response?: unknown;
   error_message?: string | null;
+  read_at?: string | null;
+  delivered_at?: string | null;
 };
 
 function isProviderFailureStatus(status: unknown): boolean {
@@ -54,7 +56,7 @@ export function getWappConnectProviderError(providerResponse?: unknown): string 
   return undefined;
 }
 
-/** Use provider_response to correct legacy rows logged as sent when WappConnect returned 400. */
+/** Use provider_response to correct legacy rows; timestamps override stale status (WappConnect webhooks). */
 export function getEffectiveWhatsAppLogStatus(log: WhatsAppLogLike): string {
   if (log.provider === "wappconnect") {
     const providerError = getWappConnectProviderError(log.provider_response);
@@ -63,6 +65,8 @@ export function getEffectiveWhatsAppLogStatus(log: WhatsAppLogLike): string {
     }
   }
 
+  if (log.read_at) return "read";
+  if (log.delivered_at) return "delivered";
   return log.status;
 }
 

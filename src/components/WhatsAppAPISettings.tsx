@@ -27,6 +27,7 @@ import { getWhatsAppErrorHint } from "@/utils/whatsappErrorHints";
 import { getEffectiveWhatsAppLogStatus, getWappConnectRequestUrl } from "@/utils/whatsappLogStatus";
 import { isWappConnectSignedStorageUrl } from "@/utils/wappConnectPdfUrl";
 import { normalizeWhatsAppApiBaseUrl, normalizeWhatsAppApiVersion } from "@/lib/whatsappApiUrl";
+import { WHATSAPP_WEBHOOK_URL, WHATSAPP_WEBHOOK_VERIFY_TOKEN } from "@/constants/whatsappWebhook";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
   MessageSquare, 
@@ -87,6 +88,63 @@ function formatLastSendProxyStatus(
   } catch {
     return `Last send: ${outcome}`;
   }
+}
+
+function WhatsAppWebhookConfigSection() {
+  return (
+    <div className="p-4 bg-muted rounded-lg space-y-3">
+      <div className="flex items-center gap-2">
+        <Globe className="h-4 w-4 text-primary" />
+        <Label className="font-medium">Webhook — delivery &amp; read status</Label>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Add this URL in WappConnect (or your BSP dashboard) so WhatsApp Logs can update from{" "}
+        <strong>Sent</strong> → <strong>Delivered</strong> → <strong>Read</strong>.
+      </p>
+      <div className="space-y-2">
+        <div className="flex items-center gap-2">
+          <Input
+            readOnly
+            value={WHATSAPP_WEBHOOK_URL}
+            className="text-xs font-mono bg-background no-uppercase"
+          />
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              navigator.clipboard.writeText(WHATSAPP_WEBHOOK_URL);
+              toast.success("Webhook URL copied!");
+            }}
+          >
+            Copy
+          </Button>
+        </div>
+        <div className="flex items-center gap-2">
+          <Input
+            readOnly
+            value={WHATSAPP_WEBHOOK_VERIFY_TOKEN}
+            className="text-xs font-mono bg-background no-uppercase"
+          />
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              navigator.clipboard.writeText(WHATSAPP_WEBHOOK_VERIFY_TOKEN);
+              toast.success("Verify token copied!");
+            }}
+          >
+            Copy
+          </Button>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          <strong>Webhook URL</strong> (top) and <strong>Verify Token</strong> (bottom). Enable message status /
+          delivery receipts in WappConnect if the dashboard has that toggle.
+        </p>
+      </div>
+    </div>
+  );
 }
 
 export const WhatsAppAPISettings = () => {
@@ -578,6 +636,8 @@ export const WhatsAppAPISettings = () => {
                 </p>
               </div>
 
+              <WhatsAppWebhookConfigSection />
+
               <div className="rounded-lg border bg-muted/40 p-3 space-y-1">
                 <p className="text-xs font-medium text-muted-foreground">
                   Connection status (last send proxy)
@@ -656,7 +716,7 @@ export const WhatsAppAPISettings = () => {
                       <div className="flex items-center gap-2">
                         <Input
                           readOnly
-                          value={`https://lkbbrqcsbhqjvsxiorvp.supabase.co/functions/v1/whatsapp-webhook`}
+                          value={WHATSAPP_WEBHOOK_URL}
                           className="text-xs font-mono bg-background no-uppercase"
                         />
                         <Button
@@ -664,7 +724,7 @@ export const WhatsAppAPISettings = () => {
                           variant="outline"
                           size="sm"
                           onClick={() => {
-                            navigator.clipboard.writeText(`https://lkbbrqcsbhqjvsxiorvp.supabase.co/functions/v1/whatsapp-webhook`);
+                            navigator.clipboard.writeText(WHATSAPP_WEBHOOK_URL);
                             toast.success("Webhook URL copied!");
                           }}
                         >
@@ -674,7 +734,7 @@ export const WhatsAppAPISettings = () => {
                       <div className="flex items-center gap-2">
                         <Input
                           readOnly
-                          value="lovable_whatsapp_webhook"
+                          value={WHATSAPP_WEBHOOK_VERIFY_TOKEN}
                           className="text-xs font-mono bg-background no-uppercase"
                         />
                         <Button
@@ -682,7 +742,7 @@ export const WhatsAppAPISettings = () => {
                           variant="outline"
                           size="sm"
                           onClick={() => {
-                            navigator.clipboard.writeText("lovable_whatsapp_webhook");
+                            navigator.clipboard.writeText(WHATSAPP_WEBHOOK_VERIFY_TOKEN);
                             toast.success("Verify token copied!");
                           }}
                         >

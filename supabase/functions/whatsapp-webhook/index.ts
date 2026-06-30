@@ -1,4 +1,12 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  buildWhatsAppStatusUpdate,
+  findWhatsappLogForStatusUpdate,
+  normalizeWhatsAppDeliveryStatus,
+  parseProviderStatusWebhook,
+  shouldApplyWhatsAppStatus,
+  WHATSAPP_STATUS_RANK,
+} from "../_shared/whatsappStatusWebhook.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -803,6 +811,52 @@ Deno.serve(async (req) => {
       const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
       const supabase = createClient(supabaseUrl, supabaseKey);
 
+      const applyStatusToLog = async (
+        messageId: string,
+        rawStatus: string,
+        timestampIso: string,
+        errorMessage?: string,
+      ): Promise<boolean> => {
+        const normStatus = normalizeWhatsAppDeliveryStatus(rawStatus);
+        if (WHATSAPP_STATUS_RANK[normStatus] === undefined) return false;
+
+        const existing = await findWhatsappLogForStatusUpdate(supabase, messageId);
+        if (!existing) {
+          console.log(`Status update: no log found for message id ${messageId}`);
+          return false;
+        }
+
+        if (!shouldApplyWhatsAppStatus(existing.status, normStatus)) {
+          return true;
+        }
+
+        const updatePayload = buildWhatsAppStatusUpdate(normStatus, timestampIso, errorMessage);
+        await supabase.from('whatsapp_logs').update(updatePayload).eq('id', existing.id);
+        await supabase.from('whatsapp_messages').update(updatePayload).eq('wamid', messageId);
+        console.log(`Status update: ${messageId} -> ${normStatus} (log ${existing.id})`);
+        return true;
+      };
+
+      // ─── WappConnect instance API / generic provider status (message.status, ack, etc.) ─
+      const providerStatus = parseProviderStatusWebhook(body as Record<string, unknown>);
+      if (providerStatus) {
+        try {
+          await applyStatusToLog(
+            providerStatus.messageId,
+            providerStatus.status,
+            providerStatus.timestampIso || new Date().toISOString(),
+            providerStatus.errorMessage,
+          );
+        } catch (e) {
+          console.error('Provider status webhook error:', e);
+        }
+
+        return new Response(JSON.stringify({ success: true }), {
+          status: 200,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
       // ─── Provider STATUS-ONLY callback (wappconnect / third-party BSP) ─────
       // Format: { messaging_channel: "whatsapp", message: { queue_id, message_status: "delivered" | "read" | "failed" } }
       // with NO `response.messages` (that only appears on the initial send ack). These delivery/read
@@ -816,38 +870,24 @@ Deno.serve(async (req) => {
         !body.response?.messages?.[0]?.id
       ) {
         const queueId = body.message.queue_id;
-        const rank: Record<string, number> = { failed: -1, queued: 0, sent: 1, delivered: 2, read: 3 };
-        const normStatus = bspStatusOnly === 'queued' ? 'sent' : bspStatusOnly;
+        const normStatus = normalizeWhatsAppDeliveryStatus(bspStatusOnly);
         const nowIso = new Date().toISOString();
 
         try {
-          // Match by the stored queue_id (wamid) or, if an earlier ack already upgraded the row to
-          // the real Meta wamid, by that id too.
           const realWamid = body.response?.messages?.[0]?.id || body.message?.id || null;
-          const { data: existing } = await supabase
-            .from('whatsapp_logs')
-            .select('id, status')
-            .or(`wamid.eq.${queueId}${realWamid ? `,wamid.eq.${realWamid}` : ''}`)
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .maybeSingle();
+          const existing = await findWhatsappLogForStatusUpdate(supabase, queueId)
+            ?? (realWamid ? await findWhatsappLogForStatusUpdate(supabase, realWamid) : null);
 
-          if (existing) {
-            const currentRank = rank[existing.status] ?? 0;
-            const incomingRank = rank[normStatus] ?? 1;
-            if (incomingRank > currentRank || normStatus === 'failed') {
-              const updatePayload: Record<string, any> = { status: normStatus };
-              if (normStatus === 'delivered') updatePayload.delivered_at = nowIso;
-              if (normStatus === 'read') { updatePayload.read_at = nowIso; updatePayload.delivered_at = nowIso; }
-              if (normStatus === 'failed') {
-                updatePayload.error_message =
-                  body.message?.error || body.message?.error_message || body.error || 'Delivery failed';
-              }
-              await supabase.from('whatsapp_logs').update(updatePayload).eq('id', existing.id);
-              await supabase.from('whatsapp_messages').update(updatePayload).eq('wamid', queueId);
-              console.log(`BSP status-only: ${queueId} -> ${normStatus}`);
-            }
-          } else {
+          if (existing && shouldApplyWhatsAppStatus(existing.status, normStatus)) {
+            const updatePayload = buildWhatsAppStatusUpdate(
+              normStatus,
+              nowIso,
+              body.message?.error || body.message?.error_message || body.error || 'Delivery failed',
+            );
+            await supabase.from('whatsapp_logs').update(updatePayload).eq('id', existing.id);
+            await supabase.from('whatsapp_messages').update(updatePayload).eq('wamid', queueId);
+            console.log(`BSP status-only: ${queueId} -> ${normStatus}`);
+          } else if (!existing) {
             console.log(`BSP status-only: no log found for queue_id ${queueId}`);
           }
         } catch (e) {
@@ -881,9 +921,8 @@ Deno.serve(async (req) => {
               wamid: realWamid,
             };
             // Only upgrade status forward (sent < delivered < read)
-            const rank: Record<string, number> = { failed: -1, queued: 0, sent: 1, delivered: 2, read: 3 };
-            const currentRank = rank[existing.status] ?? 0;
-            const incomingRank = rank[providerStatus] ?? 1;
+            const currentRank = WHATSAPP_STATUS_RANK[existing.status] ?? 0;
+            const incomingRank = WHATSAPP_STATUS_RANK[providerStatus === 'queued' ? 'sent' : providerStatus] ?? 1;
             if (incomingRank > currentRank) {
               updatePayload.status = providerStatus === 'queued' ? 'sent' : providerStatus;
               if (!('sent_at' in updatePayload)) updatePayload.sent_at = new Date().toISOString();
