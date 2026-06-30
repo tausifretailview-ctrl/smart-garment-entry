@@ -102,6 +102,7 @@ interface StockReportRpcRow {
   barcode: string | null;
   sale_price: number | null;
   pur_price: number | null;
+  opening_qty: number | null;
   current_stock: number | null;
   purchase_qty: number | null;
   sales_qty: number | null;
@@ -720,6 +721,9 @@ export default function StockReport() {
           p_category: categoryFilter !== "all" ? categoryFilter : null,
           p_brand: brandFilter !== "all" ? brandFilter : null,
           p_low_stock: stockStatusFilter === "out" ? true : null,
+          p_in_stock: stockStatusFilter === "in" ? true : null,
+          p_low_stock_band: stockStatusFilter === "low" ? true : null,
+          p_low_stock_threshold: lowStockThreshold,
           p_style: departmentFilter !== "all" ? departmentFilter : null,
           p_size: sizeFilter !== "all" ? sizeFilter : null,
           p_color: colorFilter !== "all" ? colorFilter : null,
@@ -750,7 +754,7 @@ export default function StockReport() {
               color: row.color || "",
               size: row.size || "",
               stock_qty: row.current_stock ?? 0,
-              opening_qty: 0,
+              opening_qty: row.opening_qty ?? 0,
               purchase_qty: Number(row.purchase_qty ?? 0),
               purchase_return_qty: Number(row.purchase_return_qty ?? 0),
               sales_qty: Number(row.sales_qty ?? 0),
@@ -792,6 +796,7 @@ export default function StockReport() {
       sizeFilter,
       colorFilter,
       stockStatusFilter,
+      lowStockThreshold,
       ITEMS_PER_PAGE,
     ],
   );
@@ -869,14 +874,9 @@ export default function StockReport() {
       // Color filter
       if (colorFilter !== "all" && item.color !== colorFilter) return false;
       
-      // Stock status filter
-      if (stockStatusFilter === "out" && item.stock_qty !== 0) return false;
-      if (stockStatusFilter === "low" && (item.stock_qty === 0 || item.stock_qty > lowStockThreshold)) return false;
-      if (stockStatusFilter === "in" && item.stock_qty <= lowStockThreshold) return false;
-      
       return true;
     });
-  }, [stockItems, searchTerm, productNameFilter, brandFilter, departmentFilter, sizeFilter, colorFilter, supplierFilter, supplierInvoiceFilter, categoryFilter, stockStatusFilter, lowStockThreshold, oldBarcodeVariantMap, pinnedProducts]);
+  }, [stockItems, searchTerm, productNameFilter, brandFilter, departmentFilter, sizeFilter, colorFilter, supplierFilter, supplierInvoiceFilter, categoryFilter, oldBarcodeVariantMap, pinnedProducts]);
 
 
   // Size-wise stock report data
@@ -964,13 +964,13 @@ export default function StockReport() {
     [filteredStockItems],
   );
 
-  // Server-side pagination total; supplier / stock-status / multi-pin filters apply within the page
+  // Server-side pagination total; supplier / multi-pin filters apply within the page
   const hasClientOnlyFilters =
     supplierFilter !== "all" ||
     supplierInvoiceFilter !== "all" ||
-    stockStatusFilter === "in" ||
-    stockStatusFilter === "low" ||
     pinnedProducts.length > 1;
+
+  const footerIsPageTotal = hasSearched && serverTotalRows > ITEMS_PER_PAGE;
 
   const matchingVariantCount = hasSearched
     ? hasClientOnlyFilters
@@ -1839,7 +1839,7 @@ export default function StockReport() {
                       <TableFooter className={STOCK_TABLE_FOOTER}>
                         <TableRow>
                           <TableCell className={cn(STOCK_FOOTER_CELL, "text-center bg-slate-200 dark:bg-slate-700")} colSpan={9}>
-                            GRAND TOTAL
+                            {footerIsPageTotal ? "PAGE TOTAL" : "GRAND TOTAL"}
                           </TableCell>
                           <TableCell className={cn(STOCK_FOOTER_CELL, "text-right bg-blue-100 dark:bg-blue-900/60 text-blue-900 dark:text-blue-100")}>
                             {allStockTotals.opening.toLocaleString('en-IN')}
