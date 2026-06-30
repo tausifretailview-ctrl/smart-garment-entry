@@ -21,6 +21,7 @@ import {
   TSPLLabelConfig,
   TSPLTemplateConfig
 } from '@/utils/tsplGenerator';
+import { generatePrecisionProTSCLabel } from '@/utils/labels/precisionProTSPL';
 import {
   PRNTemplate,
   SAMPLE_PRN_TEMPLATES,
@@ -47,6 +48,7 @@ interface DirectPrintDialogProps {
     purchaseCode?: string;
     supplierCode?: string;
     style?: string;
+    category?: string;
     quantity: number;
   }>;
   labelSize: string;
@@ -165,6 +167,25 @@ export const DirectPrintDialog = ({
 
   // Parse label size to get dimensions, merged with printer config
   const getLabelConfig = (): TSPLLabelConfig => {
+    const printerOverrides = {
+      dpi: printerConfig.dpi,
+      direction: printerConfig.direction,
+      speed: printerConfig.speed,
+      density: printerConfig.density,
+      gapMode: printerConfig.gapMode,
+      topOffset: printerConfig.topOffset,
+      leftOffset: printerConfig.leftOffset,
+    };
+
+    if (labelSize === 'precision_pro_tsc') {
+      return {
+        width: 102,
+        height: 50,
+        gap: 2,
+        ...printerOverrides,
+      };
+    }
+
     const customMatch = labelSize.match(/custom[_]?(\d+)x(\d+)/i);
     if (customMatch) {
       return {
@@ -395,6 +416,27 @@ export const DirectPrintDialog = ({
           quantity: item.quantity,
         }));
         commandsToSend = generatePRNBatch(customPRNContent, labelItems);
+      } else if (labelSize === 'precision_pro_tsc') {
+        commandsToSend = items
+          .filter((item) => item.quantity > 0)
+          .map((item) =>
+            generatePrecisionProTSCLabel(
+              {
+                businessName,
+                barcode: item.barcode || '',
+                productName: item.productName || '',
+                style: item.style || '',
+                brand: item.brand || '',
+                color: item.color || '',
+                size: item.size || '',
+                salePrice: item.salePrice ?? 0,
+                mrp: item.mrp ?? item.salePrice ?? 0,
+                category: item.category,
+              },
+              item.quantity,
+            ),
+          )
+          .join('\n');
       } else {
         const labelDimensions = getLabelConfig();
         const labelItems = items.map(item => ({
@@ -742,7 +784,13 @@ export const DirectPrintDialog = ({
                   </div>
                   <div className="flex justify-between text-sm">
                     <span>Template:</span>
-                    <Badge variant="outline">{templateConfig ? 'Custom Design' : 'Default'}</Badge>
+                    <Badge variant="outline">
+                      {labelSize === 'precision_pro_tsc'
+                        ? 'Precision Pro TSC (Box + Pair)'
+                        : templateConfig
+                          ? 'Custom Design'
+                          : 'Default'}
+                    </Badge>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span>Total Products:</span>

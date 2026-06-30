@@ -272,6 +272,7 @@ type SheetType =
   "thermal_40x20_1up" | "thermal_40x30_1up" | "thermal_50x40_1up" |
   "thermal_60x30_1up" | "thermal_60x40_1up" | "thermal_100x50_1up" | 
   "thermal_75x50_1up" | "thermal_100x100_1up" | "thermal_80x40_1up" |
+  "precision_pro_tsc" |
   // Thermal 2UP Types
   "thermal_50x30_2up" | "thermal_50x25_2up" | "thermal_38x25_2up" |
   "thermal_40x20_2up" | "thermal_40x30_2up" | "thermal_60x30_2up" | 
@@ -336,6 +337,7 @@ const sheetPresets = {
   // Large / Shipping
   thermal_100x50_1up: { cols: 1, width: "100mm", height: "50mm", gap: "0mm", category: "thermal", thermal: true },
   thermal_100x100_1up: { cols: 1, width: "100mm", height: "100mm", gap: "0mm", category: "thermal", thermal: true },
+  precision_pro_tsc: { cols: 1, width: "102mm", height: "50mm", gap: "2mm", category: "thermal", thermal: true },
 
   // ===== Thermal Roll Presets (2UP - Two Columns) =====
   thermal_40x20_2up: { cols: 2, width: "40mm", height: "20mm", gap: "2mm", category: "thermal", thermal: true },
@@ -392,6 +394,7 @@ const sheetPresetLabels: Record<string, { label: string; description: string; gr
   // Thermal 1UP - Large
   thermal_100x50_1up: { label: "100×50mm (1UP)", description: "Shipping label", group: "Thermal 1UP - Large" },
   thermal_100x100_1up: { label: "100×100mm (1UP)", description: "Large shipping", group: "Thermal 1UP - Large" },
+  precision_pro_tsc: { label: "Precision Pro TSC (102×50mm — Box + Pair)", description: "Footwear box + 2 pair labels", group: "Thermal 1UP - Large" },
   
   // Thermal 2UP
   thermal_40x20_2up: { label: "40×20mm (2UP)", description: "Dual small", group: "Thermal 2UP" },
@@ -5001,6 +5004,7 @@ export default function BarcodePrinting() {
                   <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50 mt-1">🔥 Thermal 1UP - Large</div>
                   <SelectItem value="thermal_100x50_1up">100×50mm (shipping)</SelectItem>
                   <SelectItem value="thermal_100x100_1up">100×100mm (large shipping)</SelectItem>
+                  <SelectItem value="precision_pro_tsc">Precision Pro TSC (102×50mm — Box + Pair)</SelectItem>
                   
                   {/* Thermal Roll Presets - 2UP */}
                   <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50 mt-1">🔥 Thermal 2UP (Dual Column)</div>
@@ -5029,7 +5033,7 @@ export default function BarcodePrinting() {
                   )}
                 </SelectContent>
               </Select>
-              {sheetType !== "custom" && !sheetType.startsWith("thermal") && (
+              {sheetType !== "custom" && !sheetType.startsWith("thermal") && sheetType !== "precision_pro_tsc" && (
                 <Button 
                   variant="outline" 
                   size="icon"
@@ -5046,13 +5050,22 @@ export default function BarcodePrinting() {
                 <strong>Starting Offsets:</strong> Top 2mm, Left 1mm (auto-loaded, adjust as needed)
               </p>
             )}
-            {sheetType.startsWith("thermal") && (
+            {(sheetType.startsWith("thermal") || sheetType === "precision_pro_tsc") && (
               <div className="mt-2 p-3 bg-orange-50 dark:bg-orange-950/30 rounded-lg border border-orange-200 dark:border-orange-800">
                 <p className="text-xs text-orange-700 dark:text-orange-300 font-medium mb-1">🔥 Thermal Printer Tips:</p>
                 <ul className="text-xs text-orange-600 dark:text-orange-400 space-y-0.5 list-disc list-inside">
-                  <li>Set printer paper size to match label size</li>
-                  <li>Use "No Margins" in print settings</li>
-                  <li>Select "Continuous Roll" if available</li>
+                  {sheetType === "precision_pro_tsc" ? (
+                    <>
+                      <li>TSC TTP-244 Pro / 245 — use Direct Print (WebUSB) for raw TSPL</li>
+                      <li>Label roll: 102×50mm with 2mm gap</li>
+                    </>
+                  ) : (
+                    <>
+                      <li>Set printer paper size to match label size</li>
+                      <li>Use "No Margins" in print settings</li>
+                      <li>Select "Continuous Roll" if available</li>
+                    </>
+                  )}
                 </ul>
               </div>
             )}
@@ -5882,7 +5895,7 @@ export default function BarcodePrinting() {
             🖨️ Print Test Label
           </Button>
         )}
-        {(sheetType.startsWith('thermal') || sheetType === 'custom') && (
+        {(sheetType.startsWith('thermal') || sheetType === 'precision_pro_tsc' || sheetType === 'custom') && (
           <Button 
             onClick={() => setIsDirectPrintDialogOpen(true)} 
             variant="outline"
@@ -6399,7 +6412,8 @@ export default function BarcodePrinting() {
           purchaseCode: item.purchase_code,
           supplierCode: item.supplier_code,
           style: item.style,
-          quantity: item.qty,
+          category: item.category,
+          quantity: item.qty ?? 1,
         }))}
         labelSize={sheetType === "custom" ? `custom_${customWidth}x${customHeight}` : sheetType}
         labelConfig={labelConfig}
