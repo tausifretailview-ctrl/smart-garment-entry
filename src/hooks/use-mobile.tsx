@@ -1,4 +1,5 @@
 import * as React from "react";
+import { Capacitor } from "@capacitor/core";
 import { isForceDesktopViewEnabled, subscribeForceDesktopView } from "@/lib/desktopViewPreference";
 
 const MOBILE_BREAKPOINT = 768;
@@ -55,6 +56,31 @@ function computeIsNarrowViewport(): boolean {
   return window.innerWidth < MOBILE_BREAKPOINT;
 }
 
+function isStandalonePwa(): boolean {
+  if (typeof window === "undefined") return false;
+  return (
+    window.matchMedia("(display-mode: standalone)").matches ||
+    (window.navigator as Navigator & { standalone?: boolean }).standalone === true
+  );
+}
+
+function isTouchPhoneDevice(): boolean {
+  if (typeof window === "undefined") return false;
+  const coarse = window.matchMedia("(pointer: coarse)").matches;
+  const fine = window.matchMedia("(pointer: fine)").matches;
+  return coarse && !fine && navigator.maxTouchPoints > 0;
+}
+
+/** Single-column login on APK, PWA, and phones — ignores forced-desktop viewport width. */
+function computeCompactLoginLayout(): boolean {
+  if (typeof window === "undefined") return false;
+  if (Capacitor.isNativePlatform()) return true;
+  if (isStandalonePwa()) return true;
+  if (isTouchPhoneDevice()) return true;
+  if (isForceDesktopViewEnabled()) return false;
+  return window.innerWidth < MOBILE_BREAKPOINT;
+}
+
 export function useIsNarrowViewport() {
   const [isNarrow, setIsNarrow] = React.useState(computeIsNarrowViewport);
 
@@ -91,6 +117,26 @@ export function useIsMobile() {
   }, []);
 
   return isMobile;
+}
+
+export function useCompactLoginLayout() {
+  const [compact, setCompact] = React.useState(computeCompactLoginLayout);
+
+  React.useEffect(() => {
+    const refresh = () => setCompact(computeCompactLoginLayout());
+    const mql = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`);
+    mql.addEventListener("change", refresh);
+    window.addEventListener("resize", refresh);
+    const unsubPreference = subscribeForceDesktopView(refresh);
+    refresh();
+    return () => {
+      mql.removeEventListener("change", refresh);
+      window.removeEventListener("resize", refresh);
+      unsubPreference();
+    };
+  }, []);
+
+  return compact;
 }
 
 export function useIsTablet() {

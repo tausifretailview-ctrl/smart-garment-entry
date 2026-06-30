@@ -13,6 +13,8 @@ import { validateAuth } from "@/lib/validations";
 import { isValidOrgSlug, normalizeOrgSlug, storeOrgSlug } from "@/lib/orgSlug";
 import { signInWithGoogleOAuth } from "@/lib/googleOAuthSignIn";
 import { hideAppBootSplash } from "@/lib/appBootSplash";
+import { useCompactLoginLayout } from "@/hooks/use-mobile";
+import { cn } from "@/lib/utils";
 
 const LEFT_FEATURE_CARDS = [
   { icon: Receipt, title: "POS & Sales Billing", desc: "Fast billing, GST invoices" },
@@ -90,6 +92,7 @@ export default function OrgAuth() {
   const [orgFetchErrorType, setOrgFetchErrorType] = useState<"none" | "not_found" | "network" | "invalid_slug">("none");
   const [orgFetchRetryKey, setOrgFetchRetryKey] = useState(0);
   const [showCacheRecovery, setShowCacheRecovery] = useState(false);
+  const compactLogin = useCompactLoginLayout();
 
   // Request lifecycle guard: prevent stale async fetches from updating state
   const fetchTokenRef = useRef(0);
@@ -556,7 +559,10 @@ export default function OrgAuth() {
     <div className="flex h-screen w-full overflow-hidden bg-background">
       {/* Left Panel — Deep Navy (desktop only) */}
       <div
-        className="relative hidden md:flex md:w-1/2 flex-col overflow-hidden"
+        className={cn(
+          "relative flex-col overflow-hidden",
+          compactLogin ? "hidden" : "hidden md:flex md:w-1/2",
+        )}
         style={{ background: "#0f2744" }}
       >
         {/* Decorative grid + glow (Vasy-style depth) */}
@@ -642,15 +648,29 @@ export default function OrgAuth() {
       </div>
 
       {/* Right Panel — Sign-in Form */}
-      <div className="flex h-screen flex-1 flex-col overflow-y-auto bg-card md:w-1/2">
-        <div className="mx-auto flex w-full max-w-lg flex-1 flex-col justify-center px-8 py-10 md:px-12 lg:px-16">
-          {/* Mobile compact logo */}
-          <div className="mb-8 md:hidden">
-            <EzzyBrandRow centered onLightBackground large />
-          </div>
+      <div
+        className={cn(
+          "flex h-dvh min-h-0 w-full flex-1 flex-col overflow-y-auto bg-card",
+          !compactLogin && "md:w-1/2",
+        )}
+      >
+        <div
+          className={cn(
+            "mx-auto flex w-full max-w-lg flex-1 flex-col justify-center",
+            compactLogin
+              ? "px-5 py-8 pt-[max(2rem,env(safe-area-inset-top))] pb-[max(2rem,env(safe-area-inset-bottom))]"
+              : "px-8 py-10 md:px-12 lg:px-16",
+          )}
+        >
+          {/* Mobile / APK / PWA compact logo */}
+          {compactLogin && (
+            <div className="mb-6">
+              <EzzyBrandRow centered onLightBackground large />
+            </div>
+          )}
 
           <div className="space-y-8">
-            <div>
+            <div className="text-center">
               <h1 className="text-3xl font-semibold tracking-tight text-card-foreground md:text-4xl">
                 Welcome back
               </h1>
