@@ -76,6 +76,7 @@ import { LabelFieldConfig, LabelDesignConfig, LabelItem, LabelTemplate, FieldKey
 import { PrecisionThermalPrint } from "@/components/precision-barcode/PrecisionThermalPrint";
 import { PrecisionA4SheetPrint } from "@/components/precision-barcode/PrecisionA4SheetPrint";
 import { PrecisionLabelPreview } from "@/components/precision-barcode/PrecisionLabelPreview";
+import { PrecisionProTSCPreview } from "@/components/labels/PrecisionProTSCPreview";
 import { migrateCustomTextFields } from "@/utils/labelCustomText";
 import { LabelCalibrationUI, type CalibrationPreset } from "@/components/precision-barcode/LabelCalibrationUI";
 import { TestLabelPrint } from "@/components/precision-barcode/TestLabelPrint";
@@ -5069,6 +5070,20 @@ export default function BarcodePrinting() {
                 </ul>
               </div>
             )}
+            {sheetType === "precision_pro_tsc" && labelItems.length > 0 && (
+              <div className="mt-3 p-3 rounded-lg border bg-muted/30">
+                <p className="text-xs font-medium text-muted-foreground mb-2">
+                  Layout preview (first item) — use Direct Print for TSC output
+                </p>
+                <div className="flex justify-center overflow-auto">
+                  <PrecisionProTSCPreview
+                    item={labelItems[0]}
+                    businessName={businessName}
+                    scaleFactor={1.5}
+                  />
+                </div>
+              </div>
+            )}
           </div>
 
           {sheetType === "custom" && (
@@ -6309,6 +6324,26 @@ export default function BarcodePrinting() {
                   )}
                 </>
               )}
+            </div>
+          ) : sheetType === "precision_pro_tsc" ? (
+            <div className="mt-4 border rounded-md p-4 bg-white overflow-auto">
+              <div className="mb-3 p-3 rounded-lg text-center font-bold text-sm" style={{ background: "hsl(var(--primary) / 0.1)", color: "hsl(var(--primary))" }}>
+                Total: {labelItems.reduce((s, i) => s + (i.qty || 0), 0)} labels (102×50mm box + pair)
+              </div>
+              <div className="flex flex-col items-center gap-4">
+                {labelItems
+                  .filter((i) => (i.qty || 0) > 0)
+                  .flatMap((item, idx) =>
+                    Array.from({ length: item.qty || 1 }, (_, qi) => (
+                      <PrecisionProTSCPreview
+                        key={`${idx}-${qi}`}
+                        item={item}
+                        businessName={businessName}
+                        scaleFactor={1.5}
+                      />
+                    )),
+                  )}
+              </div>
             </div>
           ) : (
             <div 
