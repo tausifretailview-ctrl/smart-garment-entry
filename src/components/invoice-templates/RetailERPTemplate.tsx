@@ -703,8 +703,8 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                         <>
                           <span
                             style={{
-                              fontSize: isA4 ? "12px" : "10px",
-                              fontWeight: "800",
+                              fontSize: isA4 ? (isRealTast ? "11px" : "12px") : "10px",
+                              fontWeight: isRealTast ? 700 : 800,
                               color: "#000",
                               marginBottom: isA4 ? "4px" : "2px",
                             }}
@@ -713,9 +713,9 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                           </span>
                           <span
                             style={{
-                              fontSize: isA4 ? "24px" : "19px",
-                              fontWeight: "800",
-                              lineHeight: 1.2,
+                              fontSize: isA4 ? (isRealTast ? "12px" : "24px") : (isRealTast ? "11px" : "19px"),
+                              fontWeight: isRealTast ? 500 : 800,
+                              lineHeight: isRealTast ? 1.35 : 1.2,
                               color: "#000",
                               whiteSpace: "pre-wrap",
                               wordBreak: "break-word",
