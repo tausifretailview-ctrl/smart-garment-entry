@@ -770,8 +770,20 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                           <span>Round Off</span><span>{roundOff > 0 ? "+" : ""}{fmt(roundOff)}</span>
                         </div>
                       )}
-                      <div style={{ display: "flex", justifyContent: "space-between", padding: isA4 ? "5px 8px" : "4px 6px", fontWeight: "900", fontSize: isA4 ? "20px" : "17px", backgroundColor: "#d1d5db", color: "#000", borderTop: "2px solid #000" }}>
-                        <span>Bill Total</span><span>₹{fmt(grandTotal)}</span>
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          padding: isA4 ? (isRealTast ? "4px 8px" : "5px 8px") : "4px 6px",
+                          fontWeight: isRealTast ? 600 : 900,
+                          fontSize: isA4 ? (isRealTast ? "14px" : "20px") : (isRealTast ? "13px" : "17px"),
+                          backgroundColor: "#d1d5db",
+                          color: "#000",
+                          borderTop: "2px solid #000",
+                        }}
+                      >
+                        <span>{isRealTast ? "Total" : "Bill Total"}</span>
+                        <span>₹{fmt(grandTotal)}</span>
                       </div>
                     </div>
                   </div>
