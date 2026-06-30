@@ -1,87 +1,93 @@
-## Investigation: phantom CN adjustments double-counted as Sale Returns
+## Issue — KHADIJA SHEIKH (ELLA NOOR)
+
+Sales Invoice Dashboard shows **Pending Amount ₹6,450** for KHADIJA SHEIKH, but the customer's actual outstanding is much lower. Investigation of the per-invoice balance formula reveals the dashboard ignores the `sales.credit_applied` column (the amount of CN / customer advance already applied to a specific invoice).
+
+### Per-invoice breakdown for KHADIJA SHEIKH
+
+| Invoice | Net | Paid | SR Adjust | Credit Applied | Dashboard Balance (current) | True Balance (correct) |
+|---|---|---|---|---|---|---|
+| INV/26-27/1629 | 3,800 | 2,600 | 0 | 0 | 1,200 | 1,200 |
+| INV/25-26/1194 | 10,200 | 10,100 | 0 | **100** | 100 | 0 |
+| INV/25-26/903 | 4,500 | 0 | 0 | **4,500** | 4,500 (shown "Not Paid") | 0 |
+| INV/25-26/856 | 5,050 | 4,400 | 0 | **650** | 650 | 0 |
+| INV/25-26/585 | 26,000 | 21,000 | 5,250 | 5,250 | 0 | 0 |
+| **Total pending** | | | | | **6,450** | **1,200** |
+
+The ₹11,050 legacy "balance adjustment" (`customer_balance_adjustments` row dated 2026-02-16) was correctly converted into advance ADV/25-26/0561 (₹4,950) plus an outstanding write-off. Those advances were then applied to invoices via `credit_applied` — but the dashboard balance column never subtracts it, so adjusted invoices stay visually "pending".
 
 ### Root cause
 
-On **2026-06-06** a cleanup script (`cn_over_apply_repair_20260606`) identified that several voucher receipts of type `credit_note_adjustment` were **not backed by any real credit note / sale return**. The script appended a note to each row reading:
+`src/pages/SalesInvoiceDashboard.tsx` computes balance in 4 places using:
+```ts
+Math.max(0, net_amount - paid_amount - sale_return_adjust)
+```
+Lines: 1280–1288 (page totals), 1375 (Excel export), 1923/1954/1977 (settlement dialog default), 2959–2968 (row Balance + status badge).
 
-> `[cn_over_apply_repair_20260606] phantom credit_note_adjustment receipt removed (audit: ella_noor_cn_over_applied_invoices.csv)`
-
-…but it **never actually deleted the `voucher_entries` rows, and never reverted the matching `sales.sale_return_adjust` values**. The annotation was added in place, then the cleanup stopped. As a result:
-
-- `sales.sale_return_adjust` still contains the phantom CN amount.
-- The Customer Ledger Report computes `CN/SR Applied on Invoices = Σ sales.sale_return_adjust`, which now includes both real returns and these phantoms.
-
-For **KHADIJA SHEIKH** this shows up as ₹10,500 applied when the only real sale-return is **SR/25-26/19 for ₹5,250**. The extra ₹5,250 is three phantom CN receipts on invoices `INV/856 (₹650)`, `INV/903 (₹4,500)`, and `INV/1194 (₹100)` — all tagged "phantom" but still live.
-
-```text
-INV/25-26/585  ← SR/25-26/19 (REAL)   sale_return_adjust = 5,250
-INV/25-26/856  ← RCP/26-27/439 (PHANTOM)  sale_return_adjust =   650
-INV/25-26/903  ← RCP/26-27/438 (PHANTOM)  sale_return_adjust = 4,500
-INV/25-26/1194 ← RCP/26-27/440 (PHANTOM)  sale_return_adjust =   100
-                                          ─────────────────────────
-                                          Σ                   10,500
+The correct formula must also subtract `credit_applied`:
+```ts
+Math.max(0, net_amount - paid_amount - sale_return_adjust - credit_applied)
 ```
 
-### True balance for KHADIJA SHEIKH
+The dashboard stats RPC (KPI cards) needs the same correction so the **Pending Amount** card matches.
 
-After removing the ₹5,250 phantom inflation:
+### Similar customers in ELLA NOOR (org-wide impact)
 
-```text
-Opening                          +   1,750
-(+) Invoices (Σ net_amount)      +1,04,800
-(−) CN/SR Applied (REAL only)    −   5,250
-(−) Cash / UPI / Bank received   −  40,900
-(−) Advance Adjusted             −  52,450
-(±) Balance Adjustments          −  11,050
-                                 ─────────
-Outstanding (Cr)                 −   3,100
-```
+Query found **22 customers / 27 invoices** with the same display bug:
 
-**Corrected balance = ₹3,100 Cr** (shop owes customer), not ₹8,350 Cr.
+| Customer | Inv | Credit Applied | Displayed Pending |
+|---|---|---|---|
+| AMNA DARVESH | 1 | 13,500 | 13,500 |
+| Muskan | 2 | 12,100 | 12,100 |
+| Sharmin Mewara | 1 | 11,300 | 11,300 |
+| MAHENOOR KAS | 1 | 10,500 | 10,500 |
+| GULNAZ | 1 | 10,500 | 10,500 |
+| Amrin | 1 | 9,200 | 9,200 |
+| OSAMA | 1 | 8,600 | 8,600 |
+| QURRATUL AIN BANGALORE | 1 | 7,500 | 11,500 |
+| Shanawaz Memon | 1 | 7,000 | 7,000 |
+| Mahi Supariwala | 1 | 6,500 | 6,500 |
+| Ruby Bhatia | 2 | 6,200 | 6,200 |
+| **KHADIJA SHEIKH** | **3** | **5,250** | **5,250** |
+| FIZA CHAUDHARY | 1 | 4,500 | 4,500 |
+| SAMEENA MADHIYA | 1 | 4,500 | 4,500 |
+| PRIYANKA YADAV | 2 | 4,400 | 4,400 |
+| Naeem Mukadam | 1 | 3,950 | 3,950 |
+| Nazbin Choudhury | 1 | 3,600 | 3,600 |
+| Sadiya Surat | 1 | 3,200 | 3,200 |
+| Hanif bhai | 1 | 3,200 | 3,200 |
+| Sadiqa Faisal Khan | 1 | 3,200 | 3,200 |
+| Arezah Nathani | 1 | 3,150 | 3,150 |
+| SABINA SAMEER | 1 | 1,800 | 1,800 |
 
-### Why the earlier audit missed it
+**Org totals — ELLA NOOR**: 27 invoices · ₹1,43,650 of credit-applied wrongly shown as outstanding · True org pending ≈ ₹4,000 (only KHADIJA's 1,629).
 
-The previous balance reconciliation used `reconcile_customer_balances` and `get_customer_true_outstanding`, both of which read `sales.sale_return_adjust` as the authoritative "returns applied" figure. They had no cross-check against the `sale_returns` table count or the existence of a backing `credit_notes` row. The phantom rows passed every existing parity gate because they self-balance (voucher receipt offsets sale_return_adjust). The audit step that compares Σ sale_return_adjust vs Σ sale_returns.net_amount per customer was not part of the canonical recipe.
+Note: this is a **display-layer bug only**. Customer master balance, ledger reconciliation, and `reconcile_customer_balances` already account for `credit_applied` correctly. No data repair required.
 
-### Same issue across ELLA NOOR — 23 customers, ₹1,46,800 total phantom CN
+---
 
-| Customer | Phantom CN Receipts | Inflated by |
-|---|---:|---:|
-| AMNA DARVESH | 1 | ₹13,500 |
-| Muskan | 2 | ₹12,100 |
-| Sharmin Mewara | 1 | ₹11,300 |
-| GULNAZ | 1 | ₹10,500 |
-| MAHENOOR KAS | 1 | ₹10,500 |
-| Amrin | 1 | ₹9,200 |
-| OSAMA | 1 | ₹8,600 |
-| QURRATUL AIN BANGALORE | 1 | ₹7,500 |
-| Shanawaz Memon | 1 | ₹7,000 |
-| Mahi Supariwala | 1 | ₹6,500 |
-| Ruby Bhatia | 2 | ₹6,200 |
-| **KHADIJA SHEIKH** | **3** | **₹5,250** |
-| FIZA CHAUDHARY | 1 | ₹4,500 |
-| SAMEENA MADHIYA | 1 | ₹4,500 |
-| PRIYANKA YADAV | 2 | ₹4,400 |
-| Naeem Mukadam | 1 | ₹3,950 |
-| Nazbin Choudhury | 1 | ₹3,600 |
-| Hanif bhai | 1 | ₹3,200 |
-| Sadiqa Faisal Khan | 1 | ₹3,200 |
-| Arezah Nathani | 2 | ₹3,200 |
-| Sadiya Surat | 1 | ₹3,200 |
-| AYESHA MERCHANT | 1 | ₹3,100 |
-| SABINA SAMEER | 1 | ₹1,800 |
-| **Total** | **29** | **₹1,46,800** |
+## Proposed Fix
 
-These customers' current displayed "CN/SR Applied" / outstanding figures are wrong by the amounts shown. The phantom voucher rows are flagged in `voucher_entries.notes` containing the marker `cn_over_apply_repair_20260606 phantom credit_note_adjustment receipt removed`.
+### Frontend — `src/pages/SalesInvoiceDashboard.tsx`
 
-### Proposed fix (for separate approval — no changes yet)
+1. **Update balance formula** in all 4 occurrences to also subtract `credit_applied`:
+   - `balanceDue` helper (line 1280–1288)
+   - Excel export row (line 1375)
+   - Settlement dialog default amount (lines 1923, 1954, 1977)
+   - Row Balance + payment status fallback (line 2959–2968)
+2. Ensure the `sale_return_adjust` data already being selected also includes `credit_applied`. Check current SELECT list and add `credit_applied` if missing (line 1335 export query and primary list query).
 
-Two-step idempotent migration scoped to ELLA NOOR (org `3fdca631-…`) and the phantom marker:
+### Backend — Dashboard stats RPC
 
-1. **Reverse `sales.sale_return_adjust`** by the phantom voucher amount for each affected `sale_id` (decrement, with `GREATEST(0, sale_return_adjust − phantom_total)` guard to avoid going negative).
-2. **Soft-delete the 29 phantom `voucher_entries` rows** (`deleted_at = now()`, audit note appended). This preserves history per the project's Soft Delete Policy.
-3. **Recompute payment status** for each touched sale via `compute_sale_settlement(sale_id)`.
-4. **Recompute customer balance snapshot** for the 23 affected customers.
-5. **Add a permanent parity check** (`docs/customer-balance-verification-recipe.md` + `scripts/audit-balance-formula-parity.sql`) that flags any future drift where `Σ sales.sale_return_adjust > Σ sale_returns.net_amount + Σ credit_notes.used_amount` per customer.
+3. Update `get_sale_order_dashboard_stats` (or the sales-invoice equivalent that powers the **Pending Amount ₹6,450** KPI card) to subtract `COALESCE(credit_applied,0)` from the pending computation. Apply via a migration that replaces the function definition.
 
-Want me to switch to build mode and execute this 5-step repair?
+### Verification
+
+- Reload Invoice Dashboard for KHADIJA SHEIKH → Pending should drop from ₹6,450 to ₹1,200; INV 903/856/1194 should show Paid with ₹0 balance.
+- Org-wide Pending Amount KPI should reduce by ≈₹1,43,650.
+- No change to `customers.opening_balance`, `customer_advances`, `voucher_entries`, or ledger data.
+
+### Out of scope (do not touch this turn)
+
+- Customer Ledger report calculations — already correct.
+- Master Reconciliation RPC — already correct.
+- Any data migration / balance repair — not needed.
