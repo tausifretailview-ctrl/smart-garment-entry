@@ -21,6 +21,7 @@ import { OrganizationSetup } from "@/components/OrganizationSetup";
 import { Layout } from "@/components/Layout";
 import { FullScreenLayout } from "@/components/FullScreenLayout";
 import { POSLayout } from "@/components/POSLayout";
+import { PosDeliveryChallanLayout } from "@/components/PosDeliveryChallanLayout";
 import { SchoolFeatureGate } from "./components/school/SchoolFeatureGate";
 import { getStoredOrgSlug } from "@/lib/orgSlug";
 import InstallApp from "./pages/InstallApp";
@@ -51,6 +52,7 @@ const StockReport = lazyWithRetry(() => import("./pages/StockReport"));
 const Settings = lazyWithRetry(() => import("./pages/Settings"));
 const Profile = lazyWithRetry(() => import("./pages/Profile"));
 const POSSales = lazyWithRetry(() => import("./pages/POSSales"));
+const PosDeliveryChallan = lazyWithRetry(() => import("./pages/PosDeliveryChallan"));
 const POSDashboard = lazyWithRetry(() => import("./pages/POSDashboard"));
 const SalesInvoice = lazyWithRetry(() => import("./pages/SalesInvoice"));
 const SalesInvoiceDashboard = lazyWithRetry(() => import("./pages/SalesInvoiceDashboard"));
@@ -830,6 +832,16 @@ const App = () => {
                       <POSLayout>
                         <POSSales />
                       </POSLayout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="pos-delivery-challan"
+                  element={
+                    <ProtectedRoute>
+                      <PosDeliveryChallanLayout>
+                        <PosDeliveryChallan />
+                      </PosDeliveryChallanLayout>
                     </ProtectedRoute>
                   }
                 />

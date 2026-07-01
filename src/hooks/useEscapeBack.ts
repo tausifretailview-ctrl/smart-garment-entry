@@ -11,6 +11,7 @@ const BACK_MAP: Record<string, string> = {
   "sale-return-entry":        "sales-invoice-dashboard",
   // POS entry → POS Dashboard
   "pos-sales":                "pos-dashboard",
+  "pos-delivery-challan":     "pos-sales",
   // Purchase → Purchase Dashboard
   "purchase-entry":           "purchase-bills",
   "purchase-return-entry":    "purchase-bills",

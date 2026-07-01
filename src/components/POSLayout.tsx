@@ -30,7 +30,6 @@ import { OfflineIndicator } from "@/components/mobile/OfflineIndicator";
 import { SizeStockDialog } from "@/components/SizeStockDialog";
 import { FloatingCashTally } from "@/components/FloatingCashTally";
 import { FloatingPayments } from "@/components/FloatingPayments";
-import { DeliveryChallanPOSDialog } from "@/components/DeliveryChallanPOSDialog";
 import { Truck } from "lucide-react";
 import { PwaInstallBanner } from "@/components/mobile/PwaInstallBanner";
 import { IdleMount } from "@/components/IdleMount";
@@ -54,7 +53,6 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
   const [showSizeStock, setShowSizeStock] = useState(false);
   const [showCashTally, setShowCashTally] = useState(false);
   const [showPayments, setShowPayments] = useState(false);
-  const [showDCDialog, setShowDCDialog] = useState(false);
   const { hasMenuAccess, permissions, loading: permissionsLoading } = useUserPermissions();
   const can = (id: string) => !permissionsLoading && (permissions === null || hasMenuAccess(id));
 
@@ -74,7 +72,6 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
       <SizeStockDialog open={showSizeStock} onOpenChange={setShowSizeStock} />
       <FloatingCashTally open={showCashTally} onOpenChange={setShowCashTally} />
       <FloatingPayments open={showPayments} onOpenChange={setShowPayments} />
-      <DeliveryChallanPOSDialog open={showDCDialog} onOpenChange={setShowDCDialog} />
     </>
   );
 
@@ -257,22 +254,24 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
                 </TooltipContent>
               </Tooltip>
             )}
-            {can("delivery_challan_entry") && <Tooltip>
-              <TooltipTrigger asChild>
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  onClick={() => setShowDCDialog(true)}
-                  className="text-primary-foreground hover:bg-orange-500/80 gap-1 bg-orange-600/30"
-                >
-                  <Truck className="h-4 w-4" />
-                  <span className="hidden sm:inline">DC</span>
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom" className="bg-popover text-popover-foreground">
-                <p>Delivery Challan — Fast Billing</p>
-              </TooltipContent>
-            </Tooltip>}
+            {can("pos_sales") && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => orgNavigate("/pos-delivery-challan")}
+                    className="text-primary-foreground hover:bg-orange-500/80 gap-1 bg-orange-600/30"
+                  >
+                    <Truck className="h-4 w-4" />
+                    <span className="hidden sm:inline">DC</span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="bg-popover text-popover-foreground">
+                  <p>POS Delivery Challan — full page</p>
+                </TooltipContent>
+              </Tooltip>
+            )}
             {can("stock_report") && <Tooltip>
               <TooltipTrigger asChild>
                 <Button 

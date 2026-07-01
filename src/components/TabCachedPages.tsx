@@ -118,6 +118,7 @@ function nudgePaneScrollLayout(root: HTMLElement) {
 /** Screens with live carts / unsaved bill work — never idle-evict. */
 const LIVE_WORK_TAB_PATHS = new Set([
   "pos-sales",
+  "pos-delivery-challan",
   "sales-invoice",
   "purchase-entry",
   "sale-return-entry",
@@ -206,6 +207,7 @@ const HEAVY_TAB_PATHS = new Set([
   "sales-invoice-dashboard",
   "purchase-bill-dashboard",
   "pos-sales",
+  "pos-delivery-challan",
   "sales-invoice",
   "purchase-entry",
   "product-entry",

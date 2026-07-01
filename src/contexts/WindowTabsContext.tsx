@@ -42,6 +42,7 @@ const PAGE_CONFIG: Record<string, { label: string; icon: string }> = {
   "": { label: "Dashboard", icon: "Home" },
   "dashboard": { label: "Dashboard", icon: "Home" },
   "pos-sales": { label: "POS Sales", icon: "ShoppingCart" },
+  "pos-delivery-challan": { label: "POS DC", icon: "Truck" },
   "pos-dashboard": { label: "POS Dashboard", icon: "Receipt" },
   "sales-invoice": { label: "Sales Invoice", icon: "FileText" },
   "sales-invoice-dashboard": { label: "Sales Dashboard", icon: "FileText" },

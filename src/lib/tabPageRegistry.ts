@@ -25,6 +25,7 @@ export const TAB_PAGE_REGISTRY: Record<string, TabPageDef> = {
   "": { loader: () => import("@/pages/Index"), layout: "layout" },
   dashboard: { loader: () => import("@/pages/Index"), layout: "layout" },
   "pos-sales": { loader: () => import("@/pages/POSSales"), layout: "pos" },
+  "pos-delivery-challan": { loader: () => import("@/pages/PosDeliveryChallan"), layout: "pos" },
   "pos-dashboard": { loader: () => import("@/pages/POSDashboard"), layout: "fullscreen" },
   "sales-invoice": { loader: () => import("@/pages/SalesInvoice"), layout: "fullscreen" },
   "sales-invoice-dashboard": { loader: () => import("@/pages/SalesInvoiceDashboard"), layout: "fullscreen" },

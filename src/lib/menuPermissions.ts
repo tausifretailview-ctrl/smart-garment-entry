@@ -9,6 +9,7 @@ const MENU_PERMISSION_BY_PATH: Record<string, string> = {
   customers: "customer_master",
   suppliers: "supplier_master",
   "pos-sales": "pos_sales",
+  "pos-delivery-challan": "pos_sales",
   "pos-dashboard": "pos_dashboard",
   "sales-invoice": "sales_invoice",
   "sales-invoice-dashboard": "sales_invoice_dashboard",
