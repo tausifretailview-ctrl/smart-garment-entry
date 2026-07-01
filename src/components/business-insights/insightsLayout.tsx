@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { Card } from "@/components/ui/card";
 import { TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 
 /** Full-height tab body inside business-insights-workspace */
@@ -10,8 +11,73 @@ export const INSIGHTS_TAB_SHELL =
 export const INSIGHTS_TABLE_HEAD =
   "sticky top-0 z-10 [&_tr]:border-none";
 
+/** Vasy-style dark header row */
 export const INSIGHTS_NEUTRAL_TH =
-  "h-10 text-xs font-bold uppercase tracking-wide text-white bg-slate-800 px-3 py-2.5 border-none shadow-none";
+  "h-10 text-xs font-bold uppercase tracking-wide text-white bg-slate-800 px-3 py-2.5 border-none shadow-none whitespace-nowrap";
+
+/** Vasy-style body rows — taller touch targets, zebra + hover */
+export const INSIGHTS_BODY_ROW =
+  "h-11 border-b border-slate-100 hover:bg-sky-50/70 even:bg-slate-50/80";
+
+export const INSIGHTS_BODY_CELL = "px-3 py-2.5 text-base align-middle";
+
+export const INSIGHTS_BODY_CELL_NUM = cn(INSIGHTS_BODY_CELL, "text-right tabular-nums");
+
+export const INSIGHTS_SUB_TABS_CLASS = "flex flex-col flex-1 min-h-0 gap-2";
+
+export const INSIGHTS_SUB_TAB_LIST =
+  "h-9 shrink-0 w-fit rounded-md bg-slate-100 p-1";
+
+export const INSIGHTS_SUB_TAB_TRIGGER =
+  "rounded px-3 text-sm font-semibold data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-sm";
+
+export type InsightsSubTabItem<T extends string> = { id: T; label: string };
+
+export function InsightsSubTabs<T extends string>({
+  value,
+  onValueChange,
+  items,
+  children,
+}: {
+  value: T;
+  onValueChange: (value: T) => void;
+  items: InsightsSubTabItem<T>[];
+  children: ReactNode;
+}) {
+  return (
+    <Tabs
+      value={value}
+      onValueChange={(v) => onValueChange(v as T)}
+      className={INSIGHTS_SUB_TABS_CLASS}
+    >
+      <TabsList className={INSIGHTS_SUB_TAB_LIST}>
+        {items.map(({ id, label }) => (
+          <TabsTrigger key={id} value={id} className={INSIGHTS_SUB_TAB_TRIGGER}>
+            {label}
+          </TabsTrigger>
+        ))}
+      </TabsList>
+      {children}
+    </Tabs>
+  );
+}
+
+export function InsightsSubTabPanel({
+  value,
+  children,
+}: {
+  value: string;
+  children: ReactNode;
+}) {
+  return (
+    <TabsContent
+      value={value}
+      className="mt-0 flex flex-1 min-h-0 flex-col focus-visible:outline-none data-[state=inactive]:hidden"
+    >
+      {children}
+    </TabsContent>
+  );
+}
 
 export function InsightsPanel({
   title,

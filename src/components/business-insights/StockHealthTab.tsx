@@ -16,15 +16,26 @@ import { Slider } from "@/components/ui/slider";
 import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import {
+  INSIGHTS_BODY_CELL,
+  INSIGHTS_BODY_CELL_NUM,
+  INSIGHTS_BODY_ROW,
   INSIGHTS_TAB_SHELL,
   InsightsKpiCard,
   InsightsKpiStrip,
   InsightsPanel,
   InsightsStaticTh,
+  InsightsSubTabPanel,
+  InsightsSubTabs,
   InsightsTableHeader,
 } from "@/components/business-insights/insightsLayout";
 
 const IDLE_DAY_OPTIONS = [30, 60, 90, 180] as const;
+type StockSubTab = "low-stock" | "slow-moving";
+
+const STOCK_SUB_TABS = [
+  { id: "low-stock" as const, label: "Low Stock Alerts" },
+  { id: "slow-moving" as const, label: "Dead / Slow Moving" },
+];
 
 function num(v: unknown): number {
   const n = Number(v);
@@ -67,6 +78,7 @@ export function StockHealthTab() {
   const { currentOrganization } = useOrganization();
   const orgId = currentOrganization?.id;
 
+  const [subTab, setSubTab] = useState<StockSubTab>("low-stock");
   const [stockThreshold, setStockThreshold] = useState(5);
   const [idleDays, setIdleDays] = useState<number>(60);
 
@@ -178,183 +190,199 @@ export function StockHealthTab() {
         />
       </InsightsKpiStrip>
 
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-2 flex-1 min-h-0">
-        <InsightsPanel
-          className="min-h-0"
-          title="Low Stock Alerts"
-          subtitle="Variants at or below threshold (30-day velocity)"
-          toolbar={
-            <div className="flex items-center gap-3 w-full sm:w-auto">
-              <Label htmlFor="stock-threshold" className="text-xs text-muted-foreground whitespace-nowrap">
-                Threshold
-              </Label>
-              <Input
-                id="stock-threshold"
-                type="number"
-                min={0}
-                max={50}
-                value={stockThreshold}
-                onChange={(e) => {
-                  const v = Math.min(50, Math.max(0, parseInt(e.target.value, 10) || 0));
-                  setStockThreshold(v);
-                }}
-                className="h-8 w-16 text-right tabular-nums"
-              />
-              <Slider
-                value={[stockThreshold]}
-                min={0}
-                max={50}
-                step={1}
-                onValueChange={([v]) => setStockThreshold(v)}
-                className="w-24 hidden sm:flex"
-                aria-label="Low stock threshold"
-              />
-            </div>
-          }
-        >
-          <Table>
-            <InsightsTableHeader>
-              <InsightsStaticTh label="Product" />
-              <InsightsStaticTh label="Size" />
-              <InsightsStaticTh label="Color" />
-              <InsightsStaticTh label="Stock Left" className="text-right" />
-              <InsightsStaticTh label="Daily Sales" className="text-right" />
-              <InsightsStaticTh label="Days Left" className="text-right" />
-              <InsightsStaticTh label="Last Supplier" />
-            </InsightsTableHeader>
-            <TableBody>
-              {sortedLowStock.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
-                    No variants at or below {stockThreshold} units
-                  </TableCell>
-                </TableRow>
-              ) : (
-                sortedLowStock.map((row) => {
-                  const avg = num(row.avg_daily_sales);
-                  const days = row.days_of_stock_left === null ? null : num(row.days_of_stock_left);
-                  return (
-                    <TableRow
-                      key={row.variant_id}
-                      className={cn(lowStockRowClass(days, avg))}
-                    >
-                      <TableCell className="font-medium min-w-[140px] px-3">
-                        {productLabel(row)}
-                      </TableCell>
-                      <TableCell className="px-3">{row.size || "—"}</TableCell>
-                      <TableCell className="px-3">{row.color || "—"}</TableCell>
-                      <TableCell className="text-right tabular-nums font-semibold px-3">
-                        {num(row.current_stock)}
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums px-3">
-                        {avg > 0 ? avg.toFixed(2) : "—"}
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums px-3">
-                        {avg === 0 ? (
-                          <span className="text-muted-foreground">No sales</span>
-                        ) : days !== null ? (
-                          days.toFixed(1)
-                        ) : (
-                          "—"
-                        )}
-                      </TableCell>
-                      <TableCell className="text-sm px-3">
-                        {row.primary_supplier || "—"}
-                        {row.last_purchase_date && (
-                          <span className="block text-xs text-muted-foreground">
-                            {formatDateLabel(row.last_purchase_date)}
-                          </span>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })
-              )}
-            </TableBody>
-          </Table>
-        </InsightsPanel>
+      <InsightsSubTabs value={subTab} onValueChange={setSubTab} items={STOCK_SUB_TABS}>
+        <InsightsSubTabPanel value="low-stock">
+          <InsightsPanel
+            className="flex-1 min-h-0"
+            title="Low Stock Alerts"
+            subtitle="Variants at or below threshold (30-day velocity)"
+            toolbar={
+              <div className="flex items-center gap-3 w-full sm:w-auto">
+                <Label htmlFor="stock-threshold" className="text-xs font-semibold uppercase tracking-wide text-slate-500 whitespace-nowrap">
+                  Threshold
+                </Label>
+                <Input
+                  id="stock-threshold"
+                  type="number"
+                  min={0}
+                  max={50}
+                  value={stockThreshold}
+                  onChange={(e) => {
+                    const v = Math.min(50, Math.max(0, parseInt(e.target.value, 10) || 0));
+                    setStockThreshold(v);
+                  }}
+                  className="h-9 w-16 text-right tabular-nums border-slate-200"
+                />
+                <Slider
+                  value={[stockThreshold]}
+                  min={0}
+                  max={50}
+                  step={1}
+                  onValueChange={([v]) => setStockThreshold(v)}
+                  className="w-24 hidden sm:flex"
+                  aria-label="Low stock threshold"
+                />
+              </div>
+            }
+            footer={
+              <p className="text-xs text-muted-foreground tabular-nums">
+                {sortedLowStock.length.toLocaleString("en-IN")} variant
+                {sortedLowStock.length !== 1 ? "s" : ""} at or below threshold
+              </p>
+            }
+          >
+            <Table className="w-full min-w-max">
+              <InsightsTableHeader>
+                <InsightsStaticTh label="Product" />
+                <InsightsStaticTh label="Size" />
+                <InsightsStaticTh label="Color" />
+                <InsightsStaticTh label="Stock Left" className="text-right" />
+                <InsightsStaticTh label="Daily Sales" className="text-right" />
+                <InsightsStaticTh label="Days Left" className="text-right" />
+                <InsightsStaticTh label="Last Supplier" />
+              </InsightsTableHeader>
+              <TableBody>
+                {sortedLowStock.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={7} className="py-10 text-center text-base text-muted-foreground">
+                      No variants at or below {stockThreshold} units
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  sortedLowStock.map((row) => {
+                    const avg = num(row.avg_daily_sales);
+                    const days = row.days_of_stock_left === null ? null : num(row.days_of_stock_left);
+                    return (
+                      <TableRow
+                        key={row.variant_id}
+                        className={cn(INSIGHTS_BODY_ROW, lowStockRowClass(days, avg))}
+                      >
+                        <TableCell className={cn(INSIGHTS_BODY_CELL, "font-medium min-w-[160px]")}>
+                          {productLabel(row)}
+                        </TableCell>
+                        <TableCell className={INSIGHTS_BODY_CELL}>{row.size || "—"}</TableCell>
+                        <TableCell className={INSIGHTS_BODY_CELL}>{row.color || "—"}</TableCell>
+                        <TableCell className={cn(INSIGHTS_BODY_CELL_NUM, "font-semibold")}>
+                          {num(row.current_stock)}
+                        </TableCell>
+                        <TableCell className={INSIGHTS_BODY_CELL_NUM}>
+                          {avg > 0 ? avg.toFixed(2) : "—"}
+                        </TableCell>
+                        <TableCell className={INSIGHTS_BODY_CELL_NUM}>
+                          {avg === 0 ? (
+                            <span className="text-muted-foreground">No sales</span>
+                          ) : days !== null ? (
+                            days.toFixed(1)
+                          ) : (
+                            "—"
+                          )}
+                        </TableCell>
+                        <TableCell className={INSIGHTS_BODY_CELL}>
+                          {row.primary_supplier || "—"}
+                          {row.last_purchase_date && (
+                            <span className="block text-xs text-muted-foreground">
+                              {formatDateLabel(row.last_purchase_date)}
+                            </span>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
+                )}
+              </TableBody>
+            </Table>
+          </InsightsPanel>
+        </InsightsSubTabPanel>
 
-        <InsightsPanel
-          className="min-h-0"
-          title="Dead / Slow Moving Stock"
-          subtitle={`In-stock variants with no sale within ${idleDays} days`}
-          toolbar={
-            <div className="flex flex-wrap gap-1">
-              {IDLE_DAY_OPTIONS.map((d) => (
-                <Button
-                  key={d}
-                  type="button"
-                  size="sm"
-                  variant={idleDays === d ? "default" : "outline"}
-                  onClick={() => setIdleDays(d)}
-                  className="h-7 text-xs px-2"
-                >
-                  {d}d
-                </Button>
-              ))}
-            </div>
-          }
-        >
-          <Table>
-            <InsightsTableHeader>
-              <InsightsStaticTh label="Product" />
-              <InsightsStaticTh label="Brand" />
-              <InsightsStaticTh label="Size" />
-              <InsightsStaticTh label="Color" />
-              <InsightsStaticTh label="Stock Qty" className="text-right" />
-              <InsightsStaticTh label="Stock Value" className="text-right" />
-              <InsightsStaticTh label="Last Sold" />
-              <InsightsStaticTh label="Days Idle" className="text-right" />
-            </InsightsTableHeader>
-            <TableBody>
-              {slowStock.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
-                    No slow-moving stock for idle &gt; {idleDays} days
-                  </TableCell>
-                </TableRow>
-              ) : (
-                slowStock.map((row) => {
-                  const daysIdle = row.days_since_sold === null ? null : num(row.days_since_sold);
-                  const neverSold = !row.last_sold_date;
-                  return (
-                    <TableRow
-                      key={row.variant_id}
-                      className={cn(slowStockBorderClass(row.last_sold_date, daysIdle))}
-                    >
-                      <TableCell className="min-w-[140px] font-medium px-3">
-                        {row.product_name}
-                        {neverSold && (
-                          <span className="ml-2 text-xs font-normal text-red-600">Never sold</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="px-3">{row.brand || "—"}</TableCell>
-                      <TableCell className="px-3">{row.size || "—"}</TableCell>
-                      <TableCell className="px-3">{row.color || "—"}</TableCell>
-                      <TableCell className="text-right tabular-nums font-semibold px-3">
-                        {num(row.current_stock)}
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums px-3">
-                        {formatInsightsINR(num(row.stock_value))}
-                      </TableCell>
-                      <TableCell className="text-sm whitespace-nowrap px-3">
-                        {neverSold ? "—" : formatDateLabel(row.last_sold_date)}
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums px-3">
-                        {neverSold ? (
-                          <span className="text-red-600 font-medium">∞</span>
-                        ) : (
-                          daysIdle
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })
-              )}
-            </TableBody>
-          </Table>
-        </InsightsPanel>
-      </div>
+        <InsightsSubTabPanel value="slow-moving">
+          <InsightsPanel
+            className="flex-1 min-h-0"
+            title="Dead / Slow Moving Stock"
+            subtitle={`In-stock variants with no sale within ${idleDays} days`}
+            toolbar={
+              <div className="flex flex-wrap gap-1">
+                {IDLE_DAY_OPTIONS.map((d) => (
+                  <Button
+                    key={d}
+                    type="button"
+                    size="sm"
+                    variant={idleDays === d ? "default" : "outline"}
+                    onClick={() => setIdleDays(d)}
+                    className="h-8 text-xs px-2.5"
+                  >
+                    {d}d
+                  </Button>
+                ))}
+              </div>
+            }
+            footer={
+              <p className="text-xs text-muted-foreground tabular-nums">
+                {slowStock.length.toLocaleString("en-IN")} slow-moving variant
+                {slowStock.length !== 1 ? "s" : ""}
+              </p>
+            }
+          >
+            <Table className="w-full min-w-max">
+              <InsightsTableHeader>
+                <InsightsStaticTh label="Product" />
+                <InsightsStaticTh label="Brand" />
+                <InsightsStaticTh label="Size" />
+                <InsightsStaticTh label="Color" />
+                <InsightsStaticTh label="Stock Qty" className="text-right" />
+                <InsightsStaticTh label="Stock Value" className="text-right" />
+                <InsightsStaticTh label="Last Sold" />
+                <InsightsStaticTh label="Days Idle" className="text-right" />
+              </InsightsTableHeader>
+              <TableBody>
+                {slowStock.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={8} className="py-10 text-center text-base text-muted-foreground">
+                      No slow-moving stock for idle &gt; {idleDays} days
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  slowStock.map((row) => {
+                    const daysIdle = row.days_since_sold === null ? null : num(row.days_since_sold);
+                    const neverSold = !row.last_sold_date;
+                    return (
+                      <TableRow
+                        key={row.variant_id}
+                        className={cn(INSIGHTS_BODY_ROW, slowStockBorderClass(row.last_sold_date, daysIdle))}
+                      >
+                        <TableCell className={cn(INSIGHTS_BODY_CELL, "min-w-[160px] font-medium")}>
+                          {row.product_name}
+                          {neverSold && (
+                            <span className="ml-2 text-xs font-normal text-red-600">Never sold</span>
+                          )}
+                        </TableCell>
+                        <TableCell className={INSIGHTS_BODY_CELL}>{row.brand || "—"}</TableCell>
+                        <TableCell className={INSIGHTS_BODY_CELL}>{row.size || "—"}</TableCell>
+                        <TableCell className={INSIGHTS_BODY_CELL}>{row.color || "—"}</TableCell>
+                        <TableCell className={cn(INSIGHTS_BODY_CELL_NUM, "font-semibold")}>
+                          {num(row.current_stock)}
+                        </TableCell>
+                        <TableCell className={INSIGHTS_BODY_CELL_NUM}>
+                          {formatInsightsINR(num(row.stock_value))}
+                        </TableCell>
+                        <TableCell className={cn(INSIGHTS_BODY_CELL, "whitespace-nowrap")}>
+                          {neverSold ? "—" : formatDateLabel(row.last_sold_date)}
+                        </TableCell>
+                        <TableCell className={INSIGHTS_BODY_CELL_NUM}>
+                          {neverSold ? (
+                            <span className="text-red-600 font-medium">∞</span>
+                          ) : (
+                            daysIdle
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
+                )}
+              </TableBody>
+            </Table>
+          </InsightsPanel>
+        </InsightsSubTabPanel>
+      </InsightsSubTabs>
     </div>
   );
 }
