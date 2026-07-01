@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
   Bar,
   BarChart,
@@ -20,13 +20,26 @@ import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import { marginBorderClass } from "@/components/business-insights/insightsMarginUtils";
 import {
+  INSIGHTS_BODY_CELL,
+  INSIGHTS_BODY_CELL_NUM,
+  INSIGHTS_BODY_ROW,
   INSIGHTS_TAB_SHELL,
   InsightsKpiCard,
   InsightsKpiStrip,
   InsightsPanel,
   InsightsStaticTh,
+  InsightsSubTabPanel,
+  InsightsSubTabs,
   InsightsTableHeader,
 } from "@/components/business-insights/insightsLayout";
+
+type SalesSubTab = "top-products" | "slow-movers" | "category-chart";
+
+const SALES_SUB_TABS = [
+  { id: "top-products" as const, label: "Top Products" },
+  { id: "slow-movers" as const, label: "Slow Movers" },
+  { id: "category-chart" as const, label: "Category Revenue" },
+];
 
 function num(v: unknown): number {
   const n = Number(v);
@@ -48,6 +61,8 @@ export function SalesTrendsTab({ startDate, endDate }: SalesTrendsTabProps) {
   const orgId = currentOrganization?.id;
   const range = { startDate, endDate, enabled: true };
 
+  const [subTab, setSubTab] = useState<SalesSubTab>("top-products");
+
   const {
     data: products = [],
     isLoading: productsLoading,
@@ -65,7 +80,7 @@ export function SalesTrendsTab({ startDate, endDate }: SalesTrendsTabProps) {
       [...products]
         .filter((p) => num(p.units_sold) > 0)
         .sort((a, b) => num(b.units_sold) - num(a.units_sold))
-        .slice(0, 10),
+        .slice(0, 50),
     [products],
   );
 
@@ -145,126 +160,151 @@ export function SalesTrendsTab({ startDate, endDate }: SalesTrendsTabProps) {
         />
       </InsightsKpiStrip>
 
-      <InsightsPanel className="flex-1" title="Top 10 Products This Period">
-        <Table>
-          <InsightsTableHeader>
-            <InsightsStaticTh label="#" className="w-10" />
-            <InsightsStaticTh label="Product" />
-            <InsightsStaticTh label="Brand" />
-            <InsightsStaticTh label="Units Sold" className="text-right" />
-            <InsightsStaticTh label="Revenue" className="text-right" />
-            <InsightsStaticTh label="Margin %" className="text-right" />
-          </InsightsTableHeader>
-          <TableBody>
-            {topProducts.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={6} className="py-6 text-center text-muted-foreground">
-                  No product sales in period
-                </TableCell>
-              </TableRow>
+      <InsightsSubTabs value={subTab} onValueChange={setSubTab} items={SALES_SUB_TABS}>
+        <InsightsSubTabPanel value="top-products">
+          <InsightsPanel
+            className="flex-1 min-h-0"
+            title="Top Products This Period"
+            subtitle="Ranked by units sold"
+            footer={
+              <p className="text-xs text-muted-foreground tabular-nums">
+                Showing top {topProducts.length.toLocaleString("en-IN")} products by units sold
+              </p>
+            }
+          >
+            <Table className="w-full min-w-max">
+              <InsightsTableHeader>
+                <InsightsStaticTh label="#" className="w-10" />
+                <InsightsStaticTh label="Product" />
+                <InsightsStaticTh label="Brand" />
+                <InsightsStaticTh label="Units Sold" className="text-right" />
+                <InsightsStaticTh label="Revenue" className="text-right" />
+                <InsightsStaticTh label="Margin %" className="text-right" />
+              </InsightsTableHeader>
+              <TableBody>
+                {topProducts.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="py-10 text-center text-base text-muted-foreground">
+                      No product sales in period
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  topProducts.map((row, idx) => {
+                    const margin = num(row.profit_margin_pct);
+                    return (
+                      <TableRow
+                        key={row.product_id}
+                        className={cn(INSIGHTS_BODY_ROW, marginBorderClass(margin))}
+                      >
+                        <TableCell className={cn(INSIGHTS_BODY_CELL, "tabular-nums text-muted-foreground")}>
+                          {idx + 1}
+                        </TableCell>
+                        <TableCell className={cn(INSIGHTS_BODY_CELL, "font-medium")}>{row.product_name}</TableCell>
+                        <TableCell className={INSIGHTS_BODY_CELL}>{row.brand || "—"}</TableCell>
+                        <TableCell className={cn(INSIGHTS_BODY_CELL_NUM, "font-semibold")}>
+                          {num(row.units_sold)}
+                        </TableCell>
+                        <TableCell className={INSIGHTS_BODY_CELL_NUM}>
+                          {formatInsightsINR(num(row.revenue))}
+                        </TableCell>
+                        <TableCell className={INSIGHTS_BODY_CELL_NUM}>{margin.toFixed(1)}%</TableCell>
+                      </TableRow>
+                    );
+                  })
+                )}
+              </TableBody>
+            </Table>
+          </InsightsPanel>
+        </InsightsSubTabPanel>
+
+        <InsightsSubTabPanel value="slow-movers">
+          <InsightsPanel
+            className="flex-1 min-h-0"
+            title="Slow Movers This Period"
+            subtitle="In stock but &lt; 5 units sold in date range"
+            footer={
+              <p className="text-xs text-muted-foreground tabular-nums">
+                {slowMovers.length.toLocaleString("en-IN")} slow mover
+                {slowMovers.length !== 1 ? "s" : ""}
+              </p>
+            }
+          >
+            <Table className="w-full min-w-max">
+              <InsightsTableHeader>
+                <InsightsStaticTh label="Product" />
+                <InsightsStaticTh label="Brand" />
+                <InsightsStaticTh label="Units Sold" className="text-right" />
+                <InsightsStaticTh label="Stock Qty" className="text-right" />
+                <InsightsStaticTh label="Stock Value" className="text-right" />
+              </InsightsTableHeader>
+              <TableBody>
+                {slowMovers.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={5} className="py-10 text-center text-base text-muted-foreground">
+                      No slow movers matching criteria
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  slowMovers.map((row) => (
+                    <TableRow key={row.product_id} className={INSIGHTS_BODY_ROW}>
+                      <TableCell className={cn(INSIGHTS_BODY_CELL, "font-medium")}>{row.product_name}</TableCell>
+                      <TableCell className={INSIGHTS_BODY_CELL}>{row.brand || "—"}</TableCell>
+                      <TableCell className={INSIGHTS_BODY_CELL_NUM}>{num(row.units_sold)}</TableCell>
+                      <TableCell className={INSIGHTS_BODY_CELL_NUM}>{num(row.current_stock)}</TableCell>
+                      <TableCell className={INSIGHTS_BODY_CELL_NUM}>
+                        {formatInsightsINR(num(row.stock_value))}
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </InsightsPanel>
+        </InsightsSubTabPanel>
+
+        <InsightsSubTabPanel value="category-chart">
+          <InsightsPanel
+            className="flex-1 min-h-0"
+            title="Category Revenue & Profit"
+            subtitle="By category for selected period"
+          >
+            {categoryChart.length === 0 ? (
+              <p className="py-16 text-center text-base text-muted-foreground">No category sales data</p>
             ) : (
-              topProducts.map((row, idx) => {
-                const margin = num(row.profit_margin_pct);
-                return (
-                  <TableRow
-                    key={row.product_id}
-                    className={cn(marginBorderClass(margin))}
-                  >
-                    <TableCell className="tabular-nums text-muted-foreground px-3">{idx + 1}</TableCell>
-                    <TableCell className="font-medium px-3">{row.product_name}</TableCell>
-                    <TableCell className="px-3">{row.brand || "—"}</TableCell>
-                    <TableCell className="text-right tabular-nums font-semibold px-3">
-                      {num(row.units_sold)}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums px-3">
-                      {formatInsightsINR(num(row.revenue))}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums px-3">{margin.toFixed(1)}%</TableCell>
-                  </TableRow>
-                );
-              })
+              <div className="flex h-full min-h-[360px] flex-col p-3">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={categoryChart} margin={{ top: 12, right: 24, left: 12, bottom: 56 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                    <XAxis
+                      dataKey="name"
+                      tick={{ fontSize: 11 }}
+                      angle={-35}
+                      textAnchor="end"
+                      height={80}
+                    />
+                    <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => formatInsightsINR(v)} width={80} />
+                    <Tooltip
+                      formatter={(v: number, name: string) => {
+                        const labels: Record<string, string> = {
+                          revenue: "Revenue",
+                          cost: "Cost",
+                          gross_profit: "Gross profit",
+                        };
+                        return [formatInsightsINR(v), labels[name] ?? name];
+                      }}
+                      labelFormatter={(_, payload) => payload?.[0]?.payload?.fullName ?? ""}
+                    />
+                    <Legend />
+                    <Bar dataKey="revenue" name="Revenue" fill="hsl(210, 70%, 50%)" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="cost" name="Cost" fill="hsl(0, 65%, 55%)" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="gross_profit" name="Gross profit" fill="hsl(150, 60%, 45%)" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
             )}
-          </TableBody>
-        </Table>
-      </InsightsPanel>
-
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-2 shrink-0 min-h-[180px] max-h-[min(36vh,320px)]">
-        <InsightsPanel
-          title="Slow Movers This Period"
-          subtitle="In stock but &lt; 5 units sold in date range"
-          className="min-h-0"
-        >
-          <Table>
-            <InsightsTableHeader>
-              <InsightsStaticTh label="Product" />
-              <InsightsStaticTh label="Brand" />
-              <InsightsStaticTh label="Units Sold" className="text-right" />
-              <InsightsStaticTh label="Stock Qty" className="text-right" />
-              <InsightsStaticTh label="Stock Value" className="text-right" />
-            </InsightsTableHeader>
-            <TableBody>
-              {slowMovers.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={5} className="py-6 text-center text-muted-foreground">
-                    No slow movers matching criteria
-                  </TableCell>
-                </TableRow>
-              ) : (
-                slowMovers.map((row) => (
-                  <TableRow key={row.product_id}>
-                    <TableCell className="font-medium px-3">{row.product_name}</TableCell>
-                    <TableCell className="px-3">{row.brand || "—"}</TableCell>
-                    <TableCell className="text-right tabular-nums px-3">{num(row.units_sold)}</TableCell>
-                    <TableCell className="text-right tabular-nums px-3">{num(row.current_stock)}</TableCell>
-                    <TableCell className="text-right tabular-nums px-3">
-                      {formatInsightsINR(num(row.stock_value))}
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </InsightsPanel>
-
-        <InsightsPanel
-          title="Category Revenue & Profit"
-          subtitle="By category for selected period"
-          className="min-h-0"
-        >
-          {categoryChart.length === 0 ? (
-            <p className="py-8 text-center text-sm text-muted-foreground">No category sales data</p>
-          ) : (
-            <ResponsiveContainer width="100%" height={260}>
-              <BarChart data={categoryChart} margin={{ top: 8, right: 16, left: 8, bottom: 48 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <XAxis
-                  dataKey="name"
-                  tick={{ fontSize: 10 }}
-                  angle={-35}
-                  textAnchor="end"
-                  height={70}
-                />
-                <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => formatInsightsINR(v)} width={72} />
-                <Tooltip
-                  formatter={(v: number, name: string) => {
-                    const labels: Record<string, string> = {
-                      revenue: "Revenue",
-                      cost: "Cost",
-                      gross_profit: "Gross profit",
-                    };
-                    return [formatInsightsINR(v), labels[name] ?? name];
-                  }}
-                  labelFormatter={(_, payload) => payload?.[0]?.payload?.fullName ?? ""}
-                />
-                <Legend />
-                <Bar dataKey="revenue" name="Revenue" fill="hsl(210, 70%, 50%)" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="cost" name="Cost" fill="hsl(0, 65%, 55%)" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="gross_profit" name="Gross profit" fill="hsl(150, 60%, 45%)" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          )}
-        </InsightsPanel>
-      </div>
+          </InsightsPanel>
+        </InsightsSubTabPanel>
+      </InsightsSubTabs>
     </div>
   );
 }
