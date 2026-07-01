@@ -3,7 +3,10 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useSettings } from "@/hooks/useSettings";
 import { useOrganization } from "@/contexts/OrganizationContext";
-import { Card, CardHeader, CardContent, CardDescription } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
+import { ErpDashboardKpiCard } from "@/components/dashboard/ErpDashboardKpiCard";
+import { useTabCacheLayout } from "@/contexts/TabCacheLayoutContext";
+import { useSharedAppShell } from "@/contexts/SharedAppShellContext";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -11,7 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 
-import { Search, Printer, Edit, ChevronDown, ChevronUp, Trash2, Loader2, FileText, ArrowRight, Plus, Clock, CheckCircle, Send, IndianRupee, MessageCircle, CalendarIcon, Download, FilePenLine } from "lucide-react";
+import { Search, Printer, Edit, ChevronDown, ChevronUp, Trash2, Loader2, FileText, ArrowRight, Plus, MessageCircle, CalendarIcon, Download, FilePenLine, Home, RefreshCw } from "lucide-react";
 import { useWhatsAppTemplates } from "@/hooks/useWhatsAppTemplates";
 import { format } from "date-fns";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
@@ -43,6 +46,8 @@ export default function QuotationDashboard() {
   const { navigate } = useOrgNavigation();
   const queryClient = useQueryClient();
   const { currentOrganization } = useOrganization();
+  const inTabCache = useTabCacheLayout();
+  const sharedShell = useSharedAppShell();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [customerFilter, setCustomerFilter] = useState<string>("all");
@@ -292,143 +297,123 @@ export default function QuotationDashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 px-2 sm:px-3 md:px-4 lg:px-5 py-6 pb-24 lg:pb-6">
-      <div className="w-full min-w-0 max-w-none space-y-5">
-
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-1">
-        <div>
-          <h1 className="text-3xl font-extrabold text-blue-600 tracking-tight leading-tight">
-            Quotation Dashboard
-          </h1>
-          <p className="text-slate-400 text-base mt-0.5">Create and track customer quotations</p>
-        </div>
-        <div className="flex gap-2 flex-wrap">
-          {hasDraft && (
+    <div
+      className={cn(
+        "purchase-dashboard-workspace purchase-bill-dashboard flex h-full min-h-0 w-full flex-col overflow-hidden bg-slate-50 px-2 py-2 sm:px-3",
+        !inTabCache && !sharedShell && "h-[calc(100vh-3.5rem)]",
+      )}
+    >
+      <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col gap-2">
+        <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
+          <div>
+            <h1 className="flex items-center gap-2 text-xl font-bold leading-none tracking-tight text-teal-700">
+              <Home className="h-4 w-4 shrink-0 opacity-70" />
+              Quotations
+            </h1>
+            <p className="mt-1 text-sm text-slate-500">
+              {isLoading ? "Loading…" : `${stats.total.toLocaleString("en-IN")} quotations`}
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 justify-end">
             <Button
               variant="outline"
-              className="h-10 text-base border-amber-300 text-amber-700 hover:bg-amber-50"
-              onClick={() => navigate('/quotation-entry', { state: { resumeDraft: true } })}
+              size="sm"
+              className="h-9 gap-1.5 border-slate-200 text-sm"
+              onClick={() => void refetch()}
+              disabled={isLoading}
             >
-              <FilePenLine className="h-4 w-4 mr-2" />
-              Resume Draft
+              {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+              Refresh
             </Button>
-          )}
-          <Button
-            onClick={() => navigate('/quotation-entry')}
-            className="h-10 px-5 text-base font-semibold bg-blue-600 hover:bg-blue-700 text-white shadow-md hover:shadow-lg transition-all gap-2"
-          >
-            <Plus className="h-4 w-4" />
-            New Quotation
-          </Button>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 w-full">
-        <Card 
-          className={`cursor-pointer hover:shadow-xl transition-all duration-200 hover:scale-[1.02] bg-gradient-to-br from-blue-500 to-blue-600 border-0 shadow-md rounded-xl min-w-0 ${statusFilter === 'all' ? 'ring-4 ring-white ring-offset-2 ring-offset-slate-100' : ''}`}
-          onClick={() => handleCardClick('all')}
-        >
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-3 px-3">
-            <CardDescription className="text-base font-medium text-white/80">Total</CardDescription>
-            <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
-              <FileText className="h-4 w-4 text-white" />
-            </div>
-          </CardHeader>
-          <CardContent className="px-3 pb-3 pt-0">
-            <div className="text-2xl font-black text-white tabular-nums">{stats.total}</div>
-            <p className="text-sm text-white/65 mt-0.5">All quotations</p>
-          </CardContent>
-        </Card>
-        
-        <Card 
-          className={`cursor-pointer hover:shadow-xl transition-all duration-200 hover:scale-[1.02] bg-gradient-to-br from-slate-500 to-slate-600 border-0 shadow-md rounded-xl min-w-0 ${statusFilter === 'draft' ? 'ring-4 ring-white ring-offset-2 ring-offset-slate-100' : ''}`}
-          onClick={() => handleCardClick('draft')}
-        >
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-3 px-3">
-            <CardDescription className="text-base font-medium text-white/80">Draft</CardDescription>
-            <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
-              <Clock className="h-4 w-4 text-white" />
-            </div>
-          </CardHeader>
-          <CardContent className="px-3 pb-3 pt-0">
-            <div className="text-2xl font-black text-white tabular-nums">{stats.draft}</div>
-            <p className="text-sm text-white/65 mt-0.5">Pending review</p>
-          </CardContent>
-        </Card>
-        
-        <Card 
-          className={`cursor-pointer hover:shadow-xl transition-all duration-200 hover:scale-[1.02] bg-gradient-to-br from-cyan-500 to-cyan-600 border-0 shadow-md rounded-xl min-w-0 ${statusFilter === 'sent' ? 'ring-4 ring-white ring-offset-2 ring-offset-slate-100' : ''}`}
-          onClick={() => handleCardClick('sent')}
-        >
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-3 px-3">
-            <CardDescription className="text-base font-medium text-white/80">Sent</CardDescription>
-            <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
-              <Send className="h-4 w-4 text-white" />
-            </div>
-          </CardHeader>
-          <CardContent className="px-3 pb-3 pt-0">
-            <div className="text-2xl font-black text-white tabular-nums">{stats.sent}</div>
-            <p className="text-sm text-white/65 mt-0.5">Awaiting response</p>
-          </CardContent>
-        </Card>
-        
-        <Card 
-          className={`cursor-pointer hover:shadow-xl transition-all duration-200 hover:scale-[1.02] bg-gradient-to-br from-emerald-500 to-emerald-600 border-0 shadow-md rounded-xl min-w-0 ${statusFilter === 'confirmed' ? 'ring-4 ring-white ring-offset-2 ring-offset-slate-100' : ''}`}
-          onClick={() => handleCardClick('confirmed')}
-        >
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-3 px-3">
-            <CardDescription className="text-base font-medium text-white/80">Confirmed</CardDescription>
-            <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
-              <CheckCircle className="h-4 w-4 text-white" />
-            </div>
-          </CardHeader>
-          <CardContent className="px-3 pb-3 pt-0">
-            <div className="text-2xl font-black text-white tabular-nums">{stats.confirmed}</div>
-            <p className="text-sm text-white/65 mt-0.5">Accepted</p>
-          </CardContent>
-        </Card>
-        
-        <Card className="cursor-pointer hover:shadow-xl transition-all duration-200 hover:scale-[1.02] bg-gradient-to-br from-violet-500 to-violet-600 border-0 shadow-md rounded-xl min-w-0">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-3 px-3">
-            <CardDescription className="text-base font-medium text-white/80">Conversion</CardDescription>
-            <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
-              <ArrowRight className="h-4 w-4 text-white" />
-            </div>
-          </CardHeader>
-          <CardContent className="px-3 pb-3 pt-0">
-            <div className="text-2xl font-black text-white tabular-nums">{stats.conversionRate}%</div>
-            <p className="text-sm text-white/65 mt-0.5">Success rate</p>
-          </CardContent>
-        </Card>
-        
-        <Card className="cursor-pointer hover:shadow-xl transition-all duration-200 hover:scale-[1.02] bg-gradient-to-br from-amber-500 to-amber-600 border-0 shadow-md rounded-xl min-w-0">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-3 px-3">
-            <CardDescription className="text-base font-medium text-white/80">Total Value</CardDescription>
-            <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
-              <IndianRupee className="h-4 w-4 text-white" />
-            </div>
-          </CardHeader>
-          <CardContent className="px-3 pb-3 pt-0">
-            <div className="text-2xl font-black text-white tabular-nums">₹{stats.totalValue.toLocaleString('en-IN')}</div>
-            <p className="text-sm text-white/65 mt-0.5">Gross value</p>
-          </CardContent>
-        </Card>
-      </div>
-      
-      <Card className="rounded-xl border border-slate-200 shadow-sm overflow-hidden p-0">
-        <div className="flex flex-wrap items-center gap-2 px-4 py-2.5 border-b border-slate-100 bg-white">
-          <div className="relative flex-1 min-w-[200px] max-w-full sm:max-w-md md:max-w-lg">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-            <Input
-              placeholder="Search by quotation no, customer..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-11 h-10 text-base border-slate-200 bg-slate-50 focus:bg-white"
-            />
+            {hasDraft && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-9 gap-1.5 border-amber-300 text-amber-700 hover:bg-amber-50 text-sm"
+                onClick={() => navigate("/quotation-entry", { state: { resumeDraft: true } })}
+              >
+                <FilePenLine className="h-4 w-4" />
+                Resume Draft
+              </Button>
+            )}
+            <Button
+              onClick={() => navigate("/quotation-entry")}
+              className="h-9 px-4 text-sm font-semibold bg-blue-600 hover:bg-blue-700 text-white shadow-sm gap-1.5"
+            >
+              <Plus className="h-4 w-4" />
+              New Quotation
+            </Button>
           </div>
+        </div>
+
+        <div className="grid shrink-0 grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6 lg:gap-3">
+          <ErpDashboardKpiCard
+            title="Total"
+            subtitle="All quotations"
+            value={stats.total.toLocaleString("en-IN")}
+            shellClass="bg-sky-50 border-sky-200/70 hover:bg-sky-100/80"
+            valueClass="text-sky-800"
+            active={statusFilter === "all"}
+            onClick={() => handleCardClick("all")}
+          />
+          <ErpDashboardKpiCard
+            title="Draft"
+            subtitle="Pending review"
+            value={stats.draft.toLocaleString("en-IN")}
+            shellClass="bg-slate-100 border-slate-200/70 hover:bg-slate-200/50"
+            valueClass="text-slate-800"
+            active={statusFilter === "draft"}
+            onClick={() => handleCardClick("draft")}
+          />
+          <ErpDashboardKpiCard
+            title="Sent"
+            subtitle="Awaiting response"
+            value={stats.sent.toLocaleString("en-IN")}
+            shellClass="bg-cyan-50 border-cyan-200/70 hover:bg-cyan-100/80"
+            valueClass="text-cyan-800"
+            active={statusFilter === "sent"}
+            onClick={() => handleCardClick("sent")}
+          />
+          <ErpDashboardKpiCard
+            title="Confirmed"
+            subtitle="Accepted"
+            value={stats.confirmed.toLocaleString("en-IN")}
+            shellClass="bg-emerald-50 border-emerald-200/70 hover:bg-emerald-100/80"
+            valueClass="text-emerald-800"
+            active={statusFilter === "confirmed"}
+            onClick={() => handleCardClick("confirmed")}
+          />
+          <ErpDashboardKpiCard
+            title="Conversion"
+            subtitle="Success rate"
+            value={`${stats.conversionRate}%`}
+            shellClass="bg-violet-50 border-violet-200/70 hover:bg-violet-100/80"
+            valueClass="text-violet-800"
+          />
+          <ErpDashboardKpiCard
+            title="Total Value"
+            subtitle="Gross value"
+            value={`₹${stats.totalValue.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`}
+            shellClass="bg-amber-50 border-amber-200/70 hover:bg-amber-100/80"
+            valueClass="text-amber-800"
+          />
+        </div>
+
+        <Card className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-slate-200 shadow-sm p-0">
+          <div className="flex flex-col flex-1 min-h-0">
+            <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-slate-100 bg-white px-3 py-2.5 overflow-x-auto">
+              <div className="relative flex-1 min-w-[180px] max-w-full sm:max-w-md md:max-w-lg">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search list..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-9 h-9 text-sm border-slate-200 bg-slate-50 focus:bg-white no-uppercase"
+                />
+              </div>
           <Popover>
             <PopoverTrigger asChild>
-              <Button variant="outline" className={cn("w-[140px] h-10 justify-start text-left font-normal text-base border-slate-200 bg-slate-50 hover:bg-white", !fromDate && "text-muted-foreground")}>
+              <Button variant="outline" className={cn("w-[130px] h-9 justify-start text-left font-normal text-sm border-slate-200 bg-slate-50 hover:bg-white", !fromDate && "text-muted-foreground")}>
                 <CalendarIcon className="mr-2 h-4 w-4" />
                 {fromDate ? format(fromDate, "dd/MM/yy") : "From Date"}
               </Button>
@@ -439,7 +424,7 @@ export default function QuotationDashboard() {
           </Popover>
           <Popover>
             <PopoverTrigger asChild>
-              <Button variant="outline" className={cn("w-[140px] h-10 justify-start text-left font-normal text-base border-slate-200 bg-slate-50 hover:bg-white", !toDate && "text-muted-foreground")}>
+              <Button variant="outline" className={cn("w-[130px] h-9 justify-start text-left font-normal text-sm border-slate-200 bg-slate-50 hover:bg-white", !toDate && "text-muted-foreground")}>
                 <CalendarIcon className="mr-2 h-4 w-4" />
                 {toDate ? format(toDate, "dd/MM/yy") : "To Date"}
               </Button>
@@ -449,12 +434,12 @@ export default function QuotationDashboard() {
             </PopoverContent>
           </Popover>
           {(fromDate || toDate) && (
-            <Button variant="ghost" size="sm" onClick={() => { setFromDate(undefined); setToDate(undefined); }}>
+            <Button variant="ghost" size="sm" className="h-9 text-sm" onClick={() => { setFromDate(undefined); setToDate(undefined); }}>
               Clear Dates
             </Button>
           )}
           <Select value={customerFilter} onValueChange={setCustomerFilter}>
-            <SelectTrigger className="w-48 h-10 text-base border-slate-200 bg-slate-50 hover:bg-white">
+            <SelectTrigger className="w-[150px] h-9 text-sm border-slate-200 bg-slate-50 hover:bg-white">
               <SelectValue placeholder="Customer" />
             </SelectTrigger>
             <SelectContent>
@@ -467,7 +452,7 @@ export default function QuotationDashboard() {
             </SelectContent>
           </Select>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-40 h-10 text-base border-slate-200 bg-slate-50 hover:bg-white">
+            <SelectTrigger className="w-[130px] h-9 text-sm border-slate-200 bg-slate-50 hover:bg-white">
               <SelectValue placeholder="Status" />
             </SelectTrigger>
             <SelectContent>
@@ -479,37 +464,46 @@ export default function QuotationDashboard() {
               <SelectItem value="cancelled">Cancelled</SelectItem>
             </SelectContent>
           </Select>
-        </div>
+            </div>
 
-        <div className="p-0">
+            <div
+              data-tab-scroll
+              className="purchase-dashboard-table-panel flex-1 min-h-0 overflow-y-auto overflow-x-auto tab-scroll-stable overscroll-y-contain"
+            >
         {isLoading ? (
-          <div className="flex items-center justify-center py-10">
-            <Loader2 className="h-8 w-8 animate-spin" />
+          <div className="flex items-center justify-center py-16 bg-white">
+            <Loader2 className="h-8 w-8 animate-spin text-teal-600" />
+          </div>
+        ) : filteredQuotations.length === 0 ? (
+          <div className="text-center py-16 text-muted-foreground bg-white">
+            <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
+            <p className="text-lg font-medium">No quotations found</p>
+            <p className="text-sm">Create your first quotation to get started</p>
           </div>
         ) : (
-          <Table>
+          <Table className="erp-desktop-table w-full [&_td]:!text-base [&_th]:!text-sm">
             <TableHeader>
-              <TableRow className="bg-black hover:bg-black">
-                <TableHead className="w-10 text-white"></TableHead>
-                <TableHead className="text-white font-bold uppercase text-[13px]">Quotation No</TableHead>
-                <TableHead className="text-white font-bold uppercase text-[13px]">Date</TableHead>
-                <TableHead className="text-white font-bold uppercase text-[13px]">Customer</TableHead>
-                <TableHead className="text-white font-bold uppercase text-[13px]">Amount</TableHead>
-                <TableHead className="text-white font-bold uppercase text-[13px]">Status</TableHead>
-                <TableHead className="text-white font-bold uppercase text-[13px]">Actions</TableHead>
+              <TableRow>
+                <TableHead className="w-10"></TableHead>
+                <TableHead>Quotation No</TableHead>
+                <TableHead>Date</TableHead>
+                <TableHead>Customer</TableHead>
+                <TableHead>Amount</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {paginatedQuotations.map((quotation: any) => (
                 <>
-                  <TableRow key={quotation.id}>
+                  <TableRow key={quotation.id} className="h-11">
                     <TableCell>
                       <Button variant="ghost" size="icon" onClick={() => toggleExpanded(quotation.id)}>
                         {expandedRows.has(quotation.id) ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                       </Button>
                     </TableCell>
-                    <TableCell className="font-medium text-[15px]">{quotation.quotation_number}</TableCell>
-                    <TableCell className="text-[15px]">{format(new Date(quotation.quotation_date), 'dd/MM/yyyy')}</TableCell>
+                    <TableCell className="font-semibold text-teal-800">{quotation.quotation_number}</TableCell>
+                    <TableCell className="tabular-nums">{format(new Date(quotation.quotation_date), 'dd/MM/yyyy')}</TableCell>
                     <TableCell className="text-[15px]">
                       <div>
                         <button
@@ -524,7 +518,7 @@ export default function QuotationDashboard() {
                       </div>
                       <div className="text-sm text-muted-foreground">{quotation.customer_phone}</div>
                     </TableCell>
-                    <TableCell className="font-medium">₹{quotation.net_amount?.toFixed(2)}</TableCell>
+                    <TableCell className="font-semibold tabular-nums">₹{quotation.net_amount?.toFixed(2)}</TableCell>
                     <TableCell>{getStatusBadge(quotation.status)}</TableCell>
                     <TableCell>
                       <div className="flex gap-1">
@@ -589,10 +583,11 @@ export default function QuotationDashboard() {
             </TableBody>
           </Table>
         )}
+            </div>
 
         {totalPages > 1 && (
-          <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-t border-slate-100 bg-white">
-            <div className="text-sm text-slate-500">
+          <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-slate-100 bg-white px-4 py-2.5">
+            <div className="text-sm text-slate-500 tabular-nums">
               Showing {(currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, filteredQuotations.length)} of {filteredQuotations.length}
             </div>
             <div className="flex gap-2">
@@ -602,8 +597,8 @@ export default function QuotationDashboard() {
             </div>
           </div>
         )}
-        </div>
-      </Card>
+          </div>
+        </Card>
       </div>
 
       {/* Delete Dialog */}
