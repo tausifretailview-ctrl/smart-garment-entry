@@ -33,8 +33,8 @@ declare global {
 /** HEAD first; fall back to a tiny ranged GET when HEAD is blocked. */
 async function probeInstallerDownload(url: string): Promise<boolean> {
   try {
-    const head = await fetch(url, { method: "HEAD", cache: "no-store" });
-    if (head.ok || head.status === 405) return true;
+    const head = await fetch(url, { method: "HEAD", cache: "no-store", redirect: "manual" });
+    if (head.ok || head.status === 405 || head.status === 302) return true;
     if (head.status === 404) return false;
     const ranged = await fetch(url, {
       method: "GET",
@@ -187,8 +187,8 @@ export default function InstallApp() {
 
     const downloadUrl = `${androidApkUrl}&t=${Date.now()}`;
     try {
-      const probe = await fetch(downloadUrl, { method: "HEAD", cache: "no-store" });
-      if (!probe.ok && probe.status !== 405) {
+      const probe = await fetch(downloadUrl, { method: "HEAD", cache: "no-store", redirect: "manual" });
+      if (!probe.ok && probe.status !== 405 && probe.status !== 302) {
         toast.error("Download unavailable right now. Refresh this page and try again.");
         return;
       }

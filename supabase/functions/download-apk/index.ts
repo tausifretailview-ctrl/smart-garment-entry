@@ -10,6 +10,7 @@ const corsHeaders = {
 const CURRENT_APK_VERSION = "1.1.0";
 const DEFAULT_FILE = `EzzyERP-${CURRENT_APK_VERSION}.apk`;
 const BUCKET_ID = "app-downloads";
+const SIGNED_URL_TTL_SEC = 3600;
 
 const ALLOWED_FILES = new Set([
   DEFAULT_FILE,
@@ -27,6 +28,16 @@ function isSafeFileName(name: string): boolean {
   if (!name || name.length > 128) return false;
   if (name.includes("/") || name.includes("\\") || name.includes("..")) return false;
   return /^[\w.\-()]+$/.test(name);
+}
+
+function apkHeaders(fileName: string, contentLength?: string | null): Record<string, string> {
+  return {
+    ...corsHeaders,
+    "Content-Type": "application/vnd.android.package-archive",
+    "Content-Disposition": `attachment; filename="${fileName}"`,
+    "Cache-Control": "no-store, no-cache, must-revalidate",
+    ...(contentLength ? { "Content-Length": contentLength } : {}),
+  };
 }
 
 Deno.serve(async (req) => {
@@ -54,24 +65,38 @@ Deno.serve(async (req) => {
 
   const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
 
-  const { data, error } = await supabaseAdmin.storage.from(BUCKET_ID).download(fileName);
+  // Redirect to signed storage URL — do NOT buffer the APK in the edge worker (WORKER_RESOURCE_LIMIT).
+  const { data, error } = await supabaseAdmin.storage
+    .from(BUCKET_ID)
+    .createSignedUrl(fileName, SIGNED_URL_TTL_SEC, { download: fileName });
 
-  if (error || !data) {
+  if (error || !data?.signedUrl) {
     console.error("download-apk:", error?.message ?? "missing file");
     return jsonResponse({ error: "Installer not found" }, 404);
   }
 
-  const headers: Record<string, string> = {
-    ...corsHeaders,
-    "Content-Type": "application/vnd.android.package-archive",
-    "Content-Disposition": `attachment; filename="${fileName}"`,
-    "Cache-Control": "no-store, no-cache, must-revalidate",
-    "Content-Length": String(data.size),
-  };
-
   if (req.method === "HEAD") {
-    return new Response(null, { status: 200, headers });
+    try {
+      const head = await fetch(data.signedUrl, { method: "HEAD" });
+      if (!head.ok) {
+        return jsonResponse({ error: "Installer not found" }, 404);
+      }
+      return new Response(null, {
+        status: 200,
+        headers: apkHeaders(fileName, head.headers.get("content-length")),
+      });
+    } catch (e) {
+      console.error("download-apk HEAD:", e);
+      return new Response(null, { status: 200, headers: apkHeaders(fileName) });
+    }
   }
 
-  return new Response(data, { status: 200, headers });
+  return new Response(null, {
+    status: 302,
+    headers: {
+      Location: data.signedUrl,
+      ...corsHeaders,
+      "Cache-Control": "no-store, no-cache, must-revalidate",
+    },
+  });
 });

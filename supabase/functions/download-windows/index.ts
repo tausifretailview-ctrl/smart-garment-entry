@@ -10,6 +10,7 @@ const corsHeaders = {
 const CURRENT_VERSION = "1.1.0";
 const DEFAULT_FILE = `EzzyERP-Setup-${CURRENT_VERSION}.exe`;
 const BUCKET_ID = "app-downloads";
+const SIGNED_URL_TTL_SEC = 3600;
 
 const ALLOWED_FILES = new Set([
   DEFAULT_FILE,
@@ -28,6 +29,20 @@ function isSafeFileName(name: string): boolean {
   if (!name || name.length > 128) return false;
   if (name.includes("/") || name.includes("\\") || name.includes("..")) return false;
   return /^[\w.\-()]+$/.test(name);
+}
+
+function installerHeaders(
+  fileName: string,
+  contentType: string,
+  contentLength?: string | null,
+): Record<string, string> {
+  return {
+    ...corsHeaders,
+    "Content-Type": contentType,
+    "Content-Disposition": `attachment; filename="${fileName}"`,
+    "Cache-Control": "no-store, no-cache, must-revalidate",
+    ...(contentLength ? { "Content-Length": contentLength } : {}),
+  };
 }
 
 Deno.serve(async (req) => {
@@ -55,9 +70,11 @@ Deno.serve(async (req) => {
 
   const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
 
-  const { data, error } = await supabaseAdmin.storage.from(BUCKET_ID).download(fileName);
+  const { data, error } = await supabaseAdmin.storage
+    .from(BUCKET_ID)
+    .createSignedUrl(fileName, SIGNED_URL_TTL_SEC, { download: fileName });
 
-  if (error || !data) {
+  if (error || !data?.signedUrl) {
     console.error("download-windows:", error?.message ?? "missing file");
     return jsonResponse({ error: "Installer not found" }, 404);
   }
@@ -66,17 +83,28 @@ Deno.serve(async (req) => {
     ? "application/vnd.microsoft.portable-executable"
     : "application/octet-stream";
 
-  const headers: Record<string, string> = {
-    ...corsHeaders,
-    "Content-Type": contentType,
-    "Content-Disposition": `attachment; filename="${fileName}"`,
-    "Cache-Control": "no-store, no-cache, must-revalidate",
-    "Content-Length": String(data.size),
-  };
-
   if (req.method === "HEAD") {
-    return new Response(null, { status: 200, headers });
+    try {
+      const head = await fetch(data.signedUrl, { method: "HEAD" });
+      if (!head.ok) {
+        return jsonResponse({ error: "Installer not found" }, 404);
+      }
+      return new Response(null, {
+        status: 200,
+        headers: installerHeaders(fileName, contentType, head.headers.get("content-length")),
+      });
+    } catch (e) {
+      console.error("download-windows HEAD:", e);
+      return new Response(null, { status: 200, headers: installerHeaders(fileName, contentType) });
+    }
   }
 
-  return new Response(data, { status: 200, headers });
+  return new Response(null, {
+    status: 302,
+    headers: {
+      Location: data.signedUrl,
+      ...corsHeaders,
+      "Cache-Control": "no-store, no-cache, must-revalidate",
+    },
+  });
 });

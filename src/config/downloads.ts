@@ -16,10 +16,10 @@ function resolveFunctionsOrigin(): string {
 
 const FUNCTIONS_ORIGIN = resolveFunctionsOrigin();
 
-/** Edge function — serves APK with correct Content-Disposition (never use raw storage URLs). */
+/** Edge function — redirects to a short-lived signed storage URL (avoids buffering large APKs in the worker). */
 export const ANDROID_APK_EDGE_URL = `${FUNCTIONS_ORIGIN}/functions/v1/download-apk`;
 
-/** Legacy public/signed storage links miss APK headers and expire — always route through edge function. */
+/** Legacy public/signed storage links expire — route through edge function for allowlist + download filename. */
 function normalizeAndroidApkUrl(url: string): string {
   const trimmed = url.trim();
   if (!trimmed) return ANDROID_APK_EDGE_URL;
