@@ -8598,8 +8598,10 @@ export type Database = {
       }
       get_product_wise_stock_report: {
         Args: {
+          p_barcode?: string
           p_brand?: string
           p_category?: string
+          p_closing_stock?: string
           p_department?: string
           p_group_by?: string
           p_limit?: number
@@ -8622,8 +8624,10 @@ export type Database = {
       }
       get_product_wise_stock_report_totals: {
         Args: {
+          p_barcode?: string
           p_brand?: string
           p_category?: string
+          p_closing_stock?: string
           p_department?: string
           p_group_by?: string
           p_org_id: string
@@ -8757,8 +8761,11 @@ export type Database = {
           p_brand?: string
           p_category?: string
           p_color?: string
+          p_in_stock?: boolean
           p_limit?: number
           p_low_stock?: boolean
+          p_low_stock_band?: boolean
+          p_low_stock_threshold?: number
           p_offset?: number
           p_org_id: string
           p_product_name?: string
@@ -8772,6 +8779,7 @@ export type Database = {
           category: string
           color: string
           current_stock: number
+          opening_qty: number
           product_name: string
           product_type: string
           pur_price: number

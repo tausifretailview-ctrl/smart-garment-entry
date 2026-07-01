@@ -67,6 +67,10 @@ export function isWindowsInstallerConfigured(): boolean {
   return isHostedUrl(WINDOWS_SETUP_URL);
 }
 
+export function isWindowsPortableConfigured(): boolean {
+  return isHostedUrl(WINDOWS_PORTABLE_URL);
+}
+
 /** True when env still points at Supabase storage (wrong — use edge function in VITE_ANDROID_APK_URL). */
 export function isAndroidApkStorageUrl(url: string = import.meta.env.VITE_ANDROID_APK_URL?.trim() ?? ""): boolean {
   return /\/storage\/v1\/object\//i.test(url.trim());
