@@ -84,15 +84,19 @@ export default function PosDeliveryChallan() {
 
       if (e.key === "F1") {
         e.preventDefault();
+        dc.setPaymentMethod("cash");
         void dc.handleSaveDC("cash");
       } else if (e.key === "F2") {
         e.preventDefault();
+        dc.setPaymentMethod("upi");
         void dc.handleSaveDC("upi");
       } else if (e.key === "F3") {
         e.preventDefault();
+        dc.setPaymentMethod("card");
         void dc.handleSaveDC("card");
       } else if (e.key === "F4") {
         e.preventDefault();
+        dc.setPaymentMethod("pay_later");
         void dc.handleSaveDC("pay_later");
       } else if (e.key === "F5") {
         e.preventDefault();
@@ -130,7 +134,10 @@ export default function PosDeliveryChallan() {
     color: string,
   ) => (
     <Button
-      onClick={() => void dc.handleSaveDC(method)}
+      onClick={() => {
+        dc.setPaymentMethod(method);
+        void dc.handleSaveDC(method);
+      }}
       disabled={dc.items.length === 0 || dc.isSavingDC}
       className={cn(
         "h-[60px] flex flex-col items-center justify-center gap-1 text-[12px] font-semibold relative w-full rounded-lg active:scale-95 text-white shadow-sm transition-all duration-150 disabled:opacity-40",

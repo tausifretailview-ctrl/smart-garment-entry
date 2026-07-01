@@ -10,6 +10,47 @@ import { useSettings } from "@/hooks/useSettings";
 import { useStockValidation } from "@/hooks/useStockValidation";
 import { computePosFlatDiscount } from "@/utils/posGstTotals";
 
+export type PosDcLastBillHint = {
+  invoiceNumber: string;
+  qty: number;
+  amount: number;
+} | null;
+
+function buildSearchResult(variant: any, product: any) {
+  return {
+    variant,
+    product,
+    label: `${product.product_name}${variant.size ? " | " + variant.size : ""}${variant.color ? " | " + variant.color : ""}`,
+    stock: variant.stock_qty || 0,
+    mrp: variant.mrp || 0,
+    salePrice: variant.sale_price || variant.mrp || 0,
+    barcode: variant.barcode || "",
+    brand: product.brand || "",
+  };
+}
+
+function searchInProducts(productsData: any[], term: string) {
+  const t = term.trim().toLowerCase();
+  if (t.length < 2) return [];
+  const terms = t.split(/\s+/);
+  const results: any[] = [];
+  for (const product of productsData) {
+    for (const v of product.product_variants || []) {
+      const barcode = (v.barcode || "").toLowerCase();
+      const searchStr =
+        `${product.product_name} ${product.brand || ""} ${v.size || ""} ${v.color || ""} ${barcode}`.toLowerCase();
+      const barcodeMatch = barcode.startsWith(t) || barcode.includes(t);
+      const textMatch = terms.every((part) => searchStr.includes(part));
+      if (barcodeMatch || textMatch) {
+        results.push(buildSearchResult(v, product));
+      }
+      if (results.length >= 30) break;
+    }
+    if (results.length >= 30) break;
+  }
+  return results;
+}
+
 export interface PosDCItem {
   id: string;
   barcode: string;
@@ -49,6 +90,11 @@ export function usePosDeliveryChallan(options?: { enabled?: boolean }) {
   const [flatDiscountMode, setFlatDiscountMode] = useState<"percent" | "amount">("percent");
   const [flatDiscountValue, setFlatDiscountValue] = useState<number>(0);
   const [srAdjust, setSrAdjust] = useState<number>(0);
+  const [roundOff, setRoundOff] = useState<number>(0);
+  const [notes, setNotes] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState<PosDCPaymentMethod>("cash");
+  const [currentDateTime, setCurrentDateTime] = useState(() => new Date());
+  const [lastBillHint, setLastBillHint] = useState<PosDcLastBillHint>(null);
   const [isSavingDC, setIsSavingDC] = useState(false);
   const [dcNumber, setDcNumber] = useState("");
   const [savedInvoiceData, setSavedInvoiceData] = useState<any>(null);
@@ -56,9 +102,8 @@ export function usePosDeliveryChallan(options?: { enabled?: boolean }) {
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(-1);
-  const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0, width: 0 });
-
   const barcodeRef = useRef<HTMLInputElement>(null);
+  const searchAbortRef = useRef(0);
   const printRef = useRef<HTMLDivElement>(null);
   const searchResultsRef = useRef<any[]>([]);
   const showDropdownRef = useRef(false);
@@ -123,6 +168,8 @@ export function usePosDeliveryChallan(options?: { enabled?: boolean }) {
     setFlatDiscountValue(0);
     setFlatDiscountMode("percent");
     setSrAdjust(0);
+    setRoundOff(0);
+    setNotes("");
     setSavedInvoiceData(null);
     setShowDropdown(false);
     setTimeout(() => barcodeRef.current?.focus(), 100);
@@ -147,49 +194,93 @@ export function usePosDeliveryChallan(options?: { enabled?: boolean }) {
   }, [enabled]);
 
   useEffect(() => {
-    if (!barcodeInput.trim() || barcodeInput.length < 2 || !productsData) {
-      setSearchResults([]);
-      setShowDropdown(false);
-      return;
-    }
-    const term = barcodeInput.trim().toLowerCase();
-    const isBarcode = /\d/.test(term) && term.length >= 5;
-    if (isBarcode) {
+    const tick = setInterval(() => setCurrentDateTime(new Date()), 1000);
+    return () => clearInterval(tick);
+  }, []);
+
+  useEffect(() => {
+    const term = barcodeInput.trim();
+    if (term.length < 2) {
       setSearchResults([]);
       setShowDropdown(false);
       return;
     }
 
-    const terms = term.split(/\s+/);
-    const results: any[] = [];
-    for (const product of productsData) {
-      for (const v of product.product_variants || []) {
-        const searchStr =
-          `${product.product_name} ${product.brand || ""} ${v.size || ""} ${v.color || ""} ${v.barcode || ""}`.toLowerCase();
-        if (terms.every((t) => searchStr.includes(t))) {
-          results.push({
-            variant: v,
-            product,
-            label: `${product.product_name}${v.size ? " | " + v.size : ""}${v.color ? " | " + v.color : ""}`,
-            stock: v.stock_qty || 0,
-            mrp: v.mrp || 0,
-            salePrice: v.sale_price || v.mrp || 0,
-            barcode: v.barcode || "",
-            brand: product.brand || "",
-          });
-        }
-        if (results.length >= 30) break;
-      }
-      if (results.length >= 30) break;
-    }
-    setSearchResults(results);
-    setShowDropdown(results.length > 0);
+    const runId = ++searchAbortRef.current;
+    const localResults = productsData ? searchInProducts(productsData, term) : [];
+    setSearchResults(localResults);
+    setShowDropdown(localResults.length > 0);
     setSelectedIndex(-1);
-    if (barcodeRef.current) {
-      const rect = barcodeRef.current.getBoundingClientRect();
-      setDropdownPos({ top: rect.bottom + 4, left: rect.left, width: rect.width });
-    }
-  }, [barcodeInput, productsData]);
+
+    if (localResults.length > 0 || !currentOrganization?.id) return;
+
+    const timer = setTimeout(async () => {
+      if (searchAbortRef.current !== runId) return;
+      const escaped = term.replace(/[%_\\]/g, "\\$&");
+      const { data: variantRows } = await supabase
+        .from("product_variants")
+        .select(
+          `id, barcode, size, color, stock_qty, sale_price, mrp, product_id, active, deleted_at,
+          products!inner(id, product_name, brand, hsn_code, gst_per, product_type, status, deleted_at, organization_id)`,
+        )
+        .eq("organization_id", currentOrganization.id)
+        .is("deleted_at", null)
+        .or(`barcode.ilike.%${escaped}%,size.ilike.%${escaped}%`)
+        .limit(40);
+
+      if (searchAbortRef.current !== runId) return;
+
+      const dbResults: any[] = [];
+      const seen = new Set<string>();
+      for (const row of variantRows || []) {
+        const product = (row as any).products;
+        if (!product || product.status !== "active" || product.deleted_at) continue;
+        if (row.active === false) continue;
+        const key = row.id;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        const label = `${product.product_name} ${product.brand || ""} ${row.size || ""} ${row.color || ""} ${row.barcode || ""}`.toLowerCase();
+        const tLower = term.toLowerCase();
+        if (!label.includes(tLower) && !(row.barcode || "").toLowerCase().includes(tLower)) continue;
+        dbResults.push(buildSearchResult(row, product));
+        if (dbResults.length >= 30) break;
+      }
+
+      if (dbResults.length === 0) {
+        const { data: namedProducts } = await supabase
+          .from("products")
+          .select(
+            `id, product_name, brand, hsn_code, gst_per, product_type, status,
+            product_variants(id, barcode, size, color, stock_qty, sale_price, mrp, product_id, active, deleted_at)`,
+          )
+          .eq("organization_id", currentOrganization.id)
+          .eq("status", "active")
+          .is("deleted_at", null)
+          .ilike("product_name", `%${escaped}%`)
+          .limit(10);
+
+        if (searchAbortRef.current !== runId) return;
+
+        for (const product of namedProducts || []) {
+          for (const v of (product as any).product_variants || []) {
+            if (v.deleted_at || v.active === false) continue;
+            if (seen.has(v.id)) continue;
+            seen.add(v.id);
+            dbResults.push(buildSearchResult(v, product));
+            if (dbResults.length >= 30) break;
+          }
+          if (dbResults.length >= 30) break;
+        }
+      }
+
+      if (searchAbortRef.current !== runId) return;
+      setSearchResults(dbResults);
+      setShowDropdown(dbResults.length > 0);
+      setSelectedIndex(-1);
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [barcodeInput, productsData, currentOrganization?.id]);
 
   const addVariantToItems = useCallback(
     async (foundVariant: any, foundProduct: any) => {
@@ -355,7 +446,8 @@ export function usePosDeliveryChallan(options?: { enabled?: boolean }) {
     flatDiscountValue: flatDiscountValue || 0,
     flatDiscountMode,
   });
-  const netAmount = Math.max(0, subTotal - (srAdjust || 0) - flatDiscountAmount);
+  const amountBeforeRoundOff = Math.max(0, subTotal - (srAdjust || 0) - flatDiscountAmount);
+  const netAmount = Math.max(0, amountBeforeRoundOff + (roundOff || 0));
   const totalQty = items.reduce((s, i) => s + i.quantity, 0);
 
   const getPageStyle = () => {
@@ -388,19 +480,21 @@ export function usePosDeliveryChallan(options?: { enabled?: boolean }) {
       return;
     }
 
+    setPaymentMethod(method);
     setIsSavingDC(true);
     try {
       const now = new Date().toISOString();
       const gross = items.reduce((s, i) => s + i.mrp * i.quantity, 0);
       const sub = items.reduce((s, i) => s + i.netAmount, 0);
       const sr = srAdjust || 0;
+      const ro = roundOff || 0;
       const { flatDiscountAmount: flatDisc } = computePosFlatDiscount({
         mrpTotal: gross,
         saleReturnAdjust: sr,
         flatDiscountValue: flatDiscountValue || 0,
         flatDiscountMode,
       });
-      const net = Math.max(0, sub - sr - flatDisc);
+      const net = Math.max(0, sub - sr - flatDisc + ro);
 
       const cashAmt = method === "cash" ? net : 0;
       const upiAmt = method === "upi" ? net : 0;
@@ -423,8 +517,9 @@ export function usePosDeliveryChallan(options?: { enabled?: boolean }) {
           flat_discount_percent: flatDiscountMode === "percent" ? flatDiscountValue || 0 : 0,
           flat_discount_amount: flatDisc,
           sale_return_adjust: sr,
-          round_off: 0,
+          round_off: ro,
           net_amount: net,
+          notes: notes || null,
           payment_method: method,
           payment_status: payStatus,
           paid_amount: paidAmt,
@@ -498,6 +593,11 @@ export function usePosDeliveryChallan(options?: { enabled?: boolean }) {
       setSavedInvoiceData(invoiceData);
       lastSavedPrintRef.current = invoiceData;
       setHasSavedForReprint(true);
+      setLastBillHint({
+        invoiceNumber: dcNumber,
+        qty: items.reduce((s, i) => s + i.quantity, 0),
+        amount: net,
+      });
 
       toast.success(`DC ${dcNumber} saved`);
 
@@ -549,6 +649,14 @@ export function usePosDeliveryChallan(options?: { enabled?: boolean }) {
     setFlatDiscountValue,
     srAdjust,
     setSrAdjust,
+    roundOff,
+    setRoundOff,
+    notes,
+    setNotes,
+    paymentMethod,
+    setPaymentMethod,
+    currentDateTime,
+    lastBillHint,
     isSavingDC,
     dcNumber,
     savedInvoiceData,
@@ -558,12 +666,12 @@ export function usePosDeliveryChallan(options?: { enabled?: boolean }) {
     setShowDropdown,
     selectedIndex,
     setSelectedIndex,
-    dropdownPos,
     barcodeRef,
     printRef,
     grossAmount,
     subTotal,
     flatDiscountAmount,
+    amountBeforeRoundOff,
     netAmount,
     totalQty,
     handleBarcodeEnter,
