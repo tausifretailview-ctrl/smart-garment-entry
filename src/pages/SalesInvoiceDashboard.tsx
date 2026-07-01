@@ -1285,7 +1285,9 @@ export default function SalesInvoiceDashboard() {
               inv.outstanding ??
                 Math.max(
                   0,
-                  (inv.net_amount || 0) - (inv.paid_amount || 0) - (inv.sale_return_adjust || 0),
+                  (inv.net_amount || 0) -
+                    (inv.paid_amount || 0) -
+                    Math.max(inv.sale_return_adjust || 0, inv.credit_applied || 0),
                 ),
             ),
           );
@@ -1332,7 +1334,7 @@ export default function SalesInvoiceDashboard() {
       while (hasMore) {
         let query = supabase
           .from('sales')
-          .select('sale_number, sale_date, customer_name, customer_phone, total_qty, gross_amount, discount_amount, flat_discount_amount, net_amount, paid_amount, sale_return_adjust, payment_status, delivery_status, salesman')
+          .select('sale_number, sale_date, customer_name, customer_phone, total_qty, gross_amount, discount_amount, flat_discount_amount, net_amount, paid_amount, sale_return_adjust, credit_applied, payment_status, delivery_status, salesman')
           .eq('organization_id', currentOrganization!.id)
           .eq('sale_type', 'invoice')
           .is('deleted_at', null)
@@ -1372,8 +1374,13 @@ export default function SalesInvoiceDashboard() {
         'Discount': (inv.discount_amount || 0) + (inv.flat_discount_amount || 0),
         'Net Amount': inv.net_amount || 0,
         'Paid Amount': inv.paid_amount || 0,
-        'Balance': Math.max(0, (inv.net_amount || 0) - (inv.paid_amount || 0) - (inv.sale_return_adjust || 0)),
-        'Credit Note Adj.': inv.sale_return_adjust || 0,
+        'Balance': Math.max(
+          0,
+          (inv.net_amount || 0) -
+            (inv.paid_amount || 0) -
+            Math.max(inv.sale_return_adjust || 0, inv.credit_applied || 0),
+        ),
+        'Credit Note Adj.': Math.max(inv.sale_return_adjust || 0, inv.credit_applied || 0),
         'Payment Status': inv.payment_status || '',
         'Delivery Status': inv.delivery_status || '',
         'Salesman': inv.salesman || '',
