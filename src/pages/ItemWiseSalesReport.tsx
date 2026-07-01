@@ -238,7 +238,6 @@ export default function ItemWiseSalesReport() {
               : f.closingStockFilter,
         }));
       }
-      });
       const from = parsePersistedDate(saved.customDateFrom);
       const to = parsePersistedDate(saved.customDateTo);
       if (from && to) setCustomDateRange({ from, to });
