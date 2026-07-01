@@ -329,6 +329,11 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   const fsHeading = isA4 ? "13px" : "12px";
   const fsTotals = isA4 ? "14px" : "13px";
   const fsGrand = isA4 ? "16px" : "15px";
+  const fsFooterMeta = isA4 ? "14px" : "13px";
+  const fsFooterBalance = isA4 ? "15px" : "14px";
+  const fsNoteLabel = isA4 ? "13px" : "12px";
+  const fsNoteBody = isA4 ? "14px" : "13px";
+  const fsSrAdjust = isA4 ? "15px" : "14px";
   const titleFs = isA4 ? "16px" : "14px";
   const fsCustName = isA4 ? "15px" : "14px";
   const fsCustDetail = isA4 ? "14px" : "12px";
@@ -703,19 +708,19 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                         <>
                           <span
                             style={{
-                              fontSize: isA4 ? (isRealTast ? "11px" : "12px") : "10px",
-                              fontWeight: isRealTast ? 700 : 800,
+                              fontSize: fsNoteLabel,
+                              fontWeight: 800,
                               color: "#000",
-                              marginBottom: isA4 ? "4px" : "2px",
+                              marginBottom: isA4 ? "4px" : "3px",
                             }}
                           >
                             Note:
                           </span>
                           <span
                             style={{
-                              fontSize: isA4 ? (isRealTast ? "12px" : "24px") : (isRealTast ? "11px" : "19px"),
-                              fontWeight: isRealTast ? 500 : 800,
-                              lineHeight: isRealTast ? 1.35 : 1.2,
+                              fontSize: fsNoteBody,
+                              fontWeight: 700,
+                              lineHeight: 1.35,
                               color: "#000",
                               whiteSpace: "pre-wrap",
                               wordBreak: "break-word",
@@ -727,8 +732,8 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                       ) : (
                         <span
                           style={{
-                            fontSize: isA4 ? "12px" : "10px",
-                            fontWeight: "700",
+                            fontSize: fsNoteLabel,
+                            fontWeight: 800,
                             color: "#6b7280",
                           }}
                         >
@@ -751,8 +756,8 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                         </div>
                       )}
                       {saleReturnAdjust > 0 && (
-                        <div style={{ display: "flex", justifyContent: "space-between", borderBottom: B, padding: isA4 ? "3px 8px" : "3px 6px", color: "#9a3412", fontSize: isA4 ? "14px" : "11px", fontWeight: "800" }}>
-                          <span>S/R Adjust</span><span>- ₹{fmt(saleReturnAdjust)}</span>
+                        <div style={{ display: "flex", justifyContent: "space-between", borderBottom: B, padding: isA4 ? "4px 8px" : "3px 6px", color: "#000", fontSize: fsSrAdjust, fontWeight: 900 }}>
+                          <span style={{ fontWeight: 900 }}>S/R Adjust</span><span style={{ fontWeight: 900 }}>- ₹{fmt(saleReturnAdjust)}</span>
                         </div>
                       )}
                       {!isRealTast && displayDiscount > 0 && (
@@ -789,13 +794,13 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                   </div>
 
                   {/* Amount in Words */}
-                  <div style={{ borderBottom: B, padding: isA4 ? "3px 8px" : "2px 6px", fontSize: isA4 ? "13px" : "10px", fontWeight: "600" }}>
+                  <div style={{ borderBottom: B, padding: isA4 ? "4px 8px" : "3px 6px", fontSize: fsFooterMeta, fontWeight: 800, color: "#000" }}>
                     <strong>Amount in Words:</strong> {numberToWords(grandTotal)}
                   </div>
 
                   {/* Payment + mix breakdown */}
                   {paymentMethod && !isRealTast && (
-                    <div style={{ borderBottom: B, padding: isA4 ? "2px 8px" : "2px 6px", fontSize: isA4 ? "13px" : "10px" }}>
+                    <div style={{ borderBottom: B, padding: isA4 ? "4px 8px" : "3px 6px", fontSize: fsFooterMeta, fontWeight: 800, color: "#000" }}>
                       <strong>Payment:</strong>{" "}
                       {isMixPayment ? "Mix Payment" : paymentMethod}
                       {mixPaymentDetail ? ` — ${mixPaymentDetail}` : ""}
@@ -805,16 +810,18 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                   {/* Balance rows */}
                   {!isRealTast && (
                   <div style={{ display: "flex", borderBottom: B }}>
-                    <div style={{ flex: 1, borderRight: B, padding: isA4 ? "2px 8px" : "2px 6px", fontSize: isA4 ? "13px" : "10px", fontWeight: "bold", color: "#000" }}>
+                    <div style={{ flex: 1, borderRight: B, padding: isA4 ? "4px 8px" : "3px 6px", fontSize: fsFooterBalance, fontWeight: 900, color: "#000" }}>
                       <strong>Received:</strong> ₹{fmt(receivedToday)}
                     </div>
-                    <div style={{ flex: 1, borderRight: B, padding: isA4 ? "2px 8px" : "2px 6px", fontSize: isA4 ? "13px" : "10px", fontWeight: "bold", color: "#000" }}>
-                      <strong>Balance:</strong> <span style={{ color: currentBalance > 0 ? "#dc2626" : "#16a34a", fontWeight: "bold" }}>₹{fmt(currentBalance)}</span>
+                    <div style={{ flex: 1, borderRight: B, padding: isA4 ? "4px 8px" : "3px 6px", fontSize: fsFooterBalance, fontWeight: 900, color: "#000" }}>
+                      <strong>Balance:</strong>{" "}
+                      <span style={{ color: currentBalance > 0 ? "#dc2626" : "#16a34a", fontWeight: 900 }}>₹{fmt(currentBalance)}</span>
                     </div>
-                    <div style={{ flex: 1, padding: isA4 ? "2px 8px" : "2px 6px", fontSize: isA4 ? "13px" : "10px", fontWeight: "bold", color: "#000" }}>
+                    <div style={{ flex: 1, padding: isA4 ? "4px 8px" : "3px 6px", fontSize: fsFooterBalance, fontWeight: 900, color: "#000" }}>
                       <strong>Prev Bal:</strong> ₹{fmt(previousBalance)}
                       {" | "}
-                      <strong>Total Due:</strong> <span style={{ color: totalDue > 0 ? "#dc2626" : "#16a34a", fontWeight: "bold" }}>₹{fmt(totalDue)}</span>
+                      <strong>Total Due:</strong>{" "}
+                      <span style={{ color: totalDue > 0 ? "#dc2626" : "#16a34a", fontWeight: 900 }}>₹{fmt(totalDue)}</span>
                     </div>
                   </div>
                   )}
