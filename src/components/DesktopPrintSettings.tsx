@@ -5,9 +5,9 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useElectronPrint, type PrinterInfo } from "@/hooks/useElectronPrint";
 import { appPrint, PRINT_PREF_KEYS } from "@/utils/appPrint";
+import { useToast } from "@/hooks/use-toast";
 
 const NONE_VALUE = "__default__";
 
@@ -15,8 +15,12 @@ const NONE_VALUE = "__default__";
  * Desktop-only printer preferences. Renders nothing in a normal browser, so the
  * web app is completely unaffected. Preferences are stored in localStorage and
  * consumed by the universal `appPrint()` helper.
+ *
+ * Uses native &lt;select&gt; on Electron — Radix Select portals often fail to
+ * receive clicks inside the desktop WebView on Windows.
  */
 export function DesktopPrintSettings() {
+  const { toast } = useToast();
   const { isElectron, getPrinters } = useElectronPrint();
   const [printers, setPrinters] = useState<PrinterInfo[]>([]);
   const [loading, setLoading] = useState(false);
@@ -28,8 +32,19 @@ export function DesktopPrintSettings() {
 
   const refreshPrinters = async () => {
     setLoading(true);
-    setPrinters(await getPrinters());
-    setLoading(false);
+    try {
+      const list = await getPrinters();
+      setPrinters(list);
+      if (list.length === 0) {
+        toast({
+          title: "No printers found",
+          description: "Install a printer in Windows Settings, then click Refresh printers.",
+          variant: "destructive",
+        });
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -43,12 +58,11 @@ export function DesktopPrintSettings() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isElectron]);
 
-  // Not running in the desktop app — show nothing.
   if (!isElectron) return null;
 
   const persist = (key: string, value: string) => localStorage.setItem(key, value);
 
-  const printerSelect = (
+  const nativePrinterSelect = (
     label: string,
     value: string,
     onChange: (v: string) => void,
@@ -56,27 +70,23 @@ export function DesktopPrintSettings() {
   ) => (
     <div className="space-y-2">
       <Label>{label}</Label>
-      <Select
+      <select
+        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
         value={value || NONE_VALUE}
-        onValueChange={(v) => {
-          const next = v === NONE_VALUE ? "" : v;
+        onChange={(e) => {
+          const next = e.target.value === NONE_VALUE ? "" : e.target.value;
           onChange(next);
           persist(storageKey, next);
         }}
       >
-        <SelectTrigger>
-          <SelectValue placeholder="System default printer" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value={NONE_VALUE}>System default printer</SelectItem>
-          {printers.map((p) => (
-            <SelectItem key={p.name} value={p.name}>
-              {p.displayName}
-              {p.isDefault ? " (default)" : ""}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+        <option value={NONE_VALUE}>System default printer</option>
+        {printers.map((p) => (
+          <option key={p.name} value={p.name}>
+            {p.displayName}
+            {p.isDefault ? " (default)" : ""}
+          </option>
+        ))}
+      </select>
     </div>
   );
 
@@ -103,13 +113,29 @@ export function DesktopPrintSettings() {
         {printers.length === 0 && !loading && (
           <p className="text-sm text-muted-foreground">
             No printers detected. Make sure a printer is installed in Windows, then click Refresh.
+            You can also use <strong>File → Default Printer</strong> from the menu bar.
           </p>
         )}
 
         <div className="grid gap-4 sm:grid-cols-2">
-          {printerSelect("Invoice Printer (A4)", invoicePrinter, setInvoicePrinter, PRINT_PREF_KEYS.invoicePrinter)}
-          {printerSelect("Receipt Printer (Thermal)", thermalPrinter, setThermalPrinter, PRINT_PREF_KEYS.thermalPrinter)}
-          {printerSelect("Barcode / Label Printer", barcodePrinter, setBarcodePrinter, PRINT_PREF_KEYS.barcodePrinter)}
+          {nativePrinterSelect(
+            "Invoice Printer (A4)",
+            invoicePrinter,
+            setInvoicePrinter,
+            PRINT_PREF_KEYS.invoicePrinter,
+          )}
+          {nativePrinterSelect(
+            "Receipt Printer (Thermal)",
+            thermalPrinter,
+            setThermalPrinter,
+            PRINT_PREF_KEYS.thermalPrinter,
+          )}
+          {nativePrinterSelect(
+            "Barcode / Label Printer",
+            barcodePrinter,
+            setBarcodePrinter,
+            PRINT_PREF_KEYS.barcodePrinter,
+          )}
           <div className="space-y-2">
             <Label htmlFor="print_copies">Default Copies</Label>
             <Input

@@ -45,6 +45,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Printer APIs — silent/direct printing for the desktop app.
   getPrinters: () => ipcRenderer.invoke('get-printers'),
+  /** Match Display Scale (Compact / Standard / Large) — 0.85 / 1.0 / 1.05 */
+  setZoomFactor: (factor) => ipcRenderer.invoke('set-zoom-factor', factor),
   silentPrint: (options) => ipcRenderer.invoke('silent-print', options),
   printToPdf: (options) => ipcRenderer.invoke('print-to-pdf', options),
   printHtml: (options) => ipcRenderer.invoke('print-html', options),

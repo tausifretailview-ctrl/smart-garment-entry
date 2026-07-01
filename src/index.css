@@ -2679,6 +2679,20 @@ body.entry-bill-screen [data-entry-form].sale-bill-workspace {
   padding-right: 0.5rem;
 }
 
+/* Desktop compact — sidebar / cards were still oversized at 16px root */
+html.desktop-shell.scale-compact [data-sidebar="sidebar"] [data-sidebar="menu-button"] span,
+html.desktop-shell.scale-compact [data-sidebar="sidebar"] [data-sidebar="menu-sub-button"] span {
+  font-size: 0.8125rem !important;
+}
+html.desktop-shell.scale-compact .text-2xl {
+  font-size: 1.35rem !important;
+  line-height: 1.75rem !important;
+}
+html.desktop-shell.scale-compact .text-xl {
+  font-size: 1.125rem !important;
+  line-height: 1.5rem !important;
+}
+
 /* Odoo-style active stripe for sidebar items */
 [data-sidebar] [data-active="true"] {
   border-left: 3px solid hsl(var(--primary));

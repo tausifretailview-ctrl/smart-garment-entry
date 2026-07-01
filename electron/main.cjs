@@ -1171,6 +1171,19 @@ function targetWindow() {
 }
 
 // List connected printers
+ipcMain.handle('set-zoom-factor', async (_event, factor) => {
+  const win = targetWindow();
+  if (!win || win.isDestroyed()) return { success: false };
+  const n = Number(factor);
+  if (!Number.isFinite(n) || n < 0.5 || n > 2) return { success: false };
+  try {
+    win.webContents.setZoomFactor(n);
+    return { success: true };
+  } catch {
+    return { success: false };
+  }
+});
+
 ipcMain.handle('get-printers', async () => {
   const win = targetWindow();
   if (!win) return [];

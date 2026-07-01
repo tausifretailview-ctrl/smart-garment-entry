@@ -12,17 +12,17 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 const SCALE_OPTIONS = [
-  { key: "compact", label: "Compact", desc: "High density (16px)", size: "16px" },
-  { key: "standard", label: "Standard", desc: "Default (18px)", size: "18px" },
-  { key: "large", label: "Large", desc: "Easy reading (20px)", size: "20px" },
+  { key: "compact", label: "Compact", desc: "High density (14px)", size: "14px", zoom: 0.85 },
+  { key: "standard", label: "Standard", desc: "Default (16px)", size: "16px", zoom: 1.0 },
+  { key: "large", label: "Large", desc: "Easy reading (18px)", size: "18px", zoom: 1.05 },
 ] as const;
 
 type ScaleKey = (typeof SCALE_OPTIONS)[number]["key"];
 
 const UI_SCALE_STORAGE_KEY = "ui-scale";
 
-/** Desktop shell default — fits POS/bill footers without manual Display Scale adjustment. */
-const ELECTRON_DEFAULT_SCALE: ScaleKey = "standard";
+/** Desktop shell default — compact fits 1080p / 125% Windows scaling without manual zoom. */
+const ELECTRON_DEFAULT_SCALE: ScaleKey = "compact";
 
 function readSavedScale(): ScaleKey | null {
   try {
@@ -45,6 +45,19 @@ function applyScale(key: ScaleKey) {
     document.documentElement.classList.add("scale-compact");
   } else {
     document.documentElement.classList.remove("scale-compact");
+  }
+  if (isElectronShell()) {
+    const api = (window as Window & { electronAPI?: { setZoomFactor?: (z: number) => Promise<void> } })
+      .electronAPI;
+    if (api?.setZoomFactor) {
+      document.documentElement.style.zoom = "";
+      void api.setZoomFactor(opt.zoom);
+    } else {
+      // Older desktop builds (pre set-zoom-factor IPC) — Chromium zoom fallback
+      document.documentElement.style.zoom = String(opt.zoom);
+    }
+  } else {
+    document.documentElement.style.zoom = "";
   }
 }
 
