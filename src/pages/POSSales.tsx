@@ -6199,11 +6199,17 @@ export default function POSSales() {
                             placeholder="0"
                             onChange={(e) => {
                               const value = parseInt(e.target.value) || 0;
-                              const maxPoints = calculateMaxRedeemablePoints(totals.subtotal - flatDiscountAmount, customerPointsData?.balance || 0);
+                              const maxPoints = calculateMaxRedeemablePoints(
+                                totals.subtotal - saleReturnAdjust - flatDiscountAmount,
+                                customerPointsData?.balance || 0,
+                              );
                               setPointsToRedeem(Math.min(Math.max(0, value), maxPoints));
                             }}
                             min={0}
-                            max={calculateMaxRedeemablePoints(totals.subtotal - flatDiscountAmount, customerPointsData?.balance || 0)}
+                            max={calculateMaxRedeemablePoints(
+                              totals.subtotal - saleReturnAdjust - flatDiscountAmount,
+                              customerPointsData?.balance || 0,
+                            )}
                             disabled={!customerId}
                           />
                           <span className="text-white text-sm font-medium whitespace-nowrap">
