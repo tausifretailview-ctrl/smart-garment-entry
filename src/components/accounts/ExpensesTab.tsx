@@ -31,6 +31,12 @@ import {
   paymentPickerRefClass,
 } from "@/components/accounts/accountsHistoryUi";
 import { AccountingEntriesGuide } from "@/components/accounting/AccountingEntriesGuide";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface ExpensesTabProps {
   organizationId: string;
@@ -50,6 +56,24 @@ const PAYMENT_METHODS = [
 const EXPENSE_PAGE_SIZE = 100;
 const EXPENSE_VOUCHER_COLUMNS =
   "id, voucher_number, voucher_date, created_at, category, description, payment_method, total_amount, paid_by, receipt_number";
+
+/** Expense vouchers store category in `category` or legacy rows use `description` only. */
+function expenseVoucherCategoryLabel(v: { category?: string | null; description?: string | null }): string | null {
+  const label = (v.category || v.description || "").trim();
+  return label || null;
+}
+
+function buildExpenseCategoryUsageMap(
+  vouchers: { category?: string | null; description?: string | null }[],
+): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const v of vouchers) {
+    const label = expenseVoucherCategoryLabel(v);
+    if (!label) continue;
+    counts.set(label, (counts.get(label) || 0) + 1);
+  }
+  return counts;
+}
 
 export function ExpensesTab({
   organizationId,
@@ -121,6 +145,10 @@ export function ExpensesTab({
 
   // Delete confirm
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [deleteCategoryTarget, setDeleteCategoryTarget] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
 
   // Print ref
   const printRef = useRef<HTMLDivElement>(null);
@@ -200,6 +228,57 @@ export function ExpensesTab({
       setCustomCategory("");
     },
     onError: (e: any) => toast.error(e?.message || "Could not add category"),
+  });
+
+  // Usage counts per category name (blocks delete when expense vouchers exist).
+  const { data: categoryUsageMap } = useQuery({
+    queryKey: ["expense-category-usage", organizationId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("voucher_entries")
+        .select("category, description")
+        .eq("organization_id", organizationId)
+        .eq("voucher_type", "expense")
+        .is("deleted_at", null);
+      if (error) throw error;
+      return buildExpenseCategoryUsageMap(data || []);
+    },
+    enabled: !!organizationId && tabActive,
+  });
+
+  const deleteCategory = useMutation({
+    mutationFn: async ({ id, name }: { id: string; name: string }) => {
+      const filterValue = name.replace(/"/g, '\\"');
+      const { count, error: usageErr } = await supabase
+        .from("voucher_entries")
+        .select("id", { count: "exact", head: true })
+        .eq("organization_id", organizationId)
+        .eq("voucher_type", "expense")
+        .is("deleted_at", null)
+        .or(`category.eq."${filterValue}",description.eq."${filterValue}"`);
+      if (usageErr) throw usageErr;
+      if ((count ?? 0) > 0) {
+        throw new Error(
+          `Cannot delete "${name}" — ${count} expense ${count === 1 ? "entry uses" : "entries use"} this category.`,
+        );
+      }
+
+      const { error } = await supabase
+        .from("expense_categories")
+        .delete()
+        .eq("id", id)
+        .eq("organization_id", organizationId);
+      if (error) throw error;
+    },
+    onSuccess: (_data, { name }) => {
+      toast.success(`Category "${name}" removed`);
+      if (category === name) setCategory("");
+      if (filterCategory === name) setFilterCategory("all");
+      queryClient.invalidateQueries({ queryKey: ["expense-categories", organizationId] });
+      queryClient.invalidateQueries({ queryKey: ["expense-category-usage", organizationId] });
+      setDeleteCategoryTarget(null);
+    },
+    onError: (e: any) => toast.error(e?.message || "Could not delete category"),
   });
 
   // Fetch expense vouchers (paginated — grows by 100 rows per "Load more").
@@ -314,6 +393,7 @@ export function ExpensesTab({
       queryClient.invalidateQueries({ queryKey: ["expense-vouchers"] });
       queryClient.invalidateQueries({ queryKey: ["voucher-entries"] });
       queryClient.invalidateQueries({ queryKey: ["expense-categories"] });
+      queryClient.invalidateQueries({ queryKey: ["expense-category-usage", organizationId] });
       queryClient.invalidateQueries({ queryKey: ["journal-vouchers"] });
       resetForm();
     },
@@ -366,6 +446,7 @@ export function ExpensesTab({
       toast.success("Expense updated");
       queryClient.invalidateQueries({ queryKey: ["expense-vouchers"] });
       queryClient.invalidateQueries({ queryKey: ["voucher-entries"] });
+      queryClient.invalidateQueries({ queryKey: ["expense-category-usage", organizationId] });
       queryClient.invalidateQueries({ queryKey: ["journal-vouchers"] });
       setEditDialogOpen(false);
     },
@@ -396,6 +477,7 @@ export function ExpensesTab({
       toast.success("Expense deleted");
       queryClient.invalidateQueries({ queryKey: ["expense-vouchers"] });
       queryClient.invalidateQueries({ queryKey: ["voucher-entries"] });
+      queryClient.invalidateQueries({ queryKey: ["expense-category-usage", organizationId] });
       queryClient.invalidateQueries({ queryKey: ["journal-vouchers"] });
       setDeleteId(null);
     },
@@ -690,19 +772,30 @@ export function ExpensesTab({
                 <TableRow>
                   <TableHead className="text-xs">Category</TableHead>
                   <TableHead className="text-xs">Post debits to</TableHead>
+                  <TableHead className="text-xs w-[72px] text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {(categories || []).length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={2} className="text-xs text-muted-foreground py-6 text-center">
+                    <TableCell colSpan={3} className="text-xs text-muted-foreground py-6 text-center">
                       No categories yet. Record an expense or use default categories.
                     </TableCell>
                   </TableRow>
                 ) : (
-                  (categories || []).map((row) => (
+                  (categories || []).map((row) => {
+                    const usageCount = categoryUsageMap?.get(row.name) ?? 0;
+                    const canDelete = usageCount === 0;
+                    return (
                     <TableRow key={row.id}>
-                      <TableCell className="text-xs font-medium">{row.name}</TableCell>
+                      <TableCell className="text-xs font-medium">
+                        <span>{row.name}</span>
+                        {usageCount > 0 && (
+                          <span className="ml-1.5 text-[10px] text-muted-foreground font-normal">
+                            ({usageCount} {usageCount === 1 ? "entry" : "entries"})
+                          </span>
+                        )}
+                      </TableCell>
                       <TableCell className="text-xs">
                         <Select
                           value={row.ledger_account_id ?? "__default__"}
@@ -729,8 +822,38 @@ export function ExpensesTab({
                           </SelectContent>
                         </Select>
                       </TableCell>
+                      <TableCell className="text-xs text-right">
+                        <TooltipProvider delayDuration={200}>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="inline-flex">
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7 text-destructive"
+                                  disabled={!canDelete || deleteCategory.isPending}
+                                  onClick={() =>
+                                    setDeleteCategoryTarget({ id: row.id, name: row.name })
+                                  }
+                                  aria-label={`Delete category ${row.name}`}
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </Button>
+                              </span>
+                            </TooltipTrigger>
+                            {!canDelete && (
+                              <TooltipContent side="left" className="text-xs max-w-[220px]">
+                                Cannot delete — {usageCount} expense{" "}
+                                {usageCount === 1 ? "entry uses" : "entries use"} this category.
+                              </TooltipContent>
+                            )}
+                          </Tooltip>
+                        </TooltipProvider>
+                      </TableCell>
                     </TableRow>
-                  ))
+                    );
+                  })
                 )}
               </TableBody>
             </Table>
@@ -902,7 +1025,7 @@ export function ExpensesTab({
         </DialogContent>
       </Dialog>
 
-      {/* Delete Confirmation */}
+      {/* Delete expense confirmation */}
       <Dialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
@@ -913,6 +1036,34 @@ export function ExpensesTab({
             <Button variant="outline" size="sm" onClick={() => setDeleteId(null)}>Cancel</Button>
             <Button variant="destructive" size="sm" onClick={() => deleteId && deleteExpense.mutate(deleteId)} disabled={deleteExpense.isPending}>
               {deleteExpense.isPending ? "Deleting..." : "Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete expense category confirmation */}
+      <Dialog open={!!deleteCategoryTarget} onOpenChange={() => setDeleteCategoryTarget(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-base">Delete expense category?</DialogTitle>
+            <DialogDescription className="text-xs">
+              Remove <span className="font-medium">{deleteCategoryTarget?.name}</span> from this
+              organization&apos;s category list. Existing expense entries are not affected.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" size="sm" onClick={() => setDeleteCategoryTarget(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() =>
+                deleteCategoryTarget && deleteCategory.mutate(deleteCategoryTarget)
+              }
+              disabled={deleteCategory.isPending}
+            >
+              {deleteCategory.isPending ? "Deleting..." : "Delete category"}
             </Button>
           </DialogFooter>
         </DialogContent>
