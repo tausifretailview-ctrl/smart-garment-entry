@@ -395,7 +395,7 @@ export default function StockReport() {
     ],
   );
 
-  useDashboardFilterPersistence(
+  const { filtersReady } = useDashboardFilterPersistence(
     WINDOW_FILTER_IDS.stockReport,
     currentOrganization?.id,
     stockFilterSnapshot,
@@ -807,6 +807,59 @@ export default function StockReport() {
     setCurrentPage(1);
     await fetchStockReportPage(1);
   }, [stockReportHasFilters, fetchStockReportPage]);
+
+  const autoSearchTrigger = useMemo(
+    () =>
+      JSON.stringify({
+        productNameFilter,
+        brandFilter,
+        departmentFilter,
+        sizeFilter,
+        colorFilter,
+        categoryFilter,
+        supplierFilter,
+        supplierInvoiceFilter,
+        stockStatusFilter,
+        pinned: pinnedProducts
+          .map((p) => p.id)
+          .sort()
+          .join("|"),
+      }),
+    [
+      productNameFilter,
+      brandFilter,
+      departmentFilter,
+      sizeFilter,
+      colorFilter,
+      categoryFilter,
+      supplierFilter,
+      supplierInvoiceFilter,
+      stockStatusFilter,
+      pinnedProducts,
+    ],
+  );
+
+  // Auto-load when dropdown / product filters change (text search still uses Search button or Enter).
+  useEffect(() => {
+    if (!filtersReady || !currentOrganization?.id) return;
+
+    if (!stockReportHasFilters) {
+      setHasSearched(false);
+      setStockItems([]);
+      setServerTotalRows(0);
+      return;
+    }
+
+    setHasSearched(true);
+    setCurrentPage(1);
+    void fetchStockReportPage(1);
+  }, [
+    filtersReady,
+    currentOrganization?.id,
+    autoSearchTrigger,
+    stockReportHasFilters,
+    fetchStockReportPage,
+  ]);
 
   // Server pagination: page 1 is loaded by handleSearch; page 2+ on control click
   useEffect(() => {
@@ -1535,7 +1588,7 @@ export default function StockReport() {
                 return [...prev, { id: product.id, product_name: product.product_name, brand: product.brand, category: product.category || '', style: product.style || '' }];
               });
               setSearchTerm('');
-              if (!hasSearched) handleSearch();
+              void handleSearch();
             }}
             onKeyDown={handleKeyDown}
             placeholder="Search name, brand, category, style or barcode..."
@@ -1673,16 +1726,8 @@ export default function StockReport() {
           <div className="flex-1 min-h-0 flex flex-col items-center justify-center gap-3 p-6 text-center print:hidden">
             <Search className="h-10 w-10 text-muted-foreground/35" />
             <p className="text-base text-muted-foreground max-w-md">
-              Apply filters or search, then click <strong>Search</strong> to view stock.
+              Select a <strong>product</strong> or filter above to load stock, or type in the search box and press <strong>Search</strong>.
             </p>
-            <Button
-              onClick={handleSearch}
-              disabled={loading || (!hasActiveFilters && pinnedProducts.length === 0 && !searchTerm.trim())}
-              className="h-10 px-5 text-sm font-semibold"
-            >
-              {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Search className="h-4 w-4 mr-2" />}
-              Search
-            </Button>
           </div>
         ) : loading ? (
           <div className="flex-1 flex items-center justify-center gap-2 py-8 text-base text-muted-foreground print:hidden">
