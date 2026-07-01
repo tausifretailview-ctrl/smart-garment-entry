@@ -12,6 +12,7 @@ import { useSettings } from '@/hooks/useSettings';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { useStockValidation } from '@/hooks/useStockValidation';
+import { computePosFlatDiscount } from '@/utils/posGstTotals';
 import { useReactToPrint } from 'react-to-print';
 import { InvoiceWrapper } from '@/components/InvoiceWrapper';
 import { toast } from 'sonner';
@@ -238,10 +239,13 @@ export function DeliveryChallanPOSDialog({ open, onOpenChange }: DeliveryChallan
 
   const grossAmount = items.reduce((s, i) => s + i.mrp * i.quantity, 0);
   const subTotal = items.reduce((s, i) => s + i.netAmount, 0);
-  const flatDiscountAmount = flatDiscountMode === 'percent'
-    ? Math.round((subTotal * (flatDiscountValue || 0)) / 100 * 100) / 100
-    : (flatDiscountValue || 0);
-  const netAmount = Math.max(0, subTotal - flatDiscountAmount - (srAdjust || 0));
+  const { flatDiscountAmount } = computePosFlatDiscount({
+    mrpTotal: grossAmount,
+    saleReturnAdjust: srAdjust || 0,
+    flatDiscountValue: flatDiscountValue || 0,
+    flatDiscountMode,
+  });
+  const netAmount = Math.max(0, subTotal - (srAdjust || 0) - flatDiscountAmount);
 
   const handleBarcodeEnter = useCallback(async (e: React.KeyboardEvent<HTMLInputElement>) => {
     // Handle dropdown navigation using refs for latest state
@@ -360,11 +364,14 @@ export function DeliveryChallanPOSDialog({ open, onOpenChange }: DeliveryChallan
       const now = new Date().toISOString();
       const gross = items.reduce((s, i) => s + i.mrp * i.quantity, 0);
       const sub   = items.reduce((s, i) => s + i.netAmount, 0);
-      const flatDisc = flatDiscountMode === 'percent'
-        ? Math.round((sub * (flatDiscountValue || 0)) / 100 * 100) / 100
-        : (flatDiscountValue || 0);
       const sr = srAdjust || 0;
-      const net = Math.max(0, sub - flatDisc - sr);
+      const { flatDiscountAmount: flatDisc } = computePosFlatDiscount({
+        mrpTotal: gross,
+        saleReturnAdjust: sr,
+        flatDiscountValue: flatDiscountValue || 0,
+        flatDiscountMode,
+      });
+      const net = Math.max(0, sub - sr - flatDisc);
 
       const cashAmt  = method === 'cash'  ? net : 0;
       const upiAmt   = method === 'upi'   ? net : 0;

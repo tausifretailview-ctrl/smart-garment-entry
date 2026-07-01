@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { computePosFlatDiscount } from "@/utils/posGstTotals";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { 
@@ -24,6 +24,8 @@ interface MobilePOSBottomBarProps {
   onMoreOptions: () => void;
   flatDiscountValue: number;
   flatDiscountMode: 'percent' | 'amount';
+  mrpTotal: number;
+  saleReturnAdjust: number;
   onFlatDiscountValueChange: (value: number) => void;
   onFlatDiscountModeChange: (mode: 'percent' | 'amount') => void;
 }
@@ -40,6 +42,8 @@ export const MobilePOSBottomBar = ({
   onMoreOptions,
   flatDiscountValue,
   flatDiscountMode,
+  mrpTotal,
+  saleReturnAdjust,
   onFlatDiscountValueChange,
   onFlatDiscountModeChange,
 }: MobilePOSBottomBarProps) => {
@@ -98,7 +102,12 @@ export const MobilePOSBottomBar = ({
           </Button>
           {flatDiscountValue > 0 && (
             <span className="text-xs text-primary-foreground/80 ml-auto whitespace-nowrap">
-              -₹{(flatDiscountMode === 'percent' ? (subtotal * flatDiscountValue / 100) : flatDiscountValue).toFixed(2)}
+              -₹{computePosFlatDiscount({
+                mrpTotal,
+                saleReturnAdjust,
+                flatDiscountValue,
+                flatDiscountMode,
+              }).flatDiscountAmount.toFixed(2)}
             </span>
           )}
         </div>

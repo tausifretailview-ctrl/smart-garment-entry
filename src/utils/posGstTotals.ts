@@ -23,6 +23,30 @@ export function posLineDisplayTotal(
   return taxable;
 }
 
+/** Bill-level flat discount applies after sale-return adjust (MRP − S/R, then % or ₹). */
+export function computePosFlatDiscount(params: {
+  mrpTotal: number;
+  saleReturnAdjust: number;
+  flatDiscountValue: number;
+  flatDiscountMode: "percent" | "amount";
+}): { flatDiscountAmount: number; flatDiscountPercent: number; flatDiscountBase: number } {
+  const flatDiscountBase = Math.max(
+    0,
+    Math.round((params.mrpTotal - params.saleReturnAdjust) * 100) / 100,
+  );
+  const flatDiscountAmount =
+    params.flatDiscountMode === "percent"
+      ? Math.round((flatDiscountBase * params.flatDiscountValue) / 100 * 100) / 100
+      : Math.min(Math.max(0, params.flatDiscountValue), flatDiscountBase);
+  const flatDiscountPercent =
+    params.flatDiscountMode === "percent"
+      ? params.flatDiscountValue
+      : flatDiscountBase > 0.005
+        ? (flatDiscountAmount / flatDiscountBase) * 100
+        : 0;
+  return { flatDiscountAmount, flatDiscountPercent, flatDiscountBase };
+}
+
 /** Bill-level GST for POS — flat discount allocated proportionally before GST (matches Sale Invoice). */
 export function computePosBillGst(
   items: PosGstLineInput[],

@@ -75,6 +75,7 @@ interface MobilePOSLayoutProps {
   // Flat discount
   flatDiscountValue: number;
   flatDiscountMode: 'percent' | 'amount';
+  saleReturnAdjust?: number;
   onFlatDiscountValueChange: (value: number) => void;
   onFlatDiscountModeChange: (mode: 'percent' | 'amount') => void;
 
@@ -122,6 +123,7 @@ export const MobilePOSLayout = ({
   onProductTypeChange,
   flatDiscountValue,
   flatDiscountMode,
+  saleReturnAdjust = 0,
   onFlatDiscountValueChange,
   onFlatDiscountModeChange,
   onSaleReturn,
@@ -217,6 +219,8 @@ export const MobilePOSLayout = ({
         onMoreOptions={() => setShowMobilePaymentSheet(true)}
         flatDiscountValue={flatDiscountValue}
         flatDiscountMode={flatDiscountMode}
+        mrpTotal={totals.mrp}
+        saleReturnAdjust={saleReturnAdjust}
         onFlatDiscountValueChange={onFlatDiscountValueChange}
         onFlatDiscountModeChange={onFlatDiscountModeChange}
       />

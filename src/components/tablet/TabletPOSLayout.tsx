@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { CameraScanner } from "./CameraScanner";
+import { computePosFlatDiscount } from "@/utils/posGstTotals";
 
 interface TabletPOSLayoutProps {
   items: any[];
@@ -35,6 +36,7 @@ interface TabletPOSLayoutProps {
   onSaleReturn: () => void;
   flatDiscountValue: number;
   flatDiscountMode: "percent" | "amount";
+  saleReturnAdjust?: number;
   onFlatDiscountValueChange: (v: number) => void;
   onFlatDiscountModeChange: (v: "percent" | "amount") => void;
   selectedSalesman: string;
@@ -64,7 +66,7 @@ export function TabletPOSLayout({
   openCustomerSearch, setOpenCustomerSearch, onAddCustomer,
   searchInput, onSearchInputChange, onBarcodeSubmit, barcodeInputRef,
   isSaving, onPaymentAndPrint, onMixPayment, onHoldBill, onClear, onNewBill,
-  onSaleReturn, flatDiscountValue, flatDiscountMode, onFlatDiscountValueChange,
+  onSaleReturn, flatDiscountValue, flatDiscountMode, saleReturnAdjust = 0, onFlatDiscountValueChange,
   onFlatDiscountModeChange, selectedSalesman, setSelectedSalesman,
   salesmen, note, setNote, roundOff, setRoundOff,
   filteredProducts, onProductSelect, openProductSearch,
@@ -423,7 +425,12 @@ export function TabletPOSLayout({
               />
               {flatDiscountValue > 0 && (
                 <p className="text-[12px] text-green-600 mt-1 font-medium">
-                  Save ₹{(flatDiscountMode === "percent" ? totals.mrp * flatDiscountValue / 100 : flatDiscountValue).toFixed(2)}
+                  Save ₹{computePosFlatDiscount({
+                    mrpTotal: totals.mrp,
+                    saleReturnAdjust,
+                    flatDiscountValue,
+                    flatDiscountMode,
+                  }).flatDiscountAmount.toFixed(2)}
                 </p>
               )}
             </div>

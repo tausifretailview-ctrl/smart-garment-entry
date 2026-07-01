@@ -79,6 +79,7 @@ import { invalidatePosDashboardQueries } from "@/utils/posDashboardSales";
 import { generateOrgEstimateNumber } from "@/utils/saleNumber";
 import {
   computePosBillGst,
+  computePosFlatDiscount,
   posLineDisplayTotal,
 } from "@/utils/posGstTotals";
 import type { GstTaxType } from "@/utils/gstRegisterUtils";
@@ -2784,12 +2785,12 @@ export default function POSSales() {
     ),
   };
 
-  const flatDiscountAmount = flatDiscountMode === 'percent' 
-    ? (totals.mrp * flatDiscountValue) / 100 
-    : flatDiscountValue;
-  const flatDiscountPercent = flatDiscountMode === 'percent' 
-    ? flatDiscountValue 
-    : totals.mrp > 0 ? (flatDiscountValue / totals.mrp) * 100 : 0;
+  const { flatDiscountAmount, flatDiscountPercent } = computePosFlatDiscount({
+    mrpTotal: totals.mrp,
+    saleReturnAdjust,
+    flatDiscountValue,
+    flatDiscountMode,
+  });
 
   const posGst = computePosBillGst(items, taxType, flatDiscountAmount);
   
@@ -4884,6 +4885,7 @@ export default function POSSales() {
           onSaleReturn={() => setShowFloatingSaleReturn(true)}
           flatDiscountValue={flatDiscountValue}
           flatDiscountMode={flatDiscountMode}
+          saleReturnAdjust={saleReturnAdjust}
           onFlatDiscountValueChange={handleFlatDiscountValueChange}
           onFlatDiscountModeChange={setFlatDiscountMode}
           selectedSalesman={selectedSalesman}
@@ -5028,6 +5030,7 @@ export default function POSSales() {
           hasMoreCustomers={hasMoreCustomers}
           flatDiscountValue={flatDiscountValue}
           flatDiscountMode={flatDiscountMode}
+          saleReturnAdjust={saleReturnAdjust}
           onFlatDiscountValueChange={handleFlatDiscountValueChange}
           onFlatDiscountModeChange={setFlatDiscountMode}
           onSaleReturn={() => setShowFloatingSaleReturn(true)}
