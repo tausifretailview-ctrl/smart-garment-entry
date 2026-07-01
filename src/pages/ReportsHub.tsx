@@ -21,7 +21,6 @@ import {
   FileSpreadsheet,
   Scale,
   Search,
-  ChevronRight,
   Star,
   ClipboardList,
   LineChart,
@@ -58,16 +57,15 @@ interface ReportTabConfig {
 
 const REPORT_TABS: ReportTabConfig[] = [
   { id: "favourite", label: "Favourite", icon: Star, sectionTitle: "Favourite" },
-  { id: "sales", label: "Sales", icon: ShoppingCart, sectionTitle: "Sales Reports" },
-  { id: "purchase", label: "Purchase", icon: ShoppingBag, sectionTitle: "Purchase Reports" },
-  { id: "inventory", label: "Inventory", icon: Package, sectionTitle: "Inventory Reports" },
-  { id: "accounts", label: "Accounts", icon: BookOpen, sectionTitle: "Accounts Reports" },
-  { id: "gst", label: "GST Returns", icon: ClipboardList, sectionTitle: "GST & Compliance" },
-  { id: "other", label: "Other", icon: BarChart3, sectionTitle: "Other Reports" },
+  { id: "sales", label: "Sales", icon: ShoppingCart, sectionTitle: "Sales" },
+  { id: "purchase", label: "Purchase", icon: ShoppingBag, sectionTitle: "Purchase" },
+  { id: "inventory", label: "Inventory", icon: Package, sectionTitle: "Inventory" },
+  { id: "accounts", label: "Accounts", icon: BookOpen, sectionTitle: "Accounts" },
+  { id: "gst", label: "GST Returns", icon: ClipboardList, sectionTitle: "GST Returns" },
+  { id: "other", label: "Other", icon: BarChart3, sectionTitle: "Other" },
 ];
 
 const ALL_REPORTS: ReportItem[] = [
-  // —— Sales ——
   {
     icon: BarChart3,
     label: "Sales Report",
@@ -136,7 +134,6 @@ const ALL_REPORTS: ReportItem[] = [
     tab: "sales",
     permission: "hourly_sales_analysis",
   },
-  // —— Purchase ——
   {
     icon: FileText,
     label: "Purchase Report",
@@ -172,7 +169,6 @@ const ALL_REPORTS: ReportItem[] = [
     permission: "accounts_dashboard",
     permissionAlt: "purchase_dashboard",
   },
-  // —— Inventory ——
   {
     icon: Package,
     label: "Stock Report",
@@ -223,7 +219,6 @@ const ALL_REPORTS: ReportItem[] = [
     tab: "inventory",
     permission: "product_tracking",
   },
-  // —— Accounts ——
   {
     icon: TrendingUp,
     label: "Net Profit Analysis",
@@ -312,12 +307,11 @@ const ALL_REPORTS: ReportItem[] = [
     icon: ShieldCheck,
     label: "Customer Audit Report",
     path: "/customer-audit-report",
-    desc: "Verified customer outstanding",
+    desc: "Outstanding verification",
     tab: "accounts",
     permission: "customer_audit_report",
     permissionAlt: "customer_ledger",
   },
-  // —— GST ——
   {
     icon: ShieldCheck,
     label: "GST Reports",
@@ -350,7 +344,6 @@ const ALL_REPORTS: ReportItem[] = [
     tab: "gst",
     permission: "tally_export",
   },
-  // —— Other ——
   {
     icon: History,
     label: "Price History",
@@ -370,7 +363,7 @@ const ALL_REPORTS: ReportItem[] = [
   },
 ];
 
-function ReportCard({
+function ReportRow({
   report,
   onOpen,
 }: {
@@ -382,31 +375,21 @@ function ReportCard({
     <button
       type="button"
       onClick={() => onOpen(report.path)}
-      className="group w-full text-left"
+      className="reports-hub-row group w-full text-left"
     >
-      <div
+      <Icon className="h-5 w-5 shrink-0 text-blue-600" aria-hidden />
+      <span className="min-w-0 flex-1 truncate text-base font-medium text-slate-800 group-hover:text-blue-700">
+        {report.label}
+      </span>
+      <Star
         className={cn(
-          "flex h-full min-h-[4.5rem] items-center gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2.5 shadow-sm transition-all",
-          "hover:border-blue-300 hover:bg-blue-50/40 hover:shadow-md",
+          "h-5 w-5 shrink-0",
+          report.favourite
+            ? "fill-blue-600 text-blue-600"
+            : "text-blue-200 group-hover:text-blue-400",
         )}
-      >
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-sky-50 text-sky-600">
-          <Icon className="h-5 w-5" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold text-slate-800 group-hover:text-blue-700">
-            {report.label}
-          </p>
-          <p className="mt-0.5 line-clamp-2 text-xs leading-snug text-muted-foreground">
-            {report.desc}
-          </p>
-        </div>
-        {report.favourite ? (
-          <Star className="h-4 w-4 shrink-0 fill-amber-400 text-amber-400" />
-        ) : (
-          <ChevronRight className="h-4 w-4 shrink-0 text-slate-300 group-hover:text-blue-500" />
-        )}
-      </div>
+        aria-hidden
+      />
     </button>
   );
 }
@@ -452,89 +435,75 @@ export default function ReportsHub() {
   const activeTabConfig = REPORT_TABS.find((t) => t.id === activeTab) ?? REPORT_TABS[0];
 
   return (
-    <div className="reports-hub-workspace flex h-full min-h-0 w-full flex-col overflow-hidden bg-slate-100 px-2 py-2 sm:px-3">
+    <div className="reports-hub-workspace flex h-full min-h-0 w-full flex-col overflow-hidden bg-[#eceff4] px-2 py-2 sm:px-3">
       <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col gap-2">
         <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
           <div className="flex min-w-0 items-center gap-2">
             <Button
               variant="outline"
               size="sm"
-              className="h-9 shrink-0 px-3 text-sm"
+              className="h-9 shrink-0 border-slate-300 bg-white px-3 text-sm"
               onClick={() => orgNavigate("/")}
             >
               <Home className="mr-1 h-4 w-4" />
               Dashboard
             </Button>
-            <div className="min-w-0">
-              <h1 className="text-xl font-bold leading-none tracking-tight text-blue-700">Reports</h1>
-              <p className="mt-1 truncate text-sm text-muted-foreground">
-                Section-wise reports — open any report from the tab below
-              </p>
-            </div>
+            <h1 className="text-lg font-bold leading-none tracking-tight text-blue-700">Reports</h1>
           </div>
-          <div className="relative w-full min-w-[200px] max-w-md sm:w-72">
+          <div className="relative w-full min-w-[200px] max-w-sm sm:w-64">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="SEARCH REPORTS..."
-              className="h-10 border-slate-200 bg-white pl-10 text-sm uppercase placeholder:normal-case"
+              className="h-9 border-slate-300 bg-white pl-10 text-sm uppercase placeholder:normal-case"
             />
           </div>
         </div>
 
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-          {/* Vasy-style blue tab strip */}
-          <div
-            className="shrink-0 overflow-x-auto rounded-t-lg bg-blue-600 tab-scroll-stable"
-            role="tablist"
-            aria-label="Report sections"
-          >
-            <div className="flex min-w-max">
-              {tabsWithReports.map((tab, index) => {
-                const TabIcon = tab.icon;
-                const isActive = activeTab === tab.id;
-                return (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    role="tab"
-                    aria-selected={isActive}
-                    onClick={() => setActiveTab(tab.id)}
-                    className={cn(
-                      "flex min-w-[5.5rem] flex-col items-center justify-center gap-1 px-3 py-2.5 text-center transition-colors sm:min-w-[6.5rem] sm:px-4",
-                      index > 0 && "border-l border-dashed border-white/35",
-                      isActive
-                        ? "bg-white text-blue-700"
-                        : "text-white/95 hover:bg-blue-500/80",
-                    )}
-                  >
-                    <TabIcon className={cn("h-5 w-5", isActive ? "text-blue-600" : "text-white")} />
-                    <span className="text-[11px] font-semibold leading-none sm:text-xs">{tab.label}</span>
-                  </button>
-                );
-              })}
-            </div>
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden border border-slate-300 bg-white shadow-sm">
+          <div className="reports-hub-tabstrip shrink-0 bg-[#1e6fd9]" role="tablist" aria-label="Report sections">
+            {tabsWithReports.map((tab, index) => {
+              const TabIcon = tab.icon;
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={isActive}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={cn(
+                    "reports-hub-tab flex flex-1 flex-col items-center justify-center gap-1 px-2 py-2.5 transition-colors sm:px-3",
+                    index > 0 && "border-l border-dashed border-white/40",
+                    isActive ? "bg-white text-blue-700" : "text-white hover:bg-[#2a7ae6]",
+                  )}
+                >
+                  <TabIcon className={cn("h-5 w-5", isActive ? "text-blue-600" : "text-white")} />
+                  <span className="text-[11px] font-semibold leading-tight sm:text-xs">{tab.label}</span>
+                </button>
+              );
+            })}
           </div>
 
-          <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-3 py-3 sm:px-4">
-            <h2 className="mb-3 shrink-0 text-center text-sm font-bold uppercase tracking-wide text-blue-700">
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-[#f4f6f9] px-3 py-2 sm:px-4 sm:py-3">
+            <h2 className="reports-hub-section-title mb-2 shrink-0 text-center text-base font-bold uppercase tracking-widest text-[#1e6fd9] sm:mb-3 sm:text-lg">
               {activeTabConfig.sectionTitle}
             </h2>
 
             {permissionsLoading ? (
-              <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">Loading…</div>
+              <div className="flex flex-1 items-center justify-center text-base text-muted-foreground">Loading…</div>
             ) : visibleReports.length === 0 ? (
-              <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed border-slate-200 bg-slate-50 px-4 py-10 text-center text-sm text-muted-foreground">
+              <div className="flex flex-1 items-center justify-center border border-dashed border-slate-300 bg-white px-4 py-12 text-center text-base text-muted-foreground">
                 {search.trim()
                   ? "No reports match your search in this section."
                   : "No reports available for your role in this section."}
               </div>
             ) : (
-              <div className="reports-hub-grid min-h-0 flex-1 overflow-y-auto overflow-x-hidden tab-scroll-stable pb-1">
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
+              <div className="reports-hub-grid min-h-0 flex-1 overflow-y-auto overflow-x-hidden tab-scroll-stable">
+                <div className="grid grid-cols-1 gap-1.5 md:grid-cols-2 xl:grid-cols-3">
                   {visibleReports.map((report) => (
-                    <ReportCard key={report.path} report={report} onOpen={orgNavigate} />
+                    <ReportRow key={report.path} report={report} onOpen={orgNavigate} />
                   ))}
                 </div>
               </div>
