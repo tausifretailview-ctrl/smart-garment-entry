@@ -1927,7 +1927,11 @@ export default function SalesInvoiceDashboard() {
 
   const openPaymentDialog = (invoice: any) => {
     setSelectedInvoiceForPayment(invoice);
-    const pendingAmount = Math.round(invoice.net_amount - (invoice.paid_amount || 0) - (invoice.sale_return_adjust || 0));
+    const pendingAmount = Math.round(
+      invoice.net_amount -
+        (invoice.paid_amount || 0) -
+        Math.max(invoice.sale_return_adjust || 0, invoice.credit_applied || 0),
+    );
     setPaidAmount(Math.max(0, pendingAmount).toString());
     setPaymentDate(new Date());
     setPaymentMode("cash");
@@ -1958,7 +1962,15 @@ export default function SalesInvoiceDashboard() {
         // Customer overpayments / refund liabilities must be returned via Refund or converted into a new
         // Advance booking — they cannot be re-spent here as advance.
         setAdvanceBalance(bookingBalance);
-        const pendingAmount = Math.max(0, selectedInvoiceForPayment.net_amount - (selectedInvoiceForPayment.paid_amount || 0) - (selectedInvoiceForPayment.sale_return_adjust || 0));
+        const pendingAmount = Math.max(
+          0,
+          selectedInvoiceForPayment.net_amount -
+            (selectedInvoiceForPayment.paid_amount || 0) -
+            Math.max(
+              selectedInvoiceForPayment.sale_return_adjust || 0,
+              selectedInvoiceForPayment.credit_applied || 0,
+            ),
+        );
         setPaidAmount(Math.min(bookingBalance, pendingAmount).toString());
       } catch (error) {
         console.error("Failed to fetch advance balance:", error);
@@ -1985,7 +1997,10 @@ export default function SalesInvoiceDashboard() {
           0,
           selectedInvoiceForPayment.net_amount -
             (selectedInvoiceForPayment.paid_amount || 0) -
-            (selectedInvoiceForPayment.sale_return_adjust || 0),
+            Math.max(
+              selectedInvoiceForPayment.sale_return_adjust || 0,
+              selectedInvoiceForPayment.credit_applied || 0,
+            ),
         );
         setPaidAmount(Math.min(totalAvailable, pendingAmount).toString());
       } catch (error) {
@@ -2965,7 +2980,12 @@ export default function SalesInvoiceDashboard() {
           ) : paginatedInvoices.map((inv: any) => {
             const pending = Number(
               inv.outstanding ??
-                Math.max(0, (inv.net_amount || 0) - (inv.paid_amount || 0) - (inv.sale_return_adjust || 0))
+                Math.max(
+                  0,
+                  (inv.net_amount || 0) -
+                    (inv.paid_amount || 0) -
+                    Math.max(inv.sale_return_adjust || 0, inv.credit_applied || 0),
+                )
             );
             const effectiveStatus =
               inv.payment_status === 'hold'
