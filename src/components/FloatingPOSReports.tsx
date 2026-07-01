@@ -8,7 +8,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { format, startOfDay, endOfDay } from "date-fns";
+import { format } from "date-fns";
+import { localDayBounds } from "@/lib/localDayBounds";
+import {
+  getSaleReportGrossAmount,
+  getSaleReportNetAmount,
+} from "@/utils/cashierReportUtils";
 import { 
   Receipt, 
   IndianRupee, 
@@ -66,16 +71,15 @@ function FloatingCashierReport({ open, onOpenChange }: { open: boolean; onOpenCh
     queryKey: ["floating-cashier-report-sales", currentOrganization?.id, selectedDate],
     queryFn: async () => {
       if (!currentOrganization?.id) return null;
-      
-      const startDate = startOfDay(reportDate);
-      const endDate = endOfDay(reportDate);
-      
+
+      const { startIso, endIso } = localDayBounds(selectedDate, selectedDate);
+
       const { data, error } = await supabase
         .from("sales")
         .select("id, sale_number, sale_date, gross_amount, discount_amount, flat_discount_amount, points_redeemed_amount, round_off, net_amount, refund_amount, payment_method, cash_amount, card_amount, upi_amount, payment_status, sale_return_adjust, is_cancelled")
         .eq("organization_id", currentOrganization.id)
-        .gte("sale_date", startDate.toISOString())
-        .lte("sale_date", endDate.toISOString())
+        .gte("sale_date", startIso)
+        .lte("sale_date", endIso)
         .is("deleted_at", null);
       
       if (error) throw error;
@@ -165,19 +169,12 @@ function FloatingCashierReport({ open, onOpenChange }: { open: boolean; onOpenCh
     });
 
     eligibleSales.forEach((sale: any) => {
-      grossSale += Number(sale.gross_amount) || 0;
+      grossSale += getSaleReportGrossAmount(sale);
       totalDiscount +=
         (Number(sale.discount_amount) || 0) +
         (Number(sale.flat_discount_amount) || 0) +
         (Number((sale as any).points_redeemed_amount) || 0);
-      totalSale +=
-        (Number(sale.gross_amount) || 0) -
-        (Number(sale.discount_amount) || 0) -
-        (Number(sale.flat_discount_amount) || 0) -
-        (Number((sale as any).points_redeemed_amount) || 0) -
-        (Number((sale as any).sale_return_adjust) || 0) -
-        (Number(sale.refund_amount) || 0) -
-        (Number((sale as any).round_off) || 0);
+      totalSale += getSaleReportNetAmount(sale);
       totalSRAdjusted += Number((sale as any).sale_return_adjust) || 0;
       totalRefund += Number(sale.refund_amount) || 0;
 

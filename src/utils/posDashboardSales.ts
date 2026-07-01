@@ -19,6 +19,7 @@ import {
   isPosSalePaidCompleted,
   type PosDashboardSaleLike,
 } from "@/utils/posDashboardSettlement";
+import { getSaleReportGrossAmount, getSaleReportNetAmount } from "@/utils/cashierReportUtils";
 
 /** Calendar bounds for server queries from period chip + date inputs (fixes persisted single-day monthly). */
 export function resolvePosDashboardQueryDates(
@@ -602,7 +603,7 @@ export function computePosDashboardSummaryStats(
       (sum, sale) => sum + Number((sale as { total_qty?: number }).total_qty || 0),
       0,
     ),
-    totalAmount: nonHoldSales.reduce((sum, sale) => sum + Number(sale.gross_amount || 0), 0),
+    totalAmount: nonHoldSales.reduce((sum, sale) => sum + getSaleReportGrossAmount(sale), 0),
     totalDiscount: nonHoldSales.reduce(
       (sum, sale) =>
         sum +

@@ -438,7 +438,10 @@ export function usePosDeliveryChallan(options?: { enabled?: boolean }) {
     );
   };
 
-  const grossAmount = items.reduce((s, i) => s + i.mrp * i.quantity, 0);
+  const lineMerchandiseGross = (item: PosDCItem) =>
+    (item.mrp > 0 ? item.mrp : item.unitCost) * item.quantity;
+
+  const grossAmount = items.reduce((s, i) => s + lineMerchandiseGross(i), 0);
   const subTotal = items.reduce((s, i) => s + i.netAmount, 0);
   const { flatDiscountAmount } = computePosFlatDiscount({
     mrpTotal: grossAmount,
@@ -484,7 +487,7 @@ export function usePosDeliveryChallan(options?: { enabled?: boolean }) {
     setIsSavingDC(true);
     try {
       const now = new Date().toISOString();
-      const gross = items.reduce((s, i) => s + i.mrp * i.quantity, 0);
+      const gross = items.reduce((s, i) => s + lineMerchandiseGross(i), 0);
       const sub = items.reduce((s, i) => s + i.netAmount, 0);
       const sr = srAdjust || 0;
       const ro = roundOff || 0;

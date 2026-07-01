@@ -23,6 +23,10 @@ import { cn } from "@/lib/utils";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { localDayBounds } from "@/lib/localDayBounds";
 import {
+  getSaleReportGrossAmount,
+  getSaleReportNetAmount,
+} from "@/utils/cashierReportUtils";
+import {
   Table,
   TableBody,
   TableCell,
@@ -263,7 +267,7 @@ const DailyCashierReport = () => {
       return sale?.payment_status === "pending" && String(sale?.sale_number || "").startsWith("Hold/");
     };
 
-    const getEffectiveNet = (sale: any) => Number(sale?.net_amount) || 0;
+    const getEffectiveNet = (sale: any) => getSaleReportNetAmount(sale);
 
     const eligibleSales = (salesData || []).filter((sale: any) => {
       if (sale?.is_cancelled) return false;
@@ -278,7 +282,7 @@ const DailyCashierReport = () => {
         // INCLUDED here. Their cash_amount/upi_amount/card_amount are stored as
         // NEGATIVE on the sale row, so they naturally subtract from cashSale/upiSale/
         // cardSale below — no separate "Less: Refund" subtraction is needed.
-        grossSale += Number(sale.gross_amount) || 0;
+        grossSale += getSaleReportGrossAmount(sale);
         totalDiscount += (Number(sale.discount_amount) || 0) + (Number(sale.flat_discount_amount) || 0) + (Number((sale as any).points_redeemed_amount) || 0);
         totalSRAdjusted += Number(sale.sale_return_adjust) || 0;
         const effectiveNet = getEffectiveNet(sale);
