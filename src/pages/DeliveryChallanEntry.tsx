@@ -3,7 +3,6 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useCustomerSearch } from "@/hooks/useCustomerSearch";
-import { useStockValidation } from "@/hooks/useStockValidation";
 import { useSettings } from "@/hooks/useSettings";
 import { useEntryBillProductSearch } from "@/hooks/useEntryBillProductSearch";
 import { useBarcodeScanner } from "@/hooks/useBarcodeScanner";
@@ -75,6 +74,7 @@ interface LineItem {
   barcode: string;
   color: string;
   quantity: number;
+  stockQty: number;
   mrp: number;
   salePrice: number;
   discountPercent: number;
@@ -99,6 +99,7 @@ const EMPTY_LINE = (): LineItem => ({
   barcode: "",
   color: "",
   quantity: 0,
+  stockQty: 0,
   mrp: 0,
   salePrice: 0,
   discountPercent: 0,
@@ -110,7 +111,6 @@ export default function DeliveryChallanEntry() {
   useEntryViewportSync();
   const { toast } = useToast();
   const { currentOrganization } = useOrganization();
-  const { validateCartStock, showMultipleStockErrors } = useStockValidation();
   const { data: settings } = useSettings();
   const location = useLocation();
   const { orgNavigate: navigate } = useOrgNavigation();
@@ -299,6 +299,7 @@ export default function DeliveryChallanEntry() {
         barcode: item.barcode || "",
         color: item.color || "",
         quantity: item.pending_qty,
+        stockQty: 0,
         mrp: item.mrp,
         salePrice: item.unit_price,
         discountPercent: item.discount_percent,
@@ -417,6 +418,7 @@ export default function DeliveryChallanEntry() {
           barcode: result.barcode || "",
           color: result.color || "",
           quantity: 1,
+          stockQty: result.stock_qty ?? 0,
           mrp: result.mrp || 0,
           salePrice: result.sale_price || 0,
           discountPercent: 0,
@@ -534,6 +536,7 @@ export default function DeliveryChallanEntry() {
           barcode: variant.barcode || "",
           color: variant.color || sizeGridProduct.color || "",
           quantity: qty,
+          stockQty: variant.stock_qty ?? 0,
           mrp: variant.mrp || 0,
           salePrice: variant.sale_price || 0,
           discountPercent: 0,
@@ -618,8 +621,54 @@ export default function DeliveryChallanEntry() {
   };
 
   const filledItems = lineItems.filter((item) => item.productId !== "");
-  const grossAmount = filledItems.reduce((sum, item) => sum + item.quantity * item.salePrice, 0);
-  const lineItemDiscount = filledItems.reduce(
+  const billableItems = filledItems.filter((item) => item.quantity > 0);
+
+  // Refresh live stock for lines on screen (display only — challan does not deduct stock).
+  const variantIdsKey = filledItems
+    .map((item) => item.variantId)
+    .filter(Boolean)
+    .sort()
+    .join(",");
+  useEffect(() => {
+    if (!currentOrganization?.id || !variantIdsKey) return;
+
+    const variantIds = variantIdsKey.split(",").filter(Boolean);
+    const refreshLiveStock = async () => {
+      const { data, error } = await supabase
+        .from("product_variants")
+        .select("id, stock_qty")
+        .eq("organization_id", currentOrganization.id)
+        .in("id", variantIds);
+      if (error || !data) return;
+
+      const stockByVariant = new Map(data.map((row) => [row.id, Number(row.stock_qty) || 0]));
+      setLineItems((prev) => {
+        let changed = false;
+        const next = prev.map((item) => {
+          if (!item.variantId || !stockByVariant.has(item.variantId)) return item;
+          const stockQty = stockByVariant.get(item.variantId)!;
+          if (item.stockQty === stockQty) return item;
+          changed = true;
+          return { ...item, stockQty };
+        });
+        return changed ? next : prev;
+      });
+    };
+
+    void refreshLiveStock();
+    const timer = window.setInterval(refreshLiveStock, 20_000);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void refreshLiveStock();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [currentOrganization?.id, variantIdsKey]);
+
+  const grossAmount = billableItems.reduce((sum, item) => sum + item.quantity * item.salePrice, 0);
+  const lineItemDiscount = billableItems.reduce(
     (sum, item) => sum + (item.quantity * item.salePrice * item.discountPercent) / 100,
     0,
   );
@@ -627,7 +676,7 @@ export default function DeliveryChallanEntry() {
   const flatDiscountAmount =
     flatDiscountPercent > 0 ? (subtotalAfterLineDiscount * flatDiscountPercent) / 100 : flatDiscountRupees;
   const netAmount = subtotalAfterLineDiscount - flatDiscountAmount + roundOff;
-  const totalQty = filledItems.reduce((sum, item) => sum + item.quantity, 0);
+  const totalQty = billableItems.reduce((sum, item) => sum + item.quantity, 0);
   const totalDiscount = lineItemDiscount + flatDiscountAmount;
 
   const buildPrintItems = useCallback(
@@ -701,23 +750,12 @@ export default function DeliveryChallanEntry() {
       toast({ variant: "destructive", title: "Validation Error", description: "Please select a customer" });
       return;
     }
-    if (filledItems.length === 0) {
-      toast({ variant: "destructive", title: "Validation Error", description: "Please add at least one product" });
-      return;
-    }
-
-    const challanItems = filledItems.map((item) => ({
-      variantId: item.variantId,
-      quantity: item.quantity,
-      productName: item.productName,
-      size: item.size,
-    }));
-    const insufficientItems = await validateCartStock(
-      challanItems,
-      editingChallanId ? originalItemsForEdit : undefined,
-    );
-    if (insufficientItems.length > 0) {
-      showMultipleStockErrors(insufficientItems);
+    if (billableItems.length === 0) {
+      toast({
+        variant: "destructive",
+        title: "Validation Error",
+        description: "Please add at least one product with quantity",
+      });
       return;
     }
 
@@ -726,7 +764,7 @@ export default function DeliveryChallanEntry() {
       if (editingChallanId) {
         await supabase.from("delivery_challan_items").delete().eq("challan_id", editingChallanId);
 
-        const challanItemsData = filledItems.map((item) => ({
+        const challanItemsData = billableItems.map((item) => ({
           challan_id: editingChallanId,
           product_id: item.productId,
           variant_id: item.variantId,
@@ -767,7 +805,7 @@ export default function DeliveryChallanEntry() {
 
         toast({ title: "Challan Updated", description: "Delivery challan has been updated" });
         if (shouldPrint) {
-          triggerPrint(challanBadge, filledItems, {
+          triggerPrint(challanBadge, billableItems, {
             grossAmount,
             totalDiscount,
             netAmount,
@@ -813,7 +851,7 @@ export default function DeliveryChallanEntry() {
 
         if (challanError) throw challanError;
 
-        const challanItemsData = filledItems.map((item) => ({
+        const challanItemsData = billableItems.map((item) => ({
           challan_id: challanData.id,
           product_id: item.productId,
           variant_id: item.variantId,
@@ -833,7 +871,7 @@ export default function DeliveryChallanEntry() {
         if (itemsError) throw itemsError;
 
         if (selectedSaleOrderId) {
-          for (const item of filledItems) {
+          for (const item of billableItems) {
             const { data: orderItem } = await supabase
               .from("sale_order_items")
               .select("fulfilled_qty, pending_qty")
@@ -859,7 +897,7 @@ export default function DeliveryChallanEntry() {
           description: `Delivery Challan ${challanNumber} created successfully`,
         });
 
-        const savedItems = [...filledItems];
+        const savedItems = [...billableItems];
         const printSnapshot = {
           grossAmount,
           totalDiscount,
@@ -929,7 +967,7 @@ export default function DeliveryChallanEntry() {
             <div className="min-w-0">
               <span className="text-black font-bold text-[15px] whitespace-nowrap">Delivery Challan</span>
               <p className="text-[11px] text-black/60 font-medium hidden sm:block">
-                No GST - Stock will be deducted on save
+                No GST — live stock shown for reference; stock is not deducted on save
               </p>
             </div>
             <span className="border-2 border-black text-black font-mono text-[11px] font-bold px-3 py-1 rounded-md shrink-0">
@@ -1113,6 +1151,7 @@ export default function DeliveryChallanEntry() {
                     <th className="text-left text-[13px] uppercase tracking-wide font-bold h-11 text-black px-2 min-w-[200px]">Product</th>
                     <th className="text-center text-[13px] uppercase tracking-wide font-bold h-11 text-black px-2 w-28">Barcode</th>
                     <th className="text-center text-[13px] uppercase tracking-wide font-bold h-11 text-black px-2 w-16">Size</th>
+                    <th className="text-center text-[13px] uppercase tracking-wide font-bold h-11 text-black px-2 w-16">Stock</th>
                     <th className="text-center text-[13px] uppercase tracking-wide font-bold h-11 text-black px-2 w-20">Qty</th>
                     <th className="text-right text-[13px] uppercase tracking-wide font-bold h-11 text-black px-2 w-24">Rate</th>
                     <th className="text-right text-[13px] uppercase tracking-wide font-bold h-11 text-black px-2 w-16">Disc%</th>
@@ -1126,7 +1165,7 @@ export default function DeliveryChallanEntry() {
                       return Array.from({ length: 7 }, (_, i) => (
                         <tr key={`empty-${i}`} className="h-[38px] border-b border-black/10">
                           <td className="text-center text-[12px] text-black/30 px-2">{i + 1}</td>
-                          {Array.from({ length: 8 }).map((_, j) => (
+                          {Array.from({ length: 9 }).map((_, j) => (
                             <td key={j} className="px-2" />
                           ))}
                         </tr>
@@ -1151,6 +1190,14 @@ export default function DeliveryChallanEntry() {
                           <td className="px-2 py-2 text-black font-bold break-words text-[14px]">{item.productName}</td>
                           <td className="text-center font-mono text-[13px] px-2 py-2">{item.barcode || "—"}</td>
                           <td className="text-center text-[13px] font-bold px-2 py-2">{item.size || "—"}</td>
+                          <td
+                            className={cn(
+                              "text-center text-[13px] font-bold font-mono tabular-nums px-2 py-2",
+                              item.stockQty > 0 ? "text-green-700" : "text-red-600",
+                            )}
+                          >
+                            {item.variantId ? item.stockQty : "—"}
+                          </td>
                           <td className="text-center px-1 py-1">
                             <Input
                               type="number"
@@ -1195,7 +1242,7 @@ export default function DeliveryChallanEntry() {
                     const padRows = Array.from({ length: padCount }, (_, i) => (
                       <tr key={`pad-${i}`} className="h-[38px] border-b border-black/10 bg-white">
                         <td className="text-center text-[12px] text-black/30 px-2">{displayItems.length + i + 1}</td>
-                        {Array.from({ length: 8 }).map((_, j) => (
+                        {Array.from({ length: 9 }).map((_, j) => (
                           <td key={j} className="px-2" />
                         ))}
                       </tr>
@@ -1357,7 +1404,7 @@ export default function DeliveryChallanEntry() {
             <Button
               size="sm"
               onClick={() => handleSaveChallan({ print: true })}
-              disabled={isSaving || filledItems.length === 0}
+              disabled={isSaving || billableItems.length === 0}
               variant="outline"
               className="h-9 px-4 text-[13px] font-extrabold gap-1.5 border-2 border-black text-black hover:bg-black/5"
             >
@@ -1367,7 +1414,7 @@ export default function DeliveryChallanEntry() {
             <Button
               size="sm"
               onClick={() => handleSaveChallan()}
-              disabled={isSaving || filledItems.length === 0}
+              disabled={isSaving || billableItems.length === 0}
               className="h-9 px-5 text-[14px] bg-black text-white hover:bg-black/90 font-extrabold gap-1.5"
             >
               {isSaving ? (
@@ -1446,6 +1493,11 @@ export default function DeliveryChallanEntry() {
         product={sizeGridProduct}
         variants={sizeGridVariants}
         onConfirm={handleSizeGridConfirm}
+        showStock={true}
+        validateStock={false}
+        allowMultiColor={true}
+        showSizePrices={false}
+        title="Enter Color & Size-wise Qty"
       />
 
       <div className="invoice-print-source-screen">
