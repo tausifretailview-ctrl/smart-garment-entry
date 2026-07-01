@@ -2,150 +2,123 @@
 -- ELLA NOOR phantom CN invoice repair — PHASE 0 pre-flight (READ-ONLY)
 -- =============================================================================
 -- Org: 3fdca631-1e0c-4417-9704-421f5129ff67
--- Run all sections in Supabase SQL editor BEFORE applying the repair script.
--- Sign convention: get_customer_true_outstanding > 0 = Dr (owes), < 0 = Cr (credit).
+-- Run each query separately in Supabase SQL editor (service role).
+-- Paste all 3 result sets before applying the repair script.
 -- =============================================================================
 
--- -----------------------------------------------------------------------------
--- QUERY 1 — Current state of 23 affected customers
--- -----------------------------------------------------------------------------
-SELECT
-  c.id AS customer_id,
-  c.customer_name,
-  c.phone,
-  public.get_customer_true_outstanding(
-    c.id,
-    '3fdca631-1e0c-4417-9704-421f5129ff67'::uuid
-  ) AS current_outstanding,
-  (
-    SELECT COUNT(*)
-    FROM public.sales s
-    WHERE s.customer_id = c.id
-      AND s.organization_id = '3fdca631-1e0c-4417-9704-421f5129ff67'::uuid
-      AND s.payment_status IN ('pending', 'partial')
-      AND COALESCE(s.is_cancelled, false) = false
-      AND s.deleted_at IS NULL
-  ) AS unpaid_invoice_count,
-  (
-    SELECT COALESCE(SUM(
+
+-- ═══════════════════════════════════════════════════════
+-- PREFLIGHT QUERY 1 — Customer state (live data)
+-- Expected: 23 rows with repair_flag per customer
+-- ═══════════════════════════════════════════════════════
+
+WITH org AS (
+  SELECT '3fdca631-1e0c-4417-9704-421f5129ff67'::uuid AS id
+),
+affected_customers AS (
+  SELECT c.id, c.customer_name
+  FROM public.customers c, org
+  WHERE c.organization_id = org.id
+    AND c.deleted_at IS NULL
+    AND c.customer_name ILIKE ANY (ARRAY[
+      '%AMNA DARVESH%', '%Muskan%',
+      '%Sharmin Mewara%', '%GULNAZ%',
+      '%MAHENOOR KAS%', '%Amrin%',
+      '%OSAMA%', '%QURRATUL AIN%',
+      '%Shanawaz Memon%', '%Mahi Supariwala%',
+      '%Ruby Bhatia%', '%KHADIJA SHEIKH%',
+      '%FIZA CHAUDHARY%', '%SAMEENA MADHIYA%',
+      '%PRIYANKA YADAV%', '%Naeem Mukadam%',
+      '%Nazbin Choudhury%', '%Hanif bhai%',
+      '%Sadiqa Faisal Khan%', '%Arezah Nathani%',
+      '%Sadiya Surat%', '%AYESHA MERCHANT%',
+      '%SABINA SAMEER%'
+    ])
+),
+customer_outstanding AS (
+  SELECT
+    ac.id AS customer_id,
+    ac.customer_name,
+    public.get_customer_true_outstanding(
+      ac.id,
+      '3fdca631-1e0c-4417-9704-421f5129ff67'::uuid
+    ) AS outstanding
+  FROM affected_customers ac
+),
+invoice_summary AS (
+  SELECT
+    s.customer_id,
+    COUNT(*) AS unpaid_count,
+    COALESCE(SUM(
       s.net_amount
       - COALESCE(s.paid_amount, 0)
       - COALESCE(s.sale_return_adjust, 0)
-    ), 0)
-    FROM public.sales s
-    WHERE s.customer_id = c.id
-      AND s.organization_id = '3fdca631-1e0c-4417-9704-421f5129ff67'::uuid
-      AND s.payment_status IN ('pending', 'partial')
-      AND COALESCE(s.is_cancelled, false) = false
-      AND s.deleted_at IS NULL
-  ) AS total_pending_on_invoices,
+    ), 0) AS total_pending
+  FROM public.sales s, org
+  WHERE s.organization_id = org.id
+    AND s.customer_id IN (SELECT id FROM affected_customers)
+    AND s.payment_status IN ('pending', 'partial')
+    AND COALESCE(s.is_cancelled, false) = false
+    AND s.deleted_at IS NULL
+  GROUP BY s.customer_id
+)
+SELECT
+  co.customer_name,
+  co.outstanding,
+  COALESCE(inv.unpaid_count, 0) AS unpaid_invoices,
+  COALESCE(inv.total_pending, 0) AS total_pending,
   CASE
-    WHEN public.get_customer_true_outstanding(c.id, '3fdca631-1e0c-4417-9704-421f5129ff67'::uuid) > 0.5
-      THEN 'SKIP — Dr balance (owes money)'
-    WHEN (
-      SELECT COALESCE(SUM(
-        s.net_amount - COALESCE(s.paid_amount, 0) - COALESCE(s.sale_return_adjust, 0)
-      ), 0)
-      FROM public.sales s
-      WHERE s.customer_id = c.id
-        AND s.organization_id = '3fdca631-1e0c-4417-9704-421f5129ff67'::uuid
-        AND s.payment_status IN ('pending', 'partial')
-        AND COALESCE(s.is_cancelled, false) = false
-        AND s.deleted_at IS NULL
-    ) <= 0.5
-      THEN 'SKIP — nothing to settle'
-    WHEN ABS(public.get_customer_true_outstanding(c.id, '3fdca631-1e0c-4417-9704-421f5129ff67'::uuid))
-         < (
-      SELECT COALESCE(SUM(
-        s.net_amount - COALESCE(s.paid_amount, 0) - COALESCE(s.sale_return_adjust, 0)
-      ), 0)
-      FROM public.sales s
-      WHERE s.customer_id = c.id
-        AND s.organization_id = '3fdca631-1e0c-4417-9704-421f5129ff67'::uuid
-        AND s.payment_status IN ('pending', 'partial')
-        AND COALESCE(s.is_cancelled, false) = false
-        AND s.deleted_at IS NULL
-    ) - 0.5
-      THEN 'PARTIAL — credit < pending'
-    ELSE 'OK — full FIFO settlement expected'
+    WHEN co.outstanding > 0
+      THEN 'SKIP — Dr balance (customer owes)'
+    WHEN COALESCE(inv.unpaid_count, 0) = 0
+      THEN 'SKIP — no pending invoices'
+    WHEN ABS(co.outstanding) < COALESCE(inv.total_pending, 0) - 0.5
+      THEN 'PARTIAL — credit less than pending'
+    ELSE 'OK — full settlement expected'
   END AS repair_flag
-FROM public.customers c
-WHERE c.organization_id = '3fdca631-1e0c-4417-9704-421f5129ff67'::uuid
-  AND c.deleted_at IS NULL
-  AND c.customer_name IN (
-    'AMNA DARVESH', 'Muskan', 'Sharmin Mewara',
-    'GULNAZ', 'MAHENOOR KAS', 'Amrin', 'OSAMA',
-    'QURRATUL AIN BANGALORE', 'Shanawaz Memon',
-    'Mahi Supariwala', 'Ruby Bhatia',
-    'KHADIJA SHEIKH', 'FIZA CHAUDHARY',
-    'SAMEENA MADHIYA', 'PRIYANKA YADAV',
-    'Naeem Mukadam', 'Nazbin Choudhury',
-    'Hanif bhai', 'Sadiqa Faisal Khan',
-    'Arezah Nathani', 'Sadiya Surat',
-    'AYESHA MERCHANT', 'SABINA SAMEER'
-  )
-ORDER BY total_pending_on_invoices DESC;
+FROM customer_outstanding co
+LEFT JOIN invoice_summary inv ON inv.customer_id = co.customer_id
+ORDER BY co.outstanding ASC;
 
 
--- -----------------------------------------------------------------------------
--- QUERY 2 — Idempotency check (abort repair if > 0)
--- -----------------------------------------------------------------------------
+-- ═══════════════════════════════════════════════════════
+-- PREFLIGHT QUERY 2 — Idempotency check
+-- Expected: already_repaired = 0
+-- ═══════════════════════════════════════════════════════
+
 SELECT COUNT(*) AS already_repaired
 FROM public.voucher_entries ve
-WHERE ve.organization_id = '3fdca631-1e0c-4417-9704-421f5129ff67'::uuid
+JOIN public.sales s ON s.id = ve.reference_id
+WHERE s.organization_id = '3fdca631-1e0c-4417-9704-421f5129ff67'::uuid
   AND ve.payment_method = 'balance_adjustment'
-  AND ve.deleted_at IS NULL
   AND (
     COALESCE(ve.description, '') LIKE '%phantom_cn_repair_2026%'
     OR COALESCE(ve.notes, '') LIKE '%phantom_cn_repair_2026%'
-  );
+  )
+  AND ve.deleted_at IS NULL;
 
 
--- -----------------------------------------------------------------------------
--- QUERY 3 — Confirm exact customer IDs (expect 23 rows)
--- -----------------------------------------------------------------------------
+-- ═══════════════════════════════════════════════════════
+-- PREFLIGHT QUERY 3 — Exact customer names in DB
+-- Expected: 23 rows
+-- ═══════════════════════════════════════════════════════
+
 SELECT id, customer_name, phone
 FROM public.customers
 WHERE organization_id = '3fdca631-1e0c-4417-9704-421f5129ff67'::uuid
   AND deleted_at IS NULL
-  AND customer_name IN (
-    'AMNA DARVESH', 'Muskan', 'Sharmin Mewara',
-    'GULNAZ', 'MAHENOOR KAS', 'Amrin', 'OSAMA',
-    'QURRATUL AIN BANGALORE', 'Shanawaz Memon',
-    'Mahi Supariwala', 'Ruby Bhatia',
-    'KHADIJA SHEIKH', 'FIZA CHAUDHARY',
-    'SAMEENA MADHIYA', 'PRIYANKA YADAV',
-    'Naeem Mukadam', 'Nazbin Choudhury',
-    'Hanif bhai', 'Sadiqa Faisal Khan',
-    'Arezah Nathani', 'Sadiya Surat',
-    'AYESHA MERCHANT', 'SABINA SAMEER'
-  )
-ORDER BY customer_name;
-
--- If row count < 23, find near-matches:
-SELECT customer_name
-FROM public.customers
-WHERE organization_id = '3fdca631-1e0c-4417-9704-421f5129ff67'::uuid
-  AND deleted_at IS NULL
-  AND (
-    customer_name ILIKE ANY (ARRAY[
-      '%AMNA%', '%Muskan%', '%Sharmin%', '%GULNAZ%', '%MAHENOOR%',
-      '%Amrin%', '%OSAMA%', '%QURRATUL%', '%Shanawaz%', '%Mahi%',
-      '%Ruby%', '%KHADIJA%', '%FIZA%', '%SAMEENA%', '%PRIYANKA%',
-      '%Naeem%', '%Nazbin%', '%Hanif%', '%Sadiqa%', '%Arezah%',
-      '%Sadiya%', '%AYESHA%', '%SABINA%'
-    ])
-  )
-  AND customer_name NOT IN (
-    'AMNA DARVESH', 'Muskan', 'Sharmin Mewara',
-    'GULNAZ', 'MAHENOOR KAS', 'Amrin', 'OSAMA',
-    'QURRATUL AIN BANGALORE', 'Shanawaz Memon',
-    'Mahi Supariwala', 'Ruby Bhatia',
-    'KHADIJA SHEIKH', 'FIZA CHAUDHARY',
-    'SAMEENA MADHIYA', 'PRIYANKA YADAV',
-    'Naeem Mukadam', 'Nazbin Choudhury',
-    'Hanif bhai', 'Sadiqa Faisal Khan',
-    'Arezah Nathani', 'Sadiya Surat',
-    'AYESHA MERCHANT', 'SABINA SAMEER'
-  )
+  AND customer_name ILIKE ANY (ARRAY[
+    '%AMNA DARVESH%', '%Muskan%',
+    '%Sharmin Mewara%', '%GULNAZ%',
+    '%MAHENOOR KAS%', '%Amrin%',
+    '%OSAMA%', '%QURRATUL AIN%',
+    '%Shanawaz Memon%', '%Mahi Supariwala%',
+    '%Ruby Bhatia%', '%KHADIJA SHEIKH%',
+    '%FIZA CHAUDHARY%', '%SAMEENA MADHIYA%',
+    '%PRIYANKA YADAV%', '%Naeem Mukadam%',
+    '%Nazbin Choudhury%', '%Hanif bhai%',
+    '%Sadiqa Faisal Khan%', '%Arezah Nathani%',
+    '%Sadiya Surat%', '%AYESHA MERCHANT%',
+    '%SABINA SAMEER%'
+  ])
 ORDER BY customer_name;
