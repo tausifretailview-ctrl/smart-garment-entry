@@ -1285,7 +1285,9 @@ export default function SalesInvoiceDashboard() {
               inv.outstanding ??
                 Math.max(
                   0,
-                  (inv.net_amount || 0) - (inv.paid_amount || 0) - (inv.sale_return_adjust || 0),
+                  (inv.net_amount || 0) -
+                    (inv.paid_amount || 0) -
+                    Math.max(inv.sale_return_adjust || 0, inv.credit_applied || 0),
                 ),
             ),
           );
@@ -1332,7 +1334,7 @@ export default function SalesInvoiceDashboard() {
       while (hasMore) {
         let query = supabase
           .from('sales')
-          .select('sale_number, sale_date, customer_name, customer_phone, total_qty, gross_amount, discount_amount, flat_discount_amount, net_amount, paid_amount, sale_return_adjust, payment_status, delivery_status, salesman')
+          .select('sale_number, sale_date, customer_name, customer_phone, total_qty, gross_amount, discount_amount, flat_discount_amount, net_amount, paid_amount, sale_return_adjust, credit_applied, payment_status, delivery_status, salesman')
           .eq('organization_id', currentOrganization!.id)
           .eq('sale_type', 'invoice')
           .is('deleted_at', null)
@@ -1372,8 +1374,13 @@ export default function SalesInvoiceDashboard() {
         'Discount': (inv.discount_amount || 0) + (inv.flat_discount_amount || 0),
         'Net Amount': inv.net_amount || 0,
         'Paid Amount': inv.paid_amount || 0,
-        'Balance': Math.max(0, (inv.net_amount || 0) - (inv.paid_amount || 0) - (inv.sale_return_adjust || 0)),
-        'Credit Note Adj.': inv.sale_return_adjust || 0,
+        'Balance': Math.max(
+          0,
+          (inv.net_amount || 0) -
+            (inv.paid_amount || 0) -
+            Math.max(inv.sale_return_adjust || 0, inv.credit_applied || 0),
+        ),
+        'Credit Note Adj.': Math.max(inv.sale_return_adjust || 0, inv.credit_applied || 0),
         'Payment Status': inv.payment_status || '',
         'Delivery Status': inv.delivery_status || '',
         'Salesman': inv.salesman || '',
@@ -1920,7 +1927,11 @@ export default function SalesInvoiceDashboard() {
 
   const openPaymentDialog = (invoice: any) => {
     setSelectedInvoiceForPayment(invoice);
-    const pendingAmount = Math.round(invoice.net_amount - (invoice.paid_amount || 0) - (invoice.sale_return_adjust || 0));
+    const pendingAmount = Math.round(
+      invoice.net_amount -
+        (invoice.paid_amount || 0) -
+        Math.max(invoice.sale_return_adjust || 0, invoice.credit_applied || 0),
+    );
     setPaidAmount(Math.max(0, pendingAmount).toString());
     setPaymentDate(new Date());
     setPaymentMode("cash");
@@ -1951,7 +1962,15 @@ export default function SalesInvoiceDashboard() {
         // Customer overpayments / refund liabilities must be returned via Refund or converted into a new
         // Advance booking — they cannot be re-spent here as advance.
         setAdvanceBalance(bookingBalance);
-        const pendingAmount = Math.max(0, selectedInvoiceForPayment.net_amount - (selectedInvoiceForPayment.paid_amount || 0) - (selectedInvoiceForPayment.sale_return_adjust || 0));
+        const pendingAmount = Math.max(
+          0,
+          selectedInvoiceForPayment.net_amount -
+            (selectedInvoiceForPayment.paid_amount || 0) -
+            Math.max(
+              selectedInvoiceForPayment.sale_return_adjust || 0,
+              selectedInvoiceForPayment.credit_applied || 0,
+            ),
+        );
         setPaidAmount(Math.min(bookingBalance, pendingAmount).toString());
       } catch (error) {
         console.error("Failed to fetch advance balance:", error);
@@ -1978,7 +1997,10 @@ export default function SalesInvoiceDashboard() {
           0,
           selectedInvoiceForPayment.net_amount -
             (selectedInvoiceForPayment.paid_amount || 0) -
-            (selectedInvoiceForPayment.sale_return_adjust || 0),
+            Math.max(
+              selectedInvoiceForPayment.sale_return_adjust || 0,
+              selectedInvoiceForPayment.credit_applied || 0,
+            ),
         );
         setPaidAmount(Math.min(totalAvailable, pendingAmount).toString());
       } catch (error) {
@@ -2958,7 +2980,12 @@ export default function SalesInvoiceDashboard() {
           ) : paginatedInvoices.map((inv: any) => {
             const pending = Number(
               inv.outstanding ??
-                Math.max(0, (inv.net_amount || 0) - (inv.paid_amount || 0) - (inv.sale_return_adjust || 0))
+                Math.max(
+                  0,
+                  (inv.net_amount || 0) -
+                    (inv.paid_amount || 0) -
+                    Math.max(inv.sale_return_adjust || 0, inv.credit_applied || 0),
+                )
             );
             const effectiveStatus =
               inv.payment_status === 'hold'
@@ -3092,7 +3119,7 @@ export default function SalesInvoiceDashboard() {
                 <span className="font-medium">₹{Math.round(selectedInvoiceForPayment?.net_amount || 0).toLocaleString('en-IN')}</span>
                 <span className="text-muted-foreground">Pending:</span>
                 <span className="font-semibold text-amber-600">
-                  ₹{Math.max(0, Math.round((selectedInvoiceForPayment?.net_amount || 0) - (selectedInvoiceForPayment?.paid_amount || 0) - (selectedInvoiceForPayment?.sale_return_adjust || 0))).toLocaleString('en-IN')}
+                  ₹{Math.max(0, Math.round((selectedInvoiceForPayment?.net_amount || 0) - (selectedInvoiceForPayment?.paid_amount || 0) - Math.max(selectedInvoiceForPayment?.sale_return_adjust || 0, selectedInvoiceForPayment?.credit_applied || 0))).toLocaleString('en-IN')}
                 </span>
               </div>
               <div>
@@ -3809,7 +3836,7 @@ export default function SalesInvoiceDashboard() {
                             )}
                             {columnSettings.status && (
                               <TableCell className="text-right text-sm font-medium tabular-nums" onClick={() => toggleExpanded(invoice.id, invoice.sale_number)}>
-                                 ₹{isSaleInvoiceCancelled(invoice) ? 0 : Math.round(Number(invoice.outstanding ?? Math.max(0, (invoice.net_amount || 0) - (invoice.paid_amount || 0) - (invoice.sale_return_adjust || 0)))).toLocaleString('en-IN')}
+                                 ₹{isSaleInvoiceCancelled(invoice) ? 0 : Math.round(Number(invoice.outstanding ?? Math.max(0, (invoice.net_amount || 0) - (invoice.paid_amount || 0) - Math.max(invoice.sale_return_adjust || 0, invoice.credit_applied || 0)))).toLocaleString('en-IN')}
                               </TableCell>
                             )}
                             {columnSettings.delivery && (
@@ -4445,7 +4472,7 @@ export default function SalesInvoiceDashboard() {
                 <span className="font-medium">₹{Math.round(selectedInvoiceForPayment?.paid_amount || 0).toLocaleString('en-IN')}</span>
                 <span className="text-muted-foreground">Pending Amount:</span>
                 <span className="font-semibold text-orange-600">
-                  ₹{Math.max(0, Math.round((selectedInvoiceForPayment?.net_amount || 0) - (selectedInvoiceForPayment?.paid_amount || 0) - (selectedInvoiceForPayment?.sale_return_adjust || 0))).toLocaleString('en-IN')}
+                  ₹{Math.max(0, Math.round((selectedInvoiceForPayment?.net_amount || 0) - (selectedInvoiceForPayment?.paid_amount || 0) - Math.max(selectedInvoiceForPayment?.sale_return_adjust || 0, selectedInvoiceForPayment?.credit_applied || 0))).toLocaleString('en-IN')}
                 </span>
               </div>
               <div>
