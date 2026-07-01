@@ -3119,7 +3119,7 @@ export default function SalesInvoiceDashboard() {
                 <span className="font-medium">₹{Math.round(selectedInvoiceForPayment?.net_amount || 0).toLocaleString('en-IN')}</span>
                 <span className="text-muted-foreground">Pending:</span>
                 <span className="font-semibold text-amber-600">
-                  ₹{Math.max(0, Math.round((selectedInvoiceForPayment?.net_amount || 0) - (selectedInvoiceForPayment?.paid_amount || 0) - (selectedInvoiceForPayment?.sale_return_adjust || 0))).toLocaleString('en-IN')}
+                  ₹{Math.max(0, Math.round((selectedInvoiceForPayment?.net_amount || 0) - (selectedInvoiceForPayment?.paid_amount || 0) - Math.max(selectedInvoiceForPayment?.sale_return_adjust || 0, selectedInvoiceForPayment?.credit_applied || 0))).toLocaleString('en-IN')}
                 </span>
               </div>
               <div>
@@ -3836,7 +3836,7 @@ export default function SalesInvoiceDashboard() {
                             )}
                             {columnSettings.status && (
                               <TableCell className="text-right text-sm font-medium tabular-nums" onClick={() => toggleExpanded(invoice.id, invoice.sale_number)}>
-                                 ₹{isSaleInvoiceCancelled(invoice) ? 0 : Math.round(Number(invoice.outstanding ?? Math.max(0, (invoice.net_amount || 0) - (invoice.paid_amount || 0) - (invoice.sale_return_adjust || 0)))).toLocaleString('en-IN')}
+                                 ₹{isSaleInvoiceCancelled(invoice) ? 0 : Math.round(Number(invoice.outstanding ?? Math.max(0, (invoice.net_amount || 0) - (invoice.paid_amount || 0) - Math.max(invoice.sale_return_adjust || 0, invoice.credit_applied || 0)))).toLocaleString('en-IN')}
                               </TableCell>
                             )}
                             {columnSettings.delivery && (
@@ -4472,7 +4472,7 @@ export default function SalesInvoiceDashboard() {
                 <span className="font-medium">₹{Math.round(selectedInvoiceForPayment?.paid_amount || 0).toLocaleString('en-IN')}</span>
                 <span className="text-muted-foreground">Pending Amount:</span>
                 <span className="font-semibold text-orange-600">
-                  ₹{Math.max(0, Math.round((selectedInvoiceForPayment?.net_amount || 0) - (selectedInvoiceForPayment?.paid_amount || 0) - (selectedInvoiceForPayment?.sale_return_adjust || 0))).toLocaleString('en-IN')}
+                  ₹{Math.max(0, Math.round((selectedInvoiceForPayment?.net_amount || 0) - (selectedInvoiceForPayment?.paid_amount || 0) - Math.max(selectedInvoiceForPayment?.sale_return_adjust || 0, selectedInvoiceForPayment?.credit_applied || 0))).toLocaleString('en-IN')}
                 </span>
               </div>
               <div>
