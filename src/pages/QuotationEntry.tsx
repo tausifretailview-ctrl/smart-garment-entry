@@ -1,11 +1,9 @@
-import { useState, useEffect, useRef, useCallback } from "react";
-import { createPortal } from "react-dom";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSettings } from "@/hooks/useSettings";
 import { supabase } from "@/integrations/supabase/client";
 import { useCustomerSearch } from "@/hooks/useCustomerSearch";
 import { useOrganization } from "@/contexts/OrganizationContext";
-import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -13,12 +11,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Switch } from "@/components/ui/switch";
-import { CalendarIcon, Plus, X, Search, Save, FileText, Printer, ChevronDown } from "lucide-react";
+import { CalendarIcon, Plus, X, Save, FileText, Printer, ChevronDown, ChevronLeft } from "lucide-react";
 import { format } from "date-fns";
-import { cn } from "@/lib/utils";
-import { BackToDashboard } from "@/components/BackToDashboard";
+import { cn, buildProductDisplayName } from "@/lib/utils";
+import { entryPageMainClass, entryPageSectionX, entryPageShellClass } from "@/lib/entryPageLayout";
+import { useEntryViewportSync } from "@/hooks/useEntryViewportSync";
+import { useEntryBillProductSearch } from "@/hooks/useEntryBillProductSearch";
+import { EntryBillProductSearchBar } from "@/components/entry/EntryBillProductSearchBar";
 import { SizeGridDialog } from "@/components/SizeGridDialog";
+import { mergeSizeColorVariantsForGrid } from "@/utils/mergeSizeColorVariantsForGrid";
+import { useBarcodeScanner } from "@/hooks/useBarcodeScanner";
+import type { SaleOrderVariantSearchResult, SaleOrderProductSearchGroup } from "@/utils/saleOrderProductSearch";
 import {
   Command,
   CommandEmpty,
@@ -27,14 +30,6 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
@@ -51,10 +46,11 @@ import {
 } from "@/components/ui/form";
 import { Textarea } from "@/components/ui/textarea";
 import { useReactToPrint } from "react-to-print";
-import { QuotationPrint } from "@/components/QuotationPrint";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { InvoiceWrapper } from "@/components/InvoiceWrapper";
+import { INVOICE_PRINT_VISIBILITY_OVERRIDE_CSS } from "@/utils/thermalReceiptPrintDocument";
+import { waitForPrintReady } from "@/utils/printReady";
 import { useDraftSave } from "@/hooks/useDraftSave";
-
+import { resolveSaleBillFormat, toInvoiceWrapperFormat, type PosBillFormat } from "@/utils/invoicePrintFormat";
 
 interface LineItem {
   id: string;
@@ -82,36 +78,36 @@ const customerSchema = z.object({
   gst_number: z.string().trim().max(15).optional(),
 });
 
+const EMPTY_ROW = (): LineItem => ({
+  id: `row-${Date.now()}-${Math.random()}`,
+  productId: "",
+  variantId: "",
+  productName: "",
+  size: "",
+  barcode: "",
+  quantity: 0,
+  mrp: 0,
+  salePrice: 0,
+  discountPercent: 0,
+  discountAmount: 0,
+  gstPercent: 0,
+  lineTotal: 0,
+});
+
 export default function QuotationEntry() {
   const { toast } = useToast();
   const { currentOrganization } = useOrganization();
   const location = useLocation();
   const { navigate } = useOrgNavigation();
+
   const [openCustomerSearch, setOpenCustomerSearch] = useState(false);
   const [customerSearchInput, setCustomerSearchInput] = useState("");
   const [quotationDate, setQuotationDate] = useState<Date>(new Date());
   const [validUntil, setValidUntil] = useState<Date>(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000));
   const [quotationNumber, setQuotationNumber] = useState<string>("");
   const [lineItems, setLineItems] = useState<LineItem[]>(
-    Array(5).fill(null).map((_, i) => ({
-      id: `row-${i}`,
-      productId: '',
-      variantId: '',
-      productName: '',
-      size: '',
-      barcode: '',
-      quantity: 0,
-      mrp: 0,
-      salePrice: 0,
-      discountPercent: 0,
-      discountAmount: 0,
-      gstPercent: 0,
-      lineTotal: 0,
-    }))
+    Array(7).fill(null).map((_, i) => ({ ...EMPTY_ROW(), id: `row-${i}` })),
   );
-  const [openProductSearch, setOpenProductSearch] = useState(false);
-  const [searchInput, setSearchInput] = useState("");
-  const [displayLimit, setDisplayLimit] = useState(100);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>("");
   const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
   const [openCustomerDialog, setOpenCustomerDialog] = useState(false);
@@ -126,44 +122,54 @@ export default function QuotationEntry() {
   const printRef = useRef<HTMLDivElement>(null);
   const tableEndRef = useRef<HTMLDivElement>(null);
   const [salesman, setSalesman] = useState<string>("");
+  const [invoiceFormat, setInvoiceFormat] = useState<"standard" | "wholesale-size-grouping">("standard");
   const [flatDiscountPercent, setFlatDiscountPercent] = useState<number>(0);
   const [flatDiscountAmount, setFlatDiscountAmount] = useState<number>(0);
   const [roundOff, setRoundOff] = useState<number>(0);
+  const [showNotesSection, setShowNotesSection] = useState(false);
 
-  // Size grid entry mode
-  const [entryMode, setEntryMode] = useState<"grid" | "inline">("inline");
+  const [entryMode, setEntryMode] = useState<"grid" | "inline">("grid");
+  const [entryModeInitialized, setEntryModeInitialized] = useState(false);
   const [showSizeGrid, setShowSizeGrid] = useState(false);
   const [sizeGridProduct, setSizeGridProduct] = useState<any>(null);
   const [sizeGridVariants, setSizeGridVariants] = useState<any[]>([]);
-  
 
-  // Inline search state for table row
-  const [inlineSearchQuery, setInlineSearchQuery] = useState("");
-  const [inlineSearchResults, setInlineSearchResults] = useState<any[]>([]);
-  const [showInlineSearch, setShowInlineSearch] = useState(false);
-  const [selectedInlineIndex, setSelectedInlineIndex] = useState(0);
-  const inlineSearchInputRef = useRef<HTMLInputElement>(null);
+  const barcodeScanner = useBarcodeScanner();
+  const lastBarcodeInputTime = useRef(0);
+  const processingBarcodeRef = useRef(false);
 
-  // Draft save hook
+  useEntryViewportSync();
+
   const {
     hasDraft,
     draftData,
     saveDraft,
-    deleteDraft,
     updateCurrentData,
     startAutoSave,
     stopAutoSave,
-  } = useDraftSave('quotation');
+  } = useDraftSave("quotation");
 
-  // Load draft data
+  const {
+    searchInput,
+    setSearchInput,
+    barcodeInput,
+    setBarcodeInput,
+    openProductSearch,
+    setOpenProductSearch,
+    popoverSearchResults,
+    productSearchGroups,
+    isProductSearching,
+    displayLimit,
+    setDisplayLimit,
+    displaySearchCount,
+    resolveSearchSelection,
+  } = useEntryBillProductSearch(currentOrganization?.id, entryMode);
+
   const loadDraftData = useCallback((data: any) => {
     if (!data) return;
     setQuotationDate(data.quotationDate ? new Date(data.quotationDate) : new Date());
     setValidUntil(data.validUntil ? new Date(data.validUntil) : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000));
-    setLineItems(data.lineItems || Array(5).fill(null).map((_, i) => ({
-      id: `row-${i}`, productId: '', variantId: '', productName: '', size: '', barcode: '',
-      quantity: 0, mrp: 0, salePrice: 0, discountPercent: 0, discountAmount: 0, gstPercent: 0, lineTotal: 0,
-    })));
+    setLineItems(data.lineItems || Array(7).fill(null).map((_, i) => ({ ...EMPTY_ROW(), id: `row-${i}` })));
     setSelectedCustomerId(data.selectedCustomerId || "");
     setSelectedCustomer(data.selectedCustomer || null);
     setTermsConditions(data.termsConditions || "");
@@ -171,22 +177,20 @@ export default function QuotationEntry() {
     setShippingAddress(data.shippingAddress || "");
     setTaxType(data.taxType || "inclusive");
     setSalesman(data.salesman || "");
+    setInvoiceFormat(data.invoiceFormat || "standard");
     setFlatDiscountPercent(data.flatDiscountPercent || 0);
     setFlatDiscountAmount(data.flatDiscountAmount || 0);
     setRoundOff(data.roundOff || 0);
-    // Silent restore - no toast to avoid disturbing user
-  }, [toast]);
+  }, []);
 
-  // Auto-load draft if navigated with resumeDraft flag
   useEffect(() => {
     if (location.state?.resumeDraft && !editingQuotationId && hasDraft && draftData) {
       loadDraftData(draftData);
     }
-  }, [location.state?.resumeDraft, hasDraft, draftData, editingQuotationId]);
+  }, [location.state?.resumeDraft, hasDraft, draftData, editingQuotationId, loadDraftData]);
 
-  // Update current data for auto-save whenever form data changes
   useEffect(() => {
-    const filledItems = lineItems.filter(item => item.productId !== '');
+    const filledItems = lineItems.filter((item) => item.productId !== "");
     if (!editingQuotationId && filledItems.length > 0) {
       updateCurrentData({
         quotationDate: quotationDate.toISOString(),
@@ -199,21 +203,24 @@ export default function QuotationEntry() {
         shippingAddress,
         taxType,
         salesman,
+        invoiceFormat,
         flatDiscountPercent,
         flatDiscountAmount,
         roundOff,
       });
     }
-  }, [quotationDate, validUntil, lineItems, selectedCustomerId, selectedCustomer, termsConditions, notes, shippingAddress, taxType, salesman, flatDiscountPercent, flatDiscountAmount, roundOff, editingQuotationId, updateCurrentData]);
+  }, [
+    quotationDate, validUntil, lineItems, selectedCustomerId, selectedCustomer,
+    termsConditions, notes, shippingAddress, taxType, salesman, invoiceFormat,
+    flatDiscountPercent, flatDiscountAmount, roundOff, editingQuotationId, updateCurrentData,
+  ]);
 
-  // Start auto-save when not in edit mode
   useEffect(() => {
     if (!editingQuotationId && !location.state?.editQuotationId) {
       startAutoSave();
     }
     return () => {
-      // Save draft immediately when component unmounts (tab switch, navigation)
-      const filledItems = lineItems.filter(item => item.productId !== '');
+      const filledItems = lineItems.filter((item) => item.productId !== "");
       if (!editingQuotationId && filledItems.length > 0) {
         saveDraft({
           quotationDate: quotationDate.toISOString(),
@@ -226,6 +233,7 @@ export default function QuotationEntry() {
           shippingAddress,
           taxType,
           salesman,
+          invoiceFormat,
           flatDiscountPercent,
           flatDiscountAmount,
           roundOff,
@@ -233,14 +241,38 @@ export default function QuotationEntry() {
       }
       stopAutoSave();
     };
-  }, [editingQuotationId, startAutoSave, stopAutoSave, location.state?.editQuotationId, lineItems, quotationDate, validUntil, selectedCustomerId, selectedCustomer, termsConditions, notes, shippingAddress, taxType, salesman, flatDiscountPercent, flatDiscountAmount, roundOff, saveDraft]);
+  }, [
+    editingQuotationId, startAutoSave, stopAutoSave, location.state?.editQuotationId,
+    lineItems, quotationDate, validUntil, selectedCustomerId, selectedCustomer,
+    termsConditions, notes, shippingAddress, taxType, salesman, invoiceFormat,
+    flatDiscountPercent, flatDiscountAmount, roundOff, saveDraft,
+  ]);
 
-  // Fetch settings for print (centralized, cached 5min)
   const { data: settings } = useSettings();
+  const saleSettings = (settings as any)?.sale_settings;
+
+  const invoiceTemplate = saleSettings?.invoice_template || "professional";
+  const effectiveBillFormat = useMemo((): PosBillFormat => {
+    const raw = (saleSettings?.sales_bill_format || "a4") as PosBillFormat;
+    return resolveSaleBillFormat(invoiceTemplate, raw, saleSettings?.invoice_paper_format);
+  }, [invoiceTemplate, saleSettings?.sales_bill_format, saleSettings?.invoice_paper_format]);
+
+  const invoiceWrapperFormat = useMemo(
+    () => toInvoiceWrapperFormat(effectiveBillFormat),
+    [effectiveBillFormat],
+  );
+
+  const enableWholesaleMode = invoiceFormat === "wholesale-size-grouping";
 
   const handlePrint = useReactToPrint({
     contentRef: printRef,
     documentTitle: `Quotation_${quotationNumber}`,
+    pageStyle: `@page { size: A4 portrait; margin: 10mm; }
+      ${INVOICE_PRINT_VISIBILITY_OVERRIDE_CSS}`,
+    onBeforePrint: () =>
+      new Promise<void>((resolve) => {
+        waitForPrintReady(printRef, resolve, { maxWait: 8000 });
+      }),
   });
 
   const customerForm = useForm<z.infer<typeof customerSchema>>({
@@ -254,87 +286,47 @@ export default function QuotationEntry() {
     },
   });
 
-  // Generate quotation number on load
   useEffect(() => {
     const generateQuotationNumber = async () => {
       if (!currentOrganization?.id || editingQuotationId) return;
-      
       try {
-        const { data, error } = await supabase.rpc('generate_quotation_number', {
-          p_organization_id: currentOrganization.id
+        const { data, error } = await supabase.rpc("generate_quotation_number", {
+          p_organization_id: currentOrganization.id,
         });
-        
         if (error) throw error;
         setQuotationNumber(data);
       } catch (error) {
-        console.error('Error generating quotation number:', error);
+        console.error("Error generating quotation number:", error);
       }
     };
-    
     generateQuotationNumber();
   }, [currentOrganization?.id, editingQuotationId]);
 
-  // Server-side customer search (replaces fetch-all loop)
   const { filteredCustomers, isLoading: isCustomersLoading } = useCustomerSearch(customerSearchInput);
 
-  // Fetch products with pagination - NO stock filter for quotations
-  const { data: productsData } = useQuery({
-    queryKey: ['products-all', currentOrganization?.id],
-    queryFn: async () => {
-      if (!currentOrganization?.id) return [];
-      const allProducts: any[] = [];
-      const PAGE_SIZE = 1000;
-      let offset = 0;
-      let hasMore = true;
-      
-      while (hasMore) {
-        const { data, error } = await supabase
-          .from('products')
-          .select(`id, product_name, brand, hsn_code, gst_per, product_type, status, category, style, color, size_group_id, uom, product_variants (id, barcode, size, color, stock_qty, sale_price, mrp, pur_price, product_id, active, deleted_at, organization_id)`)
-          .eq('organization_id', currentOrganization.id)
-          .eq('status', 'active')
-          .is('deleted_at', null)
-          .order('product_name')
-          .order('id')
-          .range(offset, offset + PAGE_SIZE - 1);
-        if (error) throw error;
-        if (data && data.length > 0) {
-          allProducts.push(...data);
-          offset += PAGE_SIZE;
-          hasMore = data.length === PAGE_SIZE;
-        } else {
-          hasMore = false;
-        }
-      }
-      // Filter out deleted variants
-      return allProducts.map((product: any) => ({
-        ...product,
-        product_variants: product.product_variants?.filter((v: any) => !v.deleted_at)
-      }));
-    },
-    enabled: !!currentOrganization?.id,
-    staleTime: 300000,
-    refetchOnWindowFocus: false,
-  });
+  useEffect(() => {
+    if (settings && !entryModeInitialized) {
+      setEntryMode(saleSettings?.defaultEntryMode === "inline" ? "inline" : "grid");
+      setEntryModeInitialized(true);
+    }
+  }, [settings, entryModeInitialized, saleSettings?.defaultEntryMode]);
 
-  // Fetch employees for Salesman dropdown
   const { data: employeesData } = useQuery({
-    queryKey: ['employees', currentOrganization?.id],
+    queryKey: ["employees", currentOrganization?.id],
     queryFn: async () => {
       if (!currentOrganization?.id) return [];
       const { data, error } = await supabase
-        .from('employees')
-        .select('*')
-        .eq('organization_id', currentOrganization.id)
-        .eq('status', 'active')
-        .order('employee_name');
+        .from("employees")
+        .select("id, employee_name, status")
+        .eq("organization_id", currentOrganization.id)
+        .eq("status", "active")
+        .order("employee_name");
       if (error) throw error;
       return data || [];
     },
     enabled: !!currentOrganization?.id,
   });
 
-  // Load edit data
   useEffect(() => {
     const quotationData = location.state?.quotationData;
     if (quotationData) {
@@ -348,7 +340,7 @@ export default function QuotationEntry() {
       setNotes(quotationData.notes || "");
       setShippingAddress(quotationData.shipping_address || "");
       setSalesman(quotationData.salesman || "");
-      
+
       if (quotationData.customer_id) {
         setSelectedCustomer({
           id: quotationData.customer_id,
@@ -358,7 +350,7 @@ export default function QuotationEntry() {
           address: quotationData.customer_address,
         });
       }
-      
+
       if (quotationData.quotation_items?.length > 0) {
         const items = quotationData.quotation_items.map((item: any, i: number) => ({
           id: `row-${i}`,
@@ -366,7 +358,7 @@ export default function QuotationEntry() {
           variantId: item.variant_id,
           productName: item.product_name,
           size: item.size,
-          barcode: item.barcode || '',
+          barcode: item.barcode || "",
           quantity: item.quantity,
           mrp: item.mrp,
           salePrice: item.unit_price,
@@ -374,15 +366,11 @@ export default function QuotationEntry() {
           discountAmount: 0,
           gstPercent: item.gst_percent,
           lineTotal: item.line_total,
-          hsnCode: item.hsn_code || '',
+          hsnCode: item.hsn_code || "",
+          color: item.color || "",
         }));
-        // Pad to 5 rows
-        while (items.length < 5) {
-          items.push({
-            id: `row-${items.length}`,
-            productId: '', variantId: '', productName: '', size: '', barcode: '',
-            quantity: 0, mrp: 0, salePrice: 0, discountPercent: 0, discountAmount: 0, gstPercent: 0, lineTotal: 0, hsnCode: '',
-          });
+        while (items.length < 7) {
+          items.push({ ...EMPTY_ROW(), id: `row-${items.length}` });
         }
         setLineItems(items);
       }
@@ -391,54 +379,114 @@ export default function QuotationEntry() {
 
   useEffect(() => {
     if (lineItems.length > 0) {
-      setLineItems(prev => prev.map(item => calculateLineTotal(item)));
+      setLineItems((prev) => prev.map((item) => calculateLineTotal(item)));
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [taxType]);
 
-  // Open size grid modal for a product
-  const openSizeGridForProduct = (product: any) => {
-    const variants = product.product_variants || [];
-    if (variants.length === 0) return;
-    
-    setSizeGridProduct(product);
-    setSizeGridVariants(variants.map((v: any) => ({
-      id: v.id,
-      size: v.size,
-      stock_qty: v.stock_qty || 0,
-      sale_price: v.sale_price,
-      color: v.color || product.color,
-      barcode: v.barcode,
-    })));
-    setShowSizeGrid(true);
+  const calculateLineTotal = (item: LineItem): LineItem => {
+    const baseAmount = item.salePrice * item.quantity;
+    const discountAmount = item.discountPercent > 0
+      ? (baseAmount * item.discountPercent) / 100
+      : item.discountAmount;
+    const amountAfterDiscount = baseAmount - discountAmount;
+
+    let lineTotal: number;
+    if (taxType === "inclusive") {
+      lineTotal = amountAfterDiscount;
+    } else {
+      const gstAmount = (amountAfterDiscount * item.gstPercent) / 100;
+      lineTotal = amountAfterDiscount + gstAmount;
+    }
+
+    return { ...item, discountAmount, lineTotal };
   };
 
-  // Handle size grid confirmation
+  const openSizeGridForProductGroup = useCallback(async (
+    productIds: string[],
+    selectedSalePrice?: number,
+  ) => {
+    if (!currentOrganization?.id || productIds.length === 0) return;
+
+    const primaryProductId = productIds[0];
+    const { data: productRow, error: productError } = await supabase
+      .from("products")
+      .select("id, product_name, brand, category, style, color, hsn_code, gst_per, size_group_id")
+      .eq("id", primaryProductId)
+      .eq("organization_id", currentOrganization.id)
+      .maybeSingle();
+
+    if (productError || !productRow) {
+      toast({ title: "Product not found", variant: "destructive" });
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("product_variants")
+      .select("id, size, color, barcode, sale_price, mrp, stock_qty, active, product_id")
+      .in("product_id", productIds)
+      .eq("organization_id", currentOrganization.id)
+      .eq("active", true)
+      .is("deleted_at", null);
+
+    if (error || !data?.length) {
+      toast({
+        title: "No variants found",
+        description: "This product has no active variants.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const cartQtyByVariant = new Map<string, number>();
+    for (const item of lineItems) {
+      if (item.variantId) {
+        cartQtyByVariant.set(
+          item.variantId,
+          (cartQtyByVariant.get(item.variantId) || 0) + item.quantity,
+        );
+      }
+    }
+
+    setSizeGridProduct(productRow);
+    setSizeGridVariants(
+      mergeSizeColorVariantsForGrid(data, {
+        selectedSalePrice,
+        cartQtyByVariant,
+        defaultColor: productRow.color || "",
+      }),
+    );
+    setShowSizeGrid(true);
+    setOpenProductSearch(false);
+    setSearchInput("");
+  }, [currentOrganization?.id, lineItems, toast, setOpenProductSearch, setSearchInput]);
+
   const handleSizeGridConfirm = (items: Array<{ variant: any; qty: number }>) => {
     const product = sizeGridProduct;
     if (!product) return;
 
-    // Build all changes first, then update state once
     let updatedItems = [...lineItems];
     let addedCount = 0;
 
     for (const { variant, qty } of items) {
-      // Check if already exists in working array
-      const existingIndex = updatedItems.findIndex(item => item.variantId === variant.id && item.productId !== '');
-      
+      if (qty <= 0) continue;
+      const existingIndex = updatedItems.findIndex(
+        (item) => item.variantId === variant.id && item.productId !== "",
+      );
+
       if (existingIndex >= 0) {
         updatedItems[existingIndex].quantity += qty;
         updatedItems[existingIndex] = calculateLineTotal(updatedItems[existingIndex]);
         addedCount++;
       } else {
-        // Find empty row in working array or add new
-        const emptyRowIndex = updatedItems.findIndex(item => item.productId === '');
+        const emptyRowIndex = updatedItems.findIndex((item) => item.productId === "");
         const newItem: LineItem = calculateLineTotal({
           id: emptyRowIndex >= 0 ? updatedItems[emptyRowIndex].id : `row-${updatedItems.length}`,
           productId: product.id,
           variantId: variant.id,
-          productName: product.product_name,
+          productName: buildProductDisplayName(product),
           size: variant.size,
-          barcode: variant.barcode || '',
+          barcode: variant.barcode || "",
           quantity: qty,
           mrp: variant.mrp || variant.sale_price || 0,
           salePrice: variant.sale_price || 0,
@@ -446,10 +494,10 @@ export default function QuotationEntry() {
           discountAmount: 0,
           gstPercent: product.gst_per || 0,
           lineTotal: 0,
-          hsnCode: product.hsn_code || '',
-          color: variant.color || product.color || '',
+          hsnCode: product.hsn_code || "",
+          color: variant.color || product.color || "",
         });
-        
+
         if (emptyRowIndex >= 0) {
           updatedItems[emptyRowIndex] = newItem;
         } else {
@@ -458,151 +506,258 @@ export default function QuotationEntry() {
         addedCount++;
       }
     }
-    
-    // Update state once with all changes
+
     setLineItems(updatedItems);
-    
+
     if (addedCount > 0) {
       toast({
         title: "Products Added",
         description: `${addedCount} size(s) added to quotation`,
       });
     }
-    
+
     setTimeout(() => {
-      tableEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      tableEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }, 100);
   };
 
-  const addProductToQuotation = (product: any, variant: any) => {
-    // If in grid mode, open size grid dialog
-    if (entryMode === "grid") {
-      openSizeGridForProduct(product);
-      setOpenProductSearch(false);
-      setSearchInput("");
+  const addProductToQuotation = useCallback((
+    result: SaleOrderVariantSearchResult,
+    options?: { skipSizeGrid?: boolean },
+  ) => {
+    if (entryMode === "grid" && !options?.skipSizeGrid) {
+      void openSizeGridForProductGroup([result.product_id], result.sale_price);
       return;
     }
 
-    const existingIndex = lineItems.findIndex(item => item.variantId === variant.id && item.productId !== '');
-    
+    const existingIndex = lineItems.findIndex(
+      (item) => item.variantId === result.id && item.productId !== "",
+    );
+
     if (existingIndex >= 0) {
       const updatedItems = [...lineItems];
       updatedItems[existingIndex].quantity += 1;
       updatedItems[existingIndex] = calculateLineTotal(updatedItems[existingIndex]);
       setLineItems(updatedItems);
     } else {
-      const emptyRowIndex = lineItems.findIndex(item => item.productId === '');
-      if (emptyRowIndex === -1) {
-        // Add new row
-        const newRow: LineItem = calculateLineTotal({
-          id: `row-${lineItems.length}`,
-          productId: product.id,
-          variantId: variant.id,
-          productName: product.product_name,
-          size: variant.size,
-          barcode: variant.barcode || '',
-          quantity: 1,
-          mrp: variant.mrp || variant.sale_price || 0,
-          salePrice: variant.sale_price || 0,
-          discountPercent: 0,
-          discountAmount: 0,
-          gstPercent: product.gst_per || 0,
-          lineTotal: 0,
-          hsnCode: product.hsn_code || '',
-          color: variant.color || product.color || '',
-        });
-        setLineItems(prev => [...prev, newRow]);
-      } else {
+      const emptyRowIndex = lineItems.findIndex((item) => item.productId === "");
+      const newItem = calculateLineTotal({
+        id: emptyRowIndex >= 0 ? lineItems[emptyRowIndex].id : `row-${lineItems.length}`,
+        productId: result.product_id,
+        variantId: result.id,
+        productName: buildProductDisplayName({
+          product_name: result.product_name,
+          brand: result.brand,
+          style: result.style,
+          category: result.category,
+        }),
+        size: result.size,
+        barcode: result.barcode || "",
+        quantity: 1,
+        mrp: result.mrp || result.sale_price || 0,
+        salePrice: result.sale_price || 0,
+        discountPercent: 0,
+        discountAmount: 0,
+        gstPercent: result.gst_per || 0,
+        lineTotal: 0,
+        hsnCode: result.hsn_code || "",
+        color: result.color || "",
+      });
+
+      if (emptyRowIndex >= 0) {
         const updatedItems = [...lineItems];
-        updatedItems[emptyRowIndex] = calculateLineTotal({
-          id: updatedItems[emptyRowIndex].id,
-          productId: product.id,
-          variantId: variant.id,
-          productName: product.product_name,
-          size: variant.size,
-          barcode: variant.barcode || '',
-          quantity: 1,
-          mrp: variant.mrp || variant.sale_price || 0,
-          salePrice: variant.sale_price || 0,
-          discountPercent: 0,
-          discountAmount: 0,
-          gstPercent: product.gst_per || 0,
-          lineTotal: 0,
-          hsnCode: product.hsn_code || '',
-          color: variant.color || product.color || '',
-        });
+        updatedItems[emptyRowIndex] = newItem;
         setLineItems(updatedItems);
+      } else {
+        setLineItems((prev) => [...prev, newItem]);
       }
     }
-    
+
     setOpenProductSearch(false);
     setSearchInput("");
-    toast({ title: "Product Added", description: `${product.product_name} (${variant.size}) added` });
-    
-    // Auto scroll to bottom
+    toast({
+      title: "Product Added",
+      description: `${result.product_name} (${result.size}) added`,
+    });
+
     setTimeout(() => {
-      tableEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      tableEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }, 100);
+  }, [entryMode, lineItems, openSizeGridForProductGroup, setOpenProductSearch, setSearchInput, toast, taxType]);
+
+  const selectProductSearchGroup = (group: SaleOrderProductSearchGroup) => {
+    void openSizeGridForProductGroup(group.productIds, group.representative.sale_price);
   };
 
-  const calculateLineTotal = (item: LineItem): LineItem => {
-    const baseAmount = item.salePrice * item.quantity;
-    const discountAmount = item.discountPercent > 0 
-      ? (baseAmount * item.discountPercent) / 100 
-      : item.discountAmount;
-    const amountAfterDiscount = baseAmount - discountAmount;
-    
-    let lineTotal: number;
-    if (taxType === "inclusive") {
-      lineTotal = amountAfterDiscount;
-    } else {
-      const gstAmount = (amountAfterDiscount * item.gstPercent) / 100;
-      lineTotal = amountAfterDiscount + gstAmount;
+  const selectSearchResult = (result: SaleOrderVariantSearchResult) => {
+    resolveSearchSelection(result, searchInput, {
+      onOpenSizeGrid: (productIds, salePrice) => {
+        void openSizeGridForProductGroup(productIds, salePrice);
+      },
+      onAddVariant: (r, opts) => addProductToQuotation(r, opts),
+    });
+  };
+
+  const searchAndAddByBarcode = useCallback(async (searchTerm: string) => {
+    const trimmed = searchTerm.trim();
+    if (!trimmed || !currentOrganization?.id) return;
+    if (processingBarcodeRef.current) return;
+
+    processingBarcodeRef.current = true;
+    barcodeScanner.markSubmitted(trimmed);
+    barcodeScanner.cancelAutoSubmit();
+
+    try {
+      const { data: dbVariant, error: dbError } = await supabase
+        .from("product_variants")
+        .select(`
+          id, barcode, size, color, stock_qty, sale_price, mrp, product_id,
+          products!inner(
+            id, product_name, brand, category, style, color, hsn_code, gst_per,
+            organization_id, status, deleted_at
+          )
+        `)
+        .eq("organization_id", currentOrganization.id)
+        .eq("barcode", trimmed)
+        .is("deleted_at", null)
+        .eq("products.organization_id", currentOrganization.id)
+        .eq("products.status", "active")
+        .is("products.deleted_at", null)
+        .order("active", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (dbError) {
+        console.error("Barcode lookup failed:", dbError);
+        toast({ title: "Search failed", variant: "destructive" });
+        return;
+      }
+
+      if (!dbVariant?.products) {
+        toast({
+          title: "Product not found",
+          description: `No product for barcode "${trimmed}"`,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const p = dbVariant.products as any;
+      const result: SaleOrderVariantSearchResult = {
+        id: dbVariant.id,
+        product_id: dbVariant.product_id,
+        size: dbVariant.size,
+        sale_price: dbVariant.sale_price || 0,
+        mrp: dbVariant.mrp || dbVariant.sale_price || 0,
+        barcode: dbVariant.barcode || "",
+        stock_qty: dbVariant.stock_qty || 0,
+        product_name: p.product_name,
+        brand: p.brand || "",
+        category: p.category || "",
+        color: dbVariant.color || p.color || "",
+        style: p.style || "",
+        gst_per: p.gst_per || 0,
+        hsn_code: p.hsn_code || "",
+      };
+
+      addProductToQuotation(result, { skipSizeGrid: true });
+      setBarcodeInput("");
+    } finally {
+      setTimeout(() => {
+        processingBarcodeRef.current = false;
+      }, 150);
     }
-    
-    return { ...item, discountAmount, lineTotal };
+  }, [currentOrganization?.id, addProductToQuotation, barcodeScanner, toast, setBarcodeInput]);
+
+  const handleBarcodeValueChange = (value: string) => {
+    setBarcodeInput(value);
+    const now = Date.now();
+    const timeSinceLastKeystroke = now - lastBarcodeInputTime.current;
+    barcodeScanner.recordKeystroke();
+    lastBarcodeInputTime.current = now;
+
+    const isScannerLike = barcodeScanner.detectScannerInput(value, timeSinceLastKeystroke);
+    if (isScannerLike || (value.length >= 4 && timeSinceLastKeystroke < 50)) {
+      barcodeScanner.scheduleAutoSubmit(value, (val) => {
+        void searchAndAddByBarcode(val);
+        setBarcodeInput("");
+        barcodeScanner.reset();
+      });
+    }
+  };
+
+  const handleBarcodeKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      const rawValue = e.currentTarget.value?.trim();
+      if (!rawValue) return;
+      e.preventDefault();
+      barcodeScanner.cancelAutoSubmit();
+      barcodeScanner.markSubmitted(rawValue);
+      void searchAndAddByBarcode(rawValue);
+      setBarcodeInput("");
+      barcodeScanner.reset();
+    }
   };
 
   const updateQuantity = (id: string, quantity: number) => {
     if (quantity < 1) return;
-    setLineItems(prev => prev.map(item => 
-      item.id === id ? calculateLineTotal({ ...item, quantity }) : item
-    ));
+    setLineItems((prev) =>
+      prev.map((item) => (item.id === id ? calculateLineTotal({ ...item, quantity }) : item)),
+    );
   };
 
   const updateDiscountPercent = (id: string, discountPercent: number) => {
-    setLineItems(prev => prev.map(item => 
-      item.id === id ? calculateLineTotal({ ...item, discountPercent, discountAmount: 0 }) : item
-    ));
+    setLineItems((prev) =>
+      prev.map((item) =>
+        item.id === id ? calculateLineTotal({ ...item, discountPercent, discountAmount: 0 }) : item,
+      ),
+    );
   };
 
   const updateSalePrice = (id: string, salePrice: number) => {
-    setLineItems(prev => prev.map(item => 
-      item.id === id ? calculateLineTotal({ ...item, salePrice }) : item
-    ));
+    setLineItems((prev) =>
+      prev.map((item) => (item.id === id ? calculateLineTotal({ ...item, salePrice }) : item)),
+    );
   };
 
   const updateGstPercent = (id: string, gstPercent: number) => {
-    setLineItems(prev => prev.map(item => 
-      item.id === id ? calculateLineTotal({ ...item, gstPercent }) : item
-    ));
+    setLineItems((prev) =>
+      prev.map((item) => (item.id === id ? calculateLineTotal({ ...item, gstPercent }) : item)),
+    );
   };
 
   const removeItem = (id: string) => {
-    setLineItems(prev => prev.map(item => 
-      item.id === id ? {
-        ...item, productId: '', variantId: '', productName: '', size: '', barcode: '',
-        quantity: 0, mrp: 0, salePrice: 0, discountPercent: 0, discountAmount: 0, gstPercent: 0, lineTotal: 0,
-      } : item
-    ));
+    setLineItems((prev) =>
+      prev.map((item) =>
+        item.id === id
+          ? {
+              ...item,
+              productId: "",
+              variantId: "",
+              productName: "",
+              size: "",
+              barcode: "",
+              quantity: 0,
+              mrp: 0,
+              salePrice: 0,
+              discountPercent: 0,
+              discountAmount: 0,
+              gstPercent: 0,
+              lineTotal: 0,
+              hsnCode: "",
+              color: "",
+            }
+          : item,
+      ),
+    );
   };
 
   const handleCreateCustomer = async (values: z.infer<typeof customerSchema>) => {
     try {
       if (!currentOrganization?.id) throw new Error("No organization selected");
-      
+
       const { createOrGetCustomer } = await import("@/utils/customerUtils");
-      
+
       const result = await createOrGetCustomer({
         customer_name: values.customer_name,
         phone: values.phone,
@@ -611,168 +766,49 @@ export default function QuotationEntry() {
         gst_number: values.gst_number,
         organization_id: currentOrganization.id,
       });
-      
+
       setSelectedCustomerId(result.customer.id);
       setSelectedCustomer(result.customer);
       customerForm.reset();
       setOpenCustomerDialog(false);
-      
+
       if (result.isExisting) {
-        toast({ title: "Customer Found", description: `${result.customer.customer_name} already exists and has been selected` });
+        toast({
+          title: "Customer Found",
+          description: `${result.customer.customer_name} already exists and has been selected`,
+        });
       } else {
-        toast({ title: "Customer Created", description: `${result.customer.customer_name} has been added` });
+        toast({
+          title: "Customer Created",
+          description: `${result.customer.customer_name} has been added`,
+        });
       }
     } catch (error: any) {
       toast({ variant: "destructive", title: "Error", description: error.message });
     }
   };
 
-  // Calculate totals
-  const filledItems = lineItems.filter(item => item.productId !== '');
-  const grossAmount = filledItems.reduce((sum, item) => sum + (item.salePrice * item.quantity), 0);
+  const filledItems = lineItems.filter((item) => item.productId !== "");
+  const grossAmount = filledItems.reduce((sum, item) => sum + item.salePrice * item.quantity, 0);
   const totalLineDiscount = filledItems.reduce((sum, item) => sum + item.discountAmount, 0);
   const amountAfterLineDiscount = grossAmount - totalLineDiscount;
-  
-  // Flat discount calculation
-  const calculatedFlatDiscount = flatDiscountPercent > 0 
-    ? (amountAfterLineDiscount * flatDiscountPercent) / 100 
+  const calculatedFlatDiscount = flatDiscountPercent > 0
+    ? (amountAfterLineDiscount * flatDiscountPercent) / 100
     : flatDiscountAmount;
   const amountAfterFlatDiscount = amountAfterLineDiscount - calculatedFlatDiscount;
-  
-  const totalGST = taxType === "exclusive" 
-    ? filledItems.reduce((sum, item) => sum + ((item.salePrice * item.quantity - item.discountAmount) * item.gstPercent / 100), 0)
+  const totalGST = taxType === "exclusive"
+    ? filledItems.reduce(
+        (sum, item) =>
+          sum + ((item.salePrice * item.quantity - item.discountAmount) * item.gstPercent) / 100,
+        0,
+      )
     : 0;
   const subtotal = amountAfterFlatDiscount + totalGST;
   const netAmount = subtotal + roundOff;
   const totalDiscount = totalLineDiscount + calculatedFlatDiscount;
-
-  // Inline search for product row - debounced
-  useEffect(() => {
-    if (!inlineSearchQuery || inlineSearchQuery.length < 1) {
-      setInlineSearchResults([]);
-      setShowInlineSearch(false);
-      return;
-    }
-
-    const timer = setTimeout(async () => {
-      try {
-        const query = inlineSearchQuery.toLowerCase().replace(/[%_(),."']/g, '');
-        if (!query) return;
-        
-        // Search products by name/brand/style
-        const { data: matchingProducts } = await supabase
-          .from("products")
-          .select("id")
-          .is("deleted_at", null)
-          .eq("organization_id", currentOrganization?.id)
-          .or(`product_name.ilike.%${query}%,brand.ilike.%${query}%,style.ilike.%${query}%`);
-
-        const productIds = matchingProducts?.map(p => p.id) || [];
-
-        // Search variants by barcode match
-        const { data: barcodeVariants } = await supabase
-          .from("product_variants")
-          .select(`
-            id, size, pur_price, sale_price, mrp, barcode, color, stock_qty, product_id,
-            products (id, product_name, brand, category, style, color, hsn_code, gst_per)
-          `)
-          .eq("active", true)
-          .is("deleted_at", null)
-          .eq("organization_id", currentOrganization?.id)
-          .ilike("barcode", `%${query}%`)
-          .limit(50);
-
-        // Search variants by matching product IDs
-        let productVariants: any[] = [];
-        if (productIds.length > 0) {
-          const { data } = await supabase
-            .from("product_variants")
-            .select(`
-              id, size, pur_price, sale_price, mrp, barcode, color, stock_qty, product_id,
-              products (id, product_name, brand, category, style, color, hsn_code, gst_per)
-            `)
-            .eq("active", true)
-            .is("deleted_at", null)
-            .eq("organization_id", currentOrganization?.id)
-            .in("product_id", productIds)
-            .limit(100);
-          productVariants = data || [];
-        }
-
-        // Merge and deduplicate
-        const allVariants = [...(barcodeVariants || []), ...productVariants];
-        const uniqueMap = new Map();
-        allVariants.forEach(v => uniqueMap.set(v.id, v));
-        const data = Array.from(uniqueMap.values());
-
-        const results = (data || []).map((v: any) => ({
-          id: v.id,
-          product_id: v.products?.id || "",
-          size: v.size,
-          sale_price: v.sale_price,
-          mrp: v.mrp || 0,
-          barcode: v.barcode || "",
-          stock_qty: v.stock_qty || 0,
-          product_name: v.products?.product_name || "",
-          brand: v.products?.brand || "",
-          category: v.products?.category || "",
-          color: v.color || v.products?.color || "",
-          style: v.products?.style || "",
-          gst_per: v.products?.gst_per || 0,
-          hsn_code: v.products?.hsn_code || "",
-        }));
-
-        setInlineSearchResults(results);
-        setSelectedInlineIndex(0);
-        setShowInlineSearch(true);
-      } catch (error) {
-        console.error("Inline search error:", error);
-      }
-    }, 150);
-
-    return () => clearTimeout(timer);
-  }, [inlineSearchQuery, currentOrganization?.id]);
-
-  const handleInlineProductSelect = (result: any) => {
-    setInlineSearchQuery("");
-    setShowInlineSearch(false);
-    setInlineSearchResults([]);
-
-    // Find the full product from productsData
-    const product = productsData?.find(p => p.id === result.product_id);
-    const variant = product?.product_variants?.find((v: any) => v.id === result.id);
-
-    if (product && variant) {
-      addProductToQuotation(product, variant);
-    } else {
-      // Fallback: create minimal product/variant from result
-      const fallbackProduct = {
-        id: result.product_id,
-        product_name: result.product_name,
-        brand: result.brand,
-        category: result.category,
-        style: result.style,
-        color: result.color,
-        gst_per: result.gst_per,
-        hsn_code: result.hsn_code,
-        product_variants: [result],
-      };
-      addProductToQuotation(fallbackProduct, result);
-    }
-  };
-
-  const formatInlineProductDescription = (result: any) => {
-    const parts = [result.product_name];
-    if (result.brand) parts.push(result.brand);
-    if (result.category) parts.push(result.category);
-    if (result.style) parts.push(result.style);
-    if (result.color) parts.push(result.color);
-    parts.push(result.size);
-    return parts.join(' | ');
-  };
+  const totalQty = filledItems.reduce((sum, item) => sum + item.quantity, 0);
 
   const handleSaveQuotation = async () => {
-    // PRIMARY GUARD: synchronous ref shared with handleSaveAndPrint (React state updates are async)
     if (savingRef.current) return { success: false };
     if (isSaving) return { success: false };
     savingRef.current = true;
@@ -795,9 +831,9 @@ export default function QuotationEntry() {
         organization_id: currentOrganization?.id,
         quotation_number: quotationNumber,
         quotation_date: quotationDate.toISOString(),
-        valid_until: validUntil.toISOString().split('T')[0],
+        valid_until: validUntil.toISOString().split("T")[0],
         customer_id: selectedCustomerId || null,
-        customer_name: selectedCustomer?.customer_name || 'Walk in Customer',
+        customer_name: selectedCustomer?.customer_name || "Walk in Customer",
         customer_phone: selectedCustomer?.phone || null,
         customer_email: selectedCustomer?.email || null,
         customer_address: selectedCustomer?.address || null,
@@ -808,7 +844,7 @@ export default function QuotationEntry() {
         gst_amount: totalGST,
         round_off: roundOff,
         net_amount: netAmount,
-        status: 'draft',
+        status: "draft",
         tax_type: taxType,
         notes,
         terms_conditions: termsConditions,
@@ -820,15 +856,19 @@ export default function QuotationEntry() {
 
       if (editingQuotationId) {
         const { error } = await supabase
-          .from('quotations')
+          .from("quotations")
           .update(quotationData)
-          .eq('id', editingQuotationId);
+          .eq("id", editingQuotationId)
+          .eq("organization_id", currentOrganization!.id);
         if (error) throw error;
-        
-        await supabase.from('quotation_items').delete().eq('quotation_id', editingQuotationId);
+
+        await supabase
+          .from("quotation_items")
+          .delete()
+          .eq("quotation_id", editingQuotationId);
       } else {
         const { data, error } = await supabase
-          .from('quotations')
+          .from("quotations")
           .insert([quotationData])
           .select()
           .single();
@@ -836,7 +876,7 @@ export default function QuotationEntry() {
         quotationId = data.id;
       }
 
-      const quotationItems = filledItems.map(item => ({
+      const quotationItems = filledItems.map((item) => ({
         quotation_id: quotationId,
         product_id: item.productId,
         variant_id: item.variantId,
@@ -853,38 +893,33 @@ export default function QuotationEntry() {
         hsn_code: item.hsnCode || null,
       }));
 
-      const { error: itemsError } = await supabase
-        .from('quotation_items')
-        .insert(quotationItems);
+      const { error: itemsError } = await supabase.from("quotation_items").insert(quotationItems);
       if (itemsError) throw itemsError;
 
-      // Auto-send WhatsApp quotation notification (does not block saving)
       if (selectedCustomer?.phone && currentOrganization?.id && !editingQuotationId) {
         try {
           const { data: whatsappSettings } = await (supabase as any)
-            .from('whatsapp_api_settings')
-            .select('is_active, auto_send_quotation, quotation_template_name')
-            .eq('organization_id', currentOrganization.id)
+            .from("whatsapp_api_settings")
+            .select("is_active, auto_send_quotation, quotation_template_name")
+            .eq("organization_id", currentOrganization.id)
             .maybeSingle();
 
           if (whatsappSettings?.is_active && whatsappSettings?.auto_send_quotation) {
-            const companyName = (settings as any)?.business_name || currentOrganization.name || 'Our Company';
-            const contactNumber = (settings as any)?.mobile_number || 'N/A';
-
-            const formattedDate = new Date(quotationDate).toLocaleDateString('en-IN', {
-              day: '2-digit',
-              month: 'short',
-              year: 'numeric',
+            const companyName = (settings as any)?.business_name || currentOrganization.name || "Our Company";
+            const contactNumber = (settings as any)?.mobile_number || "N/A";
+            const formattedDate = new Date(quotationDate).toLocaleDateString("en-IN", {
+              day: "2-digit",
+              month: "short",
+              year: "numeric",
             });
-            const formattedValidUntil = new Date(validUntil).toLocaleDateString('en-IN', {
-              day: '2-digit',
-              month: 'short',
-              year: 'numeric',
+            const formattedValidUntil = new Date(validUntil).toLocaleDateString("en-IN", {
+              day: "2-digit",
+              month: "short",
+              year: "numeric",
             });
-            const formattedAmount = `${Number(netAmount).toLocaleString('en-IN')}`;
-
+            const formattedAmount = `${Number(netAmount).toLocaleString("en-IN")}`;
             const templateParams = [
-              selectedCustomer.customer_name || 'Valued Customer',
+              selectedCustomer.customer_name || "Valued Customer",
               quotationNumber,
               formattedDate,
               formattedAmount,
@@ -892,24 +927,23 @@ export default function QuotationEntry() {
               companyName,
               contactNumber,
             ];
+            const messageText = `Hello ${selectedCustomer.customer_name || "Valued Customer"},\n\nYour quotation ${quotationNumber} has been created.\nAmount: ₹${formattedAmount}\nDate: ${formattedDate}\nValid Until: ${formattedValidUntil}\n\nThank you for your interest!\n${companyName}\n${contactNumber}`;
 
-            const messageText = `Hello ${selectedCustomer.customer_name || 'Valued Customer'},\n\nYour quotation ${quotationNumber} has been created.\nAmount: ₹${formattedAmount}\nDate: ${formattedDate}\nValid Until: ${formattedValidUntil}\n\nThank you for your interest!\n${companyName}\n${contactNumber}`;
-
-            await supabase.functions.invoke('send-whatsapp', {
+            await supabase.functions.invoke("send-whatsapp", {
               body: {
                 organizationId: currentOrganization.id,
                 phone: selectedCustomer.phone,
                 message: messageText,
-                templateType: 'quotation',
+                templateType: "quotation",
                 templateName: whatsappSettings.quotation_template_name || null,
                 templateParams,
                 referenceId: quotationId,
-                referenceType: 'quotation',
+                referenceType: "quotation",
               },
             });
           }
         } catch (e) {
-          console.error('WhatsApp auto-send failed (QuotationEntry):', e);
+          console.error("WhatsApp auto-send failed (QuotationEntry):", e);
         }
       }
 
@@ -924,607 +958,545 @@ export default function QuotationEntry() {
   };
 
   const handleSaveAndPrint = async () => {
-    // PRIMARY GUARD: shares savingRef with handleSaveQuotation so rapid Save→Save&Print is blocked
     if (savingRef.current) return;
     if (isSaving) return;
     savingRef.current = true;
     try {
-      await handleSaveAndPrintInner();
+      const result = await handleSaveQuotationInner();
+      if (result.success) {
+        setPrintData({
+          items: filledItems.map((item, index) => ({
+            sr: index + 1,
+            particulars: item.productName,
+            size: item.size,
+            barcode: item.barcode,
+            hsn: item.hsnCode || "",
+            qty: item.quantity,
+            rate: item.salePrice,
+            mrp: item.mrp,
+            sp: item.salePrice,
+            discountPercent: item.discountPercent,
+            total: item.lineTotal,
+            color: item.color || "",
+            gstPercent: item.gstPercent || 0,
+          })),
+          grossAmount,
+          discountAmount: totalDiscount,
+          taxableAmount: grossAmount - totalDiscount,
+          gstAmount: totalGST,
+          roundOff,
+          netAmount,
+        });
+
+        requestAnimationFrame(() => {
+          waitForPrintReady(printRef, () => {
+            handlePrint();
+            navigate("/quotation-dashboard");
+          }, { maxWait: 8000 });
+        });
+      }
     } finally {
       savingRef.current = false;
     }
   };
 
-  const handleSaveAndPrintInner = async () => {
-    const result = await handleSaveQuotationInner();
-    if (result.success) {
-      // Prepare print data
-      const printItems = filledItems.map((item, index) => ({
-        sr: index + 1,
-        particulars: item.productName,
-        size: item.size,
-        barcode: item.barcode,
-        hsn: '',
-        qty: item.quantity,
-        rate: item.salePrice,
-        mrp: item.mrp,
-        discountPercent: item.discountPercent,
-        total: item.lineTotal,
-      }));
-
-      setPrintData({
-        items: printItems,
-        grossAmount,
-        discountAmount: totalDiscount,
-        taxableAmount: grossAmount - totalDiscount,
-        gstAmount: totalGST,
-        roundOff: 0,
-        netAmount,
-      });
-
-      setTimeout(() => {
-        handlePrint();
-        navigate('/quotation-dashboard');
-      }, 100);
-    }
-  };
-
-  const filteredProducts = productsData?.filter(product => {
-    const searchLower = searchInput.toLowerCase();
-    const matchesProduct = product.product_name?.toLowerCase().includes(searchLower) ||
-      product.brand?.toLowerCase().includes(searchLower) ||
-      product.category?.toLowerCase().includes(searchLower) ||
-      product.style?.toLowerCase().includes(searchLower) ||
-      product.color?.toLowerCase().includes(searchLower);
-    const matchesVariant = product.product_variants?.some((v: any) => 
-      v.barcode?.toLowerCase().includes(searchLower) ||
-      v.color?.toLowerCase().includes(searchLower)
-    );
-    return matchesProduct || matchesVariant;
-  }) || [];
-
-  // Count total matching variants (not just products)
-  const totalMatchingVariants = filteredProducts.reduce(
-    (count, product) => count + (product.product_variants?.length || 0),
-    0
-  );
-
-  // Reset display limit when search changes
-  useEffect(() => {
-    setDisplayLimit(100);
-  }, [searchInput]);
-
   return (
-    <div className="w-full max-w-none p-2 sm:p-3 lg:p-4 space-y-4 sm:space-y-6">
-      <BackToDashboard />
-      
-      <Card className="p-6">
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <FileText className="h-6 w-6" />
-            {editingQuotationId ? 'Edit Quotation' : 'New Quotation'}
-          </h1>
-          <div className="flex items-center gap-2">
-            <Label>Quotation No:</Label>
-            <Input value={quotationNumber} readOnly className="w-40 bg-muted" />
+    <div className={cn(entryPageShellClass, "bg-white sale-order-readable min-h-0")} data-entry-form>
+      <header className="bg-white border-b-2 border-black shrink-0 flex flex-col">
+        <div className={cn("entry-page-header-row h-[52px] flex items-center gap-2", entryPageSectionX)}>
+          <div className="entry-page-header-leading flex items-center gap-2 sm:gap-3 min-w-0">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate("/quotation-dashboard")}
+              className="h-8 shrink-0 text-black hover:text-black hover:bg-black/5 border border-black/20 text-xs gap-1.5 font-bold"
+            >
+              <ChevronLeft className="h-4 w-4" />
+              <span className="hidden sm:inline">Dashboard</span>
+            </Button>
+            <div className="w-px h-6 bg-black/15 shrink-0" />
+            <FileText className="h-5 w-5 text-black shrink-0" />
+            <span className="text-black font-bold text-[15px] whitespace-nowrap hidden md:inline">
+              {editingQuotationId ? "Edit Quotation" : "New Quotation"}
+            </span>
+            <span className="border-2 border-black text-black font-mono text-[11px] font-bold px-3 py-1 rounded-md shrink-0">
+              {quotationNumber || "NEW"}
+            </span>
           </div>
         </div>
+      </header>
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          <div>
-            <Label>Quotation Date</Label>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" className={cn("w-full justify-start text-left font-normal")}>
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {format(quotationDate, "PPP")}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0">
-                <Calendar mode="single" selected={quotationDate} onSelect={(d) => d && setQuotationDate(d)} />
-              </PopoverContent>
-            </Popover>
-          </div>
-
-          <div>
-            <Label>Valid Until</Label>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" className={cn("w-full justify-start text-left font-normal")}>
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {format(validUntil, "PPP")}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0">
-                <Calendar mode="single" selected={validUntil} onSelect={(d) => d && setValidUntil(d)} />
-              </PopoverContent>
-            </Popover>
-          </div>
-
-          <div>
-            <Label>Customer</Label>
-            <div className="flex gap-2">
-              <Popover open={openCustomerSearch} onOpenChange={setOpenCustomerSearch}>
+      <main className={entryPageMainClass}>
+        <section className={cn("bg-white border-b border-black/10 py-2 shrink-0 shadow-sm", entryPageSectionX)}>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 items-start">
+            <div>
+              <Label className="text-[13px] font-bold text-black mb-1 block">Quotation Date</Label>
+              <Popover>
                 <PopoverTrigger asChild>
-                  <Button variant="outline" role="combobox" className="flex-1 justify-between font-normal">
-                    {selectedCustomer ? `${selectedCustomer.customer_name}${selectedCustomer.phone ? ` - ${selectedCustomer.phone}` : ''}` : "Select customer"}
-                    <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  <Button variant="outline" className="w-full justify-start text-left font-normal h-10 text-sm border-black/20">
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {format(quotationDate, "PPP")}
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-[350px] p-0" align="start">
-                  <Command shouldFilter={false}>
-                    <CommandInput 
-                      placeholder="Search by name or phone..." 
-                      value={customerSearchInput}
-                      onValueChange={setCustomerSearchInput}
-                    />
-                    <CommandList>
-                      <CommandEmpty>{isCustomersLoading ? "Searching..." : "No customer found."}</CommandEmpty>
-                      <CommandGroup>
-                        {filteredCustomers.map(customer => (
-                          <CommandItem
-                            key={customer.id}
-                            value={customer.id}
-                            onSelect={() => {
-                              setSelectedCustomerId(customer.id);
-                              setSelectedCustomer(customer);
-                              setOpenCustomerSearch(false);
-                              setCustomerSearchInput("");
-                            }}
-                          >
-                            <span className="font-medium">{customer.customer_name}</span>
-                            {customer.phone && <span className="ml-2 text-muted-foreground text-xs">{customer.phone}</span>}
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
-                    </CommandList>
-                  </Command>
+                <PopoverContent className="w-auto p-0">
+                  <Calendar mode="single" selected={quotationDate} onSelect={(d) => d && setQuotationDate(d)} />
                 </PopoverContent>
               </Popover>
-              <Button variant="outline" size="icon" onClick={() => setOpenCustomerDialog(true)}>
-                <Plus className="h-4 w-4" />
-              </Button>
             </div>
-          </div>
 
-          <div>
-            <Label>Tax Type</Label>
-            <Select value={taxType} onValueChange={(v: "exclusive" | "inclusive") => setTaxType(v)}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="exclusive">Exclusive GST</SelectItem>
-                <SelectItem value="inclusive">Inclusive GST</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div>
-            <Label>Salesman</Label>
-            <Select value={salesman || "none"} onValueChange={(v) => setSalesman(v === "none" ? "" : v)}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select Salesman" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">None</SelectItem>
-                {employeesData?.map(emp => (
-                  <SelectItem key={emp.id} value={emp.employee_name}>
-                    {emp.employee_name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-
-        {/* Product Search */}
-        <div className="mb-4 flex items-center gap-4 flex-wrap">
-          {/* Entry Mode Toggle */}
-          <div className="flex items-center gap-2">
-            <Label className="text-sm">Entry Mode:</Label>
-            <div className="flex items-center gap-2">
-              <span className={`text-sm ${entryMode === "grid" ? "font-semibold" : "text-muted-foreground"}`}>
-                Size Grid
-              </span>
-              <Switch
-                checked={entryMode === "inline"}
-                onCheckedChange={(checked) => setEntryMode(checked ? "inline" : "grid")}
-              />
-              <span className={`text-sm ${entryMode === "inline" ? "font-semibold" : "text-muted-foreground"}`}>
-                Inline
-              </span>
-            </div>
-          </div>
-
-          <Popover open={openProductSearch} onOpenChange={setOpenProductSearch}>
-            <PopoverTrigger asChild>
-              <Button variant="outline" className="flex-1 justify-start min-w-[300px]">
-                <Search className="mr-2 h-4 w-4" />
-                Search Products (No Stock Restriction)
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-[600px] p-0" align="start">
-              <Command>
-                <CommandInput placeholder="Search by name, barcode, brand, color, style..." value={searchInput} onValueChange={setSearchInput} />
-                <CommandList className="max-h-[400px]">
-                  <CommandEmpty>No products found</CommandEmpty>
-                  {totalMatchingVariants > displayLimit && (
-                    <div className="px-3 py-2 text-sm text-muted-foreground bg-muted/50 border-b flex items-center justify-between">
-                      <span>Showing {displayLimit} of {totalMatchingVariants} results</span>
-                      <Button
-                        variant="link"
-                        size="sm"
-                        className="h-auto p-0 text-primary"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          setDisplayLimit(prev => prev + 100);
-                        }}
-                      >
-                        Load More
-                      </Button>
-                    </div>
-                  )}
-                  <CommandGroup>
-                    {(() => {
-                      let variantCount = 0;
-                      return filteredProducts.map(product => 
-                        product.product_variants?.map((variant: any) => {
-                          if (variantCount >= displayLimit) return null;
-                          variantCount++;
-                          return (
-                            <CommandItem
-                              key={variant.id}
-                              onSelect={() => addProductToQuotation(product, variant)}
-                              className="cursor-pointer py-2"
-                            >
-                              <div className="flex flex-col w-full gap-1">
-                                <div className="flex justify-between items-center">
-                                  <span className="font-medium">{product.product_name}</span>
-                                  <span className="font-semibold text-primary">₹{variant.sale_price}</span>
-                                </div>
-                                <div className="flex justify-between items-center text-xs text-muted-foreground">
-                                  <div className="flex gap-2 flex-wrap">
-                                    {product.brand && <span className="bg-muted px-1.5 py-0.5 rounded">{product.brand}</span>}
-                                    {product.category && <span className="bg-muted px-1.5 py-0.5 rounded">{product.category}</span>}
-                                    {product.style && <span className="bg-muted px-1.5 py-0.5 rounded">{product.style}</span>}
-                                    {(variant.color || product.color) && (
-                                      <span className="bg-muted px-1.5 py-0.5 rounded">{variant.color || product.color}</span>
-                                    )}
-                                    <span className="bg-primary/10 text-primary px-1.5 py-0.5 rounded font-medium">Size: {variant.size}</span>
-                                  </div>
-                                  <div className="flex gap-2 items-center">
-                                    {variant.mrp && variant.mrp !== variant.sale_price && (
-                                      <span className="line-through">MRP: ₹{variant.mrp}</span>
-                                    )}
-                                    <span className={variant.stock_qty > 5 ? 'text-green-600' : variant.stock_qty > 0 ? 'text-orange-500' : 'text-destructive'}>
-                                      Stock: {variant.stock_qty}
-                                    </span>
-                                  </div>
-                                </div>
-                              </div>
-                            </CommandItem>
-                          );
-                        })
-                      );
-                    })()}
-                  </CommandGroup>
-                </CommandList>
-              </Command>
-            </PopoverContent>
-          </Popover>
-        </div>
-
-        {/* Line Items Table */}
-        <div className="border rounded-md overflow-hidden relative">
-          <ScrollArea className="h-[400px]" showScrollbar>
-            <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-8">#</TableHead>
-                <TableHead>Product</TableHead>
-                <TableHead>Barcode</TableHead>
-                <TableHead>HSN</TableHead>
-                <TableHead>Color</TableHead>
-                <TableHead>Size</TableHead>
-                <TableHead className="w-20">Qty</TableHead>
-                <TableHead className="w-24">Price</TableHead>
-                <TableHead className="w-20">Disc %</TableHead>
-                <TableHead className="w-20">GST %</TableHead>
-                <TableHead className="w-24 text-right">Total</TableHead>
-                <TableHead className="w-10"></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {lineItems.map((item, index) => (
-                <TableRow key={item.id} className={item.productId ? '' : 'opacity-50'}>
-                  <TableCell>{index + 1}</TableCell>
-                  <TableCell>{item.productName || '-'}</TableCell>
-                  <TableCell className="text-xs text-muted-foreground">{item.barcode || '-'}</TableCell>
-                  <TableCell className="text-xs text-muted-foreground">{item.hsnCode || '-'}</TableCell>
-                  <TableCell className="text-xs">{item.color || '-'}</TableCell>
-                  <TableCell>{item.size || '-'}</TableCell>
-                  <TableCell>
-                    {item.productId && (
-                      <Input
-                        type="number"
-                        min="1"
-                        value={item.quantity}
-                        onChange={(e) => updateQuantity(item.id, parseInt(e.target.value) || 1)}
-                        className="w-16 h-8"
-                      />
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    {item.productId && (
-                      <Input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={item.salePrice}
-                        onChange={(e) => updateSalePrice(item.id, parseFloat(e.target.value) || 0)}
-                        onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                        className="w-20 h-8"
-                      />
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    {item.productId && (
-                      <Input
-                        type="number"
-                        min="0"
-                        max="100"
-                        value={item.discountPercent}
-                        onChange={(e) => updateDiscountPercent(item.id, parseFloat(e.target.value) || 0)}
-                        onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                        className="w-16 h-8"
-                      />
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    {item.productId && (
-                      <Input
-                        type="number"
-                        min="0"
-                        max="100"
-                        value={item.gstPercent}
-                        onChange={(e) => updateGstPercent(item.id, parseFloat(e.target.value) || 0)}
-                        onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                        className="w-16 h-8"
-                      />
-                    )}
-                  </TableCell>
-                  <TableCell className="text-right font-medium">₹{item.lineTotal.toFixed(2)}</TableCell>
-                  <TableCell>
-                    {item.productId && (
-                      <Button variant="ghost" size="icon" onClick={() => removeItem(item.id)}>
-                        <X className="h-4 w-4" />
-                      </Button>
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))}
-              
-              {/* Inline Search Row - Always visible at bottom */}
-              <TableRow className="bg-accent/30 relative" style={{ zIndex: 50 }}>
-                <TableCell className="font-medium text-muted-foreground">
-                  {lineItems.filter(item => item.productId).length + 1}
-                </TableCell>
-                <TableCell colSpan={2} className="relative overflow-visible" style={{ overflow: 'visible' }}>
-                  <div className="relative" style={{ overflow: 'visible' }}>
-                    <Input
-                      ref={inlineSearchInputRef}
-                      value={inlineSearchQuery}
-                      onChange={(e) => setInlineSearchQuery(e.target.value)}
-                      onFocus={() => {
-                        if (inlineSearchQuery.length >= 1) {
-                          setShowInlineSearch(true);
-                        }
-                      }}
-                      onBlur={() => {
-                        setTimeout(() => setShowInlineSearch(false), 200);
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'ArrowDown') {
-                          e.preventDefault();
-                          if (inlineSearchResults.length > 0) {
-                            setSelectedInlineIndex(prev => 
-                              prev < inlineSearchResults.length - 1 ? prev + 1 : 0
-                            );
-                          }
-                        } else if (e.key === 'ArrowUp') {
-                          e.preventDefault();
-                          if (inlineSearchResults.length > 0) {
-                            setSelectedInlineIndex(prev => 
-                              prev > 0 ? prev - 1 : inlineSearchResults.length - 1
-                            );
-                          }
-                        } else if (e.key === 'Enter') {
-                          e.preventDefault();
-                          if (inlineSearchResults.length > 0) {
-                            handleInlineProductSelect(inlineSearchResults[selectedInlineIndex]);
-                          }
-                        }
-                      }}
-                      placeholder="Search product name, brand, barcode..."
-                      className="w-full pr-8"
-                    />
-                    <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-                    
-                    {/* Inline Search Dropdown - Using Portal */}
-                    {showInlineSearch && inlineSearchInputRef.current && createPortal(
-                      <div 
-                        className="bg-popover border border-border rounded-md shadow-xl max-h-80 overflow-auto"
-                        style={{ 
-                          position: 'fixed',
-                          top: inlineSearchInputRef.current.getBoundingClientRect().bottom + 4,
-                          left: inlineSearchInputRef.current.getBoundingClientRect().left,
-                          width: Math.max(450, inlineSearchInputRef.current.getBoundingClientRect().width),
-                          zIndex: 9999,
-                        }}
-                      >
-                        {inlineSearchResults.length > 0 ? (
-                          inlineSearchResults.map((result, idx) => (
-                            <button
-                              key={result.id + idx}
-                              onClick={() => handleInlineProductSelect(result)}
-                              onMouseEnter={() => setSelectedInlineIndex(idx)}
-                              className={cn(
-                                "w-full text-left px-4 py-3 text-popover-foreground border-b border-border last:border-0 transition-colors",
-                                idx === selectedInlineIndex ? "bg-accent" : "hover:bg-accent/50"
-                              )}
-                            >
-                              <div className="font-medium">{formatInlineProductDescription(result)}</div>
-                              <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                                {result.barcode && <span>Barcode: {result.barcode}</span>}
-                                <span className="text-primary font-medium">₹{result.sale_price?.toFixed(2) || '0.00'}</span>
-                                <span className={result.stock_qty > 5 ? 'text-green-600' : result.stock_qty > 0 ? 'text-orange-500' : 'text-destructive'}>
-                                  Stock: {result.stock_qty}
-                                </span>
-                              </div>
-                            </button>
-                          ))
-                        ) : inlineSearchQuery.length >= 1 ? (
-                          <div className="px-4 py-3 text-sm text-muted-foreground">
-                            No products found for "{inlineSearchQuery}"
-                          </div>
-                        ) : null}
-                      </div>,
-                      document.body
-                    )}
-                  </div>
-                </TableCell>
-                <TableCell colSpan={9} className="text-muted-foreground text-sm">
-                  Type to search or use the search button above
-                </TableCell>
-              </TableRow>
-            </TableBody>
-          </Table>
-          <div ref={tableEndRef} />
-          </ScrollArea>
-        </div>
-        <div className="mt-2 text-sm text-muted-foreground">
-          Total Items: {lineItems.filter(item => item.productId).length}
-        </div>
-
-        {/* Summary with Flat Discount & Round Off */}
-        <div className="mt-4 flex justify-between items-start">
-          <div className="grid grid-cols-2 gap-4 w-80">
             <div>
-              <Label>Flat Discount %</Label>
+              <Label className="text-[13px] font-bold text-black mb-1 block">Valid Until</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="w-full justify-start text-left font-normal h-10 text-sm border-black/20">
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {format(validUntil, "PPP")}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0">
+                  <Calendar mode="single" selected={validUntil} onSelect={(d) => d && setValidUntil(d)} />
+                </PopoverContent>
+              </Popover>
+            </div>
+
+            <div className="col-span-2 md:col-span-1 lg:col-span-2">
+              <Label className="text-[13px] font-bold text-black mb-1 block">Customer</Label>
+              <div className="flex gap-2">
+                <Popover open={openCustomerSearch} onOpenChange={setOpenCustomerSearch}>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" role="combobox" className="flex-1 justify-between font-normal h-10 border-black/20">
+                      {selectedCustomer
+                        ? `${selectedCustomer.customer_name}${selectedCustomer.phone ? ` - ${selectedCustomer.phone}` : ""}`
+                        : "Select customer"}
+                      <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[350px] p-0" align="start">
+                    <Command shouldFilter={false}>
+                      <CommandInput
+                        placeholder="Search by name or phone..."
+                        value={customerSearchInput}
+                        onValueChange={setCustomerSearchInput}
+                      />
+                      <CommandList>
+                        <CommandEmpty>{isCustomersLoading ? "Searching..." : "No customer found."}</CommandEmpty>
+                        <CommandGroup>
+                          {filteredCustomers.map((customer) => (
+                            <CommandItem
+                              key={customer.id}
+                              value={customer.id}
+                              onSelect={() => {
+                                setSelectedCustomerId(customer.id);
+                                setSelectedCustomer(customer);
+                                setOpenCustomerSearch(false);
+                                setCustomerSearchInput("");
+                              }}
+                            >
+                              <span className="font-medium">{customer.customer_name}</span>
+                              {customer.phone && (
+                                <span className="ml-2 text-muted-foreground text-xs">{customer.phone}</span>
+                              )}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+                <Button variant="outline" size="icon" className="h-10 border-black/20" onClick={() => setOpenCustomerDialog(true)}>
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+
+            <div>
+              <Label className="text-[13px] font-bold text-black mb-1 block">Tax Type</Label>
+              <Select value={taxType} onValueChange={(v: "exclusive" | "inclusive") => setTaxType(v)}>
+                <SelectTrigger className="h-10 text-sm border-black/20">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="exclusive">Exclusive GST</SelectItem>
+                  <SelectItem value="inclusive">Inclusive GST</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label className="text-[13px] font-bold text-black mb-1 block">Salesman</Label>
+              <Select value={salesman || "none"} onValueChange={(v) => setSalesman(v === "none" ? "" : v)}>
+                <SelectTrigger className="h-10 text-sm border-black/20">
+                  <SelectValue placeholder="Select Salesman" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">None</SelectItem>
+                  {employeesData?.map((emp) => (
+                    <SelectItem key={emp.id} value={emp.employee_name}>
+                      {emp.employee_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="col-span-2 md:col-span-1">
+              <Label className="text-[13px] font-bold text-black mb-1 block">Invoice Format</Label>
+              <Select
+                value={invoiceFormat}
+                onValueChange={(v: "standard" | "wholesale-size-grouping") => setInvoiceFormat(v)}
+              >
+                <SelectTrigger className="h-10 text-sm border-black/20">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="standard">Standard</SelectItem>
+                  <SelectItem value="wholesale-size-grouping">Modern Wholesale Size Grouping</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </section>
+
+        <EntryBillProductSearchBar
+          entryMode={entryMode}
+          onEntryModeChange={setEntryMode}
+          openProductSearch={openProductSearch}
+          onOpenProductSearchChange={setOpenProductSearch}
+          searchInput={searchInput}
+          onSearchInputChange={setSearchInput}
+          isProductSearching={isProductSearching}
+          displaySearchCount={displaySearchCount}
+          displayLimit={displayLimit}
+          onDisplayLimitIncrease={() => setDisplayLimit((prev) => prev + 100)}
+          productSearchGroups={productSearchGroups}
+          popoverSearchResults={popoverSearchResults}
+          onSelectGroup={selectProductSearchGroup}
+          onSelectResult={selectSearchResult}
+          barcodeValue={barcodeInput}
+          onBarcodeValueChange={handleBarcodeValueChange}
+          onBarcodeKeyDown={handleBarcodeKeyDown}
+          onBarcodeScanned={(barcode) => {
+            void searchAndAddByBarcode(barcode);
+            setBarcodeInput("");
+          }}
+          totalQty={totalQty}
+          noStockRestriction
+        />
+
+        <section className={cn("flex-1 min-h-0 pb-2 overflow-hidden bg-neutral-100 relative w-full min-w-0", entryPageSectionX)}>
+          <div className="h-full w-full min-w-0 overflow-x-auto overflow-y-auto isolate rounded-lg border border-black/15 shadow-sm bg-white">
+            <div className="bg-white min-h-full pb-4 w-full min-w-full">
+              <table className="w-full min-w-[1100px] table-fixed border-separate border-spacing-0 erp-desktop-table erp-entry-lines-table">
+                <thead className="sticky top-0 z-10">
+                  <tr className="bg-white border-b-2 border-black">
+                    <th className="text-center text-[13px] uppercase tracking-wide font-bold h-11 text-black px-2 w-10">#</th>
+                    <th className="text-left text-[13px] uppercase tracking-wide font-bold h-11 text-black px-2 min-w-[160px]">Product</th>
+                    <th className="text-center text-[13px] uppercase tracking-wide font-bold h-11 text-black px-2 w-24">Barcode</th>
+                    <th className="text-center text-[13px] uppercase tracking-wide font-bold h-11 text-black px-2 w-16">HSN</th>
+                    <th className="text-center text-[13px] uppercase tracking-wide font-bold h-11 text-black px-2 w-16">Color</th>
+                    <th className="text-center text-[13px] uppercase tracking-wide font-bold h-11 text-black px-2 w-16">Size</th>
+                    <th className="text-center text-[13px] uppercase tracking-wide font-bold h-11 text-black px-2 w-20">Qty</th>
+                    <th className="text-right text-[13px] uppercase tracking-wide font-bold h-11 text-black px-2 w-20">Price</th>
+                    <th className="text-right text-[13px] uppercase tracking-wide font-bold h-11 text-black px-2 w-16">Disc%</th>
+                    <th className="text-center text-[13px] uppercase tracking-wide font-bold h-11 text-black px-2 w-14">GST%</th>
+                    <th className="text-right text-[13px] uppercase tracking-wide font-bold h-11 text-black px-2 w-24 border-l-2 border-black">Total</th>
+                    <th className="w-8 h-11 bg-white" aria-hidden="true" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {(() => {
+                    if (filledItems.length === 0) {
+                      return Array.from({ length: 7 }, (_, i) => (
+                        <tr key={`empty-${i}`} className="h-[38px] border-b border-black/10">
+                          <td className="text-center text-[12px] text-black/30 px-2">{i + 1}</td>
+                          {Array.from({ length: 10 }).map((_, j) => (
+                            <td key={j} className="px-2" />
+                          ))}
+                        </tr>
+                      ));
+                    }
+
+                    const displayItems = filledItems.slice().reverse();
+                    const padCount = Math.max(0, 7 - displayItems.length);
+
+                    const itemRows = displayItems.map((item, displayIndex) => {
+                      const originalIndex = lineItems.findIndex((li) => li.id === item.id);
+                      return (
+                        <tr
+                          key={item.id}
+                          className={cn(
+                            "group border-b border-black/10 transition-colors",
+                            displayIndex % 2 === 0 ? "bg-white" : "bg-neutral-50",
+                            "hover:bg-neutral-100",
+                          )}
+                        >
+                          <td className="text-center text-[14px] font-bold text-black/70 px-2 py-2">{originalIndex + 1}</td>
+                          <td className="px-2 py-2 text-black font-bold break-words text-[14px]">{item.productName}</td>
+                          <td className="text-center font-mono text-[13px] px-2 py-2">{item.barcode || "—"}</td>
+                          <td className="text-center text-[13px] px-2 py-2">{item.hsnCode || "—"}</td>
+                          <td className="text-center text-[13px] font-semibold px-2 py-2">{item.color || "—"}</td>
+                          <td className="text-center text-[13px] font-bold px-2 py-2">{item.size || "—"}</td>
+                          <td className="text-center px-1 py-1">
+                            <Input
+                              type="number"
+                              min="1"
+                              value={item.quantity || ""}
+                              onChange={(e) => updateQuantity(item.id, parseInt(e.target.value) || 1)}
+                              onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                              className="w-16 h-9 text-center font-bold mx-auto border-black/20"
+                            />
+                          </td>
+                          <td className="text-right px-1 py-1">
+                            <Input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={item.salePrice || ""}
+                              onChange={(e) => updateSalePrice(item.id, parseFloat(e.target.value) || 0)}
+                              onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                              className="w-20 h-9 text-right ml-auto border-black/20 font-semibold"
+                            />
+                          </td>
+                          <td className="text-right px-1 py-1">
+                            <Input
+                              type="number"
+                              min="0"
+                              max="100"
+                              value={item.discountPercent || ""}
+                              onChange={(e) => updateDiscountPercent(item.id, parseFloat(e.target.value) || 0)}
+                              onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                              className="w-14 h-9 text-right ml-auto border-black/20"
+                            />
+                          </td>
+                          <td className="text-center px-1 py-1">
+                            <Input
+                              type="number"
+                              min="0"
+                              max="100"
+                              value={item.gstPercent || ""}
+                              onChange={(e) => updateGstPercent(item.id, parseFloat(e.target.value) || 0)}
+                              onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                              className="w-14 h-9 text-center mx-auto border-black/20"
+                            />
+                          </td>
+                          <td className="text-right px-2 py-2 border-l border-black/10 font-black font-mono tabular-nums">
+                            ₹{item.lineTotal.toFixed(2)}
+                          </td>
+                          <td className="px-0 py-1 text-center">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 opacity-0 group-hover:opacity-100"
+                              onClick={() => removeItem(item.id)}
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </Button>
+                          </td>
+                        </tr>
+                      );
+                    });
+
+                    const padRows = Array.from({ length: padCount }, (_, i) => (
+                      <tr key={`pad-${i}`} className="h-[38px] border-b border-black/10 bg-white">
+                        <td className="text-center text-[12px] text-black/30 px-2">{displayItems.length + i + 1}</td>
+                        {Array.from({ length: 10 }).map((_, j) => (
+                          <td key={j} className="px-2" />
+                        ))}
+                      </tr>
+                    ));
+
+                    return [...itemRows, ...padRows];
+                  })()}
+                </tbody>
+              </table>
+              <div ref={tableEndRef} />
+            </div>
+          </div>
+        </section>
+
+        {showNotesSection && (
+          <div className={cn("shrink-0 py-3 bg-white border-t border-black/10 max-h-[30vh] overflow-y-auto", entryPageSectionX)}>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
+                <Label className="text-[12px] font-bold text-black">Terms & Conditions</Label>
+                <Textarea
+                  value={termsConditions}
+                  onChange={(e) => setTermsConditions(e.target.value)}
+                  rows={3}
+                  className="text-[13px] bg-white border-black/20 mt-1"
+                />
+              </div>
+              <div>
+                <Label className="text-[12px] font-bold text-black">Notes</Label>
+                <Textarea
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  rows={3}
+                  className="text-[13px] bg-white border-black/20 mt-1"
+                />
+              </div>
+            </div>
+          </div>
+        )}
+      </main>
+
+      <footer className="entry-page-footer sale-order-footer shrink-0 relative z-40">
+        <div className="bg-white text-black border-t-2 border-black w-full">
+          <div className="flex items-center justify-between px-4 py-3 gap-4 w-full min-w-0 flex-wrap">
+            <div className="flex items-center gap-0 shrink-0 overflow-x-auto flex-wrap">
+              <span className="text-[14px] font-extrabold uppercase tracking-wide text-black mr-2 whitespace-nowrap">Flat Disc %</span>
               <Input
                 type="number"
                 min="0"
                 max="100"
-                value={flatDiscountPercent}
+                value={flatDiscountPercent || ""}
+                placeholder="0"
                 onChange={(e) => {
                   setFlatDiscountPercent(parseFloat(e.target.value) || 0);
                   setFlatDiscountAmount(0);
                 }}
-                className="h-10"
+                onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                className="w-[80px] h-10 text-[16px] text-right bg-white text-black font-extrabold font-mono border-2 border-black/20 rounded-sm"
               />
-            </div>
-            <div>
-              <Label>Flat Discount ₹</Label>
+              <div className="w-px h-8 bg-black/15 mx-3 shrink-0" />
+              <span className="text-[14px] font-extrabold uppercase tracking-wide text-black mr-2 whitespace-nowrap">Flat Disc ₹</span>
               <Input
                 type="number"
                 min="0"
-                value={flatDiscountAmount}
+                value={flatDiscountAmount || ""}
+                placeholder="0"
                 onChange={(e) => {
                   setFlatDiscountAmount(parseFloat(e.target.value) || 0);
                   setFlatDiscountPercent(0);
                 }}
-                className="h-10"
+                onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                className="w-[90px] h-10 text-[16px] text-right bg-white text-black font-extrabold font-mono border-2 border-black/20 rounded-sm"
               />
-            </div>
-            <div className="col-span-2">
-              <Label>Round Off</Label>
+              <div className="w-px h-8 bg-black/15 mx-3 shrink-0" />
+              <span className="text-[14px] font-extrabold uppercase tracking-wide text-black mr-2 whitespace-nowrap">Round</span>
               <Input
                 type="number"
                 step="0.01"
-                value={roundOff}
+                value={roundOff || ""}
+                placeholder="0"
                 onChange={(e) => setRoundOff(parseFloat(e.target.value) || 0)}
-                className="h-10"
+                onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                className="w-[100px] h-10 text-[16px] text-right bg-white text-black font-extrabold font-mono border-2 border-black/20 rounded-sm"
               />
             </div>
-          </div>
-          <div className="w-72 space-y-2">
-            <div className="flex justify-between"><span>Gross Amount:</span><span>₹{grossAmount.toFixed(2)}</span></div>
-            <div className="flex justify-between"><span>Line Discount:</span><span>-₹{totalLineDiscount.toFixed(2)}</span></div>
-            {calculatedFlatDiscount > 0 && (
-              <div className="flex justify-between"><span>Flat Discount:</span><span>-₹{calculatedFlatDiscount.toFixed(2)}</span></div>
-            )}
-            {taxType === "exclusive" && (
-              <div className="flex justify-between"><span>GST:</span><span>₹{totalGST.toFixed(2)}</span></div>
-            )}
-            {roundOff !== 0 && (
-              <div className="flex justify-between"><span>Round Off:</span><span>₹{roundOff.toFixed(2)}</span></div>
-            )}
-            <div className="flex justify-between font-bold text-lg border-t pt-2">
-              <span>Net Amount:</span><span>₹{netAmount.toFixed(2)}</span>
+            <div className="flex items-center gap-4 shrink-0">
+              <div className="hidden md:flex flex-col gap-0.5 pl-4 border-l border-black/15">
+                <div className="flex items-center justify-between gap-3 min-w-[120px]">
+                  <span className="text-[12px] uppercase tracking-wide font-extrabold text-black/70">Items</span>
+                  <span className="text-[16px] font-extrabold tabular-nums">{filledItems.length}</span>
+                </div>
+                <div className="flex items-center justify-between gap-3 min-w-[120px]">
+                  <span className="text-[12px] uppercase tracking-wide font-extrabold text-black/70">Total Qty</span>
+                  <span className="text-[16px] font-extrabold tabular-nums">{totalQty}</span>
+                </div>
+              </div>
+              <div className="hidden lg:flex flex-col gap-0.5 pl-4 border-l border-black/15">
+                <div className="flex items-center justify-between gap-3 min-w-[140px]">
+                  <span className="text-[12px] uppercase tracking-wide font-extrabold text-black/70">Gross</span>
+                  <span className="text-[16px] font-extrabold tabular-nums">₹{grossAmount.toFixed(0)}</span>
+                </div>
+                <div className="flex items-center justify-between gap-3 min-w-[140px]">
+                  <span className="text-[12px] uppercase tracking-wide font-extrabold text-black/70">Discount</span>
+                  <span className="text-[16px] font-extrabold tabular-nums">-₹{totalDiscount.toFixed(0)}</span>
+                </div>
+              </div>
+              <div className="pl-4 border-l-2 border-black flex flex-col items-end shrink-0">
+                <span className="text-[13px] font-extrabold uppercase tracking-wide text-black underline underline-offset-2">Net Amount</span>
+                <span className="text-[36px] font-black font-mono tabular-nums leading-none text-black tracking-tighter">
+                  ₹{netAmount.toLocaleString("en-IN")}
+                </span>
+              </div>
             </div>
           </div>
         </div>
-
-        {/* Notes & Terms */}
-        <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <Label>Terms & Conditions</Label>
-            <Textarea value={termsConditions} onChange={(e) => setTermsConditions(e.target.value)} rows={3} />
+        <div className="bg-neutral-100 border-t border-black/10 flex flex-wrap items-center px-4 py-2 gap-x-3 gap-y-1.5">
+          <div className="hidden xl:flex items-center gap-2 text-[14px] text-black font-mono flex-1 min-w-0 overflow-hidden whitespace-nowrap">
+            <span>Subtotal <span className="font-extrabold">₹{grossAmount.toFixed(0)}</span></span>
+            <span className="text-black/30">—</span>
+            <span>Disc <span className="font-extrabold">₹{totalDiscount.toFixed(0)}</span></span>
+            <span className="text-black/30">+</span>
+            <span>GST <span className="font-extrabold">₹{taxType === "exclusive" ? totalGST.toFixed(0) : "0"}</span></span>
+            <span className="text-black/30">=</span>
+            <span>Net <span className="font-black">₹{netAmount.toLocaleString("en-IN")}</span></span>
           </div>
-          <div>
-            <Label>Notes</Label>
-            <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} />
+          <div className="flex items-center gap-2 shrink-0 ml-auto">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowNotesSection((prev) => !prev)}
+              className="h-9 px-3 text-[13px] font-bold text-black hover:bg-black/5 gap-1.5 border border-black/15"
+            >
+              <FileText className="h-4 w-4" />
+              Notes
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate("/quotation-dashboard")}
+              className="h-9 px-3 text-[13px] font-bold text-red-700 hover:bg-red-50 gap-1.5 border border-red-200"
+            >
+              <X className="h-4 w-4" />
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              onClick={handleSaveAndPrint}
+              disabled={isSaving}
+              variant="outline"
+              className="h-9 px-4 text-[13px] font-extrabold gap-1.5 border-2 border-black text-black hover:bg-black/5"
+            >
+              <Printer className="h-4 w-4" />
+              Save & Print
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => handleSaveQuotation().then((r) => r.success && navigate("/quotation-dashboard"))}
+              disabled={isSaving}
+              className="h-9 px-5 text-[14px] bg-black text-white hover:bg-black/90 font-extrabold gap-1.5"
+            >
+              <Save className="h-4 w-4" />
+              {isSaving ? "Saving..." : "Save Quotation"}
+            </Button>
           </div>
         </div>
+      </footer>
 
-        {/* Actions */}
-        <div className="mt-6 flex gap-4">
-          <Button onClick={() => handleSaveQuotation().then(r => r.success && navigate('/quotation-dashboard'))} disabled={isSaving} className="flex-1">
-            <Save className="mr-2 h-4 w-4" />
-            {isSaving ? 'Saving...' : 'Save Quotation'}
-          </Button>
-          <Button onClick={handleSaveAndPrint} disabled={isSaving} variant="outline" className="flex-1">
-            <Printer className="mr-2 h-4 w-4" />
-            Save & Print
-          </Button>
-        </div>
-      </Card>
-
-      {/* Print Component (hidden) */}
-      <div className="hidden">
-        <QuotationPrint
-          ref={printRef}
-          businessName={settings?.business_name || ''}
-          address={settings?.address || ''}
-          mobile={settings?.mobile_number || ''}
-          email={settings?.email_id || ''}
-          gstNumber={settings?.gst_number || ''}
-          logoUrl=""
-          quotationNumber={quotationNumber}
-          quotationDate={quotationDate}
-          validUntil={validUntil}
-          customerName={selectedCustomer?.customer_name || 'Walk in Customer'}
-          customerAddress={selectedCustomer?.address}
-          customerMobile={selectedCustomer?.phone}
-          customerEmail={selectedCustomer?.email}
-          customerGSTIN={selectedCustomer?.gst_number}
-          items={printData?.items || []}
-          grossAmount={printData?.grossAmount || 0}
-          discountAmount={printData?.discountAmount || 0}
-          taxableAmount={printData?.taxableAmount || 0}
-          gstAmount={printData?.gstAmount || 0}
-          roundOff={0}
-          netAmount={printData?.netAmount || 0}
-          termsConditions={termsConditions}
-          notes={notes}
-          taxType={taxType}
-          salesman={salesman}
-        />
+      <div className="invoice-print-source-screen">
+        {printData ? (
+          <InvoiceWrapper
+            ref={printRef}
+            documentType="quotation"
+            template={invoiceTemplate}
+            format={invoiceWrapperFormat}
+            enableWholesaleMode={enableWholesaleMode}
+            billNo={quotationNumber}
+            date={quotationDate}
+            customerName={selectedCustomer?.customer_name || "Walk in Customer"}
+            customerAddress={selectedCustomer?.address || ""}
+            customerMobile={selectedCustomer?.phone || ""}
+            customerGSTIN={selectedCustomer?.gst_number || ""}
+            items={printData.items}
+            subTotal={printData.grossAmount}
+            discount={printData.discountAmount}
+            grandTotal={printData.netAmount}
+            roundOff={printData.roundOff}
+            taxType={taxType}
+            notes={notes ? `${notes}${validUntil ? `\nValid Until: ${format(validUntil, "dd MMM yyyy")}` : ""}` : `Valid Until: ${format(validUntil, "dd MMM yyyy")}`}
+            termsConditions={termsConditions ? termsConditions.split("\n").filter(Boolean) : undefined}
+            salesman={salesman}
+            showHSN={saleSettings?.show_hsn_column ?? true}
+            showMRP={saleSettings?.show_mrp_column ?? false}
+          />
+        ) : (
+          <div ref={printRef} />
+        )}
       </div>
 
-      {/* Create Customer Dialog */}
       <Dialog open={openCustomerDialog} onOpenChange={setOpenCustomerDialog}>
         <DialogContent>
           <DialogHeader>
@@ -1532,52 +1504,66 @@ export default function QuotationEntry() {
           </DialogHeader>
           <Form {...customerForm}>
             <form onSubmit={customerForm.handleSubmit(handleCreateCustomer)} className="space-y-4">
-              <FormField control={customerForm.control} name="phone" render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Mobile Number *</FormLabel>
-                  <FormControl><Input {...field} /></FormControl>
-                  <FormMessage />
-                </FormItem>
-              )} />
-              <FormField control={customerForm.control} name="customer_name" render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Name</FormLabel>
-                  <FormControl><Input {...field} /></FormControl>
-                  <FormMessage />
-                </FormItem>
-              )} />
-              <FormField control={customerForm.control} name="email" render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Email</FormLabel>
-                  <FormControl><Input {...field} /></FormControl>
-                  <FormMessage />
-                </FormItem>
-              )} />
-              <FormField control={customerForm.control} name="address" render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Address</FormLabel>
-                  <FormControl><Textarea {...field} /></FormControl>
-                  <FormMessage />
-                </FormItem>
-              )} />
+              <FormField
+                control={customerForm.control}
+                name="phone"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Mobile Number *</FormLabel>
+                    <FormControl><Input {...field} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={customerForm.control}
+                name="customer_name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Name</FormLabel>
+                    <FormControl><Input {...field} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={customerForm.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Email</FormLabel>
+                    <FormControl><Input {...field} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={customerForm.control}
+                name="address"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Address</FormLabel>
+                    <FormControl><Textarea {...field} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
               <Button type="submit" className="w-full">Create Customer</Button>
             </form>
           </Form>
         </DialogContent>
       </Dialog>
 
-      {/* Size Grid Dialog */}
       <SizeGridDialog
         open={showSizeGrid}
         onClose={() => setShowSizeGrid(false)}
         product={sizeGridProduct}
         variants={sizeGridVariants}
         onConfirm={handleSizeGridConfirm}
-        showStock={true}
+        showStock
         validateStock={false}
         title="Enter Size-wise Qty"
       />
-
     </div>
   );
 }

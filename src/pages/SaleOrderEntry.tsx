@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+﻿import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSettings } from "@/hooks/useSettings";
 import { useCustomerSearch } from "@/hooks/useCustomerSearch";
@@ -61,6 +61,14 @@ import { fetchCustomerProductPrice } from "@/hooks/useCustomerProductPrice";
 import { ProductHistoryDialog } from "@/components/ProductHistoryDialog";
 import { ERPVariantRow, groupVariantsByProduct } from "@/components/ERPVariantSearchDropdown";
 import { mergeSizeColorVariantsForGrid } from "@/utils/mergeSizeColorVariantsForGrid";
+import {
+  buildSaleOrderProductGroupKey,
+  enrichSaleOrderSearchGroups,
+  groupVariantsByProductFamily,
+  searchSaleOrderVariants,
+  type SaleOrderProductSearchGroup,
+  type SaleOrderVariantSearchResult,
+} from "@/utils/saleOrderProductSearch";
 
 interface LineItem {
   id: string;
@@ -90,428 +98,6 @@ const customerSchema = z.object({
   address: z.string().trim().max(500).optional(),
   gst_number: z.string().trim().max(15).optional(),
 });
-
-const VARIANT_SEARCH_SELECT = `
-  id, size, pur_price, sale_price, mrp, barcode, color, stock_qty, product_id,
-  products (id, product_name, brand, category, style, color, hsn_code, gst_per, uom, size_group_id)
-`;
-
-export type SaleOrderVariantSearchResult = {
-  id: string;
-  product_id: string;
-  size: string;
-  sale_price: number;
-  mrp: number;
-  barcode: string;
-  stock_qty: number;
-  product_name: string;
-  brand: string;
-  category: string;
-  color: string;
-  style: string;
-  gst_per: number;
-  hsn_code: string;
-  uom?: string;
-  size_range?: string | null;
-};
-
-/** Merged product row — same style family across colors / MRP product_ids (Size Stock parity). */
-export type SaleOrderProductSearchGroup = {
-  productName: string;
-  brand: string;
-  category: string;
-  style: string;
-  gst_per: number;
-  hsn_code: string;
-  uom?: string;
-  productIds: string[];
-  representative: SaleOrderVariantSearchResult;
-  variants: SaleOrderVariantSearchResult[];
-  totalStock: number;
-  sizeCount: number;
-  colorCount: number;
-  colors: string[];
-  size_range?: string | null;
-};
-
-function buildSaleOrderProductGroupKey(
-  v: Pick<SaleOrderVariantSearchResult, "product_name" | "brand" | "category" | "style">,
-  searchTerm?: string,
-): string {
-  const term = searchTerm?.trim().toLowerCase();
-  if (term && term.length >= 2) {
-    const haystack = `${v.product_name} ${v.brand} ${v.style} ${v.category}`.toLowerCase();
-    const compactHaystack = compactProductToken(haystack);
-    const compactTerm = compactProductToken(term);
-    if (
-      haystack.includes(term) ||
-      (compactTerm.length >= 2 && compactHaystack.includes(compactTerm))
-    ) {
-      return `search:${compactTerm || term}||${(v.brand || "").trim().toLowerCase()}`;
-    }
-  }
-  const brand = (v.brand || "").trim().toLowerCase();
-  const style = (v.style || "").trim().toLowerCase();
-  const category = (v.category || "").trim().toLowerCase();
-  if (style) return `family:${brand}||${style}||${category}`;
-  const name = (v.product_name || "").trim().toLowerCase();
-  return `name:${name}||${brand}||${category}`;
-}
-
-function sizeRangeFromGroup(sizes: string[] | undefined | null): string | null {
-  if (!sizes?.length) return null;
-  return sizes.length > 1 ? `${sizes[0]}-${sizes[sizes.length - 1]}` : sizes[0];
-}
-
-function attachSizeRangesToResults(
-  rows: any[],
-  sizeGroupsMap: Record<string, { sizes: string[] }>,
-): SaleOrderVariantSearchResult[] {
-  return rows.map((v) => {
-    const mapped = mapVariantSearchRow(v);
-    const sizeGroupId = v.products?.size_group_id as string | undefined;
-    const sizeGroup = sizeGroupId ? sizeGroupsMap[sizeGroupId] : null;
-    return {
-      ...mapped,
-      size_range: sizeRangeFromGroup(sizeGroup?.sizes),
-    };
-  });
-}
-
-/** Group variants by style family — merges colors + MRP product_id rows for one search row. */
-function groupVariantsByProductFamily(
-  results: SaleOrderVariantSearchResult[],
-  searchTerm?: string,
-): SaleOrderProductSearchGroup[] {
-  const productMap = new Map<
-    string,
-    {
-      productIds: Set<string>;
-      variants: SaleOrderVariantSearchResult[];
-      colors: Set<string>;
-      totalStockFromSample: number;
-    }
-  >();
-
-  for (const r of results) {
-    const groupKey = buildSaleOrderProductGroupKey(r, searchTerm);
-    if (!groupKey) continue;
-    if (!productMap.has(groupKey)) {
-      productMap.set(groupKey, {
-        productIds: new Set([r.product_id]),
-        variants: [r],
-        colors: new Set(r.color ? [r.color] : []),
-        totalStockFromSample: r.stock_qty || 0,
-      });
-      continue;
-    }
-    const group = productMap.get(groupKey)!;
-    group.productIds.add(r.product_id);
-    if (r.color) group.colors.add(r.color);
-    if (!group.variants.some((v) => v.id === r.id)) {
-      group.variants.push(r);
-      group.totalStockFromSample += r.stock_qty || 0;
-    }
-  }
-
-  return Array.from(productMap.values()).map((group) => {
-    const representative = group.variants.reduce(
-      (best, v) => ((v.stock_qty || 0) > (best.stock_qty || 0) ? v : best),
-      group.variants[0],
-    );
-    const uniqueSizes = new Set(group.variants.map((v) => v.size).filter(Boolean));
-    return {
-      productName: representative.product_name,
-      brand: representative.brand,
-      category: representative.category,
-      style: representative.style,
-      gst_per: representative.gst_per,
-      hsn_code: representative.hsn_code,
-      uom: representative.uom,
-      productIds: Array.from(group.productIds),
-      representative,
-      variants: group.variants,
-      totalStock: group.totalStockFromSample,
-      sizeCount: uniqueSizes.size || group.variants.length,
-      colorCount: group.colors.size,
-      colors: Array.from(group.colors),
-      size_range: representative.size_range,
-    };
-  });
-}
-
-function groupVariantsByProductName(
-  results: SaleOrderVariantSearchResult[],
-  searchTerm?: string,
-): SaleOrderProductSearchGroup[] {
-  return groupVariantsByProductFamily(results, searchTerm);
-}
-
-async function sumVariantStockForProducts(orgId: string, productIds: string[]): Promise<number> {
-  if (!productIds.length) return 0;
-  const { data, error } = await supabase
-    .from("product_variants")
-    .select("stock_qty")
-    .eq("organization_id", orgId)
-    .eq("active", true)
-    .is("deleted_at", null)
-    .in("product_id", productIds);
-  if (error) {
-    console.error("SaleOrderEntry: stock sum failed", error);
-    return 0;
-  }
-  return (data || []).reduce((sum, row) => sum + Number(row.stock_qty || 0), 0);
-}
-
-async function enrichSaleOrderSearchGroups(
-  orgId: string,
-  groups: SaleOrderProductSearchGroup[],
-  rawQuery: string,
-): Promise<SaleOrderProductSearchGroup[]> {
-  const expandedTerms = expandProductSearchTerms(rawQuery);
-  const primaryTerm = expandedTerms[0] || rawQuery.trim().toLowerCase();
-  if (!primaryTerm || groups.length === 0) return groups;
-
-  const productOrFilter = buildProductTextOrFilter(expandedTerms);
-  const { data: matchingProducts } = productOrFilter
-    ? await supabase
-        .from("products")
-        .select("id, product_name, brand, category, style, color")
-        .eq("organization_id", orgId)
-        .eq("status", "active")
-        .is("deleted_at", null)
-        .or(productOrFilter)
-    : { data: [] as { id: string; product_name: string; brand: string | null; category: string | null; style: string | null; color: string | null }[] };
-
-  return Promise.all(
-    groups.map(async (group) => {
-      const key = buildSaleOrderProductGroupKey(group.representative, rawQuery);
-      const mergedIds = new Set(group.productIds);
-      for (const p of matchingProducts || []) {
-        if (buildSaleOrderProductGroupKey({
-          product_name: p.product_name,
-          brand: p.brand || "",
-          category: p.category || "",
-          style: p.style || "",
-        }, rawQuery) === key) {
-          mergedIds.add(p.id);
-        }
-      }
-      const productIds = Array.from(mergedIds);
-      const totalStock = await sumVariantStockForProducts(orgId, productIds);
-
-      const colors = new Set(group.colors);
-      for (const p of matchingProducts || []) {
-        if (mergedIds.has(p.id) && p.color) colors.add(p.color);
-      }
-
-      return {
-        ...group,
-        productIds,
-        totalStock,
-        colorCount: colors.size,
-        colors: Array.from(colors),
-      };
-    }),
-  );
-}
-
-function mapVariantSearchRow(v: any): SaleOrderVariantSearchResult {
-  return {
-    id: v.id,
-    product_id: v.products?.id || v.product_id || "",
-    size: v.size,
-    sale_price: v.sale_price,
-    mrp: v.mrp || 0,
-    barcode: v.barcode || "",
-    stock_qty: v.stock_qty || 0,
-    product_name: v.products?.product_name || "",
-    brand: v.products?.brand || "",
-    category: v.products?.category || "",
-    color: v.color || v.products?.color || "",
-    style: v.products?.style || "",
-    gst_per: v.products?.gst_per || 0,
-    hsn_code: v.products?.hsn_code || "",
-    uom: v.products?.uom,
-  };
-}
-
-/** Server-side variant search — avoids broken PostgREST `.or()` with `.in()` on one query. */
-async function searchSaleOrderVariants(
-  orgId: string,
-  rawQuery: string,
-): Promise<SaleOrderVariantSearchResult[]> {
-  const normalized = rawQuery.trim().toLowerCase().replace(/[%_(),."']/g, "");
-  if (!normalized) return [];
-
-  const expandedTerms = expandProductSearchTerms(rawQuery);
-  const searchTerms = normalized.split(/\s+/).filter(Boolean);
-  const compactQuery = compactProductToken(rawQuery);
-
-  let productIds: string[] = [];
-  const productOrFilter = buildProductTextOrFilter(expandedTerms);
-  if (productOrFilter) {
-    const { data: matchingProducts } = await supabase
-      .from("products")
-      .select("id, product_name, brand, style, category")
-      .is("deleted_at", null)
-      .eq("organization_id", orgId)
-      .eq("status", "active")
-      .or(productOrFilter);
-    productIds = matchingProducts?.map((p) => p.id) || [];
-  }
-
-  // Compact code fallback: pul204 matches product_name "PUL 204" / "PUL-204"
-  if (productIds.length === 0 && compactQuery.length >= 3) {
-    const prefix = compactQuery.match(/^([a-z]+)\d/i)?.[1];
-    if (prefix && prefix.length >= 2) {
-      const { data: prefixProducts } = await supabase
-        .from("products")
-        .select("id, product_name, brand, style, category")
-        .is("deleted_at", null)
-        .eq("organization_id", orgId)
-        .eq("status", "active")
-        .ilike("product_name", `${prefix}%`)
-        .limit(250);
-      productIds = (prefixProducts || [])
-        .filter((p) =>
-          matchesCompactProductSearch(
-            {
-              product_name: p.product_name,
-              brand: p.brand || "",
-              style: p.style || "",
-              category: p.category || "",
-            },
-            rawQuery,
-          ),
-        )
-        .map((p) => p.id);
-    }
-  }
-
-  const barcodeOrTerms = expandedTerms
-    .map((term) => {
-      const safe = term.replace(/[%_]/g, "");
-      if (!safe) return [];
-      return [`barcode.ilike.%${safe}%`, `color.ilike.%${safe}%`];
-    })
-    .flat()
-    .join(",");
-
-  const { data: barcodeVariants } = barcodeOrTerms
-    ? await supabase
-        .from("product_variants")
-        .select(VARIANT_SEARCH_SELECT)
-        .eq("active", true)
-        .is("deleted_at", null)
-        .eq("organization_id", orgId)
-        .or(barcodeOrTerms)
-        .limit(50)
-    : { data: [] as any[] };
-
-  let productVariants: any[] = [];
-  if (productIds.length > 0) {
-    const { data } = await supabase
-      .from("product_variants")
-      .select(VARIANT_SEARCH_SELECT)
-      .eq("active", true)
-      .is("deleted_at", null)
-      .eq("organization_id", orgId)
-      .in("product_id", productIds)
-      .limit(100);
-    productVariants = data || [];
-  }
-
-  if (productIds.length === 0) {
-    const fuzzyOr = expandedTerms
-      .map((term) => {
-        const safe = term.replace(/[%_]/g, "");
-        if (!safe) return [];
-        return [`color.ilike.%${safe}%`, `size.ilike.%${safe}%`];
-      })
-      .flat()
-      .join(",");
-    if (fuzzyOr) {
-      const { data: fuzzyVariants } = await supabase
-        .from("product_variants")
-        .select(VARIANT_SEARCH_SELECT)
-        .eq("active", true)
-        .is("deleted_at", null)
-        .eq("organization_id", orgId)
-        .or(fuzzyOr)
-        .limit(50);
-      productVariants = fuzzyVariants || [];
-    }
-  }
-
-  const uniqueMap = new Map<string, any>();
-  [...(barcodeVariants || []), ...productVariants].forEach((v) => uniqueMap.set(v.id, v));
-
-  const mergedRows = Array.from(uniqueMap.values());
-  const sizeGroupIds = [
-    ...new Set(mergedRows.map((v) => v.products?.size_group_id).filter(Boolean)),
-  ] as string[];
-
-  let sizeGroupsMap: Record<string, { sizes: string[] }> = {};
-  if (sizeGroupIds.length > 0) {
-    const { data: sizeGroups } = await supabase
-      .from("size_groups")
-      .select("id, sizes")
-      .in("id", sizeGroupIds);
-    sizeGroups?.forEach((sg: { id: string; sizes: string[] | null }) => {
-      sizeGroupsMap[sg.id] = { sizes: sg.sizes || [] };
-    });
-  }
-
-  let results = attachSizeRangesToResults(mergedRows, sizeGroupsMap);
-
-  if (searchTerms.length > 1) {
-    results = results.filter((r) => {
-      const haystack =
-        `${r.product_name} ${r.brand} ${r.category} ${r.style}`.toLowerCase();
-      const variantHaystack = `${r.color} ${r.size} ${r.barcode}`.toLowerCase();
-      const combined = `${haystack} ${variantHaystack}`;
-      const compactCombined = compactProductToken(combined);
-      return searchTerms.every(
-        (term) =>
-          combined.includes(term) ||
-          (compactQuery.length >= 2 && compactCombined.includes(compactProductToken(term))),
-      );
-    });
-  } else if (compactQuery.length >= 2) {
-    const compactMatches = results.filter((r) =>
-      matchesCompactProductSearch(
-        {
-          product_name: r.product_name,
-          brand: r.brand,
-          style: r.style,
-          category: r.category,
-          barcode: r.barcode,
-          color: r.color,
-          size: r.size,
-        },
-        rawQuery,
-      ),
-    );
-    if (compactMatches.length > 0) {
-      const compactIds = new Set(compactMatches.map((r) => r.id));
-      const rest = results.filter((r) => !compactIds.has(r.id));
-      results = [...compactMatches, ...rest];
-    }
-  }
-
-  return [...results].sort((a, b) => {
-    const scoreA = scoreProductSearchMatch(
-      { product_name: a.product_name, brand: a.brand, style: a.style, category: a.category, barcode: a.barcode },
-      rawQuery,
-    );
-    const scoreB = scoreProductSearchMatch(
-      { product_name: b.product_name, brand: b.brand, style: b.style, category: b.category, barcode: b.barcode },
-      rawQuery,
-    );
-    return scoreB - scoreA;
-  });
-}
 
 export default function SaleOrderEntry() {
   const { toast } = useToast();
@@ -571,7 +157,7 @@ export default function SaleOrderEntry() {
   const [roundOff, setRoundOff] = useState<number>(0);
   const initialDraftCheckDone = useRef(false);
 
-  // Size grid entry mode — Sale Order always supports grid/inline toggle (not gated by Sales Invoice setting).
+  // Size grid entry mode â€” Sale Order always supports grid/inline toggle (not gated by Sales Invoice setting).
   const [entryMode, setEntryMode] = useState<"grid" | "inline">("grid");
   const [entryModeInitialized, setEntryModeInitialized] = useState(false);
   const [showSizeGrid, setShowSizeGrid] = useState(false);
@@ -914,7 +500,7 @@ export default function SaleOrderEntry() {
     }
   }, [taxType]);
 
-  // Open size grid — fetch all variants (merged product ids = all MRP rows for same name).
+  // Open size grid â€” fetch all variants (merged product ids = all MRP rows for same name).
   const openSizeGridForProductGroup = useCallback(async (
     productIds: string[],
     selectedSalePrice?: number,
@@ -1083,7 +669,7 @@ export default function SaleOrderEntry() {
       // Sale Price = customer's last sale price, MRP = actual product MRP
       if (!overridePrice && customerPrice !== null) {
         overridePrice = {
-          sale_price: customerPrice.sale_price,  // Use customer's last sale price (e.g., ₹54)
+          sale_price: customerPrice.sale_price,  // Use customer's last sale price (e.g., â‚¹54)
           mrp: masterMrp,                        // MRP = actual product MRP (unchanged)
         };
       }
@@ -1274,7 +860,7 @@ export default function SaleOrderEntry() {
     return { color: 'text-red-600', icon: AlertTriangle, text: `${diff} short` };
   };
 
-  // Popover product search — server-side (client cache can miss variants)
+  // Popover product search â€” server-side (client cache can miss variants)
   useEffect(() => {
     if (!searchInput || searchInput.length < 1 || !currentOrganization?.id) {
       setPopoverSearchResults([]);
@@ -1552,10 +1138,10 @@ export default function SaleOrderEntry() {
             // Build itemized list with color
             const itemLines = orderItems.map((item: any) => {
               const colorPart = item.color ? ` - ${item.color}` : '';
-              return `• ${item.product_name}${colorPart} (${item.size}) x ${item.order_qty} = ₹${Number(item.line_total).toLocaleString('en-IN')}`;
+              return `â€¢ ${item.product_name}${colorPart} (${item.size}) x ${item.order_qty} = â‚¹${Number(item.line_total).toLocaleString('en-IN')}`;
             }).join('\n');
 
-            const messageText = `🛒 *Sales Order Confirmation*\n\nOrder No: ${savedOrderNumber}\nCustomer: ${selectedCustomer.customer_name || 'Valued Customer'}\n\n*Items:*\n${itemLines}\n\n*Total: ₹${formattedAmount}*\nOrder Date: ${formattedDate}\nExpected Delivery: ${formattedDelivery}\n\nThank you for your order!\n${companyName}\n${contactNumber}`;
+            const messageText = `ðŸ›’ *Sales Order Confirmation*\n\nOrder No: ${savedOrderNumber}\nCustomer: ${selectedCustomer.customer_name || 'Valued Customer'}\n\n*Items:*\n${itemLines}\n\n*Total: â‚¹${formattedAmount}*\nOrder Date: ${formattedDate}\nExpected Delivery: ${formattedDelivery}\n\nThank you for your order!\n${companyName}\n${contactNumber}`;
 
             await supabase.functions.invoke('send-whatsapp', {
               body: {
@@ -1963,7 +1549,7 @@ export default function SaleOrderEntry() {
                                 </span>
                               </div>
                               <span className="shrink-0 text-base font-bold text-primary group-data-[selected=true]:text-white">
-                                ₹{(group.representative.sale_price || 0).toFixed(2)}
+                                â‚¹{(group.representative.sale_price || 0).toFixed(2)}
                               </span>
                             </div>
                             <div className="flex items-center justify-between gap-2 text-sm">
@@ -2097,10 +1683,10 @@ export default function SaleOrderEntry() {
                             {item.productName}
                           </button>
                         </td>
-                        <td className="text-center font-mono text-[13px] px-2 py-2">{item.barcode || "—"}</td>
-                        <td className="text-center text-[13px] px-2 py-2">{item.hsnCode || "—"}</td>
-                        <td className="text-center text-[13px] font-semibold px-2 py-2">{item.color || "—"}</td>
-                        <td className="text-center text-[13px] font-bold px-2 py-2">{item.size || "—"}</td>
+                        <td className="text-center font-mono text-[13px] px-2 py-2">{item.barcode || "â€”"}</td>
+                        <td className="text-center text-[13px] px-2 py-2">{item.hsnCode || "â€”"}</td>
+                        <td className="text-center text-[13px] font-semibold px-2 py-2">{item.color || "â€”"}</td>
+                        <td className="text-center text-[13px] font-bold px-2 py-2">{item.size || "â€”"}</td>
                         <td className="text-center px-1 py-1">
                           <Input
                             type="number"
@@ -2187,7 +1773,7 @@ export default function SaleOrderEntry() {
                           />
                         </td>
                         <td className="text-right px-2 py-2 border-l border-black/10 font-black font-mono tabular-nums">
-                          ₹{item.lineTotal.toFixed(2)}
+                          â‚¹{item.lineTotal.toFixed(2)}
                         </td>
                         <td className="px-0 py-1 text-center">
                           <Button variant="ghost" size="icon" className="h-7 w-7 opacity-0 group-hover:opacity-100" onClick={() => removeItem(item.id)}>
@@ -2250,7 +1836,7 @@ export default function SaleOrderEntry() {
                 className="w-[80px] h-10 text-[16px] text-right bg-white text-black font-extrabold font-mono border-2 border-black/20 rounded-sm"
               />
               <div className="w-px h-8 bg-black/15 mx-3 shrink-0" />
-              <span className="text-[14px] font-extrabold uppercase tracking-wide text-black mr-2 whitespace-nowrap">Flat Disc ₹</span>
+              <span className="text-[14px] font-extrabold uppercase tracking-wide text-black mr-2 whitespace-nowrap">Flat Disc â‚¹</span>
               <Input
                 type="number"
                 min="0"
@@ -2289,17 +1875,17 @@ export default function SaleOrderEntry() {
               <div className="hidden lg:flex flex-col gap-0.5 pl-4 border-l border-black/15">
                 <div className="flex items-center justify-between gap-3 min-w-[140px]">
                   <span className="text-[12px] uppercase tracking-wide font-extrabold text-black/70">Gross</span>
-                  <span className="text-[16px] font-extrabold tabular-nums">₹{grossAmount.toFixed(0)}</span>
+                  <span className="text-[16px] font-extrabold tabular-nums">â‚¹{grossAmount.toFixed(0)}</span>
                 </div>
                 <div className="flex items-center justify-between gap-3 min-w-[140px]">
                   <span className="text-[12px] uppercase tracking-wide font-extrabold text-black/70">Discount</span>
-                  <span className="text-[16px] font-extrabold tabular-nums">-₹{totalDiscount.toFixed(0)}</span>
+                  <span className="text-[16px] font-extrabold tabular-nums">-â‚¹{totalDiscount.toFixed(0)}</span>
                 </div>
               </div>
               <div className="pl-4 border-l-2 border-black flex flex-col items-end shrink-0">
                 <span className="text-[13px] font-extrabold uppercase tracking-wide text-black underline underline-offset-2">Net Amount</span>
                 <span className="text-[36px] font-black font-mono tabular-nums leading-none text-black tracking-tighter">
-                  ₹{netAmount.toLocaleString("en-IN")}
+                  â‚¹{netAmount.toLocaleString("en-IN")}
                 </span>
               </div>
             </div>
@@ -2307,13 +1893,13 @@ export default function SaleOrderEntry() {
         </div>
         <div className="bg-neutral-100 border-t border-black/10 flex flex-wrap items-center px-4 py-2 gap-x-3 gap-y-1.5">
           <div className="hidden xl:flex items-center gap-2 text-[14px] text-black font-mono flex-1 min-w-0 overflow-hidden whitespace-nowrap">
-            <span>Subtotal <span className="font-extrabold">₹{grossAmount.toFixed(0)}</span></span>
-            <span className="text-black/30">—</span>
-            <span>Disc <span className="font-extrabold">₹{totalDiscount.toFixed(0)}</span></span>
+            <span>Subtotal <span className="font-extrabold">â‚¹{grossAmount.toFixed(0)}</span></span>
+            <span className="text-black/30">â€”</span>
+            <span>Disc <span className="font-extrabold">â‚¹{totalDiscount.toFixed(0)}</span></span>
             <span className="text-black/30">+</span>
-            <span>GST <span className="font-extrabold">₹{taxType === "exclusive" ? totalGST.toFixed(0) : "0"}</span></span>
+            <span>GST <span className="font-extrabold">â‚¹{taxType === "exclusive" ? totalGST.toFixed(0) : "0"}</span></span>
             <span className="text-black/30">=</span>
-            <span>Net <span className="font-black">₹{netAmount.toLocaleString("en-IN")}</span></span>
+            <span>Net <span className="font-black">â‚¹{netAmount.toLocaleString("en-IN")}</span></span>
           </div>
           <div className="flex items-center gap-2 shrink-0 ml-auto">
             <Button
@@ -2357,7 +1943,7 @@ export default function SaleOrderEntry() {
         </div>
       </footer>
 
-      {/* Off-screen print source — do not use Tailwind hidden (blanks react-to-print) */}
+      {/* Off-screen print source â€” do not use Tailwind hidden (blanks react-to-print) */}
       <div className="invoice-print-source-screen">
         <SaleOrderPrint
           ref={printRef}
