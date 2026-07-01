@@ -58,7 +58,18 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { format, formatDistanceToNow, startOfMonth, startOfQuarter, startOfYear, endOfMonth, endOfQuarter, endOfYear } from "date-fns";
+import {
+  format,
+  formatDistanceToNow,
+  startOfMonth,
+  startOfQuarter,
+  startOfYear,
+  endOfMonth,
+  endOfQuarter,
+  endOfYear,
+  subMonths,
+  parse,
+} from "date-fns";
 import { cn } from "@/lib/utils";
 import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
 import { restoreDashboardFilters } from "@/lib/dashboardFilterPersistence";
@@ -195,8 +206,26 @@ type DashStats = {
 /** Hint only — never auto-fetch when cache is older than this. */
 const DASHBOARD_CACHE_STALE_MS = 30 * 60 * 1000;
 
-const getDateRange = (type: DateRangeType) => {
-  const now = new Date();
+const MONTH_PICKER_OPTIONS_COUNT = 36;
+
+function buildMonthPickerOptions(count = MONTH_PICKER_OPTIONS_COUNT) {
+  const anchor = startOfMonth(new Date());
+  return Array.from({ length: count }, (_, i) => {
+    const d = subMonths(anchor, i);
+    return {
+      value: format(d, "yyyy-MM"),
+      label: format(d, "MMMM yyyy"),
+    };
+  });
+}
+
+function monthKeyToDate(monthKey: string): Date {
+  const parsed = parse(monthKey, "yyyy-MM", new Date());
+  return Number.isNaN(parsed.getTime()) ? startOfMonth(new Date()) : startOfMonth(parsed);
+}
+
+const getDateRange = (type: DateRangeType, referenceDate?: Date) => {
+  const now = referenceDate ?? new Date();
   switch (type) {
     case "monthly":
       return {
@@ -231,14 +260,26 @@ const DesktopDashboard = () => {
   const { hasAccess: hasFieldSalesAccess, employeeName } = useFieldSalesAccess();
   const { isAdmin, hasSpecialPermission, hasMenuAccess, permissions, loading: permissionsLoading } = useUserPermissions();
   const [dateRange, setDateRange] = useState<DateRangeType>("monthly");
+  const [selectedMonthKey, setSelectedMonthKey] = useState(() =>
+    format(startOfMonth(new Date()), "yyyy-MM"),
+  );
+  const monthPickerOptions = useMemo(() => {
+    const base = buildMonthPickerOptions();
+    if (base.some((o) => o.value === selectedMonthKey)) return base;
+    const d = monthKeyToDate(selectedMonthKey);
+    return [{ value: selectedMonthKey, label: format(d, "MMMM yyyy") }, ...base];
+  }, [selectedMonthKey]);
 
   useDashboardFilterPersistence(
     "",
     currentOrganization?.id,
-    useMemo(() => ({ dateRange }), [dateRange]),
+    useMemo(() => ({ dateRange, selectedMonthKey }), [dateRange, selectedMonthKey]),
     (saved) => {
       restoreDashboardFilters(saved, {
-        strings: [["dateRange", (v) => setDateRange(v as DateRangeType)]],
+        strings: [
+          ["dateRange", (v) => setDateRange(v as DateRangeType)],
+          ["selectedMonthKey", setSelectedMonthKey],
+        ],
       });
     },
   );
@@ -306,7 +347,10 @@ const DesktopDashboard = () => {
   const canViewNetProfit =
     !permissionsLoading && (permissions === null || hasMenuAccess("net_profit_analysis"));
   
-  const { start: startDate, end: endDate, label: dateLabel } = getDateRange(dateRange);
+  const { start: startDate, end: endDate, label: dateLabel } = getDateRange(
+    dateRange,
+    dateRange === "monthly" ? monthKeyToDate(selectedMonthKey) : undefined,
+  );
 
   const dashStatsQueryKey = useMemo(
     () => ["dashboard-stats", currentOrganization?.id, startDate, endDate] as const,
@@ -818,6 +862,19 @@ const DesktopDashboard = () => {
             </Select>
             {isLoading ? (
               <Loader2 className="h-4 w-4 shrink-0 animate-spin text-primary" />
+            ) : dateRange === "monthly" ? (
+              <Select value={selectedMonthKey} onValueChange={setSelectedMonthKey}>
+                <SelectTrigger className="h-8 w-[9.5rem] border-0 bg-transparent px-1 text-sm font-medium text-primary shadow-none">
+                  <SelectValue placeholder="Select month" />
+                </SelectTrigger>
+                <SelectContent className="max-h-[min(20rem,70vh)] border-border bg-popover">
+                  {monthPickerOptions.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value} className="text-sm">
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             ) : (
               <span className="max-w-[8rem] truncate text-sm font-medium text-primary">{dateLabel}</span>
             )}
