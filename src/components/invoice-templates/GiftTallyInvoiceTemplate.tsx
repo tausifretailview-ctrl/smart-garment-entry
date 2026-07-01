@@ -301,11 +301,15 @@ export const GiftTallyInvoiceTemplate: React.FC<GiftTallyInvoiceTemplateProps> =
   };
   const hCell: React.CSSProperties = {
     ...cell,
-    fontWeight: "bold",
+    fontWeight: 700,
     textAlign: "center",
-    backgroundColor: "#f0f0f0",
-    fontSize: "10px",
-    padding: "4px 4px",
+    backgroundColor: "#e0e0e0",
+    color: "#000000",
+    fontSize: "12px",
+    padding: "5px 4px",
+    lineHeight: "1.25",
+    WebkitPrintColorAdjust: "exact",
+    printColorAdjust: "exact",
   };
   const labelCell: React.CSSProperties = {
     ...cell,

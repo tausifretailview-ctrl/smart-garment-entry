@@ -1,4 +1,5 @@
 import React from "react";
+import "@/styles/print-invoice-core.css";
 import {
   computeTallyLineDisplay,
   normalizeGstTaxType,
@@ -339,15 +340,20 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
   };
   const hCell: React.CSSProperties = {
     ...cell,
-    fontWeight: "bold",
+    fontWeight: 700,
     textAlign: "center",
-    backgroundColor: "#f0f0f0",
-    fontSize: "10px",
-    padding: "5px 6px",
+    backgroundColor: "#e0e0e0",
+    color: "#000000",
+    fontSize: "12px",
+    padding: "6px 5px",
+    lineHeight: "1.25",
+    WebkitPrintColorAdjust: "exact",
+    printColorAdjust: "exact",
   };
 
   return (
     <div
+      className="tally-tax-invoice-print"
       style={{
         width: "210mm",
         height: "297mm",

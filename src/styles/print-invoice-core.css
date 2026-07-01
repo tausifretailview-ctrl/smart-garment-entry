@@ -450,6 +450,16 @@
   color: #000;
 }
 
+/* Tally tax invoice — override global table th gray (screen + print preview) */
+.tally-tax-invoice-print table th,
+.gift-tally-invoice-root table th {
+  color: #000000 !important;
+  font-weight: 700 !important;
+  font-size: 12px !important;
+  letter-spacing: normal !important;
+  text-transform: none !important;
+}
+
 /* ============================================
    DEBIT NOTE SPECIFIC STYLES
    ============================================ */
@@ -640,5 +650,16 @@
     font-weight: 900 !important;
     color: #000 !important;
     -webkit-font-smoothing: none !important;
+  }
+
+  /* Tally tax invoice — column headers (HSN, Qty, Rate, GST, Amount) */
+  .tally-tax-invoice-print table th,
+  .gift-tally-invoice-root table th {
+    color: #000000 !important;
+    font-weight: 700 !important;
+    font-size: 12px !important;
+    background-color: #e0e0e0 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
 }
