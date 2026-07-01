@@ -21,6 +21,7 @@ import { useCreditNotes } from "@/hooks/useCreditNotes";
 import { useBarcodeScanner } from "@/hooks/useBarcodeScanner";
 import { useIsMobile, useIsTablet } from "@/hooks/use-mobile";
 import { isElectronShell } from "@/lib/electronShell";
+import { isPosSalesRoute } from "@/lib/keyboardShortcuts";
 import { TabletPOSLayout } from "@/components/tablet/TabletPOSLayout";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -1264,6 +1265,8 @@ export default function POSSales() {
   // Keyboard shortcuts for POS actions
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
+      // Tab cache keeps POS mounted while other screens are open — only handle keys on active POS route.
+      if (!isPosSalesRoute(location.pathname)) return;
       if (isSaving) return;
       if (
         document.querySelector(
@@ -1355,7 +1358,7 @@ export default function POSSales() {
 
     window.addEventListener('keydown', handleKeyPress);
     return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [items, customerName, flatDiscountValue, roundOff, paymentMethod, savedInvoiceData, isSaving]);
+  }, [items, customerName, flatDiscountValue, roundOff, paymentMethod, savedInvoiceData, isSaving, location.pathname]);
 
   // Apply defaults when settings are loaded (do not override active cart / loaded invoice)
   useEffect(() => {
@@ -1737,6 +1740,7 @@ export default function POSSales() {
 
   useEffect(() => {
     const handleNavigationKeyPress = (e: KeyboardEvent) => {
+      if (!isPosSalesRoute(location.pathname)) return;
       // Page Up - Previous Invoice (older)
       if (e.key === 'PageUp') {
         e.preventDefault();
@@ -1762,7 +1766,7 @@ export default function POSSales() {
 
     window.addEventListener('keydown', handleNavigationKeyPress);
     return () => window.removeEventListener('keydown', handleNavigationKeyPress);
-  }, [todaysSales, currentInvoiceIndex]);
+  }, [todaysSales, currentInvoiceIndex, location.pathname]);
 
   // DC Sale Transfer dialog state
   const [showDcTransferDialog, setShowDcTransferDialog] = useState(false);

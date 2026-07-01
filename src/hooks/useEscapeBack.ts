@@ -176,6 +176,7 @@ export const useEscapeBack = () => {
       }
 
       e.preventDefault();
+      e.stopPropagation();
       handleEscape();
     };
 

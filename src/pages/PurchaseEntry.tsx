@@ -1586,6 +1586,21 @@ const PurchaseEntry = () => {
     };
   }, []);
 
+  // Tab cache keeps Purchase Entry mounted when Esc navigates away — flush draft on route leave.
+  const onPurchaseEntryRouteRef = useRef(location.pathname.includes("/purchase-entry"));
+  useEffect(() => {
+    const onPurchaseEntry = location.pathname.includes("/purchase-entry");
+    const wasOnPurchaseEntry = onPurchaseEntryRouteRef.current;
+    onPurchaseEntryRouteRef.current = onPurchaseEntry;
+    if (wasOnPurchaseEntry && !onPurchaseEntry) {
+      if (autoSaveDebounceRef.current) {
+        clearTimeout(autoSaveDebounceRef.current);
+        autoSaveDebounceRef.current = null;
+      }
+      flushEntryPersistenceRef.current();
+    }
+  }, [location.pathname]);
+
   // Save when switching browser tabs or closing — do not restore on visible (avoids reload flash).
   useEffect(() => {
     const onVisibilityChange = () => {
