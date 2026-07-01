@@ -6,6 +6,17 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import type { PosDCPaymentMethod, PosDcLastBillHint } from "@/hooks/usePosDeliveryChallan";
 
+function formatINR2(value: number) {
+  return value.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+const PAYMENT_LABELS: Record<PosDCPaymentMethod, string> = {
+  cash: "Cash",
+  upi: "UPI",
+  card: "Card",
+  pay_later: "Credit",
+};
+
 type PosDcFooterProps = {
   totalQty: number;
   grossAmount: number;
