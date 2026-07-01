@@ -21,9 +21,7 @@ import { cn } from "@/lib/utils";
 import * as XLSX from "xlsx";
 import { multiTokenMatch } from "@/utils/multiTokenSearch";
 import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
-import { parsePersistedDate, pickPersistedString, restoreDashboardFilters, WINDOW_FILTER_IDS } from "@/lib/dashboardFilterPersistence";
-import { ItemWiseClosingStockPanel } from "@/components/reports/ItemWiseClosingStockPanel";
-import type { ItemWiseStockFilters } from "@/utils/itemWiseStockQueries";
+import { parsePersistedDate, restoreDashboardFilters, WINDOW_FILTER_IDS } from "@/lib/dashboardFilterPersistence";
 
 type PeriodType = "daily" | "monthly" | "quarterly" | "yearly" | "all" | "custom";
 
@@ -100,18 +98,7 @@ export default function ItemWiseSalesReport() {
   const [selectedCustomer, setSelectedCustomer] = useState<string>("all");
   const [selectedColor, setSelectedColor] = useState<string>("all");
   const [selectedUser, setSelectedUser] = useState<string>("all");
-  const [activeTab, setActiveTab] = useState<"itemwise" | "customerwise" | "brandwise" | "saledetails" | "closingstock">("itemwise");
-  const [closingStockFilters, setClosingStockFilters] = useState<ItemWiseStockFilters>({
-    groupBy: "product_name",
-    searchQuery: "",
-    brandFilter: "__all__",
-    categoryFilter: "__all__",
-    departmentFilter: "__all__",
-    supplierFilter: "__all__",
-    barcodeFilter: "",
-    closingStockFilter: "all",
-  });
-  const [closingStockPage, setClosingStockPage] = useState(1);
+  const [activeTab, setActiveTab] = useState<"itemwise" | "customerwise" | "brandwise" | "saledetails">("itemwise");
   const [saleDetailsGroupBy, setSaleDetailsGroupBy] = useState<"product_name" | "brand" | "category" | "department" | "barcode">("product_name");
   const [saleDetailsSearch, setSaleDetailsSearch] = useState("");
   const [saleDetailsPage, setSaleDetailsPage] = useState(1);
@@ -163,8 +150,6 @@ export default function ItemWiseSalesReport() {
       customerPage,
       brandPage,
       saleDetailsPage,
-      closingStockFilters,
-      closingStockPage,
     }),
     [
       periodType,
@@ -184,8 +169,6 @@ export default function ItemWiseSalesReport() {
       customerPage,
       brandPage,
       saleDetailsPage,
-      closingStockFilters,
-      closingStockPage,
     ],
   );
 
@@ -206,7 +189,7 @@ export default function ItemWiseSalesReport() {
           ["selectedDepartment", setSelectedDepartment],
           ["selectedColor", setSelectedColor],
           ["selectedUser", setSelectedUser],
-          ["activeTab", (v) => setActiveTab(v as typeof activeTab)],
+          ["activeTab", (v) => setActiveTab(v === "closingstock" ? "saledetails" : (v as typeof activeTab))],
           ["saleDetailsGroupBy", (v) => setSaleDetailsGroupBy(v as typeof saleDetailsGroupBy)],
           ["saleDetailsSearch", setSaleDetailsSearch],
         ],
@@ -217,27 +200,8 @@ export default function ItemWiseSalesReport() {
           ["customerPage", setCustomerPage],
           ["brandPage", setBrandPage],
           ["saleDetailsPage", setSaleDetailsPage],
-          ["closingStockPage", setClosingStockPage],
         ],
       });
-      const cs = saved.closingStockFilters;
-      if (cs && typeof cs === "object" && !Array.isArray(cs)) {
-        const obj = cs as Record<string, unknown>;
-        setClosingStockFilters((f) => ({
-          ...f,
-          groupBy: pickPersistedString(obj.groupBy) as ItemWiseStockFilters["groupBy"] ?? f.groupBy,
-          searchQuery: pickPersistedString(obj.searchQuery) ?? f.searchQuery,
-          brandFilter: pickPersistedString(obj.brandFilter) ?? f.brandFilter,
-          categoryFilter: pickPersistedString(obj.categoryFilter) ?? f.categoryFilter,
-          departmentFilter: pickPersistedString(obj.departmentFilter) ?? f.departmentFilter,
-          supplierFilter: pickPersistedString(obj.supplierFilter) ?? f.supplierFilter,
-          barcodeFilter: pickPersistedString(obj.barcodeFilter) ?? f.barcodeFilter,
-          closingStockFilter:
-            obj.closingStockFilter === "in_stock" || obj.closingStockFilter === "zero_stock"
-              ? obj.closingStockFilter
-              : f.closingStockFilter,
-        }));
-      }
       const from = parsePersistedDate(saved.customDateFrom);
       const to = parsePersistedDate(saved.customDateTo);
       if (from && to) setCustomDateRange({ from, to });
@@ -929,13 +893,12 @@ export default function ItemWiseSalesReport() {
         </CardContent>
       </Card>
 
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "itemwise" | "customerwise" | "brandwise" | "saledetails" | "closingstock")} className="flex min-h-0 flex-1 flex-col">
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "itemwise" | "customerwise" | "brandwise" | "saledetails")} className="flex min-h-0 flex-1 flex-col">
         <TabsList className="h-9 bg-slate-100 p-1 rounded-md shrink-0 w-fit print:hidden">
           <TabsTrigger value="itemwise" className="rounded text-sm font-semibold px-3 data-[state=active]:bg-white data-[state=active]:text-blue-700">Item-wise</TabsTrigger>
           <TabsTrigger value="customerwise" className="rounded text-sm font-semibold px-3 data-[state=active]:bg-white data-[state=active]:text-blue-700">Customer-wise</TabsTrigger>
           <TabsTrigger value="brandwise" className="rounded text-sm font-semibold px-3 data-[state=active]:bg-white data-[state=active]:text-blue-700">Brand-wise</TabsTrigger>
-          <TabsTrigger value="saledetails" className="rounded text-sm font-semibold px-3 data-[state=active]:bg-white data-[state=active]:text-blue-700">Sale Details</TabsTrigger>
-          <TabsTrigger value="closingstock" className="rounded text-sm font-semibold px-3 data-[state=active]:bg-white data-[state=active]:text-teal-700">Closing Stock</TabsTrigger>
+          <TabsTrigger value="saledetails" className="rounded text-sm font-semibold px-3 data-[state=active]:bg-white data-[state=active]:text-blue-700">Product Wise Sale</TabsTrigger>
         </TabsList>
 
         <TabsContent value="itemwise" className="mt-2 flex-1 min-h-0 flex flex-col focus-visible:outline-none data-[state=inactive]:hidden">
@@ -1298,7 +1261,7 @@ export default function ItemWiseSalesReport() {
                           <TableHead className={cn("w-[90px]", SALES_VASY_TH)}>Color</TableHead>
                         </>
                       )}
-                      <TableHead className={cn("w-[90px] text-right", SALES_VASY_TH)}>Stock</TableHead>
+                      <TableHead className={cn("w-[90px] text-right", SALES_VASY_TH)}>Qty Sold</TableHead>
                       <TableHead className={cn("w-[130px] text-right", SALES_VASY_TH)}>Purchase Value</TableHead>
                       <TableHead className={cn("w-[120px] text-right", SALES_VASY_TH)}>Sales Value</TableHead>
                     </TableRow>
@@ -1368,16 +1331,6 @@ export default function ItemWiseSalesReport() {
               </div>
             </CardContent>
           </Card>
-        </TabsContent>
-
-        <TabsContent value="closingstock" className="mt-2 flex-1 min-h-0 flex flex-col focus-visible:outline-none data-[state=inactive]:hidden">
-          <ItemWiseClosingStockPanel
-            embedded
-            filters={closingStockFilters}
-            onFiltersChange={setClosingStockFilters}
-            currentPage={closingStockPage}
-            onCurrentPageChange={setClosingStockPage}
-          />
         </TabsContent>
       </Tabs>
       </div>
