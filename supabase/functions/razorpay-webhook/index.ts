@@ -32,8 +32,16 @@ serve(async (req) => {
       );
     }
 
+    if (!signature) {
+      console.error('Missing Razorpay webhook signature - rejecting request');
+      return new Response(
+        JSON.stringify({ error: 'Missing signature' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     // Verify webhook signature
-    if (signature) {
+    try {
       const encoder = new TextEncoder();
       const key = await crypto.subtle.importKey(
         'raw',
@@ -44,12 +52,21 @@ serve(async (req) => {
       );
 
       const data = encoder.encode(payload);
+      const hexPairs = signature.match(/.{1,2}/g);
+      if (!hexPairs) {
+        console.error('Invalid Razorpay webhook signature (malformed)');
+        return new Response(
+          JSON.stringify({ error: 'Invalid signature' }),
+          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
       const signatureBytes = new Uint8Array(
-        signature.match(/.{1,2}/g)!.map(byte => parseInt(byte, 16))
+        hexPairs.map(byte => parseInt(byte, 16))
       );
 
       const isValid = await crypto.subtle.verify('HMAC', key, signatureBytes, data);
-      
+
       if (!isValid) {
         console.error('Invalid Razorpay webhook signature');
         return new Response(
@@ -57,6 +74,12 @@ serve(async (req) => {
           { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
+    } catch (verifyErr) {
+      console.error('Razorpay webhook signature verification failed:', verifyErr);
+      return new Response(
+        JSON.stringify({ error: 'Invalid signature' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     const webhookData = JSON.parse(payload);
