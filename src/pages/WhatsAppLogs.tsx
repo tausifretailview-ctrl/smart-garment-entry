@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { format, startOfDay, endOfDay } from "date-fns";
+import { format, subDays, startOfDay, endOfDay } from "date-fns";
 import { FullScreenLayout } from "@/components/FullScreenLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -81,14 +81,15 @@ const WhatsAppLogs = () => {
   const [providerFilter, setProviderFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedLog, setSelectedLog] = useState<WhatsAppLog | null>(null);
-  const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [logRangeDays, setLogRangeDays] = useState<"1" | "7" | "30">("7");
 
-  // Fetch logs with date filter
+  // Fetch logs with date filter (default: last 7 days — single-day filter hid yesterday's sends)
   const { data: logs, isLoading, isFetching, refetch } = useQuery({
-    queryKey: ['whatsapp-logs', statusFilter, typeFilter, providerFilter, selectedDate],
+    queryKey: ['whatsapp-logs', statusFilter, typeFilter, providerFilter, logRangeDays],
     queryFn: () => {
-      const dateStart = startOfDay(new Date(selectedDate)).toISOString();
-      const dateEnd = endOfDay(new Date(selectedDate)).toISOString();
+      const days = Number(logRangeDays);
+      const dateStart = startOfDay(subDays(new Date(), days - 1)).toISOString();
+      const dateEnd = endOfDay(new Date()).toISOString();
       return fetchMessageLogs({
         status: statusFilter,
         templateType: typeFilter,
@@ -296,12 +297,16 @@ const WhatsAppLogs = () => {
             <div className="flex flex-wrap gap-4">
               <div className="flex items-center gap-2">
                 <Calendar className="h-4 w-4 text-muted-foreground" />
-                <Input
-                  type="date"
-                  value={selectedDate}
-                  onChange={(e) => setSelectedDate(e.target.value)}
-                  className="w-[160px]"
-                />
+                <Select value={logRangeDays} onValueChange={(v) => setLogRangeDays(v as "1" | "7" | "30")}>
+                  <SelectTrigger className="w-[160px]">
+                    <SelectValue placeholder="Date range" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1">Today only</SelectItem>
+                    <SelectItem value="7">Last 7 days</SelectItem>
+                    <SelectItem value="30">Last 30 days</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               <div className="flex-1 min-w-[200px]">
                 <div className="relative">

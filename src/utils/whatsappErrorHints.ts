@@ -50,15 +50,23 @@ export function getWhatsAppErrorHint(
 
   // WappConnect path — never show Meta 24h / template hints
   if (provider === "wappconnect") {
+    const endpoint = String((providerResponse as Record<string, unknown> | undefined)?.endpoint ?? "");
+    const requestUrl = String((providerResponse as Record<string, unknown> | undefined)?.requestUrl ?? "");
+    const isTextOnlySend =
+      endpoint.includes("sendText") &&
+      !requestUrl.includes("serve-wappconnect-pdf") &&
+      !requestUrl.includes(".pdf");
+
     if (
-      raw.includes("unsupported media type") ||
+      !isTextOnlySend &&
+      (raw.includes("unsupported media type") ||
       raw.includes("mime") ||
       raw.includes("content-type") ||
       raw.includes("signed storage") ||
       raw.includes("download file failed") ||
       raw.includes("link not valid") ||
       raw.includes("file not exist") ||
-      raw.includes("invalid message")
+      raw.includes("invalid message"))
     ) {
       return {
         title: "PDF link not readable by WappConnect",
@@ -81,6 +89,15 @@ export function getWhatsAppErrorHint(
         title: "WappConnect not configured",
         reason: "Instance id is missing or invalid for this organization.",
         action: "Settings → WhatsApp API → enter Instance id → Save → Send test.",
+      };
+    }
+    if (isTextOnlySend && raw.includes("invalid message")) {
+      return {
+        title: "Message rejected by WhatsApp",
+        reason:
+          "WappConnect accepted the API call but WhatsApp rejected the text. This send did not include a PDF attachment.",
+        action:
+          "Confirm Send invoice PDF is enabled in WhatsApp settings, save a sale again, and check that the endpoint shows /api/sendFileWithCaption in logs.",
       };
     }
     return null;

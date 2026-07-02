@@ -1,4 +1,5 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from "react";
+import { flushSync } from "react-dom";
 import { isDecimalUOM } from "@/constants/uom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSettings } from "@/hooks/useSettings";
@@ -47,6 +48,10 @@ import { entryPageMainClass, entryPageSectionX, entryPageShellClass } from "@/li
 import { useEntryViewportSync } from "@/hooks/useEntryViewportSync";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { InvoiceWrapper } from "@/components/InvoiceWrapper";
+import { captureElementToPdfBase64 } from "@/utils/captureInvoicePdf";
+import { resendSaleInvoiceWhatsApp } from "@/utils/resendSaleInvoiceWhatsApp";
+import { invokeSendWhatsAppMessage } from "@/utils/invokeSendWhatsAppMessage";
+import type { WhatsAppSettings } from "@/hooks/useWhatsAppAPI";
 
 import { useReactToPrint } from "react-to-print";
 import { useDirectPrint } from "@/hooks/useDirectPrint";
@@ -2881,76 +2886,7 @@ Thank you for choosing us!`;
           });
         }
 
-        // Auto-send WhatsApp invoice notification - FIRE AND FORGET (non-blocking)
-        if (selectedCustomer?.phone && currentOrganization?.id) {
-          (async () => { try {
-            const { data: whatsappSettings } = await (supabase as any)
-              .from('whatsapp_api_settings')
-              .select('is_active, auto_send_invoice, invoice_template_name')
-              .eq('organization_id', currentOrganization.id)
-              .maybeSingle();
-
-            if (whatsappSettings?.is_active && whatsappSettings?.auto_send_invoice) {
-              const companyName = (settingsData as any)?.business_name || currentOrganization.name || 'Our Company';
-              const saleSettings = (settingsData as any)?.sale_settings || {};
-
-              const formattedDate = new Date(invoiceDate).toLocaleDateString('en-IN', {
-                day: '2-digit',
-                month: 'short',
-                year: 'numeric',
-              });
-              const formattedAmount = `${Number(netAmount).toLocaleString('en-IN')}`;
-
-              const totalQty = filledItems.reduce((sum, item) => sum + (item.quantity || 0), 0);
-
-              const messageText = `Hello ${selectedCustomer.customer_name},\n\nYour invoice ${saleNumber} has been created.\nAmount: ₹${formattedAmount}\nDate: ${formattedDate}\n\nThank you for your business!\n${companyName}`;
-
-              supabase.functions.invoke('send-whatsapp', {
-                body: {
-                  organizationId: currentOrganization.id,
-                  phone: selectedCustomer.phone,
-                  message: messageText,
-                  templateType: 'sales_invoice',
-                  templateName: whatsappSettings.invoice_template_name || null,
-                  saleData: {
-                    sale_id: saleData.id,
-                    org_slug: currentOrganization.slug,
-                    customer_name: selectedCustomer.customer_name,
-                    sale_number: saleNumber,
-                    sale_date: invoiceDate,
-                    net_amount: netAmount,
-                    gross_amount: grossAmount,
-                    discount_amount: flatDiscountAmount,
-                    items_count: totalQty,
-                    organization_name: companyName,
-                    bill_context: 'sale',
-                    invoice_paper_format: saleSettings.invoice_paper_format || '',
-                    sales_bill_format: saleSettings.sales_bill_format || '',
-                    pos_bill_format: saleSettings.pos_bill_format || '',
-                    invoice_template: saleSettings.invoice_template || '',
-                  },
-                  referenceId: saleData.id,
-                  referenceType: 'sale',
-                },
-              });
-            }
-          } catch (e) {
-            console.error('WhatsApp auto-send failed (SalesInvoice):', e);
-          } })();
-        }
-
-        // Silent operation - no toast for invoice save
-
-        scheduleInvoiceDashboardRefresh();
-
-        // Mark invoice as saved to prevent draft re-save on unmount
-        invoiceSavedRef.current = true;
-        // Clear any existing draft after successful save
-        void deleteDraft();
-        stopAutoSave();
-        updateCurrentData(null);
-
-        // Store invoice data for print dialog BEFORE clearing the form
+        // Store invoice data for print + WhatsApp PDF capture before clearing the form
         const invoiceDataForPrint = {
           invoiceNumber: saleNumber,
           filledItems,
@@ -2961,6 +2897,96 @@ Thank you for choosing us!`;
           otherCharges,
           customer: selectedCustomer,
         };
+
+        // Auto-send WhatsApp invoice notification - FIRE AND FORGET (non-blocking)
+        if (selectedCustomer?.phone && currentOrganization?.id) {
+          (async () => {
+            try {
+              const { data: whatsappSettings } = await supabase
+                .from("whatsapp_api_settings")
+                .select("*")
+                .eq("organization_id", currentOrganization.id)
+                .maybeSingle();
+
+              if (!whatsappSettings?.is_active || !whatsappSettings?.auto_send_invoice) return;
+
+              const companyName =
+                (settingsData as { business_name?: string } | null)?.business_name ||
+                currentOrganization.name ||
+                "Our Company";
+              const saleSettings = (settingsData as { sale_settings?: Record<string, unknown> } | null)
+                ?.sale_settings || {};
+              const totalQty = filledItems.reduce((sum, item) => sum + (item.quantity || 0), 0);
+              const saleDataForWhatsApp = {
+                sale_id: saleData.id,
+                org_slug: currentOrganization.slug,
+                customer_name: selectedCustomer.customer_name,
+                sale_number: saleNumber,
+                sale_date: format(invoiceDate, "yyyy-MM-dd"),
+                net_amount: netAmount,
+                gross_amount: grossAmount,
+                discount_amount: flatDiscountAmount,
+                payment_status: paymentOverride
+                  ? paymentOverride.totalPaid >= netAmount
+                    ? "completed"
+                    : "partial"
+                  : "pending",
+                items_count: totalQty,
+                organization_name: companyName,
+                bill_context: "sale",
+                invoice_paper_format: String(saleSettings.invoice_paper_format || ""),
+                sales_bill_format: String(saleSettings.sales_bill_format || ""),
+                pos_bill_format: String(saleSettings.pos_bill_format || ""),
+                invoice_template: String(saleSettings.invoice_template || ""),
+                sale_source: "sale",
+              };
+
+              flushSync(() => {
+                setSavedInvoiceData(invoiceDataForPrint);
+              });
+              await new Promise((resolve) => setTimeout(resolve, 400));
+
+              await resendSaleInvoiceWhatsApp({
+                phone: selectedCustomer.phone!,
+                saleId: saleData.id,
+                saleNumber,
+                customerName: selectedCustomer.customer_name,
+                netAmount,
+                saleData: saleDataForWhatsApp,
+                waSettings: whatsappSettings as WhatsAppSettings,
+                organizationId: currentOrganization.id,
+                organizationName: companyName,
+                sendMessageAsync: (params) =>
+                  invokeSendWhatsAppMessage(
+                    currentOrganization.id,
+                    whatsappSettings.send_provider,
+                    params,
+                  ),
+                capturePdfBase64: async () => {
+                  if (!printRef.current) return null;
+                  return (
+                    (await captureElementToPdfBase64(printRef.current, { extraSettleMs: 500 })) ||
+                    null
+                  );
+                },
+              });
+
+              queryClient.invalidateQueries({ queryKey: ["whatsapp-logs"] });
+              queryClient.invalidateQueries({ queryKey: ["whatsapp-recent-wappconnect-logs"] });
+            } catch (e) {
+              console.error("WhatsApp auto-send failed (SalesInvoice):", e);
+            }
+          })();
+        }
+
+        // Mark invoice as saved to prevent draft re-save on unmount
+        invoiceSavedRef.current = true;
+        // Clear any existing draft after successful save
+        void deleteDraft();
+        stopAutoSave();
+        updateCurrentData(null);
+
+        scheduleInvoiceDashboardRefresh();
 
         // Reset form immediately for new invoice readiness
         setLineItems(
