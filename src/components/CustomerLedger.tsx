@@ -72,6 +72,15 @@ import {
 import { computePendingAllSessionsBatch, computeYearWiseFeeBalances, computePriorYearsCarryForward } from "@/lib/schoolFeeYearBalances";
 import { resolveImportedOpeningBalance } from "@/lib/schoolFeeOpening";
 import { reconcileBillWisePending } from "@/utils/reconcileBillWisePending";
+import {
+  LEDGER_PDF,
+  ledgerPdfReconLineColor,
+  ledgerPdfTypeColor,
+  ledgerPdfTypeLabel,
+  pdfSetDraw,
+  pdfSetFill,
+  pdfSetText,
+} from "@/utils/customerLedgerPdfStyles";
 
 interface CustomerLedgerProps {
   organizationId: string;
@@ -3436,22 +3445,42 @@ Please clear your dues at the earliest. Thank you!`;
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
     const margin = 14;
+    const tableWidth = pageWidth - margin * 2;
+    const headers = ["Date & Time", "Type", "Reference", "Description", "Debit", "Credit", "Balance"];
+    const colWidths = [28, 16, 22, 48, 22, 22, 22];
+
+    const drawLedgerTableHeader = (y: number) => {
+      pdfSetFill(doc, LEDGER_PDF.headerBg);
+      doc.rect(margin, y, tableWidth, 8, "F");
+      pdfSetText(doc, LEDGER_PDF.headerText);
+      doc.setFontSize(8);
+      doc.setFont("helvetica", "bold");
+      let x = margin;
+      headers.forEach((header, i) => {
+        doc.text(header, x + 1, y + 5);
+        x += colWidths[i];
+      });
+      return y + 10;
+    };
+
     let yPos = 20;
 
-    // Header
     doc.setFontSize(18);
     doc.setFont("helvetica", "bold");
+    pdfSetText(doc, LEDGER_PDF.title);
     doc.text("Customer Ledger", pageWidth / 2, yPos, { align: "center" });
-    yPos += 10;
+    yPos += 12;
 
-    // Customer Info
+    const infoStartY = yPos;
     doc.setFontSize(12);
     doc.setFont("helvetica", "bold");
+    pdfSetText(doc, LEDGER_PDF.text);
     doc.text(selectedCustomer.customer_name, margin, yPos);
     yPos += 6;
 
     doc.setFontSize(10);
     doc.setFont("helvetica", "normal");
+    pdfSetText(doc, LEDGER_PDF.muted);
     if (selectedCustomer.phone) {
       doc.text(`Phone: ${selectedCustomer.phone}`, margin, yPos);
       yPos += 5;
@@ -3460,126 +3489,191 @@ Please clear your dues at the earliest. Thank you!`;
       doc.text(`Address: ${selectedCustomer.address}`, margin, yPos);
       yPos += 5;
     }
-
-    // Date range if filtered
     if (startDate || endDate) {
       const dateRange = `Period: ${startDate ? format(startDate, "dd MMM yyyy") : "Beginning"} to ${endDate ? format(endDate, "dd MMM yyyy") : "Today"}`;
       doc.text(dateRange, margin, yPos);
       yPos += 5;
     }
 
-    // Outstanding Balance with Dr/Cr
-    doc.setFont("helvetica", "bold");
     const pdfCredit =
       refundableCreditBalance > 0
         ? refundableCreditBalance
         : effectiveBalance < 0
           ? Math.abs(effectiveBalance)
           : 0;
-    const hdrBalance =
-      pdfCredit > 0
-        ? `Credit balance: Rs. ${pdfCredit.toLocaleString("en-IN")} Cr`
-        : `Outstanding Balance: Rs. ${effectiveBalance.toLocaleString("en-IN")} Dr`;
-    doc.text(hdrBalance, pageWidth - margin, yPos, { align: "right" });
-    yPos += 10;
-
-    // Table Headers
-    const headers = ["Date & Time", "Type", "Reference", "Description", "Debit", "Credit", "Balance"];
-    const colWidths = [28, 16, 22, 48, 22, 22, 22];
-    
-    doc.setFillColor(240, 240, 240);
-    doc.rect(margin, yPos, pageWidth - margin * 2, 8, "F");
-    
-    doc.setFontSize(8);
-    doc.setFont("helvetica", "bold");
-    let xPos = margin;
-    headers.forEach((header, i) => {
-      doc.text(header, xPos + 1, yPos + 5);
-      xPos += colWidths[i];
-    });
-    yPos += 10;
-
-    // Table Rows
+    const balanceBoxW = 72;
+    const balanceBoxH = 18;
+    const balanceBoxX = pageWidth - margin - balanceBoxW;
+    const balanceBoxY = infoStartY - 4;
+    if (pdfCredit > 0) {
+      pdfSetFill(doc, LEDGER_PDF.tealBoxBg);
+      pdfSetDraw(doc, LEDGER_PDF.tealBoxBorder);
+      doc.rect(balanceBoxX, balanceBoxY, balanceBoxW, balanceBoxH, "FD");
+      pdfSetText(doc, LEDGER_PDF.muted);
+      doc.setFontSize(7);
+      doc.text("Credit balance (Cr)", balanceBoxX + 3, balanceBoxY + 5);
+      pdfSetText(doc, LEDGER_PDF.tealBoxText);
+      doc.setFontSize(11);
+      doc.setFont("helvetica", "bold");
+      doc.text(`Rs. ${pdfCredit.toLocaleString("en-IN")}`, balanceBoxX + 3, balanceBoxY + 13);
+    } else if (effectiveBalance > 0) {
+      pdfSetFill(doc, LEDGER_PDF.redBoxBg);
+      pdfSetDraw(doc, LEDGER_PDF.redBoxBorder);
+      doc.rect(balanceBoxX, balanceBoxY, balanceBoxW, balanceBoxH, "FD");
+      pdfSetText(doc, LEDGER_PDF.muted);
+      doc.setFontSize(7);
+      doc.text("Outstanding (Dr)", balanceBoxX + 3, balanceBoxY + 5);
+      pdfSetText(doc, LEDGER_PDF.balanceDr);
+      doc.setFontSize(11);
+      doc.setFont("helvetica", "bold");
+      doc.text(`Rs. ${effectiveBalance.toLocaleString("en-IN")}`, balanceBoxX + 3, balanceBoxY + 13);
+    } else if (effectiveBalance < 0) {
+      pdfSetFill(doc, LEDGER_PDF.emeraldBoxBg);
+      pdfSetDraw(doc, LEDGER_PDF.emeraldBoxBorder);
+      doc.rect(balanceBoxX, balanceBoxY, balanceBoxW, balanceBoxH, "FD");
+      pdfSetText(doc, LEDGER_PDF.muted);
+      doc.setFontSize(7);
+      doc.text("Outstanding (Cr)", balanceBoxX + 3, balanceBoxY + 5);
+      pdfSetText(doc, LEDGER_PDF.balanceCr);
+      doc.setFontSize(11);
+      doc.setFont("helvetica", "bold");
+      doc.text(`Rs. ${Math.abs(effectiveBalance).toLocaleString("en-IN")}`, balanceBoxX + 3, balanceBoxY + 13);
+    } else {
+      pdfSetFill(doc, LEDGER_PDF.totalsBg);
+      pdfSetDraw(doc, LEDGER_PDF.reconBorder);
+      doc.rect(balanceBoxX, balanceBoxY, balanceBoxW, balanceBoxH, "FD");
+      pdfSetText(doc, LEDGER_PDF.muted);
+      doc.setFontSize(7);
+      doc.text("Balance", balanceBoxX + 3, balanceBoxY + 5);
+      pdfSetText(doc, LEDGER_PDF.balanceSettled);
+      doc.setFontSize(11);
+      doc.setFont("helvetica", "bold");
+      doc.text("Rs. 0", balanceBoxX + 3, balanceBoxY + 13);
+    }
     doc.setFont("helvetica", "normal");
-    transactions.forEach((t) => {
+    yPos = Math.max(yPos, balanceBoxY + balanceBoxH + 6);
+
+    yPos = drawLedgerTableHeader(yPos);
+
+    transactions.forEach((t, rowIdx) => {
       if (yPos > 270) {
         doc.addPage();
         yPos = 20;
+        yPos = drawLedgerTableHeader(yPos);
       }
 
-      xPos = margin;
-      const dateTimeStr = t.id === 'opening-balance' 
-        ? 'Opening' 
-        : format(new Date(t.date), "dd/MM/yy") + (t.timestamp ? ' ' + format(new Date(t.timestamp), "hh:mm a") : '');
+      const rowH = 6;
+      if (t.id === "opening-balance") {
+        pdfSetFill(doc, LEDGER_PDF.openingBg);
+      } else if (rowIdx % 2 === 1) {
+        pdfSetFill(doc, LEDGER_PDF.zebra);
+      } else {
+        pdfSetFill(doc, [255, 255, 255]);
+      }
+      doc.rect(margin, yPos - 4, tableWidth, rowH, "F");
+
+      const dateTimeStr =
+        t.id === "opening-balance"
+          ? "Opening"
+          : format(new Date(t.date), "dd/MM/yy") +
+            (t.timestamp ? ` ${format(new Date(t.timestamp), "hh:mm a")}` : "");
       const bNum = Math.round(t.balance);
-      const bStr = bNum === 0 ? "Rs. 0" : `Rs. ${Math.abs(bNum).toLocaleString("en-IN")} ${bNum < 0 ? "Cr" : "Dr"}`;
+      const bStr =
+        bNum === 0 ? "Rs. 0" : `Rs. ${Math.abs(bNum).toLocaleString("en-IN")} ${bNum < 0 ? "Cr" : "Dr"}`;
       const dispDebit = t.displayDebit ?? t.debit ?? 0;
       const dispCredit = t.displayCredit ?? t.credit ?? 0;
       const desc = t.informational ? `(info) ${t.description}` : t.description;
-      const rowData = [
-        dateTimeStr,
-        t.type === 'invoice' ? 'Invoice' : t.type === 'return' ? 'Sale Return' : t.type === 'advance' ? 'Advance' : t.type === 'advance_application' ? 'Adv Adj' : t.type === 'adjustment' ? 'Adjustment' : 'Payment',
-        t.reference,
-        desc.length > 28 ? desc.substring(0, 28) + "..." : desc,
-        dispDebit > 0 ? `Rs. ${Math.round(dispDebit).toLocaleString("en-IN")}` : "",
-        dispCredit > 0 ? `Rs. ${Math.round(dispCredit).toLocaleString("en-IN")}` : "",
-        // Informational rows: balance unchanged → suppress to avoid the
-        // visual confusion of two consecutive identical balance values.
-        t.informational ? '' : bStr,
-      ];
+      const descShort = desc.length > 28 ? `${desc.substring(0, 28)}...` : desc;
+      const typeLabel = ledgerPdfTypeLabel(t);
+      const debitStr = dispDebit > 0 ? `Rs. ${Math.round(dispDebit).toLocaleString("en-IN")}` : "";
+      const creditStr = dispCredit > 0 ? `Rs. ${Math.round(dispCredit).toLocaleString("en-IN")}` : "";
+      const balanceStr = t.informational ? "" : bStr;
 
+      doc.setFontSize(8);
       if (t.informational) {
         doc.setFont("helvetica", "italic");
+      } else {
+        doc.setFont("helvetica", "normal");
       }
-      rowData.forEach((cell, i) => {
-        doc.text(cell, xPos + 1, yPos);
+
+      let xPos = margin;
+      const cellSpecs: Array<{ text: string; color: readonly [number, number, number] }> = [
+        {
+          text: dateTimeStr,
+          color: t.id === "opening-balance" ? LEDGER_PDF.openingText : t.informational ? LEDGER_PDF.muted : LEDGER_PDF.text,
+        },
+        { text: typeLabel, color: ledgerPdfTypeColor(t) },
+        { text: t.reference, color: t.informational ? LEDGER_PDF.muted : LEDGER_PDF.text },
+        { text: descShort, color: t.informational ? LEDGER_PDF.muted : LEDGER_PDF.text },
+        { text: debitStr, color: dispDebit > 0 ? LEDGER_PDF.debit : LEDGER_PDF.text },
+        { text: creditStr, color: dispCredit > 0 ? LEDGER_PDF.credit : LEDGER_PDF.text },
+        {
+          text: balanceStr,
+          color:
+            t.informational || balanceStr === ""
+              ? LEDGER_PDF.text
+              : bNum > 0
+                ? LEDGER_PDF.balanceDr
+                : bNum < 0
+                  ? LEDGER_PDF.balanceCr
+                  : LEDGER_PDF.balanceSettled,
+        },
+      ];
+
+      cellSpecs.forEach((cell, i) => {
+        pdfSetText(doc, cell.color);
+        doc.text(cell.text, xPos + 1, yPos);
         xPos += colWidths[i];
       });
       if (t.informational) {
         doc.setFont("helvetica", "normal");
       }
-      yPos += 6;
+      yPos += rowH;
     });
 
-    // Totals Row
     yPos += 2;
-    doc.setFillColor(230, 230, 230);
-    doc.rect(margin, yPos - 4, pageWidth - margin * 2, 8, "F");
-    
+    pdfSetFill(doc, LEDGER_PDF.totalsBg);
+    doc.rect(margin, yPos - 4, tableWidth, 8, "F");
+    doc.setFontSize(8);
     doc.setFont("helvetica", "bold");
-    xPos = margin;
-    const totalsData = [
-      "",
-      "",
-      "",
-      "TOTAL",
-      `Rs. ${Math.round(transactionTotals.totalDebit).toLocaleString("en-IN")}`,
-      `Rs. ${Math.round(transactionTotals.totalCredit).toLocaleString("en-IN")}`,
-      (() => {
-        const closing = transactions.length > 0 ? transactions[transactions.length - 1].balance : 0;
-        const n = Math.abs(Math.round(closing));
-        const suffix = closing > 0 ? " Dr" : closing < 0 ? " Cr" : "";
-        return `Rs. ${n.toLocaleString("en-IN")}${suffix}`;
-      })(),
-    ];
 
-    totalsData.forEach((cell, i) => {
-      doc.text(cell, xPos + 1, yPos);
+    const closingBalance = transactions.length > 0 ? transactions[transactions.length - 1].balance : 0;
+    const closingStr = (() => {
+      const n = Math.abs(Math.round(closingBalance));
+      const suffix = closingBalance > 0 ? " Dr" : closingBalance < 0 ? " Cr" : "";
+      return `Rs. ${n.toLocaleString("en-IN")}${suffix}`;
+    })();
+
+    let xPos = margin;
+    const totalsSpecs: Array<{ text: string; color: readonly [number, number, number] }> = [
+      { text: "", color: LEDGER_PDF.text },
+      { text: "", color: LEDGER_PDF.text },
+      { text: "", color: LEDGER_PDF.text },
+      { text: "TOTAL", color: LEDGER_PDF.text },
+      { text: `Rs. ${Math.round(transactionTotals.totalDebit).toLocaleString("en-IN")}`, color: LEDGER_PDF.debit },
+      { text: `Rs. ${Math.round(transactionTotals.totalCredit).toLocaleString("en-IN")}`, color: LEDGER_PDF.credit },
+      {
+        text: closingStr,
+        color:
+          closingBalance > 0
+            ? LEDGER_PDF.balanceDr
+            : closingBalance < 0
+              ? LEDGER_PDF.balanceCr
+              : LEDGER_PDF.balanceSettled,
+      },
+    ];
+    totalsSpecs.forEach((cell, i) => {
+      pdfSetText(doc, cell.color);
+      doc.text(cell.text, xPos + 1, yPos);
       xPos += colWidths[i];
     });
 
-    // Reconciliation block
     yPos += 12;
     if (yPos > 240) {
       doc.addPage();
       yPos = 20;
     }
-    doc.setFontSize(10);
-    doc.setFont("helvetica", "bold");
-    doc.text("Balance Reconciliation", margin, yPos);
-    yPos += 5;
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(9);
+
     const reconLines: Array<[string, number]> = [
       ["Opening Balance", reconciliation.opening],
       ["(+) Total Invoiced", reconciliation.grossInvoiced],
@@ -3599,24 +3693,50 @@ Please clear your dues at the earliest. Thank you!`;
     if (reconciliation.adjustments !== 0) {
       reconLines.push(["(+/-) Balance Adjustments", reconciliation.adjustments]);
     }
-    const labelX = margin + 4;
-    const valueX = margin + 90;
+    const finalLabel =
+      reconciliation.finalBalance > 0
+        ? "Outstanding (Dr)"
+        : reconciliation.finalBalance < 0
+          ? "Advance (Cr)"
+          : "Settled";
+    const reconBoxH = 8 + reconLines.length * 5 + 8;
+    pdfSetFill(doc, LEDGER_PDF.reconBg);
+    pdfSetDraw(doc, LEDGER_PDF.reconBorder);
+    doc.rect(margin, yPos - 2, tableWidth, reconBoxH, "FD");
+
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "bold");
+    pdfSetText(doc, LEDGER_PDF.title);
+    doc.text("Balance Reconciliation", margin + 4, yPos + 4);
+    yPos += 10;
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "normal");
+    const labelX = margin + 6;
+    const valueX = margin + 92;
     reconLines.forEach(([label, val]) => {
+      const lineColor = ledgerPdfReconLineColor(label) ?? LEDGER_PDF.text;
+      pdfSetText(doc, lineColor);
       doc.text(label, labelX, yPos);
       const sign = val < 0 ? "-" : "";
-      doc.text(`${sign}Rs. ${Math.abs(Math.round(val)).toLocaleString("en-IN")}`, valueX, yPos, { align: "left" });
+      doc.text(`${sign}Rs. ${Math.abs(Math.round(val)).toLocaleString("en-IN")}`, valueX, yPos);
       yPos += 5;
     });
     doc.setFont("helvetica", "bold");
-    const finalLabel = reconciliation.finalBalance > 0 ? "Outstanding (Dr)" : reconciliation.finalBalance < 0 ? "Advance (Cr)" : "Settled";
+    const finalColor =
+      reconciliation.finalBalance > 0
+        ? LEDGER_PDF.balanceDr
+        : reconciliation.finalBalance < 0
+          ? LEDGER_PDF.balanceCr
+          : LEDGER_PDF.balanceSettled;
+    pdfSetText(doc, finalColor);
     doc.text(finalLabel, labelX, yPos + 1);
     doc.text(`Rs. ${Math.abs(Math.round(reconciliation.finalBalance)).toLocaleString("en-IN")}`, valueX, yPos + 1);
-    yPos += 8;
+    yPos += 10;
 
-    // Footer
     yPos += 6;
     doc.setFontSize(8);
     doc.setFont("helvetica", "normal");
+    pdfSetText(doc, LEDGER_PDF.muted);
     doc.text(`Generated on: ${format(new Date(), "dd MMM yyyy, hh:mm a")}`, margin, yPos);
 
     if (!isSchool && (advanceAllocRows.length > 0 || cnAllocRows.length > 0)) {
@@ -3624,10 +3744,12 @@ Please clear your dues at the earliest. Thank you!`;
       yPos = 18;
       doc.setFontSize(10);
       doc.setFont("helvetica", "bold");
+      pdfSetText(doc, LEDGER_PDF.title);
       doc.text("Advance & credit note applied to invoices", margin, yPos);
       yPos += 6;
       doc.setFontSize(7);
       doc.setFont("helvetica", "normal");
+      pdfSetText(doc, LEDGER_PDF.muted);
       const periodPdf =
         startDate || endDate
           ? `${startDate ? format(startDate, "dd MMM yyyy") : "Start"} — ${endDate ? format(endDate, "dd MMM yyyy") : "Today"}`
@@ -3644,12 +3766,14 @@ Please clear your dues at the earliest. Thank you!`;
         }
         doc.setFontSize(9);
         doc.setFont("helvetica", "bold");
+        pdfSetText(doc, LEDGER_PDF.blue);
         doc.text(sectionTitle, margin, yPos);
         yPos += 5;
         doc.setFontSize(7);
         const h = ["Date", "Voucher", "Invoice", "Amount", "Description"];
-        doc.setFillColor(240, 240, 240);
-        doc.rect(margin, yPos - 3, pageWidth - margin * 2, 6, "F");
+        pdfSetFill(doc, LEDGER_PDF.headerBg);
+        doc.rect(margin, yPos - 3, tableWidth, 6, "F");
+        pdfSetText(doc, LEDGER_PDF.headerText);
         let x = margin;
         h.forEach((label, i) => {
           doc.text(label, x + 1, yPos + 1);
@@ -3657,23 +3781,28 @@ Please clear your dues at the earliest. Thank you!`;
         });
         yPos += 7;
         doc.setFont("helvetica", "normal");
-        rows.forEach((r) => {
+        rows.forEach((r, idx) => {
           if (yPos > 278) {
             doc.addPage();
             yPos = 18;
           }
+          if (idx % 2 === 1) {
+            pdfSetFill(doc, LEDGER_PDF.zebra);
+            doc.rect(margin, yPos - 3, tableWidth, 5, "F");
+          }
           const dStr = r.voucher_date ? format(new Date(`${r.voucher_date}T12:00:00`), "dd/MM/yy") : "—";
           const desc = r.description.length > 55 ? `${r.description.slice(0, 52)}...` : r.description;
           const cells = [
-            dStr,
-            r.voucher_number,
-            r.sale_number,
-            `Rs. ${r.amount.toLocaleString("en-IN")}`,
-            desc || "—",
+            { text: dStr, color: LEDGER_PDF.text },
+            { text: r.voucher_number, color: LEDGER_PDF.text },
+            { text: r.sale_number, color: LEDGER_PDF.purple },
+            { text: `Rs. ${r.amount.toLocaleString("en-IN")}`, color: LEDGER_PDF.credit },
+            { text: desc || "—", color: LEDGER_PDF.muted },
           ];
           x = margin;
           cells.forEach((cell, i) => {
-            doc.text(String(cell), x + 1, yPos);
+            pdfSetText(doc, cell.color);
+            doc.text(String(cell.text), x + 1, yPos);
             x += allocCols[i];
           });
           yPos += 5;
@@ -3686,6 +3815,7 @@ Please clear your dues at the earliest. Thank you!`;
 
       doc.setFontSize(7);
       doc.setFont("helvetica", "italic");
+      pdfSetText(doc, LEDGER_PDF.blue);
       const advFoot = `Unused advance (bookings): Rs. ${(selectedCustomer.unusedAdvanceTotal ?? 0).toLocaleString("en-IN")}`;
       const cnFoot = `CN available (notes): Rs. ${cnAvailable.toLocaleString("en-IN")}`;
       if (yPos > 272) {
@@ -3694,6 +3824,7 @@ Please clear your dues at the earliest. Thank you!`;
       }
       doc.text(advFoot, margin, yPos);
       yPos += 4;
+      pdfSetText(doc, LEDGER_PDF.purple);
       doc.text(cnFoot, margin, yPos);
     }
 
