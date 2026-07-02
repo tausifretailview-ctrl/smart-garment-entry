@@ -231,7 +231,7 @@ export function ProfitabilityTab({ startDate, endDate }: ProfitabilityTabProps) 
         />
       </InsightsKpiStrip>
 
-      <InsightsSubTabs value={subTab} onValueChange={setSubTab} items={PROFIT_SUB_TABS}>
+      <InsightsSubTabs value={subTab} onValueChange={(v) => setSubTab(v as ProfitSubTab)} items={PROFIT_SUB_TABS}>
         <InsightsSubTabPanel value="products">
           <InsightsPanel
             className="flex-1 min-h-0"
