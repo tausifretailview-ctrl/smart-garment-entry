@@ -223,7 +223,7 @@ export function SupplierAnalysisTab({ startDate, endDate }: SupplierAnalysisTabP
         />
       </InsightsKpiStrip>
 
-      <InsightsSubTabs value={subTab} onValueChange={setSubTab} items={SUPPLIER_SUB_TABS}>
+      <InsightsSubTabs value={subTab} onValueChange={(v) => setSubTab(v as SupplierSubTab)} items={SUPPLIER_SUB_TABS}>
         <InsightsSubTabPanel value="scorecard">
           <InsightsPanel
             className="flex-1 min-h-0"
