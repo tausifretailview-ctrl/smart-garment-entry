@@ -160,7 +160,7 @@ export function SalesTrendsTab({ startDate, endDate }: SalesTrendsTabProps) {
         />
       </InsightsKpiStrip>
 
-      <InsightsSubTabs value={subTab} onValueChange={setSubTab} items={SALES_SUB_TABS}>
+      <InsightsSubTabs value={subTab} onValueChange={(v) => setSubTab(v as SalesSubTab)} items={SALES_SUB_TABS}>
         <InsightsSubTabPanel value="top-products">
           <InsightsPanel
             className="flex-1 min-h-0"
