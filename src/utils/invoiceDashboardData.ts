@@ -554,11 +554,9 @@ export async function applyDisplayFifoForKhataCustomers(
 
   const outstandingById = new Map<string, number>();
   const faceById = new Map<string, number>();
-  const customerIdsBySaleId = new Map<string, string>();
 
   for (const sale of fullSales) {
     if (!sale.id || !sale.customer_id) continue;
-    customerIdsBySaleId.set(sale.id, sale.customer_id);
 
     const rec = reconcileSaleInvoiceWithSplit(sale, splitBySale.get(sale.id) ?? null);
     const rawFace = khataInvoiceFace(
