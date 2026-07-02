@@ -434,6 +434,227 @@ export const fetchInvoiceDashboardStatsViaRpc = fetchInvoiceDashboardStats;
 
 const SR_RECONCILE_TOLERANCE = 0.005;
 
+/** ₹1 gate + status tolerance — matches dashboard settlement conventions. */
+const KHATA_FIFO_TOLERANCE = 1;
+
+const roundKhataMoney = (value: number): number =>
+  Math.round(Number(value || 0) * 100) / 100;
+
+const clampKhata = (value: number, min: number, max: number): number =>
+  Math.max(min, Math.min(max, value));
+
+function khataInvoiceFace(netAmount: number, saleReturnAdjust: number): number {
+  return roundKhataMoney(
+    Math.max(0, Number(netAmount || 0) - Number(saleReturnAdjust || 0)),
+  );
+}
+
+function khataDisplayStatus(displayOutstanding: number, face: number): string {
+  const out = roundKhataMoney(displayOutstanding);
+  const faceR = roundKhataMoney(face);
+  if (out <= 0.01) return "paid";
+  if (out > 0.01 && out < faceR - 0.01) return "partial";
+  return "pending";
+}
+
+type KhataFifoSaleRow = {
+  id: string;
+  customer_id: string | null;
+  sale_date: string | null;
+  created_at: string | null;
+  net_amount: number | null;
+  sale_return_adjust: number | null;
+  sale_number?: string | null;
+  is_cancelled?: boolean | null;
+  payment_status?: string | null;
+};
+
+/**
+ * Display-time FIFO for khata customers whose per-invoice receipt reconcile
+ * overstates pending vs authoritative party ledger net. Read-only — no DB writes.
+ */
+export async function applyDisplayFifoForKhataCustomers(
+  client: SupabaseClient,
+  filters: InvoiceDashboardFilters,
+  reconciledRows: any[],
+): Promise<any[]> {
+  if (reconciledRows.length === 0 || !filters.organizationId) {
+    return reconciledRows;
+  }
+
+  const pageCustomerIds = [
+    ...new Set(
+      reconciledRows
+        .map((row) => row.customer_id)
+        .filter((id): id is string => Boolean(id)),
+    ),
+  ];
+  if (pageCustomerIds.length === 0) {
+    return reconciledRows;
+  }
+
+  const { data: partyRows, error: partyError } = await client.rpc(
+    "get_customer_party_balances",
+    { p_organization_id: filters.organizationId },
+  );
+  if (partyError) {
+    console.warn("applyDisplayFifoForKhataCustomers: party balances RPC failed", partyError);
+    return reconciledRows;
+  }
+
+  const ledgerNetDrByCustomer = new Map<string, number>();
+  for (const row of partyRows || []) {
+    const customerId = String((row as { customer_id?: string }).customer_id ?? "");
+    if (!customerId) continue;
+    const signedBalance = Number((row as { signed_balance?: number }).signed_balance ?? 0);
+    ledgerNetDrByCustomer.set(customerId, roundKhataMoney(Math.max(0, signedBalance)));
+  }
+
+  const { data: fullSalesRaw, error: fullSalesError } = await client
+    .from("sales")
+    .select(
+      "id, customer_id, sale_date, created_at, net_amount, sale_return_adjust, sale_number, is_cancelled, payment_status",
+    )
+    .eq("organization_id", filters.organizationId)
+    .eq("sale_type", "invoice")
+    .in("customer_id", pageCustomerIds)
+    .is("deleted_at", null)
+    .eq("is_cancelled", false);
+
+  if (fullSalesError) {
+    console.warn("applyDisplayFifoForKhataCustomers: full sales fetch failed", fullSalesError);
+    return reconciledRows;
+  }
+
+  const fullSales = (fullSalesRaw || []) as KhataFifoSaleRow[];
+  if (fullSales.length === 0) {
+    return reconciledRows;
+  }
+
+  const splitBySale = await fetchSaleReceiptSplitsForInvoices(
+    client,
+    filters.organizationId,
+    fullSales.map((sale) => ({
+      id: sale.id,
+      sale_number: sale.sale_number ?? "",
+      customer_id: sale.customer_id,
+    })),
+    {
+      voucherDateFrom: filters.voucherDateFrom,
+      voucherDateTo: filters.voucherDateTo,
+    },
+  );
+
+  const reconciledOutstandingById = new Map<string, number>();
+  for (const row of reconciledRows) {
+    if (row?.id) {
+      reconciledOutstandingById.set(String(row.id), roundKhataMoney(Number(row.outstanding ?? 0)));
+    }
+  }
+
+  const outstandingById = new Map<string, number>();
+  const faceById = new Map<string, number>();
+  const customerIdsBySaleId = new Map<string, string>();
+
+  for (const sale of fullSales) {
+    if (!sale.id || !sale.customer_id) continue;
+    customerIdsBySaleId.set(sale.id, sale.customer_id);
+
+    const rec = reconcileSaleInvoiceWithSplit(sale, splitBySale.get(sale.id) ?? null);
+    const rawFace = khataInvoiceFace(
+      Number(sale.net_amount || 0),
+      Number(sale.sale_return_adjust || 0),
+    );
+    const reconciledOutstanding =
+      reconciledOutstandingById.get(sale.id) ?? roundKhataMoney(rec.outstanding);
+    const face = roundKhataMoney(Math.min(rawFace, reconciledOutstanding));
+
+    outstandingById.set(sale.id, reconciledOutstanding);
+    faceById.set(sale.id, face);
+  }
+
+  const crudeSumByCustomer = new Map<string, number>();
+  for (const sale of fullSales) {
+    if (!sale.customer_id) continue;
+    const out = outstandingById.get(sale.id) ?? 0;
+    crudeSumByCustomer.set(
+      sale.customer_id,
+      roundKhataMoney((crudeSumByCustomer.get(sale.customer_id) ?? 0) + out),
+    );
+  }
+
+  const gatedCustomerIds = new Set<string>();
+  for (const customerId of pageCustomerIds) {
+    const crudeSum = crudeSumByCustomer.get(customerId) ?? 0;
+    const ledgerNetDr = ledgerNetDrByCustomer.get(customerId) ?? 0;
+    if (crudeSum > ledgerNetDr + KHATA_FIFO_TOLERANCE) {
+      gatedCustomerIds.add(customerId);
+    }
+  }
+
+  if (gatedCustomerIds.size === 0) {
+    return reconciledRows;
+  }
+
+  const displayByInvoiceId = new Map<
+    string,
+    { outstanding: number; payment_status: string }
+  >();
+
+  for (const customerId of gatedCustomerIds) {
+    const customerSales = fullSales
+      .filter((sale) => sale.customer_id === customerId)
+      .sort((a, b) => {
+        const dateA = String(a.sale_date ?? "");
+        const dateB = String(b.sale_date ?? "");
+        if (dateA !== dateB) return dateA.localeCompare(dateB);
+        return String(a.created_at ?? "").localeCompare(String(b.created_at ?? ""));
+      });
+
+    const ledgerNetDr = ledgerNetDrByCustomer.get(customerId) ?? 0;
+    let invoiceFaceTotal = 0;
+    for (const sale of customerSales) {
+      invoiceFaceTotal += faceById.get(sale.id) ?? 0;
+    }
+    invoiceFaceTotal = roundKhataMoney(invoiceFaceTotal);
+
+    const pool = roundKhataMoney(invoiceFaceTotal - ledgerNetDr);
+    let remaining = pool;
+
+    for (const sale of customerSales) {
+      const face = faceById.get(sale.id) ?? 0;
+      const absorbed = roundKhataMoney(clampKhata(remaining, 0, face));
+      const displayOutstanding = roundKhataMoney(face - absorbed);
+      displayByInvoiceId.set(sale.id, {
+        outstanding: displayOutstanding,
+        payment_status: khataDisplayStatus(displayOutstanding, face),
+      });
+      remaining = roundKhataMoney(remaining - absorbed);
+    }
+  }
+
+  return reconciledRows.map((row) => {
+    if (!row?.customer_id || !gatedCustomerIds.has(row.customer_id)) {
+      return row;
+    }
+    if (row.is_cancelled === true || row.payment_status === "cancelled") {
+      return row;
+    }
+    if (row.payment_status === "hold") {
+      return row;
+    }
+    const display = displayByInvoiceId.get(String(row.id));
+    if (!display) {
+      return row;
+    }
+    return {
+      ...row,
+      outstanding: display.outstanding,
+      payment_status: display.payment_status,
+    };
+  });
+}
+
 export type InvoiceDashboardPageOptions = {
   page: number;
   pageSize: number;
@@ -493,30 +714,34 @@ export async function reconcileInvoiceDashboardRows(
     linkedReturns = data || [];
   }
 
-  return invoices.map((inv: any) => {
-    const isInvCancelled = inv.is_cancelled === true || inv.payment_status === "cancelled";
-    if (isInvCancelled) {
-      return { ...inv, payment_status: "cancelled" as const, outstanding: 0 };
-    }
-    if (inv.payment_status === "hold") {
-      return { ...inv };
-    }
-    const rec = reconcileSaleInvoiceWithSplit(
-      { ...inv, items_gross: itemsGrossBySale.get(inv.id) ?? null },
-      splitBySale.get(inv.id) ?? null,
-    );
-    const cnAdjustYmd =
-      Number(inv.sale_return_adjust || 0) > 0.005
-        ? resolveCnAdjustDateForSale(inv.id, [], linkedReturns || [])
-        : null;
-    return {
-      ...inv,
-      paid_amount: rec.paid_amount,
-      payment_status: rec.payment_status,
-      outstanding: rec.outstanding,
-      cn_adjust_date: cnAdjustYmd,
-    };
-  });
+  return applyDisplayFifoForKhataCustomers(
+    client,
+    filters,
+    invoices.map((inv: any) => {
+      const isInvCancelled = inv.is_cancelled === true || inv.payment_status === "cancelled";
+      if (isInvCancelled) {
+        return { ...inv, payment_status: "cancelled" as const, outstanding: 0 };
+      }
+      if (inv.payment_status === "hold") {
+        return { ...inv };
+      }
+      const rec = reconcileSaleInvoiceWithSplit(
+        { ...inv, items_gross: itemsGrossBySale.get(inv.id) ?? null },
+        splitBySale.get(inv.id) ?? null,
+      );
+      const cnAdjustYmd =
+        Number(inv.sale_return_adjust || 0) > 0.005
+          ? resolveCnAdjustDateForSale(inv.id, [], linkedReturns || [])
+          : null;
+      return {
+        ...inv,
+        paid_amount: rec.paid_amount,
+        payment_status: rec.payment_status,
+        outstanding: rec.outstanding,
+        cn_adjust_date: cnAdjustYmd,
+      };
+    }),
+  );
 }
 
 /** Server-side paginated invoice rows with per-page reconcile (stats via RPC). */
