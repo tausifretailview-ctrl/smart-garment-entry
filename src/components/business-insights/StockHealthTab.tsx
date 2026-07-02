@@ -190,7 +190,7 @@ export function StockHealthTab() {
         />
       </InsightsKpiStrip>
 
-      <InsightsSubTabs value={subTab} onValueChange={setSubTab} items={STOCK_SUB_TABS}>
+      <InsightsSubTabs value={subTab} onValueChange={(v) => setSubTab(v as StockSubTab)} items={STOCK_SUB_TABS}>
         <InsightsSubTabPanel value="low-stock">
           <InsightsPanel
             className="flex-1 min-h-0"
