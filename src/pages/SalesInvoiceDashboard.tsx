@@ -114,10 +114,12 @@ import { confirmInvoiceOverpaymentIfNeeded } from "@/utils/invoiceOverpaymentGua
 import {
   fetchInvoiceDashboardPage,
   fetchInvoiceDashboardStats,
+  getInvoiceDashboardDisplayStatus,
   patchInvoiceDashboardDeliveryStatus,
   patchInvoiceDashboardPaymentFields,
   reconcileInvoiceDashboardRows,
   refetchInvoiceDashboardQueries,
+  sumInvoiceDashboardOutstanding,
   syncVisibleInvoiceStaleFields,
 } from "@/utils/invoiceDashboardData";
 import { isSaleInvoiceCancelled } from "@/utils/saleInvoiceStatus";
@@ -1318,7 +1320,16 @@ export default function SalesInvoiceDashboard() {
         undeliveredAmount: 0,
       };
 
-  const effectiveStats = baseStats;
+  const effectiveStats = useMemo(() => {
+    if (!baseStats) return baseStats;
+    if (reconciledPageInvoices) {
+      return {
+        ...baseStats,
+        pendingAmount: sumInvoiceDashboardOutstanding(paginatedInvoices),
+      };
+    }
+    return baseStats;
+  }, [baseStats, reconciledPageInvoices, paginatedInvoices]);
 
   const handleExportExcel = useCallback(async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -2987,12 +2998,7 @@ export default function SalesInvoiceDashboard() {
                     Math.max(inv.sale_return_adjust || 0, inv.credit_applied || 0),
                 )
             );
-            const effectiveStatus =
-              inv.payment_status === 'hold'
-                ? 'hold'
-                : inv.payment_status === 'cancelled'
-                  ? 'cancelled'
-                  : inv.payment_status || 'pending';
+            const effectiveStatus = getInvoiceDashboardDisplayStatus(inv);
             const sc: Record<string, string> = {
               completed: "bg-emerald-50 text-emerald-700 border-emerald-200",
               partial: "bg-amber-50 text-amber-700 border-amber-200",
@@ -3816,21 +3822,26 @@ export default function SalesInvoiceDashboard() {
                                     Cancelled
                                   </Badge>
                                 ) : (
+                                  (() => {
+                                    const displayStatus = getInvoiceDashboardDisplayStatus(invoice);
+                                    return (
                                   <Badge
                                     className={`min-w-0 max-w-full justify-center whitespace-normal text-center text-[11px] px-1.5 py-0 leading-tight ${
-                                      invoice.payment_status === 'completed'
+                                      displayStatus === 'completed'
                                         ? 'bg-green-500 hover:bg-green-600 text-white'
-                                        : invoice.payment_status === 'partial'
+                                        : displayStatus === 'partial'
                                           ? 'bg-orange-400 hover:bg-orange-500 text-white'
                                           : 'bg-red-500 hover:bg-red-600 text-white'
                                     }`}
                                   >
-                                    {invoice.payment_status === 'completed'
+                                    {displayStatus === 'completed'
                                       ? 'Paid'
-                                      : invoice.payment_status === 'partial'
+                                      : displayStatus === 'partial'
                                         ? 'Partial'
                                         : 'Not Paid'}
                                   </Badge>
+                                    );
+                                  })()
                                 )}
                               </TableCell>
                             )}

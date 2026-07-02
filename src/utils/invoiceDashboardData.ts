@@ -452,9 +452,72 @@ function khataInvoiceFace(netAmount: number, saleReturnAdjust: number): number {
 function khataDisplayStatus(displayOutstanding: number, face: number): string {
   const out = roundKhataMoney(displayOutstanding);
   const faceR = roundKhataMoney(face);
-  if (out <= 0.01) return "paid";
+  if (out <= 0.01) return "completed";
   if (out > 0.01 && out < faceR - 0.01) return "partial";
   return "pending";
+}
+
+/** Dashboard badge source — outstanding wins over stale pay_later paid_amount=0. */
+export function getInvoiceDashboardDisplayStatus(invoice: {
+  payment_status?: string | null;
+  outstanding?: number | null;
+  is_cancelled?: boolean | null;
+  net_amount?: number | null;
+  paid_amount?: number | null;
+  sale_return_adjust?: number | null;
+  credit_applied?: number | null;
+}): string {
+  if (invoice.is_cancelled === true || invoice.payment_status === "cancelled") {
+    return "cancelled";
+  }
+  if (invoice.payment_status === "hold") {
+    return "hold";
+  }
+  const outstanding = roundKhataMoney(
+    Math.max(
+      0,
+      Number(
+        invoice.outstanding ??
+          Math.max(
+            0,
+            Number(invoice.net_amount || 0) -
+              Number(invoice.paid_amount || 0) -
+              Math.max(
+                Number(invoice.sale_return_adjust || 0),
+                Number(invoice.credit_applied || 0),
+              ),
+          ),
+      ),
+    ),
+  );
+  if (outstanding <= 0.01) {
+    return "completed";
+  }
+  if (invoice.payment_status === "partial") return "partial";
+  if (invoice.payment_status === "completed") return "completed";
+  return invoice.payment_status || "pending";
+}
+
+export function sumInvoiceDashboardOutstanding(rows: any[]): number {
+  return roundKhataMoney(
+    rows.reduce((sum, inv) => {
+      if (inv.is_cancelled === true || inv.payment_status === "cancelled") return sum;
+      if (inv.payment_status === "hold") return sum;
+      const outstanding = Math.max(
+        0,
+        Number(
+          inv.outstanding ??
+            Math.max(
+              0,
+              Number(inv.net_amount || 0) -
+                Number(inv.paid_amount || 0) -
+                Math.max(Number(inv.sale_return_adjust || 0), Number(inv.credit_applied || 0)),
+            ),
+        ),
+      );
+      return sum + outstanding;
+    }, 0),
+  );
 }
 
 type KhataFifoSaleRow = {
