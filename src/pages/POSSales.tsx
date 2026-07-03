@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo } fr
 import { createPortal } from "react-dom";
 import { logError } from "@/lib/errorLogger";
 import { cn } from "@/lib/utils";
-import { isDecimalUOM } from "@/constants/uom";
+import { getUOMLabel } from "@/constants/uom";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { useMobileERP, validateIMEI } from "@/hooks/useMobileERP";
 import { useSettings } from "@/hooks/useSettings";
@@ -25,6 +25,7 @@ import { isPosSalesRoute } from "@/lib/keyboardShortcuts";
 import { TabletPOSLayout } from "@/components/tablet/TabletPOSLayout";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { QtyInput } from "@/components/ui/qty-input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
@@ -83,6 +84,7 @@ import {
   computePosFlatDiscount,
   posLineDisplayTotal,
 } from "@/utils/posGstTotals";
+import { clampQty, minQtyForUom } from "@/utils/qtyInput";
 import type { GstTaxType } from "@/utils/gstRegisterUtils";
 import { CreditNotePrint } from "@/components/CreditNotePrint";
 import { StockIssueAlertDialog } from "@/components/StockIssueAlertDialog";
@@ -2706,22 +2708,22 @@ export default function POSSales() {
 
   const updateQuantity = async (index: number, newQty: number) => {
     const item = items[index];
-    const isDecimal = isDecimalUOM(item?.uom);
-    if (isDecimal ? newQty <= 0 : newQty < 1) return;
-    
+    const clampedQty = clampQty(newQty, item?.uom);
+    if (clampedQty < minQtyForUom(item?.uom)) return;
+
     // Real-time stock validation before updating quantity
-    const stockCheck = await checkStock(item.variantId, newQty);
+    const stockCheck = await checkStock(item.variantId, clampedQty);
     
     if (!stockCheck.isAvailable) {
       openStockIssueDialog(
-        buildInsufficientStockIssue(item.productName, item.size, newQty, stockCheck.availableStock),
+        buildInsufficientStockIssue(item.productName, item.size, clampedQty, stockCheck.availableStock),
       );
       return;
     }
     
     setItems(prev => {
       const updatedItems = [...prev];
-      updatedItems[index].quantity = newQty;
+      updatedItems[index].quantity = clampedQty;
       updatedItems[index].netAmount = calculatePosCartLineNet(updatedItems[index]);
       return updatedItems;
     });
@@ -6032,17 +6034,15 @@ export default function POSSales() {
                           <div className="flex items-center justify-center text-base font-medium">{item.size}</div>
                           <div className="flex items-center justify-center text-base text-muted-foreground">{item.color || '-'}</div>
                           <div>
-                            <Input
-                              type="number"
-                              value={item.quantity || ""}
-                              onChange={(e) => updateQuantity(index, isDecimalUOM(item.uom) ? (parseFloat(e.target.value) || 0.001) : (parseInt(e.target.value) || 1))}
-                              placeholder="1"
-                              step={isDecimalUOM(item.uom) ? "0.001" : "1"}
-                              className="h-8 text-sm w-full text-center bg-muted/30 border-border/60"
-                              min={isDecimalUOM(item.uom) ? "0.001" : "1"}
+                            <QtyInput
+                              uom={item.uom}
+                              value={item.quantity || minQtyForUom(item.uom)}
+                              onChange={(val) => updateQuantity(index, val)}
+                              className="h-8 text-sm w-full text-center bg-muted/30 border-border/60 px-1"
+                              selectOnFocus={false}
                             />
                             {item.uom && item.uom !== 'NOS' && item.uom !== 'PCS' && (
-                              <span className="text-[10px] text-muted-foreground text-center block">{item.uom}</span>
+                              <span className="text-[10px] text-muted-foreground text-center block">{getUOMLabel(item.uom)}</span>
                             )}
                           </div>
                           <div>

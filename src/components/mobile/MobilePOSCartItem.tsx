@@ -1,6 +1,9 @@
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { QtyInput } from "@/components/ui/qty-input";
 import { Minus, Plus, Trash2 } from "lucide-react";
+import { getUOMLabel } from "@/constants/uom";
+import { adjustQtyByStep, minQtyForUom } from "@/utils/qtyInput";
 
 interface CartItem {
   id: string;
@@ -20,6 +23,7 @@ interface CartItem {
   variantId: string;
   hsnCode?: string;
   productType?: string;
+  uom?: string;
 }
 
 interface MobilePOSCartItemProps {
@@ -36,6 +40,8 @@ export const MobilePOSCartItem = ({
   onQuantityChange, 
   onRemove 
 }: MobilePOSCartItemProps) => {
+  const minQty = minQtyForUom(item.uom);
+
   return (
     <Card className="p-3 mb-2 bg-card border-border">
       <div className="flex justify-between items-start gap-2">
@@ -62,31 +68,38 @@ export const MobilePOSCartItem = ({
       </div>
       
       <div className="flex justify-between items-center mt-3">
-        {/* Quantity Controls - Large touch targets */}
-        <div className="flex items-center gap-1">
-          <Button 
-            variant="outline" 
-            size="icon"
-            className="h-10 w-10 text-lg font-bold"
-            onClick={() => onQuantityChange(index, item.quantity - 1)}
-            disabled={item.quantity <= 1}
-          >
-            <Minus className="h-4 w-4" />
-          </Button>
-          <span className="w-10 text-center font-bold text-lg">
-            {item.quantity}
-          </span>
-          <Button 
-            variant="outline" 
-            size="icon"
-            className="h-10 w-10 text-lg font-bold"
-            onClick={() => onQuantityChange(index, item.quantity + 1)}
-          >
-            <Plus className="h-4 w-4" />
-          </Button>
+        <div className="flex flex-col gap-0.5">
+          <div className="flex items-center gap-1">
+            <Button 
+              variant="outline" 
+              size="icon"
+              className="h-10 w-10 text-lg font-bold"
+              onClick={() => onQuantityChange(index, adjustQtyByStep(item.quantity, -1, item.uom))}
+              disabled={item.quantity <= minQty}
+            >
+              <Minus className="h-4 w-4" />
+            </Button>
+            <QtyInput
+              uom={item.uom}
+              value={item.quantity || minQty}
+              onChange={(val) => onQuantityChange(index, val)}
+              className="h-10 w-16 text-center text-base font-bold px-1 bg-muted/30 border-border/60"
+              selectOnFocus={false}
+            />
+            <Button 
+              variant="outline" 
+              size="icon"
+              className="h-10 w-10 text-lg font-bold"
+              onClick={() => onQuantityChange(index, adjustQtyByStep(item.quantity, 1, item.uom))}
+            >
+              <Plus className="h-4 w-4" />
+            </Button>
+          </div>
+          {item.uom && item.uom !== "NOS" && item.uom !== "PCS" && (
+            <span className="text-[10px] text-muted-foreground text-center">{getUOMLabel(item.uom)}</span>
+          )}
         </div>
         
-        {/* Price Display */}
         <div className="text-right">
           {item.originalMrp && item.originalMrp > item.mrp && (
             <span className="text-xs text-muted-foreground line-through mr-2">
