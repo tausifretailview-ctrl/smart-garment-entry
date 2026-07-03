@@ -100,19 +100,6 @@ export function shouldUnionSaleItemsForInvoiceSearch(searchStr: string): boolean
   return /[A-Za-z]/.test(t) && t.length >= 4;
 }
 
-function throwIfAborted(signal?: AbortSignal): void {
-  if (signal?.aborted) {
-    throw new DOMException("Aborted", "AbortError");
-  }
-}
-
-function withAbortSignal<T extends { abortSignal: (signal: AbortSignal) => T }>(
-  query: T,
-  signal?: AbortSignal,
-): T {
-  return signal ? query.abortSignal(signal) : query;
-}
-
 function shouldApplyInvoiceUserFilter(userFilter: string): boolean {
   return Boolean(userFilter) && userFilter !== "all" && userFilter !== "__pending__";
 }
@@ -160,14 +147,11 @@ async function fetchSaleIdsMatchingLineItems(
   saleDateFilter: InvoiceDashboardSaleDateFilter,
   searchStr: string,
   itemLimit: number,
-  signal?: AbortSignal,
 ): Promise<string[]> {
-  throwIfAborted(signal);
   const saleIdsInRange: string[] = [];
   const PAGE = 1000;
   let offset = 0;
   while (true) {
-    throwIfAborted(signal);
     let q = client
       .from("sales")
       .select("id")
@@ -176,7 +160,7 @@ async function fetchSaleIdsMatchingLineItems(
       .is("deleted_at", null);
     if (saleDateFilter.start) q = q.gte("sale_date", saleDateFilter.start);
     if (saleDateFilter.end) q = q.lte("sale_date", saleDateFilter.end);
-    const { data, error } = await withAbortSignal(q.range(offset, offset + PAGE - 1), signal);
+    const { data, error } = await q.range(offset, offset + PAGE - 1);
     if (error) throw error;
     if (!data?.length) break;
     saleIdsInRange.push(...data.map((r) => r.id).filter(Boolean));
@@ -193,18 +177,14 @@ async function fetchSaleIdsMatchingLineItems(
 
   const matched = new Set<string>();
   for (let i = 0; i < saleIdsInRange.length; i += 200) {
-    throwIfAborted(signal);
     const batch = saleIdsInRange.slice(i, i + 200);
-    const { data: matchingItems, error } = await withAbortSignal(
-      client
-        .from("sale_items")
-        .select("sale_id")
-        .in("sale_id", batch)
-        .is("deleted_at", null)
-        .or(orFilter)
-        .limit(itemLimit),
-      signal,
-    );
+    const { data: matchingItems, error } = await client
+      .from("sale_items")
+      .select("sale_id")
+      .in("sale_id", batch)
+      .is("deleted_at", null)
+      .or(orFilter)
+      .limit(itemLimit);
     if (error) throw error;
     (matchingItems || []).forEach((row) => {
       if (row.sale_id) matched.add(row.sale_id);
@@ -258,15 +238,13 @@ function buildFilteredSalesQuery(
 async function countFilteredInvoiceSales(
   client: SupabaseClient,
   filters: InvoiceDashboardFilters,
-  signal?: AbortSignal,
 ): Promise<number> {
-  throwIfAborted(signal);
   let query: any = applyInvoiceDashboardFilters(
     client.from("sales").select("id", { count: "exact", head: true }),
     filters,
   );
-  query = await applySearchToSalesQuery(client, filters, query, signal);
-  const { count, error } = await withAbortSignal(query, signal);
+  query = await applySearchToSalesQuery(client, filters, query);
+  const { count, error } = await query;
   if (error) throw error;
   return count ?? 0;
 }
@@ -275,9 +253,7 @@ async function applySearchToSalesQuery(
   client: SupabaseClient,
   filters: InvoiceDashboardFilters,
   query: any,
-  signal?: AbortSignal,
 ): Promise<any> {
-  throwIfAborted(signal);
   const searchStr = filters.debouncedSearch.trim();
   if (!searchStr) return query;
 
@@ -295,21 +271,17 @@ async function applySearchToSalesQuery(
       filters.saleDateFilter,
       searchStr,
       1000,
-      signal,
     );
   }
 
   if (matchingSaleIds.length > 0) {
-    const { data: textMatches, error } = await withAbortSignal(
-      client
-        .from("sales")
-        .select("id")
-        .eq("organization_id", filters.organizationId)
-        .eq("sale_type", "invoice")
-        .is("deleted_at", null)
-        .or(saleTextFilter),
-      signal,
-    );
+    const { data: textMatches, error } = await client
+      .from("sales")
+      .select("id")
+      .eq("organization_id", filters.organizationId)
+      .eq("sale_type", "invoice")
+      .is("deleted_at", null)
+      .or(saleTextFilter);
     if (error) throw error;
     const textMatchIds = (textMatches || []).map((s: any) => s.id);
     const allMatchIds = [...new Set([...textMatchIds, ...matchingSaleIds])];
@@ -425,26 +397,20 @@ function parseInvoiceDashboardStatsRow(row: Partial<InvoiceDashboardStats>): Inv
 export async function fetchInvoiceDashboardStats(
   client: SupabaseClient,
   filters: InvoiceDashboardFilters,
-  options?: { signal?: AbortSignal },
 ): Promise<InvoiceDashboardStats> {
   if (!filters.organizationId) {
     return { ...EMPTY_INVOICE_DASHBOARD_STATS };
   }
 
-  throwIfAborted(options?.signal);
-
   try {
-    const { data, error } = await withAbortSignal(
-      client.rpc("get_invoice_dashboard_stats", {
+    const { data, error } = await client.rpc("get_invoice_dashboard_stats", {
         p_organization_id: filters.organizationId,
         p_date_from: filters.saleDateFilter.start,
         p_date_to: filters.saleDateFilter.end,
         p_filters: buildInvoiceDashboardRpcFilters(filters),
         p_search: filters.debouncedSearch.trim() || null,
         p_customer_id: filters.customerId || null,
-      }),
-      options?.signal,
-    );
+      });
 
     if (error) {
       console.warn(
@@ -762,7 +728,6 @@ export type InvoiceDashboardPageOptions = {
   pageSize: number;
   /** When false, skip receipt reconcile for faster first paint (use sourceRows + reconcile query). */
   reconcile?: boolean;
-  signal?: AbortSignal;
 };
 
 export type InvoiceDashboardPageResult = {
@@ -863,17 +828,14 @@ export async function fetchInvoiceDashboardPage(
   const from = (options.page - 1) * options.pageSize;
   const to = from + options.pageSize - 1;
   const select = reconcile ? INVOICE_DASHBOARD_SALES_SELECT : INVOICE_DASHBOARD_LIST_SELECT;
-  const signal = options.signal;
-
-  throwIfAborted(signal);
 
   // Match export/unified fetch: range before search filters, then await (not range after .or()).
   const [totalCount, dataResult] = await Promise.all([
-    countFilteredInvoiceSales(client, filters, signal),
+    countFilteredInvoiceSales(client, filters),
     (async () => {
       let query: any = buildFilteredSalesQuery(client, filters, select).range(from, to);
-      query = await applySearchToSalesQuery(client, filters, query, signal);
-      return withAbortSignal(query, signal);
+      query = await applySearchToSalesQuery(client, filters, query);
+      return query;
     })(),
   ]);
   const { data, error } = await dataResult;

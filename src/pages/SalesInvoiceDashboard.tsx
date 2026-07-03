@@ -765,7 +765,7 @@ export default function SalesInvoiceDashboard() {
     isLoading: isStatsLoading,
   } = useQuery({
     queryKey: [...dashboardQueryKey, "stats"],
-    queryFn: async ({ signal }) => {
+    queryFn: async () => {
       if (!currentOrganization?.id) {
         return {
           totalInvoices: 0,
@@ -779,7 +779,7 @@ export default function SalesInvoiceDashboard() {
           undeliveredAmount: 0,
         };
       }
-      return fetchInvoiceDashboardStats(supabase, dashboardFilters, { signal });
+      return fetchInvoiceDashboardStats(supabase, dashboardFilters);
     },
     enabled: dashboardQueryEnabled,
     ...DASHBOARD_KPI_QUERY_OPTIONS,
@@ -795,7 +795,7 @@ export default function SalesInvoiceDashboard() {
     dataUpdatedAt: invoicesUpdatedAt,
   } = useQuery({
     queryKey: dashboardQueryKey,
-    queryFn: async ({ signal }) => {
+    queryFn: async () => {
       if (!currentOrganization?.id) {
         return { invoices: [] as any[], totalCount: 0 };
       }
@@ -803,7 +803,6 @@ export default function SalesInvoiceDashboard() {
         page: currentPage,
         pageSize: itemsPerPage,
         reconcile: false,
-        signal,
       });
     },
     enabled: dashboardQueryEnabled,
@@ -817,10 +816,9 @@ export default function SalesInvoiceDashboard() {
 
   const { data: reconciledPageInvoices } = useQuery({
     queryKey: [...dashboardQueryKey, "reconcile", reconcileSourceKey],
-    queryFn: async ({ signal }) => {
+    queryFn: async () => {
       const sourceRows = dashboardPage?.sourceRows;
       if (!sourceRows?.length || !currentOrganization?.id) return [];
-      if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
       const normalized = await reconcileInvoiceDashboardRows(
         supabase,
         dashboardFilters,
