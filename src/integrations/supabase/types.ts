@@ -8025,6 +8025,8 @@ export type Database = {
         Args: { _days?: number }
         Returns: number
       }
+      assert_org_member: { Args: { p_org: string }; Returns: undefined }
+      assert_platform_admin: { Args: never; Returns: undefined }
       cancel_invoice: {
         Args: { p_reason?: string; p_sale_id: string }
         Returns: Json
