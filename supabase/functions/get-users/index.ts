@@ -42,23 +42,15 @@ serve(async (req) => {
       );
     }
 
-    const supabaseUser = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: authHeader } },
-    });
-
-    const { data: claimsData, error: claimsError } = await supabaseUser.auth.getClaims(token);
-    const userId = claimsData?.claims?.sub as string | undefined;
-    if (claimsError || !userId) {
-      console.error("JWT claims verification failed:", claimsError?.message);
+    // Verify the JWT against the auth server. Passing the token explicitly avoids
+    // the "Auth session missing!" error that getClaims/getUser produce on a client
+    // without a persisted session (legacy HS256 projects).
+    const { data: userData, error: userError } = await supabaseAdmin.auth.getUser(token);
+    const userId = userData?.user?.id;
+    if (userError || !userId) {
+      console.error("JWT verification failed:", userError?.message);
       return new Response(
-        JSON.stringify({ error: "Unauthorized", details: claimsError?.message || "Invalid login session" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    if (!userId) {
-      return new Response(
-        JSON.stringify({ error: "Unauthorized", details: "Invalid login session" }),
+        JSON.stringify({ error: "Unauthorized", details: userError?.message || "Invalid login session" }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }

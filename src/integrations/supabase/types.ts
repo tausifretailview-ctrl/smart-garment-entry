@@ -8653,6 +8653,20 @@ export type Database = {
         }
         Returns: Json
       }
+      get_purchase_bills_dashboard_page: {
+        Args: {
+          p_dc_filter?: string
+          p_end_date?: string
+          p_limit?: number
+          p_offset?: number
+          p_org_id: string
+          p_payment_status_filter?: string
+          p_search?: string
+          p_sort_asc?: boolean
+          p_start_date?: string
+        }
+        Returns: Json
+      }
       get_purchase_summary: {
         Args: { p_end_date: string; p_org_id: string; p_start_date: string }
         Returns: Json
@@ -9051,6 +9065,18 @@ export type Database = {
           updated_alerts: number
         }[]
       }
+      search_invoice_sale_ids: {
+        Args: {
+          p_date_from?: string
+          p_date_to?: string
+          p_limit?: number
+          p_org_id: string
+          p_search: string
+        }
+        Returns: {
+          sale_id: string
+        }[]
+      }
       set_whatsapp_send_provider: {
         Args: { p_organization_id: string; p_send_provider: string }
         Returns: undefined
@@ -9089,6 +9115,10 @@ export type Database = {
       }
       soft_delete_voucher: {
         Args: { p_user_id: string; p_voucher_id: string }
+        Returns: undefined
+      }
+      update_purchase_line_numbers: {
+        Args: { p_bill_id: string; p_ids: string[]; p_line_numbers: number[] }
         Returns: undefined
       }
       update_purchase_return_items: {
