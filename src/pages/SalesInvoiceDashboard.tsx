@@ -119,7 +119,6 @@ import {
   patchInvoiceDashboardPaymentFields,
   reconcileInvoiceDashboardRows,
   refetchInvoiceDashboardQueries,
-  sumInvoiceDashboardOutstanding,
   syncVisibleInvoiceStaleFields,
 } from "@/utils/invoiceDashboardData";
 import { isSaleInvoiceCancelled } from "@/utils/saleInvoiceStatus";
@@ -1320,16 +1319,7 @@ export default function SalesInvoiceDashboard() {
         undeliveredAmount: 0,
       };
 
-  const effectiveStats = useMemo(() => {
-    if (!baseStats) return baseStats;
-    if (reconciledPageInvoices) {
-      return {
-        ...baseStats,
-        pendingAmount: sumInvoiceDashboardOutstanding(paginatedInvoices),
-      };
-    }
-    return baseStats;
-  }, [baseStats, reconciledPageInvoices, paginatedInvoices]);
+  const effectiveStats = baseStats;
 
   const handleExportExcel = useCallback(async (e: React.MouseEvent) => {
     e.stopPropagation();

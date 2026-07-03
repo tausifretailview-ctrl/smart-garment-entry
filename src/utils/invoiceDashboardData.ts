@@ -434,6 +434,9 @@ export const fetchInvoiceDashboardStatsViaRpc = fetchInvoiceDashboardStats;
 
 const SR_RECONCILE_TOLERANCE = 0.005;
 
+/** Kill-switch: display-time khata FIFO (party ledger pool). Off = DB/reconcile rows only. */
+export const ENABLE_KHATA_FIFO = false;
+
 /** ₹1 gate + status tolerance — matches dashboard settlement conventions. */
 const KHATA_FIFO_TOLERANCE = 1;
 
@@ -457,7 +460,7 @@ function khataDisplayStatus(displayOutstanding: number, face: number): string {
   return "pending";
 }
 
-/** Dashboard badge source — outstanding wins over stale pay_later paid_amount=0. */
+/** Dashboard badge — when khata FIFO is off, trust DB payment_status (no outstanding override). */
 export function getInvoiceDashboardDisplayStatus(invoice: {
   payment_status?: string | null;
   outstanding?: number | null;
@@ -472,6 +475,9 @@ export function getInvoiceDashboardDisplayStatus(invoice: {
   }
   if (invoice.payment_status === "hold") {
     return "hold";
+  }
+  if (!ENABLE_KHATA_FIFO) {
+    return invoice.payment_status || "pending";
   }
   const outstanding = roundKhataMoney(
     Math.max(
@@ -775,10 +781,7 @@ export async function reconcileInvoiceDashboardRows(
     linkedReturns = data || [];
   }
 
-  return applyDisplayFifoForKhataCustomers(
-    client,
-    filters,
-    invoices.map((inv: any) => {
+  let rows = invoices.map((inv: any) => {
       const isInvCancelled = inv.is_cancelled === true || inv.payment_status === "cancelled";
       if (isInvCancelled) {
         return { ...inv, payment_status: "cancelled" as const, outstanding: 0 };
@@ -801,8 +804,13 @@ export async function reconcileInvoiceDashboardRows(
         outstanding: rec.outstanding,
         cn_adjust_date: cnAdjustYmd,
       };
-    }),
-  );
+    });
+
+  if (ENABLE_KHATA_FIFO) {
+    rows = await applyDisplayFifoForKhataCustomers(client, filters, rows);
+  }
+
+  return rows;
 }
 
 /** Server-side paginated invoice rows with per-page reconcile (stats via RPC). */
