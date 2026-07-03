@@ -404,13 +404,13 @@ export async function fetchInvoiceDashboardStats(
 
   try {
     const { data, error } = await client.rpc("get_invoice_dashboard_stats", {
-        p_organization_id: filters.organizationId,
-        p_date_from: filters.saleDateFilter.start,
-        p_date_to: filters.saleDateFilter.end,
-        p_filters: buildInvoiceDashboardRpcFilters(filters),
-        p_search: filters.debouncedSearch.trim() || null,
-        p_customer_id: filters.customerId || null,
-      });
+      p_organization_id: filters.organizationId,
+      p_date_from: filters.saleDateFilter.start,
+      p_date_to: filters.saleDateFilter.end,
+      p_filters: buildInvoiceDashboardRpcFilters(filters),
+      p_search: filters.debouncedSearch.trim() || null,
+      p_customer_id: filters.customerId || null,
+    });
 
     if (error) {
       console.warn(
