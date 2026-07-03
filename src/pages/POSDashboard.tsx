@@ -63,6 +63,8 @@ import { useSettings } from "@/hooks/useSettings";
 import { useDashboardColumnSettings } from "@/hooks/useDashboardColumnSettings";
 import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
 import { useWhatsAppAPI } from "@/hooks/useWhatsAppAPI";
+import { captureElementToPdfBase64 } from "@/utils/captureInvoicePdf";
+import { resendSaleInvoiceWhatsApp } from "@/utils/resendSaleInvoiceWhatsApp";
 import { useOpenCustomerAccount } from "@/hooks/useOpenCustomerAccount";
 import { useSoftDelete } from "@/hooks/useSoftDelete";
 import { waitForPrintReady } from "@/utils/printReady";
@@ -1229,33 +1231,29 @@ const POSDashboard = () => {
     },
   });
 
-  const handlePrintClick = async (sale: Sale, event: React.MouseEvent) => {
-    event.stopPropagation();
-    
-    const items = await fetchSaleItems(sale.id);
-    
-    try {
+  const buildPrintDataFromSale = useCallback(
+    async (sale: Sale, items: SaleItem[]) => {
       const saleDate = new Date(sale.sale_date);
 
-      // Fetch financer details, customer GST, and previous balance in parallel
       let financerDetails = null;
       const [{ data: finData }, { data: customerData }, previousBalance] = await Promise.all([
-        supabase.from('sale_financer_details').select('*').eq('sale_id', sale.id).maybeSingle(),
+        supabase.from("sale_financer_details").select("*").eq("sale_id", sale.id).maybeSingle(),
         sale.customer_id
-          ? supabase.from('customers').select('gst_number, transport_details').eq('id', sale.customer_id).maybeSingle()
+          ? supabase.from("customers").select("gst_number, transport_details").eq("id", sale.customer_id).maybeSingle()
           : Promise.resolve({ data: null }),
         (async () => {
           if (!sale.customer_id) return 0;
           const { data: allSales } = await supabase
-            .from('sales')
-            .select('id, net_amount, paid_amount')
-            .eq('customer_id', sale.customer_id)
-            .eq('organization_id', currentOrganization!.id)
-            .is('deleted_at', null);
+            .from("sales")
+            .select("id, net_amount, paid_amount")
+            .eq("customer_id", sale.customer_id)
+            .eq("organization_id", currentOrganization!.id)
+            .is("deleted_at", null);
           if (!allSales) return 0;
           return allSales.reduce((sum, s) => sum + ((s.net_amount || 0) - (s.paid_amount || 0)), 0);
         })(),
       ]);
+
       if (finData) {
         financerDetails = {
           financer_name: finData.financer_name,
@@ -1266,20 +1264,20 @@ const POSDashboard = () => {
         };
       }
 
-      const invoiceData = {
+      return {
         billNo: sale.sale_number,
         date: saleDate,
         customerName: sale.customer_name,
-        customerAddress: sale.customer_address || '',
-        customerMobile: sale.customer_phone || '',
-        customerGSTIN: customerData?.gst_number || '',
-        customerTransportDetails: customerData?.transport_details || '',
+        customerAddress: sale.customer_address || "",
+        customerMobile: sale.customer_phone || "",
+        customerGSTIN: customerData?.gst_number || "",
+        customerTransportDetails: customerData?.transport_details || "",
         items: items.map((item, index) => ({
           sr: index + 1,
           particulars: item.product_name,
           size: item.size,
-          barcode: item.barcode || '',
-          hsn: item.hsn_code || '',
+          barcode: item.barcode || "",
+          hsn: item.hsn_code || "",
           sp: Number(item.unit_price || 0),
           mrp: Math.max(Number(item.mrp || 0), Number(item.unit_price || 0)),
           qty: item.quantity,
@@ -1293,8 +1291,8 @@ const POSDashboard = () => {
         saleReturnAdjust: sale.sale_return_adjust || 0,
         grandTotal: sale.net_amount,
         roundOff: sale.round_off || 0,
-        cashPaid: sale.payment_method === 'cash' ? sale.net_amount : 0,
-        upiPaid: sale.payment_method === 'upi' ? sale.net_amount : 0,
+        cashPaid: sale.payment_method === "cash" ? sale.net_amount : 0,
+        upiPaid: sale.payment_method === "upi" ? sale.net_amount : 0,
         paymentMethod: sale.payment_method,
         cashAmount: sale.cash_amount,
         cardAmount: sale.card_amount,
@@ -1302,11 +1300,101 @@ const POSDashboard = () => {
         creditAmount: sale.credit_amount,
         paidAmount: sale.paid_amount,
         previousBalance: previousBalance || 0,
-        salesman: sale.salesman || '',
-        notes: sale.notes || '',
+        salesman: sale.salesman || "",
+        notes: sale.notes || "",
         financerDetails,
       };
+    },
+    [currentOrganization?.id],
+  );
 
+  const capturePosSalePdfForWhatsApp = useCallback(
+    async (sale: Sale, items: SaleItem[]) => {
+      try {
+        const invoiceData = await buildPrintDataFromSale(sale, items);
+        flushSync(() => setPrintData(invoiceData));
+        await new Promise<void>((resolve) => {
+          waitForPrintReady(invoicePrintRef, resolve, { maxWait: 8000 });
+        });
+        if (!invoicePrintRef.current) return null;
+        return (
+          (await captureElementToPdfBase64(invoicePrintRef.current, { extraSettleMs: 300 })) ||
+          null
+        );
+      } finally {
+        setPrintData(null);
+      }
+    },
+    [buildPrintDataFromSale],
+  );
+
+  const sendPosSaleWhatsAppViaAPI = useCallback(
+    async (sale: Sale) => {
+      if (!whatsAppAPISettings?.is_active || !currentOrganization?.id) {
+        throw new Error("Enable WhatsApp API integration before sending");
+      }
+      if (!sale.customer_phone) {
+        throw new Error("Customer phone number is required");
+      }
+
+      const items = await fetchSaleItems(sale.id);
+      const totalQty = items.reduce((sum, item) => sum + item.quantity, 0);
+
+      const saleData = {
+        sale_id: sale.id,
+        org_slug: currentOrganization.slug,
+        sale_number: sale.sale_number,
+        customer_name: sale.customer_name,
+        customer_phone: sale.customer_phone,
+        sale_date: sale.sale_date,
+        net_amount: sale.net_amount,
+        gross_amount: sale.gross_amount,
+        discount_amount: sale.discount_amount,
+        payment_status: sale.payment_status,
+        items_count: totalQty,
+        salesman: sale.salesman,
+        organization_name: currentOrganization.name,
+        organization_id: currentOrganization.id,
+        bill_context: "pos",
+        sale_source: "pos",
+        pos_bill_format: effectivePosBillFormat,
+        invoice_paper_format: saleSettings?.invoice_paper_format || "",
+        sales_bill_format: saleSettings?.sales_bill_format || "",
+        invoice_template: posInvoiceTemplate,
+      };
+
+      await resendSaleInvoiceWhatsApp({
+        phone: sale.customer_phone,
+        saleId: sale.id,
+        saleNumber: sale.sale_number,
+        customerName: sale.customer_name,
+        netAmount: Number(sale.net_amount || 0),
+        saleData,
+        waSettings: whatsAppAPISettings,
+        organizationId: currentOrganization.id,
+        organizationName: currentOrganization.name || "",
+        sendMessageAsync,
+        capturePdfBase64: () => capturePosSalePdfForWhatsApp(sale, items),
+      });
+    },
+    [
+      whatsAppAPISettings,
+      currentOrganization,
+      effectivePosBillFormat,
+      saleSettings,
+      posInvoiceTemplate,
+      sendMessageAsync,
+      capturePosSalePdfForWhatsApp,
+    ],
+  );
+
+  const handlePrintClick = async (sale: Sale, event: React.MouseEvent) => {
+    event.stopPropagation();
+    
+    const items = await fetchSaleItems(sale.id);
+    
+    try {
+      const invoiceData = await buildPrintDataFromSale(sale, items);
       flushSync(() => setPrintData(invoiceData));
       handlePrint();
 
@@ -1333,6 +1421,23 @@ const POSDashboard = () => {
         description: "Customer phone number is required to send WhatsApp message",
         variant: "destructive",
       });
+      return;
+    }
+
+    if (whatsAppAPISettings?.is_active) {
+      try {
+        await sendPosSaleWhatsAppViaAPI(sale);
+        toast({
+          title: "Message Sent",
+          description: "WhatsApp invoice sent via WappConnect",
+        });
+      } catch (error: any) {
+        toast({
+          title: "Failed to Send",
+          description: error.message || "Failed to send WhatsApp message",
+          variant: "destructive",
+        });
+      }
       return;
     }
 
@@ -1443,34 +1548,7 @@ const POSDashboard = () => {
     }
 
     try {
-      const items = await fetchSaleItems(sale.id);
-      const totalQty = items.reduce((sum, item) => sum + item.quantity, 0);
-      
-      await sendMessageAsync({
-        phone: sale.customer_phone,
-        message: '',
-        templateType: 'sales_invoice',
-        templateName: whatsAppAPISettings?.invoice_template_name || undefined,
-        referenceId: sale.id,
-        referenceType: 'sale',
-        saleData: {
-          sale_id: sale.id,
-          org_slug: currentOrganization?.slug,
-          sale_number: sale.sale_number,
-          customer_name: sale.customer_name,
-          customer_phone: sale.customer_phone,
-          sale_date: sale.sale_date,
-          net_amount: sale.net_amount,
-          gross_amount: sale.gross_amount,
-          discount_amount: sale.discount_amount,
-          payment_status: sale.payment_status,
-          items_count: totalQty,
-          salesman: sale.salesman,
-          organization_name: currentOrganization?.name,
-          organization_id: currentOrganization?.id,
-        },
-      });
-      
+      await sendPosSaleWhatsAppViaAPI(sale);
       toast({
         title: "Message Sent",
         description: "WhatsApp message sent successfully via API",
@@ -3231,8 +3309,8 @@ const POSDashboard = () => {
                                     variant="ghost"
                                     size="icon"
                                     onClick={(e) => handleWhatsAppShare(sale, e)}
-                                    title="Share on WhatsApp"
-                                    disabled={!sale.customer_phone}
+                                    title={whatsAppAPISettings?.is_active ? "Send via WappConnect (with PDF)" : "Share on WhatsApp"}
+                                    disabled={!sale.customer_phone || isSendingWhatsAppAPI}
                                   >
                                     <MessageCircle className="h-3.5 w-3.5 text-green-600" />
                                   </Button>
