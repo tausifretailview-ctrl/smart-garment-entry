@@ -334,24 +334,71 @@ interface PosProductRow {
   [key: string]: unknown;
 }
 
-async function fetchPosVariantByBarcode(orgId: string, barcode: string) {
-  const { data, error } = await supabase
+const POS_BARCODE_REPEAT_CACHE_MS = 5_000;
+const posRecentBarcodeScanAt = new Map<string, number>();
+
+/** Swallow scanner double-fire within 5s after a successful add for the same barcode. */
+function shouldSwallowPosRepeatBarcodeScan(barcode: string): boolean {
+  const key = barcode.trim();
+  if (!key) return false;
+  const last = posRecentBarcodeScanAt.get(key);
+  return last != null && Date.now() - last < POS_BARCODE_REPEAT_CACHE_MS;
+}
+
+function recordPosBarcodeScanSuccess(barcode: string): void {
+  const key = barcode.trim();
+  if (!key) return;
+  const now = Date.now();
+  posRecentBarcodeScanAt.set(key, now);
+  for (const [k, t] of posRecentBarcodeScanAt) {
+    if (now - t >= POS_BARCODE_REPEAT_CACHE_MS) posRecentBarcodeScanAt.delete(k);
+  }
+}
+
+function posVariantBaseQuery(orgId: string) {
+  return supabase
     .from('product_variants')
     .select(POS_VARIANT_LOOKUP_SELECT)
     .eq('organization_id', orgId)
-    .eq('barcode', barcode)
     .is('deleted_at', null)
     .is('products.deleted_at', null)
     .eq('products.organization_id', orgId)
-    .eq('products.status', 'active')
-    .limit(1);
+    .eq('products.status', 'active');
+}
 
-  if (error) throw error;
-
-  const row = data?.[0] as unknown as (PosVariantRow & { products?: PosProductRow }) | undefined;
+function mapPosVariantLookupRow(
+  row: (PosVariantRow & { products?: PosProductRow }) | undefined,
+) {
   if (!row?.products) return null;
-
   return { product: row.products, variant: row };
+}
+
+async function fetchPosVariantByBarcode(orgId: string, barcode: string) {
+  const trimmed = barcode.trim();
+  if (!trimmed) return null;
+
+  const { data: exactData, error: exactError } = await posVariantBaseQuery(orgId)
+    .eq('barcode', trimmed)
+    .limit(1);
+  if (exactError) throw exactError;
+
+  const exact = mapPosVariantLookupRow(
+    exactData?.[0] as unknown as (PosVariantRow & { products?: PosProductRow }) | undefined,
+  );
+  if (exact) return exact;
+
+  const escaped = trimmed.replace(/[%_,]/g, '');
+  if (!escaped) return null;
+
+  const { data: partialData, error: partialError } = await posVariantBaseQuery(orgId)
+    .ilike('barcode', `%${escaped}%`)
+    .order('stock_qty', { ascending: false })
+    .limit(1);
+  if (partialError) throw partialError;
+
+  return mapPosVariantLookupRow(
+    partialData?.[0] as unknown as (PosVariantRow & { products?: PosProductRow }) | undefined,
+  );
 }
 
 function isStockTrackedPosProduct(product: { product_type?: string | null } | null | undefined): boolean {
@@ -2054,12 +2101,18 @@ export default function POSSales() {
 
       if (isNumeric) {
         tokens = [term];
-        // Barcode search - variant-level only, works fine in .or()
         let query = baseFilters(supabase.from('product_variants').select(variantSelect));
-        query = query.or(`barcode.eq.${escapedTerm},barcode.ilike.%${escapedTerm}%`);
-        const { data, error } = await query.order('stock_qty', { ascending: false }).limit(20);
+        query = query.eq('barcode', term);
+        let { data, error } = await query.order('stock_qty', { ascending: false }).limit(20);
         if (requestSeq !== productSearchSeqRef.current) return;
         if (error) throw error;
+        if (!data?.length) {
+          query = baseFilters(supabase.from('product_variants').select(variantSelect));
+          query = query.ilike('barcode', `%${escapedTerm}%`);
+          ({ data, error } = await query.order('stock_qty', { ascending: false }).limit(20));
+          if (requestSeq !== productSearchSeqRef.current) return;
+          if (error) throw error;
+        }
         allData = data || [];
       } else {
         // Multi-token AND search — every space-separated word must match
@@ -2074,9 +2127,28 @@ export default function POSSales() {
             const escToken = token.replace(/[%_,]/g, '');
             const isNumericToken = /^\d+$/.test(escToken);
 
-            // Variant-level matches (barcode, size, color, and price for numeric tokens)
+            const matchedVariantIds = new Set<string>();
+
+            if (isNumericToken) {
+              const exactQ = baseFilters(
+                supabase.from('product_variants').select('id, product_id'),
+              ).eq('barcode', escToken);
+              const exactRes = await exactQ.limit(500);
+              if (!exactRes.error && exactRes.data?.length) {
+                exactRes.data.forEach((v: { id: string }) => matchedVariantIds.add(v.id));
+              } else if (!exactRes.error) {
+                const partialQ = baseFilters(
+                  supabase.from('product_variants').select('id, product_id'),
+                ).ilike('barcode', `%${escToken}%`);
+                const partialRes = await partialQ.limit(500);
+                if (!partialRes.error && partialRes.data) {
+                  partialRes.data.forEach((v: { id: string }) => matchedVariantIds.add(v.id));
+                }
+              }
+            }
+
             const variantOrParts = [
-              `barcode.ilike.%${escToken}%`,
+              ...(isNumericToken ? [] : [`barcode.ilike.%${escToken}%`]),
               `size.ilike.%${escToken}%`,
               `color.ilike.%${escToken}%`,
             ];
@@ -2086,10 +2158,9 @@ export default function POSSales() {
             }
 
             const variantQ = baseFilters(
-              supabase.from('product_variants').select('id, product_id')
+              supabase.from('product_variants').select('id, product_id'),
             ).or(variantOrParts.join(','));
 
-            // Product-level matches (name, brand, category, style, hsn_code, color)
             const productQ = supabase
               .from('products')
               .select('id')
@@ -2103,8 +2174,6 @@ export default function POSSales() {
             }
 
             const [vRes, pRes] = await Promise.all([variantQ, productQ.limit(500)]);
-
-            const matchedVariantIds = new Set<string>();
 
             if (!vRes.error && vRes.data) {
               vRes.data.forEach((v: any) => matchedVariantIds.add(v.id));
@@ -2238,24 +2307,34 @@ export default function POSSales() {
     const orgId = currentOrganization?.id;
     if (!orgId) return;
 
+    const trimmedTerm = searchTerm.trim();
+    if (!trimmedTerm) return;
+
+    if (shouldSwallowPosRepeatBarcodeScan(trimmedTerm)) {
+      setSearchInput("");
+      focusBarcodeScanInput();
+      return;
+    }
+
     try {
       // Quick service shortcodes (1-9): open dialog only when no real product has this barcode
-      if (/^[1-9]$/.test(searchTerm)) {
-        const shortMatch = await fetchPosVariantByBarcode(orgId, searchTerm);
+      if (/^[1-9]$/.test(trimmedTerm)) {
+        const shortMatch = await fetchPosVariantByBarcode(orgId, trimmedTerm);
         if (!shortMatch) {
-          setQuickServiceCode(searchTerm);
+          setQuickServiceCode(trimmedTerm);
           setShowQuickServiceDialog(true);
           setSearchInput("");
           return;
         }
         setSearchInput("");
         await addItemToCart(shortMatch.product, shortMatch.variant, undefined, 'barcode');
+        recordPosBarcodeScanSuccess(trimmedTerm);
         return;
       }
 
       // Mobile ERP IMEI enforcement: validate IMEI format before allowing scan
       if (mobileERP.enabled && mobileERP.imei_scan_enforcement) {
-        if (!validateIMEI(searchTerm, mobileERP.imei_min_length, mobileERP.imei_max_length)) {
+        if (!validateIMEI(trimmedTerm, mobileERP.imei_min_length, mobileERP.imei_max_length)) {
           toast.error("Invalid IMEI", { description: `Please scan a valid barcode (${mobileERP.imei_min_length}-${mobileERP.imei_max_length} characters)` });
           setSearchInput("");
           focusBarcodeScanInput();
@@ -2263,7 +2342,7 @@ export default function POSSales() {
         }
       }
 
-      const barcodeMatch = await fetchPosVariantByBarcode(orgId, searchTerm);
+      const barcodeMatch = await fetchPosVariantByBarcode(orgId, trimmedTerm);
       if (barcodeMatch) {
         const prod = barcodeMatch.product;
         const dbVariant = barcodeMatch.variant;
@@ -2272,6 +2351,7 @@ export default function POSSales() {
         setSearchInput("");
         if (stockQty > 0 || !isStockTrackedPosProduct(prod)) {
           await addItemToCart(prod, dbVariant, undefined, 'barcode');
+          recordPosBarcodeScanSuccess(trimmedTerm);
           return;
         }
 
@@ -2289,7 +2369,7 @@ export default function POSSales() {
           .select(POS_VARIANT_LOOKUP_SELECT)
           .eq('organization_id', orgId)
           .eq('products.organization_id', orgId)
-          .ilike('products.product_name', `%${searchTerm}%`)
+          .ilike('products.product_name', `%${trimmedTerm}%`)
           .is('deleted_at', null)
           .is('products.deleted_at', null)
           .eq('products.status', 'active')
@@ -2308,7 +2388,7 @@ export default function POSSales() {
 
         const unavailableMatch = await fetchUnavailablePosVariantByProductName(
           orgId,
-          searchTerm,
+          trimmedTerm,
           selectedProductType,
         );
         if (unavailableMatch) {
@@ -2331,7 +2411,7 @@ export default function POSSales() {
         const { data: purchaseItem, error: purchaseError } = await supabase
           .from('purchase_items')
           .select('sku_id, barcode, product_name, size')
-          .eq('barcode', searchTerm)
+          .eq('barcode', trimmedTerm)
           .is('deleted_at', null)
           .limit(1)
           .maybeSingle();
@@ -2352,7 +2432,7 @@ export default function POSSales() {
           if (typedVariant?.products) {
             const prod = typedVariant.products;
             setSearchInput("");
-            const variantWithIMEI = { ...typedVariant, barcode: searchTerm };
+            const variantWithIMEI = { ...typedVariant, barcode: trimmedTerm };
             const stockQty = Number(typedVariant.stock_qty || 0);
             if (isStockTrackedPosProduct(prod) && stockQty <= 0) {
               openStockIssueDialog(
@@ -2362,6 +2442,7 @@ export default function POSSales() {
               return;
             }
             await addItemToCart(prod, variantWithIMEI, undefined, 'barcode');
+            recordPosBarcodeScanSuccess(trimmedTerm);
             return;
           }
         }
