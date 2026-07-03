@@ -116,30 +116,52 @@ import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngine
 const PURCHASE_LINE_UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-/** Persist UI row order on purchase_items.line_number (1-based). No-op if column not migrated yet. */
+/** Persist UI row order on purchase_items.line_number (1-based). No-op if column/RPC not migrated yet. */
 async function syncPurchaseBillLineNumbers(
   billId: string,
   orderedItems: Array<{ temp_id: string }>,
+  originalItemsMap?: Map<string, { temp_id: string }>,
 ) {
-  const updates = orderedItems
+  const desired = orderedItems
     .map((item, index) => ({ id: item.temp_id, line_number: index + 1 }))
     .filter(({ id }) => PURCHASE_LINE_UUID_RE.test(id));
-  if (updates.length === 0) return;
+  if (desired.length === 0) return;
 
-  const CHUNK = 50;
-  for (let i = 0; i < updates.length; i += CHUNK) {
-    const chunk = updates.slice(i, i + CHUNK);
-    const results = await Promise.all(
-      chunk.map(({ id, line_number }) =>
-        supabase.from("purchase_items").update({ line_number } as any).eq("id", id).eq("bill_id", billId),
-      ),
-    );
-    const lineNumberMissing = results.some(
-      (r) => r.error && /line_number/i.test(String(r.error.message || "")),
-    );
-    if (lineNumberMissing) return;
-    const otherError = results.find((r) => r.error);
-    if (otherError?.error) throw otherError.error;
+  const originalLineNumberById = new Map<string, number>();
+  if (originalItemsMap) {
+    let idx = 0;
+    for (const [id] of originalItemsMap) {
+      if (PURCHASE_LINE_UUID_RE.test(id)) {
+        originalLineNumberById.set(id, ++idx);
+      }
+    }
+  }
+
+  const changed = originalItemsMap
+    ? desired.filter(({ id, line_number }) => {
+        if (!originalItemsMap.has(id)) return false;
+        return originalLineNumberById.get(id) !== line_number;
+      })
+    : desired;
+
+  if (originalItemsMap && changed.length === 0) return;
+
+  const { error } = await supabase.rpc("update_purchase_line_numbers", {
+    p_bill_id: billId,
+    p_ids: changed.map((r) => r.id),
+    p_line_numbers: changed.map((r) => r.line_number),
+  });
+
+  if (error) {
+    const msg = String(error.message || "");
+    if (
+      /line_number/i.test(msg) ||
+      error.code === "42883" ||
+      error.code === "PGRST202"
+    ) {
+      return;
+    }
+    throw error;
   }
 }
 
@@ -4291,7 +4313,7 @@ const PurchaseEntry = () => {
         }
 
         try {
-          await syncPurchaseBillLineNumbers(editingBillId, lineItems);
+          await syncPurchaseBillLineNumbers(editingBillId, lineItems, originalItemsMap);
         } catch (syncErr) {
           console.warn("[PurchaseEntry] line_number sync skipped:", syncErr);
         }

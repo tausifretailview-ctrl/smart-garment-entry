@@ -30,6 +30,8 @@ DECLARE
   v_has_narrow_scope boolean := (v_search IS NOT NULL OR p_customer_id IS NOT NULL);
   v_result json;
 BEGIN
+  PERFORM public.assert_org_member(p_organization_id);
+
   IF p_organization_id IS NULL THEN
     RAISE EXCEPTION 'organization_id required';
   END IF;
