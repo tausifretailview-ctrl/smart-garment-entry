@@ -1,0 +1,1 @@
+UPDATE public.whatsapp_api_settings SET send_invoice_pdf = true WHERE organization_id = (SELECT id FROM public.organizations WHERE name ILIKE 'NAVKAR CREATIONS' LIMIT 1);
