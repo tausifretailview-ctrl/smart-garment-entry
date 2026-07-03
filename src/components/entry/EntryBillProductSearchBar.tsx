@@ -1,4 +1,5 @@
 import { Loader2, Search } from "lucide-react";
+import type { RefObject } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -43,6 +44,7 @@ export interface EntryBillProductSearchBarProps {
   totalQty?: number;
   browsePlaceholder?: string;
   noStockRestriction?: boolean;
+  barcodeInputRef?: RefObject<HTMLInputElement | null>;
 }
 
 export function EntryBillProductSearchBar({
@@ -67,6 +69,7 @@ export function EntryBillProductSearchBar({
   totalQty,
   browsePlaceholder = "Browse products by name, brand, category, size...",
   noStockRestriction = false,
+  barcodeInputRef,
 }: EntryBillProductSearchBarProps) {
   const visibleGroups = productSearchGroups.slice(0, displayLimit);
   const visibleResults = popoverSearchResults.slice(0, displayLimit);
@@ -92,6 +95,8 @@ export function EntryBillProductSearchBar({
 
         <div className="flex gap-1 min-w-[220px] shrink-0">
           <Input
+            ref={barcodeInputRef}
+            autoFocus
             placeholder="SCAN BARCODE..."
             value={barcodeValue}
             onChange={(e) => onBarcodeValueChange(e.target.value)}

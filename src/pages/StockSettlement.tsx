@@ -8,7 +8,7 @@ import {
   Search, CheckCircle2, BarChart3, Clock, ScanBarcode,
   ArrowUpCircle, ArrowDownCircle, ChevronDown,
   Download, FileSpreadsheet, X, Check, Loader2, Box, Upload,
-  ChevronLeft, ChevronRight, IndianRupee, Package,
+  ChevronLeft, ChevronRight, IndianRupee, Package, Save,
 } from "lucide-react";
 import StockImportTab from "@/components/StockImportTab";
 import BarcodeScanSection from "@/components/BarcodeScanSection";
@@ -39,11 +39,52 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import * as XLSX from "xlsx";
 
+/* ─── Scan session (localStorage) ─── */
+const scanStorageKey = (orgId: string) => `stock-settlement-scan-v1-${orgId}`;
+
+interface SavedScanRow {
+  variantId: string;
+  actualStock: number;
+  source: "scanned" | "manual" | "imported";
+  scanCount?: number;
+  lastScannedAt?: number | null;
+}
+
+function applySavedScanSession(
+  mapped: Product[],
+  orgId: string,
+): { products: Product[]; hadSession: boolean; savedAt: number | null } {
+  try {
+    const raw = localStorage.getItem(scanStorageKey(orgId));
+    if (!raw) return { products: mapped, hadSession: false, savedAt: null };
+    const parsed = JSON.parse(raw) as { savedAt: number; entries: SavedScanRow[] };
+    const byVariant = new Map(parsed.entries.map((e) => [e.variantId, e]));
+    const restored = mapped.map((p) => {
+      const saved = byVariant.get(p.variantId);
+      if (!saved) return p;
+      return {
+        ...p,
+        actualStock: saved.actualStock,
+        scanned: true,
+        source: saved.source,
+        scanCount: saved.scanCount ?? 1,
+        lastScannedAt: saved.lastScannedAt ?? parsed.savedAt,
+      };
+    });
+    return { products: restored, hadSession: true, savedAt: parsed.savedAt ?? null };
+  } catch {
+    return { products: mapped, hadSession: false, savedAt: null };
+  }
+}
+
 /* ─── Types ─── */
 interface Product {
+  variantId: string;
   id: string;
   name: string;
   department: string;
@@ -146,6 +187,9 @@ const StockSettlement = () => {
   const [diffPage, setDiffPage] = useState(1);
   const [diffPageSize, setDiffPageSize] = useState(50);
   const [highlightedRow, setHighlightedRow] = useState<string | null>(null);
+  const [showAllProducts, setShowAllProducts] = useState(false);
+  const [scanSessionSaved, setScanSessionSaved] = useState(false);
+  const [scanSessionSavedAt, setScanSessionSavedAt] = useState<number | null>(null);
   const tableRef = useRef<HTMLDivElement>(null);
 
   // Load products from DB
@@ -180,6 +224,7 @@ const StockSettlement = () => {
         }
 
         const mapped: Product[] = allVariants.map((v: any, i: number) => ({
+          variantId: v.id,
           id: `PRD-${String(i + 1).padStart(4, "0")}`,
           name: `${v.products?.product_name || "Unknown"}${v.size ? ` - ${v.size}` : ""}`,
           department: v.products?.category || "General",
@@ -193,7 +238,13 @@ const StockSettlement = () => {
           purPrice: Number(v.pur_price) || Number(v.products?.default_pur_price) || 0,
           salePrice: Number(v.sale_price) || Number(v.products?.default_sale_price) || 0,
         }));
-        setProducts(mapped);
+        const { products: restored, hadSession, savedAt } = applySavedScanSession(
+          mapped,
+          currentOrganization.id,
+        );
+        setProducts(restored);
+        setScanSessionSaved(hadSession);
+        setScanSessionSavedAt(savedAt);
 
         // Load settlement history from stock_movements
         const { data: movs } = await supabase
@@ -264,19 +315,38 @@ const StockSettlement = () => {
   // Reset page when filters change
   useEffect(() => { setCurrentPage(1); }, [search, shopFilter, deptFilter, brandFilter]);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
-  const paginatedFiltered = useMemo(() => {
-    const start = (currentPage - 1) * pageSize;
-    return filtered.slice(start, start + pageSize);
-  }, [filtered, currentPage, pageSize]);
-
-  const hasFilters = search || shopFilter || deptFilter || brandFilter;
-
   // Stats
   const scannedCount = products.filter(p => p.scanned).length;
   const matchCount = products.filter(p => p.scanned && p.actualStock === p.softwareStock).length;
   const surplusCount = products.filter(p => p.scanned && p.actualStock !== null && p.actualStock > p.softwareStock).length;
   const shortageCount = products.filter(p => p.scanned && p.actualStock !== null && p.actualStock < p.softwareStock).length;
+
+  const scannedList = useMemo(() => {
+    const list = products.filter((p) => {
+      if (!p.scanned) return false;
+      if (search) {
+        const s = search.toLowerCase();
+        if (!p.name.toLowerCase().includes(s) && !p.id.toLowerCase().includes(s) && !(p.barcode && p.barcode.toLowerCase().includes(s))) return false;
+      }
+      if (shopFilter && p.shop !== shopFilter) return false;
+      if (deptFilter && p.department !== deptFilter) return false;
+      if (brandFilter && p.brand !== brandFilter) return false;
+      return true;
+    });
+    return [...list].sort((a, b) => (b.lastScannedAt || 0) - (a.lastScannedAt || 0));
+  }, [products, search, shopFilter, deptFilter, brandFilter]);
+
+  const tableSource = showAllProducts ? filtered : scannedList;
+  const totalPages = Math.max(1, Math.ceil(tableSource.length / pageSize));
+  const paginatedTable = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return tableSource.slice(start, start + pageSize);
+  }, [tableSource, currentPage, pageSize]);
+
+  const unscannedInFilterCount = useMemo(() => filtered.filter((p) => !p.scanned).length, [filtered]);
+  const hasUnsavedScans = scannedCount > 0 && !scanSessionSaved;
+
+  const hasFilters = search || shopFilter || deptFilter || brandFilter;
 
   // Differences
   const differences = useMemo(() => products.filter(p => p.scanned && p.actualStock !== null && p.actualStock !== p.softwareStock), [products]);
@@ -290,16 +360,18 @@ const StockSettlement = () => {
   const totalShortage = differences.filter(p => p.actualStock! < p.softwareStock).reduce((s, p) => s + (p.softwareStock - p.actualStock!), 0);
 
   const handleActualChange = useCallback((id: string, val: string) => {
+    setScanSessionSaved(false);
     setProducts(prev => prev.map(p => {
       if (p.id !== id) return p;
-      if (val === "" || val === null) return { ...p, actualStock: null, scanned: false };
+      if (val === "" || val === null) return { ...p, actualStock: null, scanned: false, source: null };
       const num = parseInt(val);
       if (isNaN(num)) return p;
-      return { ...p, actualStock: num, scanned: true };
+      return { ...p, actualStock: num, scanned: true, source: p.source || "manual", lastScannedAt: Date.now() };
     }));
   }, []);
 
   const handleProductScanned = useCallback((productIndex: number, newActual: number, source: "scanned") => {
+    setScanSessionSaved(false);
     setProducts(prev => prev.map((p, i) => {
       if (i !== productIndex) return p;
       if (newActual === -1) return { ...p, actualStock: null, scanned: false, source: null, scanCount: 0, lastScannedAt: null };
@@ -318,14 +390,56 @@ const StockSettlement = () => {
     setTimeout(() => setHighlightedRow(null), 1500);
   }, []);
 
+  const saveScanSession = useCallback(() => {
+    if (!currentOrganization?.id) return;
+    const scannedProducts = products.filter((p) => p.scanned);
+    if (scannedProducts.length === 0) {
+      toast({ title: "Nothing to save", description: "Scan at least one product before saving", variant: "destructive" });
+      return;
+    }
+    const savedAt = Date.now();
+    const payload = {
+      savedAt,
+      entries: scannedProducts.map((p) => ({
+        variantId: p.variantId,
+        actualStock: p.actualStock ?? 0,
+        source: (p.source || "manual") as SavedScanRow["source"],
+        scanCount: p.scanCount,
+        lastScannedAt: p.lastScannedAt,
+      })),
+    };
+    localStorage.setItem(scanStorageKey(currentOrganization.id), JSON.stringify(payload));
+    setScanSessionSaved(true);
+    setScanSessionSavedAt(savedAt);
+    toast({
+      title: "Scan saved",
+      description: `${scannedProducts.length} items saved. Use Auto-Match All for remaining stock.`,
+    });
+  }, [products, currentOrganization?.id, toast]);
+
   const autoMatchAll = useCallback(() => {
+    if (!scanSessionSaved) {
+      toast({
+        title: "Save scan first",
+        description: "Click Save Scan after physical counting, then Auto-Match remaining items",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (unscannedInFilterCount === 0) {
+      toast({ title: "Nothing to match", description: "All filtered products are already scanned" });
+      return;
+    }
     setProducts(prev => prev.map(p => {
       const inFiltered = filtered.some(f => f.id === p.id);
       if (!inFiltered || p.scanned) return p;
-      return { ...p, actualStock: p.softwareStock, scanned: true };
+      return { ...p, actualStock: p.softwareStock, scanned: true, source: "manual" as const };
     }));
-    toast({ title: "Auto-Matched", description: "All unscanned products set to match software stock" });
-  }, [filtered, toast]);
+    toast({
+      title: "Auto-Matched",
+      description: `${unscannedInFilterCount} unscanned products set to software stock`,
+    });
+  }, [filtered, toast, scanSessionSaved, unscannedInFilterCount]);
 
   const handleSettle = useCallback(async () => {
     setSettling(true);
@@ -352,6 +466,12 @@ const StockSettlement = () => {
         return { ...p, softwareStock: p.actualStock ?? p.softwareStock, actualStock: null, scanned: false };
       }));
 
+      if (currentOrganization?.id) {
+        localStorage.removeItem(scanStorageKey(currentOrganization.id));
+      }
+      setScanSessionSaved(false);
+      setScanSessionSavedAt(null);
+
       setShowSettleModal(false);
       setSettleNote("");
       setActiveTab("history");
@@ -361,7 +481,7 @@ const StockSettlement = () => {
     } finally {
       setSettling(false);
     }
-  }, [history, products, scannedCount, matchCount, surplusCount, shortageCount, settleNote, shopFilter, toast]);
+  }, [history, products, scannedCount, matchCount, surplusCount, shortageCount, settleNote, shopFilter, toast, currentOrganization?.id]);
 
   const clearFilters = () => { setSearch(""); setShopFilter(""); setDeptFilter(""); setBrandFilter(""); };
 
@@ -389,10 +509,11 @@ const StockSettlement = () => {
 
   // Handle import from file
   const handleImportApply = useCallback((updates: { productId: string; actualQty: number }[]) => {
+    setScanSessionSaved(false);
     setProducts(prev => prev.map(p => {
       const update = updates.find(u => u.productId === p.id);
       if (!update) return p;
-      return { ...p, actualStock: update.actualQty, scanned: true };
+      return { ...p, actualStock: update.actualQty, scanned: true, source: "imported" as const, lastScannedAt: Date.now() };
     }));
     toast({ title: "Import Applied", description: `${updates.length} products updated with imported quantities` });
     setActiveTab("scan");
@@ -487,7 +608,7 @@ const StockSettlement = () => {
   return (
     <div
       className={cn(
-        "stock-settlement-workspace flex h-full min-h-0 w-full flex-col overflow-hidden bg-slate-50 px-2 py-2 sm:px-3",
+        "stock-settlement-workspace customer-party-balances-dashboard flex h-full min-h-0 w-full flex-col overflow-hidden bg-slate-50 px-2 py-2 sm:px-3",
         !inTabCache && !sharedShell && "h-[calc(100vh-3.5rem)]",
       )}
     >
@@ -504,6 +625,11 @@ const StockSettlement = () => {
               </h1>
               <p className="mt-1 text-sm text-slate-500">
                 Physical verification & reconciliation
+                {scanSessionSaved && scanSessionSavedAt ? (
+                  <span className="text-emerald-600"> · Scan saved {new Date(scanSessionSavedAt).toLocaleString("en-IN")}</span>
+                ) : scannedCount > 0 ? (
+                  <span className="text-amber-600"> · {scannedCount} scanned — save before auto-match</span>
+                ) : null}
               </p>
             </div>
           </div>
@@ -616,26 +742,26 @@ const StockSettlement = () => {
 
           {/* ═══ SCAN TAB ═══ */}
           {activeTab === "scan" && (
-            <div className="flex min-h-0 flex-1 flex-col gap-2">
+            <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden">
               <div className="grid shrink-0 grid-cols-1 gap-2 sm:grid-cols-3">
-                <ErpDashboardKpiCard
-                  title="Total Stock Qty"
-                  value={stockKpis.totalQty.toLocaleString("en-IN")}
-                  shellClass="bg-sky-50 border-sky-200/70 hover:bg-sky-100/80"
-                  valueClass="text-sky-800"
-                />
-                <ErpDashboardKpiCard
-                  title="Purchase Value"
-                  value={`₹${stockKpis.fmt(stockKpis.totalPurValue)}`}
-                  shellClass="bg-amber-50 border-amber-200/70 hover:bg-amber-100/80"
-                  valueClass="text-amber-800"
-                />
-                <ErpDashboardKpiCard
-                  title="Sale Value"
-                  value={`₹${stockKpis.fmt(stockKpis.totalSaleValue)}`}
-                  shellClass="bg-emerald-50 border-emerald-200/70 hover:bg-emerald-100/80"
-                  valueClass="text-emerald-800"
-                />
+                <div className="rounded-lg bg-gradient-to-br from-sky-500 to-sky-600 px-3 py-2 min-w-0 shadow-sm">
+                  <p className="text-xs font-medium text-white/80 leading-none">Total Stock Qty</p>
+                  <p className="text-base sm:text-lg font-black text-white tabular-nums leading-tight mt-1 truncate">
+                    {stockKpis.totalQty.toLocaleString("en-IN")}
+                  </p>
+                </div>
+                <div className="rounded-lg bg-gradient-to-br from-amber-500 to-amber-600 px-3 py-2 min-w-0 shadow-sm">
+                  <p className="text-xs font-medium text-white/80 leading-none">Purchase Value</p>
+                  <p className="text-base sm:text-lg font-black text-white tabular-nums leading-tight mt-1 truncate">
+                    ₹{stockKpis.fmt(stockKpis.totalPurValue)}
+                  </p>
+                </div>
+                <div className="rounded-lg bg-gradient-to-br from-emerald-500 to-emerald-600 px-3 py-2 min-w-0 shadow-sm">
+                  <p className="text-xs font-medium text-white/80 leading-none">Sale Value</p>
+                  <p className="text-base sm:text-lg font-black text-white tabular-nums leading-tight mt-1 truncate">
+                    ₹{stockKpis.fmt(stockKpis.totalSaleValue)}
+                  </p>
+                </div>
               </div>
 
               <BarcodeScanSection
@@ -644,32 +770,79 @@ const StockSettlement = () => {
                 onHighlightRow={handleHighlightRow}
               />
 
-              <div className="flex shrink-0 flex-wrap items-end justify-between gap-2">
-                <div>
-                  <h2 className="text-base font-bold text-slate-800">Scan Products</h2>
-                  <p className="text-sm text-slate-500">Enter actual physical count for each product</p>
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <Button variant="outline" size="sm" className="h-9 gap-1.5 border-emerald-200 text-emerald-700 hover:bg-emerald-50" onClick={exportCompleteStock}>
+              <Card className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-slate-200 p-0 shadow-sm">
+                <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-slate-100 bg-white px-3 py-2">
+                  <div className="min-w-0 flex-1">
+                    <h2 className="text-base font-bold text-slate-800">
+                      {showAllProducts ? "All Products" : `Scanned Items (${scannedList.length})`}
+                    </h2>
+                    <p className="text-xs text-slate-500">
+                      {showAllProducts
+                        ? "Browse and edit any product count"
+                        : "Only physically scanned items appear here"}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Switch
+                      id="show-all-products"
+                      checked={showAllProducts}
+                      onCheckedChange={setShowAllProducts}
+                    />
+                    <Label htmlFor="show-all-products" className="cursor-pointer whitespace-nowrap text-sm font-normal">
+                      Show all products
+                    </Label>
+                  </div>
+                  <Button
+                    size="sm"
+                    className={cn(
+                      "h-9 gap-1.5 shrink-0",
+                      hasUnsavedScans
+                        ? "bg-teal-600 hover:bg-teal-700 text-white"
+                        : "border-teal-200 text-teal-700 hover:bg-teal-50",
+                    )}
+                    variant={hasUnsavedScans ? "default" : "outline"}
+                    onClick={saveScanSession}
+                    disabled={scannedCount === 0}
+                  >
+                    <Save className="h-4 w-4" />
+                    Save Scan
+                  </Button>
+                  <Button variant="outline" size="sm" className="h-9 gap-1.5 border-emerald-200 text-emerald-700 hover:bg-emerald-50 shrink-0" onClick={exportCompleteStock}>
                     <Download className="h-4 w-4" />
                     Export Stock
                   </Button>
-                  <Button variant="outline" size="sm" className="h-9 gap-1.5 border-amber-200 text-amber-700 hover:bg-amber-50" onClick={exportScannedStock}>
+                  <Button variant="outline" size="sm" className="h-9 gap-1.5 border-amber-200 text-amber-700 hover:bg-amber-50 shrink-0" onClick={exportScannedStock}>
                     <FileSpreadsheet className="h-4 w-4" />
                     Export Scanned
                   </Button>
-                  <Button size="sm" className="h-9 gap-1.5 bg-teal-600 hover:bg-teal-700 text-white" onClick={autoMatchAll}>
+                  <Button
+                    size="sm"
+                    className="h-9 gap-1.5 bg-teal-600 hover:bg-teal-700 text-white shrink-0"
+                    onClick={autoMatchAll}
+                    disabled={!scanSessionSaved || unscannedInFilterCount === 0}
+                    title={!scanSessionSaved ? "Save scan first" : undefined}
+                  >
                     <Check className="h-4 w-4" />
                     Auto-Match All
                   </Button>
                 </div>
-              </div>
 
-              <Card className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-slate-200 p-0 shadow-sm">
                 {loading ? (
                   <div className="flex flex-1 flex-col items-center justify-center gap-3 py-16 text-slate-500">
                     <Loader2 className="h-8 w-8 animate-spin text-teal-600" />
                     <span className="text-sm">Loading products...</span>
+                  </div>
+                ) : paginatedTable.length === 0 ? (
+                  <div className="flex flex-1 flex-col items-center justify-center gap-2 py-16 text-slate-500">
+                    <ScanBarcode className="h-10 w-10 text-slate-300" />
+                    <p className="text-sm font-medium">
+                      {showAllProducts ? "No products match filters" : "No scanned items yet"}
+                    </p>
+                    <p className="text-xs text-center max-w-sm">
+                      {showAllProducts
+                        ? "Adjust search or filters to find products"
+                        : "Scan barcodes above — each item appears here. Save scan when done, then Auto-Match All."}
+                    </p>
                   </div>
                 ) : (
                   <>
@@ -683,7 +856,7 @@ const StockSettlement = () => {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {paginatedFiltered.map((p) => {
+                          {paginatedTable.map((p) => {
                             const diffBadge = getDiffBadge(p);
                             const status = getStatus(p);
                             const isHighlighted = highlightedRow === p.id;
@@ -758,22 +931,15 @@ const StockSettlement = () => {
                               </TableRow>
                             );
                           })}
-                          {filtered.length === 0 && (
-                            <TableRow>
-                              <TableCell colSpan={12} className="py-10 text-center text-slate-500">
-                                No products found
-                              </TableCell>
-                            </TableRow>
-                          )}
                         </TableBody>
                       </Table>
                     </div>
 
-                    {filtered.length > 0 && (
+                    {tableSource.length > 0 && (
                       <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-slate-100 bg-white px-3 py-2">
                         <div className="flex items-center gap-2 text-sm text-slate-500">
                           <span>
-                            Showing {((currentPage - 1) * pageSize) + 1}–{Math.min(currentPage * pageSize, filtered.length)} of {filtered.length}
+                            Showing {((currentPage - 1) * pageSize) + 1}–{Math.min(currentPage * pageSize, tableSource.length)} of {tableSource.length}
                           </span>
                           <Select
                             value={String(pageSize)}

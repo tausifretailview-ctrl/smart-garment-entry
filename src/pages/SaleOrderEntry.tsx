@@ -10,10 +10,9 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
-import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Switch } from "@/components/ui/switch";
-import { CalendarIcon, Plus, X, Search, Save, ClipboardList, AlertTriangle, CheckCircle, Printer, ChevronDown, Loader2, ChevronLeft, FileText } from "lucide-react";
+import { CalendarIcon, Plus, X, Save, ClipboardList, AlertTriangle, CheckCircle, Printer, ChevronDown, Loader2, ChevronLeft, FileText } from "lucide-react";
 import { format } from "date-fns";
 import { UOM_OPTIONS, DEFAULT_UOM, UOMType } from "@/constants/uom";
 import { cn, buildProductDisplayName } from "@/lib/utils";
@@ -22,10 +21,12 @@ import {
   compactProductToken,
   expandProductSearchTerms,
   matchesCompactProductSearch,
-  scoreProductSearchMatch,
 } from "@/utils/productSearch";
 import { entryPageMainClass, entryPageSectionX, entryPageShellClass } from "@/lib/entryPageLayout";
 import { useEntryViewportSync } from "@/hooks/useEntryViewportSync";
+import { useEntryBillProductSearch } from "@/hooks/useEntryBillProductSearch";
+import { EntryBillProductSearchBar } from "@/components/entry/EntryBillProductSearchBar";
+import { useBarcodeScanner } from "@/hooks/useBarcodeScanner";
 import { SizeGridDialog } from "@/components/SizeGridDialog";
 import {
   Command,
@@ -36,7 +37,6 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import { useToast } from "@/hooks/use-toast";
-import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useLocation } from "react-router-dom";
@@ -59,13 +59,8 @@ import { useDraftSave } from "@/hooks/useDraftSave";
 
 import { fetchCustomerProductPrice } from "@/hooks/useCustomerProductPrice";
 import { ProductHistoryDialog } from "@/components/ProductHistoryDialog";
-import { ERPVariantRow, groupVariantsByProduct } from "@/components/ERPVariantSearchDropdown";
 import { mergeSizeColorVariantsForGrid } from "@/utils/mergeSizeColorVariantsForGrid";
 import {
-  buildSaleOrderProductGroupKey,
-  enrichSaleOrderSearchGroups,
-  groupVariantsByProductFamily,
-  searchSaleOrderVariants,
   type SaleOrderProductSearchGroup,
   type SaleOrderVariantSearchResult,
 } from "@/utils/saleOrderProductSearch";
@@ -127,12 +122,6 @@ export default function SaleOrderEntry() {
       uom: DEFAULT_UOM,
     }))
   );
-  const [openProductSearch, setOpenProductSearch] = useState(false);
-  const [searchInput, setSearchInput] = useState("");
-  const [popoverSearchResults, setPopoverSearchResults] = useState<SaleOrderVariantSearchResult[]>([]);
-  const [productSearchGroups, setProductSearchGroups] = useState<SaleOrderProductSearchGroup[]>([]);
-  const [isProductSearching, setIsProductSearching] = useState(false);
-  const [displayLimit, setDisplayLimit] = useState(100);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>("");
   const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
   const [openCustomerDialog, setOpenCustomerDialog] = useState(false);
@@ -147,7 +136,7 @@ export default function SaleOrderEntry() {
   const printRef = useRef<HTMLDivElement>(null);
   const tableContainerRef = useRef<HTMLDivElement>(null);
   const tableEndRef = useRef<HTMLDivElement>(null);
-  const productSearchInputRef = useRef<HTMLInputElement>(null);
+  const barcodeInputRef = useRef<HTMLInputElement>(null);
   const skipDraftSaveOnUnmountRef = useRef(false);
   const savingLockRef = useRef(false);
   const [showNotesSection, setShowNotesSection] = useState(false);
@@ -164,6 +153,26 @@ export default function SaleOrderEntry() {
   const [showSizeGrid, setShowSizeGrid] = useState(false);
   const [sizeGridProduct, setSizeGridProduct] = useState<any>(null);
   const [sizeGridVariants, setSizeGridVariants] = useState<any[]>([]);
+
+  const {
+    searchInput,
+    setSearchInput,
+    barcodeInput,
+    setBarcodeInput,
+    openProductSearch,
+    setOpenProductSearch,
+    popoverSearchResults,
+    productSearchGroups,
+    isProductSearching,
+    displayLimit,
+    setDisplayLimit,
+    displaySearchCount,
+    resolveSearchSelection,
+  } = useEntryBillProductSearch(currentOrganization?.id, entryMode);
+
+  const barcodeScanner = useBarcodeScanner();
+  const lastBarcodeInputTime = useRef(0);
+  const processingBarcodeRef = useRef(false);
   
   
   // Product history dialog state
@@ -172,7 +181,7 @@ export default function SaleOrderEntry() {
   useEntryViewportSync();
 
   const focusProductSearchBar = useCallback(() => {
-    setTimeout(() => productSearchInputRef.current?.focus(), 50);
+    setTimeout(() => barcodeInputRef.current?.focus(), 50);
   }, []);
 
   useEffect(() => {
@@ -873,49 +882,6 @@ export default function SaleOrderEntry() {
     return { color: 'text-red-600', icon: AlertTriangle, text: `${diff} short` };
   };
 
-  // Popover product search â€” server-side (client cache can miss variants)
-  useEffect(() => {
-    if (!searchInput || searchInput.length < 1 || !currentOrganization?.id) {
-      setPopoverSearchResults([]);
-      setProductSearchGroups([]);
-      setIsProductSearching(false);
-      return;
-    }
-
-    setIsProductSearching(true);
-    const orgId = currentOrganization.id;
-    const query = searchInput;
-    const timer = setTimeout(async () => {
-      try {
-        const results = await searchSaleOrderVariants(orgId, query);
-        setPopoverSearchResults(results);
-        const grouped = groupVariantsByProductFamily(results, query);
-        const enriched = await enrichSaleOrderSearchGroups(orgId, grouped, query);
-        setProductSearchGroups(
-          [...enriched].sort((a, b) => {
-            const scoreA = scoreProductSearchMatch(
-              { product_name: a.productName, brand: a.brand, style: a.style, category: a.category },
-              query,
-            );
-            const scoreB = scoreProductSearchMatch(
-              { product_name: b.productName, brand: b.brand, style: b.style, category: b.category },
-              query,
-            );
-            return scoreB - scoreA;
-          }),
-        );
-      } catch (error) {
-        console.error("Product search error:", error);
-        setPopoverSearchResults([]);
-        setProductSearchGroups([]);
-      } finally {
-        setIsProductSearching(false);
-      }
-    }, 150);
-
-    return () => clearTimeout(timer);
-  }, [searchInput, currentOrganization?.id]);
-
   const selectProductSearchGroup = (group: SaleOrderProductSearchGroup) => {
     void openSizeGridForProductGroup(
       group.productIds,
@@ -923,34 +889,15 @@ export default function SaleOrderEntry() {
     );
   };
 
-  const selectSearchResult = (result: SaleOrderVariantSearchResult, query?: string) => {
-    const trimmedQuery = (query ?? searchInput).trim();
-    const isBarcodeMatch =
-      Boolean(result.barcode) &&
-      trimmedQuery.length > 0 &&
-      result.barcode.toLowerCase() === trimmedQuery.toLowerCase();
-
-    if (entryMode === "grid" && !isBarcodeMatch) {
-      const group =
-        productSearchGroups.find(
-          (g) =>
-            buildSaleOrderProductGroupKey(g.representative, trimmedQuery) ===
-            buildSaleOrderProductGroupKey(result, trimmedQuery),
-        ) ??
-        productSearchGroups.find((g) => g.productIds.includes(result.product_id));
-      if (group) {
-        selectProductSearchGroup(group);
-      } else {
-        void openSizeGridForProductGroup([result.product_id], result.sale_price);
-      }
-      return;
-    }
-
+  const addProductFromSearchResult = async (
+    result: SaleOrderVariantSearchResult,
+    options?: { skipSizeGrid?: boolean },
+  ) => {
     const product = productsData?.find((p) => p.id === result.product_id);
     const variant = product?.product_variants?.find((v: any) => v.id === result.id);
 
     if (product && variant) {
-      void addProductToOrder(product, variant, undefined, { skipSizeGrid: isBarcodeMatch });
+      await addProductToOrder(product, variant, undefined, options);
       return;
     }
 
@@ -976,9 +923,120 @@ export default function SaleOrderEntry() {
         },
       ],
     };
-    void addProductToOrder(fallbackProduct, fallbackProduct.product_variants[0], undefined, {
-      skipSizeGrid: isBarcodeMatch,
+    await addProductToOrder(fallbackProduct, fallbackProduct.product_variants[0], undefined, options);
+  };
+
+  const selectSearchResult = (result: SaleOrderVariantSearchResult) => {
+    resolveSearchSelection(result, searchInput, {
+      onOpenSizeGrid: (productIds, salePrice) => {
+        void openSizeGridForProductGroup(productIds, salePrice);
+      },
+      onAddVariant: (r, opts) => {
+        void addProductFromSearchResult(r, opts);
+      },
     });
+  };
+
+  const searchAndAddByBarcode = useCallback(async (searchTerm: string) => {
+    const trimmed = searchTerm.trim();
+    if (!trimmed || !currentOrganization?.id) return;
+    if (processingBarcodeRef.current) return;
+
+    processingBarcodeRef.current = true;
+    barcodeScanner.markSubmitted(trimmed);
+    barcodeScanner.cancelAutoSubmit();
+
+    try {
+      const { data: dbVariant, error: dbError } = await supabase
+        .from("product_variants")
+        .select(`
+          id, barcode, size, color, stock_qty, sale_price, mrp, product_id,
+          products!inner(
+            id, product_name, brand, category, style, color, hsn_code, gst_per,
+            organization_id, status, deleted_at, uom
+          )
+        `)
+        .eq("organization_id", currentOrganization.id)
+        .eq("barcode", trimmed)
+        .is("deleted_at", null)
+        .eq("products.organization_id", currentOrganization.id)
+        .eq("products.status", "active")
+        .is("products.deleted_at", null)
+        .order("active", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (dbError) {
+        console.error("Barcode lookup failed:", dbError);
+        toast({ title: "Search failed", variant: "destructive" });
+        return;
+      }
+
+      if (!dbVariant?.products) {
+        toast({
+          title: "Product not found",
+          description: `No product for barcode "${trimmed}"`,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const p = dbVariant.products as any;
+      const result: SaleOrderVariantSearchResult = {
+        id: dbVariant.id,
+        product_id: dbVariant.product_id,
+        size: dbVariant.size,
+        sale_price: dbVariant.sale_price || 0,
+        mrp: dbVariant.mrp || dbVariant.sale_price || 0,
+        barcode: dbVariant.barcode || "",
+        stock_qty: dbVariant.stock_qty || 0,
+        product_name: p.product_name,
+        brand: p.brand || "",
+        category: p.category || "",
+        color: dbVariant.color || p.color || "",
+        style: p.style || "",
+        gst_per: p.gst_per || 0,
+        hsn_code: p.hsn_code || "",
+        uom: p.uom || DEFAULT_UOM,
+      };
+
+      await addProductFromSearchResult(result, { skipSizeGrid: true });
+      setBarcodeInput("");
+    } finally {
+      setTimeout(() => {
+        processingBarcodeRef.current = false;
+      }, 150);
+    }
+  }, [currentOrganization?.id, barcodeScanner, toast, setBarcodeInput]);
+
+  const handleBarcodeValueChange = (value: string) => {
+    setBarcodeInput(value);
+    const now = Date.now();
+    const timeSinceLastKeystroke = now - lastBarcodeInputTime.current;
+    barcodeScanner.recordKeystroke();
+    lastBarcodeInputTime.current = now;
+
+    const isScannerLike = barcodeScanner.detectScannerInput(value, timeSinceLastKeystroke);
+    if (isScannerLike || (value.length >= 4 && timeSinceLastKeystroke < 50)) {
+      barcodeScanner.scheduleAutoSubmit(value, (val) => {
+        void searchAndAddByBarcode(val);
+        setBarcodeInput("");
+        barcodeScanner.reset();
+      });
+    }
+  };
+
+  const handleBarcodeKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      const rawValue = e.currentTarget.value?.trim();
+      if (!rawValue) return;
+      e.preventDefault();
+      barcodeScanner.cancelAutoSubmit();
+      barcodeScanner.markSubmitted(rawValue);
+      void searchAndAddByBarcode(rawValue);
+      setBarcodeInput("");
+      barcodeScanner.reset();
+    }
   };
 
   const handleSaveOrder = async (): Promise<{ success: boolean; orderId?: string }> => {
@@ -1240,17 +1298,6 @@ export default function SaleOrderEntry() {
     }
   };
 
-  const totalMatchingVariants = popoverSearchResults.length;
-  const visiblePopoverResults = popoverSearchResults.slice(0, displayLimit);
-  const visibleProductSearchGroups = productSearchGroups.slice(0, displayLimit);
-  const displaySearchCount =
-    entryMode === "grid" ? productSearchGroups.length : totalMatchingVariants;
-
-  // Reset display limit when search changes
-  useEffect(() => {
-    setDisplayLimit(100);
-  }, [searchInput]);
-
   const filledOrderItems = lineItems.filter((item) => item.productId !== "");
   const totalOrderQty = filledOrderItems.reduce((sum, item) => sum + item.orderQty, 0);
   const showMrpCol = (settings?.sale_settings as any)?.showMRP !== false;
@@ -1460,196 +1507,32 @@ export default function SaleOrderEntry() {
         </div>
       </section>
 
-      <section className={cn("bg-neutral-50 border-b border-black/10 py-3 shrink-0", entryPageSectionX)}>
-        <div className="flex items-center gap-3 flex-wrap">
-          <div className="flex items-center gap-2 shrink-0 rounded-lg border border-black/15 bg-white px-3 py-1.5">
-            <span className={`text-sm font-bold ${entryMode === "grid" ? "text-black" : "text-black/50"}`}>
-              Color & Size Grid
-            </span>
-            <Switch
-              checked={entryMode === "inline"}
-              onCheckedChange={(checked) => setEntryMode(checked ? "inline" : "grid")}
-              aria-label="Toggle between size grid and inline entry"
-            />
-            <span className={`text-sm font-bold ${entryMode === "inline" ? "text-black" : "text-black/50"}`}>
-              Inline
-            </span>
-          </div>
-          <div className="text-black/30 text-lg font-light select-none">|</div>
-          <Popover
-            open={openProductSearch}
-            onOpenChange={(open) => {
-              setOpenProductSearch(open);
-              if (!open) focusProductSearchBar();
-            }}
-          >
-            <PopoverAnchor asChild>
-              <div className="relative flex-1 min-w-[280px]">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-black/40 pointer-events-none" />
-                <Input
-                  ref={productSearchInputRef}
-                  autoFocus
-                  placeholder="Browse products by name, brand, category, size..."
-                  value={searchInput}
-                  onChange={(e) => {
-                    setSearchInput(e.target.value);
-                    if (!openProductSearch) setOpenProductSearch(true);
-                  }}
-                  onFocus={() => setOpenProductSearch(true)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Escape") {
-                      setOpenProductSearch(false);
-                      e.stopPropagation();
-                    }
-                  }}
-                  className="pl-10 pr-4 h-10 bg-white border-black/20 text-sm font-semibold"
-                />
-              </div>
-            </PopoverAnchor>
-            <PopoverContent className="w-[700px] p-0" align="start">
-              <Command shouldFilter={false}>
-                <CommandList className="max-h-[320px]">
-                  <CommandEmpty>
-                    {isProductSearching ? (
-                      <span className="flex items-center justify-center gap-2 py-2">
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        Searching...
-                      </span>
-                    ) : searchInput.length < 1 ? (
-                      "Type to search products..."
-                    ) : (
-                      "No products found"
-                    )}
-                  </CommandEmpty>
-                  {displaySearchCount > displayLimit && (
-                    <div className="px-3 py-2 text-sm text-muted-foreground bg-muted/50 border-b flex items-center justify-between">
-                      <span>
-                        Showing {Math.min(displayLimit, displaySearchCount)} of {displaySearchCount}{" "}
-                        {entryMode === "grid" ? "products" : "results"}
-                      </span>
-                      <Button
-                        variant="link"
-                        size="sm"
-                        className="h-auto p-0 text-primary"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          setDisplayLimit(prev => prev + 100);
-                        }}
-                      >
-                        Load More
-                      </Button>
-                    </div>
-                  )}
-                  <CommandGroup>
-                    {entryMode === "grid" ? (
-                      visibleProductSearchGroups.map((group) => (
-                        <CommandItem
-                          key={`${buildSaleOrderProductGroupKey(group.representative, searchInput)}-${group.productIds.join("-")}`}
-                          onSelect={() => {
-                            selectProductSearchGroup(group);
-                            setOpenProductSearch(false);
-                            setSearchInput("");
-                            focusProductSearchBar();
-                          }}
-                          className="group p-0 cursor-pointer"
-                        >
-                          <div className="flex w-full flex-col gap-1 px-4 py-3">
-                            <div className="flex items-center justify-between gap-2">
-                              <div className="flex min-w-0 items-center gap-2">
-                                <span className="truncate text-base font-bold text-foreground group-data-[selected=true]:text-white">
-                                  {buildProductDisplayName({
-                                    product_name: group.productName,
-                                    brand: group.brand,
-                                    style: group.style,
-                                    category: group.category,
-                                  })}
-                                </span>
-                                {group.size_range && (
-                                  <span className="shrink-0 rounded bg-blue-500/10 px-1.5 py-0.5 text-xs font-semibold text-blue-600 dark:text-blue-400 group-data-[selected=true]:bg-white/20 group-data-[selected=true]:text-white">
-                                    {group.size_range}
-                                  </span>
-                                )}
-                                {group.colorCount > 0 && (
-                                  <span className="shrink-0 rounded border border-purple-200 bg-purple-50 px-1.5 py-0.5 text-[10px] font-semibold text-purple-700 dark:border-purple-800 dark:bg-purple-900/30 dark:text-purple-300 group-data-[selected=true]:border-white/30 group-data-[selected=true]:bg-white/20 group-data-[selected=true]:text-white">
-                                    {group.colorCount} color{group.colorCount === 1 ? "" : "s"}
-                                  </span>
-                                )}
-                                <span className="shrink-0 rounded border border-blue-200 bg-blue-50 px-1.5 py-0.5 text-[10px] font-semibold text-blue-700 dark:border-blue-800 dark:bg-blue-900/30 dark:text-blue-300 group-data-[selected=true]:border-white/30 group-data-[selected=true]:bg-white/20 group-data-[selected=true]:text-white">
-                                  {group.sizeCount} sizes
-                                </span>
-                              </div>
-                              <span className="shrink-0 text-base font-bold text-primary group-data-[selected=true]:text-white">
-                                â‚¹{(group.representative.sale_price || 0).toFixed(2)}
-                              </span>
-                            </div>
-                            <div className="flex items-center justify-between gap-2 text-sm">
-                              <div className="flex flex-wrap gap-2 text-muted-foreground group-data-[selected=true]:text-white/85">
-                                {group.style && <span>{group.style}</span>}
-                                {group.brand && <span>{group.brand}</span>}
-                              </div>
-                              <span
-                                className={cn(
-                                  "shrink-0 rounded-md border px-2.5 py-1 text-base font-bold tabular-nums",
-                                  group.totalStock > 0
-                                    ? "border-emerald-200 bg-emerald-100 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200 group-data-[selected=true]:border-white/30 group-data-[selected=true]:bg-white/20 group-data-[selected=true]:text-white"
-                                    : "border-red-200 bg-red-100 text-red-800 dark:border-red-800 dark:bg-red-900/40 dark:text-red-200 group-data-[selected=true]:border-white/30 group-data-[selected=true]:bg-white/20 group-data-[selected=true]:text-white",
-                                )}
-                              >
-                                Total Qty: {group.totalStock}
-                              </span>
-                            </div>
-                          </div>
-                        </CommandItem>
-                      ))
-                    ) : (
-                      (() => {
-                        const grouped = groupVariantsByProduct(visiblePopoverResults);
-                        return grouped.flatMap((group) =>
-                          group.variants.map((result) => (
-                            <CommandItem
-                              key={result.id}
-                              onSelect={() => {
-                                selectSearchResult(result as SaleOrderVariantSearchResult);
-                                setOpenProductSearch(false);
-                                setSearchInput("");
-                                focusProductSearchBar();
-                              }}
-                              className="group p-0 cursor-pointer"
-                            >
-                              <ERPVariantRow
-                                result={{
-                                  id: result.id!,
-                                  product_id: result.product_id,
-                                  product_name: result.product_name,
-                                  brand: result.brand,
-                                  category: result.category,
-                                  style: result.style,
-                                  color: result.color || "",
-                                  size: result.size,
-                                  barcode: result.barcode,
-                                  sale_price: result.sale_price,
-                                  mrp: result.mrp,
-                                  stock_qty: result.stock_qty || 0,
-                                }}
-                                showProductName={group.variants.length === 1}
-                              />
-                            </CommandItem>
-                          )),
-                        );
-                      })()
-                    )}
-                  </CommandGroup>
-                </CommandList>
-              </Command>
-            </PopoverContent>
-          </Popover>
-          <div className="flex items-center gap-2 bg-black text-white px-4 py-2 rounded-lg ml-auto shrink-0">
-            <span className="text-[12px] font-bold opacity-80">Total Qty</span>
-            <span className="font-black tabular-nums text-[16px]">{totalOrderQty}</span>
-          </div>
-        </div>
-      </section>
+      <EntryBillProductSearchBar
+        entryMode={entryMode}
+        onEntryModeChange={setEntryMode}
+        openProductSearch={openProductSearch}
+        onOpenProductSearchChange={setOpenProductSearch}
+        searchInput={searchInput}
+        onSearchInputChange={setSearchInput}
+        isProductSearching={isProductSearching}
+        displaySearchCount={displaySearchCount}
+        displayLimit={displayLimit}
+        onDisplayLimitIncrease={() => setDisplayLimit((prev) => prev + 100)}
+        productSearchGroups={productSearchGroups}
+        popoverSearchResults={popoverSearchResults}
+        onSelectGroup={selectProductSearchGroup}
+        onSelectResult={selectSearchResult}
+        barcodeValue={barcodeInput}
+        onBarcodeValueChange={handleBarcodeValueChange}
+        onBarcodeKeyDown={handleBarcodeKeyDown}
+        onBarcodeScanned={(barcode) => {
+          void searchAndAddByBarcode(barcode);
+          setBarcodeInput("");
+        }}
+        totalQty={totalOrderQty}
+        noStockRestriction
+        barcodeInputRef={barcodeInputRef}
+      />
 
       <section className={cn("flex-1 min-h-0 pb-2 overflow-hidden bg-neutral-100 relative w-full min-w-0", entryPageSectionX)}>
         <div
