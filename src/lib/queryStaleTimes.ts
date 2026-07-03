@@ -21,7 +21,7 @@ export const STALE_SETTINGS = 5 * 60 * 1000;
 export const STALE_REFERENCE = 2 * 60 * 1000;
 
 /** Ledgers, balances, invoice lists — fresher but still cached briefly. */
-export const STALE_FREQUENT = 10_000;
+export const STALE_FREQUENT = 30_000;
 
 /** Paginated grids (page in queryKey, no search term in key). */
 export const STALE_PAGINATED = 5_000;

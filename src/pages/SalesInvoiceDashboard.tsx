@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSettings } from "@/hooks/useSettings";
 import { STALE_SETTINGS } from "@/lib/queryStaleTimes";
-import { DASHBOARD_TAB_RETURN_QUERY_OPTIONS } from "@/lib/dashboardQueryOptions";
+import { DASHBOARD_KPI_QUERY_OPTIONS, DASHBOARD_TAB_RETURN_QUERY_OPTIONS } from "@/lib/dashboardQueryOptions";
 import { useOrgQuery } from "@/hooks/useOrgQuery";
 import { supabase } from "@/integrations/supabase/client";
 import { deleteLedgerEntries } from "@/lib/customerLedger";
@@ -765,7 +765,7 @@ export default function SalesInvoiceDashboard() {
     isLoading: isStatsLoading,
   } = useQuery({
     queryKey: [...dashboardQueryKey, "stats"],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       if (!currentOrganization?.id) {
         return {
           totalInvoices: 0,
@@ -779,10 +779,10 @@ export default function SalesInvoiceDashboard() {
           undeliveredAmount: 0,
         };
       }
-      return fetchInvoiceDashboardStats(supabase, dashboardFilters);
+      return fetchInvoiceDashboardStats(supabase, dashboardFilters, { signal });
     },
     enabled: dashboardQueryEnabled,
-    ...DASHBOARD_TAB_RETURN_QUERY_OPTIONS,
+    ...DASHBOARD_KPI_QUERY_OPTIONS,
   });
 
   // Table rows: server-side page + per-page reconcile (stats come from RPC above).
@@ -795,7 +795,7 @@ export default function SalesInvoiceDashboard() {
     dataUpdatedAt: invoicesUpdatedAt,
   } = useQuery({
     queryKey: dashboardQueryKey,
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       if (!currentOrganization?.id) {
         return { invoices: [] as any[], totalCount: 0 };
       }
@@ -803,6 +803,7 @@ export default function SalesInvoiceDashboard() {
         page: currentPage,
         pageSize: itemsPerPage,
         reconcile: false,
+        signal,
       });
     },
     enabled: dashboardQueryEnabled,
@@ -816,9 +817,10 @@ export default function SalesInvoiceDashboard() {
 
   const { data: reconciledPageInvoices } = useQuery({
     queryKey: [...dashboardQueryKey, "reconcile", reconcileSourceKey],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const sourceRows = dashboardPage?.sourceRows;
       if (!sourceRows?.length || !currentOrganization?.id) return [];
+      if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
       const normalized = await reconcileInvoiceDashboardRows(
         supabase,
         dashboardFilters,

@@ -66,16 +66,12 @@ import {
 import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { useEntryOwnership } from "@/hooks/useEntryOwnership";
 import { useNavPerfPage, useNavPerfQueryWatch } from "@/hooks/useNavigationPerf";
-import { fetchPurchaseDashboardSummary } from "@/utils/purchaseDashboardSummary";
+import { fetchPurchaseBillsDashboardPage } from "@/utils/purchaseBillDashboardPage";
 import {
   resolvePurchaseDashboardInitialPeriod,
   type PurchaseDashboardPeriodFilter,
   resolvePurchaseDashboardQueryDates,
 } from "@/utils/purchaseDashboardDates";
-import {
-  fetchPurchaseBillIdsMatchingLineItems,
-  purchaseBillTextSearchFilter,
-} from "@/utils/purchaseBillDashboardSearch";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { MobilePageHeader } from "@/components/mobile/MobilePageHeader";
 import { MobileStatStrip } from "@/components/mobile/MobileStatStrip";
@@ -602,93 +598,33 @@ const PurchaseBillDashboard = () => {
     refetch: refetchBills,
   } = useQuery({
     queryKey: purchaseBillsQueryKey,
-    queryFn: async () => {
-      if (!currentOrganization?.id) return { bills: [], totalCount: 0 };
-
-      const startIndex = (currentPage - 1) * itemsPerPage;
-      const endIndex = startIndex + itemsPerPage - 1;
-
-      let query = supabase
-        .from("purchase_bills")
-        .select("id, supplier_id, supplier_name, supplier_invoice_no, software_bill_no, bill_date, bill_entry_at, gross_amount, discount_amount, gst_amount, net_amount, notes, created_at, created_by, payment_status, paid_amount, total_qty, total_items, is_dc_purchase, bill_image_url, is_locked, is_cancelled, cancelled_at, cancelled_reason", { count: "exact" })
-        .eq("organization_id", currentOrganization.id)
-        .is("deleted_at", null);
-
-      const isBarcodeLikeSearch = debouncedSearch && /^\d{4,}$/.test(debouncedSearch.trim());
-
-      // Server-side search — also search product details in purchase_items (org-scoped)
-      if (debouncedSearch) {
-        const searchStr = debouncedSearch.trim();
-
-        const matchingBillIds = await fetchPurchaseBillIdsMatchingLineItems(
-          currentOrganization.id,
-          searchStr,
-          {
-            startDate: isBarcodeLikeSearch ? undefined : queryDateRange.startDate,
-            endDate: isBarcodeLikeSearch ? undefined : queryDateRange.endDate,
-            skipDate: Boolean(isBarcodeLikeSearch),
+    queryFn: async ({ signal }) => {
+      if (!currentOrganization?.id) {
+        return {
+          bills: [] as PurchaseBill[],
+          totalCount: 0,
+          summary: {
+            total_count: 0,
+            total_amount: 0,
+            paid_amount: 0,
+            unpaid_amount: 0,
+            partial_amount: 0,
           },
-        );
-
-        const billTextFilter = purchaseBillTextSearchFilter(searchStr);
-
-        if (matchingBillIds.length > 0) {
-          // Get bill IDs matching text search
-          const { data: textMatches } = await supabase
-            .from("purchase_bills")
-            .select("id")
-            .eq("organization_id", currentOrganization.id)
-            .is("deleted_at", null)
-            .or(billTextFilter);
-
-          const textMatchIds = (textMatches || []).map((b: any) => b.id);
-          const allMatchIds = [...new Set([...textMatchIds, ...matchingBillIds])];
-          query = query.in("id", allMatchIds);
-        } else {
-          query = query.or(billTextFilter);
-        }
+        };
       }
 
-      // Server-side date filtering — skip when searching by barcode/numeric to find bills across all dates
-      if (queryDateRange.startDate && !isBarcodeLikeSearch) {
-        query = query.gte("bill_date", queryDateRange.startDate);
-      }
-      if (queryDateRange.endDate && !isBarcodeLikeSearch) {
-        query = query.lte("bill_date", queryDateRange.endDate);
-      }
-
-      // Payment status filter
-      // Default behavior: "all" means active (non-cancelled) only
-      if (paymentStatusFilter === "all" || !paymentStatusFilter) {
-        query = query.or("is_cancelled.is.null,is_cancelled.eq.false");
-      } else if (paymentStatusFilter === "cancelled") {
-        query = query.eq("is_cancelled", true);
-      } else if (paymentStatusFilter === "all_including_cancelled") {
-        // No is_cancelled filter — show everything
-      } else if (paymentStatusFilter === "not_paid") {
-        query = query
-          .or("is_cancelled.is.null,is_cancelled.eq.false")
-          .or("payment_status.is.null,payment_status.eq.unpaid,payment_status.eq.pending");
-      } else {
-        query = query
-          .or("is_cancelled.is.null,is_cancelled.eq.false")
-          .eq("payment_status", paymentStatusFilter);
-      }
-
-      // DC filter
-      if (dcFilter === "dc") {
-        query = query.eq("is_dc_purchase", true);
-      } else if (dcFilter === "gst") {
-        query = query.or("is_dc_purchase.is.null,is_dc_purchase.eq.false");
-      }
-
-      query = query.order("bill_date", { ascending: sortOrder === "asc" })
-        .range(startIndex, endIndex);
-
-      const { data, error, count } = await query;
-      if (error) throw error;
-
-      return { bills: (data || []) as PurchaseBill[], totalCount: count || 0 };
+      return fetchPurchaseBillsDashboardPage({
+        organizationId: currentOrganization.id,
+        startDate: queryDateRange.startDate,
+        endDate: queryDateRange.endDate,
+        paymentStatusFilter,
+        dcFilter,
+        debouncedSearch,
+        sortOrder,
+        page: currentPage,
+        pageSize: itemsPerPage,
+        signal,
+      });
     },
     enabled: purchaseQueriesEnabled,
     ...DASHBOARD_TAB_RETURN_QUERY_OPTIONS,
@@ -706,7 +642,6 @@ const PurchaseBillDashboard = () => {
     void checkDraft();
     setDraftBannerDismissed(true);
     void queryClient.invalidateQueries({ queryKey: ["purchase-bills"] });
-    void queryClient.invalidateQueries({ queryKey: ["purchase-summary"] });
     void refetchBills();
   }, [checkDraft, queryClient, refetchBills, refreshBrowserDraftMeta]);
 
@@ -1370,7 +1305,6 @@ const PurchaseBillDashboard = () => {
       setShowPaymentDialog(false);
       setSelectedBillForPayment(null);
       void queryClient.invalidateQueries({ queryKey: ["purchase-bills"] });
-      void queryClient.invalidateQueries({ queryKey: ["purchase-summary"] });
       await fetchBills();
     } catch (error: any) {
       toast({
@@ -1481,24 +1415,10 @@ const PurchaseBillDashboard = () => {
     });
   }, [bills, sortOrder]);
 
-  // Server-side summary stats — mirrors ALL filters from the bills query (no pagination)
-  const { data: purchaseSummaryData, isLoading: purchaseSummaryLoading, isFetching: purchaseSummaryFetching } = useQuery({
-    queryKey: ['purchase-summary', currentOrganization?.id, periodFilter, queryDateRange.startDate, queryDateRange.endDate, paymentStatusFilter, dcFilter, debouncedSearch],
-    queryFn: async () => {
-      if (!currentOrganization?.id) return null;
-      return fetchPurchaseDashboardSummary({
-        organizationId: currentOrganization.id,
-        startDate: queryDateRange.startDate,
-        endDate: queryDateRange.endDate,
-        paymentStatusFilter,
-        dcFilter,
-        debouncedSearch,
-      });
-    },
-    enabled: purchaseQueriesEnabled,
-    retry: false,
-    ...DASHBOARD_TAB_RETURN_QUERY_OPTIONS,
-  });
+  // Summary stats bundled with list RPC (single round-trip when migration applied)
+  const purchaseSummaryData = billsQueryData?.summary ?? null;
+  const purchaseSummaryLoading = billsQueryLoading;
+  const purchaseSummaryFetching = billsQueryFetching;
 
   const isDashboardInitialLoad =
     purchaseQueriesEnabled && billsQueryLoading && bills.length === 0;

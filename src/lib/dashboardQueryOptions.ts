@@ -1,5 +1,5 @@
 import { keepPreviousData } from "@tanstack/react-query";
-import { STALE_DASHBOARD_TAB_RETURN } from "@/lib/queryStaleTimes";
+import { STALE_DASHBOARD_TAB_RETURN, STALE_FREQUENT } from "@/lib/queryStaleTimes";
 
 /**
  * Main desktop dashboard metrics/charts — load when user opens dashboard or after login prefetch.
@@ -11,6 +11,14 @@ export const DASHBOARD_MANUAL_REFRESH_OPTIONS = {
   refetchInterval: false as const,
   refetchOnWindowFocus: false,
   refetchOnMount: false,
+  refetchOnReconnect: false,
+} as const;
+
+/** KPI / summary tile queries — 30s cache, no focus refetch. */
+export const DASHBOARD_KPI_QUERY_OPTIONS = {
+  staleTime: STALE_FREQUENT,
+  gcTime: 30 * 60 * 1000,
+  refetchOnWindowFocus: false,
   refetchOnReconnect: false,
 } as const;
 
