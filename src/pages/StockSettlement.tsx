@@ -1,15 +1,45 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { useTabCacheLayout } from "@/contexts/TabCacheLayoutContext";
+import { useSharedAppShell } from "@/contexts/SharedAppShellContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { 
-  Search, CheckCircle2, BarChart3, Clock, ScanBarcode, 
-  ArrowUpCircle, ArrowDownCircle, ChevronDown, ChevronUp,
-  Download, FileSpreadsheet, FileText, X, Check, Loader2, Box, Upload,
-  ChevronLeft, ChevronRight, IndianRupee, Package
+import {
+  Search, CheckCircle2, BarChart3, Clock, ScanBarcode,
+  ArrowUpCircle, ArrowDownCircle, ChevronDown,
+  Download, FileSpreadsheet, X, Check, Loader2, Box, Upload,
+  ChevronLeft, ChevronRight, IndianRupee, Package,
 } from "lucide-react";
 import StockImportTab from "@/components/StockImportTab";
 import BarcodeScanSection from "@/components/BarcodeScanSection";
+import { ErpDashboardKpiCard } from "@/components/dashboard/ErpDashboardKpiCard";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { cn } from "@/lib/utils";
 import * as XLSX from "xlsx";
 
 /* ─── Types ─── */
@@ -45,45 +75,55 @@ interface SettlementHistory {
   items: Product[];
 }
 
-/* ─── Inline Styles (light theme tokens) ─── */
-const C = {
-  bgRoot: "#f8fafc",
-  bgCard: "#ffffff",
-  bgInput: "#f1f5f9",
-  border: "#e2e8f0",
-  borderHover: "#cbd5e1",
-  textPrimary: "#020617",
-  textBody: "#0f172a",
-  textSecondary: "#1e293b",
-  textMuted: "#475569",
-  textDim: "#64748b",
-  cyan: "#22d3ee",
-  cyanDark: "#0e7490",
-  green: "#34d399",
-  greenDark: "#059669",
-  yellow: "#fbbf24",
-  red: "#f87171",
+/* ─── Department badge classes ─── */
+const deptBadgeClass = (d: string) => {
+  const map: Record<string, string> = {
+    Electronics: "bg-sky-50 text-sky-700",
+    Clothing: "bg-violet-50 text-violet-700",
+    Grocery: "bg-emerald-50 text-emerald-700",
+    Stationery: "bg-amber-50 text-amber-700",
+    Hardware: "bg-orange-50 text-orange-700",
+  };
+  return map[d] || "bg-slate-100 text-slate-600";
 };
 
-const font = "'DM Sans', sans-serif";
-const mono = "'JetBrains Mono', monospace";
-
-/* ─── Department Colors ─── */
-const deptColors: Record<string, string> = {
-  Electronics: "#0ea5e9",
-  Clothing: "#a78bfa",
-  Grocery: "#34d399",
-  Stationery: "#fbbf24",
-  Hardware: "#f97316",
-};
-
-const getDeptBg = (d: string) => `${deptColors[d] || "#64748b"}15`;
-const getDeptColor = (d: string) => deptColors[d] || "#64748b";
+function ScanProgressRing({ scanned, total }: { scanned: number; total: number }) {
+  const pct = total > 0 ? scanned / total : 0;
+  const r = 26;
+  const circ = 2 * Math.PI * r;
+  return (
+    <div className="relative flex h-[72px] w-[72px] shrink-0 items-center justify-center">
+      <svg className="h-[72px] w-[72px] -rotate-90" viewBox="0 0 64 64" aria-hidden>
+        <circle cx="32" cy="32" r={r} fill="none" stroke="currentColor" strokeWidth="5" className="text-slate-200" />
+        <circle
+          cx="32"
+          cy="32"
+          r={r}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="5"
+          strokeDasharray={circ}
+          strokeDashoffset={circ * (1 - pct)}
+          className="text-teal-500 transition-all duration-500"
+          strokeLinecap="round"
+        />
+      </svg>
+      <div className="absolute text-center leading-tight">
+        <div className="font-mono text-[10px] font-bold tabular-nums text-teal-800">
+          {scanned}/{total}
+        </div>
+        <div className="text-[8px] font-semibold uppercase tracking-wide text-slate-500">Scanned</div>
+      </div>
+    </div>
+  );
+}
 
 /* ─── Component ─── */
 const StockSettlement = () => {
   const { toast } = useToast();
   const { currentOrganization } = useOrganization();
+  const inTabCache = useTabCacheLayout();
+  const sharedShell = useSharedAppShell();
   const [activeTab, setActiveTab] = useState<"scan" | "differences" | "settlement" | "history" | "import">("scan");
   const [products, setProducts] = useState<Product[]>([]);
   const [history, setHistory] = useState<SettlementHistory[]>([]);
@@ -328,17 +368,23 @@ const StockSettlement = () => {
   const getDiffBadge = (p: Product) => {
     if (!p.scanned || p.actualStock === null) return null;
     const diff = p.actualStock - p.softwareStock;
-    if (diff === 0) return { text: "0", color: C.green, bg: `${C.green}15` };
-    if (diff > 0) return { text: `+${diff}`, color: C.yellow, bg: `${C.yellow}15` };
-    return { text: `${diff}`, color: C.red, bg: `${C.red}15` };
+    if (diff === 0) return { text: "0", className: "bg-emerald-50 text-emerald-700" };
+    if (diff > 0) return { text: `+${diff}`, className: "bg-amber-50 text-amber-700" };
+    return { text: `${diff}`, className: "bg-red-50 text-red-700" };
   };
 
   const getStatus = (p: Product) => {
-    if (!p.scanned || p.actualStock === null) return { label: "Pending", color: C.textDim, bg: `${C.textDim}18`, icon: null };
+    if (!p.scanned || p.actualStock === null) {
+      return { label: "Pending", className: "bg-slate-100 text-slate-600", icon: null };
+    }
     const diff = p.actualStock - p.softwareStock;
-    if (diff === 0) return { label: "Match", color: C.green, bg: `${C.green}18`, icon: <CheckCircle2 size={13} /> };
-    if (diff > 0) return { label: "Surplus", color: C.yellow, bg: `${C.yellow}18`, icon: <ArrowUpCircle size={13} /> };
-    return { label: "Shortage", color: C.red, bg: `${C.red}18`, icon: <ArrowDownCircle size={13} /> };
+    if (diff === 0) {
+      return { label: "Match", className: "bg-emerald-50 text-emerald-700", icon: <CheckCircle2 className="h-3.5 w-3.5" /> };
+    }
+    if (diff > 0) {
+      return { label: "Surplus", className: "bg-amber-50 text-amber-700", icon: <ArrowUpCircle className="h-3.5 w-3.5" /> };
+    }
+    return { label: "Shortage", className: "bg-red-50 text-red-700", icon: <ArrowDownCircle className="h-3.5 w-3.5" /> };
   };
 
   // Handle import from file
@@ -352,6 +398,60 @@ const StockSettlement = () => {
     setActiveTab("scan");
   }, [toast]);
 
+  const stockKpis = useMemo(() => {
+    const totalQty = filtered.reduce((s, p) => s + p.softwareStock, 0);
+    const totalPurValue = filtered.reduce((s, p) => s + p.softwareStock * p.purPrice, 0);
+    const totalSaleValue = filtered.reduce((s, p) => s + p.softwareStock * p.salePrice, 0);
+    const fmt = (n: number) => n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return { totalQty, totalPurValue, totalSaleValue, fmt };
+  }, [filtered]);
+
+  const exportCompleteStock = useCallback(() => {
+    const wsData: (string | number)[][] = [
+      ["Sr No", "Product Name", "Department", "Brand", "Unit", "Barcode", "Stock Qty", "Pur Price", "Sale Price", "Pur Value", "Sale Value"],
+    ];
+    products.forEach((p, idx) => {
+      wsData.push([
+        idx + 1, p.name, p.department, p.brand, p.unit, p.barcode || "",
+        p.softwareStock, p.purPrice, p.salePrice,
+        +(p.softwareStock * p.purPrice).toFixed(2), +(p.softwareStock * p.salePrice).toFixed(2),
+      ]);
+    });
+    const totalQty = products.reduce((s, p) => s + p.softwareStock, 0);
+    const totalPur = +products.reduce((s, p) => s + p.softwareStock * p.purPrice, 0).toFixed(2);
+    const totalSale = +products.reduce((s, p) => s + p.softwareStock * p.salePrice, 0).toFixed(2);
+    wsData.push(["", "", "", "", "", "TOTAL", totalQty, "", "", totalPur, totalSale]);
+    const ws = XLSX.utils.aoa_to_sheet(wsData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Complete Stock");
+    XLSX.writeFile(wb, `Complete_Stock_Report_${new Date().toISOString().split("T")[0]}.xlsx`);
+    toast({ title: "Exported", description: `All ${products.length} products exported with totals` });
+  }, [products, toast]);
+
+  const exportScannedStock = useCallback(() => {
+    const scannedProducts = products.filter((p) => p.scanned);
+    if (scannedProducts.length === 0) {
+      toast({ title: "No scanned items", description: "Scan products first before exporting", variant: "destructive" });
+      return;
+    }
+    const wsData: (string | number)[][] = [
+      ["Sr", "Barcode", "Product Name", "Dept", "Brand", "Unit", "Software Qty", "Actual Qty", "Difference", "Status", "Source"],
+    ];
+    scannedProducts.forEach((p, i) => {
+      const diff = (p.actualStock ?? 0) - p.softwareStock;
+      const status = diff === 0 ? "Match" : diff > 0 ? "Surplus" : "Shortage";
+      wsData.push([i + 1, p.barcode || "—", p.name, p.department, p.brand, p.unit, p.softwareStock, p.actualStock ?? 0, diff, status, p.source || "manual"]);
+    });
+    const totalSW = scannedProducts.reduce((s, p) => s + p.softwareStock, 0);
+    const totalAct = scannedProducts.reduce((s, p) => s + (p.actualStock ?? 0), 0);
+    wsData.push(["", "", "", "", "", "TOTAL", totalSW, totalAct, totalAct - totalSW, "", ""]);
+    const ws = XLSX.utils.aoa_to_sheet(wsData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Scanned Products");
+    XLSX.writeFile(wb, `Scanned_Stock_${new Date().toISOString().split("T")[0]}.xlsx`);
+    toast({ title: "Exported", description: `${scannedProducts.length} scanned products exported` });
+  }, [products, toast]);
+
   const tabs = [
     { key: "scan" as const, label: "Stock Scan", icon: <ScanBarcode size={16} /> },
     { key: "import" as const, label: "Import File", icon: <Upload size={16} /> },
@@ -361,896 +461,718 @@ const StockSettlement = () => {
   ];
 
   /* ─── RENDER ─── */
-  return (
-    <div style={{ background: C.bgRoot, minHeight: "100vh", padding: "20px 24px", fontFamily: font, color: C.textPrimary }}>
-      {/* Google Fonts */}
-      <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet" />
+  const renderPageNumbers = (current: number, total: number, onChange: (p: number) => void) =>
+    Array.from({ length: Math.min(5, total) }, (_, i) => {
+      let page: number;
+      if (total <= 5) page = i + 1;
+      else if (current <= 3) page = i + 1;
+      else if (current >= total - 2) page = total - 4 + i;
+      else page = current - 2 + i;
+      return (
+        <Button
+          key={page}
+          variant={current === page ? "default" : "outline"}
+          size="sm"
+          className={cn(
+            "h-8 w-8 p-0 font-mono tabular-nums",
+            current === page && "bg-teal-600 hover:bg-teal-700",
+          )}
+          onClick={() => onChange(page)}
+        >
+          {page}
+        </Button>
+      );
+    });
 
-      {/* ─── HEADER ─── */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20, flexWrap: "wrap", gap: 16 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-          <div style={{
-            width: 48, height: 48, borderRadius: 14,
-            background: `linear-gradient(135deg, ${C.bgCard}, ${C.border})`,
-            border: `1px solid ${C.cyan}30`,
-            display: "flex", alignItems: "center", justifyContent: "center",
-          }}>
-            <Box size={24} color={C.cyan} />
+  return (
+    <div
+      className={cn(
+        "stock-settlement-workspace flex h-full min-h-0 w-full flex-col overflow-hidden bg-slate-50 px-2 py-2 sm:px-3",
+        !inTabCache && !sharedShell && "h-[calc(100vh-3.5rem)]",
+      )}
+    >
+      <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col gap-2">
+        {/* ─── HEADER ─── */}
+        <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-3">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-teal-200/70 bg-teal-50">
+              <Box className="h-5 w-5 text-teal-700" />
+            </div>
+            <div>
+              <h1 className="text-xl font-bold leading-none tracking-tight text-teal-700">
+                Stock Settlement
+              </h1>
+              <p className="mt-1 text-sm text-slate-500">
+                Physical verification & reconciliation
+              </p>
+            </div>
           </div>
-          <div>
-            <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: C.textPrimary }}>Stock Settlement</h1>
-            <p style={{ fontSize: 13, color: C.textDim, margin: 0 }}>Physical verification & reconciliation</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <ScanProgressRing scanned={scannedCount} total={products.length} />
+            <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
+              <ErpDashboardKpiCard
+                title="Match"
+                value={matchCount.toLocaleString("en-IN")}
+                shellClass="min-w-[72px] bg-emerald-50 border-emerald-200/70 hover:bg-emerald-100/80 [&>div]:min-h-[68px] [&>div]:py-2 sm:[&>div]:min-h-[72px]"
+                valueClass="text-emerald-800 text-lg sm:text-xl"
+              />
+              <ErpDashboardKpiCard
+                title="Surplus"
+                value={surplusCount.toLocaleString("en-IN")}
+                shellClass="min-w-[72px] bg-amber-50 border-amber-200/70 hover:bg-amber-100/80 [&>div]:min-h-[68px] [&>div]:py-2 sm:[&>div]:min-h-[72px]"
+                valueClass="text-amber-800 text-lg sm:text-xl"
+              />
+              <ErpDashboardKpiCard
+                title="Shortage"
+                value={shortageCount.toLocaleString("en-IN")}
+                shellClass="min-w-[72px] bg-red-50 border-red-200/70 hover:bg-red-100/80 [&>div]:min-h-[68px] [&>div]:py-2 sm:[&>div]:min-h-[72px]"
+                valueClass="text-red-800 text-lg sm:text-xl"
+              />
+            </div>
           </div>
         </div>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          {[
-            { val: `${scannedCount}/${products.length}`, label: "Scanned", color: C.cyan },
-            { val: matchCount, label: "Match", color: C.green },
-            { val: surplusCount, label: "Surplus", color: C.yellow },
-            { val: shortageCount, label: "Shortage", color: C.red },
-          ].map((b, i) => (
-            <div key={i} style={{
-              background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 10,
-              padding: "8px 16px", minWidth: 72, textAlign: "center",
-            }}>
-              <div style={{ fontFamily: mono, fontSize: 20, fontWeight: 700, color: b.color }}>{b.val}</div>
-              <div style={{ fontSize: 11, color: C.textMuted, letterSpacing: 0.5 }}>{b.label}</div>
-            </div>
+
+        {/* ─── TAB BAR ─── */}
+        <div className="flex shrink-0 flex-wrap gap-1 rounded-lg border border-slate-200 bg-white p-1">
+          {tabs.map((t) => (
+            <Button
+              key={t.key}
+              variant="outline"
+              size="sm"
+              onClick={() => setActiveTab(t.key)}
+              className={cn(
+                "relative h-9 flex-1 min-w-[100px] gap-1.5 rounded-md border-transparent text-sm font-medium text-slate-600",
+                activeTab === t.key && "border-teal-200 bg-teal-50 text-teal-800 shadow-sm",
+                t.key === "import" && activeTab === t.key && "border-violet-200 bg-violet-50 text-violet-800",
+              )}
+            >
+              <span className={cn("opacity-60", activeTab === t.key && "opacity-100")}>{t.icon}</span>
+              {t.label}
+              {t.badge ? (
+                <Badge className="absolute -right-1 -top-1 h-4 min-w-4 px-1 text-[10px] font-semibold bg-red-500 text-white hover:bg-red-500">
+                  {t.badge}
+                </Badge>
+              ) : null}
+            </Button>
           ))}
         </div>
-      </div>
 
-      {/* ─── TAB BAR ─── */}
-      <div style={{
-        background: C.bgCard, borderRadius: 14, padding: 4, border: `1px solid ${C.border}`,
-        display: "flex", gap: 4, marginBottom: 16,
-      }}>
-        {tabs.map(t => (
-          <button key={t.key} onClick={() => setActiveTab(t.key)} style={{
-            flex: 1, borderRadius: 10, padding: "10px 16px",
-            background: activeTab === t.key ? (t.key === "import" ? "#a78bfa20" : C.border) : "transparent",
-            color: activeTab === t.key ? (t.key === "import" ? "#a78bfa" : C.cyan) : C.textMuted,
-            fontWeight: activeTab === t.key ? 600 : 500,
-            fontSize: 13, fontFamily: font, border: "none", cursor: "pointer",
-            display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-            position: "relative", transition: "all 0.2s",
-          }}>
-            <span style={{ opacity: activeTab === t.key ? 1 : 0.5 }}>{t.icon}</span>
-            {t.label}
-            {t.badge ? (
-              <span style={{
-                position: "absolute", top: 4, right: 12,
-                background: C.red, color: "#fff", fontSize: 10, borderRadius: 10,
-                padding: "1px 6px", fontWeight: 600,
-              }}>{t.badge}</span>
-            ) : null}
-          </button>
-        ))}
-      </div>
-
-      {/* ─── FILTER BAR ─── */}
-      <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
-        <div style={{ flex: 1, minWidth: 200, position: "relative" }}>
-          <Search size={16} color="#64748b" style={{ position: "absolute", left: 14, top: 12 }} />
-          <input
-            value={search} onChange={e => setSearch(e.target.value)}
-            placeholder="Search product or ID..."
-            style={{
-              width: "100%", background: C.bgRoot, border: `1px solid ${C.border}`, borderRadius: 10,
-              padding: "10px 12px 10px 40px", color: C.textBody, fontSize: 13, fontFamily: font,
-              outline: "none",
-            }}
-            onFocus={e => e.target.style.borderColor = C.borderHover}
-            onBlur={e => e.target.style.borderColor = C.border}
-          />
-        </div>
-        {[
-          { val: shopFilter, set: setShopFilter, opts: shops, placeholder: "All Shops" },
-          { val: deptFilter, set: setDeptFilter, opts: departments, placeholder: "All Departments" },
-          { val: brandFilter, set: setBrandFilter, opts: brands, placeholder: "All Brands" },
-        ].map((f, i) => (
-          <select key={i} value={f.val} onChange={e => f.set(e.target.value)} style={{
-            background: C.bgRoot, border: `1px solid ${C.border}`, borderRadius: 10,
-            padding: "10px 12px", color: f.val ? C.textBody : C.textDim,
-            fontSize: 13, fontFamily: font, minWidth: 130, outline: "none", cursor: "pointer",
-          }}>
-            <option value="">{f.placeholder}</option>
-            {f.opts.map(o => <option key={o} value={o}>{o}</option>)}
-          </select>
-        ))}
-        {hasFilters && (
-          <button onClick={clearFilters} style={{
-            background: C.border, border: `1px solid ${C.borderHover}`, borderRadius: 10,
-            padding: "10px 16px", color: C.textMuted, fontSize: 13, fontFamily: font,
-            cursor: "pointer",
-          }}>Clear</button>
-        )}
-      </div>
-
-      {/* ─── TAB CONTENT ─── */}
-      <div style={{ animation: "fadeIn 0.3s ease" }}>
-
-        {/* ═══ SCAN TAB ═══ */}
-        {activeTab === "scan" && (
-          <div>
-            {/* Stock Totals Summary */}
-            {(() => {
-              const totalQty = filtered.reduce((s, p) => s + p.softwareStock, 0);
-              const totalPurValue = filtered.reduce((s, p) => s + (p.softwareStock * p.purPrice), 0);
-              const totalSaleValue = filtered.reduce((s, p) => s + (p.softwareStock * p.salePrice), 0);
-              const fmt = (n: number) => n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-              return (
-                <div style={{ display: "flex", gap: 12, marginBottom: 14, flexWrap: "wrap" }}>
-                  {[
-                    { label: "Total Stock Qty", val: totalQty.toLocaleString("en-IN"), icon: <Package size={16} />, color: C.cyan },
-                    { label: "Purchase Value", val: `₹${fmt(totalPurValue)}`, icon: <IndianRupee size={16} />, color: C.yellow },
-                    { label: "Sale Value", val: `₹${fmt(totalSaleValue)}`, icon: <IndianRupee size={16} />, color: C.green },
-                  ].map((c, i) => (
-                    <div key={i} style={{
-                      flex: 1, minWidth: 180, background: C.bgCard, borderRadius: 12,
-                      padding: "14px 18px", borderLeft: `4px solid ${c.color}`,
-                      display: "flex", alignItems: "center", gap: 12,
-                    }}>
-                      <div style={{
-                        width: 36, height: 36, borderRadius: 10,
-                        background: `${c.color}15`, display: "flex", alignItems: "center", justifyContent: "center",
-                        color: c.color,
-                      }}>{c.icon}</div>
-                      <div>
-                        <div style={{ fontSize: 11, color: C.textDim, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 }}>{c.label}</div>
-                        <div style={{ fontFamily: mono, fontSize: 18, fontWeight: 700, color: c.color }}>{c.val}</div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              );
-            })()}
-
-            {/* ─── BARCODE SCAN SECTION ─── */}
-            <BarcodeScanSection
-              products={products}
-              onProductScanned={handleProductScanned}
-              onHighlightRow={handleHighlightRow}
-            />
-
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 14 }}>
-              <div>
-                <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>Scan Products</h2>
-                <p style={{ fontSize: 13, color: C.textDim, margin: 0 }}>Enter actual physical count for each product</p>
-              </div>
-              <div style={{ display: "flex", gap: 8 }}>
-                <button onClick={() => {
-                   const all = products;
-                   const wsData: (string | number)[][] = [["Sr No", "Product Name", "Department", "Brand", "Unit", "Barcode", "Stock Qty", "Pur Price", "Sale Price", "Pur Value", "Sale Value"]];
-                   all.forEach((p, idx) => {
-                     const purVal = +(p.softwareStock * p.purPrice).toFixed(2);
-                     const saleVal = +(p.softwareStock * p.salePrice).toFixed(2);
-                     wsData.push([
-                       idx + 1, p.name, p.department, p.brand, p.unit, p.barcode || "",
-                       p.softwareStock, p.purPrice, p.salePrice, purVal, saleVal,
-                     ]);
-                   });
-                   const totalQty = all.reduce((s, p) => s + p.softwareStock, 0);
-                   const totalPur = +all.reduce((s, p) => s + (p.softwareStock * p.purPrice), 0).toFixed(2);
-                   const totalSale = +all.reduce((s, p) => s + (p.softwareStock * p.salePrice), 0).toFixed(2);
-                   wsData.push(["", "", "", "", "", "TOTAL", totalQty, "", "", totalPur, totalSale]);
-                   const ws = XLSX.utils.aoa_to_sheet(wsData);
-                   ws["!cols"] = [{ wch: 6 }, { wch: 32 }, { wch: 15 }, { wch: 15 }, { wch: 8 }, { wch: 16 }, { wch: 10 }, { wch: 12 }, { wch: 12 }, { wch: 14 }, { wch: 14 }];
-                   const wb = XLSX.utils.book_new();
-                   XLSX.utils.book_append_sheet(wb, ws, "Complete Stock");
-                   XLSX.writeFile(wb, `Complete_Stock_Report_${new Date().toISOString().split("T")[0]}.xlsx`);
-                   toast({ title: "Exported", description: `All ${all.length} products exported with totals` });
-                }} style={{
-                  background: C.bgCard, border: `1px solid ${C.green}40`, borderRadius: 10,
-                  padding: "10px 18px", color: C.green, fontWeight: 600, fontSize: 13, fontFamily: font,
-                  cursor: "pointer", display: "flex", alignItems: "center", gap: 6,
-                }}>
-                  <Download size={15} /> Export Stock
-                 </button>
-                 <button onClick={() => {
-                   const scannedProducts = products.filter(p => p.scanned);
-                   if (scannedProducts.length === 0) {
-                     toast({ title: "No scanned items", description: "Scan products first before exporting", variant: "destructive" });
-                     return;
-                   }
-                   const wsData: any[][] = [["Sr", "Barcode", "Product Name", "Dept", "Brand", "Unit", "Software Qty", "Actual Qty", "Difference", "Status", "Source"]];
-                   scannedProducts.forEach((p, i) => {
-                     const diff = (p.actualStock ?? 0) - p.softwareStock;
-                     const status = diff === 0 ? "Match" : diff > 0 ? "Surplus" : "Shortage";
-                     wsData.push([i + 1, p.barcode || "—", p.name, p.department, p.brand, p.unit, p.softwareStock, p.actualStock ?? 0, diff, status, p.source || "manual"]);
-                   });
-                   const totalSW = scannedProducts.reduce((s, p) => s + p.softwareStock, 0);
-                   const totalAct = scannedProducts.reduce((s, p) => s + (p.actualStock ?? 0), 0);
-                   wsData.push(["", "", "", "", "", "TOTAL", totalSW, totalAct, totalAct - totalSW, "", ""]);
-                   const ws = XLSX.utils.aoa_to_sheet(wsData);
-                   ws["!cols"] = [{ wch: 6 }, { wch: 16 }, { wch: 32 }, { wch: 15 }, { wch: 15 }, { wch: 8 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 10 }, { wch: 10 }];
-                   const wb = XLSX.utils.book_new();
-                   XLSX.utils.book_append_sheet(wb, ws, "Scanned Products");
-                   XLSX.writeFile(wb, `Scanned_Stock_${new Date().toISOString().split("T")[0]}.xlsx`);
-                   toast({ title: "Exported", description: `${scannedProducts.length} scanned products exported` });
-                 }} style={{
-                   background: C.bgCard, border: `1px solid ${C.yellow}40`, borderRadius: 10,
-                   padding: "10px 18px", color: C.yellow, fontWeight: 600, fontSize: 13, fontFamily: font,
-                   cursor: "pointer", display: "flex", alignItems: "center", gap: 6,
-                 }}>
-                   <FileSpreadsheet size={15} /> Export Scanned
-                 </button>
-                <button onClick={autoMatchAll} style={{
-                  background: `linear-gradient(135deg, ${C.cyanDark}, ${C.cyan})`,
-                  color: "#042f2e", fontWeight: 600, fontSize: 13, fontFamily: font,
-                  border: "none", borderRadius: 10, padding: "10px 18px",
-                  cursor: "pointer", display: "flex", alignItems: "center", gap: 6,
-                }}>
-                  <Check size={15} /> Auto-Match All
-                </button>
-              </div>
+        {/* ─── FILTER BAR ─── */}
+        {(activeTab === "scan" || activeTab === "import") && (
+          <div className="flex shrink-0 flex-wrap items-center gap-2">
+            <div className="relative min-w-[180px] flex-1 sm:max-w-md">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search product or ID..."
+                className="h-9 border-slate-200 bg-white pl-9 text-sm no-uppercase"
+              />
             </div>
-
-            {loading ? (
-              <div style={{ textAlign: "center", padding: 60, color: C.textDim }}>
-                <Loader2 size={28} className="animate-spin" style={{ margin: "0 auto 12px" }} />
-                Loading products...
-              </div>
-            ) : (
-              <>
-              <div style={{
-                borderRadius: 12, border: `1px solid ${C.border}`, background: C.bgCard,
-                overflowX: "auto",
-              }}>
-                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, fontFamily: font }}>
-                  <thead>
-                    <tr style={{ background: C.bgInput }}>
-                      {["Product ID", "Barcode", "Product Name", "Shop", "Dept", "Brand", "Unit", "Software Qty", "Actual Qty", "Difference", "Status", "Source"].map(h => (
-                        <th key={h} style={{
-                          padding: "10px 14px", textAlign: "left", fontSize: 11, fontWeight: 600,
-                          textTransform: "uppercase", letterSpacing: 0.8, color: C.textDim,
-                          borderBottom: `1px solid ${C.border}`, whiteSpace: "nowrap",
-                        }}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {paginatedFiltered.map((p, idx) => {
-                      const diffBadge = getDiffBadge(p);
-                      const status = getStatus(p);
-                      const isHighlighted = highlightedRow === p.id;
-                      return (
-                        <tr key={p.id} id={`scan-row-${p.id}`} style={{
-                          borderBottom: `1px solid ${C.border}10`,
-                          animation: `fadeIn 0.3s ease ${idx * 0.02}s both`,
-                          background: isHighlighted ? `${C.green}12` : "transparent",
-                          transition: "background 0.3s ease",
-                        }}>
-                          <td style={{ padding: "10px 14px" }}>
-                            <code style={{
-                              fontFamily: mono, fontSize: 12, background: C.border,
-                              padding: "2px 8px", borderRadius: 5, color: C.cyan,
-                            }}>{p.id}</code>
-                          </td>
-                          <td style={{ padding: "10px 14px" }}>
-                            <code style={{
-                              fontFamily: mono, fontSize: 11, background: `${C.yellow}12`,
-                              padding: "2px 6px", borderRadius: 4, color: C.yellow,
-                            }}>{p.barcode || "—"}</code>
-                          </td>
-                          <td style={{ padding: "10px 14px", fontWeight: 500, color: C.textBody }}>{p.name}</td>
-                          <td style={{ padding: "10px 14px", color: C.textSecondary }}>{p.shop}</td>
-                          <td style={{ padding: "10px 14px" }}>
-                            <span style={{
-                              fontSize: 11, padding: "3px 10px", borderRadius: 6, fontWeight: 500,
-                              background: getDeptBg(p.department), color: getDeptColor(p.department),
-                            }}>{p.department}</span>
-                          </td>
-                          <td style={{ padding: "10px 14px", color: C.textSecondary }}>{p.brand}</td>
-                          <td style={{ padding: "10px 14px", color: C.textMuted }}>{p.unit}</td>
-                          <td style={{ padding: "10px 14px", fontFamily: mono, fontWeight: 600 }}>{p.softwareStock}</td>
-                          <td style={{ padding: "10px 14px" }}>
-                            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                              <input
-                                type="number"
-                                value={p.actualStock ?? ""}
-                                onChange={e => handleActualChange(p.id, e.target.value)}
-                                placeholder="—"
-                                style={{
-                                  width: 72, textAlign: "center", background: C.bgInput,
-                                  border: `1px solid ${C.borderHover}`, borderRadius: 8,
-                                  fontFamily: mono, fontSize: 14, fontWeight: 700, color: C.textPrimary,
-                                  padding: "6px 4px", outline: "none",
-                                }}
-                                onFocus={e => e.target.style.borderColor = C.cyan}
-                                onBlur={e => e.target.style.borderColor = C.borderHover}
-                              />
-                              {(p.scanCount || 0) > 1 && (
-                                <span style={{ fontSize: 9, color: C.textDim, fontFamily: mono, whiteSpace: "nowrap" }}>×{p.scanCount}</span>
-                              )}
-                            </div>
-                          </td>
-                          <td style={{ padding: "10px 14px" }}>
-                            {diffBadge ? (
-                              <span style={{
-                                fontFamily: mono, fontSize: 13, fontWeight: 700, borderRadius: 6,
-                                padding: "3px 10px", color: diffBadge.color, background: diffBadge.bg,
-                              }}>{diffBadge.text}</span>
-                            ) : <span style={{ color: C.textDim }}>—</span>}
-                          </td>
-                          <td style={{ padding: "10px 14px" }}>
-                            <span style={{
-                              display: "inline-flex", alignItems: "center", gap: 4,
-                              borderRadius: 8, padding: "4px 10px", fontSize: 12, fontWeight: 600,
-                              color: status.color, background: status.bg,
-                            }}>
-                              {status.icon} {status.label}
-                            </span>
-                          </td>
-                          <td style={{ padding: "10px 14px" }}>
-                            {p.source ? (
-                              <span style={{
-                                fontSize: 10, padding: "3px 8px", borderRadius: 6, fontWeight: 600,
-                                background: p.source === "scanned" ? `${C.cyan}15` : p.source === "imported" ? `${C.yellow}15` : `${C.textDim}15`,
-                                color: p.source === "scanned" ? C.cyan : p.source === "imported" ? C.yellow : C.textDim,
-                                textTransform: "capitalize",
-                              }}>{p.source}</span>
-                            ) : <span style={{ color: C.textDim }}>—</span>}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                    {filtered.length === 0 && (
-                      <tr><td colSpan={12} style={{ textAlign: "center", padding: 40, color: C.textDim }}>No products found</td></tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Pagination Controls */}
-              {filtered.length > 0 && (
-                <div style={{
-                  display: "flex", alignItems: "center", justifyContent: "space-between",
-                  padding: "12px 16px", background: C.bgCard, borderRadius: "0 0 12px 12px",
-                  borderTop: `1px solid ${C.border}`, flexWrap: "wrap", gap: 10,
-                }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: C.textMuted }}>
-                    <span>Showing {((currentPage - 1) * pageSize) + 1}–{Math.min(currentPage * pageSize, filtered.length)} of {filtered.length}</span>
-                    <select
-                      value={pageSize}
-                      onChange={e => { setPageSize(Number(e.target.value)); setCurrentPage(1); }}
-                      style={{
-                        background: C.bgInput, border: `1px solid ${C.border}`, borderRadius: 8,
-                        padding: "4px 8px", color: C.textBody, fontSize: 12, fontFamily: font,
-                        outline: "none", cursor: "pointer",
-                      }}
-                    >
-                      {[25, 50, 100, 200].map(s => <option key={s} value={s}>{s} / page</option>)}
-                    </select>
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                    <button
-                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                      disabled={currentPage === 1}
-                      style={{
-                        background: currentPage === 1 ? "transparent" : C.border,
-                        border: `1px solid ${C.border}`, borderRadius: 8,
-                        padding: "6px 10px", color: currentPage === 1 ? C.textDim : C.textBody,
-                        cursor: currentPage === 1 ? "not-allowed" : "pointer", fontFamily: font, fontSize: 12,
-                        display: "flex", alignItems: "center", gap: 4,
-                      }}
-                    >
-                      <ChevronLeft size={14} /> Prev
-                    </button>
-                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                      let page: number;
-                      if (totalPages <= 5) {
-                        page = i + 1;
-                      } else if (currentPage <= 3) {
-                        page = i + 1;
-                      } else if (currentPage >= totalPages - 2) {
-                        page = totalPages - 4 + i;
-                      } else {
-                        page = currentPage - 2 + i;
-                      }
-                      return (
-                        <button
-                          key={page}
-                          onClick={() => setCurrentPage(page)}
-                          style={{
-                            width: 32, height: 32, borderRadius: 8,
-                            background: currentPage === page ? C.cyan : "transparent",
-                            border: currentPage === page ? "none" : `1px solid ${C.border}`,
-                            color: currentPage === page ? "#042f2e" : C.textMuted,
-                            fontWeight: currentPage === page ? 700 : 500,
-                            fontSize: 13, fontFamily: mono, cursor: "pointer",
-                          }}
-                        >
-                          {page}
-                        </button>
-                      );
-                    })}
-                    <button
-                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                      disabled={currentPage === totalPages}
-                      style={{
-                        background: currentPage === totalPages ? "transparent" : C.border,
-                        border: `1px solid ${C.border}`, borderRadius: 8,
-                        padding: "6px 10px", color: currentPage === totalPages ? C.textDim : C.textBody,
-                        cursor: currentPage === totalPages ? "not-allowed" : "pointer", fontFamily: font, fontSize: 12,
-                        display: "flex", alignItems: "center", gap: 4,
-                      }}
-                    >
-                      Next <ChevronRight size={14} />
-                    </button>
-                  </div>
-                </div>
-              )}
-              </>
+            <Select value={shopFilter || "__all__"} onValueChange={(v) => setShopFilter(v === "__all__" ? "" : v)}>
+              <SelectTrigger className="h-9 w-[130px] border-slate-200 bg-white text-sm">
+                <SelectValue placeholder="All Shops" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__all__">All Shops</SelectItem>
+                {shops.map((o) => (
+                  <SelectItem key={o} value={o}>{o}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={deptFilter || "__all__"} onValueChange={(v) => setDeptFilter(v === "__all__" ? "" : v)}>
+              <SelectTrigger className="h-9 w-[150px] border-slate-200 bg-white text-sm">
+                <SelectValue placeholder="All Departments" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__all__">All Departments</SelectItem>
+                {departments.map((o) => (
+                  <SelectItem key={o} value={o}>{o}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={brandFilter || "__all__"} onValueChange={(v) => setBrandFilter(v === "__all__" ? "" : v)}>
+              <SelectTrigger className="h-9 w-[130px] border-slate-200 bg-white text-sm">
+                <SelectValue placeholder="All Brands" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__all__">All Brands</SelectItem>
+                {brands.map((o) => (
+                  <SelectItem key={o} value={o}>{o}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {hasFilters && (
+              <Button variant="outline" size="sm" className="h-9 gap-1 border-slate-200" onClick={clearFilters}>
+                <X className="h-4 w-4" />
+                Clear
+              </Button>
             )}
           </div>
         )}
 
-        {/* ═══ IMPORT FILE TAB ═══ */}
-        {activeTab === "import" && (
-          <StockImportTab products={products} onApplyImport={handleImportApply} />
-        )}
+        {/* ─── TAB CONTENT ─── */}
+        <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden">
 
-        {/* ═══ DIFFERENCES TAB ═══ */}
-        {activeTab === "differences" && (
-          <div>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 14 }}>
-              <div>
-                <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>Stock Differences</h2>
-                <p style={{ fontSize: 13, color: C.textDim, margin: 0 }}>{differences.length} differences found out of {scannedCount} scanned items</p>
+          {/* ═══ SCAN TAB ═══ */}
+          {activeTab === "scan" && (
+            <div className="flex min-h-0 flex-1 flex-col gap-2">
+              <div className="grid shrink-0 grid-cols-1 gap-2 sm:grid-cols-3">
+                <ErpDashboardKpiCard
+                  title="Total Stock Qty"
+                  value={stockKpis.totalQty.toLocaleString("en-IN")}
+                  shellClass="bg-sky-50 border-sky-200/70 hover:bg-sky-100/80"
+                  valueClass="text-sky-800"
+                />
+                <ErpDashboardKpiCard
+                  title="Purchase Value"
+                  value={`₹${stockKpis.fmt(stockKpis.totalPurValue)}`}
+                  shellClass="bg-amber-50 border-amber-200/70 hover:bg-amber-100/80"
+                  valueClass="text-amber-800"
+                />
+                <ErpDashboardKpiCard
+                  title="Sale Value"
+                  value={`₹${stockKpis.fmt(stockKpis.totalSaleValue)}`}
+                  shellClass="bg-emerald-50 border-emerald-200/70 hover:bg-emerald-100/80"
+                  valueClass="text-emerald-800"
+                />
               </div>
-              <button onClick={() => setShowExportModal(true)} style={{
-                background: `linear-gradient(135deg, ${C.cyanDark}, ${C.cyan})`,
-                color: "#042f2e", fontWeight: 600, fontSize: 13, fontFamily: font,
-                border: "none", borderRadius: 10, padding: "10px 18px",
-                cursor: "pointer", display: "flex", alignItems: "center", gap: 6,
-              }}>
-                <Download size={15} /> Export Report
-              </button>
-            </div>
 
-            {/* Summary Cards */}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12, marginBottom: 16 }}>
-              {[
-                { label: "Perfectly Matched", val: matchCount, color: C.green, prefix: "" },
-                { label: "Total Surplus Qty", val: totalSurplus, color: C.yellow, prefix: "+" },
-                { label: "Total Shortage Qty", val: totalShortage, color: C.red, prefix: "-" },
-              ].map((c, i) => (
-                <div key={i} style={{
-                  background: C.bgCard, borderRadius: 12, padding: "20px 24px",
-                  borderLeft: `4px solid ${c.color}`,
-                }}>
-                  <div style={{ fontFamily: mono, fontSize: 28, fontWeight: 700, color: c.color }}>{c.prefix}{c.val}</div>
-                  <div style={{ fontSize: 13, color: C.textMuted, marginTop: 4 }}>{c.label}</div>
+              <BarcodeScanSection
+                products={products}
+                onProductScanned={handleProductScanned}
+                onHighlightRow={handleHighlightRow}
+              />
+
+              <div className="flex shrink-0 flex-wrap items-end justify-between gap-2">
+                <div>
+                  <h2 className="text-base font-bold text-slate-800">Scan Products</h2>
+                  <p className="text-sm text-slate-500">Enter actual physical count for each product</p>
                 </div>
-              ))}
-            </div>
-
-            {/* Differences Table */}
-            {differences.length > 0 ? (
-              <>
-              <div style={{ borderRadius: 12, border: `1px solid ${C.border}`, background: C.bgCard, overflowX: "auto" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, fontFamily: font }}>
-                  <thead>
-                    <tr style={{ background: C.bgInput }}>
-                      {["Product ID", "Product Name", "Shop", "Dept", "Brand", "Software Qty", "Actual Qty", "Difference", "Type"].map(h => (
-                        <th key={h} style={{
-                          padding: "10px 14px", textAlign: "left", fontSize: 11, fontWeight: 600,
-                          textTransform: "uppercase", letterSpacing: 0.8, color: C.textDim,
-                          borderBottom: `1px solid ${C.border}`, whiteSpace: "nowrap",
-                        }}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {paginatedDifferences.map((p, idx) => {
-                      const diff = p.actualStock! - p.softwareStock;
-                      const isPositive = diff > 0;
-                      return (
-                        <tr key={p.id} style={{ borderBottom: `1px solid ${C.border}10`, animation: `fadeIn 0.3s ease ${idx * 0.02}s both` }}>
-                          <td style={{ padding: "10px 14px" }}>
-                            <code style={{ fontFamily: mono, fontSize: 12, background: C.border, padding: "2px 8px", borderRadius: 5, color: C.cyan }}>{p.id}</code>
-                          </td>
-                          <td style={{ padding: "10px 14px", fontWeight: 500, color: C.textBody }}>{p.name}</td>
-                          <td style={{ padding: "10px 14px", color: C.textSecondary }}>{p.shop}</td>
-                          <td style={{ padding: "10px 14px" }}>
-                            <span style={{ fontSize: 11, padding: "3px 10px", borderRadius: 6, fontWeight: 500, background: getDeptBg(p.department), color: getDeptColor(p.department) }}>{p.department}</span>
-                          </td>
-                          <td style={{ padding: "10px 14px", color: C.textSecondary }}>{p.brand}</td>
-                          <td style={{ padding: "10px 14px", fontFamily: mono, fontWeight: 600 }}>{p.softwareStock}</td>
-                          <td style={{ padding: "10px 14px", fontFamily: mono, fontWeight: 600 }}>{p.actualStock}</td>
-                          <td style={{ padding: "10px 14px" }}>
-                            <span style={{
-                              fontFamily: mono, fontSize: 15, fontWeight: 700, borderRadius: 6,
-                              padding: "3px 10px", color: isPositive ? C.yellow : C.red,
-                              background: isPositive ? `${C.yellow}15` : `${C.red}15`,
-                            }}>{isPositive ? "+" : ""}{diff}</span>
-                          </td>
-                          <td style={{ padding: "10px 14px" }}>
-                            <span style={{
-                              display: "inline-flex", alignItems: "center", gap: 4,
-                              borderRadius: 8, padding: "4px 10px", fontSize: 12, fontWeight: 600,
-                              color: isPositive ? C.yellow : C.red,
-                              background: isPositive ? `${C.yellow}18` : `${C.red}18`,
-                            }}>
-                              {isPositive ? <ArrowUpCircle size={13} /> : <ArrowDownCircle size={13} />}
-                              {isPositive ? "Surplus" : "Shortage"}
-                            </span>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Differences Pagination */}
-              {differences.length > diffPageSize && (
-                <div style={{
-                  display: "flex", alignItems: "center", justifyContent: "space-between",
-                  padding: "12px 16px", background: C.bgCard, borderRadius: 12,
-                  border: `1px solid ${C.border}`, marginTop: 8, flexWrap: "wrap", gap: 10,
-                }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: C.textMuted }}>
-                    <span>Showing {((diffPage - 1) * diffPageSize) + 1}–{Math.min(diffPage * diffPageSize, differences.length)} of {differences.length}</span>
-                    <select
-                      value={diffPageSize}
-                      onChange={e => { setDiffPageSize(Number(e.target.value)); setDiffPage(1); }}
-                      style={{
-                        background: C.bgInput, border: `1px solid ${C.border}`, borderRadius: 8,
-                        padding: "4px 8px", color: C.textBody, fontSize: 12, fontFamily: font,
-                        outline: "none", cursor: "pointer",
-                      }}
-                    >
-                      {[25, 50, 100, 200].map(s => <option key={s} value={s}>{s} / page</option>)}
-                    </select>
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                    <button
-                      onClick={() => setDiffPage(p => Math.max(1, p - 1))}
-                      disabled={diffPage === 1}
-                      style={{
-                        background: diffPage === 1 ? "transparent" : C.border,
-                        border: `1px solid ${C.border}`, borderRadius: 8,
-                        padding: "6px 10px", color: diffPage === 1 ? C.textDim : C.textBody,
-                        cursor: diffPage === 1 ? "not-allowed" : "pointer", fontFamily: font, fontSize: 12,
-                        display: "flex", alignItems: "center", gap: 4,
-                      }}
-                    >
-                      <ChevronLeft size={14} /> Prev
-                    </button>
-                    {Array.from({ length: Math.min(5, diffTotalPages) }, (_, i) => {
-                      let page: number;
-                      if (diffTotalPages <= 5) { page = i + 1; }
-                      else if (diffPage <= 3) { page = i + 1; }
-                      else if (diffPage >= diffTotalPages - 2) { page = diffTotalPages - 4 + i; }
-                      else { page = diffPage - 2 + i; }
-                      return (
-                        <button
-                          key={page}
-                          onClick={() => setDiffPage(page)}
-                          style={{
-                            width: 32, height: 32, borderRadius: 8,
-                            background: diffPage === page ? C.cyan : "transparent",
-                            border: diffPage === page ? "none" : `1px solid ${C.border}`,
-                            color: diffPage === page ? "#042f2e" : C.textMuted,
-                            fontWeight: diffPage === page ? 700 : 500,
-                            fontSize: 13, fontFamily: mono, cursor: "pointer",
-                          }}
-                        >
-                          {page}
-                        </button>
-                      );
-                    })}
-                    <button
-                      onClick={() => setDiffPage(p => Math.min(diffTotalPages, p + 1))}
-                      disabled={diffPage === diffTotalPages}
-                      style={{
-                        background: diffPage === diffTotalPages ? "transparent" : C.border,
-                        border: `1px solid ${C.border}`, borderRadius: 8,
-                        padding: "6px 10px", color: diffPage === diffTotalPages ? C.textDim : C.textBody,
-                        cursor: diffPage === diffTotalPages ? "not-allowed" : "pointer", fontFamily: font, fontSize: 12,
-                        display: "flex", alignItems: "center", gap: 4,
-                      }}
-                    >
-                      Next <ChevronRight size={14} />
-                    </button>
-                  </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button variant="outline" size="sm" className="h-9 gap-1.5 border-emerald-200 text-emerald-700 hover:bg-emerald-50" onClick={exportCompleteStock}>
+                    <Download className="h-4 w-4" />
+                    Export Stock
+                  </Button>
+                  <Button variant="outline" size="sm" className="h-9 gap-1.5 border-amber-200 text-amber-700 hover:bg-amber-50" onClick={exportScannedStock}>
+                    <FileSpreadsheet className="h-4 w-4" />
+                    Export Scanned
+                  </Button>
+                  <Button size="sm" className="h-9 gap-1.5 bg-teal-600 hover:bg-teal-700 text-white" onClick={autoMatchAll}>
+                    <Check className="h-4 w-4" />
+                    Auto-Match All
+                  </Button>
                 </div>
-              )}
-              </>
-            ) : (
-              <div style={{ textAlign: "center", padding: 60, color: "#94a3b8" }}>
-                {scannedCount === 0 ? "Scan products first to see differences" : "No differences found — all scanned items match!"}
               </div>
-            )}
-          </div>
-        )}
 
-        {/* ═══ SETTLEMENT TAB ═══ */}
-        {activeTab === "settlement" && (
-          <div>
-            <div style={{ marginBottom: 14 }}>
-              <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>Stock Settlement</h2>
-              <p style={{ fontSize: 13, color: C.textDim, margin: 0 }}>Review and reconcile physical stock with software records</p>
-            </div>
-
-            {/* Progress Card */}
-            <div style={{ background: C.bgCard, borderRadius: 14, padding: 24, border: `1px solid ${C.border}`, marginBottom: 16 }}>
-              <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>Scan Progress</div>
-              <div style={{ height: 8, background: C.border, borderRadius: 8, overflow: "hidden", marginBottom: 8 }}>
-                <div style={{
-                  height: "100%", borderRadius: 8,
-                  background: `linear-gradient(90deg, ${C.cyanDark}, ${C.cyan})`,
-                  width: `${products.length ? (scannedCount / products.length) * 100 : 0}%`,
-                  transition: "width 0.5s ease",
-                }} />
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
-                <span style={{ color: C.textDim }}>{scannedCount} of {products.length} scanned</span>
-                <span style={{ fontFamily: mono, fontSize: 13, fontWeight: 700, color: C.cyan }}>
-                  {products.length ? Math.round((scannedCount / products.length) * 100) : 0}%
-                </span>
-              </div>
-            </div>
-
-            {/* Overview Cards */}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12, marginBottom: 20 }}>
-              {[
-                { label: "Total Scanned", val: scannedCount, color: C.cyan },
-                { label: "Matched", val: matchCount, color: C.green },
-                { label: "Surplus Items", val: surplusCount, color: C.yellow },
-                { label: "Shortage Items", val: shortageCount, color: C.red },
-              ].map((c, i) => (
-                <div key={i} style={{
-                  background: C.bgCard, borderRadius: 12, padding: "18px 20px",
-                  border: `1px solid ${C.border}`, display: "flex", alignItems: "center", gap: 12,
-                }}>
-                  <div style={{ width: 12, height: 12, borderRadius: "50%", background: c.color, flexShrink: 0 }} />
-                  <div>
-                    <div style={{ fontFamily: mono, fontSize: 20, fontWeight: 700, color: c.color }}>{c.val}</div>
-                    <div style={{ fontSize: 12, color: C.textMuted }}>{c.label}</div>
+              <Card className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-slate-200 p-0 shadow-sm">
+                {loading ? (
+                  <div className="flex flex-1 flex-col items-center justify-center gap-3 py-16 text-slate-500">
+                    <Loader2 className="h-8 w-8 animate-spin text-teal-600" />
+                    <span className="text-sm">Loading products...</span>
                   </div>
-                </div>
-              ))}
-            </div>
-
-            {/* Settlement Action */}
-            <div style={{ background: C.bgCard, borderRadius: 14, padding: 32, border: `1px solid ${C.border}`, textAlign: "center" }}>
-              <p style={{ color: C.textMuted, fontSize: 14, marginBottom: 20 }}>
-                {differences.length > 0 ? (
-                  <>There are <span style={{ color: C.yellow, fontWeight: 700 }}>{differences.length}</span> items with differences to settle.</>
-                ) : scannedCount > 0 ? (
-                  "All scanned items match. You can proceed to settle."
                 ) : (
-                  "Scan products first before settling."
-                )}
-              </p>
-              <button
-                onClick={() => setShowSettleModal(true)}
-                disabled={scannedCount === 0}
-                style={{
-                  background: scannedCount === 0 ? C.border : `linear-gradient(135deg, ${C.greenDark}, ${C.green})`,
-                  color: scannedCount === 0 ? C.textDim : "#042f2e",
-                  fontSize: 15, fontWeight: 700, fontFamily: font,
-                  border: "none", borderRadius: 12, padding: "14px 36px",
-                  cursor: scannedCount === 0 ? "not-allowed" : "pointer",
-                  display: "inline-flex", alignItems: "center", gap: 8,
-                  boxShadow: scannedCount > 0 ? `0 0 30px ${C.green}30` : "none",
-                }}>
-                <CheckCircle2 size={18} /> Proceed to Settlement
-              </button>
-            </div>
-          </div>
-        )}
+                  <>
+                    <div ref={tableRef} className="min-h-0 flex-1 overflow-auto">
+                      <Table className="erp-desktop-table w-full [&_td]:!text-sm [&_th]:!text-xs [&_th]:uppercase [&_th]:tracking-wide">
+                        <TableHeader className="sticky top-0 z-10 bg-slate-50">
+                          <TableRow>
+                            {["Product ID", "Barcode", "Product Name", "Shop", "Dept", "Brand", "Unit", "Software Qty", "Actual Qty", "Difference", "Status", "Source"].map((h) => (
+                              <TableHead key={h} className="whitespace-nowrap text-slate-500">{h}</TableHead>
+                            ))}
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {paginatedFiltered.map((p) => {
+                            const diffBadge = getDiffBadge(p);
+                            const status = getStatus(p);
+                            const isHighlighted = highlightedRow === p.id;
+                            return (
+                              <TableRow
+                                key={p.id}
+                                id={`scan-row-${p.id}`}
+                                className={cn("transition-colors", isHighlighted && "bg-emerald-50")}
+                              >
+                                <TableCell>
+                                  <code className="rounded bg-slate-100 px-2 py-0.5 font-mono text-xs tabular-nums text-teal-700">{p.id}</code>
+                                </TableCell>
+                                <TableCell>
+                                  <code className="rounded bg-amber-50 px-1.5 py-0.5 font-mono text-[11px] tabular-nums text-amber-700">{p.barcode || "—"}</code>
+                                </TableCell>
+                                <TableCell className="font-medium text-slate-700">{p.name}</TableCell>
+                                <TableCell className="text-slate-600">{p.shop}</TableCell>
+                                <TableCell>
+                                  <Badge variant="secondary" className={cn("text-[11px] font-medium", deptBadgeClass(p.department))}>
+                                    {p.department}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell className="text-slate-600">{p.brand}</TableCell>
+                                <TableCell className="text-slate-500">{p.unit}</TableCell>
+                                <TableCell className="font-mono font-semibold tabular-nums">{p.softwareStock}</TableCell>
+                                <TableCell>
+                                  <div className="flex items-center gap-1">
+                                    <Input
+                                      type="number"
+                                      value={p.actualStock ?? ""}
+                                      onChange={(e) => handleActualChange(p.id, e.target.value)}
+                                      placeholder="—"
+                                      className="h-8 w-[72px] border-slate-200 text-center font-mono text-sm font-bold tabular-nums no-uppercase [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                                    />
+                                    {(p.scanCount || 0) > 1 && (
+                                      <span className="whitespace-nowrap font-mono text-[9px] tabular-nums text-slate-400">×{p.scanCount}</span>
+                                    )}
+                                  </div>
+                                </TableCell>
+                                <TableCell>
+                                  {diffBadge ? (
+                                    <span className={cn("rounded-md px-2 py-0.5 font-mono text-sm font-bold tabular-nums", diffBadge.className)}>
+                                      {diffBadge.text}
+                                    </span>
+                                  ) : (
+                                    <span className="text-slate-400">—</span>
+                                  )}
+                                </TableCell>
+                                <TableCell>
+                                  <span className={cn("inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold", status.className)}>
+                                    {status.icon}
+                                    {status.label}
+                                  </span>
+                                </TableCell>
+                                <TableCell>
+                                  {p.source ? (
+                                    <Badge
+                                      variant="secondary"
+                                      className={cn(
+                                        "text-[10px] capitalize",
+                                        p.source === "scanned" && "bg-teal-50 text-teal-700",
+                                        p.source === "imported" && "bg-amber-50 text-amber-700",
+                                        p.source === "manual" && "bg-slate-100 text-slate-600",
+                                      )}
+                                    >
+                                      {p.source}
+                                    </Badge>
+                                  ) : (
+                                    <span className="text-slate-400">—</span>
+                                  )}
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                          {filtered.length === 0 && (
+                            <TableRow>
+                              <TableCell colSpan={12} className="py-10 text-center text-slate-500">
+                                No products found
+                              </TableCell>
+                            </TableRow>
+                          )}
+                        </TableBody>
+                      </Table>
+                    </div>
 
-        {/* ═══ HISTORY TAB ═══ */}
-        {activeTab === "history" && (
-          <div>
-            <div style={{ marginBottom: 14 }}>
-              <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>Settlement History</h2>
-              <p style={{ fontSize: 13, color: C.textDim, margin: 0 }}>{history.length} past settlements recorded</p>
-            </div>
-
-            {history.length === 0 ? (
-              <div style={{ textAlign: "center", padding: 60, color: "#94a3b8" }}>No settlements recorded yet</div>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                {history.map(h => {
-                  const expanded = expandedHistory === h.id;
-                  return (
-                    <div key={h.id} style={{
-                      background: C.bgCard, borderRadius: 12, border: `1px solid ${C.border}`,
-                      overflow: "hidden", cursor: "pointer",
-                    }}>
-                      <div
-                        onClick={() => setExpandedHistory(expanded ? null : h.id)}
-                        style={{ padding: "14px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}
-                      >
-                        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                          <div style={{
-                            width: 40, height: 40, borderRadius: 10, background: `${C.green}15`,
-                            display: "flex", alignItems: "center", justifyContent: "center",
-                          }}>
-                            <CheckCircle2 size={20} color={C.green} />
-                          </div>
-                          <div>
-                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                              <code style={{ fontFamily: mono, fontSize: 12, background: C.border, padding: "2px 8px", borderRadius: 5, color: C.cyan }}>{h.id}</code>
-                              <span style={{
-                                fontSize: 11, fontWeight: 600, padding: "3px 10px", borderRadius: 8,
-                                background: `${C.green}18`, color: C.green,
-                              }}>Completed</span>
-                            </div>
-                            <div style={{ fontSize: 13, color: C.textMuted, marginTop: 4 }}>
-                              {h.date} • {h.shop} • Settled by {h.settledBy}
-                            </div>
-                          </div>
+                    {filtered.length > 0 && (
+                      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-slate-100 bg-white px-3 py-2">
+                        <div className="flex items-center gap-2 text-sm text-slate-500">
+                          <span>
+                            Showing {((currentPage - 1) * pageSize) + 1}–{Math.min(currentPage * pageSize, filtered.length)} of {filtered.length}
+                          </span>
+                          <Select
+                            value={String(pageSize)}
+                            onValueChange={(v) => { setPageSize(Number(v)); setCurrentPage(1); }}
+                          >
+                            <SelectTrigger className="h-8 w-[100px] text-xs">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {[25, 50, 100, 200].map((s) => (
+                                <SelectItem key={s} value={String(s)}>{s} / page</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                         </div>
-                        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-                          <span style={{ fontSize: 13 }}><b>{h.totalItems}</b> items</span>
-                          <span style={{ color: C.green, fontFamily: mono, fontWeight: 600 }}>{h.matched} match</span>
-                          <span style={{ color: C.yellow, fontFamily: mono, fontWeight: 600 }}>{h.surplus} surplus</span>
-                          <span style={{ color: C.red, fontFamily: mono, fontWeight: 600 }}>{h.shortage} shortage</span>
-                          <div style={{ transition: "transform 0.2s", transform: expanded ? "rotate(180deg)" : "rotate(0)" }}>
-                            <ChevronDown size={18} color={C.textMuted} />
-                          </div>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8 gap-1"
+                            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                            disabled={currentPage === 1}
+                          >
+                            <ChevronLeft className="h-4 w-4" />
+                            Prev
+                          </Button>
+                          {renderPageNumbers(currentPage, totalPages, setCurrentPage)}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8 gap-1"
+                            onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                            disabled={currentPage === totalPages}
+                          >
+                            Next
+                            <ChevronRight className="h-4 w-4" />
+                          </Button>
                         </div>
                       </div>
+                    )}
+                  </>
+                )}
+              </Card>
+            </div>
+          )}
 
-                      {expanded && h.items.length > 0 && (
-                        <div style={{ padding: "0 20px 14px", animation: "scaleIn 0.2s ease" }}>
-                          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, fontFamily: font }}>
-                            <thead>
-                              <tr style={{ background: C.bgInput }}>
-                                {["ID", "Product", "Software", "Actual", "Diff"].map(hh => (
-                                  <th key={hh} style={{
-                                    padding: "8px 12px", textAlign: "left", fontSize: 10, fontWeight: 600,
-                                    textTransform: "uppercase", color: C.textDim, borderBottom: `1px solid ${C.border}`,
-                                  }}>{hh}</th>
-                                ))}
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {h.items.map(item => {
-                                const diff = (item.actualStock ?? item.softwareStock) - item.softwareStock;
-                                return (
-                                  <tr key={item.id} style={{ borderBottom: `1px solid ${C.border}10` }}>
-                                    <td style={{ padding: "6px 12px", fontFamily: mono, color: C.cyan }}>{item.id}</td>
-                                    <td style={{ padding: "6px 12px", color: C.textBody }}>{item.name}</td>
-                                    <td style={{ padding: "6px 12px", fontFamily: mono, fontWeight: 600 }}>{item.softwareStock}</td>
-                                    <td style={{ padding: "6px 12px", fontFamily: mono, fontWeight: 600 }}>{item.actualStock}</td>
-                                    <td style={{ padding: "6px 12px" }}>
-                                      <span style={{
-                                        fontFamily: mono, fontWeight: 700,
-                                        color: diff === 0 ? C.green : diff > 0 ? C.yellow : C.red,
-                                      }}>{diff === 0 ? "0" : diff > 0 ? `+${diff}` : diff}</span>
-                                    </td>
-                                  </tr>
-                                );
-                              })}
-                            </tbody>
-                          </table>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
+          {/* ═══ IMPORT FILE TAB ═══ */}
+          {activeTab === "import" && (
+            <div className="min-h-0 flex-1 overflow-auto">
+              <StockImportTab products={products} onApplyImport={handleImportApply} />
+            </div>
+          )}
+
+          {/* ═══ DIFFERENCES TAB ═══ */}
+          {activeTab === "differences" && (
+            <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-auto">
+              <div className="flex shrink-0 flex-wrap items-end justify-between gap-2">
+                <div>
+                  <h2 className="text-base font-bold text-slate-800">Stock Differences</h2>
+                  <p className="text-sm text-slate-500">
+                    {differences.length} differences found out of {scannedCount} scanned items
+                  </p>
+                </div>
+                <Button size="sm" className="h-9 gap-1.5 bg-teal-600 hover:bg-teal-700 text-white" onClick={() => setShowExportModal(true)}>
+                  <Download className="h-4 w-4" />
+                  Export Report
+                </Button>
               </div>
-            )}
-          </div>
-        )}
+
+              <div className="grid shrink-0 grid-cols-1 gap-2 sm:grid-cols-3">
+                <ErpDashboardKpiCard
+                  title="Perfectly Matched"
+                  value={matchCount.toLocaleString("en-IN")}
+                  shellClass="bg-emerald-50 border-emerald-200/70"
+                  valueClass="text-emerald-800"
+                />
+                <ErpDashboardKpiCard
+                  title="Total Surplus Qty"
+                  value={`+${totalSurplus.toLocaleString("en-IN")}`}
+                  shellClass="bg-amber-50 border-amber-200/70"
+                  valueClass="text-amber-800"
+                />
+                <ErpDashboardKpiCard
+                  title="Total Shortage Qty"
+                  value={`-${totalShortage.toLocaleString("en-IN")}`}
+                  shellClass="bg-red-50 border-red-200/70"
+                  valueClass="text-red-800"
+                />
+              </div>
+
+              {differences.length > 0 ? (
+                <Card className="flex flex-col overflow-hidden rounded-lg border border-slate-200 p-0 shadow-sm">
+                  <div className="overflow-auto">
+                    <Table className="erp-desktop-table w-full [&_td]:!text-sm [&_th]:!text-xs [&_th]:uppercase [&_th]:tracking-wide">
+                      <TableHeader className="bg-slate-50">
+                        <TableRow>
+                          {["Product ID", "Product Name", "Shop", "Dept", "Brand", "Software Qty", "Actual Qty", "Difference", "Type"].map((h) => (
+                            <TableHead key={h} className="whitespace-nowrap text-slate-500">{h}</TableHead>
+                          ))}
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {paginatedDifferences.map((p) => {
+                          const diff = p.actualStock! - p.softwareStock;
+                          const isPositive = diff > 0;
+                          return (
+                            <TableRow key={p.id}>
+                              <TableCell>
+                                <code className="rounded bg-slate-100 px-2 py-0.5 font-mono text-xs tabular-nums text-teal-700">{p.id}</code>
+                              </TableCell>
+                              <TableCell className="font-medium text-slate-700">{p.name}</TableCell>
+                              <TableCell className="text-slate-600">{p.shop}</TableCell>
+                              <TableCell>
+                                <Badge variant="secondary" className={cn("text-[11px] font-medium", deptBadgeClass(p.department))}>
+                                  {p.department}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="text-slate-600">{p.brand}</TableCell>
+                              <TableCell className="font-mono font-semibold tabular-nums">{p.softwareStock}</TableCell>
+                              <TableCell className="font-mono font-semibold tabular-nums">{p.actualStock}</TableCell>
+                              <TableCell>
+                                <span className={cn(
+                                  "rounded-md px-2 py-0.5 font-mono text-sm font-bold tabular-nums",
+                                  isPositive ? "bg-amber-50 text-amber-700" : "bg-red-50 text-red-700",
+                                )}>
+                                  {isPositive ? "+" : ""}{diff}
+                                </span>
+                              </TableCell>
+                              <TableCell>
+                                <span className={cn(
+                                  "inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold",
+                                  isPositive ? "bg-amber-50 text-amber-700" : "bg-red-50 text-red-700",
+                                )}>
+                                  {isPositive ? <ArrowUpCircle className="h-3.5 w-3.5" /> : <ArrowDownCircle className="h-3.5 w-3.5" />}
+                                  {isPositive ? "Surplus" : "Shortage"}
+                                </span>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </div>
+
+                  {differences.length > diffPageSize && (
+                    <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 bg-white px-3 py-2">
+                      <div className="flex items-center gap-2 text-sm text-slate-500">
+                        <span>
+                          Showing {((diffPage - 1) * diffPageSize) + 1}–{Math.min(diffPage * diffPageSize, differences.length)} of {differences.length}
+                        </span>
+                        <Select
+                          value={String(diffPageSize)}
+                          onValueChange={(v) => { setDiffPageSize(Number(v)); setDiffPage(1); }}
+                        >
+                          <SelectTrigger className="h-8 w-[100px] text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {[25, 50, 100, 200].map((s) => (
+                              <SelectItem key={s} value={String(s)}>{s} / page</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Button variant="outline" size="sm" className="h-8 gap-1" onClick={() => setDiffPage((p) => Math.max(1, p - 1))} disabled={diffPage === 1}>
+                          <ChevronLeft className="h-4 w-4" />
+                          Prev
+                        </Button>
+                        {renderPageNumbers(diffPage, diffTotalPages, setDiffPage)}
+                        <Button variant="outline" size="sm" className="h-8 gap-1" onClick={() => setDiffPage((p) => Math.min(diffTotalPages, p + 1))} disabled={diffPage === diffTotalPages}>
+                          Next
+                          <ChevronRight className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </Card>
+              ) : (
+                <div className="py-16 text-center text-slate-500">
+                  {scannedCount === 0 ? "Scan products first to see differences" : "No differences found — all scanned items match!"}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ═══ SETTLEMENT TAB ═══ */}
+          {activeTab === "settlement" && (
+            <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-auto">
+              <div>
+                <h2 className="text-base font-bold text-slate-800">Stock Settlement</h2>
+                <p className="text-sm text-slate-500">Review and reconcile physical stock with software records</p>
+              </div>
+
+              <Card className="border-slate-200 p-4 shadow-sm">
+                <div className="mb-3 text-sm font-semibold text-slate-700">Scan Progress</div>
+                <div className="mb-2 h-2 overflow-hidden rounded-full bg-slate-200">
+                  <div
+                    className="h-full rounded-full bg-teal-500 transition-all duration-500"
+                    style={{ width: `${products.length ? (scannedCount / products.length) * 100 : 0}%` }}
+                  />
+                </div>
+                <div className="flex justify-between text-xs text-slate-500">
+                  <span>{scannedCount} of {products.length} scanned</span>
+                  <span className="font-mono font-bold tabular-nums text-teal-700">
+                    {products.length ? Math.round((scannedCount / products.length) * 100) : 0}%
+                  </span>
+                </div>
+              </Card>
+
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                <ErpDashboardKpiCard title="Total Scanned" value={scannedCount.toLocaleString("en-IN")} shellClass="bg-teal-50 border-teal-200/70" valueClass="text-teal-800" />
+                <ErpDashboardKpiCard title="Matched" value={matchCount.toLocaleString("en-IN")} shellClass="bg-emerald-50 border-emerald-200/70" valueClass="text-emerald-800" />
+                <ErpDashboardKpiCard title="Surplus Items" value={surplusCount.toLocaleString("en-IN")} shellClass="bg-amber-50 border-amber-200/70" valueClass="text-amber-800" />
+                <ErpDashboardKpiCard title="Shortage Items" value={shortageCount.toLocaleString("en-IN")} shellClass="bg-red-50 border-red-200/70" valueClass="text-red-800" />
+              </div>
+
+              <Card className="border-slate-200 p-8 text-center shadow-sm">
+                <p className="mb-5 text-sm text-slate-600">
+                  {differences.length > 0 ? (
+                    <>
+                      There are <span className="font-bold text-amber-700">{differences.length}</span> items with differences to settle.
+                    </>
+                  ) : scannedCount > 0 ? (
+                    "All scanned items match. You can proceed to settle."
+                  ) : (
+                    "Scan products first before settling."
+                  )}
+                </p>
+                <Button
+                  size="lg"
+                  className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white shadow-md"
+                  onClick={() => setShowSettleModal(true)}
+                  disabled={scannedCount === 0}
+                >
+                  <CheckCircle2 className="h-5 w-5" />
+                  Proceed to Settlement
+                </Button>
+              </Card>
+            </div>
+          )}
+
+          {/* ═══ HISTORY TAB ═══ */}
+          {activeTab === "history" && (
+            <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-auto">
+              <div>
+                <h2 className="text-base font-bold text-slate-800">Settlement History</h2>
+                <p className="text-sm text-slate-500">{history.length} past settlements recorded</p>
+              </div>
+
+              {history.length === 0 ? (
+                <div className="py-16 text-center text-slate-500">No settlements recorded yet</div>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  {history.map((h) => {
+                    const expanded = expandedHistory === h.id;
+                    return (
+                      <Card key={h.id} className="overflow-hidden border-slate-200 shadow-sm">
+                        <div
+                          className="flex cursor-pointer flex-wrap items-center justify-between gap-3 p-4"
+                          onClick={() => setExpandedHistory(expanded ? null : h.id)}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-emerald-50">
+                              <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+                            </div>
+                            <div>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <code className="rounded bg-slate-100 px-2 py-0.5 font-mono text-xs tabular-nums text-teal-700">{h.id}</code>
+                                <Badge className="bg-emerald-50 text-emerald-700 hover:bg-emerald-50">Completed</Badge>
+                              </div>
+                              <div className="mt-1 text-sm text-slate-500">
+                                {h.date} • {h.shop} • Settled by {h.settledBy}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-4 text-sm">
+                            <span><b>{h.totalItems}</b> items</span>
+                            <span className="font-mono font-semibold tabular-nums text-emerald-700">{h.matched} match</span>
+                            <span className="font-mono font-semibold tabular-nums text-amber-700">{h.surplus} surplus</span>
+                            <span className="font-mono font-semibold tabular-nums text-red-700">{h.shortage} shortage</span>
+                            <ChevronDown className={cn("h-4 w-4 text-slate-400 transition-transform", expanded && "rotate-180")} />
+                          </div>
+                        </div>
+
+                        {expanded && h.items.length > 0 && (
+                          <div className="border-t border-slate-100 px-4 pb-4">
+                            <Table className="w-full [&_td]:!text-xs [&_th]:!text-[10px] [&_th]:uppercase">
+                              <TableHeader>
+                                <TableRow className="bg-slate-50">
+                                  {["ID", "Product", "Software", "Actual", "Diff"].map((hh) => (
+                                    <TableHead key={hh} className="text-slate-500">{hh}</TableHead>
+                                  ))}
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {h.items.map((item) => {
+                                  const diff = (item.actualStock ?? item.softwareStock) - item.softwareStock;
+                                  return (
+                                    <TableRow key={item.id}>
+                                      <TableCell className="font-mono tabular-nums text-teal-700">{item.id}</TableCell>
+                                      <TableCell className="text-slate-700">{item.name}</TableCell>
+                                      <TableCell className="font-mono font-semibold tabular-nums">{item.softwareStock}</TableCell>
+                                      <TableCell className="font-mono font-semibold tabular-nums">{item.actualStock}</TableCell>
+                                      <TableCell>
+                                        <span className={cn(
+                                          "font-mono font-bold tabular-nums",
+                                          diff === 0 ? "text-emerald-700" : diff > 0 ? "text-amber-700" : "text-red-700",
+                                        )}>
+                                          {diff === 0 ? "0" : diff > 0 ? `+${diff}` : diff}
+                                        </span>
+                                      </TableCell>
+                                    </TableRow>
+                                  );
+                                })}
+                              </TableBody>
+                            </Table>
+                          </div>
+                        )}
+                      </Card>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* ─── SETTLEMENT MODAL ─── */}
-      {showSettleModal && (
-        <div style={{
-          position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 100,
-          display: "flex", alignItems: "center", justifyContent: "center",
-          animation: "fadeIn 0.2s ease",
-        }} onClick={() => setShowSettleModal(false)}>
-          <div onClick={e => e.stopPropagation()} style={{
-            background: C.bgCard, borderRadius: 16, padding: 28, maxWidth: 480, width: "90%",
-            border: `1px solid ${C.border}`, animation: "scaleIn 0.25s ease",
-          }}>
-            <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>Confirm Stock Settlement</h3>
-            <p style={{ fontSize: 13, color: C.textMuted, marginBottom: 16 }}>
-              You are about to settle <b>{scannedCount}</b> scanned items. This action will update software stock to match physical counts.
-            </p>
+      <Dialog open={showSettleModal} onOpenChange={setShowSettleModal}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Confirm Stock Settlement</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-slate-600">
+            You are about to settle <b>{scannedCount}</b> scanned items. This action will update software stock to match physical counts.
+          </p>
 
-            <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
-              {[
-                { label: "Matched", val: matchCount, color: C.green },
-                { label: "Surplus", val: surplusCount, color: C.yellow },
-                { label: "Shortage", val: shortageCount, color: C.red },
-              ].map((s, i) => (
-                <div key={i} style={{
-                  flex: 1, background: C.bgInput, borderRadius: 10, padding: "14px 8px",
-                  border: `1px solid ${s.color}`, textAlign: "center",
-                }}>
-                  <div style={{ fontFamily: mono, fontSize: 22, fontWeight: 700, color: s.color }}>{s.val}</div>
-                  <div style={{ fontSize: 11, color: C.textMuted }}>{s.label}</div>
-                </div>
-              ))}
-            </div>
-
-            <textarea
-              value={settleNote} onChange={e => setSettleNote(e.target.value)}
-              placeholder="Add a note..."
-              style={{
-                width: "100%", background: C.bgInput, border: `1px solid ${C.borderHover}`,
-                borderRadius: 10, padding: 12, fontSize: 13, fontFamily: font, color: C.textBody,
-                resize: "vertical", minHeight: 60, outline: "none", marginBottom: 16,
-                boxSizing: "border-box",
-              }}
-            />
-
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
-              <button onClick={() => setShowSettleModal(false)} style={{
-                background: C.border, border: `1px solid ${C.borderHover}`, borderRadius: 10,
-                padding: "10px 20px", color: C.textMuted, fontSize: 13, fontFamily: font, cursor: "pointer",
-              }}>Cancel</button>
-              <button onClick={handleSettle} disabled={settling} style={{
-                background: `linear-gradient(135deg, ${C.greenDark}, ${C.green})`,
-                color: "#042f2e", fontWeight: 700, fontSize: 13, fontFamily: font,
-                border: "none", borderRadius: 10, padding: "10px 20px",
-                cursor: "pointer", display: "flex", alignItems: "center", gap: 6,
-              }}>
-                {settling ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />}
-                Confirm Settlement
-              </button>
-            </div>
+          <div className="grid grid-cols-3 gap-2">
+            {[
+              { label: "Matched", val: matchCount, className: "border-emerald-300 text-emerald-700" },
+              { label: "Surplus", val: surplusCount, className: "border-amber-300 text-amber-700" },
+              { label: "Shortage", val: shortageCount, className: "border-red-300 text-red-700" },
+            ].map((s) => (
+              <div key={s.label} className={cn("rounded-lg border bg-slate-50 p-3 text-center", s.className)}>
+                <div className="font-mono text-xl font-bold tabular-nums">{s.val}</div>
+                <div className="text-[11px] text-slate-500">{s.label}</div>
+              </div>
+            ))}
           </div>
-        </div>
-      )}
+
+          <Textarea
+            value={settleNote}
+            onChange={(e) => setSettleNote(e.target.value)}
+            placeholder="Add a note..."
+            className="min-h-[60px] resize-y text-sm no-uppercase"
+          />
+
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setShowSettleModal(false)}>Cancel</Button>
+            <Button className="gap-1.5 bg-emerald-600 hover:bg-emerald-700" onClick={handleSettle} disabled={settling}>
+              {settling ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+              Confirm Settlement
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* ─── EXPORT MODAL ─── */}
-      {showExportModal && (
-        <div style={{
-          position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 100,
-          display: "flex", alignItems: "center", justifyContent: "center",
-          animation: "fadeIn 0.2s ease",
-        }} onClick={() => setShowExportModal(false)}>
-          <div onClick={e => e.stopPropagation()} style={{
-            background: C.bgCard, borderRadius: 16, padding: 28, maxWidth: 420, width: "90%",
-            border: `1px solid ${C.border}`, animation: "scaleIn 0.25s ease",
-          }}>
-            <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 16 }}>Export Stock Difference</h3>
-            <div style={{ display: "flex", gap: 12 }}>
-              {[
-                { label: "Excel (.xlsx)", sub: "Detailed with formulas", icon: "XLS", gradient: `linear-gradient(135deg, ${C.greenDark}, ${C.green})` },
-                { label: "PDF Document", sub: "Printable report", icon: "PDF", gradient: `linear-gradient(135deg, #dc2626, ${C.red})` },
-              ].map((opt, i) => (
-                <button key={i} onClick={() => {
+      <Dialog open={showExportModal} onOpenChange={setShowExportModal}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Export Stock Difference</DialogTitle>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-3">
+            {[
+              { label: "Excel (.xlsx)", sub: "Detailed with formulas", icon: "XLS", iconClass: "bg-emerald-600" },
+              { label: "PDF Document", sub: "Printable report", icon: "PDF", iconClass: "bg-red-600" },
+            ].map((opt) => (
+              <button
+                key={opt.label}
+                type="button"
+                onClick={() => {
                   toast({ title: "Export Started", description: `Generating ${opt.label}...` });
                   setShowExportModal(false);
-                }} style={{
-                  flex: 1, background: C.bgInput, border: `1px solid ${C.border}`, borderRadius: 12,
-                  padding: 24, cursor: "pointer", display: "flex", flexDirection: "column",
-                  alignItems: "center", gap: 10,
-                }}>
-                  <div style={{
-                    width: 56, height: 56, borderRadius: 12, background: opt.gradient,
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    fontSize: 18, fontWeight: 700, color: "#fff", fontFamily: mono,
-                  }}>{opt.icon}</div>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: C.textPrimary }}>{opt.label}</div>
-                  <div style={{ fontSize: 12, color: C.textMuted }}>{opt.sub}</div>
-                </button>
-              ))}
-            </div>
+                }}
+                className="flex flex-col items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 p-5 transition-colors hover:bg-white"
+              >
+                <div className={cn("flex h-14 w-14 items-center justify-center rounded-xl font-mono text-lg font-bold text-white", opt.iconClass)}>
+                  {opt.icon}
+                </div>
+                <div className="text-sm font-semibold text-slate-800">{opt.label}</div>
+                <div className="text-xs text-slate-500">{opt.sub}</div>
+              </button>
+            ))}
           </div>
-        </div>
-      )}
-
-      {/* ─── CSS Animations ─── */}
-      <style>{`
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes scaleIn { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }
-        input[type=number]::-webkit-inner-spin-button,
-        input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
-        input[type=number] { -moz-appearance: textfield; }
-      `}</style>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

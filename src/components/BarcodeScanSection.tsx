@@ -1,11 +1,13 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import {
   ScanBarcode, Volume2, VolumeX, ChevronDown, ChevronUp,
-  AlertTriangle, CheckCircle2, ArrowUpCircle, ArrowDownCircle,
-  Pause, Play, RotateCcw, X, Edit3
+  AlertTriangle, CheckCircle2, Pause, Play, RotateCcw, X, Edit3
 } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 
-/* ─── Types ─── */
 export interface ScanProduct {
   id: string;
   name: string;
@@ -40,20 +42,6 @@ interface Props {
   onHighlightRow: (productId: string) => void;
 }
 
-/* ─── Theme tokens (match parent) ─── */
-const C = {
-  bgRoot: "#f8fafc", bgCard: "#ffffff", bgInput: "#f1f5f9",
-  border: "#e2e8f0", borderHover: "#cbd5e1",
-  textPrimary: "#020617", textBody: "#0f172a", textSecondary: "#1e293b",
-  textMuted: "#475569", textDim: "#64748b",
-  cyan: "#22d3ee", cyanDark: "#0e7490",
-  green: "#34d399", greenDark: "#059669",
-  yellow: "#fbbf24", red: "#f87171",
-};
-const font = "'DM Sans', sans-serif";
-const mono = "'JetBrains Mono', monospace";
-
-/* ─── Audio helpers ─── */
 let audioCtx: AudioContext | null = null;
 const getAudioCtx = () => {
   if (!audioCtx) audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
@@ -66,14 +54,19 @@ const playBeep = (freq: number, dur: number, type: OscillatorType = "sine") => {
     const ctx = getAudioCtx();
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
-    osc.connect(gain); gain.connect(ctx.destination);
-    osc.frequency.value = freq; osc.type = type;
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.frequency.value = freq;
+    osc.type = type;
     const now = ctx.currentTime;
     gain.gain.setValueAtTime(0, now);
     gain.gain.linearRampToValueAtTime(0.3, now + 0.01);
     gain.gain.linearRampToValueAtTime(0, now + dur);
-    osc.start(now); osc.stop(now + dur);
-  } catch {}
+    osc.start(now);
+    osc.stop(now + dur);
+  } catch {
+    /* ignore */
+  }
 };
 
 const BarcodeScanSection = ({ products, onProductScanned, onHighlightRow }: Props) => {
@@ -94,77 +87,117 @@ const BarcodeScanSection = ({ products, onProductScanned, onHighlightRow }: Prop
   const inputRef = useRef<HTMLInputElement>(null);
   const sessionStart = useRef(Date.now());
 
-  // Auto-focus on mount
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
 
-  // F2 global shortcut
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === "F2") { e.preventDefault(); inputRef.current?.focus(); }
+      if (e.key === "F2") {
+        e.preventDefault();
+        inputRef.current?.focus();
+      }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, []);
 
-  // Session stats
   const totalScans = scanLog.length;
-  const uniqueScanned = useMemo(() => new Set(scanLog.filter(l => l.status === "found").map(l => l.productId)).size, [scanLog]);
-  const matchedCount = useMemo(() => products.filter(p => p.scanned && p.actualStock === p.softwareStock).length, [products]);
-  const surplusCount = useMemo(() => products.filter(p => p.scanned && p.actualStock !== null && p.actualStock > p.softwareStock).length, [products]);
-  const shortageCount = useMemo(() => products.filter(p => p.scanned && p.actualStock !== null && p.actualStock < p.softwareStock).length, [products]);
+  const uniqueScanned = useMemo(
+    () => new Set(scanLog.filter((l) => l.status === "found").map((l) => l.productId)).size,
+    [scanLog],
+  );
+  const matchedCount = useMemo(
+    () => products.filter((p) => p.scanned && p.actualStock === p.softwareStock).length,
+    [products],
+  );
+  const surplusCount = useMemo(
+    () => products.filter((p) => p.scanned && p.actualStock !== null && p.actualStock > p.softwareStock).length,
+    [products],
+  );
+  const shortageCount = useMemo(
+    () => products.filter((p) => p.scanned && p.actualStock !== null && p.actualStock < p.softwareStock).length,
+    [products],
+  );
 
-  const handleScan = useCallback((barcode: string) => {
-    if (!barcode.trim() || paused) return;
-    const trimmed = barcode.trim();
+  const handleScan = useCallback(
+    (barcode: string) => {
+      if (!barcode.trim() || paused) return;
+      const trimmed = barcode.trim();
 
-    // Find product by barcode or ID (case-insensitive)
-    const idx = products.findIndex(p =>
-      (p.barcode && p.barcode.toLowerCase() === trimmed.toLowerCase()) ||
-      p.id.toLowerCase() === trimmed.toLowerCase()
-    );
+      const idx = products.findIndex(
+        (p) =>
+          (p.barcode && p.barcode.toLowerCase() === trimmed.toLowerCase()) ||
+          p.id.toLowerCase() === trimmed.toLowerCase(),
+      );
 
-    if (idx >= 0) {
-      const p = products[idx];
-      const qty = scanMode === "continuous" ? 1 : scanQty;
-      const newActual = (p.actualStock ?? 0) + qty;
+      if (idx >= 0) {
+        const p = products[idx];
+        const qty = scanMode === "continuous" ? 1 : scanQty;
+        const newActual = (p.actualStock ?? 0) + qty;
 
-      onProductScanned(idx, newActual, "scanned");
-      onHighlightRow(p.id);
+        onProductScanned(idx, newActual, "scanned");
+        onHighlightRow(p.id);
 
-      const updated = { ...p, actualStock: newActual, scanned: true, source: "scanned" as const, scanCount: (p.scanCount || 0) + 1, lastScannedAt: Date.now() };
-      setLastScanned(updated);
-      setLastError(null);
+        const updated = {
+          ...p,
+          actualStock: newActual,
+          scanned: true,
+          source: "scanned" as const,
+          scanCount: (p.scanCount || 0) + 1,
+          lastScannedAt: Date.now(),
+        };
+        setLastScanned(updated);
+        setLastError(null);
 
-      setScanLog(prev => [{
-        timestamp: Date.now(), barcode: trimmed, productId: p.id,
-        productName: p.name, qtyAdded: qty, newTotal: newActual, status: "found",
-      }, ...prev.slice(0, 199)]);
+        setScanLog((prev) => [
+          {
+            timestamp: Date.now(),
+            barcode: trimmed,
+            productId: p.id,
+            productName: p.name,
+            qtyAdded: qty,
+            newTotal: newActual,
+            status: "found",
+          },
+          ...prev.slice(0, 199),
+        ]);
 
-      if (soundOn) playBeep(1200, 0.1, "sine");
-      if (navigator.vibrate) navigator.vibrate(50);
-    } else {
-      // Not found
-      setLastScanned(null);
-      setLastError(trimmed);
-      setNotFoundList(prev => [trimmed, ...prev.filter(b => b !== trimmed)]);
+        if (soundOn) playBeep(1200, 0.1, "sine");
+        if (navigator.vibrate) navigator.vibrate(50);
+      } else {
+        setLastScanned(null);
+        setLastError(trimmed);
+        setNotFoundList((prev) => [trimmed, ...prev.filter((b) => b !== trimmed)]);
 
-      setScanLog(prev => [{
-        timestamp: Date.now(), barcode: trimmed, productId: null,
-        productName: null, qtyAdded: 0, newTotal: 0, status: "not_found",
-      }, ...prev.slice(0, 199)]);
+        setScanLog((prev) => [
+          {
+            timestamp: Date.now(),
+            barcode: trimmed,
+            productId: null,
+            productName: null,
+            qtyAdded: 0,
+            newTotal: 0,
+            status: "not_found",
+          },
+          ...prev.slice(0, 199),
+        ]);
 
-      if (soundOn) { playBeep(400, 0.15, "square"); setTimeout(() => playBeep(400, 0.15, "square"), 180); }
-      if (navigator.vibrate) navigator.vibrate(150);
+        if (soundOn) {
+          playBeep(400, 0.15, "square");
+          setTimeout(() => playBeep(400, 0.15, "square"), 180);
+        }
+        if (navigator.vibrate) navigator.vibrate(150);
 
-      setInputError(true);
-      setTimeout(() => setInputError(false), 800);
-    }
+        setInputError(true);
+        setTimeout(() => setInputError(false), 800);
+      }
 
-    setBarcodeInput("");
-    setTimeout(() => inputRef.current?.focus(), 10);
-  }, [products, scanQty, scanMode, soundOn, paused, onProductScanned, onHighlightRow]);
+      setBarcodeInput("");
+      setTimeout(() => inputRef.current?.focus(), 10);
+    },
+    [products, scanQty, scanMode, soundOn, paused, onProductScanned, onHighlightRow],
+  );
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
@@ -187,311 +220,344 @@ const BarcodeScanSection = ({ products, onProductScanned, onHighlightRow }: Prop
   const handleEditQty = (productId: string, val: string) => {
     const num = parseInt(val);
     if (isNaN(num) || num < 0) return;
-    const idx = products.findIndex(p => p.id === productId);
+    const idx = products.findIndex((p) => p.id === productId);
     if (idx >= 0) {
       onProductScanned(idx, num, "scanned");
-      setLastScanned(prev => prev && prev.id === productId ? { ...prev, actualStock: num } : prev);
+      setLastScanned((prev) => (prev && prev.id === productId ? { ...prev, actualStock: num } : prev));
     }
     setEditQtyProduct(null);
   };
 
   const handleResetProduct = (productId: string) => {
-    const idx = products.findIndex(p => p.id === productId);
+    const idx = products.findIndex((p) => p.id === productId);
     if (idx >= 0) {
-      onProductScanned(idx, -1, "scanned"); // -1 signals reset
-      if (lastScanned?.id === productId) setLastScanned(prev => prev ? { ...prev, actualStock: null, scanned: false } : null);
+      onProductScanned(idx, -1, "scanned");
+      if (lastScanned?.id === productId) {
+        setLastScanned((prev) => (prev ? { ...prev, actualStock: null, scanned: false } : null));
+      }
     }
   };
 
-  const formatTime = (ts: number) => new Date(ts).toLocaleTimeString("en-IN", { hour12: true, hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  const formatTime = (ts: number) =>
+    new Date(ts).toLocaleTimeString("en-IN", {
+      hour12: true,
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    });
 
   const getDiff = (p: ScanProduct) => {
     if (p.actualStock === null) return null;
     return p.actualStock - p.softwareStock;
   };
 
+  const summaryTiles = [
+    { label: "Total Scans", val: totalScans, className: "text-teal-700" },
+    { label: "Products Counted", val: uniqueScanned, className: "text-slate-800" },
+    { label: "Matched", val: matchedCount, className: "text-emerald-700" },
+    { label: "Surplus", val: surplusCount, className: "text-amber-700" },
+    { label: "Shortage", val: shortageCount, className: "text-red-700" },
+    {
+      label: "Not Found",
+      val: notFoundList.length,
+      className: "text-red-700",
+      clickable: true,
+      onClick: () => setShowNotFound(!showNotFound),
+    },
+  ];
+
   return (
-    <div style={{ marginBottom: 16 }}>
-      {/* ─── SCAN INPUT CARD ─── */}
-      <div style={{
-        background: C.bgCard, borderRadius: 14, padding: "18px 22px",
-        border: `1px solid ${C.cyan}30`, marginBottom: 12,
-      }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-          {/* Barcode Input */}
-          <div style={{ flex: 1, minWidth: 250, position: "relative" }}>
-            <ScanBarcode size={18} color={C.cyan} style={{ position: "absolute", left: 14, top: 14 }} />
-            <input
-              ref={inputRef}
-              value={barcodeInput}
-              onChange={e => setBarcodeInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder={paused ? "Scanning paused..." : "Scan barcode or type product code..."}
-              disabled={paused}
-              autoFocus
-              style={{
-                width: "100%", background: C.bgInput,
-                border: `2px solid ${inputError ? C.red : C.cyan}40`,
-                borderRadius: 12, padding: "14px 16px 14px 44px",
-                color: C.textPrimary, fontSize: 16, fontFamily: font, fontWeight: 600,
-                outline: "none", transition: "border-color 0.2s",
-                opacity: paused ? 0.5 : 1,
-              }}
-              onFocus={e => { if (!inputError) e.target.style.borderColor = `${C.cyan}80`; }}
-              onBlur={e => { if (!inputError) e.target.style.borderColor = `${C.cyan}40`; }}
-            />
-          </div>
-
-          {/* Qty Input */}
-          <div style={{ textAlign: "center" }}>
-            <div style={{ fontSize: 10, color: C.textDim, marginBottom: 2, textTransform: "uppercase", letterSpacing: 0.5 }}>Qty</div>
-            <input
-              type="number"
-              value={scanQty}
-              onChange={e => setScanQty(Math.max(1, parseInt(e.target.value) || 1))}
-              min={1}
-              style={{
-                width: 60, textAlign: "center", background: C.bgInput,
-                border: `1px solid ${C.border}`, borderRadius: 8,
-                fontFamily: mono, fontSize: 16, fontWeight: 700, color: C.textPrimary,
-                padding: "12px 4px", outline: "none",
-              }}
-              onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); inputRef.current?.focus(); } }}
-            />
-          </div>
-
-          {/* Scan Mode Toggle */}
-          <div style={{
-            display: "flex", background: C.bgInput, borderRadius: 10, border: `1px solid ${C.border}`,
-            overflow: "hidden",
-          }}>
-            {(["single", "continuous"] as const).map(mode => (
-              <button key={mode} onClick={() => setScanMode(mode)} style={{
-                padding: "12px 14px", fontSize: 12, fontFamily: font, fontWeight: 600,
-                background: scanMode === mode ? `${C.cyan}20` : "transparent",
-                color: scanMode === mode ? C.cyan : C.textDim,
-                border: "none", cursor: "pointer", whiteSpace: "nowrap",
-              }}>
-                {mode === "single" ? "Single" : "Continuous"}
-              </button>
-            ))}
-          </div>
-
-          {/* Sound Toggle */}
-          <button onClick={() => setSoundOn(!soundOn)} style={{
-            background: C.bgInput, border: `1px solid ${C.border}`, borderRadius: 10,
-            padding: "12px", cursor: "pointer", color: soundOn ? C.cyan : C.textDim,
-            display: "flex", alignItems: "center",
-          }}>
-            {soundOn ? <Volume2 size={18} /> : <VolumeX size={18} />}
-          </button>
-
-          {/* Pause/Resume */}
-          <button onClick={() => setPaused(!paused)} style={{
-            background: paused ? `${C.yellow}20` : C.bgInput,
-            border: `1px solid ${paused ? C.yellow : C.border}`, borderRadius: 10,
-            padding: "12px", cursor: "pointer", color: paused ? C.yellow : C.textDim,
-            display: "flex", alignItems: "center",
-          }}>
-            {paused ? <Play size={18} /> : <Pause size={18} />}
-          </button>
-
-          {/* Clear Session */}
-          <button onClick={handleClearSession} style={{
-            background: C.bgInput, border: `1px solid ${C.border}`, borderRadius: 10,
-            padding: "12px", cursor: "pointer", color: C.textDim,
-            display: "flex", alignItems: "center",
-          }} title="Start New Session">
-            <RotateCcw size={18} />
-          </button>
-        </div>
-
-        {paused && (
-          <div style={{
-            marginTop: 10, padding: "8px 14px", borderRadius: 8,
-            background: `${C.yellow}15`, color: C.yellow, fontSize: 12, fontWeight: 600,
-            display: "flex", alignItems: "center", gap: 6,
-          }}>
-            <Pause size={14} /> Scanning paused — press Resume to continue
-          </div>
-        )}
-      </div>
-
-      {/* ─── LAST SCANNED CARD ─── */}
-      <div style={{
-        background: C.bgCard, borderRadius: 14, padding: "16px 22px",
-        border: `1px solid ${C.border}`, marginBottom: 12, minHeight: 72,
-        transition: "all 0.15s ease",
-      }}>
-        {!lastScanned && !lastError ? (
-          <div style={{ display: "flex", alignItems: "center", gap: 12, color: C.textDim }}>
-            <ScanBarcode size={28} style={{ opacity: 0.3 }} />
-            <span style={{ fontSize: 14 }}>Scan a barcode to begin counting...</span>
-          </div>
-        ) : lastError ? (
-          <div style={{ display: "flex", alignItems: "center", gap: 12, color: C.red }}>
-            <AlertTriangle size={22} />
-            <div>
-              <div style={{ fontWeight: 600, fontSize: 14 }}>Product not found</div>
-              <code style={{ fontFamily: mono, fontSize: 12, background: `${C.red}15`, padding: "2px 8px", borderRadius: 4 }}>{lastError}</code>
-            </div>
-          </div>
-        ) : lastScanned ? (() => {
-          const diff = getDiff(lastScanned);
-          const diffColor = diff === null ? C.textDim : diff === 0 ? C.green : diff > 0 ? C.yellow : C.red;
-          const diffText = diff === null ? "—" : diff === 0 ? "0" : diff > 0 ? `+${diff}` : `${diff}`;
-          return (
-            <div style={{ display: "flex", alignItems: "center", gap: 20, flexWrap: "wrap" }}>
-              {/* Product info */}
-              <div style={{ flex: 1, minWidth: 200 }}>
-                <div style={{ fontWeight: 700, fontSize: 15, color: C.textPrimary, marginBottom: 4 }}>{lastScanned.name}</div>
-                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                  <code style={{ fontFamily: mono, fontSize: 11, background: `${C.yellow}12`, padding: "2px 6px", borderRadius: 4, color: C.yellow }}>{lastScanned.barcode || lastScanned.id}</code>
-                  {lastScanned.brand !== "—" && (
-                    <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 5, background: `${C.cyan}12`, color: C.cyan }}>{lastScanned.brand}</span>
-                  )}
-                  <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 5, background: `${C.textDim}15`, color: C.textDim }}>{lastScanned.department}</span>
-                </div>
-              </div>
-
-              {/* Stock comparison */}
-              <div style={{ display: "flex", gap: 20, alignItems: "center" }}>
-                <div style={{ textAlign: "center" }}>
-                  <div style={{ fontSize: 10, color: C.textDim, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 }}>Software</div>
-                  <div style={{ fontFamily: mono, fontSize: 20, fontWeight: 700, color: C.textMuted }}>{lastScanned.softwareStock}</div>
-                </div>
-                <div style={{ textAlign: "center" }}>
-                  <div style={{ fontSize: 10, color: C.textDim, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 }}>Actual</div>
-                  <div style={{ fontFamily: mono, fontSize: 20, fontWeight: 700, color: C.cyan }}>{lastScanned.actualStock ?? "—"}</div>
-                </div>
-                <div style={{ textAlign: "center" }}>
-                  <div style={{ fontSize: 10, color: C.textDim, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 }}>Diff</div>
-                  <div style={{ fontFamily: mono, fontSize: 20, fontWeight: 700, color: diffColor }}>{diffText}</div>
-                </div>
-              </div>
-
-              {/* Quick actions */}
-              <div style={{ display: "flex", gap: 6 }}>
-                {editQtyProduct === lastScanned.id ? (
-                  <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
-                    <input
-                      autoFocus
-                      type="number"
-                      value={editQtyVal}
-                      onChange={e => setEditQtyVal(e.target.value)}
-                      onKeyDown={e => {
-                        if (e.key === "Enter") handleEditQty(lastScanned.id, editQtyVal);
-                        if (e.key === "Escape") setEditQtyProduct(null);
-                      }}
-                      style={{
-                        width: 60, textAlign: "center", background: C.bgInput,
-                        border: `1px solid ${C.cyan}`, borderRadius: 6, padding: "4px",
-                        fontFamily: mono, fontSize: 14, fontWeight: 700, color: C.textPrimary, outline: "none",
-                      }}
-                    />
-                    <button onClick={() => handleEditQty(lastScanned.id, editQtyVal)} style={{
-                      background: `${C.green}20`, border: "none", borderRadius: 6, padding: "6px",
-                      cursor: "pointer", color: C.green, display: "flex",
-                    }}><CheckCircle2 size={14} /></button>
-                  </div>
-                ) : (
-                  <button onClick={() => { setEditQtyProduct(lastScanned.id); setEditQtyVal(String(lastScanned.actualStock ?? 0)); }} style={{
-                    background: C.bgInput, border: `1px solid ${C.border}`, borderRadius: 8,
-                    padding: "6px 10px", cursor: "pointer", color: C.textMuted,
-                    fontSize: 11, fontWeight: 600, display: "flex", alignItems: "center", gap: 4, fontFamily: font,
-                  }}><Edit3 size={12} /> Edit</button>
+    <div className="flex shrink-0 flex-col gap-2">
+      <Card className="border-teal-200/60 shadow-sm">
+        <CardContent className="p-3 sm:p-4">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+            <div className="relative min-w-[220px] flex-1">
+              <ScanBarcode className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-teal-600" />
+              <Input
+                ref={inputRef}
+                value={barcodeInput}
+                onChange={(e) => setBarcodeInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder={paused ? "Scanning paused..." : "SCAN BARCODE OR TYPE PRODUCT CODE..."}
+                disabled={paused}
+                autoFocus
+                className={cn(
+                  "h-12 border-2 pl-11 text-base font-semibold uppercase tracking-wide",
+                  inputError ? "border-red-400 focus-visible:ring-red-400" : "border-teal-200 focus-visible:ring-teal-500",
+                  paused && "opacity-50",
                 )}
-                <button onClick={() => handleResetProduct(lastScanned.id)} style={{
-                  background: C.bgInput, border: `1px solid ${C.border}`, borderRadius: 8,
-                  padding: "6px 10px", cursor: "pointer", color: C.textMuted,
-                  fontSize: 11, fontWeight: 600, display: "flex", alignItems: "center", gap: 4, fontFamily: font,
-                }}><X size={12} /> Reset</button>
+              />
+            </div>
+
+            <div className="flex flex-col items-center">
+              <span className="mb-0.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500">Qty</span>
+              <Input
+                type="number"
+                value={scanQty}
+                onChange={(e) => setScanQty(Math.max(1, parseInt(e.target.value) || 1))}
+                min={1}
+                className="h-12 w-16 text-center font-mono text-base font-bold tabular-nums"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    inputRef.current?.focus();
+                  }
+                }}
+              />
+            </div>
+
+            <div className="flex overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
+              {(["single", "continuous"] as const).map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => setScanMode(mode)}
+                  className={cn(
+                    "px-3 py-2.5 text-xs font-semibold capitalize transition-colors",
+                    scanMode === mode ? "bg-teal-100 text-teal-800" : "text-slate-500 hover:bg-slate-100",
+                  )}
+                >
+                  {mode === "single" ? "Single" : "Continuous"}
+                </button>
+              ))}
+            </div>
+
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              className={cn("h-12 w-12 shrink-0", soundOn && "border-teal-200 text-teal-700")}
+              onClick={() => setSoundOn(!soundOn)}
+            >
+              {soundOn ? <Volume2 className="h-5 w-5" /> : <VolumeX className="h-5 w-5" />}
+            </Button>
+
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              className={cn("h-12 w-12 shrink-0", paused && "border-amber-300 bg-amber-50 text-amber-700")}
+              onClick={() => setPaused(!paused)}
+            >
+              {paused ? <Play className="h-5 w-5" /> : <Pause className="h-5 w-5" />}
+            </Button>
+
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              className="h-12 w-12 shrink-0"
+              onClick={handleClearSession}
+              title="Start New Session"
+            >
+              <RotateCcw className="h-5 w-5" />
+            </Button>
+          </div>
+
+          {paused && (
+            <div className="mt-2 flex items-center gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
+              <Pause className="h-3.5 w-3.5" />
+              Scanning paused — press Resume to continue
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="min-h-[72px] border-slate-200/80 shadow-sm">
+        <CardContent className="flex min-h-[72px] items-center p-3 sm:p-4">
+          {!lastScanned && !lastError ? (
+            <div className="flex items-center gap-3 text-slate-500">
+              <ScanBarcode className="h-7 w-7 opacity-30" />
+              <span className="text-sm">Scan a barcode to begin counting...</span>
+            </div>
+          ) : lastError ? (
+            <div className="flex items-center gap-3 text-red-600">
+              <AlertTriangle className="h-5 w-5 shrink-0" />
+              <div>
+                <div className="text-sm font-semibold">Product not found</div>
+                <code className="mt-0.5 inline-block rounded bg-red-50 px-2 py-0.5 font-mono text-xs">{lastError}</code>
               </div>
             </div>
-          );
-        })() : null}
-      </div>
+          ) : lastScanned ? (
+            (() => {
+              const diff = getDiff(lastScanned);
+              const diffClass =
+                diff === null
+                  ? "text-slate-400"
+                  : diff === 0
+                    ? "text-emerald-600"
+                    : diff > 0
+                      ? "text-amber-600"
+                      : "text-red-600";
+              const diffText = diff === null ? "—" : diff === 0 ? "0" : diff > 0 ? `+${diff}` : `${diff}`;
+              return (
+                <div className="flex w-full flex-wrap items-center gap-4">
+                  <div className="min-w-[200px] flex-1">
+                    <div className="text-sm font-bold text-slate-900">{lastScanned.name}</div>
+                    <div className="mt-1 flex flex-wrap gap-1.5">
+                      <code className="rounded bg-amber-50 px-1.5 py-0.5 font-mono text-[11px] text-amber-700">
+                        {lastScanned.barcode || lastScanned.id}
+                      </code>
+                      {lastScanned.brand !== "—" && (
+                        <span className="rounded bg-teal-50 px-2 py-0.5 text-[11px] font-medium text-teal-700">
+                          {lastScanned.brand}
+                        </span>
+                      )}
+                      <span className="rounded bg-slate-100 px-2 py-0.5 text-[11px] text-slate-600">
+                        {lastScanned.department}
+                      </span>
+                    </div>
+                  </div>
 
-      {/* ─── SCAN SESSION SUMMARY ─── */}
-      <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
-        {[
-          { label: "Total Scans", val: totalScans, color: C.cyan },
-          { label: "Products Counted", val: uniqueScanned, color: C.textPrimary },
-          { label: "Matched", val: matchedCount, color: C.green },
-          { label: "Surplus", val: surplusCount, color: C.yellow },
-          { label: "Shortage", val: shortageCount, color: C.red },
-          { label: "Not Found", val: notFoundList.length, color: C.red, clickable: true },
-        ].map((s, i) => (
-          <div key={i} onClick={s.clickable ? () => setShowNotFound(!showNotFound) : undefined} style={{
-            flex: 1, minWidth: 100, background: C.bgCard, borderRadius: 10,
-            padding: "10px 14px", border: `1px solid ${C.border}`, textAlign: "center",
-            cursor: s.clickable ? "pointer" : "default", position: "relative",
-          }}>
-            <div style={{ fontFamily: mono, fontSize: 18, fontWeight: 700, color: s.color }}>{s.val}</div>
-            <div style={{ fontSize: 10, color: C.textDim, textTransform: "uppercase", letterSpacing: 0.5 }}>{s.label}</div>
-          </div>
+                  <div className="flex items-center gap-5">
+                    {[
+                      { label: "Software", val: lastScanned.softwareStock, className: "text-slate-600" },
+                      { label: "Actual", val: lastScanned.actualStock ?? "—", className: "text-teal-700" },
+                      { label: "Diff", val: diffText, className: diffClass },
+                    ].map((col) => (
+                      <div key={col.label} className="text-center">
+                        <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">{col.label}</div>
+                        <div className={cn("font-mono text-lg font-bold tabular-nums", col.className)}>{col.val}</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="flex gap-1.5">
+                    {editQtyProduct === lastScanned.id ? (
+                      <div className="flex items-center gap-1">
+                        <Input
+                          autoFocus
+                          type="number"
+                          value={editQtyVal}
+                          onChange={(e) => setEditQtyVal(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") handleEditQty(lastScanned.id, editQtyVal);
+                            if (e.key === "Escape") setEditQtyProduct(null);
+                          }}
+                          className="h-8 w-16 text-center font-mono text-sm font-bold"
+                        />
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          className="h-8 w-8 text-emerald-600"
+                          onClick={() => handleEditQty(lastScanned.id, editQtyVal)}
+                        >
+                          <CheckCircle2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-8 gap-1 text-xs"
+                        onClick={() => {
+                          setEditQtyProduct(lastScanned.id);
+                          setEditQtyVal(String(lastScanned.actualStock ?? 0));
+                        }}
+                      >
+                        <Edit3 className="h-3 w-3" /> Edit
+                      </Button>
+                    )}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-8 gap-1 text-xs"
+                      onClick={() => handleResetProduct(lastScanned.id)}
+                    >
+                      <X className="h-3 w-3" /> Reset
+                    </Button>
+                  </div>
+                </div>
+              );
+            })()
+          ) : null}
+        </CardContent>
+      </Card>
+
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+        {summaryTiles.map((s) => (
+          <Card
+            key={s.label}
+            className={cn("border-slate-200/80 shadow-sm", s.clickable && "cursor-pointer hover:bg-slate-50")}
+            onClick={s.onClick}
+          >
+            <CardContent className="px-3 py-2.5 text-center">
+              <div className={cn("font-mono text-lg font-bold tabular-nums", s.className)}>{s.val}</div>
+              <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{s.label}</div>
+            </CardContent>
+          </Card>
         ))}
       </div>
 
-      {/* Not Found Popover */}
       {showNotFound && notFoundList.length > 0 && (
-        <div style={{
-          background: C.bgCard, borderRadius: 12, padding: "14px 18px",
-          border: `1px solid ${C.red}30`, marginBottom: 12, maxHeight: 200, overflowY: "auto",
-        }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-            <span style={{ fontSize: 13, fontWeight: 600, color: C.red }}>Unknown Barcodes ({notFoundList.length})</span>
-            <button onClick={() => setShowNotFound(false)} style={{ background: "none", border: "none", color: C.textDim, cursor: "pointer" }}><X size={14} /></button>
-          </div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-            {notFoundList.map((b, i) => (
-              <code key={i} style={{ fontFamily: mono, fontSize: 11, background: `${C.red}15`, padding: "3px 8px", borderRadius: 5, color: C.red }}>{b}</code>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* ─── SCAN LOG (collapsible) ─── */}
-      {scanLog.length > 0 && (
-        <div style={{ marginBottom: 12 }}>
-          <button onClick={() => setShowLog(!showLog)} style={{
-            background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: showLog ? "10px 10px 0 0" : 10,
-            padding: "10px 16px", cursor: "pointer", color: C.textMuted, fontSize: 12,
-            fontWeight: 600, fontFamily: font, display: "flex", alignItems: "center", gap: 6, width: "100%",
-          }}>
-            {showLog ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-            Show Scan Log ({scanLog.length} entries)
-          </button>
-          {showLog && (
-            <div style={{
-              background: C.bgCard, borderRadius: "0 0 10px 10px",
-              border: `1px solid ${C.border}`, borderTop: "none",
-              maxHeight: 300, overflowY: "auto", padding: "8px 0",
-            }}>
-              {scanLog.slice(0, 50).map((entry, i) => (
-                <div key={i} style={{
-                  padding: "6px 16px", fontSize: 12, fontFamily: font,
-                  display: "flex", alignItems: "center", gap: 10,
-                  borderBottom: `1px solid ${C.border}08`,
-                  color: C.textBody,
-                }}>
-                  <span style={{ fontFamily: mono, fontSize: 10, color: C.textDim, minWidth: 80 }}>{formatTime(entry.timestamp)}</span>
-                  <code style={{ fontFamily: mono, fontSize: 11, background: `${C.yellow}12`, padding: "1px 6px", borderRadius: 4, color: C.yellow }}>{entry.barcode}</code>
-                  <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: entry.status === "found" ? C.textBody : C.red }}>
-                    {entry.productName || "Not found"}
-                  </span>
-                  {entry.status === "found" && (
-                    <>
-                      <span style={{ fontFamily: mono, fontWeight: 600, color: C.green }}>+{entry.qtyAdded}</span>
-                      <span style={{ fontFamily: mono, fontSize: 11, color: C.textMuted }}>→ {entry.newTotal} pcs</span>
-                    </>
-                  )}
-                  <span style={{ color: entry.status === "found" ? C.green : C.red }}>
-                    {entry.status === "found" ? <CheckCircle2 size={13} /> : <X size={13} />}
-                  </span>
-                </div>
+        <Card className="border-red-200/60">
+          <CardContent className="max-h-[200px] overflow-y-auto p-3">
+            <div className="mb-2 flex items-center justify-between">
+              <span className="text-sm font-semibold text-red-700">Unknown Barcodes ({notFoundList.length})</span>
+              <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => setShowNotFound(false)}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {notFoundList.map((b) => (
+                <code key={b} className="rounded bg-red-50 px-2 py-0.5 font-mono text-[11px] text-red-700">
+                  {b}
+                </code>
               ))}
             </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {scanLog.length > 0 && (
+        <div>
+          <Button
+            type="button"
+            variant="outline"
+            className="h-9 w-full justify-start gap-2 rounded-b-none border-b-0 text-xs font-semibold text-slate-600"
+            onClick={() => setShowLog(!showLog)}
+          >
+            {showLog ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            Show Scan Log ({scanLog.length} entries)
+          </Button>
+          {showLog && (
+            <Card className="max-h-[300px] overflow-y-auto rounded-t-none border-t-0">
+              <CardContent className="p-0">
+                {scanLog.slice(0, 50).map((entry, i) => (
+                  <div
+                    key={`${entry.timestamp}-${i}`}
+                    className="flex items-center gap-2 border-b border-slate-100 px-3 py-1.5 text-xs last:border-0"
+                  >
+                    <span className="min-w-[72px] font-mono text-[10px] text-slate-400">{formatTime(entry.timestamp)}</span>
+                    <code className="rounded bg-amber-50 px-1.5 py-0.5 font-mono text-[11px] text-amber-700">
+                      {entry.barcode}
+                    </code>
+                    <span
+                      className={cn(
+                        "min-w-0 flex-1 truncate",
+                        entry.status === "found" ? "text-slate-800" : "text-red-600",
+                      )}
+                    >
+                      {entry.productName || "Not found"}
+                    </span>
+                    {entry.status === "found" && (
+                      <>
+                        <span className="font-mono font-semibold text-emerald-600">+{entry.qtyAdded}</span>
+                        <span className="font-mono text-[11px] text-slate-500">→ {entry.newTotal} pcs</span>
+                      </>
+                    )}
+                    {entry.status === "found" ? (
+                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+                    ) : (
+                      <X className="h-3.5 w-3.5 text-red-500" />
+                    )}
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
           )}
         </div>
       )}
