@@ -1,6 +1,7 @@
 import { useRef, useEffect } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { MobilePOSCartItem } from "./MobilePOSCartItem";
+import { minQtyForUom } from "@/utils/qtyInput";
 import { MobilePOSHeader } from "./MobilePOSHeader";
 import { MobilePOSBottomBar } from "./MobilePOSBottomBar";
 import { MobilePOSPaymentSheet } from "./MobilePOSPaymentSheet";
@@ -197,7 +198,7 @@ export const MobilePOSLayout = ({
                 item={item}
                 index={index}
                 onQuantityChange={(idx, qty) => {
-                  if (qty >= 1) updateQuantity(idx, qty);
+                  if (qty >= minQtyForUom(items[idx]?.uom)) updateQuantity(idx, qty);
                 }}
                 onRemove={removeItem}
               />

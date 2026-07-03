@@ -1,10 +1,13 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { Search, ShoppingCart, Trash2, Camera, User, Pause, RotateCcw, Zap } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { QtyInput } from "@/components/ui/qty-input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { CameraScanner } from "./CameraScanner";
 import { computePosFlatDiscount } from "@/utils/posGstTotals";
+import { adjustQtyByStep, minQtyForUom } from "@/utils/qtyInput";
+import { getUOMLabel } from "@/constants/uom";
 
 interface TabletPOSLayoutProps {
   items: any[];
@@ -299,24 +302,39 @@ export function TabletPOSLayout({
                     </div>
 
                     {/* Qty stepper — 44×44 min touch targets */}
-                    <div className="flex items-center justify-center gap-1">
-                      <button
-                        className="h-10 w-10 rounded-lg bg-muted flex items-center justify-center text-[18px] font-bold active:bg-muted/60 select-none transition-colors"
-                        onTouchStart={(e) => { e.preventDefault(); updateQuantity(idx, Math.max(1, item.quantity - 1)); }}
-                        onClick={() => updateQuantity(idx, Math.max(1, item.quantity - 1))}
-                      >
-                        −
-                      </button>
-                      <span className="w-8 text-center font-bold text-[14px]" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
-                        {item.quantity}
-                      </span>
-                      <button
-                        className="h-10 w-10 rounded-lg bg-muted flex items-center justify-center text-[18px] font-bold active:bg-muted/60 select-none transition-colors"
-                        onTouchStart={(e) => { e.preventDefault(); updateQuantity(idx, item.quantity + 1); }}
-                        onClick={() => updateQuantity(idx, item.quantity + 1)}
-                      >
-                        +
-                      </button>
+                    <div className="flex flex-col items-center justify-center gap-0.5">
+                      <div className="flex items-center justify-center gap-1">
+                        <button
+                          className="h-10 w-10 rounded-lg bg-muted flex items-center justify-center text-[18px] font-bold active:bg-muted/60 select-none transition-colors"
+                          onTouchStart={(e) => {
+                            e.preventDefault();
+                            updateQuantity(idx, adjustQtyByStep(item.quantity, -1, item.uom));
+                          }}
+                          onClick={() => updateQuantity(idx, adjustQtyByStep(item.quantity, -1, item.uom))}
+                        >
+                          −
+                        </button>
+                        <QtyInput
+                          uom={item.uom}
+                          value={item.quantity || minQtyForUom(item.uom)}
+                          onChange={(val) => updateQuantity(idx, val)}
+                          className="h-10 w-16 text-center text-[14px] font-bold px-1 bg-muted/30 border-border/60"
+                          selectOnFocus={false}
+                        />
+                        <button
+                          className="h-10 w-10 rounded-lg bg-muted flex items-center justify-center text-[18px] font-bold active:bg-muted/60 select-none transition-colors"
+                          onTouchStart={(e) => {
+                            e.preventDefault();
+                            updateQuantity(idx, adjustQtyByStep(item.quantity, 1, item.uom));
+                          }}
+                          onClick={() => updateQuantity(idx, adjustQtyByStep(item.quantity, 1, item.uom))}
+                        >
+                          +
+                        </button>
+                      </div>
+                      {item.uom && item.uom !== "NOS" && item.uom !== "PCS" && (
+                        <span className="text-[10px] text-muted-foreground">{getUOMLabel(item.uom)}</span>
+                      )}
                     </div>
 
                     <div className="text-right text-[13px] font-bold" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
