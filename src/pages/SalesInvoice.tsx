@@ -372,6 +372,8 @@ export default function SalesInvoice() {
   const barcodeInputRef = useRef<HTMLInputElement>(null);
   const lastInputTime = useRef<number>(0);
   const dropdownDebounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Synchronous staged qty per variant — avoids stale lineItems closure during rapid barcode scans. */
+  const stagedQtyByVariantRef = useRef<Map<string, number>>(new Map());
   
   // Barcode scanner detection for instant add (like POS)
   const { recordKeystroke, reset: resetScannerDetection, detectScannerInput, scheduleAutoSubmit, cancelAutoSubmit, markSubmitted } = useBarcodeScanner();
@@ -399,6 +401,28 @@ export default function SalesInvoice() {
     }))
   );
   const [tablePadRowCount, setTablePadRowCount] = useState(SALE_BILL_MIN_DISPLAY_ROWS);
+
+  const rebuildStagedQtyByVariantRef = useCallback((items: LineItem[]) => {
+    const map = new Map<string, number>();
+    for (const item of items) {
+      if (item.variantId && item.productId && item.quantity > 0) {
+        map.set(item.variantId, (map.get(item.variantId) || 0) + item.quantity);
+      }
+    }
+    stagedQtyByVariantRef.current = map;
+  }, []);
+
+  const syncStagedQtyForVariant = useCallback((variantId: string, items: LineItem[]) => {
+    if (!variantId) return;
+    const total = items
+      .filter((i) => i.variantId === variantId && i.productId !== '')
+      .reduce((sum, i) => sum + i.quantity, 0);
+    if (total > 0) {
+      stagedQtyByVariantRef.current.set(variantId, total);
+    } else {
+      stagedQtyByVariantRef.current.delete(variantId);
+    }
+  }, []);
 
   const syncTablePadRows = useCallback(() => {
     const el = tableContainerRef.current;
@@ -506,10 +530,12 @@ export default function SalesInvoice() {
     if (!data) return;
     setInvoiceDate(data.invoiceDate ? new Date(data.invoiceDate) : new Date());
     setDueDate(data.dueDate ? new Date(data.dueDate) : new Date());
-    setLineItems(data.lineItems || Array(7).fill(null).map((_, i) => ({
+    const draftLineItems = data.lineItems || Array(7).fill(null).map((_, i) => ({
       id: `row-${i}`, productId: '', variantId: '', productName: '', size: '', barcode: '', color: '',
       quantity: 0, box: '', mrp: 0, salePrice: 0, discountPercent: 0, discountAmount: 0, gstPercent: 0, lineTotal: 0, hsnCode: '',
-    })));
+    }));
+    setLineItems(draftLineItems);
+    rebuildStagedQtyByVariantRef(draftLineItems);
     setSelectedCustomerId(data.selectedCustomerId || "");
     setSelectedCustomer(data.selectedCustomer || null);
     setPaymentTerm(data.paymentTerm || "");
@@ -524,7 +550,7 @@ export default function SalesInvoice() {
     setOtherCharges(data.otherCharges || 0);
     setRoundOff(data.roundOff || 0);
     // Silent restore - no toast to avoid disturbing user
-  }, [toast]);
+  }, [toast, rebuildStagedQtyByVariantRef]);
 
   // Check for draft on mount (only if not in edit mode)
   const initialDraftCheckDone = useRef(false);
@@ -1097,6 +1123,7 @@ export default function SalesInvoice() {
           hsnCode: item.hsn_code || '',
         }));
         setLineItems(transformedItems);
+        rebuildStagedQtyByVariantRef(transformedItems);
         
         // Store original items for stock validation in edit mode
         // This MUST be set fresh every time we load invoice data for editing
@@ -1164,7 +1191,7 @@ export default function SalesInvoice() {
           setRoundOff(invoiceData.round_off || 0);
           
           if (invoiceData.sale_items?.length > 0) {
-            setLineItems(invoiceData.sale_items.map((item: any) => ({
+            const duplicatedItems = invoiceData.sale_items.map((item: any) => ({
               id: crypto.randomUUID(),
               productId: item.product_id,
               variantId: item.variant_id,
@@ -1181,7 +1208,9 @@ export default function SalesInvoice() {
               gstPercent: item.gst_percent,
               lineTotal: item.line_total,
               hsnCode: item.hsn_code || '',
-            })));
+            }));
+            setLineItems(duplicatedItems);
+            rebuildStagedQtyByVariantRef(duplicatedItems);
           }
         } catch (err) {
           console.error('Failed to load invoice for duplication:', err);
@@ -1560,6 +1589,7 @@ export default function SalesInvoice() {
     
     // Update state once with all changes
     setLineItems(updatedItems);
+    rebuildStagedQtyByVariantRef(updatedItems);
     
     // Toast removed - was interrupting workflow
     
@@ -1665,19 +1695,30 @@ export default function SalesInvoice() {
         !isStockTrackedInvoiceProduct(foundProduct);
       const stockQty = Number(foundVariant.stock_qty) || 0;
 
-      if (!isServiceOrCombo && stockQty <= 0) {
-        playErrorBeep();
-        openStockIssueDialog(
-          buildInsufficientStockIssue(
-            buildProductDisplayName(foundProduct),
-            foundVariant.size,
-            1,
-            stockQty,
-          ),
-        );
-        setSearchInput("");
-        setTimeout(() => barcodeInputRef.current?.focus(), 50);
-        return;
+      if (!isServiceOrCombo) {
+        let freedQty = 0;
+        if (editingInvoiceId && originalItemsForEdit.length > 0) {
+          freedQty = originalItemsForEdit
+            .filter((orig) => orig.variantId === foundVariant.id)
+            .reduce((sum, orig) => sum + orig.quantity, 0);
+        }
+        const alreadyStaged = stagedQtyByVariantRef.current.get(foundVariant.id) || 0;
+        const requestedQty = alreadyStaged + 1;
+        const availableStock = stockQty + freedQty;
+        if (availableStock < requestedQty) {
+          playErrorBeep();
+          openStockIssueDialog(
+            buildInsufficientStockIssue(
+              buildProductDisplayName(foundProduct),
+              foundVariant.size,
+              requestedQty,
+              availableStock,
+            ),
+          );
+          setSearchInput("");
+          setTimeout(() => barcodeInputRef.current?.focus(), 50);
+          return;
+        }
       }
 
       // Barcode uniquely identifies a specific variant (size+color) — always add directly, skip size grid
@@ -1721,6 +1762,8 @@ export default function SalesInvoice() {
     playSuccessBeep,
     playErrorBeep,
     openStockIssueDialog,
+    editingInvoiceId,
+    originalItemsForEdit,
   ]);
 
   const addProductToInvoice = async (product: any, variant: any, overridePrice?: { sale_price: number; mrp: number }, options?: { skipSizeGrid?: boolean }) => {
@@ -1751,13 +1794,15 @@ export default function SalesInvoice() {
 
     // Stock guard BEFORE any price prompt or staging — never add an out-of-stock product.
     // Message shows immediately on scan/select; the item is not added to the bill.
+    let stockReservation: { variantId: string; previousQty: number } | null = null;
     if (isStockTrackedInvoiceProduct(product)) {
-      const existingForStock = lineItems.find(
-        (item) => item.variantId === variant.id && item.productId !== '',
-      );
-      const requestedQty = (existingForStock?.quantity || 0) + 1;
+      const alreadyStaged = stagedQtyByVariantRef.current.get(variant.id) || 0;
+      const requestedQty = alreadyStaged + 1;
+      stagedQtyByVariantRef.current.set(variant.id, requestedQty);
+      stockReservation = { variantId: variant.id, previousQty: alreadyStaged };
       const stockCheck = await checkStock(variant.id, requestedQty, freedQty);
       if (!stockCheck.isAvailable) {
+        stagedQtyByVariantRef.current.set(variant.id, alreadyStaged);
         playErrorBeep();
         openStockIssueDialog(
           buildInsufficientStockIssue(
@@ -1807,6 +1852,12 @@ export default function SalesInvoice() {
       const hasCustomerDiff = customerPrice !== null;
 
       if (hasLastPurchaseDiff || hasCustomerDiff) {
+        if (stockReservation) {
+          stagedQtyByVariantRef.current.set(
+            stockReservation.variantId,
+            stockReservation.previousQty,
+          );
+        }
         setPendingPriceSelection({
           product,
           variant,
@@ -1845,6 +1896,7 @@ export default function SalesInvoice() {
       // Check for existing item inside the updater to always see latest state
       const existingIndex = prev.findIndex(item => item.variantId === variant.id && item.productId !== '');
       
+      let next: LineItem[];
       if (existingIndex >= 0) {
         // Merge: increment quantity
         const updatedItems = [...prev];
@@ -1852,46 +1904,48 @@ export default function SalesInvoice() {
           ...updatedItems[existingIndex],
           quantity: updatedItems[existingIndex].quantity + 1,
         });
-        return updatedItems;
-      }
-      
-      // New item: find empty row or append
-      const newItemBase = {
-        productId: product.id,
-        variantId: variant.id,
-        productName: buildProductDisplayName(product),
-        size: variant.size,
-        barcode: variant.barcode || '',
-        color: variant.color || product.color || '',
-        quantity: 1,
-        box: '',
-        mrp: mrpToUse,
-        salePrice: salePrice,
-        discountPercent,
-        discountAmount: 0,
-        purchaseGstPercent: product.purchase_gst_percent ?? product.gst_per ?? 0,
-        gstPercent: product.sale_gst_percent ?? product.gst_per ?? 0,
-        lineTotal: 0,
-        hsnCode: product.hsn_code || '',
-        uom: product.uom || 'NOS',
-        brand: product.brand || '',
-      };
-      
-      const emptyRowIndex = prev.findIndex(item => item.productId === '');
-      if (emptyRowIndex === -1) {
-        const newItem: LineItem = calculateLineTotal({
-          ...newItemBase,
-          id: `row-${prev.length}`,
-        });
-        return [...prev, newItem];
+        next = updatedItems;
       } else {
-        const updatedItems = [...prev];
-        updatedItems[emptyRowIndex] = calculateLineTotal({
-          ...newItemBase,
-          id: updatedItems[emptyRowIndex].id,
-        });
-        return updatedItems;
+        // New item: find empty row or append
+        const newItemBase = {
+          productId: product.id,
+          variantId: variant.id,
+          productName: buildProductDisplayName(product),
+          size: variant.size,
+          barcode: variant.barcode || '',
+          color: variant.color || product.color || '',
+          quantity: 1,
+          box: '',
+          mrp: mrpToUse,
+          salePrice: salePrice,
+          discountPercent,
+          discountAmount: 0,
+          purchaseGstPercent: product.purchase_gst_percent ?? product.gst_per ?? 0,
+          gstPercent: product.sale_gst_percent ?? product.gst_per ?? 0,
+          lineTotal: 0,
+          hsnCode: product.hsn_code || '',
+          uom: product.uom || 'NOS',
+          brand: product.brand || '',
+        };
+        
+        const emptyRowIndex = prev.findIndex(item => item.productId === '');
+        if (emptyRowIndex === -1) {
+          const newItem: LineItem = calculateLineTotal({
+            ...newItemBase,
+            id: `row-${prev.length}`,
+          });
+          next = [...prev, newItem];
+        } else {
+          const updatedItems = [...prev];
+          updatedItems[emptyRowIndex] = calculateLineTotal({
+            ...newItemBase,
+            id: updatedItems[emptyRowIndex].id,
+          });
+          next = updatedItems;
+        }
       }
+      syncStagedQtyForVariant(variant.id, next);
+      return next;
     });
 
     // Show toast if brand discount was applied
@@ -2050,6 +2104,7 @@ export default function SalesInvoice() {
           };
         });
         setLineItems(normalizedItems);
+        rebuildStagedQtyByVariantRef(normalizedItems);
         setOriginalItemsForEdit(invoiceData.sale_items.map((item: any) => ({
           variantId: item.variant_id,
           quantity: item.quantity,
@@ -2100,7 +2155,7 @@ export default function SalesInvoice() {
       isInitializingEditRef.current = false;
       setIsLoadingNavInvoice(false);
     }
-  }, [currentOrganization?.id, toast]);
+  }, [currentOrganization?.id, toast, rebuildStagedQtyByVariantRef]);
 
   const handleLastInvoice = useCallback(() => {
     if (!allInvoiceIds || allInvoiceIds.length === 0) return;
@@ -2199,6 +2254,7 @@ export default function SalesInvoice() {
       item.id === id ? calculateLineTotal({ ...item, quantity }) : item
     );
     setLineItems(updatedItems);
+    syncStagedQtyForVariant(item.variantId, updatedItems);
   };
 
   const updateBox = (id: string, box: string) => {
@@ -2306,6 +2362,7 @@ export default function SalesInvoice() {
       } : item
     );
     setLineItems(updatedItems);
+    rebuildStagedQtyByVariantRef(updatedItems);
   };
 
   const handleCreateCustomer = async (values: z.infer<typeof customerSchema>) => {
@@ -2989,26 +3046,26 @@ Thank you for choosing us!`;
         scheduleInvoiceDashboardRefresh();
 
         // Reset form immediately for new invoice readiness
-        setLineItems(
-          Array(7).fill(null).map((_, i) => ({
-            id: `row-${i}`,
-            productId: '',
-            variantId: '',
-            productName: '',
-            size: '',
-            barcode: '',
-            color: '',
-            quantity: 0,
-            box: '',
-            mrp: 0,
-            salePrice: 0,
-            discountPercent: 0,
-            discountAmount: 0,
-            gstPercent: 0,
-            lineTotal: 0,
-            hsnCode: '',
-          }))
-        );
+        const emptyRows = Array(7).fill(null).map((_, i) => ({
+          id: `row-${i}`,
+          productId: '',
+          variantId: '',
+          productName: '',
+          size: '',
+          barcode: '',
+          color: '',
+          quantity: 0,
+          box: '',
+          mrp: 0,
+          salePrice: 0,
+          discountPercent: 0,
+          discountAmount: 0,
+          gstPercent: 0,
+          lineTotal: 0,
+          hsnCode: '',
+        }));
+        setLineItems(emptyRows);
+        rebuildStagedQtyByVariantRef(emptyRows);
         setSelectedCustomerId("");
         setSelectedCustomer(null);
         setPointsToRedeem(0);
@@ -3322,20 +3379,23 @@ Thank you for choosing us!`;
                         <div className="flex items-center gap-2 mt-1">
                           <button onClick={() => {
                             const updated = [...lineItems];
-                            if (updated[realIdx].quantity > 1) { const newItem = { ...updated[realIdx], quantity: updated[realIdx].quantity - 1 }; updated[realIdx] = calculateLineTotal(newItem); setLineItems(updated); }
+                            if (updated[realIdx].quantity > 1) { const newItem = { ...updated[realIdx], quantity: updated[realIdx].quantity - 1 }; updated[realIdx] = calculateLineTotal(newItem); setLineItems(updated); rebuildStagedQtyByVariantRef(updated); }
                           }} className="w-8 h-8 bg-muted rounded-lg text-base font-bold flex items-center justify-center active:scale-90 touch-manipulation">−</button>
                           <span className="w-8 text-center text-sm font-semibold tabular-nums">{item.quantity}</span>
                           <button onClick={() => {
                             const updated = [...lineItems];
                             const newItem = { ...updated[realIdx], quantity: updated[realIdx].quantity + 1 }; updated[realIdx] = calculateLineTotal(newItem);
                             setLineItems(updated);
+                            rebuildStagedQtyByVariantRef(updated);
                           }} className="w-8 h-8 bg-muted rounded-lg text-base font-bold flex items-center justify-center active:scale-90 touch-manipulation">+</button>
                         </div>
                       </div>
                       <div className="text-right shrink-0 ml-3">
                         <p className="text-sm font-bold text-foreground tabular-nums">₹{Math.round(item.lineTotal || 0).toLocaleString("en-IN")}</p>
                         <button onClick={() => {
-                          setLineItems(lineItems.map((li, i) => i === realIdx ? { ...li, productId: '', variantId: '', productName: '', quantity: 0, lineTotal: 0 } : li));
+                          const cleared = lineItems.map((li, i) => i === realIdx ? { ...li, productId: '', variantId: '', productName: '', quantity: 0, lineTotal: 0 } : li);
+                          setLineItems(cleared);
+                          rebuildStagedQtyByVariantRef(cleared);
                         }} className="text-[10px] text-destructive font-medium mt-1">Remove</button>
                       </div>
                     </div>
@@ -3478,10 +3538,12 @@ Thank you for choosing us!`;
             </Button>
             <div className="w-px h-6 bg-white/20 mx-1" />
             <Button variant="ghost" size="sm" onClick={() => {
-                setLineItems(Array(7).fill(null).map((_, i) => ({
+                const emptyRows = Array(7).fill(null).map((_, i) => ({
                   id: `row-${i}`, productId: '', variantId: '', productName: '', size: '', barcode: '', color: '',
                   quantity: 0, box: '', mrp: 0, salePrice: 0, discountPercent: 0, discountAmount: 0, gstPercent: 0, lineTotal: 0, hsnCode: '',
-                })));
+                }));
+                setLineItems(emptyRows);
+                rebuildStagedQtyByVariantRef(emptyRows);
                 setSelectedCustomerId("");
                 setSelectedCustomer(null);
                 setInvoiceDate(new Date());
