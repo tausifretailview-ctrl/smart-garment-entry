@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
 import { CalendarIcon, Plus, X, Search, Save, ClipboardList, AlertTriangle, CheckCircle, Printer, ChevronDown, Loader2, ChevronLeft, FileText } from "lucide-react";
@@ -31,7 +31,6 @@ import {
   Command,
   CommandEmpty,
   CommandGroup,
-  CommandInput,
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
@@ -147,6 +146,7 @@ export default function SaleOrderEntry() {
   const printRef = useRef<HTMLDivElement>(null);
   const tableContainerRef = useRef<HTMLDivElement>(null);
   const tableEndRef = useRef<HTMLDivElement>(null);
+  const productSearchInputRef = useRef<HTMLInputElement>(null);
   const skipDraftSaveOnUnmountRef = useRef(false);
   const savingLockRef = useRef(false);
   const [showNotesSection, setShowNotesSection] = useState(false);
@@ -169,6 +169,14 @@ export default function SaleOrderEntry() {
   const [historyProduct, setHistoryProduct] = useState<{ id: string; name: string } | null>(null);
 
   useEntryViewportSync();
+
+  const focusProductSearchBar = useCallback(() => {
+    setTimeout(() => productSearchInputRef.current?.focus(), 50);
+  }, []);
+
+  useEffect(() => {
+    focusProductSearchBar();
+  }, [focusProductSearchBar]);
 
   // Draft save hook
   const {
@@ -618,6 +626,9 @@ export default function SaleOrderEntry() {
     if (addedCount > 0) {
       toast({ title: "Products Added", description: `${addedCount} line(s) added to order` });
     }
+    setSearchInput("");
+    setOpenProductSearch(false);
+    focusProductSearchBar();
     setTimeout(() => tableEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
   };
 
@@ -729,6 +740,7 @@ export default function SaleOrderEntry() {
     
     setOpenProductSearch(false);
     setSearchInput("");
+    focusProductSearchBar();
     toast({ title: "Product Added", description: `${product.product_name} (${variant.size}) added` });
     setTimeout(() => tableEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
   };
@@ -1463,21 +1475,38 @@ export default function SaleOrderEntry() {
             </span>
           </div>
           <div className="text-black/30 text-lg font-light select-none">|</div>
-          <Popover open={openProductSearch} onOpenChange={setOpenProductSearch}>
-            <PopoverTrigger asChild>
-              <div className="relative flex-1 min-w-[280px] cursor-pointer">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-black/40" />
+          <Popover
+            open={openProductSearch}
+            onOpenChange={(open) => {
+              setOpenProductSearch(open);
+              if (!open) focusProductSearchBar();
+            }}
+          >
+            <PopoverAnchor asChild>
+              <div className="relative flex-1 min-w-[280px]">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-black/40 pointer-events-none" />
                 <Input
+                  ref={productSearchInputRef}
+                  autoFocus
                   placeholder="Browse products by name, brand, category, size..."
-                  className="pl-10 pr-4 h-10 bg-white border-black/20 cursor-pointer text-sm font-semibold"
-                  readOnly
-                  onClick={() => setOpenProductSearch(true)}
+                  value={searchInput}
+                  onChange={(e) => {
+                    setSearchInput(e.target.value);
+                    if (!openProductSearch) setOpenProductSearch(true);
+                  }}
+                  onFocus={() => setOpenProductSearch(true)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Escape") {
+                      setOpenProductSearch(false);
+                      e.stopPropagation();
+                    }
+                  }}
+                  className="pl-10 pr-4 h-10 bg-white border-black/20 text-sm font-semibold"
                 />
               </div>
-            </PopoverTrigger>
+            </PopoverAnchor>
             <PopoverContent className="w-[700px] p-0" align="start">
               <Command shouldFilter={false}>
-                <CommandInput placeholder="Search by name, barcode, brand, color, size... (e.g. 'Rolex Gray 7')" value={searchInput} onValueChange={setSearchInput} />
                 <CommandList className="max-h-[320px]">
                   <CommandEmpty>
                     {isProductSearching ? (
@@ -1520,6 +1549,7 @@ export default function SaleOrderEntry() {
                             selectProductSearchGroup(group);
                             setOpenProductSearch(false);
                             setSearchInput("");
+                            focusProductSearchBar();
                           }}
                           className="group p-0 cursor-pointer"
                         >
@@ -1582,6 +1612,7 @@ export default function SaleOrderEntry() {
                                 selectSearchResult(result as SaleOrderVariantSearchResult);
                                 setOpenProductSearch(false);
                                 setSearchInput("");
+                                focusProductSearchBar();
                               }}
                               className="group p-0 cursor-pointer"
                             >
@@ -2025,7 +2056,10 @@ export default function SaleOrderEntry() {
       {/* Size Grid Dialog */}
       <SizeGridDialog
         open={showSizeGrid}
-        onClose={() => setShowSizeGrid(false)}
+        onClose={() => {
+          setShowSizeGrid(false);
+          focusProductSearchBar();
+        }}
         product={sizeGridProduct}
         variants={sizeGridVariants}
         onConfirm={handleSizeGridConfirm}
