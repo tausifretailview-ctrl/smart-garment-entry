@@ -1,5 +1,5 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from "react";
-import { isDecimalUOM } from "@/constants/uom";
+import { isDecimalUOM, getUOMLabel } from "@/constants/uom";
 import { createPortal } from "react-dom";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
@@ -12,6 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CalculatorInput } from "@/components/ui/calculator-input";
+import { QtyInput } from "@/components/ui/qty-input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -94,6 +95,7 @@ import { AddSupplierDialog } from "@/components/AddSupplierDialog";
 import { useDraftSave } from "@/hooks/useDraftSave";
 import { useDashboardInvalidation } from "@/hooks/useDashboardInvalidation";
 import { invalidateStatusBarSummary } from "@/utils/invalidateDashboardQueries";
+import { adjustQtyByStep, minQtyForUom } from "@/utils/qtyInput";
 import {
   incrementSupplierInvoiceNumber,
   nextGlobalNumericSupplierInvoice,
@@ -5658,10 +5660,24 @@ const PurchaseEntry = () => {
                         <p className="text-sm font-medium text-foreground truncate">{item.product_name || item.barcode}</p>
                         <p className="text-[11px] text-muted-foreground">{item.size} {item.color}</p>
                         <div className="flex items-center gap-2 mt-1">
-                          <button onClick={() => { const u = [...lineItems]; if (u[realIdx].qty > 1) { u[realIdx] = { ...u[realIdx], qty: u[realIdx].qty - 1 }; setLineItems(u); } }}
+                          <button onClick={() => {
+                            const u = [...lineItems];
+                            const min = minQtyForUom(u[realIdx].uom);
+                            if (u[realIdx].qty > min) {
+                              u[realIdx] = { ...u[realIdx], qty: adjustQtyByStep(u[realIdx].qty, -1, u[realIdx].uom) };
+                              setLineItems(u);
+                            }
+                          }}
                             className="w-8 h-8 bg-muted rounded-lg text-base font-bold flex items-center justify-center active:scale-90 touch-manipulation">−</button>
-                          <span className="w-8 text-center text-sm font-semibold tabular-nums">{item.qty}</span>
-                          <button onClick={() => { const u = [...lineItems]; u[realIdx] = { ...u[realIdx], qty: u[realIdx].qty + 1 }; setLineItems(u); }}
+                          <span className="min-w-[2.5rem] text-center text-sm font-semibold tabular-nums">{item.qty}</span>
+                          {item.uom && item.uom !== "NOS" && item.uom !== "PCS" && (
+                            <span className="text-[10px] text-muted-foreground">{getUOMLabel(item.uom)}</span>
+                          )}
+                          <button onClick={() => {
+                            const u = [...lineItems];
+                            u[realIdx] = { ...u[realIdx], qty: adjustQtyByStep(u[realIdx].qty, 1, u[realIdx].uom) };
+                            setLineItems(u);
+                          }}
                             className="w-8 h-8 bg-muted rounded-lg text-base font-bold flex items-center justify-center active:scale-90 touch-manipulation">+</button>
                         </div>
                       </div>
@@ -6335,25 +6351,16 @@ const PurchaseEntry = () => {
                         </TableCell>
                         <TableCell className="pur-col-num w-[5.5rem]">
                           <div className="flex items-center gap-0.5">
-                            <Input
+                            <QtyInput
                               ref={index === lineItems.length - 1 ? lastQtyInputRef : undefined}
-                              type="number"
-                              min={isDecimalUOM(item.uom) ? "0.001" : "1"}
-                              step={isDecimalUOM(item.uom) ? "0.001" : "1"}
-                              value={item.qty || ""}
+                              uom={item.uom}
+                              value={item.qty || minQtyForUom(item.uom)}
                               onFocus={(e) => { if (sameBarcodeSeriesEnabled) e.target.select(); }}
-                              onChange={(e) =>
-                                updateLineItem(
-                                  item.temp_id,
-                                  "qty",
-                                  isDecimalUOM(item.uom) ? (parseFloat(e.target.value) || 0) : (parseInt(e.target.value) || 0)
-                                )
-                              }
-                              onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                              className="w-full text-right px-2 bg-amber-50 border-amber-200 text-center text-[15px] font-bold [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                              onChange={(val) => updateLineItem(item.temp_id, "qty", val)}
+                              className="w-full text-right px-2 bg-amber-50 border-amber-200 text-center text-[15px] font-bold h-9"
                             />
                             {item.uom && item.uom !== 'NOS' && item.uom !== 'PCS' && (
-                              <span className="text-[10px] text-muted-foreground whitespace-nowrap">{item.uom}</span>
+                              <span className="text-[10px] text-muted-foreground whitespace-nowrap">{getUOMLabel(item.uom)}</span>
                             )}
                           </div>
                         </TableCell>
