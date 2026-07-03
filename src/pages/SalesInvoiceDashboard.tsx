@@ -3234,31 +3234,49 @@ export default function SalesInvoiceDashboard() {
   return (
     <div
       className={cn(
-        "flex flex-col bg-slate-50 px-1.5 sm:px-2 md:px-3 py-1.5 min-h-0 overflow-hidden sales-invoice-dashboard",
-        inTabCache || sharedShell ? "h-full w-full" : "h-[calc(100vh-3.5rem)]",
+        "sales-dashboard-workspace sales-invoice-dashboard flex h-full min-h-0 w-full flex-col overflow-hidden bg-slate-50 px-2 py-2 sm:px-3",
+        !inTabCache && !sharedShell && "h-[calc(100vh-3.5rem)]",
       )}
     >
-      <div className="w-full min-w-0 flex flex-col flex-1 min-h-0 gap-1.5">
-        <div className="flex items-center justify-between shrink-0">
+      <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col gap-2">
+        <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
           <div>
-            <h1 className="text-lg font-bold text-blue-600 tracking-tight leading-none">
+            <h1 className="flex items-center gap-2 text-xl font-bold leading-none tracking-tight text-teal-700">
+              <Receipt className="h-4 w-4 shrink-0 opacity-70" />
               Sales Invoice Dashboard
             </h1>
-            <p className="text-[11px] text-muted-foreground mt-0.5 h-3.5 flex items-center gap-1">
-              {isDashboardBackgroundRefresh && (
+            <p className="mt-1 flex items-center gap-1.5 text-sm text-slate-500">
+              {isDashboardBackgroundRefresh ? (
                 <>
-                  <Loader2 className="h-3 w-3 animate-spin" />
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
                   Updating…
                 </>
+              ) : (
+                `${totalCount.toLocaleString("en-IN")} invoices`
               )}
             </p>
           </div>
-          <div className="flex items-center gap-1.5 flex-wrap justify-end">
-            <Button variant="outline" onClick={handleExportExcel} className="gap-1.5 h-8 text-sm border-slate-300 text-slate-600 hover:bg-slate-100 font-medium px-2.5">
-              <FileSpreadsheet className="h-3.5 w-3.5" />
+          <div className="flex flex-wrap items-center gap-2 justify-end">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9 gap-1.5 border-slate-200 text-sm"
+              onClick={() => void refetch()}
+              disabled={isDashboardBackgroundRefresh}
+            >
+              {isDashboardBackgroundRefresh ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4" />
+              )}
+              Refresh
+            </Button>
+            <Button variant="outline" onClick={handleExportExcel} className="gap-1.5 h-9 text-sm border-slate-300 text-slate-600 hover:bg-slate-100 font-medium px-3">
+              <FileSpreadsheet className="h-4 w-4" />
               Export Excel
             </Button>
-            <Button onClick={() => navigate("/sales-invoice")} className="h-8 px-3 text-sm font-semibold bg-blue-600 hover:bg-blue-700 text-white shadow-sm">
+            <Button onClick={() => navigate("/sales-invoice")} className="h-9 px-4 text-sm font-semibold bg-blue-600 hover:bg-blue-700 text-white shadow-sm gap-1.5">
+              <Plus className="h-4 w-4" />
               New Invoice
             </Button>
             {selectedInvoices.size > 0 && hasSpecialPermission('cancel_invoice') && (
@@ -3339,56 +3357,56 @@ export default function SalesInvoiceDashboard() {
           </Card>
         )}
 
-        {/* Summary Statistics — compact value-focused cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-1.5 w-full shrink-0">
-          <button type="button" onClick={() => setDeliveryFilter("all")} className="rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 px-2 py-1.5 text-left min-w-0 shadow-sm">
-            <p className="text-[10px] font-medium text-white/75 leading-none truncate">Total Invoices</p>
-            <p className="text-base font-black text-white tabular-nums leading-tight mt-0.5">{effectiveStats.totalInvoices}</p>
+        {/* Summary Statistics — compact ERP dashboard cards */}
+        <div className="grid shrink-0 grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7 lg:gap-3">
+          <button type="button" onClick={() => setDeliveryFilter("all")} className="min-h-[64px] rounded-xl border border-sky-200/70 bg-sky-50 px-2 py-2 text-center shadow-sm transition-colors hover:bg-sky-100/80">
+            <p className="text-xs font-semibold leading-snug text-slate-600 truncate">Total Invoices</p>
+            <p className="mt-1 text-xl font-bold text-sky-800 tabular-nums leading-none">{effectiveStats.totalInvoices}</p>
           </button>
-          <button type="button" onClick={() => setDeliveryFilter("all")} className="rounded-lg bg-gradient-to-br from-violet-500 to-violet-600 px-2 py-1.5 text-left min-w-0 shadow-sm">
-            <p className="text-[10px] font-medium text-white/75 leading-none truncate">Total Qty</p>
-            <p className="text-base font-black text-white tabular-nums leading-tight mt-0.5">{effectiveStats.totalQty}</p>
+          <button type="button" onClick={() => setDeliveryFilter("all")} className="min-h-[64px] rounded-xl border border-indigo-200/70 bg-indigo-50 px-2 py-2 text-center shadow-sm transition-colors hover:bg-indigo-100/80">
+            <p className="text-xs font-semibold leading-snug text-slate-600 truncate">Total Qty</p>
+            <p className="mt-1 text-xl font-bold text-indigo-800 tabular-nums leading-none">{effectiveStats.totalQty}</p>
           </button>
-          <button type="button" onClick={() => setDeliveryFilter("all")} className="rounded-lg bg-gradient-to-br from-emerald-500 to-emerald-600 px-2 py-1.5 text-left min-w-0 shadow-sm">
-            <p className="text-[10px] font-medium text-white/75 leading-none truncate">Total Revenue</p>
-            <p className="text-base font-black text-white tabular-nums leading-tight mt-0.5 truncate">₹{effectiveStats.totalAmount.toFixed(0)}</p>
+          <button type="button" onClick={() => setDeliveryFilter("all")} className="min-h-[64px] rounded-xl border border-emerald-200/70 bg-emerald-50 px-2 py-2 text-center shadow-sm transition-colors hover:bg-emerald-100/80">
+            <p className="text-xs font-semibold leading-snug text-slate-600 truncate">Total Revenue</p>
+            <p className="mt-1 text-xl font-bold text-emerald-800 tabular-nums leading-none truncate">₹{effectiveStats.totalAmount.toFixed(0)}</p>
           </button>
-          <button type="button" onClick={() => setDeliveryFilter("all")} className="rounded-lg bg-gradient-to-br from-pink-500 to-pink-600 px-2 py-1.5 text-left min-w-0 shadow-sm">
-            <p className="text-[10px] font-medium text-white/75 leading-none truncate">Total Discount</p>
-            <p className="text-base font-black text-white tabular-nums leading-tight mt-0.5 truncate">₹{effectiveStats.totalDiscount.toFixed(0)}</p>
+          <button type="button" onClick={() => setDeliveryFilter("all")} className="min-h-[64px] rounded-xl border border-fuchsia-200/70 bg-fuchsia-50 px-2 py-2 text-center shadow-sm transition-colors hover:bg-fuchsia-100/80">
+            <p className="text-xs font-semibold leading-snug text-slate-600 truncate">Total Discount</p>
+            <p className="mt-1 text-xl font-bold text-fuchsia-800 tabular-nums leading-none truncate">₹{effectiveStats.totalDiscount.toFixed(0)}</p>
           </button>
           <button
             type="button"
             onClick={() => setDeliveryFilter("all")}
             title={filteredCustomer ? "Matches invoice Balance after CN & advance. Unused advance is not included until applied per invoice." : undefined}
-            className="rounded-lg bg-gradient-to-br from-amber-500 to-amber-600 px-2 py-1.5 text-left min-w-0 shadow-sm"
+            className="min-h-[64px] rounded-xl border border-amber-200/70 bg-amber-50 px-2 py-2 text-center shadow-sm transition-colors hover:bg-amber-100/80"
           >
-            <p className="text-[10px] font-medium text-white/75 leading-none truncate">Pending Amount</p>
-            <p className="text-base font-black text-white tabular-nums leading-tight mt-0.5 truncate">₹{effectiveStats.pendingAmount.toFixed(0)}</p>
+            <p className="text-xs font-semibold leading-snug text-slate-600 truncate">Pending Amount</p>
+            <p className="mt-1 text-xl font-bold text-amber-800 tabular-nums leading-none truncate">₹{effectiveStats.pendingAmount.toFixed(0)}</p>
           </button>
-          <button type="button" onClick={() => setDeliveryFilter("delivered")} className="rounded-lg bg-gradient-to-br from-teal-500 to-teal-600 px-2 py-1.5 text-left min-w-0 shadow-sm">
-            <p className="text-[10px] font-medium text-white/75 leading-none truncate">Delivered</p>
-            <p className="text-base font-black text-white tabular-nums leading-tight mt-0.5">{effectiveStats.deliveredCount}</p>
+          <button type="button" onClick={() => setDeliveryFilter("delivered")} className="min-h-[64px] rounded-xl border border-teal-200/70 bg-teal-50 px-2 py-2 text-center shadow-sm transition-colors hover:bg-teal-100/80">
+            <p className="text-xs font-semibold leading-snug text-slate-600 truncate">Delivered</p>
+            <p className="mt-1 text-xl font-bold text-teal-800 tabular-nums leading-none">{effectiveStats.deliveredCount}</p>
           </button>
-          <button type="button" onClick={() => setDeliveryFilter("undelivered")} className="rounded-lg bg-gradient-to-br from-red-500 to-red-600 px-2 py-1.5 text-left min-w-0 shadow-sm">
-            <p className="text-[10px] font-medium text-white/75 leading-none truncate">Undelivered</p>
-            <p className="text-base font-black text-white tabular-nums leading-tight mt-0.5">{effectiveStats.undeliveredCount}</p>
+          <button type="button" onClick={() => setDeliveryFilter("undelivered")} className="min-h-[64px] rounded-xl border border-rose-200/70 bg-rose-50 px-2 py-2 text-center shadow-sm transition-colors hover:bg-rose-100/80">
+            <p className="text-xs font-semibold leading-snug text-slate-600 truncate">Undelivered</p>
+            <p className="mt-1 text-xl font-bold text-rose-800 tabular-nums leading-none">{effectiveStats.undeliveredCount}</p>
           </button>
         </div>
 
-        <Card className="rounded-lg border border-slate-200 shadow-sm overflow-hidden p-0 flex-1 min-h-0 flex flex-col">
-            <div className="flex items-center gap-1.5 px-2 py-1.5 border-b border-slate-100 bg-white overflow-x-auto shrink-0">
+        <Card className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-slate-200 shadow-sm p-0">
+            <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-slate-100 bg-white px-3 py-2.5 overflow-x-auto">
               <div className="relative flex-1 min-w-[160px] max-w-full sm:max-w-sm md:max-w-md">
                 <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   placeholder="Search by invoice, customer, barcode..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-8 h-8 text-sm border-slate-200 bg-slate-50 focus:bg-white"
+                  className="pl-8 h-9 text-sm border-slate-200 bg-slate-50 focus:bg-white"
                 />
               </div>
               <Select value={periodFilter} onValueChange={setPeriodFilter}>
-                <SelectTrigger className="w-[120px] h-8 text-sm border-slate-200 bg-slate-50 hover:bg-white">
+                <SelectTrigger className="w-[130px] h-9 text-sm border-slate-200 bg-slate-50 hover:bg-white">
                   <SelectValue placeholder="Period" />
                 </SelectTrigger>
                 <SelectContent>
@@ -3404,7 +3422,7 @@ export default function SalesInvoiceDashboard() {
                 <>
                   <Popover>
                     <PopoverTrigger asChild>
-                      <Button variant="outline" className="w-[130px] h-8 justify-start text-left font-normal text-sm">
+                      <Button variant="outline" className="w-[130px] h-9 justify-start text-left font-normal text-sm border-slate-200 bg-slate-50 hover:bg-white">
                         <CalendarIcon className="mr-1.5 h-3.5 w-3.5" />
                         {startDate ? format(startDate, 'dd/MM/yyyy') : 'From'}
                       </Button>
@@ -3420,7 +3438,7 @@ export default function SalesInvoiceDashboard() {
                   </Popover>
                   <Popover>
                     <PopoverTrigger asChild>
-                      <Button variant="outline" className="w-[130px] h-8 justify-start text-left font-normal text-sm">
+                      <Button variant="outline" className="w-[130px] h-9 justify-start text-left font-normal text-sm border-slate-200 bg-slate-50 hover:bg-white">
                         <CalendarIcon className="mr-1.5 h-3.5 w-3.5" />
                         {endDate ? format(endDate, 'dd/MM/yyyy') : 'To'}
                       </Button>
@@ -3438,7 +3456,7 @@ export default function SalesInvoiceDashboard() {
               )}
               <Popover>
                 <PopoverTrigger asChild>
-                  <Button variant="outline" className="w-[150px] h-8 text-sm border-slate-200 bg-slate-50 hover:bg-white justify-between">
+                  <Button variant="outline" className="w-[150px] h-9 text-sm border-slate-200 bg-slate-50 hover:bg-white justify-between">
                     {paymentStatusFilter.length === 0 ? 'All Payments' : paymentStatusFilter.length === 1 ? paymentStatusFilter[0].charAt(0).toUpperCase() + paymentStatusFilter[0].slice(1) : `${paymentStatusFilter.length} Selected`}
                     <ChevronDown className="h-3.5 w-3.5 opacity-50" />
                   </Button>
@@ -3468,7 +3486,7 @@ export default function SalesInvoiceDashboard() {
                 </PopoverContent>
               </Popover>
               <Select value={deliveryFilter} onValueChange={setDeliveryFilter}>
-                <SelectTrigger className="w-[130px] h-8 text-sm border-slate-200 bg-slate-50 hover:bg-white">
+                <SelectTrigger className="w-[130px] h-9 text-sm border-slate-200 bg-slate-50 hover:bg-white">
                   <SelectValue placeholder="Delivery Status" />
                 </SelectTrigger>
                 <SelectContent>
@@ -3480,7 +3498,7 @@ export default function SalesInvoiceDashboard() {
                 </SelectContent>
               </Select>
               <Select value={shopFilter} onValueChange={setShopFilter}>
-                <SelectTrigger className="w-[115px] h-8 text-sm border-slate-200 bg-slate-50 hover:bg-white">
+                <SelectTrigger className="w-[115px] h-9 text-sm border-slate-200 bg-slate-50 hover:bg-white">
                   <SelectValue placeholder="Shop" />
                 </SelectTrigger>
                 <SelectContent>
@@ -3491,7 +3509,7 @@ export default function SalesInvoiceDashboard() {
                 </SelectContent>
               </Select>
               <Select value={userFilter} onValueChange={setUserFilter}>
-                <SelectTrigger className="w-[130px] h-8 text-sm border-slate-200 bg-slate-50 hover:bg-white">
+                <SelectTrigger className="w-[130px] h-9 text-sm border-slate-200 bg-slate-50 hover:bg-white">
                   <SelectValue placeholder="Billing User" />
                 </SelectTrigger>
                 <SelectContent>
@@ -3508,7 +3526,7 @@ export default function SalesInvoiceDashboard() {
                   <Button
                     variant="outline"
                     size="icon"
-                    className="h-8 w-8 shrink-0 border-slate-200 bg-slate-50 hover:bg-white"
+                    className="h-9 w-9 shrink-0 border-slate-200 bg-slate-50 hover:bg-white"
                     title="Column Settings"
                   >
                     <Settings2 className="h-4 w-4" />
@@ -3602,7 +3620,7 @@ export default function SalesInvoiceDashboard() {
                   <Button
                     variant="outline"
                     size="sm"
-                    className="h-8 text-sm border-emerald-400 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 font-medium gap-1.5 flex-shrink-0"
+                    className="h-9 text-sm border-emerald-400 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 font-medium gap-1.5 flex-shrink-0"
                     onClick={() => {
                       setSettleCustomerId(filteredCustomer.id);
                       setSettleCustomerName(filteredCustomer.name || "");
@@ -3616,7 +3634,7 @@ export default function SalesInvoiceDashboard() {
                     <Button
                       variant="outline"
                       size="sm"
-                      className="h-8 text-sm border-emerald-300 text-emerald-700 hover:bg-emerald-50 font-medium gap-1.5 flex-shrink-0"
+                      className="h-9 text-sm border-emerald-300 text-emerald-700 hover:bg-emerald-50 font-medium gap-1.5 flex-shrink-0"
                       onClick={() => {
                         setBulkAdvanceCustomer(filteredCustomer);
                         setShowBulkAdvanceDialog(true);
@@ -3635,9 +3653,9 @@ export default function SalesInvoiceDashboard() {
                   ref={tableContainerRef}
                   data-tab-scroll
                   onWheel={onWheelScrollContainer}
-                  className="flex-1 min-h-0 overflow-auto tab-scroll-stable"
+                  className="sales-dashboard-table-panel flex-1 min-h-0 overflow-y-auto overflow-x-auto tab-scroll-stable overscroll-y-contain"
                 >
-                <Table className="w-full min-w-0 table-fixed border-collapse sales-invoice-grid [&_thead_th]:!px-1.5 [&_tbody_td]:!px-1.5 [&_thead_th]:!py-1 [&_tbody_td]:!py-0.5 [&_thead_th]:text-xs [&_tbody_td]:text-sm [&_tbody_td]:align-middle [&_tbody_td]:leading-tight">
+                <Table className="w-full min-w-[1000px] table-fixed border-collapse sales-invoice-grid [&_thead_th]:!px-2 [&_tbody_td]:!px-2 [&_thead_th]:!py-2 [&_tbody_td]:!py-1.5 [&_thead_th]:text-[11px] [&_thead_th]:font-semibold [&_thead_th]:uppercase [&_thead_th]:tracking-wide [&_tbody_td]:text-sm [&_tbody_td]:align-middle [&_tbody_td]:leading-tight [&_tbody_tr:nth-child(even)]:bg-slate-50/80 [&_tbody_tr:hover]:bg-sky-50/70">
                   <colgroup>
                     <col className="w-10" />
                     <col className="w-10" />
@@ -3653,8 +3671,8 @@ export default function SalesInvoiceDashboard() {
                     {columnSettings.delivery && <col className="w-[4.5rem]" />}
                     <col className={columnSettings.whatsappActions ? "w-[9rem]" : "w-[7.5rem]"} />
                   </colgroup>
-                  <TableHeader className="!static">
-                    <TableRow>
+                  <TableHeader className="sticky top-0 z-10 bg-slate-950 text-white [&_tr]:border-slate-800">
+                    <TableRow className="border-slate-800 hover:bg-slate-950">
                       <TableHead className="px-1">
                         <Checkbox
                           checked={
@@ -3665,18 +3683,18 @@ export default function SalesInvoiceDashboard() {
                           disabled={selectableInvoices.length === 0}
                         />
                       </TableHead>
-                      <TableHead className="px-1"></TableHead>
-                      <TableHead className="font-semibold">Invoice No</TableHead>
-                      <TableHead className="font-semibold">Customer</TableHead>
-                      {columnSettings.phone && <TableHead className="font-semibold">Phone</TableHead>}
-                      <TableHead className="font-semibold">Date</TableHead>
-                      <TableHead className="text-center font-semibold px-0.5">Qty</TableHead>
-                      <TableHead className="text-right font-semibold px-1">DIS</TableHead>
-                      <TableHead className="font-semibold text-right">Amount</TableHead>
-                      {columnSettings.status && <TableHead className="font-semibold px-1">Status</TableHead>}
-                      {columnSettings.status && <TableHead className="text-right font-semibold px-1">Balance</TableHead>}
-                      {columnSettings.delivery && <TableHead className="font-semibold px-1">Delivery</TableHead>}
-                      <TableHead className="text-right font-semibold px-1">Actions</TableHead>
+                      <TableHead className="px-1 text-white"></TableHead>
+                      <TableHead className="text-white">Invoice No</TableHead>
+                      <TableHead className="text-white">Customer</TableHead>
+                      {columnSettings.phone && <TableHead className="text-white">Phone</TableHead>}
+                      <TableHead className="text-white">Date</TableHead>
+                      <TableHead className="text-center px-0.5 text-white">Qty</TableHead>
+                      <TableHead className="text-right px-1 text-white">DIS</TableHead>
+                      <TableHead className="text-right text-white">Amount</TableHead>
+                      {columnSettings.status && <TableHead className="px-1 text-white">Status</TableHead>}
+                      {columnSettings.status && <TableHead className="text-right px-1 text-white">Balance</TableHead>}
+                      {columnSettings.delivery && <TableHead className="px-1 text-white">Delivery</TableHead>}
+                      <TableHead className="text-right px-1 text-white">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -3719,7 +3737,7 @@ export default function SalesInvoiceDashboard() {
                         <>
                           <TableRow 
                             key={invoice.id} 
-                            className="cursor-pointer hover:bg-accent/50"
+                            className="h-9 cursor-pointer border-b border-slate-100"
                             onContextMenu={(e) => handleRowContextMenu(e, invoice)}
                           >
                             <TableCell onClick={(e) => e.stopPropagation()}>
@@ -3743,7 +3761,7 @@ export default function SalesInvoiceDashboard() {
                               <div className="flex flex-col gap-0.5 min-w-0 max-w-full">
                                 <div className="flex items-center gap-1 flex-wrap">
                                   <span
-                                    className="break-words font-mono text-base font-bold text-primary cursor-pointer hover:underline"
+                                    className="break-words font-mono text-[15px] font-bold text-blue-700 cursor-pointer hover:underline"
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       setSelectedInvoiceForHistory({ id: invoice.id });
@@ -3763,13 +3781,13 @@ export default function SalesInvoiceDashboard() {
                                     </span>
                                   )}
                                 </div>
-                                <span className="text-[11px] text-muted-foreground tabular-nums">
+                                <span className="text-[10px] text-slate-500 tabular-nums leading-none">
                                   {invoice.sale_date ? format(new Date(invoice.sale_date), 'hh:mm a') : ''}
                                 </span>
                               </div>
                             </TableCell>
                             <TableCell
-                              className="cursor-pointer text-blue-600 hover:underline align-top truncate max-w-0 text-sm font-semibold"
+                              className="cursor-pointer text-blue-700 hover:underline align-top truncate max-w-0 text-sm font-semibold"
                               title={invoice.customer_name?.toUpperCase()}
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -3779,7 +3797,7 @@ export default function SalesInvoiceDashboard() {
                               {invoice.customer_name?.toUpperCase()}
                             </TableCell>
                             {columnSettings.phone && (
-                              <TableCell className="text-sm font-medium" onClick={() => toggleExpanded(invoice.id, invoice.sale_number)}>
+                              <TableCell className="text-sm font-medium tabular-nums" onClick={() => toggleExpanded(invoice.id, invoice.sale_number)}>
                                 {invoice.customer_phone || '-'}
                               </TableCell>
                             )}
@@ -3804,7 +3822,7 @@ export default function SalesInvoiceDashboard() {
                                 )}
                               </div>
                             </TableCell>
-                            <TableCell onClick={() => toggleExpanded(invoice.id, invoice.sale_number)} className={cn("text-sm font-bold text-primary tabular-nums text-right", isSaleInvoiceCancelled(invoice) && "line-through text-muted-foreground")}>₹{Math.round(invoice.net_amount).toLocaleString('en-IN')}</TableCell>
+                            <TableCell onClick={() => toggleExpanded(invoice.id, invoice.sale_number)} className={cn("text-sm font-bold text-blue-700 tabular-nums text-right", isSaleInvoiceCancelled(invoice) && "line-through text-muted-foreground")}>₹{Math.round(invoice.net_amount).toLocaleString('en-IN')}</TableCell>
                             {columnSettings.status && (
                               <TableCell className="text-center" onClick={() => toggleExpanded(invoice.id, invoice.sale_number)}>
                                 {isSaleInvoiceCancelled(invoice) ? (
@@ -4178,15 +4196,15 @@ export default function SalesInvoiceDashboard() {
                 </Table>
                 </div>
             {totalCount > 0 && (
-              <div className="flex items-center justify-between px-2 py-1.5 border-t border-slate-100 bg-white shrink-0">
-                <div className="flex items-center gap-3">
-                  <div className="text-xs text-slate-500">
+              <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-slate-100 bg-white px-4 py-2.5">
+                <div className="flex flex-wrap items-center gap-4">
+                  <div className="text-sm text-slate-500 tabular-nums">
                     Showing {(currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, totalCount)} of {totalCount} invoices
                   </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-xs text-slate-500">Show:</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-slate-500">Show:</span>
                     <Select value={itemsPerPage.toString()} onValueChange={handlePageSizeChange}>
-                      <SelectTrigger className="w-[4.5rem] h-7 text-xs">
+                      <SelectTrigger className="w-20 h-9 text-sm border-slate-200">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent className="bg-popover z-50">
@@ -4199,18 +4217,18 @@ export default function SalesInvoiceDashboard() {
                     </Select>
                   </div>
                 </div>
-                <div className="flex gap-1.5">
+                <div className="flex items-center gap-2">
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={handlePreviousPage}
                     disabled={currentPage === 1}
-                    className="h-7 text-xs px-2.5 border-slate-200"
+                    className="h-9 text-sm px-3 border-slate-200"
                   >
                     Previous
                   </Button>
                   <div className="flex items-center gap-1.5 px-1">
-                    <span className="text-xs text-slate-600 font-medium">
+                    <span className="text-sm text-slate-600 font-medium tabular-nums">
                       Page {currentPage} of {totalPages}
                     </span>
                   </div>
@@ -4219,7 +4237,7 @@ export default function SalesInvoiceDashboard() {
                     size="sm"
                     onClick={handleNextPage}
                     disabled={currentPage === totalPages}
-                    className="h-7 text-xs px-2.5 border-slate-200"
+                    className="h-9 text-sm px-3 border-slate-200"
                   >
                     Next
                   </Button>
