@@ -357,6 +357,8 @@ export default function StockReport() {
   const [currentPage, setCurrentPage] = useState(1);
   const [serverTotalRows, setServerTotalRows] = useState(0);
   const ITEMS_PER_PAGE = 100;
+  /** Size-wise groups all sizes per product — fetch full match set (no pagination). */
+  const SIZE_WISE_FETCH_LIMIT = 10000;
   const searchRequestIdRef = useRef(0);
 
   const stockFilterSnapshot = useMemo(
@@ -699,6 +701,9 @@ export default function StockReport() {
 
       const requestId = ++searchRequestIdRef.current;
       setLoading(true);
+      const isSizeWiseTab = activeTab === "sizewise";
+      const fetchLimit = isSizeWiseTab ? SIZE_WISE_FETCH_LIMIT : ITEMS_PER_PAGE;
+      const fetchOffset = isSizeWiseTab ? 0 : (page - 1) * ITEMS_PER_PAGE;
 
       try {
         const oldBarcodePromise =
@@ -715,8 +720,8 @@ export default function StockReport() {
           }
         ).rpc("get_stock_report", {
           p_org_id: currentOrganization.id,
-          p_limit: ITEMS_PER_PAGE,
-          p_offset: (page - 1) * ITEMS_PER_PAGE,
+          p_limit: fetchLimit,
+          p_offset: fetchOffset,
           p_search: searchTerm.trim() || null,
           p_category: categoryFilter !== "all" ? categoryFilter : null,
           p_brand: brandFilter !== "all" ? brandFilter : null,
@@ -728,6 +733,8 @@ export default function StockReport() {
           p_size: sizeFilter !== "all" ? sizeFilter : null,
           p_color: colorFilter !== "all" ? colorFilter : null,
           p_product_name: buildStockReportRpcProductName(productNameFilter, pinnedProducts),
+          p_supplier: supplierFilter !== "all" ? supplierFilter : null,
+          p_supplier_invoice: supplierInvoiceFilter !== "all" ? supplierInvoiceFilter : null,
         });
 
         if (error) throw error;
@@ -787,6 +794,7 @@ export default function StockReport() {
     [
       currentOrganization?.id,
       stockReportHasFilters,
+      activeTab,
       searchTerm,
       productNameFilter,
       pinnedProducts,
@@ -795,9 +803,12 @@ export default function StockReport() {
       departmentFilter,
       sizeFilter,
       colorFilter,
+      supplierFilter,
+      supplierInvoiceFilter,
       stockStatusFilter,
       lowStockThreshold,
       ITEMS_PER_PAGE,
+      SIZE_WISE_FETCH_LIMIT,
     ],
   );
 
@@ -820,6 +831,7 @@ export default function StockReport() {
         supplierFilter,
         supplierInvoiceFilter,
         stockStatusFilter,
+        activeTab,
         pinned: pinnedProducts
           .map((p) => p.id)
           .sort()
@@ -835,6 +847,7 @@ export default function StockReport() {
       supplierFilter,
       supplierInvoiceFilter,
       stockStatusFilter,
+      activeTab,
       pinnedProducts,
     ],
   );
@@ -1017,11 +1030,8 @@ export default function StockReport() {
     [filteredStockItems],
   );
 
-  // Server-side pagination total; supplier / multi-pin filters apply within the page
-  const hasClientOnlyFilters =
-    supplierFilter !== "all" ||
-    supplierInvoiceFilter !== "all" ||
-    pinnedProducts.length > 1;
+  // Server-side pagination total; multi-pin filter still applies within the page
+  const hasClientOnlyFilters = pinnedProducts.length > 1;
 
   const footerIsPageTotal = hasSearched && serverTotalRows > ITEMS_PER_PAGE;
 
