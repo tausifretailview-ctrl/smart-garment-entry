@@ -25,6 +25,7 @@ import { PosDeliveryChallanLayout } from "@/components/PosDeliveryChallanLayout"
 import { SchoolFeatureGate } from "./components/school/SchoolFeatureGate";
 import { getStoredOrgSlug } from "@/lib/orgSlug";
 import InstallApp from "./pages/InstallApp";
+const OAuthConsent = lazyWithRetry(() => import("./pages/OAuthConsent"));
 import { MobileOrgIndexRedirect } from "@/components/mobile/MobileOrgIndexRedirect";
 import { NativeAppBridge } from "@/components/NativeAppBridge";
 import { AppBootSplash } from "@/components/AppBootSplash";
