@@ -74,7 +74,7 @@ export const FullScreenLayout = ({ children }: FullScreenLayoutProps) => {
   const hideBillingChrome = isNoSidebarEntryPath(location.pathname);
   const showSidebar = showDesktopChrome && !hideBillingChrome;
   const showHeader = showDesktopChrome && !hideBillingChrome;
-  const showWindowTabsBar = showDesktopChrome;
+  const showWindowTabsBar = showDesktopChrome && !hideBillingChrome;
 
   return (
     <ChatProvider>

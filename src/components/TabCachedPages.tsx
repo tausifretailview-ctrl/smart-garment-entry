@@ -20,7 +20,7 @@ import { POSLayout } from "@/components/POSLayout";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { DashboardSkeleton } from "@/components/ui/skeletons";
-import { Skeleton } from "@/components/ui/skeleton";
+import { AppBootSplash } from "@/components/AppBootSplash";
 import { isElectronShell, shouldElectronMountOnlyActiveTab } from "@/lib/electronShell";
 import {
   markTabCachePaneMounted,
@@ -224,16 +224,7 @@ function getTabLoadTimeoutMs(path: string): number {
 }
 
 function EntryTabShellFallback() {
-  return (
-    <div className="flex h-full min-h-0 w-full flex-col bg-slate-50">
-      <div className="h-[52px] shrink-0 bg-gradient-to-r from-slate-900 to-slate-800 border-b-2 border-green-500/50" />
-      <div className="flex-1 min-h-0 space-y-3 p-3 sm:p-4">
-        <Skeleton className="h-20 w-full rounded-lg" />
-        <Skeleton className="h-10 w-full max-w-xl rounded-md" />
-        <Skeleton className="h-[min(50vh,28rem)] w-full rounded-lg" />
-      </div>
-    </div>
-  );
+  return <AppBootSplash message="Loading bill screen…" />;
 }
 
 function TabPageWithPerf({
@@ -295,6 +286,9 @@ function TabPageFallback({
   }
 
   if (LIST_DASHBOARD_SHELL_PATHS.has(path) && !timedOut) {
+    if (isElectronShell()) {
+      return <AppBootSplash message="Loading dashboard…" />;
+    }
     return <DashboardSkeleton />;
   }
 
@@ -318,6 +312,10 @@ function TabPageFallback({
         </div>
       </div>
     );
+  }
+
+  if (isElectronShell()) {
+    return <AppBootSplash message="Loading page…" />;
   }
 
   return (

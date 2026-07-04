@@ -45,9 +45,9 @@ export function DesktopAppShell({ children, className }: DesktopAppShellProps) {
               {!billingFullScreen && <SidebarExpandStrip />}
               <SidebarInset className="flex min-h-0 flex-1 flex-col min-w-0 overflow-hidden">
                 {!billingFullScreen && !sidebarOnlyWorkspace && <Header />}
-                {!sidebarOnlyWorkspace && <WindowTabsBar />}
+                {!billingFullScreen && !sidebarOnlyWorkspace && <WindowTabsBar />}
                 <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{children}</div>
-                <StatusBar />
+                {!billingFullScreen && <StatusBar />}
               </SidebarInset>
             </div>
 

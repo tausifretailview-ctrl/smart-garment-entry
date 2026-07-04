@@ -3,9 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Outlet, useParams, useLocation } from "react-router-dom";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useAuth } from "@/contexts/AuthContext";
-import { Loader2 } from "lucide-react";
-import OrgAuth from "@/pages/OrgAuth";
-import { storeOrgSlug } from "@/lib/orgSlug";
+import { AppBootSplash } from "@/components/AppBootSplash";
 import { hideAppBootSplash } from "@/lib/appBootSplash";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -334,11 +332,7 @@ export const OrgLayout = () => {
 
   // Show loading only while auth is being determined
   if (authLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
+    return <AppBootSplash message="Starting Ezzy ERP…" />;
   }
 
   // If not logged in, render org login page immediately (don't wait for orgLoading)
@@ -348,11 +342,7 @@ export const OrgLayout = () => {
 
   // Only wait for org loading when user IS authenticated
   if (orgLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
+    return <AppBootSplash message="Loading organization…" />;
   }
 
   // Check if user belongs to this organization
@@ -366,11 +356,7 @@ export const OrgLayout = () => {
 
   // Wait for organization to be synced before rendering children (with timeout fallback)
   if (!isOrgSynced && !syncTimeout) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
+    return <AppBootSplash message="Preparing workspace…" />;
   }
 
   // Window tabs need a fixed viewport height chain so dashboard panes scroll inside <main>.

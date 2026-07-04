@@ -536,7 +536,7 @@ export const Header = () => {
             variant="ghost"
             size="icon"
             className="h-7 w-7 text-white/90 hover:text-white hover:bg-white/10"
-            title={isDesktopApp ? "Refresh app and check for updates (F5)" : "Refresh app and check for updates"}
+            title={isDesktopApp ? "Refresh app (F5)" : "Refresh app"}
             onClick={handleManualReload}
           >
             <RefreshCw className="h-3.5 w-3.5" />
@@ -579,7 +579,8 @@ export const Header = () => {
         </div>
       </div>
 
-      {/* ROW 2: Action toolbar — all shortcuts on one row; scroll horizontally if needed. */}
+      {/* ROW 2: Action toolbar — hidden in Electron (native menu + blue bar = web-style single header). */}
+      {!isDesktopApp && (
       <div className="sticky top-9 z-50 hidden lg:flex min-h-10 items-center px-3 py-1.5 gap-2 flex-nowrap overflow-x-auto bg-slate-100 dark:bg-slate-900/90 border-b border-border/80 shadow-sm">
         <div className="flex items-center gap-x-2 flex-1 min-w-0 flex-nowrap overflow-x-auto">
         {can("pos_sales") && (
@@ -720,6 +721,7 @@ export const Header = () => {
         </span>
         </div>
       </div>
+      )}
 
       {/* Dialogs */}
       <SizeStockDialog open={sizeStockOpen} onOpenChange={setSizeStockOpen} />

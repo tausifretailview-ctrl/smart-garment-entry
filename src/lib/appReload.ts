@@ -56,15 +56,15 @@ async function clearServiceWorkerAndCaches(): Promise<void> {
 }
 
 /**
- * Manual refresh from the header — fetches the latest web build and, on desktop,
- * also checks for a new installer version.
+ * Manual refresh from the header — fetches the latest web build from the server.
+ * Desktop installer updates are checked on startup and via Help → Check for Updates.
  */
 export async function reloadAppWithUpdateCheck(): Promise<void> {
   const api = getElectronAPI();
 
   if (isElectronShell()) {
     await clearServiceWorkerAndCaches();
-    void api?.checkForUpdates?.();
+    // Refresh loads the latest web build only — installer updates are checked on startup / Help menu.
     if (api?.reloadApp) {
       await api.reloadApp();
       return;

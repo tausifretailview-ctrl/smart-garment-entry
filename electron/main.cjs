@@ -108,9 +108,22 @@ function initAutoUpdater() {
   });
 }
 
-// Manual "Check for Updates" trigger (used by the Help menu).
-function checkForUpdatesManually() {
+// Manual "Check for Updates" trigger (Help menu). Silent when GitHub releases are unavailable.
+function isUpdaterUnavailableError(err) {
+  const msg = String(err && err.message ? err.message : err);
+  return (
+    msg.includes('404') ||
+    msg.includes('releases.atom') ||
+    msg.includes('401') ||
+    msg.includes('403') ||
+    msg.includes('ENOTFOUND') ||
+    msg.includes('net::ERR')
+  );
+}
+
+function checkForUpdatesManually(interactive = true) {
   if (!app.isPackaged) {
+    if (!interactive) return;
     dialog.showMessageBox(mainWindow, {
       type: 'info',
       title: 'Check for Updates',
@@ -123,6 +136,7 @@ function checkForUpdatesManually() {
   autoUpdater
     .checkForUpdates()
     .then((result) => {
+      if (!interactive) return;
       const latest = result && result.updateInfo ? result.updateInfo.version : null;
       const current = app.getVersion();
       if (latest && latest === current) {
@@ -136,11 +150,13 @@ function checkForUpdatesManually() {
       }
     })
     .catch((err) => {
+      console.warn('[auto-updater] manual check failed', err);
+      if (!interactive || isUpdaterUnavailableError(err)) return;
       dialog.showMessageBox(mainWindow, {
         type: 'error',
         title: 'Update check failed',
         message: 'Could not check for updates.',
-        detail: String(err && err.message ? err.message : err),
+        detail: 'Press F5 to refresh the app from the server, or try again later.',
         buttons: ['OK'],
       });
     });
@@ -300,9 +316,8 @@ function createWindow() {
     title: 'EzzyERP — Smart Inventory & Billing',
     ...(icon ? { icon: icon.image } : {}),
 
-    // Native Windows chrome — gives the Tally / Vyapar "desktop software" feel.
-    // Title bar + menu bar are visible at the top, drawn by Windows itself.
-    autoHideMenuBar: false,
+    // Native Windows chrome — menu bar auto-hides (Alt to show) for a cleaner web-app feel.
+    autoHideMenuBar: true,
 
     backgroundColor: '#F5F7FA', // match index.html splash — no white flash on Windows cold start
     show: false, // Show after ready-to-show (branded splash in page)
@@ -442,20 +457,34 @@ function createWindow() {
       box-sizing: border-box !important;
     }
 
-    /* Sales Invoice / Purchase Entry: scroll when tall; keep room above the
-       fixed ERP status bar so Save Invoice / Save Bill is never covered. */
-    [data-entry-form] {
-      height: auto !important;
-      min-height: calc(var(--ezzy-viewport-h, 100dvh) - var(--ezzy-hint-bar-height, 22px));
-      max-height: calc(var(--ezzy-viewport-h, 100dvh) - var(--ezzy-hint-bar-height, 22px));
-      overflow-y: auto !important;
-      padding-bottom: var(--erp-status-bar-height, 1.75rem) !important;
+    /* Sales Invoice / Purchase Entry: flex column — footer pinned to bottom, lines scroll inside <main>. */
+    html.desktop-shell [data-entry-form] {
+      display: flex !important;
+      flex-direction: column !important;
+      flex: 1 1 auto !important;
+      min-height: 0 !important;
+      height: 100% !important;
+      max-height: 100% !important;
+      overflow: hidden !important;
+      padding-bottom: 0 !important;
     }
 
-    .entry-page-footer {
-      position: sticky !important;
-      bottom: var(--erp-status-bar-height, 1.75rem) !important;
+    html.desktop-shell body.entry-bill-screen [data-entry-form] > main {
+      flex: 1 1 auto !important;
+      min-height: 0 !important;
+      overflow: hidden !important;
+    }
+
+    html.desktop-shell .entry-page-footer {
+      position: static !important;
+      flex-shrink: 0 !important;
+      bottom: auto !important;
+      margin-top: auto !important;
       z-index: 55 !important;
+    }
+
+    html.desktop-shell body.entry-bill-screen #ezzy-hint-bar {
+      bottom: 0 !important;
     }
 
     /* ── Tally / Vyapar keyboard-hint strip (Electron only) ─────────
@@ -1151,8 +1180,8 @@ ipcMain.handle('reload-app', async () => {
   return { success: true };
 });
 
-ipcMain.handle('check-for-updates', async () => {
-  checkForUpdatesManually();
+ipcMain.handle('check-for-updates', async (_event, interactive = true) => {
+  checkForUpdatesManually(!!interactive);
   return { success: true };
 });
 
