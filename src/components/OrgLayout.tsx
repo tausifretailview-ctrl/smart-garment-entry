@@ -4,6 +4,7 @@ import { Outlet, useParams, useLocation } from "react-router-dom";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { AppBootSplash } from "@/components/AppBootSplash";
+import OrgAuth from "@/pages/OrgAuth";
 import { hideAppBootSplash } from "@/lib/appBootSplash";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
