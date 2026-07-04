@@ -25,7 +25,7 @@ import {
   recordSupplierPaymentJournalEntry,
 } from "@/utils/accounting/journalService";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
-import { resolvePaymentTabLayout } from "@/utils/paymentTabLayout";
+import { paymentSubmitFooterClass, resolvePaymentPickerGridHeight, resolvePaymentTabLayout } from "@/utils/paymentTabLayout";
 import { AccountsHistoryPanel } from "@/components/accounts/AccountsHistoryPanel";
 import {
   accountsHistoryTableClass,
@@ -771,23 +771,16 @@ export function SupplierPaymentTab({
 
   const paymentBreakdown = resolvePaymentBreakdown(amount, discountPercent, discountAmount);
 
-  const billGridMaxHeight = useMemo(() => {
-    const count = payableBills.length;
-    if (count === 0) return undefined;
-    const headerPx = 44;
-    const rowPx = 36;
-    const contentPx = headerPx + count * rowPx;
-    const capPx = compact ? 420 : fullPage ? 720 : 480;
-    const vhCapPx =
-      typeof window !== "undefined"
-        ? compact
-          ? Math.round(window.innerHeight * 0.48)
-          : fullPage
-            ? Math.round(window.innerHeight * 0.34)
-            : Math.round(window.innerHeight * 0.55)
-        : capPx;
-    return Math.min(Math.max(contentPx, 200), capPx, vhCapPx);
-  }, [payableBills.length, compact, fullPage]);
+  const billGridMaxHeight = useMemo(
+    () =>
+      resolvePaymentPickerGridHeight({
+        rowCount: payableBills.length,
+        compact,
+        fullPage,
+      }),
+    [payableBills.length, compact, fullPage],
+  );
+  const billGridMinHeight = fullPage ? 320 : 200;
 
   useEffect(() => {
     if (discountPercent || discountAmount || discountReason || paymentBreakdown.discount > 0) {
@@ -972,7 +965,11 @@ export function SupplierPaymentTab({
                 {payableBills.length > 0 ? (
                   <div
                     className="border rounded-lg overflow-y-auto overflow-x-auto bg-white dark:bg-background"
-                    style={billGridMaxHeight ? { maxHeight: billGridMaxHeight } : undefined}
+                    style={
+                      billGridMaxHeight
+                        ? { maxHeight: billGridMaxHeight, minHeight: billGridMinHeight }
+                        : { minHeight: billGridMinHeight }
+                    }
                   >
                     <Table className={cn(shell && (compact ? "text-sm [&_td]:py-1.5" : "text-sm [&_td]:py-2"))}>
                       <TableHeader className="sticky top-0 z-10">
@@ -1282,7 +1279,7 @@ export function SupplierPaymentTab({
               </div>
             </div>
 
-            <div className="flex gap-2">
+            <div className={cn("flex gap-2", paymentSubmitFooterClass(fullPage))}>
               <Button
                 type="submit"
                 className="w-full md:w-auto"

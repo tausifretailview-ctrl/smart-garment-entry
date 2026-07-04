@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, Banknote, History } from "lucide-react";
+import { ArrowLeft, Banknote, ChevronDown, ChevronUp, History } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -66,6 +66,7 @@ export default function AccountsPaymentsPage() {
   );
   const [navIndex, setNavIndex] = useState<number | null>(null);
   const [showAdvanceDialog, setShowAdvanceDialog] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   const paymentDialogs = useAccountsPaymentDialogs(settings);
   const { vouchers, sales, customers, suppliers, employees } = useAccountsVoucherData(
@@ -82,6 +83,7 @@ export default function AccountsPaymentsPage() {
 
   useEffect(() => {
     setNavIndex(null);
+    setHistoryOpen(false);
   }, [activeTab]);
 
   const historyRecordCount = useMemo(() => {
@@ -156,8 +158,13 @@ export default function AccountsPaymentsPage() {
               ))}
             </TabsList>
 
-            {/* Entry form — top pane */}
-            <Card className="flex-[3] min-h-0 flex flex-col overflow-hidden rounded-lg border border-slate-200 shadow-sm p-0">
+            {/* Entry form — primary pane; expands when history is collapsed */}
+            <Card
+              className={cn(
+                "min-h-0 flex flex-col overflow-hidden rounded-lg border border-slate-200 shadow-sm p-0",
+                historyOpen ? "flex-[3]" : "flex-1",
+              )}
+            >
               <div className="flex-1 min-h-0 overflow-y-auto px-3 sm:px-4 py-3">
                 <TabsContent value="customer-payment" className="mt-0 outline-none data-[state=inactive]:hidden">
                   <CustomerPaymentTab
@@ -190,9 +197,48 @@ export default function AccountsPaymentsPage() {
               </div>
             </Card>
 
-            {/* History — bottom pane, always visible */}
-            <Card className="flex-[2] min-h-[220px] flex flex-col overflow-hidden rounded-lg border border-slate-200 shadow-sm p-0">
-              <div className="shrink-0 flex items-center gap-2 px-3 py-2 border-b border-slate-100 bg-white">
+            {/* History — collapsed by default; click to expand */}
+            {historyOpen ? (
+              <Card className="flex-[2] min-h-[220px] flex flex-col overflow-hidden rounded-lg border border-slate-200 shadow-sm p-0">
+                <button
+                  type="button"
+                  onClick={() => setHistoryOpen(false)}
+                  className="shrink-0 flex w-full items-center gap-2 px-3 py-2 border-b border-slate-100 bg-white text-left hover:bg-slate-50 transition-colors"
+                >
+                  <History className="h-4 w-4 text-teal-700 shrink-0" />
+                  <span className="text-sm font-semibold text-slate-800">
+                    {HISTORY_TAB_LABELS[activeTab]}
+                  </span>
+                  <span className="text-xs text-muted-foreground tabular-nums">
+                    ({historyRecordCount.toLocaleString("en-IN")})
+                  </span>
+                  <span className="ml-auto flex items-center gap-1 text-xs text-teal-700 font-medium shrink-0">
+                    Hide
+                    <ChevronUp className="h-4 w-4" />
+                  </span>
+                </button>
+                <div className="flex-1 min-h-0">
+                  <PaymentTransactionHistoryPanel
+                    tab={activeTab}
+                    vouchers={vouchers}
+                    sales={sales}
+                    customers={customers}
+                    suppliers={suppliers}
+                    employees={employees}
+                    organizationId={orgId}
+                    navIndex={navIndex}
+                    onNavIndexChange={setNavIndex}
+                    onShowReceipt={paymentDialogs.handleShowReceipt}
+                    onEditPayment={paymentDialogs.openEditPaymentDialog}
+                  />
+                </div>
+              </Card>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setHistoryOpen(true)}
+                className="shrink-0 flex w-full items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-left shadow-sm hover:bg-slate-50 hover:border-teal-200 transition-colors"
+              >
                 <History className="h-4 w-4 text-teal-700 shrink-0" />
                 <span className="text-sm font-semibold text-slate-800">
                   {HISTORY_TAB_LABELS[activeTab]}
@@ -200,23 +246,12 @@ export default function AccountsPaymentsPage() {
                 <span className="text-xs text-muted-foreground tabular-nums">
                   ({historyRecordCount.toLocaleString("en-IN")})
                 </span>
-              </div>
-              <div className="flex-1 min-h-0">
-                <PaymentTransactionHistoryPanel
-                  tab={activeTab}
-                  vouchers={vouchers}
-                  sales={sales}
-                  customers={customers}
-                  suppliers={suppliers}
-                  employees={employees}
-                  organizationId={orgId}
-                  navIndex={navIndex}
-                  onNavIndexChange={setNavIndex}
-                  onShowReceipt={paymentDialogs.handleShowReceipt}
-                  onEditPayment={paymentDialogs.openEditPaymentDialog}
-                />
-              </div>
-            </Card>
+                <span className="ml-auto flex items-center gap-1 text-xs text-muted-foreground shrink-0">
+                  Click to view
+                  <ChevronDown className="h-4 w-4" />
+                </span>
+              </button>
+            )}
           </Tabs>
         </div>
       </div>

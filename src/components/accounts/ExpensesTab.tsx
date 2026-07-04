@@ -31,6 +31,7 @@ import {
   paymentPickerRefClass,
 } from "@/components/accounts/accountsHistoryUi";
 import { AccountingEntriesGuide } from "@/components/accounting/AccountingEntriesGuide";
+import { paymentSubmitFooterClass } from "@/utils/paymentTabLayout";
 import {
   Tooltip,
   TooltipContent,
@@ -751,7 +752,12 @@ export function ExpensesTab({
               </div>
             </div>
 
-            <Button type="submit" size="sm" className="gap-1.5" disabled={createExpense.isPending}>
+            <Button
+              type="submit"
+              size="sm"
+              className={cn("gap-1.5", paymentSubmitFooterClass(fullPage))}
+              disabled={createExpense.isPending}
+            >
               <Plus className="h-3.5 w-3.5" />
               {createExpense.isPending ? "Recording..." : "Record Expense"}
             </Button>

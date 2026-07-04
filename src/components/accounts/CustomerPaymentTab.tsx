@@ -74,7 +74,7 @@ import {
   readCustomerOpeningBalanceFromOrgLedgerCache,
 } from "@/utils/customerOpeningBalanceRemaining";
 import { STALE_FREQUENT } from "@/lib/queryStaleTimes";
-import { resolvePaymentTabLayout } from "@/utils/paymentTabLayout";
+import { paymentSubmitFooterClass, resolvePaymentPickerGridHeight, resolvePaymentTabLayout } from "@/utils/paymentTabLayout";
 import {
   consumeAdvanceFIFO,
   createReceiptVoucher,
@@ -1491,24 +1491,16 @@ export function CustomerPaymentTab({
     [amount, discountPercent, discountAmount],
   );
 
-  const invoiceGridMaxHeight = useMemo(() => {
-    const count =
-      (customerInvoices?.length ?? 0) + (openingBalanceRemaining > 0 ? 1 : 0);
-    if (count === 0) return undefined;
-    const headerPx = 44;
-    const rowPx = 36;
-    const contentPx = headerPx + count * rowPx;
-    const capPx = compact ? 420 : fullPage ? 720 : 480;
-    const vhCapPx =
-      typeof window !== "undefined"
-        ? compact
-          ? Math.round(window.innerHeight * 0.48)
-          : fullPage
-            ? Math.round(window.innerHeight * 0.34)
-            : Math.round(window.innerHeight * 0.55)
-        : capPx;
-    return Math.min(Math.max(contentPx, 200), capPx, vhCapPx);
-  }, [customerInvoices?.length, openingBalanceRemaining, compact, fullPage]);
+  const invoiceGridMaxHeight = useMemo(
+    () =>
+      resolvePaymentPickerGridHeight({
+        rowCount: (customerInvoices?.length ?? 0) + (openingBalanceRemaining > 0 ? 1 : 0),
+        compact,
+        fullPage,
+      }),
+    [customerInvoices?.length, openingBalanceRemaining, compact, fullPage],
+  );
+  const invoiceGridMinHeight = fullPage ? 320 : 200;
 
   useEffect(() => {
     if (discountPercent || discountAmount || discountReason || paymentBreakdown.discount > 0) {
@@ -1681,7 +1673,11 @@ export function CustomerPaymentTab({
                   <>
                     <div
                       className="border rounded-lg overflow-y-auto overflow-x-auto bg-white dark:bg-background"
-                      style={invoiceGridMaxHeight ? { maxHeight: invoiceGridMaxHeight, minHeight: 200 } : { minHeight: 200 }}
+                      style={
+                        invoiceGridMaxHeight
+                          ? { maxHeight: invoiceGridMaxHeight, minHeight: invoiceGridMinHeight }
+                          : { minHeight: invoiceGridMinHeight }
+                      }
                     >
                       <Table
                         className={cn(
@@ -2099,7 +2095,7 @@ export function CustomerPaymentTab({
               const isZeroBalance = outstandingBalance <= 0;
               const isDisabled = isZeroBalance || isExcessPayment;
               return (
-                <div className={cn("space-y-2", compact && "space-y-1 pt-0.5")}>
+                <div className={cn("space-y-2", compact && "space-y-1 pt-0.5", paymentSubmitFooterClass(fullPage))}>
                   {isExcessPayment && (
                     <p className="text-sm text-red-600 dark:text-red-400">
                       ⚠️ Payment (₹{Math.round(totalSettled).toLocaleString('en-IN')}) exceeds outstanding balance (₹{Math.round(outstandingBalance).toLocaleString('en-IN')})
