@@ -21,7 +21,6 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
 import { useState, useEffect, useMemo } from "react";
 import { SizeStockDialog } from "@/components/SizeStockDialog";
-import { FloatingAccountsPaymentsDialog } from "@/components/FloatingAccountsPaymentsDialog";
 import { FloatingStockReport, FloatingSaleReport } from "@/components/FloatingPOSReports";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { resolveFirstAllowedPath } from "@/lib/menuPermissions";
@@ -50,7 +49,6 @@ export const Header = () => {
   const [sizeStockOpen, setSizeStockOpen] = useState(false);
   const [quickStockOpen, setQuickStockOpen] = useState(false);
   const [quickSaleOpen, setQuickSaleOpen] = useState(false);
-  const [paymentsOpen, setPaymentsOpen] = useState(false);
   const { isInstallable, isInstalled, promptInstall } = useInstallPrompt();
   const isDesktopApp = isElectronShell();
   const { hasMenuAccess, hasMainMenuAccess, hasSpecialPermission, permissions, loading: permissionsLoading } = useUserPermissions();
@@ -677,7 +675,7 @@ export const Header = () => {
         {canQuickPayments && (
           <Button
             variant="ghost"
-            onClick={() => setPaymentsOpen(true)}
+            onClick={() => orgNavigate("/accounts-payments")}
             className={shortcutBtn("bg-teal-600 hover:bg-teal-700", "px-2.5")}
             title="Customer & supplier payments, expenses, salaries"
           >
@@ -727,7 +725,6 @@ export const Header = () => {
       <SizeStockDialog open={sizeStockOpen} onOpenChange={setSizeStockOpen} />
       <FloatingStockReport open={quickStockOpen} onOpenChange={setQuickStockOpen} />
       <FloatingSaleReport open={quickSaleOpen} onOpenChange={setQuickSaleOpen} />
-      <FloatingAccountsPaymentsDialog open={paymentsOpen} onOpenChange={setPaymentsOpen} />
     </>
   );
 };

@@ -25,6 +25,7 @@ import {
   recordSupplierPaymentJournalEntry,
 } from "@/utils/accounting/journalService";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
+import { resolvePaymentTabLayout } from "@/utils/paymentTabLayout";
 import { AccountsHistoryPanel } from "@/components/accounts/AccountsHistoryPanel";
 import {
   accountsHistoryTableClass,
@@ -83,6 +84,7 @@ interface SupplierPaymentTabProps {
   suppliers: any[] | undefined;
   onEditPayment?: (voucher: any) => void;
   embedded?: boolean;
+  fullPage?: boolean;
   visitedTabs?: ReadonlySet<string>;
   /** Shared org balance map from Accounts.tsx — omit in floating/embedded dialogs. */
   supplierBalanceMap?: SupplierBalanceMapForOrg;
@@ -94,10 +96,12 @@ export function SupplierPaymentTab({
   suppliers,
   onEditPayment,
   embedded = false,
+  fullPage = false,
   visitedTabs,
   supplierBalanceMap: supplierBalanceMapFromParent,
 }: SupplierPaymentTabProps) {
-  const tabActive = embedded || (visitedTabs?.has("supplier-payment") ?? true);
+  const { shell, compact } = resolvePaymentTabLayout({ embedded, fullPage });
+  const tabActive = shell || (visitedTabs?.has("supplier-payment") ?? true);
   const usesParentBalanceMap = visitedTabs !== undefined;
   const queryClient = useQueryClient();
   const { isAdmin } = useUserRoles();
@@ -135,7 +139,7 @@ export function SupplierPaymentTab({
   const { data: supplierBalanceMapLocal } = useQuery({
     queryKey: ["supplier-balance-map", organizationId],
     queryFn: () => loadSupplierBalanceMapForOrg(supabase, organizationId),
-    enabled: !!organizationId && !usesParentBalanceMap && (embedded || tabActive),
+    enabled: !!organizationId && !usesParentBalanceMap && (shell || tabActive),
     staleTime: 2 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
     refetchOnWindowFocus: false,
@@ -773,15 +777,17 @@ export function SupplierPaymentTab({
     const headerPx = 44;
     const rowPx = 36;
     const contentPx = headerPx + count * rowPx;
-    const capPx = embedded ? 420 : 480;
+    const capPx = compact ? 420 : fullPage ? 720 : 480;
     const vhCapPx =
       typeof window !== "undefined"
-        ? embedded
+        ? compact
           ? Math.round(window.innerHeight * 0.48)
-          : Math.round(window.innerHeight * 0.55)
+          : fullPage
+            ? Math.round(window.innerHeight * 0.34)
+            : Math.round(window.innerHeight * 0.55)
         : capPx;
     return Math.min(Math.max(contentPx, 200), capPx, vhCapPx);
-  }, [payableBills.length, embedded]);
+  }, [payableBills.length, compact, fullPage]);
 
   useEffect(() => {
     if (discountPercent || discountAmount || discountReason || paymentBreakdown.discount > 0) {
@@ -790,15 +796,15 @@ export function SupplierPaymentTab({
   }, [discountPercent, discountAmount, discountReason, paymentBreakdown.discount]);
 
   return (
-    <div className={cn(embedded ? "space-y-0" : "space-y-6")}>
-      <Card className={cn(embedded && "border-0 shadow-none bg-transparent")}>
-        <CardHeader className={cn(embedded ? "px-0 pt-0 pb-2" : undefined)}>
-          <CardTitle className={embedded ? "text-base" : undefined}>Supplier Payment (PAY)</CardTitle>
-          {!embedded && (
+    <div className={cn(shell ? "space-y-0" : "space-y-6")}>
+      <Card className={cn(shell && "border-0 shadow-none bg-transparent")}>
+        <CardHeader className={cn(shell ? "px-0 pt-0 pb-2" : undefined)}>
+          <CardTitle className={cn(shell && (compact ? "text-base" : "text-lg font-bold"))}>Supplier Payment (PAY)</CardTitle>
+          {!shell && (
             <CardDescription>Record payment made to suppliers - select bills or pay against opening balance</CardDescription>
           )}
         </CardHeader>
-        <CardContent className={cn(embedded && "px-0 pb-0")}>
+        <CardContent className={cn(shell && "px-0 pb-0")}>
           {balanceSnapshotDegraded && (
             <div className="mb-4 flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
               <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
@@ -807,8 +813,8 @@ export function SupplierPaymentTab({
               </span>
             </div>
           )}
-          <form onSubmit={handleSubmit} className={cn(embedded ? "space-y-2.5" : "space-y-4")}>
-            <div className={cn("grid grid-cols-1 md:grid-cols-2", embedded ? "gap-2" : "gap-4")}>
+          <form onSubmit={handleSubmit} className={cn(compact ? "space-y-2.5" : "space-y-4")}>
+            <div className={cn("grid grid-cols-1 md:grid-cols-2", compact ? "gap-2" : "gap-4")}>
               {/* Date */}
               <div className="space-y-2">
                 <Label>Date</Label>
@@ -956,7 +962,7 @@ export function SupplierPaymentTab({
             {referenceId && (
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <Label className={cn(embedded ? "text-xs font-medium" : "text-base font-semibold")}>Select Bills (Optional)</Label>
+                  <Label className={cn(compact ? "text-xs font-medium" : "text-sm font-semibold")}>Select Bills (Optional)</Label>
                   {selectedSupplierBillIds.length > 0 && (
                     <Button type="button" variant="ghost" size="sm" onClick={() => { setSelectedSupplierBillIds([]); setAmount(""); }}>
                       <X className="h-4 w-4 mr-1" /> Clear Selection
@@ -968,7 +974,7 @@ export function SupplierPaymentTab({
                     className="border rounded-lg overflow-y-auto overflow-x-auto bg-white dark:bg-background"
                     style={billGridMaxHeight ? { maxHeight: billGridMaxHeight } : undefined}
                   >
-                    <Table className={cn(embedded && "text-sm [&_td]:py-1.5")}>
+                    <Table className={cn(shell && (compact ? "text-sm [&_td]:py-1.5" : "text-sm [&_td]:py-2"))}>
                       <TableHeader className="sticky top-0 z-10">
                         <TableRow className="bg-slate-800 hover:bg-slate-800 border-none [&_th]:text-[11px] [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-wide [&_th]:text-white">
                           <TableHead className="w-[50px]">Select</TableHead>
@@ -1302,7 +1308,7 @@ export function SupplierPaymentTab({
         </CardContent>
       </Card>
 
-      {!embedded && (
+      {!shell && (
       <AccountsHistoryPanel
         title="Recent Supplier Payments"
         searchPlaceholder="Search by supplier name, voucher no, or description..."

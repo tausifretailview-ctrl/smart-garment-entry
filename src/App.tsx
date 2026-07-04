@@ -119,6 +119,7 @@ const CustomerAccountStatementAuditPage = lazyWithRetry(
 );
 const CustomerBalanceActivityPage = lazyWithRetry(() => import("./pages/CustomerBalanceActivityPage"));
 const CustomerPartyBalancesPage = lazyWithRetry(() => import("./pages/CustomerPartyBalancesPage"));
+const AccountsPaymentsPage = lazyWithRetry(() => import("./pages/AccountsPaymentsPage"));
 const SupplierPartyBalancesPage = lazyWithRetry(() => import("./pages/SupplierPartyBalancesPage"));
 const OrphanedProductsPage = lazyWithRetry(() => import("./pages/OrphanedProductsPage"));
 const CustomerReconciliation = lazyWithRetry(() => import("./pages/CustomerReconciliation"));
@@ -395,6 +396,7 @@ const App = () => {
               <Route path="/purchase-return-entry" element={<NonOrgRedirect path="purchase-return-entry" />} />
               <Route path="/payments-dashboard" element={<NonOrgRedirect path="payments-dashboard" />} />
               <Route path="/accounts" element={<NonOrgRedirect path="accounts" />} />
+              <Route path="/accounts-payments" element={<NonOrgRedirect path="accounts-payments" />} />
               <Route path="/sale-returns" element={<NonOrgRedirect path="sale-returns" />} />
               <Route path="/sale-return-entry/*" element={<NonOrgRedirectWithTail pathPrefix="sale-return-entry" />} />
               <Route path="/sale-return-dashboard" element={<NonOrgLegacySaleReturnDashboardRedirect />} />
@@ -1280,6 +1282,18 @@ const App = () => {
                       <Layout>
                         <CustomerPartyBalancesPage />
                       </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="accounts-payments"
+                  element={
+                    <ProtectedRoute>
+                      <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
+                        <Layout>
+                          <AccountsPaymentsPage />
+                        </Layout>
+                      </RoleProtectedRoute>
                     </ProtectedRoute>
                   }
                 />

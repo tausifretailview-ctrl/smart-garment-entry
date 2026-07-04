@@ -44,6 +44,7 @@ interface EmployeeSalaryTabProps {
   organizationId: string;
   vouchers: any[] | undefined;
   embedded?: boolean;
+  fullPage?: boolean;
   visitedTabs?: ReadonlySet<string>;
 }
 
@@ -51,9 +52,11 @@ export function EmployeeSalaryTab({
   organizationId,
   vouchers,
   embedded = false,
+  fullPage = false,
   visitedTabs,
 }: EmployeeSalaryTabProps) {
-  const tabActive = embedded || (visitedTabs?.has("employee-salary") ?? true);
+  const shell = embedded || fullPage;
+  const tabActive = shell || (visitedTabs?.has("employee-salary") ?? true);
   const queryClient = useQueryClient();
   const formatEntryDateTime = (value: string | null | undefined) => {
     if (!value) return "-";
@@ -309,7 +312,7 @@ export function EmployeeSalaryTab({
         </CardContent>
       </Card>
 
-      {!embedded && (
+      {!shell && (
       <AccountsHistoryPanel title="Recent Salary Payments">
           <Table className={accountsHistoryTableClass}>
             <TableHeader className="!static">

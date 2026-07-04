@@ -74,6 +74,7 @@ import {
   readCustomerOpeningBalanceFromOrgLedgerCache,
 } from "@/utils/customerOpeningBalanceRemaining";
 import { STALE_FREQUENT } from "@/lib/queryStaleTimes";
+import { resolvePaymentTabLayout } from "@/utils/paymentTabLayout";
 import {
   consumeAdvanceFIFO,
   createReceiptVoucher,
@@ -218,8 +219,10 @@ interface CustomerPaymentTabProps {
   onShowReceipt: (receiptData: any) => void;
   onShowAdvanceDialog: () => void;
   onEditPayment: (voucher: any) => void;
-  /** Hide recent-payments list (floating payments window shows shared history panel). */
+  /** Hide recent-payments list (floating / full-page window shows shared history panel). */
   embedded?: boolean;
+  /** Full viewport workspace — Vasy ERP scale; implies shell layout. */
+  fullPage?: boolean;
   visitedTabs?: ReadonlySet<string>;
 }
 
@@ -233,9 +236,11 @@ export function CustomerPaymentTab({
   onShowAdvanceDialog,
   onEditPayment,
   embedded = false,
+  fullPage = false,
   visitedTabs,
 }: CustomerPaymentTabProps) {
-  const tabActive = embedded || (visitedTabs?.has("customer-payment") ?? true);
+  const { shell, compact } = resolvePaymentTabLayout({ embedded, fullPage });
+  const tabActive = shell || (visitedTabs?.has("customer-payment") ?? true);
   const queryClient = useQueryClient();
   const { isAdmin } = useUserRoles();
   const isMobile = useIsMobile();
@@ -284,7 +289,7 @@ export function CustomerPaymentTab({
   } = useQuery({
     queryKey: ["customer-receipt-vouchers", organizationId],
     queryFn: () => fetchCustomerReceiptVouchers(organizationId),
-    enabled: !!organizationId && !embedded && tabActive,
+    enabled: !!organizationId && !shell && tabActive,
     staleTime: 60 * 1000,
     gcTime: 30 * 60 * 1000,
     refetchOnWindowFocus: false,
@@ -1427,7 +1432,7 @@ export function CustomerPaymentTab({
     createVoucher.mutate();
   };
 
-  const historyVoucherSource = embedded
+  const historyVoucherSource = shell
     ? vouchers
     : customerReceiptHistory ?? [];
   const historyPeriodBounds = useMemo(
@@ -1493,15 +1498,17 @@ export function CustomerPaymentTab({
     const headerPx = 44;
     const rowPx = 36;
     const contentPx = headerPx + count * rowPx;
-    const capPx = embedded ? 420 : 480;
+    const capPx = compact ? 420 : fullPage ? 720 : 480;
     const vhCapPx =
       typeof window !== "undefined"
-        ? embedded
+        ? compact
           ? Math.round(window.innerHeight * 0.48)
-          : Math.round(window.innerHeight * 0.55)
+          : fullPage
+            ? Math.round(window.innerHeight * 0.34)
+            : Math.round(window.innerHeight * 0.55)
         : capPx;
     return Math.min(Math.max(contentPx, 200), capPx, vhCapPx);
-  }, [customerInvoices?.length, openingBalanceRemaining, embedded]);
+  }, [customerInvoices?.length, openingBalanceRemaining, compact, fullPage]);
 
   useEffect(() => {
     if (discountPercent || discountAmount || discountReason || paymentBreakdown.discount > 0) {
@@ -1510,32 +1517,32 @@ export function CustomerPaymentTab({
   }, [discountPercent, discountAmount, discountReason, paymentBreakdown.discount]);
 
   return (
-    <div className={cn(embedded ? "space-y-0" : "space-y-6")}>
-      <Card className={cn(embedded && "border-0 shadow-none bg-transparent")}>
-        <CardHeader className={cn(embedded ? "px-0 pt-0 pb-2" : undefined)}>
-          <CardTitle className={cn("flex items-center justify-between gap-2", embedded && "text-base")}>
+    <div className={cn(shell ? "space-y-0" : "space-y-6")}>
+      <Card className={cn(shell && "border-0 shadow-none bg-transparent")}>
+        <CardHeader className={cn(shell ? "px-0 pt-0 pb-2" : undefined)}>
+          <CardTitle className={cn("flex items-center justify-between gap-2", shell && (compact ? "text-base" : "text-lg font-bold"))}>
             <span>Customer Payment Receipt (RCP)</span>
             {previewReceiptNumber && (
-              <Badge variant="outline" className={cn("font-mono bg-primary/10 text-primary border-primary/30", embedded ? "text-sm" : "text-lg")}>
+              <Badge variant="outline" className={cn("font-mono bg-primary/10 text-primary border-primary/30", compact ? "text-sm" : "text-base")}>
                 {previewReceiptNumber}
               </Badge>
             )}
           </CardTitle>
-          {!embedded && (
+          {!shell && (
             <CardDescription>Record payment received from customers</CardDescription>
           )}
         </CardHeader>
-        <CardContent className={cn(embedded && "px-0 pb-0")}>
-          <form onSubmit={handleSubmit} className={cn(embedded ? "space-y-2.5" : "space-y-4")} noValidate>
-            <div className={cn("grid grid-cols-1 md:grid-cols-2", embedded ? "gap-2" : "gap-4")}>
+        <CardContent className={cn(shell && "px-0 pb-0")}>
+          <form onSubmit={handleSubmit} className={cn(compact ? "space-y-2.5" : "space-y-4")} noValidate>
+            <div className={cn("grid grid-cols-1 md:grid-cols-2", compact ? "gap-2" : "gap-4")}>
               {/* Date */}
-              <div className={cn("space-y-2", embedded && "space-y-1")}>
-                <Label className={embedded ? "text-xs" : undefined}>Date</Label>
+              <div className={cn("space-y-2", compact && "space-y-1")}>
+                <Label className={compact ? "text-xs" : "text-sm font-medium"}>Date</Label>
                 <Popover>
                   <PopoverTrigger asChild>
-                    <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !voucherDate && "text-muted-foreground", embedded && "h-9 text-sm")}>
+                    <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !voucherDate && "text-muted-foreground", (compact || fullPage) && "h-10 text-sm")}>
                       <CalendarIcon className="mr-2 h-4 w-4" />
-                      {voucherDate ? format(voucherDate, embedded ? "PP" : "PPP") : <span>Pick a date</span>}
+                      {voucherDate ? format(voucherDate, shell ? "PP" : "PPP") : <span>Pick a date</span>}
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0">
@@ -1610,13 +1617,13 @@ export function CustomerPaymentTab({
                       : listedInvoicePendingTotal,
                   );
                   return (
-                  <div className={cn("mt-2 border rounded-md", embedded ? "py-1.5 px-2" : "p-3", showAsNoOutstanding ? "bg-gradient-to-r from-red-50 to-red-100 dark:from-red-950 dark:to-red-900 border-red-200 dark:border-red-800" : "bg-gradient-to-r from-amber-50 to-amber-100 dark:from-amber-950 dark:to-amber-900 border-amber-200 dark:border-amber-800")}>
+                  <div className={cn("mt-2 border rounded-md", shell ? (compact ? "py-1.5 px-2" : "py-2 px-3") : "p-3", showAsNoOutstanding ? "bg-gradient-to-r from-red-50 to-red-100 dark:from-red-950 dark:to-red-900 border-red-200 dark:border-red-800" : "bg-gradient-to-r from-amber-50 to-amber-100 dark:from-amber-950 dark:to-amber-900 border-amber-200 dark:border-amber-800")}>
                     {showAsNoOutstanding ? (
-                      <p className={cn("font-medium text-red-900 dark:text-red-100", embedded ? "text-xs" : "text-sm")}>⚠️ No outstanding balance - Payment receipt not allowed</p>
+                      <p className={cn("font-medium text-red-900 dark:text-red-100", compact ? "text-xs" : "text-sm")}>⚠️ No outstanding balance - Payment receipt not allowed</p>
                     ) : (
-                      <p className={cn("font-medium text-amber-900 dark:text-amber-100", embedded ? "text-xs" : "text-sm")}>
+                      <p className={cn("font-medium text-amber-900 dark:text-amber-100", compact ? "text-xs" : "text-sm")}>
                         Outstanding Balance:{" "}
-                        <span className={cn("font-bold", embedded ? "text-base" : "text-lg")}>
+                        <span className={cn("font-bold", compact ? "text-base" : "text-lg")}>
                           ₹{displayBalance.toLocaleString("en-IN")}
                         </span>
                         {lifetimeDr < MIN_PENDING_RUPEE && listedInvoicePendingTotal >= MIN_PENDING_RUPEE && (
@@ -1631,7 +1638,7 @@ export function CustomerPaymentTab({
                 })()}
                 {/* Advance Balance Banner */}
                 {referenceId && advanceBalance > 0 && (lifetimeOutstanding !== undefined || customerBalance !== undefined) && ((lifetimeOutstanding ?? customerBalance ?? 0) >= MIN_PENDING_RUPEE || listedInvoicePendingTotal >= MIN_PENDING_RUPEE) && (
-                  <div className={cn("mt-2 border rounded-md bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950 dark:to-teal-950 border-emerald-300 dark:border-emerald-700", embedded ? "py-1.5 px-2" : "p-3")}>
+                  <div className={cn("mt-2 border rounded-md bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950 dark:to-teal-950 border-emerald-300 dark:border-emerald-700", shell ? (compact ? "py-1.5 px-2" : "py-2 px-3") : "p-3")}>
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <Zap className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
@@ -1662,8 +1669,8 @@ export function CustomerPaymentTab({
             </div>
 
             {/* Invoice Selection — full width (same layout as Supplier bills) */}
-            <div className={cn("space-y-2", embedded && "space-y-1")}>
-                <Label className={embedded ? "text-xs font-medium" : "text-base font-semibold"}>{(customerInvoices && customerInvoices.length > 0) || openingBalanceRemaining > 0 ? "Select Invoices (Required)" : "Select Invoices"}</Label>
+            <div className={cn("space-y-2", compact && "space-y-1")}>
+                <Label className={compact ? "text-xs font-medium" : "text-sm font-semibold"}>{(customerInvoices && customerInvoices.length > 0) || openingBalanceRemaining > 0 ? "Select Invoices (Required)" : "Select Invoices"}</Label>
                 {!referenceId ? (
                   <p className="text-xs text-muted-foreground">Select a customer first</p>
                 ) : (customerInvoices?.length === 0 && openingBalanceRemaining <= 0) ? (
@@ -1678,8 +1685,10 @@ export function CustomerPaymentTab({
                     >
                       <Table
                         className={cn(
-                          embedded
-                            ? "text-sm [&_td]:py-1.5 [&_td]:px-2 [&_th]:h-9 [&_th]:py-2 [&_th]:px-2"
+                          shell
+                            ? compact
+                              ? "text-sm [&_td]:py-1.5 [&_td]:px-2 [&_th]:h-9 [&_th]:py-2 [&_th]:px-2"
+                              : "text-sm [&_td]:py-2 [&_td]:px-3 [&_th]:h-10 [&_th]:py-2.5 [&_th]:px-3 [&_th]:text-xs"
                             : "[&_td]:py-2 [&_td]:px-3 [&_th]:py-2 [&_th]:px-3",
                         )}
                       >
@@ -1755,7 +1764,7 @@ export function CustomerPaymentTab({
                                     {isSelected ? <Check className="h-3.5 w-3.5" /> : null}
                                   </span>
                                 </TableCell>
-                                <TableCell className={cn(embedded ? "text-sm font-semibold" : paymentPickerRefClass)}>{invoice.sale_number}</TableCell>
+                                <TableCell className={cn(shell ? "text-sm font-semibold" : paymentPickerRefClass)}>{invoice.sale_number}</TableCell>
                                 <TableCell className="font-mono tabular-nums text-muted-foreground">{invoiceDateText}</TableCell>
                                 <TableCell
                                   className={cn(
@@ -1837,9 +1846,9 @@ export function CustomerPaymentTab({
                 )}
               </div>
 
-            <div className={cn("grid grid-cols-1 md:grid-cols-2", embedded ? "gap-2" : "gap-4")}>
+            <div className={cn("grid grid-cols-1 md:grid-cols-2", compact ? "gap-2" : "gap-4")}>
               <AdaptivePaymentMethodPicker
-                label={embedded ? <span className="text-xs">Payment Method</span> : "Payment Method"}
+                label={compact ? <span className="text-xs">Payment Method</span> : <span className="text-sm font-medium">Payment Method</span>}
                 value={paymentMethod}
                 onChange={(value) => {
                   setPaymentMethod(value);
@@ -1853,8 +1862,8 @@ export function CustomerPaymentTab({
                 }}
               />
 
-              <div className={cn("space-y-2", embedded && "space-y-1")}>
-                <Label className={embedded ? "text-xs" : undefined}>
+              <div className={cn("space-y-2", compact && "space-y-1")}>
+                <Label className={compact ? "text-xs" : "text-sm font-medium"}>
                   {selectedInvoiceIds.length > 0 ? "Settlement Amount" : "Amount"}
                 </Label>
                 <Input
@@ -1876,11 +1885,11 @@ export function CustomerPaymentTab({
                     setAmount(Math.min(entered, maxAllowed).toFixed(2));
                   }}
                   required
-                  className={cn("no-uppercase", embedded && "h-9 text-sm")}
+                  className={cn("no-uppercase", (compact || fullPage) && (compact ? "h-9 text-sm" : "h-10 text-sm"))}
                 />
               </div>
 
-              <div className={cn("md:col-span-2 space-y-2", embedded && "space-y-1.5")}>
+              <div className={cn("md:col-span-2 space-y-2", compact && "space-y-1.5")}>
               <ReceivingBankAccountPicker
                 organizationId={organizationId}
                 paymentMethod={paymentMethod}
@@ -1889,16 +1898,16 @@ export function CustomerPaymentTab({
               />
 
               {paymentMethod === 'cheque' && (
-                <div className={cn("grid grid-cols-2", embedded ? "gap-2" : "gap-4")}>
+                <div className={cn("grid grid-cols-2", compact ? "gap-2" : "gap-4")}>
                   <div className="space-y-1">
-                    <Label className={embedded ? "text-xs" : undefined}>Cheque Number</Label>
-                    <Input placeholder="Enter cheque number" value={chequeNumber} onChange={(e) => setChequeNumber(e.target.value)} className={embedded ? "h-9 text-sm" : undefined} />
+                    <Label className={compact ? "text-xs" : "text-sm font-medium"}>Cheque Number</Label>
+                    <Input placeholder="Enter cheque number" value={chequeNumber} onChange={(e) => setChequeNumber(e.target.value)} className={(compact || fullPage) ? (compact ? "h-9 text-sm" : "h-10 text-sm") : undefined} />
                   </div>
                   <div className="space-y-1">
-                    <Label className={embedded ? "text-xs" : undefined}>Cheque Date</Label>
+                    <Label className={compact ? "text-xs" : "text-sm font-medium"}>Cheque Date</Label>
                     <Popover>
                       <PopoverTrigger asChild>
-                        <Button variant="outline" className={cn("w-full justify-start text-left font-normal", embedded && "h-9 text-sm")}>
+                        <Button variant="outline" className={cn("w-full justify-start text-left font-normal", (compact || fullPage) && (compact ? "h-9 text-sm" : "h-10 text-sm"))}>
                           <CalendarIcon className="mr-2 h-4 w-4" />
                           {chequeDate ? format(chequeDate, "dd/MM/yyyy") : "Select date"}
                         </Button>
@@ -1916,17 +1925,17 @@ export function CustomerPaymentTab({
                 paymentMethod === 'bank_transfer' ||
                 paymentMethod === 'card' ||
                 paymentMethod === 'online') && (
-                <div className={cn("grid grid-cols-2", embedded ? "gap-2" : "gap-4")}>
+                <div className={cn("grid grid-cols-2", compact ? "gap-2" : "gap-4")}>
                   <div className="space-y-1">
-                    <Label className={embedded ? "text-xs" : undefined}>Transaction ID</Label>
-                    <Input placeholder="Enter transaction ID" value={transactionId} onChange={(e) => setTransactionId(e.target.value)} className={embedded ? "h-9 text-sm" : undefined} />
+                    <Label className={compact ? "text-xs" : "text-sm font-medium"}>Transaction ID</Label>
+                    <Input placeholder="Enter transaction ID" value={transactionId} onChange={(e) => setTransactionId(e.target.value)} className={(compact || fullPage) ? (compact ? "h-9 text-sm" : "h-10 text-sm") : undefined} />
                   </div>
                   {paymentMethod === 'upi' && (
                     <div className="space-y-1">
-                      <Label className={embedded ? "text-xs" : undefined}>UPI Payment Date</Label>
+                      <Label className={compact ? "text-xs" : "text-sm font-medium"}>UPI Payment Date</Label>
                       <Popover open={upiCalendarOpen} onOpenChange={setUpiCalendarOpen}>
                         <PopoverTrigger asChild>
-                          <Button variant="outline" className={cn("w-full justify-start text-left font-normal", embedded && "h-9 text-sm")}>
+                          <Button variant="outline" className={cn("w-full justify-start text-left font-normal", (compact || fullPage) && (compact ? "h-9 text-sm" : "h-10 text-sm"))}>
                             <CalendarIcon className="mr-2 h-4 w-4" />
                             {upiPaymentDate ? format(upiPaymentDate, "dd/MM/yyyy") : "Select date"}
                           </Button>
@@ -1965,9 +1974,9 @@ export function CustomerPaymentTab({
                 </button>
                 {showDiscountOptions && (
                 <div className="px-3 pb-3 pt-1 space-y-3 border-t border-slate-200 dark:border-slate-700">
-                  <div className={cn("grid grid-cols-1 md:grid-cols-3 pt-2", embedded ? "gap-2" : "gap-4")}>
+                  <div className={cn("grid grid-cols-1 md:grid-cols-3 pt-2", compact ? "gap-2" : "gap-4")}>
                     <div className="space-y-1">
-                      <Label className={embedded ? "text-xs" : undefined}>Discount %</Label>
+                      <Label className={compact ? "text-xs" : "text-sm font-medium"}>Discount %</Label>
                       <Input
                         type="number"
                         step="0.01"
@@ -1984,11 +1993,11 @@ export function CustomerPaymentTab({
                           const pct = Math.min(100, Math.max(0, toNumberOrZero(raw)));
                           setDiscountPercent(String(pct));
                         }}
-                        className={cn("no-uppercase", embedded && "h-9 text-sm")}
+                        className={cn("no-uppercase", (compact || fullPage) && (compact ? "h-9 text-sm" : "h-10 text-sm"))}
                       />
                     </div>
                     <div className="space-y-1">
-                      <Label className={embedded ? "text-xs" : undefined}>Discount Amount (₹)</Label>
+                      <Label className={compact ? "text-xs" : "text-sm font-medium"}>Discount Amount (₹)</Label>
                       <Input
                         type="number"
                         step="0.01"
@@ -2003,11 +2012,11 @@ export function CustomerPaymentTab({
                           }
                           setDiscountAmount(roundToRupee(raw).toFixed(2));
                         }}
-                        className={cn("no-uppercase", embedded && "h-9 text-sm")}
+                        className={cn("no-uppercase", (compact || fullPage) && (compact ? "h-9 text-sm" : "h-10 text-sm"))}
                       />
                     </div>
                     <div className="space-y-1">
-                      <Label className={embedded ? "text-xs" : undefined}>
+                      <Label className={compact ? "text-xs" : "text-sm font-medium"}>
                         Discount Reason
                         {paymentBreakdown.discount > 0 && <span className="text-red-500"> *</span>}
                       </Label>
@@ -2015,7 +2024,7 @@ export function CustomerPaymentTab({
                         placeholder="e.g., Early payment"
                         value={discountReason}
                         onChange={(e) => setDiscountReason(e.target.value)}
-                        className={cn("no-uppercase", embedded && "h-9 text-sm")}
+                        className={cn("no-uppercase", (compact || fullPage) && (compact ? "h-9 text-sm" : "h-10 text-sm"))}
                       />
                     </div>
                   </div>
@@ -2062,16 +2071,16 @@ export function CustomerPaymentTab({
                 )}
               </div>
 
-              {!embedded && (
+              {!shell && (
               <div className="space-y-2">
                 <Label>Description</Label>
                 <Textarea placeholder="Payment description" value={description} onChange={(e) => setDescription(e.target.value)} />
               </div>
               )}
-              {embedded && (
+              {shell && (
               <div className="space-y-1">
-                <Label className="text-xs">Description (optional)</Label>
-                <Input placeholder="Payment note" value={description} onChange={(e) => setDescription(e.target.value)} className="h-9 text-sm no-uppercase" />
+                <Label className={compact ? "text-xs" : "text-sm font-medium"}>Description (optional)</Label>
+                <Input placeholder="Payment note" value={description} onChange={(e) => setDescription(e.target.value)} className={cn("no-uppercase", compact ? "h-9 text-sm" : "h-10 text-sm")} />
               </div>
               )}
               </div>
@@ -2090,13 +2099,13 @@ export function CustomerPaymentTab({
               const isZeroBalance = outstandingBalance <= 0;
               const isDisabled = isZeroBalance || isExcessPayment;
               return (
-                <div className={cn("space-y-2", embedded && "space-y-1 pt-0.5")}>
+                <div className={cn("space-y-2", compact && "space-y-1 pt-0.5")}>
                   {isExcessPayment && (
                     <p className="text-sm text-red-600 dark:text-red-400">
                       ⚠️ Payment (₹{Math.round(totalSettled).toLocaleString('en-IN')}) exceeds outstanding balance (₹{Math.round(outstandingBalance).toLocaleString('en-IN')})
                     </p>
                   )}
-                  <Button type="submit" className={cn(embedded ? "w-full h-9" : "w-full md:w-auto")} disabled={isDisabled || createVoucher.isPending || savingRef.current}>
+                  <Button type="submit" className={cn(compact ? "w-full h-9" : fullPage ? "w-full md:w-auto h-10 px-6" : "w-full md:w-auto")} disabled={isDisabled || createVoucher.isPending || savingRef.current}>
                     <Plus className="mr-2 h-4 w-4" />
                     {createVoucher.isPending ? "Recording..." : "Record Payment"}
                   </Button>
@@ -2107,7 +2116,7 @@ export function CustomerPaymentTab({
         </CardContent>
       </Card>
 
-      {!embedded && (
+      {!shell && (
       <AccountsHistoryPanel
         title="Recent Customer Payments"
         searchPlaceholder="Search by customer name, voucher no, or description..."

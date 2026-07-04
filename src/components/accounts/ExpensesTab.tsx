@@ -42,6 +42,7 @@ interface ExpensesTabProps {
   organizationId: string;
   vouchers: any[] | undefined;
   embedded?: boolean;
+  fullPage?: boolean;
   visitedTabs?: ReadonlySet<string>;
 }
 
@@ -79,9 +80,11 @@ export function ExpensesTab({
   organizationId,
   vouchers,
   embedded = false,
+  fullPage = false,
   visitedTabs,
 }: ExpensesTabProps) {
-  const tabActive = embedded || (visitedTabs?.has("expenses") ?? true);
+  const shell = embedded || fullPage;
+  const tabActive = shell || (visitedTabs?.has("expenses") ?? true);
   const queryClient = useQueryClient();
   const formatEntryDateTime = (value: string | null | undefined) => {
     if (!value) return "-";
@@ -861,7 +864,7 @@ export function ExpensesTab({
         </CardContent>
       </Card>
 
-      {!embedded && (
+      {!shell && (
       <AccountsHistoryPanel
         title="Expense Ledger"
         searchPlaceholder="Search expenses…"

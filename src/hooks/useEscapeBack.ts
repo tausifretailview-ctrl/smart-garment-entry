@@ -80,6 +80,7 @@ const BACK_MAP: Record<string, string> = {
   "sales-invoice-dashboard":  "/",
   "purchase-bills":           "/",
   "accounts":                 "/",
+  "accounts-payments":        "/",
   "quotation-dashboard":      "/",
   "sale-order-dashboard":     "/",
   "products":                 "/",
