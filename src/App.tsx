@@ -384,6 +384,8 @@ const App = () => {
               <Route path="/pay" element={<PublicPaymentPage />} />
 
               {/* MCP OAuth 2.1 consent screen (Supabase authorization server) */}
+              <Route path="/oauth/consent" element={<OAuthConsent />} />
+              {/* Legacy dotted path — Lovable hosting 404s dotted paths, kept for older links */}
               <Route path="/.lovable/oauth/consent" element={<OAuthConsent />} />
               
               {/* Non-org fallbacks (in case org slug is missing in URL) */}
