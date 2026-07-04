@@ -1,6 +1,10 @@
 import { createClient } from "@supabase/supabase-js";
 import { defineTool, type ToolContext } from "@lovable.dev/mcp-js";
 
+// This file is bundled into a Deno edge function at build time; `process.env`
+// is provided by Deno's Node compatibility shim at runtime.
+declare const process: { env: Record<string, string | undefined> };
+
 export default defineTool({
   name: "list_my_organizations",
   title: "List my organizations",
