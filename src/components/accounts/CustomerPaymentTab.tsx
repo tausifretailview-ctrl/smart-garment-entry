@@ -90,6 +90,7 @@ import {
   syncSalePaymentsFromVouchersBatch,
   type SaleReceiptVoucherSplit,
 } from "@/utils/customerBalanceUtils";
+import { reconcileBillWisePending } from "@/utils/reconcileBillWisePending";
 // Sentinel ID used to represent the customer's remaining Opening Balance
 // as a selectable row inside the invoice picker.
 const OPENING_BALANCE_ID = "__opening_balance__";
@@ -154,6 +155,7 @@ function computeSelectedPayableTotal(params: {
   customerInvoices: any[] | undefined;
   invoiceVoucherSplits: Map<string, SaleReceiptVoucherSplit>;
   openingBalanceRemaining: number;
+  resolveOutstanding?: (invoice: any) => number;
 }): number {
   const {
     selectedInvoiceIds,
@@ -161,12 +163,15 @@ function computeSelectedPayableTotal(params: {
     customerInvoices,
     invoiceVoucherSplits,
     openingBalanceRemaining,
+    resolveOutstanding,
   } = params;
   const invoicePart =
     customerInvoices
       ?.filter((inv) => selectedInvoiceIds.includes(inv.id))
       .reduce((sum, inv) => {
-        const outstanding = getInvoiceOutstanding(inv, safeMapGet(invoiceVoucherSplits, inv.id));
+        const outstanding = resolveOutstanding
+          ? resolveOutstanding(inv)
+          : getInvoiceOutstanding(inv, safeMapGet(invoiceVoucherSplits, inv.id));
         const allocated = Math.min(
           outstanding,
           allocatedAmountForInvoice(allocatedAmounts, inv.id, outstanding),
@@ -510,19 +515,89 @@ export function CustomerPaymentTab({
     return customersWithBalance?.find((c) => c.id === referenceId)?.outstandingBalance;
   }, [referenceId, snapshotOutstandingDr, customerBalance, customersWithBalance]);
 
+  /**
+   * Reconcile per-invoice pending against ledger outstanding (same as WhatsApp reminders).
+   * Over-applied receipts on closed invoices are absorbed FIFO into oldest open invoices.
+   */
+  const invoiceBillWiseReconciliation = useMemo(() => {
+    const balanceById = new Map<string, number>();
+    if (!customerInvoices?.length) {
+      return { balanceById, hadExcess: false, excessAbsorbed: 0 };
+    }
+
+    const rawList = customerInvoices
+      .map((inv) => ({
+        id: inv.id,
+        sale_date: inv.sale_date,
+        balance: roundToRupee(
+          getInvoiceOutstanding(inv, safeMapGet(invoiceVoucherSplits, inv.id)),
+        ),
+      }))
+      .filter((inv) => inv.balance >= MIN_PENDING_RUPEE);
+
+    const lifetimeDr = lifetimeOutstanding ?? 0;
+    const trueBillWisePending = Math.max(0, Math.round(lifetimeDr - openingBalanceRemaining));
+    const { invoices, hadExcess, excessAbsorbed } = reconcileBillWisePending(
+      rawList,
+      trueBillWisePending,
+    );
+
+    for (const inv of invoices) {
+      balanceById.set(inv.id, inv.balance);
+    }
+    for (const inv of rawList) {
+      if (!balanceById.has(inv.id)) balanceById.set(inv.id, 0);
+    }
+
+    return { balanceById, hadExcess, excessAbsorbed };
+  }, [
+    customerInvoicesKey,
+    invoiceVoucherSplitsKey,
+    lifetimeOutstanding,
+    openingBalanceRemaining,
+    customerInvoices,
+    invoiceVoucherSplits,
+  ]);
+
+  const getCollectibleInvoiceOutstanding = useCallback(
+    (invoice: any) => {
+      const reconciled = invoiceBillWiseReconciliation.balanceById.get(invoice.id);
+      if (reconciled !== undefined) return reconciled;
+      return roundToRupee(
+        getInvoiceOutstanding(invoice, safeMapGet(invoiceVoucherSplits, invoice.id)),
+      );
+    },
+    [invoiceBillWiseReconciliation.balanceById, invoiceVoucherSplits],
+  );
+
+  const collectibleInvoices = useMemo(
+    () =>
+      (customerInvoices || []).filter(
+        (inv) => getCollectibleInvoiceOutstanding(inv) >= MIN_PENDING_RUPEE,
+      ),
+    [customerInvoices, getCollectibleInvoiceOutstanding],
+  );
+
   const balanceBannerLoading =
     !!referenceId && (customerBalanceLoading || snapshotLoading || snapshotFetching);
 
-  /** Sum of opening + per-invoice pending (matches Select Invoices list; includes sale_return_adjust). */
+  /** Sum of opening + per-invoice pending (matches Select Invoices list; bill-wise reconciled). */
   const listedInvoicePendingTotal = useMemo(() => {
     if (!referenceId) return 0;
     return (
       (customerInvoices || []).reduce(
-        (s, inv) => s + getInvoiceOutstanding(inv, safeMapGet(invoiceVoucherSplits, inv.id)),
-        0
+        (s, inv) => s + getCollectibleInvoiceOutstanding(inv),
+        0,
       ) + (openingBalanceRemaining || 0)
     );
-  }, [referenceId, customerInvoicesKey, invoiceVoucherSplitsKey, openingBalanceRemaining, customerInvoices, invoiceVoucherSplits]);
+  }, [
+    referenceId,
+    customerInvoicesKey,
+    invoiceVoucherSplitsKey,
+    openingBalanceRemaining,
+    customerInvoices,
+    getCollectibleInvoiceOutstanding,
+  ]);
 
 
   const advanceBalance = snapshotAdvanceAvailable;
@@ -539,6 +614,7 @@ export function CustomerPaymentTab({
         customerInvoices,
         invoiceVoucherSplits,
         openingBalanceRemaining,
+        resolveOutstanding: getCollectibleInvoiceOutstanding,
       }),
     [
       selectedInvoiceIdsKey,
@@ -548,6 +624,7 @@ export function CustomerPaymentTab({
       openingBalanceRemaining,
       customerInvoices,
       invoiceVoucherSplits,
+      getCollectibleInvoiceOutstanding,
     ],
   );
 
@@ -571,11 +648,12 @@ export function CustomerPaymentTab({
         customerInvoices,
         invoiceVoucherSplits,
         openingBalanceRemaining,
+        resolveOutstanding: getCollectibleInvoiceOutstanding,
       });
       const nextAmount = roundToRupee(total).toFixed(2);
       setAmount((prev) => (prev === nextAmount ? prev : nextAmount));
     },
-    [customerInvoicesKey, invoiceVoucherSplitsKey, openingBalanceRemaining, customerInvoices, invoiceVoucherSplits],
+    [customerInvoicesKey, invoiceVoucherSplitsKey, openingBalanceRemaining, customerInvoices, invoiceVoucherSplits, getCollectibleInvoiceOutstanding],
   );
 
   const toggleInvoiceSelection = (invoiceId: string, roundedBalance: number) => {
@@ -636,7 +714,7 @@ export function CustomerPaymentTab({
       const invoicesToProcess = customerInvoices?.filter(inv => selectedInvoiceIds.includes(inv.id)) || [];
       if (invoicesToProcess.length === 0) throw new Error("No invoices selected");
       const totalOutstanding = invoicesToProcess.reduce(
-        (sum, inv) => sum + getInvoiceOutstanding(inv, safeMapGet(invoiceVoucherSplits, inv.id)),
+        (sum, inv) => sum + getCollectibleInvoiceOutstanding(inv),
         0,
       );
       const amountToApply = Math.min(advanceBalance, totalOutstanding);
@@ -675,7 +753,7 @@ export function CustomerPaymentTab({
       try {
         for (const invoice of invoicesToProcess) {
           if (remaining <= 0) break;
-          const outstanding = getInvoiceOutstanding(invoice, safeMapGet(invoiceVoucherSplits, invoice.id));
+          const outstanding = getCollectibleInvoiceOutstanding(invoice);
           const applyAmt = Math.min(remaining, outstanding);
           if (applyAmt <= 0) continue;
           saleRevertAdv.push({
@@ -854,7 +932,7 @@ export function CustomerPaymentTab({
           const invoice = customerInvoices?.find(inv => inv.id === invoiceId);
           if (!invoice) continue;
           const currentPaid = invoice.paid_amount || 0;
-          const outstanding = getInvoiceOutstanding(invoice, safeMapGet(invoiceVoucherSplits, invoiceId));
+          const outstanding = getCollectibleInvoiceOutstanding(invoice);
           const allocatedForInvoice = allocatedAmountForInvoice(allocatedAmounts, invoiceId, outstanding);
           const amountToApply = Math.min(pool, outstanding, allocatedForInvoice);
           if (amountToApply <= 0) continue;
@@ -1649,7 +1727,7 @@ export function CustomerPaymentTab({
                           onClick={() => applyAdvanceMutation.mutate()}
                         >
                           <Wallet className="h-3.5 w-3.5 mr-1.5" />
-                          {applyAdvanceMutation.isPending ? "Applying..." : `Apply ₹${Math.round(Math.min(advanceBalance, customerInvoices?.filter(inv => selectedInvoiceIds.includes(inv.id)).reduce((sum, inv) => sum + getInvoiceOutstanding(inv, safeMapGet(invoiceVoucherSplits, inv.id)), 0) || 0)).toLocaleString('en-IN')} to Invoice`}
+                          {applyAdvanceMutation.isPending ? "Applying..." : `Apply ₹${Math.round(Math.min(advanceBalance, customerInvoices?.filter(inv => selectedInvoiceIds.includes(inv.id)).reduce((sum, inv) => sum + getCollectibleInvoiceOutstanding(inv), 0) || 0)).toLocaleString('en-IN')} to Invoice`}
                         </Button>
                       )}
                     </div>
@@ -1663,15 +1741,20 @@ export function CustomerPaymentTab({
 
             {/* Invoice Selection — full width (same layout as Supplier bills) */}
             <div className={cn("space-y-2", embedded && "space-y-1")}>
-                <Label className={embedded ? "text-xs font-medium" : "text-base font-semibold"}>{(customerInvoices && customerInvoices.length > 0) || openingBalanceRemaining > 0 ? "Select Invoices (Required)" : "Select Invoices"}</Label>
+                <Label className={embedded ? "text-xs font-medium" : "text-base font-semibold"}>{(collectibleInvoices.length > 0) || openingBalanceRemaining > 0 ? "Select Invoices (Required)" : "Select Invoices"}</Label>
                 {!referenceId ? (
                   <p className="text-xs text-muted-foreground">Select a customer first</p>
-                ) : (customerInvoices?.length === 0 && openingBalanceRemaining <= 0) ? (
+                ) : (collectibleInvoices.length === 0 && openingBalanceRemaining <= 0) ? (
                   <div className="p-3 bg-muted/30 border rounded-md">
                     <p className="text-xs text-muted-foreground">No pending invoices - Payment will be applied to Opening Balance</p>
                   </div>
                 ) : (
                   <>
+                    {invoiceBillWiseReconciliation.hadExcess && (
+                      <p className="text-xs text-amber-800 dark:text-amber-200 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-md px-2 py-1.5">
+                        ₹{invoiceBillWiseReconciliation.excessAbsorbed.toLocaleString("en-IN")} of receipts posted to closed invoices is counted against the oldest open bills — pending amounts match the outstanding balance (same as WhatsApp reminders).
+                      </p>
+                    )}
                     <div
                       className="border rounded-lg overflow-y-auto overflow-x-auto bg-white dark:bg-background"
                       style={invoiceGridMaxHeight ? { maxHeight: invoiceGridMaxHeight, minHeight: 200 } : { minHeight: 200 }}
@@ -1726,8 +1809,8 @@ export function CustomerPaymentTab({
                               </TableRow>
                             );
                           })()}
-                          {customerInvoices?.map((invoice) => {
-                            const balance = getInvoiceOutstanding(invoice, safeMapGet(invoiceVoucherSplits, invoice.id));
+                          {collectibleInvoices.map((invoice) => {
+                            const balance = getCollectibleInvoiceOutstanding(invoice);
                             const roundedBalance = roundToRupee(balance);
                             const isSelected = selectedInvoiceIds.includes(invoice.id);
                             const invoiceDate = invoice.sale_date ? new Date(invoice.sale_date) : null;
