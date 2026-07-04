@@ -382,6 +382,9 @@ const App = () => {
               <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/invoice/view/:saleId" element={<PublicInvoiceView />} />
               <Route path="/pay" element={<PublicPaymentPage />} />
+
+              {/* MCP OAuth 2.1 consent screen (Supabase authorization server) */}
+              <Route path="/.lovable/oauth/consent" element={<OAuthConsent />} />
               
               {/* Non-org fallbacks (in case org slug is missing in URL) */}
               <Route path="/purchase-bills" element={<NonOrgRedirect path="purchase-bills" />} />
