@@ -71,7 +71,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import { computePendingAllSessionsBatch, computeYearWiseFeeBalances, computePriorYearsCarryForward } from "@/lib/schoolFeeYearBalances";
 import { resolveImportedOpeningBalance } from "@/lib/schoolFeeOpening";
-import { reconcileBillWisePending } from "@/utils/reconcileBillWisePending";
 import {
   LEDGER_PDF,
   ledgerPdfReconLineColor,
@@ -3333,25 +3332,12 @@ export function CustomerLedger({
       })
       .filter(t => t.remaining > 0);
 
-    // Reconcile bill-wise list against the true outstanding (effectiveBalance −
-    // openingBalance). Over-applied receipts on already-closed invoices are
-    // absorbed FIFO into the oldest open invoice so the listed lines always
-    // sum to the Outstanding line.
-    const trueBillWisePending = Math.max(0, Math.round(Math.abs(effectiveBalance) - openingBalance));
-    const reconcilable = pendingInvoices.map(t => ({
-      id: t.id,
-      sale_date: t.date,
-      balance: t.remaining,
-      _orig: t,
-    }));
-    const { invoices: reconciledList } = reconcileBillWisePending(reconcilable, trueBillWisePending);
-    const reconciledPending = reconciledList.map(r => ({ ...(r._orig as any), remaining: r.balance }));
-    const billWisePending = reconciledPending.reduce((sum, t) => sum + t.remaining, 0);
+    const billWisePending = pendingInvoices.reduce((sum, t) => sum + t.remaining, 0);
 
     let txnSummary = "";
-    if (reconciledPending.length > 0) {
+    if (pendingInvoices.length > 0) {
       txnSummary = "\n\n📋 *Pending Invoices:*";
-      reconciledPending.forEach((t) => {
+      pendingInvoices.forEach((t) => {
         const dateStr = format(new Date(t.date), "dd/MM/yy");
         txnSummary += `\n${dateStr} | ${t.reference} | ₹${Math.round(t.debit).toLocaleString("en-IN")} | Bal: ₹${t.remaining.toLocaleString("en-IN")}`;
       });
