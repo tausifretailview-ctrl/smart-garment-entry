@@ -26,7 +26,7 @@ import {
 import { resolveImportedOpeningBalance } from "@/lib/schoolFeeOpening";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
 import { computeEffectivePendingDue, resolveLiability } from "@/lib/schoolFeeLiability";
-import { postSchoolFeeReceiptAccounting } from "@/lib/schoolFeeAccounting";
+import { recordSchoolFeeReceiptJournalEntry } from "@/utils/accounting/journalService";
 
 const OPENING_CARRY_HEAD_ID = "__opening_carry__";
 
@@ -638,6 +638,7 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
         receiptNumber = `${prefix}${maxSeq + 1}`;
       }
       const paidDate = new Date().toISOString();
+      const voucherDate = format(new Date(), "yyyy-MM-dd");
 
       // Duplicate prevention: check if same student already has a fee record on the same date with same amount
       const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
@@ -662,71 +663,84 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
         }
       }
 
+      const rpcLines: Array<{
+        fee_head_id: string | null;
+        fee_structure_id: string | null;
+        amount: number;
+        paid_amount: number;
+        status: string;
+        notes: string | null;
+        head_name: string;
+      }> = [];
+
       for (const item of selectedItems) {
-        const newStatus = item.paying >= item.balance ? "paid" : "partial";
         const isImported =
           item.fee_head_id === "__imported_balance__" || item.fee_head_id === OPENING_CARRY_HEAD_ID;
-        const { error } = await supabase.from("student_fees").insert({
-          organization_id: currentOrganization.id,
-          student_id: student.id,
+        rpcLines.push({
           fee_head_id: isImported ? null : item.fee_head_id,
           fee_structure_id: isImported ? null : item.fee_structure_id,
-          academic_year_id: usedYear!.id,
           amount: item.structure_amount,
           paid_amount: item.paying,
-          paid_date: paidDate,
-          payment_method: paymentMethod,
-          transaction_id: transactionId || null,
-          payment_receipt_id: receiptNumber,
-          status: newStatus,
+          status: item.paying >= item.balance ? "paid" : "partial",
+          notes: null,
+          head_name: item.head_name,
         });
-        if (error) throw error;
       }
 
-      // Insert manual / ad-hoc fee row if enabled
       const manualRowItems: { head_name: string; paying: number }[] = [];
       if (manualAmt > 0) {
-        const { error: manualErr } = await supabase.from("student_fees").insert({
-          organization_id: currentOrganization.id,
-          student_id: student.id,
+        rpcLines.push({
           fee_head_id: null,
           fee_structure_id: null,
-          academic_year_id: usedYear!.id,
           amount: manualAmt,
           paid_amount: manualAmt,
-          paid_date: paidDate,
-          payment_method: paymentMethod,
-          transaction_id: transactionId || null,
-          payment_receipt_id: receiptNumber,
           status: "paid",
           notes: manualFeeName || "Other Fees",
-        } as any);
-        if (manualErr) throw manualErr;
+          head_name: manualFeeName || "Other Fees",
+        });
         manualRowItems.push({ head_name: manualFeeName || "Other Fees", paying: manualAmt });
       }
 
-      // Voucher header + double-entry lines (account_ledgers) + student sub-ledger credits
-      try {
-        const allItemsForVoucher = [...selectedItems, ...manualRowItems];
-        await postSchoolFeeReceiptAccounting(supabase, {
-          organizationId: currentOrganization.id,
-          studentId: student.id,
-          studentName: student.student_name,
-          admissionNumber: student.admission_number,
-          receiptNumber,
-          voucherDate: format(new Date(), "yyyy-MM-dd"),
-          paymentMethodRaw: paymentMethod,
-          grandTotal: grandTotalPaying,
-          transactionId: transactionId || null,
-          postChartJournal,
-          lines: allItemsForVoucher.map((i: any) => ({
-            head_name: i.head_name,
-            paying: i.paying,
-            fee_head_id: typeof i.fee_head_id === "string" ? i.fee_head_id : null,
-          })),
-        });
-      } catch (voucherErr: any) {
-        console.error("Fee accounting (voucher / ledger) failed:", voucherErr);
+      const { data: rpcResult, error: rpcError } = await supabase.rpc("apply_school_fee_receipt", {
+        p_organization_id: currentOrganization.id,
+        p_student_id: student.id,
+        p_academic_year_id: usedYear!.id,
+        p_receipt_number: receiptNumber,
+        p_paid_at: paidDate,
+        p_voucher_date: voucherDate,
+        p_payment_method: paymentMethod,
+        p_transaction_id: transactionId || null,
+        p_student_name: student.student_name,
+        p_admission_number: student.admission_number,
+        p_grand_total: grandTotalPaying,
+        p_lines: rpcLines,
+      });
+
+      if (rpcError) throw rpcError;
+
+      const voucherId = (rpcResult as { voucher_id?: string } | null)?.voucher_id;
+      const feeHeadNames = rpcLines.map((l) => l.head_name).join(", ");
+      const descTxn = transactionId ? ` | Txn: ${transactionId}` : "";
+      const accountingDescription = `Fee Collection - ${student.student_name} (${student.admission_number}) | ${feeHeadNames} | ${paymentMethod}${descTxn}`;
+
+      if (postChartJournal && voucherId) {
+        try {
+          await recordSchoolFeeReceiptJournalEntry(
+            voucherId,
+            currentOrganization.id,
+            grandTotalPaying,
+            paymentMethod,
+            voucherDate,
+            accountingDescription,
+            supabase,
+          );
+        } catch (journalErr) {
+          await supabase.rpc("delete_fee_receipt", {
+            p_receipt_id: receiptNumber,
+            p_organization_id: currentOrganization.id,
+          });
+          throw journalErr;
+        }
       }
 
       // Calculate remaining balance after this payment

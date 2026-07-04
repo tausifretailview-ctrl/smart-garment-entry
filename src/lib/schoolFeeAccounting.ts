@@ -257,15 +257,18 @@ export async function postSchoolFeeReceiptAccounting(
   for (const line of lines) {
     const pay = round2(line.paying);
     if (pay <= 0) continue;
-    insertStudentLedgerCredit({
-      organizationId,
-      studentId,
-      voucherType: "FEE_RECEIPT",
-      voucherNo: receiptNumber,
-      particulars: `${line.head_name} — receipt`,
-      transactionDate: voucherDate,
-      amount: pay,
-    });
+    await insertStudentLedgerCredit(
+      {
+        organizationId,
+        studentId,
+        voucherType: "FEE_RECEIPT",
+        voucherNo: receiptNumber,
+        particulars: `${line.head_name} — receipt`,
+        transactionDate: voucherDate,
+        amount: pay,
+      },
+      client,
+    );
   }
 
   return { voucherId };
