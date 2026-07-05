@@ -6141,9 +6141,9 @@ const PurchaseEntry = () => {
       <main className={entryPageMainClass}>
 
         <section className={cn("purchase-bill-details-section bg-white border-b border-slate-100 py-2 shrink-0 shadow-sm", entryPageSectionX)}>
-            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-7 gap-x-3 gap-y-2 items-start purchase-entry-meta-grid">
-              <div className="space-y-1.5 min-w-0">
-                <Label htmlFor="software_bill_no" className="text-[13px] font-semibold text-slate-500 leading-none">
+            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-7 gap-x-3 gap-y-2 items-start purchase-entry-meta-grid entry-vasy-key-fields">
+              <div className="space-y-1.5 min-w-0 entry-key-field entry-key-field--doc-no">
+                <Label htmlFor="software_bill_no" className="entry-key-label text-[13px] font-semibold text-slate-500 leading-none">
                   Software Bill No
                 </Label>
                 <Input
@@ -6160,13 +6160,13 @@ const PurchaseEntry = () => {
                     return `PUR/${fy}/1`;
                   })()}
                   readOnly
-                  className="h-10 bg-muted"
+                  className="h-11 bg-muted font-mono font-bold text-base"
                   placeholder="Auto-generated"
                 />
               </div>
 
-              <div className="col-span-2 space-y-1.5 min-w-0">
-                <Label htmlFor="supplier_name" className="text-[13px] font-semibold text-slate-500 leading-none">
+              <div className="col-span-2 space-y-1.5 min-w-0 entry-key-field entry-key-field--party">
+                <Label htmlFor="supplier_name" className="entry-key-label text-[13px] font-semibold text-slate-500 leading-none">
                   Supplier <span className="text-red-500">*</span>
                 </Label>
                 <div className="flex gap-1.5 min-w-0">
@@ -6181,7 +6181,7 @@ const PurchaseEntry = () => {
                       });
                     }}
                   >
-                    <SelectTrigger id="supplier_name" className="h-10 flex-1 min-w-0">
+                    <SelectTrigger id="supplier_name" className="h-11 flex-1 min-w-0 text-base font-semibold">
                       <SelectValue placeholder="Select supplier" />
                     </SelectTrigger>
                     <SelectContent className="bg-background z-50">
@@ -6198,15 +6198,15 @@ const PurchaseEntry = () => {
                     size="icon"
                     onClick={() => setShowAddSupplierDialog(true)}
                     title="Add New Supplier"
-                    className="h-10 w-10 shrink-0"
+                    className="h-11 w-11 shrink-0"
                   >
                     <Plus className="h-4 w-4" />
                   </Button>
                 </div>
               </div>
 
-              <div className="space-y-1.5 min-w-0">
-                <Label htmlFor="supplier_invoice_no" className="text-[13px] font-semibold text-slate-500 leading-none">
+              <div className="space-y-1.5 min-w-0 entry-key-field entry-key-field--doc-no">
+                <Label htmlFor="supplier_invoice_no" className="entry-key-label text-[13px] font-semibold text-slate-500 leading-none">
                   Supplier Invoice No <span className="text-red-500">*</span>
                 </Label>
                 <Input
@@ -6215,12 +6215,12 @@ const PurchaseEntry = () => {
                   value={billData.supplier_invoice_no}
                   onChange={(e) => handleSupplierInvoiceNoChange(e.target.value)}
                   placeholder={nextSupplierInvNo ? `Serial on save: ${nextSupplierInvNo}` : "Invoice number"}
-                  className="h-10"
+                  className="h-11 text-base font-semibold"
                 />
               </div>
 
-              <div className="space-y-1.5 min-w-0">
-                <Label htmlFor="bill_date" className="text-[13px] font-semibold text-slate-500 leading-none">
+              <div className="space-y-1.5 min-w-0 entry-key-field entry-key-field--date">
+                <Label htmlFor="bill_date" className="entry-key-label text-[13px] font-semibold text-slate-500 leading-none">
                   Supplier bill date
                 </Label>
                 <Popover open={billDateOpen} onOpenChange={setBillDateOpen}>
@@ -6229,7 +6229,7 @@ const PurchaseEntry = () => {
                       id="bill_date"
                       variant="outline"
                       className={cn(
-                        "h-10 w-full justify-start text-left font-normal px-3",
+                        "h-11 w-full justify-start text-left font-semibold text-base px-3",
                         !billDate && "text-muted-foreground"
                       )}
                     >
@@ -6251,12 +6251,12 @@ const PurchaseEntry = () => {
                 </Popover>
               </div>
 
-              <div className="space-y-1.5 min-w-0">
-                <Label className="text-[13px] font-semibold text-slate-500 leading-none">
+              <div className="space-y-1.5 min-w-0 entry-key-field entry-key-field--date">
+                <Label className="entry-key-label text-[13px] font-semibold text-slate-500 leading-none">
                   Bill entry date &amp; time
                 </Label>
                 <div
-                  className="h-10 px-3 flex items-center rounded-md border border-input bg-muted/40 text-sm tabular-nums min-w-0"
+                  className="h-11 px-3 flex items-center rounded-md border border-input bg-muted/40 text-base tabular-nums min-w-0 font-semibold"
                   title="When this purchase bill was saved in EzzyERP"
                 >
                   {billEntryAt ? (

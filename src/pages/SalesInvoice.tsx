@@ -3645,10 +3645,10 @@ Thank you for choosing us!`;
       {/* Invoice & Customer Details Section */}
       <section className={cn("sale-bill-details-section bg-white border-b border-slate-100 py-2 shrink-0 shadow-sm", entryPageSectionX)}>
 
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 items-start">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 items-start entry-vasy-key-fields">
           {/* Customer Selection */}
-          <div className="col-span-2 md:col-span-1 lg:col-span-2">
-            <Label className="text-[13px] font-semibold text-slate-500">Customer <span className="text-red-500">*</span></Label>
+          <div className="col-span-2 md:col-span-1 lg:col-span-2 entry-key-field entry-key-field--party">
+            <Label className="entry-key-label text-[13px] font-semibold text-slate-500">Customer <span className="text-red-500">*</span></Label>
             <div className="flex gap-1.5">
               <Popover open={openCustomerSearch} onOpenChange={setOpenCustomerSearch}>
                 <PopoverTrigger asChild>
@@ -3656,7 +3656,7 @@ Thank you for choosing us!`;
                     variant="outline"
                     role="combobox"
                     aria-expanded={openCustomerSearch}
-                    className="flex-1 justify-between h-10 text-sm"
+                    className="flex-1 justify-between h-11 text-base font-semibold"
                   >
                     {selectedCustomer ? (
                       <span>{selectedCustomer.customer_name} - {selectedCustomer.phone}</span>
@@ -3906,22 +3906,22 @@ Thank you for choosing us!`;
           </div>
 
           {/* Invoice No */}
-          <div>
-            <label className="text-[13px] font-medium text-muted-foreground mb-1 block">Invoice No</label>
+          <div className="entry-key-field entry-key-field--doc-no">
+            <label className="entry-key-label text-[13px] font-medium text-muted-foreground mb-1 block">Invoice No</label>
             <Input 
               value={editingInvoiceId ? (savedInvoiceData?.sale_number || '') : nextInvoicePreview} 
               readOnly 
-              className="bg-muted font-mono font-bold text-sm h-10"
+              className="bg-muted font-mono font-bold text-base h-11"
               placeholder="Auto-generated"
             />
           </div>
 
           {/* Invoice Date */}
-          <div>
-            <label className="text-[13px] font-medium text-muted-foreground mb-1 block">Invoice Date</label>
+          <div className="entry-key-field entry-key-field--date">
+            <label className="entry-key-label text-[13px] font-medium text-muted-foreground mb-1 block">Invoice Date</label>
             <Popover>
               <PopoverTrigger asChild>
-                <Button variant="outline" className={cn("w-full justify-start text-left font-normal h-10 text-sm")}>
+                <Button variant="outline" className={cn("w-full justify-start text-left font-semibold h-11 text-base")}>
                   <CalendarIcon className="mr-2 h-4 w-4" />
                   {format(invoiceDate, "PPP")}
                 </Button>

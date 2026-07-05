@@ -1767,6 +1767,50 @@ main:has(.supplier-party-balances-workspace) {
 }
 
 /* Reduce motion for users who prefer it */
+
+/* Vasy-style prominent header fields — Purchase & Sale entry (customer/supplier, doc no, dates) */
+.entry-vasy-key-fields .entry-key-label,
+.entry-vasy-key-fields label.entry-key-label,
+.entry-vasy-key-fields > .entry-key-field > label {
+  font-size: 12px;
+  font-weight: 700;
+  color: #475569;
+  letter-spacing: 0.02em;
+  line-height: 1.2;
+}
+
+.entry-vasy-key-fields .entry-key-field input,
+.entry-vasy-key-fields .entry-key-field button[role="combobox"],
+.entry-vasy-key-fields .entry-key-field [data-field="supplier-invoice-no"] {
+  min-height: 2.75rem;
+  height: 2.75rem;
+  font-size: 15px;
+  font-weight: 600;
+  border-color: #cbd5e1;
+  background-color: #fff;
+}
+
+.entry-vasy-key-fields .entry-key-field--party button[role="combobox"],
+.entry-vasy-key-fields .entry-key-field--party [role="combobox"] {
+  font-size: 16px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.entry-vasy-key-fields .entry-key-field--doc-no input {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: 0.02em;
+  background-color: #f8fafc;
+}
+
+.entry-vasy-key-fields .entry-key-field--date button,
+.entry-vasy-key-fields .entry-key-field--date > div {
+  font-size: 15px;
+  font-weight: 600;
+}
+
 /* Sales Invoice (Sale Bill) page — Vasy-style readable typography.
    Scoped to .sale-bill-readable so POS and other pages are untouched. */
 @media (min-width: 1024px) {
@@ -1814,6 +1858,24 @@ main:has(.supplier-party-balances-workspace) {
   .sale-bill-readable .sale-bill-details-section input {
     height: 2.5rem !important;
     font-size: 15px !important;
+  }
+  .sale-bill-readable .entry-vasy-key-fields .entry-key-label,
+  .sale-bill-readable .entry-vasy-key-fields label {
+    font-size: 13px !important;
+    color: #334155 !important;
+  }
+  .sale-bill-readable .entry-vasy-key-fields .entry-key-field input,
+  .sale-bill-readable .entry-vasy-key-fields .entry-key-field button[role="combobox"] {
+    height: 2.75rem !important;
+    min-height: 2.75rem !important;
+    font-size: 16px !important;
+  }
+  .sale-bill-readable .entry-vasy-key-fields .entry-key-field--party button[role="combobox"] {
+    font-size: 17px !important;
+    font-weight: 700 !important;
+  }
+  .sale-bill-readable .entry-vasy-key-fields .entry-key-field--doc-no input {
+    font-size: 16px !important;
   }
   .sale-bill-readable .sale-bill-lines-scroll {
     min-height: 0;
@@ -1903,6 +1965,27 @@ main:has(.supplier-party-balances-workspace) {
     height: 2.5rem !important;
     min-height: 2.5rem !important;
     font-size: 15px !important;
+  }
+  .purchase-bill-readable .entry-vasy-key-fields .entry-key-label,
+  .purchase-bill-readable .entry-vasy-key-fields label {
+    font-size: 13px !important;
+    color: #334155 !important;
+  }
+  .purchase-bill-readable .entry-vasy-key-fields .entry-key-field input,
+  .purchase-bill-readable .entry-vasy-key-fields .entry-key-field button[role="combobox"],
+  .purchase-bill-readable .entry-vasy-key-fields .entry-key-field > div {
+    height: 2.75rem !important;
+    min-height: 2.75rem !important;
+    font-size: 16px !important;
+    font-weight: 600 !important;
+  }
+  .purchase-bill-readable .entry-vasy-key-fields .entry-key-field--party button[role="combobox"] {
+    font-size: 17px !important;
+    font-weight: 700 !important;
+  }
+  .purchase-bill-readable .entry-vasy-key-fields .entry-key-field--doc-no input {
+    font-size: 16px !important;
+    font-weight: 700 !important;
   }
   .purchase-bill-readable .purchase-bill-toolbar input {
     height: 2.5rem !important;
