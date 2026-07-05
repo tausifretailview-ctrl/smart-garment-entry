@@ -92,7 +92,7 @@ All colors MUST be HSL.
     --erp-chrome-above: calc(
       var(--erp-titlebar-height) + var(--erp-toolbar-height) + var(--erp-tabs-height)
     );
-    --erp-sidebar-width: 13.75rem;
+    --erp-sidebar-width: 18rem;
 
     /* Clean minimal shadows - Elevation System */
     --gradient-primary: none;
@@ -1048,6 +1048,29 @@ All colors MUST be HSL.
   .erp-desktop-sidebar [data-sidebar="menu-button"][data-active="true"] svg {
     opacity: 1 !important;
     color: var(--erp-accent) !important;
+  }
+
+  /* Nested items — tighter indent, show full page names (no ellipsis) */
+  .erp-desktop-sidebar [data-sidebar="menu-sub"] {
+    margin-left: 0.625rem !important;
+    margin-right: 0.5rem !important;
+    padding-left: 0.625rem !important;
+    padding-right: 0.375rem !important;
+  }
+
+  .erp-desktop-sidebar [data-sidebar="menu-sub-button"] {
+    height: auto !important;
+    min-height: 2.25rem !important;
+    padding-top: 0.375rem !important;
+    padding-bottom: 0.375rem !important;
+  }
+
+  .erp-desktop-sidebar [data-sidebar="menu-button"] span,
+  .erp-desktop-sidebar [data-sidebar="menu-sub-button"] span {
+    overflow: visible !important;
+    text-overflow: clip !important;
+    white-space: normal !important;
+    line-height: 1.25 !important;
   }
 
   .erp-nav-badge {
