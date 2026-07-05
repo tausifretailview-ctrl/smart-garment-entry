@@ -25,6 +25,7 @@ interface CartItem {
   variantId: string;
   hsnCode?: string;
   productType?: string;
+  uom?: string;
 }
 
 interface MobilePOSLayoutProps {

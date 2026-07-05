@@ -3024,13 +3024,13 @@ Thank you for choosing us!`;
                 customerName: selectedCustomer.customer_name,
                 netAmount,
                 saleData: saleDataForWhatsApp,
-                waSettings: whatsappSettings as WhatsAppSettings,
+                waSettings: whatsappSettings as unknown as WhatsAppSettings,
                 organizationId: currentOrganization.id,
                 organizationName: companyName,
                 sendMessageAsync: (params) =>
                   invokeSendWhatsAppMessage(
                     currentOrganization.id,
-                    whatsappSettings.send_provider,
+                    whatsappSettings.send_provider as "existing" | "wappconnect",
                     params,
                   ),
                 capturePdfBase64: async () => {

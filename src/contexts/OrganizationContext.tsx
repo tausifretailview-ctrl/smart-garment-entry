@@ -125,6 +125,36 @@ export const OrganizationProvider = ({ children }: { children: ReactNode }) => {
     setFetchError(false);
     setHasResolvedOrganizations(false);
 
+    // Optimistic seed: if we already cached this user's orgs from a prior session,
+    // pre-populate `currentOrganization` from the URL slug so OrgLayout can render
+    // the app shell immediately instead of waiting for the network round-trip
+    // (previously triggered the 4s "Sync timeout reached, forcing render" warning).
+    if (!currentOrganization) {
+      const cached = getCachedOrgs(user.id);
+      if (cached && cached.length > 0) {
+        const cachedAsOrgs = cached.map((c) => ({
+          id: c.id,
+          name: c.name,
+          slug: c.slug,
+          subscription_tier: "free" as const,
+          enabled_features: [],
+          settings: {},
+          organization_type: "business" as const,
+          organization_number: 0,
+        }));
+        const selectedOrgSlug = localStorage.getItem("selectedOrgSlug");
+        const preferred =
+          cachedAsOrgs.find((o) => o.slug === selectedOrgSlug) ?? cachedAsOrgs[0];
+        if (preferred) {
+          setOrganizations(cachedAsOrgs);
+          setCurrentOrganization(preferred);
+          setOrganizationRole("user");
+          // Keep loading=true so downstream can still await the authoritative fetch,
+          // but OrgLayout's `isOrgSynced` unblocks the shell right away.
+        }
+      }
+    }
+
     let didTimeout = false;
     const timeoutId = setTimeout(() => {
       didTimeout = true;
