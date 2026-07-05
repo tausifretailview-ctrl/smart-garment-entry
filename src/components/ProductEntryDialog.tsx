@@ -1529,14 +1529,13 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
   const purchaseTypography = isPurchaseBillForm
     ? {
         dialog:
-          "text-[15px] [&_label]:text-[15px] [&_label]:font-semibold [&_button[role=combobox]]:h-10 [&_button[role=combobox]]:text-[15px]",
+          "purchase-add-product-dialog text-[15px] [&_label]:text-[13px] [&_label]:font-bold [&_label]:text-slate-600 [&_input]:h-9 [&_input]:text-[15px] [&_input]:font-semibold [&_button[role=combobox]]:h-9 [&_button[role=combobox]]:text-[15px] [&_button[role=combobox]]:font-semibold",
         selectContent: "text-[15px]",
-        /** Larger bold text; box height stays compact (h-8). */
         priceInput:
-          "!h-8 min-h-8 max-h-8 py-1 px-2 !text-[17px] !font-bold leading-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
+          "!h-8 min-h-8 max-h-8 py-0.5 px-2 !text-[16px] !font-bold leading-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
         qtyInput:
-          "!h-8 min-h-8 max-h-8 py-1 px-1 !text-[17px] !font-bold leading-none text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
-        priceFieldLabel: "font-bold text-[15px]",
+          "!h-8 min-h-8 max-h-8 py-0.5 px-1 !text-[16px] !font-bold leading-none text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
+        priceFieldLabel: "font-bold text-[13px] text-slate-600",
       }
     : {
         dialog: "",
@@ -1551,33 +1550,42 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent
           className={cn(
-            "max-w-6xl max-h-[92vh] p-0 font-outfit flex flex-col overflow-hidden",
+            "max-w-6xl p-0 font-outfit flex flex-col overflow-hidden",
+            isPurchaseBillForm ? "max-h-[96vh]" : "max-h-[92vh]",
             purchaseTypography.dialog
           )}
         >
-          {/* Purchase Context Header */}
+          {!isPurchaseBillForm && (
           <div className="mx-6 mt-6 mb-2 rounded-xl border-[1.5px] border-success/30 bg-gradient-to-br from-success/5 to-success/10 p-4">
             <div className="flex items-center gap-3">
               <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-success/20 to-success/30 flex items-center justify-center flex-shrink-0">
                 <span className="text-lg">🧾</span>
               </div>
               <div className="flex-1 min-w-0">
-                <h3 className={cn("font-bold text-success", isPurchaseBillForm ? "text-base" : "text-sm")}>
+                <h3 className="font-bold text-success text-sm">
                   Purchase Bill — Add New Product
                 </h3>
-                <p className={cn("text-muted-foreground", isPurchaseBillForm ? "text-sm" : "text-[11px]")}>
+                <p className="text-muted-foreground text-[11px]">
                   Fill product details to add directly to purchase bill
                 </p>
               </div>
             </div>
           </div>
-          <DialogHeader className="px-6 pb-2 sr-only">
-            <DialogTitle>Add New Product</DialogTitle>
-            <DialogDescription>Create a new product with size variants</DialogDescription>
+          )}
+          <DialogHeader className={cn(isPurchaseBillForm ? "px-4 pt-3 pb-0 flex-shrink-0" : "px-6 pb-2 sr-only")}>
+            <DialogTitle className={cn(isPurchaseBillForm && "text-base font-bold text-slate-800")}>
+              Add New Product
+            </DialogTitle>
+            {!isPurchaseBillForm && (
+              <DialogDescription>Create a new product with size variants</DialogDescription>
+            )}
           </DialogHeader>
           
           <div 
-            className="flex-1 min-h-0 overflow-y-auto px-6 overscroll-contain"
+            className={cn(
+              "flex-1 min-h-0 overflow-y-auto overscroll-contain",
+              isPurchaseBillForm ? "px-4" : "px-6"
+            )}
             style={{ scrollBehavior: 'smooth' }}
             ref={(node) => {
               if (node && !node.dataset.scrollListenerAttached) {
@@ -1592,7 +1600,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
               }
             }}
           >
-            <div className="space-y-6 py-4 pb-8" data-product-form>
+            <div className={cn("data-product-form", isPurchaseBillForm ? "space-y-3 py-2 pb-2" : "space-y-6 py-4 pb-8")}>
               {/* Product Type — Card Selector */}
               <div className="flex items-center justify-between gap-3">
                 <div className="flex gap-2 flex-1">
@@ -1675,13 +1683,15 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
               )}
 
               {/* ── Copy from existing product (optional) ─────── */}
-              <div className="rounded-lg border border-dashed border-border/70 bg-muted/20 p-3 space-y-2">
-                <Label htmlFor="copy-from-product" className="text-sm font-semibold">
+              <div className={cn("rounded-lg border border-dashed border-border/70 bg-muted/20", isPurchaseBillForm ? "p-2 space-y-1" : "p-3 space-y-2")}>
+                <Label htmlFor="copy-from-product" className={cn("font-semibold", isPurchaseBillForm ? "text-[13px]" : "text-sm")}>
                   🔍 Search existing product to auto-fill (name / brand / category)
                 </Label>
+                {!isPurchaseBillForm && (
                 <p className="text-[11px] text-muted-foreground">
                   Optional — search to copy details, or fill the form manually below.
                 </p>
+                )}
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
                   <Input
@@ -1695,7 +1705,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                     onFocus={updateCopyDropdownPos}
                     onKeyDown={handleCopySearchKeyDown}
                     placeholder="Type product name, brand, or category…"
-                    className="pl-10"
+                    className={cn("pl-10", isPurchaseBillForm && "h-9 text-[15px] font-semibold uppercase placeholder:normal-case")}
                     autoComplete="off"
                   />
                   {copyLoading && (
@@ -1743,13 +1753,13 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                 )}
 
               {/* ── 📋 Product Details ────────────────────────── */}
-              <div className="flex items-center gap-2 pt-1">
+              <div className={cn("flex items-center gap-2", isPurchaseBillForm ? "pt-0" : "pt-1")}>
                 <span className="text-sm">📋</span>
-                <span className={cn("font-bold text-foreground font-outfit", isPurchaseBillForm ? "text-base" : "text-[13px]")}>Product Details</span>
+                <span className={cn("font-bold text-foreground font-outfit", isPurchaseBillForm ? "text-[15px]" : "text-[13px]")}>Product Details</span>
                 <div className="flex-1 h-px bg-border" />
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="space-y-2 col-span-2">
+              <div className={cn("grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4", isPurchaseBillForm ? "gap-2" : "gap-4")}>
+                <div className={cn("space-y-2", isPurchaseBillForm ? "col-span-1" : "col-span-2")}>
                   <Label htmlFor="product_name">{getFieldLabel("product_name", "Product Name")} *</Label>
                     <Input
                       ref={productNameInputRef}
@@ -1758,6 +1768,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                       onChange={(e) => setFormData({ ...formData, product_name: e.target.value })}
                       onKeyDown={handleEnterAsTab}
                       placeholder={lastProductNameHint}
+                      className={isPurchaseBillForm ? "h-9 text-[15px] font-semibold" : undefined}
                     />
                 </div>
 
@@ -2081,8 +2092,8 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                 )}
               </div>
 
-              {/* Colors Section */}
-              {isFieldEnabled("color") && formData.product_type !== 'service' && (
+              {/* Colors Section — stacked unless purchase bill (one row with size group) */}
+              {isFieldEnabled("color") && formData.product_type !== 'service' && !isPurchaseBillForm && (
                 <div className="space-y-2">
                   <Label>{getFieldLabel("color", "Colors")} (comma-separated)</Label>
                   <div className="flex gap-2">
@@ -2211,7 +2222,97 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
               )}
 
               {formData.product_type !== 'service' && !mobileERPMode?.locked_size_qty && !(rollWiseMtrEnabled && formData.uom === 'MTR') && (
-                <div className="space-y-2">
+                <>
+                  {isPurchaseBillForm && isFieldEnabled("color") && (
+                    <div className="purchase-color-size-row grid grid-cols-1 md:grid-cols-2 gap-2 items-end">
+                      <div className="space-y-1 min-w-0">
+                        <Label className="text-[13px] font-bold text-slate-600">{getFieldLabel("color", "Colors")} (comma-separated)</Label>
+                        <div className="flex gap-1.5">
+                          <Input
+                            value={colorInput}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setColorInput(val);
+                              if (val.endsWith(',') || val.endsWith(', ')) {
+                                const parts = val.split(',').map(c => c.trim()).filter(c => c);
+                                const uniqueNew = parts.filter(c => !formData.colors.includes(c));
+                                if (uniqueNew.length > 0) {
+                                  setFormData(prev => ({ ...prev, colors: [...prev.colors, ...uniqueNew] }));
+                                }
+                                setColorInput('');
+                              }
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" || e.key === "Tab") {
+                                if (colorInput.trim()) {
+                                  e.preventDefault();
+                                  handleAddColor();
+                                }
+                              }
+                              if (e.key === "Backspace" && !colorInput && formData.colors.length > 0) {
+                                handleRemoveColor(formData.colors[formData.colors.length - 1]);
+                              }
+                            }}
+                            placeholder={formData.colors.length > 0 ? "Add more…" : "e.g., Black, White, Red"}
+                            className="h-9 text-[15px] font-semibold flex-1 min-w-0"
+                            list="color-list"
+                            autoComplete="off"
+                          />
+                          <Button type="button" variant="secondary" onClick={handleAddColor} className="h-9 text-[14px] px-3 shrink-0">
+                            Add
+                          </Button>
+                        </div>
+                        {formData.colors.length > 0 && (
+                          <div className="flex flex-wrap gap-1 pt-0.5">
+                            {formData.colors.map((color, i) => (
+                              <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-primary/10 text-primary text-[12px] font-semibold border border-primary/20">
+                                {color}
+                                <button type="button" onClick={() => handleRemoveColor(color)} className="hover:text-destructive">
+                                  <X className="h-3 w-3" />
+                                </button>
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      <div className="space-y-1 min-w-0">
+                        <Label className="text-[13px] font-bold text-slate-600">Size Group</Label>
+                        <div className="flex gap-1.5">
+                          <Select
+                            value={formData.size_group_id}
+                            onValueChange={(value) => {
+                              setFormData({ ...formData, size_group_id: value });
+                              const group = resolveSizeGroup(value);
+                              setSelectedSizes(group ? [...group.sizes] : []);
+                              if (hideOpeningQty) {
+                                setVariants([]);
+                                setShowVariants(false);
+                              }
+                            }}
+                          >
+                            <SelectTrigger className="flex-1 h-9 text-[15px] font-semibold">
+                              <SelectValue placeholder="Select size group" />
+                            </SelectTrigger>
+                            <SelectContent className={purchaseTypography.selectContent}>
+                              <SelectItem value={NO_SIZE_GROUP}>None (no sizes)</SelectItem>
+                              {sizeGroups.map((group) => (
+                                <SelectItem key={group.id} value={group.id}>
+                                  {group.group_name} ({group.sizes.join(", ")})
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <Button type="button" variant="outline" onClick={() => setShowCreateSizeGroup(true)} className="h-9 text-[14px] px-2.5 shrink-0">
+                            <Plus className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                <div className={cn(!isPurchaseBillForm && "space-y-2")}>
+                  {!isPurchaseBillForm && (
+                  <>
                   <Label>Size Group</Label>
                   <div className="flex gap-2">
                     <Select
@@ -2248,6 +2349,8 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                       <Plus className="h-4 w-4 mr-1" /> New
                     </Button>
                   </div>
+                  </>
+                  )}
 
                   {/* Size Selection Checkboxes / Qty Grid */}
                   {formData.size_group_id && (() => {
@@ -2273,19 +2376,19 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                       };
 
                       return (
-                        <div className="space-y-2 mt-2">
+                        <div className={cn(isPurchaseBillForm ? "space-y-1 mt-1" : "space-y-2 mt-2")}>
                           <div className="flex items-center justify-between">
-                            <span className={cn("font-semibold text-foreground", isPurchaseBillForm ? "text-base" : "text-sm")}>
+                            <span className={cn("font-semibold text-foreground", isPurchaseBillForm ? "text-[14px]" : "text-sm")}>
                               Size-wise Quantity
                             </span>
-                            <span className={cn("text-muted-foreground", isPurchaseBillForm ? "text-[15px]" : "text-sm")}>
+                            <span className={cn("text-muted-foreground", isPurchaseBillForm ? "text-[13px]" : "text-sm")}>
                               Total: {totalQty} pcs · {activeSizeCount} sizes
                             </span>
                           </div>
 
                           {isMultiColor ? (
                             /* ── Color × Size Matrix (qty + sale price per cell) ── */
-                            <div className="overflow-x-auto p-3 bg-muted/30 rounded-lg border border-dashed border-muted-foreground/20">
+                            <div className={cn("overflow-x-auto bg-muted/30 rounded-lg border border-dashed border-muted-foreground/20", isPurchaseBillForm ? "p-1.5" : "p-3")}>
                               <table className="w-full border-collapse table-fixed">
                                 <thead>
                                   <tr>
@@ -2492,7 +2595,12 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                             </div>
                           ) : (
                             /* ── Single color / no color: single-row grid with toggle ── */
-                            <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-6 gap-3 p-4 bg-muted/30 rounded-lg border border-dashed border-muted-foreground/20">
+                            <div className={cn(
+                              "grid bg-muted/30 rounded-lg border border-dashed border-muted-foreground/20",
+                              isPurchaseBillForm
+                                ? "grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-1.5 p-2"
+                                : "grid-cols-3 sm:grid-cols-5 md:grid-cols-6 gap-3 p-4"
+                            )}>
                               {allSizes.map((size) => {
                                 const sIdx = allSizes.indexOf(size);
                                 const isDisabled = disabledSizes.has(size);
@@ -2785,6 +2893,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                     );
                   })()}
                 </div>
+                </>
               )}
 
               {/* Roll-wise MTR info banner */}
