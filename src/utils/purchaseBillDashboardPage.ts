@@ -31,6 +31,8 @@ export type PurchaseBillDashboardRow = {
   is_cancelled?: boolean | null;
   cancelled_at?: string | null;
   cancelled_reason?: string | null;
+  purchase_return_adjust?: number | null;
+  pr_adjust_date?: string | null;
 };
 
 export type PurchaseBillsDashboardPageResult = {
