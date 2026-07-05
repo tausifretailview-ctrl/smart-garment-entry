@@ -173,18 +173,18 @@ export function PrecisionLabelDesigner({
   );
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-      {/* Field Controls */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold">Field Layout</h3>
-          <div className="flex gap-2">
-            <Button variant="ghost" size="sm" onClick={resetToDefault} className="h-7 text-xs">
+    <div className="barcode-label-designer grid grid-cols-1 xl:grid-cols-[minmax(300px,380px)_1fr] gap-3 h-full min-h-[420px] max-h-[calc(100vh-14rem)]">
+      {/* Field Controls — scrollable left column */}
+      <div className="flex flex-col min-h-0 min-w-0 border rounded-md bg-card overflow-hidden">
+        <div className="flex items-center justify-between px-2.5 py-1.5 border-b shrink-0 bg-muted/20">
+          <h3 className="text-xs font-semibold uppercase tracking-wide">Field Layout</h3>
+          <div className="flex gap-1">
+            <Button variant="ghost" size="sm" onClick={resetToDefault} className="h-7 text-[11px] px-2">
               <RotateCcw className="h-3 w-3 mr-1" />
               Reset
             </Button>
             {onSave && (
-              <Button size="sm" onClick={onSave} className="h-7 text-xs">
+              <Button size="sm" onClick={onSave} className="h-7 text-[11px] px-2">
                 <Save className="h-3 w-3 mr-1" />
                 Save
               </Button>
@@ -192,8 +192,9 @@ export function PrecisionLabelDesigner({
           </div>
         </div>
 
-        {/* Custom text slots — multiple per label */}
-        <div className="space-y-2 rounded-lg border border-border/60 p-2.5 bg-muted/20">
+        <ScrollArea className="flex-1 min-h-0">
+          <div className="p-2 space-y-2">
+        <div className="space-y-1.5 rounded-md border border-border/60 p-2 bg-muted/20">
           <div className="flex items-center justify-between gap-2">
             <Label className="text-xs font-semibold">Custom Text Fields</Label>
             <Button
@@ -395,8 +396,7 @@ export function PrecisionLabelDesigner({
           </div>
         </div>
 
-        <ScrollArea className="h-[500px] pr-2">
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             {allFieldKeys.map((key) => {
               const field = config[key] as LabelFieldConfig;
               if (!field) return null;
@@ -688,21 +688,22 @@ export function PrecisionLabelDesigner({
         </ScrollArea>
       </div>
 
-      {/* Live Preview with Drag */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold">Live Preview (drag fields to reposition)</h3>
-          <div className="flex items-center gap-2">
+      {/* Live Preview — sticky right column */}
+      <div className="flex flex-col min-h-0 min-w-0 border rounded-md bg-card overflow-hidden xl:sticky xl:top-0 xl:self-start xl:max-h-[calc(100vh-14rem)]">
+        <div className="flex items-center justify-between px-2.5 py-1.5 border-b shrink-0 bg-muted/20">
+          <h3 className="text-xs font-semibold uppercase tracking-wide">Live Preview</h3>
+          <div className="flex items-center gap-1">
             <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setZoom(z => Math.max(1, z - 0.5))}>
               <ZoomOut className="h-3.5 w-3.5" />
             </Button>
-            <span className="text-xs text-muted-foreground w-8 text-center">{zoom}×</span>
+            <span className="text-[11px] text-muted-foreground w-7 text-center tabular-nums">{zoom}×</span>
             <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setZoom(z => Math.min(6, z + 0.5))}>
               <ZoomIn className="h-3.5 w-3.5" />
             </Button>
           </div>
         </div>
 
+        <div className="flex-1 min-h-0 flex flex-col p-2">
         <DraggableLabelCanvas
           item={sampleItem || { ...SAMPLE_ITEM, uom: defaultUom }}
           width={labelWidth}
@@ -730,8 +731,9 @@ export function PrecisionLabelDesigner({
           }}
         />
 
-        <div className="text-xs text-muted-foreground text-center">
-          Actual size: {labelWidth}mm × {labelHeight}mm • Click to select, drag to move • Delete key removes selected line
+        <div className="text-[10px] text-muted-foreground text-center mt-1 shrink-0">
+          {labelWidth}mm × {labelHeight}mm · drag to move · Delete removes line
+        </div>
         </div>
       </div>
     </div>

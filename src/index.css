@@ -2984,3 +2984,99 @@ main.overflow-auto,
 [data-radix-select-viewport] {
   overscroll-behavior: contain;
 }
+
+/* Barcode Printing — full-width dashboard layout (Vasy-style density) */
+.barcode-printing-page {
+  width: 100%;
+  max-width: none;
+}
+
+.barcode-printing-page .barcode-products-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #0f172a;
+  color: #fff;
+  font-size: 12px !important;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.4rem 0.5rem !important;
+  white-space: nowrap;
+}
+
+.barcode-printing-page .barcode-products-table tbody td {
+  font-size: 13px !important;
+  padding: 0.35rem 0.5rem !important;
+  vertical-align: middle;
+}
+
+.barcode-printing-page .barcode-products-table tbody tr {
+  border-bottom: 1px solid hsl(var(--border));
+}
+
+.barcode-printing-page .barcode-products-table tbody tr:hover {
+  background: hsl(var(--muted) / 0.35);
+}
+
+.barcode-printing-page .barcode-label-source-trigger:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: -2px;
+}
+
+.barcode-printing-page [role="tablist"] {
+  background: hsl(var(--muted) / 0.5);
+  padding: 2px;
+  height: auto;
+}
+
+.barcode-printing-page [role="tab"] {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 0.35rem 0.75rem;
+}
+
+.barcode-printing-page .border.rounded-md.p-3,
+.barcode-printing-page .border.rounded-lg.p-4 {
+  padding: 0.65rem !important;
+}
+
+.barcode-printing-page h2.text-xl {
+  font-size: 0.95rem !important;
+}
+
+.barcode-label-designer {
+  height: 100%;
+}
+
+.barcode-label-designer > div:first-child {
+  max-height: calc(100vh - 14rem);
+}
+
+.barcode-label-designer > div:first-child [data-radix-scroll-area-root] {
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+}
+
+.barcode-label-designer .barcode-label-designer [data-radix-scroll-area-viewport] > div {
+  display: block !important;
+}
+
+.barcode-label-designer [data-radix-scroll-area-viewport] > div > div > .space-y-1\.5 > [class*="Card"],
+.barcode-label-designer [data-radix-scroll-area-viewport] .space-y-1\.5 > [class*="Card"] {
+  box-shadow: none;
+}
+
+.barcode-label-designer [class*="CardContent"] {
+  padding: 0.5rem !important;
+}
+
+@media (min-width: 1280px) {
+  .barcode-label-designer > div:last-child {
+    position: sticky;
+    top: 0.5rem;
+    align-self: stretch;
+    max-height: calc(100vh - 14rem);
+  }
+}

@@ -198,8 +198,8 @@ export function DraggableLabelCanvas({
 
   return (
     <div
-      className="border rounded-lg overflow-auto bg-muted/20 p-4 flex items-center justify-center"
-      style={{ minHeight: 160 }}
+      className="border rounded-md overflow-auto bg-muted/20 p-2 flex items-center justify-center flex-1 min-h-[120px] max-h-full"
+      style={{ minHeight: 120 }}
       tabIndex={0}
       onKeyDown={handleKeyDown}
     >

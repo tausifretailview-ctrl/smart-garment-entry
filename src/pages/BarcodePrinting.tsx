@@ -24,7 +24,8 @@ import {
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import JsBarcode from "jsbarcode";
-import { Check, Save, Trash2, GripVertical, Eye, Download, RefreshCw, Edit, Printer, AlertTriangle, Plus, Home, Loader2 } from "lucide-react";
+import { Check, Save, Trash2, GripVertical, Eye, Download, RefreshCw, Edit, Printer, AlertTriangle, Plus, Home, Loader2, ChevronDown, LayoutList, Search } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Badge } from "@/components/ui/badge";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
@@ -1186,6 +1187,7 @@ export default function BarcodePrinting() {
     } catch {}
     return [];
   });
+  const [labelSourceOpen, setLabelSourceOpen] = useState(false);
   const [quantityMode, setQuantityMode] = useState<QuantityMode>("manual");
   const [sizeSortOrder, setSizeSortOrder] = useState<SizeSortOrder>("barcode_asc");
   const [billNumber, setBillNumber] = useState("");
@@ -4649,52 +4651,80 @@ export default function BarcodePrinting() {
     }
   }, [currentOrganization?.id, labelItems, location.state, orgNavigate, sourcePurchaseBillId]);
 
+  const totalLabelQty = labelItems.reduce((sum, item) => sum + item.qty, 0);
+  const quantityModeLabel =
+    quantityMode === "manual"
+      ? "Manual qty"
+      : quantityMode === "lastPurchase"
+        ? "Auto: last purchase"
+        : "Auto: by bill";
+
   return (
-    <div className="w-full px-6 py-6 space-y-6">
-      {showPurchaseBillNav ? (
-        <div className="flex items-center gap-2 flex-wrap">
-          <BackToDashboard label="Back to Purchase Bill Dashboard" to="/purchase-bills" />
-          <Button
-            variant="outline"
-            size="sm"
-            className="mb-4"
-            disabled={isNavigatingToPurchaseBill}
-            onClick={() => void handleBackToPurchaseBill()}
-          >
-            <Home className="h-4 w-4 mr-2" />
-            Back to Purchase Bill
-          </Button>
-          <Button
-            variant="default"
-            size="sm"
-            className="gap-2 ml-auto"
-            disabled={isNavigatingToPurchaseBill}
-            onClick={() => void handleBackToPurchaseBill()}
-          >
-            {isNavigatingToPurchaseBill ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Plus className="h-4 w-4" />
+    <div className="barcode-printing-page min-h-[calc(100vh-2.5rem)] bg-slate-50 dark:bg-background p-2 md:p-3 flex flex-col gap-2 max-w-none">
+      {/* Dashboard header + toolbar */}
+      <div className="barcode-print-toolbar flex flex-wrap items-center gap-2 shrink-0">
+        <div className="flex items-center gap-2 min-w-0 flex-1">
+          <div className="rounded-md bg-primary/10 p-1.5 text-primary shrink-0">
+            <LayoutList className="h-5 w-5" />
+          </div>
+          <div className="min-w-0">
+            <h1 className="text-lg font-bold tracking-tight leading-tight">Barcode Printing</h1>
+            {labelItems.length > 0 && (
+              <p className="text-xs text-muted-foreground tabular-nums">
+                {labelItems.length} products · {totalLabelQty} labels
+              </p>
             )}
-            Continue Adding Products
-          </Button>
+          </div>
         </div>
-      ) : (
-        <BackToDashboard />
-      )}
-      <h1 className="text-3xl font-bold">Barcode Printing</h1>
+        <div className="flex items-center gap-1.5 flex-wrap shrink-0">
+          {showPurchaseBillNav ? (
+            <>
+              <BackToDashboard label="Purchase Dashboard" to="/purchase-bills" />
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 text-xs"
+                disabled={isNavigatingToPurchaseBill}
+                onClick={() => void handleBackToPurchaseBill()}
+              >
+                <Home className="h-3.5 w-3.5 mr-1" />
+                Purchase Bill
+              </Button>
+              <Button
+                variant="default"
+                size="sm"
+                className="h-8 text-xs gap-1"
+                disabled={isNavigatingToPurchaseBill}
+                onClick={() => void handleBackToPurchaseBill()}
+              >
+                {isNavigatingToPurchaseBill ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Plus className="h-3.5 w-3.5" />
+                )}
+                Add Products
+              </Button>
+            </>
+          ) : (
+            <BackToDashboard />
+          )}
+        </div>
+      </div>
 
       {/* Search Bar with Dropdown */}
-      <div className="flex gap-2">
+      <div className="barcode-print-search shrink-0">
         <Popover open={isSearchOpen} onOpenChange={setIsSearchOpen}>
           <PopoverTrigger asChild>
             <Button
               variant="outline"
               role="combobox"
               aria-expanded={isSearchOpen}
-              className="flex-1 justify-between"
+              className="w-full h-9 justify-between font-normal text-sm bg-background"
             >
-              {searchQuery || "Search product, brand, size, or barcode..."}
+              <span className="flex items-center gap-2 truncate text-left">
+                <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
+                {searchQuery || "Search product, brand, size, or barcode..."}
+              </span>
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-[600px] p-0">
@@ -4755,126 +4785,140 @@ export default function BarcodePrinting() {
         </Popover>
       </div>
 
-      {/* Label Source Panel */}
-      <div className="border rounded-lg p-4 space-y-4">
-        <h2 className="text-xl font-semibold">Label Source</h2>
+      {/* Label Source — collapsed by default */}
+      <Collapsible open={labelSourceOpen} onOpenChange={setLabelSourceOpen} className="shrink-0">
+        <div className="border rounded-md bg-card overflow-hidden shadow-sm">
+          <CollapsibleTrigger asChild>
+            <button
+              type="button"
+              className="barcode-label-source-trigger w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-muted/40 transition-colors"
+            >
+              <ChevronDown className={cn("h-4 w-4 shrink-0 text-muted-foreground transition-transform", labelSourceOpen && "rotate-180")} />
+              <span className="text-sm font-semibold">Label Source</span>
+              <span className="text-xs text-muted-foreground truncate">{quantityModeLabel}</span>
+              {sizeSortOrder === "barcode_asc" && (
+                <span className="text-[11px] text-muted-foreground hidden sm:inline">· Barcode order</span>
+              )}
+            </button>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <div className="px-3 pb-3 pt-2 border-t space-y-2">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Quantity Mode</Label>
+                  <RadioGroup value={quantityMode} onValueChange={(v) => setQuantityMode(v as QuantityMode)} className="flex flex-wrap gap-x-4 gap-y-1">
+                    <div className="flex items-center space-x-1.5">
+                      <RadioGroupItem value="manual" id="manual" className="h-3.5 w-3.5" />
+                      <Label htmlFor="manual" className="text-sm font-medium cursor-pointer">Manual</Label>
+                    </div>
+                    <div className="flex items-center space-x-1.5">
+                      <RadioGroupItem value="lastPurchase" id="lastPurchase" className="h-3.5 w-3.5" />
+                      <Label htmlFor="lastPurchase" className="text-sm font-medium cursor-pointer">Auto: Last Purchase</Label>
+                    </div>
+                    <div className="flex items-center space-x-1.5">
+                      <RadioGroupItem value="byBill" id="byBill" className="h-3.5 w-3.5" />
+                      <Label htmlFor="byBill" className="text-sm font-medium cursor-pointer">Auto: By Bill No</Label>
+                    </div>
+                  </RadioGroup>
+                </div>
 
-        <div className="space-y-2">
-          <Label>Quantity Mode</Label>
-          <RadioGroup value={quantityMode} onValueChange={(v) => setQuantityMode(v as QuantityMode)}>
-            <div className="flex items-center space-x-2">
-              <RadioGroupItem value="manual" id="manual" />
-              <Label htmlFor="manual">Manual</Label>
-            </div>
-            <div className="flex items-center space-x-2">
-              <RadioGroupItem value="lastPurchase" id="lastPurchase" />
-              <Label htmlFor="lastPurchase">Auto: Last Purchase (by latest bill date)</Label>
-            </div>
-            <div className="flex items-center space-x-2">
-              <RadioGroupItem value="byBill" id="byBill" />
-              <Label htmlFor="byBill">Auto: By Bill No</Label>
-            </div>
-          </RadioGroup>
-        </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Print Order</Label>
+                  <Select value={sizeSortOrder} onValueChange={(v) => setSizeSortOrder(v as SizeSortOrder)}>
+                    <SelectTrigger className="h-8 text-sm bg-background">
+                      <SelectValue placeholder="Select sort order" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-background">
+                      <SelectItem value="barcode_asc">Barcode (Serial Order) ↑</SelectItem>
+                      <SelectItem value="none">Sr No (Original Entry)</SelectItem>
+                      <SelectItem value="name_asc">Product Name (A→Z)</SelectItem>
+                      <SelectItem value="price_asc">Price (Low → High)</SelectItem>
+                      <SelectItem value="price_desc">Price (High → Low)</SelectItem>
+                      <SelectItem value="ascending">Size: Ascending (35→45)</SelectItem>
+                      <SelectItem value="descending">Size: Descending (45→35)</SelectItem>
+                      <SelectItem value="barcode_desc">Barcode: Descending</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
 
-        {/* Label Print Sort Order */}
-        <div className="space-y-2">
-          <Label>Print Order</Label>
-          <Select value={sizeSortOrder} onValueChange={(v) => setSizeSortOrder(v as SizeSortOrder)}>
-            <SelectTrigger className="w-full bg-background">
-              <SelectValue placeholder="Select sort order" />
-            </SelectTrigger>
-            <SelectContent className="bg-background">
-              <SelectItem value="barcode_asc">Barcode (Serial Order) ↑</SelectItem>
-              <SelectItem value="none">Sr No (Original Entry)</SelectItem>
-              <SelectItem value="name_asc">Product Name (A→Z)</SelectItem>
-              <SelectItem value="price_asc">Price (Low → High)</SelectItem>
-              <SelectItem value="price_desc">Price (High → Low)</SelectItem>
-              <SelectItem value="ascending">Size: Ascending (35→45)</SelectItem>
-              <SelectItem value="descending">Size: Descending (45→35)</SelectItem>
-              <SelectItem value="barcode_desc">Barcode: Descending</SelectItem>
-            </SelectContent>
-          </Select>
-          <p className="text-xs text-muted-foreground">
-            Default: Barcode serial order ensures unbroken sequence (18001212 → 18001213 → …)
-          </p>
-        </div>
-
-        {quantityMode === "byBill" && (
-          <div className="space-y-2">
-            <div className="flex gap-2">
-              <div className="flex-1">
-                <Select
-                  value={billNumber}
-                  onValueChange={(value) => {
-                    setBillNumber(value);
-                    // Auto-load when bill is selected from dropdown
-                    if (value) {
-                      setTimeout(() => handleLoadByBill(), 100);
-                    }
-                  }}
-                >
-                  <SelectTrigger className="bg-background">
-                    <SelectValue placeholder="Select recent bill..." />
-                  </SelectTrigger>
-                  <SelectContent className="bg-background z-50">
-                    {recentBills.length > 0 ? (
-                      recentBills.map((bill) => (
-                        <SelectItem key={bill.id} value={bill.software_bill_no || bill.id}>
-                          <div className="flex flex-col">
-                            <span className="font-medium">{bill.software_bill_no}</span>
-                            <span className="text-xs text-muted-foreground">
-                              {bill.supplier_name} - {new Date(bill.bill_date).toLocaleDateString()}
-                            </span>
-                          </div>
+              {quantityMode === "byBill" && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  <Select
+                    value={billNumber}
+                    onValueChange={(value) => {
+                      setBillNumber(value);
+                      if (value) {
+                        setTimeout(() => handleLoadByBill(), 100);
+                      }
+                    }}
+                  >
+                    <SelectTrigger className="h-8 bg-background text-sm">
+                      <SelectValue placeholder="Select recent bill..." />
+                    </SelectTrigger>
+                    <SelectContent className="bg-background z-50">
+                      {recentBills.length > 0 ? (
+                        recentBills.map((bill) => (
+                          <SelectItem key={bill.id} value={bill.software_bill_no || bill.id}>
+                            <div className="flex flex-col">
+                              <span className="font-medium">{bill.software_bill_no}</span>
+                              <span className="text-xs text-muted-foreground">
+                                {bill.supplier_name} - {new Date(bill.bill_date).toLocaleDateString()}
+                              </span>
+                            </div>
+                          </SelectItem>
+                        ))
+                      ) : (
+                        <SelectItem value="no-bills" disabled>
+                          No recent bills found
                         </SelectItem>
-                      ))
-                    ) : (
-                      <SelectItem value="no-bills" disabled>
-                        No recent bills found
-                      </SelectItem>
-                    )}
-                  </SelectContent>
-                </Select>
+                      )}
+                    </SelectContent>
+                  </Select>
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Or enter bill number"
+                      value={billNumber}
+                      onChange={(e) => setBillNumber(e.target.value)}
+                      className="h-8 text-sm flex-1"
+                    />
+                    <Button size="sm" className="h-8" onClick={handleLoadByBill}>Load</Button>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex justify-end">
+                <Button variant="outline" size="sm" className="h-8 text-xs" onClick={handleClearAll}>
+                  Clear All
+                </Button>
               </div>
             </div>
-            <div className="flex gap-2">
-              <Input
-                placeholder="Or enter bill number manually"
-                value={billNumber}
-                onChange={(e) => setBillNumber(e.target.value)}
-                className="flex-1"
-              />
-              <Button onClick={handleLoadByBill}>Load</Button>
-            </div>
-          </div>
-        )}
-
-        <Button variant="outline" onClick={handleClearAll}>
-          Clear All
-        </Button>
-      </div>
+          </CollapsibleContent>
+        </div>
+      </Collapsible>
 
       {/* Results Table */}
       {labelItems.length > 0 && (
-        <div className="border rounded-lg overflow-hidden">
-          <div className="bg-muted p-3 border-b">
-            <p className="text-sm font-medium">
-              Total Products: <span className="font-bold">{labelItems.length}</span> | 
-              Total Labels: <span className="font-bold text-primary">{labelItems.reduce((sum, item) => sum + item.qty, 0)}</span>
+        <div className="barcode-products-panel border rounded-md overflow-hidden shrink-0 max-h-[28vh] flex flex-col">
+          <div className="bg-slate-900 text-white px-3 py-1.5 border-b flex items-center justify-between gap-2">
+            <p className="text-xs font-semibold tabular-nums">
+              Products: <span className="font-bold">{labelItems.length}</span>
+              <span className="mx-1.5 opacity-40">|</span>
+              Labels: <span className="font-bold text-emerald-300">{totalLabelQty}</span>
             </p>
           </div>
-          <Table>
+          <div className="overflow-auto flex-1 min-h-0">
+          <Table className="barcode-products-table">
             <TableHeader>
-              <TableRow>
+              <TableRow className="hover:bg-transparent">
                 <TableHead>Product Description</TableHead>
-                <TableHead>Size</TableHead>
-                <TableHead>MRP</TableHead>
-                <TableHead>Sale Rate</TableHead>
-                <TableHead>Barcode</TableHead>
-                <TableHead>Supplier Code</TableHead>
-                <TableHead>Label Qty</TableHead>
-                <TableHead className="w-[80px]">Action</TableHead>
+                <TableHead className="w-[70px]">Size</TableHead>
+                <TableHead className="w-[80px]">MRP</TableHead>
+                <TableHead className="w-[80px]">Sale</TableHead>
+                <TableHead className="w-[110px]">Barcode</TableHead>
+                <TableHead className="w-[90px]">Sup Code</TableHead>
+                <TableHead className="w-[80px]">Qty</TableHead>
+                <TableHead className="w-[48px]"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -4909,7 +4953,7 @@ export default function BarcodePrinting() {
                       min="0"
                       value={item.qty}
                       onChange={(e) => handleQtyChange(item.sku_id, parseInt(e.target.value) || 0)}
-                      className="w-20"
+                      className="w-16 h-8 text-sm font-mono tabular-nums"
                     />
                   </TableCell>
                   <TableCell>
@@ -4920,9 +4964,9 @@ export default function BarcodePrinting() {
                         setLabelItems(prev => prev.filter(i => i.sku_id !== item.sku_id));
                         toast.success("Product removed");
                       }}
-                      className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                      className="h-7 w-7 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
                     >
-                      <Trash2 className="h-4 w-4" />
+                      <Trash2 className="h-3.5 w-3.5" />
                     </Button>
                   </TableCell>
                 </TableRow>
@@ -4930,6 +4974,7 @@ export default function BarcodePrinting() {
               })}
             </TableBody>
           </Table>
+          </div>
         </div>
       )}
 
@@ -4967,18 +5012,18 @@ export default function BarcodePrinting() {
             }
           }
         }}
-        className="w-full"
+        className="w-full flex-1 min-h-0 flex flex-col"
       >
-        <TabsList className="mb-4">
-          <TabsTrigger value="standard">Standard Printing</TabsTrigger>
-          <TabsTrigger value="precision">🎯 Precision Pro</TabsTrigger>
-          <TabsTrigger value="designer">📐 Label Designer</TabsTrigger>
+        <TabsList className="mb-1 h-9 shrink-0">
+          <TabsTrigger value="standard" className="text-xs px-3">Standard</TabsTrigger>
+          <TabsTrigger value="precision" className="text-xs px-3">Precision Pro</TabsTrigger>
+          <TabsTrigger value="designer" className="text-xs px-3">Label Designer</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="standard" className="space-y-6">
+        <TabsContent value="standard" className="space-y-2 mt-0 flex-1 min-h-0 overflow-auto">
       {/* Layout & Style Panel */}
-      <div className="border rounded-lg p-4 space-y-4">
-        <h2 className="text-xl font-semibold">Layout & Style</h2>
+      <div className="border rounded-md p-3 space-y-2">
+        <h2 className="text-sm font-semibold">Layout & Style</h2>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
@@ -5989,7 +6034,7 @@ export default function BarcodePrinting() {
       </div>
         </TabsContent>
 
-        <TabsContent value="precision" className="space-y-6">
+        <TabsContent value="precision" className="space-y-2 mt-0 flex-1 min-h-0 overflow-auto">
           {/* Precision Pro Calibration & Actions */}
           <div className="border rounded-lg p-4 space-y-4">
             <h2 className="text-xl font-semibold">🎯 Precision Pro Settings</h2>
@@ -6115,27 +6160,24 @@ export default function BarcodePrinting() {
           </div>
         </TabsContent>
 
-        <TabsContent value="designer" className="space-y-6">
-          <div className="border rounded-lg p-4 space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xl font-semibold">📐 Precision Pro Label Designer</h2>
+        <TabsContent value="designer" className="mt-0 flex-1 min-h-0 flex flex-col data-[state=inactive]:hidden">
+          <div className="border rounded-md flex flex-col flex-1 min-h-0 overflow-hidden">
+            <div className="flex flex-wrap items-center gap-2 px-3 py-2 border-b bg-muted/30 shrink-0">
+              <h2 className="text-sm font-semibold">Label Designer</h2>
               {activePrecisionTemplateName && (
-                <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-green-100 dark:bg-green-900/30 border border-green-200 dark:border-green-800">
-                  <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                  <span className="text-xs font-medium text-green-700 dark:text-green-400">
-                    Live · {activePrecisionTemplateName.replace('preset:', '')}
+                <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-900/30 border border-green-200 dark:border-green-800">
+                  <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                  <span className="text-[11px] font-medium text-green-700 dark:text-green-400">
+                    {activePrecisionTemplateName.replace('preset:', '')}
                   </span>
                 </div>
               )}
-            </div>
             
             {/* Template Selector for Designer */}
-            <div className="flex items-center gap-2 flex-wrap">
-              <div className="flex-1 min-w-[200px] space-y-1">
-                <Label className="text-xs font-medium">Load Label Template</Label>
-                <Select 
-                  value={activePrecisionTemplateName || ""} 
-                  onValueChange={(name) => {
+            <div className="flex items-center gap-2 flex-wrap flex-1 min-w-[200px] ml-auto">
+              <Select 
+                value={activePrecisionTemplateName || ""} 
+                onValueChange={(name) => {
                     if (name.startsWith("preset:")) {
                       const presetName = name.replace("preset:", "");
                       const preset = dbPresets.find((p) => p.name === presetName);
@@ -6223,39 +6265,27 @@ export default function BarcodePrinting() {
                     )}
                   </SelectContent>
                 </Select>
-              </div>
               {activePrecisionTemplateName && (
-                <div className="flex items-center gap-2 pt-4">
-                  <span className="px-2 py-0.5 rounded bg-primary/10 text-primary font-medium text-xs">
-                    ✏️ Editing: {activePrecisionTemplateName.replace("preset:", "")}
-                  </span>
-                  <span className="text-muted-foreground text-[10px]">
-                    {isFixedBuiltinLabelPreset(activePrecisionTemplateBaseName)
-                      ? "(fixed layout — same on all PCs)"
-                      : "(changes auto-save)"}
-                  </span>
-                  <Button 
-                    variant="ghost" 
-                    size="xs" 
-                    className="h-6 text-xs"
-                    onClick={() => setActivePrecisionTemplateName(null)}
-                  >
-                    ✕ Deselect
-                  </Button>
-                </div>
+                <Button 
+                  variant="ghost" 
+                  size="sm"
+                  className="h-8 text-xs px-2"
+                  onClick={() => setActivePrecisionTemplateName(null)}
+                >
+                  ✕
+                </Button>
               )}
             </div>
+            </div>
 
+            <div className="flex-1 min-h-0 overflow-hidden p-2">
             {(!precisionConfigReady || isLoadingSettings) ? (
-              <div className="flex items-center justify-center py-12">
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground mr-2" />
-                <span className="text-muted-foreground">Loading label design...</span>
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground mr-2" />
+                <span className="text-sm text-muted-foreground">Loading label design...</span>
               </div>
             ) : (
             <>
-            <p className="text-sm text-muted-foreground">
-              Configure exact field positions (in mm) for pixel-perfect label printing. Drag fields to reposition them on the live preview.
-            </p>
             <PrecisionLabelDesigner
               labelWidth={effectivePrecisionLabelWidth}
               labelHeight={effectivePrecisionLabelHeight}
@@ -6311,6 +6341,7 @@ export default function BarcodePrinting() {
             />
             </>
             )}
+            </div>
           </div>
         </TabsContent>
       </Tabs>
