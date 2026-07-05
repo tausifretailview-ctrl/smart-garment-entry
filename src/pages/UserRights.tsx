@@ -11,6 +11,7 @@ import { Loader2, ChevronDown, ChevronRight, Shield, Users, Save, LayoutDashboar
 import { Label } from "@/components/ui/label";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { cn } from "@/lib/utils";
+import { normalizeStoredMenuPermissions } from "@/lib/menuPermissions";
 
 // Define menu structure with main menus and submenus
 const menuStructure = [
@@ -41,6 +42,7 @@ const menuStructure = [
     submenus: [
       { id: "product_dashboard", name: "Product Dashboard" },
       { id: "product_entry", name: "Product Entry" },
+      { id: "orphaned_products", name: "Orphaned Products" },
       { id: "purchase_order_entry", name: "Purchase Orders" },
       { id: "purchase_order_dashboard", name: "Purchase Order Dashboard" },
       { id: "purchase_bill", name: "Purchase Bill" },
@@ -66,8 +68,9 @@ const menuStructure = [
       { id: "sale_order_dashboard", name: "Sale Order Dashboard" },
       { id: "sale_return", name: "Sale Return" },
       { id: "sale_return_dashboard", name: "Sale Return Dashboard" },
-      { id: "delivery_challan_entry", name: "Delivery Challan" },
+      { id: "delivery_challan_entry", name: "Delivery Challan Entry" },
       { id: "delivery_challan_dashboard", name: "Delivery Challan Dashboard" },
+      { id: "advance_booking_dashboard", name: "Advance Booking Dashboard" },
     ],
   },
   {
@@ -75,6 +78,8 @@ const menuStructure = [
     name: "Reports",
     icon: FileText,
     submenus: [
+      { id: "reports_hub", name: "Reports Hub" },
+      { id: "business_insights", name: "Business Insights" },
       { id: "stock_report", name: "Stock Report" },
       { id: "stock_analysis", name: "Stock Analysis" },
       { id: "stock_ageing", name: "Stock Ageing" },
@@ -96,6 +101,8 @@ const menuStructure = [
       { id: "net_profit_analysis", name: "Net Profit Analysis" },
       { id: "hourly_sales_analysis", name: "Hourly Sales Analysis" },
       { id: "customer_ledger", name: "Customer Ledger" },
+      { id: "customer_party_balances", name: "Customer Balances" },
+      { id: "supplier_party_balances", name: "Supplier Balances" },
       { id: "customer_account_statement", name: "Customer Account Statement" },
       { id: "customer_balance_activity", name: "Customer balance & activity" },
       { id: "customer_audit_report", name: "Customer Audit Report" },
@@ -118,6 +125,7 @@ const menuStructure = [
     submenus: [
       { id: "accounts_dashboard", name: "Accounts Dashboard" },
       { id: "payments_dashboard", name: "Payments Dashboard" },
+      { id: "accounts_payments", name: "Record Payments (Full Page)" },
       { id: "payment_recording", name: "Record Payments" },
     ],
   },
@@ -232,6 +240,15 @@ const defaultManagerPermissions: Record<string, boolean> = {
   sale_order_dashboard: true,
   sale_return: true,
   sale_return_dashboard: true,
+  delivery_challan_entry: true,
+  delivery_challan_dashboard: true,
+  advance_booking_dashboard: true,
+  reports_hub: true,
+  business_insights: true,
+  orphaned_products: true,
+  customer_party_balances: true,
+  supplier_party_balances: true,
+  accounts_payments: true,
   stock_analysis: true,
   stock_ageing: true,
   daily_cashier_report: true,
@@ -367,7 +384,9 @@ const UserRights = () => {
   useEffect(() => {
     if (userPermissions?.permissions) {
       const perms = userPermissions.permissions as Record<string, any>;
-      const menuPerms = perms.menu || (selectedUserRole === 'manager' ? defaultManagerPermissions : defaultBasicPermissions);
+      const menuPerms = normalizeStoredMenuPermissions(
+        perms.menu || (selectedUserRole === "manager" ? defaultManagerPermissions : defaultBasicPermissions),
+      );
       // Backward compatibility: older records used one key (`customer_ledger`) for all customer report screens.
       if (menuPerms.customer_account_statement === undefined) {
         menuPerms.customer_account_statement = !!menuPerms.customer_ledger;
@@ -413,7 +432,7 @@ const UserRights = () => {
       }
 
       const permissionData = {
-        menu: permissions,
+        menu: normalizeStoredMenuPermissions(permissions),
         mainMenu: mainMenuEnabled,
         special: specialPermissions,
         columns: columnVisibility,
@@ -455,6 +474,7 @@ const UserRights = () => {
     onSuccess: () => {
       toast.success("User permissions saved successfully");
       queryClient.invalidateQueries({ queryKey: ["user-permissions"] });
+      queryClient.invalidateQueries({ queryKey: ["user_permissions"] });
     },
     onError: (error: any) => {
       console.error("Save error:", error);
@@ -481,7 +501,16 @@ const UserRights = () => {
   };
 
   const toggleSubmenu = (submenuId: string) => {
-    setPermissions((prev) => ({ ...prev, [submenuId]: !prev[submenuId] }));
+    setPermissions((prev) => {
+      const enabling = !prev[submenuId];
+      if (enabling) {
+        const parent = menuStructure.find((m) => m.submenus.some((s) => s.id === submenuId));
+        if (parent) {
+          setMainMenuEnabled((main) => ({ ...main, [parent.id]: true }));
+        }
+      }
+      return { ...prev, [submenuId]: enabling };
+    });
   };
 
   const toggleSpecialPermission = (id: string) => {

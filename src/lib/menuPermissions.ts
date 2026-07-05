@@ -1,13 +1,20 @@
 const normalizePath = (path: string) => path.replace(/^\/+/, "").replace(/\/+$/, "");
 
+/** Legacy submenu ids from older User Rights saves → canonical ids. */
+export const LEGACY_MENU_ID_ALIASES: Record<string, string> = {
+  delivery_challan: "delivery_challan_entry",
+};
+
 const MENU_PERMISSION_BY_PATH: Record<string, string> = {
   "": "main_dashboard",
   dashboard: "main_dashboard",
   products: "product_dashboard",
   "product-dashboard": "product_dashboard",
   "product-entry": "product_entry",
+  "orphaned-products": "orphaned_products",
   customers: "customer_master",
   suppliers: "supplier_master",
+  employees: "employee_master",
   "pos-sales": "pos_sales",
   "pos-delivery-challan": "pos_sales",
   "pos-dashboard": "pos_dashboard",
@@ -20,6 +27,7 @@ const MENU_PERMISSION_BY_PATH: Record<string, string> = {
   "sale-return-entry": "sale_return",
   "sale-returns": "sale_return_dashboard",
   "sale-return-dashboard": "sale_return_dashboard",
+  "advance-booking-dashboard": "advance_booking_dashboard",
   "purchase-entry": "purchase_bill",
   "purchase-bills": "purchase_dashboard",
   "purchase-bill-dashboard": "purchase_dashboard",
@@ -37,7 +45,12 @@ const MENU_PERMISSION_BY_PATH: Record<string, string> = {
   "daily-sale-analysis": "sale_analysis",
   "hourly-sales-analysis": "hourly_sales_analysis",
   "payments-dashboard": "payments_dashboard",
+  "accounts-payments": "accounts_payments",
   accounts: "accounts_dashboard",
+  "customer-party-balances": "customer_party_balances",
+  "supplier-party-balances": "supplier_party_balances",
+  reports: "reports_hub",
+  insights: "business_insights",
   "delivery-dashboard": "delivery_dashboard",
   "delivery-challan-entry": "delivery_challan_entry",
   "delivery-challan-dashboard": "delivery_challan_dashboard",
@@ -75,16 +88,34 @@ export const LANDING_ROUTE_ORDER = [
 
 const DASHBOARD_MENU_IDS = new Set(["main_dashboard", "dashboard_view", "dashboard_customize"]);
 
+export function normalizeStoredMenuPermissions(
+  menu: Record<string, boolean> | undefined | null,
+): Record<string, boolean> {
+  const out = { ...(menu || {}) };
+  for (const [legacy, canonical] of Object.entries(LEGACY_MENU_ID_ALIASES)) {
+    if (out[legacy] === true && out[canonical] !== true) {
+      out[canonical] = true;
+    }
+  }
+  return out;
+}
+
 /** True when submenu is enabled and parent "Dashboard" main menu is enabled (if permissions exist). */
 export function isMenuPermissionGranted(
   permissions: { menu?: Record<string, boolean>; mainMenu?: Record<string, boolean> } | null,
   menuId: string
 ): boolean {
   if (permissions === null) return true;
-  if (DASHBOARD_MENU_IDS.has(menuId) && permissions.mainMenu?.dashboard !== true) {
+
+  const canonical = LEGACY_MENU_ID_ALIASES[menuId] ?? menuId;
+  if (DASHBOARD_MENU_IDS.has(canonical) && permissions.mainMenu?.dashboard !== true) {
     return false;
   }
-  return permissions.menu?.[menuId] === true;
+
+  const menu = normalizeStoredMenuPermissions(permissions.menu);
+  if (menu[canonical] === true) return true;
+  if (canonical !== menuId && menu[menuId] === true) return true;
+  return false;
 }
 
 /** Default route after login or when main dashboard is blocked. */
