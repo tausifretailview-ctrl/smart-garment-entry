@@ -40,7 +40,7 @@ export function BackgroundSyncBadge({
   return (
     <div
       className={cn(
-        "status-item gap-1 text-[10px] tracking-wide",
+        "status-item gap-1.5 text-[0.875rem] tracking-wide",
         "text-primary-foreground/80",
         className,
       )}
