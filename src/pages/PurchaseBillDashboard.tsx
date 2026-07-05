@@ -31,6 +31,7 @@ import * as XLSX from "xlsx";
 
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useAuth } from "@/contexts/AuthContext";
+import { useOrgQuery } from "@/hooks/useOrgQuery";
 import {
   dispatchPurchaseDraftDiscarded,
   readPurchaseEntryDraftMeta,
@@ -67,6 +68,7 @@ import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { useEntryOwnership } from "@/hooks/useEntryOwnership";
 import { useNavPerfPage, useNavPerfQueryWatch } from "@/hooks/useNavigationPerf";
 import { fetchPurchaseBillsDashboardPage } from "@/utils/purchaseBillDashboardPage";
+import { buildPurchaseReturnAdjustByBillId } from "@/utils/purchaseBillReturnAdjust";
 import {
   resolvePurchaseDashboardInitialPeriod,
   type PurchaseDashboardPeriodFilter,
@@ -152,6 +154,9 @@ interface PurchaseBill {
   created_at: string;
   payment_status?: string;
   paid_amount?: number;
+  /** Return/CN credit applied to this bill via Adjust CN → bill. */
+  purchase_return_adjust?: number;
+  pr_adjust_date?: string | null;
   total_qty?: number;
   total_items?: number;
   is_dc_purchase?: boolean;
@@ -631,6 +636,24 @@ const PurchaseBillDashboard = () => {
   });
 
   const bills = billsQueryData?.bills ?? [];
+
+  const { data: purchaseReturnAdjustByBill = {} } = useOrgQuery<
+    Record<string, { purchase_return_adjust: number; pr_adjust_date: string | null }>
+  >({
+    queryKey: ["purchase-return-bill-adjusts"],
+    queryFn: async (orgId) => {
+      const { data, error } = await supabase
+        .from("purchase_returns" as any)
+        .select("linked_bill_id, net_amount, credit_available_balance, credit_status, return_date")
+        .eq("organization_id", orgId)
+        .is("deleted_at", null)
+        .not("linked_bill_id", "is", null)
+        .in("credit_status", ["adjusted", "partially_adjusted"]);
+      if (error) throw error;
+      return buildPurchaseReturnAdjustByBillId((data || []) as any[]);
+    },
+    options: { staleTime: 2 * 60 * 1000 },
+  });
 
   const fetchBills = () => {
     refetchBills();
@@ -1408,12 +1431,22 @@ const PurchaseBillDashboard = () => {
 
   // Bills are already filtered server-side, no client-side filtering needed
   const filteredBills = useMemo(() => {
-    return bills.sort((a, b) => {
-      const dateA = new Date(a.bill_date).getTime();
-      const dateB = new Date(b.bill_date).getTime();
-      return sortOrder === "desc" ? dateB - dateA : dateA - dateB;
-    });
-  }, [bills, sortOrder]);
+    return bills
+      .map((bill) => {
+        const adj = purchaseReturnAdjustByBill[bill.id];
+        if (!adj) return bill;
+        return {
+          ...bill,
+          purchase_return_adjust: adj.purchase_return_adjust,
+          pr_adjust_date: adj.pr_adjust_date,
+        };
+      })
+      .sort((a, b) => {
+        const dateA = new Date(a.bill_date).getTime();
+        const dateB = new Date(b.bill_date).getTime();
+        return sortOrder === "desc" ? dateB - dateA : dateA - dateB;
+      });
+  }, [bills, sortOrder, purchaseReturnAdjustByBill]);
 
   // Summary stats bundled with list RPC (single round-trip when migration applied)
   const purchaseSummaryData = billsQueryData?.summary ?? null;
@@ -1503,12 +1536,17 @@ const PurchaseBillDashboard = () => {
     const displayStatus = derivePurchaseBillDisplayStatus(bill);
     const paidAmount = getEffectivePaidAmountForPurchaseBill(bill);
     const pending = getPurchaseBillPendingAmount(bill);
+    const prAdjust = Number(bill.purchase_return_adjust || 0);
+    const prNote =
+      prAdjust > 0
+        ? ` (incl. P/R adj. ₹${prAdjust.toLocaleString("en-IN")}${bill.pr_adjust_date ? ` on ${bill.pr_adjust_date}` : ""})`
+        : "";
     const title =
       displayStatus === "paid"
-        ? `Paid ₹${paidAmount.toLocaleString("en-IN")} of ₹${(bill.net_amount || 0).toLocaleString("en-IN")}`
+        ? `Paid ₹${paidAmount.toLocaleString("en-IN")} of ₹${(bill.net_amount || 0).toLocaleString("en-IN")}${prNote}`
         : displayStatus === "partial"
-          ? `Paid ₹${paidAmount.toLocaleString("en-IN")}, pending ₹${pending.toLocaleString("en-IN")} (incl. CN on bill)`
-          : `Pending ₹${pending.toLocaleString("en-IN")}`;
+          ? `Paid ₹${paidAmount.toLocaleString("en-IN")}, pending ₹${pending.toLocaleString("en-IN")}${prNote || " (incl. CN on bill)"}`
+          : `Pending ₹${pending.toLocaleString("en-IN")}${prNote}`;
 
     if (displayStatus === "paid") {
       return (
@@ -1667,11 +1705,25 @@ const PurchaseBillDashboard = () => {
       accessorKey: "discount_amount",
       header: "Discount",
       cell: ({ row }) => {
-        const disc = row.original.discount_amount || 0;
-        return disc > 0 ? (
-          <span className="text-right block tabular-nums text-base text-destructive">-₹{disc.toFixed(2)}</span>
-        ) : (
-          <span className="text-right block tabular-nums text-base text-muted-foreground/50">₹0.00</span>
+        const bill = row.original;
+        const disc = bill.discount_amount || 0;
+        const prAdjust = Number(bill.purchase_return_adjust || 0);
+        return (
+          <div className="flex flex-col items-end gap-0.5">
+            {disc > 0 ? (
+              <span className="text-right block tabular-nums text-base text-destructive">-₹{disc.toFixed(2)}</span>
+            ) : (
+              <span className="text-right block tabular-nums text-base text-muted-foreground/50">₹0.00</span>
+            )}
+            {prAdjust > 0 && (
+              <span className="text-xs text-amber-600 whitespace-nowrap tabular-nums leading-none">
+                +P/R: ₹{Math.round(prAdjust).toLocaleString("en-IN")}
+                {bill.pr_adjust_date
+                  ? ` · adj. ${format(new Date(bill.pr_adjust_date + "T12:00:00"), "dd/MM/yyyy")}`
+                  : ""}
+              </span>
+            )}
+          </div>
         );
       },
       size: 90,
@@ -1689,11 +1741,51 @@ const PurchaseBillDashboard = () => {
     {
       accessorKey: "net_amount",
       header: "Net",
-      cell: ({ row }) => (
-        <span className="text-right block text-base font-bold text-primary tabular-nums font-mono">
-          ₹{row.original.net_amount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-        </span>
-      ),
+      cell: ({ row }) => {
+        const bill = row.original;
+        const prAdjust = Number(bill.purchase_return_adjust || 0);
+        return (
+          <div className="flex flex-col items-end gap-0.5">
+            <span className="text-right text-base font-bold text-primary tabular-nums font-mono">
+              ₹{bill.net_amount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </span>
+            {prAdjust > 0 && (
+              <span className="text-xs text-amber-600 whitespace-nowrap tabular-nums leading-none">
+                +P/R: ₹{Math.round(prAdjust).toLocaleString("en-IN")}
+                {bill.pr_adjust_date
+                  ? ` · adj. ${format(new Date(bill.pr_adjust_date + "T12:00:00"), "dd/MM/yyyy")}`
+                  : ""}
+              </span>
+            )}
+          </div>
+        );
+      },
+      size: 100,
+      minSize: 85,
+    },
+    {
+      id: "paid_amount_display",
+      header: "Paid",
+      cell: ({ row }) => {
+        const bill = row.original;
+        if (bill.is_cancelled) {
+          return <span className="text-right block text-base text-muted-foreground">—</span>;
+        }
+        const paid = getEffectivePaidAmountForPurchaseBill(bill);
+        const prAdjust = Number(bill.purchase_return_adjust || 0);
+        return (
+          <div className="flex flex-col items-end gap-0.5">
+            <span className="text-right block text-base font-semibold tabular-nums font-mono text-emerald-700 dark:text-emerald-400">
+              ₹{paid.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </span>
+            {prAdjust > 0 && (
+              <span className="text-[10px] text-amber-600 whitespace-nowrap tabular-nums leading-none">
+                incl. P/R ₹{Math.round(prAdjust).toLocaleString("en-IN")}
+              </span>
+            )}
+          </div>
+        );
+      },
       size: 100,
       minSize: 85,
     },
@@ -2093,6 +2185,19 @@ const PurchaseBillDashboard = () => {
                   </div>
                   <div className="text-right shrink-0 ml-3">
                     <p className="text-sm font-bold tabular-nums">₹{bill.net_amount.toLocaleString("en-IN")}</p>
+                    {!bill.is_cancelled && (
+                      <p className="text-xs text-emerald-700 font-medium tabular-nums">
+                        Paid ₹{getEffectivePaidAmountForPurchaseBill(bill).toLocaleString("en-IN")}
+                      </p>
+                    )}
+                    {(bill.purchase_return_adjust || 0) > 0 && (
+                      <p className="text-[10px] text-amber-600 tabular-nums">
+                        +P/R ₹{Math.round(bill.purchase_return_adjust || 0).toLocaleString("en-IN")}
+                        {bill.pr_adjust_date
+                          ? ` · ${format(new Date(bill.pr_adjust_date + "T12:00:00"), "dd/MM/yy")}`
+                          : ""}
+                      </p>
+                    )}
                     {pending > 0 && <p className="text-xs text-amber-600 font-medium">Due ₹{pending.toLocaleString("en-IN")}</p>}
                   </div>
                 </div>
