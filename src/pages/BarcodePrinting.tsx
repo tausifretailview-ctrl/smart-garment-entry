@@ -24,7 +24,7 @@ import {
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import JsBarcode from "jsbarcode";
-import { Check, Save, Trash2, GripVertical, Eye, Download, RefreshCw, Edit, Printer, AlertTriangle, Plus, Home, Loader2, ChevronDown, ChevronLeft, Search } from "lucide-react";
+import { Check, Save, Trash2, GripVertical, Eye, Download, RefreshCw, Edit, Printer, AlertTriangle, Plus, Loader2, ChevronDown, ChevronLeft, Search, Package } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Badge } from "@/components/ui/badge";
 import jsPDF from "jspdf";
@@ -79,7 +79,6 @@ import {
 } from "@/utils/stockSettlementScans";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useProductFieldSettings } from "@/hooks/useSettings";
-import { useEntryViewportSync } from "@/hooks/useEntryViewportSync";
 import { entryPageShellClass } from "@/lib/entryPageLayout";
 import { LabelFieldConfig, LabelDesignConfig, LabelItem, LabelTemplate, FieldKey } from "@/types/labelTypes";
 import { PrecisionThermalPrint } from "@/components/precision-barcode/PrecisionThermalPrint";
@@ -1177,7 +1176,6 @@ export default function BarcodePrinting() {
   const { currentOrganization } = useOrganization();
   const { user } = useAuth();
   const productFieldSettings = useProductFieldSettings();
-  useEntryViewportSync();
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [openSettlementScans, setOpenSettlementScans] = useState<Map<string, OpenSettlementScanInfo>>(
@@ -4659,7 +4657,7 @@ export default function BarcodePrinting() {
       className={cn(entryPageShellClass, "barcode-printing-page bg-slate-50 dark:bg-background flex flex-col min-h-0 h-full w-full max-w-none")}
       data-entry-form
     >
-      {/* Minimal header — back only */}
+      {/* Header — back + purchase shortcuts */}
       <header className="barcode-print-header shrink-0 flex items-center gap-2 px-2 py-1.5 border-b bg-background">
         <Button
           type="button"
@@ -4684,6 +4682,16 @@ export default function BarcodePrinting() {
             </p>
           )}
         </div>
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-8 text-xs gap-1.5 shrink-0"
+          onClick={() => orgNavigate("/purchase-bills")}
+        >
+          <Package className="h-3.5 w-3.5" />
+          <span className="hidden sm:inline">Purchase Dashboard</span>
+          <span className="sm:hidden">Purchases</span>
+        </Button>
         {showPurchaseBillNav && (
           <Button
             variant="default"
@@ -4888,9 +4896,9 @@ export default function BarcodePrinting() {
 
       {/* Results Table */}
       {labelItems.length > 0 && (
-        <div className="barcode-products-panel border rounded-md overflow-hidden shrink-0 max-h-[20vh] flex flex-col">
-          <div className="bg-slate-900 text-white px-3 py-1.5 border-b flex items-center justify-between gap-2">
-            <p className="text-xs font-semibold tabular-nums">
+        <div className="barcode-products-panel border rounded-md overflow-hidden shrink-0 max-h-[30vh] flex flex-col">
+          <div className="bg-slate-900 text-white px-3 py-2 border-b flex items-center justify-between gap-2">
+            <p className="text-sm font-semibold tabular-nums">
               Products: <span className="font-bold">{labelItems.length}</span>
               <span className="mx-1.5 opacity-40">|</span>
               Labels: <span className="font-bold text-emerald-300">{totalLabelQty}</span>
@@ -4920,11 +4928,11 @@ export default function BarcodePrinting() {
                 const fullDesc = descParts.join('-');
                 return (
                 <TableRow key={item.sku_id}>
-                  <TableCell className="font-medium max-w-[250px] truncate" title={fullDesc}>{fullDesc}</TableCell>
-                  <TableCell>{item.size}</TableCell>
-                  <TableCell>₹{item.mrp || 0}</TableCell>
-                  <TableCell>₹{item.sale_price}</TableCell>
-                  <TableCell className="font-mono text-xs">
+                  <TableCell className="barcode-products-desc font-semibold max-w-[320px] truncate" title={fullDesc}>{fullDesc}</TableCell>
+                  <TableCell className="font-medium">{item.size}</TableCell>
+                  <TableCell className="font-mono tabular-nums">₹{item.mrp || 0}</TableCell>
+                  <TableCell className="font-mono tabular-nums">₹{item.sale_price}</TableCell>
+                  <TableCell className="font-mono">
                     <span>{item.barcode || "(auto-gen)"}</span>
                     {item.barcode && (() => {
                       const count = labelItems.filter(li => li.barcode === item.barcode).length;
@@ -4935,14 +4943,14 @@ export default function BarcodePrinting() {
                       ) : null;
                     })()}
                   </TableCell>
-                  <TableCell>{item.supplier_code || "-"}</TableCell>
+                  <TableCell className="font-medium">{item.supplier_code || "-"}</TableCell>
                   <TableCell>
                     <Input
                       type="number"
                       min="0"
                       value={item.qty}
                       onChange={(e) => handleQtyChange(item.sku_id, parseInt(e.target.value) || 0)}
-                      className="w-16 h-8 text-sm font-mono tabular-nums"
+                      className="w-16 h-9 text-base font-mono tabular-nums"
                     />
                   </TableCell>
                   <TableCell>

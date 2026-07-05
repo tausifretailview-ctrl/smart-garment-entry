@@ -589,9 +589,9 @@ const App = () => {
                   path="barcode-printing"
                   element={
                     <ProtectedRoute>
-                      <FullScreenLayout>
+                      <Layout>
                         <BarcodePrinting />
-                      </FullScreenLayout>
+                      </Layout>
                     </ProtectedRoute>
                   }
                 />

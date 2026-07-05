@@ -1,10 +1,10 @@
 /** Bill / voucher entry routes that should use the full viewport (no sidebar gutter). */
 export const ENTRY_FULLSCREEN_PATH =
-  /\/(sales-invoice|purchase-entry|sale-return-entry|purchase-return-entry|quotation-entry|sale-order-entry|delivery-challan-entry|purchase-order-entry|barcode-printing)(\/|$)/;
+  /\/(sales-invoice|purchase-entry|sale-return-entry|purchase-return-entry|quotation-entry|sale-order-entry|delivery-challan-entry|purchase-order-entry)(\/|$)/;
 
 /** POS + primary bill entry — full viewport: no sidebar or global header; window tab strip stays visible. */
 export const NO_SIDEBAR_ENTRY_PATH =
-  /\/(pos-sales|sales-invoice|purchase-entry|barcode-printing)(\/|$)/;
+  /\/(pos-sales|sales-invoice|purchase-entry)(\/|$)/;
 
 export function isEntryFullscreenPath(pathname: string): boolean {
   return ENTRY_FULLSCREEN_PATH.test(pathname);
@@ -23,7 +23,7 @@ export function isFillHeightWorkspacePath(pathname: string): boolean {
 
 /** List dashboards with fixed header/cards and an internal scrolling table. */
 export const FILL_HEIGHT_DASHBOARD_PATH =
-  /\/(pos-dashboard|sales-invoice-dashboard|purchase-bills|purchase-bill-dashboard|accounts|accounts-payments|customer-party-balances|supplier-party-balances|stock-report|item-wise-sales|item-wise-stock|customer-master|net-profit-analysis|reports|insights)(\/|$)/;
+  /\/(pos-dashboard|sales-invoice-dashboard|purchase-bills|purchase-bill-dashboard|barcode-printing|accounts|accounts-payments|customer-party-balances|supplier-party-balances|stock-report|item-wise-sales|item-wise-stock|customer-master|net-profit-analysis|reports|insights)(\/|$)/;
 
 export function isFillHeightDashboardPath(pathname: string): boolean {
   return FILL_HEIGHT_DASHBOARD_PATH.test(pathname);
@@ -43,7 +43,7 @@ export function isSidebarOnlyWorkspacePath(pathname: string): boolean {
 
 export function isNoSidebarEntrySegment(pathSegment: string): boolean {
   const segment = pathSegment.replace(/^\/+|\/+$/g, "");
-  return segment === "pos-sales" || segment === "sales-invoice" || segment === "purchase-entry" || segment === "barcode-printing";
+  return segment === "pos-sales" || segment === "sales-invoice" || segment === "purchase-entry";
 }
 
 /** Org path segment for bill/POS entry — excluded from tab cache (needs FullScreenLayout + h-dvh). */

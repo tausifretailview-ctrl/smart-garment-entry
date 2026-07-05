@@ -3019,18 +3019,23 @@ main.overflow-auto,
   z-index: 1;
   background: #0f172a;
   color: #fff;
-  font-size: 12px !important;
+  font-size: 13px !important;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  padding: 0.4rem 0.5rem !important;
+  padding: 0.55rem 0.65rem !important;
   white-space: nowrap;
 }
 
 .barcode-printing-page .barcode-products-table tbody td {
-  font-size: 13px !important;
-  padding: 0.35rem 0.5rem !important;
+  font-size: 15px !important;
+  padding: 0.5rem 0.65rem !important;
   vertical-align: middle;
+}
+
+.barcode-printing-page .barcode-products-table tbody td.barcode-products-desc {
+  font-size: 16px !important;
+  line-height: 1.35;
 }
 
 .barcode-printing-page .barcode-products-table tbody tr {
