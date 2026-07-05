@@ -233,6 +233,27 @@ export type Database = {
           },
         ]
       }
+      ai_assistant_usage: {
+        Row: {
+          created_at: string
+          id: string
+          organization_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          organization_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          organization_id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       app_error_logs: {
         Row: {
           additional_context: Json | null
@@ -6373,6 +6394,70 @@ export type Database = {
           },
         ]
       }
+      student_ledger_entries: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          credit: number
+          debit: number
+          id: string
+          organization_id: string
+          particulars: string | null
+          student_id: string
+          transaction_date: string | null
+          voucher_no: string | null
+          voucher_type: string
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          credit?: number
+          debit?: number
+          id?: string
+          organization_id: string
+          particulars?: string | null
+          student_id: string
+          transaction_date?: string | null
+          voucher_no?: string | null
+          voucher_type: string
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          credit?: number
+          debit?: number
+          id?: string
+          organization_id?: string
+          particulars?: string | null
+          student_id?: string
+          transaction_date?: string | null
+          voucher_no?: string | null
+          voucher_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "student_ledger_entries_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "student_ledger_entries_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "student_ledger_entries_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       students: {
         Row: {
           academic_year_id: string | null
@@ -7961,6 +8046,22 @@ export type Database = {
         Args: { p_organization_id: string; p_product_id: string }
         Returns: boolean
       }
+      _school_fee_get_debit_account: {
+        Args: { p_mapped_method: string; p_org: string }
+        Returns: string
+      }
+      _school_fee_get_or_create_cash_ledger: {
+        Args: { p_org: string }
+        Returns: string
+      }
+      _school_fee_get_or_create_default_income: {
+        Args: { p_org: string }
+        Returns: string
+      }
+      _school_fee_map_payment_method: {
+        Args: { p_raw: string }
+        Returns: string
+      }
       _supplier_invoice_serial_parts: {
         Args: { inv: string }
         Returns: Record<string, unknown>
@@ -8014,6 +8115,23 @@ export type Database = {
           p_apply_amount: number
           p_organization_id: string
           p_sale_id: string
+        }
+        Returns: Json
+      }
+      apply_school_fee_receipt: {
+        Args: {
+          p_academic_year_id: string
+          p_admission_number: string
+          p_grand_total: number
+          p_lines: Json
+          p_organization_id: string
+          p_paid_at: string
+          p_payment_method: string
+          p_receipt_number: string
+          p_student_id: string
+          p_student_name: string
+          p_transaction_id: string
+          p_voucher_date: string
         }
         Returns: Json
       }
@@ -8788,6 +8906,8 @@ export type Database = {
           p_search?: string
           p_size?: string
           p_style?: string
+          p_supplier?: string
+          p_supplier_invoice?: string
         }
         Returns: {
           barcode: string
