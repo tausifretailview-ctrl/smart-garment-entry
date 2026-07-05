@@ -823,7 +823,7 @@ const DesktopDashboard = () => {
     <>
     <TooltipProvider>
     <div 
-      className="dashboard-workspace flex w-full min-h-0 flex-col bg-slate-50 px-2 py-2 sm:px-3"
+      className="dashboard-workspace flex w-full min-h-0 flex-1 flex-col bg-slate-50 px-2 pb-2 pt-0 sm:px-3"
       onContextMenu={handlePageContextMenu}
     >
       {/* Desktop Context Menu */}

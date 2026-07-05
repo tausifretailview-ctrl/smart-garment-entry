@@ -25,7 +25,7 @@ import { DesktopViewToggle, DesktopViewEscapeHatch } from "@/components/mobile/D
 import { useTabCacheLayout } from "@/contexts/TabCacheLayoutContext";
 import { cn } from "@/lib/utils";
 import { readSidebarLockedOpen } from "@/lib/sidebarPreference";
-import { isFillHeightDashboardPath, isSidebarOnlyWorkspacePath } from "@/lib/entryPageLayout";
+import { isFillHeightDashboardPath, isMainDashboardPath, isSidebarOnlyWorkspacePath } from "@/lib/entryPageLayout";
 import { useSharedAppShell } from "@/contexts/SharedAppShellContext";
 
 interface LayoutProps {
@@ -38,7 +38,8 @@ export const Layout = ({ children }: LayoutProps) => {
   const isSalesInvoicePage = /\/sales-invoice(\/|$)/.test(location.pathname);
   const isSidebarOnlyPage = isSidebarOnlyWorkspacePath(location.pathname);
   const isFillHeightDashboard = isFillHeightDashboardPath(location.pathname);
-  const isFullHeightWorkspace = isSidebarOnlyPage || isFillHeightDashboard;
+  const isMainDashboard = isMainDashboardPath(location.pathname);
+  const isFullHeightWorkspace = isSidebarOnlyPage || isFillHeightDashboard || isMainDashboard;
   const showDesktopChrome = useShowDesktopChrome();
   const inTabCachePane = useTabCacheLayout();
   const sharedShell = useSharedAppShell();
@@ -89,15 +90,17 @@ export const Layout = ({ children }: LayoutProps) => {
                 {!isSalesInvoicePage && (
                   <>
                     {showDesktopChrome && !isSidebarOnlyPage && (
-                      <>
+                      <div className="erp-chrome-stack">
                         <Header />
                         <WindowTabsBar />
-                        <div className="px-3 pt-2 lg:hidden">
-                          <DesktopViewToggle variant="banner" />
-                        </div>
-                      </>
+                      </div>
                     )}
                     {!showDesktopChrome && <MobileAppHeader />}
+                    {showDesktopChrome && !isSidebarOnlyPage && (
+                      <div className="px-3 pt-2 lg:hidden">
+                        <DesktopViewToggle variant="banner" />
+                      </div>
+                    )}
                   </>
                 )}
                 <main

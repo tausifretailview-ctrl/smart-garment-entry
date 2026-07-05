@@ -12,9 +12,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 const SCALE_OPTIONS = [
-  { key: "compact", label: "Compact", desc: "High density (14px)", size: "14px", zoom: 0.85 },
-  { key: "standard", label: "Standard", desc: "Default (16px)", size: "16px", zoom: 1.0 },
-  { key: "large", label: "Large", desc: "Easy reading (18px)", size: "18px", zoom: 1.05 },
+  { key: "compact", label: "Compact", desc: "High density (16px)", size: "16px", zoom: 0.85 },
+  { key: "standard", label: "Standard", desc: "Default (18px)", size: "18px", zoom: 1.0 },
+  { key: "large", label: "Large", desc: "Easy reading (19px)", size: "19px", zoom: 1.05 },
 ] as const;
 
 type ScaleKey = (typeof SCALE_OPTIONS)[number]["key"];

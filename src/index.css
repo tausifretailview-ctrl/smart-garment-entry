@@ -85,14 +85,14 @@ All colors MUST be HSL.
     --erp-bad-soft: #fbe9e9;
     --erp-bad: #dc2626;
     --erp-row-h: 34px;
-    --erp-ctrl-h: 38px;
-    --erp-titlebar-height: 40px;
-    --erp-toolbar-height: 52px;
-    --erp-tabs-height: 42px;
+    --erp-ctrl-h: 2.375rem;
+    --erp-titlebar-height: 3rem;
+    --erp-toolbar-height: 3.25rem;
+    --erp-tabs-height: 2.75rem;
     --erp-chrome-above: calc(
       var(--erp-titlebar-height) + var(--erp-toolbar-height) + var(--erp-tabs-height)
     );
-    --erp-sidebar-width: 216px;
+    --erp-sidebar-width: 13.75rem;
 
     /* Clean minimal shadows - Elevation System */
     --gradient-primary: none;
@@ -727,6 +727,11 @@ All colors MUST be HSL.
     border-bottom: 1px solid var(--erp-line);
   }
 
+  .erp-chrome-stack .erp-window-tabs {
+    border-top: none;
+    margin: 0;
+  }
+
   .erp-titlebar {
     height: var(--erp-titlebar-height);
     min-height: var(--erp-titlebar-height);
@@ -735,9 +740,9 @@ All colors MUST be HSL.
     border-bottom: 1px solid var(--erp-chrome-2);
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 0 8px 0 10px;
-    font-size: 14px;
+    gap: 0.625rem;
+    padding: 0 0.625rem 0 0.75rem;
+    font-size: 1rem;
     user-select: none;
     flex-shrink: 0;
   }
@@ -757,28 +762,29 @@ All colors MUST be HSL.
   .erp-brand {
     display: flex;
     align-items: center;
-    gap: 7px;
-    font-weight: 600;
+    gap: 0.5rem;
+    font-weight: 700;
+    font-size: 1.05rem;
     color: #fff;
     flex-shrink: 0;
   }
 
   .erp-brand__logo {
-    width: 16px;
-    height: 16px;
+    width: 1.35rem;
+    height: 1.35rem;
     border-radius: 4px;
     background: linear-gradient(135deg, #4b8bff, var(--erp-accent));
     display: grid;
     place-items: center;
-    font-size: 10px;
+    font-size: 0.75rem;
     color: #fff;
     font-weight: 700;
   }
 
   .erp-menubar-trigger {
     height: auto !important;
-    padding: 6px 12px !important;
-    font-size: 14px !important;
+    padding: 0.45rem 0.85rem !important;
+    font-size: 1rem !important;
     font-weight: 600 !important;
     color: var(--erp-chrome-ink) !important;
     border-radius: 4px !important;
@@ -799,8 +805,9 @@ All colors MUST be HSL.
   }
 
   .erp-titlebar-meta {
-    font-size: 12px;
-    color: var(--erp-chrome-ink-dim);
+    font-size: 0.95rem;
+    font-weight: 500;
+    color: var(--erp-chrome-ink);
     white-space: nowrap;
     flex-shrink: 0;
   }
@@ -843,13 +850,13 @@ All colors MUST be HSL.
     height: var(--erp-ctrl-h);
     display: inline-flex;
     align-items: center;
-    gap: 8px;
-    padding: 0 16px;
+    gap: 0.5rem;
+    padding: 0 1rem;
     border: 1px solid var(--erp-line);
     background: #fff;
     color: var(--erp-ink);
     border-radius: var(--radius);
-    font-size: 15px;
+    font-size: 1rem;
     font-weight: 600;
     cursor: pointer;
     transition: all 0.12s ease;
@@ -873,8 +880,8 @@ All colors MUST be HSL.
   }
 
   .erp-tbtn__icon {
-    width: 17px;
-    height: 17px;
+    width: 1.0625rem;
+    height: 1.0625rem;
     opacity: 0.8;
   }
 
@@ -894,14 +901,14 @@ All colors MUST be HSL.
     height: var(--erp-ctrl-h);
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 0 12px;
+    gap: 0.5rem;
+    padding: 0 0.75rem;
     border: 1px solid var(--erp-line);
     background: var(--erp-panel-2);
     border-radius: var(--radius);
-    width: min(300px, 100%);
+    width: min(18rem, 100%);
     color: var(--erp-ink-3);
-    font-size: 13px;
+    font-size: 0.9375rem;
   }
 
   .erp-toolbar-search input {
@@ -909,7 +916,7 @@ All colors MUST be HSL.
     background: none;
     outline: none;
     font-family: inherit;
-    font-size: 13px;
+    font-size: 0.9375rem;
     color: var(--erp-ink);
     width: 100%;
   }
@@ -932,42 +939,42 @@ All colors MUST be HSL.
   }
 
   .erp-desktop-sidebar .erp-sidebar-org {
-    padding: 11px 12px;
+    padding: 0.75rem 0.85rem;
     border-bottom: 1px solid var(--erp-line);
     display: flex;
     align-items: center;
-    gap: 9px;
+    gap: 0.65rem;
     min-height: auto;
   }
 
   .erp-desktop-sidebar .erp-sidebar-org__avatar {
-    width: 30px;
-    height: 30px;
+    width: 2.125rem;
+    height: 2.125rem;
     border-radius: var(--radius);
     background: linear-gradient(135deg, var(--erp-accent), #1a4bd0);
     display: grid;
     place-items: center;
     color: #fff;
     font-weight: 700;
-    font-size: 13px;
+    font-size: 0.9375rem;
     flex-shrink: 0;
   }
 
   .erp-desktop-sidebar .erp-sidebar-org__name {
-    font-weight: 600;
-    font-size: 13px;
+    font-weight: 700;
+    font-size: 1rem;
     color: var(--erp-ink);
     line-height: 1.25;
   }
 
   .erp-desktop-sidebar .erp-sidebar-org__sub {
-    font-size: 11px;
+    font-size: 0.875rem;
     color: var(--erp-ink-3);
     line-height: 1.25;
   }
 
   .erp-desktop-sidebar [data-sidebar="group-label"] {
-    font-size: 10px !important;
+    font-size: 0.6875rem !important;
     text-transform: uppercase;
     letter-spacing: 0.09em;
     color: var(--erp-ink-3) !important;
@@ -976,19 +983,19 @@ All colors MUST be HSL.
   }
 
   .erp-desktop-sidebar [data-sidebar="menu-button"] {
-    font-size: 13px !important;
+    font-size: 0.9375rem !important;
     font-weight: 500 !important;
     color: var(--erp-ink-2) !important;
-    padding: 7px 10px !important;
+    padding: 0.5rem 0.65rem !important;
     border-radius: var(--radius) !important;
-    gap: 10px !important;
+    gap: 0.625rem !important;
     min-height: auto !important;
     height: auto !important;
   }
 
   .erp-desktop-sidebar [data-sidebar="menu-button"] svg {
-    width: 16px !important;
-    height: 16px !important;
+    width: 1.0625rem !important;
+    height: 1.0625rem !important;
     opacity: 0.7;
   }
 
@@ -1033,9 +1040,9 @@ All colors MUST be HSL.
   .erp-window-tabs .erp-tab {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 0 14px;
-    font-size: 14px;
+    gap: 0.5rem;
+    padding: 0 0.875rem;
+    font-size: 0.9375rem;
     font-weight: 500;
     color: var(--erp-ink-2);
     cursor: pointer;
@@ -1069,16 +1076,16 @@ All colors MUST be HSL.
   }
 
   .erp-window-tabs .erp-tab-quick {
-    height: calc(var(--erp-tabs-height) - 8px);
-    gap: 6px;
-    padding: 0 12px;
-    font-size: 14px;
+    height: calc(var(--erp-tabs-height) - 0.5rem);
+    gap: 0.375rem;
+    padding: 0 0.75rem;
+    font-size: 0.9375rem;
     font-weight: 600;
   }
 
   .erp-window-tabs .erp-tab-quick svg {
-    width: 16px;
-    height: 16px;
+    width: 1.0625rem;
+    height: 1.0625rem;
   }
 
   .erp-window-tabs .erp-tab--active::after {
@@ -1874,26 +1881,27 @@ body.pos-large-ui .pos-desktop-readable table td {
 
 /* Main dashboard — fixed shell (no layout jump on load / resize) */
 .dashboard-workspace {
-  height: calc(100dvh - var(--erp-chrome-above) - var(--erp-status-bar-height));
-  min-height: 520px;
-  max-height: calc(100dvh - var(--erp-chrome-above) - var(--erp-status-bar-height));
+  flex: 1 1 0%;
+  min-height: 0;
   overflow: hidden;
+  height: calc(100dvh - var(--erp-chrome-above) - var(--erp-status-bar-height));
+  max-height: calc(100dvh - var(--erp-chrome-above) - var(--erp-status-bar-height));
 }
 /* Single inner scroll — no outer main gutter gap beside the cards */
 main:has(.dashboard-workspace) {
   overflow: hidden;
-  padding: 0;
+  padding: 0 !important;
   scrollbar-gutter: auto;
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0%;
+  min-height: 0;
 }
 @media (min-width: 1024px) {
-  main:has(.dashboard-workspace) {
-    display: flex;
-    flex-direction: column;
-  }
   main:has(.dashboard-workspace) .dashboard-workspace {
     flex: 1 1 0%;
     height: auto;
-    max-height: 100%;
+    max-height: none;
     min-height: 0;
   }
 }

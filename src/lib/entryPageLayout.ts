@@ -33,6 +33,14 @@ export function isFillHeightShellPath(pathname: string): boolean {
   return isFillHeightWorkspacePath(pathname) || isFillHeightDashboardPath(pathname);
 }
 
+/** Org home dashboard (`/:slug` or `/:slug/dashboard`) — fill shell, no outer main padding. */
+export function isMainDashboardPath(pathname: string): boolean {
+  const parts = pathname.replace(/\/+$/, "").split("/").filter(Boolean);
+  if (parts.length === 1) return true;
+  if (parts.length === 2 && parts[1] === "dashboard") return true;
+  return false;
+}
+
 /** Sidebar + content only — hide global header menu and window tab strip (e.g. Customer Balances, Accounts). */
 export const SIDEBAR_ONLY_WORKSPACE_PATH =
   /\/(customer-party-balances|supplier-party-balances|stock-report|accounts|accounts-payments|item-wise-sales|item-wise-stock|net-profit-analysis|insights)(\/|$)/;

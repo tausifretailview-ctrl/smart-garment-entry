@@ -187,7 +187,6 @@ export const Header = () => {
 
   return (
     <>
-      <div className="erp-chrome-stack">
       {/* ROW 1: Title bar + menu (navy chrome) */}
       <div
         className={cn(
@@ -198,7 +197,7 @@ export const Header = () => {
         {(useSheetSidebar ? !openMobile : !sidebarOpen) && (
           <SidebarTrigger
             className={cn(
-              "erp-no-drag h-7 w-7 text-[var(--erp-chrome-ink)] hover:text-white hover:bg-white/10 shrink-0",
+              "erp-no-drag h-8 w-8 text-[var(--erp-chrome-ink)] hover:text-white hover:bg-white/10 shrink-0",
               useSheetSidebar || forceDesktopView ? "flex" : "hidden lg:flex",
             )}
           />
@@ -269,9 +268,15 @@ export const Header = () => {
 
         <div className="flex-1 min-w-2" />
 
-        <span className="erp-titlebar-meta hidden md:inline truncate max-w-[180px]">
-          {currentOrganization?.name || ""}
-          {currentOrganization?.name ? ` · ${fyLabel}` : fyLabel}
+        <span className="erp-titlebar-meta hidden md:inline truncate max-w-[240px]">
+          {currentOrganization?.name ? (
+            <>
+              <span className="font-semibold text-white">{currentOrganization.name}</span>
+              <span className="text-[var(--erp-chrome-ink-dim)]"> · {fyLabel}</span>
+            </>
+          ) : (
+            fyLabel
+          )}
         </span>
 
         <div className="erp-no-drag flex items-center gap-0.5">
@@ -289,7 +294,7 @@ export const Header = () => {
                   });
                 }
               }}
-              className="h-7 w-7 text-[var(--erp-chrome-ink-dim)] hover:text-white hover:bg-white/10 hidden sm:flex"
+              className="h-8 w-8 text-[var(--erp-chrome-ink-dim)] hover:text-white hover:bg-white/10 hidden sm:flex"
               title="Install EzzyERP App"
             >
               <Download className="h-4 w-4" />
@@ -298,21 +303,21 @@ export const Header = () => {
           <Button
             variant="ghost"
             size="icon"
-            className="h-7 w-7 text-[var(--erp-chrome-ink-dim)] hover:text-white hover:bg-white/10"
+            className="h-8 w-8 text-[var(--erp-chrome-ink-dim)] hover:text-white hover:bg-white/10"
             title={isDesktopApp ? "Refresh app (F5)" : "Refresh app"}
             onClick={handleManualReload}
           >
             <RefreshCw className="h-4 w-4" />
           </Button>
-          <UIScaleSelector triggerClassName="h-7 w-7 text-[var(--erp-chrome-ink-dim)] hover:text-white hover:bg-white/10 hidden md:flex" />
+          <UIScaleSelector triggerClassName="h-8 w-8 text-[var(--erp-chrome-ink-dim)] hover:text-white hover:bg-white/10 hidden md:flex" />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
                 variant="ghost"
                 size="icon"
-                className="erp-no-drag rounded-full hover:bg-white/10 h-7 w-7 text-[var(--erp-chrome-ink-dim)] hover:text-white"
+                className="erp-no-drag rounded-full hover:bg-white/10 h-8 w-8 text-[var(--erp-chrome-ink-dim)] hover:text-white"
               >
-                <Avatar className="h-6 w-6">
+                <Avatar className="h-7 w-7">
                   <AvatarFallback className="bg-[var(--erp-accent)] text-white text-[10px] font-bold">
                     {initials}
                   </AvatarFallback>
@@ -420,10 +425,9 @@ export const Header = () => {
           role="search"
         >
           <Search className="h-4 w-4 shrink-0" />
-          <span className="flex-1 truncate text-[var(--erp-ink-3)] text-[13px]">Search customer, product, invoice…</span>
+          <span className="flex-1 truncate text-[var(--erp-ink-3)]">Search customer, product, invoice…</span>
           <span className="erp-kbd">Ctrl K</span>
         </div>
-      </div>
       </div>
 
       {/* Dialogs */}

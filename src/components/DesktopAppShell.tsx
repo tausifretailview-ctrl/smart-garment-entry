@@ -44,8 +44,12 @@ export function DesktopAppShell({ children, className }: DesktopAppShellProps) {
               {!billingFullScreen && <AppSidebar />}
               {!billingFullScreen && <SidebarExpandStrip />}
               <SidebarInset className="flex min-h-0 flex-1 flex-col min-w-0 overflow-hidden">
-                {!billingFullScreen && !sidebarOnlyWorkspace && <Header />}
-                {!billingFullScreen && !sidebarOnlyWorkspace && <WindowTabsBar />}
+                {!billingFullScreen && !sidebarOnlyWorkspace && (
+                  <div className="erp-chrome-stack">
+                    <Header />
+                    <WindowTabsBar />
+                  </div>
+                )}
                 <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{children}</div>
                 {!billingFullScreen && <StatusBar />}
               </SidebarInset>
