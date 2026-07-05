@@ -1,0 +1,41 @@
+---
+description: UI restyle safety — preserve scroll/print/z-index; screen-only changes
+globs: "**/*.{tsx,css,scss}"
+alwaysApply: true
+---
+
+# UI Restyle Safety Constraints
+
+Apply to every visual restyle (colors, borders, spacing, typography). **Screen styles only.**
+
+## Scrolling
+
+- Do NOT change the flex/overflow/height structure of scroll containers. Preserve every existing `min-h-0`, `overflow-hidden`, `overflow-auto`, `flex-1`, `h-full`.
+- If a scroll region breaks, the layout skeleton must stay identical — only colors, borders, spacing, and typography change; never the flex/overflow topology.
+- Sticky table headers: `position: sticky` inside the **existing** scroll container. Do not introduce a new scroll parent.
+
+## Printing (critical)
+
+- Do NOT touch `@media print` CSS, print-specific components, PRN/TSPL generators, or barcode label rendering. These are separate from screen styles.
+- New chrome colors (navy, dark footers, etc.) must NOT leak into print. Verify `@media print` still forces white background / black text where needed. Print output must be **byte-identical** to before the change.
+- Do NOT restyle `SchoolFeeReceipt`, tax invoice print views, barcode label templates, or thermal receipt layouts.
+
+## Fixed / sticky + z-index
+
+- Keep the existing z-index scale. Sticky header/footer must not overlap dialogs, dropdowns, the tab bar, or the sidebar.
+- Verify dropdowns/comboboxes still render above the sticky header.
+
+## Dialogs
+
+- Do not change dialog/modal/backdrop z-index or portal behavior.
+
+## Responsive
+
+- Dense layouts must still work on Capacitor (mobile) and small Electron windows — fields wrap/stack; no overflow or clip.
+
+## Verify before done
+
+- [ ] Long list/grid scrolls smoothly; header/footer stay fixed.
+- [ ] Print an invoice, a barcode label, and an A4 tax invoice — output **unchanged**.
+- [ ] Open every dialog on the page — renders correctly, above content.
+- [ ] Resize window small + mobile view — no clipping/overflow.
