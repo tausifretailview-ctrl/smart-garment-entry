@@ -24,7 +24,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Loader2, ShoppingCart, Plus, X, CalendarIcon, Copy, Printer, ChevronDown, FileSpreadsheet, ChevronLeft, ChevronRight, Check, AlertTriangle, SkipBack, Search, Save, Trash2, Pencil, Lock, LockOpen } from "lucide-react";
+import { Loader2, ShoppingCart, Plus, X, CalendarIcon, Copy, Printer, ChevronDown, FileSpreadsheet, ChevronLeft, ChevronRight, Check, AlertTriangle, SkipBack, Search, Save, Trash2, Pencil, Lock, LockOpen, RotateCcw } from "lucide-react";
 import { applyGarmentGstRule, type GarmentGstRuleSettings } from "@/utils/gstRules";
 import {
   AlertDialog,
@@ -85,6 +85,11 @@ import {
 } from "@/utils/excelImportUtils";
 import { validatePurchaseBill, validatePurchaseLineItem } from "@/lib/validations";
 import { SizeGridDialog } from "@/components/SizeGridDialog";
+import {
+  RepurchaseDialog,
+  type RepurchaseProductInfo,
+  type RepurchaseVariantRow,
+} from "@/components/RepurchaseDialog";
 import { ProductEntryDialogGate } from "@/components/ProductEntryDialogGate";
 import { prefetchProductEntryDialog, warmProductEntryDialogForOpen } from "@/lib/productEntryDialogLoad";
 import { scheduleIdleWork } from "@/lib/chunkLoadRetry";
@@ -612,6 +617,11 @@ const PurchaseEntry = () => {
   const [searchResults, setSearchResults] = useState<ProductVariant[]>([]);
   const [showSearch, setShowSearch] = useState(false);
   const [showSizeGrid, setShowSizeGrid] = useState(false);
+  const [repurchaseMode, setRepurchaseMode] = useState(false);
+  const [showRepurchaseDialog, setShowRepurchaseDialog] = useState(false);
+  const [repurchaseProduct, setRepurchaseProduct] = useState<RepurchaseProductInfo | null>(null);
+  const [repurchaseRows, setRepurchaseRows] = useState<RepurchaseVariantRow[]>([]);
+  const [repurchaseConfirming, setRepurchaseConfirming] = useState(false);
   const [sizeGridVariants, setSizeGridVariants] = useState<SizeGridVariant[]>([]);
   const [sizeQty, setSizeQty] = useState<{ [size: string]: number }>({});
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
@@ -2401,6 +2411,11 @@ const PurchaseEntry = () => {
     setShowInlineSearch(false);
     setInlineSearchResults([]);
     
+    if (repurchaseMode) {
+      await openRepurchaseDialog(variant.product_id);
+      return;
+    }
+
     if (entryMode === "grid") {
       // For Size Grid mode - open size grid, focus will be handled by handleSizeGridConfirm
       openSizeGridModal(variant.product_id);
@@ -2880,6 +2895,11 @@ const PurchaseEntry = () => {
     setSearchResults([]);
     setShowSearch(false);
 
+    if (repurchaseMode) {
+      await openRepurchaseDialog(variant.product_id);
+      return;
+    }
+
     if (entryMode === "grid") {
       openSizeGridModal(variant.product_id);
     } else {
@@ -3025,6 +3045,182 @@ const PurchaseEntry = () => {
     setSizeGridVariants(mappedVariants);
     setSizeQty({});
     setShowSizeGrid(true);
+  };
+
+  const openRepurchaseDialog = async (productId: string) => {
+    if (!currentOrganization) return;
+
+    const { data, error } = await supabase
+      .from("product_variants")
+      .select(`
+        id,
+        size,
+        pur_price,
+        sale_price,
+        mrp,
+        barcode,
+        active,
+        color,
+        products (
+          id,
+          product_name,
+          brand,
+          category,
+          color,
+          style,
+          hsn_code,
+          gst_per,
+          purchase_gst_percent,
+          purchase_discount_type,
+          purchase_discount_value,
+          uom,
+          size_group_id
+        )
+      `)
+      .eq("product_id", productId)
+      .eq("organization_id", currentOrganization.id)
+      .eq("active", true)
+      .is("deleted_at", null);
+
+    if (error || !data || data.length === 0) {
+      toast({
+        title: "Error",
+        description: "Failed to load product variants",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const product = data[0].products as any;
+    let sizeGroupName = "";
+    if (product?.size_group_id) {
+      const { data: sizeGroup } = await supabase
+        .from("size_groups")
+        .select("group_name")
+        .eq("id", product.size_group_id)
+        .maybeSingle();
+      sizeGroupName = sizeGroup?.group_name || "";
+    }
+
+    const rows: RepurchaseVariantRow[] = [...data]
+      .sort((a, b) => compareSizes(a.size || "", b.size || ""))
+      .map((v: any) => ({
+        id: v.id,
+        size: v.size || "",
+        color: v.color || product?.color || "",
+        barcode: v.barcode || "",
+        oldPurPrice: v.pur_price || 0,
+        oldSalePrice: v.sale_price || 0,
+        oldMrp: v.mrp || 0,
+        newPurPrice: v.pur_price || 0,
+        newSalePrice: v.sale_price || 0,
+        newMrp: v.mrp || 0,
+        qty: 0,
+      }));
+
+    setRepurchaseProduct({
+      id: product.id,
+      product_name: product.product_name,
+      brand: product.brand,
+      category: product.category,
+      style: product.style,
+      color: product.color,
+      hsn_code: product.hsn_code,
+      gst_per: product.gst_per,
+      purchase_gst_percent: product.purchase_gst_percent,
+      purchase_discount_type: product.purchase_discount_type,
+      purchase_discount_value: product.purchase_discount_value,
+      size_group_name: sizeGroupName,
+      uom: product.uom,
+    });
+    setRepurchaseRows(rows);
+    setShowRepurchaseDialog(true);
+  };
+
+  const repurchasePricesUnchanged = (row: RepurchaseVariantRow) =>
+    roundMoney(row.newPurPrice) === roundMoney(row.oldPurPrice) &&
+    roundMoney(row.newSalePrice) === roundMoney(row.oldSalePrice) &&
+    roundMoney(row.newMrp) === roundMoney(row.oldMrp);
+
+  const handleRepurchaseConfirm = async (rows: RepurchaseVariantRow[]) => {
+    if (!repurchaseProduct || !currentOrganization) return;
+
+    const withQty = rows.filter((r) => (Number(r.qty) || 0) > 0);
+    if (withQty.length === 0) {
+      toast({
+        title: "Enter quantity",
+        description: "Set qty for at least one size.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setRepurchaseConfirming(true);
+    try {
+      let added = 0;
+      for (const row of withQty) {
+        let skuId = row.id;
+        let barcode = row.barcode;
+        const newPur = row.newPurPrice;
+        const newSale = row.newSalePrice;
+        const newMrp = row.newMrp;
+
+        if (!repurchasePricesUnchanged(row)) {
+          const result = await createNewVariantWithBarcode({
+            product_id: repurchaseProduct.id,
+            size: row.size,
+            color: row.color,
+            pur_price: newPur,
+            sale_price: newSale,
+            mrp: newMrp,
+          });
+          if (!result) continue;
+          skuId = result.id;
+          barcode = result.barcode;
+        }
+
+        addItemRow({
+          product_id: repurchaseProduct.id,
+          sku_id: skuId,
+          product_name: repurchaseProduct.product_name,
+          size: row.size,
+          qty: row.qty,
+          pur_price: newPur,
+          sale_price: newSale,
+          mrp: newMrp,
+          gst_per: repurchaseProduct.purchase_gst_percent || repurchaseProduct.gst_per || 0,
+          hsn_code: repurchaseProduct.hsn_code || "",
+          barcode,
+          discount_percent: (() => {
+            const pdt = repurchaseProduct.purchase_discount_type;
+            const pdv = repurchaseProduct.purchase_discount_value || 0;
+            if (pdv > 0 && (!pdt || pdt === "percent")) return pdv;
+            return 0;
+          })(),
+          brand: repurchaseProduct.brand || "",
+          category: repurchaseProduct.category || "",
+          color: row.color || repurchaseProduct.color || "",
+          style: repurchaseProduct.style || "",
+          uom: repurchaseProduct.uom || "NOS",
+        });
+        added++;
+      }
+
+      if (added > 0) {
+        toast({
+          title: "Added to bill",
+          description: `${added} line(s) added from re-purchase.`,
+        });
+      }
+
+      setShowRepurchaseDialog(false);
+      setRepurchaseProduct(null);
+      setRepurchaseRows([]);
+      (document.activeElement as HTMLElement)?.blur();
+      focusSearchBar();
+    } finally {
+      setRepurchaseConfirming(false);
+    }
   };
 
   // Handle confirmation from SizeGridDialog
@@ -5605,7 +5801,25 @@ const PurchaseEntry = () => {
 
           {/* Product search */}
           <div className="bg-background rounded-2xl p-3.5 border border-border/40 shadow-sm space-y-2">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Add Products</p>
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Add Products</p>
+              <Button
+                type="button"
+                size="sm"
+                variant={repurchaseMode ? "default" : "outline"}
+                className="h-8 text-xs shrink-0"
+                disabled={isBillLocked}
+                onClick={() => setRepurchaseMode((prev) => !prev)}
+              >
+                <RotateCcw className="h-3.5 w-3.5 mr-1" />
+                Re-purchase
+              </Button>
+            </div>
+            {repurchaseMode && (
+              <p className="text-[11px] text-primary font-medium">
+                Re-purchase mode — search and select an existing product to enter qty and new prices only.
+              </p>
+            )}
             <div className="flex gap-1.5">
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -5782,6 +5996,18 @@ const PurchaseEntry = () => {
           }}
         />
         <SizeGridDialog open={showSizeGrid} onClose={() => setShowSizeGrid(false)} product={selectedProduct} variants={sizeGridVariants} onConfirm={handleSizeGridConfirm} reviewMode={sizeGridReviewMode} showPurPrice={sizeGridReviewMode} showSizePrices={sizeGridReviewMode} showMrp={sizeGridReviewMode ? true : showMrp} />
+        <RepurchaseDialog
+          open={showRepurchaseDialog}
+          onClose={() => {
+            setShowRepurchaseDialog(false);
+            setRepurchaseProduct(null);
+            setRepurchaseRows([]);
+          }}
+          product={repurchaseProduct}
+          initialRows={repurchaseRows}
+          onConfirm={handleRepurchaseConfirm}
+          confirming={repurchaseConfirming}
+        />
         {isMobileERPMode && (
           <IMEIScanDialog
             open={showIMEIScanDialog}
@@ -6133,6 +6359,18 @@ const PurchaseEntry = () => {
               </span>
             </div>
 
+            <Button
+              type="button"
+              size="sm"
+              variant={repurchaseMode ? "default" : "outline"}
+              className="h-10 shrink-0"
+              disabled={isBillLocked}
+              onClick={() => setRepurchaseMode((prev) => !prev)}
+            >
+              <RotateCcw className="h-4 w-4 mr-1.5" />
+              Re-purchase (existing product)
+            </Button>
+
               <div className="relative flex-1 min-w-[280px]">
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
@@ -6262,6 +6500,11 @@ const PurchaseEntry = () => {
               </span>
             </div>
           </div>
+          {repurchaseMode && (
+            <p className="text-xs text-primary font-medium mt-2">
+              Re-purchase mode active — select an existing product from search to enter qty and new prices only.
+            </p>
+          )}
         </section>
 
         <section className={cn("flex-1 min-h-0 pb-2 overflow-hidden bg-slate-100 relative", entryPageSectionX)}>
@@ -6800,6 +7043,19 @@ const PurchaseEntry = () => {
           showSizePrices={sizeGridReviewMode ? true : false}
           reviewMode={sizeGridReviewMode}
           showPurPrice={sizeGridReviewMode}
+        />
+
+        <RepurchaseDialog
+          open={showRepurchaseDialog}
+          onClose={() => {
+            setShowRepurchaseDialog(false);
+            setRepurchaseProduct(null);
+            setRepurchaseRows([]);
+          }}
+          product={repurchaseProduct}
+          initialRows={repurchaseRows}
+          onConfirm={handleRepurchaseConfirm}
+          confirming={repurchaseConfirming}
         />
 
         {/* Roll Entry Dialog for MTR products */}
