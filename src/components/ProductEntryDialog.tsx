@@ -42,6 +42,14 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
 import { validateProduct } from "@/lib/validations";
 import { UOM_OPTIONS, DEFAULT_UOM, isDecimalUOM } from "@/constants/uom";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
@@ -126,6 +134,107 @@ interface ProductEntryDialogProps {
   isDcPurchase?: boolean;
   isAutoBarcode?: boolean;
   mobileERPMode?: MobileERPModeConfig;
+}
+
+/** Searchable suggestions with free-text entry (not restricted to list values). */
+function FreeTextFieldCombobox({
+  id,
+  value,
+  onChange,
+  options,
+  placeholder,
+  onKeyDown,
+}: {
+  id?: string;
+  value: string;
+  onChange: (value: string) => void;
+  options: string[];
+  placeholder?: string;
+  onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const filteredOptions = useMemo(() => {
+    const query = value.trim().toLowerCase();
+    const list = query
+      ? options.filter((opt) => opt.toLowerCase().includes(query))
+      : options;
+    return list.slice(0, 50);
+  }, [options, value]);
+
+  const typedTrimmed = value.trim();
+  const exactMatch = typedTrimmed
+    ? options.some((opt) => opt.toLowerCase() === typedTrimmed.toLowerCase())
+    : false;
+
+  const handleSelect = (selected: string) => {
+    onChange(selected);
+    setOpen(false);
+    inputRef.current?.focus();
+  };
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverAnchor asChild>
+        <Input
+          ref={inputRef}
+          id={id}
+          value={value}
+          onChange={(e) => {
+            onChange(e.target.value);
+            setOpen(true);
+          }}
+          onFocus={() => setOpen(true)}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") {
+              setOpen(false);
+              return;
+            }
+            onKeyDown?.(e);
+          }}
+          placeholder={placeholder}
+          autoComplete="off"
+        />
+      </PopoverAnchor>
+      <PopoverContent
+        className="w-[var(--radix-popover-trigger-width)] p-0"
+        align="start"
+        onOpenAutoFocus={(e) => e.preventDefault()}
+        onInteractOutside={(e) => {
+          if (inputRef.current?.contains(e.target as Node)) {
+            e.preventDefault();
+          }
+        }}
+      >
+        <Command shouldFilter={false}>
+          <CommandList className="max-h-48">
+            {typedTrimmed && !exactMatch && (
+              <CommandGroup>
+                <CommandItem
+                  value={`__custom__${typedTrimmed}`}
+                  onSelect={() => handleSelect(typedTrimmed)}
+                >
+                  Use &quot;{typedTrimmed}&quot;
+                </CommandItem>
+              </CommandGroup>
+            )}
+            {filteredOptions.length > 0 ? (
+              <CommandGroup>
+                {filteredOptions.map((opt) => (
+                  <CommandItem key={opt} value={opt} onSelect={() => handleSelect(opt)}>
+                    {opt}
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            ) : (
+              !typedTrimmed && <CommandEmpty>No previous values</CommandEmpty>
+            )}
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
 }
 
 export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideOpeningQty, isDcPurchase, isAutoBarcode = true, mobileERPMode }: ProductEntryDialogProps) => {
@@ -577,6 +686,17 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
     return () => document.removeEventListener("mousedown", handler, true);
   }, []);
 
+  useEffect(() => {
+    if (!showCopyDropdown) return;
+    const update = () => updateCopyDropdownPos();
+    window.addEventListener("scroll", update, true);
+    window.addEventListener("resize", update);
+    return () => {
+      window.removeEventListener("scroll", update, true);
+      window.removeEventListener("resize", update);
+    };
+  }, [showCopyDropdown, updateCopyDropdownPos]);
+
   const handleCopyFromProduct = async (productId: string) => {
     setShowCopyDropdown(false);
     setCopySearch("");
@@ -636,6 +756,32 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
       setTimeout(() => productNameInputRef.current?.focus(), 100);
     } catch (e: any) {
       toast({ title: "Error", description: "Failed to copy product details", variant: "destructive" });
+    }
+  };
+
+  const handleCopySearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!showCopyDropdown || copyResults.length === 0) {
+      if (e.key === "Escape") setShowCopyDropdown(false);
+      return;
+    }
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setCopySelectedIndex((prev) =>
+        prev < copyResults.length - 1 ? prev + 1 : 0,
+      );
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setCopySelectedIndex((prev) =>
+        prev > 0 ? prev - 1 : copyResults.length - 1,
+      );
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      const idx = copySelectedIndex >= 0 ? copySelectedIndex : 0;
+      void handleCopyFromProduct(copyResults[idx].id);
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      setShowCopyDropdown(false);
+      setCopySelectedIndex(-1);
     }
   };
 
@@ -1527,6 +1673,74 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                 </div>
               )}
 
+              {/* ── Copy from existing product (optional) ─────── */}
+              <div className="rounded-lg border border-dashed border-border/70 bg-muted/20 p-3 space-y-2">
+                <Label htmlFor="copy-from-product" className="text-sm font-semibold">
+                  🔍 Search existing product to auto-fill (name / brand / category)
+                </Label>
+                <p className="text-[11px] text-muted-foreground">
+                  Optional — search to copy details, or fill the form manually below.
+                </p>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                  <Input
+                    ref={copyInputRef}
+                    id="copy-from-product"
+                    value={copySearch}
+                    onChange={(e) => {
+                      setCopySearch(e.target.value);
+                      updateCopyDropdownPos();
+                    }}
+                    onFocus={updateCopyDropdownPos}
+                    onKeyDown={handleCopySearchKeyDown}
+                    placeholder="Type product name, brand, or category…"
+                    className="pl-10"
+                    autoComplete="off"
+                  />
+                  {copyLoading && (
+                    <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
+                  )}
+                </div>
+              </div>
+
+              {showCopyDropdown &&
+                copyResults.length > 0 &&
+                createPortal(
+                  <div
+                    ref={copyDropdownRef}
+                    className="fixed z-[200] bg-popover border border-border rounded-md shadow-lg max-h-60 overflow-auto"
+                    style={{
+                      top: copyDropdownPos.top,
+                      left: copyDropdownPos.left,
+                      width: copyDropdownPos.width,
+                    }}
+                  >
+                    {copyResults.map((result, idx) => (
+                      <button
+                        key={result.id}
+                        type="button"
+                        className={cn(
+                          "w-full text-left px-3 py-2.5 text-sm border-b border-border/40 last:border-0 hover:bg-accent transition-colors",
+                          idx === copySelectedIndex && "bg-accent",
+                        )}
+                        onMouseDown={(e) => e.preventDefault()}
+                        onMouseEnter={() => setCopySelectedIndex(idx)}
+                        onClick={() => void handleCopyFromProduct(result.id)}
+                      >
+                        <div className="font-semibold">{result.product_name}</div>
+                        <div className="text-xs text-muted-foreground mt-0.5 flex flex-wrap gap-x-2">
+                          {result.brand && <span>{result.brand}</span>}
+                          {result.category && <span>{result.category}</span>}
+                          {result.size_groups?.group_name && (
+                            <span>{result.size_groups.group_name}</span>
+                          )}
+                        </div>
+                      </button>
+                    )),
+                  </div>,
+                  document.body,
+                )}
+
               {/* ── 📋 Product Details ────────────────────────── */}
               <div className="flex items-center gap-2 pt-1">
                 <span className="text-sm">📋</span>
@@ -1549,88 +1763,56 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                 {isFieldEnabled("category") && (
                   <div className="space-y-2">
                     <Label htmlFor="category">{getFieldLabel("category", "Category")}</Label>
-                    <div className="relative">
-                      <Input
-                        id="category"
-                        value={formData.category}
-                        onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                        onKeyDown={handleEnterAsTab}
-                        placeholder="Category"
-                        list="category-list"
-                        autoComplete="off"
-                      />
-                      <datalist id="category-list">
-                        {categories.map((cat) => (
-                          <option key={cat} value={cat} />
-                        ))}
-                      </datalist>
-                    </div>
+                    <FreeTextFieldCombobox
+                      id="category"
+                      value={formData.category}
+                      onChange={(category) => setFormData({ ...formData, category })}
+                      options={categories}
+                      placeholder="Category"
+                      onKeyDown={handleEnterAsTab}
+                    />
                   </div>
                 )}
 
                 {isFieldEnabled("brand") && (
                   <div className="space-y-2">
                     <Label htmlFor="brand">{getFieldLabel("brand", "Brand")}</Label>
-                    <div className="relative">
-                      <Input
-                        id="brand"
-                        value={formData.brand}
-                        onChange={(e) => setFormData({ ...formData, brand: e.target.value })}
-                        onKeyDown={handleEnterAsTab}
-                        placeholder="Brand"
-                        list="brand-list"
-                        autoComplete="off"
-                      />
-                      <datalist id="brand-list">
-                        {brands.map((brand) => (
-                          <option key={brand} value={brand} />
-                        ))}
-                      </datalist>
-                    </div>
+                    <FreeTextFieldCombobox
+                      id="brand"
+                      value={formData.brand}
+                      onChange={(brand) => setFormData({ ...formData, brand })}
+                      options={brands}
+                      placeholder="Brand"
+                      onKeyDown={handleEnterAsTab}
+                    />
                   </div>
                 )}
 
                 {isFieldEnabled("style") && (
                   <div className="space-y-2">
                     <Label htmlFor="style">{getFieldLabel("style", "Style")}</Label>
-                    <div className="relative">
-                      <Input
-                        id="style"
-                        value={formData.style}
-                        onChange={(e) => setFormData({ ...formData, style: e.target.value })}
-                        onKeyDown={handleEnterAsTab}
-                        placeholder="Style"
-                        list="style-list"
-                        autoComplete="off"
-                      />
-                      <datalist id="style-list">
-                        {styles.map((style) => (
-                          <option key={style} value={style} />
-                        ))}
-                      </datalist>
-                    </div>
+                    <FreeTextFieldCombobox
+                      id="style"
+                      value={formData.style}
+                      onChange={(style) => setFormData({ ...formData, style })}
+                      options={styles}
+                      placeholder="Style"
+                      onKeyDown={handleEnterAsTab}
+                    />
                   </div>
                 )}
 
                 {isFieldEnabled("hsn_code") && (
                 <div className="space-y-2">
                   <Label htmlFor="hsn_code">{getFieldLabel("hsn_code", "HSN Code")}</Label>
-                  <div className="relative">
-                      <Input
-                        id="hsn_code"
-                        value={formData.hsn_code}
-                        onChange={(e) => setFormData({ ...formData, hsn_code: e.target.value })}
-                        onKeyDown={handleEnterAsTab}
-                        placeholder="HSN Code"
-                        list="hsn-list"
-                        autoComplete="off"
-                      />
-                    <datalist id="hsn-list">
-                      {hsnCodes.map((hsn) => (
-                        <option key={hsn} value={hsn} />
-                      ))}
-                    </datalist>
-                  </div>
+                  <FreeTextFieldCombobox
+                    id="hsn_code"
+                    value={formData.hsn_code}
+                    onChange={(hsn_code) => setFormData({ ...formData, hsn_code })}
+                    options={hsnCodes}
+                    placeholder="HSN Code"
+                    onKeyDown={handleEnterAsTab}
+                  />
                 </div>
                 )}
 
