@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
 import { useCreateFormDraftPersistence } from "@/hooks/useCreateFormDraftPersistence";
 import { restoreDashboardFilters, WINDOW_FILTER_IDS } from "@/lib/dashboardFilterPersistence";
@@ -31,6 +31,7 @@ import {
   Trash2,
   Search,
   FileSpreadsheet,
+  Download,
   History,
   Link2,
   Phone,
@@ -80,6 +81,8 @@ import { useContextMenu, useIsDesktop } from "@/hooks/useContextMenu";
 import { DesktopContextMenu, PageContextMenu, ContextMenuItem } from "@/components/DesktopContextMenu";
 import { ColumnDef } from "@tanstack/react-table";
 import { ERPTable } from "@/components/erp-table";
+import { format } from "date-fns";
+import * as XLSX from "xlsx";
 
 interface Customer {
   id: string;
@@ -158,6 +161,7 @@ const CustomerMaster = () => {
   const [showBrandDiscountDialog, setShowBrandDiscountDialog] = useState(false);
   const [selectedCustomerForBrandDiscount, setSelectedCustomerForBrandDiscount] = useState<{ id: string; name: string } | null>(null);
   const [showUpdatePhonesDialog, setShowUpdatePhonesDialog] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   const { orgNavigate: navigate } = useOrgNavigation();
 
   const isDesktop = useIsDesktop();
@@ -754,6 +758,251 @@ const CustomerMaster = () => {
     setShowExcelImport(false);
   };
 
+  const fetchAllCustomersForExport = useCallback(async (): Promise<Customer[]> => {
+    if (!currentOrganization?.id) return [];
+
+    const orgId = currentOrganization.id;
+    const term = debouncedSearch.trim();
+
+    const fetchByIds = async (ids: string[]) => {
+      if (ids.length === 0) return [] as Customer[];
+      const rows: Customer[] = [];
+      const BATCH = 500;
+      for (let i = 0; i < ids.length; i += BATCH) {
+        const chunk = ids.slice(i, i + BATCH);
+        const { data, error } = await supabase
+          .from("customers")
+          .select(CUSTOMER_LIST_COLUMNS)
+          .eq("organization_id", orgId)
+          .is("deleted_at", null)
+          .in("id", chunk);
+        if (error) throw error;
+        rows.push(...((data || []) as Customer[]));
+      }
+      const orderMap = new Map(ids.map((id, index) => [id, index]));
+      return rows.sort((a, b) => (orderMap.get(a.id) ?? 0) - (orderMap.get(b.id) ?? 0));
+    };
+
+    if (segmentFilter !== "all" && segmentIndex) {
+      let segmentIds = Object.entries(segmentIndex.segments)
+        .filter(([, seg]) => seg === segmentFilter)
+        .map(([id]) => id)
+        .sort((a, b) => {
+          const sa = segmentIndex.stats[a]?.lastSaleDate ?? "";
+          const sb = segmentIndex.stats[b]?.lastSaleDate ?? "";
+          if (sa !== sb) return sb.localeCompare(sa);
+          return (segmentIndex.stats[b]?.revenue ?? 0) - (segmentIndex.stats[a]?.revenue ?? 0);
+        });
+
+      if (term) {
+        const { data: searchRows, error: searchErr } = await supabase
+          .from("customers")
+          .select("id")
+          .eq("organization_id", orgId)
+          .is("deleted_at", null)
+          .or(`customer_name.ilike.%${term}%,phone.ilike.%${term}%,email.ilike.%${term}%`);
+        if (searchErr) throw searchErr;
+        const idSet = new Set(segmentIds);
+        segmentIds = (searchRows || [])
+          .map((r: { id: string }) => r.id)
+          .filter((id) => idSet.has(id));
+      }
+
+      return fetchByIds(segmentIds);
+    }
+
+    const allCustomers: Customer[] = [];
+    const BATCH = 1000;
+    let from = 0;
+
+    while (true) {
+      let query = supabase
+        .from("customers")
+        .select(CUSTOMER_LIST_COLUMNS)
+        .eq("organization_id", orgId)
+        .is("deleted_at", null);
+
+      if (term) {
+        query = query.or(
+          `customer_name.ilike.%${term}%,phone.ilike.%${term}%,email.ilike.%${term}%`,
+        );
+      }
+
+      const { data, error } = await query
+        .order("created_at", { ascending: false })
+        .order("id")
+        .range(from, from + BATCH - 1);
+
+      if (error) throw error;
+      const batch = (data || []) as Customer[];
+      allCustomers.push(...batch);
+      if (batch.length < BATCH) break;
+      from += BATCH;
+    }
+
+    return allCustomers;
+  }, [currentOrganization?.id, debouncedSearch, segmentFilter, segmentIndex]);
+
+  const fetchAdvanceBalancesForExport = useCallback(
+    async (customerIds: string[]): Promise<Record<string, number>> => {
+      if (!currentOrganization?.id || customerIds.length === 0) return {};
+
+      const balanceMap: Record<string, number> = {};
+      const BATCH = 500;
+
+      for (let i = 0; i < customerIds.length; i += BATCH) {
+        const chunk = customerIds.slice(i, i + BATCH);
+        const { data, error } = await supabase
+          .from("customer_advances")
+          .select("customer_id, amount, used_amount")
+          .eq("organization_id", currentOrganization.id)
+          .in("status", ["active", "partially_used"])
+          .in("customer_id", chunk);
+
+        if (error) throw error;
+
+        data?.forEach((adv) => {
+          const available = (adv.amount || 0) - (adv.used_amount || 0);
+          if (available > 0) {
+            balanceMap[adv.customer_id] = (balanceMap[adv.customer_id] || 0) + available;
+          }
+        });
+      }
+
+      return balanceMap;
+    },
+    [currentOrganization?.id],
+  );
+
+  const handleExportExcel = useCallback(async () => {
+    if (!currentOrganization?.id) return;
+
+    setIsExporting(true);
+    try {
+      const rows = await fetchAllCustomersForExport();
+      if (rows.length === 0) {
+        toast({
+          title: "No data to export",
+          description: "Adjust search or segment filter to include customers.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const advanceMap = await fetchAdvanceBalancesForExport(rows.map((r) => r.id));
+
+      const filterLabel =
+        segmentFilter === "all"
+          ? "All customers"
+          : CUSTOMER_SEGMENT_LABELS[segmentFilter];
+      const searchLabel = debouncedSearch.trim()
+        ? `Search: ${debouncedSearch.trim()}`
+        : "Search: (none)";
+
+      const headers = [
+        "Sr No",
+        "Customer Name",
+        "Mobile",
+        "Email",
+        "GST Number",
+        "Address",
+        "Opening Balance",
+        "Advance Balance",
+        "Discount %",
+        "Segment",
+        "Lifetime Sales",
+        "Orders",
+        "Last Sale Date",
+        "Created Date",
+        "Transport",
+        "Portal Enabled",
+      ];
+
+      const dataRows = rows.map((customer, index) => {
+        const seg = segmentIndex?.segments[customer.id] ?? "regular";
+        const stats = segmentIndex?.stats[customer.id];
+        return [
+          index + 1,
+          customer.customer_name?.toUpperCase() || "",
+          customer.phone || "",
+          customer.email || "",
+          customer.gst_number || "",
+          customer.address || "",
+          Number(customer.opening_balance || 0),
+          Math.round(advanceMap[customer.id] || 0),
+          Number(customer.discount_percent || 0),
+          CUSTOMER_SEGMENT_LABELS[seg],
+          Math.round(stats?.revenue || 0),
+          stats?.orders || 0,
+          stats?.lastSaleDate || "",
+          customer.created_at ? format(new Date(customer.created_at), "yyyy-MM-dd") : "",
+          (customer as { transport_details?: string | null }).transport_details || "",
+          (customer as { portal_enabled?: boolean | null }).portal_enabled ? "Yes" : "No",
+        ];
+      });
+
+      const sheetRows: (string | number)[][] = [
+        ["Customer Master Export"],
+        [currentOrganization.name || ""],
+        [`Exported: ${format(new Date(), "dd-MM-yyyy HH:mm")}`],
+        [`Filter: ${filterLabel} · ${searchLabel}`],
+        [`Total records: ${rows.length.toLocaleString("en-IN")}`],
+        [],
+        headers,
+        ...dataRows,
+      ];
+
+      const ws = XLSX.utils.aoa_to_sheet(sheetRows);
+      ws["!cols"] = [
+        { wch: 7 },
+        { wch: 28 },
+        { wch: 14 },
+        { wch: 26 },
+        { wch: 18 },
+        { wch: 36 },
+        { wch: 16 },
+        { wch: 16 },
+        { wch: 11 },
+        { wch: 12 },
+        { wch: 16 },
+        { wch: 8 },
+        { wch: 14 },
+        { wch: 14 },
+        { wch: 18 },
+        { wch: 12 },
+      ];
+
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Customers");
+      XLSX.writeFile(
+        wb,
+        `Customer_Master_${format(new Date(), "yyyy-MM-dd")}.xlsx`,
+      );
+
+      toast({
+        title: "Exported",
+        description: `${rows.length.toLocaleString("en-IN")} customers exported to Excel`,
+      });
+    } catch (error: unknown) {
+      toast({
+        title: "Export failed",
+        description: error instanceof Error ? error.message : "Could not export customers",
+        variant: "destructive",
+      });
+    } finally {
+      setIsExporting(false);
+    }
+  }, [
+    currentOrganization?.id,
+    currentOrganization?.name,
+    debouncedSearch,
+    segmentFilter,
+    segmentIndex,
+    fetchAllCustomersForExport,
+    fetchAdvanceBalancesForExport,
+    toast,
+  ]);
+
   // ERPTable columns for Customer Master
   const tableColumns = useMemo<ColumnDef<Customer, any>[]>(() => [
     {
@@ -1249,6 +1498,14 @@ const CustomerMaster = () => {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-56 bg-popover z-50">
+                  <DropdownMenuItem onClick={() => void handleExportExcel()} disabled={isExporting}>
+                    {isExporting ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <Download className="h-4 w-4 mr-2" />
+                    )}
+                    Export Excel
+                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => setShowLegacyImport(true)}>
                     <History className="h-4 w-4 mr-2" />
                     Import Legacy Invoices
