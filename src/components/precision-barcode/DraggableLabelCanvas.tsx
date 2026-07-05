@@ -3,6 +3,11 @@ import JsBarcode from "jsbarcode";
 import { LabelDesignConfig, LabelFieldConfig, FieldKey, LabelItem } from "@/types/labelTypes";
 import { getUOMLabel } from "@/constants/uom";
 import { getCustomTextFields, usesCustomTextFields } from "@/utils/labelCustomText";
+import type { ProductFieldsConfig } from "@/utils/productFieldSettingsForLabels";
+import {
+  filterLabelFieldKeys,
+  isLabelFieldAllowedByProductSettings,
+} from "@/utils/productFieldSettingsForLabels";
 
 interface DraggableLabelCanvasProps {
   item: LabelItem;
@@ -10,6 +15,7 @@ interface DraggableLabelCanvasProps {
   height: number; // mm
   config: LabelDesignConfig;
   zoom: number;
+  productFieldSettings?: ProductFieldsConfig | null;
   activeField: FieldKey | null;
   activeLineIndex: number | null;
   activeCustomTextIndex: number | null;
@@ -64,6 +70,7 @@ export function DraggableLabelCanvas({
   onCustomTextSelect,
   onCustomTextDrag,
   onCustomTextDelete,
+  productFieldSettings = null,
 }: DraggableLabelCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const barcodeRef = useRef<SVGSVGElement>(null);
@@ -190,11 +197,17 @@ export function DraggableLabelCanvas({
   const customTextSlots = getCustomTextFields(config);
   const skipLegacyCustomText = usesCustomTextFields(config);
 
-  const fieldKeys: FieldKey[] = (config.fieldOrder || []).filter(
-    (k) => k !== "barcode" && config[k]?.show && !(k === "customText" && skipLegacyCustomText),
+  const fieldKeys: FieldKey[] = filterLabelFieldKeys(
+    (config.fieldOrder || []).filter(
+      (k) => k !== "barcode" && config[k]?.show && !(k === "customText" && skipLegacyCustomText),
+    ),
+    productFieldSettings,
   );
   const barcodeConfig = config.barcode;
-  const showBarcode = barcodeConfig?.show && item.barcode;
+  const showBarcode =
+    barcodeConfig?.show &&
+    item.barcode &&
+    isLabelFieldAllowedByProductSettings("barcode", productFieldSettings);
 
   return (
     <div

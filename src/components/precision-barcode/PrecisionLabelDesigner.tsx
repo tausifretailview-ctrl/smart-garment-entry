@@ -17,6 +17,11 @@ import {
   migrateCustomTextFields,
   usesCustomTextFields,
 } from "@/utils/labelCustomText";
+import type { ProductFieldsConfig } from "@/utils/productFieldSettingsForLabels";
+import {
+  buildLabelDesignerFieldLabels,
+  filterLabelFieldKeys,
+} from "@/utils/productFieldSettingsForLabels";
 
 interface PrecisionLabelDesignerProps {
   labelWidth: number;
@@ -26,6 +31,8 @@ interface PrecisionLabelDesignerProps {
   onSave?: () => void;
   sampleItem?: LabelItem;
   defaultUom?: string;
+  /** Settings → Product Entry Form Fields (labels + enabled flags) */
+  productFieldSettings?: ProductFieldsConfig | null;
 }
 
 const FIELD_LABELS: Record<FieldKey, string> = {
@@ -101,6 +108,7 @@ export function PrecisionLabelDesigner({
   onSave,
   sampleItem,
   defaultUom = "NOS",
+  productFieldSettings = null,
 }: PrecisionLabelDesignerProps) {
   const [activeField, setActiveField] = useState<FieldKey | null>(null);
   const [activeLineIndex, setActiveLineIndex] = useState<number | null>(null);
@@ -168,8 +176,13 @@ export function PrecisionLabelDesigner({
     });
   };
 
-  const allFieldKeys: FieldKey[] = (config.fieldOrder || Object.keys(FIELD_LABELS).filter((k) => k !== "fieldOrder") as FieldKey[]).filter(
-    (key) => !(key === "customText" && hideLegacyCustomTextField),
+  const fieldLabels = buildLabelDesignerFieldLabels(FIELD_LABELS, productFieldSettings);
+
+  const allFieldKeys: FieldKey[] = filterLabelFieldKeys(
+    (config.fieldOrder || Object.keys(FIELD_LABELS).filter((k) => k !== "fieldOrder") as FieldKey[]).filter(
+      (key) => !(key === "customText" && hideLegacyCustomTextField),
+    ),
+    productFieldSettings,
   );
 
   return (
@@ -421,7 +434,7 @@ export function PrecisionLabelDesigner({
                           className="scale-75"
                           onClick={(e) => e.stopPropagation()}
                         />
-                        <span className="text-xs font-medium">{key === 'qty' ? `Qty (${getUOMLabel(defaultUom)})` : FIELD_LABELS[key]}</span>
+                        <span className="text-xs font-medium">{key === 'qty' ? `Qty (${getUOMLabel(defaultUom)})` : fieldLabels[key]}</span>
                       </div>
                       {field.show && (
                         <span className="text-[10px] text-muted-foreground flex items-center gap-1">
@@ -710,6 +723,7 @@ export function PrecisionLabelDesigner({
           height={labelHeight}
           config={config}
           zoom={zoom}
+          productFieldSettings={productFieldSettings}
           activeField={activeField}
           activeLineIndex={activeLineIndex}
           activeCustomTextIndex={activeCustomTextIndex}

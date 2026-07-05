@@ -2,6 +2,7 @@ import { forwardRef } from "react";
 import { PrecisionLabelPreview } from "./PrecisionLabelPreview";
 import { PrecisionPrintCSS } from "./PrecisionPrintCSS";
 import { LabelItem, LabelDesignConfig } from "@/types/labelTypes";
+import type { ProductFieldsConfig } from "@/utils/productFieldSettingsForLabels";
 import { computeA4SheetMargins, A4_PAGE_WIDTH_MM, A4_PAGE_HEIGHT_MM } from "@/utils/a4SheetLayout";
 
 interface PrecisionA4SheetPrintProps {
@@ -22,6 +23,7 @@ interface PrecisionA4SheetPrintProps {
   startPosition?: number;
   /** Gate the global `<style>` injection so it only happens during an active print job. */
   active?: boolean;
+  productFieldSettings?: ProductFieldsConfig | null;
 }
 
 export const PrecisionA4SheetPrint = forwardRef<HTMLDivElement, PrecisionA4SheetPrintProps>(
@@ -39,6 +41,7 @@ export const PrecisionA4SheetPrint = forwardRef<HTMLDivElement, PrecisionA4Sheet
       config,
       startPosition = 1,
       active = false,
+      productFieldSettings = null,
     },
     ref,
   ) => {
@@ -103,6 +106,7 @@ export const PrecisionA4SheetPrint = forwardRef<HTMLDivElement, PrecisionA4Sheet
                       height={labelHeight}
                       showBorder
                       config={config}
+                      productFieldSettings={productFieldSettings}
                     />
                   ) : (
                     <div

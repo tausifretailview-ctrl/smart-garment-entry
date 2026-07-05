@@ -3,6 +3,11 @@ import JsBarcode from "jsbarcode";
 import { LabelItem, LabelDesignConfig, FieldKey } from "@/types/labelTypes";
 import { getUOMLabel } from "@/constants/uom";
 import { getCustomTextFields, usesCustomTextFields } from "@/utils/labelCustomText";
+import type { ProductFieldsConfig } from "@/utils/productFieldSettingsForLabels";
+import {
+  filterLabelFieldKeys,
+  isLabelFieldAllowedByProductSettings,
+} from "@/utils/productFieldSettingsForLabels";
 import {
   computeLabelBarcodeLayout,
   type LabelData,
@@ -18,6 +23,7 @@ interface PrecisionLabelPreviewProps {
   showBorder?: boolean;
   config?: LabelDesignConfig;
   scaleFactor?: number; // multiplier for px-based preview (1mm = 3.7795px * scaleFactor)
+  productFieldSettings?: ProductFieldsConfig | null;
 }
 
 // Map field keys to item data
@@ -52,6 +58,7 @@ export function PrecisionLabelPreview({
   showBorder = false,
   config,
   scaleFactor,
+  productFieldSettings = null,
 }: PrecisionLabelPreviewProps) {
   const barcodeRef = useRef<SVGSVGElement>(null);
 
@@ -165,12 +172,18 @@ export function PrecisionLabelPreview({
   const skipLegacyCustomText = usesCustomTextFields(config);
 
   // Config-driven rendering
-  const fieldKeys: FieldKey[] = (config.fieldOrder || []).filter(
-    (k) => k !== "barcode" && config[k]?.show && !(k === "customText" && skipLegacyCustomText),
+  const fieldKeys: FieldKey[] = filterLabelFieldKeys(
+    (config.fieldOrder || []).filter(
+      (k) => k !== "barcode" && config[k]?.show && !(k === "customText" && skipLegacyCustomText),
+    ),
+    productFieldSettings,
   );
 
   const barcodeConfig = config.barcode;
-  const showBarcode = barcodeConfig?.show && item.barcode;
+  const showBarcode =
+    barcodeConfig?.show &&
+    item.barcode &&
+    isLabelFieldAllowedByProductSettings("barcode", productFieldSettings);
 
   return (
     <div

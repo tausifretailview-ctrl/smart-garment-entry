@@ -2,6 +2,11 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useOrganization } from '@/contexts/OrganizationContext';
 import { STALE_SETTINGS } from '@/lib/queryStaleTimes';
+import type { ProductFieldsConfig } from '@/utils/productFieldSettingsForLabels';
+import {
+  getProductFieldLabel,
+  isProductFieldEnabled,
+} from '@/utils/productFieldSettingsForLabels';
 
 /**
  * Centralized settings hook — fetches ALL settings columns once,
@@ -96,11 +101,24 @@ const DEFAULT_PRODUCT_FIELD_LABELS: Record<ProductFieldKey, string> = {
 
 export function useProductFieldLabels(): Record<ProductFieldKey, string> {
   const { data } = useSettings();
-  const fields = ((data as any)?.product_settings?.fields || {}) as Record<string, { label?: string; enabled?: boolean }>;
+  const fields = ((data as any)?.product_settings?.fields || {}) as ProductFieldsConfig;
   const out: Record<ProductFieldKey, string> = { ...DEFAULT_PRODUCT_FIELD_LABELS };
   (Object.keys(DEFAULT_PRODUCT_FIELD_LABELS) as ProductFieldKey[]).forEach((k) => {
-    const lbl = fields?.[k]?.label;
-    if (lbl && typeof lbl === 'string' && lbl.trim()) out[k] = lbl.trim();
+    out[k] = getProductFieldLabel(k, DEFAULT_PRODUCT_FIELD_LABELS[k], fields);
+  });
+  return out;
+}
+
+/** Full product field config (labels + enabled flags) from Settings → Product. */
+export function useProductFieldSettings(): ProductFieldsConfig {
+  const { data } = useSettings();
+  const raw = ((data as any)?.product_settings?.fields || {}) as ProductFieldsConfig;
+  const out: ProductFieldsConfig = {};
+  (Object.keys(DEFAULT_PRODUCT_FIELD_LABELS) as ProductFieldKey[]).forEach((k) => {
+    out[k] = {
+      label: getProductFieldLabel(k, DEFAULT_PRODUCT_FIELD_LABELS[k], raw),
+      enabled: isProductFieldEnabled(k, raw),
+    };
   });
   return out;
 }

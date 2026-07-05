@@ -79,6 +79,7 @@ import {
   type OpenSettlementScanInfo,
 } from "@/utils/stockSettlementScans";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
+import { useProductFieldSettings } from "@/hooks/useSettings";
 import { LabelFieldConfig, LabelDesignConfig, LabelItem, LabelTemplate, FieldKey } from "@/types/labelTypes";
 import { PrecisionThermalPrint } from "@/components/precision-barcode/PrecisionThermalPrint";
 import { PrecisionA4SheetPrint } from "@/components/precision-barcode/PrecisionA4SheetPrint";
@@ -1174,6 +1175,7 @@ export default function BarcodePrinting() {
   const { orgNavigate } = useOrgNavigation();
   const { currentOrganization } = useOrganization();
   const { user } = useAuth();
+  const productFieldSettings = useProductFieldSettings();
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [openSettlementScans, setOpenSettlementScans] = useState<Map<string, OpenSettlementScanInfo>>(
@@ -1291,7 +1293,6 @@ export default function BarcodePrinting() {
   } = useBarcodeLabelSettings();
   
   // Custom field labels from organization settings
-  const [customFieldLabels, setCustomFieldLabels] = useState<Partial<Record<FieldKey, string>>>({});
 
   // Label design customization state
   const [labelConfig, setLabelConfig] = useState<LabelDesignConfig>({
@@ -1838,27 +1839,6 @@ export default function BarcodePrinting() {
           setBusinessName(data.business_name);
         }
 
-        // Apply custom field labels from product settings
-        if (data?.product_settings && typeof data.product_settings === 'object') {
-          const ps = data.product_settings as any;
-          if (ps.fields) {
-            const labels: Partial<Record<FieldKey, string>> = {};
-            const fieldMapping: Record<string, FieldKey> = {
-              brand: 'brand',
-              style: 'style',
-              color: 'color',
-              category: 'category',
-            };
-            Object.entries(ps.fields).forEach(([key, val]: [string, any]) => {
-              const designerKey = fieldMapping[key];
-              if (designerKey && val?.label) {
-                labels[designerKey] = val.label;
-              }
-            });
-            setCustomFieldLabels(labels);
-          }
-        }
-        
         // Fetch purchase code settings
         if (data?.purchase_settings) {
           const purchaseSettings = data.purchase_settings as any;
@@ -4320,6 +4300,7 @@ export default function BarcodePrinting() {
             xOffset: 0,
             yOffset: 0,
             config: labelConfig || undefined,
+            productFieldSettings,
           }));
 
           await new Promise(resolve => setTimeout(resolve, 200));
@@ -5681,7 +5662,7 @@ export default function BarcodePrinting() {
                   selectedTemplateName={selectedLabelTemplate}
                   onSaveTemplate={saveTemplateToDb}
                   onDeleteTemplate={deleteTemplateFromDb}
-                  customFieldLabels={customFieldLabels}
+                  productFieldSettings={productFieldSettings}
                 />
               </div>
             )}
@@ -6295,6 +6276,7 @@ export default function BarcodePrinting() {
               }
               sampleItem={labelItems.length > 0 ? { ...labelItems[0], businessName } : undefined}
               defaultUom={defaultUom}
+              productFieldSettings={productFieldSettings}
               onSave={async () => {
                 if (!currentOrganization?.id) return;
                 try {
@@ -6377,6 +6359,7 @@ export default function BarcodePrinting() {
                               height={effectivePrecisionLabelHeight}
                               config={effectivePrecisionLabelConfig}
                               scaleFactor={2}
+                              productFieldSettings={productFieldSettings}
                             />
                           </div>
                         ))
@@ -6394,6 +6377,7 @@ export default function BarcodePrinting() {
                       vGap={precisionSettings.vGap}
                       config={effectivePrecisionLabelConfig}
                       startPosition={startPosition}
+                      productFieldSettings={productFieldSettings}
                     />
                   )}
                 </>
@@ -6567,6 +6551,7 @@ export default function BarcodePrinting() {
               thermalCols={precisionSettings.printMode === 'thermal2up' ? Math.max(2, precisionSettings.thermalCols || 2) : (precisionSettings.thermalCols || 1)}
               horizontalGap={getThermal2UpGap()}
               active={printPageActive}
+              productFieldSettings={productFieldSettings}
             />
           ) : (
             <PrecisionA4SheetPrint
@@ -6582,6 +6567,7 @@ export default function BarcodePrinting() {
               config={effectivePrecisionLabelConfig}
               startPosition={startPosition}
               active={printPageActive}
+              productFieldSettings={productFieldSettings}
             />
           )}
         </div>

@@ -17,6 +17,12 @@ import {
 import JsBarcode from "jsbarcode";
 import { toast } from "sonner";
 import { LabelFieldConfig, LabelDesignConfig, LabelItem, LabelTemplate, FieldKey } from "@/types/labelTypes";
+import type { ProductFieldsConfig } from "@/utils/productFieldSettingsForLabels";
+import {
+  buildLabelDesignerFieldLabels,
+  filterLabelFieldKeys,
+  isLabelFieldAllowedByProductSettings,
+} from "@/utils/productFieldSettingsForLabels";
 
 interface BarTenderLabelDesignerProps {
   labelConfig: LabelDesignConfig;
@@ -31,6 +37,7 @@ interface BarTenderLabelDesignerProps {
   onSaveTemplate?: (template: LabelTemplate) => Promise<boolean>;
   onDeleteTemplate?: (templateName: string) => Promise<boolean>;
   customFieldLabels?: Partial<Record<FieldKey, string>>;
+  productFieldSettings?: ProductFieldsConfig | null;
 }
 
 const defaultFieldLabels: Record<FieldKey, string> = {
@@ -255,8 +262,13 @@ export function BarTenderLabelDesigner({
   onSaveTemplate,
   onDeleteTemplate,
   customFieldLabels,
+  productFieldSettings = null,
 }: BarTenderLabelDesignerProps) {
-  const fieldLabels: Record<FieldKey, string> = { ...defaultFieldLabels, ...customFieldLabels };
+  const fieldLabels: Record<FieldKey, string> = buildLabelDesignerFieldLabels(
+    { ...defaultFieldLabels, ...customFieldLabels } as Record<FieldKey, string>,
+    productFieldSettings,
+  );
+  const designerFieldOrder = filterLabelFieldKeys(labelConfig.fieldOrder, productFieldSettings);
   const [selectedField, setSelectedField] = useState<FieldKey | null>(null);
   const [zoom, setZoom] = useState(150);
   const previewRef = useRef<HTMLDivElement>(null);
@@ -621,9 +633,9 @@ export function BarTenderLabelDesigner({
   // Render single label content with absolute positioned fields
   const renderLabelContent = () => (
     <div className="relative w-full h-full">
-      {labelConfig.fieldOrder.map((fieldKey) => {
+      {designerFieldOrder.map((fieldKey) => {
         const field = labelConfig[fieldKey] as LabelFieldConfig;
-        if (!field.show) return null;
+        if (!field.show || !isLabelFieldAllowedByProductSettings(fieldKey, productFieldSettings)) return null;
         return (
           <DraggableField
             key={fieldKey}
@@ -749,7 +761,7 @@ export function BarTenderLabelDesigner({
         </p>
         
         <div className="space-y-1.5 max-h-[500px] overflow-y-auto pr-1">
-          {labelConfig.fieldOrder.map((fieldKey) => {
+          {designerFieldOrder.map((fieldKey) => {
             const field = labelConfig[fieldKey] as LabelFieldConfig;
             return (
               <FieldListItem

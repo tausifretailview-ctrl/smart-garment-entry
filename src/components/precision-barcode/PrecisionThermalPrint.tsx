@@ -2,6 +2,7 @@ import { forwardRef } from "react";
 import { PrecisionLabelPreview } from "./PrecisionLabelPreview";
 import { PrecisionPrintCSS } from "./PrecisionPrintCSS";
 import { LabelItem, LabelDesignConfig } from "@/types/labelTypes";
+import type { ProductFieldsConfig } from "@/utils/productFieldSettingsForLabels";
 
 interface PrecisionThermalPrintProps {
   items: LabelItem[];
@@ -15,10 +16,11 @@ interface PrecisionThermalPrintProps {
   horizontalGap?: number;
   /** Gate the global `<style>` injection so it only happens during an active print job. */
   active?: boolean;
+  productFieldSettings?: ProductFieldsConfig | null;
 }
 
 export const PrecisionThermalPrint = forwardRef<HTMLDivElement, PrecisionThermalPrintProps>(
-  ({ items, labelWidth, labelHeight, xOffset, yOffset, vGap = 0, config, thermalCols = 1, horizontalGap = 0, active = false }, ref) => {
+  ({ items, labelWidth, labelHeight, xOffset, yOffset, vGap = 0, config, thermalCols = 1, horizontalGap = 0, active = false, productFieldSettings = null }, ref) => {
     const expandedItems: LabelItem[] = [];
     items.forEach((item) => {
       const qty = item.qty && item.qty > 0 ? item.qty : 0;
@@ -82,6 +84,7 @@ export const PrecisionThermalPrint = forwardRef<HTMLDivElement, PrecisionThermal
                       xOffset={0}
                       yOffset={0}
                       config={config}
+                      productFieldSettings={productFieldSettings}
                     />
                   </div>
                 ))}
@@ -124,6 +127,7 @@ export const PrecisionThermalPrint = forwardRef<HTMLDivElement, PrecisionThermal
                 xOffset={0}
                 yOffset={0}
                 config={config}
+                productFieldSettings={productFieldSettings}
               />
             </div>
           ))}
