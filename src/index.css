@@ -85,7 +85,13 @@ All colors MUST be HSL.
     --erp-bad-soft: #fbe9e9;
     --erp-bad: #dc2626;
     --erp-row-h: 34px;
-    --erp-ctrl-h: 32px;
+    --erp-ctrl-h: 38px;
+    --erp-titlebar-height: 40px;
+    --erp-toolbar-height: 52px;
+    --erp-tabs-height: 42px;
+    --erp-chrome-above: calc(
+      var(--erp-titlebar-height) + var(--erp-toolbar-height) + var(--erp-tabs-height)
+    );
     --erp-sidebar-width: 216px;
 
     /* Clean minimal shadows - Elevation System */
@@ -709,9 +715,21 @@ All colors MUST be HSL.
   }
 
   /* ── Desktop app chrome (title bar + toolbar + sidebar) ── */
+  .erp-chrome-stack {
+    flex-shrink: 0;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    background: var(--erp-panel);
+    border-bottom: 1px solid var(--erp-line);
+  }
+
   .erp-titlebar {
-    height: 30px;
-    min-height: 30px;
+    height: var(--erp-titlebar-height);
+    min-height: var(--erp-titlebar-height);
     background: var(--erp-chrome);
     color: var(--erp-chrome-ink);
     border-bottom: 1px solid var(--erp-chrome-2);
@@ -719,10 +737,9 @@ All colors MUST be HSL.
     align-items: center;
     gap: 10px;
     padding: 0 8px 0 10px;
-    font-size: 12px;
+    font-size: 14px;
     user-select: none;
     flex-shrink: 0;
-    z-index: 50;
   }
 
   html.desktop-shell .erp-titlebar {
@@ -760,9 +777,9 @@ All colors MUST be HSL.
 
   .erp-menubar-trigger {
     height: auto !important;
-    padding: 4px 9px !important;
-    font-size: 12px !important;
-    font-weight: 500 !important;
+    padding: 6px 12px !important;
+    font-size: 14px !important;
+    font-weight: 600 !important;
     color: var(--erp-chrome-ink) !important;
     border-radius: 4px !important;
     background: transparent !important;
@@ -782,15 +799,15 @@ All colors MUST be HSL.
   }
 
   .erp-titlebar-meta {
-    font-size: 11px;
+    font-size: 12px;
     color: var(--erp-chrome-ink-dim);
     white-space: nowrap;
     flex-shrink: 0;
   }
 
   .erp-win-control {
-    width: 34px;
-    height: 30px;
+    width: 40px;
+    height: var(--erp-titlebar-height);
     display: grid;
     place-items: center;
     color: var(--erp-chrome-ink-dim);
@@ -811,32 +828,32 @@ All colors MUST be HSL.
   }
 
   .erp-toolbar {
-    height: 44px;
-    min-height: 44px;
+    height: var(--erp-toolbar-height);
+    min-height: var(--erp-toolbar-height);
     background: var(--erp-panel);
-    border-bottom: 1px solid var(--erp-line);
+    border-bottom: none;
     display: flex;
     align-items: center;
-    gap: 6px;
-    padding: 0 10px;
+    gap: 8px;
+    padding: 0 12px;
     flex-shrink: 0;
-    z-index: 49;
   }
 
   .erp-tbtn {
     height: var(--erp-ctrl-h);
     display: inline-flex;
     align-items: center;
-    gap: 7px;
-    padding: 0 12px;
+    gap: 8px;
+    padding: 0 16px;
     border: 1px solid var(--erp-line);
     background: #fff;
     color: var(--erp-ink);
     border-radius: var(--radius);
-    font-size: 12px;
-    font-weight: 500;
+    font-size: 15px;
+    font-weight: 600;
     cursor: pointer;
     transition: all 0.12s ease;
+    white-space: nowrap;
   }
 
   .erp-tbtn:hover {
@@ -856,9 +873,9 @@ All colors MUST be HSL.
   }
 
   .erp-tbtn__icon {
-    width: 15px;
-    height: 15px;
-    opacity: 0.75;
+    width: 17px;
+    height: 17px;
+    opacity: 0.8;
   }
 
   .erp-tbtn--primary .erp-tbtn__icon {
@@ -878,13 +895,13 @@ All colors MUST be HSL.
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 0 11px;
+    padding: 0 12px;
     border: 1px solid var(--erp-line);
     background: var(--erp-panel-2);
     border-radius: var(--radius);
-    width: min(280px, 100%);
+    width: min(300px, 100%);
     color: var(--erp-ink-3);
-    font-size: 12px;
+    font-size: 13px;
   }
 
   .erp-toolbar-search input {
@@ -892,7 +909,7 @@ All colors MUST be HSL.
     background: none;
     outline: none;
     font-family: inherit;
-    font-size: 12px;
+    font-size: 13px;
     color: var(--erp-ink);
     width: 100%;
   }
@@ -1005,19 +1022,21 @@ All colors MUST be HSL.
 
   /* Window tabs — desktop depth */
   .erp-window-tabs {
-    height: 34px;
-    min-height: 34px;
+    height: var(--erp-tabs-height);
+    min-height: var(--erp-tabs-height);
     background: var(--erp-panel-2);
     border-bottom: 1px solid var(--erp-line);
-    padding: 0 6px;
+    padding: 0 8px;
+    flex-shrink: 0;
   }
 
   .erp-window-tabs .erp-tab {
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 0 12px;
-    font-size: 12px;
+    padding: 0 14px;
+    font-size: 14px;
+    font-weight: 500;
     color: var(--erp-ink-2);
     cursor: pointer;
     border-radius: var(--radius) var(--radius) 0 0;
@@ -1026,6 +1045,7 @@ All colors MUST be HSL.
     border-bottom: none;
     position: relative;
     height: calc(100% - 4px);
+    min-height: 32px;
   }
 
   .erp-window-tabs .erp-tab:hover {
@@ -1035,8 +1055,30 @@ All colors MUST be HSL.
   .erp-window-tabs .erp-tab--active {
     background: var(--erp-panel);
     color: var(--erp-ink);
-    font-weight: 600;
+    font-weight: 700;
     border-color: var(--erp-line);
+  }
+
+  /* Dashboard + fill-height pages: no outer main padding gap under chrome */
+  @media (min-width: 1024px) {
+    main:has(.dashboard-workspace),
+    main:has(.purchase-dashboard-workspace),
+    main:has([data-entry-form]) {
+      padding: 0 !important;
+    }
+  }
+
+  .erp-window-tabs .erp-tab-quick {
+    height: calc(var(--erp-tabs-height) - 8px);
+    gap: 6px;
+    padding: 0 12px;
+    font-size: 14px;
+    font-weight: 600;
+  }
+
+  .erp-window-tabs .erp-tab-quick svg {
+    width: 16px;
+    height: 16px;
   }
 
   .erp-window-tabs .erp-tab--active::after {
@@ -1832,9 +1874,9 @@ body.pos-large-ui .pos-desktop-readable table td {
 
 /* Main dashboard — fixed shell (no layout jump on load / resize) */
 .dashboard-workspace {
-  height: calc(100dvh - 9.5rem);
+  height: calc(100dvh - var(--erp-chrome-above) - var(--erp-status-bar-height));
   min-height: 520px;
-  max-height: calc(100dvh - 9.5rem);
+  max-height: calc(100dvh - var(--erp-chrome-above) - var(--erp-status-bar-height));
   overflow: hidden;
 }
 /* Single inner scroll — no outer main gutter gap beside the cards */

@@ -187,17 +187,18 @@ export const Header = () => {
 
   return (
     <>
-      {/* ROW 1: Title bar + menu (30px navy chrome) */}
+      <div className="erp-chrome-stack">
+      {/* ROW 1: Title bar + menu (navy chrome) */}
       <div
         className={cn(
-          "erp-titlebar sticky top-0",
+          "erp-titlebar",
           forceDesktopView && isNarrowViewport && "safe-area-pt",
         )}
       >
         {(useSheetSidebar ? !openMobile : !sidebarOpen) && (
           <SidebarTrigger
             className={cn(
-              "erp-no-drag h-6 w-6 text-[var(--erp-chrome-ink)] hover:text-white hover:bg-white/10 shrink-0",
+              "erp-no-drag h-7 w-7 text-[var(--erp-chrome-ink)] hover:text-white hover:bg-white/10 shrink-0",
               useSheetSidebar || forceDesktopView ? "flex" : "hidden lg:flex",
             )}
           />
@@ -228,9 +229,9 @@ export const Header = () => {
               <Button
                 variant="ghost"
                 size="sm"
-                className="erp-no-drag lg:hidden h-6 px-2 text-[var(--erp-chrome-ink)] hover:text-white hover:bg-white/10 text-xs"
+                className="erp-no-drag lg:hidden h-7 px-2.5 text-[var(--erp-chrome-ink)] hover:text-white hover:bg-white/10 text-sm"
               >
-                <Menu className="h-3.5 w-3.5 mr-1" />
+                <Menu className="h-4 w-4 mr-1" />
                 Menu
               </Button>
             </SheetTrigger>
@@ -288,31 +289,31 @@ export const Header = () => {
                   });
                 }
               }}
-              className="h-6 w-6 text-[var(--erp-chrome-ink-dim)] hover:text-white hover:bg-white/10 hidden sm:flex"
+              className="h-7 w-7 text-[var(--erp-chrome-ink-dim)] hover:text-white hover:bg-white/10 hidden sm:flex"
               title="Install EzzyERP App"
             >
-              <Download className="h-3.5 w-3.5" />
+              <Download className="h-4 w-4" />
             </Button>
           )}
           <Button
             variant="ghost"
             size="icon"
-            className="h-6 w-6 text-[var(--erp-chrome-ink-dim)] hover:text-white hover:bg-white/10"
+            className="h-7 w-7 text-[var(--erp-chrome-ink-dim)] hover:text-white hover:bg-white/10"
             title={isDesktopApp ? "Refresh app (F5)" : "Refresh app"}
             onClick={handleManualReload}
           >
-            <RefreshCw className="h-3.5 w-3.5" />
+            <RefreshCw className="h-4 w-4" />
           </Button>
-          <UIScaleSelector triggerClassName="h-6 w-6 text-[var(--erp-chrome-ink-dim)] hover:text-white hover:bg-white/10 hidden md:flex" />
+          <UIScaleSelector triggerClassName="h-7 w-7 text-[var(--erp-chrome-ink-dim)] hover:text-white hover:bg-white/10 hidden md:flex" />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
                 variant="ghost"
                 size="icon"
-                className="erp-no-drag rounded-full hover:bg-white/10 h-6 w-6 text-[var(--erp-chrome-ink-dim)] hover:text-white"
+                className="erp-no-drag rounded-full hover:bg-white/10 h-7 w-7 text-[var(--erp-chrome-ink-dim)] hover:text-white"
               >
-                <Avatar className="h-5 w-5">
-                  <AvatarFallback className="bg-[var(--erp-accent)] text-white text-[9px] font-bold">
+                <Avatar className="h-6 w-6">
+                  <AvatarFallback className="bg-[var(--erp-accent)] text-white text-[10px] font-bold">
                     {initials}
                   </AvatarFallback>
                 </Avatar>
@@ -342,7 +343,7 @@ export const Header = () => {
       </div>
 
       {/* ROW 2: Quick-action toolbar (mockup ribbon) */}
-      <div className="erp-toolbar sticky top-[30px] hidden lg:flex overflow-x-auto">
+      <div className="erp-toolbar hidden lg:flex overflow-x-auto">
         <div className="flex items-center gap-1.5 flex-1 min-w-0 flex-nowrap">
           {can("sales_invoice") && (
             <button
@@ -418,10 +419,11 @@ export const Header = () => {
           onKeyDown={() => {}}
           role="search"
         >
-          <Search className="h-3.5 w-3.5 shrink-0" />
-          <span className="flex-1 truncate text-[var(--erp-ink-3)]">Search customer, product, invoice…</span>
+          <Search className="h-4 w-4 shrink-0" />
+          <span className="flex-1 truncate text-[var(--erp-ink-3)] text-[13px]">Search customer, product, invoice…</span>
           <span className="erp-kbd">Ctrl K</span>
         </div>
+      </div>
       </div>
 
       {/* Dialogs */}

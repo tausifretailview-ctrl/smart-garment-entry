@@ -85,14 +85,14 @@ export function WindowTabsBar() {
       <div
         data-window-tabs-bar
         data-collapsed
-        className="erp-window-tabs px-2 py-0.5 flex items-center justify-between"
+        className="erp-window-tabs px-2 flex items-center justify-between"
       >
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <span>{openWindows.length} window{openWindows.length > 1 ? 's' : ''} open</span>
           <span className="hidden md:inline">•</span>
           <span className="hidden md:inline">
-            <kbd className="px-1 py-0.5 bg-muted rounded text-[10px]">Ctrl</kbd>+
-            <kbd className="px-1 py-0.5 bg-muted rounded text-[10px]">Tab</kbd> to switch
+            <kbd className="px-1 py-0.5 bg-muted rounded text-[11px]">Ctrl</kbd>+
+            <kbd className="px-1 py-0.5 bg-muted rounded text-[11px]">Tab</kbd> to switch
           </span>
         </div>
         <Tooltip>
@@ -100,10 +100,10 @@ export function WindowTabsBar() {
             <Button 
               variant="ghost" 
               size="sm" 
-              className="h-6 w-6 p-0" 
+              className="h-8 w-8 p-0" 
               onClick={toggleTabsBarVisibility}
             >
-              <ChevronDown className="h-3.5 w-3.5" />
+              <ChevronDown className="h-4 w-4" />
             </Button>
           </TooltipTrigger>
           <TooltipContent side="bottom">
@@ -115,19 +115,19 @@ export function WindowTabsBar() {
   }
 
   return (
-    <div data-window-tabs-bar className="erp-window-tabs px-2 py-0.5">
-      <div className="flex items-center gap-0.5 h-full">
+    <div data-window-tabs-bar className="erp-window-tabs px-2">
+      <div className="flex items-center gap-1 h-full">
         {canMainDashboard && (
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
                 variant="ghost"
-                size="xs"
-                className="h-6 gap-1 px-1.5 shrink-0"
+                size="sm"
+                className="erp-tab-quick shrink-0"
                 onClick={() => switchWindow("")}
               >
-                <Home className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline text-[11px]">Dashboard</span>
+                <Home className="h-4 w-4" />
+                <span className="hidden sm:inline">Dashboard</span>
               </Button>
             </TooltipTrigger>
             <TooltipContent side="bottom">
@@ -141,12 +141,12 @@ export function WindowTabsBar() {
           <TooltipTrigger asChild>
             <Button
               variant="ghost"
-              size="xs"
-              className="h-6 gap-1 px-1.5 shrink-0 text-primary"
+              size="sm"
+              className="erp-tab-quick shrink-0 text-primary"
               onClick={() => setSizeStockOpen(true)}
             >
-              <Grid3X3 className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline text-[11px]">Size Stock</span>
+              <Grid3X3 className="h-4 w-4" />
+              <span className="hidden sm:inline">Size Stock</span>
             </Button>
           </TooltipTrigger>
           <TooltipContent side="bottom">
@@ -159,12 +159,12 @@ export function WindowTabsBar() {
             <TooltipTrigger asChild>
               <Button
                 variant="ghost"
-                size="xs"
-                className="h-6 gap-1 px-1.5 shrink-0 text-primary"
+                size="sm"
+                className="erp-tab-quick shrink-0 text-primary"
                 onClick={() => setCustomerStatementOpen(true)}
               >
-                <Scale className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline text-[11px]">Stmt (audit)</span>
+                <Scale className="h-4 w-4" />
+                <span className="hidden sm:inline">Stmt (audit)</span>
               </Button>
             </TooltipTrigger>
             <TooltipContent side="bottom">
@@ -173,7 +173,7 @@ export function WindowTabsBar() {
           </Tooltip>
         )}
 
-        <div className="w-px h-5 bg-border mx-1" />
+        <div className="w-px h-6 bg-border mx-1" />
 
         <ScrollArea className="flex-1">
           <div className="flex items-center gap-1">
@@ -188,13 +188,13 @@ export function WindowTabsBar() {
                   onClick={() => switchWindow(window.path)}
                 >
                   {index < 9 && (
-                    <kbd className="px-1 py-0.5 bg-muted rounded text-[9px] leading-none shrink-0 hidden md:inline">
+                    <kbd className="px-1 py-0.5 bg-muted rounded text-[10px] leading-none shrink-0 hidden md:inline">
                       {index + 1}
                     </kbd>
                   )}
                   <span className="erp-tab-dot" aria-hidden />
-                  <IconComponent className="h-3 w-3 shrink-0 opacity-70" />
-                  <span className="truncate max-w-[100px]">{window.label}</span>
+                  <IconComponent className="h-4 w-4 shrink-0 opacity-70" />
+                  <span className="truncate max-w-[140px]">{window.label}</span>
                   {openWindows.length > 1 && (
                     <button
                       type="button"
@@ -205,7 +205,7 @@ export function WindowTabsBar() {
                       className="erp-tab-close ml-0.5 rounded-sm hover:bg-destructive/20 hover:text-destructive p-0.5"
                       aria-label={`Close ${window.label}`}
                     >
-                      <X className="h-3 w-3" />
+                      <X className="h-3.5 w-3.5" />
                     </button>
                   )}
                 </div>
@@ -217,8 +217,8 @@ export function WindowTabsBar() {
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="xs" className="h-6 w-6 p-0 shrink-0">
-              <Plus className="h-3.5 w-3.5" />
+            <Button variant="ghost" size="sm" className="h-8 w-8 p-0 shrink-0">
+              <Plus className="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56 max-h-80 overflow-y-auto">
@@ -249,20 +249,20 @@ export function WindowTabsBar() {
           </DropdownMenuContent>
         </DropdownMenu>
 
-        <div className="text-xs text-muted-foreground hidden md:block pl-2 border-l">
-          <kbd className="px-1 py-0.5 bg-muted rounded text-[10px]">Ctrl</kbd>+
-          <kbd className="px-1 py-0.5 bg-muted rounded text-[10px]">Tab</kbd>
+        <div className="text-sm text-muted-foreground hidden md:block pl-2 border-l">
+          <kbd className="px-1 py-0.5 bg-muted rounded text-[11px]">Ctrl</kbd>+
+          <kbd className="px-1 py-0.5 bg-muted rounded text-[11px]">Tab</kbd>
         </div>
 
         <Tooltip>
           <TooltipTrigger asChild>
             <Button 
               variant="ghost" 
-              size="xs" 
-              className="h-6 w-6 p-0 shrink-0" 
+              size="sm" 
+              className="h-8 w-8 p-0 shrink-0" 
               onClick={toggleTabsBarVisibility}
             >
-              <ChevronUp className="h-3.5 w-3.5" />
+              <ChevronUp className="h-4 w-4" />
             </Button>
           </TooltipTrigger>
           <TooltipContent side="bottom">
