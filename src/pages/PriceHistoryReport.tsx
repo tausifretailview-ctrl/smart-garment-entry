@@ -219,17 +219,18 @@ const PriceHistoryReport = () => {
       let focusProductIds: string[] | null = null;
       if (focusTerm && focusTerm.length >= 2) {
         const t = focusTerm.trim();
+        const esc = t.replace(/[%_,]/g, "");
         const { data: matchedVariants } = await supabase
           .from("product_variants")
           .select("id, barcode, product_id, products!inner(product_name, brand)")
           .eq("organization_id", currentOrganization.id)
-          .or(`barcode.ilike.%${t}%,size.ilike.%${t}%`)
+          .or(`barcode.ilike.%${esc}%,size.ilike.%${esc}%`)
           .limit(500);
         const { data: matchedProducts } = await supabase
           .from("products")
           .select("id, product_variants(id, barcode)")
           .eq("organization_id", currentOrganization.id)
-          .or(`product_name.ilike.%${t}%,brand.ilike.%${t}%`)
+          .or(`product_name.ilike.%${esc}%,brand.ilike.%${esc}%,style.ilike.%${esc}%,category.ilike.%${esc}%`)
           .limit(200);
         const vIds = new Set<string>();
         const bcs = new Set<string>();

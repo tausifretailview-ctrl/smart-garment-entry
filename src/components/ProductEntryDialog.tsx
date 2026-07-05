@@ -653,12 +653,13 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
     const timer = setTimeout(async () => {
       setCopyLoading(true);
       try {
+        const esc = copySearch.trim().replace(/[%_,]/g, "");
         const { data } = await supabase
           .from("products")
           .select("id, product_name, brand, category, default_sale_price, size_group_id, size_groups(group_name)")
           .eq("organization_id", currentOrganization.id)
           .is("deleted_at", null)
-          .or(`product_name.ilike.%${copySearch}%,brand.ilike.%${copySearch}%,category.ilike.%${copySearch}%`)
+          .or(`product_name.ilike.%${esc}%,brand.ilike.%${esc}%,category.ilike.%${esc}%,style.ilike.%${esc}%`)
           .limit(20);
         setCopyResults(data || []);
         setShowCopyDropdown((data || []).length > 0);

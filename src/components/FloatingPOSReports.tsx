@@ -637,7 +637,7 @@ export function FloatingStockReport({ open, onOpenChange }: { open: boolean; onO
         .select("id")
         .eq("organization_id", orgId)
         .is("deleted_at", null)
-        .or(`product_name.ilike.%${term}%,brand.ilike.%${term}%,category.ilike.%${term}%,style.ilike.%${term}%`)
+        .or(`product_name.ilike.%${term}%,brand.ilike.%${term}%,category.ilike.%${term}%,style.ilike.%${term}%,hsn_code.ilike.%${term}%`)
         .limit(50);
       const prodIds = (prodQ.data || []).map((p: any) => p.id);
       if (prodIds.length === 0) return [];

@@ -1288,21 +1288,20 @@ export default function SalesInvoice() {
       setIsSearching(true);
       try {
         const query = searchInput;
-        
+        const escQuery = query.trim().replace(/[%_,]/g, '');
+
         // Separate price tokens (pure numbers like 695, 795) from text tokens
         const allTokens = query.trim().split(/\s+/).filter(Boolean);
         const priceTokens = allTokens.filter(t => /^\d+(\.\d+)?$/.test(t) && Number(t) >= 10);
-        const textTokens = allTokens.filter(t => !(/^\d+(\.\d+)?$/.test(t) && Number(t) >= 10));
-        const textQuery = textTokens.length > 0 ? textTokens.join(' ') : query;
-        
-        // Search products by name, brand, style (using text tokens only)
+
+        // Search products — use full query so numeric style/category codes (e.g. 0215) are included
         const { data: matchingProducts } = await supabase
           .from("products")
           .select("id, size_group_id")
           .eq("organization_id", currentOrganization.id)
           .eq("status", "active")
           .is("deleted_at", null)
-          .or(`product_name.ilike.%${textQuery}%,brand.ilike.%${textQuery}%,style.ilike.%${textQuery}%,category.ilike.%${textQuery}%`);
+          .or(`product_name.ilike.%${escQuery}%,brand.ilike.%${escQuery}%,style.ilike.%${escQuery}%,category.ilike.%${escQuery}%,hsn_code.ilike.%${escQuery}%`);
 
         const productIds = matchingProducts?.map(p => p.id) || [];
 
@@ -1334,11 +1333,11 @@ export default function SalesInvoice() {
             variantsQuery = variantsQuery.or(`barcode.eq.${query.trim()},barcode.ilike.${query.trim()}%`);
           }
         } else {
-          // Fuzzy search — uses trgm index (use textQuery to avoid price tokens in text search)
+          // Fuzzy search — full query for barcode/size/color (numeric style codes included)
           if (productIds.length > 0) {
-            variantsQuery = variantsQuery.or(`barcode.ilike.%${textQuery}%,color.ilike.%${textQuery}%,size.ilike.%${textQuery}%,product_id.in.(${productIds.join(",")})`);
+            variantsQuery = variantsQuery.or(`barcode.ilike.%${escQuery}%,color.ilike.%${escQuery}%,size.ilike.%${escQuery}%,product_id.in.(${productIds.join(",")})`);
           } else {
-            variantsQuery = variantsQuery.or(`barcode.ilike.%${textQuery}%,color.ilike.%${textQuery}%,size.ilike.%${textQuery}%`);
+            variantsQuery = variantsQuery.or(`barcode.ilike.%${escQuery}%,color.ilike.%${escQuery}%,size.ilike.%${escQuery}%`);
           }
         }
 
@@ -1372,12 +1371,27 @@ export default function SalesInvoice() {
           };
         });
 
-        // Client-side price filtering: if user typed price tokens (e.g., "695"), filter by sale_price match
+        // Client-side price filtering: numeric tokens match price OR style/category/barcode/hsn
         if (priceTokens.length > 0) {
           results = results.filter(r => {
-            const salePrice = String(Math.round(r.variant.sale_price || 0));
-            const mrpPrice = String(Math.round(r.variant.mrp || 0));
-            return priceTokens.every(pt => salePrice === pt || mrpPrice === pt || salePrice.includes(pt) || mrpPrice.includes(pt));
+            const matchesPrice = priceTokens.every(pt => {
+              const salePrice = String(Math.round(r.variant.sale_price || 0));
+              const mrpPrice = String(Math.round(r.variant.mrp || 0));
+              return salePrice === pt || mrpPrice === pt || salePrice.includes(pt) || mrpPrice.includes(pt);
+            });
+            if (matchesPrice) return true;
+            const textFields = [
+              r.product_name,
+              r.product?.brand,
+              r.style,
+              r.product?.category,
+              r.product?.hsn_code,
+              r.barcode,
+              r.variant?.barcode,
+              r.variant?.size,
+              r.variant?.color,
+            ].map(v => String(v || '').toLowerCase());
+            return priceTokens.every(pt => textFields.some(f => f.includes(pt.toLowerCase())));
           });
         }
 

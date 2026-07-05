@@ -423,11 +423,21 @@ async function fetchPosSaleIdsMatchingLineItems(
   }
   if (saleIdsInRange.length === 0) return [];
 
+  const escSearch = searchStr.replace(/[%_,]/g, "");
+  const { data: styleProducts } = await client
+    .from("products")
+    .select("id")
+    .eq("organization_id", organizationId)
+    .is("deleted_at", null)
+    .or(`style.ilike.%${escSearch}%,category.ilike.%${escSearch}%,brand.ilike.%${escSearch}%`)
+    .limit(200);
+  const styleProductIds = (styleProducts || []).map((p: { id: string }) => p.id);
+
   const orFilter =
-    `barcode.ilike.%${searchStr}%,` +
-    `product_name.ilike.%${searchStr}%,` +
-    `size.ilike.%${searchStr}%,` +
-    `color.ilike.%${searchStr}%`;
+    `barcode.ilike.%${escSearch}%,` +
+    `product_name.ilike.%${escSearch}%,` +
+    `size.ilike.%${escSearch}%,` +
+    `color.ilike.%${escSearch}%`;
 
   const matched = new Set<string>();
   for (let i = 0; i < saleIdsInRange.length; i += 200) {
@@ -443,6 +453,19 @@ async function fetchPosSaleIdsMatchingLineItems(
     (matchingItems || []).forEach((row) => {
       if (row.sale_id) matched.add(row.sale_id);
     });
+    if (styleProductIds.length > 0) {
+      const { data: byProduct, error: prodErr } = await client
+        .from("sale_items")
+        .select("sale_id")
+        .in("sale_id", batch)
+        .in("product_id", styleProductIds)
+        .is("deleted_at", null)
+        .limit(itemLimit);
+      if (prodErr) throw prodErr;
+      (byProduct || []).forEach((row) => {
+        if (row.sale_id) matched.add(row.sale_id);
+      });
+    }
     if (matched.size >= itemLimit) break;
   }
   return [...matched];

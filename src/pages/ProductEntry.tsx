@@ -222,12 +222,13 @@ const ProductEntry = () => {
     const timer = setTimeout(async () => {
       setCopyLoading(true);
       try {
+        const esc = copySearch.trim().replace(/[%_,]/g, "");
         const { data, error } = await supabase
           .from("products")
           .select("id, product_name, brand, category")
           .eq("organization_id", currentOrganization.id)
           .is("deleted_at", null)
-          .or(`product_name.ilike.%${copySearch}%,brand.ilike.%${copySearch}%,category.ilike.%${copySearch}%`)
+          .or(`product_name.ilike.%${esc}%,brand.ilike.%${esc}%,category.ilike.%${esc}%,style.ilike.%${esc}%`)
           .limit(20);
 
         if (error) throw error;

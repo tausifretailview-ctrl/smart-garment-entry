@@ -676,12 +676,13 @@ const PurchaseReturnEntry = () => {
     async (query: string): Promise<ProductVariant[]> => {
       if (!query || !currentOrganization?.id) return [];
 
+      const esc = query.replace(/[%_,]/g, "");
       const { data: matchingProducts } = await supabase
         .from("products")
         .select("id")
         .eq("organization_id", currentOrganization.id)
         .is("deleted_at", null)
-        .or(`product_name.ilike.%${query}%,brand.ilike.%${query}%`);
+        .or(`product_name.ilike.%${esc}%,brand.ilike.%${esc}%,style.ilike.%${esc}%,category.ilike.%${esc}%`);
 
       const productIds = matchingProducts?.map((p) => p.id) || [];
 

@@ -2079,7 +2079,6 @@ export default function POSSales() {
 
     const runSearch = async () => {
       const variantSelect = POS_VARIANT_LOOKUP_SELECT;
-      const escapedTerm = term.replace(/[%_,]/g, '');
       const isNumeric = /^\d+$/.test(term);
 
       const baseFilters = (q: any) => {
@@ -2099,21 +2098,97 @@ export default function POSSales() {
       let allData: any[] = [];
       let tokens: string[] = [];
 
+      const fetchVariantsForToken = async (token: string): Promise<Set<string>> => {
+        const escToken = token.replace(/[%_,]/g, '');
+        const isNumericToken = /^\d+$/.test(escToken);
+
+        const matchedVariantIds = new Set<string>();
+
+        if (isNumericToken) {
+          const exactQ = baseFilters(
+            supabase.from('product_variants').select('id, product_id'),
+          ).eq('barcode', escToken);
+          const exactRes = await exactQ.limit(500);
+          if (!exactRes.error && exactRes.data?.length) {
+            exactRes.data.forEach((v: { id: string }) => matchedVariantIds.add(v.id));
+          } else if (!exactRes.error) {
+            const partialQ = baseFilters(
+              supabase.from('product_variants').select('id, product_id'),
+            ).ilike('barcode', `%${escToken}%`);
+            const partialRes = await partialQ.limit(500);
+            if (!partialRes.error && partialRes.data) {
+              partialRes.data.forEach((v: { id: string }) => matchedVariantIds.add(v.id));
+            }
+          }
+        }
+
+        const variantOrParts = [
+          ...(isNumericToken ? [] : [`barcode.ilike.%${escToken}%`]),
+          `size.ilike.%${escToken}%`,
+          `color.ilike.%${escToken}%`,
+        ];
+        if (isNumericToken) {
+          variantOrParts.push(`sale_price.eq.${escToken}`);
+          variantOrParts.push(`mrp.eq.${escToken}`);
+        }
+
+        const variantQ = baseFilters(
+          supabase.from('product_variants').select('id, product_id'),
+        ).or(variantOrParts.join(','));
+
+        const productQ = supabase
+          .from('products')
+          .select('id')
+          .eq('organization_id', currentOrganization.id)
+          .eq('status', 'active')
+          .is('deleted_at', null)
+          .or(`product_name.ilike.%${escToken}%,brand.ilike.%${escToken}%,category.ilike.%${escToken}%,style.ilike.%${escToken}%,hsn_code.ilike.%${escToken}%,color.ilike.%${escToken}%`);
+
+        if (selectedProductType !== 'all') {
+          productQ.eq('product_type', selectedProductType);
+        }
+
+        const [vRes, pRes] = await Promise.all([variantQ, productQ.limit(500)]);
+
+        if (!vRes.error && vRes.data) {
+          vRes.data.forEach((v: any) => matchedVariantIds.add(v.id));
+        }
+
+        if (!pRes.error && pRes.data && pRes.data.length > 0) {
+          const prodIds = pRes.data.map((p: any) => p.id);
+          const { data: pVariants } = await supabase
+            .from('product_variants')
+            .select('id')
+            .eq('organization_id', currentOrganization.id)
+            .in('product_id', prodIds)
+            .eq('active', true)
+            .is('deleted_at', null)
+            .limit(1000);
+          if (pVariants) {
+            pVariants.forEach((v: any) => matchedVariantIds.add(v.id));
+          }
+        }
+
+        return matchedVariantIds;
+      };
+
       if (isNumeric) {
         tokens = [term];
-        let query = baseFilters(supabase.from('product_variants').select(variantSelect));
-        query = query.eq('barcode', term);
-        let { data, error } = await query.order('stock_qty', { ascending: false }).limit(20);
+        const matchedIds = await fetchVariantsForToken(term);
         if (requestSeq !== productSearchSeqRef.current) return;
-        if (error) throw error;
-        if (!data?.length) {
-          query = baseFilters(supabase.from('product_variants').select(variantSelect));
-          query = query.ilike('barcode', `%${escapedTerm}%`);
-          ({ data, error } = await query.order('stock_qty', { ascending: false }).limit(20));
+        if (matchedIds.size === 0) {
+          allData = [];
+        } else {
+          const finalIds = Array.from(matchedIds).slice(0, 50);
+          const { data: finalVariants, error } = await baseFilters(
+            supabase.from('product_variants').select(variantSelect)
+          )
+            .in('id', finalIds)
+            .order('stock_qty', { ascending: false });
           if (requestSeq !== productSearchSeqRef.current) return;
           if (error) throw error;
+          allData = finalVariants || [];
         }
-        allData = data || [];
       } else {
         // Multi-token AND search — every space-separated word must match
         // somewhere across product name, brand, category, style, color,
@@ -2123,80 +2198,6 @@ export default function POSSales() {
         if (tokens.length === 0) {
           allData = [];
         } else {
-          const fetchVariantsForToken = async (token: string): Promise<Set<string>> => {
-            const escToken = token.replace(/[%_,]/g, '');
-            const isNumericToken = /^\d+$/.test(escToken);
-
-            const matchedVariantIds = new Set<string>();
-
-            if (isNumericToken) {
-              const exactQ = baseFilters(
-                supabase.from('product_variants').select('id, product_id'),
-              ).eq('barcode', escToken);
-              const exactRes = await exactQ.limit(500);
-              if (!exactRes.error && exactRes.data?.length) {
-                exactRes.data.forEach((v: { id: string }) => matchedVariantIds.add(v.id));
-              } else if (!exactRes.error) {
-                const partialQ = baseFilters(
-                  supabase.from('product_variants').select('id, product_id'),
-                ).ilike('barcode', `%${escToken}%`);
-                const partialRes = await partialQ.limit(500);
-                if (!partialRes.error && partialRes.data) {
-                  partialRes.data.forEach((v: { id: string }) => matchedVariantIds.add(v.id));
-                }
-              }
-            }
-
-            const variantOrParts = [
-              ...(isNumericToken ? [] : [`barcode.ilike.%${escToken}%`]),
-              `size.ilike.%${escToken}%`,
-              `color.ilike.%${escToken}%`,
-            ];
-            if (isNumericToken) {
-              variantOrParts.push(`sale_price.eq.${escToken}`);
-              variantOrParts.push(`mrp.eq.${escToken}`);
-            }
-
-            const variantQ = baseFilters(
-              supabase.from('product_variants').select('id, product_id'),
-            ).or(variantOrParts.join(','));
-
-            const productQ = supabase
-              .from('products')
-              .select('id')
-              .eq('organization_id', currentOrganization.id)
-              .eq('status', 'active')
-              .is('deleted_at', null)
-              .or(`product_name.ilike.%${escToken}%,brand.ilike.%${escToken}%,category.ilike.%${escToken}%,style.ilike.%${escToken}%,hsn_code.ilike.%${escToken}%,color.ilike.%${escToken}%`);
-
-            if (selectedProductType !== 'all') {
-              productQ.eq('product_type', selectedProductType);
-            }
-
-            const [vRes, pRes] = await Promise.all([variantQ, productQ.limit(500)]);
-
-            if (!vRes.error && vRes.data) {
-              vRes.data.forEach((v: any) => matchedVariantIds.add(v.id));
-            }
-
-            if (!pRes.error && pRes.data && pRes.data.length > 0) {
-              const prodIds = pRes.data.map((p: any) => p.id);
-              const { data: pVariants } = await supabase
-                .from('product_variants')
-                .select('id')
-                .eq('organization_id', currentOrganization.id)
-                .in('product_id', prodIds)
-                .eq('active', true)
-                .is('deleted_at', null)
-                .limit(1000);
-              if (pVariants) {
-                pVariants.forEach((v: any) => matchedVariantIds.add(v.id));
-              }
-            }
-
-            return matchedVariantIds;
-          };
-
           const tokenSets = await Promise.all(tokens.map(fetchVariantsForToken));
 
           if (requestSeq !== productSearchSeqRef.current) return;

@@ -297,15 +297,37 @@ export default function SaleReturnDashboard() {
 
       if (debouncedSearch) {
         const searchStr = debouncedSearch.trim();
+        const esc = searchStr.replace(/[%_,]/g, "");
 
         // Search sale_return_items for barcode or product name match
         const { data: matchingItems } = await supabase
           .from('sale_return_items')
           .select('return_id')
-          .or(`barcode.ilike.%${searchStr}%,product_name.ilike.%${searchStr}%`)
+          .or(`barcode.ilike.%${esc}%,product_name.ilike.%${esc}%`)
           .limit(200);
 
-        const matchingReturnIds = [...new Set((matchingItems || []).map((i: any) => i.return_id).filter(Boolean))];
+        const matchingReturnIdSet = new Set(
+          (matchingItems || []).map((i: { return_id: string }) => i.return_id).filter(Boolean),
+        );
+
+        const { data: matchingProducts } = await supabase
+          .from("products")
+          .select("id")
+          .eq("organization_id", currentOrganization.id)
+          .is("deleted_at", null)
+          .or(`product_name.ilike.%${esc}%,brand.ilike.%${esc}%,style.ilike.%${esc}%,category.ilike.%${esc}%`)
+          .limit(200);
+        const styleProductIds = (matchingProducts || []).map((p: { id: string }) => p.id);
+        if (styleProductIds.length > 0) {
+          const { data: itemsByProduct } = await supabase
+            .from("sale_return_items")
+            .select("return_id")
+            .in("product_id", styleProductIds)
+            .limit(200);
+          (itemsByProduct || []).forEach((row: { return_id: string }) => {
+            if (row.return_id) matchingReturnIdSet.add(row.return_id);
+          });
+        }
         const { data: matchingCustomers } = await supabase
           .from("customers")
           .select("id")
@@ -486,6 +508,7 @@ export default function SaleReturnDashboard() {
         }
 
         const matchedReturnIds = new Set<string>();
+        const esc = searchStr.replace(/[%_,]/g, "");
         for (let i = 0; i < returnIdsInScope.length; i += 200) {
           const batch = returnIdsInScope.slice(i, i + 200);
           if (batch.length === 0) continue;
@@ -493,11 +516,35 @@ export default function SaleReturnDashboard() {
             .from("sale_return_items")
             .select("return_id")
             .in("return_id", batch)
-            .or(`barcode.ilike.%${searchStr}%,product_name.ilike.%${searchStr}%`)
+            .or(`barcode.ilike.%${esc}%,product_name.ilike.%${esc}%`)
             .limit(200);
           (matchingItems || []).forEach((row) => {
             if (row.return_id) matchedReturnIds.add(row.return_id);
           });
+        }
+
+        const { data: matchingProducts } = await supabase
+          .from("products")
+          .select("id")
+          .eq("organization_id", currentOrganization.id)
+          .is("deleted_at", null)
+          .or(`product_name.ilike.%${esc}%,brand.ilike.%${esc}%,style.ilike.%${esc}%,category.ilike.%${esc}%`)
+          .limit(200);
+        const styleProductIds = (matchingProducts || []).map((p: { id: string }) => p.id);
+        if (styleProductIds.length > 0) {
+          for (let i = 0; i < returnIdsInScope.length; i += 200) {
+            const batch = returnIdsInScope.slice(i, i + 200);
+            if (batch.length === 0) continue;
+            const { data: itemsByProduct } = await supabase
+              .from("sale_return_items")
+              .select("return_id")
+              .in("return_id", batch)
+              .in("product_id", styleProductIds)
+              .limit(200);
+            (itemsByProduct || []).forEach((row) => {
+              if (row.return_id) matchedReturnIds.add(row.return_id);
+            });
+          }
         }
 
         const { data: matchingCustomers } = await supabase
