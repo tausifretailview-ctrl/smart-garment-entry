@@ -749,28 +749,92 @@ serve(async (req) => {
     }
 
     const { message, organizationId, conversationHistory } = await req.json();
-    
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (!message || typeof message !== "string" || message.length > 2000) {
+
+    if (!message || typeof message !== "string") {
       return new Response(
-        JSON.stringify({ error: "Message is required and must be under 2000 characters" }),
+        JSON.stringify({ error: "Message is required" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
-    if (!organizationId || !uuidRegex.test(organizationId)) {
+    if (message.length > 2000) {
+      return new Response(
+        JSON.stringify({ error: "Message too long" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!organizationId) {
+      return new Response(
+        JSON.stringify({ error: "organizationId required" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    if (!uuidRegex.test(organizationId)) {
       return new Response(
         JSON.stringify({ error: "Valid organizationId is required" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
-    if (conversationHistory && (!Array.isArray(conversationHistory) || conversationHistory.length > 20)) {
+
+    // Verify the caller belongs to the organization they're querying
+    const { data: membership, error: memErr } = await supabaseAuth
+      .from("organization_members")
+      .select("organization_id")
+      .eq("user_id", user.id)
+      .eq("organization_id", organizationId)
+      .maybeSingle();
+    if (memErr || !membership) {
+      return new Response(
+        JSON.stringify({ error: "Not authorized for this organization" }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    if (conversationHistory != null && !Array.isArray(conversationHistory)) {
       return new Response(
         JSON.stringify({ error: "Invalid conversationHistory" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+    const cappedHistory = Array.isArray(conversationHistory)
+      ? conversationHistory.slice(-10)
+      : [];
 
     const supabase = createClient(supabaseUrl, supabaseKey);
+
+    const RATE_WINDOW_MIN = 1;
+    const RATE_MAX = 20;
+    const since = new Date(Date.now() - RATE_WINDOW_MIN * 60_000).toISOString();
+    const { count: recentCount, error: rateCountErr } = await supabase
+      .from("ai_assistant_usage")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", user.id)
+      .gte("created_at", since);
+    if (rateCountErr) {
+      console.error("Rate limit count failed:", rateCountErr);
+      return new Response(
+        JSON.stringify({ error: "Unable to process request" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    if ((recentCount ?? 0) >= RATE_MAX) {
+      return new Response(
+        JSON.stringify({ error: "Too many requests. Please wait a moment." }),
+        { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    const { error: rateInsertErr } = await supabase.from("ai_assistant_usage").insert({
+      user_id: user.id,
+      organization_id: organizationId,
+    });
+    if (rateInsertErr) {
+      console.error("Rate limit insert failed:", rateInsertErr);
+      return new Response(
+        JSON.stringify({ error: "Unable to process request" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     // Detect intent
     const intent = detectIntent(message);
@@ -881,7 +945,7 @@ Based on the above data, provide a helpful and accurate response. If the data co
         model: "google/gemini-2.5-flash",
         messages: [
           { role: "system", content: systemPrompt },
-          ...(conversationHistory || []),
+          ...(cappedHistory),
           { role: "user", content: userPrompt },
         ],
       }),
