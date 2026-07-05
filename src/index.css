@@ -3073,16 +3073,22 @@ main.overflow-auto,
 
 .barcode-label-designer {
   height: 100%;
+  min-height: 0;
 }
 
 .barcode-label-designer > div:first-child {
-  max-height: calc(100vh - 14rem);
+  min-height: 0;
+  height: 100%;
 }
 
 .barcode-label-designer > div:first-child [data-radix-scroll-area-root] {
   flex: 1;
   min-height: 0;
   height: 100%;
+}
+
+.barcode-label-designer > div:first-child [data-radix-scroll-area-viewport] {
+  overscroll-behavior: contain;
 }
 
 .barcode-label-designer .barcode-label-designer [data-radix-scroll-area-viewport] > div {
@@ -3098,11 +3104,24 @@ main.overflow-auto,
   padding: 0.5rem !important;
 }
 
-@media (min-width: 1280px) {
-  .barcode-label-designer > div:last-child {
-    position: sticky;
-    top: 0.5rem;
-    align-self: stretch;
-    max-height: calc(100vh - 14rem);
-  }
+.barcode-label-designer > div:first-child [data-radix-scroll-area-scrollbar] {
+  opacity: 1 !important;
+}
+
+.barcode-label-designer > div:first-child [data-radix-scroll-area-thumb] {
+  background: hsl(var(--muted-foreground) / 0.55);
+}
+
+.barcode-label-designer > div:last-child {
+  min-height: 0;
+  height: 100%;
+}
+
+.barcode-print-footer .barcode-print-footer-btn-outline {
+  font-weight: 600;
+}
+
+.barcode-printing-page[data-designer-tab] .barcode-print-search,
+.barcode-printing-page[data-designer-tab] .barcode-label-source-collapsible {
+  display: none;
 }

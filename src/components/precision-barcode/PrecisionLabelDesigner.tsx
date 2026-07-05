@@ -186,18 +186,18 @@ export function PrecisionLabelDesigner({
   );
 
   return (
-    <div className="barcode-label-designer grid grid-cols-1 xl:grid-cols-[minmax(300px,380px)_1fr] gap-3 h-full min-h-[420px] max-h-[calc(100vh-14rem)]">
+    <div className="barcode-label-designer grid grid-cols-1 xl:grid-cols-[minmax(300px,380px)_1fr] gap-3 flex-1 min-h-0 h-full">
       {/* Field Controls — scrollable left column */}
-      <div className="flex flex-col min-h-0 min-w-0 border rounded-md bg-card overflow-hidden">
-        <div className="flex items-center justify-between px-2.5 py-1.5 border-b shrink-0 bg-muted/20">
-          <h3 className="text-xs font-semibold uppercase tracking-wide">Field Layout</h3>
+      <div className="flex flex-col min-h-0 h-full min-w-0 border rounded-md bg-card overflow-hidden">
+        <div className="flex items-center justify-between px-2.5 py-1.5 border-b shrink-0 bg-muted/30">
+          <h3 className="text-xs font-bold uppercase tracking-wide text-foreground">Field Layout</h3>
           <div className="flex gap-1">
-            <Button variant="ghost" size="sm" onClick={resetToDefault} className="h-7 text-[11px] px-2">
+            <Button variant="outline" size="sm" onClick={resetToDefault} className="h-7 text-[11px] px-2 border-slate-300 text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800">
               <RotateCcw className="h-3 w-3 mr-1" />
               Reset
             </Button>
             {onSave && (
-              <Button size="sm" onClick={onSave} className="h-7 text-[11px] px-2">
+              <Button size="sm" onClick={onSave} className="h-7 text-[11px] px-2 bg-emerald-600 hover:bg-emerald-700 text-white">
                 <Save className="h-3 w-3 mr-1" />
                 Save
               </Button>
@@ -205,8 +205,8 @@ export function PrecisionLabelDesigner({
           </div>
         </div>
 
-        <ScrollArea className="flex-1 min-h-0">
-          <div className="p-2 space-y-2">
+        <ScrollArea className="flex-1 min-h-0 h-0" showScrollbar>
+          <div className="p-2 pb-4 space-y-2">
         <div className="space-y-1.5 rounded-md border border-border/60 p-2 bg-muted/20">
           <div className="flex items-center justify-between gap-2">
             <Label className="text-xs font-semibold">Custom Text Fields</Label>
@@ -702,10 +702,10 @@ export function PrecisionLabelDesigner({
         </ScrollArea>
       </div>
 
-      {/* Live Preview — sticky right column */}
-      <div className="flex flex-col min-h-0 min-w-0 border rounded-md bg-card overflow-hidden xl:sticky xl:top-0 xl:self-start xl:max-h-[calc(100vh-14rem)]">
-        <div className="flex items-center justify-between px-2.5 py-1.5 border-b shrink-0 bg-muted/20">
-          <h3 className="text-xs font-semibold uppercase tracking-wide">Live Preview</h3>
+      {/* Live Preview — scrollable right column */}
+      <div className="flex flex-col min-h-0 h-full min-w-0 border rounded-md bg-card overflow-hidden">
+        <div className="flex items-center justify-between px-2.5 py-1.5 border-b shrink-0 bg-muted/30">
+          <h3 className="text-xs font-bold uppercase tracking-wide text-foreground">Live Preview</h3>
           <div className="flex items-center gap-1">
             <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setZoom(z => Math.max(1, z - 0.5))}>
               <ZoomOut className="h-3.5 w-3.5" />
@@ -717,7 +717,7 @@ export function PrecisionLabelDesigner({
           </div>
         </div>
 
-        <div className="flex-1 min-h-0 flex flex-col p-2">
+        <div className="flex-1 min-h-0 overflow-y-auto flex flex-col p-2">
         <DraggableLabelCanvas
           item={sampleItem || { ...SAMPLE_ITEM, uom: defaultUom }}
           width={labelWidth}

@@ -4656,6 +4656,7 @@ export default function BarcodePrinting() {
     <div
       className={cn(entryPageShellClass, "barcode-printing-page bg-slate-50 dark:bg-background flex flex-col min-h-0 h-full w-full max-w-none")}
       data-entry-form
+      {...(activeBarTab === "designer" ? { "data-designer-tab": true } : {})}
     >
       {/* Header — back + purchase shortcuts */}
       <header className="barcode-print-header shrink-0 flex items-center gap-2 px-2 py-1.5 border-b bg-background">
@@ -4706,7 +4707,12 @@ export default function BarcodePrinting() {
         )}
       </header>
 
-      <main className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-2 flex flex-col gap-2">
+      <main
+        className={cn(
+          "flex-1 min-h-0 flex flex-col gap-2 p-2",
+          activeBarTab === "designer" ? "overflow-hidden" : "overflow-y-auto overflow-x-hidden",
+        )}
+      >
 
       {/* Search Bar with Dropdown */}
       <div className="barcode-print-search shrink-0">
@@ -4783,7 +4789,7 @@ export default function BarcodePrinting() {
       </div>
 
       {/* Label Source — collapsed by default */}
-      <Collapsible open={labelSourceOpen} onOpenChange={setLabelSourceOpen} className="shrink-0">
+      <Collapsible open={labelSourceOpen} onOpenChange={setLabelSourceOpen} className="barcode-label-source-collapsible shrink-0">
         <div className="border rounded-md bg-card overflow-hidden shadow-sm">
           <CollapsibleTrigger asChild>
             <button
@@ -4896,7 +4902,10 @@ export default function BarcodePrinting() {
 
       {/* Results Table */}
       {labelItems.length > 0 && (
-        <div className="barcode-products-panel border rounded-md overflow-hidden shrink-0 max-h-[30vh] flex flex-col">
+        <div className={cn(
+          "barcode-products-panel border rounded-md overflow-hidden shrink-0 flex flex-col",
+          activeBarTab === "designer" ? "max-h-[18vh]" : "max-h-[30vh]",
+        )}>
           <div className="bg-slate-900 text-white px-3 py-2 border-b flex items-center justify-between gap-2">
             <p className="text-sm font-semibold tabular-nums">
               Products: <span className="font-bold">{labelItems.length}</span>
@@ -6163,7 +6172,7 @@ export default function BarcodePrinting() {
             </div>
             </div>
 
-            <div className="flex-1 min-h-0 overflow-hidden p-2">
+            <div className="flex-1 min-h-0 overflow-hidden flex flex-col p-2">
             {(!precisionConfigReady || isLoadingSettings) ? (
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="h-5 w-5 animate-spin text-muted-foreground mr-2" />
@@ -6234,12 +6243,12 @@ export default function BarcodePrinting() {
       </main>
 
       {/* Sticky print bar — always visible without scrolling */}
-      <footer className="barcode-print-footer shrink-0 border-t-2 border-primary/40 bg-slate-900 text-white px-3 py-2 flex flex-wrap items-center gap-2 shadow-[0_-6px_24px_rgba(0,0,0,0.35)]">
+      <footer className="barcode-print-footer shrink-0 border-t-2 border-emerald-500/50 bg-slate-900 text-white px-3 py-2 flex flex-wrap items-center gap-2 shadow-[0_-6px_24px_rgba(0,0,0,0.35)]">
         <Button
           onClick={handlePreview}
           variant="secondary"
           size="sm"
-          className="h-9 font-semibold bg-slate-700 text-white hover:bg-slate-600 border-slate-600"
+          className="barcode-print-footer-btn h-9 font-semibold bg-slate-600 text-white hover:bg-slate-500 border-slate-500"
         >
           <Eye className="h-4 w-4 mr-1.5" />
           Preview
@@ -6247,7 +6256,7 @@ export default function BarcodePrinting() {
         <Button
           onClick={handlePrint}
           size="sm"
-          className="h-9 font-bold bg-emerald-600 hover:bg-emerald-500 text-white min-w-[108px]"
+          className="barcode-print-footer-btn h-9 font-bold bg-emerald-600 hover:bg-emerald-500 text-white min-w-[108px] shadow-sm"
           disabled={settingsLoading || isLoadingSettings || isPrecisionPrintRunning || labelItems.every((i) => !i.qty)}
           title={settingsLoading ? "Loading print settings…" : "Print labels"}
         >
@@ -6263,8 +6272,13 @@ export default function BarcodePrinting() {
             </>
           )}
         </Button>
-        {(precisionSettings.enabled || activeBarTab === "precision") && (
-          <Button variant="outline" size="sm" className="h-9 border-slate-600 text-white hover:bg-slate-800" onClick={handleTestPrint}>
+        {(precisionSettings.enabled || activeBarTab === "precision" || activeBarTab === "designer") && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="barcode-print-footer-btn-outline h-9 border-amber-400/70 text-amber-100 bg-amber-950/40 hover:bg-amber-900/60 hover:text-amber-50"
+            onClick={handleTestPrint}
+          >
             Test Label
           </Button>
         )}
@@ -6272,7 +6286,7 @@ export default function BarcodePrinting() {
           <Button
             size="sm"
             variant="outline"
-            className="h-9 border-emerald-700/60 text-emerald-300 hover:bg-emerald-950"
+            className="barcode-print-footer-btn-outline h-9 border-emerald-400/80 text-emerald-100 bg-emerald-950/40 hover:bg-emerald-900/60 hover:text-emerald-50"
             onClick={() => setIsDirectPrintDialogOpen(true)}
           >
             Direct Print
@@ -6282,7 +6296,7 @@ export default function BarcodePrinting() {
           onClick={handleExportPDF}
           variant="outline"
           size="sm"
-          className="h-9 border-slate-600 text-white hover:bg-slate-800"
+          className="barcode-print-footer-btn-outline h-9 border-sky-400/70 text-sky-100 bg-sky-950/40 hover:bg-sky-900/60 hover:text-sky-50"
         >
           <Download className="h-4 w-4 mr-1.5" />
           PDF
@@ -6292,16 +6306,20 @@ export default function BarcodePrinting() {
             onClick={handleSaveAsDefault}
             variant="outline"
             size="sm"
-            className="h-9 border-slate-600 text-white hover:bg-slate-800 ml-auto"
+            className="barcode-print-footer-btn-outline h-9 border-violet-400/70 text-violet-100 bg-violet-950/40 hover:bg-violet-900/60 hover:text-violet-50 ml-auto"
           >
             <Save className="h-4 w-4 mr-1.5" />
             {selectedLabelTemplate && isTemplateDefault(selectedLabelTemplate) ? "Default ✓" : "Save Default"}
           </Button>
         )}
-        {(precisionSettings.enabled || activeBarTab === "precision") && (
+        {(precisionSettings.enabled || activeBarTab === "precision" || activeBarTab === "designer") && (
           <Dialog>
             <DialogTrigger asChild>
-              <Button variant="outline" size="sm" className="h-9 border-slate-600 text-white hover:bg-slate-800">
+              <Button
+                variant="outline"
+                size="sm"
+                className="barcode-print-footer-btn-outline h-9 border-orange-400/70 text-orange-100 bg-orange-950/40 hover:bg-orange-900/60 hover:text-orange-50"
+              >
                 Calibrate
               </Button>
             </DialogTrigger>
