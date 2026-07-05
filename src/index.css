@@ -1957,6 +1957,10 @@ body.entry-bill-screen .pos-sales-workspace {
     scrollbar-gutter: stable;
   }
 
+  body.pos-web-desktop .pos-sales-cart-header {
+    padding-right: calc(0.75rem + var(--pos-scrollbar-w, 0px));
+  }
+
   body.pos-web-desktop .pos-sales-toolbar,
   body.pos-web-desktop .pos-sales-body {
     padding-left: 0.75rem;

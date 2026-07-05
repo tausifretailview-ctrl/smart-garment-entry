@@ -630,6 +630,10 @@ export default function POSSales() {
       itemCount,
     );
     setCartPadRowCount(Math.max(0, targetTotal - itemCount));
+    if (document.body.classList.contains("pos-web-desktop")) {
+      const gutter = Math.max(0, el.offsetWidth - el.clientWidth);
+      document.documentElement.style.setProperty("--pos-scrollbar-w", `${gutter}px`);
+    }
   }, []);
 
   useLayoutEffect(() => {
