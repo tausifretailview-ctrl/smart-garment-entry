@@ -2301,11 +2301,20 @@ main:has(.supplier-party-balances-workspace) {
 
 /* Purchase Bill — Add New Product dialog (compact Vasy layout) */
 .purchase-add-product-dialog {
-  font-size: 15px;
+  font-size: 16px;
   color: #0f172a;
 }
 .purchase-add-product-dialog .purchase-color-size-row {
-  align-items: end;
+  align-items: start;
+}
+.purchase-add-product-dialog .purchase-color-size-row > div {
+  align-self: start;
+}
+.purchase-add-product-dialog label,
+.purchase-add-product-dialog [data-product-form] label {
+  font-size: 14px !important;
+  font-weight: 700 !important;
+  line-height: 1.25;
 }
 .purchase-add-product-dialog [data-product-form] > .flex.items-center.justify-between.gap-3:first-of-type {
   margin-bottom: 0;

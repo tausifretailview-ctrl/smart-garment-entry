@@ -1529,17 +1529,19 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
   const purchaseTypography = isPurchaseBillForm
     ? {
         dialog:
-          "purchase-add-product-dialog text-[15px] [&_label]:text-[13px] [&_label]:font-bold [&_label]:text-slate-600 [&_input]:h-9 [&_input]:text-[15px] [&_input]:font-semibold [&_button[role=combobox]]:h-9 [&_button[role=combobox]]:text-[15px] [&_button[role=combobox]]:font-semibold",
-        selectContent: "text-[15px]",
+          "purchase-add-product-dialog text-[16px] [&_label]:text-[14px] [&_label]:font-bold [&_label]:text-slate-700 [&_label]:leading-tight [&_input]:h-10 [&_input]:text-[16px] [&_input]:font-semibold [&_button[role=combobox]]:h-10 [&_button[role=combobox]]:text-[16px] [&_button[role=combobox]]:font-semibold",
+        selectContent: "text-[16px]",
+        fieldLabel: "text-[14px] font-bold text-slate-700 leading-tight",
         priceInput:
-          "!h-8 min-h-8 max-h-8 py-0.5 px-2 !text-[16px] !font-bold leading-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
+          "!h-9 min-h-9 max-h-9 py-0.5 px-2 !text-[17px] !font-bold leading-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
         qtyInput:
-          "!h-8 min-h-8 max-h-8 py-0.5 px-1 !text-[16px] !font-bold leading-none text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
-        priceFieldLabel: "font-bold text-[13px] text-slate-600",
+          "!h-9 min-h-9 max-h-9 py-0.5 px-1 !text-[17px] !font-bold leading-none text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
+        priceFieldLabel: "font-bold text-[14px] text-slate-700 leading-tight",
       }
     : {
         dialog: "",
         selectContent: "",
+        fieldLabel: "",
         priceInput: "",
         qtyInput: "",
         priceFieldLabel: "",
@@ -1550,8 +1552,8 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent
           className={cn(
-            "max-w-6xl p-0 font-outfit flex flex-col overflow-hidden",
-            isPurchaseBillForm ? "max-h-[96vh]" : "max-h-[92vh]",
+            "p-0 font-outfit flex flex-col overflow-hidden",
+            isPurchaseBillForm ? "max-w-7xl w-[min(96vw,80rem)] max-h-[96vh]" : "max-w-6xl max-h-[92vh]",
             purchaseTypography.dialog
           )}
         >
@@ -1572,8 +1574,8 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
             </div>
           </div>
           )}
-          <DialogHeader className={cn(isPurchaseBillForm ? "px-4 pt-3 pb-0 flex-shrink-0" : "px-6 pb-2 sr-only")}>
-            <DialogTitle className={cn(isPurchaseBillForm && "text-base font-bold text-slate-800")}>
+          <DialogHeader className={cn(isPurchaseBillForm ? "px-5 pt-4 pb-0 flex-shrink-0" : "px-6 pb-2 sr-only")}>
+            <DialogTitle className={cn(isPurchaseBillForm && "text-lg font-bold text-slate-800")}>
               Add New Product
             </DialogTitle>
             {!isPurchaseBillForm && (
@@ -1584,7 +1586,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
           <div 
             className={cn(
               "flex-1 min-h-0 overflow-y-auto overscroll-contain",
-              isPurchaseBillForm ? "px-4" : "px-6"
+              isPurchaseBillForm ? "px-5" : "px-6"
             )}
             style={{ scrollBehavior: 'smooth' }}
             ref={(node) => {
@@ -1600,7 +1602,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
               }
             }}
           >
-            <div className={cn("data-product-form", isPurchaseBillForm ? "space-y-3 py-2 pb-2" : "space-y-6 py-4 pb-8")}>
+            <div className={cn("data-product-form", isPurchaseBillForm ? "space-y-3.5 py-2.5 pb-3" : "space-y-6 py-4 pb-8")}>
               {/* Product Type — Card Selector */}
               <div className="flex items-center justify-between gap-3">
                 <div className="flex gap-2 flex-1">
@@ -1683,8 +1685,8 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
               )}
 
               {/* ── Copy from existing product (optional) ─────── */}
-              <div className={cn("rounded-lg border border-dashed border-border/70 bg-muted/20", isPurchaseBillForm ? "p-2 space-y-1" : "p-3 space-y-2")}>
-                <Label htmlFor="copy-from-product" className={cn("font-semibold", isPurchaseBillForm ? "text-[13px]" : "text-sm")}>
+              <div className={cn("rounded-lg border border-dashed border-border/70 bg-muted/20", isPurchaseBillForm ? "p-2.5 space-y-1.5" : "p-3 space-y-2")}>
+                <Label htmlFor="copy-from-product" className={cn("font-bold", isPurchaseBillForm ? purchaseTypography.fieldLabel : "text-sm font-semibold")}>
                   🔍 Search existing product to auto-fill (name / brand / category)
                 </Label>
                 {!isPurchaseBillForm && (
@@ -1705,7 +1707,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                     onFocus={updateCopyDropdownPos}
                     onKeyDown={handleCopySearchKeyDown}
                     placeholder="Type product name, brand, or category…"
-                    className={cn("pl-10", isPurchaseBillForm && "h-9 text-[15px] font-semibold uppercase placeholder:normal-case")}
+                    className={cn("pl-10", isPurchaseBillForm && "h-10 text-[16px] font-semibold uppercase placeholder:normal-case")}
                     autoComplete="off"
                   />
                   {copyLoading && (
@@ -1755,12 +1757,12 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
               {/* ── 📋 Product Details ────────────────────────── */}
               <div className={cn("flex items-center gap-2", isPurchaseBillForm ? "pt-0" : "pt-1")}>
                 <span className="text-sm">📋</span>
-                <span className={cn("font-bold text-foreground font-outfit", isPurchaseBillForm ? "text-[15px]" : "text-[13px]")}>Product Details</span>
+                <span className={cn("font-bold text-foreground font-outfit", isPurchaseBillForm ? "text-[16px]" : "text-[13px]")}>Product Details</span>
                 <div className="flex-1 h-px bg-border" />
               </div>
-              <div className={cn("grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4", isPurchaseBillForm ? "gap-2" : "gap-4")}>
-                <div className={cn("space-y-2", isPurchaseBillForm ? "col-span-1" : "col-span-2")}>
-                  <Label htmlFor="product_name">{getFieldLabel("product_name", "Product Name")} *</Label>
+              <div className={cn("grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4", isPurchaseBillForm ? "gap-2.5" : "gap-4")}>
+                <div className={cn("space-y-1.5", isPurchaseBillForm ? "col-span-1" : "col-span-2")}>
+                  <Label htmlFor="product_name" className={isPurchaseBillForm ? purchaseTypography.fieldLabel : undefined}>{getFieldLabel("product_name", "Product Name")} *</Label>
                     <Input
                       ref={productNameInputRef}
                       id="product_name"
@@ -1768,7 +1770,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                       onChange={(e) => setFormData({ ...formData, product_name: e.target.value })}
                       onKeyDown={handleEnterAsTab}
                       placeholder={lastProductNameHint}
-                      className={isPurchaseBillForm ? "h-9 text-[15px] font-semibold" : undefined}
+                      className={isPurchaseBillForm ? "h-10 text-[16px] font-semibold" : undefined}
                     />
                 </div>
 
@@ -2224,10 +2226,10 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
               {formData.product_type !== 'service' && !mobileERPMode?.locked_size_qty && !(rollWiseMtrEnabled && formData.uom === 'MTR') && (
                 <>
                   {isPurchaseBillForm && isFieldEnabled("color") && (
-                    <div className="purchase-color-size-row grid grid-cols-1 md:grid-cols-2 gap-2 items-end">
-                      <div className="space-y-1 min-w-0">
-                        <Label className="text-[13px] font-bold text-slate-600">{getFieldLabel("color", "Colors")} (comma-separated)</Label>
-                        <div className="flex gap-1.5">
+                    <div className="purchase-color-size-row grid grid-cols-1 md:grid-cols-2 gap-3 items-start">
+                      <div className="space-y-1.5 min-w-0">
+                        <Label className={purchaseTypography.fieldLabel}>{getFieldLabel("color", "Colors")} (comma-separated)</Label>
+                        <div className="flex gap-1.5 items-center">
                           <Input
                             value={colorInput}
                             onChange={(e) => {
@@ -2254,30 +2256,28 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                               }
                             }}
                             placeholder={formData.colors.length > 0 ? "Add more…" : "e.g., Black, White, Red"}
-                            className="h-9 text-[15px] font-semibold flex-1 min-w-0"
+                            className="h-10 text-[16px] font-semibold flex-1 min-w-0"
                             list="color-list"
                             autoComplete="off"
                           />
-                          <Button type="button" variant="secondary" onClick={handleAddColor} className="h-9 text-[14px] px-3 shrink-0">
+                          <Button type="button" variant="secondary" onClick={handleAddColor} className="h-10 text-[15px] px-3.5 shrink-0">
                             Add
                           </Button>
                         </div>
-                        {formData.colors.length > 0 && (
-                          <div className="flex flex-wrap gap-1 pt-0.5">
-                            {formData.colors.map((color, i) => (
-                              <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-primary/10 text-primary text-[12px] font-semibold border border-primary/20">
-                                {color}
-                                <button type="button" onClick={() => handleRemoveColor(color)} className="hover:text-destructive">
-                                  <X className="h-3 w-3" />
-                                </button>
-                              </span>
-                            ))}
-                          </div>
-                        )}
+                        <div className="purchase-color-chips min-h-[1.75rem] flex flex-wrap gap-1 pt-0.5">
+                          {formData.colors.map((color, i) => (
+                            <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-primary/10 text-primary text-[13px] font-semibold border border-primary/20">
+                              {color}
+                              <button type="button" onClick={() => handleRemoveColor(color)} className="hover:text-destructive">
+                                <X className="h-3.5 w-3.5" />
+                              </button>
+                            </span>
+                          ))}
+                        </div>
                       </div>
-                      <div className="space-y-1 min-w-0">
-                        <Label className="text-[13px] font-bold text-slate-600">Size Group</Label>
-                        <div className="flex gap-1.5">
+                      <div className="space-y-1.5 min-w-0 self-start">
+                        <Label className={purchaseTypography.fieldLabel}>Size Group</Label>
+                        <div className="flex gap-1.5 items-center">
                           <Select
                             value={formData.size_group_id}
                             onValueChange={(value) => {
@@ -2290,7 +2290,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                               }
                             }}
                           >
-                            <SelectTrigger className="flex-1 h-9 text-[15px] font-semibold">
+                            <SelectTrigger className="flex-1 h-10 text-[16px] font-semibold">
                               <SelectValue placeholder="Select size group" />
                             </SelectTrigger>
                             <SelectContent className={purchaseTypography.selectContent}>
@@ -2302,10 +2302,11 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                               ))}
                             </SelectContent>
                           </Select>
-                          <Button type="button" variant="outline" onClick={() => setShowCreateSizeGroup(true)} className="h-9 text-[14px] px-2.5 shrink-0">
+                          <Button type="button" variant="outline" onClick={() => setShowCreateSizeGroup(true)} className="h-10 text-[15px] px-2.5 shrink-0">
                             <Plus className="h-4 w-4" />
                           </Button>
                         </div>
+                        <div className="min-h-[1.75rem]" aria-hidden />
                       </div>
                     </div>
                   )}
@@ -3109,9 +3110,9 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
             </button>
           </div>
 
-          <DialogFooter className={cn("border-t bg-muted/20 flex-shrink-0", isPurchaseBillForm ? "px-4 py-2.5" : "px-6 py-4")}>
+          <DialogFooter className={cn("border-t bg-muted/20 flex-shrink-0", isPurchaseBillForm ? "px-5 py-3" : "px-6 py-4")}>
             {hideOpeningQty && (
-              <span className={cn("text-muted-foreground mr-auto", isPurchaseBillForm ? "text-[15px] font-medium" : "text-sm")}>
+              <span className={cn("text-muted-foreground mr-auto", isPurchaseBillForm ? "text-[16px] font-semibold" : "text-sm")}>
                 {(() => {
                   const activeVariants = variants.filter(v => 
                     !disabledSizes.has(v.size) && 
@@ -3129,7 +3130,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
               variant="ghost"
               onClick={() => onOpenChange(false)}
               disabled={loading}
-              className={cn("font-outfit font-semibold", isPurchaseBillForm && "h-10 text-[14px] px-4")}
+              className={cn("font-outfit font-semibold", isPurchaseBillForm && "h-11 text-[15px] px-5")}
             >
               Cancel
             </Button>
@@ -3139,7 +3140,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
               disabled={loading}
               className={cn(
                 "gap-1.5 min-w-[140px] font-outfit font-semibold shadow-md hover:shadow-lg transition-all bg-emerald-600 hover:bg-emerald-700 text-white",
-                isPurchaseBillForm && "h-10 text-[14px] px-4 min-w-[160px]"
+                isPurchaseBillForm && "h-11 text-[15px] px-5 min-w-[180px]"
               )}
             >
               {loading ? (
