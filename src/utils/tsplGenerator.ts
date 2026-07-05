@@ -134,6 +134,111 @@ const getTextHeightDots = (fontSize: number, bold: boolean = false): number => {
   return charHeight;
 };
 
+/** Fields that stack below the barcode — Y is derived from barcode bottom, not template Y. */
+const POST_BARCODE_FIELD_KEYS = ['price', 'barcodeText', 'mrp'] as const;
+
+export interface LabelBarcodeLayout {
+  barcodeYDots: number;
+  barcodeHeightDots: number;
+  barcodeHeightMm: number;
+  derivedFieldYDots: Partial<Record<string, number>>;
+  skippedPostBarcodeFields: string[];
+}
+
+/** Convert dots to mm at the given DPI. */
+export const dotsToMm = (dots: number, dpi: number = 203): number => {
+  return dots / (dpi / 25.4);
+};
+
+/**
+ * Shared vertical layout: partition label height between barcode and post-barcode text rows.
+ * Guarantees price/barcodeText never overlap the barcode band on short labels.
+ */
+export function computeLabelBarcodeLayout(
+  labelConfig: TSPLLabelConfig,
+  templateConfig: TSPLTemplateConfig,
+  data: LabelData,
+  options: {
+    dpi: number;
+    hasAbsolutePos: boolean;
+    applyCompactAdjustments: boolean;
+    compactBottomPaddingDots: number;
+  },
+): LabelBarcodeLayout | null {
+  const barcodeConfig = templateConfig.barcode;
+  if (!barcodeConfig?.show || !data.barcode) return null;
+
+  const dpi = options.dpi;
+  const labelHeightDots = mmToDots(labelConfig.height, dpi);
+  const clampedYMm = clampPosition(barcodeConfig.y ?? 0, labelConfig.height, 'barcode', 'y');
+  const barcodeYDots = mmToDots(clampedYMm, dpi);
+  const gapDots = options.applyCompactAdjustments ? mmToDots(0.5, dpi) : mmToDots(0.6, dpi);
+  const bottomPaddingDots = options.compactBottomPaddingDots || mmToDots(0.5, dpi);
+  const absoluteMinDots = mmToDots(3, dpi);
+
+  const availableHeight = labelHeightDots - barcodeYDots - bottomPaddingDots;
+
+  const postRows: Array<{ fieldKey: string; heightDots: number }> = [];
+  for (const fieldKey of templateConfig.fieldOrder) {
+    if (!POST_BARCODE_FIELD_KEYS.includes(fieldKey as (typeof POST_BARCODE_FIELD_KEYS)[number])) {
+      continue;
+    }
+    const fieldConfig = templateConfig[fieldKey as keyof TSPLTemplateConfig] as TSPLFieldConfig;
+    if (!fieldConfig?.show) continue;
+    const content = getFieldContent(fieldKey, data);
+    if (!content) continue;
+    const fieldYMm = fieldConfig.y ?? 0;
+    if (fieldYMm < clampedYMm) continue;
+
+    const scaledFontSize = getScaledFontSize(
+      fieldConfig.fontSize,
+      labelConfig.height,
+      options.hasAbsolutePos,
+    );
+    postRows.push({
+      fieldKey,
+      heightDots: getTextHeightDots(scaledFontSize, fieldConfig.bold),
+    });
+  }
+
+  const totalTextReserve =
+    postRows.reduce((sum, row) => sum + row.heightDots, 0) +
+    (postRows.length > 0 ? gapDots : 0) +
+    Math.max(0, postRows.length - 1) * gapDots;
+
+  const maxBarcodeHeightDots = Math.max(0, availableHeight - totalTextReserve);
+
+  const sliderValue = templateConfig.barcodeHeight || 30;
+  const desiredHeightMm = (sliderValue / 100) * labelConfig.height;
+  const desiredHeightDots = Math.round(mmToDots(desiredHeightMm, dpi));
+
+  let barcodeHeightDots = Math.min(desiredHeightDots, maxBarcodeHeightDots);
+  if (maxBarcodeHeightDots >= absoluteMinDots) {
+    barcodeHeightDots = Math.max(absoluteMinDots, barcodeHeightDots);
+  }
+
+  const derivedFieldYDots: Partial<Record<string, number>> = {};
+  const skippedPostBarcodeFields: string[] = [];
+  let nextY = barcodeYDots + barcodeHeightDots + (postRows.length > 0 ? gapDots : 0);
+
+  for (const row of postRows) {
+    if (nextY + row.heightDots > labelHeightDots - bottomPaddingDots) {
+      skippedPostBarcodeFields.push(row.fieldKey);
+      continue;
+    }
+    derivedFieldYDots[row.fieldKey] = nextY;
+    nextY += row.heightDots + gapDots;
+  }
+
+  return {
+    barcodeYDots,
+    barcodeHeightDots,
+    barcodeHeightMm: dotsToMm(barcodeHeightDots, dpi),
+    derivedFieldYDots,
+    skippedPostBarcodeFields,
+  };
+}
+
 // Generate TSPL SIZE command
 export const generateSizeCommand = (width: number, height: number): string => {
   return `SIZE ${width} mm, ${height} mm`;
@@ -284,6 +389,13 @@ export const generateTSPLLabelFromTemplate = (
 
     commands.push(`TEXT ${autoBusinessX},${compactTopPaddingDots},"${autoBusinessFont.font}",0,${autoBusinessFont.xMul},${autoBusinessFont.yMul},"${(data.businessName as string).substring(0, 32)}"`);
   }
+
+  const postBarcodeLayout = computeLabelBarcodeLayout(labelConfig, templateConfig, data, {
+    dpi,
+    hasAbsolutePos,
+    applyCompactAdjustments,
+    compactBottomPaddingDots,
+  });
   
   // Process each field using its ABSOLUTE x/y coordinates from the template
   for (const fieldKey of templateConfig.fieldOrder) {
@@ -296,36 +408,8 @@ export const generateTSPLLabelFromTemplate = (
         const clampedY = clampPosition(barcodeConfig.y ?? 0, labelConfig.height, 'barcode', 'y');
         
         const barcodeX = mmToDots(clampedX, dpi);
-        const barcodeY = mmToDots(clampedY, dpi);
-        
-        // Scale barcode height properly to match preview
-        // Designer slider range is 15-60, we need to convert to mm then dots
-        // The slider value represents percentage of label height (roughly)
-        // For a 50x25mm label with slider=25: target height = 25% of 25mm = 6.25mm = ~50 dots
-        const sliderValue = templateConfig.barcodeHeight || 30;
-        const barcodeHeightMm = (sliderValue / 100) * labelConfig.height * 1.5; // Scale factor to match preview
-        
-        // For smaller labels, reduce minimum barcode height
-        const minBarcodeHeight = labelConfig.height <= 20 ? 20 : labelConfig.height <= 25 ? 25 : 30;
-
-        // Reserve space for barcode text at bottom on compact labels to prevent clipping/overlap
-        let reservedBottomDots = applyCompactAdjustments ? mmToDots(1.2, dpi) : mmToDots(0.6, dpi);
-        const barcodeTextConfig = templateConfig.barcodeText;
-        if (barcodeTextConfig?.show && data.barcode) {
-          const scaledBarcodeTextSize = getScaledFontSize(barcodeTextConfig.fontSize, labelConfig.height, hasAbsolutePos);
-          const barcodeTextHeightDots = getTextHeightDots(scaledBarcodeTextSize, barcodeTextConfig.bold);
-          reservedBottomDots = barcodeTextHeightDots + (applyCompactAdjustments ? mmToDots(1.0, dpi) : mmToDots(0.6, dpi));
-        }
-
-        const maxBarcodeHeightDots = Math.max(
-          mmToDots(4, dpi),
-          labelHeightDots - barcodeY - reservedBottomDots
-        );
-
-        const barcodeHeightDots = Math.max(
-          minBarcodeHeight,
-          Math.min(Math.round(mmToDots(barcodeHeightMm, dpi)), maxBarcodeHeightDots)
-        );
+        const barcodeY = postBarcodeLayout?.barcodeYDots ?? mmToDots(clampedY, dpi);
+        const barcodeHeightDots = postBarcodeLayout?.barcodeHeightDots ?? mmToDots(3, dpi);
         
         const barcodeNarrow = Math.max(1, Math.round(templateConfig.barcodeWidth || 1.5));
         
@@ -373,6 +457,11 @@ export const generateTSPLLabelFromTemplate = (
     
     const fieldConfig = templateConfig[fieldKey as keyof TSPLTemplateConfig] as TSPLFieldConfig;
     if (!fieldConfig || !fieldConfig.show) continue;
+
+    if (postBarcodeLayout?.skippedPostBarcodeFields.includes(fieldKey)) {
+      console.warn(`TSPL: Skipping ${fieldKey} — no room below barcode on short label`);
+      continue;
+    }
     
     const content = getFieldContent(fieldKey, data);
     if (!content) continue;
@@ -421,8 +510,8 @@ export const generateTSPLLabelFromTemplate = (
       textX = fieldX + Math.max(0, fieldWidth - textWidthDots);
     }
     
-    // For designer mode, use exact Y position from template
-    let textY = fieldY;
+    // For designer mode, use exact Y position from template unless derived from barcode layout
+    let textY = postBarcodeLayout?.derivedFieldYDots[fieldKey] ?? fieldY;
     
     if (!hasAbsolutePos) {
       // Legacy compact-label safety: avoid top clipping and keep barcode text at bottom

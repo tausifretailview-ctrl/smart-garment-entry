@@ -3490,7 +3490,7 @@ Thank you for choosing us!`;
 
   return (
     <TooltipProvider delayDuration={200}>
-    <div className={cn(entryPageShellClass, "sale-bill-workspace bg-slate-50 dark:bg-background pos-desktop-readable sale-bill-readable")} data-entry-form>
+    <div className={cn(entryPageShellClass, "sale-bill-workspace bg-slate-50 dark:bg-background sale-bill-readable")} data-entry-form>
       {/* Professional Header Bar */}
       <header className="bg-gradient-to-r from-slate-900 to-slate-800 shrink-0 flex flex-col">
         <div className={cn("entry-page-header-row h-[52px] flex items-center gap-2", entryPageSectionX)}>

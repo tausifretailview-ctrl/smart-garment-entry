@@ -1,8 +1,13 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import JsBarcode from "jsbarcode";
 import { LabelItem, LabelDesignConfig, FieldKey } from "@/types/labelTypes";
 import { getUOMLabel } from "@/constants/uom";
 import { getCustomTextFields, usesCustomTextFields } from "@/utils/labelCustomText";
+import {
+  computeLabelBarcodeLayout,
+  type LabelData,
+  type TSPLTemplateConfig,
+} from "@/utils/tsplGenerator";
 
 interface PrecisionLabelPreviewProps {
   item: LabelItem;
@@ -50,15 +55,55 @@ export function PrecisionLabelPreview({
 }: PrecisionLabelPreviewProps) {
   const barcodeRef = useRef<SVGSVGElement>(null);
 
-  const barcodeHeight = config?.barcodeHeight ?? Math.max(15, height * 0.3 * 3.78);
   const barcodeLineWidth = config?.barcodeWidth ?? 1.5;
+
+  const labelData = useMemo((): LabelData => ({
+    productName: item.product_name,
+    brand: item.brand,
+    category: item.category,
+    style: item.style,
+    color: item.color,
+    size: item.size,
+    mrp: item.mrp,
+    salePrice: item.sale_price,
+    barcode: item.barcode,
+    billNumber: item.bill_number,
+    purchaseCode: item.purchase_code,
+    supplierCode: item.supplier_code,
+    supplierInvoiceNo: item.supplier_invoice_no,
+    businessName: item.businessName,
+  }), [item]);
+
+  const barcodeLayout = useMemo(() => {
+    if (!config) return null;
+    const hasAbsolutePos = (config.fieldOrder || []).some((fieldKey) => {
+      const field = config[fieldKey as FieldKey];
+      return field && (field.x !== undefined || field.y !== undefined);
+    });
+    const isCompactLabel = width <= 40 && height <= 25;
+    const applyCompactAdjustments = isCompactLabel && !hasAbsolutePos;
+    return computeLabelBarcodeLayout(
+      { width, height, gap: 2 },
+      config as unknown as TSPLTemplateConfig,
+      labelData,
+      {
+        dpi: 203,
+        hasAbsolutePos,
+        applyCompactAdjustments,
+        compactBottomPaddingDots: applyCompactAdjustments ? Math.round(0.8 * (203 / 25.4)) : Math.round(0.5 * (203 / 25.4)),
+      },
+    );
+  }, [config, width, height, labelData]);
+
+  const barcodeHeightMm = barcodeLayout?.barcodeHeightMm
+    ?? ((config?.barcodeHeight ?? Math.max(15, height * 0.3 * 3.78)) * 0.35) / 3.7795;
 
   useEffect(() => {
     if (barcodeRef.current && item.barcode) {
       try {
         JsBarcode(barcodeRef.current, item.barcode, {
           format: "CODE128",
-          height: barcodeHeight,
+          height: barcodeHeightMm * 3.7795,
           width: barcodeLineWidth,
           displayValue: false,
           margin: 0,
@@ -69,7 +114,7 @@ export function PrecisionLabelPreview({
         // invalid barcode
       }
     }
-  }, [item.barcode, barcodeHeight, barcodeLineWidth]);
+  }, [item.barcode, barcodeHeightMm, barcodeLineWidth]);
 
   // Unit helper: when scaleFactor is set, use px-based sizing instead of CSS mm
   const u = (mm: number) => scaleFactor ? `${mm * 3.7795 * scaleFactor}px` : `${mm}mm`;
@@ -155,13 +200,16 @@ export function PrecisionLabelPreview({
         const fieldX = field.x ?? 0;
         const maxFieldW = Math.max(0.5, width - fieldX);
         const fieldW = field.width ? Math.min(field.width, maxFieldW) : maxFieldW;
+        const derivedYMm = barcodeLayout?.derivedFieldYDots[key] != null
+          ? barcodeLayout.derivedFieldYDots[key]! / (203 / 25.4)
+          : undefined;
 
         return (
           <div
             key={key}
             style={{
               position: "absolute",
-              top: u(field.y ?? 0),
+              top: u(derivedYMm ?? field.y ?? 0),
               left: u(field.x ?? 0),
               width: u(fieldW),
               fontSize: fs(field.fontSize),
@@ -258,7 +306,7 @@ export function PrecisionLabelPreview({
             className="precision-barcode-svg"
             style={{
               maxWidth: barcodeConfig.width ? u(barcodeConfig.width) : u(width - 2),
-              height: scaleFactor ? `${barcodeHeight * scaleFactor * 0.35}px` : `${(barcodeHeight * 0.35) / 3.7795}mm`,
+              height: u(barcodeHeightMm),
               imageRendering: "pixelated",
             }}
           />

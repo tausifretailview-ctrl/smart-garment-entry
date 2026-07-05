@@ -1767,24 +1767,39 @@ main:has(.supplier-party-balances-workspace) {
 }
 
 /* Reduce motion for users who prefer it */
-/* Sales Invoice (Sale Bill) page — boost readability without changing layout.
+/* Sales Invoice (Sale Bill) page — Vasy-style readable typography.
    Scoped to .sale-bill-readable so POS and other pages are untouched. */
 @media (min-width: 1024px) {
-  .sale-bill-readable .text-xs { font-size: 13px !important; line-height: 1.25 !important; }
+  .sale-bill-readable {
+    font-size: 15px;
+    color: #0f172a;
+  }
+  .sale-bill-readable .text-xs { font-size: 13px !important; line-height: 1.3 !important; }
   .sale-bill-readable .text-\[10px\] { font-size: 12px !important; }
   .sale-bill-readable .text-\[11px\] { font-size: 13px !important; }
   .sale-bill-readable .text-\[12px\] { font-size: 14px !important; }
   .sale-bill-readable .text-\[13px\] { font-size: 14px !important; }
+  .sale-bill-readable .text-\[14px\] { font-size: 15px !important; }
   .sale-bill-readable .text-\[15px\] { font-size: 16px !important; }
-  .sale-bill-readable .text-sm { font-size: 14px !important; }
-  .sale-bill-readable table th { font-size: 13px !important; }
-  .sale-bill-readable table td { font-size: 14px !important; }
+  .sale-bill-readable .text-\[17px\] { font-size: 17px !important; }
+  .sale-bill-readable .text-sm { font-size: 15px !important; }
+  .sale-bill-readable table th { font-size: 14px !important; }
+  .sale-bill-readable table td { font-size: 15px !important; }
   .sale-bill-readable input,
-  .sale-bill-readable [role="combobox"] { font-size: 15px !important; }
-  .sale-bill-readable label { font-size: 13px !important; }
+  .sale-bill-readable [role="combobox"],
+  .sale-bill-readable button[role="combobox"] {
+    font-size: 15px !important;
+    min-height: 2.5rem !important;
+  }
+  .sale-bill-readable label,
+  .sale-bill-readable .sale-bill-details-section label {
+    font-size: 14px !important;
+    font-weight: 700 !important;
+    color: #334155 !important;
+  }
   /* Footer totals strip — Items / Total Qty / Gross / Discount labels & values */
   .sale-bill-readable .pos-sales-footer .text-\[11px\],
-  .sale-bill-readable .pos-sales-footer .text-\[12px\] { font-size: 13px !important; }
+  .sale-bill-readable .pos-sales-footer .text-\[12px\] { font-size: 14px !important; }
   .sale-bill-readable kbd { font-size: 11px !important; }
 
   /* Sale Bill — Vasy-style lines grid (full view, uniform rows/columns) */
@@ -1795,32 +1810,50 @@ main:has(.supplier-party-balances-workspace) {
   .sale-bill-readable .sale-bill-details-section .grid {
     gap: 0.625rem !important;
   }
+  .sale-bill-readable .sale-bill-details-section button[role="combobox"],
+  .sale-bill-readable .sale-bill-details-section input {
+    height: 2.5rem !important;
+    font-size: 15px !important;
+  }
   .sale-bill-readable .sale-bill-lines-scroll {
     min-height: 0;
     overscroll-behavior-y: contain;
     -webkit-overflow-scrolling: touch;
   }
   .sale-bill-readable .erp-entry-lines-table thead th {
-    height: 2.5rem !important;
-    padding-top: 0.375rem !important;
-    padding-bottom: 0.375rem !important;
-    font-size: 12px !important;
-    letter-spacing: 0.04em !important;
+    height: 2.75rem !important;
+    padding-top: 0.5rem !important;
+    padding-bottom: 0.5rem !important;
+    font-size: 14px !important;
+    letter-spacing: 0.05em !important;
+    font-weight: 700 !important;
   }
   .sale-bill-readable .erp-entry-lines-table tbody tr,
   .sale-bill-readable .erp-entry-lines-table tbody tr.sale-bill-pad-row {
-    height: 44px;
+    height: 48px;
   }
   .sale-bill-readable .erp-entry-lines-table tbody td {
     vertical-align: middle;
-    padding-top: 0.25rem !important;
-    padding-bottom: 0.25rem !important;
+    padding-top: 0.375rem !important;
+    padding-bottom: 0.375rem !important;
+    font-size: 15px !important;
   }
   .sale-bill-readable .erp-entry-lines-table tbody input,
   .sale-bill-readable .erp-entry-lines-table tbody button[role="combobox"] {
-    height: 2rem !important;
-    min-height: 2rem !important;
-    font-size: 14px !important;
+    height: 2.25rem !important;
+    min-height: 2.25rem !important;
+    font-size: 16px !important;
+  }
+  .sale-bill-readable .erp-entry-lines-table tbody input.text-\[17px\] {
+    font-size: 17px !important;
+  }
+  .sale-bill-readable .erp-entry-lines-table .col-product button {
+    font-size: 15px !important;
+    font-weight: 600 !important;
+    line-height: 1.25 !important;
+  }
+  .sale-bill-readable .erp-entry-lines-table tbody .font-mono {
+    font-size: 15px !important;
   }
   .sale-bill-readable .entry-page-header-row {
     height: 3rem !important;
@@ -1829,6 +1862,12 @@ main:has(.supplier-party-balances-workspace) {
   .sale-bill-readable .entry-page-footer > div {
     padding-top: 0.5rem !important;
     padding-bottom: 0.5rem !important;
+  }
+  .sale-bill-readable .entry-page-footer .text-\[12px\] {
+    font-size: 14px !important;
+  }
+  .sale-bill-readable .entry-page-footer .text-\[16px\] {
+    font-size: 17px !important;
   }
 
   /* POS Sales — grid-based cart readability (div grid, not table th/td) */
