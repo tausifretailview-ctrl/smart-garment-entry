@@ -2611,7 +2611,8 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                                   <div
                                     key={size}
                                     className={cn(
-                                      "flex flex-col items-center gap-1.5 p-3 rounded-lg border-[1.5px] transition-colors relative min-w-[5.25rem]",
+                                      "flex flex-col items-center gap-1 rounded-lg border-[1.5px] transition-colors relative",
+                                      isPurchaseBillForm ? "p-1.5 min-w-[4rem]" : "gap-1.5 p-3 min-w-[5.25rem]",
                                       isDisabled
                                         ? "bg-muted/50 border-border/50 opacity-50"
                                         : qty > 0
@@ -2905,7 +2906,8 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                 </div>
               )}
 
-              {/* ── 👟 Size Variants ────────────────────────── */}
+              {/* ── 👟 Size Variants — hidden on purchase bill (qty grid above) ── */}
+              {!isPurchaseBillForm && (
               <div className="rounded-xl border-[1.5px] border-violet-200 bg-gradient-to-br from-violet-50/60 via-purple-50/30 to-fuchsia-50/20 p-4 space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2.5">
@@ -3090,6 +3092,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                   </div>
                 )}
             </div>
+              )}
             </div>
             <button
               id="product-dialog-back-to-top"
@@ -3106,7 +3109,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
             </button>
           </div>
 
-          <DialogFooter className={cn("px-6 py-4 border-t bg-muted/20 flex-shrink-0", isPurchaseBillForm && "py-5")}>
+          <DialogFooter className={cn("border-t bg-muted/20 flex-shrink-0", isPurchaseBillForm ? "px-4 py-2.5" : "px-6 py-4")}>
             {hideOpeningQty && (
               <span className={cn("text-muted-foreground mr-auto", isPurchaseBillForm ? "text-[15px] font-medium" : "text-sm")}>
                 {(() => {
@@ -3126,7 +3129,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
               variant="ghost"
               onClick={() => onOpenChange(false)}
               disabled={loading}
-              className={cn("font-outfit font-semibold", isPurchaseBillForm && "h-11 text-[15px] px-5")}
+              className={cn("font-outfit font-semibold", isPurchaseBillForm && "h-10 text-[14px] px-4")}
             >
               Cancel
             </Button>
@@ -3136,7 +3139,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
               disabled={loading}
               className={cn(
                 "gap-1.5 min-w-[140px] font-outfit font-semibold shadow-md hover:shadow-lg transition-all bg-emerald-600 hover:bg-emerald-700 text-white",
-                isPurchaseBillForm && "h-11 text-[15px] px-5 min-w-[180px]"
+                isPurchaseBillForm && "h-10 text-[14px] px-4 min-w-[160px]"
               )}
             >
               {loading ? (

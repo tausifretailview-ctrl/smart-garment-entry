@@ -2288,6 +2288,26 @@ main:has(.supplier-party-balances-workspace) {
   font-weight: 600;
 }
 
+/* Purchase Bill — Add New Product dialog (compact Vasy layout) */
+.purchase-add-product-dialog {
+  font-size: 15px;
+  color: #0f172a;
+}
+.purchase-add-product-dialog .purchase-color-size-row {
+  align-items: end;
+}
+.purchase-add-product-dialog [data-product-form] > .flex.items-center.justify-between.gap-3:first-of-type {
+  margin-bottom: 0;
+}
+@media (min-width: 1024px) {
+  .purchase-add-product-dialog {
+    max-height: 96vh;
+  }
+  .purchase-add-product-dialog [data-product-form] {
+    overflow: visible;
+  }
+}
+
 /* Sales Invoice (Sale Bill) page — Vasy-style readable typography.
    Scoped to .sale-bill-readable so POS and other pages are untouched. */
 @media (min-width: 1024px) {
