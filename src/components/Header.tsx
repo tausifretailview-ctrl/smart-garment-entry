@@ -1,6 +1,6 @@
 import { DesktopWindowControls } from "@/components/desktop/DesktopWindowControls";
 import { HeaderMenubar } from "@/components/desktop/HeaderMenubar";
-import { Menu, Search, ShoppingCart, Package, Download, LayoutGrid, BoxIcon, Plus, FileText, Banknote, RefreshCw, BarChart3, Settings } from "lucide-react";
+import { Menu, ShoppingCart, Package, Download, LayoutGrid, BoxIcon, Plus, Banknote, RefreshCw, BarChart3, Settings, Users, Building2 } from "lucide-react";
 import { UIScaleSelector } from "@/components/UIScaleSelector";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -55,6 +55,14 @@ export const Header = () => {
     (permissions === null ||
       hasMenuAccess("payment_recording") ||
       hasMenuAccess("payments_dashboard"));
+  const canCustomerBalance =
+    !permissionsLoading &&
+    (permissions === null ||
+      hasMenuAccess("customer_party_balances") ||
+      hasMenuAccess("customer_ledger"));
+  const canSupplierBalance =
+    !permissionsLoading &&
+    (permissions === null || hasMenuAccess("supplier_party_balances"));
   const canQuickSaleLookup =
     !permissionsLoading &&
     (permissions === null ||
@@ -418,15 +426,19 @@ export const Header = () => {
           )}
         </div>
 
-        <div
-          className="erp-toolbar-search erp-no-drag shrink-0 cursor-text"
-          onClick={() => toast("Search", { description: "Global search (Ctrl+K) — use sidebar or menu to navigate." })}
-          onKeyDown={() => {}}
-          role="search"
-        >
-          <Search className="h-4 w-4 shrink-0" />
-          <span className="flex-1 truncate text-[var(--erp-ink-3)]">Search customer, product, invoice…</span>
-          <span className="erp-kbd">Ctrl K</span>
+        <div className="flex items-center gap-1.5 shrink-0 ml-auto">
+          {canCustomerBalance && (
+            <button type="button" className="erp-tbtn" onClick={() => orgNavigate("/customer-party-balances")}>
+              <Users className="erp-tbtn__icon" />
+              Customer Balance
+            </button>
+          )}
+          {canSupplierBalance && (
+            <button type="button" className="erp-tbtn" onClick={() => orgNavigate("/supplier-party-balances")}>
+              <Building2 className="erp-tbtn__icon" />
+              Supplier Balance
+            </button>
+          )}
         </div>
       </div>
 

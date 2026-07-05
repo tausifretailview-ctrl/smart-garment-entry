@@ -12,7 +12,7 @@ import { toast } from "sonner";
 import { GlobalShortcuts } from "@/components/GlobalShortcuts";
 import { useWindowTabs } from "@/contexts/WindowTabsContext";
 import { TabCachedPages } from "@/components/TabCachedPages";
-import { isCacheableEntryTabPath, isEntryTabPath, isFillHeightShellPath } from "@/lib/entryPageLayout";
+import { isCacheableEntryTabPath, isEntryTabPath, isFillHeightShellPath, isMainDashboardPath } from "@/lib/entryPageLayout";
 import {
   isTabCachePath,
   prefetchPostLoginCriticalPages,
@@ -365,7 +365,8 @@ export const OrgLayout = () => {
   // min-h-[100dvh] alone lets content grow past the viewport and breaks overflow-y on tab return.
   const hasVisibleTabCache = tabPaths.length > 0 && !hideTabCacheContainer && effectiveTabPaneReady;
   const isFillHeightPage = isFillHeightShellPath(location.pathname);
-  const constrainViewportHeight = isEntryPage || hasVisibleTabCache || isFillHeightPage;
+  const isMainDashboard = isMainDashboardPath(location.pathname);
+  const constrainViewportHeight = isEntryPage || hasVisibleTabCache || isFillHeightPage || isMainDashboard;
 
   const workspaceBody = (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden w-full">

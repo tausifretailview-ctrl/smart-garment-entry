@@ -86,8 +86,8 @@ All colors MUST be HSL.
     --erp-bad: #dc2626;
     --erp-row-h: 34px;
     --erp-ctrl-h: 2.375rem;
-    --erp-titlebar-height: 3rem;
-    --erp-toolbar-height: 3.25rem;
+    --erp-titlebar-height: 3.25rem;
+    --erp-toolbar-height: 3.5rem;
     --erp-tabs-height: 2.75rem;
     --erp-chrome-above: calc(
       var(--erp-titlebar-height) + var(--erp-toolbar-height) + var(--erp-tabs-height)
@@ -580,16 +580,18 @@ All colors MUST be HSL.
 
   /* ERP Status Bar — Tally/SAP style bottom bar */
   :root {
-    --erp-status-bar-height: 1.75rem;
+    --erp-status-bar-height: 2.375rem;
     --ezzy-hint-bar-height: 0px;
   }
 
   .erp-status-bar {
-    @apply flex items-center justify-between px-4 text-[11px] z-50 gap-3;
+    @apply flex items-center justify-between px-4 z-50 gap-3;
     height: var(--erp-status-bar-height);
     min-height: var(--erp-status-bar-height);
     background: var(--erp-chrome);
     color: var(--erp-chrome-ink-dim);
+    font-size: 0.9375rem;
+    font-weight: 500;
   }
 
   /* In main content column — aligns with page body, not under sidebar */
@@ -611,7 +613,7 @@ All colors MUST be HSL.
   }
 
   .erp-status-bar__sep {
-    @apply mx-0.5 h-3 w-px shrink-0;
+    @apply mx-1 h-4 w-px shrink-0;
     background: rgba(255, 255, 255, 0.08);
   }
 
@@ -692,18 +694,19 @@ All colors MUST be HSL.
   }
 
   .erp-status-bar .status-item {
-    @apply flex items-center gap-1;
-    color: var(--erp-chrome-ink-dim);
+    @apply flex items-center gap-1.5;
+    color: var(--erp-chrome-ink);
+    font-size: 0.9375rem;
   }
 
   .erp-status-bar .status-item b,
   .erp-status-bar .status-item strong {
-    color: var(--erp-chrome-ink);
+    color: #fff;
     font-weight: 600;
   }
 
   .erp-status-bar .status-dot {
-    @apply w-1.5 h-1.5 rounded-full;
+    @apply w-2 h-2 rounded-full;
     background: #34d399;
     box-shadow: 0 0 5px #34d399;
   }
@@ -1879,13 +1882,12 @@ body.pos-large-ui .pos-desktop-readable table td {
   flex-shrink: 0;
 }
 
-/* Main dashboard — fixed shell (no layout jump on load / resize) */
+/* Main dashboard — fill shell between chrome and status bar (no bottom gap) */
 .dashboard-workspace {
   flex: 1 1 0%;
   min-height: 0;
   overflow: hidden;
-  height: calc(100dvh - var(--erp-chrome-above) - var(--erp-status-bar-height));
-  max-height: calc(100dvh - var(--erp-chrome-above) - var(--erp-status-bar-height));
+  width: 100%;
 }
 /* Single inner scroll — no outer main gutter gap beside the cards */
 main:has(.dashboard-workspace) {
@@ -1896,14 +1898,20 @@ main:has(.dashboard-workspace) {
   flex-direction: column;
   flex: 1 1 0%;
   min-height: 0;
+  height: 100%;
 }
-@media (min-width: 1024px) {
-  main:has(.dashboard-workspace) .dashboard-workspace {
-    flex: 1 1 0%;
-    height: auto;
-    max-height: none;
-    min-height: 0;
-  }
+.ezzy-viewport-shell main:has(.dashboard-workspace),
+.ezzy-viewport-shell [data-tab-cache-path] > * > main {
+  flex: 1 1 0%;
+  min-height: 0;
+  height: 100%;
+}
+main:has(.dashboard-workspace) .dashboard-workspace,
+.ezzy-viewport-shell .dashboard-workspace {
+  flex: 1 1 0%;
+  height: 100%;
+  max-height: none;
+  min-height: 0;
 }
 .dashboard-toolbar {
   flex-shrink: 0;

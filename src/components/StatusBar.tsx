@@ -135,8 +135,8 @@ export const StatusBar = () => {
       <div className="erp-status-bar__right">
         <BackgroundSyncBadge />
         <StatusSep />
-        <div className="status-item opacity-50 text-[10px] shrink-0">
-          EzzyERP v2.0
+        <div className="status-item shrink-0 text-[var(--erp-chrome-ink)]">
+          <span className="text-[0.9375rem] opacity-70">EzzyERP v2.0</span>
         </div>
       </div>
     </div>
