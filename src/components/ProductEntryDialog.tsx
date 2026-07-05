@@ -1736,7 +1736,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                           )}
                         </div>
                       </button>
-                    )),
+                    ))}
                   </div>,
                   document.body,
                 )}
