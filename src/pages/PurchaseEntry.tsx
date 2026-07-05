@@ -6024,7 +6024,7 @@ const PurchaseEntry = () => {
   }
 
   return (
-    <div className={cn(entryPageShellClass, "bg-slate-50 purchase-entry-page")} data-entry-form>
+    <div className={cn(entryPageShellClass, "bg-slate-50 purchase-entry-page purchase-bill-readable")} data-entry-form>
       {excelImportLoading && <ExcelImportLoadingOverlay progress={excelImportLoading} />}
       {barcodeValidationProgress && (
         <ExcelImportLoadingOverlay
@@ -6140,7 +6140,7 @@ const PurchaseEntry = () => {
 
       <main className={entryPageMainClass}>
 
-        <section className={cn("bg-white border-b border-slate-100 py-2 shrink-0 shadow-sm", entryPageSectionX)}>
+        <section className={cn("purchase-bill-details-section bg-white border-b border-slate-100 py-2 shrink-0 shadow-sm", entryPageSectionX)}>
             <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-7 gap-x-3 gap-y-2 items-start purchase-entry-meta-grid">
               <div className="space-y-1.5 min-w-0">
                 <Label htmlFor="software_bill_no" className="text-[13px] font-semibold text-slate-500 leading-none">
@@ -6343,7 +6343,7 @@ const PurchaseEntry = () => {
           </div>
         )}
 
-        <section className={cn("bg-slate-50 border-b border-slate-200 py-3 shrink-0", entryPageSectionX)}>
+        <section className={cn("purchase-bill-toolbar bg-slate-50 border-b border-slate-200 py-2 shrink-0", entryPageSectionX)}>
           <div className="flex items-center gap-3 flex-wrap">
             <div className="flex items-center gap-2 shrink-0">
               <span className={cn("text-sm", entryMode === "grid" ? "font-semibold text-foreground" : "text-muted-foreground")}>
@@ -6507,7 +6507,7 @@ const PurchaseEntry = () => {
           )}
         </section>
 
-        <section className={cn("flex-1 min-h-0 pb-2 overflow-hidden bg-slate-100 relative", entryPageSectionX)}>
+        <section className={cn("purchase-bill-lines-panel flex-1 min-h-0 pb-1 overflow-hidden bg-slate-100 relative", entryPageSectionX)}>
           <div className="h-full flex flex-col overflow-hidden rounded-lg border border-slate-200 shadow-sm bg-white">
             {lineItems.length > 100 && (
               <div className="flex items-center justify-between px-3 py-1.5 bg-muted/50 border-b text-xs text-muted-foreground shrink-0">
@@ -6525,7 +6525,7 @@ const PurchaseEntry = () => {
               </div>
             )}
             <div
-              className={`relative flex-1 min-h-0 overflow-x-auto overflow-y-auto isolate ${isBillLocked ? "pointer-events-none" : ""}`}
+              className={`purchase-bill-lines-scroll relative flex-1 min-h-0 overflow-x-auto overflow-y-auto isolate ${isBillLocked ? "pointer-events-none" : ""}`}
               onScroll={(e) => {
                 const el = e.currentTarget;
                 const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 300;
@@ -6557,7 +6557,7 @@ const PurchaseEntry = () => {
                     <TableHead className="col-product w-[10rem] max-w-[10rem]">ITEM NAME</TableHead>
                     {showPurCol.size && <TableHead className="pur-col-size w-[4.5rem] text-center">SIZE</TableHead>}
                     <TableHead className="pur-col-barcode w-[9rem]">{isMobileERPMode ? "IMEI NUMBER" : "BARCODE"}</TableHead>
-                    <TableHead className="pur-col-num w-[5.5rem] text-right">QTY</TableHead>
+                    <TableHead className="pur-col-num w-[5.5rem] text-right pur-qty-col">QTY</TableHead>
                     <TableHead className="pur-col-num w-[6.5rem] text-right pur-rate-col">PUR.RATE</TableHead>
                     <TableHead className="pur-col-num w-[6.5rem] text-right sale-rate-col">SALE.RATE</TableHead>
                     {showMrp && <TableHead className="pur-col-num w-[6.5rem] text-right">MRP</TableHead>}
@@ -6576,7 +6576,7 @@ const PurchaseEntry = () => {
                     const gstAmount = (total * item.gst_per) / 100;
                     
                     return (
-                      <TableRow key={item.temp_id} className={`hover:bg-green-50/40 transition-colors ${index % 2 === 0 ? 'bg-white' : 'bg-slate-50/60'}`}>
+                      <TableRow key={item.temp_id} className={`purchase-bill-line-row hover:bg-green-50/40 transition-colors ${index % 2 === 0 ? 'bg-white' : 'bg-slate-50/60'}`}>
                         <TableCell className="w-[40px]">
                           <Checkbox
                             checked={!!selectedForPrintObj[item.temp_id]}
@@ -6587,7 +6587,7 @@ const PurchaseEntry = () => {
                         <TableCell className="w-[60px] text-center font-medium">{index + 1}</TableCell>
                         <TableCell className="col-product w-[10rem] max-w-[10rem] font-medium cursor-pointer" title={formatProductDescription(item)}
                           onDoubleClick={() => openEditPanel(index, "product_name")}>
-                          <div className="text-sm leading-snug truncate">{formatProductDescription(item)}</div>
+                          <div className="text-[15px] leading-snug truncate font-semibold">{formatProductDescription(item)}</div>
                         </TableCell>
                         {showPurCol.size && (
                           <TableCell className="pur-col-size w-[4.5rem] text-center text-[15px] font-bold">
@@ -6595,7 +6595,7 @@ const PurchaseEntry = () => {
                           </TableCell>
                         )}
                         <TableCell className="pur-col-barcode w-[9rem]">
-                          <Badge variant="outline" className={cn("text-[13px] font-mono px-2 py-0.5", isMobileERPMode && "tracking-wider")}>
+                          <Badge variant="outline" className={cn("text-[14px] font-mono px-2 py-1", isMobileERPMode && "tracking-wider")}>
                             {item.barcode || "—"}
                           </Badge>
                           {barcodeWarnings.has(item.temp_id) && (() => {
@@ -6622,7 +6622,7 @@ const PurchaseEntry = () => {
                               value={item.qty || minQtyForUom(item.uom)}
                               onFocus={(e) => { if (sameBarcodeSeriesEnabled) e.target.select(); }}
                               onChange={(val) => updateLineItem(item.temp_id, "qty", val)}
-                              className="w-full text-right px-2 bg-amber-50 border-amber-200 text-center text-[15px] font-bold h-9"
+                              className="w-full text-right px-2 bg-amber-50 border-amber-200 text-center text-[16px] font-bold h-10"
                             />
                             {item.uom && item.uom !== 'NOS' && item.uom !== 'PCS' && (
                               <span className="text-[10px] text-muted-foreground whitespace-nowrap">{getUOMLabel(item.uom)}</span>
@@ -6635,7 +6635,7 @@ const PurchaseEntry = () => {
                             onChange={(val) =>
                               updateLineItem(item.temp_id, "pur_price", val)
                             }
-                            className="w-full text-right text-[15px] bg-green-50 border-green-200 text-green-800 font-bold"
+                            className="w-full text-right text-[16px] bg-green-50 border-green-200 text-green-800 font-bold h-10"
                           />
                         </TableCell>
                         <TableCell className="pur-col-num w-[6.5rem]">
@@ -6644,7 +6644,7 @@ const PurchaseEntry = () => {
                             onChange={(val) =>
                               updateLineItem(item.temp_id, "sale_price", val)
                             }
-                            className="w-full text-right text-[15px] bg-blue-50 border-blue-200 text-blue-800 font-bold"
+                            className="w-full text-right text-[16px] bg-blue-50 border-blue-200 text-blue-800 font-bold h-10"
                           />
                         </TableCell>
                         {showMrp && (
@@ -6665,7 +6665,7 @@ const PurchaseEntry = () => {
                               updateLineItem(item.temp_id, "gst_per", Number(value))
                             }
                           >
-                            <SelectTrigger className="w-full h-9 text-[14px] font-semibold">
+                            <SelectTrigger className="w-full h-10 text-[15px] font-semibold">
                               <SelectValue placeholder="GST" />
                             </SelectTrigger>
                             <SelectContent className="bg-background z-50">
