@@ -1,7 +1,6 @@
-import React, { useState } from "react";
-import { X, Plus, ChevronUp, ChevronDown, Home, Grid3X3, Scale } from "lucide-react";
+import React from "react";
+import { X, Plus, ChevronUp, ChevronDown } from "lucide-react";
 import { useWindowTabs, getTabIcon } from "@/contexts/WindowTabsContext";
-import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { Button } from "@/components/ui/button";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import {
@@ -19,10 +18,6 @@ import {
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { prefetchTabPage } from "@/lib/tabPageRegistry";
-import { SizeStockDialog } from "@/components/SizeStockDialog";
-import { CustomerStatementFloatingDialog } from "@/components/CustomerStatementFloatingDialog";
-import { useSchoolFeatures } from "@/hooks/useSchoolFeatures";
-import { useUserPermissions } from "@/hooks/useUserPermissions";
 
 const QUICK_OPEN_PAGES = [
   { path: "", label: "Dashboard", icon: "Home", category: "Main" },
@@ -56,20 +51,6 @@ export function WindowTabsBar() {
     isTabsBarVisible,
     toggleTabsBarVisibility 
   } = useWindowTabs();
-  const { orgNavigate } = useOrgNavigation();
-  const { isSchool } = useSchoolFeatures();
-  const { hasMenuAccess, permissions, loading: permissionsLoading } = useUserPermissions();
-  const canMainDashboard =
-    !permissionsLoading &&
-    (permissions === null || hasMenuAccess("main_dashboard"));
-  const [sizeStockOpen, setSizeStockOpen] = useState(false);
-  const [customerStatementOpen, setCustomerStatementOpen] = useState(false);
-
-  const canQuickCustomerStatement =
-    !isSchool &&
-    (permissions === null ||
-      hasMenuAccess("customer_account_statement") ||
-      hasMenuAccess("customer_ledger"));
 
   if (!Array.isArray(openWindows) || openWindows.length === 0) return null;
 
@@ -117,64 +98,6 @@ export function WindowTabsBar() {
   return (
     <div data-window-tabs-bar className="erp-window-tabs px-2">
       <div className="flex items-center gap-1 h-full">
-        {canMainDashboard && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="erp-tab-quick shrink-0"
-                onClick={() => switchWindow("")}
-              >
-                <Home className="h-4 w-4" />
-                <span className="hidden sm:inline">Dashboard</span>
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="bottom">
-              <p>Go to Dashboard</p>
-            </TooltipContent>
-          </Tooltip>
-        )}
-
-        {/* Size Stock Quick Button */}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="erp-tab-quick shrink-0 text-primary"
-              onClick={() => setSizeStockOpen(true)}
-            >
-              <Grid3X3 className="h-4 w-4" />
-              <span className="hidden sm:inline">Size Stock</span>
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="bottom">
-            <p>Quick Size Stock Check (Ctrl+G)</p>
-          </TooltipContent>
-        </Tooltip>
-
-        {canQuickCustomerStatement && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="erp-tab-quick shrink-0 text-primary"
-                onClick={() => setCustomerStatementOpen(true)}
-              >
-                <Scale className="h-4 w-4" />
-                <span className="hidden sm:inline">Stmt (audit)</span>
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="bottom">
-              <p>Account statement (audit) — quick lookup</p>
-            </TooltipContent>
-          </Tooltip>
-        )}
-
-        <div className="w-px h-6 bg-border mx-1" />
-
         <ScrollArea className="flex-1">
           <div className="flex items-center gap-1">
             {openWindows.map((window, index) => {
@@ -270,13 +193,6 @@ export function WindowTabsBar() {
           </TooltipContent>
         </Tooltip>
       </div>
-
-      {/* Size Stock Dialog */}
-      <SizeStockDialog open={sizeStockOpen} onOpenChange={setSizeStockOpen} />
-      <CustomerStatementFloatingDialog
-        open={customerStatementOpen}
-        onOpenChange={setCustomerStatementOpen}
-      />
     </div>
   );
 }

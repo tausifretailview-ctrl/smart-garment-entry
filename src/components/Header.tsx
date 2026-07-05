@@ -1,6 +1,6 @@
 import { DesktopWindowControls } from "@/components/desktop/DesktopWindowControls";
 import { HeaderMenubar } from "@/components/desktop/HeaderMenubar";
-import { Menu, ShoppingCart, Package, Download, LayoutGrid, BoxIcon, Plus, Banknote, RefreshCw, BarChart3, Settings, Users, Building2 } from "lucide-react";
+import { Menu, ShoppingCart, Package, Download, LayoutGrid, BoxIcon, Plus, FileText, Banknote, RefreshCw, BarChart3, Settings, Users, Building2 } from "lucide-react";
 import { UIScaleSelector } from "@/components/UIScaleSelector";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -173,6 +173,16 @@ export const Header = () => {
     orgNavigate("/pos-sales");
     requestPosBarcodeFocus();
   };
+
+  const openPrimarySale = () => {
+    if (can("pos_sales")) {
+      openPosSales();
+    } else {
+      orgNavigate("/sales-invoice");
+    }
+  };
+
+  const showPrimarySaleButton = can("pos_sales") || can("sales_invoice");
 
   const handleQuickAction = (action: (typeof quickActions)[0]) => {
     if (action.dialogKey === "sizeStock") {
@@ -358,14 +368,23 @@ export const Header = () => {
       {/* ROW 2: Quick-action toolbar (mockup ribbon) */}
       <div className="erp-toolbar hidden lg:flex overflow-x-auto">
         <div className="flex items-center gap-1.5 flex-1 min-w-0 flex-nowrap">
-          {can("sales_invoice") && (
+          {showPrimarySaleButton && (
             <button
               type="button"
               className="erp-tbtn erp-tbtn--primary"
-              onClick={() => orgNavigate("/sales-invoice")}
+              onClick={openPrimarySale}
             >
-              <Plus className="erp-tbtn__icon" />
-              New Invoice
+              {can("pos_sales") ? (
+                <>
+                  <ShoppingCart className="erp-tbtn__icon" />
+                  POS
+                </>
+              ) : (
+                <>
+                  <Plus className="erp-tbtn__icon" />
+                  New Invoice
+                </>
+              )}
             </button>
           )}
           {can("purchase_bill") && (
@@ -384,7 +403,7 @@ export const Header = () => {
               Stock
             </button>
           )}
-          {(can("sales_invoice") || can("purchase_bill") || can("stock_report")) && canAccessReportsHub && (
+          {(showPrimarySaleButton || can("purchase_bill") || can("stock_report")) && canAccessReportsHub && (
             <div className="erp-toolbar-sep" />
           )}
           {canAccessReportsHub && (
@@ -400,12 +419,6 @@ export const Header = () => {
             </button>
           )}
           {/* Secondary quick actions — compact, after primary mockup row */}
-          {can("pos_sales") && (
-            <button type="button" className="erp-tbtn ml-1" onClick={openPosSales}>
-              <ShoppingCart className="erp-tbtn__icon" />
-              POS
-            </button>
-          )}
           {can("stock_report") && (
             <>
               <button type="button" className="erp-tbtn" onClick={() => setQuickStockOpen(true)}>
