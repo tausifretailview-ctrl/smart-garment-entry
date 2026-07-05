@@ -3292,11 +3292,6 @@ Thank you for choosing us!`;
                 <span className="text-muted-foreground">Tap to select customer…</span>
               )}
             </button>
-            {selectedCustomer && customerBalance !== null && customerBalance !== 0 && (
-              <p className={cn("text-xs font-medium", customerBalance > 0 ? "text-amber-600" : "text-emerald-600")}>
-                {customerBalance > 0 ? `Outstanding: ₹${Math.round(customerBalance).toLocaleString("en-IN")}` : `Advance: ₹${Math.abs(Math.round(customerBalance)).toLocaleString("en-IN")}`}
-              </p>
-            )}
           </div>
 
           {/* Barcode / Product Search */}
@@ -3796,19 +3791,6 @@ Thank you for choosing us!`;
                 <Plus className="h-4 w-4" />
               </Button>
             </div>
-            {/* Balance badge below field */}
-            {selectedCustomerId && !isBalanceLoading && (
-              <div className={`inline-flex items-center gap-1.5 mt-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold border ${
-                customerBalance > 0
-                  ? 'bg-red-50 text-red-600 border-red-200'
-                  : customerBalance < 0
-                    ? 'bg-green-50 text-green-700 border-green-200'
-                    : 'bg-slate-50 text-slate-500 border-slate-200'
-              }`}>
-                <CreditCard className="h-3 w-3" />
-                ₹{Math.abs(customerBalance).toLocaleString('en-IN')} {customerBalance > 0 ? 'due' : customerBalance < 0 ? 'credit' : ''}
-              </div>
-            )}
             {selectedCustomerId && selectedCustomer?.discount_percent > 0 && (
               <span className="inline-flex text-xs font-semibold px-1.5 py-0.5 rounded bg-primary/10 text-primary mt-1">
                 {selectedCustomer.discount_percent}% Disc
@@ -4510,16 +4492,42 @@ Thank you for choosing us!`;
           </div>
         </div>
 
-        {/* Bottom Bar: Formula strip + action buttons */}
+        {/* Bottom Bar: Formula strip + customer balance + action buttons */}
         <div className="bg-slate-950 flex flex-wrap items-center px-4 py-2 gap-x-3 gap-y-1.5">
-          <div className="hidden xl:flex items-center gap-2 text-[15px] text-slate-300 font-mono flex-1 min-w-0 overflow-hidden whitespace-nowrap">
-            <span>Subtotal <span className="text-white font-extrabold">₹{grossAmount.toFixed(0)}</span></span>
-            <span className="text-slate-600">—</span>
-            <span>Disc <span className="text-red-300 font-extrabold">₹{(lineItemDiscount + flatDiscountAmount).toFixed(0)}</span></span>
-            <span className="text-slate-600">+</span>
-            <span>GST <span className="text-white font-extrabold">₹{taxType === 'exclusive' ? totalGST.toFixed(0) : '0'}</span></span>
-            <span className="text-slate-600">=</span>
-            <span>Net <span className="text-emerald-300 font-black text-[16px]">₹{netAmount.toLocaleString('en-IN')}</span></span>
+          <div className="flex items-center gap-3 flex-1 min-w-0">
+            <div className="hidden xl:flex items-center gap-2 text-[15px] text-slate-300 font-mono min-w-0 overflow-hidden whitespace-nowrap">
+              <span>Subtotal <span className="text-white font-extrabold">₹{grossAmount.toFixed(0)}</span></span>
+              <span className="text-slate-600">—</span>
+              <span>Disc <span className="text-red-300 font-extrabold">₹{(lineItemDiscount + flatDiscountAmount).toFixed(0)}</span></span>
+              <span className="text-slate-600">+</span>
+              <span>GST <span className="text-white font-extrabold">₹{taxType === 'exclusive' ? totalGST.toFixed(0) : '0'}</span></span>
+              <span className="text-slate-600">=</span>
+              <span>Net <span className="text-emerald-300 font-black text-[16px]">₹{netAmount.toLocaleString('en-IN')}</span></span>
+            </div>
+            {selectedCustomerId && (
+              <div
+                className={cn(
+                  "h-9 px-3 flex items-center gap-1.5 rounded-sm border shrink-0 bg-white font-extrabold tabular-nums",
+                  isBalanceLoading && "border-slate-400 text-slate-400",
+                  !isBalanceLoading && customerBalance > 0 && "border-red-300 text-red-600",
+                  !isBalanceLoading && customerBalance < 0 && "border-emerald-300 text-emerald-600",
+                  !isBalanceLoading && customerBalance === 0 && "border-slate-300 text-slate-500"
+                )}
+                title={selectedCustomer?.customer_name ? `${selectedCustomer.customer_name} — ledger balance` : "Customer balance"}
+              >
+                {isBalanceLoading ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />
+                ) : (
+                  <>
+                    <CreditCard className="h-3.5 w-3.5 shrink-0" />
+                    <span className="text-[13px] whitespace-nowrap">
+                      ₹{Math.abs(customerBalance).toLocaleString("en-IN")}
+                      {customerBalance > 0 ? " due" : customerBalance < 0 ? " credit" : " settled"}
+                    </span>
+                  </>
+                )}
+              </div>
+            )}
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
