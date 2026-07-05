@@ -557,6 +557,7 @@ export function FloatingStockReport({ open, onOpenChange }: { open: boolean; onO
             product_name,
             brand,
             category,
+            style,
             deleted_at
           )
         `)
@@ -582,12 +583,13 @@ export function FloatingStockReport({ open, onOpenChange }: { open: boolean; onO
       const searchTerms = searchQuery.toLowerCase().split(/[\s-]+/).filter(Boolean);
       const productName = (item.product?.product_name || '').toLowerCase();
       const brand = (item.product?.brand || '').toLowerCase();
+      const style = (item.product?.style || '').toLowerCase();
       const variantColor = (item.color || '').toLowerCase();
       const category = (item.product?.category || '').toLowerCase();
       const barcode = (item.barcode || '').toLowerCase();
       const size = (item.size || '').toLowerCase();
 
-      const combinedText = `${productName} ${brand} ${variantColor} ${category} ${barcode} ${size}`;
+      const combinedText = `${productName} ${brand} ${style} ${variantColor} ${category} ${barcode} ${size}`;
       return searchTerms.every(term => combinedText.includes(term));
     }).slice(0, 100);
   }, [allProducts, searchQuery]);
@@ -601,7 +603,7 @@ export function FloatingStockReport({ open, onOpenChange }: { open: boolean; onO
       const term = searchQuery.trim();
       const orgId = currentOrganization.id;
       const select = `id, barcode, size, color, stock_qty, sale_price, mrp, pur_price, product_id,
-          product:products!inner(id, product_name, brand, category, deleted_at, organization_id)`;
+          product:products!inner(id, product_name, brand, category, style, deleted_at, organization_id)`;
 
       // 1) Exact barcode match (fast path for scanner / numeric search)
       const exact = await supabase
@@ -635,7 +637,7 @@ export function FloatingStockReport({ open, onOpenChange }: { open: boolean; onO
         .select("id")
         .eq("organization_id", orgId)
         .is("deleted_at", null)
-        .or(`product_name.ilike.%${term}%,brand.ilike.%${term}%,category.ilike.%${term}%`)
+        .or(`product_name.ilike.%${term}%,brand.ilike.%${term}%,category.ilike.%${term}%,style.ilike.%${term}%`)
         .limit(50);
       const prodIds = (prodQ.data || []).map((p: any) => p.id);
       if (prodIds.length === 0) return [];
@@ -774,12 +776,15 @@ export function FloatingStockReport({ open, onOpenChange }: { open: boolean; onO
                   {displayData.map((item: any) => (
                     <TableRow key={item.id}>
                       <TableCell>
-                        <div>
-                          <p className="font-medium">{item.product?.product_name}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {[item.product?.brand, item.color].filter(Boolean).join(' | ')}
-                          </p>
-                        </div>
+                        <p className="font-medium">
+                          {[
+                            item.product?.product_name,
+                            item.product?.style,
+                            item.product?.brand,
+                            item.product?.category,
+                            item.color,
+                          ].filter(Boolean).join(' - ')}
+                        </p>
                       </TableCell>
                       <TableCell className="font-mono text-xs">{item.barcode || '-'}</TableCell>
                       <TableCell>{item.size}</TableCell>
