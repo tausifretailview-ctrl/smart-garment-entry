@@ -2596,7 +2596,7 @@ const PurchaseBillDashboard = () => {
             ) : (
               <ERPTable
                 tableId="purchase_bills"
-                columns={columns as unknown as typeof columns}
+                columns={columns as any}
                 data={paginatedBills}
                 defaultColumnVisibility={PURCHASE_BILLS_DEFAULT_COLUMN_VISIBILITY}
                 defaultDensity="comfortable"
