@@ -71,6 +71,12 @@ import { useBarcodeLabelSettings, SizeSortOrder } from "@/hooks/useBarcodeLabelS
 import { BarTenderLabelDesigner } from "@/components/BarTenderLabelDesigner";
 import { DirectPrintDialog } from "@/components/DirectPrintDialog";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { useAuth } from "@/contexts/AuthContext";
+import { SettlementScanBadge } from "@/components/SettlementScanBadge";
+import {
+  fetchOpenScansByVariantIds,
+  type OpenSettlementScanInfo,
+} from "@/utils/stockSettlementScans";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { LabelFieldConfig, LabelDesignConfig, LabelItem, LabelTemplate, FieldKey } from "@/types/labelTypes";
 import { PrecisionThermalPrint } from "@/components/precision-barcode/PrecisionThermalPrint";
@@ -1166,8 +1172,12 @@ export default function BarcodePrinting() {
   }, [location.state]);
   const { orgNavigate } = useOrgNavigation();
   const { currentOrganization } = useOrganization();
+  const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [openSettlementScans, setOpenSettlementScans] = useState<Map<string, OpenSettlementScanInfo>>(
+    () => new Map(),
+  );
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [labelItems, setLabelItems] = useState<LabelItem[]>(() => {
     try {
@@ -2264,6 +2274,7 @@ export default function BarcodePrinting() {
     const searchProducts = async () => {
       if (!searchQuery.trim() || !currentOrganization?.id) {
         setSearchResults([]);
+        setOpenSettlementScans(new Map());
         return;
       }
 
@@ -2406,8 +2417,19 @@ export default function BarcodePrinting() {
         }));
 
         setSearchResults(results);
+
+        if (results.length > 0 && currentOrganization?.id) {
+          const scanMap = await fetchOpenScansByVariantIds(
+            currentOrganization.id,
+            results.map((r) => r.id),
+          );
+          setOpenSettlementScans(scanMap);
+        } else {
+          setOpenSettlementScans(new Map());
+        }
       } catch (error: any) {
         console.error(error);
+        setOpenSettlementScans(new Map());
       }
     };
 
@@ -4685,13 +4707,16 @@ export default function BarcodePrinting() {
               <CommandList>
                 <CommandEmpty>No products found.</CommandEmpty>
                 <CommandGroup>
-                  {searchResults.map((result) => (
+                  {searchResults.map((result) => {
+                    const openScan = openSettlementScans.get(result.id);
+                    return (
                     <CommandItem
                       key={result.id}
                       value={`${result.product_name}-${result.brand}-${result.size}-${result.barcode}-${result.id}`}
                       onSelect={() => handleSelectProduct(result)}
-                      className="flex items-center gap-2 cursor-pointer py-3"
+                      className="flex flex-col items-stretch gap-1.5 cursor-pointer py-3"
                     >
+                      <div className="flex items-center gap-2">
                       <Check
                         className={cn(
                           "h-4 w-4 shrink-0",
@@ -4711,8 +4736,18 @@ export default function BarcodePrinting() {
                           <span className="text-xs text-muted-foreground ml-2">Stock: {result.stock_qty}</span>
                         </div>
                       </div>
+                      </div>
+                      {openScan && (
+                        <SettlementScanBadge
+                          scan={openScan}
+                          currentUserId={user?.id}
+                          currentUserEmail={user?.email ?? undefined}
+                          className="ml-6"
+                        />
+                      )}
                     </CommandItem>
-                  ))}
+                    );
+                  })}
                 </CommandGroup>
               </CommandList>
             </Command>

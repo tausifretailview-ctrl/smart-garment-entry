@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
+import { useAuth } from "@/contexts/AuthContext";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useTabCacheLayout } from "@/contexts/TabCacheLayoutContext";
 import { useSharedAppShell } from "@/contexts/SharedAppShellContext";
@@ -43,8 +44,18 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import * as XLSX from "xlsx";
+import {
+  fetchLatestOpenSessionId,
+  fetchOpenScansForSession,
+  fetchSettlementScanLog,
+  settleStockSession,
+  settlementSessionStorageKey,
+  upsertSettlementScan,
+  type StockSettlementScanRow,
+  resolveScannerLabel,
+} from "@/utils/stockSettlementScans";
 
-/* ─── Scan session (localStorage) ─── */
+/* ─── Scan session (localStorage cache + DB source of truth) ─── */
 const scanStorageKey = (orgId: string) => `stock-settlement-scan-v1-${orgId}`;
 
 interface SavedScanRow {
@@ -80,6 +91,85 @@ function applySavedScanSession(
   } catch {
     return { products: mapped, hadSession: false, savedAt: null };
   }
+}
+
+function applyDbScanSession(mapped: Product[], scans: StockSettlementScanRow[]): Product[] {
+  const byVariant = new Map(scans.map((s) => [s.variant_id, s]));
+  return mapped.map((p) => {
+    const saved = byVariant.get(p.variantId);
+    if (!saved) return p;
+    return {
+      ...p,
+      actualStock: Number(saved.counted_qty),
+      scanned: true,
+      source: "scanned" as const,
+      lastScannedAt: new Date(saved.scanned_at).getTime(),
+    };
+  });
+}
+
+function buildHistoryFromSettledScans(
+  scans: StockSettlementScanRow[],
+  variantLookup: Map<string, Product>,
+): SettlementHistory[] {
+  const settled = scans.filter((s) => s.settled);
+  const bySession = new Map<string, StockSettlementScanRow[]>();
+  for (const row of settled) {
+    const list = bySession.get(row.settlement_session_id) ?? [];
+    list.push(row);
+    bySession.set(row.settlement_session_id, list);
+  }
+
+  return [...bySession.entries()]
+    .map(([sessionId, rows]) => {
+      const sorted = [...rows].sort(
+        (a, b) => new Date(b.scanned_at).getTime() - new Date(a.scanned_at).getTime(),
+      );
+      const sessionDate = sorted[0]?.scanned_at
+        ? new Date(sorted[0].scanned_at).toISOString().split("T")[0]
+        : new Date().toISOString().split("T")[0];
+      let matched = 0;
+      let surplus = 0;
+      let shortage = 0;
+      const items: Product[] = sorted.map((row) => {
+        const base = variantLookup.get(row.variant_id);
+        const systemQty = Number(row.system_qty);
+        const countedQty = Number(row.counted_qty);
+        const diff = countedQty - systemQty;
+        if (diff === 0) matched += 1;
+        else if (diff > 0) surplus += 1;
+        else shortage += 1;
+        return {
+          variantId: row.variant_id,
+          id: base?.id ?? row.barcode ?? row.variant_id.slice(0, 8),
+          name: base?.name ?? row.barcode ?? "Unknown",
+          department: base?.department ?? "General",
+          brand: base?.brand ?? "—",
+          unit: base?.unit ?? "Pcs",
+          shop: base?.shop ?? "Main Store",
+          softwareStock: systemQty,
+          actualStock: countedQty,
+          scanned: true,
+          barcode: row.barcode ?? base?.barcode,
+          purPrice: base?.purPrice ?? 0,
+          salePrice: base?.salePrice ?? 0,
+        };
+      });
+      return {
+        id: sessionId.slice(0, 8).toUpperCase(),
+        date: sessionDate,
+        shop: "Main Store",
+        totalItems: rows.length,
+        matched,
+        surplus,
+        shortage,
+        settledBy: "Staff",
+        status: "Completed",
+        note: `Session ${sessionId.slice(0, 8)}`,
+        items,
+      };
+    })
+    .sort((a, b) => b.date.localeCompare(a.date));
 }
 
 /* ─── Types ─── */
@@ -162,6 +252,7 @@ function ScanProgressRing({ scanned, total }: { scanned: number; total: number }
 /* ─── Component ─── */
 const StockSettlement = () => {
   const { toast } = useToast();
+  const { user } = useAuth();
   const { currentOrganization } = useOrganization();
   const inTabCache = useTabCacheLayout();
   const sharedShell = useSharedAppShell();
@@ -190,7 +281,48 @@ const StockSettlement = () => {
   const [showAllProducts, setShowAllProducts] = useState(false);
   const [scanSessionSaved, setScanSessionSaved] = useState(false);
   const [scanSessionSavedAt, setScanSessionSavedAt] = useState<number | null>(null);
+  const [historySubTab, setHistorySubTab] = useState<"settlements" | "scan-log">("settlements");
+  const [scanLogRows, setScanLogRows] = useState<StockSettlementScanRow[]>([]);
+  const [scanLogLoading, setScanLogLoading] = useState(false);
+  const settlementSessionIdRef = useRef<string | null>(null);
+  const variantLookupRef = useRef<Map<string, Product>>(new Map());
   const tableRef = useRef<HTMLDivElement>(null);
+
+  const ensureSessionId = useCallback((): string | null => {
+    if (!currentOrganization?.id) return null;
+    if (settlementSessionIdRef.current) return settlementSessionIdRef.current;
+    const stored = localStorage.getItem(settlementSessionStorageKey(currentOrganization.id));
+    if (stored) {
+      settlementSessionIdRef.current = stored;
+      return stored;
+    }
+    const id = crypto.randomUUID();
+    settlementSessionIdRef.current = id;
+    localStorage.setItem(settlementSessionStorageKey(currentOrganization.id), id);
+    return id;
+  }, [currentOrganization?.id]);
+
+  const persistScanToDb = useCallback(
+    async (product: Product, countedQty: number) => {
+      if (!currentOrganization?.id || !user?.id) return;
+      const sessionId = ensureSessionId();
+      if (!sessionId) return;
+      try {
+        await upsertSettlementScan({
+          organizationId: currentOrganization.id,
+          sessionId,
+          variantId: product.variantId,
+          barcode: product.barcode,
+          countedQty,
+          systemQty: product.softwareStock,
+          scannedBy: user.id,
+        });
+      } catch (e: unknown) {
+        console.error("persistScanToDb:", e);
+      }
+    },
+    [currentOrganization?.id, user?.id, ensureSessionId],
+  );
 
   // Load products from DB
   useEffect(() => {
@@ -238,46 +370,45 @@ const StockSettlement = () => {
           purPrice: Number(v.pur_price) || Number(v.products?.default_pur_price) || 0,
           salePrice: Number(v.sale_price) || Number(v.products?.default_sale_price) || 0,
         }));
-        const { products: restored, hadSession, savedAt } = applySavedScanSession(
-          mapped,
-          currentOrganization.id,
-        );
-        setProducts(restored);
-        setScanSessionSaved(hadSession);
-        setScanSessionSavedAt(savedAt);
+        variantLookupRef.current = new Map(mapped.map((p) => [p.variantId, p]));
 
-        // Load settlement history from stock_movements
-        const { data: movs } = await supabase
-          .from("stock_movements")
-          .select("id, created_at, notes, quantity")
-          .eq("organization_id", currentOrganization.id)
-          .eq("movement_type", "reconciliation")
-          .order("created_at", { ascending: false })
-          .limit(20);
+        let openSessionId =
+          (await fetchLatestOpenSessionId(currentOrganization.id)) ??
+          localStorage.getItem(settlementSessionStorageKey(currentOrganization.id));
 
-        if (movs && movs.length > 0) {
-          const grouped = new Map<string, any[]>();
-          movs.forEach((m: any) => {
-            const dateKey = new Date(m.created_at).toISOString().split("T")[0];
-            if (!grouped.has(dateKey)) grouped.set(dateKey, []);
-            grouped.get(dateKey)!.push(m);
-          });
-
-          const hist: SettlementHistory[] = Array.from(grouped.entries()).map(([date, items], idx) => ({
-            id: `STL-${String(idx + 1).padStart(3, "0")}`,
-            date,
-            shop: "Main Store",
-            totalItems: items.length,
-            matched: Math.max(0, items.length - Math.floor(items.length * 0.3)),
-            surplus: Math.floor(items.length * 0.15),
-            shortage: Math.floor(items.length * 0.15),
-            settledBy: "Admin",
-            status: "Completed",
-            note: items[0]?.notes || "",
-            items: [],
-          }));
-          setHistory(hist);
+        if (openSessionId) {
+          settlementSessionIdRef.current = openSessionId;
+          localStorage.setItem(
+            settlementSessionStorageKey(currentOrganization.id),
+            openSessionId,
+          );
+          const dbScans = await fetchOpenScansForSession(currentOrganization.id, openSessionId);
+          const fromDb = applyDbScanSession(mapped, dbScans);
+          const { products: restored, hadSession, savedAt } = applySavedScanSession(
+            fromDb,
+            currentOrganization.id,
+          );
+          setProducts(restored);
+          setScanSessionSaved(hadSession || dbScans.length > 0);
+          setScanSessionSavedAt(
+            savedAt ??
+              (dbScans.length > 0
+                ? Math.max(...dbScans.map((s) => new Date(s.scanned_at).getTime()))
+                : null),
+          );
+        } else {
+          const { products: restored, hadSession, savedAt } = applySavedScanSession(
+            mapped,
+            currentOrganization.id,
+          );
+          setProducts(restored);
+          setScanSessionSaved(hadSession);
+          setScanSessionSavedAt(savedAt);
         }
+
+        const allScans = await fetchSettlementScanLog(currentOrganization.id, 1000);
+        setScanLogRows(allScans);
+        setHistory(buildHistoryFromSettledScans(allScans, variantLookupRef.current));
       } catch (e: any) {
         toast({ title: "Error", description: e.message, variant: "destructive" });
       } finally {
@@ -366,18 +497,22 @@ const StockSettlement = () => {
       if (val === "" || val === null) return { ...p, actualStock: null, scanned: false, source: null };
       const num = parseInt(val);
       if (isNaN(num)) return p;
-      return { ...p, actualStock: num, scanned: true, source: p.source || "manual", lastScannedAt: Date.now() };
+      const updated = { ...p, actualStock: num, scanned: true, source: p.source || "manual", lastScannedAt: Date.now() };
+      void persistScanToDb(updated, num);
+      return updated;
     }));
-  }, []);
+  }, [persistScanToDb]);
 
   const handleProductScanned = useCallback((productIndex: number, newActual: number, source: "scanned") => {
     setScanSessionSaved(false);
     setProducts(prev => prev.map((p, i) => {
       if (i !== productIndex) return p;
       if (newActual === -1) return { ...p, actualStock: null, scanned: false, source: null, scanCount: 0, lastScannedAt: null };
-      return { ...p, actualStock: newActual, scanned: true, source, scanCount: (p.scanCount || 0) + 1, lastScannedAt: Date.now() };
+      const updated = { ...p, actualStock: newActual, scanned: true, source, scanCount: (p.scanCount || 0) + 1, lastScannedAt: Date.now() };
+      void persistScanToDb(updated, newActual);
+      return updated;
     }));
-  }, []);
+  }, [persistScanToDb]);
 
   const handleHighlightRow = useCallback((productId: string) => {
     setHighlightedRow(productId);
@@ -433,55 +568,61 @@ const StockSettlement = () => {
     setProducts(prev => prev.map(p => {
       const inFiltered = filtered.some(f => f.id === p.id);
       if (!inFiltered || p.scanned) return p;
-      return { ...p, actualStock: p.softwareStock, scanned: true, source: "manual" as const };
+      const updated = { ...p, actualStock: p.softwareStock, scanned: true, source: "manual" as const };
+      void persistScanToDb(updated, p.softwareStock);
+      return updated;
     }));
     toast({
       title: "Auto-Matched",
       description: `${unscannedInFilterCount} unscanned products set to software stock`,
     });
-  }, [filtered, toast, scanSessionSaved, unscannedInFilterCount]);
+  }, [filtered, toast, scanSessionSaved, unscannedInFilterCount, persistScanToDb]);
 
   const handleSettle = useCallback(async () => {
+    if (!currentOrganization?.id) return;
+    const sessionId = settlementSessionIdRef.current ?? ensureSessionId();
+    if (!sessionId) {
+      toast({ title: "Error", description: "No active settlement session", variant: "destructive" });
+      return;
+    }
+
     setSettling(true);
     try {
-      // Create settlement history entry
-      const newHist: SettlementHistory = {
-        id: `STL-${String(history.length + 1).padStart(3, "0")}`,
-        date: new Date().toISOString().split("T")[0],
-        shop: shopFilter || "All Shops",
-        totalItems: scannedCount,
-        matched: matchCount,
-        surplus: surplusCount,
-        shortage: shortageCount,
-        settledBy: "Current User",
-        status: "Completed",
-        note: settleNote,
-        items: products.filter(p => p.scanned).map(p => ({ ...p })),
-      };
-      setHistory(prev => [newHist, ...prev]);
+      const result = await settleStockSession(
+        currentOrganization.id,
+        sessionId,
+        settleNote,
+      );
 
-      // Reset scanned products — software stock = actual
+      const allScans = await fetchSettlementScanLog(currentOrganization.id, 1000);
+      setScanLogRows(allScans);
+      setHistory(buildHistoryFromSettledScans(allScans, variantLookupRef.current));
+
       setProducts(prev => prev.map(p => {
         if (!p.scanned) return p;
-        return { ...p, softwareStock: p.actualStock ?? p.softwareStock, actualStock: null, scanned: false };
+        return { ...p, softwareStock: p.actualStock ?? p.softwareStock, actualStock: null, scanned: false, source: null };
       }));
 
-      if (currentOrganization?.id) {
-        localStorage.removeItem(scanStorageKey(currentOrganization.id));
-      }
+      localStorage.removeItem(scanStorageKey(currentOrganization.id));
+      localStorage.removeItem(settlementSessionStorageKey(currentOrganization.id));
+      settlementSessionIdRef.current = null;
       setScanSessionSaved(false);
       setScanSessionSavedAt(null);
 
       setShowSettleModal(false);
       setSettleNote("");
       setActiveTab("history");
-      toast({ title: "Settlement Complete", description: `Settled ${scannedCount} items successfully` });
+      setHistorySubTab("settlements");
+      toast({
+        title: "Settlement Complete",
+        description: `Settled ${result.settled_count} items successfully`,
+      });
     } catch (e: any) {
       toast({ title: "Error", description: e.message, variant: "destructive" });
     } finally {
       setSettling(false);
     }
-  }, [history, products, scannedCount, matchCount, surplusCount, shortageCount, settleNote, shopFilter, toast, currentOrganization?.id]);
+  }, [currentOrganization?.id, ensureSessionId, settleNote, toast]);
 
   const clearFilters = () => { setSearch(""); setShopFilter(""); setDeptFilter(""); setBrandFilter(""); };
 
@@ -513,11 +654,13 @@ const StockSettlement = () => {
     setProducts(prev => prev.map(p => {
       const update = updates.find(u => u.productId === p.id);
       if (!update) return p;
-      return { ...p, actualStock: update.actualQty, scanned: true, source: "imported" as const, lastScannedAt: Date.now() };
+      const updated = { ...p, actualStock: update.actualQty, scanned: true, source: "imported" as const, lastScannedAt: Date.now() };
+      void persistScanToDb(updated, update.actualQty);
+      return updated;
     }));
     toast({ title: "Import Applied", description: `${updates.length} products updated with imported quantities` });
     setActiveTab("scan");
-  }, [toast]);
+  }, [toast, persistScanToDb]);
 
   const stockKpis = useMemo(() => {
     const totalQty = filtered.reduce((s, p) => s + p.softwareStock, 0);
@@ -1185,11 +1328,47 @@ const StockSettlement = () => {
           {/* ═══ HISTORY TAB ═══ */}
           {activeTab === "history" && (
             <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-auto">
-              <div>
-                <h2 className="text-base font-bold text-slate-800">Settlement History</h2>
-                <p className="text-sm text-slate-500">{history.length} past settlements recorded</p>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <h2 className="text-base font-bold text-slate-800">Settlement History</h2>
+                  <p className="text-sm text-slate-500">
+                    {historySubTab === "settlements"
+                      ? `${history.length} past settlements recorded`
+                      : `${scanLogRows.length} scan records`}
+                  </p>
+                </div>
+                <div className="flex gap-1 rounded-lg border border-slate-200 bg-white p-1">
+                  <Button
+                    size="sm"
+                    variant={historySubTab === "settlements" ? "default" : "ghost"}
+                    className={cn("h-8", historySubTab === "settlements" && "bg-teal-600 hover:bg-teal-700")}
+                    onClick={() => setHistorySubTab("settlements")}
+                  >
+                    Settlements
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={historySubTab === "scan-log" ? "default" : "ghost"}
+                    className={cn("h-8", historySubTab === "scan-log" && "bg-teal-600 hover:bg-teal-700")}
+                    onClick={async () => {
+                      setHistorySubTab("scan-log");
+                      if (!currentOrganization?.id) return;
+                      setScanLogLoading(true);
+                      try {
+                        const rows = await fetchSettlementScanLog(currentOrganization.id, 500);
+                        setScanLogRows(rows);
+                      } finally {
+                        setScanLogLoading(false);
+                      }
+                    }}
+                  >
+                    Scan Log
+                  </Button>
+                </div>
               </div>
 
+              {historySubTab === "settlements" && (
+                <>
               {history.length === 0 ? (
                 <div className="py-16 text-center text-slate-500">No settlements recorded yet</div>
               ) : (
@@ -1263,6 +1442,75 @@ const StockSettlement = () => {
                     );
                   })}
                 </div>
+              )}
+                </>
+              )}
+
+              {historySubTab === "scan-log" && (
+                <Card className="overflow-hidden border-slate-200 shadow-sm">
+                  {scanLogLoading ? (
+                    <div className="flex items-center justify-center gap-2 py-16 text-slate-500">
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                      Loading scan log…
+                    </div>
+                  ) : scanLogRows.length === 0 ? (
+                    <div className="py-16 text-center text-slate-500">No settlement scans recorded yet</div>
+                  ) : (
+                    <div className="overflow-auto">
+                      <Table className="w-full [&_td]:!text-xs [&_th]:!text-[10px] [&_th]:uppercase">
+                        <TableHeader>
+                          <TableRow className="bg-slate-50">
+                            {["Barcode", "Product", "Counted", "System", "Diff", "Scanned", "By", "Session", "Status"].map((hh) => (
+                              <TableHead key={hh} className="text-slate-500">{hh}</TableHead>
+                            ))}
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {scanLogRows.map((row) => {
+                            const product = variantLookupRef.current.get(row.variant_id);
+                            const diff = Number(row.counted_qty) - Number(row.system_qty);
+                            return (
+                              <TableRow key={row.id}>
+                                <TableCell className="font-mono tabular-nums">{row.barcode || "—"}</TableCell>
+                                <TableCell className="text-slate-700">{product?.name ?? row.variant_id.slice(0, 8)}</TableCell>
+                                <TableCell className="font-mono font-semibold tabular-nums">{row.counted_qty}</TableCell>
+                                <TableCell className="font-mono tabular-nums">{row.system_qty}</TableCell>
+                                <TableCell>
+                                  <span className={cn(
+                                    "font-mono font-bold tabular-nums",
+                                    diff === 0 ? "text-emerald-700" : diff > 0 ? "text-amber-700" : "text-red-700",
+                                  )}>
+                                    {diff === 0 ? "0" : diff > 0 ? `+${diff}` : diff}
+                                  </span>
+                                </TableCell>
+                                <TableCell className="tabular-nums">
+                                  {new Date(row.scanned_at).toLocaleString("en-IN")}
+                                </TableCell>
+                                <TableCell>
+                                  {resolveScannerLabel(row.scanned_by, user?.id, user?.email ?? undefined)}
+                                </TableCell>
+                                <TableCell>
+                                  <code className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[10px]">
+                                    {row.settlement_session_id.slice(0, 8)}
+                                  </code>
+                                </TableCell>
+                                <TableCell>
+                                  <Badge className={cn(
+                                    row.settled
+                                      ? "bg-emerald-50 text-emerald-700 hover:bg-emerald-50"
+                                      : "bg-amber-50 text-amber-700 hover:bg-amber-50",
+                                  )}>
+                                    {row.settled ? "Settled" : "Open"}
+                                  </Badge>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
+                </Card>
               )}
             </div>
           )}

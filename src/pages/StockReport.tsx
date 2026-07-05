@@ -35,6 +35,7 @@ import {
   restoreDashboardFilters,
   WINDOW_FILTER_IDS,
 } from "@/lib/dashboardFilterPersistence";
+import { fetchAllOpenSettlementVariantIds } from "@/utils/stockSettlementScans";
 
 interface StockItem {
   id: string;
@@ -318,6 +319,7 @@ export default function StockReport() {
     isLoading: true
   });
   const [lowStockThreshold, setLowStockThreshold] = useState(10);
+  const [openSettlementVariantIds, setOpenSettlementVariantIds] = useState<Set<string>>(() => new Set());
   const [searchTerm, setSearchTerm] = useState("");
   const [productNameFilter, setProductNameFilter] = useState("");
   const [sizeWiseSearch, setSizeWiseSearch] = useState("");
@@ -533,6 +535,14 @@ export default function StockReport() {
     if (currentOrganization?.id) {
       fetchSettings();
     }
+  }, [currentOrganization?.id]);
+
+  useEffect(() => {
+    if (!currentOrganization?.id) {
+      setOpenSettlementVariantIds(new Set());
+      return;
+    }
+    void fetchAllOpenSettlementVariantIds(currentOrganization.id).then(setOpenSettlementVariantIds);
   }, [currentOrganization?.id]);
 
   // Mamta Footwear customer balance reconciliation - Apr 2026:
@@ -1840,7 +1850,16 @@ export default function StockReport() {
                             <TableCell className={STOCK_PRODUCT_DETAIL_CELL}>{highlightSearchText(item.size, highlightQuery)}</TableCell>
                             <TableCell className={STOCK_PRODUCT_DETAIL_CELL}>{highlightSearchText(item.color || '—', highlightQuery)}</TableCell>
                             <TableCell className={STOCK_PRODUCT_DETAIL_CELL}>{highlightSearchText(item.department || '—', highlightQuery)}</TableCell>
-                            <TableCell className={cn(STOCK_DATA_CELL, "font-mono font-semibold")}>{highlightSearchText(item.barcode, highlightQuery)}</TableCell>
+                            <TableCell className={cn(STOCK_DATA_CELL, "font-mono font-semibold")}>
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                {highlightSearchText(item.barcode, highlightQuery)}
+                                {openSettlementVariantIds.has(item.id) && (
+                                  <Badge variant="outline" className="border-sky-200 bg-sky-50 text-[10px] font-normal text-sky-800">
+                                    In settlement
+                                  </Badge>
+                                )}
+                              </div>
+                            </TableCell>
                             <TableCell className={cn(STOCK_DATA_CELL, "text-right bg-blue-50/80 dark:bg-blue-950/50 font-medium")}>
                               {item.opening_qty}
                             </TableCell>
