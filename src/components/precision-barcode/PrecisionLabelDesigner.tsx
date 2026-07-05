@@ -698,6 +698,7 @@ export function PrecisionLabelDesigner({
           ))}
           </div>
           </div>
+          </div>
         </ScrollArea>
       </div>
 
