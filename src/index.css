@@ -941,6 +941,24 @@ All colors MUST be HSL.
     border-right: 1px solid var(--erp-line) !important;
   }
 
+  /* Hide shadcn rail resize strip — caused hover peek / gap beside content */
+  .erp-desktop-sidebar [data-sidebar="rail"] {
+    display: none !important;
+  }
+
+  .erp-desktop-sidebar > div:first-child {
+    flex-shrink: 0;
+  }
+
+  .erp-desktop-sidebar > div:last-child {
+    border-right: none !important;
+  }
+
+  .ezzy-viewport-shell .erp-desktop-sidebar.group > div:first-child {
+    height: 100% !important;
+    min-height: 0 !important;
+  }
+
   .erp-desktop-sidebar .erp-sidebar-org {
     padding: 0.75rem 0.85rem;
     border-bottom: 1px solid var(--erp-line);

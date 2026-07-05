@@ -437,6 +437,18 @@ export const Header = () => {
               Payment
             </button>
           )}
+          {canQuickSaleLookup && (
+            <button type="button" className="erp-tbtn" onClick={() => setQuickSaleOpen(true)}>
+              <FileText className="erp-tbtn__icon" />
+              Quick Sale
+            </button>
+          )}
+          {canSupplierBalance && (
+            <button type="button" className="erp-tbtn" onClick={() => orgNavigate("/supplier-party-balances")}>
+              <Building2 className="erp-tbtn__icon" />
+              Supplier Balance
+            </button>
+          )}
         </div>
 
         <div className="flex items-center gap-1.5 shrink-0 ml-auto">
@@ -444,12 +456,6 @@ export const Header = () => {
             <button type="button" className="erp-tbtn" onClick={() => orgNavigate("/customer-party-balances")}>
               <Users className="erp-tbtn__icon" />
               Customer Balance
-            </button>
-          )}
-          {canSupplierBalance && (
-            <button type="button" className="erp-tbtn" onClick={() => orgNavigate("/supplier-party-balances")}>
-              <Building2 className="erp-tbtn__icon" />
-              Supplier Balance
             </button>
           )}
         </div>

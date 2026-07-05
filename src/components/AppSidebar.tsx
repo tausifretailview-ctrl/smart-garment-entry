@@ -69,7 +69,6 @@ import {
   SidebarMenuSub,
   SidebarMenuSubButton,
   SidebarMenuSubItem,
-  SidebarRail,
   useSidebar,
 } from "@/components/ui/sidebar";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -168,7 +167,6 @@ export function AppSidebar() {
       className="erp-desktop-sidebar border-r pt-0"
       style={{ transition: "width 0.22s ease", ["--sidebar-width" as string]: "var(--erp-sidebar-width)" }}
     >
-      <SidebarRail />
       <SidebarContent className="font-sans text-base font-semibold text-sidebar-foreground pt-0 mt-0 space-y-0.5">
         {/* Organization Context Badge */}
         {currentOrganization && (
