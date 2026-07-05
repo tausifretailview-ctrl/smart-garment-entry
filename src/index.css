@@ -663,6 +663,12 @@ All colors MUST be HSL.
     overflow: hidden;
   }
 
+  html.entry-viewport-synced,
+  html.entry-viewport-synced body {
+    height: var(--ezzy-viewport-h, 100dvh);
+    max-height: var(--ezzy-viewport-h, 100dvh);
+  }
+
   /* Org shell — use real window height in Electron (100dvh can exceed restored window) */
   .ezzy-viewport-shell {
     height: var(--ezzy-viewport-h, 100dvh);
@@ -1855,6 +1861,11 @@ body.pos-large-ui .pos-desktop-readable table td {
   height: 100%;
   max-height: 100%;
   overflow: hidden;
+}
+.ezzy-viewport-shell .pos-sales-workspace,
+body.entry-bill-screen .pos-sales-workspace {
+  height: 100%;
+  max-height: 100%;
 }
 .pos-sales-main {
   position: relative;

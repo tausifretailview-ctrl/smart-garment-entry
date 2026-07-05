@@ -17,6 +17,7 @@ import { useCustomerBalance } from "@/hooks/useCustomerBalance";
 import { useCustomerSearch, useCustomerBalances } from "@/hooks/useCustomerSearch";
 import { useNavPerfPage, useNavPerfQueryWatch } from "@/hooks/useNavigationPerf";
 import { useEntryViewportSync } from "@/hooks/useEntryViewportSync";
+import { initUIScale } from "@/components/UIScaleSelector";
 import { useCreditNotes } from "@/hooks/useCreditNotes";
 import { useBarcodeScanner } from "@/hooks/useBarcodeScanner";
 import { useIsMobile, useIsTablet } from "@/hooks/use-mobile";
@@ -1442,6 +1443,23 @@ export default function POSSales() {
     return () => {
       document.body.classList.remove("pos-hide-toasts");
       document.body.classList.remove("pos-large-ui");
+    };
+  }, []);
+
+  // Web PWA desktop: match Electron POS density (compact 16px + 0.85 zoom).
+  useEffect(() => {
+    if (isElectronShell()) return;
+    const desktop = window.matchMedia("(min-width: 1024px)");
+    if (!desktop.matches) return;
+
+    const root = document.documentElement;
+    root.style.fontSize = "16px";
+    root.classList.add("scale-compact");
+    root.style.zoom = "0.85";
+
+    return () => {
+      root.style.zoom = "";
+      initUIScale();
     };
   }, []);
 

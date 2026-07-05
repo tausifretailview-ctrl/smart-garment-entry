@@ -12,7 +12,13 @@ import { toast } from "sonner";
 import { GlobalShortcuts } from "@/components/GlobalShortcuts";
 import { useWindowTabs } from "@/contexts/WindowTabsContext";
 import { TabCachedPages } from "@/components/TabCachedPages";
-import { isCacheableEntryTabPath, isEntryTabPath, isFillHeightShellPath, isMainDashboardPath } from "@/lib/entryPageLayout";
+import {
+  isCacheableEntryTabPath,
+  isEntryTabPath,
+  isFillHeightShellPath,
+  isMainDashboardPath,
+  isViewportFixedEntryPath,
+} from "@/lib/entryPageLayout";
 import {
   isTabCachePath,
   prefetchPostLoginCriticalPages,
@@ -312,11 +318,13 @@ export const OrgLayout = () => {
     hideAppBootSplash();
   }, [authLoading, user, orgLoading]);
 
-  // Electron: re-sync shell height when landing on POS / bill entry after login.
+  // Re-sync shell height when landing on POS / bill entry (Electron + web PWA).
   useEffect(() => {
-    if (!isElectronShell() || !isOrgSynced) return;
+    if (!isOrgSynced) return;
     const needsViewport =
-      isEntryTabPath(currentPath) || isFillHeightShellPath(location.pathname);
+      isViewportFixedEntryPath(location.pathname) ||
+      isEntryTabPath(currentPath) ||
+      isFillHeightShellPath(location.pathname);
     if (!needsViewport) return;
     syncElectronViewportHeight();
     const t = window.setTimeout(syncElectronViewportHeight, 100);
@@ -366,7 +374,9 @@ export const OrgLayout = () => {
   const hasVisibleTabCache = tabPaths.length > 0 && !hideTabCacheContainer && effectiveTabPaneReady;
   const isFillHeightPage = isFillHeightShellPath(location.pathname);
   const isMainDashboard = isMainDashboardPath(location.pathname);
-  const constrainViewportHeight = isEntryPage || hasVisibleTabCache || isFillHeightPage || isMainDashboard;
+  const isViewportFixedEntry = isViewportFixedEntryPath(location.pathname);
+  const constrainViewportHeight =
+    isViewportFixedEntry || isEntryPage || hasVisibleTabCache || isFillHeightPage || isMainDashboard;
 
   const workspaceBody = (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden w-full">
@@ -402,8 +412,8 @@ export const OrgLayout = () => {
       {!renderViaTabCache && (
         <div
           className={
-            isEntryPage || isFillHeightPage
-              ? "flex min-h-0 flex-1 flex-col overflow-hidden w-full"
+            isEntryPage || isFillHeightPage || isViewportFixedEntry
+              ? "flex min-h-0 flex-1 flex-col overflow-hidden w-full h-full"
               : showDesktopChrome
                 ? "flex min-h-0 flex-1 flex-col overflow-hidden w-full"
                 : "contents"

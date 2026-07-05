@@ -357,7 +357,7 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
 
   if (sharedShell) {
     return (
-      <div className="flex min-h-0 flex-1 flex-col w-full bg-background overflow-hidden">
+      <div className="flex min-h-0 flex-1 flex-col w-full h-full bg-background overflow-hidden">
         {posHeader}
         {posMain}
         {posDialogs}

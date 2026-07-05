@@ -14,6 +14,11 @@ export function isNoSidebarEntryPath(pathname: string): boolean {
   return NO_SIDEBAR_ENTRY_PATH.test(pathname);
 }
 
+/** POS + bill entry — lock shell to viewport height (footer pinned, no outer page scroll). */
+export function isViewportFixedEntryPath(pathname: string): boolean {
+  return isNoSidebarEntryPath(pathname) || isEntryFullscreenPath(pathname);
+}
+
 /** Full-height workspace pages (inbox, chat) — fill shell viewport, no outer page scroll. */
 export const FILL_HEIGHT_WORKSPACE_PATH = /\/(whatsapp-inbox)(\/|$)/;
 

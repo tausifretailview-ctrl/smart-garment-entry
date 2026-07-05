@@ -23,14 +23,15 @@ export function syncElectronViewportHeight(): void {
   root.style.setProperty("--entry-vw", `${w}px`);
   root.style.setProperty("--entry-vh", `${h}px`);
 
-  if (root.style.zoom && root.style.zoom !== "1") {
+  // Electron zoom is owned by setZoomFactor IPC — clear stale CSS zoom only there.
+  if (isElectronShell() && root.style.zoom && root.style.zoom !== "1") {
     root.style.zoom = "1";
   }
 }
 
-/** One-time global listeners — safe to call before React mounts. */
+/** One-time global listeners — safe to call before React mounts. Web PWA uses the same height sync on bill/POS entry. */
 export function initElectronViewportSync(): void {
-  if (!isElectronShell() || initialized) return;
+  if (initialized) return;
   initialized = true;
 
   const sync = () => syncElectronViewportHeight();
