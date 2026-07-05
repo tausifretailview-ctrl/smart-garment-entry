@@ -67,7 +67,6 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { cn } from "@/lib/utils";
-import { BackToDashboard } from "@/components/BackToDashboard";
 import { useBarcodeLabelSettings, SizeSortOrder } from "@/hooks/useBarcodeLabelSettings";
 import { BarTenderLabelDesigner } from "@/components/BarTenderLabelDesigner";
 import { DirectPrintDialog } from "@/components/DirectPrintDialog";
@@ -4647,7 +4646,7 @@ export default function BarcodePrinting() {
 
   const sheetLayoutSummary =
     selectedPreset ||
-    sheetPresets[sheetType]?.label ||
+    sheetPresetLabels[sheetType]?.label ||
     sheetType.replace(/_/g, " ");
 
   const handleBackNavigation = () => {
@@ -5909,144 +5908,31 @@ export default function BarcodePrinting() {
           </div>
         </div>
       </div>
-
-      {/* Action Buttons */}
-      <div className="flex flex-wrap gap-2">
-        <Button onClick={handlePreview}>
-          <Eye className="h-4 w-4 mr-2" />
-          Preview Labels
-        </Button>
-        <Button onClick={handlePrint} variant="outline" disabled={settingsLoading || isLoadingSettings} title={settingsLoading ? "Loading print settings..." : "Print labels"}>
-          {settingsLoading ? <><Loader2 className="h-4 w-4 animate-spin mr-1" /> Loading...</> : "Print"}
-        </Button>
-        {precisionSettings.enabled && (
-          <Dialog>
-            <DialogTrigger asChild>
-              <Button variant="outline" size="default">
-                🎯 Calibrate
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-lg">
-              <DialogHeader>
-                <DialogTitle className="text-sm">Quick Calibration</DialogTitle>
-              </DialogHeader>
-              <LabelCalibrationUI
-                compact
-                values={{
-                  xOffset: precisionSettings.xOffset,
-                  yOffset: precisionSettings.yOffset,
-                  vGap: precisionSettings.vGap,
-                  labelWidth: precisionSettings.labelWidth,
-                  labelHeight: precisionSettings.labelHeight,
-                  thermalCols: precisionSettings.thermalCols,
-                }}
-                onChange={(vals) =>
-                  setPrecisionSettings((prev) => ({
-                    ...prev,
-                    xOffset: vals.xOffset,
-                    yOffset: vals.yOffset,
-                    vGap: vals.vGap,
-                    labelWidth: vals.labelWidth,
-                    labelHeight: vals.labelHeight,
-                    thermalCols: vals.thermalCols || 1,
-                  }))
-                }
-                presets={dbPresets}
-                onSavePreset={async (preset) => {
-                  if (!currentOrganization?.id) return;
-                  const { error } = await supabase
-                    .from("printer_presets")
-                    .upsert({
-                      id: preset.id || undefined,
-                      organization_id: currentOrganization.id,
-                      name: preset.name,
-                      label_width: preset.width,
-                      label_height: preset.height,
-                      x_offset: preset.xOffset,
-                      y_offset: preset.yOffset,
-                      v_gap: preset.vGap,
-                      a4_cols: preset.a4Cols ?? precisionSettings.a4Cols,
-                      a4_rows: preset.a4Rows ?? precisionSettings.a4Rows,
-                      print_mode: precisionSettings.printMode,
-                      label_config: preset.labelConfig as any,
-                    }, { onConflict: "organization_id,name" });
-                  if (error) { toast.error("Failed to save preset"); return; }
-                  toast.success(`Preset "${preset.name}" saved`);
-                  const { data } = await supabase
-                    .from("printer_presets")
-                    .select("*")
-                    .eq("organization_id", currentOrganization.id)
-                    .order("name");
-                  if (data) {
-                    setDbPresets(data.map((p: any) => ({
-                      id: p.id, name: p.name,
-                      xOffset: Number(p.x_offset), yOffset: Number(p.y_offset),
-                      vGap: Number(p.v_gap), width: Number(p.label_width), height: Number(p.label_height),
-                      a4Cols: p.a4_cols, a4Rows: p.a4_rows, printMode: p.print_mode || 'thermal',
-                      labelConfig: p.label_config, isDefault: p.is_default,
-                    })));
-                  }
-                }}
-                onDeletePreset={async (presetId) => {
-                  const { error } = await supabase.from("printer_presets").delete().eq("id", presetId);
-                  if (error) { toast.error("Failed to delete preset"); return; }
-                  toast.success("Preset deleted");
-                  setDbPresets((prev) => prev.filter((p) => p.id !== presetId));
-                }}
-                onSetDefault={handleSetDefaultPreset}
-                onSetTemplateDefault={handleSetTemplateDefault}
-                defaultTemplateName={dbPresets.find(p => p.isDefault)?.name || null}
-                onLoadPreset={handlePrecisionPresetLoad}
-                labelConfig={effectivePrecisionLabelConfig}
-                savedTemplates={savedLabelTemplates}
-                sampleItem={labelItems.length > 0 ? { ...labelItems[0], businessName } : undefined}
-                activePresetValue={activePrecisionTemplateName}
-              />
-            </DialogContent>
-          </Dialog>
-        )}
-        {precisionSettings.enabled && (
-          <Button variant="outline" onClick={handleTestPrint}>
-            🖨️ Print Test Label
-          </Button>
-        )}
-        {(isThermal1Up() || sheetType === 'precision_pro_tsc' || sheetType === 'custom') && (
-          <Button 
-            onClick={() => setIsDirectPrintDialogOpen(true)} 
-            variant="outline"
-            className="bg-green-50 hover:bg-green-100 border-green-200 text-green-700 dark:bg-green-950 dark:hover:bg-green-900 dark:border-green-800 dark:text-green-300"
-          >
-            <Printer className="h-4 w-4 mr-2" />
-            Direct Print
-          </Button>
-        )}
-        <Button onClick={handleExportPDF} variant="outline">
-          <Download className="h-4 w-4 mr-2" />
-          Export PDF
-        </Button>
-        <Button 
-          onClick={handleSaveAsDefault} 
-          variant={selectedLabelTemplate && isTemplateDefault(selectedLabelTemplate) ? "default" : "secondary"}
-        >
-          <Save className="h-4 w-4 mr-2" />
-          {selectedLabelTemplate && isTemplateDefault(selectedLabelTemplate) ? (
-            <>
-              <Check className="h-4 w-4 mr-1" />
-              Current Default
-            </>
-          ) : (
-            "Save as Default Format"
-          )}
-        </Button>
-      </div>
+            </div>
+          </CollapsibleContent>
+        </div>
+      </Collapsible>
         </TabsContent>
 
-        <TabsContent value="precision" className="space-y-2 mt-0 flex-1 min-h-0 overflow-auto">
-          {/* Precision Pro Calibration & Actions */}
-          <div className="border rounded-lg p-4 space-y-4">
-            <h2 className="text-xl font-semibold">🎯 Precision Pro Settings</h2>
-            <p className="text-sm text-muted-foreground">
-              Coordinate-based label printing with pixel-perfect positioning. Configure label dimensions, field positions, and calibration offsets.
+        <TabsContent value="precision" className="space-y-2 mt-0 flex-1 min-h-0">
+          <Collapsible open={precisionSettingsOpen} onOpenChange={setPrecisionSettingsOpen}>
+            <div className="border rounded-md overflow-hidden bg-card">
+              <CollapsibleTrigger asChild>
+                <button
+                  type="button"
+                  className="barcode-label-source-trigger w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-muted/40 transition-colors"
+                >
+                  <ChevronDown className={cn("h-4 w-4 shrink-0 text-muted-foreground transition-transform", precisionSettingsOpen && "rotate-180")} />
+                  <span className="text-sm font-bold">Precision Pro Settings</span>
+                  <span className="text-xs text-muted-foreground truncate ml-auto">
+                    {effectivePrecisionLabelWidth}×{effectivePrecisionLabelHeight}mm
+                  </span>
+                </button>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <div className="px-3 pb-3 pt-2 border-t space-y-3">
+            <p className="text-xs text-muted-foreground">
+              One-time setup: label size, calibration offsets, and print mode.
             </p>
             <LabelCalibrationUI
               values={{
@@ -6146,25 +6032,10 @@ export default function BarcodePrinting() {
               sampleItem={labelItems.length > 0 ? { ...labelItems[0], businessName } : undefined}
               activePresetValue={activePrecisionTemplateName}
             />
-          </div>
-
-          {/* Precision Pro Action Buttons */}
-          <div className="flex flex-wrap gap-2">
-            <Button onClick={handlePreview}>
-              <Eye className="h-4 w-4 mr-2" />
-              Preview Labels
-            </Button>
-            <Button onClick={handlePrint} variant="outline" disabled={settingsLoading || isLoadingSettings || isPrecisionPrintRunning} title={settingsLoading ? "Loading print settings..." : "Print labels"}>
-              {settingsLoading || isPrecisionPrintRunning ? <><Loader2 className="h-4 w-4 animate-spin mr-1" /> {isPrecisionPrintRunning ? "Printing..." : "Loading..."}</> : "Print"}
-            </Button>
-            <Button variant="outline" onClick={handleTestPrint}>
-              🖨️ Print Test Label
-            </Button>
-            <Button onClick={handleExportPDF} variant="outline">
-              <Download className="h-4 w-4 mr-2" />
-              Export PDF
-            </Button>
-          </div>
+                </div>
+              </CollapsibleContent>
+            </div>
+          </Collapsible>
         </TabsContent>
 
         <TabsContent value="designer" className="mt-0 flex-1 min-h-0 flex flex-col data-[state=inactive]:hidden">
@@ -6353,6 +6224,152 @@ export default function BarcodePrinting() {
           </div>
         </TabsContent>
       </Tabs>
+      </main>
+
+      {/* Sticky print bar — always visible without scrolling */}
+      <footer className="barcode-print-footer shrink-0 border-t-2 border-primary/40 bg-slate-900 text-white px-3 py-2 flex flex-wrap items-center gap-2 shadow-[0_-6px_24px_rgba(0,0,0,0.35)]">
+        <Button
+          onClick={handlePreview}
+          variant="secondary"
+          size="sm"
+          className="h-9 font-semibold bg-slate-700 text-white hover:bg-slate-600 border-slate-600"
+        >
+          <Eye className="h-4 w-4 mr-1.5" />
+          Preview
+        </Button>
+        <Button
+          onClick={handlePrint}
+          size="sm"
+          className="h-9 font-bold bg-emerald-600 hover:bg-emerald-500 text-white min-w-[108px]"
+          disabled={settingsLoading || isLoadingSettings || isPrecisionPrintRunning || labelItems.every((i) => !i.qty)}
+          title={settingsLoading ? "Loading print settings…" : "Print labels"}
+        >
+          {settingsLoading || isPrecisionPrintRunning ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
+              {isPrecisionPrintRunning ? "Printing…" : "Loading…"}
+            </>
+          ) : (
+            <>
+              <Printer className="h-4 w-4 mr-1.5" />
+              Print
+            </>
+          )}
+        </Button>
+        {(precisionSettings.enabled || activeBarTab === "precision") && (
+          <Button variant="outline" size="sm" className="h-9 border-slate-600 text-white hover:bg-slate-800" onClick={handleTestPrint}>
+            Test Label
+          </Button>
+        )}
+        {(isThermal1Up() || sheetType === "precision_pro_tsc" || sheetType === "custom") && (
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-9 border-emerald-700/60 text-emerald-300 hover:bg-emerald-950"
+            onClick={() => setIsDirectPrintDialogOpen(true)}
+          >
+            Direct Print
+          </Button>
+        )}
+        <Button
+          onClick={handleExportPDF}
+          variant="outline"
+          size="sm"
+          className="h-9 border-slate-600 text-white hover:bg-slate-800"
+        >
+          <Download className="h-4 w-4 mr-1.5" />
+          PDF
+        </Button>
+        {activeBarTab === "standard" && (
+          <Button
+            onClick={handleSaveAsDefault}
+            variant="outline"
+            size="sm"
+            className="h-9 border-slate-600 text-white hover:bg-slate-800 ml-auto"
+          >
+            <Save className="h-4 w-4 mr-1.5" />
+            {selectedLabelTemplate && isTemplateDefault(selectedLabelTemplate) ? "Default ✓" : "Save Default"}
+          </Button>
+        )}
+        {(precisionSettings.enabled || activeBarTab === "precision") && (
+          <Dialog>
+            <DialogTrigger asChild>
+              <Button variant="outline" size="sm" className="h-9 border-slate-600 text-white hover:bg-slate-800">
+                Calibrate
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-lg">
+              <DialogHeader>
+                <DialogTitle className="text-sm">Quick Calibration</DialogTitle>
+              </DialogHeader>
+              <LabelCalibrationUI
+                compact
+                values={{
+                  xOffset: precisionSettings.xOffset,
+                  yOffset: precisionSettings.yOffset,
+                  vGap: precisionSettings.vGap,
+                  labelWidth: precisionSettings.labelWidth,
+                  labelHeight: precisionSettings.labelHeight,
+                  thermalCols: precisionSettings.thermalCols,
+                }}
+                onChange={(vals) =>
+                  setPrecisionSettings((prev) => ({
+                    ...prev,
+                    xOffset: vals.xOffset,
+                    yOffset: vals.yOffset,
+                    vGap: vals.vGap,
+                    labelWidth: vals.labelWidth,
+                    labelHeight: vals.labelHeight,
+                    thermalCols: vals.thermalCols || 1,
+                  }))
+                }
+                presets={dbPresets}
+                onSavePreset={async (preset) => {
+                  if (!currentOrganization?.id) return;
+                  const { error } = await supabase
+                    .from("printer_presets")
+                    .upsert({
+                      id: preset.id || undefined,
+                      organization_id: currentOrganization.id,
+                      name: preset.name,
+                      label_width: preset.width,
+                      label_height: preset.height,
+                      x_offset: preset.xOffset,
+                      y_offset: preset.yOffset,
+                      v_gap: preset.vGap,
+                      a4_cols: preset.a4Cols ?? precisionSettings.a4Cols,
+                      a4_rows: preset.a4Rows ?? precisionSettings.a4Rows,
+                      print_mode: precisionSettings.printMode,
+                      label_config: preset.labelConfig as any,
+                    }, { onConflict: "organization_id,name" });
+                  if (error) {
+                    toast.error("Failed to save preset");
+                    return;
+                  }
+                  toast.success(`Preset "${preset.name}" saved`);
+                }}
+                onDeletePreset={async (presetId) => {
+                  const { error } = await supabase.from("printer_presets").delete().eq("id", presetId);
+                  if (error) {
+                    toast.error("Failed to delete preset");
+                    return;
+                  }
+                  toast.success("Preset deleted");
+                  setDbPresets((prev) => prev.filter((p) => p.id !== presetId));
+                }}
+                onSetDefault={handleSetDefaultPreset}
+                onSetTemplateDefault={handleSetTemplateDefault}
+                defaultTemplateName={dbPresets.find((p) => p.isDefault)?.name || null}
+                onLoadPreset={handlePrecisionPresetLoad}
+                labelConfig={effectivePrecisionLabelConfig}
+                savedTemplates={savedLabelTemplates}
+                sampleItem={labelItems.length > 0 ? { ...labelItems[0], businessName } : undefined}
+                activePresetValue={activePrecisionTemplateName}
+              />
+            </DialogContent>
+          </Dialog>
+        )}
+      </footer>
 
       <Dialog open={isPreviewDialogOpen} onOpenChange={setIsPreviewDialogOpen}>
         <DialogContent className="max-w-[95vw] max-h-[95vh] overflow-auto">

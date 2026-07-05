@@ -2989,6 +2989,28 @@ main.overflow-auto,
 .barcode-printing-page {
   width: 100%;
   max-width: none;
+  height: 100%;
+  min-height: 0;
+}
+
+.barcode-printing-page[data-entry-form] > main {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.barcode-print-footer {
+  flex-shrink: 0;
+  z-index: 40;
+}
+
+.barcode-print-tabs [role="tab"] {
+  font-size: 14px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.02em;
+}
+
+.barcode-print-tabs [role="tab"][data-state="active"] {
+  color: hsl(var(--primary));
 }
 
 .barcode-printing-page .barcode-products-table thead th {
@@ -3030,10 +3052,9 @@ main.overflow-auto,
   height: auto;
 }
 
-.barcode-printing-page [role="tab"] {
-  font-size: 12px;
-  font-weight: 600;
-  padding: 0.35rem 0.75rem;
+.barcode-printing-page .barcode-print-tabs[role="tablist"] {
+  background: transparent;
+  padding: 0;
 }
 
 .barcode-printing-page .border.rounded-md.p-3,
