@@ -24,7 +24,7 @@ import {
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import JsBarcode from "jsbarcode";
-import { Check, Save, Trash2, GripVertical, Eye, Download, RefreshCw, Edit, Printer, AlertTriangle, Plus, Home, Loader2, ChevronDown, LayoutList, Search } from "lucide-react";
+import { Check, Save, Trash2, GripVertical, Eye, Download, RefreshCw, Edit, Printer, AlertTriangle, Plus, Home, Loader2, ChevronDown, ChevronLeft, Search } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Badge } from "@/components/ui/badge";
 import jsPDF from "jspdf";
@@ -80,6 +80,8 @@ import {
 } from "@/utils/stockSettlementScans";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useProductFieldSettings } from "@/hooks/useSettings";
+import { useEntryViewportSync } from "@/hooks/useEntryViewportSync";
+import { entryPageShellClass } from "@/lib/entryPageLayout";
 import { LabelFieldConfig, LabelDesignConfig, LabelItem, LabelTemplate, FieldKey } from "@/types/labelTypes";
 import { PrecisionThermalPrint } from "@/components/precision-barcode/PrecisionThermalPrint";
 import { PrecisionA4SheetPrint } from "@/components/precision-barcode/PrecisionA4SheetPrint";
@@ -1176,6 +1178,7 @@ export default function BarcodePrinting() {
   const { currentOrganization } = useOrganization();
   const { user } = useAuth();
   const productFieldSettings = useProductFieldSettings();
+  useEntryViewportSync();
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [openSettlementScans, setOpenSettlementScans] = useState<Map<string, OpenSettlementScanInfo>>(
@@ -1190,6 +1193,8 @@ export default function BarcodePrinting() {
     return [];
   });
   const [labelSourceOpen, setLabelSourceOpen] = useState(false);
+  const [layoutStyleOpen, setLayoutStyleOpen] = useState(false);
+  const [precisionSettingsOpen, setPrecisionSettingsOpen] = useState(false);
   const [quantityMode, setQuantityMode] = useState<QuantityMode>("manual");
   const [sizeSortOrder, setSizeSortOrder] = useState<SizeSortOrder>("barcode_asc");
   const [billNumber, setBillNumber] = useState("");
@@ -4640,57 +4645,61 @@ export default function BarcodePrinting() {
         ? "Auto: last purchase"
         : "Auto: by bill";
 
+  const sheetLayoutSummary =
+    selectedPreset ||
+    sheetPresets[sheetType]?.label ||
+    sheetType.replace(/_/g, " ");
+
+  const handleBackNavigation = () => {
+    if (showPurchaseBillNav) void handleBackToPurchaseBill();
+    else orgNavigate("/");
+  };
+
   return (
-    <div className="barcode-printing-page min-h-[calc(100vh-2.5rem)] bg-slate-50 dark:bg-background p-2 md:p-3 flex flex-col gap-2 max-w-none">
-      {/* Dashboard header + toolbar */}
-      <div className="barcode-print-toolbar flex flex-wrap items-center gap-2 shrink-0">
-        <div className="flex items-center gap-2 min-w-0 flex-1">
-          <div className="rounded-md bg-primary/10 p-1.5 text-primary shrink-0">
-            <LayoutList className="h-5 w-5" />
-          </div>
-          <div className="min-w-0">
-            <h1 className="text-lg font-bold tracking-tight leading-tight">Barcode Printing</h1>
-            {labelItems.length > 0 && (
-              <p className="text-xs text-muted-foreground tabular-nums">
-                {labelItems.length} products · {totalLabelQty} labels
-              </p>
-            )}
-          </div>
-        </div>
-        <div className="flex items-center gap-1.5 flex-wrap shrink-0">
-          {showPurchaseBillNav ? (
-            <>
-              <BackToDashboard label="Purchase Dashboard" to="/purchase-bills" />
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-8 text-xs"
-                disabled={isNavigatingToPurchaseBill}
-                onClick={() => void handleBackToPurchaseBill()}
-              >
-                <Home className="h-3.5 w-3.5 mr-1" />
-                Purchase Bill
-              </Button>
-              <Button
-                variant="default"
-                size="sm"
-                className="h-8 text-xs gap-1"
-                disabled={isNavigatingToPurchaseBill}
-                onClick={() => void handleBackToPurchaseBill()}
-              >
-                {isNavigatingToPurchaseBill ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <Plus className="h-3.5 w-3.5" />
-                )}
-                Add Products
-              </Button>
-            </>
+    <div
+      className={cn(entryPageShellClass, "barcode-printing-page bg-slate-50 dark:bg-background flex flex-col min-h-0 h-full w-full max-w-none")}
+      data-entry-form
+    >
+      {/* Minimal header — back only */}
+      <header className="barcode-print-header shrink-0 flex items-center gap-2 px-2 py-1.5 border-b bg-background">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-8 gap-1 font-semibold shrink-0"
+          disabled={isNavigatingToPurchaseBill}
+          onClick={handleBackNavigation}
+        >
+          {isNavigatingToPurchaseBill ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
           ) : (
-            <BackToDashboard />
+            <ChevronLeft className="h-4 w-4" />
+          )}
+          Back
+        </Button>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-bold truncate">Barcode Printing</p>
+          {labelItems.length > 0 && (
+            <p className="text-[11px] text-muted-foreground tabular-nums truncate">
+              {labelItems.length} products · {totalLabelQty} labels
+            </p>
           )}
         </div>
-      </div>
+        {showPurchaseBillNav && (
+          <Button
+            variant="default"
+            size="sm"
+            className="h-8 text-xs gap-1 shrink-0"
+            disabled={isNavigatingToPurchaseBill}
+            onClick={() => void handleBackToPurchaseBill()}
+          >
+            <Plus className="h-3.5 w-3.5" />
+            Add Products
+          </Button>
+        )}
+      </header>
+
+      <main className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-2 flex flex-col gap-2">
 
       {/* Search Bar with Dropdown */}
       <div className="barcode-print-search shrink-0">
@@ -4880,7 +4889,7 @@ export default function BarcodePrinting() {
 
       {/* Results Table */}
       {labelItems.length > 0 && (
-        <div className="barcode-products-panel border rounded-md overflow-hidden shrink-0 max-h-[28vh] flex flex-col">
+        <div className="barcode-products-panel border rounded-md overflow-hidden shrink-0 max-h-[20vh] flex flex-col">
           <div className="bg-slate-900 text-white px-3 py-1.5 border-b flex items-center justify-between gap-2">
             <p className="text-xs font-semibold tabular-nums">
               Products: <span className="font-bold">{labelItems.length}</span>
@@ -4995,16 +5004,33 @@ export default function BarcodePrinting() {
         }}
         className="w-full flex-1 min-h-0 flex flex-col"
       >
-        <TabsList className="mb-1 h-9 shrink-0">
-          <TabsTrigger value="standard" className="text-xs px-3">Standard</TabsTrigger>
-          <TabsTrigger value="precision" className="text-xs px-3">Precision Pro</TabsTrigger>
-          <TabsTrigger value="designer" className="text-xs px-3">Label Designer</TabsTrigger>
+        <TabsList className="barcode-print-tabs mb-1 h-10 shrink-0 w-full justify-start rounded-lg bg-slate-200/80 dark:bg-muted p-1">
+          <TabsTrigger value="standard" className="text-sm font-bold px-4 py-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm">
+            Standard
+          </TabsTrigger>
+          <TabsTrigger value="precision" className="text-sm font-bold px-4 py-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm">
+            Precision Pro
+          </TabsTrigger>
+          <TabsTrigger value="designer" className="text-sm font-bold px-4 py-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm">
+            Label Designer
+          </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="standard" className="space-y-2 mt-0 flex-1 min-h-0 overflow-auto">
-      {/* Layout & Style Panel */}
-      <div className="border rounded-md p-3 space-y-2">
-        <h2 className="text-sm font-semibold">Layout & Style</h2>
+        <TabsContent value="standard" className="space-y-2 mt-0 flex-1 min-h-0">
+      <Collapsible open={layoutStyleOpen} onOpenChange={setLayoutStyleOpen}>
+        <div className="border rounded-md overflow-hidden bg-card">
+          <CollapsibleTrigger asChild>
+            <button
+              type="button"
+              className="barcode-label-source-trigger w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-muted/40 transition-colors"
+            >
+              <ChevronDown className={cn("h-4 w-4 shrink-0 text-muted-foreground transition-transform", layoutStyleOpen && "rotate-180")} />
+              <span className="text-sm font-bold">Layout &amp; Style</span>
+              <span className="text-xs text-muted-foreground truncate ml-auto">{sheetLayoutSummary}</span>
+            </button>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <div className="px-3 pb-3 pt-2 border-t space-y-2">
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">

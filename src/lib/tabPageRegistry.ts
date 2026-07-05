@@ -231,7 +231,7 @@ export const TAB_PAGE_REGISTRY: Record<string, TabPageDef> = {
     roles: ["admin", "manager"],
   },
   "delivery-dashboard": { loader: () => import("@/pages/DeliveryDashboard"), layout: "layout" },
-  "barcode-printing": { loader: () => import("@/pages/BarcodePrinting"), layout: "layout" },
+  "barcode-printing": { loader: () => import("@/pages/BarcodePrinting"), layout: "fullscreen" },
   settings: { loader: () => import("@/pages/Settings"), layout: "layout", roles: ["admin"] },
   "audit-log": {
     loader: () => import("@/pages/AuditLog"),
