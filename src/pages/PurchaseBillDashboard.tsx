@@ -1705,25 +1705,11 @@ const PurchaseBillDashboard = () => {
       accessorKey: "discount_amount",
       header: "Discount",
       cell: ({ row }) => {
-        const bill = row.original;
-        const disc = bill.discount_amount || 0;
-        const prAdjust = Number(bill.purchase_return_adjust || 0);
-        return (
-          <div className="flex flex-col items-end gap-0.5">
-            {disc > 0 ? (
-              <span className="text-right block tabular-nums text-base text-destructive">-₹{disc.toFixed(2)}</span>
-            ) : (
-              <span className="text-right block tabular-nums text-base text-muted-foreground/50">₹0.00</span>
-            )}
-            {prAdjust > 0 && (
-              <span className="text-xs text-amber-600 whitespace-nowrap tabular-nums leading-none">
-                +P/R: ₹{Math.round(prAdjust).toLocaleString("en-IN")}
-                {bill.pr_adjust_date
-                  ? ` · adj. ${format(new Date(bill.pr_adjust_date + "T12:00:00"), "dd/MM/yyyy")}`
-                  : ""}
-              </span>
-            )}
-          </div>
+        const disc = row.original.discount_amount || 0;
+        return disc > 0 ? (
+          <span className="text-right block tabular-nums text-base text-destructive">-₹{disc.toFixed(2)}</span>
+        ) : (
+          <span className="text-right block tabular-nums text-base text-muted-foreground/50">₹0.00</span>
         );
       },
       size: 90,
@@ -2222,7 +2208,10 @@ const PurchaseBillDashboard = () => {
             <DialogHeader>
               <DialogTitle>Record Payment</DialogTitle>
               <DialogDescription>
-                {selectedBillForPayment && `Record payment for ${selectedBillForPayment.software_bill_no} — ₹${Math.max(0, selectedBillForPayment.net_amount - (selectedBillForPayment.paid_amount||0)).toFixed(2)} pending`}
+                {selectedBillForPayment && (() => {
+                  const pending = getPurchaseBillPendingAmount(selectedBillForPayment);
+                  return `Record payment for ${selectedBillForPayment.software_bill_no} — ₹${pending.toFixed(2)} pending`;
+                })()}
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-3">
@@ -2986,12 +2975,22 @@ const PurchaseBillDashboard = () => {
                 </div>
                 <div>
                   <span className="text-muted-foreground">Paid Amount:</span>
-                  <p className="font-medium">₹{(selectedBillForPayment.paid_amount || 0).toFixed(2)}</p>
+                  <p className="font-medium">
+                    ₹{getEffectivePaidAmountForPurchaseBill(selectedBillForPayment).toFixed(2)}
+                  </p>
+                  {(selectedBillForPayment.purchase_return_adjust || 0) > 0 && (
+                    <p className="text-xs text-amber-600 tabular-nums">
+                      incl. P/R adj. ₹{Math.round(selectedBillForPayment.purchase_return_adjust || 0).toLocaleString("en-IN")}
+                      {selectedBillForPayment.pr_adjust_date
+                        ? ` · ${format(new Date(selectedBillForPayment.pr_adjust_date + "T12:00:00"), "dd/MM/yyyy")}`
+                        : ""}
+                    </p>
+                  )}
                 </div>
                 <div className="col-span-2">
                   <span className="text-muted-foreground">Remaining Amount:</span>
                   <p className="font-semibold text-lg text-primary">
-                    ₹{(selectedBillForPayment.net_amount - (selectedBillForPayment.paid_amount || 0)).toFixed(2)}
+                    ₹{getPurchaseBillPendingAmount(selectedBillForPayment).toFixed(2)}
                   </p>
                 </div>
               </div>
