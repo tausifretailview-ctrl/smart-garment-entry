@@ -1366,7 +1366,6 @@ export default function SaleOrderEntry() {
                 setFlatDiscountAmount(0);
                 setRoundOff(0);
                 setSearchInput("");
-                setPopoverSearchResults([]);
               }}
               className="h-8 text-black hover:bg-black/5 border border-black/20 text-xs gap-1 px-2.5 font-bold"
             >

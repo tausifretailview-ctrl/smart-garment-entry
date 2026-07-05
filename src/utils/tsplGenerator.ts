@@ -37,6 +37,7 @@ export interface TSPLBarcodeItem {
 export interface LabelData {
   productName?: string;
   brand?: string;
+  category?: string;
   businessName?: string;
   size?: string;
   color?: string;
