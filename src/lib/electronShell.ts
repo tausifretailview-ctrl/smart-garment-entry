@@ -5,6 +5,9 @@ type ElectronWindowApi = {
   reloadApp?: () => Promise<{ success?: boolean }>;
   checkForUpdates?: () => Promise<{ success?: boolean }>;
   openExternal?: (url: string) => Promise<void>;
+  windowMinimize?: () => Promise<{ success?: boolean }>;
+  windowToggleMaximize?: () => Promise<{ success?: boolean; maximized?: boolean }>;
+  windowClose?: () => Promise<{ success?: boolean }>;
 };
 
 /** True when running inside the EzzyERP Electron desktop shell. */
@@ -33,6 +36,18 @@ export function reloadElectronApp(): void {
  *   localStorage.ezzy_electron_single_tab = "1"
  * TabCachedPages still evicts idle tabs after 10 min with a safety floor.
  */
+export function electronWindowMinimize(): void {
+  void getElectronAPI()?.windowMinimize?.();
+}
+
+export function electronWindowToggleMaximize(): void {
+  void getElectronAPI()?.windowToggleMaximize?.();
+}
+
+export function electronWindowClose(): void {
+  void getElectronAPI()?.windowClose?.();
+}
+
 export function shouldElectronMountOnlyActiveTab(): boolean {
   if (!isElectronShell()) return false;
   try {

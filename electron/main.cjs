@@ -1180,6 +1180,26 @@ ipcMain.handle('reload-app', async () => {
   return { success: true };
 });
 
+ipcMain.handle('window-minimize', async () => {
+  const win = targetWindow();
+  if (win) win.minimize();
+  return { success: true };
+});
+
+ipcMain.handle('window-toggle-maximize', async () => {
+  const win = targetWindow();
+  if (!win) return { success: false };
+  if (win.isMaximized()) win.unmaximize();
+  else win.maximize();
+  return { success: true, maximized: win.isMaximized() };
+});
+
+ipcMain.handle('window-close', async () => {
+  const win = targetWindow();
+  if (win) win.close();
+  return { success: true };
+});
+
 ipcMain.handle('check-for-updates', async (_event, interactive = true) => {
   checkForUpdatesManually(!!interactive);
   return { success: true };

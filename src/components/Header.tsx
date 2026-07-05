@@ -1,10 +1,11 @@
-import { Bell, Menu, Search, ShoppingCart, Package, TrendingUp, Download, LayoutGrid, BoxIcon, ChevronDown, Plus, FileText, Banknote, RefreshCw, Scale, BarChart3, Truck } from "lucide-react";
+import { DesktopWindowControls } from "@/components/desktop/DesktopWindowControls";
+import { HeaderMenubar } from "@/components/desktop/HeaderMenubar";
+import { Menu, Search, ShoppingCart, Package, Download, LayoutGrid, BoxIcon, Plus, FileText, Banknote, RefreshCw, BarChart3, Settings } from "lucide-react";
 import { UIScaleSelector } from "@/components/UIScaleSelector";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useInstallPrompt } from "@/hooks/useInstallPrompt";
 import { Button } from "@/components/ui/button";
-import { OrganizationSelector } from "@/components/OrganizationSelector";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
@@ -29,15 +30,6 @@ import { isElectronShell } from "@/lib/electronShell";
 import { requestPosBarcodeFocus } from "@/utils/posSalesRefresh";
 import { useForceDesktopView } from "@/hooks/useDesktopViewPreference";
 import { useIsNarrowViewport } from "@/hooks/use-mobile";
-
-/** Row-2 shortcut buttons — solid fills, white label/icons */
-const shortcutBtn = (colorClass: string, extra?: string) =>
-  cn(
-    "h-7 text-xs font-semibold text-white border-0 shadow-sm gap-1.5",
-    "hover:brightness-110 active:scale-[0.98] transition-all",
-    colorClass,
-    extra,
-  );
 
 export const Header = () => {
   const { user, signOut } = useAuth();
@@ -190,329 +182,102 @@ export const Header = () => {
     }
   };
 
+  const fyStart = new Date().getMonth() >= 3 ? new Date().getFullYear() : new Date().getFullYear() - 1;
+  const fyLabel = `FY ${fyStart}-${String(fyStart + 1).slice(-2)}`;
+
   return (
     <>
-      {/* ROW 1: Title bar */}
+      {/* ROW 1: Title bar + menu (30px navy chrome) */}
       <div
         className={cn(
-          "sticky top-0 z-50 flex h-9 items-center px-3 gap-3 bg-[#1e40af] text-white border-t border-white border-b border-[#1b3a97] shadow-sm",
+          "erp-titlebar sticky top-0",
           forceDesktopView && isNarrowViewport && "safe-area-pt",
         )}
       >
-        {/* Desktop sidebar toggle — shown when menu is collapsed for full-width content */}
         {(useSheetSidebar ? !openMobile : !sidebarOpen) && (
           <SidebarTrigger
             className={cn(
-              "h-7 w-7 text-white hover:text-white hover:bg-white/10 shrink-0",
+              "erp-no-drag h-6 w-6 text-[var(--erp-chrome-ink)] hover:text-white hover:bg-white/10 shrink-0",
               useSheetSidebar || forceDesktopView ? "flex" : "hidden lg:flex",
             )}
           />
         )}
 
-        {/* Mobile quick menu — hidden when user opted into full desktop view on phone */}
-        {!forceDesktopView && (
-        <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
-          <SheetTrigger asChild className="lg:hidden">
-            <Button variant="ghost" size="icon" className="h-7 w-7 text-white hover:text-white hover:bg-white/10">
-              <Menu className="h-4 w-4" />
-            </Button>
-          </SheetTrigger>
-          <SheetContent side="left" className="w-[300px] bg-sidebar text-sidebar-foreground border-sidebar-border">
-            <nav className="flex flex-col gap-2 mt-8">
-              {quickActions.map((action) => (
-                <Button key={action.label} variant="ghost"
-                  className="justify-start text-sidebar-foreground hover:bg-sidebar-accent"
-                  onClick={() => { handleQuickAction(action); setMobileMenuOpen(false); }}>
-                  <action.icon className="h-4 w-4 mr-2" />{action.label}
-                </Button>
-              ))}
-            </nav>
-          </SheetContent>
-        </Sheet>
-        )}
-
-        {/* Logo + App name */}
-        <button onClick={goHome} className="flex items-center gap-2 flex-shrink-0">
-          <div className="w-6 h-6 bg-primary rounded flex items-center justify-center flex-shrink-0">
-            <span className="text-white font-bold text-[11px]">E</span>
-          </div>
-            <span className="hidden sm:flex items-center gap-1.5">
-            <span className="text-sm font-bold text-white">EzzyERP</span>
-            <span className="text-white/45 text-sm">—</span>
-            <span className="text-xs text-white/85 hidden md:block">Smart Inventory & Billing</span>
-          </span>
+        <button type="button" onClick={goHome} className="erp-brand erp-no-drag">
+          <span className="erp-brand__logo">E</span>
+          <span className="hidden sm:inline text-white">Ezzy ERP</span>
         </button>
 
-        {/* Classic menu bar — desktop only; hide each menu when user has no rights for any item */}
-        <nav className="hidden lg:flex items-center gap-0 ml-1">
-          {(can("pos_sales") || can("sales_invoice") || can("purchase_bill") || can("quotation_entry") || can("product_entry") || can("settings_view")) && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button className="text-[14px] font-semibold text-white hover:bg-white/10 px-2.5 py-1.5 rounded transition-colors focus:outline-none">
-                  File
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-52 text-sm">
-                {can("pos_sales") && (
-                  <DropdownMenuItem onClick={openPosSales} className="cursor-pointer">
-                    <ShoppingCart className="h-3.5 w-3.5 mr-2 opacity-60" /> New POS Sale
-                  </DropdownMenuItem>
-                )}
-                {can("sales_invoice") && (
-                  <DropdownMenuItem onClick={() => orgNavigate("/sales-invoice")} className="cursor-pointer">
-                    <Plus className="h-3.5 w-3.5 mr-2 opacity-60" /> New Invoice
-                  </DropdownMenuItem>
-                )}
-                {can("purchase_bill") && (
-                  <DropdownMenuItem onClick={() => orgNavigate("/purchase-entry", { state: { newBill: true } })} className="cursor-pointer">
-                    <Package className="h-3.5 w-3.5 mr-2 opacity-60" /> New Purchase
-                  </DropdownMenuItem>
-                )}
-                {can("quotation_entry") && (
-                  <DropdownMenuItem onClick={() => orgNavigate("/quotation-entry")} className="cursor-pointer">
-                    <TrendingUp className="h-3.5 w-3.5 mr-2 opacity-60" /> New Quotation
-                  </DropdownMenuItem>
-                )}
-                {can("product_entry") && (
-                  <DropdownMenuItem onClick={() => orgNavigate("/product-entry")} className="cursor-pointer">
-                    <BoxIcon className="h-3.5 w-3.5 mr-2 opacity-60" /> New Product
-                  </DropdownMenuItem>
-                )}
-                {can("settings_view") && (
-                  <>
-                    {(can("pos_sales") || can("sales_invoice") || can("purchase_bill") || can("quotation_entry") || can("product_entry")) && (
-                      <DropdownMenuSeparator />
-                    )}
-                    <DropdownMenuItem onClick={() => orgNavigate("/settings")} className="cursor-pointer">
-                      Settings
-                    </DropdownMenuItem>
-                  </>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
-
-          {(can("main_dashboard") || can("pos_dashboard") || can("sales_invoice_dashboard") || can("purchase_dashboard") || can("delivery_dashboard") || can("payments_dashboard") || can("accounts_dashboard") || can("customer_ledger")) && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button className="text-[14px] font-semibold text-white hover:bg-white/10 px-2.5 py-1.5 rounded transition-colors focus:outline-none">
-                  View
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-52 text-sm">
-                {can("main_dashboard") && (
-                  <DropdownMenuItem onClick={() => orgNavigate("/")} className="cursor-pointer">
-                    <LayoutGrid className="h-3.5 w-3.5 mr-2 opacity-60" /> Dashboard
-                  </DropdownMenuItem>
-                )}
-                {can("pos_dashboard") && (
-                  <DropdownMenuItem onClick={() => orgNavigate("/pos-dashboard")} className="cursor-pointer">
-                    <ShoppingCart className="h-3.5 w-3.5 mr-2 opacity-60" /> POS Dashboard
-                  </DropdownMenuItem>
-                )}
-                {can("sales_invoice_dashboard") && (
-                  <DropdownMenuItem onClick={() => orgNavigate("/sales-invoice-dashboard")} className="cursor-pointer">
-                    <TrendingUp className="h-3.5 w-3.5 mr-2 opacity-60" /> Invoice Dashboard
-                  </DropdownMenuItem>
-                )}
-                {can("purchase_dashboard") && (
-                  <DropdownMenuItem onClick={() => orgNavigate("/purchase-bills")} className="cursor-pointer">
-                    <Package className="h-3.5 w-3.5 mr-2 opacity-60" /> Purchase Dashboard
-                  </DropdownMenuItem>
-                )}
-                {(can("delivery_dashboard") || can("payments_dashboard")) && (
-                  <>
-                    <DropdownMenuSeparator />
-                    {can("delivery_dashboard") && (
-                      <DropdownMenuItem onClick={() => orgNavigate("/delivery-dashboard")} className="cursor-pointer">
-                        Delivery Dashboard
-                      </DropdownMenuItem>
-                    )}
-                    {can("payments_dashboard") && (
-                      <DropdownMenuItem onClick={() => orgNavigate("/payments-dashboard")} className="cursor-pointer">
-                        Payments Dashboard
-                      </DropdownMenuItem>
-                    )}
-                  </>
-                )}
-                {(can("accounts_dashboard") || can("customer_ledger")) && (
-                  <>
-                    <DropdownMenuSeparator />
-                    {can("accounts_dashboard") && (
-                      <DropdownMenuItem onClick={() => orgNavigate("/accounts")} className="cursor-pointer">
-                        Accounts & Ledger
-                      </DropdownMenuItem>
-                    )}
-                    {can("customer_ledger") && (
-                      <DropdownMenuItem onClick={() => orgNavigate("/customer-ledger-report")} className="cursor-pointer">
-                        Customer Ledger
-                      </DropdownMenuItem>
-                    )}
-                  </>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
-
-          {(can("barcode_printing") || can("stock_adjustment") || can("stock_settlement") || can("bulk_product_update") || can("tally_export") || can("recycle_bin") || can("user_rights") || hasSpecialPermission("audit_logs") || can("whatsapp_inbox")) && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button className="text-[14px] font-semibold text-white hover:bg-white/10 px-2.5 py-1.5 rounded transition-colors focus:outline-none">
-                  Tools
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-56 text-sm">
-                {can("barcode_printing") && (
-                  <DropdownMenuItem onClick={() => orgNavigate("/barcode-printing")} className="cursor-pointer">
-                    <BoxIcon className="h-3.5 w-3.5 mr-2 opacity-60" /> Barcode Printing
-                  </DropdownMenuItem>
-                )}
-                {can("stock_adjustment") && (
-                  <DropdownMenuItem onClick={() => orgNavigate("/stock-adjustment")} className="cursor-pointer">
-                    <Package className="h-3.5 w-3.5 mr-2 opacity-60" /> Stock Adjustment
-                  </DropdownMenuItem>
-                )}
-                {can("stock_settlement") && (
-                  <DropdownMenuItem onClick={() => orgNavigate("/stock-settlement")} className="cursor-pointer">
-                    Stock Settlement
-                  </DropdownMenuItem>
-                )}
-                {(can("bulk_product_update") || can("tally_export")) && (
-                  <>
-                    <DropdownMenuSeparator />
-                    {can("bulk_product_update") && (
-                      <DropdownMenuItem onClick={() => orgNavigate("/bulk-product-update")} className="cursor-pointer">
-                        Bulk Product Update
-                      </DropdownMenuItem>
-                    )}
-                    {can("tally_export") && (
-                      <DropdownMenuItem onClick={() => orgNavigate("/tally-export")} className="cursor-pointer">
-                        Tally Export
-                      </DropdownMenuItem>
-                    )}
-                  </>
-                )}
-                {(can("recycle_bin") || can("user_rights") || hasSpecialPermission("audit_logs")) && (
-                  <>
-                    <DropdownMenuSeparator />
-                    {can("recycle_bin") && (
-                      <DropdownMenuItem onClick={() => orgNavigate("/recycle-bin")} className="cursor-pointer">
-                        Recycle Bin
-                      </DropdownMenuItem>
-                    )}
-                    {can("user_rights") && (
-                      <DropdownMenuItem onClick={() => orgNavigate("/user-rights")} className="cursor-pointer">
-                        User Rights
-                      </DropdownMenuItem>
-                    )}
-                    {hasSpecialPermission("audit_logs") && (
-                      <DropdownMenuItem onClick={() => orgNavigate("/audit-log")} className="cursor-pointer">
-                        Audit Log
-                      </DropdownMenuItem>
-                    )}
-                  </>
-                )}
-                {can("whatsapp_inbox") && (
-                  <>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={() => orgNavigate("/whatsapp-inbox", { state: { openUnread: true } })} className="cursor-pointer">
-                      WhatsApp Inbox
-                    </DropdownMenuItem>
-                  </>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
-
-          {canAccessReportsHub && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button className="text-[14px] font-semibold text-white hover:bg-white/10 px-2.5 py-1.5 rounded transition-colors focus:outline-none">
-                  Reports
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-56 text-sm">
-                <DropdownMenuItem onClick={() => orgNavigate("/reports")} className="cursor-pointer">
-                  <BarChart3 className="h-3.5 w-3.5 mr-2 opacity-60" /> Reports Hub
-                </DropdownMenuItem>
-                {can("customer_ledger") && (
-                  <>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={() => orgNavigate("/customer-party-balances")} className="cursor-pointer">
-                      <Scale className="h-3.5 w-3.5 mr-2 opacity-60" /> Customer Balances
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => orgNavigate("/customer-ledger-report")} className="cursor-pointer">
-                      <FileText className="h-3.5 w-3.5 mr-2 opacity-60" /> Customer Ledger
-                    </DropdownMenuItem>
-                  </>
-                )}
-                {(can("accounts_dashboard") || can("purchase_dashboard")) && (
-                  <DropdownMenuItem onClick={() => orgNavigate("/supplier-party-balances")} className="cursor-pointer">
-                    <Truck className="h-3.5 w-3.5 mr-2 opacity-60" /> Supplier Balances
-                  </DropdownMenuItem>
-                )}
-                {can("stock_report") && (
-                  <DropdownMenuItem onClick={() => orgNavigate("/stock-report")} className="cursor-pointer">
-                    <Package className="h-3.5 w-3.5 mr-2 opacity-60" /> Stock Report
-                  </DropdownMenuItem>
-                )}
-                {can("sales_invoice_dashboard") && (
-                  <DropdownMenuItem onClick={() => orgNavigate("/sales-invoice-dashboard")} className="cursor-pointer">
-                    <TrendingUp className="h-3.5 w-3.5 mr-2 opacity-60" /> Sales Dashboard
-                  </DropdownMenuItem>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
-
-          {can("settings_view") && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button className="text-[14px] font-semibold text-white hover:bg-white/10 px-2.5 py-1.5 rounded transition-colors focus:outline-none">
-                  Help
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-52 text-sm">
-                <DropdownMenuItem onClick={() => orgNavigate("/settings")} className="cursor-pointer">
-                  App Settings
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onClick={() => window.open("https://wa.me/your-support-number", "_blank")}
-                  className="cursor-pointer"
-                >
-                  WhatsApp Support
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => {
-                    toast("About EzzyERP", { description: "EzzyERP v2.0 · Smart Inventory & Billing" });
-                  }}
-                  className="cursor-pointer"
-                >
-                  About EzzyERP
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
-        </nav>
-
-        {/* Search bar — grows to fill space */}
-        <div className="hidden md:flex flex-1 max-w-xs mx-auto">
-          <div className="flex items-center w-full h-7 rounded border border-slate-200/95 bg-white px-2.5 gap-2 shadow-sm cursor-pointer hover:border-slate-300 transition-colors">
-            <Search className="h-3.5 w-3.5 flex-shrink-0 text-slate-600" />
-            <span className="flex-1 text-[12px] text-slate-600">Search... (Ctrl+K)</span>
-            <ChevronDown className="h-3 w-3 flex-shrink-0 text-slate-500" />
-          </div>
+        {/* Desktop menu bar */}
+        <div className="hidden lg:flex erp-no-drag min-w-0">
+          <HeaderMenubar
+            can={can}
+            canAccessReportsHub={canAccessReportsHub}
+            canQuickSaleLookup={canQuickSaleLookup}
+            hasSpecialPermission={hasSpecialPermission}
+            orgNavigate={orgNavigate}
+            openPosSales={openPosSales}
+            onRefresh={handleManualReload}
+          />
         </div>
 
-        <div className="flex-1 hidden md:block" />
+        {/* Mobile / narrow: collapsed menu */}
+        {!forceDesktopView && (
+          <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+            <SheetTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="erp-no-drag lg:hidden h-6 px-2 text-[var(--erp-chrome-ink)] hover:text-white hover:bg-white/10 text-xs"
+              >
+                <Menu className="h-3.5 w-3.5 mr-1" />
+                Menu
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="left" className="w-[300px] bg-sidebar text-sidebar-foreground border-sidebar-border">
+              <nav className="flex flex-col gap-2 mt-8">
+                {quickActions.map((action) => (
+                  <Button
+                    key={action.label}
+                    variant="ghost"
+                    className="justify-start text-sidebar-foreground hover:bg-sidebar-accent"
+                    onClick={() => {
+                      handleQuickAction(action);
+                      setMobileMenuOpen(false);
+                    }}
+                  >
+                    <action.icon className="h-4 w-4 mr-2" />
+                    {action.label}
+                  </Button>
+                ))}
+                <Button
+                  variant="ghost"
+                  className="justify-start"
+                  onClick={() => {
+                    orgNavigate("/settings");
+                    setMobileMenuOpen(false);
+                  }}
+                >
+                  <Settings className="h-4 w-4 mr-2" />
+                  Settings
+                </Button>
+              </nav>
+            </SheetContent>
+          </Sheet>
+        )}
 
-        {/* Right icons */}
-        <div className="flex items-center gap-1">
+        <div className="flex-1 min-w-2" />
+
+        <span className="erp-titlebar-meta hidden md:inline truncate max-w-[180px]">
+          {currentOrganization?.name || ""}
+          {currentOrganization?.name ? ` · ${fyLabel}` : fyLabel}
+        </span>
+
+        <div className="erp-no-drag flex items-center gap-0.5">
           {!isInstalled && (isInstallable || /iPad|iPhone|iPod/.test(navigator.userAgent)) && (
             <Button
               variant="ghost"
-              size="sm"
+              size="icon"
               onClick={async () => {
                 if (isInstallable) {
                   const ok = await promptInstall();
@@ -523,203 +288,141 @@ export const Header = () => {
                   });
                 }
               }}
-              className="h-7 px-2 gap-1.5 text-white/90 hover:text-white hover:bg-white/10"
+              className="h-6 w-6 text-[var(--erp-chrome-ink-dim)] hover:text-white hover:bg-white/10 hidden sm:flex"
               title="Install EzzyERP App"
             >
               <Download className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline text-[11px] font-medium">Install App</span>
             </Button>
           )}
           <Button
             variant="ghost"
             size="icon"
-            className="h-7 w-7 text-white/90 hover:text-white hover:bg-white/10"
+            className="h-6 w-6 text-[var(--erp-chrome-ink-dim)] hover:text-white hover:bg-white/10"
             title={isDesktopApp ? "Refresh app (F5)" : "Refresh app"}
             onClick={handleManualReload}
           >
             <RefreshCw className="h-3.5 w-3.5" />
           </Button>
-          <UIScaleSelector triggerClassName="h-7 w-7 text-white/90 hover:text-white hover:bg-white/10 hidden md:flex" />
-          <Button variant="ghost" size="icon" className="h-7 w-7 text-white/90 hover:text-white hover:bg-white/10 hidden md:flex">
-            <Bell className="h-3.5 w-3.5" />
-          </Button>
-          <Button variant="ghost" size="icon" className="h-7 w-7 text-white/90 hover:text-white hover:bg-white/10 hidden md:flex">
-            <LayoutGrid className="h-3.5 w-3.5" />
-          </Button>
+          <UIScaleSelector triggerClassName="h-6 w-6 text-[var(--erp-chrome-ink-dim)] hover:text-white hover:bg-white/10 hidden md:flex" />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="rounded-full hover:bg-white/10 h-7 w-7 text-white/90 hover:text-white">
-                <Avatar className="h-6 w-6">
-                  <AvatarFallback className="bg-primary text-primary-foreground text-[10px] font-bold">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="erp-no-drag rounded-full hover:bg-white/10 h-6 w-6 text-[var(--erp-chrome-ink-dim)] hover:text-white"
+              >
+                <Avatar className="h-5 w-5">
+                  <AvatarFallback className="bg-[var(--erp-accent)] text-white text-[9px] font-bold">
                     {initials}
                   </AvatarFallback>
                 </Avatar>
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-52">
-              <div className="px-2 py-1.5"><p className="text-xs text-muted-foreground">{user?.email}</p></div>
+              <div className="px-2 py-1.5">
+                <p className="text-xs text-muted-foreground">{user?.email}</p>
+              </div>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => orgNavigate("/settings")} className="cursor-pointer text-sm">App Settings</DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={handleManualReload}
-                className="cursor-pointer text-sm"
-              >
+              <DropdownMenuItem onClick={() => orgNavigate("/settings")} className="cursor-pointer text-sm">
+                App Settings
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleManualReload} className="cursor-pointer text-sm">
                 <RefreshCw className="h-3.5 w-3.5 mr-2 opacity-60" />
                 Refresh App
-                {isDesktopApp && (
-                  <span className="ml-auto text-[10px] text-muted-foreground">F5</span>
-                )}
+                {isDesktopApp && <span className="ml-auto text-[10px] text-muted-foreground">F5</span>}
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={handleSignOut} className="text-destructive cursor-pointer text-sm">Sign Out</DropdownMenuItem>
+              <DropdownMenuItem onClick={handleSignOut} className="text-destructive cursor-pointer text-sm">
+                Sign Out
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+          <DesktopWindowControls />
         </div>
       </div>
 
-      {/* ROW 2: Action toolbar — hidden in Electron (native menu + blue bar = web-style single header). */}
-      {!isDesktopApp && (
-      <div className="sticky top-9 z-50 hidden lg:flex min-h-10 items-center px-3 py-1.5 gap-2 flex-nowrap overflow-x-auto bg-slate-100 dark:bg-slate-900/90 border-b border-border/80 shadow-sm">
-        <div className="flex items-center gap-x-2 flex-1 min-w-0 flex-nowrap overflow-x-auto">
-        {can("pos_sales") && (
-          <div className="flex items-center">
-            <Button
-              variant="ghost"
-              onClick={openPosSales}
-              className={shortcutBtn("bg-blue-600 hover:bg-blue-700", "px-3 rounded-r-none border-r border-white/25")}
+      {/* ROW 2: Quick-action toolbar (mockup ribbon) */}
+      <div className="erp-toolbar sticky top-[30px] hidden lg:flex overflow-x-auto">
+        <div className="flex items-center gap-1.5 flex-1 min-w-0 flex-nowrap">
+          {can("sales_invoice") && (
+            <button
+              type="button"
+              className="erp-tbtn erp-tbtn--primary"
+              onClick={() => orgNavigate("/sales-invoice")}
             >
-              <Plus className="h-3.5 w-3.5" />
-              New Sale
-            </Button>
-            <Button variant="ghost" className={shortcutBtn("bg-blue-600 hover:bg-blue-700", "px-1.5 rounded-l-none")}>
-              <ChevronDown className="h-3.5 w-3.5" />
-            </Button>
-          </div>
-        )}
-
-        {can("purchase_bill") && (
-          <div className="flex items-center">
-            <Button
-              variant="ghost"
+              <Plus className="erp-tbtn__icon" />
+              New Invoice
+            </button>
+          )}
+          {can("purchase_bill") && (
+            <button
+              type="button"
+              className="erp-tbtn"
               onClick={() => orgNavigate("/purchase-entry", { state: { newBill: true } })}
-              className={shortcutBtn("bg-emerald-600 hover:bg-emerald-700", "px-2.5")}
             >
-              <ShoppingCart className="h-3.5 w-3.5" />
+              <Package className="erp-tbtn__icon" />
               Purchase
-            </Button>
-          </div>
-        )}
-
-        {can("stock_report") && (
-          <div className="flex items-center">
-            <Button
-              variant="ghost"
-              onClick={() => orgNavigate("/stock-report")}
-              className={shortcutBtn("bg-cyan-600 hover:bg-cyan-700", "px-2.5 rounded-r-none border-r border-white/25")}
-            >
-              <Package className="h-3.5 w-3.5" />
+            </button>
+          )}
+          {can("stock_report") && (
+            <button type="button" className="erp-tbtn" onClick={() => orgNavigate("/stock-report")}>
+              <LayoutGrid className="erp-tbtn__icon" />
               Stock
-            </Button>
-            <Button variant="ghost" className={shortcutBtn("bg-cyan-600 hover:bg-cyan-700", "px-1 rounded-l-none")}>
-              <ChevronDown className="h-3 w-3" />
-            </Button>
-          </div>
-        )}
-
-        {can("daily_cashier_report") && (
-          <div className="flex items-center">
-            <Button
-              variant="ghost"
-              onClick={() => orgNavigate("/daily-cashier-report")}
-              className={shortcutBtn("bg-amber-600 hover:bg-amber-700", "px-2.5")}
-            >
-              <TrendingUp className="h-3.5 w-3.5" />
-              Cashier
-            </Button>
-          </div>
-        )}
-
-        {can("stock_report") && (
-          <div className="w-px h-5 bg-border/60 mx-0.5" />
-        )}
-        {can("stock_report") && (
-          <>
-            <Button
-              variant="ghost"
-              onClick={() => setQuickStockOpen(true)}
-              className={shortcutBtn("bg-violet-600 hover:bg-violet-700", "px-2.5")}
-            >
-              <BoxIcon className="h-3.5 w-3.5" />
-              Quick Stock
-            </Button>
-            <Button
-              variant="ghost"
-              onClick={() => setSizeStockOpen(true)}
-              className={shortcutBtn("bg-indigo-600 hover:bg-indigo-700", "px-2.5")}
-            >
-              <LayoutGrid className="h-3.5 w-3.5" />
-              Size Stock
-            </Button>
-          </>
-        )}
-        {canQuickSaleLookup && (
-          <Button
-            variant="ghost"
-            onClick={() => setQuickSaleOpen(true)}
-            className={shortcutBtn("bg-orange-600 hover:bg-orange-700", "px-2.5")}
-          >
-            <FileText className="h-3.5 w-3.5" />
-            Quick Sale
-          </Button>
-        )}
-        {canQuickPayments && (
-          <Button
-            variant="ghost"
-            onClick={() => orgNavigate("/accounts-payments")}
-            className={shortcutBtn("bg-teal-600 hover:bg-teal-700", "px-2.5")}
-            title="Customer & supplier payments, expenses, salaries"
-          >
-            <Banknote className="h-3.5 w-3.5" />
-            Payment
-          </Button>
-        )}
-        {can("customer_ledger") && (
-          <Button
-            variant="ghost"
-            onClick={() => orgNavigate("/customer-party-balances")}
-            className={shortcutBtn("bg-rose-600 hover:bg-rose-700", "px-2.5")}
-            title="Tally-style customer Dr/Cr balances"
-          >
-            <Scale className="h-3.5 w-3.5" />
-            Customer Balance
-          </Button>
-        )}
-        {(can("accounts_dashboard") || can("purchase_dashboard")) && (
-          <Button
-            variant="ghost"
-            onClick={() => orgNavigate("/supplier-party-balances")}
-            className={shortcutBtn("bg-amber-600 hover:bg-amber-700", "px-2.5")}
-            title="Tally-style supplier payables Dr/Cr"
-          >
-            <Truck className="h-3.5 w-3.5" />
-            Supplier Balance
-          </Button>
-        )}
+            </button>
+          )}
+          {(can("sales_invoice") || can("purchase_bill") || can("stock_report")) && canAccessReportsHub && (
+            <div className="erp-toolbar-sep" />
+          )}
+          {canAccessReportsHub && (
+            <button type="button" className="erp-tbtn" onClick={() => orgNavigate("/reports")}>
+              <BarChart3 className="erp-tbtn__icon" />
+              Reports
+            </button>
+          )}
+          {can("settings_view") && (
+            <button type="button" className="erp-tbtn" onClick={() => orgNavigate("/settings")}>
+              <Settings className="erp-tbtn__icon" />
+              Settings
+            </button>
+          )}
+          {/* Secondary quick actions — compact, after primary mockup row */}
+          {can("pos_sales") && (
+            <button type="button" className="erp-tbtn ml-1" onClick={openPosSales}>
+              <ShoppingCart className="erp-tbtn__icon" />
+              POS
+            </button>
+          )}
+          {can("stock_report") && (
+            <>
+              <button type="button" className="erp-tbtn" onClick={() => setQuickStockOpen(true)}>
+                <BoxIcon className="erp-tbtn__icon" />
+                Quick Stock
+              </button>
+              <button type="button" className="erp-tbtn" onClick={() => setSizeStockOpen(true)}>
+                <LayoutGrid className="erp-tbtn__icon" />
+                Size Stock
+              </button>
+            </>
+          )}
+          {canQuickPayments && (
+            <button type="button" className="erp-tbtn" onClick={() => orgNavigate("/accounts-payments")}>
+              <Banknote className="erp-tbtn__icon" />
+              Payment
+            </button>
+          )}
         </div>
 
-        <div className="flex items-center gap-2 shrink-0 flex-nowrap ml-auto">
-        {/* Organization name */}
-        <span className="text-xs font-semibold text-sidebar-foreground/80 truncate max-w-[150px]" title={currentOrganization?.name || ""}>
-          {currentOrganization?.name || ""}
-        </span>
-        <div className="w-px h-4 bg-sidebar-border shrink-0" />
-
-        <span className="text-xs text-sidebar-foreground/50 tabular-nums whitespace-nowrap">
-          {new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: false })}
-        </span>
+        <div
+          className="erp-toolbar-search erp-no-drag shrink-0 cursor-text"
+          onClick={() => toast("Search", { description: "Global search (Ctrl+K) — use sidebar or menu to navigate." })}
+          onKeyDown={() => {}}
+          role="search"
+        >
+          <Search className="h-3.5 w-3.5 shrink-0" />
+          <span className="flex-1 truncate text-[var(--erp-ink-3)]">Search customer, product, invoice…</span>
+          <span className="erp-kbd">Ctrl K</span>
         </div>
       </div>
-      )}
 
       {/* Dialogs */}
       <SizeStockDialog open={sizeStockOpen} onOpenChange={setSizeStockOpen} />

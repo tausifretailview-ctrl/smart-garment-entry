@@ -68,6 +68,26 @@ All colors MUST be HSL.
     /* Windows-style radius */
     --radius: 0.375rem;
 
+    /* Desktop chrome layer (premium Windows ERP shell — mockup tokens) */
+    --erp-chrome: #10243f;
+    --erp-chrome-2: #0b1c31;
+    --erp-chrome-ink: #cdd9ea;
+    --erp-chrome-ink-dim: #7f93ad;
+    --erp-accent: #2f6bff;
+    --erp-accent-soft: #e8effe;
+    --erp-line: #dde3ea;
+    --erp-ink: #1b2430;
+    --erp-ink-2: #5b6675;
+    --erp-ink-3: #8a95a5;
+    --erp-panel: #ffffff;
+    --erp-panel-2: #f7f9fb;
+    --erp-bg: #eef1f5;
+    --erp-bad-soft: #fbe9e9;
+    --erp-bad: #dc2626;
+    --erp-row-h: 34px;
+    --erp-ctrl-h: 32px;
+    --erp-sidebar-width: 216px;
+
     /* Clean minimal shadows - Elevation System */
     --gradient-primary: none;
     --gradient-accent: none;
@@ -562,8 +582,8 @@ All colors MUST be HSL.
     @apply flex items-center justify-between px-4 text-[11px] z-50 gap-3;
     height: var(--erp-status-bar-height);
     min-height: var(--erp-status-bar-height);
-    background: hsl(var(--primary));
-    color: hsl(var(--primary-foreground));
+    background: var(--erp-chrome);
+    color: var(--erp-chrome-ink-dim);
   }
 
   /* In main content column — aligns with page body, not under sidebar */
@@ -585,7 +605,8 @@ All colors MUST be HSL.
   }
 
   .erp-status-bar__sep {
-    @apply mx-0.5 h-3 w-px shrink-0 bg-primary-foreground/20;
+    @apply mx-0.5 h-3 w-px shrink-0;
+    background: rgba(255, 255, 255, 0.08);
   }
 
   /* Bill entry footers (Save Invoice / Save Bill) — full width at viewport bottom */
@@ -665,11 +686,391 @@ All colors MUST be HSL.
   }
 
   .erp-status-bar .status-item {
-    @apply flex items-center gap-1 opacity-90;
+    @apply flex items-center gap-1;
+    color: var(--erp-chrome-ink-dim);
+  }
+
+  .erp-status-bar .status-item b,
+  .erp-status-bar .status-item strong {
+    color: var(--erp-chrome-ink);
+    font-weight: 600;
   }
 
   .erp-status-bar .status-dot {
-    @apply w-1.5 h-1.5 rounded-full bg-emerald-300;
+    @apply w-1.5 h-1.5 rounded-full;
+    background: #34d399;
+    box-shadow: 0 0 5px #34d399;
+  }
+
+  /* Tabular numbers utility */
+  .num {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
+  }
+
+  /* ── Desktop app chrome (title bar + toolbar + sidebar) ── */
+  .erp-titlebar {
+    height: 30px;
+    min-height: 30px;
+    background: var(--erp-chrome);
+    color: var(--erp-chrome-ink);
+    border-bottom: 1px solid var(--erp-chrome-2);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0 8px 0 10px;
+    font-size: 12px;
+    user-select: none;
+    flex-shrink: 0;
+    z-index: 50;
+  }
+
+  html.desktop-shell .erp-titlebar {
+    -webkit-app-region: drag;
+  }
+
+  .erp-titlebar .erp-no-drag,
+  .erp-titlebar .erp-menubar,
+  .erp-titlebar button,
+  .erp-titlebar a,
+  .erp-win-controls {
+    -webkit-app-region: no-drag;
+  }
+
+  .erp-brand {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-weight: 600;
+    color: #fff;
+    flex-shrink: 0;
+  }
+
+  .erp-brand__logo {
+    width: 16px;
+    height: 16px;
+    border-radius: 4px;
+    background: linear-gradient(135deg, #4b8bff, var(--erp-accent));
+    display: grid;
+    place-items: center;
+    font-size: 10px;
+    color: #fff;
+    font-weight: 700;
+  }
+
+  .erp-menubar-trigger {
+    height: auto !important;
+    padding: 4px 9px !important;
+    font-size: 12px !important;
+    font-weight: 500 !important;
+    color: var(--erp-chrome-ink) !important;
+    border-radius: 4px !important;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+  }
+
+  .erp-menubar-trigger:hover,
+  .erp-menubar-trigger[data-state="open"] {
+    background: rgba(255, 255, 255, 0.09) !important;
+    color: #fff !important;
+  }
+
+  .erp-menubar-trigger:focus-visible {
+    outline: 2px solid var(--erp-accent);
+    outline-offset: 1px;
+  }
+
+  .erp-titlebar-meta {
+    font-size: 11px;
+    color: var(--erp-chrome-ink-dim);
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .erp-win-control {
+    width: 34px;
+    height: 30px;
+    display: grid;
+    place-items: center;
+    color: var(--erp-chrome-ink-dim);
+    font-size: 11px;
+    border: none;
+    background: transparent;
+    cursor: default;
+  }
+
+  .erp-win-control:hover {
+    background: rgba(255, 255, 255, 0.09);
+    color: #fff;
+  }
+
+  .erp-win-control--close:hover {
+    background: #e5484d;
+    color: #fff;
+  }
+
+  .erp-toolbar {
+    height: 44px;
+    min-height: 44px;
+    background: var(--erp-panel);
+    border-bottom: 1px solid var(--erp-line);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 10px;
+    flex-shrink: 0;
+    z-index: 49;
+  }
+
+  .erp-tbtn {
+    height: var(--erp-ctrl-h);
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 0 12px;
+    border: 1px solid var(--erp-line);
+    background: #fff;
+    color: var(--erp-ink);
+    border-radius: var(--radius);
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.12s ease;
+  }
+
+  .erp-tbtn:hover {
+    border-color: #c4ccd6;
+    background: var(--erp-panel-2);
+  }
+
+  .erp-tbtn--primary {
+    background: var(--erp-accent);
+    border-color: var(--erp-accent);
+    color: #fff;
+  }
+
+  .erp-tbtn--primary:hover {
+    filter: brightness(1.06);
+    background: var(--erp-accent);
+  }
+
+  .erp-tbtn__icon {
+    width: 15px;
+    height: 15px;
+    opacity: 0.75;
+  }
+
+  .erp-tbtn--primary .erp-tbtn__icon {
+    opacity: 1;
+  }
+
+  .erp-toolbar-sep {
+    width: 1px;
+    height: 22px;
+    background: var(--erp-line);
+    margin: 0 4px;
+    flex-shrink: 0;
+  }
+
+  .erp-toolbar-search {
+    height: var(--erp-ctrl-h);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 11px;
+    border: 1px solid var(--erp-line);
+    background: var(--erp-panel-2);
+    border-radius: var(--radius);
+    width: min(280px, 100%);
+    color: var(--erp-ink-3);
+    font-size: 12px;
+  }
+
+  .erp-toolbar-search input {
+    border: none;
+    background: none;
+    outline: none;
+    font-family: inherit;
+    font-size: 12px;
+    color: var(--erp-ink);
+    width: 100%;
+  }
+
+  .erp-kbd {
+    font-size: 10px;
+    color: var(--erp-ink-3);
+    border: 1px solid var(--erp-line);
+    border-radius: 4px;
+    padding: 1px 5px;
+    background: #fff;
+    flex-shrink: 0;
+  }
+
+  /* Desktop sidebar shell */
+  .erp-desktop-sidebar {
+    --sidebar-width: var(--erp-sidebar-width);
+    background: var(--erp-panel) !important;
+    border-right: 1px solid var(--erp-line) !important;
+  }
+
+  .erp-desktop-sidebar .erp-sidebar-org {
+    padding: 11px 12px;
+    border-bottom: 1px solid var(--erp-line);
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    min-height: auto;
+  }
+
+  .erp-desktop-sidebar .erp-sidebar-org__avatar {
+    width: 30px;
+    height: 30px;
+    border-radius: var(--radius);
+    background: linear-gradient(135deg, var(--erp-accent), #1a4bd0);
+    display: grid;
+    place-items: center;
+    color: #fff;
+    font-weight: 700;
+    font-size: 13px;
+    flex-shrink: 0;
+  }
+
+  .erp-desktop-sidebar .erp-sidebar-org__name {
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--erp-ink);
+    line-height: 1.25;
+  }
+
+  .erp-desktop-sidebar .erp-sidebar-org__sub {
+    font-size: 11px;
+    color: var(--erp-ink-3);
+    line-height: 1.25;
+  }
+
+  .erp-desktop-sidebar [data-sidebar="group-label"] {
+    font-size: 10px !important;
+    text-transform: uppercase;
+    letter-spacing: 0.09em;
+    color: var(--erp-ink-3) !important;
+    font-weight: 700 !important;
+    padding: 10px 10px 4px !important;
+  }
+
+  .erp-desktop-sidebar [data-sidebar="menu-button"] {
+    font-size: 13px !important;
+    font-weight: 500 !important;
+    color: var(--erp-ink-2) !important;
+    padding: 7px 10px !important;
+    border-radius: var(--radius) !important;
+    gap: 10px !important;
+    min-height: auto !important;
+    height: auto !important;
+  }
+
+  .erp-desktop-sidebar [data-sidebar="menu-button"] svg {
+    width: 16px !important;
+    height: 16px !important;
+    opacity: 0.7;
+  }
+
+  .erp-desktop-sidebar [data-sidebar="menu-button"]:hover {
+    background: var(--erp-panel-2) !important;
+    color: var(--erp-ink) !important;
+  }
+
+  .erp-desktop-sidebar [data-sidebar="menu-button"][data-active="true"] {
+    background: var(--erp-accent-soft) !important;
+    color: var(--erp-accent) !important;
+    font-weight: 600 !important;
+    border-left: none !important;
+  }
+
+  .erp-desktop-sidebar [data-sidebar="menu-button"][data-active="true"] svg {
+    opacity: 1 !important;
+    color: var(--erp-accent) !important;
+  }
+
+  .erp-nav-badge {
+    margin-left: auto;
+    font-size: 10px;
+    background: var(--erp-bad-soft);
+    color: var(--erp-bad);
+    border-radius: 9px;
+    padding: 1px 6px;
+    font-weight: 700;
+    line-height: 1.3;
+  }
+
+  /* Window tabs — desktop depth */
+  .erp-window-tabs {
+    height: 34px;
+    min-height: 34px;
+    background: var(--erp-panel-2);
+    border-bottom: 1px solid var(--erp-line);
+    padding: 0 6px;
+  }
+
+  .erp-window-tabs .erp-tab {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 12px;
+    font-size: 12px;
+    color: var(--erp-ink-2);
+    cursor: pointer;
+    border-radius: var(--radius) var(--radius) 0 0;
+    margin-top: 4px;
+    border: 1px solid transparent;
+    border-bottom: none;
+    position: relative;
+    height: calc(100% - 4px);
+  }
+
+  .erp-window-tabs .erp-tab:hover {
+    color: var(--erp-ink);
+  }
+
+  .erp-window-tabs .erp-tab--active {
+    background: var(--erp-panel);
+    color: var(--erp-ink);
+    font-weight: 600;
+    border-color: var(--erp-line);
+  }
+
+  .erp-window-tabs .erp-tab--active::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: -1px;
+    height: 2px;
+    background: var(--erp-panel);
+  }
+
+  .erp-window-tabs .erp-tab-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--erp-ink-3);
+    flex-shrink: 0;
+  }
+
+  .erp-window-tabs .erp-tab--active .erp-tab-dot {
+    background: #16a34a;
+  }
+
+  .erp-window-tabs .erp-tab-close {
+    color: var(--erp-ink-3);
+    font-size: 13px;
+    opacity: 0;
+    line-height: 1;
+  }
+
+  .erp-window-tabs .erp-tab:hover .erp-tab-close,
+  .erp-window-tabs .erp-tab--active .erp-tab-close {
+    opacity: 1;
   }
 
   /* Legacy desktop dashboards inside mobile main — soften wide padding */

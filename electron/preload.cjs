@@ -66,4 +66,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('erp-navigate', listener);
     return () => ipcRenderer.removeListener('erp-navigate', listener);
   },
+
+  /** Custom title-bar window controls (minimize / maximize / close). */
+  windowMinimize: () => ipcRenderer.invoke('window-minimize'),
+  windowToggleMaximize: () => ipcRenderer.invoke('window-toggle-maximize'),
+  windowClose: () => ipcRenderer.invoke('window-close'),
 });

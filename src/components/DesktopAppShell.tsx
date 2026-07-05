@@ -40,7 +40,7 @@ export function DesktopAppShell({ children, className }: DesktopAppShellProps) {
           <SidebarProvider defaultOpen={readSidebarLockedOpen()}>
             <OfflineIndicator />
 
-            <div className={cn("flex h-full min-h-0 w-full flex-1 bg-background overflow-hidden", className)}>
+            <div className={cn("flex h-full min-h-0 w-full flex-1 bg-[var(--erp-bg)] overflow-hidden", className)}>
               {!billingFullScreen && <AppSidebar />}
               {!billingFullScreen && <SidebarExpandStrip />}
               <SidebarInset className="flex min-h-0 flex-1 flex-col min-w-0 overflow-hidden">

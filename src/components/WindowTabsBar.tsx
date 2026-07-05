@@ -85,7 +85,7 @@ export function WindowTabsBar() {
       <div
         data-window-tabs-bar
         data-collapsed
-        className="bg-muted/30 border-b px-2 py-0.5 flex items-center justify-between"
+        className="erp-window-tabs px-2 py-0.5 flex items-center justify-between"
       >
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <span>{openWindows.length} window{openWindows.length > 1 ? 's' : ''} open</span>
@@ -115,8 +115,8 @@ export function WindowTabsBar() {
   }
 
   return (
-    <div data-window-tabs-bar className="bg-muted/30 border-b px-2 py-0.5">
-      <div className="flex items-center gap-0.5">
+    <div data-window-tabs-bar className="erp-window-tabs px-2 py-0.5">
+      <div className="flex items-center gap-0.5 h-full">
         {canMainDashboard && (
           <Tooltip>
             <TooltipTrigger asChild>
@@ -184,13 +184,7 @@ export function WindowTabsBar() {
               return (
                 <div
                   key={window.path}
-                  className={cn(
-                    "group flex items-center gap-1 px-2 py-1 rounded text-xs cursor-pointer transition-all",
-                    "hover:bg-background/80",
-                    isActive
-                      ? "bg-background text-primary shadow-sm border font-bold"
-                      : "text-muted-foreground hover:text-foreground font-normal",
-                  )}
+                  className={cn("erp-tab group", isActive && "erp-tab--active")}
                   onClick={() => switchWindow(window.path)}
                 >
                   {index < 9 && (
@@ -198,20 +192,18 @@ export function WindowTabsBar() {
                       {index + 1}
                     </kbd>
                   )}
-                  <IconComponent className="h-3 w-3 shrink-0" />
-                  <span className={cn("truncate max-w-[100px]", isActive && "font-bold text-primary")}>
-                    {window.label}
-                  </span>
+                  <span className="erp-tab-dot" aria-hidden />
+                  <IconComponent className="h-3 w-3 shrink-0 opacity-70" />
+                  <span className="truncate max-w-[100px]">{window.label}</span>
                   {openWindows.length > 1 && (
                     <button
+                      type="button"
                       onClick={(e) => {
                         e.stopPropagation();
                         closeWindow(window.path);
                       }}
-                      className={cn(
-                        "ml-1 rounded-sm opacity-0 group-hover:opacity-100 transition-opacity",
-                        "hover:bg-destructive/20 hover:text-destructive p-0.5"
-                      )}
+                      className="erp-tab-close ml-0.5 rounded-sm hover:bg-destructive/20 hover:text-destructive p-0.5"
+                      aria-label={`Close ${window.label}`}
                     >
                       <X className="h-3 w-3" />
                     </button>

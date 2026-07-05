@@ -147,27 +147,40 @@ export function AppSidebar() {
   const settingsPaths = ["/profile", "/settings", "/organization-management", "/barcode-printing"];
   const schoolPaths = ["/students", "/student-entry", "/teachers", "/fee-collection", "/fee-heads", "/fee-structures", "/academic-years", "/classes", "/student-reports", "/student-promotion", "/student-ledger"];
 
+  const orgInitials = (currentOrganization?.name || "OR")
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0]?.toUpperCase() ?? "")
+    .join("") || "OR";
+
+  const orgTypeLabel =
+    currentOrganization?.organization_type === "school" ? "School" : "Business";
+  const orgCityHint =
+    typeof currentOrganization?.settings?.address === "string"
+      ? currentOrganization.settings.address.split(",").pop()?.trim()
+      : null;
+  const orgSubtitle = orgCityHint ? `${orgTypeLabel} · ${orgCityHint}` : orgTypeLabel;
+
   return (
     <Sidebar
       collapsible="offcanvas"
-      className="border-r border-sidebar-border bg-sidebar pt-0"
-      style={{ transition: "width 0.22s ease" }}
+      className="erp-desktop-sidebar border-r pt-0"
+      style={{ transition: "width 0.22s ease", ["--sidebar-width" as string]: "var(--erp-sidebar-width)" }}
     >
       <SidebarRail />
       <SidebarContent className="font-sans text-base font-semibold text-sidebar-foreground pt-0 mt-0 space-y-0.5">
         {/* Organization Context Badge */}
         {currentOrganization && (
-          <div
-            className={cn(
-              "border-b border-sidebar-border py-2 px-3 flex items-center gap-2 min-h-[40px]",
-              !open && "justify-center px-2",
-            )}
-          >
-            <Building2 className="h-5 w-5 text-primary flex-shrink-0" />
+          <div className={cn("erp-sidebar-org", !open && "justify-center px-2")}>
+            <div className="erp-sidebar-org__avatar" aria-hidden>
+              {orgInitials}
+            </div>
             {open && (
-              <span className="text-sm font-bold truncate text-sidebar-foreground">
-                {currentOrganization.name}
-              </span>
+              <div className="min-w-0">
+                <div className="erp-sidebar-org__name truncate">{currentOrganization.name}</div>
+                <div className="erp-sidebar-org__sub truncate">{orgSubtitle}</div>
+              </div>
             )}
           </div>
         )}
