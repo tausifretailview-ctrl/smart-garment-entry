@@ -5907,7 +5907,6 @@ export default function BarcodePrinting() {
             </p>
           </div>
         </div>
-      </div>
             </div>
           </CollapsibleContent>
         </div>
