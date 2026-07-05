@@ -344,7 +344,7 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
   const posMain = (
       <main
         className={cn(
-          "flex flex-1 flex-col min-h-0 h-0 overflow-hidden p-3 sm:p-4",
+          "flex flex-1 flex-col min-h-0 overflow-hidden p-3 sm:p-4",
           mobileMainPaddingClass,
           "lg:p-0 lg:pb-0",
         )}
@@ -357,7 +357,7 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
 
   if (sharedShell) {
     return (
-      <div className="flex min-h-0 flex-1 flex-col w-full h-full bg-background overflow-hidden">
+      <div className="pos-layout-shell flex min-h-0 flex-1 flex-col w-full h-full max-h-full bg-background overflow-hidden">
         {posHeader}
         {posMain}
         {posDialogs}
@@ -366,7 +366,7 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
   }
 
   return (
-    <div className="flex flex-col h-screen w-full bg-background overflow-hidden">
+    <div className="pos-layout-shell flex flex-col h-[var(--ezzy-viewport-h,100dvh)] max-h-[var(--ezzy-viewport-h,100dvh)] w-full bg-background overflow-hidden">
       {posHeader}
       <div className="hidden lg:block shrink-0">
         <WindowTabsBar />

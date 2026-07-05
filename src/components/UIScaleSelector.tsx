@@ -74,6 +74,15 @@ export function initUIScale() {
   }
 }
 
+/** POS on web PWA — compact density without CSS zoom (zoom breaks column alignment). */
+export function applyWebPosCompactScale(): () => void {
+  const root = document.documentElement;
+  root.style.fontSize = "16px";
+  root.classList.add("scale-compact");
+  root.style.zoom = "";
+  return () => initUIScale();
+}
+
 type UIScaleSelectorProps = {
   /** Optional trigger styles (e.g. dark header row vs light sidebar). */
   triggerClassName?: string;

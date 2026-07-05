@@ -17,7 +17,7 @@ import { useCustomerBalance } from "@/hooks/useCustomerBalance";
 import { useCustomerSearch, useCustomerBalances } from "@/hooks/useCustomerSearch";
 import { useNavPerfPage, useNavPerfQueryWatch } from "@/hooks/useNavigationPerf";
 import { useEntryViewportSync } from "@/hooks/useEntryViewportSync";
-import { initUIScale } from "@/components/UIScaleSelector";
+import { applyWebPosCompactScale } from "@/components/UIScaleSelector";
 import { useCreditNotes } from "@/hooks/useCreditNotes";
 import { useBarcodeScanner } from "@/hooks/useBarcodeScanner";
 import { useIsMobile, useIsTablet } from "@/hooks/use-mobile";
@@ -1436,32 +1436,38 @@ export default function POSSales() {
     return () => clearInterval(timer);
   }, []);
 
+  const [webDesktopPos, setWebDesktopPos] = useState(
+    () => !isElectronShell() && typeof window !== "undefined" && window.matchMedia("(min-width: 1024px)").matches,
+  );
+
+  useEffect(() => {
+    if (isElectronShell()) return;
+    const mq = window.matchMedia("(min-width: 1024px)");
+    const onChange = () => setWebDesktopPos(mq.matches);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
+
   // Hide toast popups while POS is open (less distraction for cashier workflow)
   useEffect(() => {
     document.body.classList.add("pos-hide-toasts");
-    document.body.classList.add("pos-large-ui");
+    if (webDesktopPos) {
+      document.body.classList.add("pos-web-desktop");
+    } else {
+      document.body.classList.add("pos-large-ui");
+    }
     return () => {
       document.body.classList.remove("pos-hide-toasts");
       document.body.classList.remove("pos-large-ui");
+      document.body.classList.remove("pos-web-desktop");
     };
-  }, []);
+  }, [webDesktopPos]);
 
-  // Web PWA desktop: match Electron POS density (compact 16px + 0.85 zoom).
+  // Web PWA desktop: compact 16px — no CSS zoom (zoom misaligns grid/footer on browsers).
   useEffect(() => {
-    if (isElectronShell()) return;
-    const desktop = window.matchMedia("(min-width: 1024px)");
-    if (!desktop.matches) return;
-
-    const root = document.documentElement;
-    root.style.fontSize = "16px";
-    root.classList.add("scale-compact");
-    root.style.zoom = "0.85";
-
-    return () => {
-      root.style.zoom = "";
-      initUIScale();
-    };
-  }, []);
+    if (!webDesktopPos) return;
+    return applyWebPosCompactScale();
+  }, [webDesktopPos]);
 
   // Refs for print handlers (to avoid hoisting issues)
   const handleEstimatePrintRef = useRef<(() => void) | null>(null);
@@ -5289,7 +5295,12 @@ export default function POSSales() {
 
   // Desktop POS Layout
   return (
-    <div className="pos-sales-workspace flex-1 min-h-0 h-full w-full bg-background flex items-stretch overflow-hidden pos-desktop-readable pos-sales-readable">
+    <div
+      className={cn(
+        "pos-sales-workspace flex-1 min-h-0 h-full w-full bg-background flex items-stretch overflow-hidden pos-desktop-readable",
+        !webDesktopPos && "pos-sales-readable",
+      )}
+    >
       {/* Left Action Button Bar */}
       <div className="w-[88px] self-stretch min-h-0 bg-slate-50 dark:bg-slate-900 border-r border-border/60 flex flex-col gap-1.5 p-1.5 z-30 relative overflow-y-auto shrink-0">
         {/* Buttons in sequence: Cash, UPI, Card, Credit, Mix, Hold, New, Last, Print, Clear, WhatsApp */}
@@ -5468,7 +5479,7 @@ export default function POSSales() {
       </div>
 
       {/* Main column — toolbar/body/footer absolutely positioned (same pattern as Sales Invoice) */}
-      <div className="pos-sales-main flex-1 min-h-0 h-full w-0 overflow-hidden">
+      <div className="pos-sales-main flex-1 min-h-0 h-full min-w-0 overflow-hidden">
         {/* Sticky Header Section - Barcode scanning bar stays fixed */}
         <div className="pos-sales-toolbar z-20 bg-background border-b border-border/60 shadow-sm px-2 md:px-3 py-1.5">
           <div className="flex flex-nowrap items-end gap-2 md:gap-3 overflow-x-auto overflow-y-hidden">
@@ -6005,7 +6016,7 @@ export default function POSSales() {
         </div>
 
         {/* Items table — only this region scrolls; footer stays viewport-bottom */}
-        <div className="pos-sales-body px-1 md:px-2">
+        <div className="pos-sales-body px-2 md:px-3">
           <div className="w-full h-full min-h-0 flex flex-col overflow-hidden">
           <Card className="flex-1 min-h-0 overflow-hidden flex flex-col border-border/60 shadow-sm">
             <div className="bg-slate-900 text-white">
@@ -6050,7 +6061,7 @@ export default function POSSales() {
 
             <div
               ref={itemsContainerRef} 
-              className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain relative scroll-smooth"
+              className="pos-sales-cart-scroll flex-1 min-h-0 overflow-y-auto overscroll-y-contain relative scroll-smooth"
               onScroll={(e) => {
                 const target = e.target as HTMLDivElement;
                 setShowScrollTop(target.scrollTop > 100);
