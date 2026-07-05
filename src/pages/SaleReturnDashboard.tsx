@@ -340,7 +340,7 @@ export default function SaleReturnDashboard() {
           `customer_name.ilike.%${searchStr}%`,
           `original_sale_number.ilike.%${searchStr}%`,
         ];
-        if (matchingReturnIds.length > 0) clauses.push(`id.in.(${matchingReturnIds.join(",")})`);
+        if (matchingReturnIdSet.size > 0) clauses.push(`id.in.(${[...matchingReturnIdSet].join(",")})`);
         if (matchingCustomerIds.length > 0) clauses.push(`customer_id.in.(${matchingCustomerIds.join(",")})`);
 
         query = query.or(clauses.join(","));

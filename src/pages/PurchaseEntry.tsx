@@ -654,6 +654,7 @@ const PurchaseEntry = () => {
   const firstSizeInputRef = useRef<HTMLInputElement>(null);
   const lastQtyInputRef = useRef<HTMLInputElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const searchDropdownRef = useRef<HTMLDivElement>(null);
   const inlineSearchInputRef = useRef<HTMLInputElement>(null);
   const isNavigatingForProductRef = useRef(false); // Track navigation to product entry
   const [selectedSearchIndex, setSelectedSearchIndex] = useState(0);
@@ -2234,6 +2235,19 @@ const PurchaseEntry = () => {
       setShowSearch(false);
     }
   }, [searchQuery]);
+
+  // Close product search dropdown when clicking outside (desktop + mobile toolbar search)
+  useEffect(() => {
+    if (!showSearch) return;
+    const onDocMouseDown = (e: MouseEvent) => {
+      const root = searchDropdownRef.current;
+      if (root && !root.contains(e.target as Node)) {
+        setShowSearch(false);
+      }
+    };
+    document.addEventListener("mousedown", onDocMouseDown);
+    return () => document.removeEventListener("mousedown", onDocMouseDown);
+  }, [showSearch]);
 
   // Inline search effect for table row
   useEffect(() => {
@@ -5820,6 +5834,7 @@ const PurchaseEntry = () => {
                 Re-purchase mode — search and select an existing product to enter qty and new prices only.
               </p>
             )}
+            <div ref={searchDropdownRef} className="space-y-2">
             <div className="flex gap-1.5">
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -5828,6 +5843,27 @@ const PurchaseEntry = () => {
                   placeholder="Scan barcode or search…"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
+                  onFocus={() => {
+                    if (searchQuery.length >= 1 && searchResults.length > 0) {
+                      setShowSearch(true);
+                    }
+                  }}
+                  onBlur={() => {
+                    window.setTimeout(() => setShowSearch(false), 250);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Escape") {
+                      e.preventDefault();
+                      setShowSearch(false);
+                      searchInputRef.current?.blur();
+                      return;
+                    }
+                    if (searchResults.length === 0) return;
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      handleProductSelect(searchResults[selectedSearchIndex] ?? searchResults[0]);
+                    }
+                  }}
                   className="pl-10 h-11 text-base rounded-xl"
                   autoComplete="off"
                   autoCapitalize="off"
@@ -5847,6 +5883,7 @@ const PurchaseEntry = () => {
                   <button
                     key={result.id + idx}
                     type="button"
+                    onMouseDown={(e) => e.preventDefault()}
                     onClick={() => handleProductSelect(result)}
                     className="w-full text-left px-3.5 py-2.5 border-b border-border/30 last:border-0 active:bg-accent/70 transition-colors"
                   >
@@ -5878,6 +5915,7 @@ const PurchaseEntry = () => {
             {!showSearch && searchResults.length === 0 && searchQuery.length >= 2 && (
               <p className="text-xs text-muted-foreground text-center py-2">No products found</p>
             )}
+            </div>
           </div>
 
           {/* Items list */}
@@ -6371,7 +6409,7 @@ const PurchaseEntry = () => {
               Re-purchase (existing product)
             </Button>
 
-              <div className="relative flex-1 min-w-[280px]">
+              <div ref={searchDropdownRef} className="relative flex-1 min-w-[280px]">
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
                   <Input
@@ -6380,7 +6418,21 @@ const PurchaseEntry = () => {
                     onChange={(e) => setSearchQuery(e.target.value)}
                     disabled={isBillLocked}
                     className="pl-10 h-10 text-sm bg-card border-border uppercase"
+                    onFocus={() => {
+                      if (searchQuery.length >= 1 && searchResults.length > 0) {
+                        setShowSearch(true);
+                      }
+                    }}
+                    onBlur={() => {
+                      window.setTimeout(() => setShowSearch(false), 250);
+                    }}
                     onKeyDown={(e) => {
+                      if (e.key === "Escape") {
+                        e.preventDefault();
+                        setShowSearch(false);
+                        searchInputRef.current?.blur();
+                        return;
+                      }
                       if (searchResults.length === 0) return;
                       
                       if (e.key === 'ArrowDown') {
