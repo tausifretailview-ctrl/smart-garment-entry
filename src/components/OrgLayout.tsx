@@ -430,7 +430,7 @@ export const OrgLayout = () => {
       <div
         className={
           constrainViewportHeight
-            ? "ezzy-viewport-shell flex w-full flex-col overflow-hidden"
+            ? "ezzy-viewport-shell flex w-full flex-col overflow-hidden min-h-0"
             : "flex min-h-[100dvh] w-full flex-col"
         }
       >

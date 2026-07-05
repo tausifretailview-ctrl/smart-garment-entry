@@ -1953,13 +1953,8 @@ body.entry-bill-screen .pos-sales-workspace {
   }
 
   body.pos-web-desktop .pos-sales-cart-scroll {
+    overflow-y: scroll;
     scrollbar-gutter: stable;
-  }
-
-  /* Keep cart header columns aligned with scroll body when scrollbar appears */
-  body.pos-web-desktop .pos-sales-cart-header,
-  body.pos-web-desktop .pos-sales-cart-row {
-    padding-right: calc(0.75rem + var(--pos-cart-scrollbar-gutter, 0px));
   }
 
   body.pos-web-desktop .pos-sales-toolbar,
