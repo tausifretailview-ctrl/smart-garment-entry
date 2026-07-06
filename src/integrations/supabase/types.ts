@@ -3229,6 +3229,51 @@ export type Database = {
           },
         ]
       }
+      organization_reset_audit: {
+        Row: {
+          confirmation_name: string
+          created_at: string
+          errors: Json | null
+          id: string
+          organization_id: string
+          performed_by: string
+          tables_cleared: Json | null
+        }
+        Insert: {
+          confirmation_name: string
+          created_at?: string
+          errors?: Json | null
+          id?: string
+          organization_id: string
+          performed_by: string
+          tables_cleared?: Json | null
+        }
+        Update: {
+          confirmation_name?: string
+          created_at?: string
+          errors?: Json | null
+          id?: string
+          organization_id?: string
+          performed_by?: string
+          tables_cleared?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organization_reset_audit_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "organization_reset_audit_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+        ]
+      }
       organizations: {
         Row: {
           created_at: string
@@ -9025,6 +9070,7 @@ export type Database = {
         Args: { _identifier: string }
         Returns: boolean
       }
+      mark_stale_backups: { Args: never; Returns: number }
       merge_products: {
         Args: { p_source_product_id: string; p_target_product_id: string }
         Returns: Json
