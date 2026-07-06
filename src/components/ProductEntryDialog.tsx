@@ -267,6 +267,19 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
   const [customSizes, setCustomSizes] = useState<string[]>([]);
   const [customSizeInput, setCustomSizeInput] = useState("");
   const autoBarcodePending = useRef(false);
+  const prevPurchaseQtyTotalRef = useRef(0);
+
+  // Purchase bill: after first qty entry, scroll variant details into view
+  useEffect(() => {
+    if (!open || !hideOpeningQty) return;
+    const totalQty = variants.reduce((s, v) => s + (v.purchase_qty || 0), 0);
+    if (prevPurchaseQtyTotalRef.current === 0 && totalQty > 0) {
+      requestAnimationFrame(() => {
+        variantsSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      });
+    }
+    prevPurchaseQtyTotalRef.current = totalQty;
+  }, [open, hideOpeningQty, variants]);
   
   // Mobile ERP: qty input & IMEI scan
   const [mobileERPQty, setMobileERPQty] = useState<number>(1);
@@ -355,6 +368,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
       setCopySearch("");
       setCopyResults([]);
       setShowCopyDropdown(false);
+      prevPurchaseQtyTotalRef.current = 0;
       // Auto-focus product name field
       setTimeout(() => productNameInputRef.current?.focus(), 150);
     }
@@ -1552,8 +1566,10 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent
           className={cn(
-            "p-0 font-outfit flex flex-col overflow-hidden",
-            isPurchaseBillForm ? "max-w-7xl w-[min(96vw,80rem)] max-h-[96vh]" : "max-w-6xl max-h-[92vh]",
+            "p-0 font-outfit !flex !flex-col gap-0 overflow-hidden",
+            isPurchaseBillForm
+              ? "max-w-7xl w-[min(96vw,80rem)] h-[min(96vh,100dvh)] max-h-[min(96vh,100dvh)]"
+              : "max-w-6xl max-h-[92vh]",
             purchaseTypography.dialog
           )}
         >
@@ -1585,7 +1601,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
           
           <div 
             className={cn(
-              "flex-1 min-h-0 overflow-y-auto overscroll-contain",
+              "flex-1 min-h-0 overflow-y-auto overscroll-contain scrollbar-thin",
               isPurchaseBillForm ? "px-5" : "px-6"
             )}
             style={{ scrollBehavior: 'smooth' }}
@@ -2389,7 +2405,10 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
 
                           {isMultiColor ? (
                             /* ── Color × Size Matrix (qty + sale price per cell) ── */
-                            <div className={cn("overflow-x-auto bg-muted/30 rounded-lg border border-dashed border-muted-foreground/20", isPurchaseBillForm ? "p-1.5" : "p-3")}>
+                            <div className={cn(
+                              "overflow-x-auto overflow-y-auto bg-muted/30 rounded-lg border border-dashed border-muted-foreground/20",
+                              isPurchaseBillForm ? "p-1.5 max-h-[min(42vh,400px)]" : "p-3",
+                            )}>
                               <table className="w-full border-collapse table-fixed">
                                 <thead>
                                   <tr>
@@ -2599,7 +2618,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                             <div className={cn(
                               "grid bg-muted/30 rounded-lg border border-dashed border-muted-foreground/20",
                               isPurchaseBillForm
-                                ? "grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-1.5 p-2"
+                                ? "grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-1.5 p-2 max-h-[min(42vh,400px)] overflow-y-auto"
                                 : "grid-cols-3 sm:grid-cols-5 md:grid-cols-6 gap-3 p-4"
                             )}>
                               {allSizes.map((size) => {
@@ -2907,48 +2926,60 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                 </div>
               )}
 
-              {/* ── 👟 Size Variants — hidden on purchase bill (qty grid above) ── */}
-              {!isPurchaseBillForm && (
-              <div className="rounded-xl border-[1.5px] border-violet-200 bg-gradient-to-br from-violet-50/60 via-purple-50/30 to-fuchsia-50/20 p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-purple-500 flex items-center justify-center shadow-sm">
+              {/* ── Variant details: prices & barcodes (scroll down after qty grid on purchase bill) ── */}
+              {showVariants && variants.length > 0 && (() => {
+                const visibleVariantCount = variants.filter((v) => {
+                  if (disabledSizes.has(v.size)) return false;
+                  if (formData.colors.length > 0 && v.color && !formData.colors.includes(v.color)) return false;
+                  if (hideOpeningQty && formData.product_type !== "service" && (v.purchase_qty || 0) <= 0) return false;
+                  return true;
+                }).length;
+                if (visibleVariantCount === 0) return null;
+                return (
+              <div className={cn(
+                "rounded-xl border-[1.5px] border-violet-200 bg-gradient-to-br from-violet-50/60 via-purple-50/30 to-fuchsia-50/20 space-y-3",
+                isPurchaseBillForm ? "p-3" : "p-4",
+              )}>
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-purple-500 flex items-center justify-center shadow-sm shrink-0">
                       <span className="text-white text-sm">👟</span>
                     </div>
-                    <div>
-                      <span className="text-[13px] font-bold text-violet-800 font-outfit">
-                        {rollWiseMtrEnabled && formData.uom === 'MTR' ? 'Color Variants' : 'Size Variants'}
+                    <div className="min-w-0">
+                      <span className={cn("font-bold text-violet-800 font-outfit block", isPurchaseBillForm ? "text-sm" : "text-[13px]")}>
+                        {isPurchaseBillForm
+                          ? "Variant Details"
+                          : rollWiseMtrEnabled && formData.uom === "MTR"
+                            ? "Color Variants"
+                            : "Size Variants"}
                       </span>
-                      <p className="text-[10px] text-violet-500/80 font-outfit">
-                        {rollWiseMtrEnabled && formData.uom === 'MTR' ? 'Generate color-wise roll entries' : 'Generate size-wise entries'}
+                      <p className="text-[10px] text-violet-500/80 font-outfit truncate">
+                        {isPurchaseBillForm
+                          ? "Review purchase price, sale price & barcodes before adding to bill"
+                          : rollWiseMtrEnabled && formData.uom === "MTR"
+                            ? "Generate color-wise roll entries"
+                            : "Generate size-wise entries"}
                       </p>
                     </div>
                   </div>
+                  {!isPurchaseBillForm && (
                   <Button
                     type="button"
                     onClick={handleGenerateSizeVariants}
                     disabled={formData.product_type !== 'service' && !(rollWiseMtrEnabled && formData.uom === 'MTR') && !formData.size_group_id}
-                    className="gap-1.5 font-outfit font-semibold bg-violet-600 hover:bg-violet-700 text-white shadow-sm"
+                    className="gap-1.5 font-outfit font-semibold bg-violet-600 hover:bg-violet-700 text-white shadow-sm shrink-0"
                     size="sm"
                   >
                     <Plus className="h-3.5 w-3.5" />
                     {rollWiseMtrEnabled && formData.uom === 'MTR' ? 'Generate Color Variants' : 'Generate Variants'}
                   </Button>
+                  )}
                 </div>
 
-                {showVariants && variants.length > 0 && (
                   <div ref={variantsSectionRef} className="space-y-2 pt-1">
                     <div className="flex items-center justify-between">
                       <Label className="text-sm font-semibold text-violet-700 font-outfit flex items-center gap-2">
-                        {(() => {
-                          const visibleCount = variants.filter(v => {
-                            if (disabledSizes.has(v.size)) return false;
-                            if (formData.colors.length > 0 && v.color && !formData.colors.includes(v.color)) return false;
-                            if (hideOpeningQty && (v.purchase_qty || 0) <= 0) return false;
-                            return true;
-                          }).length;
-                          return `${visibleCount} Variant${visibleCount !== 1 ? 's' : ''}`;
-                        })()}
+                        {`${visibleVariantCount} Variant${visibleVariantCount !== 1 ? "s" : ""}`}
                         {isAutoBarcode ? (
                           <span className="text-xs font-medium px-2 py-0.5 bg-blue-100 text-blue-700 rounded">Auto Barcode</span>
                         ) : (
@@ -2961,7 +2992,10 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                         </Button>
                       )}
                     </div>
-                    <div className="border border-violet-200/60 rounded-lg overflow-x-auto bg-white shadow-sm max-h-[360px] overflow-y-auto" onWheel={(e) => e.stopPropagation()}>
+                    <div className={cn(
+                      "border border-violet-200/60 rounded-lg overflow-x-auto bg-white shadow-sm overflow-y-auto",
+                      isPurchaseBillForm ? "max-h-[min(36vh,320px)]" : "max-h-[360px]",
+                    )}>
                       <Table>
                         <TableHeader className="sticky top-0 z-10 bg-background">
                           <TableRow className="bg-gradient-to-r from-violet-100/80 to-purple-100/60 border-b border-violet-200/60">
@@ -3091,9 +3125,9 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                       </Table>
                     </div>
                   </div>
-                )}
             </div>
-              )}
+                );
+              })()}
             </div>
             <button
               id="product-dialog-back-to-top"
