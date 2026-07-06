@@ -130,6 +130,17 @@ Deno.serve(async (req) => {
         .eq('user_id', user.id)
         .single();
       if (!membership) throw new Error('User does not belong to this organization');
+
+      const { data: isAdmin, error: roleError } = await supabase.rpc('has_role', {
+        _user_id: user.id,
+        _role: 'admin',
+      });
+      if (roleError || !isAdmin) {
+        return new Response(
+          JSON.stringify({ error: 'Only organization admins can trigger a backup' }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        );
+      }
     }
 
     // Resolve retention days (prefer body, else read from settings)
