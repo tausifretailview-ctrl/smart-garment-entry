@@ -2258,7 +2258,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
               {mobileERPMode?.locked_size_qty && hideOpeningQty && (
                 <div className="space-y-3">
                   {isFieldEnabled("color") && formData.product_type !== "service" && (
-                    <div className="space-y-1.5">
+                    <div className="space-y-1.5 min-w-0">
                       <Label className={purchaseTypography.fieldLabel}>
                         {getFieldLabel("color", "Colors")} (comma-separated)
                       </Label>
@@ -2288,9 +2288,9 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                               handleRemoveColor(formData.colors[formData.colors.length - 1]);
                             }
                           }}
-                          placeholder={formData.colors.length > 0 ? "Add more…" : "e.g., Black, Blue, Gold"}
+                          placeholder={formData.colors.length > 0 ? "Add more…" : "e.g., Black, White, Red"}
                           className="h-10 text-[16px] font-semibold flex-1 min-w-0"
-                          list="color-list"
+                          list="color-list-mobile"
                           autoComplete="off"
                         />
                         <Button
@@ -2302,32 +2302,30 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                           Add
                         </Button>
                       </div>
-                      <datalist id="color-list">
+                      <datalist id="color-list-mobile">
                         {existingColors
                           .filter((c) => !formData.colors.includes(c))
                           .map((color) => (
                             <option key={color} value={color} />
                           ))}
                       </datalist>
-                      {formData.colors.length > 0 && (
-                        <div className="flex flex-wrap gap-1 pt-0.5">
-                          {formData.colors.map((color, i) => (
-                            <span
-                              key={i}
-                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-primary/10 text-primary text-[13px] font-semibold border border-primary/20"
+                      <div className="purchase-color-chips min-h-[1.75rem] flex flex-wrap gap-1 pt-0.5">
+                        {formData.colors.map((color, i) => (
+                          <span
+                            key={i}
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-primary/10 text-primary text-[13px] font-semibold border border-primary/20"
+                          >
+                            {color}
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveColor(color)}
+                              className="hover:text-destructive"
                             >
-                              {color}
-                              <button
-                                type="button"
-                                onClick={() => handleRemoveColor(color)}
-                                className="hover:text-destructive"
-                              >
-                                <X className="h-3.5 w-3.5" />
-                              </button>
-                            </span>
-                          ))}
-                        </div>
-                      )}
+                              <X className="h-3.5 w-3.5" />
+                            </button>
+                          </span>
+                        ))}
+                      </div>
                     </div>
                   )}
 
