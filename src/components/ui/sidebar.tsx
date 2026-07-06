@@ -118,7 +118,7 @@ const SidebarProvider = React.forwardRef<
         <div
           style={
             {
-              "--sidebar-width": SIDEBAR_WIDTH,
+              "--sidebar-width": "var(--erp-sidebar-width, 196px)",
               "--sidebar-width-icon": SIDEBAR_WIDTH_ICON,
               ...style,
             } as React.CSSProperties
@@ -142,7 +142,7 @@ const Sidebar = React.forwardRef<
     variant?: "sidebar" | "floating" | "inset";
     collapsible?: "offcanvas" | "icon" | "none";
   }
->(({ side = "left", variant = "sidebar", collapsible = "offcanvas", className, children, ...props }, ref) => {
+>(({ side = "left", variant = "sidebar", collapsible = "offcanvas", className, style, children, ...props }, ref) => {
   const { useSheetSidebar, state, openMobile, setOpenMobile } = useSidebar();
   const forceDesktopLayout = useForceDesktopView();
   const peerVisibility = forceDesktopLayout ? "block" : "hidden md:block";
@@ -153,6 +153,7 @@ const Sidebar = React.forwardRef<
       <div
         className={cn("flex h-full w-[--sidebar-width] flex-col bg-sidebar text-sidebar-foreground", className)}
         ref={ref}
+        style={style}
         {...props}
       >
         {children}
@@ -183,16 +184,17 @@ const Sidebar = React.forwardRef<
   return (
     <div
       ref={ref}
-      className={cn("group peer text-sidebar-foreground", peerVisibility)}
+      className={cn("group peer shrink-0 text-sidebar-foreground", peerVisibility)}
+      style={style}
       data-state={state}
       data-collapsible={state === "collapsed" ? collapsible : ""}
       data-variant={variant}
       data-side={side}
     >
-      {/* This is what handles the sidebar gap on desktop */}
+      {/* Spacer — must share --sidebar-width with the fixed panel (set on this peer via style / provider) */}
       <div
         className={cn(
-          "relative h-svh w-[--sidebar-width] bg-transparent transition-[width] duration-200 ease-linear",
+          "relative h-full min-h-0 w-[--sidebar-width] bg-transparent transition-[width] duration-200 ease-linear",
           "group-data-[collapsible=offcanvas]:w-0",
           "group-data-[side=right]:rotate-180",
           variant === "floating" || variant === "inset"
@@ -202,7 +204,7 @@ const Sidebar = React.forwardRef<
       />
       <div
         className={cn(
-          "fixed inset-y-0 z-10 h-svh w-[--sidebar-width] transition-[left,right,width] duration-200 ease-linear",
+          "fixed inset-y-0 z-10 h-full min-h-0 w-[--sidebar-width] transition-[left,right,width] duration-200 ease-linear",
           panelVisibility,
           side === "left"
             ? "left-0 group-data-[collapsible=offcanvas]:left-[calc(var(--sidebar-width)*-1)]"

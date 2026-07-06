@@ -949,9 +949,15 @@ All colors MUST be HSL.
 
   /* Desktop sidebar shell */
   .erp-desktop-sidebar {
-    --sidebar-width: var(--erp-sidebar-width);
     background: var(--erp-panel) !important;
     border-right: 1px solid var(--erp-line) !important;
+  }
+
+  /* Peer spacer + fixed panel share --sidebar-width from SidebarProvider */
+  .group.peer:has(.erp-desktop-sidebar) {
+    width: var(--sidebar-width);
+    min-width: var(--sidebar-width);
+    flex-shrink: 0;
   }
 
   /* Hide shadcn rail resize strip — caused hover peek / gap beside content */

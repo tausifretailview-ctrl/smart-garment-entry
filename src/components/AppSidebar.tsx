@@ -162,11 +162,7 @@ export function AppSidebar() {
   const orgSubtitle = orgCityHint ? `${orgTypeLabel} · ${orgCityHint}` : orgTypeLabel;
 
   return (
-    <Sidebar
-      collapsible="offcanvas"
-      className="erp-desktop-sidebar border-r pt-0"
-      style={{ transition: "width 0.22s ease", ["--sidebar-width" as string]: "var(--erp-sidebar-width)" }}
-    >
+    <Sidebar collapsible="offcanvas" className="erp-desktop-sidebar border-r pt-0">
       <SidebarContent className="font-sans text-base font-semibold text-sidebar-foreground pt-0 mt-0 space-y-0.5">
         {/* Organization Context Badge */}
         {currentOrganization && (
