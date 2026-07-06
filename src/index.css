@@ -3744,8 +3744,11 @@ main.overflow-auto,
 
 .barcode-printing-page[data-precision-tab] .barcode-print-header,
 .barcode-printing-page[data-precision-tab] .barcode-print-search,
-.barcode-printing-page[data-precision-tab] .barcode-label-source-collapsible,
-.barcode-printing-page[data-precision-tab] .barcode-products-panel {
+.barcode-printing-page[data-precision-tab] .barcode-label-source-collapsible {
+  display: none;
+}
+
+.barcode-printing-page[data-precision-tab]:not([data-from-purchase]) .barcode-products-panel {
   display: none;
 }
 

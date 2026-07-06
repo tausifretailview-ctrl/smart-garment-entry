@@ -438,7 +438,7 @@ const PurchaseBillDashboard = () => {
             // Fetch items fresh from database instead of relying on expand cache
             const { data: items, error } = await supabase
               .from("purchase_items")
-              .select("id, product_id, product_name, brand, category, color, style, size, sale_price, mrp, pur_price, barcode, qty")
+              .select("id, sku_id, product_id, product_name, brand, category, color, style, size, sale_price, mrp, pur_price, barcode, qty")
               .eq("bill_id", bill.id);
             if (error) throw error;
 
@@ -464,7 +464,7 @@ const PurchaseBillDashboard = () => {
             }
 
             const barcodeItems = fetchedItems.map(item => ({
-              sku_id: item.id,
+              sku_id: item.sku_id || item.id,
               product_name: item.product_name || "",
               brand: item.brand || "",
               category: item.category || "",
@@ -1398,7 +1398,7 @@ const PurchaseBillDashboard = () => {
       }
 
       const barcodeItems = items.map((item: any) => ({
-        sku_id: item.sku_id,
+        sku_id: item.sku_id || item.id,
         product_name: item.product_name || "",
         brand: item.brand || "",
         category: item.category || "",
@@ -1410,7 +1410,7 @@ const PurchaseBillDashboard = () => {
         pur_price: item.pur_price,
         barcode: item.barcode,
         qty: item.qty,
-        bill_number: item.bill_number || "",
+        bill_number: billData?.software_bill_no || item.bill_number || "",
         supplier_code: supplierCode,
       }));
 

@@ -4657,6 +4657,7 @@ export default function BarcodePrinting() {
       data-entry-form
       {...(activeBarTab === "designer" ? { "data-designer-tab": true } : {})}
       {...(activeBarTab === "precision" ? { "data-precision-tab": true } : {})}
+      {...(showPurchaseBillNav ? { "data-from-purchase": true } : {})}
     >
       {/* Header — back + purchase shortcuts */}
       <header className="barcode-print-header shrink-0 flex items-center gap-2 px-2 py-1.5 border-b bg-background">
@@ -4906,7 +4907,9 @@ export default function BarcodePrinting() {
       {labelItems.length > 0 && (
         <div className={cn(
           "barcode-products-panel border rounded-md overflow-hidden shrink-0 flex flex-col",
-          activeBarTab === "designer" ? "max-h-[18vh]" : "max-h-[30vh]",
+          activeBarTab === "designer" || activeBarTab === "precision"
+            ? "max-h-[16vh]"
+            : "max-h-[30vh]",
         )}>
           <div className="bg-slate-900 text-white px-3 py-2 border-b flex items-center justify-between gap-2">
             <p className="text-sm font-semibold tabular-nums">
