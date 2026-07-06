@@ -1191,7 +1191,6 @@ export default function BarcodePrinting() {
   });
   const [labelSourceOpen, setLabelSourceOpen] = useState(false);
   const [layoutStyleOpen, setLayoutStyleOpen] = useState(false);
-  const [precisionSettingsOpen, setPrecisionSettingsOpen] = useState(false);
   const [quantityMode, setQuantityMode] = useState<QuantityMode>("manual");
   const [sizeSortOrder, setSizeSortOrder] = useState<SizeSortOrder>("barcode_asc");
   const [billNumber, setBillNumber] = useState("");
@@ -4657,6 +4656,7 @@ export default function BarcodePrinting() {
       className={cn(entryPageShellClass, "barcode-printing-page bg-slate-50 dark:bg-background flex flex-col min-h-0 h-full w-full max-w-none")}
       data-entry-form
       {...(activeBarTab === "designer" ? { "data-designer-tab": true } : {})}
+      {...(activeBarTab === "precision" ? { "data-precision-tab": true } : {})}
     >
       {/* Header — back + purchase shortcuts */}
       <header className="barcode-print-header shrink-0 flex items-center gap-2 px-2 py-1.5 border-b bg-background">
@@ -4710,7 +4710,9 @@ export default function BarcodePrinting() {
       <main
         className={cn(
           "flex-1 min-h-0 flex flex-col gap-2 p-2",
-          activeBarTab === "designer" ? "overflow-hidden" : "overflow-y-auto overflow-x-hidden",
+          activeBarTab === "designer" || activeBarTab === "precision"
+            ? "overflow-hidden"
+            : "overflow-y-auto overflow-x-hidden",
         )}
       >
 
@@ -5930,26 +5932,58 @@ export default function BarcodePrinting() {
       </Collapsible>
         </TabsContent>
 
-        <TabsContent value="precision" className="space-y-2 mt-0 flex-1 min-h-0">
-          <Collapsible open={precisionSettingsOpen} onOpenChange={setPrecisionSettingsOpen}>
-            <div className="border rounded-md overflow-hidden bg-card">
-              <CollapsibleTrigger asChild>
-                <button
-                  type="button"
-                  className="barcode-label-source-trigger w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-muted/40 transition-colors"
+        <TabsContent value="precision" className="barcode-precision-workspace mt-0 flex-1 min-h-0 flex flex-col data-[state=inactive]:hidden">
+          <div className="border rounded-md flex flex-col flex-1 min-h-0 overflow-hidden bg-card">
+            <div className="barcode-precision-toolbar shrink-0 flex flex-wrap items-center gap-2 px-2 py-1.5 border-b bg-muted/30">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8 gap-1 font-semibold shrink-0"
+                disabled={isNavigatingToPurchaseBill}
+                onClick={handleBackNavigation}
+              >
+                {isNavigatingToPurchaseBill ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <ChevronLeft className="h-4 w-4" />
+                )}
+                Back
+              </Button>
+              <span className="text-sm font-bold">Precision Pro</span>
+              <span className="text-xs text-muted-foreground tabular-nums">
+                {effectivePrecisionLabelWidth}×{effectivePrecisionLabelHeight}mm
+              </span>
+              {labelItems.length > 0 && (
+                <span className="text-xs text-muted-foreground tabular-nums ml-1">
+                  · {labelItems.length} products · {totalLabelQty} labels
+                </span>
+              )}
+              <div className="flex items-center gap-1.5 ml-auto shrink-0">
+                {showPurchaseBillNav && (
+                  <Button
+                    variant="default"
+                    size="sm"
+                    className="h-8 text-xs gap-1"
+                    disabled={isNavigatingToPurchaseBill}
+                    onClick={() => void handleBackToPurchaseBill()}
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    Add Products
+                  </Button>
+                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 text-xs gap-1.5"
+                  onClick={() => orgNavigate("/purchase-bills")}
                 >
-                  <ChevronDown className={cn("h-4 w-4 shrink-0 text-muted-foreground transition-transform", precisionSettingsOpen && "rotate-180")} />
-                  <span className="text-sm font-bold">Precision Pro Settings</span>
-                  <span className="text-xs text-muted-foreground truncate ml-auto">
-                    {effectivePrecisionLabelWidth}×{effectivePrecisionLabelHeight}mm
-                  </span>
-                </button>
-              </CollapsibleTrigger>
-              <CollapsibleContent>
-                <div className="px-3 pb-3 pt-2 border-t space-y-3">
-            <p className="text-xs text-muted-foreground">
-              One-time setup: label size, calibration offsets, and print mode.
-            </p>
+                  <Package className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Purchase Dashboard</span>
+                </Button>
+              </div>
+            </div>
+            <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-3 py-2">
             <LabelCalibrationUI
               values={{
                 xOffset: precisionSettings.xOffset,
@@ -5992,7 +6026,6 @@ export default function BarcodePrinting() {
                   }, { onConflict: "organization_id,name" });
                 if (error) { toast.error("Failed to save preset"); return; }
                 toast.success(`Preset "${preset.name}" saved`);
-                // Mirror label design to barcode_label_settings so Label Designer dropdown lists it
                 if (preset.labelConfig) {
                   try {
                     await saveTemplateToDb({
@@ -6046,12 +6079,11 @@ export default function BarcodePrinting() {
               onA4ColsChange={(cols) => setPrecisionSettings((prev) => ({ ...prev, a4Cols: cols }))}
               onA4RowsChange={(rows) => setPrecisionSettings((prev) => ({ ...prev, a4Rows: rows }))}
               sampleItem={labelItems.length > 0 ? { ...labelItems[0], businessName } : undefined}
+              fullWorkspace
               activePresetValue={activePrecisionTemplateName}
             />
-                </div>
-              </CollapsibleContent>
             </div>
-          </Collapsible>
+          </div>
         </TabsContent>
 
         <TabsContent value="designer" className="mt-0 flex-1 min-h-0 flex flex-col data-[state=inactive]:hidden">

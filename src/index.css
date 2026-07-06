@@ -3741,3 +3741,19 @@ main.overflow-auto,
 .barcode-printing-page[data-designer-tab] .barcode-label-source-collapsible {
   display: none;
 }
+
+.barcode-printing-page[data-precision-tab] .barcode-print-header,
+.barcode-printing-page[data-precision-tab] .barcode-print-search,
+.barcode-printing-page[data-precision-tab] .barcode-label-source-collapsible,
+.barcode-printing-page[data-precision-tab] .barcode-products-panel {
+  display: none;
+}
+
+.barcode-printing-page[data-precision-tab] > main {
+  padding: 0.25rem 0.5rem 0;
+  gap: 0.25rem;
+}
+
+.barcode-printing-page[data-precision-tab] .barcode-print-tabs {
+  margin-bottom: 0;
+}

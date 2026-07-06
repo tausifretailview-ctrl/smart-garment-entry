@@ -48,7 +48,7 @@ export function isMainDashboardPath(pathname: string): boolean {
 
 /** Sidebar + content only — hide global header menu and window tab strip (e.g. Customer Balances, Accounts). */
 export const SIDEBAR_ONLY_WORKSPACE_PATH =
-  /\/(customer-party-balances|supplier-party-balances|stock-report|accounts|accounts-payments|item-wise-sales|item-wise-stock|net-profit-analysis|insights)(\/|$)/;
+  /\/(customer-party-balances|supplier-party-balances|stock-report|accounts|accounts-payments|item-wise-sales|item-wise-stock|net-profit-analysis|insights|barcode-printing)(\/|$)/;
 
 export function isSidebarOnlyWorkspacePath(pathname: string): boolean {
   return SIDEBAR_ONLY_WORKSPACE_PATH.test(pathname);

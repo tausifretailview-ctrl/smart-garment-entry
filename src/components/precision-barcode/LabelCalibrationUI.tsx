@@ -10,6 +10,7 @@ import { HelpCircle, Minus, Plus, Save, Trash2, RefreshCw, Star } from "lucide-r
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { PrecisionLabelPreview } from "./PrecisionLabelPreview";
 import { LabelDesignConfig, LabelItem, LabelTemplate } from "@/types/labelTypes";
+import { cn } from "@/lib/utils";
 
 export interface CalibrationValues {
   xOffset: number;
@@ -153,6 +154,8 @@ interface LabelCalibrationUIProps {
   defaultTemplateName?: string | null;
   labelConfig?: LabelDesignConfig;
   compact?: boolean;
+  /** Full-page Precision Pro tab: stretch controls + live preview vertically */
+  fullWorkspace?: boolean;
   sampleItem?: LabelItem;
   savedTemplates?: LabelTemplate[];
   printMode?: 'thermal' | 'thermal2up' | 'a4';
@@ -180,6 +183,7 @@ export function LabelCalibrationUI({
   onPresetsChange,
   labelConfig,
   compact = false,
+  fullWorkspace = false,
   sampleItem,
   savedTemplates = [],
   printMode = 'thermal',
@@ -347,7 +351,12 @@ export function LabelCalibrationUI({
   const previewScale = compact ? 2 : 2.5;
 
   return (
-    <div className={compact ? "space-y-3" : "space-y-4"}>
+    <div
+      className={cn(
+        fullWorkspace && "flex flex-col min-h-0 h-full gap-3",
+        !fullWorkspace && (compact ? "space-y-3" : "space-y-4"),
+      )}
+    >
       {/* Presets Row */}
       <div className="flex items-end gap-2 flex-wrap">
         <div className="flex-1 min-w-[160px] space-y-1">
@@ -763,7 +772,12 @@ export function LabelCalibrationUI({
       )}
 
       {/* Calibration Fields + Preview */}
-      <div className={compact ? "space-y-3" : "grid grid-cols-1 md:grid-cols-2 gap-4"}>
+      <div
+        className={cn(
+          fullWorkspace && "grid grid-cols-1 xl:grid-cols-2 gap-4 flex-1 min-h-0 items-start",
+          !fullWorkspace && (compact ? "space-y-3" : "grid grid-cols-1 md:grid-cols-2 gap-4"),
+        )}
+      >
         {/* Controls */}
         <div className="space-y-3">
           <div className="flex items-center gap-1.5">
@@ -793,14 +807,20 @@ export function LabelCalibrationUI({
         </div>
 
         {/* Live Preview */}
-        {!compact && (
-          <div className="space-y-2">
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+        {(!compact || fullWorkspace) && (
+          <div className={cn("space-y-2", fullWorkspace && "flex flex-col min-h-0 h-full xl:h-auto")}>
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide shrink-0">
               Live Preview ({previewScale}× •{' '}
               {printMode === 'thermal2up' ? `${values.labelWidth}×${values.labelHeight}mm × 2` : `${values.labelWidth}×${values.labelHeight}mm`})
             </p>
-            <Card className="overflow-hidden">
-              <CardContent className="p-3 flex items-center justify-center bg-muted/30 overflow-auto" style={{ minHeight: 120 }}>
+            <Card className={cn("overflow-hidden", fullWorkspace && "flex flex-col flex-1 min-h-0")}>
+              <CardContent
+                className={cn(
+                  "p-3 flex items-center justify-center bg-muted/30 overflow-auto",
+                  fullWorkspace ? "flex-1 min-h-[180px]" : "",
+                )}
+                style={fullWorkspace ? undefined : { minHeight: 120 }}
+              >
                 {printMode === 'thermal2up' ? (
                   <div className="flex items-center gap-1">
                     <div
