@@ -1,5 +1,15 @@
 import type { CapacitorConfig } from "@capacitor/cli";
 
+const PRODUCTION_HOST = "https://app.inventoryshop.in";
+
+/** Set when building a shop-specific APK, e.g. CAPACITOR_ORG_SLUG=ella-noor npm run build:android */
+const bundledOrgSlug = (process.env.CAPACITOR_ORG_SLUG ?? process.env.VITE_BUNDLED_ORG_SLUG ?? "")
+  .trim()
+  .toLowerCase()
+  .replace(/[^a-z0-9-]/g, "");
+
+const serverUrl = bundledOrgSlug ? `${PRODUCTION_HOST}/${bundledOrgSlug}` : PRODUCTION_HOST;
+
 const config: CapacitorConfig = {
   appId: "com.ezzyerp.app",
   appName: "EzzyERP",
@@ -9,7 +19,7 @@ const config: CapacitorConfig = {
   },
   server: {
     androidScheme: "https",
-    url: "https://app.inventoryshop.in",
+    url: serverUrl,
     cleartext: false,
   },
   plugins: {

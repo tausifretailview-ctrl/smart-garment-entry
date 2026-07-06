@@ -4,6 +4,7 @@ import { WifiOff, RefreshCw } from "lucide-react";
 import { AppBootSplash } from "@/components/AppBootSplash";
 import { hideAppBootSplash } from "@/lib/appBootSplash";
 import { getStoredOrgSlug, isValidOrgSlug, normalizeOrgSlug, getOrgSlugFromUrl, storeOrgSlug } from "@/lib/orgSlug";
+import { resolveStartupOrgSlug } from "@/lib/bundledOrg";
 
 // Check if this is a Field Sales PWA context
 const isFieldSalesPWA = (): boolean => {
@@ -65,7 +66,7 @@ export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
       storeOrgSlug(normalizedUrlSlug); // persist latest known slug across layers
     }
 
-    const orgSlug = normalizedUrlSlug || getStoredOrgSlug() || getOrgSlugFromUrl();
+    const orgSlug = normalizedUrlSlug || resolveStartupOrgSlug();
 
     if (orgSlug) {
       // Redirect to organization-specific login

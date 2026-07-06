@@ -24,6 +24,7 @@ import { POSLayout } from "@/components/POSLayout";
 import { PosDeliveryChallanLayout } from "@/components/PosDeliveryChallanLayout";
 import { SchoolFeatureGate } from "./components/school/SchoolFeatureGate";
 import { getStoredOrgSlug } from "@/lib/orgSlug";
+import { resolveStartupOrgSlug } from "@/lib/bundledOrg";
 import InstallApp from "./pages/InstallApp";
 const OAuthConsent = lazyWithRetry(() => import("./pages/OAuthConsent"));
 import { MobileOrgIndexRedirect } from "@/components/mobile/MobileOrgIndexRedirect";
@@ -209,7 +210,7 @@ function isFieldSalesPWA(): boolean {
 
 // Component to redirect root to org-specific URL
 function RootRedirect() {
-  const savedOrgSlug = getStoredOrgSlug();
+  const savedOrgSlug = resolveStartupOrgSlug();
   const isFieldSales = isFieldSalesPWA();
 
   if (savedOrgSlug) {
@@ -228,7 +229,7 @@ function RootRedirect() {
 
 // Redirect non-org routes (like /purchase-bills) to /:orgSlug/... when possible
 function NonOrgRedirect({ path }: { path: string }) {
-  const savedOrgSlug = getStoredOrgSlug();
+  const savedOrgSlug = resolveStartupOrgSlug();
 
   if (savedOrgSlug) {
     return <Navigate to={`/${savedOrgSlug}/${path}`} replace />;
@@ -241,7 +242,7 @@ function NonOrgRedirect({ path }: { path: string }) {
 function NonOrgRedirectWithTail({ pathPrefix }: { pathPrefix: string }) {
   const params = useParams();
   const tail = (params["*"] as string | undefined)?.replace(/^\/+/, "") ?? "";
-  const savedOrgSlug = getStoredOrgSlug();
+  const savedOrgSlug = resolveStartupOrgSlug();
   if (savedOrgSlug) {
     const suffix = tail ? `/${tail}` : "";
     return <Navigate to={`/${savedOrgSlug}/${pathPrefix}${suffix}`} replace />;
@@ -251,7 +252,7 @@ function NonOrgRedirectWithTail({ pathPrefix }: { pathPrefix: string }) {
 
 /** Legacy dashboard URL → canonical sale returns route under org. */
 function NonOrgLegacySaleReturnDashboardRedirect() {
-  const savedOrgSlug = getStoredOrgSlug();
+  const savedOrgSlug = resolveStartupOrgSlug();
   if (savedOrgSlug) {
     return <Navigate to={`/${savedOrgSlug}/sale-returns`} replace />;
   }

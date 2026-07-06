@@ -17,6 +17,8 @@ import {
 import { Building2, Loader2, LogIn, Shield, WifiOff, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { hideAppBootSplash } from "@/lib/appBootSplash";
+import { Capacitor } from "@capacitor/core";
+import { resolveStartupOrgSlug } from "@/lib/bundledOrg";
 
 const getCachedOrgSlugs = (userId: string): { id: string; slug: string; name: string }[] | null => {
   try {
@@ -45,6 +47,16 @@ export const OrganizationSetup = () => {
   useEffect(() => {
     hideAppBootSplash();
   }, []);
+
+  const isNativeApp = Capacitor.isNativePlatform();
+  const startupOrgSlug = resolveStartupOrgSlug();
+
+  // Native APK: skip org URL entry — go straight to org login when slug is known
+  useEffect(() => {
+    if (!user && startupOrgSlug) {
+      navigate(`/${startupOrgSlug}`, { replace: true });
+    }
+  }, [user, startupOrgSlug, navigate]);
 
   // Compute redirect slug (must be before any early returns for hooks rules)
   const storedSlug = getStoredOrgSlug();
@@ -130,8 +142,41 @@ export const OrganizationSetup = () => {
     );
   }
 
-  // Unauthenticated: show org slug entry
+  // Unauthenticated: web users pick org URL; native app opens org login directly
   if (!user) {
+    if (isNativeApp && startupOrgSlug) {
+      return (
+        <div className="min-h-screen flex items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      );
+    }
+
+    if (isNativeApp) {
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted p-4">
+          <Card className="w-full max-w-md">
+            <CardHeader className="text-center">
+              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
+                <Building2 className="h-8 w-8 text-primary" />
+              </div>
+              <CardTitle>App Not Linked to a Shop</CardTitle>
+              <CardDescription>
+                Install this app using your shop&apos;s install link (from Settings → Install App), then open it again.
+                You will go straight to the login screen — no organization URL needed.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <Button variant="outline" className="w-full" onClick={() => navigate("/auth")}>
+                <Shield className="mr-2 h-4 w-4" />
+                Platform Admin Login
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      );
+    }
+
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted p-4">
         <Card className="w-full max-w-md">
