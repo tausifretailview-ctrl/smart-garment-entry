@@ -350,7 +350,6 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
     if (open) {
       resetForm();
       fetchSizeGroups();
-      fetchFieldSettings();
       fetchDefaultSizeGroup();
       fetchPreviousValues();
       setCopySearch("");
@@ -805,21 +804,20 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
     }
   };
 
-  const fetchFieldSettings = async () => {
-    if (!currentOrganization) return;
-    
-    const { data } = await supabase
-      .from("settings")
-      .select("product_settings")
-      .eq("organization_id", currentOrganization.id)
-      .maybeSingle();
-
-    if (data && typeof data.product_settings === 'object' && data.product_settings !== null) {
-      const settings = data.product_settings as any;
-      if (settings.fields) {
-        setFieldSettings(settings.fields);
-      }
+  const isFieldEnabled = (fieldName: string) => {
+    const key = fieldName as ProductFieldKey;
+    if (key in productFieldSettings) {
+      return productFieldSettings[key]?.enabled !== false;
     }
+    return true;
+  };
+
+  const getFieldLabel = (fieldName: string, defaultLabel: string) => {
+    const key = fieldName as ProductFieldKey;
+    if (key in productFieldSettings) {
+      return productFieldSettings[key]?.label || defaultLabel;
+    }
+    return defaultLabel;
   };
 
   const fetchDefaultSizeGroup = async () => {
@@ -1515,16 +1513,6 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
       }
     }
   }, [cursorAfterStyle, purGstRef, saleGstRef]);
-
-  const isFieldEnabled = (fieldName: string) => {
-    if (!fieldSettings) return true;
-    return fieldSettings[fieldName]?.enabled !== false;
-  };
-
-  const getFieldLabel = (fieldName: string, defaultLabel: string) => {
-    if (!fieldSettings) return defaultLabel;
-    return fieldSettings[fieldName]?.label || defaultLabel;
-  };
 
   const isPurchaseBillForm = !!hideOpeningQty;
   const purchaseTypography = isPurchaseBillForm
