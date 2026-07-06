@@ -44,7 +44,7 @@ const OrganizationResetDialog = () => {
   const canReset = backupConfirmed && isConfirmationValid && !isResetting;
 
   const handleReset = async () => {
-    const success = await resetOrganization();
+    const success = await resetOrganization(confirmationText.trim());
     if (success) {
       setOpen(false);
       setBackupConfirmed(false);

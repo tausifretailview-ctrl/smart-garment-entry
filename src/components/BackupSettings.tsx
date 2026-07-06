@@ -146,7 +146,7 @@ const BackupSettings = ({
             Cloud Auto-Backup
           </CardTitle>
            <CardDescription>
-            Automatically backs up your data every night at 11:00 PM IST. Backup file is emailed to you.
+            Backs up your data automatically every night at 11:00 PM IST to secure cloud storage. Download any backup from Backup History below.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -160,7 +160,7 @@ const BackupSettings = ({
                 <div>
                    <h4 className="font-medium">Enable Daily Auto-Backup (Every Night 11:00 PM IST)</h4>
                    <p className="text-sm text-muted-foreground">
-                     Backup runs automatically every night and the file is emailed to you
+                     Backs up your data automatically every night at 11:00 PM IST to secure cloud storage
                   </p>
                 </div>
                 <Switch
@@ -173,7 +173,7 @@ const BackupSettings = ({
               <div className="space-y-2">
                 <Label htmlFor="backupEmail" className="flex items-center gap-1">
                   <Mail className="h-3.5 w-3.5" />
-                  Backup Email (receives backup file)
+                  Notification Email (coming soon)
                 </Label>
                 <Input
                   id="backupEmail"
@@ -183,7 +183,7 @@ const BackupSettings = ({
                   onChange={(e) => setBackupEmail(e.target.value)}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Daily backup JSON file will be sent to this email every night at 11:00 PM IST
+                  Email delivery is not active yet.
                 </p>
               </div>
 

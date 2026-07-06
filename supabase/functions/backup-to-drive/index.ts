@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { fetchAllRows } from "../_shared/backupFetch.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -98,15 +99,38 @@ async function uploadToGoogleDrive(accessToken: string, fileName: string, conten
   return await uploadResponse.json();
 }
 
+async function markBackupFailed(
+  supabase: ReturnType<typeof createClient>,
+  backupLogId: string,
+  organizationId: string,
+  errorMessage: string,
+): Promise<void> {
+  await supabase.from('backup_logs').update({
+    status: 'failed',
+    error_message: errorMessage,
+    completed_at: new Date().toISOString(),
+  }).eq('id', backupLogId);
+
+  await supabase.from('app_error_logs').insert({
+    organization_id: organizationId,
+    operation: 'backup_to_drive',
+    error_message: errorMessage,
+  });
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
+  let backupLogId: string | null = null;
+  let supabase: ReturnType<typeof createClient> | null = null;
+  let organizationId: string | null = null;
+
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
@@ -122,7 +146,8 @@ Deno.serve(async (req) => {
       throw new Error('Unauthorized');
     }
 
-    const { organizationId, backupType = 'manual' } = await req.json() as BackupRequest;
+    const { organizationId: orgId, backupType = 'manual' } = await req.json() as BackupRequest;
+    organizationId = orgId;
 
     if (!organizationId) {
       throw new Error('Organization ID is required');
@@ -164,6 +189,7 @@ Deno.serve(async (req) => {
       console.error('Failed to create backup log:', logError);
       throw new Error('Failed to create backup log');
     }
+    backupLogId = backupLog.id;
 
     console.log('Starting backup for organization:', organizationId);
 
@@ -193,64 +219,54 @@ Deno.serve(async (req) => {
       'purchase_items': { parent: 'purchase_bills', foreignKey: 'bill_id' },
       'purchase_return_items': { parent: 'purchase_returns', foreignKey: 'return_id' },
       'quotation_items': { parent: 'quotations', foreignKey: 'quotation_id' },
-      'sale_order_items': { parent: 'sale_orders', foreignKey: 'sale_order_id' },
+      'sale_order_items': { parent: 'sale_orders', foreignKey: 'order_id' },
     };
 
     const backupData: Record<string, unknown[]> = {};
     const recordsCounts: Record<string, number> = {};
 
-    // Fetch organization-scoped tables
     for (const table of orgScopedTables) {
-      try {
-        const { data, error } = await supabase
-          .from(table)
-          .select('*')
-          .eq('organization_id', organizationId);
-
-        if (error) {
-          console.warn(`Failed to fetch ${table}:`, error.message);
-          backupData[table] = [];
-          recordsCounts[table] = 0;
-        } else {
-          backupData[table] = data || [];
-          recordsCounts[table] = data?.length || 0;
-        }
-      } catch (err) {
-        console.warn(`Error fetching ${table}:`, err);
-        backupData[table] = [];
-        recordsCounts[table] = 0;
+      const { rows, error: fetchError } = await fetchAllRows(
+        supabase,
+        table,
+        { column: 'organization_id', value: organizationId },
+      );
+      if (fetchError) {
+        const errorMessage = `table ${table}: ${fetchError}`;
+        await markBackupFailed(supabase, backupLogId, organizationId, errorMessage);
+        return new Response(
+          JSON.stringify({ success: false, error: errorMessage }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        );
       }
+      backupData[table] = rows;
+      recordsCounts[table] = rows.length;
     }
 
-    // Fetch line item tables via parent IDs
     for (const [table, config] of Object.entries(lineItemTables)) {
-      try {
-        const parentData = backupData[config.parent] as any[];
-        if (!parentData || parentData.length === 0) {
-          backupData[table] = [];
-          recordsCounts[table] = 0;
-          continue;
-        }
-
-        const parentIds = parentData.map(p => p.id);
-        const { data, error } = await supabase
-          .from(table)
-          .select('*')
-          .in(config.foreignKey, parentIds);
-
-        if (error) {
-          console.warn(`Failed to fetch ${table}:`, error.message);
-          backupData[table] = [];
-          recordsCounts[table] = 0;
-        } else {
-          backupData[table] = data || [];
-          recordsCounts[table] = data?.length || 0;
-        }
-      } catch (err) {
-        console.warn(`Error fetching ${table}:`, err);
+      const parentData = backupData[config.parent] as { id: string }[];
+      if (!parentData?.length) {
         backupData[table] = [];
         recordsCounts[table] = 0;
+        continue;
       }
+
+      const parentIds = parentData.map((p) => p.id);
+      const { rows, error: fetchError } = await fetchAllRows(
+        supabase,
+        table,
+        { column: config.foreignKey, inValues: parentIds },
+      );
+      if (fetchError) {
+        const errorMessage = `table ${table}: ${fetchError}`;
+        await markBackupFailed(supabase, backupLogId, organizationId, errorMessage);
+        return new Response(
+          JSON.stringify({ success: false, error: errorMessage }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        );
+      }
+      backupData[table] = rows;
+      recordsCounts[table] = rows.length;
     }
 
     const allTables = [...orgScopedTables, ...Object.keys(lineItemTables)];
@@ -282,14 +298,12 @@ Deno.serve(async (req) => {
       console.error('Failed to get Google access token:', tokenError);
       
       // Update backup log with failure
-      await supabase
-        .from('backup_logs')
-        .update({
-          status: 'failed',
-          error_message: 'Google Drive authentication failed. Please verify your API credentials (Client ID, Client Secret, and Refresh Token) are correct.',
-          completed_at: new Date().toISOString(),
-        })
-        .eq('id', backupLog.id);
+      await markBackupFailed(
+        supabase,
+        backupLogId,
+        organizationId,
+        'Google Drive authentication failed. Please verify your API credentials (Client ID, Client Secret, and Refresh Token) are correct.',
+      );
 
       throw new Error('Google Drive authentication failed. Please check your credentials in Settings.');
     }
@@ -311,7 +325,7 @@ Deno.serve(async (req) => {
         records_count: recordsCounts,
         completed_at: new Date().toISOString(),
       })
-      .eq('id', backupLog.id);
+      .eq('id', backupLogId);
 
     return new Response(
       JSON.stringify({
@@ -328,6 +342,18 @@ Deno.serve(async (req) => {
   } catch (error: unknown) {
     console.error('Backup error:', error);
     const errorMessage = error instanceof Error ? error.message : 'Backup failed';
+
+    if (backupLogId && supabase) {
+      try {
+        await supabase.from('backup_logs').update({
+          status: 'failed',
+          error_message: errorMessage,
+          completed_at: new Date().toISOString(),
+        }).eq('id', backupLogId);
+      } catch (logErr) {
+        console.error('Failed to update backup_logs on error:', logErr);
+      }
+    }
     
     return new Response(
       JSON.stringify({

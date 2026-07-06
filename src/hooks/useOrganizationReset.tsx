@@ -103,7 +103,7 @@ export const useOrganizationReset = () => {
     enabled: !!currentOrganization?.id,
   });
 
-  const resetOrganization = async (): Promise<boolean> => {
+  const resetOrganization = async (confirmationName: string): Promise<boolean> => {
     if (!currentOrganization?.id) {
       toast.error("No organization selected");
       return false;
@@ -129,6 +129,7 @@ export const useOrganizationReset = () => {
         body: {
           organizationId: currentOrganization.id,
           barcodeStartValue,
+          confirmationName,
         },
       });
 

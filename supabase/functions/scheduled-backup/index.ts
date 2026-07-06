@@ -13,7 +13,7 @@ interface BackupSetting {
   last_auto_backup_at: string | null;
 }
 
-const AUTO_BACKUP_INTERVAL_DAYS = 7;
+const AUTO_BACKUP_INTERVAL_DAYS = 1;
 const AUTO_BACKUP_INTERVAL_MS = AUTO_BACKUP_INTERVAL_DAYS * 24 * 60 * 60 * 1000;
 
 Deno.serve(async (req) => {

@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { fetchAllRows } from "../_shared/backupFetch.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -64,18 +65,51 @@ async function purgeOldBackups(
   return { files_deleted: filesDeleted, logs_deleted: logsDeleted };
 }
 
+async function markBackupFailed(
+  supabase: any,
+  backupLogId: string,
+  organizationId: string,
+  errorMessage: string,
+): Promise<void> {
+  await supabase.from('backup_logs').update({
+    status: 'failed',
+    error_message: errorMessage,
+    completed_at: new Date().toISOString(),
+  }).eq('id', backupLogId);
+
+  await supabase.from('app_error_logs').insert({
+    organization_id: organizationId,
+    operation: 'auto_backup',
+    error_message: errorMessage,
+  });
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
+  let backupLogId: string | null = null;
+  let supabase: ReturnType<typeof createClient> | null = null;
+  let organizationId: string | null = null;
+
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const body = await req.json();
-    const { organizationId, backupType = 'automatic', retentionDays: bodyRetention, internalDispatch = false } = body;
+    const parsed = body as {
+      organizationId: string;
+      backupType?: string;
+      retentionDays?: number;
+      internalDispatch?: boolean;
+    };
+    organizationId = parsed.organizationId;
+    const backupType = parsed.backupType ?? 'automatic';
+    const bodyRetention = parsed.retentionDays;
+    const internalDispatch = parsed.internalDispatch ?? false;
+
     if (!organizationId) throw new Error('Organization ID is required');
 
     // Auth: either internal dispatcher (service role JWT) or end-user with org membership
@@ -128,6 +162,7 @@ Deno.serve(async (req) => {
       .select()
       .single();
     if (logError) throw new Error('Failed to create backup log');
+    backupLogId = (backupLog as { id: string }).id;
 
     console.log('Starting cloud backup for organization:', organizationId);
 
@@ -144,39 +179,52 @@ Deno.serve(async (req) => {
       'purchase_items': { parent: 'purchase_bills', foreignKey: 'bill_id' },
       'purchase_return_items': { parent: 'purchase_returns', foreignKey: 'return_id' },
       'quotation_items': { parent: 'quotations', foreignKey: 'quotation_id' },
-      'sale_order_items': { parent: 'sale_orders', foreignKey: 'sale_order_id' },
+      'sale_order_items': { parent: 'sale_orders', foreignKey: 'order_id' },
     };
 
     const backupData: Record<string, unknown[]> = {};
     const recordsCounts: Record<string, number> = {};
 
     for (const table of orgScopedTables) {
-      try {
-        const { data, error } = await supabase.from(table).select('*').eq('organization_id', organizationId);
-        backupData[table] = error ? [] : (data || []);
-        recordsCounts[table] = backupData[table].length;
-      } catch {
-        backupData[table] = [];
-        recordsCounts[table] = 0;
+      const { rows, error: fetchError } = await fetchAllRows(
+        supabase,
+        table,
+        { column: 'organization_id', value: organizationId },
+      );
+      if (fetchError) {
+        const errorMessage = `table ${table}: ${fetchError}`;
+        await markBackupFailed(supabase, backupLogId, organizationId, errorMessage);
+        return new Response(
+          JSON.stringify({ success: false, error: errorMessage }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        );
       }
+      backupData[table] = rows;
+      recordsCounts[table] = rows.length;
     }
 
     for (const [table, config] of Object.entries(lineItemTables)) {
-      const parentData = backupData[config.parent] as any[];
-      if (!parentData?.length) {
-        backupData[table] = [];
-        recordsCounts[table] = 0;
-        continue;
+      const parentData = backupData[config.parent] as { id: string }[];
+      let rows: unknown[] = [];
+      if (parentData?.length) {
+        const parentIds = parentData.map((p) => p.id);
+        const result = await fetchAllRows(
+          supabase,
+          table,
+          { column: config.foreignKey, inValues: parentIds },
+        );
+        if (result.error) {
+          const errorMessage = `table ${table}: ${result.error}`;
+          await markBackupFailed(supabase, backupLogId, organizationId, errorMessage);
+          return new Response(
+            JSON.stringify({ success: false, error: errorMessage }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+          );
+        }
+        rows = result.rows;
       }
-      try {
-        const parentIds = parentData.map(p => p.id);
-        const { data, error } = await supabase.from(table).select('*').in(config.foreignKey, parentIds);
-        backupData[table] = error ? [] : (data || []);
-        recordsCounts[table] = backupData[table].length;
-      } catch {
-        backupData[table] = [];
-        recordsCounts[table] = 0;
-      }
+      backupData[table] = rows;
+      recordsCounts[table] = rows.length;
     }
 
     const allTables = [...orgScopedTables, ...Object.keys(lineItemTables)];
@@ -206,19 +254,12 @@ Deno.serve(async (req) => {
 
     if (uploadError) {
       console.error('Storage upload failed:', uploadError);
-      await supabase.from('backup_logs').update({
-        status: 'failed',
-        error_message: `Storage upload failed: ${uploadError.message}`,
-        completed_at: new Date().toISOString(),
-      }).eq('id', (backupLog as any).id);
-
-      // Log failure for observability
-      await supabase.from('app_error_logs').insert({
-        organization_id: organizationId,
-        operation: 'auto_backup',
-        error_message: `Storage upload failed: ${uploadError.message}`,
-      });
-
+      await markBackupFailed(
+        supabase,
+        backupLogId,
+        organizationId,
+        `Storage upload failed: ${uploadError.message}`,
+      );
       throw new Error(`Storage upload failed: ${uploadError.message}`);
     }
 
@@ -232,7 +273,7 @@ Deno.serve(async (req) => {
       tables_included: allTables,
       records_count: recordsCounts,
       completed_at: new Date().toISOString(),
-    }).eq('id', (backupLog as any).id);
+    }).eq('id', backupLogId);
 
     await supabase.from('settings').update({
       last_auto_backup_at: new Date().toISOString(),
@@ -258,6 +299,19 @@ Deno.serve(async (req) => {
   } catch (error: unknown) {
     console.error('Auto-backup error:', error);
     const errorMessage = error instanceof Error ? error.message : 'Backup failed';
+
+    if (backupLogId && supabase && organizationId) {
+      try {
+        await supabase.from('backup_logs').update({
+          status: 'failed',
+          error_message: errorMessage,
+          completed_at: new Date().toISOString(),
+        }).eq('id', backupLogId);
+      } catch (logErr) {
+        console.error('Failed to update backup_logs on error:', logErr);
+      }
+    }
+
     return new Response(
       JSON.stringify({ success: false, error: errorMessage }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

@@ -96,11 +96,18 @@ Deno.serve(async (req) => {
       );
     }
 
-    const { organizationId, barcodeStartValue } = await req.json();
+    const { organizationId, barcodeStartValue, confirmationName } = await req.json();
 
     if (!organizationId) {
       return new Response(
         JSON.stringify({ error: "Missing organizationId" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    if (!confirmationName || typeof confirmationName !== "string") {
+      return new Response(
+        JSON.stringify({ error: "Confirmation name is required" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -123,6 +130,27 @@ Deno.serve(async (req) => {
     }
 
     const adminClient = createClient(supabaseUrl, supabaseServiceKey);
+
+    const { data: orgRow, error: orgError } = await adminClient
+      .from("organizations")
+      .select("name")
+      .eq("id", organizationId)
+      .single();
+
+    if (orgError || !orgRow?.name) {
+      return new Response(
+        JSON.stringify({ error: "Organization not found" }),
+        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    if (confirmationName.trim() !== orgRow.name.trim()) {
+      return new Response(
+        JSON.stringify({ error: "Confirmation name does not match organization name" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     const deletedCounts: Record<string, number> = {};
     const errors: string[] = [];
 
@@ -209,15 +237,13 @@ Deno.serve(async (req) => {
       deletedCounts["bill_number_sequences"] = billSeqs2Data?.length || 0;
     }
 
-    // Log the reset
-    await adminClient.from("backup_logs").insert({
+    // Audit log (service role write; no client INSERT policy)
+    await adminClient.from("organization_reset_audit").insert({
       organization_id: organizationId,
-      backup_type: "reset",
-      status: errors.length > 0 ? "completed_with_errors" : "completed",
-      started_at: new Date().toISOString(),
-      completed_at: new Date().toISOString(),
-      records_count: deletedCounts,
-      error_message: errors.length > 0 ? errors.join("; ") : null,
+      performed_by: user.id,
+      confirmation_name: confirmationName.trim(),
+      tables_cleared: deletedCounts,
+      errors: errors.length > 0 ? errors : null,
     });
 
     const criticalTables = ["sales", "purchase_bills", "products", "customers", "product_variants", "suppliers"];
