@@ -53,6 +53,7 @@ import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover"
 import { validateProduct } from "@/lib/validations";
 import { UOM_OPTIONS, DEFAULT_UOM, isDecimalUOM } from "@/constants/uom";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
+import { useProductFieldSettings, type ProductFieldKey } from "@/hooks/useSettings";
 import {
   findBarcodeConflictsInOrg,
   formatBarcodeConflictMessage,
@@ -245,7 +246,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
   const [sizeGroups, setSizeGroups] = useState<SizeGroup[]>([]);
   const [variants, setVariants] = useState<ProductVariant[]>([]);
   const [showVariants, setShowVariants] = useState(false);
-  const [fieldSettings, setFieldSettings] = useState<any>(null);
+  const productFieldSettings = useProductFieldSettings();
   const [showMrp, setShowMrp] = useState(false);
   const [showDiscountFields, setShowDiscountFields] = useState(false);
   const [garmentGstSettings, setGarmentGstSettings] = useState<GarmentGstRuleSettings>({});
@@ -2174,6 +2175,82 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                 </div>
               )}
 
+              {/* Mobile ERP purchase: colors (hidden when locked_size_qty skipped the size-group row) */}
+              {isPurchaseBillForm &&
+                isFieldEnabled("color") &&
+                formData.product_type !== "service" &&
+                mobileERPMode?.locked_size_qty && (
+                  <div className="space-y-1.5 min-w-0">
+                    <Label className={purchaseTypography.fieldLabel}>
+                      {getFieldLabel("color", "Colors")} (comma-separated)
+                    </Label>
+                    <div className="flex gap-1.5 items-center">
+                      <Input
+                        value={colorInput}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setColorInput(val);
+                          if (val.endsWith(",") || val.endsWith(", ")) {
+                            const parts = val.split(",").map((c) => c.trim()).filter(Boolean);
+                            const uniqueNew = parts.filter((c) => !formData.colors.includes(c));
+                            if (uniqueNew.length > 0) {
+                              setFormData((prev) => ({ ...prev, colors: [...prev.colors, ...uniqueNew] }));
+                            }
+                            setColorInput("");
+                          }
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === "Tab") {
+                            if (colorInput.trim()) {
+                              e.preventDefault();
+                              handleAddColor();
+                            }
+                          }
+                          if (e.key === "Backspace" && !colorInput && formData.colors.length > 0) {
+                            handleRemoveColor(formData.colors[formData.colors.length - 1]);
+                          }
+                        }}
+                        placeholder={formData.colors.length > 0 ? "Add more…" : "e.g., Black, White, Red"}
+                        className="h-10 text-[16px] font-semibold flex-1 min-w-0"
+                        list="color-list-mobile"
+                        autoComplete="off"
+                      />
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={handleAddColor}
+                        className="h-10 text-[15px] px-3.5 shrink-0"
+                      >
+                        Add
+                      </Button>
+                    </div>
+                    <datalist id="color-list-mobile">
+                      {existingColors
+                        .filter((c) => !formData.colors.includes(c))
+                        .map((color) => (
+                          <option key={color} value={color} />
+                        ))}
+                    </datalist>
+                    <div className="purchase-color-chips min-h-[1.75rem] flex flex-wrap gap-1 pt-0.5">
+                      {formData.colors.map((color, i) => (
+                        <span
+                          key={i}
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-primary/10 text-primary text-[13px] font-semibold border border-primary/20"
+                        >
+                          {color}
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveColor(color)}
+                            className="hover:text-destructive"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
               {/* Mobile ERP: Quantity input - triggers IMEI scan when qty > 1 */}
               {mobileERPMode?.locked_size_qty && hideOpeningQty && (
                 <div className="space-y-2">
@@ -2225,7 +2302,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
 
               {formData.product_type !== 'service' && !mobileERPMode?.locked_size_qty && !(rollWiseMtrEnabled && formData.uom === 'MTR') && (
                 <>
-                  {isPurchaseBillForm && isFieldEnabled("color") && (
+                  {isPurchaseBillForm && isFieldEnabled("color") && !mobileERPMode?.locked_size_qty && (
                     <div className="purchase-color-size-row grid grid-cols-1 md:grid-cols-2 gap-3 items-start">
                       <div className="space-y-1.5 min-w-0">
                         <Label className={purchaseTypography.fieldLabel}>{getFieldLabel("color", "Colors")} (comma-separated)</Label>
