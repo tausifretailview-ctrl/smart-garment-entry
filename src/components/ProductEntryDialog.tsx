@@ -2265,9 +2265,84 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                 </div>
               )}
 
-              {/* Mobile ERP: Quantity input - triggers IMEI scan */}
+              {/* Mobile ERP: color + quantity + IMEI scan */}
               {mobileERPMode?.locked_size_qty && hideOpeningQty && (
-                <div className="space-y-2">
+                <div className="space-y-3">
+                  {isFieldEnabled("color") && formData.product_type !== "service" && (
+                    <div className="space-y-1.5">
+                      <Label className={purchaseTypography.fieldLabel}>
+                        {getFieldLabel("color", "Colors")} (comma-separated)
+                      </Label>
+                      <div className="flex gap-1.5 items-center">
+                        <Input
+                          value={colorInput}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setColorInput(val);
+                            if (val.endsWith(",") || val.endsWith(", ")) {
+                              const parts = val.split(",").map((c) => c.trim()).filter(Boolean);
+                              const uniqueNew = parts.filter((c) => !formData.colors.includes(c));
+                              if (uniqueNew.length > 0) {
+                                setFormData((prev) => ({ ...prev, colors: [...prev.colors, ...uniqueNew] }));
+                              }
+                              setColorInput("");
+                            }
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === "Tab") {
+                              if (colorInput.trim()) {
+                                e.preventDefault();
+                                handleAddColor();
+                              }
+                            }
+                            if (e.key === "Backspace" && !colorInput && formData.colors.length > 0) {
+                              handleRemoveColor(formData.colors[formData.colors.length - 1]);
+                            }
+                          }}
+                          placeholder={formData.colors.length > 0 ? "Add more…" : "e.g., Black, Blue, Gold"}
+                          className="h-10 text-[16px] font-semibold flex-1 min-w-0"
+                          list="color-list"
+                          autoComplete="off"
+                        />
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          onClick={handleAddColor}
+                          className="h-10 text-[15px] px-3.5 shrink-0"
+                        >
+                          Add
+                        </Button>
+                      </div>
+                      <datalist id="color-list">
+                        {existingColors
+                          .filter((c) => !formData.colors.includes(c))
+                          .map((color) => (
+                            <option key={color} value={color} />
+                          ))}
+                      </datalist>
+                      {formData.colors.length > 0 && (
+                        <div className="flex flex-wrap gap-1 pt-0.5">
+                          {formData.colors.map((color, i) => (
+                            <span
+                              key={i}
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-primary/10 text-primary text-[13px] font-semibold border border-primary/20"
+                            >
+                              {color}
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveColor(color)}
+                                className="hover:text-destructive"
+                              >
+                                <X className="h-3.5 w-3.5" />
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="space-y-2">
                   <Label className="font-semibold">Quantity</Label>
                   <div className="flex flex-wrap items-center gap-3">
                     <Input
@@ -2325,6 +2400,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                       />
                     </div>
                   )}
+                  </div>
                 </div>
               )}
 
