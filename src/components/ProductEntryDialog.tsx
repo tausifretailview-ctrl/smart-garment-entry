@@ -22,7 +22,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Switch } from "@/components/ui/switch";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Loader2, Package, Barcode, Plus, Edit, Trash2, ImagePlus, X, Search, Copy, ChevronUp, Check } from "lucide-react";
+import { Loader2, Package, Barcode, Plus, Edit, Trash2, ImagePlus, X, Search, Copy, ChevronUp, Check, Smartphone } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -145,6 +145,8 @@ function FreeTextFieldCombobox({
   options,
   placeholder,
   onKeyDown,
+  inputRef: externalInputRef,
+  className,
 }: {
   id?: string;
   value: string;
@@ -152,9 +154,14 @@ function FreeTextFieldCombobox({
   options: string[];
   placeholder?: string;
   onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void;
+  inputRef?: React.RefObject<HTMLInputElement | null>;
+  className?: string;
 }) {
   const [open, setOpen] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const [highlightIndex, setHighlightIndex] = useState(0);
+  const internalInputRef = useRef<HTMLInputElement>(null);
+  const inputRef = externalInputRef ?? internalInputRef;
+  const listRef = useRef<HTMLDivElement>(null);
 
   const filteredOptions = useMemo(() => {
     const query = value.trim().toLowerCase();
@@ -169,72 +176,125 @@ function FreeTextFieldCombobox({
     ? options.some((opt) => opt.toLowerCase() === typedTrimmed.toLowerCase())
     : false;
 
+  const displayItems = useMemo(() => {
+    const items: { value: string; label: string }[] = [];
+    if (typedTrimmed && !exactMatch) {
+      items.push({ value: typedTrimmed, label: `Use "${typedTrimmed}"` });
+    }
+    for (const opt of filteredOptions) {
+      items.push({ value: opt, label: opt });
+    }
+    return items;
+  }, [typedTrimmed, exactMatch, filteredOptions]);
+
+  useEffect(() => {
+    setHighlightIndex(0);
+  }, [value, open, displayItems.length]);
+
+  useEffect(() => {
+    if (!open || displayItems.length === 0) return;
+    const el = listRef.current?.querySelector(`[data-combobox-item="${highlightIndex}"]`);
+    el?.scrollIntoView({ block: "nearest" });
+  }, [highlightIndex, open, displayItems.length]);
+
   const handleSelect = (selected: string) => {
     onChange(selected);
     setOpen(false);
     inputRef.current?.focus();
   };
 
+  const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Escape") {
+      setOpen(false);
+      e.stopPropagation();
+      return;
+    }
+
+    if (open && displayItems.length > 0) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        e.stopPropagation();
+        setHighlightIndex((i) => Math.min(i + 1, displayItems.length - 1));
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        e.stopPropagation();
+        setHighlightIndex((i) => Math.max(i - 1, 0));
+        return;
+      }
+      if (e.key === "Enter") {
+        e.preventDefault();
+        e.stopPropagation();
+        handleSelect(displayItems[highlightIndex].value);
+        return;
+      }
+    }
+
+    if (e.key === "ArrowDown" && !open && displayItems.length > 0) {
+      e.preventDefault();
+      setOpen(true);
+      return;
+    }
+
+    onKeyDown?.(e);
+  };
+
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverAnchor asChild>
-        <Input
-          ref={inputRef}
-          id={id}
-          value={value}
-          onChange={(e) => {
-            onChange(e.target.value);
-            setOpen(true);
-          }}
-          onFocus={() => setOpen(true)}
-          onKeyDown={(e) => {
-            if (e.key === "Escape") {
-              setOpen(false);
-              return;
+    <div data-combobox-root>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverAnchor asChild>
+          <Input
+            ref={inputRef}
+            id={id}
+            value={value}
+            data-combobox-open={open ? "true" : "false"}
+            onChange={(e) => {
+              onChange(e.target.value);
+              setOpen(true);
+            }}
+            onFocus={() => setOpen(true)}
+            onKeyDown={handleInputKeyDown}
+            placeholder={placeholder}
+            autoComplete="off"
+            className={className}
+          />
+        </PopoverAnchor>
+        <PopoverContent
+          className="z-[200] w-[var(--radix-popover-trigger-width)] p-0"
+          align="start"
+          onOpenAutoFocus={(e) => e.preventDefault()}
+          onInteractOutside={(e) => {
+            if (inputRef.current?.contains(e.target as Node)) {
+              e.preventDefault();
             }
-            onKeyDown?.(e);
           }}
-          placeholder={placeholder}
-          autoComplete="off"
-        />
-      </PopoverAnchor>
-      <PopoverContent
-        className="w-[var(--radix-popover-trigger-width)] p-0"
-        align="start"
-        onOpenAutoFocus={(e) => e.preventDefault()}
-        onInteractOutside={(e) => {
-          if (inputRef.current?.contains(e.target as Node)) {
-            e.preventDefault();
-          }
-        }}
-      >
-        <Command shouldFilter={false}>
-          <CommandList className="max-h-48">
-            {typedTrimmed && !exactMatch && (
-              <CommandGroup>
-                <CommandItem
-                  value={`__custom__${typedTrimmed}`}
-                  onSelect={() => handleSelect(typedTrimmed)}
-                >
-                  Use &quot;{typedTrimmed}&quot;
-                </CommandItem>
-              </CommandGroup>
-            )}
-            {filteredOptions.length > 0 ? (
-              <CommandGroup>
-                {filteredOptions.map((opt) => (
-                  <CommandItem key={opt} value={opt} onSelect={() => handleSelect(opt)}>
-                    {opt}
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-            ) : (
-              !typedTrimmed && <CommandEmpty>No previous values</CommandEmpty>
-            )}
-          </CommandList>
-        </Command>
-      </PopoverContent>
-    </Popover>
+        >
+          <Command shouldFilter={false}>
+            <CommandList ref={listRef} className="max-h-48">
+              {displayItems.length > 0 ? (
+                <CommandGroup>
+                  {displayItems.map((item, idx) => (
+                    <CommandItem
+                      key={`${item.value}-${idx}`}
+                      value={item.value}
+                      data-combobox-item={idx}
+                      className={cn(idx === highlightIndex && "bg-accent text-accent-foreground")}
+                      onSelect={() => handleSelect(item.value)}
+                      onMouseEnter={() => setHighlightIndex(idx)}
+                    >
+                      {item.label}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              ) : (
+                !typedTrimmed && <CommandEmpty>No previous values</CommandEmpty>
+              )}
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
+    </div>
   );
 }
 
@@ -268,6 +328,19 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
   const [customSizes, setCustomSizes] = useState<string[]>([]);
   const [customSizeInput, setCustomSizeInput] = useState("");
   const autoBarcodePending = useRef(false);
+  const prevPurchaseQtyTotalRef = useRef(0);
+
+  // Purchase bill: after first qty entry, scroll variant details into view
+  useEffect(() => {
+    if (!open || !hideOpeningQty) return;
+    const totalQty = variants.reduce((s, v) => s + (v.purchase_qty || 0), 0);
+    if (prevPurchaseQtyTotalRef.current === 0 && totalQty > 0) {
+      requestAnimationFrame(() => {
+        variantsSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      });
+    }
+    prevPurchaseQtyTotalRef.current = totalQty;
+  }, [open, hideOpeningQty, variants]);
   
   // Mobile ERP: qty input & IMEI scan
   const [mobileERPQty, setMobileERPQty] = useState<number>(1);
@@ -309,6 +382,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
   const [copyDropdownPos, setCopyDropdownPos] = useState({ top: 0, left: 0, width: 0 });
 
   // Previous values for dropdowns
+  const [productNames, setProductNames] = useState<string[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
   const [brands, setBrands] = useState<string[]>([]);
   const [hsnCodes, setHsnCodes] = useState<string[]>([]);
@@ -355,6 +429,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
       setCopySearch("");
       setCopyResults([]);
       setShowCopyDropdown(false);
+      prevPurchaseQtyTotalRef.current = 0;
       // Auto-focus product name field
       setTimeout(() => productNameInputRef.current?.focus(), 150);
     }
@@ -523,17 +598,19 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
     
     const { data, error } = await supabase
       .from("products")
-      .select("category, brand, hsn_code, style")
+      .select("product_name, category, brand, hsn_code, style")
       .eq("organization_id", currentOrganization.id)
       .is("deleted_at", null)
       .limit(2000);
 
     if (!error && data) {
+      const uniqueProductNames = [...new Set(data.map(p => p.product_name).filter(Boolean) as string[])].sort();
       const uniqueCategories = [...new Set(data.map(p => p.category).filter(Boolean) as string[])].sort();
       const uniqueBrands = [...new Set(data.map(p => p.brand).filter(Boolean) as string[])].sort();
       const uniqueHsnCodes = [...new Set(data.map(p => p.hsn_code).filter(Boolean) as string[])].sort();
       const uniqueStyles = [...new Set(data.map(p => p.style).filter(Boolean) as string[])].sort();
       
+      setProductNames(uniqueProductNames);
       setCategories(uniqueCategories);
       setBrands(uniqueBrands);
       setHsnCodes(uniqueHsnCodes);
@@ -1468,11 +1545,22 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
     });
   };
 
+  // Mobile ERP: open IMEI scan dialog
+  const openImeiScanDialog = useCallback(() => {
+    const color = formData.colors.length > 0 ? formData.colors[0] : "";
+    setImeiScanColor(color);
+    setImeiScanOpen(true);
+  }, [formData.colors]);
+
   // Enter key moves to next field (like Tab), with configurable skip from style
   const handleEnterAsTab = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
-      e.preventDefault();
       const currentEl = e.target as HTMLElement;
+      if (currentEl.getAttribute("data-combobox-open") === "true") {
+        return;
+      }
+
+      e.preventDefault();
       const currentId = currentEl.id || currentEl.getAttribute("name") || "";
 
       // After style field, jump based on setting
@@ -1541,8 +1629,10 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent
           className={cn(
-            "p-0 font-outfit flex flex-col overflow-hidden",
-            isPurchaseBillForm ? "max-w-7xl w-[min(96vw,80rem)] max-h-[96vh]" : "max-w-6xl max-h-[92vh]",
+            "p-0 font-outfit !flex !flex-col gap-0 overflow-hidden",
+            isPurchaseBillForm
+              ? "max-w-7xl w-[min(96vw,80rem)] h-[min(96vh,100dvh)] max-h-[min(96vh,100dvh)]"
+              : "max-w-6xl max-h-[92vh]",
             purchaseTypography.dialog
           )}
         >
@@ -1574,7 +1664,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
           
           <div 
             className={cn(
-              "flex-1 min-h-0 overflow-y-auto overscroll-contain",
+              "flex-1 min-h-0 overflow-y-auto overscroll-contain scrollbar-thin",
               isPurchaseBillForm ? "px-5" : "px-6"
             )}
             style={{ scrollBehavior: 'smooth' }}
@@ -1752,13 +1842,14 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
               <div className={cn("grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4", isPurchaseBillForm ? "gap-2.5" : "gap-4")}>
                 <div className={cn("space-y-1.5", isPurchaseBillForm ? "col-span-1" : "col-span-2")}>
                   <Label htmlFor="product_name" className={isPurchaseBillForm ? purchaseTypography.fieldLabel : undefined}>{getFieldLabel("product_name", "Product Name")} *</Label>
-                    <Input
-                      ref={productNameInputRef}
+                    <FreeTextFieldCombobox
                       id="product_name"
+                      inputRef={productNameInputRef}
                       value={formData.product_name}
-                      onChange={(e) => setFormData({ ...formData, product_name: e.target.value })}
-                      onKeyDown={handleEnterAsTab}
+                      onChange={(product_name) => setFormData({ ...formData, product_name })}
+                      options={productNames}
                       placeholder={lastProductNameHint}
+                      onKeyDown={handleEnterAsTab}
                       className={isPurchaseBillForm ? "h-10 text-[16px] font-semibold" : undefined}
                     />
                 </div>
@@ -2163,87 +2254,86 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                 </div>
               )}
 
-              {/* Mobile ERP purchase: colors (hidden when locked_size_qty skipped the size-group row) */}
-              {isPurchaseBillForm &&
-                isFieldEnabled("color") &&
-                formData.product_type !== "service" &&
-                mobileERPMode?.locked_size_qty && (
-                  <div className="space-y-1.5 min-w-0">
-                    <Label className={purchaseTypography.fieldLabel}>
-                      {getFieldLabel("color", "Colors")} (comma-separated)
-                    </Label>
-                    <div className="flex gap-1.5 items-center">
-                      <Input
-                        value={colorInput}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          setColorInput(val);
-                          if (val.endsWith(",") || val.endsWith(", ")) {
-                            const parts = val.split(",").map((c) => c.trim()).filter(Boolean);
-                            const uniqueNew = parts.filter((c) => !formData.colors.includes(c));
-                            if (uniqueNew.length > 0) {
-                              setFormData((prev) => ({ ...prev, colors: [...prev.colors, ...uniqueNew] }));
-                            }
-                            setColorInput("");
-                          }
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" || e.key === "Tab") {
-                            if (colorInput.trim()) {
-                              e.preventDefault();
-                              handleAddColor();
-                            }
-                          }
-                          if (e.key === "Backspace" && !colorInput && formData.colors.length > 0) {
-                            handleRemoveColor(formData.colors[formData.colors.length - 1]);
-                          }
-                        }}
-                        placeholder={formData.colors.length > 0 ? "Add more…" : "e.g., Black, White, Red"}
-                        className="h-10 text-[16px] font-semibold flex-1 min-w-0"
-                        list="color-list-mobile"
-                        autoComplete="off"
-                      />
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        onClick={handleAddColor}
-                        className="h-10 text-[15px] px-3.5 shrink-0"
-                      >
-                        Add
-                      </Button>
-                    </div>
-                    <datalist id="color-list-mobile">
-                      {existingColors
-                        .filter((c) => !formData.colors.includes(c))
-                        .map((color) => (
-                          <option key={color} value={color} />
-                        ))}
-                    </datalist>
-                    <div className="purchase-color-chips min-h-[1.75rem] flex flex-wrap gap-1 pt-0.5">
-                      {formData.colors.map((color, i) => (
-                        <span
-                          key={i}
-                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-primary/10 text-primary text-[13px] font-semibold border border-primary/20"
-                        >
-                          {color}
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveColor(color)}
-                            className="hover:text-destructive"
-                          >
-                            <X className="h-3.5 w-3.5" />
-                          </button>
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-              {/* Mobile ERP: Quantity input - triggers IMEI scan when qty > 1 */}
+              {/* Mobile ERP: color + quantity + IMEI scan */}
               {mobileERPMode?.locked_size_qty && hideOpeningQty && (
-                <div className="space-y-2">
+                <div className="space-y-3">
+                  {isFieldEnabled("color") && formData.product_type !== "service" && (
+                    <div className="space-y-1.5">
+                      <Label className={purchaseTypography.fieldLabel}>
+                        {getFieldLabel("color", "Colors")} (comma-separated)
+                      </Label>
+                      <div className="flex gap-1.5 items-center">
+                        <Input
+                          value={colorInput}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setColorInput(val);
+                            if (val.endsWith(",") || val.endsWith(", ")) {
+                              const parts = val.split(",").map((c) => c.trim()).filter(Boolean);
+                              const uniqueNew = parts.filter((c) => !formData.colors.includes(c));
+                              if (uniqueNew.length > 0) {
+                                setFormData((prev) => ({ ...prev, colors: [...prev.colors, ...uniqueNew] }));
+                              }
+                              setColorInput("");
+                            }
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === "Tab") {
+                              if (colorInput.trim()) {
+                                e.preventDefault();
+                                handleAddColor();
+                              }
+                            }
+                            if (e.key === "Backspace" && !colorInput && formData.colors.length > 0) {
+                              handleRemoveColor(formData.colors[formData.colors.length - 1]);
+                            }
+                          }}
+                          placeholder={formData.colors.length > 0 ? "Add more…" : "e.g., Black, Blue, Gold"}
+                          className="h-10 text-[16px] font-semibold flex-1 min-w-0"
+                          list="color-list"
+                          autoComplete="off"
+                        />
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          onClick={handleAddColor}
+                          className="h-10 text-[15px] px-3.5 shrink-0"
+                        >
+                          Add
+                        </Button>
+                      </div>
+                      <datalist id="color-list">
+                        {existingColors
+                          .filter((c) => !formData.colors.includes(c))
+                          .map((color) => (
+                            <option key={color} value={color} />
+                          ))}
+                      </datalist>
+                      {formData.colors.length > 0 && (
+                        <div className="flex flex-wrap gap-1 pt-0.5">
+                          {formData.colors.map((color, i) => (
+                            <span
+                              key={i}
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-primary/10 text-primary text-[13px] font-semibold border border-primary/20"
+                            >
+                              {color}
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveColor(color)}
+                                className="hover:text-destructive"
+                              >
+                                <X className="h-3.5 w-3.5" />
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="space-y-2">
                   <Label className="font-semibold">Quantity</Label>
-                  <div className="flex items-center gap-3">
+                  <div className="flex flex-wrap items-center gap-3">
                     <Input
                       type="number"
                       min={1}
@@ -2255,35 +2345,50 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                       onKeyDown={(e) => {
                         if (e.key === "Enter") {
                           e.preventDefault();
-                          const qty = mobileERPQty;
-                          if (qty > 1) {
-                            const color = formData.colors.length > 0 ? formData.colors[0] : "";
-                            setImeiScanColor(color);
-                            setImeiScanOpen(true);
+                          if (mobileERPQty >= 1) {
+                            openImeiScanDialog();
                           }
                         }
                       }}
                       className="w-24 h-9 text-center font-bold text-lg"
                       placeholder="1"
                     />
-                    {mobileERPQty > 1 && (
+                    {mobileERPQty >= 1 && (
                       <Button
                         type="button"
                         variant="default"
                         size="sm"
                         className="gap-1.5 bg-purple-600 hover:bg-purple-700 text-white"
-                        onClick={() => {
-                          const color = formData.colors.length > 0 ? formData.colors[0] : "";
-                          setImeiScanColor(color);
-                          setImeiScanOpen(true);
-                        }}
+                        onClick={openImeiScanDialog}
                       >
-                        Scan {mobileERPQty} IMEI
+                        <Smartphone className="h-3.5 w-3.5" />
+                        Scan {mobileERPQty === 1 ? "IMEI" : `${mobileERPQty} IMEIs`}
                       </Button>
                     )}
                     <span className="text-xs text-muted-foreground">
-                      {mobileERPQty === 1 ? "Single unit — scan IMEI below" : `${mobileERPQty} units — click to scan IMEIs`}
+                      {mobileERPQty === 1
+                        ? "Single unit — scan IMEI above or enter below"
+                        : `${mobileERPQty} units — click to scan IMEIs`}
                     </span>
+                  </div>
+                  {mobileERPQty === 1 && variants.length > 0 && (
+                    <div className="space-y-1.5 rounded-lg border border-purple-200 bg-purple-50/40 p-3">
+                      <Label htmlFor="mobile-erp-imei" className="text-sm font-semibold text-purple-900">
+                        IMEI Number
+                      </Label>
+                      <Input
+                        id="mobile-erp-imei"
+                        value={variants[0]?.barcode || ""}
+                        onChange={(e) => {
+                          const cleaned = e.target.value.replace(/[^a-zA-Z0-9\-_.\/]/g, "").toUpperCase();
+                          handleVariantChange(0, "barcode", cleaned);
+                        }}
+                        placeholder="Scan or type IMEI..."
+                        className="font-mono tracking-wider h-10 text-[15px]"
+                        autoComplete="off"
+                      />
+                    </div>
+                  )}
                   </div>
                 </div>
               )}
@@ -2454,7 +2559,10 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
 
                           {isMultiColor ? (
                             /* ── Color × Size Matrix (qty + sale price per cell) ── */
-                            <div className={cn("overflow-x-auto bg-muted/30 rounded-lg border border-dashed border-muted-foreground/20", isPurchaseBillForm ? "p-1.5" : "p-3")}>
+                            <div className={cn(
+                              "overflow-x-auto overflow-y-auto bg-muted/30 rounded-lg border border-dashed border-muted-foreground/20",
+                              isPurchaseBillForm ? "p-1.5 max-h-[min(42vh,400px)]" : "p-3",
+                            )}>
                               <table className="w-full border-collapse table-fixed">
                                 <thead>
                                   <tr>
@@ -2664,7 +2772,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                             <div className={cn(
                               "grid bg-muted/30 rounded-lg border border-dashed border-muted-foreground/20",
                               isPurchaseBillForm
-                                ? "grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-1.5 p-2"
+                                ? "grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-1.5 p-2 max-h-[min(42vh,400px)] overflow-y-auto"
                                 : "grid-cols-3 sm:grid-cols-5 md:grid-cols-6 gap-3 p-4"
                             )}>
                               {allSizes.map((size) => {
@@ -2972,48 +3080,60 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                 </div>
               )}
 
-              {/* ── 👟 Size Variants — hidden on purchase bill (qty grid above) ── */}
-              {!isPurchaseBillForm && (
-              <div className="rounded-xl border-[1.5px] border-violet-200 bg-gradient-to-br from-violet-50/60 via-purple-50/30 to-fuchsia-50/20 p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-purple-500 flex items-center justify-center shadow-sm">
+              {/* ── Variant details: prices & barcodes (scroll down after qty grid on purchase bill) ── */}
+              {showVariants && variants.length > 0 && (() => {
+                const visibleVariantCount = variants.filter((v) => {
+                  if (disabledSizes.has(v.size)) return false;
+                  if (formData.colors.length > 0 && v.color && !formData.colors.includes(v.color)) return false;
+                  if (hideOpeningQty && formData.product_type !== "service" && (v.purchase_qty || 0) <= 0) return false;
+                  return true;
+                }).length;
+                if (visibleVariantCount === 0) return null;
+                return (
+              <div className={cn(
+                "rounded-xl border-[1.5px] border-violet-200 bg-gradient-to-br from-violet-50/60 via-purple-50/30 to-fuchsia-50/20 space-y-3",
+                isPurchaseBillForm ? "p-3" : "p-4",
+              )}>
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-purple-500 flex items-center justify-center shadow-sm shrink-0">
                       <span className="text-white text-sm">👟</span>
                     </div>
-                    <div>
-                      <span className="text-[13px] font-bold text-violet-800 font-outfit">
-                        {rollWiseMtrEnabled && formData.uom === 'MTR' ? 'Color Variants' : 'Size Variants'}
+                    <div className="min-w-0">
+                      <span className={cn("font-bold text-violet-800 font-outfit block", isPurchaseBillForm ? "text-sm" : "text-[13px]")}>
+                        {isPurchaseBillForm
+                          ? "Variant Details"
+                          : rollWiseMtrEnabled && formData.uom === "MTR"
+                            ? "Color Variants"
+                            : "Size Variants"}
                       </span>
-                      <p className="text-[10px] text-violet-500/80 font-outfit">
-                        {rollWiseMtrEnabled && formData.uom === 'MTR' ? 'Generate color-wise roll entries' : 'Generate size-wise entries'}
+                      <p className="text-[10px] text-violet-500/80 font-outfit truncate">
+                        {isPurchaseBillForm
+                          ? "Review purchase price, sale price & barcodes before adding to bill"
+                          : rollWiseMtrEnabled && formData.uom === "MTR"
+                            ? "Generate color-wise roll entries"
+                            : "Generate size-wise entries"}
                       </p>
                     </div>
                   </div>
+                  {!isPurchaseBillForm && (
                   <Button
                     type="button"
                     onClick={handleGenerateSizeVariants}
                     disabled={formData.product_type !== 'service' && !(rollWiseMtrEnabled && formData.uom === 'MTR') && !formData.size_group_id}
-                    className="gap-1.5 font-outfit font-semibold bg-violet-600 hover:bg-violet-700 text-white shadow-sm"
+                    className="gap-1.5 font-outfit font-semibold bg-violet-600 hover:bg-violet-700 text-white shadow-sm shrink-0"
                     size="sm"
                   >
                     <Plus className="h-3.5 w-3.5" />
                     {rollWiseMtrEnabled && formData.uom === 'MTR' ? 'Generate Color Variants' : 'Generate Variants'}
                   </Button>
+                  )}
                 </div>
 
-                {showVariants && variants.length > 0 && (
                   <div ref={variantsSectionRef} className="space-y-2 pt-1">
                     <div className="flex items-center justify-between">
                       <Label className="text-sm font-semibold text-violet-700 font-outfit flex items-center gap-2">
-                        {(() => {
-                          const visibleCount = variants.filter(v => {
-                            if (disabledSizes.has(v.size)) return false;
-                            if (formData.colors.length > 0 && v.color && !formData.colors.includes(v.color)) return false;
-                            if (hideOpeningQty && (v.purchase_qty || 0) <= 0) return false;
-                            return true;
-                          }).length;
-                          return `${visibleCount} Variant${visibleCount !== 1 ? 's' : ''}`;
-                        })()}
+                        {`${visibleVariantCount} Variant${visibleVariantCount !== 1 ? "s" : ""}`}
                         {isAutoBarcode ? (
                           <span className="text-xs font-medium px-2 py-0.5 bg-blue-100 text-blue-700 rounded">Auto Barcode</span>
                         ) : (
@@ -3026,7 +3146,10 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                         </Button>
                       )}
                     </div>
-                    <div className="border border-violet-200/60 rounded-lg overflow-x-auto bg-white shadow-sm max-h-[360px] overflow-y-auto" onWheel={(e) => e.stopPropagation()}>
+                    <div className={cn(
+                      "border border-violet-200/60 rounded-lg overflow-x-auto bg-white shadow-sm overflow-y-auto",
+                      isPurchaseBillForm ? "max-h-[min(36vh,320px)]" : "max-h-[360px]",
+                    )}>
                       <Table>
                         <TableHeader className="sticky top-0 z-10 bg-background">
                           <TableRow className="bg-gradient-to-r from-violet-100/80 to-purple-100/60 border-b border-violet-200/60">
@@ -3156,9 +3279,9 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                       </Table>
                     </div>
                   </div>
-                )}
             </div>
-              )}
+                );
+              })()}
             </div>
             <button
               id="product-dialog-back-to-top"
@@ -3277,7 +3400,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
             // Create one variant per IMEI
             const newVariants: ProductVariant[] = imeiNumbers.map((imei, idx) => ({
               color: imeiScanColor,
-              size: `IMEI-${idx + 1}`,
+              size: mobileERPQty === 1 ? "None" : `IMEI-${idx + 1}`,
               pur_price: formData.default_pur_price ?? 0,
               sale_price: formData.default_sale_price ?? 0,
               mrp: formData.default_mrp ?? null,
