@@ -14,11 +14,12 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Building2, Loader2, LogIn, Shield, WifiOff, RefreshCw } from "lucide-react";
+import { Building2, Loader2, LogIn, Shield, WifiOff, RefreshCw, ArrowRight } from "lucide-react";
 import { toast } from "sonner";
 import { hideAppBootSplash } from "@/lib/appBootSplash";
 import { Capacitor } from "@capacitor/core";
 import { resolveStartupOrgSlug } from "@/lib/bundledOrg";
+import { OrgLoginShell, OrgLoginTrustBadges } from "@/components/orgLogin/OrgLoginShell";
 
 const getCachedOrgSlugs = (userId: string): { id: string; slug: string; name: string }[] | null => {
   try {
@@ -178,51 +179,63 @@ export const OrganizationSetup = () => {
     }
 
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted p-4">
-        <Card className="w-full max-w-md">
-          <CardHeader className="text-center">
-            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
-              <Building2 className="h-8 w-8 text-primary" />
-            </div>
-            <CardTitle>Go to Your Organization</CardTitle>
-            <CardDescription>Enter your organization URL to access your login page</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <form onSubmit={handleGoToOrgLogin} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="orgSlug">Organization URL</Label>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-muted-foreground whitespace-nowrap">app.inventoryshop.in/</span>
-                  <Input
-                    id="orgSlug"
-                    type="text"
-                    placeholder="your-org-name"
-                    value={orgSlug}
-                    onChange={(e) => setOrgSlug(e.target.value.toLowerCase().replace(/\s+/g, "-"))}
-                    required
-                    className="flex-1"
-                  />
-                </div>
-                <p className="text-xs text-muted-foreground">Example: demo, sm-hair-replacement, gurukrupasarees</p>
+      <OrgLoginShell
+        title="Welcome back"
+        subtitle="Enter your organization URL to open your store login"
+      >
+        <div className="space-y-5">
+          <form onSubmit={handleGoToOrgLogin} className="space-y-5">
+            <div className="space-y-2">
+              <Label htmlFor="orgSlug" className="text-sm font-semibold text-foreground md:text-base">
+                Organization URL
+              </Label>
+              <div className="flex items-center gap-2 rounded-xl border border-border bg-secondary/50 px-4 h-12 md:h-14">
+                <span className="text-sm text-muted-foreground whitespace-nowrap shrink-0">
+                  app.inventoryshop.in/
+                </span>
+                <Input
+                  id="orgSlug"
+                  type="text"
+                  placeholder="your-org-name"
+                  value={orgSlug}
+                  onChange={(e) => setOrgSlug(e.target.value.toLowerCase().replace(/\s+/g, "-"))}
+                  required
+                  className="no-uppercase flex-1 border-0 bg-transparent px-0 h-auto text-base md:text-lg shadow-none focus-visible:ring-0"
+                />
               </div>
-              <Button type="submit" className="w-full">
-                <LogIn className="mr-2 h-4 w-4" />
-                Go to Login
-              </Button>
-            </form>
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center"><span className="w-full border-t" /></div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-card px-2 text-muted-foreground">Or</span>
-              </div>
+              <p className="text-xs text-muted-foreground">Example: demo, ks-footwear, gurukrupasarees</p>
             </div>
-            <Button variant="outline" className="w-full" onClick={() => navigate("/auth")}>
-              <Shield className="mr-2 h-4 w-4" />
-              Platform Admin Login
+            <Button
+              type="submit"
+              className="h-12 w-full rounded-xl text-base font-semibold text-white shadow-md hover:opacity-90 md:h-14 md:text-lg"
+              style={{ background: "#185FA5" }}
+            >
+              Go to Login
+              <ArrowRight className="ml-2 h-5 w-5" />
             </Button>
-          </CardContent>
-        </Card>
-      </div>
+          </form>
+
+          <div className="relative my-2">
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t border-border" />
+            </div>
+            <div className="relative flex justify-center text-sm">
+              <span className="bg-card px-3 text-muted-foreground">or</span>
+            </div>
+          </div>
+
+          <Button variant="outline" className="h-12 w-full rounded-xl md:h-14 md:text-lg" onClick={() => navigate("/auth")}>
+            <Shield className="mr-2 h-4 w-4" />
+            Platform Admin Login
+          </Button>
+
+          <p className="text-center text-sm text-muted-foreground md:text-base">
+            Don&apos;t have access? Contact your organization administrator.
+          </p>
+
+          <OrgLoginTrustBadges />
+        </div>
+      </OrgLoginShell>
     );
   }
 

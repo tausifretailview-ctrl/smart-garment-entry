@@ -71,14 +71,22 @@ function isTouchPhoneDevice(): boolean {
   return coarse && !fine && navigator.maxTouchPoints > 0;
 }
 
-/** Single-column login on APK, PWA, and phones — ignores forced-desktop viewport width. */
+/** Single-column login on native phones, narrow PWA, and mobile browsers. */
 function computeCompactLoginLayout(): boolean {
   if (typeof window === "undefined") return false;
+  if (isForceDesktopViewEnabled()) return false;
+
+  const wide = window.innerWidth >= MOBILE_BREAKPOINT;
+
+  // Browser / installed PWA on desktop-width viewports — split marketing + login panel
+  if (wide && !Capacitor.isNativePlatform()) {
+    return false;
+  }
+
   if (Capacitor.isNativePlatform()) return true;
   if (isStandalonePwa()) return true;
   if (isTouchPhoneDevice()) return true;
-  if (isForceDesktopViewEnabled()) return false;
-  return window.innerWidth < MOBILE_BREAKPOINT;
+  return !wide;
 }
 
 export function useIsNarrowViewport() {
