@@ -44,6 +44,13 @@ import { FinancerDetailsForm, FinancerDetails } from "@/components/FinancerDetai
 import { SizeGridDialog } from "@/components/SizeGridDialog";
 import { format } from "date-fns";
 import { cn, sortSearchResults, buildProductDisplayName } from "@/lib/utils";
+import {
+  buildProductTextOrFilter,
+  buildProductTokenBoundaryOrFilter,
+  expandProductSearchTerms,
+  matchesProductSearchFields,
+  scoreProductSearchMatch,
+} from "@/utils/productSearch";
 import { entryPageMainClass, entryPageSectionX, entryPageShellClass } from "@/lib/entryPageLayout";
 import { useEntryViewportSync } from "@/hooks/useEntryViewportSync";
 import { BackToDashboard } from "@/components/BackToDashboard";
@@ -1289,21 +1296,60 @@ export default function SalesInvoice() {
       try {
         const query = searchInput;
         const escQuery = query.trim().replace(/[%_,]/g, '');
+        const expandedTerms = expandProductSearchTerms(query);
 
         // Separate price tokens (pure numbers like 695, 795) from text tokens
         const allTokens = query.trim().split(/\s+/).filter(Boolean);
         const priceTokens = allTokens.filter(t => /^\d+(\.\d+)?$/.test(t) && Number(t) >= 10);
 
-        // Search products — use full query so numeric style/category codes (e.g. 0215) are included
-        const { data: matchingProducts } = await supabase
-          .from("products")
-          .select("id, size_group_id")
-          .eq("organization_id", currentOrganization.id)
-          .eq("status", "active")
-          .is("deleted_at", null)
-          .or(`product_name.ilike.%${escQuery}%,brand.ilike.%${escQuery}%,style.ilike.%${escQuery}%,category.ilike.%${escQuery}%,hsn_code.ilike.%${escQuery}%`);
+        const strictProductIds: string[] = [];
+        const tokenBoundaryFilter = buildProductTokenBoundaryOrFilter(query);
+        if (tokenBoundaryFilter) {
+          const { data: boundaryProducts } = await supabase
+            .from("products")
+            .select("id, product_name, brand, style, category, size_group_id")
+            .eq("organization_id", currentOrganization.id)
+            .eq("status", "active")
+            .is("deleted_at", null)
+            .or(tokenBoundaryFilter)
+            .limit(80);
+          strictProductIds.push(...(boundaryProducts?.map((p) => p.id) || []));
+        }
 
-        const productIds = matchingProducts?.map(p => p.id) || [];
+        const productOrFilter = buildProductTextOrFilter(expandedTerms);
+        let matchingProducts: { id: string; size_group_id: string | null; product_name: string; brand: string | null; style: string | null; category: string | null }[] = [];
+        if (productOrFilter) {
+          const { data } = await supabase
+            .from("products")
+            .select("id, size_group_id, product_name, brand, style, category")
+            .eq("organization_id", currentOrganization.id)
+            .eq("status", "active")
+            .is("deleted_at", null)
+            .or(productOrFilter)
+            .limit(250);
+          matchingProducts = (data || []).filter((p) =>
+            matchesProductSearchFields(
+              {
+                product_name: p.product_name,
+                brand: p.brand || "",
+                style: p.style || "",
+                category: p.category || "",
+              },
+              query,
+            ),
+          );
+        }
+
+        const productIds = [
+          ...new Set([
+            ...strictProductIds,
+            ...matchingProducts.map((p) => p.id),
+          ]),
+        ];
+        const orderedProductIds = [
+          ...strictProductIds,
+          ...productIds.filter((id) => !strictProductIds.includes(id)),
+        ];
 
         // Size ranges come from the standalone cached size_groups query (no per-search fetch).
         const sizeGroupsMap: Record<string, { sizes: string[] }> = {};
@@ -1341,15 +1387,23 @@ export default function SalesInvoice() {
           }
         }
 
-        const { data, error } = await variantsQuery.limit(100);
+        const { data, error } = await variantsQuery.limit(200);
 
         if (error) throw error;
 
         // Filter: keep service/combo products regardless of stock, require stock > 0 for goods
-        const filtered = (data || []).filter((v: any) => {
+        let filtered = (data || []).filter((v: any) => {
           const pType = v.products?.product_type;
           return pType === 'service' || pType === 'combo' || (v.stock_qty || 0) > 0;
         });
+
+        // Prefer token-boundary product matches (FL20 before FL2067) when variant cap is hit
+        if (orderedProductIds.length > 0 && filtered.length >= 150) {
+          const rank = new Map(orderedProductIds.map((id, index) => [id, index]));
+          filtered = [...filtered].sort(
+            (a, b) => (rank.get(a.product_id) ?? 9999) - (rank.get(b.product_id) ?? 9999),
+          );
+        }
 
         // Map results
         let results = filtered.map((v: any) => {
@@ -1412,11 +1466,33 @@ export default function SalesInvoice() {
         }
         results = Array.from(dedupeMap.values());
 
-        // Sort with smart sorting
+        // Sort with smart sorting — exact code token (FL20) above substring (FL2067)
         const sortedResults = sortSearchResults(results, searchInput, {
           barcode: 'barcode',
           style: 'style',
           productName: 'product_name',
+        }).sort((a, b) => {
+          const scoreA = scoreProductSearchMatch(
+            {
+              product_name: a.product_name,
+              brand: a.product?.brand,
+              style: a.style,
+              category: a.product?.category,
+              barcode: a.barcode,
+            },
+            searchInput,
+          );
+          const scoreB = scoreProductSearchMatch(
+            {
+              product_name: b.product_name,
+              brand: b.product?.brand,
+              style: b.style,
+              category: b.product?.category,
+              barcode: b.barcode,
+            },
+            searchInput,
+          );
+          return scoreB - scoreA;
         });
 
         setProductSearchResults(sortedResults);

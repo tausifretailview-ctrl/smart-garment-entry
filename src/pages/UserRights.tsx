@@ -210,6 +210,8 @@ const defaultBasicPermissions: Record<string, boolean> = {
   product_dashboard: true,
   pos_sales: true,
   pos_dashboard: true,
+  reports_hub: true,
+  business_insights: true,
 };
 
 // Default permissions for managers - more comprehensive access
@@ -399,6 +401,9 @@ const UserRights = () => {
       if (menuPerms.customer_audit_report === undefined) {
         menuPerms.customer_audit_report = !!menuPerms.customer_ledger;
       }
+      if (menuPerms.business_insights === undefined) {
+        menuPerms.business_insights = true;
+      }
       const mainMenus = perms.mainMenu || (selectedUserRole === 'manager' ? defaultManagerMainMenu : {});
       
       setPermissions(menuPerms);
@@ -417,6 +422,7 @@ const UserRights = () => {
           dashboard: true,
           master: true,
           sales: true,
+          reports: true,
         });
         setSpecialPermissions({ cancel_invoice: true, delete_records: false });
       }

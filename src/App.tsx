@@ -1074,11 +1074,11 @@ const App = () => {
                   path="insights"
                   element={
                     <ProtectedRoute>
-                      <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
+                      <MenuPermissionRoute permission="business_insights">
                         <Layout>
                           <BusinessInsights />
                         </Layout>
-                      </RoleProtectedRoute>
+                      </MenuPermissionRoute>
                     </ProtectedRoute>
                   }
                 />

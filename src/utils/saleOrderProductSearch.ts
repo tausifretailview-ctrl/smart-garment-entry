@@ -1,9 +1,12 @@
 import { supabase } from "@/integrations/supabase/client";
 import {
   buildProductTextOrFilter,
+  buildProductTokenBoundaryOrFilter,
   compactProductToken,
   expandProductSearchTerms,
+  leadingProductToken,
   matchesCompactProductSearch,
+  matchesProductSearchFields,
   scoreProductSearchMatch,
 } from "@/utils/productSearch";
 
@@ -55,14 +58,9 @@ export function buildSaleOrderProductGroupKey(
 ): string {
   const term = searchTerm?.trim().toLowerCase();
   if (term && term.length >= 2) {
-    const haystack = `${v.product_name} ${v.brand} ${v.style} ${v.category}`.toLowerCase();
-    const compactHaystack = compactProductToken(haystack);
-    const compactTerm = compactProductToken(term);
-    if (
-      haystack.includes(term) ||
-      (compactTerm.length >= 2 && compactHaystack.includes(compactTerm))
-    ) {
-      return `search:${compactTerm || term}||${(v.brand || "").trim().toLowerCase()}`;
+    if (matchesProductSearchFields(v, term)) {
+      const lead = leadingProductToken(v.product_name);
+      return `search:${compactProductToken(lead || v.product_name)}||${(v.brand || "").trim().toLowerCase()}`;
     }
   }
   const brand = (v.brand || "").trim().toLowerCase();
@@ -261,6 +259,20 @@ export async function searchSaleOrderVariants(
   const compactQuery = compactProductToken(rawQuery);
 
   let productIds: string[] = [];
+  const strictProductIds: string[] = [];
+  const tokenBoundaryFilter = buildProductTokenBoundaryOrFilter(rawQuery);
+  if (tokenBoundaryFilter) {
+    const { data: boundaryProducts } = await supabase
+      .from("products")
+      .select("id, product_name, brand, style, category")
+      .is("deleted_at", null)
+      .eq("organization_id", orgId)
+      .eq("status", "active")
+      .or(tokenBoundaryFilter)
+      .limit(80);
+    strictProductIds.push(...(boundaryProducts?.map((p) => p.id) || []));
+  }
+
   const productOrFilter = buildProductTextOrFilter(expandedTerms);
   if (productOrFilter) {
     const { data: matchingProducts } = await supabase
@@ -269,8 +281,24 @@ export async function searchSaleOrderVariants(
       .is("deleted_at", null)
       .eq("organization_id", orgId)
       .eq("status", "active")
-      .or(productOrFilter);
-    productIds = matchingProducts?.map((p) => p.id) || [];
+      .or(productOrFilter)
+      .limit(250);
+    const broadIds = (matchingProducts || [])
+      .filter((p) =>
+        matchesProductSearchFields(
+          {
+            product_name: p.product_name,
+            brand: p.brand || "",
+            style: p.style || "",
+            category: p.category || "",
+          },
+          rawQuery,
+        ),
+      )
+      .map((p) => p.id);
+    productIds = [...new Set([...strictProductIds, ...broadIds])];
+  } else {
+    productIds = [...new Set(strictProductIds)];
   }
 
   if (productIds.length === 0 && compactQuery.length >= 3) {
@@ -322,15 +350,23 @@ export async function searchSaleOrderVariants(
 
   let productVariants: any[] = [];
   if (productIds.length > 0) {
-    const { data } = await supabase
-      .from("product_variants")
-      .select(VARIANT_SEARCH_SELECT)
-      .eq("active", true)
-      .is("deleted_at", null)
-      .eq("organization_id", orgId)
-      .in("product_id", productIds)
-      .limit(100);
-    productVariants = data || [];
+    const orderedIds = [
+      ...strictProductIds,
+      ...productIds.filter((id) => !strictProductIds.includes(id)),
+    ];
+    const chunkSize = 40;
+    for (let i = 0; i < orderedIds.length && productVariants.length < 200; i += chunkSize) {
+      const chunk = orderedIds.slice(i, i + chunkSize);
+      const { data } = await supabase
+        .from("product_variants")
+        .select(VARIANT_SEARCH_SELECT)
+        .eq("active", true)
+        .is("deleted_at", null)
+        .eq("organization_id", orgId)
+        .in("product_id", chunk)
+        .limit(120);
+      productVariants.push(...(data || []));
+    }
   }
 
   if (productIds.length === 0) {
@@ -377,18 +413,20 @@ export async function searchSaleOrderVariants(
   let results = attachSizeRangesToResults(mergedRows, sizeGroupsMap);
 
   if (searchTerms.length > 1) {
-    results = results.filter((r) => {
-      const haystack =
-        `${r.product_name} ${r.brand} ${r.category} ${r.style}`.toLowerCase();
-      const variantHaystack = `${r.color} ${r.size} ${r.barcode}`.toLowerCase();
-      const combined = `${haystack} ${variantHaystack}`;
-      const compactCombined = compactProductToken(combined);
-      return searchTerms.every(
-        (term) =>
-          combined.includes(term) ||
-          (compactQuery.length >= 2 && compactCombined.includes(compactProductToken(term))),
-      );
-    });
+    results = results.filter((r) =>
+      matchesProductSearchFields(
+        {
+          product_name: r.product_name,
+          brand: r.brand,
+          style: r.style,
+          category: r.category,
+          barcode: r.barcode,
+          color: r.color,
+          size: r.size,
+        },
+        rawQuery,
+      ),
+    );
   } else if (compactQuery.length >= 2) {
     const compactMatches = results.filter((r) =>
       matchesCompactProductSearch(

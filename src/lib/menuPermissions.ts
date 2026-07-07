@@ -101,6 +101,9 @@ export function normalizeStoredMenuPermissions(
 }
 
 /** True when submenu is enabled and parent "Dashboard" main menu is enabled (if permissions exist). */
+/** Menu items enabled by default when custom permissions exist but the key was never saved. */
+const DEFAULT_ON_MENU_IDS = new Set(["business_insights"]);
+
 export function isMenuPermissionGranted(
   permissions: { menu?: Record<string, boolean>; mainMenu?: Record<string, boolean> } | null,
   menuId: string
@@ -115,6 +118,9 @@ export function isMenuPermissionGranted(
   const menu = normalizeStoredMenuPermissions(permissions.menu);
   if (menu[canonical] === true) return true;
   if (canonical !== menuId && menu[menuId] === true) return true;
+  if (DEFAULT_ON_MENU_IDS.has(canonical) && menu[canonical] !== false) {
+    return true;
+  }
   return false;
 }
 
