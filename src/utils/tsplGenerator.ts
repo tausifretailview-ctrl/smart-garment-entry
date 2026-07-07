@@ -92,7 +92,7 @@ export interface TSPLTemplateConfig {
 }
 
 // Convert mm to dots (203 DPI = 8 dots per mm)
-const mmToDots = (mm: number, dpi: number = 203): number => {
+export const mmToDots = (mm: number, dpi: number = 203): number => {
   return Math.round(mm * (dpi / 25.4));
 };
 
