@@ -21,8 +21,7 @@ const ALLOWED_NAV_HOSTS = [
   'localhost',
 ];
 
-// TODO(tausif): set real support number before release.
-const SUPPORT_WHATSAPP_URL = 'https://wa.me/REPLACE_WITH_REAL_NUMBER';
+const SUPPORT_WHATSAPP_URL = 'https://wa.me/918424034844';
 
 // ═══ PERF SWITCHES (must be set BEFORE app.whenReady) ═══
 // Keep timers/queries running normally when the window is hidden or in tray,
