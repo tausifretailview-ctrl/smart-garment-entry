@@ -665,8 +665,8 @@ export default function OrgAuth() {
                       Forgot password?
                     </button>
                   </div>
-                  <div className="relative">
-                    <Lock className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
+                  <div className="login-field relative">
+                    <Lock className="login-icon pointer-events-none absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
                     <Input
                       id="password"
                       type={showPassword ? "text" : "password"}
@@ -675,11 +675,11 @@ export default function OrgAuth() {
                       onChange={(e) => setPassword(e.target.value)}
                       disabled={loading}
                       required
-                      className="no-uppercase h-12 rounded-xl border-border bg-secondary/50 pl-12 pr-12 text-base md:h-14 md:pl-14 md:pr-14 md:text-lg"
+                      className="login-input no-uppercase h-11 border-border pl-11 pr-11 text-base"
                     />
                     <button
                       type="button"
-                      className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                       onClick={() => setShowPassword(!showPassword)}
                       tabIndex={-1}
                     >
@@ -707,9 +707,8 @@ export default function OrgAuth() {
 
                 <Button
                   type="submit"
-                  className="h-12 w-full rounded-xl text-base font-semibold text-white shadow-md hover:opacity-90 md:h-14 md:text-lg"
+                  className="login-submit mt-1 h-11 w-full rounded-[10px] text-base font-semibold text-white"
                   disabled={loading}
-                  style={{ background: "#185FA5" }}
                 >
                   {loading ? (
                     <>
@@ -726,12 +725,12 @@ export default function OrgAuth() {
               </form>
 
               {/* Divider */}
-              <div className="relative my-2">
+              <div className="relative my-1">
                 <div className="absolute inset-0 flex items-center">
                   <span className="w-full border-t border-border" />
                 </div>
-                <div className="relative flex justify-center text-sm">
-                  <span className="bg-card px-3 text-muted-foreground">or</span>
+                <div className="relative flex justify-center">
+                  <span className="bg-card px-3 uppercase" style={{ fontSize: 12, letterSpacing: "0.06em", color: "#64748b" }}>or</span>
                 </div>
               </div>
 
@@ -739,7 +738,7 @@ export default function OrgAuth() {
               <Button
                 type="button"
                 variant="outline"
-                className="h-12 w-full rounded-xl border bg-background text-base font-medium md:h-14 md:text-lg"
+                className="login-google h-11 w-full rounded-[10px] border bg-background text-base font-medium"
                 disabled={loading}
                 onClick={async () => {
                   setLoading(true);
@@ -776,11 +775,12 @@ export default function OrgAuth() {
                 Sign in with Google
               </Button>
 
-              <p className="text-center text-sm text-muted-foreground md:text-base">
+              <p className="text-center" style={{ fontSize: 13, color: "#64748b" }}>
                 Don&apos;t have access?{" "}
                 <button
                   type="button"
-                  className="font-semibold text-card-foreground transition-colors hover:underline"
+                  className="transition-colors hover:underline"
+                  style={{ fontSize: 13, fontWeight: 600, color: "#0f172a" }}
                   onClick={() => {
                     toast.info("Please contact your organization administrator for access.");
                   }}
