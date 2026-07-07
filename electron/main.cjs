@@ -726,10 +726,13 @@ function createWindow() {
         try {
           var k = key(location.pathname);
           var hideHint = !!NO_HINT_ROUTES[k];
-          document.documentElement.style.setProperty(
-            '--ezzy-hint-bar-height',
-            hideHint ? '0px' : '22px'
-          );
+          // Only write the height var when it actually changes — an unconditional
+          // style write every 2s is a needless invalidation while a dropdown is open.
+          var root = document.documentElement;
+          var wantH = hideHint ? '0px' : '22px';
+          if (root.style.getPropertyValue('--ezzy-hint-bar-height') !== wantH) {
+            root.style.setProperty('--ezzy-hint-bar-height', wantH);
+          }
           if (hideHint) {
             var hidden = document.getElementById('ezzy-hint-bar');
             if (hidden) hidden.style.display = 'none';
