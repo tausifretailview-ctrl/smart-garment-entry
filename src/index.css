@@ -1185,6 +1185,28 @@ All colors MUST be HSL.
     opacity: 1;
   }
 
+  /* POS — medium window tabs row above customer/barcode toolbar */
+  .pos-sales-main .erp-window-tabs--medium {
+    --erp-tabs-height: 2.5rem;
+    height: var(--erp-tabs-height);
+    min-height: var(--erp-tabs-height);
+  }
+
+  .pos-sales-main .erp-window-tabs--medium .erp-tab {
+    font-size: 1rem;
+    padding: 0 1rem;
+    min-height: 34px;
+  }
+
+  .pos-sales-main .erp-window-tabs--medium .erp-tab-quick {
+    font-size: 1rem;
+  }
+
+  .pos-sales-main .erp-window-tabs--medium .erp-tab-quick svg {
+    width: 1.125rem;
+    height: 1.125rem;
+  }
+
   /* Legacy desktop dashboards inside mobile main — soften wide padding */
   @media (max-width: 1023px) {
     main .min-h-screen.px-8 {

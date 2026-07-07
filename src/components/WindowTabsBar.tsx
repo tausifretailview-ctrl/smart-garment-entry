@@ -19,6 +19,10 @@ import {
 import { cn } from "@/lib/utils";
 import { prefetchTabPage } from "@/lib/tabPageRegistry";
 
+type WindowTabsBarProps = {
+  className?: string;
+};
+
 const QUICK_OPEN_PAGES = [
   { path: "", label: "Dashboard", icon: "Home", category: "Main" },
   { path: "pos-sales", label: "POS Sales", icon: "ShoppingCart", category: "Sales" },
@@ -40,7 +44,7 @@ const QUICK_OPEN_PAGES = [
   { path: "settings", label: "Settings", icon: "Settings", category: "System" },
 ];
 
-export function WindowTabsBar() {
+export function WindowTabsBar({ className }: WindowTabsBarProps) {
   const { 
     openWindows, 
     activeWindow, 
@@ -66,7 +70,7 @@ export function WindowTabsBar() {
       <div
         data-window-tabs-bar
         data-collapsed
-        className="erp-window-tabs px-2 flex items-center justify-between"
+        className={cn("erp-window-tabs px-2 flex items-center justify-between", className)}
       >
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <span>{openWindows.length} window{openWindows.length > 1 ? 's' : ''} open</span>
@@ -96,7 +100,7 @@ export function WindowTabsBar() {
   }
 
   return (
-    <div data-window-tabs-bar className="erp-window-tabs px-2">
+    <div data-window-tabs-bar className={cn("erp-window-tabs px-2", className)}>
       <div className="flex items-center gap-1 h-full">
         <ScrollArea className="flex-1">
           <div className="flex items-center gap-1">

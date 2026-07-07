@@ -20,7 +20,7 @@ import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useNavigate } from "react-router-dom";
 import { usePOS, POSProvider } from "@/contexts/POSContext";
 import { KeyboardShortcutsModal, useKeyboardShortcuts } from "@/components/KeyboardShortcutsModal";
-import { WindowTabsBar } from "@/components/WindowTabsBar";
+import { useSharedAppShell } from "@/contexts/SharedAppShellContext";
 import { ChatProvider } from "@/contexts/ChatContext";
 import { FloatingChatButton } from "@/components/AIChatbot/FloatingChatButton";
 import { FloatingWhatsAppInbox } from "@/components/FloatingWhatsAppInbox";
@@ -368,9 +368,6 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
   return (
     <div className="pos-layout-shell flex flex-col h-[var(--ezzy-viewport-h,100dvh)] max-h-[var(--ezzy-viewport-h,100dvh)] w-full bg-background overflow-hidden">
       {posHeader}
-      <div className="hidden lg:block shrink-0">
-        <WindowTabsBar />
-      </div>
       <OfflineIndicator />
       {posMain}
       <MobileBottomNav />

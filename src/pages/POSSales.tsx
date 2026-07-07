@@ -24,6 +24,7 @@ import { useIsMobile, useIsTablet } from "@/hooks/use-mobile";
 import { isElectronShell } from "@/lib/electronShell";
 import { isPosSalesRoute } from "@/lib/keyboardShortcuts";
 import { TabletPOSLayout } from "@/components/tablet/TabletPOSLayout";
+import { WindowTabsBar } from "@/components/WindowTabsBar";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { QtyInput } from "@/components/ui/qty-input";
@@ -5484,6 +5485,9 @@ export default function POSSales() {
 
       {/* Main column — toolbar/body/footer absolutely positioned (same pattern as Sales Invoice) */}
       <div className="pos-sales-main flex-1 min-h-0 h-full min-w-0 overflow-hidden">
+        <div className="hidden lg:block shrink-0 z-20">
+          <WindowTabsBar className="erp-window-tabs--medium" />
+        </div>
         {/* Sticky Header Section - Barcode scanning bar stays fixed */}
         <div className="pos-sales-toolbar z-20 bg-background border-b border-border/60 shadow-sm px-2 md:px-3 py-1.5">
           <div className="flex flex-nowrap items-end gap-2 md:gap-3 overflow-x-auto overflow-y-hidden">
