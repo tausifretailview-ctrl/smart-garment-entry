@@ -193,7 +193,7 @@ export function OrgLoginShell({
       >
         <div
           className={cn(
-            "login-form-col mx-auto flex w-full max-w-[400px] flex-1 flex-col justify-center",
+            "login-form-col mx-auto flex w-full max-w-[460px] flex-1 flex-col justify-center",
             compactLogin
               ? "px-6 py-8 pt-[max(2rem,env(safe-area-inset-top))] pb-[max(2rem,env(safe-area-inset-bottom))]"
               : "px-6 py-10 md:px-10",
