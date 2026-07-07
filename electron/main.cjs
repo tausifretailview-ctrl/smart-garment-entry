@@ -2,6 +2,7 @@ const { app, BrowserWindow, Menu, Tray, shell, nativeImage, dialog, ipcMain } = 
 const path = require('path');
 const fs = require('fs');
 const { autoUpdater } = require('electron-updater');
+const windowStateKeeper = require('electron-window-state');
 const { showSplash, closeSplash } = require('./splash.cjs');
 
 // Dev = running from source (electron .), Prod = packaged .exe.
@@ -11,6 +12,17 @@ const isDev = !app.isPackaged;
 const PROD_URL = 'https://app.inventoryshop.in';
 const DEV_URL = 'http://localhost:8080';
 const SUPABASE_URL = 'https://lkbbrqcsbhqjvsxiorvp.supabase.co';
+
+// Hosts allowed to load INSIDE the shell. Anything else opens in the system
+// browser. 'localhost' is only trusted in dev (Vite dev server).
+const ALLOWED_NAV_HOSTS = [
+  'app.inventoryshop.in',
+  'lkbbrqcsbhqjvsxiorvp.supabase.co',
+  'localhost',
+];
+
+// TODO(tausif): set real support number before release.
+const SUPPORT_WHATSAPP_URL = 'https://wa.me/REPLACE_WITH_REAL_NUMBER';
 
 // ═══ PERF SWITCHES (must be set BEFORE app.whenReady) ═══
 // Keep timers/queries running normally when the window is hidden or in tray,
@@ -23,6 +35,39 @@ app.commandLine.appendSwitch('disk-cache-size', '536870912'); // 512 MB
 
 let mainWindow;
 let tray;
+// True until we detect a previously-saved window position. On first run we
+// maximize; afterwards we respect whatever size/position the user left behind.
+let isFirstRunWindow = true;
+
+// ═══ ZOOM (unified) ═══
+// Single source of truth for zoom so the Window menu (Ctrl+= / - / 0) and the
+// Display Scale IPC ('set-zoom-factor') never drift. All paths use setZoomFactor.
+const ZOOM_STEPS = [0.8, 0.85, 0.9, 1.0, 1.05, 1.1, 1.25];
+let currentZoomFactor = 1.0;
+
+function applyZoomFactor(factor) {
+  const clamped = Math.min(ZOOM_STEPS[ZOOM_STEPS.length - 1], Math.max(ZOOM_STEPS[0], factor));
+  currentZoomFactor = clamped;
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    try { mainWindow.webContents.setZoomFactor(clamped); } catch {}
+  }
+  return clamped;
+}
+
+function stepZoom(direction) {
+  // Snap to the nearest step, then move one step in the requested direction.
+  let idx = ZOOM_STEPS.indexOf(currentZoomFactor);
+  if (idx === -1) {
+    idx = 0;
+    let best = Infinity;
+    for (let i = 0; i < ZOOM_STEPS.length; i++) {
+      const d = Math.abs(ZOOM_STEPS[i] - currentZoomFactor);
+      if (d < best) { best = d; idx = i; }
+    }
+  }
+  const nextIdx = Math.min(ZOOM_STEPS.length - 1, Math.max(0, idx + direction));
+  applyZoomFactor(ZOOM_STEPS[nextIdx]);
+}
 
 // Single instance lock — prevent multiple copies running simultaneously
 const gotTheLock = app.requestSingleInstanceLock();
@@ -32,7 +77,6 @@ if (!gotTheLock) {
   app.on('second-instance', () => {
     if (mainWindow) {
       if (mainWindow.isMinimized()) mainWindow.restore();
-      ensureMainWindowMaximized();
       if (!mainWindow.isVisible()) mainWindow.show();
       mainWindow.focus();
       notifyRendererLayoutSync();
@@ -263,13 +307,18 @@ function syncRendererViewportFromMain() {
     .executeJavaScript(
       `(function(w,h){
         try {
-          document.documentElement.classList.add('entry-viewport-synced');
-          document.documentElement.style.setProperty('--ezzy-viewport-h', h + 'px');
-          document.documentElement.style.setProperty('--ezzy-viewport-w', w + 'px');
-          document.documentElement.style.setProperty('--entry-vw', w + 'px');
-          document.documentElement.style.setProperty('--entry-vh', h + 'px');
+          var root = document.documentElement;
+          root.classList.add('entry-viewport-synced');
+          // Only mutate + dispatch resize when the dimensions actually change.
+          // Unconditional resize events break Radix dropdowns and trigger query refetch storms.
+          var prevW = parseInt(root.style.getPropertyValue('--ezzy-viewport-w'), 10);
+          var prevH = parseInt(root.style.getPropertyValue('--ezzy-viewport-h'), 10);
+          if (prevW === w && prevH === h) return;
+          root.style.setProperty('--ezzy-viewport-h', h + 'px');
+          root.style.setProperty('--ezzy-viewport-w', w + 'px');
+          root.style.setProperty('--entry-vw', w + 'px');
+          root.style.setProperty('--entry-vh', h + 'px');
           window.dispatchEvent(new Event('resize'));
-          if (document.visibilityState === 'visible') document.dispatchEvent(new Event('visibilitychange'));
         } catch (e) {}
       })(${cw},${ch});`,
     )
@@ -307,19 +356,32 @@ function notifyRendererLayoutSync() {
 function createWindow() {
   const icon = resolveIcon();
 
+  // Remember the user's last window size/position across launches.
+  const winState = windowStateKeeper({
+    defaultWidth: 1400,
+    defaultHeight: 900,
+  });
+  // No saved x means this is a fresh install / first launch → maximize on show.
+  isFirstRunWindow = winState.x === undefined || winState.y === undefined;
+
   mainWindow = new BrowserWindow({
-    width: 1400,
-    height: 900,
+    x: winState.x,
+    y: winState.y,
+    width: winState.width,
+    height: winState.height,
     minWidth: 1024,
-    minHeight: 700,
-    maximized: true,
+    minHeight: 600, // 1366×768 @125% laptops have ~614px usable height; 700 forced a conflict
     title: 'EzzyERP — Smart Inventory & Billing',
     ...(icon ? { icon: icon.image } : {}),
 
     // Hide native Windows menu bar — in-app blue HeaderMenubar is the only visible chrome.
     autoHideMenuBar: false,
 
-    backgroundColor: '#F5F7FA', // match index.html splash — no white flash on Windows cold start
+    // Premium framed titlebar — navy overlay with native window controls (Task 5).
+    titleBarStyle: 'hidden',
+    titleBarOverlay: { color: '#1e3a8a', symbolColor: '#ffffff', height: 36 },
+
+    backgroundColor: '#1e40af', // match splash — no light-grey flash at handoff
     show: false, // Show after ready-to-show (branded splash in page)
 
     webPreferences: {
@@ -330,6 +392,9 @@ function createWindow() {
       backgroundThrottling: false,
     },
   });
+
+  // Persist future size/position/maximize changes automatically.
+  winState.manage(mainWindow);
 
   mainWindow.setMenuBarVisibility(false);
   mainWindow.setAutoHideMenuBar(false);
@@ -409,6 +474,18 @@ function createWindow() {
   //   2) Tally / Vyapar "desktop software" polish — scoped to html.desktop-shell
   //      so the browser / PWA experience is completely untouched.
   const HEADER_CSS = `
+    /* ── Premium titlebar overlay (Task 5) ──────────────────────────
+       BrowserWindow uses titleBarStyle:'hidden' + a 36px navy overlay that
+       draws native minimize/maximize/close on the top-right. The overlay sits
+       ABOVE page content, so we must NOT push the body down (no top gap). The
+       web app's own blue header renders normally underneath the transparent
+       overlay strip.
+       NOTE (follow-up, do NOT change src/ here): the web app's header should
+       later reserve the top-right ~140px for the window controls using the
+       CSS env(titlebar-area-x/y/width/height) variables so buttons never sit
+       under the native controls. That is a separate web-app task. */
+    html.desktop-shell body { padding-top: 0; }
+
     /* ── Tally / Vyapar polish (Electron only) ─────────────────────── */
     html.desktop-shell, html.desktop-shell body {
       font-family: 'Segoe UI', 'Inter', system-ui, -apple-system, sans-serif;
@@ -624,26 +701,30 @@ function createWindow() {
         }
         return bar;
       }
+      // Viewport CSS vars — ONLY mutate + dispatch resize when dimensions change.
+      // Firing resize on every tick breaks Radix dropdowns and causes React Query refetch storms.
       function syncViewport() {
         try {
+          var root = document.documentElement;
           var vv = window.visualViewport;
           var w = Math.round((vv && vv.width) ? vv.width : window.innerWidth);
           var h = Math.round((vv && vv.height) ? vv.height : window.innerHeight);
-          if (w > 0) {
-            document.documentElement.style.setProperty('--ezzy-viewport-w', w + 'px');
-            document.documentElement.style.setProperty('--entry-vw', w + 'px');
-          }
-          if (h > 0) {
-            document.documentElement.style.setProperty('--ezzy-viewport-h', h + 'px');
-            document.documentElement.style.setProperty('--entry-vh', h + 'px');
-          }
-          document.documentElement.classList.add('entry-viewport-synced');
+          if (w <= 0 || h <= 0) return;
+          var prevW = parseInt(root.style.getPropertyValue('--ezzy-viewport-w'), 10);
+          var prevH = parseInt(root.style.getPropertyValue('--ezzy-viewport-h'), 10);
+          root.classList.add('entry-viewport-synced');
+          if (prevW === w && prevH === h) return;
+          root.style.setProperty('--ezzy-viewport-w', w + 'px');
+          root.style.setProperty('--entry-vw', w + 'px');
+          root.style.setProperty('--ezzy-viewport-h', h + 'px');
+          root.style.setProperty('--entry-vh', h + 'px');
           window.dispatchEvent(new Event('resize'));
         } catch (e) {}
       }
-      function update() {
+      // Route detection + chip innerHTML + online status. NO viewport work here,
+      // so the 2s interval never touches the viewport or fires resize.
+      function renderHintBar() {
         try {
-          syncViewport();
           var k = key(location.pathname);
           var hideHint = !!NO_HINT_ROUTES[k];
           document.documentElement.style.setProperty(
@@ -659,28 +740,37 @@ function createWindow() {
           bar.style.display = 'flex';
           var hints = HINTS[k] || DEFAULT_HINTS;
           var online = navigator.onLine ? '● Online' : '○ Offline';
-          bar.innerHTML =
+          var nextHtml =
             renderChips(hints) +
             '<span class="spacer"></span>' +
             '<span class="meta">' + online + ' · Desktop v' + APP_VERSION + '</span>';
+          // Skip pointless DOM mutation when nothing changed (every 2s otherwise).
+          if (bar.innerHTML !== nextHtml) bar.innerHTML = nextHtml;
         } catch (e) {}
       }
+      // Full update = viewport sync + hint bar. Used only on real navigation / initial paint.
+      function onNavigate() {
+        syncViewport();
+        renderHintBar();
+      }
 
-      // React to SPA navigation
+      // React to SPA navigation — these DO re-sync viewport (real layout change).
       var _push = history.pushState;
       var _replace = history.replaceState;
-      history.pushState = function () { _push.apply(this, arguments); update(); };
-      history.replaceState = function () { _replace.apply(this, arguments); update(); };
-      window.addEventListener('popstate', update);
-      window.addEventListener('online', update);
-      window.addEventListener('offline', update);
+      history.pushState = function () { _push.apply(this, arguments); onNavigate(); };
+      history.replaceState = function () { _replace.apply(this, arguments); onNavigate(); };
+      window.addEventListener('popstate', onNavigate);
+      // online/offline only affects the hint bar label — NOT a viewport trigger.
+      window.addEventListener('online', renderHintBar);
+      window.addEventListener('offline', renderHintBar);
 
       // Initial paint — wait for body
-      if (document.body) update();
-      else document.addEventListener('DOMContentLoaded', update);
+      if (document.body) onNavigate();
+      else document.addEventListener('DOMContentLoaded', onNavigate);
 
-      // Re-assert every 2s in case SPA re-renders wipe the body children
-      setInterval(update, 2000);
+      // Re-assert every 2s in case SPA re-renders wipe the body children.
+      // Interval does NO viewport work — renderHintBar only.
+      setInterval(renderHintBar, 2000);
     })();
   `;
 
@@ -702,39 +792,39 @@ function createWindow() {
     setTimeout(notifyRendererLayoutSync, 300);
   });
 
-  // Show maximized by default so bill entry footers and fields fit without manual resize
+  // First run: open maximized so bill/POS footers fit. Afterwards: respect the
+  // user's saved size/position (electron-window-state) — never force-maximize.
   mainWindow.once('ready-to-show', () => {
     try { closeSplash(); } catch {}
     // Native File/Edit menu must not appear above the in-app blue menubar (web-app chrome).
     mainWindow.setMenuBarVisibility(false);
     mainWindow.setAutoHideMenuBar(false);
-    ensureMainWindowMaximized();
+    if (isFirstRunWindow) ensureMainWindowMaximized();
     mainWindow.show();
     mainWindow.focus();
 
     // Early passes: sync CSS vars only — window is not yet painted, nudge would be ignored
     [0, 60, 200].forEach((ms) => {
       setTimeout(() => {
-        ensureMainWindowMaximized();
+        if (isFirstRunWindow) ensureMainWindowMaximized();
         notifyRendererLayoutSync();
       }, ms);
     });
 
     // 800ms: real unmaximize → remaximize once Chromium has committed its first frame.
-    // This is the key fix — forces full viewport recompute so POS/Sale footer appears.
+    // Self-guards to only act when the window IS maximized, so a restored window is left alone.
     setTimeout(() => nudgeMaximizedLayout(), 800);
 
     // Late passes: re-sync CSS vars after the nudge has settled
     [1100, 1800, 2500].forEach((ms) => {
       setTimeout(() => {
-        ensureMainWindowMaximized();
+        if (isFirstRunWindow) ensureMainWindowMaximized();
         notifyRendererLayoutSync();
       }, ms);
     });
   });
 
   mainWindow.on('show', () => {
-    ensureMainWindowMaximized();
     setTimeout(notifyRendererLayoutSync, 50);
   });
 
@@ -756,9 +846,28 @@ function createWindow() {
     return { action: 'deny' };
   });
 
-  // OAuth URLs return raw JSON errors inside the Electron webview — use system browser.
+  // Navigation allow-list. Only whitelisted hosts load inside the shell (with the
+  // preload injected); everything else is pushed to the system browser.
   mainWindow.webContents.on('will-navigate', (event, url) => {
+    // OAuth: Supabase authorize returns raw JSON errors in the webview — must open
+    // in the system browser. Preserved explicitly (subset of the allow-list rule).
     if (url.includes('supabase.co/auth/v1/authorize')) {
+      event.preventDefault();
+      shell.openExternal(url);
+      return;
+    }
+
+    let host = '';
+    try {
+      host = new URL(url).hostname;
+    } catch {
+      // Unparseable (e.g. about:blank, data:) — leave in-shell.
+      return;
+    }
+
+    const allowed =
+      ALLOWED_NAV_HOSTS.includes(host) && (host !== 'localhost' || isDev);
+    if (!allowed) {
       event.preventDefault();
       shell.openExternal(url);
     }
@@ -854,7 +963,6 @@ function createTray() {
       label: 'Open EzzyERP',
       click: () => {
         if (mainWindow) {
-          ensureMainWindowMaximized();
           mainWindow.show();
           mainWindow.focus();
           notifyRendererLayoutSync();
@@ -879,7 +987,6 @@ function createTray() {
   tray.setContextMenu(contextMenu);
   tray.on('double-click', () => {
     if (mainWindow) {
-      ensureMainWindowMaximized();
       mainWindow.show();
       mainWindow.focus();
       notifyRendererLayoutSync();
@@ -1114,24 +1221,31 @@ function createMenu() {
         {
           label: 'Zoom In',
           accelerator: 'CmdOrCtrl+=',
-          click: () => mainWindow && mainWindow.webContents.setZoomLevel(mainWindow.webContents.getZoomLevel() + 0.5),
+          click: () => stepZoom(+1),
         },
         {
           label: 'Zoom Out',
           accelerator: 'CmdOrCtrl+-',
-          click: () => mainWindow && mainWindow.webContents.setZoomLevel(mainWindow.webContents.getZoomLevel() - 0.5),
+          click: () => stepZoom(-1),
         },
         {
           label: 'Reset Zoom',
           accelerator: 'CmdOrCtrl+0',
-          click: () => mainWindow && mainWindow.webContents.setZoomLevel(0),
+          click: () => applyZoomFactor(1.0),
         },
         { type: 'separator' },
         {
           label: 'Full Screen',
-          accelerator: 'F12',
+          accelerator: 'F11',
           click: () => mainWindow && mainWindow.setFullScreen(!mainWindow.isFullScreen()),
         },
+        ...(isDev
+          ? [{
+              label: 'Toggle Developer Tools',
+              accelerator: 'F12',
+              click: () => mainWindow && mainWindow.webContents.toggleDevTools(),
+            }]
+          : []),
         { role: 'minimize' },
       ],
     },
@@ -1158,7 +1272,7 @@ function createMenu() {
                 'F2      Search (in-app)\n' +
                 'F9      Save (in-app)\n' +
                 'F10     Print preview (in-app)\n' +
-                'F12     Full Screen\n' +
+                'F11     Full Screen\n' +
                 'Esc     Back / Cancel',
               buttons: ['OK'],
             });
@@ -1166,7 +1280,7 @@ function createMenu() {
         },
         { label: 'Check for Updates…', click: () => checkForUpdatesManually() },
         { type: 'separator' },
-        { label: 'WhatsApp Support', click: () => shell.openExternal('https://wa.me/919876543210') },
+        { label: 'WhatsApp Support', click: () => shell.openExternal(SUPPORT_WHATSAPP_URL) },
         { label: 'Visit Website', click: () => shell.openExternal(PROD_URL) },
         { type: 'separator' },
         {
@@ -1246,6 +1360,8 @@ ipcMain.handle('set-zoom-factor', async (_event, factor) => {
   if (!Number.isFinite(n) || n < 0.5 || n > 2) return { success: false };
   try {
     win.webContents.setZoomFactor(n);
+    // Keep the unified zoom state in sync so the Window menu and Display Scale agree.
+    currentZoomFactor = n;
     return { success: true };
   } catch {
     return { success: false };
@@ -1345,6 +1461,13 @@ ipcMain.handle('print-html', async (_event, payload = {}) => {
       width: isReceipt ? 340 : 800,
       height: isReceipt ? 900 : 600,
       webPreferences: { nodeIntegration: false, contextIsolation: true },
+    });
+
+    // Offscreen print surface only ever loads the provided data: URL —
+    // block any window.open and any navigation away from it.
+    printWin.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+    printWin.webContents.on('will-navigate', (event) => {
+      event.preventDefault();
     });
 
     let settled = false;
