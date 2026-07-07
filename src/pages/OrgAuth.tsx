@@ -561,7 +561,7 @@ export default function OrgAuth() {
               <div className="mx-auto mt-4 h-px w-full" style={{ background: "#e2e8f0" }} />
             </div>
 
-            <div className="space-y-5">
+            <div className="space-y-4">
               {/* Network warning banner — non-blocking */}
               {showNetworkWarning && (
                 <Alert className="rounded-lg border-yellow-500/50 bg-yellow-50 py-2 dark:bg-yellow-900/20">
