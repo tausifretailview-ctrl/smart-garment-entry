@@ -102,6 +102,7 @@ export function PrecisionPrintCSS({ labelWidth, labelHeight, mode, thermalCols =
           image-rendering: pixelated;
           -webkit-print-color-adjust: exact;
           print-color-adjust: exact;
+          flex-shrink: 0 !important;
         }
       }
     `;

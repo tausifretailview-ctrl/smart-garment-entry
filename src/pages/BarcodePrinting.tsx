@@ -24,6 +24,12 @@ import {
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import JsBarcode from "jsbarcode";
+import {
+  legacyBarcodeHeightMm,
+  renderBarcodeSvgString,
+  resolveBarcodeSlotMm,
+} from "@/utils/barcodeLabelLayout";
+import type { LabelData, TSPLTemplateConfig } from "@/utils/tsplGenerator";
 import { Check, Save, Trash2, GripVertical, Eye, Download, RefreshCw, Edit, Printer, AlertTriangle, Plus, Loader2, ChevronDown, ChevronLeft, Search, Package } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Badge } from "@/components/ui/badge";
@@ -192,29 +198,12 @@ const ensureCompleteFieldOrder = (config: Partial<LabelDesignConfig>): LabelDesi
 };
 
 // Helper function to render barcode as inline SVG string (vector, no blur)
-const renderBarcodeToSVG = (code: string, height: number = 30, width: number = 1.5): string => {
-  try {
-    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    JsBarcode(svg, code, {
-      format: 'CODE128',
-      height: height,
-      width: width,
-      displayValue: false,
-      margin: 0,
-      background: 'transparent',
-      lineColor: '#000000',
-    });
-    const w = svg.getAttribute('width') || '100';
-    const h = svg.getAttribute('height') || String(height);
-    svg.setAttribute('width', w);
-    svg.setAttribute('height', h);
-    svg.style.display = 'block';
-    return new XMLSerializer().serializeToString(svg);
-  } catch (error) {
-    console.error('Failed to render barcode:', code, error);
-    return '';
-  }
-};
+const renderBarcodeToSVG = (
+  code: string,
+  slotWidthMm: number,
+  slotHeightMm: number,
+  lineWidth: number = 1.5,
+): string => renderBarcodeSvgString(code, slotWidthMm, slotHeightMm, lineWidth);
 
 interface SearchResult {
   id: string;
@@ -3353,11 +3342,30 @@ export default function BarcodePrinting() {
         const heightStyle = field.height ? `height: ${field.height}mm;` : '';
 
         if (fieldKey === 'barcode') {
-          // Pre-render barcode as image for reliable printing
-          const barcodeHeight = config.barcodeHeight || 25;
           const barcodeWidth = config.barcodeWidth || 1.5;
-          const barcodeHeightMm = Math.max(6, barcodeHeight * 0.35);
-          const barcodeSvg = renderBarcodeToSVG(barcode, barcodeHeight, barcodeWidth);
+          const labelData: LabelData = {
+            productName: item.product_name,
+            brand: item.brand,
+            category: item.category,
+            style: item.style,
+            color: item.color,
+            size: item.size,
+            mrp: item.mrp,
+            salePrice: item.sale_price,
+            barcode,
+            billNumber: item.bill_number,
+            purchaseCode: item.purchase_code,
+            supplierCode: item.supplier_code,
+            supplierInvoiceNo: item.supplier_invoice_no,
+            businessName,
+          };
+          const barcodeSlot = resolveBarcodeSlotMm(
+            { width: labelWidthMm, height: labelHeightMm, gap: 2 },
+            config as unknown as TSPLTemplateConfig,
+            labelData,
+          );
+          const barcodeHeightMm = barcodeSlot.heightMm;
+          const barcodeSvg = renderBarcodeToSVG(barcode, barcodeSlot.widthMm, barcodeHeightMm, barcodeWidth);
           
           fieldsHtml += `
             <div style="
@@ -3368,10 +3376,10 @@ export default function BarcodePrinting() {
               height: ${barcodeHeightMm}mm;
               display: flex;
               justify-content: ${field.textAlign === 'left' ? 'flex-start' : field.textAlign === 'right' ? 'flex-end' : 'center'};
-              align-items: center;
-              overflow: visible;
+              align-items: flex-start;
+              overflow: hidden;
             ">
-              ${barcodeSvg ? `<div style="height: ${barcodeHeightMm}mm; max-width: 100%; display: flex; align-items: center;">${barcodeSvg}</div>` : `<span style="font-size: 8px;">${barcode}</span>`}
+              ${barcodeSvg ? `<div style="height: ${barcodeHeightMm}mm; max-width: 100%; display: flex; align-items: flex-start; flex-shrink: 0;">${barcodeSvg}</div>` : `<span style="font-size: 8px;">${barcode}</span>`}
             </div>
           `;
         } else {
@@ -3423,12 +3431,12 @@ export default function BarcodePrinting() {
         const bcPaddingBottom = field.paddingBottom ?? 0;
         const bcPaddingLeft = field.paddingLeft ?? 0;
         const bcPaddingRight = field.paddingRight ?? 0;
-        const barcodeHeight = config.barcodeHeight || 28;
         const barcodeWidth = config.barcodeWidth || 1.8;
-        const barcodeSvg = renderBarcodeToSVG(barcode, barcodeHeight, barcodeWidth);
+        const barcodeHeightMm = legacyBarcodeHeightMm(config.barcodeHeight, labelHeightMm);
+        const barcodeSvg = renderBarcodeToSVG(barcode, labelWidthMm, barcodeHeightMm, barcodeWidth);
         
         if (barcodeSvg) {
-          html += `<div style="display: flex; justify-content: center; margin: ${bcPaddingTop}px auto ${bcPaddingBottom}px auto; padding-left: ${bcPaddingLeft}px; padding-right: ${bcPaddingRight}px; height: ${barcodeHeight * 0.35}mm;">${barcodeSvg}</div>`;
+          html += `<div style="display: flex; justify-content: center; margin: ${bcPaddingTop}px auto ${bcPaddingBottom}px auto; padding-left: ${bcPaddingLeft}px; padding-right: ${bcPaddingRight}px; height: ${barcodeHeightMm}mm; overflow: hidden;">${barcodeSvg}</div>`;
         } else {
           html += `<div style="text-align: center; font-size: 10px; font-weight: bold;">${barcode}</div>`;
         }

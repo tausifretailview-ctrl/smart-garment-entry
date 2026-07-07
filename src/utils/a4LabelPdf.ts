@@ -2,6 +2,8 @@ import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import JsBarcode from 'jsbarcode';
 import { LabelDesignConfig, LabelFieldConfig, LabelItem, FieldKey } from '@/types/labelTypes';
 import { computeA4SheetMargins, A4_PAGE_WIDTH_MM, A4_PAGE_HEIGHT_MM } from '@/utils/a4SheetLayout';
+import { barcodeHeightPxFromMm, resolveBarcodeSlotMm } from '@/utils/barcodeLabelLayout';
+import type { LabelData, TSPLTemplateConfig } from '@/utils/tsplGenerator';
 
 const mmToPt = (mm: number): number => mm * 2.8346;
 
@@ -223,13 +225,29 @@ export const generateA4LabelPdf = async (
       if (barcodeConfig?.show && item.barcode) {
         const bcX = barcodeConfig.x ?? 1;
         const bcY = barcodeConfig.y ?? (labelHeightMm * 0.35);
-        const bcAvailableWidthMm = Math.max(1, labelWidthMm - bcX);
-        const bcRequestedWidthMm = barcodeConfig.width !== undefined
-          ? (barcodeConfig.width / 100) * labelWidthMm
-          : bcAvailableWidthMm;
-        const bcWidthMm = Math.min(bcRequestedWidthMm, bcAvailableWidthMm);
-        const barcodeHeightPx = labelConfig.barcodeHeight ?? Math.max(15, labelHeightMm * 0.3 * 3.78);
-        const bcHeightMm = barcodeHeightPx / 3.7795;
+        const labelData: LabelData = {
+          productName: item.product_name,
+          brand: item.brand,
+          category: item.category,
+          style: item.style,
+          color: item.color,
+          size: item.size,
+          mrp: item.mrp,
+          salePrice: item.sale_price,
+          barcode: item.barcode,
+          billNumber: item.bill_number,
+          purchaseCode: item.purchase_code,
+          supplierCode: item.supplier_code,
+          businessName,
+        };
+        const barcodeSlot = resolveBarcodeSlotMm(
+          { width: labelWidthMm, height: labelHeightMm, gap: 2 },
+          labelConfig as unknown as TSPLTemplateConfig,
+          labelData,
+        );
+        const bcWidthMm = barcodeSlot.widthMm;
+        const bcHeightMm = barcodeSlot.heightMm;
+        const barcodeHeightPx = barcodeHeightPxFromMm(bcHeightMm);
 
         const dataUrl = barcodeToDataURL(item.barcode, bcWidthMm, barcodeHeightPx);
         if (dataUrl) {

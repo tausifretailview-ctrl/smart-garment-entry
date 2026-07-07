@@ -385,7 +385,7 @@ export function PrecisionLabelDesigner({
         {/* Barcode settings */}
         <div className="grid grid-cols-2 gap-2">
           <div className="space-y-1">
-            <Label className="text-xs">Barcode Height (px)</Label>
+            <Label className="text-xs">Barcode Height (% of label)</Label>
             <Input
               type="number"
               min={10}

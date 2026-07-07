@@ -56,6 +56,9 @@ export function buildPrecisionLabelDocument(
     .precision-barcode-svg {
       image-rendering: pixelated;
       -webkit-print-color-adjust: exact; print-color-adjust: exact;
+      flex-shrink: 0 !important;
+      height: auto !important;
+      max-height: none !important;
     }
   </style></head><body><div class="precision-print-area">${labelInnerHtml}</div></body></html>`;
 }

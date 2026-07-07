@@ -378,7 +378,7 @@ export const generateTSPLLabelFromTemplate = (
   // Only apply compact adjustments for legacy/non-designer templates
   const applyCompactAdjustments = isCompactLabel && !hasAbsolutePos;
   const compactTopPaddingDots = applyCompactAdjustments ? mmToDots(0.8, dpi) : 0;
-  const compactBottomPaddingDots = applyCompactAdjustments ? mmToDots(0.8, dpi) : 0;
+  const compactBottomPaddingDots = applyCompactAdjustments ? mmToDots(0.8, dpi) : mmToDots(0.5, dpi);
 
   // For compact labels without designer positioning, always print shop name at top if available
   const shouldAutoPrintBusinessName = applyCompactAdjustments && !!data.businessName && !templateConfig.businessName?.show;

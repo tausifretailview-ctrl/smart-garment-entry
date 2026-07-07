@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef } from "react";
-import JsBarcode from "jsbarcode";
 import { LabelItem, LabelDesignConfig, FieldKey } from "@/types/labelTypes";
 import { getUOMLabel } from "@/constants/uom";
 import { getCustomTextFields, usesCustomTextFields } from "@/utils/labelCustomText";
@@ -8,11 +7,12 @@ import {
   filterLabelFieldKeys,
   isLabelFieldAllowedByProductSettings,
 } from "@/utils/productFieldSettingsForLabels";
+import type { LabelData, TSPLTemplateConfig } from "@/utils/tsplGenerator";
 import {
-  computeLabelBarcodeLayout,
-  type LabelData,
-  type TSPLTemplateConfig,
-} from "@/utils/tsplGenerator";
+  applyJsBarcodeToElement,
+  legacyBarcodeHeightMm,
+  resolveBarcodeSlotMm,
+} from "@/utils/barcodeLabelLayout";
 
 interface PrecisionLabelPreviewProps {
   item: LabelItem;
@@ -81,47 +81,31 @@ export function PrecisionLabelPreview({
     businessName: item.businessName,
   }), [item]);
 
-  const barcodeLayout = useMemo(() => {
+  const barcodeSlot = useMemo(() => {
     if (!config) return null;
-    const hasAbsolutePos = (config.fieldOrder || []).some((fieldKey) => {
-      const field = config[fieldKey as FieldKey];
-      return field && (field.x !== undefined || field.y !== undefined);
-    });
-    const isCompactLabel = width <= 40 && height <= 25;
-    const applyCompactAdjustments = isCompactLabel && !hasAbsolutePos;
-    return computeLabelBarcodeLayout(
-      { width, height, gap: 2 },
-      config as unknown as TSPLTemplateConfig,
-      labelData,
-      {
-        dpi: 203,
-        hasAbsolutePos,
-        applyCompactAdjustments,
-        compactBottomPaddingDots: applyCompactAdjustments ? Math.round(0.8 * (203 / 25.4)) : Math.round(0.5 * (203 / 25.4)),
-      },
-    );
+    return resolveBarcodeSlotMm({ width, height, gap: 2 }, config as unknown as TSPLTemplateConfig, labelData);
   }, [config, width, height, labelData]);
 
-  const barcodeHeightMm = barcodeLayout?.barcodeHeightMm
-    ?? ((config?.barcodeHeight ?? Math.max(15, height * 0.3 * 3.78)) * 0.35) / 3.7795;
+  const barcodeHeightMm = barcodeSlot?.heightMm
+    ?? legacyBarcodeHeightMm(config?.barcodeHeight, height);
+
+  const barcodeWidthMm = barcodeSlot?.widthMm ?? Math.max(1, width - (config?.barcode?.x ?? 0));
 
   useEffect(() => {
     if (barcodeRef.current && item.barcode) {
       try {
-        JsBarcode(barcodeRef.current, item.barcode, {
-          format: "CODE128",
-          height: barcodeHeightMm * 3.7795,
-          width: barcodeLineWidth,
-          displayValue: false,
-          margin: 0,
-          background: "transparent",
-          lineColor: "#000000",
-        });
+        applyJsBarcodeToElement(
+          barcodeRef.current,
+          item.barcode,
+          barcodeWidthMm,
+          barcodeHeightMm,
+          barcodeLineWidth,
+        );
       } catch {
         // invalid barcode
       }
     }
-  }, [item.barcode, barcodeHeightMm, barcodeLineWidth]);
+  }, [item.barcode, barcodeHeightMm, barcodeWidthMm, barcodeLineWidth]);
 
   // Unit helper: when scaleFactor is set, use px-based sizing instead of CSS mm
   const u = (mm: number) => scaleFactor ? `${mm * 3.7795 * scaleFactor}px` : `${mm}mm`;
@@ -213,8 +197,8 @@ export function PrecisionLabelPreview({
         const fieldX = field.x ?? 0;
         const maxFieldW = Math.max(0.5, width - fieldX);
         const fieldW = field.width ? Math.min(field.width, maxFieldW) : maxFieldW;
-        const derivedYMm = barcodeLayout?.derivedFieldYDots[key] != null
-          ? barcodeLayout.derivedFieldYDots[key]! / (203 / 25.4)
+        const derivedYMm = barcodeSlot?.layout?.derivedFieldYDots[key] != null
+          ? barcodeSlot.layout.derivedFieldYDots[key]! / (203 / 25.4)
           : undefined;
 
         return (
@@ -307,19 +291,22 @@ export function PrecisionLabelPreview({
             position: "absolute",
             top: u(barcodeConfig.y ?? height * 0.35),
             left: u(barcodeConfig.x ?? 0),
-            width: barcodeConfig.width ? u(barcodeConfig.width) : "auto",
+            width: u(barcodeWidthMm),
+            height: u(barcodeHeightMm),
             display: "flex",
+            justifyContent: "center",
             alignItems: "flex-start",
             overflow: "hidden",
-            marginTop: u(1),
           }}
         >
           <svg
             ref={barcodeRef}
             className="precision-barcode-svg"
             style={{
-              maxWidth: barcodeConfig.width ? u(barcodeConfig.width) : u(width - 2),
               height: u(barcodeHeightMm),
+              width: "auto",
+              maxWidth: u(barcodeWidthMm),
+              flexShrink: 0,
               imageRendering: "pixelated",
             }}
           />

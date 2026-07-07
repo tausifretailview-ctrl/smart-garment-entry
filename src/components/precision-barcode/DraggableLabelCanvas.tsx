@@ -1,5 +1,4 @@
-import { useRef, useState, useCallback, useEffect } from "react";
-import JsBarcode from "jsbarcode";
+import { useRef, useState, useCallback, useEffect, useMemo } from "react";
 import { LabelDesignConfig, LabelFieldConfig, FieldKey, LabelItem } from "@/types/labelTypes";
 import { getUOMLabel } from "@/constants/uom";
 import { getCustomTextFields, usesCustomTextFields } from "@/utils/labelCustomText";
@@ -8,6 +7,8 @@ import {
   filterLabelFieldKeys,
   isLabelFieldAllowedByProductSettings,
 } from "@/utils/productFieldSettingsForLabels";
+import { applyJsBarcodeToElement, BARCODE_MM_TO_PX, resolveBarcodeSlotMm } from "@/utils/barcodeLabelLayout";
+import type { LabelData, TSPLTemplateConfig } from "@/utils/tsplGenerator";
 
 interface DraggableLabelCanvasProps {
   item: LabelItem;
@@ -85,24 +86,43 @@ export function DraggableLabelCanvas({
     origY: number;
   } | null>(null);
 
-  const barcodeHeight = config.barcodeHeight ?? 30;
   const barcodeLineWidth = config.barcodeWidth ?? 1.5;
+
+  const labelData = useMemo((): LabelData => ({
+    productName: item.product_name,
+    brand: item.brand,
+    category: item.category,
+    style: item.style,
+    color: item.color,
+    size: item.size,
+    mrp: item.mrp,
+    salePrice: item.sale_price,
+    barcode: item.barcode,
+    billNumber: item.bill_number,
+    purchaseCode: item.purchase_code,
+    supplierCode: item.supplier_code,
+    supplierInvoiceNo: item.supplier_invoice_no,
+    businessName: item.businessName,
+  }), [item]);
+
+  const barcodeSlot = useMemo(
+    () => resolveBarcodeSlotMm({ width, height, gap: 2 }, config as unknown as TSPLTemplateConfig, labelData),
+    [config, width, height, labelData],
+  );
 
   useEffect(() => {
     if (barcodeRef.current && item.barcode && config.barcode?.show) {
       try {
-        JsBarcode(barcodeRef.current, item.barcode, {
-          format: "CODE128",
-          height: barcodeHeight,
-          width: barcodeLineWidth,
-          displayValue: false,
-          margin: 0,
-          background: "transparent",
-          lineColor: "#000000",
-        });
+        applyJsBarcodeToElement(
+          barcodeRef.current,
+          item.barcode,
+          barcodeSlot.widthMm,
+          barcodeSlot.heightMm,
+          barcodeLineWidth,
+        );
       } catch {}
     }
-  }, [item.barcode, barcodeHeight, barcodeLineWidth, config.barcode?.show]);
+  }, [item.barcode, barcodeSlot, barcodeLineWidth, config.barcode?.show]);
 
   const pxWidth = width * MM_TO_PX;
   const pxHeight = height * MM_TO_PX;
@@ -400,9 +420,12 @@ export function DraggableLabelCanvas({
               position: "absolute",
               top: (barcodeConfig.y ?? height * 0.35) * MM_TO_PX * zoom,
               left: (barcodeConfig.x ?? 1) * MM_TO_PX * zoom,
-              width: barcodeConfig.width ? barcodeConfig.width * MM_TO_PX * zoom : "auto",
+              width: barcodeSlot.widthMm * MM_TO_PX * zoom,
+              height: barcodeSlot.heightMm * MM_TO_PX * zoom,
               display: "flex",
               justifyContent: "center",
+              alignItems: "flex-start",
+              overflow: "hidden",
               cursor: "grab",
               outline: activeField === "barcode" ? "2px solid hsl(var(--primary))" : "1px dashed transparent",
               outlineOffset: 1,
@@ -415,8 +438,10 @@ export function DraggableLabelCanvas({
             <svg
               ref={barcodeRef}
               style={{
-                maxWidth: "100%",
-                height: barcodeHeight * zoom * 0.35,
+                height: barcodeSlot.heightMm * BARCODE_MM_TO_PX * zoom,
+                width: "auto",
+                maxWidth: barcodeSlot.widthMm * MM_TO_PX * zoom,
+                flexShrink: 0,
                 imageRendering: "pixelated",
               }}
             />
