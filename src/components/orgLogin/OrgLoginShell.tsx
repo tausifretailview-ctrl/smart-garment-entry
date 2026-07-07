@@ -50,19 +50,22 @@ function OrgLoginMarketingPanel({ hidden }: { hidden: boolean }) {
   return (
     <div
       className={cn("relative flex-col overflow-hidden", hidden ? "hidden" : "hidden md:flex md:w-1/2")}
-      style={{ background: "#0f2744" }}
+      style={{ background: "linear-gradient(160deg, #0B1B3A 0%, #13294f 55%, #1e3a8a 100%)" }}
     >
+      {/* Faint grid texture */}
       <div
-        className="pointer-events-none absolute inset-0 opacity-[0.07]"
+        className="pointer-events-none absolute inset-0"
         style={{
+          opacity: 0.06,
           backgroundImage:
             "linear-gradient(#85B7EB 1px, transparent 1px), linear-gradient(90deg, #85B7EB 1px, transparent 1px)",
           backgroundSize: "48px 48px",
         }}
       />
+      {/* Soft accent glow, top-right */}
       <div
-        className="pointer-events-none absolute -bottom-32 -right-32 h-[420px] w-[420px] rounded-full opacity-20"
-        style={{ background: "radial-gradient(circle, #378ADD 0%, transparent 70%)" }}
+        className="pointer-events-none absolute -right-40 -top-40 h-[600px] w-[600px] rounded-full"
+        style={{ background: "radial-gradient(circle, rgba(56,189,248,0.08) 0%, transparent 70%)" }}
       />
 
       <div className="relative z-10 flex h-full flex-col justify-between px-12 py-10 lg:px-16 lg:py-12">
@@ -72,34 +75,41 @@ function OrgLoginMarketingPanel({ hidden }: { hidden: boolean }) {
           <div className="max-w-xl">
             <h2
               className="font-semibold leading-[1.15] text-white"
-              style={{ fontSize: "clamp(2rem, 3.2vw, 2.75rem)", letterSpacing: "-0.75px" }}
+              style={{ fontSize: "clamp(2rem, 3.2vw, 2.75rem)", letterSpacing: "-0.01em" }}
             >
-              Run your retail business <span style={{ color: "#378ADD" }}>smarter.</span>
+              Run your retail business <span style={{ color: "#38bdf8" }}>smarter.</span>
             </h2>
+            <div className="mt-4 h-0.5 w-10 rounded-full" style={{ background: "#38bdf8" }} />
             <p
               className="mt-5 max-w-lg leading-relaxed"
-              style={{ fontSize: "clamp(1rem, 1.4vw, 1.125rem)", color: "#85B7EB" }}
+              style={{ fontSize: "clamp(1rem, 1.4vw, 1.125rem)", color: "rgba(255,255,255,0.65)" }}
             >
               Complete billing, inventory & accounting for Indian retail businesses.
             </p>
           </div>
 
-          <div className="max-w-lg space-y-3">
+          <div className="max-w-lg space-y-4">
             {LEFT_FEATURE_CARDS.map(({ icon: Icon, title, desc }) => (
               <div
                 key={title}
-                className="flex gap-3.5 rounded-xl px-4 py-4"
+                className="login-feature flex items-center gap-3.5 px-4 py-3.5 backdrop-blur-sm"
                 style={{
-                  background: "#0C447C",
-                  border: "0.5px solid #185FA5",
+                  background: "rgba(255,255,255,0.05)",
+                  border: "1px solid rgba(255,255,255,0.10)",
+                  borderRadius: 14,
                 }}
               >
-                <Icon className="mt-0.5 h-5 w-5 shrink-0" style={{ color: "#85B7EB" }} />
+                <div
+                  className="flex h-9 w-9 shrink-0 items-center justify-center"
+                  style={{ background: "rgba(56,189,248,0.15)", borderRadius: 8 }}
+                >
+                  <Icon className="h-[18px] w-[18px]" style={{ color: "#38bdf8" }} />
+                </div>
                 <div>
                   <p className="font-semibold text-white" style={{ fontSize: 15 }}>
                     {title}
                   </p>
-                  <p className="mt-1" style={{ fontSize: 13, color: "#85B7EB" }}>
+                  <p style={{ fontSize: 13, color: "rgba(255,255,255,0.65)" }}>
                     {desc}
                   </p>
                 </div>
@@ -108,20 +118,24 @@ function OrgLoginMarketingPanel({ hidden }: { hidden: boolean }) {
           </div>
         </div>
 
-        <div className="pt-6" style={{ borderTop: "0.5px solid #185FA5" }}>
-          <div className="flex justify-around">
+        <div className="pt-6" style={{ borderTop: "1px solid rgba(255,255,255,0.14)" }}>
+          <div className="flex items-stretch">
             {[
               ["500+", "Businesses"],
               ["10L+", "Invoices"],
               ["99.9%", "Uptime"],
-            ].map(([value, label]) => (
-              <div key={label} className="text-center">
-                <p className="font-semibold text-white" style={{ fontSize: "clamp(1.5rem, 2vw, 1.875rem)" }}>
+            ].map(([value, label], i) => (
+              <div
+                key={label}
+                className="flex-1 text-center"
+                style={i > 0 ? { borderLeft: "1px solid rgba(255,255,255,0.14)" } : undefined}
+              >
+                <p className="font-bold text-white" style={{ fontSize: "clamp(1.5rem, 2vw, 1.875rem)" }}>
                   {value}
                 </p>
                 <p
-                  className="mt-1.5 uppercase tracking-wide"
-                  style={{ fontSize: 12, color: "#85B7EB", letterSpacing: "0.4px" }}
+                  className="mt-1.5 uppercase"
+                  style={{ fontSize: 11, color: "rgba(255,255,255,0.55)", letterSpacing: "0.06em" }}
                 >
                   {label}
                 </p>
@@ -136,17 +150,17 @@ function OrgLoginMarketingPanel({ hidden }: { hidden: boolean }) {
 
 export function OrgLoginTrustBadges() {
   return (
-    <div className="flex flex-wrap items-center justify-center gap-5 pt-2">
-      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        <ShieldCheck className="h-4 w-4 text-green-600" />
+    <div className="mt-5 flex flex-wrap items-center justify-center gap-5 pt-5" style={{ borderTop: "1px solid #e2e8f0" }}>
+      <div className="flex items-center gap-1.5 text-xs" style={{ color: "#64748b" }}>
+        <ShieldCheck className="h-3.5 w-3.5 text-green-600" />
         ISO 27001
       </div>
-      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        <ShieldCheck className="h-4 w-4 text-green-600" />
+      <div className="flex items-center gap-1.5 text-xs" style={{ color: "#64748b" }}>
+        <ShieldCheck className="h-3.5 w-3.5 text-green-600" />
         SOC 2 Type II
       </div>
-      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        <MapPin className="h-4 w-4 text-blue-600" />
+      <div className="flex items-center gap-1.5 text-xs" style={{ color: "#64748b" }}>
+        <MapPin className="h-3.5 w-3.5 text-blue-600" />
         Data in India
       </div>
     </div>
@@ -168,7 +182,7 @@ export function OrgLoginShell({
   const compactLogin = compactLoginProp ?? compactFromHook;
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-background">
+    <div className="login-page flex h-screen w-full overflow-hidden bg-background">
       <OrgLoginMarketingPanel hidden={compactLogin} />
 
       <div
@@ -179,10 +193,10 @@ export function OrgLoginShell({
       >
         <div
           className={cn(
-            "mx-auto flex w-full max-w-lg flex-1 flex-col justify-center",
+            "login-form-col mx-auto flex w-full max-w-[400px] flex-1 flex-col justify-center",
             compactLogin
-              ? "px-5 py-8 pt-[max(2rem,env(safe-area-inset-top))] pb-[max(2rem,env(safe-area-inset-bottom))]"
-              : "px-8 py-10 md:px-12 lg:px-16",
+              ? "px-6 py-8 pt-[max(2rem,env(safe-area-inset-top))] pb-[max(2rem,env(safe-area-inset-bottom))]"
+              : "px-6 py-10 md:px-10",
           )}
         >
           {compactLogin && (
@@ -191,10 +205,14 @@ export function OrgLoginShell({
             </div>
           )}
 
-          <div className="space-y-8">
+          <div className="space-y-6">
             <div className="text-center">
-              <h1 className="text-3xl font-semibold tracking-tight text-card-foreground md:text-4xl">{title}</h1>
-              <p className="mt-2 text-base text-muted-foreground md:text-lg">{subtitle}</p>
+              <h1 className="font-bold" style={{ fontSize: 28, letterSpacing: "-0.01em", color: "#0f172a" }}>
+                {title}
+              </h1>
+              <p className="mt-1.5" style={{ fontSize: 14, color: "#64748b" }}>
+                {subtitle}
+              </p>
             </div>
 
             {children}

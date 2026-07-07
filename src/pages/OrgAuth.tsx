@@ -529,32 +529,36 @@ export default function OrgAuth() {
       {/* Organization Branding — conditional logic unchanged */}
       <div className="text-center">
               {orgLoading ? (
-                <div className="mx-auto mb-4 flex h-24 w-24 animate-pulse items-center justify-center rounded-2xl bg-muted shadow-lg">
-                  <Building2 className="h-10 w-10 text-muted-foreground" />
+                <div
+                  className="mx-auto mb-3 flex h-[88px] w-[88px] animate-pulse items-center justify-center bg-white p-2"
+                  style={{ border: "1px solid #e2e8f0", borderRadius: 14, boxShadow: "0 1px 3px rgba(15,23,42,0.08)" }}
+                >
+                  <Building2 className="h-9 w-9 text-muted-foreground" />
                 </div>
               ) : logoUrl ? (
-                <img
-                  src={logoUrl}
-                  alt={displayName}
-                  className="mx-auto mb-4 h-24 w-auto max-w-[280px] object-contain md:h-28"
-                />
+                <div
+                  className="mx-auto mb-3 flex h-[88px] w-[88px] items-center justify-center bg-white p-2"
+                  style={{ border: "1px solid #e2e8f0", borderRadius: 14, boxShadow: "0 1px 3px rgba(15,23,42,0.08)" }}
+                >
+                  <img
+                    src={logoUrl}
+                    alt={displayName}
+                    className="max-h-full max-w-full object-contain"
+                  />
+                </div>
               ) : (
                 <div
-                  className="mx-auto mb-4 flex h-24 w-24 items-center justify-center rounded-2xl shadow-lg md:h-28 md:w-28"
-                  style={{
-                    background: `linear-gradient(145deg, ${brandColor} 0%, #5849c4 100%)`,
-                  }}
+                  className="mx-auto mb-3 flex h-[88px] w-[88px] items-center justify-center bg-white p-2"
+                  style={{ border: "1px solid #e2e8f0", borderRadius: 14, boxShadow: "0 1px 3px rgba(15,23,42,0.08)" }}
                 >
-                  <Building2 className="h-11 w-11 text-white md:h-12 md:w-12" />
+                  <Building2 className="h-10 w-10" style={{ color: "#1e3a8a" }} />
                 </div>
               )}
 
-              <h2
-                className="text-2xl font-bold tracking-tight md:text-3xl"
-                style={{ color: brandColor }}
-              >
+              <h2 className="uppercase" style={{ color: "#1e3a8a", fontSize: 14, fontWeight: 600, letterSpacing: "0.04em" }}>
                 {displayName}
               </h2>
+              <div className="mx-auto mt-4 h-px w-full" style={{ background: "#e2e8f0" }} />
             </div>
 
             <div className="space-y-5">
@@ -614,13 +618,13 @@ export default function OrgAuth() {
                 </Alert>
               )}
 
-              <form onSubmit={handleSignIn} className="space-y-5">
-                <div className="space-y-2">
-                  <Label htmlFor="email" className="text-sm font-semibold text-foreground md:text-base">
+              <form onSubmit={handleSignIn} className="space-y-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor="email" style={{ fontSize: 13, fontWeight: 500, color: "#0f172a" }}>
                     Email address
                   </Label>
-                  <div className="relative">
-                    <Mail className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
+                  <div className="login-field relative">
+                    <Mail className="login-icon pointer-events-none absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
                     <Input
                       id="email"
                       type="email"
@@ -629,20 +633,20 @@ export default function OrgAuth() {
                       onChange={(e) => setEmail(e.target.value)}
                       disabled={loading}
                       required
-                      className="no-uppercase h-12 rounded-xl border-border bg-secondary/50 pl-12 text-base md:h-14 md:pl-14 md:text-lg"
+                      className="login-input no-uppercase h-11 border-border pl-11 text-base"
                     />
                   </div>
                 </div>
 
-                <div className="space-y-2">
+                <div className="space-y-1.5">
                   <div className="flex items-center justify-between gap-3">
-                    <Label htmlFor="password" className="text-sm font-semibold text-foreground md:text-base">
+                    <Label htmlFor="password" style={{ fontSize: 13, fontWeight: 500, color: "#0f172a" }}>
                       Password
                     </Label>
                     <button
                       type="button"
-                      className="text-sm font-medium hover:underline md:text-base"
-                      style={{ color: "#185FA5" }}
+                      className="hover:underline"
+                      style={{ fontSize: 13, fontWeight: 500, color: "#2957c9" }}
                       onClick={async () => {
                         if (!email) {
                           toast.error("Enter your email first");
