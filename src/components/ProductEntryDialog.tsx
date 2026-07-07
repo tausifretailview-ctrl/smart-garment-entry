@@ -137,6 +137,23 @@ interface ProductEntryDialogProps {
   mobileERPMode?: MobileERPModeConfig;
 }
 
+/** Move focus to the next visible field in the product entry form (Enter-as-Tab). */
+function focusNextFieldInProductForm(currentEl: HTMLElement) {
+  const form = currentEl.closest("[data-product-form]");
+  if (!form) return;
+  const focusable = Array.from(
+    form.querySelectorAll<HTMLElement>(
+      'input:not([type="hidden"]):not([type="file"]):not(:disabled):not([tabindex="-1"]), select:not(:disabled), textarea:not(:disabled), [role="combobox"]:not(:disabled)',
+    ),
+  ).filter(
+    (el) => el.offsetParent !== null && !el.closest(".hidden") && el.tabIndex !== -1,
+  );
+  const idx = focusable.indexOf(currentEl);
+  if (idx >= 0 && idx < focusable.length - 1) {
+    focusable[idx + 1].focus();
+  }
+}
+
 /** Searchable suggestions with free-text entry (not restricted to list values). */
 function FreeTextFieldCombobox({
   id,
@@ -226,7 +243,15 @@ function FreeTextFieldCombobox({
       if (e.key === "Enter") {
         e.preventDefault();
         e.stopPropagation();
-        handleSelect(displayItems[highlightIndex].value);
+        const item = displayItems[highlightIndex];
+        const alreadyHasValue =
+          !!item && value.trim().toLowerCase() === item.value.trim().toLowerCase();
+        if (open && displayItems.length > 0 && item && !alreadyHasValue) {
+          handleSelect(item.value);
+          return;
+        }
+        setOpen(false);
+        onKeyDown?.(e);
         return;
       }
     }
@@ -1590,17 +1615,16 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
         if (purPriceEl) { purPriceEl.focus(); return; }
       }
 
-      const form = currentEl.closest('[data-product-form]');
-      if (!form) return;
-      const focusable = Array.from(form.querySelectorAll<HTMLElement>(
-        'input:not([type="hidden"]):not([type="file"]):not(:disabled), select:not(:disabled), textarea:not(:disabled), [role="combobox"]:not(:disabled)'
-      )).filter(el => el.offsetParent !== null && !el.closest('.hidden'));
-      const idx = focusable.indexOf(currentEl);
-      if (idx >= 0 && idx < focusable.length - 1) {
-        focusable[idx + 1].focus();
-      }
+      focusNextFieldInProductForm(currentEl);
     }
   }, [cursorAfterStyle, purGstRef, saleGstRef]);
+
+  const handleSelectEnterAsTab = useCallback((e: React.KeyboardEvent<HTMLButtonElement>) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      focusNextFieldInProductForm(e.currentTarget);
+    }
+  }, []);
 
   const isPurchaseBillForm = !!hideOpeningQty;
   const purchaseTypography = isPurchaseBillForm
@@ -1681,7 +1705,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
               }
             }}
           >
-            <div className={cn("data-product-form", isPurchaseBillForm ? "space-y-3.5 py-2.5 pb-3" : "space-y-6 py-4 pb-8")}>
+            <div data-product-form className={cn(isPurchaseBillForm ? "space-y-3.5 py-2.5 pb-3" : "space-y-6 py-4 pb-8")}>
               {/* Product Type — Card Selector */}
               <div className="flex items-center justify-between gap-3">
                 <div className="flex gap-2 flex-1">
@@ -1932,9 +1956,13 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                   >
                     <SelectTrigger id="purchase_gst_percent" ref={purGstRef} className="border-blue-200 dark:border-blue-800"
                       onKeyDown={(e) => {
-                        if (e.key === 'Enter' && cursorAfterStyle === 'hsn') {
+                        if (e.key === 'Enter') {
                           e.preventDefault();
-                          saleGstRef.current?.focus();
+                          if (cursorAfterStyle === 'hsn') {
+                            saleGstRef.current?.focus();
+                          } else {
+                            focusNextFieldInProductForm(e.currentTarget);
+                          }
                         }
                       }}>
                       <SelectValue />
@@ -1972,9 +2000,13 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                   >
                     <SelectTrigger id="sale_gst_percent" ref={saleGstRef} className="border-green-200 dark:border-green-800"
                       onKeyDown={(e) => {
-                        if (e.key === 'Enter' && cursorAfterStyle === 'hsn') {
+                        if (e.key === 'Enter') {
                           e.preventDefault();
-                          document.getElementById("default_pur_price")?.focus();
+                          if (cursorAfterStyle === 'hsn') {
+                            document.getElementById("default_pur_price")?.focus();
+                          } else {
+                            focusNextFieldInProductForm(e.currentTarget);
+                          }
                         }
                       }}>
                       <SelectValue />
@@ -1994,7 +2026,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                     value={formData.uom}
                     onValueChange={(value) => setFormData({ ...formData, uom: value })}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger id="uom" onKeyDown={handleSelectEnterAsTab}>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className={purchaseTypography.selectContent}>
@@ -2129,14 +2161,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                       onKeyDown={(e) => {
                         if (e.key === "Enter") {
                           e.preventDefault();
-                          const form = e.currentTarget.closest("form") || e.currentTarget.closest("[role='dialog']");
-                          if (form) {
-                            const inputs = Array.from(form.querySelectorAll("input:not([disabled]):not([type='hidden']), select:not([disabled]), textarea:not([disabled])"));
-                            const idx = inputs.indexOf(e.currentTarget);
-                            if (idx >= 0 && idx < inputs.length - 1) {
-                              (inputs[idx + 1] as HTMLElement).focus();
-                            }
-                          }
+                          focusNextFieldInProductForm(e.currentTarget);
                         }
                       }}
                       className="h-9 text-sm"
@@ -2158,14 +2183,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                       onKeyDown={(e) => {
                         if (e.key === "Enter") {
                           e.preventDefault();
-                          const form = e.currentTarget.closest("form") || e.currentTarget.closest("[role='dialog']");
-                          if (form) {
-                            const inputs = Array.from(form.querySelectorAll("input:not([disabled]):not([type='hidden']), select:not([disabled]), textarea:not([disabled])"));
-                            const idx = inputs.indexOf(e.currentTarget);
-                            if (idx >= 0 && idx < inputs.length - 1) {
-                              (inputs[idx + 1] as HTMLElement).focus();
-                            }
-                          }
+                          focusNextFieldInProductForm(e.currentTarget);
                         }
                       }}
                       className="h-9 text-sm"
@@ -2199,6 +2217,12 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                           if (colorInput.trim()) {
                             e.preventDefault();
                             handleAddColor();
+                            return;
+                          }
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            focusNextFieldInProductForm(e.currentTarget);
+                            return;
                           }
                         }
                         // Backspace on empty input removes last color
@@ -2282,6 +2306,12 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                               if (colorInput.trim()) {
                                 e.preventDefault();
                                 handleAddColor();
+                                return;
+                              }
+                              if (e.key === "Enter") {
+                                e.preventDefault();
+                                focusNextFieldInProductForm(e.currentTarget);
+                                return;
                               }
                             }
                             if (e.key === "Backspace" && !colorInput && formData.colors.length > 0) {
@@ -2417,6 +2447,12 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                                 if (colorInput.trim()) {
                                   e.preventDefault();
                                   handleAddColor();
+                                  return;
+                                }
+                                if (e.key === "Enter") {
+                                  e.preventDefault();
+                                  focusNextFieldInProductForm(e.currentTarget);
+                                  return;
                                 }
                               }
                               if (e.key === "Backspace" && !colorInput && formData.colors.length > 0) {
@@ -2458,7 +2494,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                               }
                             }}
                           >
-                            <SelectTrigger className="flex-1 h-10 text-[16px] font-semibold">
+                            <SelectTrigger id="size_group_id" className="flex-1 h-10 text-[16px] font-semibold" onKeyDown={handleSelectEnterAsTab}>
                               <SelectValue placeholder="Select size group" />
                             </SelectTrigger>
                             <SelectContent className={purchaseTypography.selectContent}>
@@ -2497,7 +2533,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                         }
                       }}
                     >
-                      <SelectTrigger className="flex-1">
+                      <SelectTrigger className="flex-1" onKeyDown={handleSelectEnterAsTab}>
                         <SelectValue placeholder="Select size group" />
                       </SelectTrigger>
                       <SelectContent className={purchaseTypography.selectContent}>
@@ -2979,6 +3015,9 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                                     ]);
                                   }
                                   setCustomSizeInput("");
+                                } else if (e.key === "Enter") {
+                                  e.preventDefault();
+                                  focusNextFieldInProductForm(e.currentTarget);
                                 }
                               }}
                               placeholder="Custom size (e.g. 3XL)"
