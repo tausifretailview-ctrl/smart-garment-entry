@@ -16,6 +16,11 @@
     align-items: center; justify-content: center;
     padding: 24px; text-align: center;
   }
+  .logo {
+    width: 56px; height: 56px; border-radius: 12px;
+    margin-bottom: 14px; object-fit: contain;
+    background: rgba(255,255,255,0.08);
+  }
   .brand { font-size: 28px; font-weight: 700; letter-spacing: 0.5px; }
   .tag { margin-top: 6px; font-size: 12px; opacity: 0.85; }
   .bar {
@@ -36,6 +41,7 @@
 </head>
 <body>
   <div class="wrap">
+    <img class="logo" src="../build/icon.png" alt="" onerror="this.style.display='none'" />
     <div class="brand">EzzyERP</div>
     <div class="tag">Smart Inventory &amp; Billing</div>
     <div class="bar"></div>
