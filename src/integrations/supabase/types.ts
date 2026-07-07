@@ -8252,6 +8252,14 @@ export type Database = {
         Args: { p_organization_id: string; p_receipt_id: string }
         Returns: undefined
       }
+      derive_sale_payment_status: {
+        Args: {
+          p_net_amount: number
+          p_paid_amount: number
+          p_payment_method?: string
+        }
+        Returns: string
+      }
       detect_stock_discrepancies: {
         Args: { p_organization_id: string }
         Returns: {
@@ -8380,6 +8388,15 @@ export type Database = {
       generate_voucher_number: {
         Args: { p_date?: string; p_type: string }
         Returns: string
+      }
+      get_accounting_drift_report: {
+        Args: { p_organization_id: string }
+        Returns: {
+          amount_total: number
+          detail: string
+          drift_type: string
+          row_count: number
+        }[]
       }
       get_accounts_dashboard_metrics: {
         Args: { p_month_end: string; p_month_start: string; p_org_id: string }
@@ -9209,6 +9226,7 @@ export type Database = {
         Args: { p_organization_id?: string }
         Returns: Json
       }
+      sale_settlement_tolerance: { Args: never; Returns: number }
       save_purchase_bill_with_items_atomic: {
         Args: { p_bill: Json; p_items: Json; p_organization_id: string }
         Returns: Json
