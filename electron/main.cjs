@@ -454,9 +454,9 @@ function createWindow() {
       padding-bottom: 0.25rem !important;
     }
 
-    /* POS footer — room for fixed Electron hint strip only (status bar is in-layout) */
+    /* POS / bill entry — full viewport; no Electron hint-strip gutter */
     html.desktop-shell body.entry-bill-screen .pos-sales-main {
-      padding-bottom: var(--ezzy-hint-bar-height, 22px) !important;
+      padding-bottom: 0 !important;
       box-sizing: border-box !important;
     }
 
@@ -484,10 +484,6 @@ function createWindow() {
       bottom: auto !important;
       margin-top: auto !important;
       z-index: 55 !important;
-    }
-
-    html.desktop-shell body.entry-bill-screen #ezzy-hint-bar {
-      bottom: 0 !important;
     }
 
     /* ── Tally / Vyapar keyboard-hint strip (Electron only) ─────────
@@ -594,10 +590,10 @@ function createWindow() {
       window.__ezzyHintBarInstalled = true;
       var APP_VERSION = ${JSON.stringify(app.getVersion())};
 
+      /* Full-screen billing pages — no shortcut strip (POS / Sale Bill / Purchase). */
+      var NO_HINT_ROUTES = { 'pos-sales': 1, 'sales-invoice': 1, 'purchase-entry': 1 };
+
       var HINTS = {
-        'pos-sales':         [['F2','Search'],['F4','Customer'],['F9','Save'],['F10','Print'],['Esc','Back']],
-        'sales-invoice':     [['F2','Search'],['F4','Customer'],['F9','Save'],['F11','Print'],['Esc','Back']],
-        'purchase-entry':    [['F2','Search'],['F4','Supplier'],['F9','Save'],['Esc','Back']],
         'stock-report':      [['F2','Search'],['Ctrl+E','Export'],['Ctrl+P','Print'],['Esc','Back']],
         'item-wise-sales':   [['F2','Search'],['Ctrl+E','Export'],['Esc','Back']],
         'dashboard':         [['Alt+N','Sale'],['Alt+B','Purchase'],['Alt+P','POS'],['Alt+S','Stock']],
@@ -648,8 +644,19 @@ function createWindow() {
       function update() {
         try {
           syncViewport();
-          var bar = ensureBar();
           var k = key(location.pathname);
+          var hideHint = !!NO_HINT_ROUTES[k];
+          document.documentElement.style.setProperty(
+            '--ezzy-hint-bar-height',
+            hideHint ? '0px' : '22px'
+          );
+          if (hideHint) {
+            var hidden = document.getElementById('ezzy-hint-bar');
+            if (hidden) hidden.style.display = 'none';
+            return;
+          }
+          var bar = ensureBar();
+          bar.style.display = 'flex';
           var hints = HINTS[k] || DEFAULT_HINTS;
           var online = navigator.onLine ? '● Online' : '○ Offline';
           bar.innerHTML =
