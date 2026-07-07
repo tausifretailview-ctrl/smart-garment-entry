@@ -16,8 +16,6 @@ import { hideAppBootSplash } from "@/lib/appBootSplash";
 import { useCompactLoginLayout } from "@/hooks/use-mobile";
 import { OrgLoginShell, OrgLoginTrustBadges } from "@/components/orgLogin/OrgLoginShell";
 
-const BRAND_COLOR = "#6C5CE7";
-
 interface Organization {
   id: string;
   name: string;
@@ -515,7 +513,6 @@ export default function OrgAuth() {
     || organization?.name
     || normalizeOrgSlug(orgSlug).replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
   const logoUrl = orgSettings?.bill_barcode_settings?.logo_url;
-  const brandColor = orgSettings?.bill_barcode_settings?.brand_color || BRAND_COLOR;
 
   // Network error banner (shown inside the login form, not blocking)
   const showNetworkWarning = orgFetchErrorType === "network" && !organization;

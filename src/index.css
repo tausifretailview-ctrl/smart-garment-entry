@@ -3782,3 +3782,78 @@ main.overflow-auto,
 .barcode-printing-page[data-precision-tab] .barcode-print-tabs {
   margin-bottom: 0;
 }
+
+/* ============================================================
+   Org login page — premium SaaS polish (scoped to .login-page)
+   Overrides are scoped so the Electron desktop-shell injected
+   radius/shadow flatten rules don't fight the intended look.
+   ============================================================ */
+@keyframes loginFormRise {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.login-page .login-form-col {
+  animation: loginFormRise 300ms ease-out both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .login-page .login-form-col { animation: none; }
+}
+
+/* Inputs keep 10px radius + white fill even under desktop-shell flattening.
+   The desktop-shell rule targets input[type=email] with !important, so the
+   scoped selector below must carry higher specificity to win. */
+html.desktop-shell .login-page .login-input,
+.login-page .login-input {
+  border-radius: 10px !important;
+  background-color: #ffffff;
+  border-color: #e2e8f0;
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+.login-page .login-input::placeholder {
+  color: #64748b;
+  opacity: 0.6;
+}
+.login-page .login-input:focus,
+.login-page .login-input:focus-visible {
+  border-color: #2957c9 !important;
+  box-shadow: 0 0 0 3px rgba(41, 87, 201, 0.35) !important;
+  outline: none !important;
+}
+.login-page .login-field:focus-within .login-icon {
+  color: #2957c9;
+}
+
+/* Sign-in button — navy gradient + interactive states */
+.login-page .login-submit {
+  background: linear-gradient(180deg, #2957c9 0%, #1e3a8a 100%);
+  transition: filter 150ms ease, box-shadow 150ms ease, transform 150ms ease;
+}
+.login-page .login-submit:hover:not(:disabled) {
+  filter: brightness(1.06);
+  box-shadow: 0 4px 12px rgba(30, 58, 138, 0.35);
+}
+.login-page .login-submit:active:not(:disabled) {
+  transform: translateY(1px);
+}
+.login-page .login-submit:disabled {
+  opacity: 0.5;
+  box-shadow: none;
+}
+
+/* Google button — subtle hover */
+.login-page .login-google {
+  transition: background-color 150ms ease, border-color 150ms ease;
+}
+.login-page .login-google:hover:not(:disabled) {
+  background-color: #f8fafc;
+  border-color: #cbd5e1;
+}
+
+/* Left-panel feature cards — lift on hover */
+.login-page .login-feature {
+  transition: transform 180ms ease, border-color 180ms ease;
+}
+.login-page .login-feature:hover {
+  transform: translateY(-2px);
+  border-color: rgba(255, 255, 255, 0.22) !important;
+}
