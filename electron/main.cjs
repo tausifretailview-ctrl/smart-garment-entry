@@ -316,8 +316,8 @@ function createWindow() {
     title: 'EzzyERP — Smart Inventory & Billing',
     ...(icon ? { icon: icon.image } : {}),
 
-    // Native Windows chrome — menu bar auto-hides (Alt to show) for a cleaner web-app feel.
-    autoHideMenuBar: true,
+    // Hide native Windows menu bar — in-app blue HeaderMenubar is the only visible chrome.
+    autoHideMenuBar: false,
 
     backgroundColor: '#F5F7FA', // match index.html splash — no white flash on Windows cold start
     show: false, // Show after ready-to-show (branded splash in page)
@@ -330,6 +330,9 @@ function createWindow() {
       backgroundThrottling: false,
     },
   });
+
+  mainWindow.setMenuBarVisibility(false);
+  mainWindow.setAutoHideMenuBar(false);
 
   if (isDev) {
     mainWindow.loadURL(getAppUrl());
@@ -695,6 +698,9 @@ function createWindow() {
   // Show maximized by default so bill entry footers and fields fit without manual resize
   mainWindow.once('ready-to-show', () => {
     try { closeSplash(); } catch {}
+    // Native File/Edit menu must not appear above the in-app blue menubar (web-app chrome).
+    mainWindow.setMenuBarVisibility(false);
+    mainWindow.setAutoHideMenuBar(false);
     ensureMainWindowMaximized();
     mainWindow.show();
     mainWindow.focus();
@@ -1173,6 +1179,12 @@ function createMenu() {
   ];
 
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+
+  // Keep accelerators (Alt+N, F5, Ctrl+P…) but never show the white OS menu bar.
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.setMenuBarVisibility(false);
+    mainWindow.setAutoHideMenuBar(false);
+  }
 }
 
 ipcMain.handle('reload-app', async () => {
