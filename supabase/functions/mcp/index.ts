@@ -2,7 +2,74 @@
 // To take ownership, delete this banner line; the plugin then leaves the file alone.
 // supabase function: mcp
 // Bundled from src/lib/mcp/index.ts by @lovable.dev/mcp-js.
+// src/lib/mcp/index.ts
+import { auth, defineMcp } from "npm:@lovable.dev/mcp-js@0.20.0";
+
+// src/lib/mcp/tools/echo.ts
+import { defineTool } from "npm:@lovable.dev/mcp-js@0.20.0";
+import { z } from "npm:zod@^3.25.76";
+var echo_default = defineTool({
+  name: "echo",
+  title: "Echo",
+  description: "Echo the input text back to the caller. Use to verify connectivity.",
+  inputSchema: { text: z.string().min(1).describe("Text to echo back.") },
+  annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
+  handler: ({ text }) => ({ content: [{ type: "text", text }] })
+});
+
+// src/lib/mcp/tools/list-my-organizations.ts
+import { createClient } from "npm:@supabase/supabase-js@^2.80.0";
+import { defineTool as defineTool2 } from "npm:@lovable.dev/mcp-js@0.20.0";
+var list_my_organizations_default = defineTool2({
+  name: "list_my_organizations",
+  title: "List my organizations",
+  description: "List organizations the signed-in user is a member of, with role.",
+  inputSchema: {},
+  annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
+  handler: async (_input, ctx) => {
+    if (!ctx.isAuthenticated()) {
+      return { content: [{ type: "text", text: "Not authenticated" }], isError: true };
+    }
+    const supabase = createClient(
+      process.env.SUPABASE_URL,
+      process.env.SUPABASE_PUBLISHABLE_KEY,
+      {
+        global: { headers: { Authorization: `Bearer ${ctx.getToken()}` } },
+        auth: { persistSession: false, autoRefreshToken: false }
+      }
+    );
+    const { data, error } = await supabase.from("organization_members").select("role, organizations(id, name, slug, organization_type)").eq("user_id", ctx.getUserId());
+    if (error) {
+      return { content: [{ type: "text", text: error.message }], isError: true };
+    }
+    const rows = (data ?? []).map((m) => ({
+      id: m.organizations?.id,
+      name: m.organizations?.name,
+      slug: m.organizations?.slug,
+      type: m.organizations?.organization_type,
+      role: m.role
+    }));
+    return {
+      content: [{ type: "text", text: JSON.stringify(rows, null, 2) }],
+      structuredContent: { organizations: rows }
+    };
+  }
+});
+
+// src/lib/mcp/index.ts
+var projectRef = "lkbbrqcsbhqjvsxiorvp";
+var mcp_default = defineMcp({
+  name: "ezzy-erp-mcp",
+  title: "Ezzy ERP",
+  version: "0.1.0",
+  instructions: "Ezzy ERP tools. Use `echo` to verify connectivity, and `list_my_organizations` to see the organizations you belong to.",
+  auth: auth.oauth.issuer({
+    issuer: `https://${projectRef}.supabase.co/auth/v1`,
+    acceptedAudiences: "authenticated"
+  }),
+  tools: [echo_default, list_my_organizations_default]
+});
+
 // lovable-mcp-supabase-entry.ts
-import mcp from "npm:D:\\RV\\GitHub\\smart-garment-entry\\src\\lib\\mcp\\index.ts";
 import { createSupabaseHandler } from "npm:@lovable.dev/mcp-js@0.20.0/stacks/supabase";
-Deno.serve(createSupabaseHandler(mcp, { functionName: "mcp" }));
+Deno.serve(createSupabaseHandler(mcp_default, { functionName: "mcp" }));
