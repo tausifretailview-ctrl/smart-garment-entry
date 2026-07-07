@@ -55,7 +55,10 @@
       "node_modules/argparse/**/*",
       "node_modules/debug/**/*",
       "node_modules/ms/**/*",
-      "node_modules/sax/**/*"
+      "node_modules/sax/**/*",
+      "node_modules/electron-window-state/**/*",
+      "node_modules/mkdirp/**/*",
+      "node_modules/minimist/**/*"
     ],
     "publish": [
       {

@@ -2385,20 +2385,20 @@ const PurchaseBillDashboard = () => {
         </div>
 
         {showDraftBanner && draftSummary && (
-          <Card className="border border-amber-400/60 bg-amber-50 rounded-xl shadow-sm shrink-0">
-            <CardHeader className="py-3 px-4">
+          <Card className="border border-amber-400/60 bg-amber-50 rounded-lg shadow-sm shrink-0">
+            <CardHeader className="py-1.5 px-3">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 bg-amber-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                    <FileText className="h-5 w-5 text-amber-600" />
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 bg-amber-100 rounded-md flex items-center justify-center flex-shrink-0">
+                    <FileText className="h-3.5 w-3.5 text-amber-600" />
                   </div>
                   <div>
-                    <h3 className="text-base font-bold text-amber-800">
+                    <h3 className="text-sm font-bold text-amber-800 leading-tight">
                       {draftSummary.isEdit
                         ? "Unsaved Purchase Edit"
                         : "Unsaved Purchase Draft"}
                     </h3>
-                    <CardDescription className="text-sm text-amber-700 font-medium mt-0.5">
+                    <CardDescription className="text-xs text-amber-700 font-medium mt-0 leading-tight">
                       {`${draftSummary.lineCount} lines · ${Math.round(draftSummary.totalQty)} qty`}
                       {lastSaved
                         ? ` • Saved ${formatDistanceToNow(lastSaved, { addSuffix: true })}`
@@ -2433,9 +2433,9 @@ const PurchaseBillDashboard = () => {
                         description: "The unsaved purchase bill has been removed",
                       });
                     }}
-                    className="gap-1.5 h-9 text-sm border-amber-300 text-amber-700 hover:bg-amber-100"
+                    className="gap-1.5 h-7 text-xs border-amber-300 text-amber-700 hover:bg-amber-100"
                   >
-                    <X className="h-4 w-4" />
+                    <X className="h-3.5 w-3.5" />
                     Discard
                   </Button>
                   <Button
@@ -2443,9 +2443,9 @@ const PurchaseBillDashboard = () => {
                     onClick={() => {
                       navigate("/purchase-entry", { state: { loadDraft: true } });
                     }}
-                    className="gap-1.5 h-9 text-sm bg-amber-500 hover:bg-amber-600 text-white font-semibold shadow-sm"
+                    className="gap-1.5 h-7 text-xs bg-amber-500 hover:bg-amber-600 text-white font-semibold shadow-sm"
                   >
-                    <Edit className="h-4 w-4" />
+                    <Edit className="h-3.5 w-3.5" />
                     Resume Draft
                   </Button>
                 </div>

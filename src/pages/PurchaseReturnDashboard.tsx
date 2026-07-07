@@ -679,18 +679,18 @@ const PurchaseReturnDashboard = () => {
 
       {/* Draft Resume Card */}
       {hasDraft && draftData && (
-        <Card className="border border-amber-400/60 bg-amber-50 rounded-xl shadow-sm">
-          <CardHeader className="py-3 px-4">
+        <Card className="border border-amber-400/60 bg-amber-50 rounded-lg shadow-sm">
+          <CardHeader className="py-1.5 px-3">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 bg-amber-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                  <FileText className="h-5 w-5 text-amber-600" />
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 bg-amber-100 rounded-md flex items-center justify-center flex-shrink-0">
+                  <FileText className="h-3.5 w-3.5 text-amber-600" />
                 </div>
                 <div>
-                  <CardTitle className="text-base font-bold text-amber-800">
+                  <CardTitle className="text-sm font-bold text-amber-800 leading-tight">
                     Unsaved Purchase Return Draft
                   </CardTitle>
-                  <CardDescription className="text-sm text-amber-700 font-medium mt-0.5">
+                  <CardDescription className="text-xs text-amber-700 font-medium mt-0 leading-tight">
                     {(draftData as any)?.lineItems?.length || 0} items • Saved {lastSaved ? formatDistanceToNow(lastSaved, { addSuffix: true }) : "recently"}
                   </CardDescription>
                 </div>
@@ -706,9 +706,9 @@ const PurchaseReturnDashboard = () => {
                       description: "The unsaved purchase return has been removed",
                     });
                   }}
-                  className="gap-1.5 h-9 text-sm border-amber-300 text-amber-700 hover:bg-amber-100"
+                  className="gap-1.5 h-7 text-xs border-amber-300 text-amber-700 hover:bg-amber-100"
                 >
-                  <X className="h-4 w-4" />
+                  <X className="h-3.5 w-3.5" />
                   Discard
                 </Button>
                 <Button
@@ -716,9 +716,9 @@ const PurchaseReturnDashboard = () => {
                   onClick={() => {
                     navigate("/purchase-return-entry", { state: { loadDraft: true } });
                   }}
-                  className="gap-1.5 h-9 text-sm bg-amber-500 hover:bg-amber-600 text-white font-semibold shadow-sm"
+                  className="gap-1.5 h-7 text-xs bg-amber-500 hover:bg-amber-600 text-white font-semibold shadow-sm"
                 >
-                  <Edit className="h-4 w-4" />
+                  <Edit className="h-3.5 w-3.5" />
                   Resume Draft
                 </Button>
               </div>

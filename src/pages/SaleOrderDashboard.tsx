@@ -635,18 +635,18 @@ export default function SaleOrderDashboard() {
       </div>
 
       {hasDraft && draftData && (
-        <Card className="border border-amber-400/60 bg-amber-50 rounded-xl shadow-sm">
-          <CardHeader className="pb-3">
+        <Card className="border border-amber-400/60 bg-amber-50 rounded-lg shadow-sm">
+          <CardHeader className="py-1.5 px-3">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-amber-100 dark:bg-amber-900/30 rounded-lg">
-                  <FileText className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 bg-amber-100 dark:bg-amber-900/30 rounded-md flex items-center justify-center flex-shrink-0">
+                  <FileText className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
                 </div>
                 <div>
-                  <h3 className="text-base font-semibold text-amber-800 dark:text-amber-200">
+                  <h3 className="text-sm font-semibold text-amber-800 dark:text-amber-200 leading-tight">
                     Unsaved Sale Order Found
                   </h3>
-                  <CardDescription className="text-black dark:text-black font-bold">
+                  <CardDescription className="text-xs text-black dark:text-black font-bold leading-tight">
                     {lastSaved ? `Draft available • Last saved ${formatDistanceToNow(lastSaved, { addSuffix: true })}` : 'Draft available'}
                     {draftData.lineItems?.length > 0 && ` • ${draftData.lineItems.length} item(s)`}
                     {draftData.billData?.customer_name && ` • ${draftData.billData.customer_name}`}
@@ -664,9 +664,9 @@ export default function SaleOrderDashboard() {
                       description: "The unsaved sale order has been removed",
                     });
                   }}
-                  className="gap-1.5 border-amber-300 text-amber-700 hover:bg-amber-100 dark:border-amber-700 dark:text-amber-300 dark:hover:bg-amber-900/30"
+                  className="gap-1.5 h-7 text-xs border-amber-300 text-amber-700 hover:bg-amber-100 dark:border-amber-700 dark:text-amber-300 dark:hover:bg-amber-900/30"
                 >
-                  <X className="h-4 w-4" />
+                  <X className="h-3.5 w-3.5" />
                   Discard
                 </Button>
                 <Button
@@ -674,9 +674,9 @@ export default function SaleOrderDashboard() {
                   onClick={() => {
                     navigate("/sale-order-entry", { state: { loadDraft: true } });
                   }}
-                  className="gap-1.5 bg-amber-600 hover:bg-amber-700 text-white"
+                  className="gap-1.5 h-7 text-xs bg-amber-600 hover:bg-amber-700 text-white"
                 >
-                  <Edit className="h-4 w-4" />
+                  <Edit className="h-3.5 w-3.5" />
                   Resume Draft
                 </Button>
               </div>
