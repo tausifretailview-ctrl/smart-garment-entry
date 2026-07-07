@@ -54,6 +54,19 @@ export function isSidebarOnlyWorkspacePath(pathname: string): boolean {
   return SIDEBAR_ONLY_WORKSPACE_PATH.test(pathname);
 }
 
+/** Voucher entry screens: keep left sidebar, hide global header + shortcut bar + window tabs. */
+export const ENTRY_SIDEBAR_ONLY_PATH =
+  /\/(sale-order-entry|quotation-entry|delivery-challan-entry|purchase-return-entry|sale-return-entry|purchase-order-entry)(\/|$)/;
+
+export function isEntrySidebarOnlyPath(pathname: string): boolean {
+  return ENTRY_SIDEBAR_ONLY_PATH.test(pathname);
+}
+
+/** Hide blue menu bar, shortcut buttons, and window tabs (sidebar may still show). */
+export function isHideGlobalHeaderPath(pathname: string): boolean {
+  return isSidebarOnlyWorkspacePath(pathname) || isEntrySidebarOnlyPath(pathname);
+}
+
 export function isNoSidebarEntrySegment(pathSegment: string): boolean {
   const segment = pathSegment.replace(/^\/+|\/+$/g, "");
   return segment === "pos-sales" || segment === "sales-invoice" || segment === "purchase-entry";

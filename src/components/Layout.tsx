@@ -25,7 +25,7 @@ import { DesktopViewToggle, DesktopViewEscapeHatch } from "@/components/mobile/D
 import { useTabCacheLayout } from "@/contexts/TabCacheLayoutContext";
 import { cn } from "@/lib/utils";
 import { readSidebarLockedOpen } from "@/lib/sidebarPreference";
-import { isFillHeightDashboardPath, isMainDashboardPath, isSidebarOnlyWorkspacePath } from "@/lib/entryPageLayout";
+import { isFillHeightDashboardPath, isHideGlobalHeaderPath, isMainDashboardPath, isSidebarOnlyWorkspacePath } from "@/lib/entryPageLayout";
 import { useSharedAppShell } from "@/contexts/SharedAppShellContext";
 
 interface LayoutProps {
@@ -36,6 +36,7 @@ export const Layout = ({ children }: LayoutProps) => {
   const { isOpen, setIsOpen } = useKeyboardShortcuts("general");
   const location = useLocation();
   const isSalesInvoicePage = /\/sales-invoice(\/|$)/.test(location.pathname);
+  const hideTopChrome = isHideGlobalHeaderPath(location.pathname);
   const isSidebarOnlyPage = isSidebarOnlyWorkspacePath(location.pathname);
   const isFillHeightDashboard = isFillHeightDashboardPath(location.pathname);
   const isMainDashboard = isMainDashboardPath(location.pathname);
@@ -89,14 +90,14 @@ export const Layout = ({ children }: LayoutProps) => {
               >
                 {!isSalesInvoicePage && (
                   <>
-                    {showDesktopChrome && !isSidebarOnlyPage && (
+                    {showDesktopChrome && !hideTopChrome && (
                       <div className="erp-chrome-stack">
                         <Header />
                         <WindowTabsBar />
                       </div>
                     )}
                     {!showDesktopChrome && <MobileAppHeader />}
-                    {showDesktopChrome && !isSidebarOnlyPage && (
+                    {showDesktopChrome && !hideTopChrome && (
                       <div className="px-3 pt-2 lg:hidden">
                         <DesktopViewToggle variant="banner" />
                       </div>

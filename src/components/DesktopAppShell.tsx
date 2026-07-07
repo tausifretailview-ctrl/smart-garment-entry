@@ -16,7 +16,7 @@ import { DesktopViewEscapeHatch } from "@/components/mobile/DesktopViewToggle";
 import { IdleMount } from "@/components/IdleMount";
 import { DashboardToolbarProvider } from "@/contexts/DashboardToolbarContext";
 import { readSidebarLockedOpen } from "@/lib/sidebarPreference";
-import { isNoSidebarEntryPath, isSidebarOnlyWorkspacePath } from "@/lib/entryPageLayout";
+import { isHideGlobalHeaderPath, isNoSidebarEntryPath } from "@/lib/entryPageLayout";
 import { cn } from "@/lib/utils";
 
 interface DesktopAppShellProps {
@@ -26,12 +26,13 @@ interface DesktopAppShellProps {
 
 /**
  * Single sticky desktop chrome: left menu + header + window tabs.
- * POS / Sale Bill / Purchase Bill: no sidebar or global menu bar; window tab strip stays visible.
+ * POS / Sale Bill / Purchase Bill: no sidebar or global menu bar.
+ * Sale Order, Quotation, Delivery Challan, Purchase Return, etc.: sidebar only (no top menu/shortcuts).
  */
 export function DesktopAppShell({ children, className }: DesktopAppShellProps) {
   const location = useLocation();
   const billingFullScreen = isNoSidebarEntryPath(location.pathname);
-  const sidebarOnlyWorkspace = isSidebarOnlyWorkspacePath(location.pathname);
+  const hideTopChrome = isHideGlobalHeaderPath(location.pathname);
 
   return (
     <ChatProvider>
@@ -44,7 +45,7 @@ export function DesktopAppShell({ children, className }: DesktopAppShellProps) {
               {!billingFullScreen && <AppSidebar />}
               {!billingFullScreen && <SidebarExpandStrip />}
               <SidebarInset className="flex min-h-0 flex-1 flex-col min-w-0 overflow-hidden">
-                {!billingFullScreen && !sidebarOnlyWorkspace && (
+                {!billingFullScreen && !hideTopChrome && (
                   <div className="erp-chrome-stack">
                     <Header />
                     <WindowTabsBar />

@@ -24,7 +24,7 @@ import {
 import { useShowDesktopChrome } from "@/hooks/useDesktopViewPreference";
 import { DesktopViewToggle, DesktopViewEscapeHatch } from "@/components/mobile/DesktopViewToggle";
 import { IdleMount } from "@/components/IdleMount";
-import { entryPageLayoutMainClass, isEntryFullscreenPath, isFillHeightShellPath, isNoSidebarEntryPath } from "@/lib/entryPageLayout";
+import { entryPageLayoutMainClass, isEntryFullscreenPath, isFillHeightShellPath, isHideGlobalHeaderPath, isNoSidebarEntryPath } from "@/lib/entryPageLayout";
 import { initUIScale } from "@/components/UIScaleSelector";
 import { readSidebarLockedOpen } from "@/lib/sidebarPreference";
 import { useSharedAppShell } from "@/contexts/SharedAppShellContext";
@@ -72,9 +72,10 @@ export const FullScreenLayout = ({ children }: FullScreenLayoutProps) => {
   }
 
   const hideBillingChrome = isNoSidebarEntryPath(location.pathname);
+  const hideTopChrome = isHideGlobalHeaderPath(location.pathname);
   const showSidebar = showDesktopChrome && !hideBillingChrome;
-  const showHeader = showDesktopChrome && !hideBillingChrome;
-  const showWindowTabsBar = showDesktopChrome && !hideBillingChrome;
+  const showHeader = showDesktopChrome && !hideBillingChrome && !hideTopChrome;
+  const showWindowTabsBar = showDesktopChrome && !hideBillingChrome && !hideTopChrome;
 
   return (
     <ChatProvider>
