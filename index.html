@@ -151,6 +151,35 @@
       </script>
     </div>
     <div id="root"></div>
+    <script>
+      // Defensive cleanup: some hosted / service-worker-cached HTML variants
+      // intermittently leak an injected inline "no-flash" theme script as a
+      // BARE TEXT NODE at the top of <body> (it paints as raw JS above the app
+      // and clears on refresh). Strip any stray non-whitespace text that is a
+      // direct child of <body>. This only removes bare text nodes — it never
+      // touches #root, the splash screen, <noscript>, or any real element.
+      (function () {
+        function stripStrayBodyText() {
+          var body = document.body;
+          if (!body) return;
+          for (var node = body.firstChild; node; ) {
+            var next = node.nextSibling;
+            if (node.nodeType === 3 && node.nodeValue && node.nodeValue.trim() !== "") {
+              body.removeChild(node);
+            }
+            node = next;
+          }
+        }
+        stripStrayBodyText();
+        document.addEventListener("DOMContentLoaded", stripStrayBodyText);
+        // Catch the service-worker race where the leaked node appears late.
+        try {
+          var observer = new MutationObserver(stripStrayBodyText);
+          observer.observe(document.body, { childList: true });
+          setTimeout(function () { observer.disconnect(); }, 8000);
+        } catch (e) {}
+      })();
+    </script>
     <noscript>
       <div style="padding:40px;text-align:center;font-family:Arial,sans-serif;background:#0f172a;color:#f1f5f9;min-height:100vh;display:flex;align-items:center;justify-content:center;">
         <div>
