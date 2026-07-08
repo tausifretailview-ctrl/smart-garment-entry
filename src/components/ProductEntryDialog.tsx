@@ -179,6 +179,9 @@ function FreeTextFieldCombobox({
   const internalInputRef = useRef<HTMLInputElement>(null);
   const inputRef = externalInputRef ?? internalInputRef;
   const listRef = useRef<HTMLDivElement>(null);
+  // Skip the next focus-triggered open (set right after a click-select so the
+  // refocus below doesn't immediately reopen the just-dismissed list).
+  const suppressOpenRef = useRef(false);
 
   const filteredOptions = useMemo(() => {
     const query = value.trim().toLowerCase();
@@ -217,6 +220,7 @@ function FreeTextFieldCombobox({
   const handleSelect = (selected: string) => {
     onChange(selected);
     setOpen(false);
+    suppressOpenRef.current = true;
     inputRef.current?.focus();
   };
 
@@ -243,12 +247,19 @@ function FreeTextFieldCombobox({
       if (e.key === "Enter") {
         e.preventDefault();
         e.stopPropagation();
+        // Accept an explicitly arrow-highlighted suggestion that differs from the
+        // typed text, then ALWAYS close the list and advance to the next field in
+        // the SAME Enter press. highlightIndex 0 is the "Use <typed>" row (or the
+        // exact match), so plain typing keeps the typed text and just moves on —
+        // one Enter, one hop. (No handleSelect here: it refocuses and reopens.)
         const item = displayItems[highlightIndex];
-        const alreadyHasValue =
-          !!item && value.trim().toLowerCase() === item.value.trim().toLowerCase();
-        if (open && displayItems.length > 0 && item && !alreadyHasValue) {
-          handleSelect(item.value);
-          return;
+        if (
+          open &&
+          highlightIndex > 0 &&
+          item &&
+          value.trim().toLowerCase() !== item.value.trim().toLowerCase()
+        ) {
+          onChange(item.value);
         }
         setOpen(false);
         onKeyDown?.(e);
@@ -278,7 +289,13 @@ function FreeTextFieldCombobox({
               onChange(e.target.value);
               setOpen(true);
             }}
-            onFocus={() => setOpen(true)}
+            onFocus={() => {
+              if (suppressOpenRef.current) {
+                suppressOpenRef.current = false;
+                return;
+              }
+              setOpen(true);
+            }}
             onKeyDown={handleInputKeyDown}
             placeholder={placeholder}
             autoComplete="off"
