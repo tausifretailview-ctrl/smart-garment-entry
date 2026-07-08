@@ -4915,9 +4915,11 @@ export default function BarcodePrinting() {
       {labelItems.length > 0 && (
         <div className={cn(
           "barcode-products-panel border rounded-md overflow-hidden shrink-0 flex flex-col",
-          activeBarTab === "designer" || activeBarTab === "precision"
+          activeBarTab === "designer"
             ? "max-h-[16vh]"
-            : "max-h-[30vh]",
+            : activeBarTab === "precision"
+              ? "max-h-[24vh]"
+              : "max-h-[30vh]",
         )}>
           <div className="bg-slate-900 text-white px-3 py-2 border-b flex items-center justify-between gap-2">
             <p className="text-sm font-semibold tabular-nums">

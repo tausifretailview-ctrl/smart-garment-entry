@@ -774,7 +774,7 @@ export function LabelCalibrationUI({
       {/* Calibration Fields + Preview */}
       <div
         className={cn(
-          fullWorkspace && "grid grid-cols-1 xl:grid-cols-2 gap-4 flex-1 min-h-0 items-start",
+          fullWorkspace && "grid grid-cols-1 xl:grid-cols-2 gap-4 flex-1 min-h-0 items-stretch",
           !fullWorkspace && (compact ? "space-y-3" : "grid grid-cols-1 md:grid-cols-2 gap-4"),
         )}
       >
@@ -808,7 +808,7 @@ export function LabelCalibrationUI({
 
         {/* Live Preview */}
         {(!compact || fullWorkspace) && (
-          <div className={cn("space-y-2", fullWorkspace && "flex flex-col min-h-0 h-full xl:h-auto")}>
+          <div className={cn("space-y-2", fullWorkspace && "flex flex-col min-h-0 h-full")}>
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide shrink-0">
               Live Preview ({previewScale}× •{' '}
               {printMode === 'thermal2up' ? `${values.labelWidth}×${values.labelHeight}mm × 2` : `${values.labelWidth}×${values.labelHeight}mm`})
