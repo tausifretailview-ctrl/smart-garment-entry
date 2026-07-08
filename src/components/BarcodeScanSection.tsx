@@ -267,9 +267,9 @@ const BarcodeScanSection = ({ products, onProductScanned, onHighlightRow }: Prop
   ];
 
   return (
-    <div className="flex shrink-0 flex-col gap-2">
+    <div className="flex shrink-0 flex-col gap-1.5">
       <Card className="border-teal-200/60 shadow-sm">
-        <CardContent className="p-3 sm:p-4">
+        <CardContent className="p-2.5 sm:p-3">
           <div className="flex flex-wrap items-center gap-2 sm:gap-3">
             <div className="relative min-w-[220px] flex-1">
               <ScanBarcode className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-teal-600" />
@@ -363,12 +363,12 @@ const BarcodeScanSection = ({ products, onProductScanned, onHighlightRow }: Prop
         </CardContent>
       </Card>
 
-      <Card className="min-h-[72px] border-slate-200/80 shadow-sm">
-        <CardContent className="flex min-h-[72px] items-center p-3 sm:p-4">
+      <Card className="min-h-[64px] border-slate-200/80 shadow-sm">
+        <CardContent className="flex min-h-[64px] items-center p-2.5 sm:p-3">
           {!lastScanned && !lastError ? (
             <div className="flex items-center gap-3 text-slate-500">
               <ScanBarcode className="h-7 w-7 opacity-30" />
-              <span className="text-sm">Scan a barcode to begin counting...</span>
+              <span className="text-base">Scan a barcode to begin counting...</span>
             </div>
           ) : lastError ? (
             <div className="flex items-center gap-3 text-red-600">
@@ -393,17 +393,17 @@ const BarcodeScanSection = ({ products, onProductScanned, onHighlightRow }: Prop
               return (
                 <div className="flex w-full flex-wrap items-center gap-4">
                   <div className="min-w-[200px] flex-1">
-                    <div className="text-sm font-bold text-slate-900">{lastScanned.name}</div>
+                    <div className="text-base font-bold text-slate-900">{lastScanned.name}</div>
                     <div className="mt-1 flex flex-wrap gap-1.5">
-                      <code className="rounded bg-amber-50 px-1.5 py-0.5 font-mono text-[11px] text-amber-700">
+                      <code className="rounded bg-amber-50 px-1.5 py-0.5 font-mono text-[12px] text-amber-700">
                         {lastScanned.barcode || lastScanned.id}
                       </code>
                       {lastScanned.brand !== "—" && (
-                        <span className="rounded bg-teal-50 px-2 py-0.5 text-[11px] font-medium text-teal-700">
+                        <span className="rounded bg-teal-50 px-2 py-0.5 text-[12px] font-medium text-teal-700">
                           {lastScanned.brand}
                         </span>
                       )}
-                      <span className="rounded bg-slate-100 px-2 py-0.5 text-[11px] text-slate-600">
+                      <span className="rounded bg-slate-100 px-2 py-0.5 text-[12px] text-slate-600">
                         {lastScanned.department}
                       </span>
                     </div>
@@ -416,8 +416,8 @@ const BarcodeScanSection = ({ products, onProductScanned, onHighlightRow }: Prop
                       { label: "Diff", val: diffText, className: diffClass },
                     ].map((col) => (
                       <div key={col.label} className="text-center">
-                        <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">{col.label}</div>
-                        <div className={cn("font-mono text-lg font-bold tabular-nums", col.className)}>{col.val}</div>
+                        <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">{col.label}</div>
+                        <div className={cn("font-mono text-xl font-bold tabular-nums", col.className)}>{col.val}</div>
                       </div>
                     ))}
                   </div>
@@ -477,16 +477,16 @@ const BarcodeScanSection = ({ products, onProductScanned, onHighlightRow }: Prop
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+      <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-6">
         {summaryTiles.map((s) => (
           <Card
             key={s.label}
             className={cn("border-slate-200/80 shadow-sm", s.clickable && "cursor-pointer hover:bg-slate-50")}
             onClick={s.onClick}
           >
-            <CardContent className="px-3 py-2.5 text-center">
-              <div className={cn("font-mono text-lg font-bold tabular-nums", s.className)}>{s.val}</div>
-              <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{s.label}</div>
+            <CardContent className="px-3 py-2 text-center">
+              <div className={cn("font-mono text-xl font-bold tabular-nums", s.className)}>{s.val}</div>
+              <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{s.label}</div>
             </CardContent>
           </Card>
         ))}

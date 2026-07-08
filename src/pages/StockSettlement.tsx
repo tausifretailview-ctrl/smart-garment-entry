@@ -963,8 +963,8 @@ const StockSettlement = () => {
 
           {/* ═══ SCAN TAB ═══ */}
           {activeTab === "scan" && (
-            <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden">
-              <div className="grid shrink-0 grid-cols-1 gap-2 sm:grid-cols-3">
+            <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-hidden">
+              <div className="grid shrink-0 grid-cols-1 gap-1.5 sm:grid-cols-3">
                 <div className="rounded-lg bg-gradient-to-br from-sky-500 to-sky-600 px-3 py-2 min-w-0 shadow-sm">
                   <p className="text-[13px] font-medium text-white/80 leading-none">Total Stock Qty</p>
                   <p className="text-lg sm:text-xl font-black text-white tabular-nums leading-tight mt-1 truncate">
