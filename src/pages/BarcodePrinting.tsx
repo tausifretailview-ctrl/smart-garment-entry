@@ -3360,7 +3360,7 @@ export default function BarcodePrinting() {
             businessName,
           };
           const barcodeSlot = resolveBarcodeSlotMm(
-            { width: labelWidthMm, height: labelHeightMm, gap: 2 },
+            { width: labelWidthMm, height: labelHeightMm },
             config as unknown as TSPLTemplateConfig,
             labelData,
           );
