@@ -173,10 +173,14 @@
         stripStrayBodyText();
         document.addEventListener("DOMContentLoaded", stripStrayBodyText);
         // Catch the service-worker race where the leaked node appears late.
+        // Kept alive for the whole session: the leak can (re)appear after in-app
+        // navigation (e.g. on the POS screen) well past the old 8s window. This
+        // only reacts to DIRECT <body> child changes and removes bare text nodes
+        // (nodeType 3) — portals/dialogs/toasts (element nodes) are untouched, so
+        // the cost is negligible.
         try {
           var observer = new MutationObserver(stripStrayBodyText);
           observer.observe(document.body, { childList: true });
-          setTimeout(function () { observer.disconnect(); }, 8000);
         } catch (e) {}
       })();
     </script>
