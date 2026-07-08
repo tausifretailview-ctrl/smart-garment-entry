@@ -253,6 +253,7 @@ function ScanProgressRing({ scanned, total }: { scanned: number; total: number }
 /* ─── Component ─── */
 const StockSettlement = () => {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const { user } = useAuth();
   const { currentOrganization } = useOrganization();
   const inTabCache = useTabCacheLayout();
