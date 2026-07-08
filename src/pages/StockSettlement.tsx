@@ -950,7 +950,7 @@ const StockSettlement = () => {
               </SelectContent>
             </Select>
             {hasFilters && (
-              <Button variant="outline" size="sm" className="h-9 gap-1 border-slate-200" onClick={clearFilters}>
+              <Button variant="outline" size="sm" className="h-10 gap-1 border-slate-200 text-[15px]" onClick={clearFilters}>
                 <X className="h-4 w-4" />
                 Clear
               </Button>
@@ -966,20 +966,20 @@ const StockSettlement = () => {
             <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden">
               <div className="grid shrink-0 grid-cols-1 gap-2 sm:grid-cols-3">
                 <div className="rounded-lg bg-gradient-to-br from-sky-500 to-sky-600 px-3 py-2 min-w-0 shadow-sm">
-                  <p className="text-xs font-medium text-white/80 leading-none">Total Stock Qty</p>
-                  <p className="text-base sm:text-lg font-black text-white tabular-nums leading-tight mt-1 truncate">
+                  <p className="text-[13px] font-medium text-white/80 leading-none">Total Stock Qty</p>
+                  <p className="text-lg sm:text-xl font-black text-white tabular-nums leading-tight mt-1 truncate">
                     {stockKpis.totalQty.toLocaleString("en-IN")}
                   </p>
                 </div>
                 <div className="rounded-lg bg-gradient-to-br from-amber-500 to-amber-600 px-3 py-2 min-w-0 shadow-sm">
-                  <p className="text-xs font-medium text-white/80 leading-none">Purchase Value</p>
-                  <p className="text-base sm:text-lg font-black text-white tabular-nums leading-tight mt-1 truncate">
+                  <p className="text-[13px] font-medium text-white/80 leading-none">Purchase Value</p>
+                  <p className="text-lg sm:text-xl font-black text-white tabular-nums leading-tight mt-1 truncate">
                     ₹{stockKpis.fmt(stockKpis.totalPurValue)}
                   </p>
                 </div>
                 <div className="rounded-lg bg-gradient-to-br from-emerald-500 to-emerald-600 px-3 py-2 min-w-0 shadow-sm">
-                  <p className="text-xs font-medium text-white/80 leading-none">Sale Value</p>
-                  <p className="text-base sm:text-lg font-black text-white tabular-nums leading-tight mt-1 truncate">
+                  <p className="text-[13px] font-medium text-white/80 leading-none">Sale Value</p>
+                  <p className="text-lg sm:text-xl font-black text-white tabular-nums leading-tight mt-1 truncate">
                     ₹{stockKpis.fmt(stockKpis.totalSaleValue)}
                   </p>
                 </div>
@@ -994,10 +994,10 @@ const StockSettlement = () => {
               <Card className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-slate-200 p-0 shadow-sm">
                 <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-slate-100 bg-white px-3 py-2">
                   <div className="min-w-0 flex-1">
-                    <h2 className="text-base font-bold text-slate-800">
+                    <h2 className="text-lg font-bold text-slate-800">
                       {showAllProducts ? "All Products" : `Scanned Items (${scannedList.length})`}
                     </h2>
-                    <p className="text-xs text-slate-500">
+                    <p className="text-[13px] text-slate-500">
                       {showAllProducts
                         ? "Browse and edit any product count"
                         : "Only physically scanned items appear here"}
@@ -1281,7 +1281,7 @@ const StockSettlement = () => {
               {differences.length > 0 ? (
                 <Card className="flex flex-col overflow-hidden rounded-lg border border-slate-200 p-0 shadow-sm">
                   <div className="overflow-auto">
-                    <Table className="erp-desktop-table w-full [&_td]:!text-sm [&_th]:!text-xs [&_th]:uppercase [&_th]:tracking-wide">
+                    <Table className="erp-desktop-table w-full [&_td]:!text-[15px] [&_td]:!py-2.5 [&_th]:!text-[13px] [&_th]:!py-2.5 [&_th]:uppercase [&_th]:tracking-wide">
                       <TableHeader className="bg-slate-50">
                         <TableRow>
                           {["Product ID", "Product Name", "Shop", "Dept", "Brand", "Software Qty", "Actual Qty", "Difference", "Type"].map((h) => (
