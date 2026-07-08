@@ -85,6 +85,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
+import { useOpenSettlementVariantIds, LOCKED_VARIANT_TOAST } from "@/hooks/useOpenSettlementVariantIds";
 import { useStockValidation } from "@/hooks/useStockValidation";
 import {
   insertSaleItemsInChunks,
