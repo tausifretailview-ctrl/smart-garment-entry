@@ -1100,21 +1100,21 @@ const StockSettlement = () => {
                                 className={cn("transition-colors", isHighlighted && "bg-emerald-50")}
                               >
                                 <TableCell>
-                                  <code className="rounded bg-slate-100 px-2 py-0.5 font-mono text-xs tabular-nums text-teal-700">{p.id}</code>
+                                  <code className="rounded bg-slate-100 px-2 py-0.5 font-mono text-[13px] tabular-nums text-teal-700">{p.id}</code>
                                 </TableCell>
                                 <TableCell>
-                                  <code className="rounded bg-amber-50 px-1.5 py-0.5 font-mono text-[11px] tabular-nums text-amber-700">{p.barcode || "—"}</code>
+                                  <code className="rounded bg-amber-50 px-1.5 py-0.5 font-mono text-[13px] tabular-nums text-amber-700">{p.barcode || "—"}</code>
                                 </TableCell>
-                                <TableCell className="font-medium text-slate-700">{p.name}</TableCell>
+                                <TableCell className="font-semibold text-slate-800">{p.name}</TableCell>
                                 <TableCell className="text-slate-600">{p.shop}</TableCell>
                                 <TableCell>
-                                  <Badge variant="secondary" className={cn("text-[11px] font-medium", deptBadgeClass(p.department))}>
+                                  <Badge variant="secondary" className={cn("text-[12px] font-medium", deptBadgeClass(p.department))}>
                                     {p.department}
                                   </Badge>
                                 </TableCell>
                                 <TableCell className="text-slate-600">{p.brand}</TableCell>
                                 <TableCell className="text-slate-500">{p.unit}</TableCell>
-                                <TableCell className="font-mono font-semibold tabular-nums">{p.softwareStock}</TableCell>
+                                <TableCell className="font-mono text-[15px] font-semibold tabular-nums">{p.softwareStock}</TableCell>
                                 <TableCell>
                                   <div className="flex items-center gap-1">
                                     <Input
@@ -1122,7 +1122,7 @@ const StockSettlement = () => {
                                       value={p.actualStock ?? ""}
                                       onChange={(e) => handleActualChange(p.id, e.target.value)}
                                       placeholder="—"
-                                      className="h-8 w-[72px] border-slate-200 text-center font-mono text-sm font-bold tabular-nums no-uppercase [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                                      className="h-9 w-[88px] border-slate-200 text-center font-mono text-base font-bold tabular-nums no-uppercase [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                                     />
                                     {(p.scanCount || 0) > 1 && (
                                       <span className="whitespace-nowrap font-mono text-[9px] tabular-nums text-slate-400">×{p.scanCount}</span>
