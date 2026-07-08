@@ -617,6 +617,7 @@ const StockSettlement = () => {
       setSettleNote("");
       setActiveTab("history");
       setHistorySubTab("settlements");
+      queryClient.invalidateQueries({ queryKey: ["open-settlement-variant-ids", currentOrganization.id] });
       toast({
         title: "Settlement Complete",
         description: `Settled ${result.settled_count} items successfully`,
@@ -626,7 +627,7 @@ const StockSettlement = () => {
     } finally {
       setSettling(false);
     }
-  }, [currentOrganization?.id, ensureSessionId, settleNote, toast]);
+  }, [currentOrganization?.id, ensureSessionId, settleNote, toast, queryClient]);
 
   const clearFilters = () => { setSearch(""); setShopFilter(""); setDeptFilter(""); setBrandFilter(""); };
 
