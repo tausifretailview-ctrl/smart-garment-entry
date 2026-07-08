@@ -5345,14 +5345,17 @@ export default function POSSales() {
       )}
     >
       {/* Left Action Button Bar */}
-      <div className="w-[clamp(76px,6.2vw,96px)] self-stretch min-h-0 bg-slate-50 dark:bg-slate-900 border-r border-border/60 flex flex-col gap-1.5 p-1.5 z-30 relative overflow-y-auto shrink-0">
+      <div className="w-[clamp(76px,6.4vw,96px)] self-stretch min-h-0 bg-slate-50 dark:bg-slate-900 border-r border-border/60 flex flex-col gap-1.5 p-1.5 z-30 relative overflow-y-auto shrink-0">
         {/* Buttons in sequence: Cash, UPI, Card, Credit, Mix, Hold, New, Last, Print, Clear, WhatsApp */}
-        <div className="space-y-1.5">
+        {/* flex-fill: the 13 buttons divide the column height so they always fit
+            (no scroll, no manual browser zoom) on any screen — 1366×768 included.
+            min-h floors + the column's overflow-y-auto guard very short screens. */}
+        <div className="flex-1 min-h-0 flex flex-col gap-1.5">
           {/* 1. Cash F1 */}
           <Button
             onClick={() => handlePaymentAndPrint('cash')}
             disabled={items.length === 0 || isSaving}
-            className="h-[clamp(46px,7vh,64px)] flex flex-col items-center justify-center gap-1 text-[clamp(10px,0.85vw,13px)] font-semibold relative w-full rounded-lg bg-green-500 hover:bg-green-600 active:scale-95 text-white shadow-sm transition-all duration-150 disabled:opacity-40"
+            className="flex-[1.15] min-h-[38px] flex flex-col items-center justify-center gap-1 text-[clamp(10px,0.85vw,13px)] font-semibold relative w-full rounded-lg bg-green-500 hover:bg-green-600 active:scale-95 text-white shadow-sm transition-all duration-150 disabled:opacity-40"
             title="Cash Payment - Save & Print (F1)"
           >
             <Badge className="absolute top-0.5 right-0.5 h-[clamp(12px,1.4vh,16px)] px-1 text-[clamp(7px,0.6vw,9px)] leading-[clamp(12px,1.4vh,16px)] bg-black/50 hover:bg-black/50 text-white/90 rounded-sm">F1</Badge>
@@ -5364,7 +5367,7 @@ export default function POSSales() {
           <Button
             onClick={() => handlePaymentAndPrint('upi')}
             disabled={items.length === 0 || isSaving}
-            className="h-[clamp(46px,7vh,64px)] flex flex-col items-center justify-center gap-1 text-[clamp(10px,0.85vw,13px)] font-semibold relative w-full rounded-lg bg-purple-500 hover:bg-purple-600 active:scale-95 text-white shadow-sm transition-all duration-150 disabled:opacity-40"
+            className="flex-[1.15] min-h-[38px] flex flex-col items-center justify-center gap-1 text-[clamp(10px,0.85vw,13px)] font-semibold relative w-full rounded-lg bg-purple-500 hover:bg-purple-600 active:scale-95 text-white shadow-sm transition-all duration-150 disabled:opacity-40"
             title="UPI Payment - Save & Print (F2)"
           >
             <Badge className="absolute top-0.5 right-0.5 h-[clamp(12px,1.4vh,16px)] px-1 text-[clamp(7px,0.6vw,9px)] leading-[clamp(12px,1.4vh,16px)] bg-black/50 hover:bg-black/50 text-white/90 rounded-sm">F2</Badge>
@@ -5376,7 +5379,7 @@ export default function POSSales() {
           <Button
             onClick={() => handlePaymentAndPrint('card')}
             disabled={items.length === 0 || isSaving}
-            className="h-[clamp(46px,7vh,64px)] flex flex-col items-center justify-center gap-1 text-[clamp(10px,0.85vw,13px)] font-semibold relative w-full rounded-lg bg-cyan-500 hover:bg-cyan-600 active:scale-95 text-white shadow-sm transition-all duration-150 disabled:opacity-40"
+            className="flex-[1.15] min-h-[38px] flex flex-col items-center justify-center gap-1 text-[clamp(10px,0.85vw,13px)] font-semibold relative w-full rounded-lg bg-cyan-500 hover:bg-cyan-600 active:scale-95 text-white shadow-sm transition-all duration-150 disabled:opacity-40"
             title="Card Payment - Save & Print (F3)"
           >
             <Badge className="absolute top-0.5 right-0.5 h-[clamp(12px,1.4vh,16px)] px-1 text-[clamp(7px,0.6vw,9px)] leading-[clamp(12px,1.4vh,16px)] bg-black/50 hover:bg-black/50 text-white/90 rounded-sm">F3</Badge>
@@ -5388,7 +5391,7 @@ export default function POSSales() {
           <Button
             onClick={() => handlePaymentAndPrint('pay_later')}
             disabled={items.length === 0 || isSaving}
-            className="h-[clamp(46px,7vh,64px)] flex flex-col items-center justify-center gap-1 text-[clamp(10px,0.85vw,13px)] font-semibold relative w-full rounded-lg bg-orange-500 hover:bg-orange-600 active:scale-95 text-white shadow-sm transition-all duration-150 disabled:opacity-40"
+            className="flex-[1.15] min-h-[38px] flex flex-col items-center justify-center gap-1 text-[clamp(10px,0.85vw,13px)] font-semibold relative w-full rounded-lg bg-orange-500 hover:bg-orange-600 active:scale-95 text-white shadow-sm transition-all duration-150 disabled:opacity-40"
             title="Credit - Pay Later (F4)"
           >
             <Badge className="absolute top-0.5 right-0.5 h-[clamp(12px,1.4vh,16px)] px-1 text-[clamp(7px,0.6vw,9px)] leading-[clamp(12px,1.4vh,16px)] bg-black/50 hover:bg-black/50 text-white/90 rounded-sm">F4</Badge>
@@ -5399,7 +5402,7 @@ export default function POSSales() {
           {/* 5. Sale Return F5 */}
           <Button
             onClick={() => setShowFloatingSaleReturn(true)}
-            className="h-[clamp(42px,6vh,56px)] flex flex-col items-center justify-center gap-0.5 text-[clamp(9px,0.78vw,12px)] font-semibold relative w-full rounded-lg bg-red-500 hover:bg-red-600 active:scale-95 text-white shadow-sm transition-all duration-150"
+            className="flex-1 min-h-[34px] flex flex-col items-center justify-center gap-0.5 text-[clamp(9px,0.78vw,12px)] font-semibold relative w-full rounded-lg bg-red-500 hover:bg-red-600 active:scale-95 text-white shadow-sm transition-all duration-150"
             title="Sale Return (F5)"
           >
             <Badge className="absolute top-0.5 right-0.5 h-[clamp(12px,1.4vh,16px)] px-1 text-[clamp(7px,0.6vw,9px)] leading-[clamp(12px,1.4vh,16px)] bg-black/50 hover:bg-black/50 text-white/90 rounded-sm">F5</Badge>
@@ -5411,7 +5414,7 @@ export default function POSSales() {
           <Button
             onClick={handleMixPayment}
             disabled={items.length === 0 || isSaving}
-            className="h-[clamp(46px,7vh,64px)] flex flex-col items-center justify-center gap-1 text-[clamp(10px,0.85vw,13px)] font-semibold relative w-full rounded-lg bg-violet-500 hover:bg-violet-600 active:scale-95 text-white shadow-sm transition-all duration-150 disabled:opacity-40"
+            className="flex-[1.15] min-h-[38px] flex flex-col items-center justify-center gap-1 text-[clamp(10px,0.85vw,13px)] font-semibold relative w-full rounded-lg bg-violet-500 hover:bg-violet-600 active:scale-95 text-white shadow-sm transition-all duration-150 disabled:opacity-40"
             title="Mix Payment - Save & Print (F6)"
           >
             <Badge className="absolute top-0.5 right-0.5 h-[clamp(12px,1.4vh,16px)] px-1 text-[clamp(7px,0.6vw,9px)] leading-[clamp(12px,1.4vh,16px)] bg-black/50 hover:bg-black/50 text-white/90 rounded-sm">F6</Badge>
@@ -5429,7 +5432,7 @@ export default function POSSales() {
               }
             }}
             disabled={isSaving}
-            className="h-[clamp(42px,6vh,56px)] flex flex-col items-center justify-center gap-0.5 text-[clamp(9px,0.78vw,12px)] font-semibold relative w-full rounded-lg bg-amber-500 hover:bg-amber-600 active:scale-95 text-white shadow-sm transition-all duration-150 disabled:opacity-40"
+            className="flex-1 min-h-[34px] flex flex-col items-center justify-center gap-0.5 text-[clamp(9px,0.78vw,12px)] font-semibold relative w-full rounded-lg bg-amber-500 hover:bg-amber-600 active:scale-95 text-white shadow-sm transition-all duration-150 disabled:opacity-40"
             title="Hold Bill (F7)"
           >
             <Badge className="absolute top-0.5 right-0.5 h-[clamp(12px,1.4vh,16px)] px-1 text-[clamp(7px,0.6vw,9px)] leading-[clamp(12px,1.4vh,16px)] bg-black/50 hover:bg-black/50 text-white/90 rounded-sm">F7</Badge>
@@ -5446,7 +5449,7 @@ export default function POSSales() {
           <Button
             onClick={handleEstimatePrint}
             disabled={items.length === 0}
-            className="h-[clamp(42px,6vh,56px)] flex flex-col items-center justify-center gap-0.5 text-[clamp(9px,0.78vw,12px)] font-semibold relative w-full rounded-lg bg-sky-500 hover:bg-sky-600 active:scale-95 text-white shadow-sm transition-all duration-150 disabled:opacity-40"
+            className="flex-1 min-h-[34px] flex flex-col items-center justify-center gap-0.5 text-[clamp(9px,0.78vw,12px)] font-semibold relative w-full rounded-lg bg-sky-500 hover:bg-sky-600 active:scale-95 text-white shadow-sm transition-all duration-150 disabled:opacity-40"
             title="Print Estimate - No Save (F9)"
           >
             <Badge className="absolute top-0.5 right-0.5 h-[clamp(12px,1.4vh,16px)] px-1 text-[clamp(7px,0.6vw,9px)] leading-[clamp(12px,1.4vh,16px)] bg-black/50 hover:bg-black/50 text-white/90 rounded-sm">F9</Badge>
@@ -5456,7 +5459,7 @@ export default function POSSales() {
           
           <Button
             onClick={handleNewInvoice}
-            className="h-[clamp(42px,6vh,56px)] flex flex-col items-center justify-center gap-0.5 text-[clamp(9px,0.78vw,12px)] font-semibold w-full rounded-lg bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white shadow-sm transition-all duration-150"
+            className="flex-1 min-h-[34px] flex flex-col items-center justify-center gap-0.5 text-[clamp(9px,0.78vw,12px)] font-semibold w-full rounded-lg bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white shadow-sm transition-all duration-150"
             title="New Invoice"
           >
             <FileText className="h-4 w-4" />
@@ -5468,7 +5471,7 @@ export default function POSSales() {
             onClick={handleLastInvoice}
             disabled={!todaysSales || todaysSales.length === 0}
             className={cn(
-              "h-[clamp(42px,6vh,56px)] flex flex-col items-center justify-center gap-0.5 text-[clamp(9px,0.78vw,12px)] font-semibold w-full rounded-lg bg-blue-500 hover:bg-blue-600 active:scale-95 text-white shadow-sm transition-all duration-150 disabled:opacity-40",
+              "flex-1 min-h-[34px] flex flex-col items-center justify-center gap-0.5 text-[clamp(9px,0.78vw,12px)] font-semibold w-full rounded-lg bg-blue-500 hover:bg-blue-600 active:scale-95 text-white shadow-sm transition-all duration-150 disabled:opacity-40",
               todaysSales && todaysSales.length > 0 && currentInvoiceIndex === 0 && "ring-2 ring-white/80 bg-blue-700 hover:bg-blue-700"
             )}
             title="Last Invoice"
@@ -5490,7 +5493,7 @@ export default function POSSales() {
               }
             }}
             disabled={!savedInvoiceData?.saleId}
-            className="h-[clamp(46px,7vh,64px)] flex flex-col items-center justify-center gap-1 text-[clamp(10px,0.85vw,13px)] font-semibold w-full rounded-lg bg-indigo-500 hover:bg-indigo-600 active:scale-95 text-white shadow-sm transition-all duration-150 disabled:opacity-40"
+            className="flex-[1.15] min-h-[38px] flex flex-col items-center justify-center gap-1 text-[clamp(10px,0.85vw,13px)] font-semibold w-full rounded-lg bg-indigo-500 hover:bg-indigo-600 active:scale-95 text-white shadow-sm transition-all duration-150 disabled:opacity-40"
             title="Reprint Last Saved Invoice"
           >
             <Printer className="h-4 w-4" />
@@ -5500,7 +5503,7 @@ export default function POSSales() {
           {/* Advance Booking */}
           <Button
             onClick={() => setShowAdvanceBooking(true)}
-            className="h-[clamp(42px,6vh,56px)] flex flex-col items-center justify-center gap-0.5 text-[clamp(9px,0.78vw,12px)] font-semibold w-full rounded-lg bg-purple-500 hover:bg-purple-600 active:scale-95 text-white shadow-sm transition-all duration-150"
+            className="flex-1 min-h-[34px] flex flex-col items-center justify-center gap-0.5 text-[clamp(9px,0.78vw,12px)] font-semibold w-full rounded-lg bg-purple-500 hover:bg-purple-600 active:scale-95 text-white shadow-sm transition-all duration-150"
             title="Advance Booking Dashboard"
           >
             <BookmarkPlus className="h-4 w-4" />
@@ -5510,7 +5513,7 @@ export default function POSSales() {
           {/* 10. Clear - matches Dashboard "With Refunds" rose-500 */}
           <Button
             onClick={handleClearAll}
-            className="h-[clamp(42px,6vh,56px)] flex flex-col items-center justify-center gap-0.5 text-[clamp(9px,0.78vw,12px)] font-semibold relative w-full rounded-lg bg-rose-500 hover:bg-rose-600 active:scale-95 text-white shadow-sm transition-all duration-150"
+            className="flex-1 min-h-[34px] flex flex-col items-center justify-center gap-0.5 text-[clamp(9px,0.78vw,12px)] font-semibold relative w-full rounded-lg bg-rose-500 hover:bg-rose-600 active:scale-95 text-white shadow-sm transition-all duration-150"
             title="Clear (Esc)"
           >
             <Badge className="absolute top-0.5 right-0.5 h-[clamp(12px,1.4vh,16px)] px-1 text-[clamp(7px,0.6vw,9px)] leading-[clamp(12px,1.4vh,16px)] bg-black/50 hover:bg-black/50 text-white/90 rounded-sm">ESC</Badge>
