@@ -41,6 +41,7 @@ import { CameraScanButton } from "@/components/CameraBarcodeScannerDialog";
 import { toast } from "sonner";
 import { useSaveSale } from "@/hooks/useSaveSale";
 import { useStockValidation } from "@/hooks/useStockValidation";
+import { useOpenSettlementVariantIds, LOCKED_VARIANT_TOAST } from "@/hooks/useOpenSettlementVariantIds";
 import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
 import { useCustomerPoints, useCustomerPointsBalance } from "@/hooks/useCustomerPoints";
 import { useCustomerBrandDiscounts } from "@/hooks/useCustomerBrandDiscounts";
@@ -512,6 +513,7 @@ export default function POSSales() {
   const [recentAdjustedSaleReturnCredits, setRecentAdjustedSaleReturnCredits] = useState<Array<{ id: string; return_number: string; net_amount: number; linked_sale_id: string | null; linked_sale_number?: string }>>([]);
   const [showSRCreditDropdown, setShowSRCreditDropdown] = useState(false);
   const { checkStock, validateCartStock } = useStockValidation();
+  const { isLocked: isVariantLockedForSettlement } = useOpenSettlementVariantIds();
   const queryClient = useQueryClient();
 
   const refreshPosAfterBillPrint = useCallback(() => {
@@ -2591,6 +2593,13 @@ export default function POSSales() {
     overridePrice?: { sale_price: number; mrp: number },
     addSource: 'manual' | 'barcode' = 'manual'
   ) => {
+    // Block variants currently in an open Stock Settlement session
+    if (variant?.id && isVariantLockedForSettlement(variant.id)) {
+      toast.error(LOCKED_VARIANT_TOAST.title, { description: LOCKED_VARIANT_TOAST.description });
+      setSearchInput("");
+      return;
+    }
+
     // Service products: NEVER merge - each scan is a unique item with manual price entry
     // This is essential for saree shops where each piece has different MRP
     const isServiceProduct = product.product_type === 'service';

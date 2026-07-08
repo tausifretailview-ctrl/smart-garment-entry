@@ -83,7 +83,7 @@ export function PrecisionLabelPreview({
 
   const barcodeSlot = useMemo(() => {
     if (!config) return null;
-    return resolveBarcodeSlotMm({ width, height, gap: 2 }, config as unknown as TSPLTemplateConfig, labelData);
+    return resolveBarcodeSlotMm({ width, height }, config as unknown as TSPLTemplateConfig, labelData);
   }, [config, width, height, labelData]);
 
   const barcodeHeightMm = barcodeSlot?.heightMm

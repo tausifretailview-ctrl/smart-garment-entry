@@ -35,7 +35,6 @@ import { PwaInstallBanner } from "@/components/mobile/PwaInstallBanner";
 import { IdleMount } from "@/components/IdleMount";
 import { mobileMainPaddingClass } from "@/lib/mobileShell";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
-import { useSharedAppShell } from "@/contexts/SharedAppShellContext";
 import { cn } from "@/lib/utils";
 
 interface POSLayoutProps {

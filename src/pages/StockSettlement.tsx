@@ -54,6 +54,7 @@ import {
   type StockSettlementScanRow,
   resolveScannerLabel,
 } from "@/utils/stockSettlementScans";
+import { useQueryClient } from "@tanstack/react-query";
 
 /* ─── Scan session (localStorage cache + DB source of truth) ─── */
 const scanStorageKey = (orgId: string) => `stock-settlement-scan-v1-${orgId}`;
@@ -252,6 +253,7 @@ function ScanProgressRing({ scanned, total }: { scanned: number; total: number }
 /* ─── Component ─── */
 const StockSettlement = () => {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const { user } = useAuth();
   const { currentOrganization } = useOrganization();
   const inTabCache = useTabCacheLayout();
@@ -317,11 +319,13 @@ const StockSettlement = () => {
           systemQty: product.softwareStock,
           scannedBy: user.id,
         });
+        // Invalidate sale-side reservation cache so POS/Sale Entry pick up the lock
+        queryClient.invalidateQueries({ queryKey: ["open-settlement-variant-ids", currentOrganization.id] });
       } catch (e: unknown) {
         console.error("persistScanToDb:", e);
       }
     },
-    [currentOrganization?.id, user?.id, ensureSessionId],
+    [currentOrganization?.id, user?.id, ensureSessionId, queryClient],
   );
 
   // Load products from DB
@@ -613,6 +617,7 @@ const StockSettlement = () => {
       setSettleNote("");
       setActiveTab("history");
       setHistorySubTab("settlements");
+      queryClient.invalidateQueries({ queryKey: ["open-settlement-variant-ids", currentOrganization.id] });
       toast({
         title: "Settlement Complete",
         description: `Settled ${result.settled_count} items successfully`,
@@ -622,7 +627,7 @@ const StockSettlement = () => {
     } finally {
       setSettling(false);
     }
-  }, [currentOrganization?.id, ensureSessionId, settleNote, toast]);
+  }, [currentOrganization?.id, ensureSessionId, settleNote, toast, queryClient]);
 
   const clearFilters = () => { setSearch(""); setShopFilter(""); setDeptFilter(""); setBrandFilter(""); };
 

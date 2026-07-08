@@ -241,7 +241,7 @@ export const generateA4LabelPdf = async (
           businessName,
         };
         const barcodeSlot = resolveBarcodeSlotMm(
-          { width: labelWidthMm, height: labelHeightMm, gap: 2 },
+          { width: labelWidthMm, height: labelHeightMm },
           labelConfig as unknown as TSPLTemplateConfig,
           labelData,
         );
