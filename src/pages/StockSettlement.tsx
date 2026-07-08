@@ -913,11 +913,11 @@ const StockSettlement = () => {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search product or ID..."
-                className="h-9 border-slate-200 bg-white pl-9 text-sm no-uppercase"
+                className="h-10 border-slate-200 bg-white pl-9 text-[15px] no-uppercase"
               />
             </div>
             <Select value={shopFilter || "__all__"} onValueChange={(v) => setShopFilter(v === "__all__" ? "" : v)}>
-              <SelectTrigger className="h-9 w-[130px] border-slate-200 bg-white text-sm">
+              <SelectTrigger className="h-10 w-[130px] border-slate-200 bg-white text-[15px]">
                 <SelectValue placeholder="All Shops" />
               </SelectTrigger>
               <SelectContent>
@@ -928,7 +928,7 @@ const StockSettlement = () => {
               </SelectContent>
             </Select>
             <Select value={deptFilter || "__all__"} onValueChange={(v) => setDeptFilter(v === "__all__" ? "" : v)}>
-              <SelectTrigger className="h-9 w-[150px] border-slate-200 bg-white text-sm">
+              <SelectTrigger className="h-10 w-[150px] border-slate-200 bg-white text-[15px]">
                 <SelectValue placeholder="All Departments" />
               </SelectTrigger>
               <SelectContent>
@@ -939,7 +939,7 @@ const StockSettlement = () => {
               </SelectContent>
             </Select>
             <Select value={brandFilter || "__all__"} onValueChange={(v) => setBrandFilter(v === "__all__" ? "" : v)}>
-              <SelectTrigger className="h-9 w-[130px] border-slate-200 bg-white text-sm">
+              <SelectTrigger className="h-10 w-[130px] border-slate-200 bg-white text-[15px]">
                 <SelectValue placeholder="All Brands" />
               </SelectTrigger>
               <SelectContent>
@@ -1131,7 +1131,7 @@ const StockSettlement = () => {
                                 </TableCell>
                                 <TableCell>
                                   {diffBadge ? (
-                                    <span className={cn("rounded-md px-2 py-0.5 font-mono text-sm font-bold tabular-nums", diffBadge.className)}>
+                                    <span className={cn("rounded-md px-2 py-0.5 font-mono text-[15px] font-bold tabular-nums", diffBadge.className)}>
                                       {diffBadge.text}
                                     </span>
                                   ) : (
@@ -1139,7 +1139,7 @@ const StockSettlement = () => {
                                   )}
                                 </TableCell>
                                 <TableCell>
-                                  <span className={cn("inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold", status.className)}>
+                                  <span className={cn("inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[13px] font-semibold", status.className)}>
                                     {status.icon}
                                     {status.label}
                                   </span>
@@ -1159,6 +1159,21 @@ const StockSettlement = () => {
                                     </Badge>
                                   ) : (
                                     <span className="text-slate-400">—</span>
+                                  )}
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  {p.scanned ? (
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-8 w-8 text-red-500 hover:bg-red-50 hover:text-red-600"
+                                      onClick={() => void deleteScan(p)}
+                                      title="Delete this scanned item"
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  ) : (
+                                    <span className="text-slate-300">—</span>
                                   )}
                                 </TableCell>
                               </TableRow>
