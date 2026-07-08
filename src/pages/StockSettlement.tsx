@@ -54,6 +54,7 @@ import {
   type StockSettlementScanRow,
   resolveScannerLabel,
 } from "@/utils/stockSettlementScans";
+import { useQueryClient } from "@tanstack/react-query";
 
 /* ─── Scan session (localStorage cache + DB source of truth) ─── */
 const scanStorageKey = (orgId: string) => `stock-settlement-scan-v1-${orgId}`;
