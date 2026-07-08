@@ -1859,6 +1859,22 @@ export default function SalesInvoice() {
   ]);
 
   const addProductToInvoice = async (product: any, variant: any, overridePrice?: { sale_price: number; mrp: number }, options?: { skipSizeGrid?: boolean }) => {
+    // Block variants currently in an open Stock Settlement session.
+    // In edit mode we still allow the variant if it was on the original invoice
+    // (adding beyond that qty is still blocked further below by stock checks).
+    if (variant?.id && isVariantLockedForSettlement(variant.id)) {
+      const wasOnOriginal = !!(editingInvoiceId && originalItemsForEdit.some((o) => o.variantId === variant.id));
+      if (!wasOnOriginal) {
+        toast({
+          title: LOCKED_VARIANT_TOAST.title,
+          description: LOCKED_VARIANT_TOAST.description,
+          variant: "destructive",
+        });
+        setSearchInput("");
+        return;
+      }
+    }
+
     // Cache this product's brand (targeted) so the brand-discount effect has a fallback
     // when a line item's own brand is empty.
     recordProductBrand(product?.id, product?.brand);
