@@ -55,6 +55,17 @@ export function saleDateIsoIst(): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}.${pad(d.getMilliseconds(), 3)}+05:30`;
 }
 
+/**
+ * Business sale_date timestamptz for a SPECIFIC calendar day (e.g. a backdated
+ * POS invoice), keeping the current IST wall-clock time so intra-day ordering
+ * stays natural. Same +05:30 string shape as `saleDateIsoIst()`.
+ */
+export function saleDateIsoIstForDay(day: Date): string {
+  const now = istNowDate();
+  const pad = (n: number, len = 2) => String(n).padStart(len, "0");
+  return `${day.getFullYear()}-${pad(day.getMonth() + 1)}-${pad(day.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}.${pad(now.getMilliseconds(), 3)}+05:30`;
+}
+
 /** Ledger/voucher txn date — IST calendar day YYYY-MM-DD. */
 export function istCalendarYmd(): string {
   const d = istNowDate();

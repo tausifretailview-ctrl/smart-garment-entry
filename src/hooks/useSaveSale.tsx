@@ -66,6 +66,13 @@ interface SaleData {
   notes?: string | null;
   pointsRedeemedAmount?: number;
   taxType?: "inclusive" | "exclusive";
+  /**
+   * Optional caller-supplied sale_date (timestamptz ISO, +05:30 shape).
+   * When provided (e.g. POS "allow date change" is ON and the cashier picked a
+   * date), it overrides the default today-in-IST stamp. Omit to keep the
+   * standard behavior. Format must match `saleDateIsoIst()`.
+   */
+  saleDate?: string;
 }
 
 export const useSaveSale = () => {
@@ -633,8 +640,9 @@ export const useSaveSale = () => {
         exchange,
       } = resolveSalePaymentFields(saleData, paymentMethod, paymentBreakdown);
 
-      // Insert sale record — IST business date (not UTC day after midnight IST)
-      const saleDateIso = saleDateIsoIst();
+      // Insert sale record — IST business date (not UTC day after midnight IST).
+      // Honor a caller-supplied backdated sale_date (POS date-change) when present.
+      const saleDateIso = saleData.saleDate || saleDateIsoIst();
 
       const { data: sale, error: saleError } = await supabase
         .from('sales')
@@ -1392,8 +1400,12 @@ export const useSaveSale = () => {
       const completingOpenBill =
         (priorStatus === "hold" || priorStatus === "pending") &&
         payStatus !== "pending";
+      // A caller-supplied backdate (POS date-change ON) always wins; otherwise
+      // keep the existing rule: only stamp when first-completing an open bill.
       const saleDatePatch =
-        completingOpenBill && !hadPriorSaleDate
+        saleData.saleDate
+          ? { sale_date: saleData.saleDate }
+          : completingOpenBill && !hadPriorSaleDate
           ? { sale_date: saleDateIsoIst() }
           : {};
 
@@ -1912,7 +1924,7 @@ export const useSaveSale = () => {
         .from('sales')
         .update({
           sale_number: newSaleNumber,
-          sale_date: saleDateIsoIst(),
+          sale_date: saleData.saleDate || saleDateIsoIst(),
           customer_id: saleData.customerId || null,
           customer_name: saleData.customerName,
           customer_phone: saleData.customerPhone || null,

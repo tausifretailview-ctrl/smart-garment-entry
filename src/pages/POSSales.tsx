@@ -32,7 +32,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Scan, X, Plus, Trash2, Banknote, CreditCard, Smartphone, Printer, ChevronLeft, ChevronRight, ChevronDown, FileText, RotateCcw, Check, UserPlus, MessageCircle, Link2, Wallet, IndianRupee, ArrowUp, Pause, Play, Loader2, AlertCircle, Clock, Coins, Package, History, BookmarkPlus, Search } from "lucide-react";
+import { Scan, X, Plus, Trash2, Banknote, CreditCard, Smartphone, Printer, ChevronLeft, ChevronRight, ChevronDown, FileText, RotateCcw, Check, UserPlus, MessageCircle, Link2, Wallet, IndianRupee, ArrowUp, Pause, Play, Loader2, AlertCircle, Clock, Coins, Package, History, BookmarkPlus, Search, Calendar as CalendarIcon } from "lucide-react";
 import { MobilePOSLayout } from "@/components/mobile/MobilePOSLayout";
 import { FloatingPOSReports } from "@/components/FloatingPOSReports";
 import { FloatingSaleReturn } from "@/components/FloatingSaleReturn";
@@ -62,7 +62,7 @@ import {
   INVOICE_PRINT_VISIBILITY_OVERRIDE_CSS,
 } from "@/utils/thermalReceiptPrintDocument";
 import { buildPublicInvoiceViewUrl } from "@/utils/publicInvoiceLink";
-import { localDayBounds, todayLocalYmd } from "@/lib/localDayBounds";
+import { localDayBounds, todayLocalYmd, saleDateIsoIstForDay } from "@/lib/localDayBounds";
 import {
   readPersistedLastPosHint,
   persistLastPosHint,
@@ -109,6 +109,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -714,6 +715,8 @@ export default function POSSales() {
   }, [highlightCartItemId, items]);
   const [showAddCustomerDialog, setShowAddCustomerDialog] = useState(false);
   const [currentDateTime, setCurrentDateTime] = useState(new Date());
+  // Optional backdated POS invoice date (only used when the admin setting is ON).
+  const [posInvoiceDate, setPosInvoiceDate] = useState<Date>(new Date());
   const [invoiceSearchInput, setInvoiceSearchInput] = useState("");
   const [showMixPaymentDialog, setShowMixPaymentDialog] = useState(false);
   const [showCreditCustomerRequiredDialog, setShowCreditCustomerRequiredDialog] = useState(false);
@@ -1227,6 +1230,22 @@ export default function POSSales() {
     garment_gst_threshold: (settingsData as any)?.purchase_settings?.garment_gst_threshold,
   };
 
+  // Optional POS invoice-date override (admin-gated). When OFF, POS silently uses today.
+  const posAllowDateChange = (settingsData as any)?.sale_settings?.pos_allow_date_change === true;
+
+  // sale_date to persist for the current bill: backdated ISO when the setting is
+  // ON, otherwise undefined so useSaveSale falls back to today-in-IST (unchanged).
+  const buildPosSaleDate = useCallback((): string | undefined => {
+    return posAllowDateChange ? saleDateIsoIstForDay(posInvoiceDate) : undefined;
+  }, [posAllowDateChange, posInvoiceDate]);
+
+  // Voucher/ledger day (YYYY-MM-DD): picked day when ON, else current behavior.
+  const buildPosVoucherDate = useCallback((): string => {
+    return posAllowDateChange
+      ? format(posInvoiceDate, "yyyy-MM-dd")
+      : new Date().toISOString().split("T")[0];
+  }, [posAllowDateChange, posInvoiceDate]);
+
   // Derive POS bill format / invoice template / preview flag from cached settings (no extra DB call)
   const _posSaleSettings = (settingsData as any)?.sale_settings || {};
   const posBillFormatSetting: PosBillFormat =
@@ -1503,6 +1522,7 @@ export default function POSSales() {
       setSelectedSalesman("");
       setSaleNotes("");
       setFinancerDetails(null);
+      setPosInvoiceDate(new Date());
       toast.success("New Invoice", { description: "Cart cleared. Ready for new sale." });
       setTimeout(() => {
         barcodeInputRef.current?.focus();
@@ -3268,6 +3288,7 @@ export default function POSSales() {
       notes: saleNotes || null,
       pointsRedeemedAmount: pointsRedemptionValue,
       taxType,
+      saleDate: buildPosSaleDate(),
     };
 
     // Use updateSale if editing existing sale, otherwise create new
@@ -3294,7 +3315,7 @@ export default function POSSales() {
               organization_id: currentOrganization.id,
               voucher_number: `EXP-${String(parseInt(lastNum) + 1).padStart(5, "0")}`,
               voucher_type: "expense",
-              voucher_date: new Date().toISOString().split("T")[0],
+              voucher_date: buildPosVoucherDate(),
               reference_type: "sale",
               reference_id: result.id,
               description: `Finance Discount — ${financerDetails.financer_name} (${result.sale_number})`,
@@ -3371,6 +3392,7 @@ export default function POSSales() {
       setOriginalItemsForEdit([]); // Clear original items for edit
       setSaleNotes("");
       setFinancerDetails(null);
+      setPosInvoiceDate(new Date());
     }
   };
 
@@ -3520,6 +3542,7 @@ export default function POSSales() {
       notes: saleNotes || null,
       pointsRedeemedAmount: pointsRedemptionValue,
       taxType,
+      saleDate: buildPosSaleDate(),
     };
 
     // Use resumeHeldSale if this is a held sale, updateSale if editing, otherwise create new
@@ -3549,7 +3572,7 @@ export default function POSSales() {
             await supabase.from("voucher_entries").insert({
               organization_id: currentOrganization.id,
               voucher_number: `EXP-${String(parseInt(lastNum) + 1).padStart(5, "0")}`,
-              voucher_type: "expense", voucher_date: new Date().toISOString().split("T")[0],
+              voucher_type: "expense", voucher_date: buildPosVoucherDate(),
               reference_type: "sale", reference_id: result.id,
               description: `Finance Discount — ${financerDetails.financer_name} (${result.sale_number})`,
               total_amount: financerDetails.finance_discount, category: "finance_discount", payment_method: "bank",
@@ -3631,6 +3654,7 @@ export default function POSSales() {
       setSaleNotes("");
       setFinancerDetails(null);
       setIsHeldSale(false);
+      setPosInvoiceDate(new Date());
       setPointsToRedeem(0);
       
       triggerPosAutoPrintIfEnabled(() => setShowPrintConfirmDialog(true));
@@ -3710,6 +3734,7 @@ export default function POSSales() {
       notes: saleNotes || null,
       pointsRedeemedAmount: pointsRedemptionValue,
       taxType,
+      saleDate: buildPosSaleDate(),
     };
 
     const paymentMethodType: 'multiple' = 'multiple';
@@ -3757,7 +3782,7 @@ export default function POSSales() {
             await supabase.from("voucher_entries").insert({
               organization_id: currentOrganization.id,
               voucher_number: `EXP-${String(parseInt(lastNum) + 1).padStart(5, "0")}`,
-              voucher_type: "expense", voucher_date: new Date().toISOString().split("T")[0],
+              voucher_type: "expense", voucher_date: buildPosVoucherDate(),
               reference_type: "sale", reference_id: result.id,
               description: `Finance Discount — ${financerDetails.financer_name} (${result.sale_number})`,
               total_amount: financerDetails.finance_discount, category: "finance_discount", payment_method: "bank",
@@ -3892,6 +3917,7 @@ export default function POSSales() {
       setSaleNotes("");
       setFinancerDetails(null);
       setIsHeldSale(false);
+      setPosInvoiceDate(new Date());
       setPointsToRedeem(0);
       
       if (invoiceDataForPrint) {
@@ -4575,6 +4601,7 @@ export default function POSSales() {
     setCurrentSaleId(null);
     setOriginalItemsForEdit([]);
     setSaleNotes("");
+    setPosInvoiceDate(new Date());
     
     toast.success("Cart Cleared", { description: "All items removed from cart" });
   };
@@ -4598,6 +4625,7 @@ export default function POSSales() {
     setCurrentInvoiceNumber("");
     setIsHeldSale(false);
     setSaleNotes("");
+    setPosInvoiceDate(new Date());
     
     toast.success("New Invoice", { description: "Cart cleared. Ready for new sale." });
     
@@ -4707,6 +4735,7 @@ export default function POSSales() {
       setCurrentInvoiceNumber("");
       setIsHeldSale(false);
       setSaleNotes("");
+      setPosInvoiceDate(new Date());
       
       // Refetch today's sales, dashboard data, and held bills
       await queryClient.invalidateQueries({ queryKey: ['todays-sales', currentOrganization?.id] });
@@ -6028,6 +6057,30 @@ export default function POSSales() {
                     </TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
+
+                {/* Invoice date picker — only when admin enabled "Allow invoice date change in POS" */}
+                {posAllowDateChange && (
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className="h-10 px-2 flex items-center gap-1 text-[11px] font-semibold rounded-md shadow-sm border border-border/50 bg-muted/60 hover:bg-muted text-foreground whitespace-nowrap"
+                        title="Invoice date"
+                      >
+                        <CalendarIcon className="h-3.5 w-3.5" />
+                        <span>{format(posInvoiceDate, "dd MMM yyyy")}</span>
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0 z-50" align="end">
+                      <Calendar
+                        mode="single"
+                        selected={posInvoiceDate}
+                        onSelect={(d) => d && setPosInvoiceDate(d)}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+                )}
               </div>
             </div>
         </div>
