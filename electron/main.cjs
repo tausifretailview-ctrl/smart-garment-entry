@@ -666,8 +666,8 @@ function createWindow() {
       window.__ezzyHintBarInstalled = true;
       var APP_VERSION = ${JSON.stringify(app.getVersion())};
 
-      /* Full-screen billing pages — no shortcut strip (POS / Sale Bill / Purchase). */
-      var NO_HINT_ROUTES = { 'pos-sales': 1, 'sales-invoice': 1, 'purchase-entry': 1 };
+      /* Full-screen pages — no shortcut strip (POS / Sale Bill / Purchase / Stock Settlement). */
+      var NO_HINT_ROUTES = { 'pos-sales': 1, 'sales-invoice': 1, 'purchase-entry': 1, 'stock-settlement': 1 };
 
       var HINTS = {
         'stock-report':      [['F2','Search'],['Ctrl+E','Export'],['Ctrl+P','Print'],['Esc','Back']],

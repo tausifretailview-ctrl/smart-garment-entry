@@ -28,7 +28,7 @@ export function isFillHeightWorkspacePath(pathname: string): boolean {
 
 /** List dashboards with fixed header/cards and an internal scrolling table. */
 export const FILL_HEIGHT_DASHBOARD_PATH =
-  /\/(pos-dashboard|sales-invoice-dashboard|purchase-bills|purchase-bill-dashboard|barcode-printing|accounts|accounts-payments|customer-party-balances|supplier-party-balances|stock-report|item-wise-sales|item-wise-stock|customer-master|net-profit-analysis|reports|insights)(\/|$)/;
+  /\/(pos-dashboard|sales-invoice-dashboard|purchase-bills|purchase-bill-dashboard|barcode-printing|accounts|accounts-payments|customer-party-balances|supplier-party-balances|stock-report|stock-settlement|item-wise-sales|item-wise-stock|customer-master|net-profit-analysis|reports|insights)(\/|$)/;
 
 export function isFillHeightDashboardPath(pathname: string): boolean {
   return FILL_HEIGHT_DASHBOARD_PATH.test(pathname);
@@ -48,7 +48,7 @@ export function isMainDashboardPath(pathname: string): boolean {
 
 /** Sidebar + content only — hide global header menu and window tab strip (e.g. Customer Balances, Accounts). */
 export const SIDEBAR_ONLY_WORKSPACE_PATH =
-  /\/(customer-party-balances|supplier-party-balances|stock-report|accounts|accounts-payments|item-wise-sales|item-wise-stock|net-profit-analysis|insights|barcode-printing)(\/|$)/;
+  /\/(customer-party-balances|supplier-party-balances|stock-report|stock-settlement|accounts|accounts-payments|item-wise-sales|item-wise-stock|net-profit-analysis|insights|barcode-printing)(\/|$)/;
 
 export function isSidebarOnlyWorkspacePath(pathname: string): boolean {
   return SIDEBAR_ONLY_WORKSPACE_PATH.test(pathname);
