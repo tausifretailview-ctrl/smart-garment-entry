@@ -41,6 +41,7 @@ import { CameraScanButton } from "@/components/CameraBarcodeScannerDialog";
 import { toast } from "sonner";
 import { useSaveSale } from "@/hooks/useSaveSale";
 import { useStockValidation } from "@/hooks/useStockValidation";
+import { useOpenSettlementVariantIds, LOCKED_VARIANT_TOAST } from "@/hooks/useOpenSettlementVariantIds";
 import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
 import { useCustomerPoints, useCustomerPointsBalance } from "@/hooks/useCustomerPoints";
 import { useCustomerBrandDiscounts } from "@/hooks/useCustomerBrandDiscounts";
