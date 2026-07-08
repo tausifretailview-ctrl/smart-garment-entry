@@ -9,7 +9,7 @@ import {
   Search, CheckCircle2, BarChart3, Clock, ScanBarcode,
   ArrowUpCircle, ArrowDownCircle, ChevronDown,
   Download, FileSpreadsheet, X, Check, Loader2, Box, Upload,
-  ChevronLeft, ChevronRight, IndianRupee, Package, Save,
+  ChevronLeft, ChevronRight, IndianRupee, Package, Save, Trash2,
 } from "lucide-react";
 import StockImportTab from "@/components/StockImportTab";
 import BarcodeScanSection from "@/components/BarcodeScanSection";
@@ -51,6 +51,8 @@ import {
   settleStockSession,
   settlementSessionStorageKey,
   upsertSettlementScan,
+  deleteSettlementScan,
+  deleteAllOpenScansForSession,
   type StockSettlementScanRow,
   resolveScannerLabel,
 } from "@/utils/stockSettlementScans";
@@ -556,6 +558,77 @@ const StockSettlement = () => {
     });
   }, [products, currentOrganization?.id, toast]);
 
+  // Remove a single scanned product from the current open session (state + DB + local cache).
+  const deleteScan = useCallback(
+    async (product: Product) => {
+      // Reset the row to unscanned in UI immediately.
+      setProducts((prev) =>
+        prev.map((p) =>
+          p.variantId === product.variantId
+            ? { ...p, actualStock: null, scanned: false, source: null, scanCount: 0, lastScannedAt: null }
+            : p,
+        ),
+      );
+      // Drop it from the saved localStorage session so a reload doesn't restore it.
+      if (currentOrganization?.id) {
+        try {
+          const raw = localStorage.getItem(scanStorageKey(currentOrganization.id));
+          if (raw) {
+            const parsed = JSON.parse(raw) as { savedAt: number; entries: SavedScanRow[] };
+            parsed.entries = parsed.entries.filter((e) => e.variantId !== product.variantId);
+            localStorage.setItem(scanStorageKey(currentOrganization.id), JSON.stringify(parsed));
+          }
+        } catch { /* ignore cache errors */ }
+      }
+      // Delete the open DB scan row if a session exists.
+      const sessionId = settlementSessionIdRef.current;
+      if (currentOrganization?.id && sessionId) {
+        try {
+          await deleteSettlementScan({
+            organizationId: currentOrganization.id,
+            sessionId,
+            variantId: product.variantId,
+          });
+          queryClient.invalidateQueries({ queryKey: ["open-settlement-variant-ids", currentOrganization.id] });
+        } catch (e: any) {
+          toast({ title: "Delete failed", description: e.message, variant: "destructive" });
+        }
+      }
+    },
+    [currentOrganization?.id, queryClient, toast],
+  );
+
+  // Remove ALL scanned products from the current open session.
+  const clearAllScans = useCallback(async () => {
+    if (scannedCount === 0) {
+      toast({ title: "Nothing to clear", description: "No scanned items to remove" });
+      return;
+    }
+    if (!confirm(`Delete all ${scannedCount} scanned items from this count? This cannot be undone.`)) return;
+    setProducts((prev) =>
+      prev.map((p) =>
+        p.scanned
+          ? { ...p, actualStock: null, scanned: false, source: null, scanCount: 0, lastScannedAt: null }
+          : p,
+      ),
+    );
+    if (currentOrganization?.id) {
+      localStorage.removeItem(scanStorageKey(currentOrganization.id));
+      const sessionId = settlementSessionIdRef.current;
+      if (sessionId) {
+        try {
+          await deleteAllOpenScansForSession({ organizationId: currentOrganization.id, sessionId });
+          queryClient.invalidateQueries({ queryKey: ["open-settlement-variant-ids", currentOrganization.id] });
+        } catch (e: any) {
+          toast({ title: "Clear failed", description: e.message, variant: "destructive" });
+        }
+      }
+    }
+    setScanSessionSaved(false);
+    setScanSessionSavedAt(null);
+    toast({ title: "Scans cleared", description: "All scanned items removed from this count" });
+  }, [scannedCount, currentOrganization?.id, queryClient, toast]);
+
   const autoMatchAll = useCallback(() => {
     if (!scanSessionSaved) {
       toast({
@@ -955,6 +1028,17 @@ const StockSettlement = () => {
                     <Save className="h-4 w-4" />
                     Save Scan
                   </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-9 gap-1.5 border-red-200 text-red-700 hover:bg-red-50 shrink-0"
+                    onClick={clearAllScans}
+                    disabled={scannedCount === 0}
+                    title="Delete all scanned items from this count"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    Clear All
+                  </Button>
                   <Button variant="outline" size="sm" className="h-9 gap-1.5 border-emerald-200 text-emerald-700 hover:bg-emerald-50 shrink-0" onClick={exportCompleteStock}>
                     <Download className="h-4 w-4" />
                     Export Stock
@@ -995,12 +1079,13 @@ const StockSettlement = () => {
                 ) : (
                   <>
                     <div ref={tableRef} className="min-h-0 flex-1 overflow-auto">
-                      <Table className="erp-desktop-table w-full [&_td]:!text-sm [&_th]:!text-xs [&_th]:uppercase [&_th]:tracking-wide">
+                      <Table className="erp-desktop-table w-full [&_td]:!text-[15px] [&_td]:!py-2.5 [&_th]:!text-[13px] [&_th]:!py-2.5 [&_th]:uppercase [&_th]:tracking-wide">
                         <TableHeader className="sticky top-0 z-10 bg-slate-50">
                           <TableRow>
                             {["Product ID", "Barcode", "Product Name", "Shop", "Dept", "Brand", "Unit", "Software Qty", "Actual Qty", "Difference", "Status", "Source"].map((h) => (
                               <TableHead key={h} className="whitespace-nowrap text-slate-500">{h}</TableHead>
                             ))}
+                            <TableHead className="whitespace-nowrap text-right text-slate-500">Action</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>

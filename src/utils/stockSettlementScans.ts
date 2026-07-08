@@ -154,6 +154,38 @@ export async function upsertSettlementScan(params: {
   if (error) throw error;
 }
 
+/** Delete a single OPEN (unsettled) scan for a variant in a session. */
+export async function deleteSettlementScan(params: {
+  organizationId: string;
+  sessionId: string;
+  variantId: string;
+}): Promise<void> {
+  const { error } = await (supabase as any)
+    .from("stock_settlement_scans")
+    .delete()
+    .eq("organization_id", params.organizationId)
+    .eq("settlement_session_id", params.sessionId)
+    .eq("variant_id", params.variantId)
+    .eq("settled", false);
+
+  if (error) throw error;
+}
+
+/** Delete ALL open (unsettled) scans for a session — used by "Clear All Scans". */
+export async function deleteAllOpenScansForSession(params: {
+  organizationId: string;
+  sessionId: string;
+}): Promise<void> {
+  const { error } = await (supabase as any)
+    .from("stock_settlement_scans")
+    .delete()
+    .eq("organization_id", params.organizationId)
+    .eq("settlement_session_id", params.sessionId)
+    .eq("settled", false);
+
+  if (error) throw error;
+}
+
 export async function settleStockSession(
   organizationId: string,
   sessionId: string,
