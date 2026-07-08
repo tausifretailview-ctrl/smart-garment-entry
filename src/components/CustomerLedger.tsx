@@ -38,6 +38,7 @@ import {
   summarizeSignedBalanceFacets,
 } from "@/utils/organizationReceivables";
 import { useOrganizationReceivablesSummary } from "@/hooks/useOrganizationReceivablesSummary";
+import { useBusinessInfo } from "@/hooks/useSettings";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   computeCustomerOutstanding,
@@ -378,6 +379,7 @@ export function CustomerLedger({
   const isMobile = useIsMobile();
   const { sendWhatsApp } = useWhatsAppSend();
   const { isSchool } = useSchoolFeatures();
+  const businessInfo = useBusinessInfo();
   const {
     summary: orgReceivablesSummary,
     isLoading: orgReceivablesSummaryLoading,
@@ -3449,7 +3451,38 @@ Please clear your dues at the earliest. Thank you!`;
       return y + 10;
     };
 
-    let yPos = 20;
+    let yPos = 16;
+
+    // Company letterhead (Settings → Company): business name, address, mobile.
+    const bizName = (businessInfo.businessName || "").trim();
+    const bizAddress = (businessInfo.address || "").trim();
+    const bizMobile = (businessInfo.mobileNumber || "").trim();
+    if (bizName || bizAddress || bizMobile) {
+      if (bizName) {
+        doc.setFontSize(15);
+        doc.setFont("helvetica", "bold");
+        pdfSetText(doc, LEDGER_PDF.text);
+        doc.text(bizName, pageWidth / 2, yPos, { align: "center" });
+        yPos += 6;
+      }
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "normal");
+      pdfSetText(doc, LEDGER_PDF.muted);
+      if (bizAddress) {
+        const addrLines = doc.splitTextToSize(bizAddress, tableWidth - 20);
+        doc.text(addrLines, pageWidth / 2, yPos, { align: "center" });
+        yPos += addrLines.length * 4;
+      }
+      if (bizMobile) {
+        doc.text(`Mobile: ${bizMobile}`, pageWidth / 2, yPos, { align: "center" });
+        yPos += 4;
+      }
+      // Divider under the letterhead.
+      pdfSetDraw(doc, LEDGER_PDF.reconBorder);
+      doc.setLineWidth(0.3);
+      doc.line(margin, yPos + 1, pageWidth - margin, yPos + 1);
+      yPos += 7;
+    }
 
     doc.setFontSize(18);
     doc.setFont("helvetica", "bold");

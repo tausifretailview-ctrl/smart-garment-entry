@@ -33,6 +33,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useBusinessInfo } from "@/hooks/useSettings";
 
 interface SupplierLedgerProps {
   organizationId: string;
@@ -70,6 +71,7 @@ interface Transaction {
 
 export function SupplierLedger({ organizationId, visitedTabs, supplierBalanceMap }: SupplierLedgerProps) {
   const tabActive = visitedTabs?.has("supplier-ledger") ?? true;
+  const businessInfo = useBusinessInfo();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
   const [paymentStatusFilter, setPaymentStatusFilter] = useState<string>("all");
@@ -668,11 +670,43 @@ export function SupplierLedger({ organizationId, visitedTabs, supplierBalanceMap
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
     const margin = 14;
-    let yPos = 20;
+    let yPos = 16;
+
+    // Company letterhead (Settings → Company): business name, address, mobile.
+    const bizName = (businessInfo.businessName || "").trim();
+    const bizAddress = (businessInfo.address || "").trim();
+    const bizMobile = (businessInfo.mobileNumber || "").trim();
+    if (bizName || bizAddress || bizMobile) {
+      if (bizName) {
+        doc.setFontSize(15);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(15, 23, 42);
+        doc.text(bizName, pageWidth / 2, yPos, { align: "center" });
+        yPos += 6;
+      }
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(100, 116, 139);
+      if (bizAddress) {
+        const addrLines = doc.splitTextToSize(bizAddress, pageWidth - margin * 2 - 20);
+        doc.text(addrLines, pageWidth / 2, yPos, { align: "center" });
+        yPos += addrLines.length * 4;
+      }
+      if (bizMobile) {
+        doc.text(`Mobile: ${bizMobile}`, pageWidth / 2, yPos, { align: "center" });
+        yPos += 4;
+      }
+      doc.setDrawColor(226, 232, 240);
+      doc.setLineWidth(0.3);
+      doc.line(margin, yPos + 1, pageWidth - margin, yPos + 1);
+      yPos += 7;
+    }
 
     doc.setFontSize(18);
     doc.setFont("helvetica", "bold");
+    doc.setTextColor(15, 118, 110);
     doc.text("Supplier Ledger", pageWidth / 2, yPos, { align: "center" });
+    doc.setTextColor(0, 0, 0);
     yPos += 10;
 
     doc.setFontSize(12);
