@@ -527,14 +527,14 @@ export default function OrgAuth() {
       <div className="text-center">
               {orgLoading ? (
                 <div
-                  className="mx-auto mb-3 flex h-[88px] w-[88px] animate-pulse items-center justify-center bg-white p-2"
+                  className="mx-auto mb-4 flex h-[120px] w-[120px] animate-pulse items-center justify-center bg-white p-3"
                   style={{ border: "1px solid #e2e8f0", borderRadius: 14, boxShadow: "0 1px 3px rgba(15,23,42,0.08)" }}
                 >
-                  <Building2 className="h-9 w-9 text-muted-foreground" />
+                  <Building2 className="h-12 w-12 text-muted-foreground" />
                 </div>
               ) : logoUrl ? (
                 <div
-                  className="mx-auto mb-3 flex h-[88px] w-[88px] items-center justify-center bg-white p-2"
+                  className="mx-auto mb-4 flex h-[120px] w-[120px] items-center justify-center bg-white p-3"
                   style={{ border: "1px solid #e2e8f0", borderRadius: 14, boxShadow: "0 1px 3px rgba(15,23,42,0.08)" }}
                 >
                   <img
@@ -545,14 +545,14 @@ export default function OrgAuth() {
                 </div>
               ) : (
                 <div
-                  className="mx-auto mb-3 flex h-[88px] w-[88px] items-center justify-center bg-white p-2"
+                  className="mx-auto mb-4 flex h-[120px] w-[120px] items-center justify-center bg-white p-3"
                   style={{ border: "1px solid #e2e8f0", borderRadius: 14, boxShadow: "0 1px 3px rgba(15,23,42,0.08)" }}
                 >
-                  <Building2 className="h-10 w-10" style={{ color: "#1e3a8a" }} />
+                  <Building2 className="h-12 w-12" style={{ color: "#1e3a8a" }} />
                 </div>
               )}
 
-              <h2 className="uppercase" style={{ color: "#1e3a8a", fontSize: 14, fontWeight: 600, letterSpacing: "0.04em" }}>
+              <h2 className="uppercase" style={{ color: "#1e3a8a", fontSize: 18, fontWeight: 600, letterSpacing: "0.04em" }}>
                 {displayName}
               </h2>
               <div className="mx-auto mt-4 h-px w-full" style={{ background: "#e2e8f0" }} />
@@ -615,13 +615,13 @@ export default function OrgAuth() {
                 </Alert>
               )}
 
-              <form onSubmit={handleSignIn} className="space-y-4">
-                <div className="space-y-1.5">
-                  <Label htmlFor="email" style={{ fontSize: 13, fontWeight: 500, color: "#0f172a" }}>
+              <form onSubmit={handleSignIn} className="w-full space-y-5">
+                <div className="space-y-2">
+                  <Label htmlFor="email" style={{ fontSize: 15, fontWeight: 500, color: "#0f172a" }}>
                     Email address
                   </Label>
                   <div className="login-field relative">
-                    <Mail className="login-icon pointer-events-none absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
+                    <Mail className="login-icon pointer-events-none absolute left-4 top-1/2 h-6 w-6 -translate-y-1/2 text-muted-foreground" />
                     <Input
                       id="email"
                       type="email"
@@ -630,20 +630,20 @@ export default function OrgAuth() {
                       onChange={(e) => setEmail(e.target.value)}
                       disabled={loading}
                       required
-                      className="login-input no-uppercase h-11 border-border pl-11 text-base"
+                      className="login-input no-uppercase h-12 w-full border-border pl-12 text-lg"
                     />
                   </div>
                 </div>
 
-                <div className="space-y-1.5">
+                <div className="space-y-2">
                   <div className="flex items-center justify-between gap-3">
-                    <Label htmlFor="password" style={{ fontSize: 13, fontWeight: 500, color: "#0f172a" }}>
+                    <Label htmlFor="password" style={{ fontSize: 15, fontWeight: 500, color: "#0f172a" }}>
                       Password
                     </Label>
                     <button
                       type="button"
                       className="hover:underline"
-                      style={{ fontSize: 13, fontWeight: 500, color: "#2957c9" }}
+                      style={{ fontSize: 14, fontWeight: 500, color: "#2957c9" }}
                       onClick={async () => {
                         if (!email) {
                           toast.error("Enter your email first");
@@ -663,7 +663,7 @@ export default function OrgAuth() {
                     </button>
                   </div>
                   <div className="login-field relative">
-                    <Lock className="login-icon pointer-events-none absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
+                    <Lock className="login-icon pointer-events-none absolute left-4 top-1/2 h-6 w-6 -translate-y-1/2 text-muted-foreground" />
                     <Input
                       id="password"
                       type={showPassword ? "text" : "password"}
@@ -672,15 +672,15 @@ export default function OrgAuth() {
                       onChange={(e) => setPassword(e.target.value)}
                       disabled={loading}
                       required
-                      className="login-input no-uppercase h-11 border-border pl-11 pr-11 text-base"
+                      className="login-input no-uppercase h-12 w-full border-border pl-12 pr-12 text-lg"
                     />
                     <button
                       type="button"
-                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                       onClick={() => setShowPassword(!showPassword)}
                       tabIndex={-1}
                     >
-                      {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                      {showPassword ? <EyeOff className="h-6 w-6" /> : <Eye className="h-6 w-6" />}
                     </button>
                   </div>
                   {loginAttempts > 0 && (
@@ -704,18 +704,18 @@ export default function OrgAuth() {
 
                 <Button
                   type="submit"
-                  className="login-submit mt-1 h-11 w-full rounded-[10px] text-base font-semibold text-white"
+                  className="login-submit mt-1 h-12 w-full rounded-[10px] text-lg font-semibold text-white"
                   disabled={loading}
                 >
                   {loading ? (
                     <>
-                      <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                      <Loader2 className="mr-2 h-6 w-6 animate-spin" />
                       Signing in...
                     </>
                   ) : (
                     <>
                       Sign in
-                      <ArrowRight className="ml-2 h-5 w-5" />
+                      <ArrowRight className="ml-2 h-6 w-6" />
                     </>
                   )}
                 </Button>
@@ -735,7 +735,7 @@ export default function OrgAuth() {
               <Button
                 type="button"
                 variant="outline"
-                className="login-google h-11 w-full rounded-[10px] border bg-background text-base font-medium"
+                className="login-google h-12 w-full rounded-[10px] border bg-background text-lg font-medium"
                 disabled={loading}
                 onClick={async () => {
                   setLoading(true);
@@ -772,12 +772,12 @@ export default function OrgAuth() {
                 Sign in with Google
               </Button>
 
-              <p className="text-center" style={{ fontSize: 13, color: "#64748b" }}>
+              <p className="text-center" style={{ fontSize: 14, color: "#64748b" }}>
                 Don&apos;t have access?{" "}
                 <button
                   type="button"
                   className="transition-colors hover:underline"
-                  style={{ fontSize: 13, fontWeight: 600, color: "#0f172a" }}
+                  style={{ fontSize: 14, fontWeight: 600, color: "#0f172a" }}
                   onClick={() => {
                     toast.info("Please contact your organization administrator for access.");
                   }}

@@ -3807,6 +3807,9 @@ html.desktop-shell .login-page .login-input,
   border-radius: 10px !important;
   background-color: #ffffff;
   border-color: #e2e8f0;
+  min-height: 48px;
+  font-size: 1.125rem;
+  line-height: 1.5rem;
   transition: border-color 150ms ease, box-shadow 150ms ease;
 }
 .login-page .login-input::placeholder {

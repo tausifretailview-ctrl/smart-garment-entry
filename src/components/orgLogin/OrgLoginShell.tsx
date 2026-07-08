@@ -195,8 +195,8 @@ export function OrgLoginShell({
           className={cn(
             "login-form-col mx-auto flex w-full max-w-[500px] flex-1 flex-col justify-center",
             compactLogin
-              ? "px-6 py-8 pt-[max(2rem,env(safe-area-inset-top))] pb-[max(2rem,env(safe-area-inset-bottom))]"
-              : "px-6 py-10 md:px-10",
+              ? "px-4 py-8 pt-[max(2rem,env(safe-area-inset-top))] pb-[max(2rem,env(safe-area-inset-bottom))]"
+              : "px-8 py-10 md:px-10",
           )}
         >
           {compactLogin && (
@@ -207,10 +207,10 @@ export function OrgLoginShell({
 
           <div className="space-y-6">
             <div className="text-center">
-              <h1 className="font-bold" style={{ fontSize: 28, letterSpacing: "-0.01em", color: "#0f172a" }}>
+              <h1 className="font-bold" style={{ fontSize: 32, letterSpacing: "-0.01em", color: "#0f172a" }}>
                 {title}
               </h1>
-              <p className="mt-1.5" style={{ fontSize: 14, color: "#64748b" }}>
+              <p className="mt-2" style={{ fontSize: 16, color: "#64748b" }}>
                 {subtitle}
               </p>
             </div>
