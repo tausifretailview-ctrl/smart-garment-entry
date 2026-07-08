@@ -2365,6 +2365,34 @@ export default function SalesInvoice() {
     syncStagedQtyForVariant(item.variantId, updatedItems);
   };
 
+  // Qty field edit: allow the box to be cleared/retyped (e.g. remove "1", type "2").
+  // Empty is kept transiently (shown blank) without snapping back to 1; a real
+  // number runs the normal stock-validated updateQuantity.
+  const handleQtyInputChange = (id: string, raw: string) => {
+    const item = lineItems.find(i => i.id === id);
+    if (!item) return;
+    const isDecimal = isDecimalUOM(item.uom);
+    if (raw.trim() === "") {
+      // Transient empty — set to 0 so the input shows blank (value = quantity || "").
+      setLineItems(prev => prev.map(li => li.id === id ? calculateLineTotal({ ...li, quantity: 0 }) : li));
+      return;
+    }
+    const parsed = isDecimal ? parseFloat(raw) : parseInt(raw, 10);
+    if (Number.isNaN(parsed)) return;
+    void updateQuantity(id, parsed);
+  };
+
+  // On blur, if the field was left empty/invalid, restore the minimum quantity.
+  const handleQtyInputBlur = (id: string) => {
+    const item = lineItems.find(i => i.id === id);
+    if (!item) return;
+    const isDecimal = isDecimalUOM(item.uom);
+    const min = isDecimal ? 0.001 : 1;
+    if (!item.quantity || item.quantity < min) {
+      void updateQuantity(id, min);
+    }
+  };
+
   const updateBox = (id: string, box: string) => {
     setLineItems(prev => prev.map(item =>
       item.id === id ? { ...item, box } : item
@@ -4314,9 +4342,11 @@ Thank you for choosing us!`;
                           step={isDecimalUOM(item.uom) ? "0.001" : "1"}
                           value={item.quantity || ""}
                           placeholder="1"
-                          onChange={(e) => updateQuantity(item.id, isDecimalUOM(item.uom) ? (parseFloat(e.target.value) || 0.001) : (parseInt(e.target.value) || 1))}
+                          onChange={(e) => handleQtyInputChange(item.id, e.target.value)}
+                          onFocus={(e) => e.target.select()}
+                          onBlur={() => handleQtyInputBlur(item.id)}
                           onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                          className="w-16 h-10 text-center font-bold text-[17px] bg-warning/10 border-warning/30 focus:border-warning mx-auto tabular-nums"
+                          className="w-24 h-10 text-center font-bold text-[17px] bg-warning/10 border-warning/30 focus:border-warning mx-auto tabular-nums"
                         />
                         {item.uom && item.uom !== 'NOS' && item.uom !== 'PCS' && (
                           <span className="text-[10px] text-muted-foreground text-center block">{item.uom}</span>
