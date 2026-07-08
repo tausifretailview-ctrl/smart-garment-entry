@@ -297,6 +297,7 @@ function applyFlatDiscountFromInvoice(
 
 export default function SalesInvoice() {
   const { toast } = useToast();
+  const { isLocked: isVariantLockedForSettlement } = useOpenSettlementVariantIds();
   const queryClient = useQueryClient();
   const { scheduleInvalidateSales, flushScheduledSalesInvalidation, invalidateSales } = useDashboardInvalidation();
   const { currentOrganization } = useOrganization();
