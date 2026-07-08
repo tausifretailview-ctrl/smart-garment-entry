@@ -513,6 +513,7 @@ export default function POSSales() {
   const [recentAdjustedSaleReturnCredits, setRecentAdjustedSaleReturnCredits] = useState<Array<{ id: string; return_number: string; net_amount: number; linked_sale_id: string | null; linked_sale_number?: string }>>([]);
   const [showSRCreditDropdown, setShowSRCreditDropdown] = useState(false);
   const { checkStock, validateCartStock } = useStockValidation();
+  const { isLocked: isVariantLockedForSettlement } = useOpenSettlementVariantIds();
   const queryClient = useQueryClient();
 
   const refreshPosAfterBillPrint = useCallback(() => {
