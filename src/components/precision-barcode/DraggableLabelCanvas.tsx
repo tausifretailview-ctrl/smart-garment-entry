@@ -106,7 +106,7 @@ export function DraggableLabelCanvas({
   }), [item]);
 
   const barcodeSlot = useMemo(
-    () => resolveBarcodeSlotMm({ width, height, gap: 2 }, config as unknown as TSPLTemplateConfig, labelData),
+    () => resolveBarcodeSlotMm({ width, height }, config as unknown as TSPLTemplateConfig, labelData),
     [config, width, height, labelData],
   );
 
