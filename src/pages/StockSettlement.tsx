@@ -319,11 +319,13 @@ const StockSettlement = () => {
           systemQty: product.softwareStock,
           scannedBy: user.id,
         });
+        // Invalidate sale-side reservation cache so POS/Sale Entry pick up the lock
+        queryClient.invalidateQueries({ queryKey: ["open-settlement-variant-ids", currentOrganization.id] });
       } catch (e: unknown) {
         console.error("persistScanToDb:", e);
       }
     },
-    [currentOrganization?.id, user?.id, ensureSessionId],
+    [currentOrganization?.id, user?.id, ensureSessionId, queryClient],
   );
 
   // Load products from DB
