@@ -32,7 +32,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Scan, X, Plus, Trash2, Banknote, CreditCard, Smartphone, Printer, ChevronLeft, ChevronRight, ChevronDown, FileText, RotateCcw, Check, UserPlus, MessageCircle, Link2, Wallet, IndianRupee, ArrowUp, Pause, Play, Loader2, AlertCircle, Clock, Coins, Package, History, BookmarkPlus, Search, Calendar as CalendarIcon } from "lucide-react";
+import { Scan, X, Plus, Trash2, Banknote, CreditCard, Smartphone, Printer, ChevronLeft, ChevronDown, FileText, RotateCcw, Check, UserPlus, MessageCircle, Link2, Wallet, IndianRupee, ArrowUp, Pause, Play, Loader2, AlertCircle, Clock, Coins, Package, History, BookmarkPlus, Search, Calendar as CalendarIcon } from "lucide-react";
 import { MobilePOSLayout } from "@/components/mobile/MobilePOSLayout";
 import { FloatingPOSReports } from "@/components/FloatingPOSReports";
 import { FloatingSaleReturn } from "@/components/FloatingSaleReturn";
@@ -5982,48 +5982,6 @@ export default function POSSales() {
                     </TooltipTrigger>
                     <TooltipContent>
                       <p>Page Up</p>
-                    </TooltipContent>
-                  </Tooltip>
-                  {/* Position Indicator - Always visible */}
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <div className="h-10 px-3 bg-muted/60 rounded-md flex flex-col items-center justify-center min-w-[52px] cursor-pointer border border-border/50" onClick={handleLastInvoice}>
-                        <span className="text-sm font-semibold text-foreground">
-                          {todaysSales && todaysSales.length > 0 && currentSaleId 
-                            ? todaysSales.length - currentInvoiceIndex 
-                            : 1}
-                        </span>
-                        <span className="text-[10px] text-muted-foreground">
-                          of {todaysSales && todaysSales.length > 0 ? todaysSales.length : 1}
-                        </span>
-                      </div>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>End - Go to Latest</p>
-                    </TooltipContent>
-                  </Tooltip>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        onClick={handleNextInvoice}
-                        variant="outline"
-                        size="sm"
-                        className="h-10"
-                        disabled={!todaysSales || todaysSales.length === 0 || currentInvoiceIndex <= 0}
-                      >
-                        <div className="flex flex-col items-end">
-                          <span className="text-xs">Next</span>
-                          {todaysSales && todaysSales.length > 0 && currentInvoiceIndex > 0 && (
-                            <span className="text-[10px] text-muted-foreground">
-                              {todaysSales[currentInvoiceIndex - 1]?.sale_number}
-                            </span>
-                          )}
-                        </div>
-                        <ChevronRight className="h-4 w-4 ml-1" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>Page Down</p>
                     </TooltipContent>
                   </Tooltip>
                 </div>
