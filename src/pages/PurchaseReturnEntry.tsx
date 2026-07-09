@@ -26,7 +26,6 @@ import { useEntryViewportSync } from "@/hooks/useEntryViewportSync";
 import { useBarcodeScanner } from "@/hooks/useBarcodeScanner";
 import { CameraScanButton } from "@/components/CameraBarcodeScannerDialog";
 import { useDraftSave } from "@/hooks/useDraftSave";
-import { DraftResumeDialog } from "@/components/DraftResumeDialog";
 import {
   buildPurchaseReturnItemPayload,
   calculatePurchaseReturnTotals,
@@ -189,7 +188,6 @@ const PurchaseReturnEntry = () => {
   const [discountPercent, setDiscountPercent] = useState(0);
   const [discountAmount, setDiscountAmount] = useState(0);
   const [isSearching, setIsSearching] = useState(false);
-  const [showDraftDialog, setShowDraftDialog] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lineItemsRef = useRef<LineItem[]>([]);
@@ -265,7 +263,6 @@ const PurchaseReturnEntry = () => {
     saveDraft,
     deleteDraft,
     updateCurrentData,
-    lastSaved,
     startAutoSave,
     stopAutoSave,
   } = useDraftSave('purchase_return');
@@ -280,25 +277,21 @@ const PurchaseReturnEntry = () => {
     setTaxType(data.taxType || "exclusive");
     setDiscountPercent(data.discountPercent || 0);
     setDiscountAmount(data.discountAmount || 0);
-    // Silent restore - no toast to avoid disturbing user
-  }, [toast]);
+  }, []);
 
-  // Load draft automatically if navigated from dashboard with loadDraft flag
+  // Resume draft only when opened from dashboard (like Purchase Entry — no popup on direct open)
   useEffect(() => {
     if (location.state?.loadDraft && hasDraft && draftData && !initialDraftCheckDone.current) {
       initialDraftCheckDone.current = true;
       loadDraftData(draftData);
-      deleteDraft();
+      const count = Array.isArray(draftData?.lineItems) ? draftData.lineItems.length : 0;
+      toast({
+        title: "Unsaved draft restored",
+        description: count > 0 ? `${count} line item(s) loaded from your draft.` : "Draft loaded.",
+      });
+      void deleteDraft();
     }
-  }, [location.state?.loadDraft, hasDraft, draftData, loadDraftData, deleteDraft]);
-
-  // Show draft dialog on mount if draft exists and not loading from dashboard
-  useEffect(() => {
-    if (hasDraft && draftData && !isEditMode && !location.state?.loadDraft && !initialDraftCheckDone.current) {
-      initialDraftCheckDone.current = true;
-      setShowDraftDialog(true);
-    }
-  }, [hasDraft, draftData, isEditMode, location.state?.loadDraft]);
+  }, [location.state?.loadDraft, hasDraft, draftData, loadDraftData, deleteDraft, toast]);
 
   // Update current data for auto-save whenever form data changes
   useEffect(() => {
@@ -2103,23 +2096,6 @@ const PurchaseReturnEntry = () => {
         </div>
       </footer>
     </div>
-
-      {/* Draft Resume Dialog */}
-      <DraftResumeDialog
-        open={showDraftDialog}
-        onOpenChange={setShowDraftDialog}
-        onResume={() => {
-          loadDraftData(draftData);
-          deleteDraft();
-          setShowDraftDialog(false);
-        }}
-        onStartFresh={() => {
-          deleteDraft();
-          setShowDraftDialog(false);
-        }}
-        draftType="Purchase Return"
-        lastSaved={lastSaved}
-      />
 
       {/* Stock Not Available Alert */}
       <AlertDialog open={stockAlertOpen} onOpenChange={setStockAlertOpen}>

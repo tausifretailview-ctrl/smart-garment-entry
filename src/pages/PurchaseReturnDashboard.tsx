@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
+import { useLocation } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { DASHBOARD_TAB_RETURN_QUERY_OPTIONS } from "@/lib/dashboardQueryOptions";
 import { useNavPerfPage, useNavPerfQueryWatch } from "@/hooks/useNavigationPerf";
@@ -74,6 +75,7 @@ const PurchaseReturnDashboard = () => {
   useNavPerfPage(PERF_PATH);
   const { toast } = useToast();
   const { orgNavigate: navigate } = useOrgNavigation();
+  const location = useLocation();
   const { currentOrganization } = useOrganization();
   const queryClient = useQueryClient();
   const [returns, setReturns] = useState<PurchaseReturn[]>([]);
@@ -94,7 +96,28 @@ const PurchaseReturnDashboard = () => {
   const printRef = useRef<HTMLDivElement>(null);
 
   // Draft save hook
-  const { hasDraft, draftData, deleteDraft, lastSaved } = useDraftSave('purchase_return');
+  const { hasDraft, draftData, deleteDraft, lastSaved, checkDraft } = useDraftSave('purchase_return');
+  const [draftBannerDismissed, setDraftBannerDismissed] = useState(false);
+
+  const draftSummary = useMemo(() => {
+    if (!hasDraft || !draftData) return null;
+    const items = (draftData as { lineItems?: { qty?: number }[] })?.lineItems || [];
+    const lineCount = items.length;
+    const totalQty = items.reduce((sum, item) => sum + (Number(item?.qty) || 0), 0);
+    return { lineCount, totalQty };
+  }, [hasDraft, draftData]);
+
+  const showDraftBanner = Boolean(draftSummary) && !draftBannerDismissed;
+
+  useEffect(() => {
+    if (draftSummary) setDraftBannerDismissed(false);
+  }, [draftSummary?.lineCount, draftSummary?.totalQty]);
+
+  // Refresh draft banner when returning to this dashboard (e.g. after save on entry screen)
+  useEffect(() => {
+    if (!location.pathname.includes("purchase-returns")) return;
+    void checkDraft();
+  }, [location.pathname, checkDraft]);
 
   // Supplier history dialog states
   const [showSupplierHistory, setShowSupplierHistory] = useState(false);
@@ -677,8 +700,8 @@ const PurchaseReturnDashboard = () => {
         </div>
       </div>
 
-      {/* Draft Resume Card */}
-      {hasDraft && draftData && (
+      {/* Draft Resume Card — manage drafts here (not via popup on entry open) */}
+      {showDraftBanner && draftSummary && (
         <Card className="border border-amber-400/60 bg-amber-50 rounded-lg shadow-sm">
           <CardHeader className="py-1.5 px-3">
             <div className="flex items-center justify-between">
@@ -691,7 +714,10 @@ const PurchaseReturnDashboard = () => {
                     Unsaved Purchase Return Draft
                   </CardTitle>
                   <CardDescription className="text-xs text-amber-700 font-medium mt-0 leading-tight">
-                    {(draftData as any)?.lineItems?.length || 0} items • Saved {lastSaved ? formatDistanceToNow(lastSaved, { addSuffix: true }) : "recently"}
+                    {`${draftSummary.lineCount} lines · ${Math.round(draftSummary.totalQty)} qty`}
+                    {lastSaved
+                      ? ` • Saved ${formatDistanceToNow(lastSaved, { addSuffix: true })}`
+                      : " • Saved recently"}
                   </CardDescription>
                 </div>
               </div>
@@ -699,8 +725,19 @@ const PurchaseReturnDashboard = () => {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => {
-                    deleteDraft();
+                  onClick={async () => {
+                    setDraftBannerDismissed(true);
+                    const removed = await deleteDraft();
+                    await checkDraft();
+                    if (!removed) {
+                      setDraftBannerDismissed(false);
+                      toast({
+                        title: "Could not discard draft",
+                        description: "Please try again or open Purchase Return Entry and save or clear the return.",
+                        variant: "destructive",
+                      });
+                      return;
+                    }
                     toast({
                       title: "Draft Discarded",
                       description: "The unsaved purchase return has been removed",
