@@ -25,6 +25,13 @@ interface UseCustomerSearchOptions {
   enabled?: boolean;
 }
 
+// F4 (Phase C, batch 1): narrow SELECT list — was SELECT * (22 cols) firing
+// ~14.5k times/day. These are the only columns any consumer of useCustomerSearch
+// reads (matches Customer interface + fields used by POS/SalesInvoice for
+// portal & points display).
+const CUSTOMER_SEARCH_COLUMNS =
+  "id, customer_name, phone, email, address, gst_number, opening_balance, discount_percent, transport_details, points_balance, portal_enabled, portal_price_type, organization_id, created_at";
+
 /**
  * Reliable customer search hook with server-side search
  * Handles 2000+ customers efficiently by searching on the server
@@ -72,7 +79,7 @@ export const useCustomerSearch = (searchTerm: string = "", options: UseCustomerS
       
       let query = supabase
         .from("customers")
-        .select("*")
+        .select(CUSTOMER_SEARCH_COLUMNS)
         .eq("organization_id", currentOrganization.id)
         .is("deleted_at", null);
       
@@ -112,7 +119,7 @@ export const useCustomerSearch = (searchTerm: string = "", options: UseCustomerS
           console.warn("Retrying with simple name search fallback");
           const { data: fallbackData, error: fallbackError } = await supabase
             .from("customers")
-            .select("*")
+            .select(CUSTOMER_SEARCH_COLUMNS)
             .eq("organization_id", currentOrganization.id)
             .is("deleted_at", null)
             .ilike("customer_name", `%${term}%`)
@@ -129,7 +136,7 @@ export const useCustomerSearch = (searchTerm: string = "", options: UseCustomerS
       if (term && (!data || data.length === 0)) {
         const { data: fallbackData, error: fallbackError } = await supabase
           .from("customers")
-          .select("*")
+          .select(CUSTOMER_SEARCH_COLUMNS)
           .eq("organization_id", currentOrganization.id)
           .is("deleted_at", null)
           .ilike("customer_name", `%${term}%`)
