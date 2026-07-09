@@ -36,7 +36,7 @@ import {
   recordSalaryVoucherJournalEntry,
 } from "@/utils/accounting/journalService";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
-import { paymentSubmitFooterClass } from "@/utils/paymentTabLayout";
+import { paymentSubmitInlineClass } from "@/utils/paymentTabLayout";
 
 const EMPLOYEE_PAGE_SIZE = 200;
 const EMPLOYEE_LIST_COLUMNS = "id, employee_name, phone, designation, status";
@@ -305,14 +305,16 @@ export function EmployeeSalaryTab({
               </div>
             </div>
 
-            <Button
-              type="submit"
-              className={cn("w-full md:w-auto", paymentSubmitFooterClass(fullPage))}
-              disabled={createSalaryVoucher.isPending}
-            >
-              <Plus className="mr-2 h-4 w-4" />
-              {createSalaryVoucher.isPending ? "Recording..." : "Record Salary Payment"}
-            </Button>
+            <div className={cn(paymentSubmitInlineClass(fullPage))}>
+              <Button
+                type="submit"
+                className={cn("w-full md:w-auto", fullPage && "h-10 px-6")}
+                disabled={createSalaryVoucher.isPending}
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                {createSalaryVoucher.isPending ? "Recording..." : "Record Salary Payment"}
+              </Button>
+            </div>
           </form>
         </CardContent>
       </Card>
