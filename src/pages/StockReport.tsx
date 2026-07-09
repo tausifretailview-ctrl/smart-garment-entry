@@ -189,6 +189,41 @@ function buildStockReportRpcProductName(
   return null;
 }
 
+type StockReportRpcFilterInput = {
+  orgId: string;
+  searchTerm: string;
+  categoryFilter: string;
+  brandFilter: string;
+  stockStatusFilter: string;
+  lowStockThreshold: number;
+  departmentFilter: string;
+  sizeFilter: string;
+  colorFilter: string;
+  productNameFilter: string;
+  pinnedProducts: Array<{ product_name: string }>;
+  supplierFilter: string;
+  supplierInvoiceFilter: string;
+};
+
+function buildStockReportRpcFilters(input: StockReportRpcFilterInput) {
+  return {
+    p_org_id: input.orgId,
+    p_search: input.searchTerm.trim() || null,
+    p_category: input.categoryFilter !== "all" ? input.categoryFilter : null,
+    p_brand: input.brandFilter !== "all" ? input.brandFilter : null,
+    p_low_stock: input.stockStatusFilter === "out" ? true : null,
+    p_in_stock: input.stockStatusFilter === "in" ? true : null,
+    p_low_stock_band: input.stockStatusFilter === "low" ? true : null,
+    p_low_stock_threshold: input.lowStockThreshold,
+    p_style: input.departmentFilter !== "all" ? input.departmentFilter : null,
+    p_size: input.sizeFilter !== "all" ? input.sizeFilter : null,
+    p_color: input.colorFilter !== "all" ? input.colorFilter : null,
+    p_product_name: buildStockReportRpcProductName(input.productNameFilter, input.pinnedProducts),
+    p_supplier: input.supplierFilter !== "all" ? input.supplierFilter : null,
+    p_supplier_invoice: input.supplierInvoiceFilter !== "all" ? input.supplierInvoiceFilter : null,
+  };
+}
+
 function buildStockReportFilterOptions(payload: {
   rawProducts: Array<{ id: string; product_name: string; brand: string; category: string; style: string }>;
   variantRows: Array<{ product_id: string; size: string | null; color: string | null }>;
@@ -729,22 +764,23 @@ export default function StockReport() {
             ) => ReturnType<typeof supabase.rpc>;
           }
         ).rpc("get_stock_report", {
-          p_org_id: currentOrganization.id,
+          ...buildStockReportRpcFilters({
+            orgId: currentOrganization.id,
+            searchTerm,
+            categoryFilter,
+            brandFilter,
+            stockStatusFilter,
+            lowStockThreshold,
+            departmentFilter,
+            sizeFilter,
+            colorFilter,
+            productNameFilter,
+            pinnedProducts,
+            supplierFilter,
+            supplierInvoiceFilter,
+          }),
           p_limit: fetchLimit,
           p_offset: fetchOffset,
-          p_search: searchTerm.trim() || null,
-          p_category: categoryFilter !== "all" ? categoryFilter : null,
-          p_brand: brandFilter !== "all" ? brandFilter : null,
-          p_low_stock: stockStatusFilter === "out" ? true : null,
-          p_in_stock: stockStatusFilter === "in" ? true : null,
-          p_low_stock_band: stockStatusFilter === "low" ? true : null,
-          p_low_stock_threshold: lowStockThreshold,
-          p_style: departmentFilter !== "all" ? departmentFilter : null,
-          p_size: sizeFilter !== "all" ? sizeFilter : null,
-          p_color: colorFilter !== "all" ? colorFilter : null,
-          p_product_name: buildStockReportRpcProductName(productNameFilter, pinnedProducts),
-          p_supplier: supplierFilter !== "all" ? supplierFilter : null,
-          p_supplier_invoice: supplierInvoiceFilter !== "all" ? supplierInvoiceFilter : null,
         });
 
         if (error) throw error;
@@ -841,6 +877,8 @@ export default function StockReport() {
         supplierFilter,
         supplierInvoiceFilter,
         stockStatusFilter,
+        searchTerm,
+        lowStockThreshold,
         activeTab,
         pinned: pinnedProducts
           .map((p) => p.id)
@@ -857,10 +895,92 @@ export default function StockReport() {
       supplierFilter,
       supplierInvoiceFilter,
       stockStatusFilter,
+      searchTerm,
+      lowStockThreshold,
       activeTab,
       pinnedProducts,
     ],
   );
+
+  const hasClientOnlyFilters = pinnedProducts.length > 1;
+
+  const stockReportRpcFilterInput = useMemo(
+    (): StockReportRpcFilterInput | null => {
+      if (!currentOrganization?.id) return null;
+      return {
+        orgId: currentOrganization.id,
+        searchTerm,
+        categoryFilter,
+        brandFilter,
+        stockStatusFilter,
+        lowStockThreshold,
+        departmentFilter,
+        sizeFilter,
+        colorFilter,
+        productNameFilter,
+        pinnedProducts,
+        supplierFilter,
+        supplierInvoiceFilter,
+      };
+    },
+    [
+      currentOrganization?.id,
+      searchTerm,
+      categoryFilter,
+      brandFilter,
+      stockStatusFilter,
+      lowStockThreshold,
+      departmentFilter,
+      sizeFilter,
+      colorFilter,
+      productNameFilter,
+      pinnedProducts,
+      supplierFilter,
+      supplierInvoiceFilter,
+    ],
+  );
+
+  const {
+    data: filteredTotals,
+    isLoading: filteredTotalsLoading,
+    isFetching: filteredTotalsFetching,
+  } = useQuery({
+    queryKey: ["stock-report-filtered-totals", stockReportRpcFilterInput, hasSearched],
+    queryFn: async () => {
+      if (!stockReportRpcFilterInput) return null;
+
+      const { data, error } = await (
+        supabase as unknown as {
+          rpc: (
+            fn: string,
+            args: Record<string, unknown>,
+          ) => ReturnType<typeof supabase.rpc>;
+        }
+      ).rpc("get_stock_report_filtered_totals", buildStockReportRpcFilters(stockReportRpcFilterInput));
+
+      if (error) throw error;
+
+      const row = data as {
+        total_stock?: number;
+        stock_value?: number;
+        sale_value?: number;
+        variant_count?: number;
+      } | null;
+
+      return {
+        totalStock: Number(row?.total_stock ?? 0),
+        stockValue: Number(row?.stock_value ?? 0),
+        saleValue: Number(row?.sale_value ?? 0),
+        variantCount: Number(row?.variant_count ?? 0),
+      };
+    },
+    enabled:
+      !!stockReportRpcFilterInput &&
+      hasSearched &&
+      stockReportHasFilters &&
+      !hasClientOnlyFilters,
+    ...REPORT_CACHE,
+  });
 
   // Auto-load when dropdown / product filters change (text search still uses Search button or Enter).
   useEffect(() => {
@@ -1040,10 +1160,35 @@ export default function StockReport() {
     [filteredStockItems],
   );
 
-  // Server-side pagination total; multi-pin filter still applies within the page
-  const hasClientOnlyFilters = pinnedProducts.length > 1;
-
   const footerIsPageTotal = hasSearched && serverTotalRows > ITEMS_PER_PAGE;
+
+  const filteredKpiTotals = useMemo(() => {
+    if (!hasSearched) return null;
+    if (hasClientOnlyFilters) {
+      return {
+        totalStock,
+        stockValue: totalStockValue,
+        saleValue: totalSaleValue,
+        variantCount: filteredStockItems.length,
+      };
+    }
+    if (filteredTotals) return filteredTotals;
+    return null;
+  }, [
+    hasSearched,
+    hasClientOnlyFilters,
+    filteredTotals,
+    totalStock,
+    totalStockValue,
+    totalSaleValue,
+    filteredStockItems.length,
+  ]);
+
+  const filteredKpiLoading =
+    hasSearched &&
+    !hasClientOnlyFilters &&
+    (filteredTotalsLoading || filteredTotalsFetching) &&
+    !filteredTotals;
 
   const matchingVariantCount = hasSearched
     ? hasClientOnlyFilters
@@ -1404,11 +1549,22 @@ export default function StockReport() {
   const isMobile = useIsMobile();
 
   const stockKpiItems = useMemo((): ReportKpiItem[] => {
-    const qty = hasSearched ? totalStock : globalTotals.totalStock;
+    const qty = hasSearched
+      ? (filteredKpiTotals?.totalStock ?? totalStock)
+      : globalTotals.totalStock;
     const variants = hasSearched ? matchingVariantCount : globalTotals.variantCount;
-    const costVal = Math.round(hasSearched ? totalStockValue : globalTotals.stockValue);
-    const saleVal = Math.round(hasSearched ? totalSaleValue : globalTotals.saleValue);
-    const loading = globalTotals.isLoading && !hasSearched;
+    const costVal = Math.round(
+      hasSearched
+        ? (filteredKpiTotals?.stockValue ?? totalStockValue)
+        : globalTotals.stockValue,
+    );
+    const saleVal = Math.round(
+      hasSearched
+        ? (filteredKpiTotals?.saleValue ?? totalSaleValue)
+        : globalTotals.saleValue,
+    );
+    const loading =
+      (globalTotals.isLoading && !hasSearched) || filteredKpiLoading;
 
     return [
       {
@@ -1437,10 +1593,11 @@ export default function StockReport() {
     hasSearched,
     totalStock,
     globalTotals,
-    filteredStockItems.length,
     matchingVariantCount,
     totalStockValue,
     totalSaleValue,
+    filteredKpiTotals,
+    filteredKpiLoading,
   ]);
 
   const compactStockKpiStrip = (
@@ -1479,9 +1636,9 @@ export default function StockReport() {
         </div>
 
         <MobileStatStrip stats={[
-          { label: "Stock Value", value: `₹${(hasSearched ? totalStockValue : globalTotals.stockValue) >= 100000 ? ((hasSearched ? totalStockValue : globalTotals.stockValue)/100000).toFixed(1)+"L" : Math.round(hasSearched ? totalStockValue : globalTotals.stockValue).toLocaleString("en-IN")}`, color: "text-blue-600", bg: "bg-blue-50" },
-          { label: "Total Qty", value: globalTotals.isLoading ? "…" : (hasSearched ? totalStock : globalTotals.totalStock).toLocaleString("en-IN"), color: "text-amber-600", bg: "bg-amber-50" },
-          { label: "Variants", value: globalTotals.isLoading ? "…" : (hasSearched ? `${matchingVariantCount}` : `${globalTotals.variantCount}`), color: "text-purple-600", bg: "bg-purple-50" },
+          { label: "Stock Value", value: (filteredKpiLoading || (globalTotals.isLoading && !hasSearched)) ? "…" : `₹${((hasSearched ? (filteredKpiTotals?.stockValue ?? totalStockValue) : globalTotals.stockValue) >= 100000 ? ((hasSearched ? (filteredKpiTotals?.stockValue ?? totalStockValue) : globalTotals.stockValue)/100000).toFixed(1)+"L" : Math.round(hasSearched ? (filteredKpiTotals?.stockValue ?? totalStockValue) : globalTotals.stockValue).toLocaleString("en-IN"))}`, color: "text-blue-600", bg: "bg-blue-50" },
+          { label: "Total Qty", value: (filteredKpiLoading || (globalTotals.isLoading && !hasSearched)) ? "…" : (hasSearched ? (filteredKpiTotals?.totalStock ?? totalStock) : globalTotals.totalStock).toLocaleString("en-IN"), color: "text-amber-600", bg: "bg-amber-50" },
+          { label: "Variants", value: (globalTotals.isLoading && !hasSearched) ? "…" : (hasSearched ? `${matchingVariantCount}` : `${globalTotals.variantCount}`), color: "text-purple-600", bg: "bg-purple-50" },
         ]} />
 
         <div className="flex-1 px-4 py-2 space-y-2">
