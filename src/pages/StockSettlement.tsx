@@ -509,10 +509,10 @@ const StockSettlement = () => {
     }));
   }, [persistScanToDb]);
 
-  const handleProductScanned = useCallback((productIndex: number, newActual: number, source: "scanned") => {
+  const handleProductScanned = useCallback((variantId: string, newActual: number, source: "scanned") => {
     setScanSessionSaved(false);
-    setProducts(prev => prev.map((p, i) => {
-      if (i !== productIndex) return p;
+    setProducts(prev => prev.map((p) => {
+      if (p.variantId !== variantId) return p;
       if (newActual === -1) return { ...p, actualStock: null, scanned: false, source: null, scanCount: 0, lastScannedAt: null };
       const updated = { ...p, actualStock: newActual, scanned: true, source, scanCount: (p.scanCount || 0) + 1, lastScannedAt: Date.now() };
       void persistScanToDb(updated, newActual);
@@ -987,6 +987,7 @@ const StockSettlement = () => {
 
               <BarcodeScanSection
                 products={products}
+                totalScannedProducts={scannedCount}
                 onProductScanned={handleProductScanned}
                 onHighlightRow={handleHighlightRow}
               />

@@ -9,6 +9,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
 export interface ScanProduct {
+  variantId: string;
   id: string;
   name: string;
   department: string;
@@ -38,8 +39,25 @@ interface ScanLogEntry {
 
 interface Props {
   products: ScanProduct[];
-  onProductScanned: (productIndex: number, newActual: number, source: "scanned") => void;
+  /** Total products with a count in the current settlement session (includes restored scans). */
+  totalScannedProducts?: number;
+  onProductScanned: (variantId: string, newActual: number, source: "scanned") => void;
   onHighlightRow: (productId: string) => void;
+}
+
+function findProductByScan(products: ScanProduct[], raw: string): ScanProduct | null {
+  const trimmed = raw.trim().toLowerCase();
+  if (!trimmed) return null;
+  const byBarcode = products.filter(
+    (p) => p.barcode && p.barcode.toLowerCase() === trimmed,
+  );
+  if (byBarcode.length === 1) return byBarcode[0];
+  if (byBarcode.length > 1) {
+    // Duplicate barcodes in catalog — use the variant that is already being counted, else first match.
+    const active = byBarcode.find((p) => p.scanned);
+    return active ?? byBarcode[0];
+  }
+  return products.find((p) => p.id.toLowerCase() === trimmed) ?? null;
 }
 
 let audioCtx: AudioContext | null = null;
@@ -69,13 +87,13 @@ const playBeep = (freq: number, dur: number, type: OscillatorType = "sine") => {
   }
 };
 
-const BarcodeScanSection = ({ products, onProductScanned, onHighlightRow }: Props) => {
+const BarcodeScanSection = ({ products, totalScannedProducts, onProductScanned, onHighlightRow }: Props) => {
   const [scanQty, setScanQty] = useState(1);
   const [scanMode, setScanMode] = useState<"single" | "continuous">("single");
   const [soundOn, setSoundOn] = useState(true);
   const [paused, setPaused] = useState(false);
   const [barcodeInput, setBarcodeInput] = useState("");
-  const [lastScanned, setLastScanned] = useState<ScanProduct | null>(null);
+  const [lastScannedVariantId, setLastScannedVariantId] = useState<string | null>(null);
   const [lastError, setLastError] = useState<string | null>(null);
   const [scanLog, setScanLog] = useState<ScanLogEntry[]>([]);
   const [notFoundList, setNotFoundList] = useState<string[]>([]);
@@ -102,11 +120,15 @@ const BarcodeScanSection = ({ products, onProductScanned, onHighlightRow }: Prop
     return () => window.removeEventListener("keydown", handler);
   }, []);
 
-  const totalScans = scanLog.length;
-  const uniqueScanned = useMemo(
+  const sessionScanEvents = scanLog.length;
+  const sessionUniqueScanned = useMemo(
     () => new Set(scanLog.filter((l) => l.status === "found").map((l) => l.productId)).size,
     [scanLog],
   );
+  const lastScanned = useMemo(() => {
+    if (!lastScannedVariantId) return null;
+    return products.find((p) => p.variantId === lastScannedVariantId) ?? null;
+  }, [products, lastScannedVariantId]);
   const matchedCount = useMemo(
     () => products.filter((p) => p.scanned && p.actualStock === p.softwareStock).length,
     [products],
@@ -125,29 +147,15 @@ const BarcodeScanSection = ({ products, onProductScanned, onHighlightRow }: Prop
       if (!barcode.trim() || paused) return;
       const trimmed = barcode.trim();
 
-      const idx = products.findIndex(
-        (p) =>
-          (p.barcode && p.barcode.toLowerCase() === trimmed.toLowerCase()) ||
-          p.id.toLowerCase() === trimmed.toLowerCase(),
-      );
+      const p = findProductByScan(products, trimmed);
 
-      if (idx >= 0) {
-        const p = products[idx];
+      if (p) {
         const qty = scanMode === "continuous" ? 1 : scanQty;
         const newActual = (p.actualStock ?? 0) + qty;
 
-        onProductScanned(idx, newActual, "scanned");
+        onProductScanned(p.variantId, newActual, "scanned");
         onHighlightRow(p.id);
-
-        const updated = {
-          ...p,
-          actualStock: newActual,
-          scanned: true,
-          source: "scanned" as const,
-          scanCount: (p.scanCount || 0) + 1,
-          lastScannedAt: Date.now(),
-        };
-        setLastScanned(updated);
+        setLastScannedVariantId(p.variantId);
         setLastError(null);
 
         setScanLog((prev) => [
@@ -166,7 +174,7 @@ const BarcodeScanSection = ({ products, onProductScanned, onHighlightRow }: Prop
         if (soundOn) playBeep(1200, 0.1, "sine");
         if (navigator.vibrate) navigator.vibrate(50);
       } else {
-        setLastScanned(null);
+        setLastScannedVariantId(null);
         setLastError(trimmed);
         setNotFoundList((prev) => [trimmed, ...prev.filter((b) => b !== trimmed)]);
 
@@ -212,7 +220,7 @@ const BarcodeScanSection = ({ products, onProductScanned, onHighlightRow }: Prop
     if (!confirm("This will clear all current scan data. Continue?")) return;
     setScanLog([]);
     setNotFoundList([]);
-    setLastScanned(null);
+    setLastScannedVariantId(null);
     setLastError(null);
     sessionStart.current = Date.now();
   };
@@ -220,20 +228,20 @@ const BarcodeScanSection = ({ products, onProductScanned, onHighlightRow }: Prop
   const handleEditQty = (productId: string, val: string) => {
     const num = parseInt(val);
     if (isNaN(num) || num < 0) return;
-    const idx = products.findIndex((p) => p.id === productId);
-    if (idx >= 0) {
-      onProductScanned(idx, num, "scanned");
-      setLastScanned((prev) => (prev && prev.id === productId ? { ...prev, actualStock: num } : prev));
+    const p = products.find((row) => row.id === productId);
+    if (p) {
+      onProductScanned(p.variantId, num, "scanned");
+      setLastScannedVariantId(p.variantId);
     }
     setEditQtyProduct(null);
   };
 
   const handleResetProduct = (productId: string) => {
-    const idx = products.findIndex((p) => p.id === productId);
-    if (idx >= 0) {
-      onProductScanned(idx, -1, "scanned");
-      if (lastScanned?.id === productId) {
-        setLastScanned((prev) => (prev ? { ...prev, actualStock: null, scanned: false } : null));
+    const p = products.find((row) => row.id === productId);
+    if (p) {
+      onProductScanned(p.variantId, -1, "scanned");
+      if (lastScannedVariantId === p.variantId) {
+        setLastScannedVariantId(null);
       }
     }
   };
@@ -251,9 +259,12 @@ const BarcodeScanSection = ({ products, onProductScanned, onHighlightRow }: Prop
     return p.actualStock - p.softwareStock;
   };
 
+  const productsCounted =
+    totalScannedProducts ?? products.filter((p) => p.scanned).length;
+
   const summaryTiles = [
-    { label: "Total Scans", val: totalScans, className: "text-teal-700" },
-    { label: "Products Counted", val: uniqueScanned, className: "text-slate-800" },
+    { label: "Session scans", val: sessionScanEvents, className: "text-teal-700" },
+    { label: "Products counted", val: productsCounted, className: "text-slate-800" },
     { label: "Matched", val: matchedCount, className: "text-emerald-700" },
     { label: "Surplus", val: surplusCount, className: "text-amber-700" },
     { label: "Shortage", val: shortageCount, className: "text-red-700" },
