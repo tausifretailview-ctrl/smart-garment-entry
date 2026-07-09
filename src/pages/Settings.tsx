@@ -2271,7 +2271,7 @@ export default function Settings() {
                     placeholder="e.g., POS/36-27/11"
                   />
                   <p className="text-xs text-muted-foreground">
-                    Enter the last used POS bill number. Next bill will auto-increment from this. Leave blank for default.
+                    Last POS bill number already issued (e.g. POS/26-27/50 → next is 51). Leave blank to start from 1 when no active POS bills exist. Deleted bills no longer reserve numbers.
                   </p>
                 </div>
 
@@ -2292,7 +2292,7 @@ export default function Settings() {
                     placeholder="e.g., INV/25-26/100"
                   />
                   <p className="text-xs text-muted-foreground">
-                    Enter the last used Sale Invoice number. Next invoice will auto-increment from this. Leave blank for default.
+                    Last sale invoice number already issued (e.g. INV/26-27/100 → next is 101). Leave blank to start from 1 when no active invoices exist. Deleted bills no longer reserve numbers.
                   </p>
                 </div>
                 

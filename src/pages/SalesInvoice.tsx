@@ -65,7 +65,7 @@ import { useDirectPrint } from "@/hooks/useDirectPrint";
 import { useDashboardInvalidation } from "@/hooks/useDashboardInvalidation";
 import { waitForPrintReady } from "@/utils/printReady";
 import { postSaleJournalInBackground } from "@/utils/accounting/journalService";
-import { generateOrgSaleNumber } from "@/utils/saleNumber";
+import { generateOrgSaleNumber, minSequenceFromSeriesStart, saleFormatToLikePattern, autoCorrectFY } from "@/utils/saleNumber";
 import { buildPublicInvoiceViewUrl } from "@/utils/publicInvoiceLink";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
 import {
@@ -943,16 +943,6 @@ export default function SalesInvoice() {
     staleTime: 60000,
   });
 
-  // Auto-correct stale FY in literal format strings
-  const autoCorrectFY = (fmt: string): string => {
-    const ist = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
-    const m = ist.getMonth() + 1;
-    const y = ist.getFullYear();
-    const fyStart = m >= 4 ? y : y - 1;
-    const currentFY = `${String(fyStart).slice(-2)}-${String(fyStart + 1).slice(-2)}`;
-    return fmt.replace(/\/(\d{2})-(\d{2})\//, `/${currentFY}/`);
-  };
-
   // Generate next invoice number preview
   useEffect(() => {
     const previewNextInvoice = async () => {
@@ -968,39 +958,48 @@ export default function SalesInvoice() {
           const hasPlaceholders = format.includes('{');
           
           if (hasPlaceholders) {
-            const now = new Date();
-            const year = now.getFullYear();
-            const month = String(now.getMonth() + 1).padStart(2, '0');
-            const fyStart = now.getMonth() >= 3 ? year : year - 1;
-            const fyEnd = fyStart + 1;
-            const fyShort = `${String(fyStart).slice(-2)}-${String(fyEnd).slice(-2)}`;
-            
-            let preview = format
-              .replace('{FY}', fyShort)
-              .replace('{YYYY}', String(year))
-              .replace('{MM}', month)
-              .replace('{N}', '?');
-            
-            setNextInvoicePreview(preview);
-          } else {
-            // Literal format — compute next sequence respecting series start
-            let minSequence = 1;
-            let basePattern = format.replace(/\d+$/, '');
-            
-            if (seriesStart && seriesStart.trim()) {
-              const startMatches = seriesStart.match(/^(.*?)(\d+)$/);
-              if (startMatches) {
-                basePattern = startMatches[1];
-                minSequence = parseInt(startMatches[2]);
-              }
+            let safeFormat = format;
+            if (!/\{#+\}/.test(safeFormat)) {
+              safeFormat = /\d+$/.test(safeFormat) ? safeFormat.replace(/\d+$/, "{###}") : `${safeFormat}{###}`;
             }
-            
+            const likePattern = saleFormatToLikePattern(safeFormat);
+            const minSequence = minSequenceFromSeriesStart(seriesStart);
+
             const { data: lastSales } = await supabase
               .from('sales')
               .select('sale_number')
               .eq('organization_id', currentOrganization.id)
               .is('deleted_at', null)
-              .like('sale_number', `${basePattern}%`)
+              .like('sale_number', likePattern)
+              .order('created_at', { ascending: false })
+              .limit(50);
+
+            let sequence = minSequence;
+            if (lastSales && lastSales.length > 0) {
+              let maxSeq = 0;
+              for (const s of lastSales) {
+                const matches = s.sale_number.match(/(\d+)$/);
+                if (matches) maxSeq = Math.max(maxSeq, parseInt(matches[1], 10));
+              }
+              sequence = Math.max(maxSeq + 1, minSequence);
+            }
+
+            const basePattern = safeFormat.replace(/\{#+\}/, "");
+            const padLen = (safeFormat.match(/\{(#+)\}/)?.[1]?.length ?? 0);
+            const seqStr = padLen > 0 ? String(sequence).padStart(padLen, "0") : String(sequence);
+            setNextInvoicePreview(`${basePattern}${seqStr}`);
+          } else {
+            // Literal format — compute next sequence respecting series start
+            let safeFormat = /\d+$/.test(format) ? format.replace(/\d+$/, "{###}") : `${format}{###}`;
+            const likePattern = saleFormatToLikePattern(safeFormat);
+            const minSequence = minSequenceFromSeriesStart(seriesStart);
+
+            const { data: lastSales } = await supabase
+              .from('sales')
+              .select('sale_number')
+              .eq('organization_id', currentOrganization.id)
+              .is('deleted_at', null)
+              .like('sale_number', likePattern)
               .order('created_at', { ascending: false })
               .limit(50);
             
@@ -1009,12 +1008,15 @@ export default function SalesInvoice() {
               let maxSeq = 0;
               for (const s of lastSales) {
                 const matches = s.sale_number.match(/(\d+)$/);
-                if (matches) maxSeq = Math.max(maxSeq, parseInt(matches[1]));
+                if (matches) maxSeq = Math.max(maxSeq, parseInt(matches[1], 10));
               }
               sequence = Math.max(maxSeq + 1, minSequence);
             }
-            
-            setNextInvoicePreview(`${basePattern}${sequence}`);
+
+            const basePattern = safeFormat.replace(/\{#+\}/, "");
+            const padLen = (safeFormat.match(/\{(#+)\}/)?.[1]?.length ?? 0);
+            const seqStr = padLen > 0 ? String(sequence).padStart(padLen, "0") : String(sequence);
+            setNextInvoicePreview(`${basePattern}${seqStr}`);
           }
         } else {
           // Preview next INV number without incrementing the sequence

@@ -81,7 +81,7 @@ import {
 import { useDashboardInvalidation } from "@/hooks/useDashboardInvalidation";
 import { POS_DEFERRED_INVALIDATION_OPTS } from "@/utils/saveSaleRuntimeOptions";
 import { invalidatePosDashboardQueries } from "@/utils/posDashboardSales";
-import { generateOrgEstimateNumber } from "@/utils/saleNumber";
+import { autoCorrectFY, generateOrgEstimateNumber, minSequenceFromSeriesStart, saleFormatToLikePattern } from "@/utils/saleNumber";
 import {
   computePosBillGst,
   computePosFlatDiscount,
@@ -1625,16 +1625,6 @@ export default function POSSales() {
       
       try {
         const saleSettings = (settingsData as any)?.sale_settings;
-        
-        // Auto-correct stale FY in literal format strings
-        const autoCorrectFY = (fmt: string): string => {
-          const ist = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
-          const m = ist.getMonth() + 1;
-          const y = ist.getFullYear();
-          const fyStart = m >= 4 ? y : y - 1;
-          const currentFY = `${String(fyStart).slice(-2)}-${String(fyStart + 1).slice(-2)}`;
-          return fmt.replace(/\/(\d{2})-(\d{2})\//, `/${currentFY}/`);
-        };
 
         // Check for custom POS format or series start
         if (saleSettings?.pos_numbering_format || saleSettings?.pos_series_start) {
@@ -1642,39 +1632,37 @@ export default function POSSales() {
           const rawSeriesStart = saleSettings.pos_series_start;
           const format = autoCorrectFY(rawFormat);
           const seriesStart = rawSeriesStart ? autoCorrectFY(rawSeriesStart) : rawSeriesStart;
-          
-          let minSequence = 1;
-          let basePattern = format.replace(/\d+$/, '');
-          
-          if (seriesStart && seriesStart.trim()) {
-            const startMatches = seriesStart.match(/^(.*?)(\d+)$/);
-            if (startMatches) {
-              basePattern = startMatches[1];
-              minSequence = parseInt(startMatches[2]);
-            }
+
+          let safeFormat = format;
+          if (!/\{#+\}/.test(safeFormat)) {
+            safeFormat = /\d+$/.test(safeFormat) ? safeFormat.replace(/\d+$/, "{###}") : `${safeFormat}{###}`;
           }
-          
-          // Find highest existing sequence for this base pattern
+          const likePattern = saleFormatToLikePattern(safeFormat);
+          const minSequence = minSequenceFromSeriesStart(seriesStart);
+
           const { data: lastSale } = await supabase
             .from('sales')
             .select('sale_number')
             .eq('organization_id', currentOrganization.id)
             .is('deleted_at', null)
-            .like('sale_number', `${basePattern}%`)
+            .like('sale_number', likePattern)
             .order('created_at', { ascending: false })
             .limit(50);
-          
+
           let sequence = minSequence;
           if (lastSale && lastSale.length > 0) {
             let maxSeq = 0;
             for (const s of lastSale) {
               const matches = s.sale_number.match(/(\d+)$/);
-              if (matches) maxSeq = Math.max(maxSeq, parseInt(matches[1]));
+              if (matches) maxSeq = Math.max(maxSeq, parseInt(matches[1], 10));
             }
             sequence = Math.max(maxSeq + 1, minSequence);
           }
-          
-          setNextInvoicePreview(`${basePattern}${sequence}`);
+
+          const basePattern = safeFormat.replace(/\{#+\}/, "");
+          const padLen = (safeFormat.match(/\{(#+)\}/)?.[1]?.length ?? 0);
+          const seqStr = padLen > 0 ? String(sequence).padStart(padLen, "0") : String(sequence);
+          setNextInvoicePreview(`${basePattern}${seqStr}`);
         } else {
           // Preview = MAX(active POS seq) + 1 — matches generate_pos_number_atomic
           const ist = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));

@@ -12,6 +12,23 @@ export function autoCorrectFY(format: string): string {
   return format.replace(/\/(\d{2})-(\d{2})\//, `/${currentFY}/`);
 }
 
+/** Settings "Series Start From" = last bill already used → next number is at least last + 1. */
+export function minSequenceFromSeriesStart(seriesStart?: string | null): number {
+  const trimmed = (seriesStart || "").trim();
+  if (!trimmed) return 1;
+  const m = trimmed.match(/(\d+)$/);
+  if (!m) return 1;
+  return parseInt(m[1], 10) + 1;
+}
+
+/** Build a LIKE prefix from a format with {###} placeholder, e.g. POS/26-27/{###} → POS/26-27/% */
+export function saleFormatToLikePattern(format: string): string {
+  if (/\{#+\}/.test(format)) {
+    return format.replace(/\{#+\}/, "%");
+  }
+  return format.replace(/\d+$/, "%");
+}
+
 export async function generateOrgSaleNumber(
   organizationId: string,
   saleSettings: Record<string, unknown> | null | undefined,
@@ -32,8 +49,7 @@ export async function generateOrgSaleNumber(
 
     let minSequence = 1;
     if (correctedStart?.trim()) {
-      const startMatches = correctedStart.match(/(\d+)$/);
-      if (startMatches) minSequence = parseInt(startMatches[1], 10);
+      minSequence = minSequenceFromSeriesStart(correctedStart);
     }
 
     // If the format has no number placeholder (user only set "Series Start From"
