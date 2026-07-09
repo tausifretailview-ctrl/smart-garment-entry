@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Upload, X, Loader2, Trash2, Image } from "lucide-react";
 import {
   Dialog,
@@ -31,6 +31,23 @@ interface ProductImageUploaderProps {
 const MAX_IMAGES = 3;
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 
+function formatUploadError(error: unknown): string {
+  if (!error) return "Failed to upload image";
+  if (typeof error === "object" && error !== null) {
+    const e = error as { message?: string; error?: string; statusCode?: string | number };
+    const parts = [e.message, e.error, e.statusCode ? `HTTP ${e.statusCode}` : ""].filter(Boolean);
+    if (parts.length > 0) return parts.join(" — ");
+  }
+  return String(error);
+}
+
+function storagePathFromPublicUrl(imageUrl: string): string | null {
+  const marker = "/product-images/";
+  const idx = imageUrl.indexOf(marker);
+  if (idx >= 0) return imageUrl.slice(idx + marker.length);
+  return null;
+}
+
 export const ProductImageUploader = ({
   open,
   onOpenChange,
@@ -45,6 +62,14 @@ export const ProductImageUploader = ({
   const [images, setImages] = useState<ProductImage[]>(existingImages);
   const [uploading, setUploading] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [lastError, setLastError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (open) {
+      setImages(existingImages);
+      setLastError(null);
+    }
+  }, [open, existingImages]);
 
   const canAddMore = images.length < MAX_IMAGES;
 
@@ -103,6 +128,7 @@ export const ProductImageUploader = ({
     }
 
     setUploading(true);
+    setLastError(null);
 
     try {
       // Get the next available display order from database
@@ -128,14 +154,15 @@ export const ProductImageUploader = ({
         return;
       }
 
-      // Generate unique filename
-      const fileExt = file.name.split(".").pop();
-      const fileName = `${productId}/${Date.now()}.${fileExt}`;
+      // Storage RLS requires the first path segment to be organization_id.
+      const fileExt = file.name.split(".").pop() || "jpg";
+      const fileName = `${currentOrganization.id}/${productId}/${Date.now()}.${fileExt}`;
 
       // Upload to storage
       const { error: uploadError } = await supabase.storage
         .from("product-images")
         .upload(fileName, file, {
+          contentType: file.type,
           cacheControl: "3600",
           upsert: false,
         });
@@ -170,19 +197,23 @@ export const ProductImageUploader = ({
         await supabase
           .from("products")
           .update({ image_url: imageUrl })
-          .eq("id", productId);
+          .eq("id", productId)
+          .eq("organization_id", currentOrganization.id);
       }
 
       toast({
         title: "Success",
         description: "Image uploaded successfully",
       });
+      onImagesUpdated();
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Upload error:", error);
+      const message = formatUploadError(error);
+      setLastError(message);
       toast({
         title: "Upload failed",
-        description: error.message || "Failed to upload image",
+        description: message,
         variant: "destructive",
       });
     } finally {
@@ -214,16 +245,17 @@ export const ProductImageUploader = ({
         await supabase
           .from("products")
           .update({ image_url: nextPrimaryImage?.image_url || null })
-          .eq("id", productId);
+          .eq("id", productId)
+          .eq("organization_id", currentOrganization?.id || "");
       }
 
       // Try to delete from storage (don't fail if this fails)
       try {
-        const urlParts = imageUrl.split("/product-images/");
-        if (urlParts[1]) {
+        const storagePath = storagePathFromPublicUrl(imageUrl);
+        if (storagePath) {
           await supabase.storage
             .from("product-images")
-            .remove([urlParts[1]]);
+            .remove([storagePath]);
         }
       } catch (storageError) {
         console.warn("Failed to delete from storage:", storageError);
@@ -233,12 +265,15 @@ export const ProductImageUploader = ({
         title: "Success",
         description: "Image deleted successfully",
       });
+      onImagesUpdated();
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Delete error:", error);
+      const message = formatUploadError(error);
+      setLastError(message);
       toast({
         title: "Delete failed",
-        description: error.message || "Failed to delete image",
+        description: message,
         variant: "destructive",
       });
     } finally {
@@ -246,13 +281,15 @@ export const ProductImageUploader = ({
     }
   };
 
-  const handleClose = () => {
-    onImagesUpdated();
-    onOpenChange(false);
+  const handleDialogOpenChange = (isOpen: boolean) => {
+    if (!isOpen) {
+      onImagesUpdated();
+      onOpenChange(false);
+    }
   };
 
   return (
-    <Dialog open={open} onOpenChange={handleClose}>
+    <Dialog open={open} onOpenChange={handleDialogOpenChange}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>Manage Product Images</DialogTitle>
@@ -262,6 +299,12 @@ export const ProductImageUploader = ({
         </DialogHeader>
 
         <div className="space-y-4">
+          {lastError && (
+            <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              {lastError}
+            </div>
+          )}
+
           {/* Existing images */}
           {images.length > 0 && (
             <div className="grid grid-cols-3 gap-3">
@@ -336,7 +379,7 @@ export const ProductImageUploader = ({
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={handleClose}>
+          <Button variant="outline" onClick={() => handleDialogOpenChange(false)}>
             Done
           </Button>
         </DialogFooter>
