@@ -4,7 +4,7 @@ export const ENTRY_FULLSCREEN_PATH =
 
 /** POS + primary bill entry — full viewport: no sidebar or global header; window tab strip stays visible. */
 export const NO_SIDEBAR_ENTRY_PATH =
-  /\/(pos-sales|sales-invoice|purchase-entry)(\/|$)/;
+  /\/(pos-sales|sales-invoice|purchase-entry|purchase-return-entry)(\/|$)/;
 
 export function isEntryFullscreenPath(pathname: string): boolean {
   return ENTRY_FULLSCREEN_PATH.test(pathname);
@@ -56,7 +56,7 @@ export function isSidebarOnlyWorkspacePath(pathname: string): boolean {
 
 /** Voucher entry screens: keep left sidebar, hide global header + shortcut bar + window tabs. */
 export const ENTRY_SIDEBAR_ONLY_PATH =
-  /\/(sale-order-entry|quotation-entry|delivery-challan-entry|purchase-return-entry|sale-return-entry|purchase-order-entry)(\/|$)/;
+  /\/(sale-order-entry|quotation-entry|delivery-challan-entry|sale-return-entry|purchase-order-entry)(\/|$)/;
 
 export function isEntrySidebarOnlyPath(pathname: string): boolean {
   return ENTRY_SIDEBAR_ONLY_PATH.test(pathname);
@@ -69,7 +69,12 @@ export function isHideGlobalHeaderPath(pathname: string): boolean {
 
 export function isNoSidebarEntrySegment(pathSegment: string): boolean {
   const segment = pathSegment.replace(/^\/+|\/+$/g, "");
-  return segment === "pos-sales" || segment === "sales-invoice" || segment === "purchase-entry";
+  return (
+    segment === "pos-sales" ||
+    segment === "sales-invoice" ||
+    segment === "purchase-entry" ||
+    segment === "purchase-return-entry"
+  );
 }
 
 /** Org path segment for bill/POS entry — excluded from tab cache (needs FullScreenLayout + h-dvh). */

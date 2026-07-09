@@ -2666,6 +2666,19 @@ main:has(.supplier-party-balances-workspace) {
     font-size: 15px !important;
     font-weight: 600 !important;
   }
+  .purchase-bill-readable .erp-entry-lines-table .entry-line-product-desc {
+    max-height: 3.25rem;
+    overflow-y: auto;
+    overflow-x: hidden;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    font-size: 15px !important;
+    font-weight: 600 !important;
+    line-height: 1.35 !important;
+    padding-right: 0.25rem;
+    word-break: break-word;
+  }
   .purchase-bill-readable .erp-entry-lines-table .pur-col-size {
     font-size: 16px !important;
     font-weight: 700 !important;
