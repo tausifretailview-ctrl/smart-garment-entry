@@ -3247,12 +3247,6 @@ export default function POSSales() {
       return;
     }
 
-    // Check if payment method is pay_later and customer mobile is missing
-    if (effectiveMethod === 'pay_later' && !customerPhone?.trim()) {
-      toast.error("Customer Details Required", { description: "Please enter customer details first for balance invoice. Mobile number is mandatory for credit sales." });
-      return;
-    }
-
     // Credit Note (negative net amount) requires a customer (name or phone)
     if (finalAmount < 0 && !customerId && !customerPhone?.trim() && (!customerName?.trim() || customerName.trim().toLowerCase() === 'walk-in customer')) {
       toast.error("Customer Required for Credit Note", { description: "Net amount is negative (credit note). Please add customer name or mobile number before saving." });
@@ -3502,13 +3496,6 @@ export default function POSSales() {
     if (finalAmount < 0 && !customerId && !customerPhone?.trim() && (!customerName?.trim() || customerName.trim().toLowerCase() === 'walk-in customer')) {
       paymentLockRef.current = false;
       toast.error("Customer Required for Credit Note", { description: "Net amount is negative (credit note). Please add customer name or mobile number so the balance can be redeemed later." });
-      return;
-    }
-
-    // Pay-later also needs customer phone
-    if (method === 'pay_later' && !customerPhone?.trim()) {
-      paymentLockRef.current = false;
-      toast.error("Customer Details Required", { description: "Please enter customer mobile number for balance/credit invoices." });
       return;
     }
 
