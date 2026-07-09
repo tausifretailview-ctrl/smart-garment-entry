@@ -251,6 +251,9 @@ const ProductEditPanel = ({
       if (modifiedFields.has("color")) lineUpdates.color = form.color;
       if (modifiedFields.has("hsn_code")) lineUpdates.hsn_code = form.hsn_code;
       if (modifiedFields.has("gst_per")) lineUpdates.gst_per = form.gst_per;
+      if (modifiedFields.has("purchase_gst_percent")) {
+        lineUpdates.gst_per = form.purchase_gst_percent ?? form.gst_per;
+      }
       if (modifiedFields.has("default_pur_price")) lineUpdates.pur_price = form.default_pur_price;
       if (modifiedFields.has("default_sale_price")) lineUpdates.sale_price = form.default_sale_price;
       if (modifiedFields.has("default_mrp")) lineUpdates.mrp = form.default_mrp;
