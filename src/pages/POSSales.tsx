@@ -157,6 +157,7 @@ import { ProductHistoryDialog } from "@/components/ProductHistoryDialog";
 import { DcSaleTransferDialog } from "@/components/DcSaleTransferDialog";
 import { FinancerDetailsForm, FinancerDetails, saveFinancerDetails } from "@/components/FinancerDetailsForm";
 import { AddAdvanceBookingDialog } from "@/components/AddAdvanceBookingDialog";
+import { searchSaleOrderVariants } from "@/utils/saleOrderProductSearch";
 
 interface PendingPriceSelection {
   product: any;
@@ -2102,8 +2103,10 @@ export default function POSSales() {
     // Detect if this looks like scanner input
     const isScannerLike = detectScannerInput(value, timeSinceLastKeystroke);
     
-    // For scanner input: DON'T open dropdown, wait for Enter key or auto-submit
-    if (isScannerLike || (value.length >= 4 && timeSinceLastKeystroke < 50)) {
+    // Fast keystrokes on numeric barcodes only — not text product search (e.g. "SHIRT")
+    const trimmed = value.trim();
+    const looksLikeNumericBarcode = /^\d+$/.test(trimmed);
+    if (isScannerLike || (looksLikeNumericBarcode && trimmed.length >= 4 && timeSinceLastKeystroke < 50)) {
       setOpenProductSearch(false);
       setProductSearchResults([]);
       setIsProductSearchLoading(false);
@@ -2291,45 +2294,58 @@ export default function POSSales() {
           allData = finalVariants || [];
         }
       } else {
-        // Multi-token AND search — every space-separated word must match
-        // somewhere across product name, brand, category, style, color,
-        // barcode, size, or price.
-        tokens = term.toLowerCase().split(/\s+/).filter(t => t.length > 0);
+        // Text / mixed search — reuse sale-order product search (name, brand, style, category, barcode)
+        const saleOrderHits = await searchSaleOrderVariants(currentOrganization.id, term);
+        if (requestSeq !== productSearchSeqRef.current) return;
 
-        if (tokens.length === 0) {
-          allData = [];
-        } else {
-          const tokenSets = await Promise.all(tokens.map(fetchVariantsForToken));
+        let ids = saleOrderHits.map((r) => r.id).filter(Boolean).slice(0, 50);
 
-          if (requestSeq !== productSearchSeqRef.current) return;
+        if (ids.length === 0) {
+          // Fallback: legacy multi-token AND search
+          tokens = term.toLowerCase().split(/\s+/).filter((t) => t.length > 0);
 
-          // Intersect all sets (AND logic)
-          let intersection = tokenSets[0];
-          for (let i = 1; i < tokenSets.length; i++) {
-            intersection = new Set([...intersection].filter(id => tokenSets[i].has(id)));
-          }
-
-          if (intersection.size === 0) {
+          if (tokens.length === 0) {
             allData = [];
           } else {
-            const finalIds = Array.from(intersection).slice(0, 50);
-            const { data: finalVariants, error } = await baseFilters(
-              supabase.from('product_variants').select(variantSelect)
-            )
-              .in('id', finalIds)
-              .order('stock_qty', { ascending: false });
+            const tokenSets = await Promise.all(tokens.map(fetchVariantsForToken));
 
             if (requestSeq !== productSearchSeqRef.current) return;
-            if (error) throw error;
-            allData = finalVariants || [];
+
+            let intersection = tokenSets[0];
+            for (let i = 1; i < tokenSets.length; i++) {
+              intersection = new Set([...intersection].filter((id) => tokenSets[i].has(id)));
+            }
+
+            ids = Array.from(intersection).slice(0, 50);
           }
+        } else {
+          tokens = term.toLowerCase().split(/\s+/).filter((t) => t.length > 0);
+        }
+
+        if (ids.length === 0) {
+          allData = [];
+        } else {
+          const { data: finalVariants, error } = await baseFilters(
+            supabase.from('product_variants').select(variantSelect),
+          )
+            .in('id', ids)
+            .order('stock_qty', { ascending: false });
+
+          if (requestSeq !== productSearchSeqRef.current) return;
+          if (error) throw error;
+          allData = finalVariants || [];
         }
       }
 
       const formatted = allData
         .filter((item: any) => {
           const product = item.products;
-          return product?.product_type === 'service' || product?.product_type === 'combo' || (item.stock_qty || 0) > 0;
+          if (!product) return false;
+          if (selectedProductType !== 'all' && product.product_type !== selectedProductType) {
+            return false;
+          }
+          // Show matches in dropdown even when out of stock; add-to-cart still validates stock.
+          return true;
         })
         .map((item: any) => {
           const p = item.products || {};
