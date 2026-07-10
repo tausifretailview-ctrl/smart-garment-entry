@@ -1,6 +1,5 @@
 import { useRef, useState, useCallback, useEffect, useMemo } from "react";
 import { LabelDesignConfig, LabelFieldConfig, FieldKey, LabelItem } from "@/types/labelTypes";
-import { getUOMLabel } from "@/constants/uom";
 import { getCustomTextFields, usesCustomTextFields } from "@/utils/labelCustomText";
 import type { ProductFieldsConfig } from "@/utils/productFieldSettingsForLabels";
 import {
@@ -8,6 +7,11 @@ import {
   isLabelFieldAllowedByProductSettings,
 } from "@/utils/productFieldSettingsForLabels";
 import { applyJsBarcodeToElement, BARCODE_MM_TO_PX, resolveBarcodeSlotMm } from "@/utils/barcodeLabelLayout";
+import {
+  collectEnabledDesignerFieldKeys,
+  getLabelDesignerFieldDisplay,
+  resolveLabelDesignerFieldLabel,
+} from "@/utils/labelDesignerPlaceholders";
 import type { LabelData, TSPLTemplateConfig } from "@/utils/tsplGenerator";
 
 interface DraggableLabelCanvasProps {
@@ -31,98 +35,6 @@ interface DraggableLabelCanvasProps {
   onCustomTextSelect: (index: number | null) => void;
   onCustomTextDrag: (index: number, x: number, y: number) => void;
   onCustomTextDelete?: (index: number) => void;
-}
-
-const getFieldContent = (key: FieldKey, item: LabelItem, customTextValue?: string): string => {
-  switch (key) {
-    case "productName": return (item.product_name || "").toUpperCase();
-    case "brand": return item.brand || "";
-    case "category": return item.category || "";
-    case "color": return item.color || "";
-    case "style": return item.style || "";
-    case "size": return item.size || "";
-    case "price": return `Rs.${item.sale_price}`;
-    case "qty": return item.qty ? `${item.qty} ${getUOMLabel(item.uom)}` : "";
-    case "mrp": return item.mrp ? `MRP: ${item.mrp}` : "";
-    case "barcodeText": return item.barcode || "";
-    case "billNumber": return item.bill_number || "";
-    case "supplierCode": return item.supplier_code || "";
-    case "purchaseCode": return item.purchase_code || "";
-    case "customText": return customTextValue || "";
-    case "businessName": return item.businessName || "";
-    case "supplierInvoiceNo": return item.supplier_invoice_no ? `Inv: ${item.supplier_invoice_no}` : "";
-    default: return "";
-  }
-};
-
-const DEFAULT_FIELD_LABELS: Record<FieldKey, string> = {
-  businessName: "Business Name",
-  brand: "Brand",
-  productName: "Product Name",
-  category: "Category",
-  color: "Color",
-  style: "Style",
-  size: "Size",
-  price: "Sale Price",
-  mrp: "MRP",
-  qty: "Qty",
-  customText: "Custom Text",
-  barcode: "Barcode",
-  barcodeText: "Barcode Text",
-  billNumber: "Bill Number",
-  supplierCode: "Supplier Code",
-  purchaseCode: "Purchase Code",
-  supplierInvoiceNo: "Supplier Invoice No",
-};
-
-function isFieldDataEmpty(key: FieldKey, item: LabelItem, customTextValue?: string): boolean {
-  switch (key) {
-    case "productName":
-      return !item.product_name?.trim();
-    case "brand":
-      return !item.brand?.trim();
-    case "category":
-      return !item.category?.trim();
-    case "color":
-      return !item.color?.trim();
-    case "style":
-      return !item.style?.trim();
-    case "size":
-      return !item.size?.trim();
-    case "price":
-      return item.sale_price == null || Number.isNaN(Number(item.sale_price));
-    case "qty":
-      return !item.qty;
-    case "mrp":
-      return item.mrp == null || Number.isNaN(Number(item.mrp));
-    case "barcodeText":
-      return !item.barcode?.trim();
-    case "billNumber":
-      return !item.bill_number?.trim();
-    case "supplierCode":
-      return !item.supplier_code?.trim();
-    case "purchaseCode":
-      return !item.purchase_code?.trim();
-    case "customText":
-      return !customTextValue?.trim();
-    case "businessName":
-      return !item.businessName?.trim();
-    case "supplierInvoiceNo":
-      return !item.supplier_invoice_no?.trim();
-    default:
-      return true;
-  }
-}
-
-function resolveFieldLabel(
-  key: FieldKey,
-  fieldLabels: Partial<Record<FieldKey, string>> | undefined,
-  defaultUom?: string,
-): string {
-  if (key === "qty" && defaultUom) {
-    return fieldLabels?.qty ?? `Qty (${getUOMLabel(defaultUom)})`;
-  }
-  return fieldLabels?.[key] ?? DEFAULT_FIELD_LABELS[key] ?? key;
 }
 
 // 1mm ≈ 3.7795px at 96dpi
@@ -294,9 +206,10 @@ export function DraggableLabelCanvas({
   const skipLegacyCustomText = usesCustomTextFields(config);
 
   const fieldKeys: FieldKey[] = filterLabelFieldKeys(
-    (config.fieldOrder || []).filter(
-      (k) => k !== "barcode" && config[k]?.show && !(k === "customText" && skipLegacyCustomText),
-    ),
+    collectEnabledDesignerFieldKeys(config, {
+      excludeBarcode: true,
+      skipLegacyCustomText,
+    }),
     productFieldSettings,
   );
   const barcodeConfig = config.barcode;
@@ -367,11 +280,11 @@ export function DraggableLabelCanvas({
         {fieldKeys.map((key) => {
           const field = config[key] as LabelFieldConfig;
           if (!field) return null;
-          const rawContent = getFieldContent(key, item, config.customTextValue);
-          const isPlaceholder = isFieldDataEmpty(key, item, config.customTextValue);
-          const displayText = isPlaceholder
-            ? resolveFieldLabel(key, fieldLabels, defaultUom)
-            : rawContent;
+          const { text: displayText, isPlaceholder } = getLabelDesignerFieldDisplay(key, item, {
+            customTextValue: config.customTextValue,
+            fieldLabels,
+            defaultUom,
+          });
           const isSelected = activeField === key;
           const fieldX = field.x ?? 0;
           const maxFieldW = Math.max(0.5, width - fieldX);
@@ -408,7 +321,7 @@ export function DraggableLabelCanvas({
                 textDecoration: "none",
                 userSelect: "none",
               }}
-              title={`${resolveFieldLabel(key, fieldLabels, defaultUom)}: drag to reposition`}
+              title={`${resolveLabelDesignerFieldLabel(key, fieldLabels, defaultUom)}: drag to reposition`}
             >
               {displayText}
               {field.strikethrough && (
@@ -520,7 +433,7 @@ export function DraggableLabelCanvas({
               backgroundColor: activeField === "barcode" ? "hsl(var(--primary) / 0.08)" : "hsl(var(--muted) / 0.25)",
               userSelect: "none",
             }}
-            title={`${resolveFieldLabel("barcode", fieldLabels, defaultUom)}: drag to reposition`}
+            title={`${resolveLabelDesignerFieldLabel("barcode", fieldLabels, defaultUom)}: drag to reposition`}
           >
             {showBarcode ? (
               <svg
@@ -542,7 +455,7 @@ export function DraggableLabelCanvas({
                   fontFamily: "Arial, Helvetica, sans-serif",
                 }}
               >
-                {resolveFieldLabel("barcode", fieldLabels, defaultUom)}
+                {resolveLabelDesignerFieldLabel("barcode", fieldLabels, defaultUom)}
               </span>
             )}
           </div>

@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { getUOMLabel } from "@/constants/uom";
 import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -23,6 +22,11 @@ import {
   filterLabelFieldKeys,
   isLabelFieldAllowedByProductSettings,
 } from "@/utils/productFieldSettingsForLabels";
+import {
+  collectEnabledDesignerFieldKeys,
+  getLabelDesignerFieldDisplay,
+  resolveLabelDesignerFieldLabel,
+} from "@/utils/labelDesignerPlaceholders";
 
 interface BarTenderLabelDesignerProps {
   labelConfig: LabelDesignConfig;
@@ -66,6 +70,7 @@ interface DraggableFieldProps {
   field: LabelFieldConfig;
   isSelected: boolean;
   content: string;
+  isPlaceholder?: boolean;
   labelConfig: LabelDesignConfig;
   onSelect: () => void;
   onDrag: (deltaX: number, deltaY: number) => void;
@@ -79,15 +84,17 @@ function DraggableField({
   fieldKey, 
   field, 
   isSelected, 
-  content, 
+  content,
+  isPlaceholder = false,
   labelConfig, 
   onSelect,
   onDrag,
   onDragEnd,
   scale,
   labelWidthMm,
-  labelHeightMm
-}: DraggableFieldProps) {
+  labelHeightMm,
+  fieldLabel,
+}: DraggableFieldProps & { fieldLabel?: string }) {
   const [isDragging, setIsDragging] = useState(false);
   const dragRef = useRef<{ startX: number; startY: number } | null>(null);
 
@@ -151,17 +158,35 @@ function DraggableField({
           style={{
             display: 'flex',
             justifyContent: field.textAlign === 'left' ? 'flex-start' : field.textAlign === 'right' ? 'flex-end' : 'center',
+            alignItems: 'center',
+            minHeight: `${(labelConfig.barcodeHeight || 20) * scale * 0.35}px`,
             padding: '1px',
+            backgroundColor: isPlaceholder ? 'hsl(var(--muted) / 0.25)' : 'transparent',
+            border: isPlaceholder ? '1px dashed hsl(var(--border))' : 'none',
+            borderRadius: 2,
           }}
         >
-          <svg 
-            className={`bartender-barcode-${fieldKey}`} 
-            style={{ 
-              height: `${(labelConfig.barcodeHeight || 20) * scale * 0.35}px`, 
-              width: 'auto',
-              maxWidth: '100%'
-            }} 
-          />
+          {isPlaceholder ? (
+            <span
+              style={{
+                fontSize: `${Math.max(7, scaledFontSize * 0.85)}px`,
+                color: 'hsl(var(--muted-foreground))',
+                fontStyle: 'italic',
+                fontFamily: 'Arial, Helvetica, sans-serif',
+              }}
+            >
+              {fieldLabel || content}
+            </span>
+          ) : (
+            <svg 
+              className={`bartender-barcode-${fieldKey}`} 
+              style={{ 
+                height: `${(labelConfig.barcodeHeight || 20) * scale * 0.35}px`, 
+                width: 'auto',
+                maxWidth: '100%'
+              }} 
+            />
+          )}
         </div>
         {isSelected && (
           <>
@@ -197,6 +222,8 @@ function DraggableField({
           textOverflow: 'ellipsis',
           lineHeight: field.lineHeight || 1.1,
           padding: '0px 1px',
+          color: isPlaceholder ? 'hsl(var(--muted-foreground))' : '#000000',
+          fontStyle: isPlaceholder ? 'italic' : 'normal',
         }}
       >
         {content}
@@ -269,10 +296,26 @@ export function BarTenderLabelDesigner({
     productFieldSettings,
   );
   const designerFieldOrder = filterLabelFieldKeys(labelConfig.fieldOrder, productFieldSettings);
+  const enabledCanvasFieldKeys = filterLabelFieldKeys(
+    collectEnabledDesignerFieldKeys(labelConfig),
+    productFieldSettings,
+  );
   const [selectedField, setSelectedField] = useState<FieldKey | null>(null);
   const [zoom, setZoom] = useState(150);
   const previewRef = useRef<HTMLDivElement>(null);
-  const barcodeValue = sampleItem?.barcode || '12345678';
+  const previewItem: LabelItem = sampleItem ?? {
+    product_name: "",
+    brand: "",
+    category: "",
+    color: "",
+    style: "",
+    size: "",
+    sale_price: Number.NaN,
+    barcode: "",
+    bill_number: "",
+  };
+  const defaultUom = sampleItem?.uom ?? "NOS";
+  const barcodeValue = sampleItem?.barcode?.trim() || "";
   
   // Track previous label dimensions for auto-scaling
   const prevDimensionsRef = useRef<{ width: number; height: number }>({ width: labelWidth, height: labelHeight });
@@ -392,9 +435,9 @@ export function BarTenderLabelDesigner({
     initializePositions();
   }, [labelConfig.fieldOrder]);
 
-  // Render barcodes
+  // Render barcodes (only when product has a barcode value)
   useEffect(() => {
-    if (!previewRef.current) return;
+    if (!previewRef.current || !barcodeValue) return;
     const svgs = previewRef.current.querySelectorAll('[class^="bartender-barcode-"]');
     svgs.forEach((svg) => {
       try {
@@ -459,46 +502,21 @@ export function BarTenderLabelDesigner({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [selectedField, labelConfig, setLabelConfig, labelWidth, labelHeight]);
 
-  const getFieldContent = useCallback((fieldKey: FieldKey) => {
-    if (sampleItem) {
-      switch (fieldKey) {
-        case 'brand': return sampleItem.brand || businessName || 'Brand';
-        case 'businessName': return businessName || 'Business Name';
-        case 'productName': return sampleItem.product_name;
-        case 'category': return sampleItem.category || '';
-        case 'color': return sampleItem.color || '';
-        case 'style': return sampleItem.style || '';
-        case 'price': return `₹${sampleItem.sale_price}`;
-        case 'mrp': return sampleItem.mrp ? `MRP ₹${sampleItem.mrp}` : '';
-        case 'qty': return sampleItem.qty ? `${sampleItem.qty} ${getUOMLabel(sampleItem.uom)}` : '';
-        case 'customText': return labelConfig.customTextValue || '';
-        case 'barcodeText': return sampleItem.barcode || '';
-        case 'billNumber': return sampleItem.bill_number || '';
-        case 'supplierCode': return sampleItem.supplier_code || '';
-        case 'purchaseCode': return sampleItem.purchase_code || '';
-        case 'size': return sampleItem.size || '';
-        default: return '';
-      }
+  const getDesignerFieldDisplay = useCallback((fieldKey: FieldKey) => {
+    if (fieldKey === "barcode") {
+      const hasBarcode = !!previewItem.barcode?.trim();
+      return {
+        text: resolveLabelDesignerFieldLabel("barcode", fieldLabels),
+        isPlaceholder: !hasBarcode,
+      };
     }
-    switch (fieldKey) {
-      case 'brand': return businessName || 'BRAND';
-      case 'businessName': return businessName || 'BUSINESS NAME';
-      case 'productName': return 'Product Name';
-      case 'category': return 'Category';
-      case 'color': return 'Blue';
-      case 'style': return 'ST-001';
-      case 'price': return '₹999';
-      case 'mrp': return 'MRP ₹1299';
-      case 'qty': return '10 NOS';
-      case 'customText': return labelConfig.customTextValue || 'Custom Text';
-      case 'barcodeText': return '12345678';
-      case 'billNumber': return 'B0125001';
-      case 'supplierCode': return 'SUP01';
-      case 'purchaseCode': return 'PC123';
-      case 'size': return 'M';
-      default: return '';
-    }
-  }, [sampleItem, businessName]);
+    return getLabelDesignerFieldDisplay(fieldKey, previewItem, {
+      customTextValue: labelConfig.customTextValue,
+      businessName,
+      fieldLabels,
+      defaultUom,
+    });
+  }, [previewItem, businessName, fieldLabels, labelConfig.customTextValue, defaultUom]);
 
   const selectedFieldConfig = selectedField ? (labelConfig[selectedField] as LabelFieldConfig) : null;
 
@@ -633,16 +651,19 @@ export function BarTenderLabelDesigner({
   // Render single label content with absolute positioned fields
   const renderLabelContent = () => (
     <div className="relative w-full h-full">
-      {designerFieldOrder.map((fieldKey) => {
+      {enabledCanvasFieldKeys.map((fieldKey) => {
         const field = labelConfig[fieldKey] as LabelFieldConfig;
-        if (!field.show || !isLabelFieldAllowedByProductSettings(fieldKey, productFieldSettings)) return null;
+        if (!field || !isLabelFieldAllowedByProductSettings(fieldKey, productFieldSettings)) return null;
+        const { text, isPlaceholder } = getDesignerFieldDisplay(fieldKey);
         return (
           <DraggableField
             key={fieldKey}
             fieldKey={fieldKey}
             field={field}
             isSelected={selectedField === fieldKey}
-            content={getFieldContent(fieldKey)}
+            content={text}
+            isPlaceholder={isPlaceholder}
+            fieldLabel={resolveLabelDesignerFieldLabel(fieldKey, fieldLabels, defaultUom)}
             labelConfig={labelConfig}
             onSelect={() => setSelectedField(fieldKey)}
             onDrag={(dx, dy) => handleFieldDrag(fieldKey, dx, dy)}
@@ -867,6 +888,12 @@ export function BarTenderLabelDesigner({
           </p>
           <p className="text-xs text-muted-foreground mt-1">
             Arrow keys: move • Shift+Arrow: move faster • ESC: deselect
+          </p>
+          <p className="text-[9px] text-muted-foreground/80 mt-1">
+            Empty fields show field name here only (not on print)
+          </p>
+          <p className="text-[10px] text-muted-foreground/80 mt-1">
+            Empty fields show field name here only (not on print)
           </p>
         </div>
       </Card>
