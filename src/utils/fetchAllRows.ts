@@ -732,21 +732,23 @@ export async function fetchAllPurchaseItems(variantIds: string[]) {
  * Used for COGS calculation, profit reports, etc.
  */
 export async function fetchVariantsByIds(
-  variantIds: string[], 
-  selectFields: string = "id, pur_price"
+  variantIds: string[],
+  selectFields: string = "id, pur_price",
+  organizationId?: string,
 ) {
   if (variantIds.length === 0) return [];
-  
+
   const allRows: any[] = [];
   const batchSize = 500;
 
   for (let i = 0; i < variantIds.length; i += batchSize) {
     const batchIds = variantIds.slice(i, i + batchSize);
-    const { data, error } = await supabase
-      .from("product_variants")
-      .select(selectFields)
-      .in("id", batchIds);
-    
+    // F6 (Batch C2): pass organization_id so the planner uses the
+    // (organization_id, id) composite path instead of an RLS-only scan.
+    let query = supabase.from("product_variants").select(selectFields).in("id", batchIds);
+    if (organizationId) query = query.eq("organization_id", organizationId);
+    const { data, error } = await query;
+
     if (error) {
       console.error("Error fetching variants by IDs:", error);
       throw error;
