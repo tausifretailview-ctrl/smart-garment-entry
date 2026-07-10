@@ -1,6 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { STALE_FREQUENT } from "@/lib/queryStaleTimes";
 import {
   CUSTOMER_FINANCIAL_SNAPSHOT_QUERY_KEY,
   fetchCustomerFinancialSnapshot,
@@ -25,7 +24,8 @@ export function useCustomerFinancialSnapshot(
       return fetchCustomerFinancialSnapshot(supabase, organizationId, customerId);
     },
     enabled: !!customerId && !!organizationId,
-    staleTime: STALE_FREQUENT,
+    staleTime: 60_000,
+    gcTime: 300_000,
     refetchOnWindowFocus: false,
   });
 

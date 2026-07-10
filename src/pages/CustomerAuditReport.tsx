@@ -37,7 +37,7 @@ import {
   fetchCustomerAuditBundle,
   type AuditRow,
 } from "@/utils/customerAuditBundle";
-import { fetchCustomerFinancialSnapshot } from "@/utils/customerFinancialSnapshot";
+import { useCustomerFinancialSnapshot } from "@/hooks/useCustomerFinancialSnapshot";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -187,20 +187,10 @@ export default function CustomerAuditReport() {
     },
   });
 
-  const { data: dbTrueBalance } = useQuery({
-    queryKey: ["customer-financial-snapshot-dr", customerId, currentOrganization?.id],
-    queryFn: async () => {
-      if (!customerId || !currentOrganization?.id) return null;
-      const snap = await fetchCustomerFinancialSnapshot(
-        supabase,
-        currentOrganization.id,
-        customerId,
-      );
-      return snap.outstandingDr;
-    },
-    enabled: !!customerId && !!currentOrganization?.id,
-    staleTime: 30_000,
-  });
+  const { outstandingDr: dbTrueBalance } = useCustomerFinancialSnapshot(
+    customerId,
+    currentOrganization?.id,
+  );
 
   const { data: srIntegrityDrift = [] } = useQuery({
     queryKey: ["sr-invoice-integrity-check", currentOrganization?.id, customerId],

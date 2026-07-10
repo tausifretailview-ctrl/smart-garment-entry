@@ -1,6 +1,4 @@
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
-import { STALE_FREQUENT } from "@/lib/queryStaleTimes";
 import {
   CUSTOMER_FINANCIAL_SNAPSHOT_QUERY_KEY,
   fetchOrganizationCustomerAccountTotals,
@@ -23,7 +21,8 @@ export function useOrganizationCustomerAccountTotals(organizationId: string | nu
     queryKey: [CUSTOMER_FINANCIAL_SNAPSHOT_QUERY_KEY, "org-totals", organizationId],
     queryFn: () => fetchOrganizationCustomerAccountTotals(organizationId!),
     enabled: !!organizationId,
-    staleTime: STALE_FREQUENT,
+    staleTime: 300_000,
+    gcTime: 600_000,
     refetchOnWindowFocus: false,
   });
 

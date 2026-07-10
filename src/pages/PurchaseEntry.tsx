@@ -234,6 +234,33 @@ interface LineItem {
   uom?: string;
 }
 
+function normalizeItemCompareString(val: string | null | undefined): string | null {
+  if (val == null || String(val).trim() === "") return null;
+  return String(val);
+}
+
+function itemNumbersEqual(a: unknown, b: unknown): boolean {
+  return Number(a) === Number(b);
+}
+
+function hasItemChanged(orig: LineItem, item: LineItem): boolean {
+  if (orig.product_name !== item.product_name) return true;
+  if (orig.sku_id !== item.sku_id) return true;
+  if (orig.size !== item.size) return true;
+  if (!itemNumbersEqual(orig.qty, item.qty)) return true;
+  if (!itemNumbersEqual(orig.pur_price, item.pur_price)) return true;
+  if (!itemNumbersEqual(orig.sale_price, item.sale_price)) return true;
+  if (!itemNumbersEqual(orig.mrp || 0, item.mrp || 0)) return true;
+  if (Math.round(Number(orig.gst_per) || 0) !== Math.round(Number(item.gst_per) || 0)) return true;
+  if (!itemNumbersEqual(orig.line_total, item.line_total)) return true;
+  if (normalizeItemCompareString(orig.hsn_code) !== normalizeItemCompareString(item.hsn_code)) return true;
+  if (normalizeItemCompareString(orig.brand) !== normalizeItemCompareString(item.brand)) return true;
+  if (normalizeItemCompareString(orig.category) !== normalizeItemCompareString(item.category)) return true;
+  if (normalizeItemCompareString(orig.color) !== normalizeItemCompareString(item.color)) return true;
+  if (normalizeItemCompareString(orig.style) !== normalizeItemCompareString(item.style)) return true;
+  return false;
+}
+
 interface SizeQuantity {
   size: string;
   qty: number;
@@ -4416,11 +4443,15 @@ const PurchaseEntry = () => {
           
         }
 
-        // 2. UPDATE every existing line — GST-only edits must persist gst_per on all rows
+        // 2. UPDATE existing lines that changed — skip unchanged rows to avoid stock/total trigger churn
         const itemsToUpdate = lineItems.filter(item => originalItemsMap.has(item.temp_id));
-        const EDIT_UPDATE_CHUNK = 50;
-        for (let ci = 0; ci < itemsToUpdate.length; ci += EDIT_UPDATE_CHUNK) {
-          const chunk = itemsToUpdate.slice(ci, ci + EDIT_UPDATE_CHUNK);
+        const changedItems = itemsToUpdate.filter(item => {
+          const orig = originalItemsMap.get(item.temp_id);
+          return !orig || hasItemChanged(orig, item);
+        });
+        const EDIT_UPDATE_CHUNK = 5;
+        for (let ci = 0; ci < changedItems.length; ci += EDIT_UPDATE_CHUNK) {
+          const chunk = changedItems.slice(ci, ci + EDIT_UPDATE_CHUNK);
           const results = await Promise.all(
             chunk.map((item) =>
               supabase

@@ -26,6 +26,49 @@ const EMPTY_SNAPSHOT: CustomerFinancialSnapshot = {
  */
 const SNAPSHOT_BATCH_CHUNK = 10;
 
+/**
+ * Customers that may have a non-zero financial position (sales, advances, or returns).
+ * Used to skip snapshot RPCs for customers with no transaction history.
+ */
+export async function fetchCustomerIdsWithFinancialRecords(
+  organizationId: string,
+  client: SupabaseClient = supabase,
+): Promise<Set<string>> {
+  const ids = new Set<string>();
+  if (!organizationId) return ids;
+
+  const [salesRes, advancesRes, returnsRes] = await Promise.all([
+    client
+      .from("sales")
+      .select("customer_id")
+      .eq("organization_id", organizationId)
+      .is("deleted_at", null)
+      .not("customer_id", "is", null),
+    client
+      .from("customer_advances")
+      .select("customer_id")
+      .eq("organization_id", organizationId),
+    client
+      .from("sale_returns")
+      .select("customer_id")
+      .eq("organization_id", organizationId)
+      .is("deleted_at", null)
+      .not("customer_id", "is", null),
+  ]);
+
+  for (const row of salesRes.data || []) {
+    if (row.customer_id) ids.add(row.customer_id);
+  }
+  for (const row of advancesRes.data || []) {
+    if (row.customer_id) ids.add(row.customer_id);
+  }
+  for (const row of returnsRes.data || []) {
+    if (row.customer_id) ids.add(row.customer_id);
+  }
+
+  return ids;
+}
+
 function normalizeRow(row: {
   outstanding_dr?: number | null;
   advance_available?: number | null;
@@ -157,7 +200,9 @@ export async function fetchOrganizationCustomerAccountTotals(
   const ids = (customers || []).map((c: { id: string }) => c.id).filter(Boolean);
   if (ids.length === 0) return empty;
 
-  const map = await fetchCustomerFinancialSnapshotMap(organizationId, ids, client);
+  const financialIds = await fetchCustomerIdsWithFinancialRecords(organizationId, client);
+  const idsToFetch = ids.filter((id) => financialIds.has(id));
+  const map = await fetchCustomerFinancialSnapshotMap(organizationId, idsToFetch, client);
 
   const totals = { ...empty, customerCount: ids.length };
   for (const snap of map.values()) {

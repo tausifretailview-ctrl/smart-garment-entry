@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { Card, CardContent } from "@/components/ui/card";
@@ -6,21 +7,24 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { 
-  ArrowLeft, 
-  Search, 
-  Phone, 
+import {
+  ArrowLeft,
+  Search,
+  Phone,
   MessageCircle,
   IndianRupee,
   Users,
   RefreshCw,
-  Link2
+  Link2,
 } from "lucide-react";
 import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
 import { cn } from "@/lib/utils";
 import { PaymentLinkDialog } from "@/components/PaymentLinkDialog";
 import { fetchAllCustomers, fetchAllSalesSummary } from "@/utils/fetchAllRows";
-import { fetchCustomerFinancialSnapshotMap } from "@/utils/customerFinancialSnapshot";
+import {
+  fetchCustomerFinancialSnapshotMap,
+  fetchCustomerIdsWithFinancialRecords,
+} from "@/utils/customerFinancialSnapshot";
 
 interface CustomerOutstanding {
   id: string;
@@ -34,47 +38,31 @@ const SalesmanOutstanding = () => {
   const { navigate } = useOrgNavigation();
   const { currentOrganization } = useOrganization();
   const { sendWhatsApp } = useWhatsAppSend();
+  const queryClient = useQueryClient();
+  const orgId = currentOrganization?.id;
 
-  const [customers, setCustomers] = useState<CustomerOutstanding[]>([]);
-  const [filteredCustomers, setFilteredCustomers] = useState<CustomerOutstanding[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [totalOutstanding, setTotalOutstanding] = useState(0);
-  
-  // Payment link dialog state
   const [paymentLinkOpen, setPaymentLinkOpen] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerOutstanding | null>(null);
 
-  useEffect(() => {
-    if (currentOrganization?.id) {
-      fetchOutstanding();
-    }
-  }, [currentOrganization?.id]);
-
-  useEffect(() => {
-    if (searchTerm) {
-      const term = searchTerm.toLowerCase();
-      setFilteredCustomers(
-        customers.filter(c =>
-          c.customer_name.toLowerCase().includes(term) ||
-          (c.phone && c.phone.includes(term))
-        )
-      );
-    } else {
-      setFilteredCustomers(customers);
-    }
-  }, [searchTerm, customers]);
-
-  const fetchOutstanding = async () => {
-    try {
-      const orgId = currentOrganization!.id;
-      const customersData = await fetchAllCustomers(orgId);
-      const allSales = await fetchAllSalesSummary(orgId);
-      const snapMap = await fetchCustomerFinancialSnapshotMap(
-        orgId,
-        (customersData || []).map((c: { id: string }) => c.id),
-      );
+  const {
+    data: outstandingData,
+    isLoading,
+    isFetching,
+    refetch,
+  } = useQuery({
+    queryKey: ["salesman-outstanding", orgId],
+    enabled: !!orgId,
+    staleTime: 120_000,
+    refetchOnWindowFocus: false,
+    queryFn: async () => {
+      const customersData = await fetchAllCustomers(orgId!);
+      const allSales = await fetchAllSalesSummary(orgId!);
+      const financialIds = await fetchCustomerIdsWithFinancialRecords(orgId!);
+      const customerIds = (customersData || [])
+        .map((c: { id: string }) => c.id)
+        .filter((id) => financialIds.has(id));
+      const snapMap = await fetchCustomerFinancialSnapshotMap(orgId!, customerIds);
 
       const invoiceCountMap: Record<string, number> = {};
       (allSales || []).forEach((sale: any) => {
@@ -98,26 +86,37 @@ const SalesmanOutstanding = () => {
         .filter((c) => c.balance >= 1)
         .sort((a, b) => b.balance - a.balance);
 
-      setCustomers(outstandingCustomers);
-      setFilteredCustomers(outstandingCustomers);
-      setTotalOutstanding(outstandingCustomers.reduce((sum, c) => sum + c.balance, 0));
-    } catch (error) {
-      console.error("Error fetching outstanding:", error);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  };
+      const totalOutstanding = outstandingCustomers.reduce((sum, c) => sum + c.balance, 0);
+      return { customers: outstandingCustomers, totalOutstanding };
+    },
+  });
+
+  const customers = outstandingData?.customers ?? [];
+  const totalOutstanding = outstandingData?.totalOutstanding ?? 0;
+
+  const filteredCustomers = useMemo(() => {
+    if (!searchTerm) return customers;
+    const term = searchTerm.toLowerCase();
+    return customers.filter(
+      (c) =>
+        c.customer_name.toLowerCase().includes(term) ||
+        (c.phone && c.phone.includes(term)),
+    );
+  }, [searchTerm, customers]);
 
   const handleRefresh = () => {
-    setRefreshing(true);
-    fetchOutstanding();
+    if (orgId) {
+      void queryClient.invalidateQueries({ queryKey: ["salesman-outstanding", orgId] });
+    } else {
+      void refetch();
+    }
   };
 
   const sendReminder = async (customer: CustomerOutstanding) => {
     if (!customer.phone) return;
 
-    const message = `🔔 *Payment Reminder*\n\n` +
+    const message =
+      `🔔 *Payment Reminder*\n\n` +
       `Dear ${customer.customer_name},\n\n` +
       `This is a friendly reminder that you have an outstanding balance of *₹${Math.round(customer.balance).toLocaleString("en-IN")}*.\n\n` +
       `Pending Invoices: ${customer.invoiceCount}\n\n` +
@@ -132,7 +131,7 @@ const SalesmanOutstanding = () => {
     setPaymentLinkOpen(true);
   };
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="p-4 space-y-4">
         <div className="flex items-center gap-3">
@@ -140,7 +139,9 @@ const SalesmanOutstanding = () => {
           <Skeleton className="h-8 w-48" />
         </div>
         <Skeleton className="h-24" />
-        {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-24" />)}
+        {[1, 2, 3, 4].map((i) => (
+          <Skeleton key={i} className="h-24" />
+        ))}
       </div>
     );
   }
@@ -157,7 +158,7 @@ const SalesmanOutstanding = () => {
             <h1 className="font-semibold text-lg">Outstanding Report</h1>
           </div>
           <Button variant="outline" size="icon" onClick={handleRefresh}>
-            <RefreshCw className={cn("h-4 w-4", refreshing && "animate-spin")} />
+            <RefreshCw className={cn("h-4 w-4", isFetching && "animate-spin")} />
           </Button>
         </div>
 
