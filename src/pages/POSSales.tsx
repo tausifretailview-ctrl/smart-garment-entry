@@ -3352,7 +3352,11 @@ export default function POSSales() {
       
       queryClient.invalidateQueries({ queryKey: ['todays-sales', currentOrganization?.id] });
       invalidatePosDashboardQueries(queryClient, currentOrganization?.id);
-      notifyPosSalesChanged({ organizationId: currentOrganization?.id });
+      notifyPosSalesChanged({
+        organizationId: currentOrganization?.id,
+        saleDate: result.sale_date,
+        saleNumber: result.sale_number,
+      });
 
       // Reset to show the newly saved invoice (index 0, as sales are sorted by created_at desc)
       setCurrentInvoiceIndex(0);

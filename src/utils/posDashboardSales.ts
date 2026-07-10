@@ -863,6 +863,8 @@ export function invalidatePosDashboardQueries(
     queryKey: organizationId
       ? [POS_DASHBOARD_QUERY_KEY, organizationId]
       : [POS_DASHBOARD_QUERY_KEY],
+    // Refetch inactive tab-cached dashboard queries when user switches back from POS.
+    refetchType: "all",
   });
 }
 

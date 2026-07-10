@@ -88,7 +88,13 @@ import { cn } from "@/lib/utils";
 import { useTabCacheLayout } from "@/contexts/TabCacheLayoutContext";
 import { useSharedAppShell } from "@/contexts/SharedAppShellContext";
 import { onWheelScrollContainer } from "@/lib/scrollWheel";
-import { notifyPosSalesChanged, POS_SALES_REFRESH_EVENT, type PosSalesChangedDetail } from "@/utils/posSalesRefresh";
+import {
+  consumePendingPosSalesRefresh,
+  notifyPosSalesChanged,
+  POS_SALES_REFRESH_EVENT,
+  posSaleDateToLocalYmd,
+  type PosSalesChangedDetail,
+} from "@/utils/posSalesRefresh";
 import { isSaleInvoiceCancelled } from "@/utils/saleInvoiceStatus";
 import { syncSalePaymentFromVouchers } from "@/utils/customerBalanceUtils";
 import { confirmInvoiceOverpaymentIfNeeded } from "@/utils/invoiceOverpaymentGuard";
@@ -736,14 +742,50 @@ const POSDashboard = () => {
     });
   }, [salesQueryError, toast]);
 
+  const posDashboardWasActiveRef = useRef(false);
+
+  // After a POS save while this tab was inactive, snap daily filter + refetch on activation.
+  useEffect(() => {
+    if (!posQueryEnabled || !currentOrganization?.id) {
+      posDashboardWasActiveRef.current = false;
+      return;
+    }
+
+    const justActivated = !posDashboardWasActiveRef.current;
+    posDashboardWasActiveRef.current = true;
+    if (!justActivated) return;
+
+    const pending = consumePendingPosSalesRefresh(currentOrganization.id);
+    if (pending?.saleDate && periodFilter === "daily") {
+      const saleDay = posSaleDateToLocalYmd(pending.saleDate);
+      if (saleDay && (startDate !== saleDay || endDate !== saleDay)) {
+        setStartDate(saleDay);
+        setEndDate(saleDay);
+        return;
+      }
+    }
+
+    if (pending) {
+      void refetchSales();
+      return;
+    }
+
+    const cachedQueries = queryClient.getQueryCache().findAll({
+      queryKey: ["pos-dashboard-sales", currentOrganization.id],
+    });
+    if (cachedQueries.some((q) => q.state.isInvalidated)) {
+      void refetchSales();
+    }
+  }, [posQueryEnabled, currentOrganization?.id, periodFilter, startDate, endDate, queryClient, refetchSales]);
+
   useEffect(() => {
     const onPosSalesChanged = (ev: Event) => {
       const detail = (ev as CustomEvent<PosSalesChangedDetail>).detail;
       if (detail?.organizationId && detail.organizationId !== currentOrganization?.id) return;
 
       if (detail?.saleDate && periodFilter === "daily") {
-        const saleDay = format(new Date(detail.saleDate), "yyyy-MM-dd");
-        if (saleDay !== startDate || saleDay !== endDate) {
+        const saleDay = posSaleDateToLocalYmd(detail.saleDate);
+        if (saleDay && (startDate !== saleDay || endDate !== saleDay)) {
           setStartDate(saleDay);
           setEndDate(saleDay);
         }
@@ -751,6 +793,7 @@ const POSDashboard = () => {
 
       void queryClient.invalidateQueries({
         queryKey: ["pos-dashboard-sales", currentOrganization?.id],
+        refetchType: "all",
       });
     };
     window.addEventListener(POS_SALES_REFRESH_EVENT, onPosSalesChanged);
