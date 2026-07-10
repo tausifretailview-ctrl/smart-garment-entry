@@ -119,7 +119,7 @@ async function fetchPurchaseBillsDashboardPageClient(
     .from("purchase_bills")
     .select(
       "id, supplier_id, supplier_name, supplier_invoice_no, software_bill_no, bill_date, bill_entry_at, gross_amount, discount_amount, gst_amount, net_amount, notes, created_at, created_by, payment_status, paid_amount, total_qty, total_items, is_dc_purchase, bill_image_url, is_locked, is_cancelled, cancelled_at, cancelled_reason",
-      { count: "exact" },
+      { count: "planned" },
     )
     .eq("organization_id", organizationId)
     .is("deleted_at", null);
