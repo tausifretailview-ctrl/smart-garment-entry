@@ -385,6 +385,9 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
 
   const stampSizeMap: Record<string, string> = { small: "60px", medium: "90px", large: "120px" };
   const stampDim = stampSizeMap[stampSize] || "90px";
+  const qrBoxMm = isA4 ? 26 : 22;
+  const qrPadMm = 2;
+  const showPaymentQr = Boolean(qrCodeUrl && !isRealTast);
 
   return (
     <div className="retail-erp-all-pages">
@@ -400,7 +403,6 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
             style={{
               width: pageW,
               minHeight: pageH,
-              height: pageH,
               padding: pad,
               fontFamily: "Arial, Helvetica, sans-serif",
               fontSize: fsBody,
@@ -408,9 +410,10 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
               display: "flex",
               flexDirection: "column",
               position: "relative",
+              overflow: "visible",
             }}
           >
-            <div style={{ border: B2, flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", justifyContent: "space-between" }}>
+            <div style={{ border: B2, flex: 1, display: "flex", flexDirection: "column", overflow: "visible", justifyContent: "flex-start" }}>
 
               {/* ===== HEADER — Center Aligned ===== */}
               <div style={{ borderBottom: B2, padding: isA4 ? "6px 10px 4px" : "4px 8px 3px", textAlign: "center", position: "relative" }}>
@@ -518,7 +521,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
               </div>
 
               {/* ===== ITEMS TABLE — Full Grid ===== */}
-              <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed", flex: 1 }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed", flex: isLastPage ? "0 0 auto" : "1 1 auto" }}>
                 <colgroup>
                   {cols.map((c) => (
                     <col key={c.key} style={{ width: c.width }} />
@@ -688,7 +691,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
 
               {/* ===== FOOTER ===== */}
               {isLastPage && (
-              <div className="retail-erp-footer" style={{ borderTop: B2, fontSize: fsBody }}>
+              <div className="retail-erp-footer" style={{ borderTop: B2, fontSize: fsBody, flexShrink: 0 }}>
 
                   {/* Note (left) + Totals (right) — uses blank space beside subtotal block */}
                   <div style={{ display: "flex", borderBottom: B, width: "100%", alignItems: "stretch" }}>
@@ -827,7 +830,15 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                   )}
 
                   {/* Terms + QR Code */}
-                  <div style={{ display: "flex", minHeight: isA4 ? (isRealTast ? "110px" : "80px") : "60px", position: "relative" }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "stretch",
+                      minHeight: isA4
+                        ? (showPaymentQr ? "36mm" : isRealTast ? "110px" : "80px")
+                        : (showPaymentQr ? "30mm" : "60px"),
+                    }}
+                  >
                     {/* Left — Terms */}
                     <div style={{ flex: 1, borderRight: B, padding: isA4 ? "4px 8px" : "3px 6px", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
                       <div>
@@ -879,8 +890,10 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                         display: "flex",
                         flexDirection: "column",
                         alignItems: "center",
-                        justifyContent: isRealTast ? "flex-start" : "center",
+                        justifyContent: "flex-start",
                         position: "relative",
+                        boxSizing: "border-box",
+                        flexShrink: 0,
                       }}
                     >
                       {stampImageBase64 && (
@@ -908,13 +921,40 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                           fontWeight: "bold",
                           marginBottom: isRealTast ? "0" : "4px",
                           width: "100%",
+                          flexShrink: 0,
                         }}
                       >
                         For {businessName}
                       </div>
                       {isRealTast && <div style={{ flex: 1, minHeight: "72px" }} aria-hidden="true" />}
-                      {qrCodeUrl && !isRealTast && (
-                        <img src={qrCodeUrl} alt="QR" style={{ width: isA4 ? "150px" : "115px", height: isA4 ? "150px" : "115px", border: "1px solid #ccc" }} />
+                      {showPaymentQr && (
+                        <div
+                          className="retail-erp-qr-box"
+                          style={{
+                            width: `${qrBoxMm}mm`,
+                            height: `${qrBoxMm}mm`,
+                            padding: `${qrPadMm}mm`,
+                            boxSizing: "border-box",
+                            border: B,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            backgroundColor: "#fff",
+                            flexShrink: 0,
+                            marginTop: "auto",
+                          }}
+                        >
+                          <img
+                            src={qrCodeUrl}
+                            alt="Payment QR"
+                            style={{
+                              width: "100%",
+                              height: "100%",
+                              objectFit: "contain",
+                              display: "block",
+                            }}
+                          />
+                        </div>
                       )}
                     </div>
                   </div>
@@ -946,21 +986,36 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
           .retail-erp-invoice-template {
             width: ${pageW} !important;
             min-height: ${pageH} !important;
+            height: auto !important;
             padding: ${pad} !important;
-          }
-          * {
-            -webkit-print-color-adjust: exact;
-            print-color-adjust: exact;
+            overflow: visible !important;
           }
           .retail-erp-invoice-template td,
           .retail-erp-invoice-template th,
           .retail-erp-invoice-template div {
             border-color: #000 !important;
           }
-          .retail-erp-footer { page-break-inside: avoid; }
+          .retail-erp-footer {
+            page-break-inside: avoid;
+            break-inside: avoid;
+            overflow: visible !important;
+          }
+          .retail-erp-qr-box {
+            page-break-inside: avoid;
+            break-inside: avoid;
+          }
+          .retail-erp-qr-box img {
+            max-width: 100% !important;
+            max-height: 100% !important;
+            object-fit: contain !important;
+          }
           .retail-erp-all-pages .retail-erp-invoice-template:not(:last-child) {
             page-break-after: always;
             break-after: page;
+          }
+          * {
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
           }
         }
       `}</style>

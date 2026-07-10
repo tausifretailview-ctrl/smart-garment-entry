@@ -19,7 +19,7 @@ export interface PrecisionThermalRowPreviewProps {
 }
 
 /**
- * Screen preview row matching {@link PrecisionThermalPrint} flex layout (2-up gap + offsets).
+ * Screen preview row matching {@link PrecisionThermalPrint} flex layout (multi-up gap + offsets).
  */
 export function PrecisionThermalRowPreview({
   items,

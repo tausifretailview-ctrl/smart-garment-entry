@@ -191,7 +191,8 @@ export function PrecisionLabelDesigner({
   );
 
   const previewItem = sampleItem || { ...SAMPLE_ITEM, uom: defaultUom };
-  const is2Up = thermalCols >= 2;
+  const multiUpCols = Math.max(1, thermalCols);
+  const isMultiUp = multiUpCols >= 2;
   const gapPx = horizontalGap * 3.7795 * zoom;
 
   const canvasProps = {
@@ -757,13 +758,14 @@ export function PrecisionLabelDesigner({
         </div>
 
         <div className="flex-1 min-h-0 overflow-y-auto flex flex-col p-2">
-        {is2Up ? (
+        {isMultiUp ? (
           <div
             className="flex items-center justify-center flex-1 min-h-[120px]"
             style={{ gap: gapPx }}
           >
-            <DraggableLabelCanvas {...canvasProps} />
-            <DraggableLabelCanvas {...canvasProps} />
+            {Array.from({ length: multiUpCols }).map((_, idx) => (
+              <DraggableLabelCanvas key={idx} {...canvasProps} />
+            ))}
           </div>
         ) : (
           <DraggableLabelCanvas {...canvasProps} />
@@ -771,7 +773,7 @@ export function PrecisionLabelDesigner({
 
         <div className="text-[10px] text-muted-foreground text-center mt-1 shrink-0">
           {labelWidth}mm × {labelHeight}mm
-          {is2Up ? ` × 2 · gap ${horizontalGap}mm` : ""} · drag to move · Delete removes line
+          {isMultiUp ? ` × ${multiUpCols} · gap ${horizontalGap}mm` : ""} · drag to move · Delete removes line
           <span className="block mt-0.5 text-[9px] text-muted-foreground/80">
             Empty fields show field name here only (not on print)
           </span>

@@ -12,6 +12,8 @@ import { PrecisionThermalRowPreview } from "./PrecisionThermalRowPreview";
 import { PrecisionLabelCell } from "./PrecisionLabelCell";
 import { LabelDesignConfig, LabelItem, LabelTemplate } from "@/types/labelTypes";
 import { cn } from "@/lib/utils";
+import type { PrecisionPrintMode } from "@/utils/precisionThermalModes";
+import { getThermalPreviewCols } from "@/utils/precisionThermalModes";
 
 export interface CalibrationValues {
   xOffset: number;
@@ -32,7 +34,7 @@ export interface CalibrationPreset {
   height: number;
   a4Cols?: number;
   a4Rows?: number;
-  printMode?: 'thermal' | 'thermal2up' | 'a4';
+  printMode?: PrecisionPrintMode;
   labelConfig?: LabelDesignConfig | null;
   isDefault?: boolean;
   thermalCols?: number;
@@ -42,7 +44,8 @@ const BUILT_IN_PRESETS: CalibrationPreset[] = [
   { name: "50×38mm Thermal", xOffset: 0, yOffset: 1, vGap: 0, width: 50, height: 38 },
   { name: "50×25mm Thermal", xOffset: 0, yOffset: 0, vGap: 2, width: 50, height: 25 },
   { name: "38×25mm Jewellery", xOffset: 1, yOffset: 0.5, vGap: 1, width: 38, height: 25 },
-  { name: "38×25mm 2-Up", xOffset: 0, yOffset: 0, vGap: 2, width: 38, height: 25, thermalCols: 2 },
+  { name: "38×25mm 2-Up", xOffset: 0, yOffset: 0, vGap: 2, width: 38, height: 25, thermalCols: 2, printMode: "thermal2up" },
+  { name: "32×19mm 3-Up", xOffset: 0, yOffset: 0, vGap: 3, width: 32, height: 19, thermalCols: 3, printMode: "thermal3up" },
   { name: "75×50mm 1-Up", xOffset: 0, yOffset: 0, vGap: 2, width: 75, height: 50 },
   { name: "100×50mm Shipping", xOffset: 0, yOffset: 0, vGap: 3, width: 100, height: 50 },
   { name: "40×30mm Compact", xOffset: 0, yOffset: 0, vGap: 2, width: 40, height: 30 },
@@ -159,10 +162,10 @@ interface LabelCalibrationUIProps {
   fullWorkspace?: boolean;
   sampleItem?: LabelItem;
   savedTemplates?: LabelTemplate[];
-  printMode?: 'thermal' | 'thermal2up' | 'a4';
+  printMode?: PrecisionPrintMode;
   a4Cols?: number;
   a4Rows?: number;
-  onPrintModeChange?: (mode: 'thermal' | 'thermal2up' | 'a4') => void;
+  onPrintModeChange?: (mode: PrecisionPrintMode) => void;
   onA4ColsChange?: (cols: number) => void;
   onA4RowsChange?: (rows: number) => void;
   /** Controlled active preset/template name - persists across tab switches */
@@ -200,7 +203,7 @@ export function LabelCalibrationUI({
   const [newPresetWidth, setNewPresetWidth] = useState<number>(values.labelWidth);
   const [newPresetHeight, setNewPresetHeight] = useState<number>(values.labelHeight);
   const [newPresetCols, setNewPresetCols] = useState<number>(1);
-  const [newPresetMode, setNewPresetMode] = useState<'thermal' | 'thermal2up' | 'a4'>(printMode || 'thermal');
+  const [newPresetMode, setNewPresetMode] = useState<PrecisionPrintMode>(printMode || 'thermal');
   // Track the loaded DB preset name with a ref to persist across parent re-renders
   const [localActivePresetName, setLocalActivePresetName] = useState<string | null>(null);
   const loadedDbPresetRef = useRef<string | null>(null);
@@ -317,7 +320,7 @@ export function LabelCalibrationUI({
       width: newPresetWidth,
       height: newPresetHeight,
       printMode: newPresetMode,
-      thermalCols: newPresetMode === 'thermal2up' ? newPresetCols : 1,
+      thermalCols: newPresetMode === 'thermal3up' ? 3 : newPresetMode === 'thermal2up' ? 2 : 1,
       labelConfig: labelConfig || null,
     };
 
@@ -524,24 +527,24 @@ export function LabelCalibrationUI({
                     <SelectContent>
                       <SelectItem value="thermal" className="text-xs">🖨️ Thermal (1-Up)</SelectItem>
                       <SelectItem value="thermal2up" className="text-xs">🖨️ Thermal (2-Up)</SelectItem>
+                      <SelectItem value="thermal3up" className="text-xs">🖨️ Thermal (3-Up)</SelectItem>
                       <SelectItem value="a4" className="text-xs">📄 A4 Sheet</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
-                {newPresetMode === 'thermal2up' && (
+                {(newPresetMode === 'thermal2up' || newPresetMode === 'thermal3up') && (
                   <div className="space-y-1">
-                    <Label className="text-xs">Labels Per Row (Columns)</Label>
+                    <Label className="text-xs">Labels Per Row</Label>
                     <Input
                       type="number"
-                      value={newPresetCols}
-                      onChange={(e) => setNewPresetCols(Number(e.target.value) || 2)}
-                      className="h-8 text-xs"
-                      min={2} max={4}
+                      value={newPresetMode === 'thermal3up' ? 3 : newPresetCols}
+                      readOnly
+                      className="h-8 text-xs bg-muted/40"
                     />
                   </div>
                 )}
                 <p className="text-[10px] text-muted-foreground bg-muted/40 rounded px-2 py-1.5">
-                  Size: {newPresetWidth}×{newPresetHeight}mm · Mode: {newPresetMode === 'thermal2up' ? `Thermal ${newPresetCols}-Up` : newPresetMode === 'a4' ? 'A4 Sheet' : 'Thermal 1-Up'}
+                  Size: {newPresetWidth}×{newPresetHeight}mm · Mode: {newPresetMode === 'thermal3up' ? 'Thermal 3-Up' : newPresetMode === 'thermal2up' ? `Thermal ${newPresetCols}-Up` : newPresetMode === 'a4' ? 'A4 Sheet' : 'Thermal 1-Up'}
                   {labelConfig ? " · Includes label design" : ""}
                 </p>
               </div>
@@ -600,6 +603,20 @@ export function LabelCalibrationUI({
                 }}
               >
                 🖨️ Thermal (2-Up)
+              </button>
+              <button
+                type="button"
+                className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+                  printMode === 'thermal3up'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-muted/30 text-muted-foreground hover:bg-muted/50'
+                }`}
+                onClick={() => {
+                  onPrintModeChange('thermal3up');
+                  onChange({ ...values, labelWidth: 32, labelHeight: 19 });
+                }}
+              >
+                🖨️ Thermal (3-Up)
               </button>
               <button
                 type="button"
@@ -812,7 +829,9 @@ export function LabelCalibrationUI({
           <div className={cn("space-y-2", fullWorkspace && "flex flex-col min-h-0 h-full")}>
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide shrink-0">
               Live Preview ({previewScale}× •{' '}
-              {printMode === 'thermal2up' ? `${values.labelWidth}×${values.labelHeight}mm × 2` : `${values.labelWidth}×${values.labelHeight}mm`})
+              {getThermalPreviewCols(printMode) > 1
+                ? `${values.labelWidth}×${values.labelHeight}mm × ${getThermalPreviewCols(printMode)}`
+                : `${values.labelWidth}×${values.labelHeight}mm`})
             </p>
             <Card className={cn("overflow-hidden", fullWorkspace && "flex flex-col flex-1 min-h-0")}>
               <CardContent
@@ -822,15 +841,15 @@ export function LabelCalibrationUI({
                 )}
                 style={fullWorkspace ? undefined : { minHeight: 120 }}
               >
-                {printMode === 'thermal2up' ? (
+                {getThermalPreviewCols(printMode) > 1 ? (
                   <PrecisionThermalRowPreview
-                    items={[sampleItem || SAMPLE_ITEM, sampleItem || SAMPLE_ITEM]}
+                    items={Array.from({ length: getThermalPreviewCols(printMode) }, () => sampleItem || SAMPLE_ITEM)}
                     labelWidth={values.labelWidth}
                     labelHeight={values.labelHeight}
                     xOffset={values.xOffset}
                     yOffset={values.yOffset}
                     horizontalGap={values.vGap}
-                    thermalCols={2}
+                    thermalCols={getThermalPreviewCols(printMode)}
                     showBorder
                     config={labelConfig}
                     scaleFactor={previewScale}
