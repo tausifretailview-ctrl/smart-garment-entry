@@ -1,4 +1,4 @@
-import { useRef, useState, useCallback, useEffect, useMemo } from "react";
+import { useRef, useState, useCallback, useEffect } from "react";
 import { LabelDesignConfig, LabelFieldConfig, FieldKey, LabelItem } from "@/types/labelTypes";
 import { getCustomTextFields, usesCustomTextFields } from "@/utils/labelCustomText";
 import type { ProductFieldsConfig } from "@/utils/productFieldSettingsForLabels";
@@ -6,13 +6,25 @@ import {
   filterLabelFieldKeys,
   isLabelFieldAllowedByProductSettings,
 } from "@/utils/productFieldSettingsForLabels";
-import { applyJsBarcodeToElement, BARCODE_MM_TO_PX, resolveBarcodeSlotMm } from "@/utils/barcodeLabelLayout";
+import { applyJsBarcodeToElement, BARCODE_MM_TO_PX, legacyBarcodeHeightMm } from "@/utils/barcodeLabelLayout";
 import {
   collectEnabledDesignerFieldKeys,
   getLabelDesignerFieldDisplay,
   resolveLabelDesignerFieldLabel,
 } from "@/utils/labelDesignerPlaceholders";
-import type { LabelData, TSPLTemplateConfig } from "@/utils/tsplGenerator";
+
+function resolveDesignerBarcodeWidthMm(
+  barcodeConfig: LabelDesignConfig["barcode"] | undefined,
+  labelWidthMm: number,
+): number {
+  const slotX = barcodeConfig?.x ?? 0;
+  const available = Math.max(1, labelWidthMm - slotX);
+  if (!barcodeConfig?.width) return available;
+  if (barcodeConfig.width > labelWidthMm) {
+    return Math.min(available, (barcodeConfig.width / 100) * labelWidthMm);
+  }
+  return Math.min(available, barcodeConfig.width);
+}
 
 interface DraggableLabelCanvasProps {
   item: LabelItem;
@@ -75,42 +87,23 @@ export function DraggableLabelCanvas({
   } | null>(null);
 
   const barcodeLineWidth = config.barcodeWidth ?? 1.5;
-
-  const labelData = useMemo((): LabelData => ({
-    productName: item.product_name,
-    brand: item.brand,
-    category: item.category,
-    style: item.style,
-    color: item.color,
-    size: item.size,
-    mrp: item.mrp,
-    salePrice: item.sale_price,
-    barcode: item.barcode,
-    billNumber: item.bill_number,
-    purchaseCode: item.purchase_code,
-    supplierCode: item.supplier_code,
-    supplierInvoiceNo: item.supplier_invoice_no,
-    businessName: item.businessName,
-  }), [item]);
-
-  const barcodeSlot = useMemo(
-    () => resolveBarcodeSlotMm({ width, height }, config as unknown as TSPLTemplateConfig, labelData),
-    [config, width, height, labelData],
-  );
+  const barcodeConfig = config.barcode;
+  const designerBarcodeHeightMm = legacyBarcodeHeightMm(config.barcodeHeight, height);
+  const designerBarcodeWidthMm = resolveDesignerBarcodeWidthMm(barcodeConfig, width);
 
   useEffect(() => {
-    if (barcodeRef.current && item.barcode && config.barcode?.show) {
+    if (barcodeRef.current && item.barcode && barcodeConfig?.show) {
       try {
         applyJsBarcodeToElement(
           barcodeRef.current,
           item.barcode,
-          barcodeSlot.widthMm,
-          barcodeSlot.heightMm,
+          designerBarcodeWidthMm,
+          designerBarcodeHeightMm,
           barcodeLineWidth,
         );
       } catch {}
     }
-  }, [item.barcode, barcodeSlot, barcodeLineWidth, config.barcode?.show]);
+  }, [item.barcode, designerBarcodeWidthMm, designerBarcodeHeightMm, barcodeLineWidth, barcodeConfig?.show]);
 
   const pxWidth = width * MM_TO_PX;
   const pxHeight = height * MM_TO_PX;
@@ -174,7 +167,11 @@ export function DraggableLabelCanvas({
     const dx = (e.clientX - dragging.startX) / zoom / MM_TO_PX;
     const dy = (e.clientY - dragging.startY) / zoom / MM_TO_PX;
     const newX = Math.max(0, Math.min(width, dragging.origX + dx));
-    const newY = Math.max(0, Math.min(height, dragging.origY + dy));
+    let maxY = height;
+    if (dragging.type === "field" && dragging.key === "barcode") {
+      maxY = Math.max(0, height - designerBarcodeHeightMm);
+    }
+    const newY = Math.max(0, Math.min(maxY, dragging.origY + dy));
 
     if (dragging.type === 'field' && dragging.key) {
       onFieldDrag(dragging.key, newX, newY);
@@ -183,7 +180,7 @@ export function DraggableLabelCanvas({
     } else if (dragging.type === "customText" && dragging.customTextIndex !== undefined) {
       onCustomTextDrag(dragging.customTextIndex, newX, newY);
     }
-  }, [dragging, zoom, width, height, onFieldDrag, onLineDrag, onCustomTextDrag]);
+  }, [dragging, zoom, width, height, designerBarcodeHeightMm, onFieldDrag, onLineDrag, onCustomTextDrag]);
 
   const handleMouseUp = useCallback(() => {
     setDragging(null);
@@ -212,7 +209,6 @@ export function DraggableLabelCanvas({
     }),
     productFieldSettings,
   );
-  const barcodeConfig = config.barcode;
   const barcodeFieldEnabled =
     barcodeConfig?.show &&
     isLabelFieldAllowedByProductSettings("barcode", productFieldSettings);
@@ -289,9 +285,6 @@ export function DraggableLabelCanvas({
           const fieldX = field.x ?? 0;
           const maxFieldW = Math.max(0.5, width - fieldX);
           const fieldW = field.width ? Math.min(field.width, maxFieldW) : maxFieldW;
-          const derivedYMm = barcodeSlot?.layout?.derivedFieldYDots[key] != null
-            ? barcodeSlot.layout.derivedFieldYDots[key]! / (203 / 25.4)
-            : undefined;
 
           return (
             <div
@@ -299,7 +292,7 @@ export function DraggableLabelCanvas({
               onMouseDown={(e) => handleFieldMouseDown(e, key)}
               style={{
                 position: "absolute",
-                top: (derivedYMm ?? field.y ?? 0) * MM_TO_PX * zoom,
+                top: (field.y ?? 0) * MM_TO_PX * zoom,
                 left: (field.x ?? 0) * MM_TO_PX * zoom,
                 width: fieldW * MM_TO_PX * zoom,
                 fontSize: field.fontSize * zoom,
@@ -418,10 +411,10 @@ export function DraggableLabelCanvas({
             onMouseDown={(e) => handleFieldMouseDown(e, "barcode")}
             style={{
               position: "absolute",
-              top: (barcodeConfig.y ?? height * 0.35) * MM_TO_PX * zoom,
+              top: (barcodeConfig.y ?? 0) * MM_TO_PX * zoom,
               left: (barcodeConfig.x ?? 1) * MM_TO_PX * zoom,
-              width: barcodeSlot.widthMm * MM_TO_PX * zoom,
-              height: barcodeSlot.heightMm * MM_TO_PX * zoom,
+              width: designerBarcodeWidthMm * MM_TO_PX * zoom,
+              height: designerBarcodeHeightMm * MM_TO_PX * zoom,
               display: "flex",
               justifyContent: "center",
               alignItems: "center",
@@ -439,9 +432,9 @@ export function DraggableLabelCanvas({
               <svg
                 ref={barcodeRef}
                 style={{
-                  height: barcodeSlot.heightMm * BARCODE_MM_TO_PX * zoom,
+                  height: designerBarcodeHeightMm * BARCODE_MM_TO_PX * zoom,
                   width: "auto",
-                  maxWidth: barcodeSlot.widthMm * MM_TO_PX * zoom,
+                  maxWidth: designerBarcodeWidthMm * MM_TO_PX * zoom,
                   flexShrink: 0,
                   imageRendering: "pixelated",
                 }}
