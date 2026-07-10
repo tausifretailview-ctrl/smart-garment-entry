@@ -836,8 +836,10 @@ export default function POSSales() {
 
   // Barcode scanner detection for instant cart add
   const { recordKeystroke, reset: resetScannerDetection, detectScannerInput, scheduleAutoSubmit, cancelAutoSubmit, markSubmitted } = useBarcodeScanner();
+  const mobileERP = useMobileERP();
   const lastInputTime = useRef<number>(0);
   const dropdownDebounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const manualBarcodeDebounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const productSearchSeqRef = useRef(0);
   
   // Visibility-based polling - pauses when tab is hidden
@@ -2033,6 +2035,10 @@ export default function POSSales() {
         clearTimeout(dropdownDebounceTimer.current);
         dropdownDebounceTimer.current = null;
       }
+      if (manualBarcodeDebounceTimer.current) {
+        clearTimeout(manualBarcodeDebounceTimer.current);
+        manualBarcodeDebounceTimer.current = null;
+      }
       cancelAutoSubmit();
       markSubmitted(rawValue);
       
@@ -2060,10 +2066,14 @@ export default function POSSales() {
     // Update the input value
     setSearchInput(value);
     
-    // Clear previous debounce timer
+    // Clear previous debounce timers
     if (dropdownDebounceTimer.current) {
       clearTimeout(dropdownDebounceTimer.current);
       dropdownDebounceTimer.current = null;
+    }
+    if (manualBarcodeDebounceTimer.current) {
+      clearTimeout(manualBarcodeDebounceTimer.current);
+      manualBarcodeDebounceTimer.current = null;
     }
     
     // Detect if this looks like scanner input
@@ -2084,25 +2094,54 @@ export default function POSSales() {
     }
     
     if (value.length >= 2) {
+      // Show dropdown for all manual typing, including long numeric barcodes
       dropdownDebounceTimer.current = setTimeout(() => {
-        const hasNonNumeric = /[a-zA-Z]/.test(value);
-        const isShortNumeric = /^\d+$/.test(value) && value.length < 8;
-
-        if (hasNonNumeric || isShortNumeric) {
-          setOpenProductSearch(true);
-        } else {
-          setOpenProductSearch(false);
-          setProductSearchResults([]);
-        }
+        setOpenProductSearch(true);
       }, 300);
+
+      // Auto-add on pause when a manually typed barcode exactly matches a variant
+      const trimmed = value.trim();
+      if (trimmed.length >= 4 && !/\s/.test(trimmed)) {
+        manualBarcodeDebounceTimer.current = setTimeout(() => {
+          manualBarcodeDebounceTimer.current = null;
+          void (async () => {
+            const term = value.trim();
+            if (!term || /\s/.test(term)) return;
+
+            const orgId = currentOrganization?.id;
+            if (!orgId) return;
+
+            if (mobileERP.enabled && mobileERP.imei_scan_enforcement) {
+              if (!validateIMEI(term, mobileERP.imei_min_length, mobileERP.imei_max_length)) {
+                return;
+              }
+            }
+
+            const { data, error } = await posVariantBaseQuery(orgId).eq('barcode', term).limit(1);
+            if (error) {
+              console.error('Manual barcode lookup failed:', error);
+              return;
+            }
+            const match = mapPosVariantLookupRow(
+              data?.[0] as (PosVariantRow & { products?: PosProductRow }) | undefined,
+            );
+            if (!match) return;
+
+            markSubmitted(term);
+            cancelAutoSubmit();
+            setOpenProductSearch(false);
+            setSearchInput("");
+            await searchAndAddProduct(term);
+            resetScannerDetection();
+          })();
+        }, 500);
+      }
     } else {
       setOpenProductSearch(false);
       setProductSearchResults([]);
       setIsProductSearchLoading(false);
     }
-  }, [recordKeystroke, detectScannerInput, scheduleAutoSubmit, searchAndAddProduct, resetScannerDetection]);
-
-  const mobileERP = useMobileERP();
+  }, [recordKeystroke, detectScannerInput, scheduleAutoSubmit, searchAndAddProduct, resetScannerDetection, cancelAutoSubmit, markSubmitted, currentOrganization?.id, mobileERP]);
 
   useEffect(() => {
     const term = searchInput.trim();

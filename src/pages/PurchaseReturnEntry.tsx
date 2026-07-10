@@ -26,7 +26,6 @@ import { useEntryViewportSync } from "@/hooks/useEntryViewportSync";
 import { useBarcodeScanner } from "@/hooks/useBarcodeScanner";
 import { CameraScanButton } from "@/components/CameraBarcodeScannerDialog";
 import { useDraftSave } from "@/hooks/useDraftSave";
-import { DraftResumeDialog } from "@/components/DraftResumeDialog";
 import {
   buildPurchaseReturnItemPayload,
   calculatePurchaseReturnTotals,
@@ -56,6 +55,19 @@ function nextReturnQty(current: number, uom: string | undefined): number {
 
 function defaultReturnQty(_uom: string | undefined): number {
   return 1;
+}
+
+function formatPurchaseReturnProductDescription(item: {
+  product_name: string;
+  brand?: string;
+  color?: string;
+  size?: string;
+}) {
+  const parts = [item.product_name];
+  if (item.color && item.color.trim() && item.color.trim() !== "-") parts.push(item.color);
+  if (item.brand && item.brand.trim() && item.brand.trim() !== "-") parts.push(item.brand);
+  if (item.size && item.size.trim() && item.size.trim() !== "-") parts.push(item.size);
+  return parts.join(" - ");
 }
 
 interface ProductVariant {
@@ -189,7 +201,6 @@ const PurchaseReturnEntry = () => {
   const [discountPercent, setDiscountPercent] = useState(0);
   const [discountAmount, setDiscountAmount] = useState(0);
   const [isSearching, setIsSearching] = useState(false);
-  const [showDraftDialog, setShowDraftDialog] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lineItemsRef = useRef<LineItem[]>([]);
@@ -265,7 +276,6 @@ const PurchaseReturnEntry = () => {
     saveDraft,
     deleteDraft,
     updateCurrentData,
-    lastSaved,
     startAutoSave,
     stopAutoSave,
   } = useDraftSave('purchase_return');
@@ -280,25 +290,21 @@ const PurchaseReturnEntry = () => {
     setTaxType(data.taxType || "exclusive");
     setDiscountPercent(data.discountPercent || 0);
     setDiscountAmount(data.discountAmount || 0);
-    // Silent restore - no toast to avoid disturbing user
-  }, [toast]);
+  }, []);
 
-  // Load draft automatically if navigated from dashboard with loadDraft flag
+  // Resume draft only when opened from dashboard (like Purchase Entry — no popup on direct open)
   useEffect(() => {
     if (location.state?.loadDraft && hasDraft && draftData && !initialDraftCheckDone.current) {
       initialDraftCheckDone.current = true;
       loadDraftData(draftData);
-      deleteDraft();
+      const count = Array.isArray(draftData?.lineItems) ? draftData.lineItems.length : 0;
+      toast({
+        title: "Unsaved draft restored",
+        description: count > 0 ? `${count} line item(s) loaded from your draft.` : "Draft loaded.",
+      });
+      void deleteDraft();
     }
-  }, [location.state?.loadDraft, hasDraft, draftData, loadDraftData, deleteDraft]);
-
-  // Show draft dialog on mount if draft exists and not loading from dashboard
-  useEffect(() => {
-    if (hasDraft && draftData && !isEditMode && !location.state?.loadDraft && !initialDraftCheckDone.current) {
-      initialDraftCheckDone.current = true;
-      setShowDraftDialog(true);
-    }
-  }, [hasDraft, draftData, isEditMode, location.state?.loadDraft]);
+  }, [location.state?.loadDraft, hasDraft, draftData, loadDraftData, deleteDraft, toast]);
 
   // Update current data for auto-save whenever form data changes
   useEffect(() => {
@@ -1501,7 +1507,7 @@ const PurchaseReturnEntry = () => {
   return (
     <>
     <div
-      className={cn(entryPageShellClass, "bg-white sale-order-readable min-h-0 relative")}
+      className={cn(entryPageShellClass, "bg-slate-50 purchase-entry-page purchase-bill-readable min-h-0 relative")}
       data-entry-form
       aria-busy={isReturnHydrating}
     >
@@ -1561,24 +1567,24 @@ const PurchaseReturnEntry = () => {
       </header>
 
       <main className={cn(entryPageMainClass, isReturnEditBlocked && "pointer-events-none opacity-60")}>
-        <section className={cn("bg-white border-b border-black/10 py-2 shrink-0 shadow-sm", entryPageSectionX)}>
-          <div className="flex flex-wrap lg:flex-nowrap items-end gap-3">
+        <section className={cn("purchase-bill-details-section bg-white border-b border-slate-200 py-2 shrink-0 shadow-sm", entryPageSectionX)}>
+          <div className="purchase-entry-meta-grid flex flex-wrap lg:flex-nowrap items-end gap-3">
             <div className="space-y-1 flex-1 min-w-[120px]">
-              <Label htmlFor="return_number" className="text-[13px] font-bold text-black">Return No.</Label>
+              <Label htmlFor="return_number" className="text-[14px] font-bold text-slate-800">Return No.</Label>
               <Input
                 id="return_number"
                 value={returnNumber}
                 readOnly
-                className="h-10 bg-neutral-50 font-mono font-bold text-sm border-black/20"
+                className="h-11 bg-neutral-50 font-mono font-bold text-[15px] border-slate-300"
               />
             </div>
 
             <div className="space-y-1 flex-[1.5] min-w-[160px]">
-              <Label className="text-[13px] font-bold text-black">
+              <Label className="text-[14px] font-bold text-slate-800">
                 Supplier <span className="text-red-600">*</span>
               </Label>
               <Select value={returnData.supplier_id} onValueChange={handleSupplierChange}>
-                <SelectTrigger className="h-10 border-black/20">
+                <SelectTrigger className="h-11 border-slate-300 text-[15px]">
                   <SelectValue placeholder="Select supplier" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1592,13 +1598,13 @@ const PurchaseReturnEntry = () => {
             </div>
 
             <div className="space-y-1 flex-1 min-w-[140px]">
-              <Label className="text-[13px] font-bold text-black">Return Date</Label>
+              <Label className="text-[14px] font-bold text-slate-800">Return Date</Label>
               <Popover>
                 <PopoverTrigger asChild>
                   <Button
                     variant="outline"
                     className={cn(
-                      "w-full h-10 justify-start text-left font-normal border-black/20",
+                      "w-full h-11 justify-start text-left font-normal border-slate-300 text-[15px]",
                       !returnDate && "text-muted-foreground",
                     )}
                   >
@@ -1618,9 +1624,9 @@ const PurchaseReturnEntry = () => {
             </div>
 
             <div className="space-y-1 flex-1 min-w-[140px]">
-              <Label className="text-[13px] font-bold text-black">GST Type</Label>
+              <Label className="text-[14px] font-bold text-slate-800">GST Type</Label>
               <Select value={taxType} onValueChange={(value: "exclusive" | "inclusive" | "dc") => setTaxType(value)}>
-                <SelectTrigger className="h-10 border-black/20">
+                <SelectTrigger className="h-11 border-slate-300 text-[15px]">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -1634,15 +1640,15 @@ const PurchaseReturnEntry = () => {
 
           <div className="mt-3 flex flex-wrap lg:flex-nowrap items-end gap-3">
             <div className="space-y-1 flex-[2] min-w-[220px]">
-              <Label className="text-[13px] font-bold text-black">Supplier Invoice No. (original purchase)</Label>
-              <p className="text-[11px] text-black/55 leading-snug">
+              <Label className="text-[14px] font-bold text-slate-800">Supplier Invoice No. (original purchase)</Label>
+              <p className="text-[12px] text-slate-600 leading-snug">
                 Load Items: each line qty = min(qty on purchase, current stock). Lines with no stock are omitted.
               </p>
               <div className="flex gap-2">
                 <Input
                   placeholder="Supplier invoice no. or software bill no."
                   value={returnData.original_bill_number}
-                  className="no-uppercase h-10 border-black/20"
+                  className="no-uppercase h-11 border-slate-300 text-[15px]"
                   onChange={(e) => {
                     setReturnData({ ...returnData, original_bill_number: e.target.value });
                     setBillLoaded(false);
@@ -1659,7 +1665,7 @@ const PurchaseReturnEntry = () => {
                   type="button"
                   onClick={loadBillByNumber}
                   disabled={loadingBill || !returnData.original_bill_number.trim()}
-                  className="h-10 px-4 flex items-center gap-2 shrink-0 bg-black text-white hover:bg-black/90 font-bold"
+                  className="h-11 px-4 flex items-center gap-2 shrink-0 bg-slate-900 text-white hover:bg-slate-800 font-bold text-[14px]"
                 >
                   {loadingBill ? (
                     <>
@@ -1682,12 +1688,12 @@ const PurchaseReturnEntry = () => {
             </div>
 
             <div className="space-y-1 flex-1 min-w-[160px]">
-              <Label className="text-[13px] font-bold text-black">Refund Settlement (GL)</Label>
+              <Label className="text-[14px] font-bold text-slate-800">Refund Settlement (GL)</Label>
               <Select
                 value={refundSettlement}
                 onValueChange={(v) => setRefundSettlement(v as PurchaseReturnRefundSettlement)}
               >
-                <SelectTrigger className="h-10 border-black/20">
+                <SelectTrigger className="h-11 border-slate-300 text-[15px]">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -1699,12 +1705,12 @@ const PurchaseReturnEntry = () => {
 
             {refundSettlement === "immediate_refund" && (
               <div className="space-y-1 flex-1 min-w-[120px]">
-                <Label className="text-[13px] font-bold text-black">Received via</Label>
+                <Label className="text-[14px] font-bold text-slate-800">Received via</Label>
                 <Select
                   value={refundPaymentMethod}
                   onValueChange={(v) => setRefundPaymentMethod(v as PurchaseReturnRefundPm)}
                 >
-                  <SelectTrigger className="h-10 border-black/20">
+                  <SelectTrigger className="h-11 border-slate-300 text-[15px]">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -1718,13 +1724,13 @@ const PurchaseReturnEntry = () => {
             )}
 
             <div className="space-y-1 flex-[1.5] min-w-[180px]">
-              <Label className="text-[13px] font-bold text-black">Notes</Label>
+              <Label className="text-[14px] font-bold text-slate-800">Notes</Label>
               <Textarea
                 placeholder="Enter notes or reason for return"
                 value={returnData.notes}
                 onChange={(e) => setReturnData({ ...returnData, notes: e.target.value })}
                 rows={2}
-                className="min-h-[40px] resize-none border-black/20 text-sm"
+                className="min-h-[44px] max-h-[88px] overflow-y-auto resize-none border-slate-300 text-[15px]"
               />
             </div>
           </div>
@@ -1736,7 +1742,7 @@ const PurchaseReturnEntry = () => {
           )}
         </section>
 
-        <section className={cn("bg-neutral-50 border-b border-black/10 py-3 shrink-0", entryPageSectionX)}>
+        <section className={cn("purchase-bill-toolbar bg-slate-50 border-b border-slate-200 py-3 shrink-0", entryPageSectionX)}>
           <div className="flex items-center gap-3 flex-wrap">
             <div className="relative flex-1 min-w-[280px]">
               <div className="relative">
@@ -1801,7 +1807,7 @@ const PurchaseReturnEntry = () => {
                       barcodeScanner.reset();
                     }
                   }}
-                  className="pl-10 h-10 text-sm bg-white border-black/20 uppercase font-semibold"
+                  className="pl-10 h-11 text-[15px] bg-white border-slate-300 uppercase font-semibold"
                   autoComplete="off"
                 />
                 {showSearch && searchResults.length > 0 && (
@@ -1833,50 +1839,63 @@ const PurchaseReturnEntry = () => {
               onBarcodeScanned={(barcode) => {
                 void searchAndAddProduct(barcode, { fromScan: true });
               }}
-              className="h-10 border-black/20"
+              className="h-11 border-slate-300"
             />
-            <div className="flex items-center gap-2 bg-black text-white px-4 py-2 rounded-lg ml-auto shrink-0">
-              <span className="text-[12px] font-bold opacity-80">Total Qty</span>
-              <span className="font-black tabular-nums text-[16px]">{totalReturnQty}</span>
+            <div className="flex items-center gap-2 bg-slate-900 text-white px-4 py-2.5 rounded-lg ml-auto shrink-0">
+              <span className="text-[13px] font-bold opacity-80">Total Qty</span>
+              <span className="font-black tabular-nums text-[18px]">{totalReturnQty}</span>
             </div>
           </div>
         </section>
 
-        <section className={cn("flex-1 min-h-0 pb-2 overflow-hidden bg-neutral-100 relative w-full min-w-0", entryPageSectionX)}>
-          <div className="h-full w-full min-w-0 overflow-x-auto overflow-y-auto isolate rounded-lg border border-black/15 shadow-sm bg-white">
+        <section className={cn("flex-1 min-h-0 pb-2 overflow-hidden bg-slate-100 relative w-full min-w-0", entryPageSectionX)}>
+          <div className="purchase-bill-lines-scroll h-full w-full min-w-0 overflow-x-auto overflow-y-auto isolate rounded-lg border border-slate-200 shadow-sm bg-white">
             {lineItems.length > 0 ? (
               <Table className="table-fixed w-full min-w-[1100px] border-separate border-spacing-0 erp-desktop-table erp-entry-lines-table">
-                <TableHeader className="sticky top-0 z-10">
-                  <TableRow className="bg-white border-b-2 border-black hover:bg-white">
-                    <TableHead className="w-[40px] text-center !text-[15px] uppercase font-bold text-black h-11">#</TableHead>
-                    <TableHead className="min-w-[160px] text-left !text-[15px] uppercase font-bold text-black h-11">Item Name</TableHead>
-                    <TableHead className="w-[80px] text-center !text-[15px] uppercase font-bold text-black h-11">Brand</TableHead>
-                    <TableHead className="w-[70px] text-center !text-[15px] uppercase font-bold text-black h-11">Color</TableHead>
-                    <TableHead className="w-[60px] text-center !text-[15px] uppercase font-bold text-black h-11">Size</TableHead>
-                    <TableHead className="w-[100px] text-center !text-[15px] uppercase font-bold text-black h-11">Barcode</TableHead>
-                    <TableHead className="w-[72px] text-center text-[13px] uppercase font-bold text-black h-11">Qty</TableHead>
+                <TableHeader className="sticky top-0 z-10 erp-invoice-table-header">
+                  <TableRow className="bg-slate-800 border-b-2 border-slate-900 hover:bg-slate-800">
+                    <TableHead className="w-[40px] text-center uppercase font-bold text-white h-11">#</TableHead>
+                    <TableHead className="col-product w-[10rem] max-w-[10rem] text-left uppercase font-bold text-white h-11">Item Name</TableHead>
+                    <TableHead className="w-[80px] text-center uppercase font-bold text-white h-11">Brand</TableHead>
+                    <TableHead className="w-[70px] text-center uppercase font-bold text-white h-11">Color</TableHead>
+                    <TableHead className="pur-col-size w-[60px] text-center uppercase font-bold text-white h-11">Size</TableHead>
+                    <TableHead className="pur-col-barcode w-[100px] text-center uppercase font-bold text-white h-11">Barcode</TableHead>
+                    <TableHead className="w-[72px] text-center uppercase font-bold text-white h-11 pur-qty-col">Qty</TableHead>
                     {showMrp && (
-                      <TableHead className="w-[80px] text-right text-[13px] uppercase font-bold text-black h-11">MRP</TableHead>
+                      <TableHead className="w-[80px] text-right uppercase font-bold text-white h-11">MRP</TableHead>
                     )}
-                    <TableHead className="w-[88px] text-right text-[13px] uppercase font-bold text-black h-11 bg-neutral-100">Pur. Rate</TableHead>
-                    <TableHead className="w-[64px] text-center text-[13px] uppercase font-bold text-black h-11">Disc%</TableHead>
-                    <TableHead className="w-[72px] text-right text-[13px] uppercase font-bold text-black h-11">Disc ₹</TableHead>
+                    <TableHead className="pur-col-num w-[88px] text-right uppercase font-bold text-white h-11">Pur. Rate</TableHead>
+                    <TableHead className="w-[64px] text-center uppercase font-bold text-white h-11">Disc%</TableHead>
+                    <TableHead className="w-[72px] text-right uppercase font-bold text-white h-11">Disc ₹</TableHead>
                     {!isDC && (
-                      <TableHead className="w-[64px] text-center text-[13px] uppercase font-bold text-black h-11">GST%</TableHead>
+                      <TableHead className="w-[64px] text-center uppercase font-bold text-white h-11">GST%</TableHead>
                     )}
-                    <TableHead className="w-[88px] text-right text-[13px] uppercase font-bold text-black h-11 border-l-2 border-black bg-neutral-100">Total</TableHead>
+                    <TableHead className="pur-col-num w-[88px] text-right uppercase font-bold text-white h-11 border-l-2 border-slate-600">Total</TableHead>
                     <TableHead className="w-[40px] h-11" />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {lineItems.map((item, index) => (
-                    <TableRow key={item.temp_id} className="border-b border-black/5">
-                      <TableCell className="text-center text-black/60 font-mono !text-[15px] py-1.5">{index + 1}</TableCell>
-                      <TableCell className="font-bold !text-[17px] text-black py-1.5 leading-snug">{item.product_name}</TableCell>
-                      <TableCell className="text-center !text-[16px] font-medium text-black py-1.5">{item.brand}</TableCell>
-                      <TableCell className="text-center !text-[16px] font-medium text-black py-1.5">{item.color || "-"}</TableCell>
-                      <TableCell className="text-center !text-[16px] font-mono font-semibold text-black py-1.5">{item.size}</TableCell>
-                      <TableCell className="text-center !text-[15px] font-mono font-medium text-black/80 py-1.5">{item.barcode}</TableCell>
+                    <TableRow
+                      key={item.temp_id}
+                      className={cn(
+                        "purchase-bill-line-row border-b border-slate-100",
+                        index % 2 === 0 ? "bg-white" : "bg-slate-50/60",
+                      )}
+                    >
+                      <TableCell className="text-center text-slate-500 font-mono py-1.5">{index + 1}</TableCell>
+                      <TableCell
+                        className="col-product w-[10rem] max-w-[10rem] py-1.5 align-top"
+                        title={formatPurchaseReturnProductDescription(item)}
+                      >
+                        <div className="entry-line-product-desc">
+                          {formatPurchaseReturnProductDescription(item)}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-center font-medium text-slate-900 py-1.5">{item.brand}</TableCell>
+                      <TableCell className="text-center font-medium text-slate-900 py-1.5">{item.color || "-"}</TableCell>
+                      <TableCell className="pur-col-size text-center font-mono font-semibold text-slate-900 py-1.5">{item.size}</TableCell>
+                      <TableCell className="pur-col-barcode text-center font-mono font-medium text-slate-700 py-1.5">{item.barcode}</TableCell>
                       <TableCell className="py-1">
                         <div className="flex items-center gap-1 justify-center">
                           <Input
@@ -1888,10 +1907,10 @@ const PurchaseReturnEntry = () => {
                               updateLineItem(item.temp_id, "qty", parseReturnQty(item.uom, e.target.value))
                             }
                             onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                            className="w-[56px] h-8 text-center text-sm border-black/20 font-mono"
+                            className="w-[60px] text-center border-slate-300 font-mono"
                           />
                           {item.uom && item.uom !== "NOS" && item.uom !== "PCS" && (
-                            <span className="text-[10px] text-black/50 whitespace-nowrap">{getUOMLabel(item.uom)}</span>
+                            <span className="text-[11px] text-slate-500 whitespace-nowrap">{getUOMLabel(item.uom)}</span>
                           )}
                         </div>
                       </TableCell>
@@ -1906,7 +1925,7 @@ const PurchaseReturnEntry = () => {
                               updateLineItem(item.temp_id, "mrp", parseFloat(e.target.value) || 0)
                             }
                             onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                            className="w-[72px] h-8 text-right text-sm border-black/20 font-mono ml-auto"
+                            className="w-[76px] text-right border-slate-300 font-mono ml-auto"
                           />
                         </TableCell>
                       )}
@@ -1920,7 +1939,7 @@ const PurchaseReturnEntry = () => {
                             updateLineItem(item.temp_id, "pur_price", parseFloat(e.target.value) || 0)
                           }
                           onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                          className="w-[80px] h-8 text-right text-sm border-black/20 font-mono ml-auto bg-neutral-50"
+                          className="w-[84px] text-right border-slate-300 font-mono ml-auto bg-slate-50"
                         />
                       </TableCell>
                       <TableCell className="py-1">
@@ -1934,7 +1953,7 @@ const PurchaseReturnEntry = () => {
                             updateLineItem(item.temp_id, "discount_percent", parseFloat(e.target.value) || 0)
                           }
                           onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                          className="w-[56px] h-8 text-center text-sm border-black/20 font-mono mx-auto"
+                          className="w-[60px] text-center border-slate-300 font-mono mx-auto"
                         />
                       </TableCell>
                       <TableCell className="py-1">
@@ -1947,7 +1966,7 @@ const PurchaseReturnEntry = () => {
                             updateLineItem(item.temp_id, "discount_amount", parseFloat(e.target.value) || 0)
                           }
                           onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                          className="w-[64px] h-8 text-right text-sm border-black/20 font-mono ml-auto"
+                          className="w-[68px] text-right border-slate-300 font-mono ml-auto"
                         />
                       </TableCell>
                       {!isDC && (
@@ -1962,18 +1981,18 @@ const PurchaseReturnEntry = () => {
                               updateLineItem(item.temp_id, "gst_per", parseFloat(e.target.value) || 0)
                             }
                             onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                            className="w-[56px] h-8 text-center text-sm border-black/20 font-mono mx-auto"
+                            className="w-[60px] text-center border-slate-300 font-mono mx-auto"
                           />
                         </TableCell>
                       )}
-                      <TableCell className="text-right font-bold text-[15px] font-mono tabular-nums text-black py-1.5 border-l-2 border-black/10">
+                      <TableCell className="text-right font-bold font-mono tabular-nums text-slate-900 py-1.5 border-l-2 border-slate-200">
                         ₹{item.line_total.toFixed(2)}
                       </TableCell>
                       <TableCell className="py-1">
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="h-8 w-8 p-0 hover:bg-red-50"
+                          className="h-9 w-9 p-0 hover:bg-red-50"
                           onClick={() => removeLineItem(item.temp_id)}
                         >
                           <Trash2 className="h-4 w-4 text-red-600" />
@@ -1994,8 +2013,8 @@ const PurchaseReturnEntry = () => {
         </section>
       </main>
 
-      <footer className="entry-page-footer sale-order-footer shrink-0 relative z-40">
-        <div className="bg-white text-black border-t-2 border-black w-full">
+      <footer className="entry-page-footer shrink-0 relative z-40">
+        <div className="bg-white text-slate-900 border-t-2 border-slate-800 w-full">
           <div className="flex items-center justify-between px-4 py-3 gap-4 w-full min-w-0 flex-wrap">
             <div className="flex items-center gap-0 shrink-0 overflow-x-auto flex-wrap">
               <span className="text-[14px] font-extrabold uppercase tracking-wide text-black mr-2 whitespace-nowrap">Bill Disc %</span>
@@ -2008,7 +2027,7 @@ const PurchaseReturnEntry = () => {
                 onChange={(e) => handleDiscountPercentChange(parseFloat(e.target.value) || 0)}
                 onWheel={(e) => (e.target as HTMLInputElement).blur()}
                 placeholder="0"
-                className="w-[80px] h-10 text-[16px] text-right bg-white text-black font-extrabold font-mono border-2 border-black/20 rounded-sm"
+                className="w-[80px] h-11 text-[16px] text-right bg-white text-slate-900 font-extrabold font-mono border-2 border-slate-300 rounded-sm"
               />
               <div className="w-px h-8 bg-black/15 mx-3 shrink-0" />
               <span className="text-[14px] font-extrabold uppercase tracking-wide text-black mr-2 whitespace-nowrap">Bill Disc ₹</span>
@@ -2020,7 +2039,7 @@ const PurchaseReturnEntry = () => {
                 onChange={(e) => handleDiscountAmountChange(parseFloat(e.target.value) || 0)}
                 onWheel={(e) => (e.target as HTMLInputElement).blur()}
                 placeholder="0"
-                className="w-[90px] h-10 text-[16px] text-right bg-white text-black font-extrabold font-mono border-2 border-black/20 rounded-sm"
+                className="w-[90px] h-11 text-[16px] text-right bg-white text-slate-900 font-extrabold font-mono border-2 border-slate-300 rounded-sm"
               />
             </div>
             <div className="flex items-center gap-4 shrink-0">
@@ -2103,23 +2122,6 @@ const PurchaseReturnEntry = () => {
         </div>
       </footer>
     </div>
-
-      {/* Draft Resume Dialog */}
-      <DraftResumeDialog
-        open={showDraftDialog}
-        onOpenChange={setShowDraftDialog}
-        onResume={() => {
-          loadDraftData(draftData);
-          deleteDraft();
-          setShowDraftDialog(false);
-        }}
-        onStartFresh={() => {
-          deleteDraft();
-          setShowDraftDialog(false);
-        }}
-        draftType="Purchase Return"
-        lastSaved={lastSaved}
-      />
 
       {/* Stock Not Available Alert */}
       <AlertDialog open={stockAlertOpen} onOpenChange={setStockAlertOpen}>
