@@ -10,7 +10,13 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useActivityCenter } from "@/contexts/ActivityCenterContext";
+import { useOrganization } from "@/contexts/OrganizationContext";
+import { useWindowTabs } from "@/contexts/WindowTabsContext";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
+import {
+  normalizeActivityPath,
+  queueActivityNavigation,
+} from "@/lib/activityCenterNavigation";
 import {
   groupActivityNotifications,
   useActivityNotifications,
@@ -69,15 +75,15 @@ function ActivityRow({
       type="button"
       onClick={() => onNavigate(item)}
       className={cn(
-        "w-full flex gap-3 p-2.5 rounded-lg text-left relative transition-colors",
+        "w-full flex gap-3 p-3 rounded-lg text-left relative transition-colors",
         item.unread ? "bg-primary/10 hover:bg-primary/15" : "hover:bg-muted/60",
       )}
     >
       <TypeIcon type={item.type} />
       <div className="flex-1 min-w-0 pr-3">
         <p className="text-[13px] font-semibold leading-snug">{item.title}</p>
-        <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-2">{item.subtitle}</p>
-        <p className="text-[10px] text-primary font-bold mt-1">{item.ctaLabel}</p>
+        <p className="text-[12px] text-muted-foreground mt-0.5 line-clamp-3">{item.subtitle}</p>
+        <p className="text-[11px] text-primary font-bold mt-1.5">{item.ctaLabel}</p>
         {!item.unread && (
           <p className="text-[10px] text-muted-foreground mt-1">
             {formatDistanceToNow(new Date(item.timestamp), { addSuffix: true })}
@@ -96,6 +102,8 @@ function ActivityRow({
 
 export function ActivityCenterPanel() {
   const { readState, markAllRead, markCategoryRead, setOpen } = useActivityCenter();
+  const { currentOrganization } = useOrganization();
+  const { openWindow } = useWindowTabs();
   const { orgNavigate } = useOrgNavigation();
   const [activeTab, setActiveTab] = useState<ActivityTab>("all");
 
@@ -109,13 +117,42 @@ export function ActivityCenterPanel() {
   const handleNavigate = (item: ActivityNotificationItem) => {
     markCategoryRead(item.type);
     setOpen(false);
-    orgNavigate(item.path, item.navigateState ? { state: item.navigateState } : undefined);
+
+    const navState = {
+      ...(item.navigateState ?? {}),
+      activityNavTs: Date.now(),
+    };
+
+    if (currentOrganization?.id) {
+      queueActivityNavigation(currentOrganization.id, item.path, navState);
+    }
+
+    const tabPath = normalizeActivityPath(item.path);
+    if (tabPath) {
+      openWindow(tabPath);
+    }
+
+    orgNavigate(item.path, { state: navState });
+  };
+
+  const handleViewAll = () => {
+    const firstUnread = notifications.find((n) => n.unread);
+    if (firstUnread) {
+      handleNavigate(firstUnread);
+      return;
+    }
+    setOpen(false);
+    orgNavigate("/reports");
   };
 
   return (
-    <div className="flex flex-col max-h-[min(70vh,520px)]" role="dialog" aria-label="Activity center">
-      <div className="flex items-center gap-2 px-4 py-3 border-b border-border shrink-0">
-        <span className="font-bold text-[15px]">Activity</span>
+    <div
+      className="flex flex-col max-h-[min(82vh,640px)] min-h-[320px]"
+      role="dialog"
+      aria-label="Activity center"
+    >
+      <div className="flex items-center gap-2 px-4 py-3.5 border-b border-border shrink-0">
+        <span className="font-bold text-base">Activity</span>
         <span className="flex-1" />
         <button
           type="button"
@@ -158,7 +195,7 @@ export function ActivityCenterPanel() {
         })}
       </div>
 
-      <div className="overflow-y-auto flex-1 min-h-0 p-1.5">
+      <div className="overflow-y-auto flex-1 min-h-0 p-2">
         {isLoading && filtered.length === 0 ? (
           <div className="flex items-center justify-center py-12 text-muted-foreground text-sm">
             <Loader2 className="h-4 w-4 animate-spin mr-2" />
@@ -184,16 +221,15 @@ export function ActivityCenterPanel() {
         )}
       </div>
 
-      <div className="border-t border-border py-2 text-center shrink-0">
+      <div className="border-t border-border py-2.5 text-center shrink-0">
         <button
           type="button"
-          onClick={() => {
-            setOpen(false);
-            orgNavigate("/reports");
-          }}
+          onClick={handleViewAll}
           className="text-[12px] font-semibold text-primary hover:underline"
         >
-          View all activity →
+          {notifications.some((n) => n.unread)
+            ? "Open top priority →"
+            : "View all activity →"}
         </button>
       </div>
     </div>

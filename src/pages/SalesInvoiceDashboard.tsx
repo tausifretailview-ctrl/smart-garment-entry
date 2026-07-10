@@ -105,6 +105,7 @@ import { MobileBottomNav } from "@/components/mobile/MobileBottomNav";
 import { cn } from "@/lib/utils";
 import { useTabCacheLayout } from "@/contexts/TabCacheLayoutContext";
 import { useSharedAppShell } from "@/contexts/SharedAppShellContext";
+import { mergeActivityNavigationState } from "@/lib/activityCenterNavigation";
 import { onWheelScrollContainer } from "@/lib/scrollWheel";
 import { waitForPrintReady } from "@/utils/printReady";
 import { whatsappPaymentReceiptDiscountLines } from "@/utils/paymentReceiptWhatsApp";
@@ -1731,19 +1732,23 @@ export default function SalesInvoiceDashboard() {
   }, [debouncedSearch, itemsPerPage, periodFilter, paymentStatusFilter, deliveryFilter, userFilter, startDate, endDate]);
 
   useEffect(() => {
-    const st = location.state as { refreshSalesList?: boolean; paymentStatusFilter?: string[] } | null;
-    if (st?.paymentStatusFilter?.length) {
-      setPaymentStatusFilter(st.paymentStatusFilter);
+    const merged = mergeActivityNavigationState(
+      location.state as { refreshSalesList?: boolean; paymentStatusFilter?: string[] } | null,
+      currentOrganization?.id,
+      "sales-invoice-dashboard",
+    );
+    if (merged?.paymentStatusFilter && Array.isArray(merged.paymentStatusFilter) && merged.paymentStatusFilter.length > 0) {
+      setPaymentStatusFilter(merged.paymentStatusFilter);
       setCurrentPage(1);
       window.history.replaceState({}, document.title);
       return;
     }
-    if (!st?.refreshSalesList) return;
+    if (!merged?.refreshSalesList) return;
     setCurrentPage(1);
     void queryClient.invalidateQueries({ queryKey: ["invoice-dashboard-unified"] });
     void queryClient.invalidateQueries({ queryKey: ["sales-invoice-dashboard"] });
     window.history.replaceState({}, document.title);
-  }, [location.state, queryClient]);
+  }, [location.key, location.state, currentOrganization?.id, queryClient]);
 
   const handlePageSizeChange = (value: string) => {
     setItemsPerPage(Number(value));

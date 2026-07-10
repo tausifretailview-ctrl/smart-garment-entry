@@ -28,7 +28,7 @@ import {
   ArrowLeft,
   Users,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { mergeActivityNavigationState } from "@/lib/activityCenterNavigation";
 
 interface Conversation {
   id: string;
@@ -55,9 +55,16 @@ const WhatsAppInbox = () => {
   const location = useLocation();
   const queryClient = useQueryClient();
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
-  const navState = (location.state as { openUnread?: boolean; conversationId?: string } | null) ?? null;
+  const navState = mergeActivityNavigationState(
+    location.state as { openUnread?: boolean; conversationId?: string } | null,
+    currentOrganization?.id,
+    "whatsapp-inbox",
+  );
   const openUnreadFromNav = Boolean(navState?.openUnread);
-  const conversationIdFromNav = navState?.conversationId;
+  const conversationIdFromNav =
+    typeof navState?.conversationId === "string" ? navState.conversationId : undefined;
+  const activityNavTs =
+    typeof navState?.activityNavTs === "number" ? navState.activityNavTs : undefined;
   const [newMessage, setNewMessage] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -204,7 +211,7 @@ const WhatsAppInbox = () => {
 
   // Open target conversation from notification / FAB (specific chat or first unread)
   useEffect(() => {
-    if (selectedConversation || conversations.length === 0) return;
+    if (conversations.length === 0) return;
     if (!openUnreadFromNav && !conversationIdFromNav) return;
 
     if (conversationIdFromNav) {
@@ -221,7 +228,13 @@ const WhatsAppInbox = () => {
         setSelectedConversation(firstUnread);
       }
     }
-  }, [openUnreadFromNav, conversationIdFromNav, conversations, selectedConversation]);
+  }, [
+    openUnreadFromNav,
+    conversationIdFromNav,
+    conversations,
+    activityNavTs,
+    location.key,
+  ]);
 
   // Mark inbound messages as read when conversation is opened
   useEffect(() => {

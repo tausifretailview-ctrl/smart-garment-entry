@@ -40,6 +40,7 @@ import {
   WINDOW_FILTER_IDS,
 } from "@/lib/dashboardFilterPersistence";
 import { fetchAllOpenSettlementVariantIds } from "@/utils/stockSettlementScans";
+import { mergeActivityNavigationState } from "@/lib/activityCenterNavigation";
 
 interface StockItem {
   id: string;
@@ -377,12 +378,17 @@ export default function StockReport() {
   const location = useLocation();
 
   useEffect(() => {
-    const st = location.state as { stockStatusFilter?: string } | null;
-    if (st?.stockStatusFilter) {
-      setStockStatusFilter(st.stockStatusFilter);
+    const merged = mergeActivityNavigationState(
+      location.state as { stockStatusFilter?: string } | null,
+      currentOrganization?.id,
+      "stock-report",
+    );
+    if (merged?.stockStatusFilter) {
+      setStockStatusFilter(String(merged.stockStatusFilter));
+      setCurrentPage(1);
       window.history.replaceState({}, document.title);
     }
-  }, [location.state]);
+  }, [location.key, location.state, currentOrganization?.id]);
   const [colorFilter, setColorFilter] = useState<string>("all");
   const [oldBarcodeVariantMap, setOldBarcodeVariantMap] = useState<Map<string, string>>(new Map());
   const [pinnedProducts, setPinnedProducts] = useState<Array<{ id: string; product_name: string; brand: string; category: string; style: string }>>([]); 

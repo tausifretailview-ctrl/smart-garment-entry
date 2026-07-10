@@ -1,4 +1,5 @@
 import { useState, useEffect, Suspense, type ReactNode } from "react";
+import { useLocation } from "react-router-dom";
 import { lazyWithRetry } from "@/lib/chunkLoadRetry";
 import { logError } from "@/lib/errorLogger";
 import { UOM_OPTIONS } from "@/constants/uom";
@@ -22,6 +23,7 @@ import type { CalibrationPreset } from "@/components/precision-barcode/LabelCali
 import { validatePurchaseCodeAlphabet } from "@/utils/purchaseCodeEncoder";
 import { resolvePosThermalPaper } from "@/utils/invoicePrintFormat";
 import { Plus, Pencil, Trash2 } from "lucide-react";
+import { mergeActivityNavigationState } from "@/lib/activityCenterNavigation";
 
 const LazyUserManagement = lazyWithRetry(() =>
   import("@/components/UserManagement").then((m) => ({ default: m.UserManagement })),
@@ -367,6 +369,7 @@ const QZStatusBadge = () => {
 
 export default function Settings() {
   const { orgNavigate: navigate } = useOrgNavigation();
+  const location = useLocation();
   const { toast } = useToast();
   const { currentOrganization, organizations } = useOrganization();
   const [visitedTabs, setVisitedTabs] = useState<Set<string>>(new Set(["company"]));
@@ -378,6 +381,23 @@ export default function Settings() {
   const [showClientSecret, setShowClientSecret] = useState(false);
   const [isTestingConnection, setIsTestingConnection] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<{ success: boolean; message: string } | null>(null);
+
+  useEffect(() => {
+    const merged = mergeActivityNavigationState(
+      location.state as { scrollTo?: string } | null,
+      currentOrganization?.id,
+      "settings",
+    );
+    if (merged?.scrollTo === "backup") {
+      setCurrentTab("backup");
+      setVisitedTabs((prev) => new Set([...prev, "backup"]));
+      window.history.replaceState({}, document.title);
+      requestAnimationFrame(() => {
+        document.getElementById("settings-backup-panel")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    }
+  }, [location.key, location.state, currentOrganization?.id]);
+
   const [settings, setSettings] = useState<Settings>({
     business_name: "",
     address: "",
@@ -5728,7 +5748,7 @@ export default function Settings() {
             </Card>
           </TabsContent>
 
-          <TabsContent value="backup">
+          <TabsContent value="backup" id="settings-backup-panel">
             <LazySettingsPanel>
               <LazyBackupSettings
                 autoBackupEnabled={settings.auto_backup_enabled}

@@ -55,7 +55,7 @@ export function ActivityCenterBell() {
       <PopoverContent
         align="end"
         sideOffset={8}
-        className="w-[380px] p-0 shadow-xl z-[95]"
+        className="w-[min(480px,calc(100vw-1.5rem))] p-0 shadow-xl z-[95]"
         onOpenAutoFocus={(e) => e.preventDefault()}
       >
         {panelMounted ? (
