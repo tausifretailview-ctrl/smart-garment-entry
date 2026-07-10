@@ -827,7 +827,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                   )}
 
                   {/* Terms + QR Code */}
-                  <div style={{ display: "flex", minHeight: isA4 ? "80px" : "60px", position: "relative" }}>
+                  <div style={{ display: "flex", minHeight: isA4 ? (isRealTast ? "110px" : "80px") : "60px", position: "relative" }}>
                     {/* Left — Terms */}
                     <div style={{ flex: 1, borderRight: B, padding: isA4 ? "4px 8px" : "3px 6px", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
                       <div>
@@ -871,8 +871,18 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                       </div>
                     </div>
 
-                    {/* Right — QR Code + For Business */}
-                    <div style={{ width: "40%", padding: isA4 ? "4px 8px" : "3px 6px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", position: "relative" }}>
+                    {/* Right — sign / seal (+ optional QR for standard retail-erp) */}
+                    <div
+                      style={{
+                        width: "40%",
+                        padding: isA4 ? "4px 8px" : "3px 6px",
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                        justifyContent: isRealTast ? "flex-start" : "center",
+                        position: "relative",
+                      }}
+                    >
                       {stampImageBase64 && (
                         <img
                           src={stampImageBase64}
@@ -882,15 +892,28 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                             height: stampDim,
                             objectFit: "contain",
                             position: "absolute",
-                            top: "4px",
-                            ...(stampPosition === "bottom-left" ? { left: "8px" } : { right: "8px" }),
+                            ...(isRealTast
+                              ? { top: "8px", right: "8px" }
+                              : {
+                                  top: "4px",
+                                  ...(stampPosition === "bottom-left" ? { left: "8px" } : { right: "8px" }),
+                                }),
                           }}
                         />
                       )}
-                      <div style={{ textAlign: "center", fontSize: isA4 ? "10px" : "8px", fontWeight: "bold", marginBottom: "4px" }}>
+                      {isRealTast && <div style={{ flex: 1, minHeight: "48px" }} aria-hidden="true" />}
+                      <div
+                        style={{
+                          textAlign: "center",
+                          fontSize: isA4 ? (isRealTast ? "12px" : "10px") : "8px",
+                          fontWeight: "bold",
+                          marginBottom: isRealTast ? "2px" : "4px",
+                          width: "100%",
+                        }}
+                      >
                         For {businessName}
                       </div>
-                      {qrCodeUrl && (
+                      {qrCodeUrl && !isRealTast && (
                         <img src={qrCodeUrl} alt="QR" style={{ width: isA4 ? "150px" : "115px", height: isA4 ? "150px" : "115px", border: "1px solid #ccc" }} />
                       )}
                     </div>
