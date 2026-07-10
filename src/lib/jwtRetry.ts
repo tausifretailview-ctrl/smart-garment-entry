@@ -20,6 +20,29 @@ export const isJwtExpiredError = (err: any): boolean => {
 };
 
 /**
+ * Proactively refresh the Supabase session if it will expire within `withinSeconds`.
+ * Safe to call before any critical write (POS save, invoice save, etc.) — long-idle
+ * tabs (POS terminals left visible for hours) can miss the auto-refresh timer, so
+ * this catches that gap without waiting for the server to return "JWT expired".
+ *
+ * Never throws — refresh failures are logged and the caller proceeds; the write
+ * will then either succeed on its own or fail with the usual error path.
+ */
+export async function ensureFreshSupabaseSession(withinSeconds = 120): Promise<void> {
+  try {
+    const { data } = await supabase.auth.getSession();
+    const session = data?.session;
+    if (!session?.expires_at) return;
+    const nowSec = Math.floor(Date.now() / 1000);
+    if (session.expires_at - nowSec > withinSeconds) return;
+    console.log("[auth] Session near expiry — refreshing before critical write");
+    await supabase.auth.refreshSession();
+  } catch (err) {
+    console.warn("[auth] Proactive session refresh failed (non-blocking):", err);
+  }
+}
+
+/**
  * Wraps a Supabase call so that, if it fails with a JWT-expired error,
  * the session is refreshed once and the operation is retried.
  *
