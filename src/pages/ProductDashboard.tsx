@@ -56,6 +56,11 @@ import {
   looksLikeBarcodeSearch,
   normalizeProductSearchTerm,
 } from "@/utils/productDashboardBarcodeSearch";
+import {
+  displayProductDashboardStock,
+  displayVariantDashboardStock,
+  isServiceProduct,
+} from "@/utils/productStockDisplay";
 
 interface ProductVariant {
   variant_id: string;
@@ -637,7 +642,10 @@ const ProductDashboard = () => {
         status: p.status || "active",
         user_cancelled_at: p.user_cancelled_at ?? null,
         variants: [],
-        total_stock: Number(p.total_stock) || 0,
+        total_stock: displayProductDashboardStock(
+          p.product_type,
+          Number(p.total_stock) || 0,
+        ),
         variant_count: Number(p.variant_count) || 0,
       });
 
@@ -704,6 +712,26 @@ const ProductDashboard = () => {
     retry: 1,
   });
 
+  const statsFiltersAreDefault = useMemo(
+    () =>
+      !debouncedSearch &&
+      selectedCategory === "all" &&
+      selectedProductType === "all" &&
+      selectedSizeGroup === "all" &&
+      selectedStockLevel === "all" &&
+      !minPrice &&
+      !maxPrice,
+    [
+      debouncedSearch,
+      selectedCategory,
+      selectedProductType,
+      selectedSizeGroup,
+      selectedStockLevel,
+      minPrice,
+      maxPrice,
+    ],
+  );
+
   const {
     data: dashboardStats = EMPTY_DASHBOARD_STATS,
     isLoading: statsLoading,
@@ -718,11 +746,38 @@ const ProductDashboard = () => {
         return EMPTY_DASHBOARD_STATS;
       }
       const s = (data || {}) as Record<string, number>;
+      let totalStockQty = s.total_stock_qty || 0;
+      let purchaseValue = s.purchase_value || 0;
+      let saleValue = s.sale_value || 0;
+
+      // Until RPC excludes service virtual stock (999999), subtract org-wide skew on default view.
+      if (statsFiltersAreDefault) {
+        const { data: serviceVariants } = await supabase
+          .from("product_variants")
+          .select("stock_qty, pur_price, sale_price, products!inner(product_type)")
+          .eq("organization_id", currentOrganization.id)
+          .eq("products.product_type", "service")
+          .is("deleted_at", null);
+
+        for (const row of serviceVariants ?? []) {
+          const qty = Number(row.stock_qty) || 0;
+          totalStockQty = Math.max(0, totalStockQty - qty);
+          purchaseValue = Math.max(
+            0,
+            purchaseValue - qty * (Number(row.pur_price) || 0),
+          );
+          saleValue = Math.max(
+            0,
+            saleValue - qty * (Number(row.sale_price) || 0),
+          );
+        }
+      }
+
       return {
         total_items: s.total_items || 0,
-        total_stock_qty: s.total_stock_qty || 0,
-        purchase_value: s.purchase_value || 0,
-        sale_value: s.sale_value || 0,
+        total_stock_qty: totalStockQty,
+        purchase_value: purchaseValue,
+        sale_value: saleValue,
       };
     },
     enabled: !!currentOrganization?.id,
@@ -1020,7 +1075,7 @@ const ProductDashboard = () => {
           "Barcode": variant.barcode,
           "Purchase Price": variant.pur_price,
           "Sale Price": variant.sale_price,
-          "Stock Qty": variant.stock_qty,
+          "Stock Qty": displayVariantDashboardStock(product.product_type, variant.stock_qty),
         }))
       );
 
@@ -1077,8 +1132,8 @@ const ProductDashboard = () => {
         "Product Name": product.product_name,
         "Size": variant.size,
         "Color": product.color || "",
-        "Current Stock Qty": variant.stock_qty,
-        "New Stock Qty": variant.stock_qty,
+        "Current Stock Qty": displayVariantDashboardStock(product.product_type, variant.stock_qty),
+        "New Stock Qty": displayVariantDashboardStock(product.product_type, variant.stock_qty),
       }))
     );
     const ws = XLSX.utils.json_to_sheet(exportData);
@@ -1275,7 +1330,7 @@ const ProductDashboard = () => {
                 User Cancelled
               </Badge>
             )}
-            {row.original.total_stock === 0 && (
+            {row.original.total_stock === 0 && !isServiceProduct(row.original.product_type) && (
               <Badge className="bg-red-100 text-red-700 border-red-200 dark:bg-red-900 dark:text-red-300 text-[11px] px-1.5 py-0 h-5 shrink-0">
                 No Stock
               </Badge>
@@ -1295,7 +1350,7 @@ const ProductDashboard = () => {
     if (columnVisibility.purPrice) cols.push({ accessorKey: "default_pur_price", header: "Pur Price", cell: ({ getValue }) => <span className="text-right block text-orange-700 dark:text-orange-400 font-semibold tabular-nums">₹{(getValue() as number).toFixed(2)}</span>, size: 120 });
     if (columnVisibility.salePrice) cols.push({ accessorKey: "default_sale_price", header: "Selling Price", cell: ({ getValue }) => <span className="text-right block text-emerald-700 dark:text-emerald-400 font-semibold tabular-nums">₹{(getValue() as number).toFixed(2)}</span>, size: 120 });
     if (columnVisibility.status) cols.push({ accessorKey: "status", header: "Status", cell: ({ getValue }) => { const status = getValue() as string; const isActive = status === "active"; return (<Badge className={cn("rounded-full px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wide", isActive ? "bg-emerald-500 text-white border-0 hover:bg-emerald-500" : "bg-slate-200 text-slate-600 border-0")}>{isActive ? "Active" : status || "Inactive"}</Badge>); }, size: 100 });
-    if (columnVisibility.totalQty) cols.push({ accessorKey: "total_stock", header: "Qty", cell: ({ getValue }) => { const qty = getValue() as number; return (<span className={`text-right block font-bold tabular-nums text-base ${qty === 0 ? 'text-red-500' : qty <= 5 ? 'text-orange-500' : 'text-foreground'}`}>{qty}</span>); }, size: 95 });
+    if (columnVisibility.totalQty) cols.push({ accessorKey: "total_stock", header: "Qty", cell: ({ row, getValue }) => { const qty = getValue() as number; const isService = isServiceProduct(row.original.product_type); return (<span className={`text-right block font-bold tabular-nums text-base ${isService ? "text-slate-600" : qty === 0 ? 'text-red-500' : qty <= 5 ? 'text-orange-500' : 'text-foreground'}`}>{qty}</span>); }, size: 95 });
     if (columnVisibility.variants) cols.push({ id: "variants", header: "Variants", cell: ({ row }) => (<Badge className="bg-sky-100 text-sky-800 border-sky-200 dark:bg-sky-900 dark:text-sky-200 font-semibold tabular-nums">{row.original.variant_count || row.original.variants.length}</Badge>), size: 90 });
 
     cols.push({
@@ -1432,7 +1487,9 @@ const ProductDashboard = () => {
                   <TableCell className="text-right text-base tabular-nums py-2.5">₹{variant.pur_price.toFixed(2)}</TableCell>
                   <TableCell className="text-right text-base tabular-nums py-2.5">₹{variant.sale_price.toFixed(2)}</TableCell>
                   {showMrp && <TableCell className="text-right text-base tabular-nums py-2.5">₹{variant.mrp.toFixed(2)}</TableCell>}
-                  <TableCell className="text-right text-base font-bold tabular-nums py-2.5">{variant.stock_qty}</TableCell>
+                  <TableCell className="text-right text-base font-bold tabular-nums py-2.5">
+                    {displayVariantDashboardStock(row.product_type, variant.stock_qty)}
+                  </TableCell>
                 </TableRow>
                 );
               })}

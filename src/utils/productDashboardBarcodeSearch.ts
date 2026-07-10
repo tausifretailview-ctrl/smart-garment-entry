@@ -1,4 +1,7 @@
-import { supabase } from "@/integrations/supabase/client";
+import {
+  displayProductDashboardStock,
+  physicalStockQtyForTotals,
+} from "@/utils/productStockDisplay";
 
 export function normalizeProductSearchTerm(raw: string): string {
   return raw.replace(/[\r\n\t]/g, "").trim();
@@ -113,8 +116,11 @@ export async function fetchCatalogRowsForProductIds(
   const stockByProduct = new Map<string, { total_stock: number; variant_count: number }>();
   (variants ?? []).forEach((v) => {
     const prev = stockByProduct.get(v.product_id) ?? { total_stock: 0, variant_count: 0 };
+    const productType = products.find((p) => p.id === v.product_id)?.product_type;
     stockByProduct.set(v.product_id, {
-      total_stock: prev.total_stock + Number(v.stock_qty ?? 0),
+      total_stock:
+        prev.total_stock +
+        physicalStockQtyForTotals(productType, Number(v.stock_qty ?? 0)),
       variant_count: prev.variant_count + 1,
     });
   });
@@ -136,7 +142,7 @@ export async function fetchCatalogRowsForProductIds(
       default_sale_price: Number(p.default_sale_price) || 0,
       status: p.status || "active",
       user_cancelled_at: p.user_cancelled_at ?? null,
-      total_stock: agg.total_stock,
+      total_stock: displayProductDashboardStock(p.product_type, agg.total_stock),
       variant_count: agg.variant_count,
     };
   });
