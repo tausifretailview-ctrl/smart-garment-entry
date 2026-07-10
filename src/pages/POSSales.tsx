@@ -230,6 +230,29 @@ function calculatePosCartLineNet(item: CartItem): number {
   return baseAmount - percentDiscount - item.discountAmount - implicitRateDiscount;
 }
 
+const POS_PRICE_MATCH_EPSILON = 0.01;
+
+function posPricesMatch(a: number, b: number): boolean {
+  return Math.abs(a - b) < POS_PRICE_MATCH_EPSILON;
+}
+
+/** Same service barcode + variant + price → one cart line (qty sums, same sr no). */
+function findPosServiceMergeIndex(
+  items: CartItem[],
+  params: { barcode: string; variantId: string; mrp: number; unitCost: number },
+): number {
+  const code = (params.barcode || "").trim();
+  if (!code || !params.variantId) return -1;
+  return items.findIndex(
+    (item) =>
+      item.productType === "service" &&
+      (item.barcode || "").trim() === code &&
+      item.variantId === params.variantId &&
+      posPricesMatch(item.mrp, params.mrp) &&
+      posPricesMatch(item.unitCost, params.unitCost),
+  );
+}
+
 type SaleRowForFlatResolve = {
   gross_amount?: number | null;
   discount_amount?: number | null;
@@ -2541,6 +2564,40 @@ export default function POSSales() {
   }
 
   const handleQuickServiceAdd = useCallback(async ({ code, quantity, mrp, description }: { code: string; quantity: number; mrp: number; description?: string }) => {
+    const finishQuickServiceAdd = (newItem: CartItem) => {
+      const existingIndex = findPosServiceMergeIndex(itemsRef.current, {
+        barcode: newItem.barcode,
+        variantId: newItem.variantId,
+        mrp: newItem.mrp,
+        unitCost: newItem.unitCost,
+      });
+
+      if (existingIndex >= 0) {
+        const mergedLineId = itemsRef.current[existingIndex]?.id;
+        setItems((prev) => {
+          const updated = [...prev];
+          updated[existingIndex] = {
+            ...updated[existingIndex],
+            quantity: updated[existingIndex].quantity + newItem.quantity,
+          };
+          updated[existingIndex].netAmount = calculatePosCartLineNet(updated[existingIndex]);
+          return updated;
+        });
+        if (mergedLineId) bumpCartHighlight(mergedLineId);
+      } else {
+        const pricedItem = applyPosGarmentGstToItem(newItem, garmentGstSettings);
+        pricedItem.netAmount = calculatePosCartLineNet(pricedItem);
+        setItems((prev) => [...prev, pricedItem]);
+        bumpCartHighlight(newItem.id);
+      }
+
+      playSuccessBeep();
+      setShowQuickServiceDialog(false);
+      setQuickServiceCode("");
+      setQuickServiceProductForAdd(null);
+      setTimeout(() => barcodeInputRef.current?.focus(), 100);
+    };
+
     // If we have a pre-identified product (from barcode scan), use it directly
     if (quickServiceProductForAdd) {
       const { product, variant } = quickServiceProductForAdd;
@@ -2566,13 +2623,7 @@ export default function POSSales() {
         productType: 'service',
         itemNotes: description || null,
       };
-      setItems(prev => [...prev, applyPosGarmentGstToItem(newItem, garmentGstSettings)]);
-      bumpCartHighlight(newItem.id);
-      playSuccessBeep();
-      setShowQuickServiceDialog(false);
-      setQuickServiceCode("");
-      setQuickServiceProductForAdd(null);
-      setTimeout(() => barcodeInputRef.current?.focus(), 100);
+      finishQuickServiceAdd(newItem);
       return;
     }
 
@@ -2626,12 +2677,7 @@ export default function POSSales() {
       productType: 'service',
       itemNotes: description || null,
     };
-    setItems(prev => [...prev, applyPosGarmentGstToItem(newItem, garmentGstSettings)]);
-    bumpCartHighlight(newItem.id);
-    playSuccessBeep();
-    setShowQuickServiceDialog(false);
-    setQuickServiceCode("");
-    setTimeout(() => barcodeInputRef.current?.focus(), 100);
+    finishQuickServiceAdd(newItem);
   }, [setItems, playSuccessBeep, currentOrganization?.id, toast, quickServiceProductForAdd, bumpCartHighlight, garmentGstSettings]);
 
   const addItemToCart = async (
@@ -2647,8 +2693,7 @@ export default function POSSales() {
       return;
     }
 
-    // Service products: NEVER merge - each scan is a unique item with manual price entry
-    // This is essential for saree shops where each piece has different MRP
+    // Service products: merge same barcode + price into one line; different MRP stays separate (saree pieces).
     const isServiceProduct = product.product_type === 'service';
 
     // Service products: ask for actual price before adding — unless the org turned
@@ -2681,31 +2726,43 @@ export default function POSSales() {
       return;
     }
     
-    const existingItemIndex = isServiceProduct 
-      ? -1  // Always treat as new item for service products
-      : itemsRef.current.findIndex(item => item.barcode === variant.barcode);
-    
+    let existingItemIndex = -1;
+    if (isServiceProduct && overridePrice) {
+      const svcMrp = overridePrice.mrp || overridePrice.sale_price;
+      const svcUnit = overridePrice.sale_price || svcMrp;
+      existingItemIndex = findPosServiceMergeIndex(itemsRef.current, {
+        barcode: variant.barcode || '',
+        variantId: variant.id,
+        mrp: svcMrp,
+        unitCost: svcUnit,
+      });
+    } else if (!isServiceProduct) {
+      existingItemIndex = itemsRef.current.findIndex((item) => item.barcode === variant.barcode);
+    }
+
     if (existingItemIndex >= 0) {
-      // Real-time stock validation before incrementing
+      // Real-time stock validation before incrementing (skip for service — unlimited virtual stock)
       const newQty = itemsRef.current[existingItemIndex].quantity + 1;
-      const stockCheck = await checkStock(variant.id, newQty);
-      
-      if (!stockCheck.isAvailable) {
-        openStockIssueDialog(
-          buildInsufficientStockIssue(stockCheck.productName, stockCheck.size, newQty, stockCheck.availableStock),
-          stockCheck.availableStock <= 0 ? { productId: product.id, productName: stockCheck.productName } : undefined,
-        );
-        setSearchInput("");
-        return;
+      if (!isServiceProduct) {
+        const stockCheck = await checkStock(variant.id, newQty);
+
+        if (!stockCheck.isAvailable) {
+          openStockIssueDialog(
+            buildInsufficientStockIssue(stockCheck.productName, stockCheck.size, newQty, stockCheck.availableStock),
+            stockCheck.availableStock <= 0 ? { productId: product.id, productName: stockCheck.productName } : undefined,
+          );
+          setSearchInput("");
+          return;
+        }
       }
-      
+
       // Play success beep for quantity increment
       playSuccessBeep();
 
       const mergedLineId = itemsRef.current[existingItemIndex]?.id;
-      
+
       // Increment quantity if already in cart - use functional update to prevent race conditions
-      setItems(prev => {
+      setItems((prev) => {
         const updatedItems = [...prev];
         updatedItems[existingItemIndex].quantity = newQty;
         updatedItems[existingItemIndex].netAmount = calculatePosCartLineNet(updatedItems[existingItemIndex]);
@@ -2713,16 +2770,18 @@ export default function POSSales() {
       });
       if (mergedLineId) bumpCartHighlight(mergedLineId);
     } else {
-      // Real-time stock validation before adding new item
-      const stockCheck = await checkStock(variant.id, 1);
-      
-      if (!stockCheck.isAvailable) {
-        openStockIssueDialog(
-          buildInsufficientStockIssue(stockCheck.productName, stockCheck.size, 1, stockCheck.availableStock),
-          stockCheck.availableStock <= 0 ? { productId: product.id, productName: stockCheck.productName } : undefined,
-        );
-        setSearchInput("");
-        return;
+      // Real-time stock validation before adding new item (skip for service)
+      if (!isServiceProduct) {
+        const stockCheck = await checkStock(variant.id, 1);
+
+        if (!stockCheck.isAvailable) {
+          openStockIssueDialog(
+            buildInsufficientStockIssue(stockCheck.productName, stockCheck.size, 1, stockCheck.availableStock),
+            stockCheck.availableStock <= 0 ? { productId: product.id, productName: stockCheck.productName } : undefined,
+          );
+          setSearchInput("");
+          return;
+        }
       }
       
       // Check if last_purchase prices differ from master prices
@@ -2814,7 +2873,6 @@ export default function POSSales() {
       
       // POS bills from MRP (display price); master sale_price is for sale invoices, not the default POS rate.
       const newItem: CartItem = {
-        // Generate unique ID for service products so each scan creates a distinct line item
         id: isServiceProduct ? `${variant.id}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}` : variant.id,
         barcode: variant.barcode || '',
         productName: description,
