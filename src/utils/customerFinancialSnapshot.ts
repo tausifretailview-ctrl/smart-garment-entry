@@ -260,4 +260,5 @@ export function invalidateCustomerFinancialSnapshot(
   queryClient.invalidateQueries({ queryKey: ["customer-advances-search"] });
   queryClient.invalidateQueries({ queryKey: ["customer-credit-notes-search"] });
   queryClient.invalidateQueries({ queryKey: ["cn-adjust-return-meta"] });
+  queryClient.invalidateQueries({ queryKey: ["salesman-outstanding"] });
 }

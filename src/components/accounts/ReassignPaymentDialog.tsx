@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import { invalidateCustomerFinancialSnapshot } from "@/utils/customerFinancialSnapshot";
 
 interface ReassignPaymentDialogProps {
   open: boolean;
@@ -105,6 +106,7 @@ export function ReassignPaymentDialog({
       queryClient.invalidateQueries({ queryKey: ["customer-balance"] });
       queryClient.invalidateQueries({ queryKey: ["customers-with-balance"] });
       queryClient.invalidateQueries({ queryKey: ["reassign-pending-invoices"] });
+      invalidateCustomerFinancialSnapshot(queryClient, organizationId, customerId);
       onOpenChange(false);
       setSelectedInvoiceId(null);
     },

@@ -19,6 +19,7 @@ import { AccountsHistoryPanel } from "@/components/accounts/AccountsHistoryPanel
 import { accountsHistoryTableClass, accountsHistoryThClass } from "@/components/accounts/accountsHistoryUi";
 import { cn } from "@/lib/utils";
 import { reverseBalanceAdjustmentVouchers } from "@/utils/applyAdjustmentToInvoices";
+import { invalidateCustomerFinancialSnapshot } from "@/utils/customerFinancialSnapshot";
 
 const PAGE_SIZE = 10;
 
@@ -139,6 +140,7 @@ export function RecentBalanceAdjustments({ organizationId, visitedTabs }: Props)
     queryClient.invalidateQueries({ queryKey: ["customer-balance"] });
     queryClient.invalidateQueries({ queryKey: ["customer-advances"] });
     queryClient.invalidateQueries({ queryKey: ["invoices"] });
+    invalidateCustomerFinancialSnapshot(queryClient, organizationId);
   };
 
   // UPDATE (modify) mutation - now supports outstanding/advance changes

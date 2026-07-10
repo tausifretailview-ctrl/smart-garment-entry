@@ -1,5 +1,8 @@
 import { supabase } from "@/integrations/supabase/client";
-import { fetchCustomerFinancialSnapshotMap } from "@/utils/customerFinancialSnapshot";
+import {
+  fetchCustomerFinancialSnapshotMap,
+  type CustomerFinancialSnapshot,
+} from "@/utils/customerFinancialSnapshot";
 import { searchSaleOrderVariants, type SaleOrderVariantSearchResult } from "@/utils/saleOrderProductSearch";
 
 const CUSTOMER_SEARCH_COLUMNS =
@@ -7,6 +10,52 @@ const CUSTOMER_SEARCH_COLUMNS =
 
 const GROUP_LIMIT = 5;
 const INVOICE_LOOKBACK_DAYS = 365;
+const SNAPSHOT_CACHE_TTL_MS = 60_000;
+
+const EMPTY_SNAPSHOT: CustomerFinancialSnapshot = {
+  outstandingDr: 0,
+  advanceAvailable: 0,
+  cnAvailableTotal: 0,
+  cnPendingCount: 0,
+};
+
+const commandPaletteSnapshotCache = new Map<
+  string,
+  { at: number; snap: CustomerFinancialSnapshot }
+>();
+
+async function fetchVisibleCustomerSnapshots(
+  organizationId: string,
+  customerIds: string[],
+): Promise<Map<string, CustomerFinancialSnapshot>> {
+  const visibleIds = customerIds.slice(0, GROUP_LIMIT);
+  const result = new Map<string, CustomerFinancialSnapshot>();
+  if (!organizationId || visibleIds.length === 0) return result;
+
+  const now = Date.now();
+  const missing: string[] = [];
+
+  for (const id of visibleIds) {
+    const cacheKey = `${organizationId}:${id}`;
+    const cached = commandPaletteSnapshotCache.get(cacheKey);
+    if (cached && now - cached.at < SNAPSHOT_CACHE_TTL_MS) {
+      result.set(id, cached.snap);
+    } else {
+      missing.push(id);
+    }
+  }
+
+  if (missing.length > 0) {
+    const fetched = await fetchCustomerFinancialSnapshotMap(organizationId, missing);
+    for (const id of missing) {
+      const snap = fetched.get(id) ?? EMPTY_SNAPSHOT;
+      commandPaletteSnapshotCache.set(`${organizationId}:${id}`, { at: now, snap });
+      result.set(id, snap);
+    }
+  }
+
+  return result;
+}
 
 export type CommandPaletteCustomerResult = {
   id: string;
@@ -95,7 +144,7 @@ export async function searchCommandPaletteCustomers(
     throwIfAborted(signal);
     if (!fallback?.length) return [];
     const ids = fallback.map((c) => c.id);
-    const snapshotMap = await fetchCustomerFinancialSnapshotMap(organizationId, ids);
+    const snapshotMap = await fetchVisibleCustomerSnapshots(organizationId, ids);
     throwIfAborted(signal);
     return fallback.map((c) => ({
       id: c.id,
@@ -109,7 +158,7 @@ export async function searchCommandPaletteCustomers(
   if (!rows.length) return [];
 
   const ids = rows.map((c) => c.id);
-  const snapshotMap = await fetchCustomerFinancialSnapshotMap(organizationId, ids);
+  const snapshotMap = await fetchVisibleCustomerSnapshots(organizationId, ids);
   throwIfAborted(signal);
 
   return rows.map((c) => ({

@@ -2,6 +2,7 @@ import { useState, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { invalidateCustomerFinancialSnapshot } from "@/utils/customerFinancialSnapshot";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -350,6 +351,7 @@ export function CustomerBalanceImportDialog({
       queryClient.invalidateQueries({ queryKey: ["customer-advances"] });
       queryClient.invalidateQueries({ queryKey: ["customer-balance"] });
       queryClient.invalidateQueries({ queryKey: ["customer-ledger"] });
+      invalidateCustomerFinancialSnapshot(queryClient, currentOrganization?.id);
 
       toast({
         title: "Import completed",

@@ -29,6 +29,7 @@ import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngine
 import { deleteJournalEntryByReference } from "@/utils/accounting/journalService";
 import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
 import { restoreDashboardFilters } from "@/lib/dashboardFilterPersistence";
+import { invalidateCustomerFinancialSnapshot } from "@/utils/customerFinancialSnapshot";
 
 const PAGE_SIZE = 50;
 
@@ -312,6 +313,7 @@ export default function AdvanceBookingDashboard() {
       queryClient.invalidateQueries({ queryKey: ["customer-ledger-adv-refunds"] });
       queryClient.invalidateQueries({ queryKey: ["voucher-entries"] });
       queryClient.invalidateQueries({ queryKey: ["journal-vouchers"] });
+      invalidateCustomerFinancialSnapshot(queryClient, orgId, selectedAdvance?.customer_id);
       toast.success(`Refund ${result.refundNumber} recorded successfully`);
       setRefundDialogOpen(false);
       setSelectedAdvance(null);
@@ -361,6 +363,7 @@ export default function AdvanceBookingDashboard() {
       queryClient.invalidateQueries({ queryKey: ["advance-filter-totals"] });
        queryClient.invalidateQueries({ queryKey: ["customer-advances"] });
        queryClient.invalidateQueries({ queryKey: ["customer-balance"] });
+       invalidateCustomerFinancialSnapshot(queryClient, orgId, selectedAdvance?.customer_id);
        toast.success("Advance updated successfully");
        setEditDialogOpen(false);
        setSelectedAdvance(null);
@@ -470,6 +473,7 @@ export default function AdvanceBookingDashboard() {
       queryClient.invalidateQueries({ queryKey: ["customer-advances"] });
       queryClient.invalidateQueries({ queryKey: ["customer-balance"] });
       queryClient.invalidateQueries({ queryKey: ["journal-vouchers"] });
+      invalidateCustomerFinancialSnapshot(queryClient, orgId);
       toast.success(`${selectedIds.size} advance(s) deleted`);
       setSelectedIds(new Set());
       setDeleteDialogOpen(false);

@@ -918,7 +918,7 @@ export default function CustomerAuditReport() {
             </Card>
           )}
 
-          {dbTrueBalance != null &&
+          {customerId &&
             lifetimeFormula != null &&
             Math.abs(lifetimeFormula.outstanding - dbTrueBalance) > 1 && (
               <Card className="border-red-300 bg-red-50/60 dark:bg-red-950/20">
