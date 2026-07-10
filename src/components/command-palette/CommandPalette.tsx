@@ -32,6 +32,12 @@ import { FileText, Package, User } from "lucide-react";
 
 const DEBOUNCE_MS = 200;
 
+const GROUP_HEADING_CLASS =
+  "[&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:pb-1.5 [&_[cmdk-group-heading]]:pt-3.5 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:font-bold [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-[0.08em] [&_[cmdk-group-heading]]:text-[var(--erp-ink-3)]";
+const ITEM_TITLE_CLASS = "text-[15px] font-medium leading-snug text-[var(--erp-ink)]";
+const ITEM_SUBTITLE_CLASS = "mt-0.5 truncate text-[13px] leading-snug text-[var(--erp-ink-3)]";
+const ITEM_META_CLASS = "font-mono text-sm font-semibold tabular-nums";
+
 type CommandPaletteProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -54,7 +60,7 @@ function HighlightMatch({ text, query }: { text: string; query: string }) {
 
 function ResultIcon({ icon: Icon }: { icon: LucideIcon }) {
   return (
-    <div className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[7px] border border-[var(--erp-line)] bg-[var(--erp-panel-2)] [&_svg]:h-[15px] [&_svg]:w-[15px] [&_svg]:text-[var(--erp-ink-2)] group-data-[selected=true]:border-[var(--erp-accent)] group-data-[selected=true]:bg-white group-data-[selected=true]:[&_svg]:text-[var(--erp-accent)]">
+    <div className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-[7px] border border-[var(--erp-line)] bg-[var(--erp-panel-2)] [&_svg]:h-[17px] [&_svg]:w-[17px] [&_svg]:text-[var(--erp-ink-2)] group-data-[selected=true]:border-[var(--erp-accent)] group-data-[selected=true]:bg-white group-data-[selected=true]:[&_svg]:text-[var(--erp-accent)]">
       <Icon />
     </div>
   );
@@ -247,7 +253,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     query.trim().length >= 2 && !remoteLoading && !hasRegistryResults && !hasRemoteResults;
 
   const paletteItemClass = cn(
-    "group relative flex cursor-default select-none items-center gap-3 rounded-[5px] px-3 py-2.5 text-sm outline-none",
+    "group relative flex cursor-default select-none items-center gap-3.5 rounded-[5px] px-3 py-3 text-base outline-none",
     "text-[var(--erp-ink)] data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50",
     "data-[selected=true]:bg-[var(--erp-accent-soft)] data-[selected=true]:text-[var(--erp-ink)]",
     "data-[selected=true]:before:absolute data-[selected=true]:before:left-0 data-[selected=true]:before:top-1.5 data-[selected=true]:before:bottom-1.5 data-[selected=true]:before:w-[3px] data-[selected=true]:before:rounded-sm data-[selected=true]:before:bg-[var(--erp-accent)]",
@@ -280,27 +286,24 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
         onMouseDown={(e) => e.stopPropagation()}
       >
         <Command shouldFilter={false} className="flex h-full flex-col bg-transparent">
-          <div className="relative border-b border-[var(--erp-line)] [&_[cmdk-input-wrapper]]:border-0 [&_[cmdk-input-wrapper]]:px-[18px] [&_[cmdk-input-wrapper]]:py-[15px]">
+          <div className="relative border-b border-[var(--erp-line)] [&_[cmdk-input-wrapper]]:border-0 [&_[cmdk-input-wrapper]]:px-[18px] [&_[cmdk-input-wrapper]]:py-4 [&_[cmdk-input-wrapper]_svg]:h-[18px] [&_[cmdk-input-wrapper]_svg]:w-[18px]">
             <CommandInput
               ref={inputRef}
               value={query}
               onValueChange={setQuery}
               placeholder="Search customers, products, invoices, or run a command…"
-              className="h-auto border-0 px-0 py-0 pr-14 text-[15px] text-[var(--erp-ink)] placeholder:text-[var(--erp-ink-3)] focus-visible:ring-0 focus-visible:ring-offset-0"
+              className="h-auto border-0 px-0 py-0 pr-16 text-lg text-[var(--erp-ink)] placeholder:text-[var(--erp-ink-3)] focus-visible:ring-0 focus-visible:ring-offset-0"
             />
-            <span className="pointer-events-none absolute right-[18px] top-1/2 -translate-y-1/2 shrink-0 rounded border border-[var(--erp-line)] bg-[var(--erp-panel-2)] px-[7px] py-0.5 text-[10px] text-[var(--erp-ink-3)]">
+            <span className="pointer-events-none absolute right-[18px] top-1/2 -translate-y-1/2 shrink-0 rounded border border-[var(--erp-line)] bg-[var(--erp-panel-2)] px-2 py-0.5 text-xs text-[var(--erp-ink-3)]">
               ESC
             </span>
           </div>
 
           <CommandList className="max-h-[min(52vh,480px)] overflow-y-auto px-1.5 py-1.5">
-            {showEmpty && <CommandEmpty className="py-8 text-[var(--erp-ink-3)]">No results found.</CommandEmpty>}
+            {showEmpty && <CommandEmpty className="py-8 text-sm text-[var(--erp-ink-3)]">No results found.</CommandEmpty>}
 
             {actionItems.length > 0 && (
-              <CommandGroup
-                heading="Actions"
-                className="[&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:pb-1 [&_[cmdk-group-heading]]:pt-3 [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:font-bold [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-[0.08em] [&_[cmdk-group-heading]]:text-[var(--erp-ink-3)]"
-              >
+              <CommandGroup heading="Actions" className={GROUP_HEADING_CLASS}>
                 {actionItems.map((item) => (
                   <CommandItem
                     key={item.id}
@@ -310,14 +313,12 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
                   >
                     <ResultIcon icon={item.icon} />
                     <div className="min-w-0 flex-1">
-                      <div className="text-[13px] font-medium text-[var(--erp-ink)]">
+                      <div className={ITEM_TITLE_CLASS}>
                         <HighlightMatch text={item.label} query={query} />
                       </div>
-                      {item.subtitle && (
-                        <div className="mt-px truncate text-[11px] text-[var(--erp-ink-3)]">{item.subtitle}</div>
-                      )}
+                      {item.subtitle && <div className={ITEM_SUBTITLE_CLASS}>{item.subtitle}</div>}
                     </div>
-                    <span className="ml-auto flex shrink-0 items-center gap-1 text-[10px] font-bold text-[var(--erp-accent)] opacity-0 group-data-[selected=true]:opacity-100">
+                    <span className="ml-auto flex shrink-0 items-center gap-1 text-xs font-bold text-[var(--erp-accent)] opacity-0 group-data-[selected=true]:opacity-100">
                       ↵ Open
                     </span>
                   </CommandItem>
@@ -326,10 +327,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
             )}
 
             {customers.length > 0 && (
-              <CommandGroup
-                heading="Customers"
-                className="[&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:pb-1 [&_[cmdk-group-heading]]:pt-3 [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:font-bold [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-[0.08em] [&_[cmdk-group-heading]]:text-[var(--erp-ink-3)]"
-              >
+              <CommandGroup heading="Customers" className={GROUP_HEADING_CLASS}>
                 {customers.map((customer) => (
                   <CommandItem
                     key={`cust-${customer.id}`}
@@ -339,26 +337,24 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
                   >
                     <ResultIcon icon={User} />
                     <div className="min-w-0 flex-1">
-                      <div className="text-[13px] font-medium">
+                      <div className={ITEM_TITLE_CLASS}>
                         <HighlightMatch text={customer.customer_name} query={query} />
                       </div>
                       {customer.phone && (
-                        <div className="mt-px truncate text-[11px] text-[var(--erp-ink-3)]">
-                          {formatPhone(customer.phone)}
-                        </div>
+                        <div className={ITEM_SUBTITLE_CLASS}>{formatPhone(customer.phone)}</div>
                       )}
                     </div>
                     <div className="ml-auto flex shrink-0 items-center gap-2">
                       <span
                         className={cn(
-                          "font-mono text-[12px] font-semibold tabular-nums",
+                          ITEM_META_CLASS,
                           customer.outstandingDr > 0 ? "text-[var(--erp-bad)]" : "text-[var(--erp-ink-3)]",
                         )}
                       >
                         {customer.outstandingDr > 0 ? `${formatInr(customer.outstandingDr)} Dr` : formatInr(0)}
                       </span>
                       {customer.outstandingDr > 0 && (
-                        <span className="rounded-xl bg-[var(--erp-bad-soft)] px-2 py-0.5 text-[10px] font-semibold text-[var(--erp-bad)]">
+                        <span className="rounded-xl bg-[var(--erp-bad-soft)] px-2 py-0.5 text-xs font-semibold text-[var(--erp-bad)]">
                           Due
                         </span>
                       )}
@@ -369,10 +365,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
             )}
 
             {products.length > 0 && (
-              <CommandGroup
-                heading="Products"
-                className="[&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:pb-1 [&_[cmdk-group-heading]]:pt-3 [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:font-bold [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-[0.08em] [&_[cmdk-group-heading]]:text-[var(--erp-ink-3)]"
-              >
+              <CommandGroup heading="Products" className={GROUP_HEADING_CLASS}>
                 {products.map((product) => {
                   const subParts = [
                     product.style ? `Style ${product.style}` : null,
@@ -388,17 +381,15 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
                     >
                       <ResultIcon icon={Package} />
                       <div className="min-w-0 flex-1">
-                        <div className="truncate text-[13px] font-medium">
+                        <div className={cn("truncate", ITEM_TITLE_CLASS)}>
                           <HighlightMatch text={product.product_name} query={query} />
                           {product.brand ? ` — ${product.brand}` : ""}
                         </div>
                         {subParts.length > 0 && (
-                          <div className="mt-px truncate text-[11px] text-[var(--erp-ink-3)]">
-                            {subParts.join(" · ")}
-                          </div>
+                          <div className={ITEM_SUBTITLE_CLASS}>{subParts.join(" · ")}</div>
                         )}
                       </div>
-                      <span className="ml-auto shrink-0 font-mono text-[12px] font-semibold tabular-nums text-[var(--erp-ink-2)]">
+                      <span className={cn("ml-auto shrink-0 text-[var(--erp-ink-2)]", ITEM_META_CLASS)}>
                         {product.stock_qty} in stock
                       </span>
                     </CommandItem>
@@ -408,10 +399,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
             )}
 
             {invoices.length > 0 && (
-              <CommandGroup
-                heading="Invoices"
-                className="[&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:pb-1 [&_[cmdk-group-heading]]:pt-3 [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:font-bold [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-[0.08em] [&_[cmdk-group-heading]]:text-[var(--erp-ink-3)]"
-              >
+              <CommandGroup heading="Invoices" className={GROUP_HEADING_CLASS}>
                 {invoices.map((invoice) => (
                   <CommandItem
                     key={`inv-${invoice.id}`}
@@ -421,16 +409,14 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
                   >
                     <ResultIcon icon={FileText} />
                     <div className="min-w-0 flex-1">
-                      <div className="text-[13px] font-medium">
+                      <div className={ITEM_TITLE_CLASS}>
                         <HighlightMatch text={invoice.sale_number} query={query} />
                       </div>
                       {invoice.customer_name && (
-                        <div className="mt-px truncate text-[11px] text-[var(--erp-ink-3)]">
-                          {invoice.customer_name}
-                        </div>
+                        <div className={ITEM_SUBTITLE_CLASS}>{invoice.customer_name}</div>
                       )}
                     </div>
-                    <span className="ml-auto shrink-0 font-mono text-[12px] font-semibold tabular-nums text-[var(--erp-ink-2)]">
+                    <span className={cn("ml-auto shrink-0 text-[var(--erp-ink-2)]", ITEM_META_CLASS)}>
                       {formatInr(invoice.net_amount)}
                     </span>
                   </CommandItem>
@@ -439,10 +425,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
             )}
 
             {navItems.length > 0 && (
-              <CommandGroup
-                heading="Go to"
-                className="[&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:pb-1 [&_[cmdk-group-heading]]:pt-3 [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:font-bold [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-[0.08em] [&_[cmdk-group-heading]]:text-[var(--erp-ink-3)]"
-              >
+              <CommandGroup heading="Go to" className={GROUP_HEADING_CLASS}>
                 {navItems.map((item) => (
                   <CommandItem
                     key={item.id}
@@ -452,15 +435,13 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
                   >
                     <ResultIcon icon={item.icon} />
                     <div className="min-w-0 flex-1">
-                      <div className="text-[13px] font-medium">
+                      <div className={ITEM_TITLE_CLASS}>
                         <HighlightMatch text={item.label} query={query} />
                       </div>
-                      {item.subtitle && (
-                        <div className="mt-px truncate text-[11px] text-[var(--erp-ink-3)]">{item.subtitle}</div>
-                      )}
+                      {item.subtitle && <div className={ITEM_SUBTITLE_CLASS}>{item.subtitle}</div>}
                     </div>
                     {item.shortcutHint && (
-                      <span className="ml-auto shrink-0 rounded border border-[var(--erp-line)] bg-[var(--erp-panel-2)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--erp-ink-3)]">
+                      <span className="ml-auto shrink-0 rounded border border-[var(--erp-line)] bg-[var(--erp-panel-2)] px-2 py-0.5 text-xs font-semibold text-[var(--erp-ink-3)]">
                         {item.shortcutHint}
                       </span>
                     )}
@@ -470,28 +451,28 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
             )}
 
             {remoteLoading && query.trim().length >= 2 && (
-              <div className="px-3 py-4 text-center text-[11px] text-[var(--erp-ink-3)]">Searching…</div>
+              <div className="px-3 py-4 text-center text-sm text-[var(--erp-ink-3)]">Searching…</div>
             )}
 
             {!query.trim() && !hasRegistryResults && (
-              <div className="px-3 py-6 text-center text-[12px] text-[var(--erp-ink-3)]">
+              <div className="px-3 py-6 text-center text-sm text-[var(--erp-ink-3)]">
                 Type to search customers, products, invoices, or commands
               </div>
             )}
           </CommandList>
 
-          <div className="flex items-center gap-4 border-t border-[var(--erp-line)] bg-[var(--erp-panel-2)] px-4 py-2.5 text-[11px] text-[var(--erp-ink-3)]">
+          <div className="flex items-center gap-4 border-t border-[var(--erp-line)] bg-[var(--erp-panel-2)] px-4 py-3 text-[13px] text-[var(--erp-ink-3)]">
             <span className="inline-flex items-center gap-1.5">
-              <kbd className="rounded border border-[var(--erp-line)] bg-white px-1.5 py-px text-[10px] font-semibold text-[var(--erp-ink-2)]">
+              <kbd className="rounded border border-[var(--erp-line)] bg-white px-1.5 py-0.5 text-xs font-semibold text-[var(--erp-ink-2)]">
                 ↑
               </kbd>
-              <kbd className="rounded border border-[var(--erp-line)] bg-white px-1.5 py-px text-[10px] font-semibold text-[var(--erp-ink-2)]">
+              <kbd className="rounded border border-[var(--erp-line)] bg-white px-1.5 py-0.5 text-xs font-semibold text-[var(--erp-ink-2)]">
                 ↓
               </kbd>
               navigate
             </span>
             <span className="inline-flex items-center gap-1.5">
-              <kbd className="rounded border border-[var(--erp-line)] bg-white px-1.5 py-px text-[10px] font-semibold text-[var(--erp-ink-2)]">
+              <kbd className="rounded border border-[var(--erp-line)] bg-white px-1.5 py-0.5 text-xs font-semibold text-[var(--erp-ink-2)]">
                 ↵
               </kbd>
               select
