@@ -88,6 +88,7 @@ import { useProductFieldSettings } from "@/hooks/useSettings";
 import { entryPageShellClass } from "@/lib/entryPageLayout";
 import { LabelFieldConfig, LabelDesignConfig, LabelItem, LabelTemplate, FieldKey } from "@/types/labelTypes";
 import { PrecisionThermalPrint } from "@/components/precision-barcode/PrecisionThermalPrint";
+import { PrecisionThermalRowPreview } from "@/components/precision-barcode/PrecisionThermalRowPreview";
 import { PrecisionA4SheetPrint } from "@/components/precision-barcode/PrecisionA4SheetPrint";
 import { PrecisionLabelPreview } from "@/components/precision-barcode/PrecisionLabelPreview";
 import { PrecisionProTSCPreview } from "@/components/labels/PrecisionProTSCPreview";
@@ -4258,12 +4259,11 @@ export default function BarcodePrinting() {
       try {
         const { labelWidth, labelHeight, xOffset, yOffset, vGap, labelConfig } = precisionSettings;
         const is2Up = precisionSettings.printMode === 'thermal2up';
-        // 2-Up: NO gap between labels — they sit side by side on a 76mm roll
-        const horizontalGap = 0;
+        const horizontalGap = is2Up ? getThermal2UpGap() : 0;
         const totalLabels = labelItems.reduce((sum, item) => sum + (Number(item.qty) || 0), 0);
         if (totalLabels === 0) { toast.error("No labels to print"); return; }
 
-        const pageW = is2Up ? labelWidth * 2 : labelWidth;
+        const pageW = is2Up ? labelWidth * 2 + horizontalGap : labelWidth;
         const pdf = is2Up
           ? new jsPDF({
               orientation: "landscape",
@@ -4328,18 +4328,22 @@ export default function BarcodePrinting() {
         };
 
         if (is2Up) {
-          // 2-Up: render 2 labels per page side by side, no gap
           for (let i = 0; i < allItems.length; i += 2) {
             if (i > 0) pdf.addPage();
 
-            // Left label
             const canvasLeft = await renderLabelToCanvas(allItems[i]);
             pdf.addImage(canvasLeft.toDataURL("image/png"), "PNG", 0, 0, labelWidth, labelHeight);
 
-            // Right label (if exists) — starts at exactly labelWidth (no gap)
             if (i + 1 < allItems.length) {
               const canvasRight = await renderLabelToCanvas(allItems[i + 1]);
-              pdf.addImage(canvasRight.toDataURL("image/png"), "PNG", labelWidth, 0, labelWidth, labelHeight);
+              pdf.addImage(
+                canvasRight.toDataURL("image/png"),
+                "PNG",
+                labelWidth + horizontalGap,
+                0,
+                labelWidth,
+                labelHeight,
+              );
             }
           }
         } else {
@@ -6229,6 +6233,8 @@ export default function BarcodePrinting() {
               labelWidth={effectivePrecisionLabelWidth}
               labelHeight={effectivePrecisionLabelHeight}
               config={effectivePrecisionLabelConfig}
+              thermalCols={precisionSettings.printMode === "thermal2up" ? Math.max(2, precisionSettings.thermalCols || 2) : 1}
+              horizontalGap={precisionSettings.printMode === "thermal2up" ? getThermal2UpGap() : 0}
               onConfigChange={(cfg) =>
                 setPrecisionSettings((prev) => ({ ...prev, labelConfig: cfg }))
               }
@@ -6463,20 +6469,38 @@ export default function BarcodePrinting() {
                   </div>
                   {(precisionSettings.printMode === 'thermal' || precisionSettings.printMode === 'thermal2up') ? (
                     <div className="flex flex-col items-center gap-4">
-                      {labelItems.filter(i => (i.qty || 0) > 0).flatMap((item, idx) =>
-                        Array.from({ length: item.qty || 1 }, (_, qi) => (
-                          <div key={`${idx}-${qi}`} className="border border-dashed border-border">
-                            <PrecisionLabelPreview
-                              item={{ ...item, businessName }}
-                              width={effectivePrecisionLabelWidth}
-                              height={effectivePrecisionLabelHeight}
+                      {(() => {
+                        const expanded: LabelItem[] = [];
+                        labelItems
+                          .filter((i) => (i.qty || 0) > 0)
+                          .forEach((item) => {
+                            for (let q = 0; q < (item.qty || 0); q++) {
+                              expanded.push({ ...item, businessName });
+                            }
+                          });
+                        const is2Up = precisionSettings.printMode === "thermal2up";
+                        const cols = is2Up ? Math.max(2, precisionSettings.thermalCols || 2) : 1;
+                        const rows: LabelItem[][] = [];
+                        for (let i = 0; i < expanded.length; i += cols) {
+                          rows.push(expanded.slice(i, i + cols));
+                        }
+                        return rows.map((row, rowIdx) => (
+                          <div key={rowIdx} className="border border-dashed border-border">
+                            <PrecisionThermalRowPreview
+                              items={row}
+                              labelWidth={effectivePrecisionLabelWidth}
+                              labelHeight={effectivePrecisionLabelHeight}
+                              xOffset={precisionSettings.xOffset}
+                              yOffset={precisionSettings.yOffset}
+                              horizontalGap={is2Up ? getThermal2UpGap() : 0}
+                              thermalCols={cols}
                               config={effectivePrecisionLabelConfig}
                               scaleFactor={2}
                               productFieldSettings={productFieldSettings}
                             />
                           </div>
-                        ))
-                      )}
+                        ));
+                      })()}
                     </div>
                   ) : (
                     <PrecisionA4SheetPrint

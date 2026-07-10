@@ -8,7 +8,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { HelpCircle, Minus, Plus, Save, Trash2, RefreshCw, Star } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { PrecisionLabelPreview } from "./PrecisionLabelPreview";
+import { PrecisionThermalRowPreview } from "./PrecisionThermalRowPreview";
+import { PrecisionLabelCell } from "./PrecisionLabelCell";
 import { LabelDesignConfig, LabelItem, LabelTemplate } from "@/types/labelTypes";
 import { cn } from "@/lib/utils";
 
@@ -822,68 +823,29 @@ export function LabelCalibrationUI({
                 style={fullWorkspace ? undefined : { minHeight: 120 }}
               >
                 {printMode === 'thermal2up' ? (
-                  <div className="flex items-center gap-1">
-                    <div
-                      style={{
-                        width: values.labelWidth * 3.7795 * previewScale,
-                        height: values.labelHeight * 3.7795 * previewScale,
-                        flexShrink: 0,
-                      }}
-                    >
-                      <PrecisionLabelPreview
-                        item={sampleItem || SAMPLE_ITEM}
-                        width={values.labelWidth}
-                        height={values.labelHeight}
-                        xOffset={values.xOffset}
-                        yOffset={values.yOffset}
-                        showBorder
-                        config={labelConfig}
-                        scaleFactor={previewScale}
-                      />
-                    </div>
-                    <div className="flex flex-col items-center gap-0.5 px-1">
-                      <div className="w-px h-3 bg-primary/30" />
-                      <span className="text-[9px] text-primary/50 font-mono">{values.vGap}mm</span>
-                      <div className="w-px h-3 bg-primary/30" />
-                    </div>
-                    <div
-                      style={{
-                        width: values.labelWidth * 3.7795 * previewScale,
-                        height: values.labelHeight * 3.7795 * previewScale,
-                        flexShrink: 0,
-                      }}
-                    >
-                      <PrecisionLabelPreview
-                        item={sampleItem || SAMPLE_ITEM}
-                        width={values.labelWidth}
-                        height={values.labelHeight}
-                        xOffset={values.xOffset}
-                        yOffset={values.yOffset}
-                        showBorder
-                        config={labelConfig}
-                        scaleFactor={previewScale}
-                      />
-                    </div>
-                  </div>
+                  <PrecisionThermalRowPreview
+                    items={[sampleItem || SAMPLE_ITEM, sampleItem || SAMPLE_ITEM]}
+                    labelWidth={values.labelWidth}
+                    labelHeight={values.labelHeight}
+                    xOffset={values.xOffset}
+                    yOffset={values.yOffset}
+                    horizontalGap={values.vGap}
+                    thermalCols={2}
+                    showBorder
+                    config={labelConfig}
+                    scaleFactor={previewScale}
+                  />
                 ) : (
-                  <div
-                    style={{
-                      width: values.labelWidth * 3.7795 * previewScale,
-                      height: values.labelHeight * 3.7795 * previewScale,
-                      flexShrink: 0,
-                    }}
-                  >
-                    <PrecisionLabelPreview
-                      item={sampleItem || SAMPLE_ITEM}
-                      width={values.labelWidth}
-                      height={values.labelHeight}
-                      xOffset={values.xOffset}
-                      yOffset={values.yOffset}
-                      showBorder
-                      config={labelConfig}
-                      scaleFactor={previewScale}
-                    />
-                  </div>
+                  <PrecisionLabelCell
+                    item={sampleItem || SAMPLE_ITEM}
+                    width={values.labelWidth}
+                    height={values.labelHeight}
+                    xOffset={values.xOffset}
+                    yOffset={values.yOffset}
+                    showBorder
+                    config={labelConfig}
+                    scaleFactor={previewScale}
+                  />
                 )}
               </CardContent>
             </Card>

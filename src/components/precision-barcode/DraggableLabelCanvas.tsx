@@ -32,7 +32,7 @@ interface DraggableLabelCanvasProps {
 
 const getFieldContent = (key: FieldKey, item: LabelItem, customTextValue?: string): string => {
   switch (key) {
-    case "productName": return item.product_name || "";
+    case "productName": return (item.product_name || "").toUpperCase();
     case "brand": return item.brand || "";
     case "category": return item.category || "";
     case "color": return item.color || "";
@@ -293,6 +293,12 @@ export function DraggableLabelCanvas({
           const content = getFieldContent(key, item, config.customTextValue);
           if (!content) return null;
           const isSelected = activeField === key;
+          const fieldX = field.x ?? 0;
+          const maxFieldW = Math.max(0.5, width - fieldX);
+          const fieldW = field.width ? Math.min(field.width, maxFieldW) : maxFieldW;
+          const derivedYMm = barcodeSlot?.layout?.derivedFieldYDots[key] != null
+            ? barcodeSlot.layout.derivedFieldYDots[key]! / (203 / 25.4)
+            : undefined;
 
           return (
             <div
@@ -300,13 +306,13 @@ export function DraggableLabelCanvas({
               onMouseDown={(e) => handleFieldMouseDown(e, key)}
               style={{
                 position: "absolute",
-                top: (field.y ?? 0) * MM_TO_PX * zoom,
+                top: (derivedYMm ?? field.y ?? 0) * MM_TO_PX * zoom,
                 left: (field.x ?? 0) * MM_TO_PX * zoom,
-                width: field.width ? field.width * MM_TO_PX * zoom : "auto",
+                width: fieldW * MM_TO_PX * zoom,
                 fontSize: field.fontSize * zoom,
                 fontWeight: field.bold ? 700 : 400,
                 textAlign: (field.textAlign as any) || "left",
-                lineHeight: 1.15,
+                lineHeight: field.lineHeight ?? 1.2,
                 overflow: "hidden",
                 whiteSpace: "nowrap",
                 textOverflow: "ellipsis",

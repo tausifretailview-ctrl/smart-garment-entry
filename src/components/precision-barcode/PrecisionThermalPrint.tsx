@@ -1,5 +1,5 @@
 import { forwardRef } from "react";
-import { PrecisionLabelPreview } from "./PrecisionLabelPreview";
+import { PrecisionLabelCell } from "./PrecisionLabelCell";
 import { PrecisionPrintCSS } from "./PrecisionPrintCSS";
 import { LabelItem, LabelDesignConfig } from "@/types/labelTypes";
 import type { ProductFieldsConfig } from "@/utils/productFieldSettingsForLabels";
@@ -64,29 +64,16 @@ export const PrecisionThermalPrint = forwardRef<HTMLDivElement, PrecisionThermal
                 }}
               >
                 {row.map((item, colIdx) => (
-                  <div
+                  <PrecisionLabelCell
                     key={colIdx}
-                    style={{
-                      width: `${labelWidth}mm`,
-                      height: `${labelHeight}mm`,
-                      flexShrink: 0,
-                      overflow: "hidden",
-                      position: "relative",
-                      padding: `${yOffset}mm 0 0 ${xOffset}mm`,
-                      margin: 0,
-                      boxSizing: "border-box",
-                    }}
-                  >
-                    <PrecisionLabelPreview
-                      item={item}
-                      width={labelWidth}
-                      height={labelHeight}
-                      xOffset={0}
-                      yOffset={0}
-                      config={config}
-                      productFieldSettings={productFieldSettings}
-                    />
-                  </div>
+                    item={item}
+                    width={labelWidth}
+                    height={labelHeight}
+                    xOffset={xOffset}
+                    yOffset={yOffset}
+                    config={config}
+                    productFieldSettings={productFieldSettings}
+                  />
                 ))}
               </div>
             ))}
@@ -108,7 +95,6 @@ export const PrecisionThermalPrint = forwardRef<HTMLDivElement, PrecisionThermal
               style={{
                 width: `${labelWidth}mm`,
                 height: `${labelHeight}mm`,
-                padding: `${yOffset}mm 0 0 ${xOffset}mm`,
                 margin: 0,
                 boxSizing: "border-box",
                 overflow: "hidden",
@@ -120,12 +106,12 @@ export const PrecisionThermalPrint = forwardRef<HTMLDivElement, PrecisionThermal
                 breakInside: "avoid",
               }}
             >
-              <PrecisionLabelPreview
+              <PrecisionLabelCell
                 item={item}
                 width={labelWidth}
                 height={labelHeight}
-                xOffset={0}
-                yOffset={0}
+                xOffset={xOffset}
+                yOffset={yOffset}
                 config={config}
                 productFieldSettings={productFieldSettings}
               />

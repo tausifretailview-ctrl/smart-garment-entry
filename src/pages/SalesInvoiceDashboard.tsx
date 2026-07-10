@@ -87,6 +87,11 @@ import { useDraftSave } from "@/hooks/useDraftSave";
 import { useCustomerAdvances } from "@/hooks/useCustomerAdvances";
 import { BulkAdvanceAdjustDialog } from "@/components/BulkAdvanceAdjustDialog";
 import { SettleCustomerAccountDialog } from "@/components/SettleCustomerAccountDialog";
+import { InvoiceDashboardBulkBar } from "@/components/sales-invoice-dashboard/InvoiceDashboardBulkBar";
+import {
+  invoiceOutstandingAmount,
+  recordInvoiceFullCashPayment,
+} from "@/utils/recordInvoiceDashboardCashPayment";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { useEntryOwnership } from "@/hooks/useEntryOwnership";
 import { formatDistanceToNow } from "date-fns";
@@ -292,6 +297,14 @@ export default function SalesInvoiceDashboard() {
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [selectedInvoices, setSelectedInvoices] = useState<Set<string>>(new Set());
+  const [bulkBusyAction, setBulkBusyAction] = useState<string | null>(null);
+  const [bulkProgressLabel, setBulkProgressLabel] = useState<string | null>(null);
+  const [showBulkMarkPaidDialog, setShowBulkMarkPaidDialog] = useState(false);
+  const [isBulkMarkingPaid, setIsBulkMarkingPaid] = useState(false);
+  const bulkPrintQueueRef = useRef<any[]>([]);
+  const bulkPrintResolveRef = useRef<(() => void) | null>(null);
+  const bulkPrintProgressRef = useRef({ current: 0, total: 0, ok: 0, fail: 0 });
+  const processBulkPrintNextRef = useRef<(() => Promise<void>) | null>(null);
   const [invoiceToDelete, setInvoiceToDelete] = useState<any>(null);
   const [itemCountToDelete, setItemCountToDelete] = useState<number | null>(null);
   const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false);
@@ -1453,6 +1466,253 @@ export default function SalesInvoiceDashboard() {
     });
   }, [paginatedInvoices]);
 
+  const selectedInvoiceIds = useMemo(
+    () => Array.from(selectedInvoices).sort(),
+    [selectedInvoices],
+  );
+
+  const { data: bulkSelectedRows = [] } = useQuery({
+    queryKey: ["invoice-dashboard-bulk-selection", currentOrganization?.id, selectedInvoiceIds],
+    enabled: selectedInvoiceIds.length > 0 && !!currentOrganization?.id,
+    staleTime: 30_000,
+    queryFn: async () => {
+      const orgId = currentOrganization!.id;
+      const { data, error } = await supabase
+        .from("sales")
+        .select(
+          "id, sale_number, sale_date, customer_id, customer_name, customer_phone, customer_address, total_qty, gross_amount, discount_amount, flat_discount_amount, net_amount, paid_amount, sale_return_adjust, credit_applied, outstanding, payment_status, payment_method, delivery_status, salesman, due_date, is_cancelled, cash_amount, card_amount, upi_amount, notes, other_charges, round_off",
+        )
+        .eq("organization_id", orgId)
+        .eq("sale_type", "invoice")
+        .is("deleted_at", null)
+        .in("id", selectedInvoiceIds);
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  const invoiceBalanceDue = useCallback((inv: any) => {
+    if (isSaleInvoiceCancelled(inv)) return 0;
+    return invoiceOutstandingAmount(inv);
+  }, []);
+
+  const bulkSelectionSummary = useMemo(
+    () => ({
+      count: selectedInvoiceIds.length,
+      total: bulkSelectedRows.reduce((sum, inv) => sum + invoiceBalanceDue(inv), 0),
+    }),
+    [selectedInvoiceIds.length, bulkSelectedRows, invoiceBalanceDue],
+  );
+
+  const bulkMarkPaidSummary = useMemo(() => {
+    const eligible = bulkSelectedRows.filter(
+      (inv) =>
+        !isSaleInvoiceCancelled(inv) &&
+        inv.payment_status !== "completed" &&
+        invoiceBalanceDue(inv) > 0.5,
+    );
+    return {
+      count: eligible.length,
+      total: eligible.reduce((sum, inv) => sum + invoiceBalanceDue(inv), 0),
+    };
+  }, [bulkSelectedRows, invoiceBalanceDue]);
+
+  const describeBulkOutcome = useCallback(
+    (succeeded: number, skipped: number, failed: number, verb: string) => {
+      const parts = [`${succeeded} ${verb}`];
+      if (skipped > 0) parts.push(`${skipped} skipped`);
+      if (failed > 0) parts.push(`${failed} failed`);
+      return parts.join(", ");
+    },
+    [],
+  );
+
+  const handleBulkClearSelection = useCallback(() => {
+    setSelectedInvoices(new Set());
+  }, []);
+
+  const handleBulkSendReminder = useCallback(async () => {
+    if (!bulkSelectedRows.length || !currentOrganization?.id) return;
+    setBulkBusyAction("reminder");
+    let succeeded = 0;
+    let skipped = 0;
+    let failed = 0;
+    const eligible = bulkSelectedRows.filter(
+      (inv) => inv.customer_phone && invoiceBalanceDue(inv) > 0.5,
+    );
+    skipped = bulkSelectedRows.length - eligible.length;
+
+    for (let i = 0; i < eligible.length; i++) {
+      const invoice = eligible[i];
+      setBulkProgressLabel(`Sending ${i + 1}/${eligible.length}…`);
+      try {
+        const invoiceUrl = buildSaleInvoiceViewUrl(invoice.id);
+        let customerBalance = invoiceBalanceDue(invoice);
+        if (invoice.customer_id) {
+          try {
+            const snap = await fetchCustomerBalanceSnapshot(
+              supabase,
+              currentOrganization.id,
+              invoice.customer_id,
+            );
+            customerBalance = snap.balance;
+          } catch {
+            /* keep invoice balance */
+          }
+        }
+        const reminderMessage = formatMessage(
+          "payment_reminder",
+          {
+            sale_number: invoice.sale_number,
+            customer_name: invoice.customer_name,
+            customer_phone: invoice.customer_phone,
+            sale_date: invoice.sale_date,
+            net_amount: invoice.net_amount,
+            payment_status: invoice.payment_status,
+            paid_amount: invoice.paid_amount || 0,
+            due_date: invoice.due_date,
+          },
+          undefined,
+          customerBalance,
+          {
+            invoiceLink: invoiceUrl,
+            organizationName: currentOrganization.name || "",
+          },
+        );
+        await sendWhatsApp(invoice.customer_phone!, reminderMessage);
+        succeeded++;
+        if (i < eligible.length - 1) {
+          await new Promise((resolve) => setTimeout(resolve, 600));
+        }
+      } catch {
+        failed++;
+      }
+    }
+
+    setBulkBusyAction(null);
+    setBulkProgressLabel(null);
+    toast({
+      title: "Reminders sent",
+      description: describeBulkOutcome(succeeded, skipped, failed, "sent"),
+    });
+  }, [
+    bulkSelectedRows,
+    buildSaleInvoiceViewUrl,
+    currentOrganization?.id,
+    currentOrganization?.name,
+    describeBulkOutcome,
+    formatMessage,
+    invoiceBalanceDue,
+    sendWhatsApp,
+    toast,
+  ]);
+
+  const mapInvoiceExportRow = useCallback((inv: any) => ({
+    "Invoice No": inv.sale_number || "",
+    Date: inv.sale_date ? format(new Date(inv.sale_date), "dd/MM/yyyy") : "",
+    Customer: inv.customer_name || "",
+    Phone: inv.customer_phone || "",
+    Qty: inv.total_qty || 0,
+    "Gross Amount": inv.gross_amount || 0,
+    Discount: (inv.discount_amount || 0) + (inv.flat_discount_amount || 0),
+    "Net Amount": inv.net_amount || 0,
+    "Paid Amount": inv.paid_amount || 0,
+    Balance: invoiceBalanceDue(inv),
+    "Credit Note Adj.": Math.max(inv.sale_return_adjust || 0, inv.credit_applied || 0),
+    "Payment Status": inv.payment_status || "",
+    "Delivery Status": inv.delivery_status || "",
+    Salesman: inv.salesman || "",
+  }), [invoiceBalanceDue]);
+
+  const handleBulkExport = useCallback(async () => {
+    if (!bulkSelectedRows.length) return;
+    setBulkBusyAction("export");
+    try {
+      const exportData = bulkSelectedRows.map(mapInvoiceExportRow);
+      const ws = XLSX.utils.json_to_sheet(exportData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Sales Invoices");
+      XLSX.writeFile(
+        wb,
+        `Sales_Invoices_Selected_${format(new Date(), "dd-MM-yyyy")}.xlsx`,
+      );
+      toast({
+        title: "Exported",
+        description: `${exportData.length} selected invoice(s) exported to Excel`,
+      });
+    } catch (err: any) {
+      toast({
+        title: "Export Failed",
+        description: err.message || "Could not export selection",
+        variant: "destructive",
+      });
+    } finally {
+      setBulkBusyAction(null);
+    }
+  }, [bulkSelectedRows, mapInvoiceExportRow, toast]);
+
+  const handleBulkMarkPaidConfirm = useCallback(async () => {
+    if (!currentOrganization?.id || !bulkSelectedRows.length) return;
+    setIsBulkMarkingPaid(true);
+    setBulkBusyAction("markPaid");
+    const orgId = currentOrganization.id;
+    let succeeded = 0;
+    let skipped = 0;
+    let failed = 0;
+
+    const eligible = bulkSelectedRows.filter(
+      (inv) =>
+        !isSaleInvoiceCancelled(inv) &&
+        inv.payment_status !== "completed" &&
+        invoiceBalanceDue(inv) > 0.5,
+    );
+    skipped = bulkSelectedRows.length - eligible.length;
+
+    for (let i = 0; i < eligible.length; i++) {
+      const inv = eligible[i];
+      setBulkProgressLabel(`Marking paid ${i + 1}/${eligible.length}…`);
+      const result = await recordInvoiceFullCashPayment(supabase, {
+        organizationId: orgId,
+        invoice: inv,
+        createdBy: user?.id ?? null,
+        narrationSuffix: "(bulk)",
+      });
+      if (result.ok) {
+        succeeded++;
+        patchInvoiceDashboardPaymentFields(queryClient, orgId, inv.id, {
+          paid_amount: result.paidAmount,
+          payment_status: result.paymentStatus,
+          outstanding: result.outstanding,
+          sale_return_adjust: inv.sale_return_adjust || 0,
+        });
+      } else if (result.reason === "no_balance" || result.reason === "already_paid") {
+        skipped++;
+      } else {
+        failed++;
+      }
+    }
+
+    refreshInvoiceDashboard();
+    setShowBulkMarkPaidDialog(false);
+    setIsBulkMarkingPaid(false);
+    setBulkBusyAction(null);
+    setBulkProgressLabel(null);
+    setSelectedInvoices(new Set());
+    toast({
+      title: "Mark paid complete",
+      description: describeBulkOutcome(succeeded, skipped, failed, "settled"),
+    });
+  }, [
+    bulkSelectedRows,
+    currentOrganization?.id,
+    describeBulkOutcome,
+    invoiceBalanceDue,
+    queryClient,
+    refreshInvoiceDashboard,
+    toast,
+    user?.id,
+  ]);
+
   const handleNextPage = () => {
     if (currentPage < totalPages) {
       setCurrentPage(currentPage + 1);
@@ -1581,6 +1841,13 @@ export default function SalesInvoiceDashboard() {
     pageStyle: getPageStyle(),
     onAfterPrint: () => {
       setInvoiceToPrint(null);
+      if (bulkPrintResolveRef.current) {
+        bulkPrintProgressRef.current.ok++;
+        bulkPrintResolveRef.current();
+        bulkPrintResolveRef.current = null;
+        void processBulkPrintNextRef.current?.();
+        return;
+      }
       toast({
         title: "Success",
         description: "Invoice printed successfully",
@@ -1665,6 +1932,52 @@ export default function SalesInvoiceDashboard() {
       return { ...invoice, sale_items: invoice.sale_items || [] };
     }
   };
+
+  const processBulkPrintNext = useCallback(async () => {
+    const queue = bulkPrintQueueRef.current;
+    const prog = bulkPrintProgressRef.current;
+    if (queue.length === 0) {
+      setBulkBusyAction(null);
+      setBulkProgressLabel(null);
+      toast({
+        title: "Print complete",
+        description: describeBulkOutcome(prog.ok, 0, prog.fail, "printed"),
+      });
+      bulkPrintProgressRef.current = { current: 0, total: 0, ok: 0, fail: 0 };
+      return;
+    }
+
+    prog.current++;
+    setBulkProgressLabel(`Printing ${prog.current}/${prog.total}…`);
+    const invoice = queue.shift()!;
+    try {
+      const withItems = await ensureSaleItems(invoice);
+      setInvoiceToPrint(withItems);
+      await new Promise<void>((resolve) => {
+        bulkPrintResolveRef.current = resolve;
+        waitForPrintReady(printRef, () => {
+          handlePrint();
+        });
+      });
+    } catch {
+      prog.fail++;
+      await processBulkPrintNext();
+    }
+  }, [describeBulkOutcome, handlePrint, toast]);
+  processBulkPrintNextRef.current = processBulkPrintNext;
+
+  const handleBulkPrint = useCallback(async () => {
+    if (!bulkSelectedRows.length) return;
+    setBulkBusyAction("print");
+    bulkPrintQueueRef.current = [...bulkSelectedRows];
+    bulkPrintProgressRef.current = {
+      current: 0,
+      total: bulkSelectedRows.length,
+      ok: 0,
+      fail: 0,
+    };
+    await processBulkPrintNext();
+  }, [bulkSelectedRows, processBulkPrintNext]);
 
   const handlePrintInvoice = async (invoice: any) => {
     const invoiceWithItems = await ensureSaleItems(invoice);
@@ -3687,7 +4000,7 @@ export default function SalesInvoiceDashboard() {
                   ref={tableContainerRef}
                   data-tab-scroll
                   onWheel={onWheelScrollContainer}
-                  className="sales-dashboard-table-panel flex-1 min-h-0 overflow-y-auto overflow-x-auto tab-scroll-stable overscroll-y-contain"
+                  className="sales-dashboard-table-panel relative flex-1 min-h-0 overflow-y-auto overflow-x-auto tab-scroll-stable overscroll-y-contain"
                 >
                 <Table className="w-full table-fixed border-collapse sales-invoice-grid [&_thead_th]:!px-2 [&_tbody_td]:!px-2 [&_thead_th]:!py-2.5 [&_tbody_td]:!py-2 [&_thead_th]:text-sm [&_thead_th]:font-semibold [&_thead_th]:uppercase [&_thead_th]:tracking-wide [&_tbody_td]:text-base [&_tbody_td]:align-middle [&_tbody_td]:leading-snug [&_tbody_tr:nth-child(even)]:bg-slate-50/80 [&_tbody_tr:hover]:bg-sky-50/70">
                   <colgroup>
@@ -4210,6 +4523,17 @@ export default function SalesInvoiceDashboard() {
                     )}
                   </TableBody>
                 </Table>
+                <InvoiceDashboardBulkBar
+                  selectedCount={bulkSelectionSummary.count}
+                  selectedTotal={bulkSelectionSummary.total}
+                  busyAction={bulkBusyAction}
+                  progressLabel={bulkProgressLabel}
+                  onSendReminder={() => void handleBulkSendReminder()}
+                  onPrint={() => void handleBulkPrint()}
+                  onExport={() => void handleBulkExport()}
+                  onMarkPaid={() => setShowBulkMarkPaidDialog(true)}
+                  onClear={handleBulkClearSelection}
+                />
                 </div>
             {totalCount > 0 && (
               <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-slate-100 bg-white px-4 py-2.5">
@@ -4343,6 +4667,55 @@ export default function SalesInvoiceDashboard() {
                 ? <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Deleting...</>
                 : <><Trash2 className="h-4 w-4 mr-2" /> Yes, Permanently Delete</>
               }
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={showBulkMarkPaidDialog}
+        onOpenChange={(open) => {
+          if (!isBulkMarkingPaid) setShowBulkMarkPaidDialog(open);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Mark {bulkMarkPaidSummary.count} invoice(s) as paid?
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2">
+                <p>
+                  This will record a <strong>cash receipt</strong> for each invoice&apos;s
+                  outstanding balance (total{" "}
+                  <strong>
+                    ₹{Math.round(bulkMarkPaidSummary.total).toLocaleString("en-IN")}
+                  </strong>
+                  ) and update payment status via the normal settlement path.
+                </p>
+                <p className="text-muted-foreground text-sm">
+                  Already paid or zero-balance invoices in your selection will be skipped.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isBulkMarkingPaid}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                void handleBulkMarkPaidConfirm();
+              }}
+              disabled={isBulkMarkingPaid || bulkMarkPaidSummary.count === 0}
+            >
+              {isBulkMarkingPaid ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  Settling…
+                </>
+              ) : (
+                "Mark as Paid"
+              )}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

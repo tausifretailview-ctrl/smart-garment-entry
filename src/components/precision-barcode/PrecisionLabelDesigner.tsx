@@ -33,6 +33,9 @@ interface PrecisionLabelDesignerProps {
   defaultUom?: string;
   /** Settings → Product Entry Form Fields (labels + enabled flags) */
   productFieldSettings?: ProductFieldsConfig | null;
+  /** When 2, show side-by-side designer canvases matching thermal 2-up print */
+  thermalCols?: number;
+  horizontalGap?: number;
 }
 
 const FIELD_LABELS: Record<FieldKey, string> = {
@@ -109,6 +112,8 @@ export function PrecisionLabelDesigner({
   sampleItem,
   defaultUom = "NOS",
   productFieldSettings = null,
+  thermalCols = 1,
+  horizontalGap = 0,
 }: PrecisionLabelDesignerProps) {
   const [activeField, setActiveField] = useState<FieldKey | null>(null);
   const [activeLineIndex, setActiveLineIndex] = useState<number | null>(null);
@@ -184,6 +189,38 @@ export function PrecisionLabelDesigner({
     ),
     productFieldSettings,
   );
+
+  const previewItem = sampleItem || { ...SAMPLE_ITEM, uom: defaultUom };
+  const is2Up = thermalCols >= 2;
+  const gapPx = horizontalGap * 3.7795 * zoom;
+
+  const canvasProps = {
+    item: previewItem,
+    width: labelWidth,
+    height: labelHeight,
+    config,
+    zoom,
+    productFieldSettings,
+    activeField,
+    activeLineIndex,
+    activeCustomTextIndex,
+    onFieldSelect: setActiveField,
+    onFieldDrag: handleFieldDrag,
+    onLineSelect: setActiveLineIndex,
+    onLineDrag: handleLineDrag,
+    onLineDelete: handleLineDelete,
+    onCustomTextSelect: setActiveCustomTextIndex,
+    onCustomTextDrag: (index: number, x: number, y: number) => {
+      const slots = [...customTextFields];
+      slots[index] = { ...slots[index], x: Math.round(x * 2) / 2, y: Math.round(y * 2) / 2 };
+      setCustomTextFields(slots);
+    },
+    onCustomTextDelete: (index: number) => {
+      const slots = customTextFields.filter((_, i) => i !== index);
+      setCustomTextFields(slots);
+      setActiveCustomTextIndex(null);
+    },
+  };
 
   return (
     <div className="barcode-label-designer grid grid-cols-1 xl:grid-cols-[minmax(300px,380px)_1fr] gap-3 flex-1 min-h-0 h-full">
@@ -718,36 +755,21 @@ export function PrecisionLabelDesigner({
         </div>
 
         <div className="flex-1 min-h-0 overflow-y-auto flex flex-col p-2">
-        <DraggableLabelCanvas
-          item={sampleItem || { ...SAMPLE_ITEM, uom: defaultUom }}
-          width={labelWidth}
-          height={labelHeight}
-          config={config}
-          zoom={zoom}
-          productFieldSettings={productFieldSettings}
-          activeField={activeField}
-          activeLineIndex={activeLineIndex}
-          activeCustomTextIndex={activeCustomTextIndex}
-          onFieldSelect={setActiveField}
-          onFieldDrag={handleFieldDrag}
-          onLineSelect={setActiveLineIndex}
-          onLineDrag={handleLineDrag}
-          onLineDelete={handleLineDelete}
-          onCustomTextSelect={setActiveCustomTextIndex}
-          onCustomTextDrag={(index, x, y) => {
-            const slots = [...customTextFields];
-            slots[index] = { ...slots[index], x: Math.round(x * 2) / 2, y: Math.round(y * 2) / 2 };
-            setCustomTextFields(slots);
-          }}
-          onCustomTextDelete={(index) => {
-            const slots = customTextFields.filter((_, i) => i !== index);
-            setCustomTextFields(slots);
-            setActiveCustomTextIndex(null);
-          }}
-        />
+        {is2Up ? (
+          <div
+            className="flex items-center justify-center flex-1 min-h-[120px]"
+            style={{ gap: gapPx }}
+          >
+            <DraggableLabelCanvas {...canvasProps} />
+            <DraggableLabelCanvas {...canvasProps} />
+          </div>
+        ) : (
+          <DraggableLabelCanvas {...canvasProps} />
+        )}
 
         <div className="text-[10px] text-muted-foreground text-center mt-1 shrink-0">
-          {labelWidth}mm × {labelHeight}mm · drag to move · Delete removes line
+          {labelWidth}mm × {labelHeight}mm
+          {is2Up ? ` × 2 · gap ${horizontalGap}mm` : ""} · drag to move · Delete removes line
         </div>
         </div>
       </div>

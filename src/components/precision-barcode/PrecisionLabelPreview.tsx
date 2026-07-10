@@ -125,7 +125,6 @@ export function PrecisionLabelPreview({
           height: u(height),
           position: "relative",
         overflow: "hidden",
-        transform: xOffset || yOffset ? `translate(${u(xOffset)}, ${u(yOffset)})` : undefined,
         border: showBorder ? "0.5px dashed #ccc" : "none",
           boxSizing: "border-box",
           fontFamily: '"Helvetica Neue", Helvetica, Arial, sans-serif',
@@ -177,7 +176,6 @@ export function PrecisionLabelPreview({
         height: u(height),
         position: "relative",
         overflow: "hidden",
-        transform: xOffset || yOffset ? `translate(${u(xOffset)}, ${u(yOffset)})` : undefined,
         border: showBorder ? "0.5px dashed #ccc" : "none",
         boxSizing: "border-box",
         fontFamily: '"Helvetica Neue", Helvetica, Arial, sans-serif',
@@ -210,7 +208,7 @@ export function PrecisionLabelPreview({
               left: u(field.x ?? 0),
               width: u(fieldW),
               fontSize: fs(field.fontSize),
-              fontWeight: field.bold ? 900 : 600,
+              fontWeight: field.bold ? 700 : 400,
               fontFamily: fieldFont,
               textAlign: (field.textAlign as any) || "left",
               lineHeight: field.lineHeight ?? 1.2,
@@ -220,7 +218,6 @@ export function PrecisionLabelPreview({
               color: "#000000",
               letterSpacing: "0.2px",
               textDecoration: "none",
-              WebkitTextStroke: field.bold ? "0.3px #000" : "none",
             }}
           >
             {content}
@@ -255,7 +252,7 @@ export function PrecisionLabelPreview({
               left: u(slot.x ?? 0),
               width: u(fieldW),
               fontSize: fs(slot.fontSize),
-              fontWeight: slot.bold ? 900 : 600,
+              fontWeight: slot.bold ? 700 : 400,
               textAlign: (slot.textAlign as "left" | "center" | "right") || "left",
               lineHeight: 1.2,
               overflow: "hidden",
