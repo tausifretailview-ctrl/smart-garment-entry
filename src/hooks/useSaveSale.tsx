@@ -595,6 +595,10 @@ export const useSaveSale = () => {
 
     let insertedSaleIdForRollback: string | null = null;
     try {
+      // Refresh access token proactively if it's near expiry — POS terminals
+      // often stay visible for hours and can miss auto-refresh, causing "JWT
+      // expired" mid-save.
+      await ensureFreshSupabaseSession();
       // Read cached settings (no extra round-trip)
       let saleNumber: string;
       const saleSettings = (orgSettings as any)?.sale_settings as Record<string, any> | null;
