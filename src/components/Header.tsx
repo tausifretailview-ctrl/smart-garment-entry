@@ -30,6 +30,7 @@ import { isElectronShell } from "@/lib/electronShell";
 import { requestPosBarcodeFocus } from "@/utils/posSalesRefresh";
 import { useForceDesktopView } from "@/hooks/useDesktopViewPreference";
 import { useIsNarrowViewport } from "@/hooks/use-mobile";
+import { ActivityCenterBell } from "@/components/activity-center/ActivityCenterBell";
 
 export const Header = () => {
   const { user, signOut } = useAuth();
@@ -327,6 +328,7 @@ export const Header = () => {
           >
             <RefreshCw className="h-4 w-4" />
           </Button>
+          <ActivityCenterBell />
           <UIScaleSelector triggerClassName="h-8 w-8 text-[var(--erp-chrome-ink-dim)] hover:text-white hover:bg-white/10 hidden md:flex" />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

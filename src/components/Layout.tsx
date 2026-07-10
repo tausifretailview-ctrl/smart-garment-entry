@@ -27,6 +27,7 @@ import { cn } from "@/lib/utils";
 import { readSidebarLockedOpen } from "@/lib/sidebarPreference";
 import { isFillHeightDashboardPath, isHideGlobalHeaderPath, isMainDashboardPath, isSidebarOnlyWorkspacePath } from "@/lib/entryPageLayout";
 import { useSharedAppShell } from "@/contexts/SharedAppShellContext";
+import { ActivityCenterProvider } from "@/contexts/ActivityCenterContext";
 
 interface LayoutProps {
   children: ReactNode;
@@ -69,6 +70,7 @@ export const Layout = ({ children }: LayoutProps) => {
     <ChatProvider>
       <DashboardToolbarProvider>
         <MobileScanProvider>
+          <ActivityCenterProvider>
           <SidebarProvider defaultOpen={readSidebarLockedOpen()}>
             <OfflineIndicator />
 
@@ -142,6 +144,7 @@ export const Layout = ({ children }: LayoutProps) => {
             </IdleMount>
             <DesktopViewEscapeHatch />
           </SidebarProvider>
+          </ActivityCenterProvider>
         </MobileScanProvider>
       </DashboardToolbarProvider>
     </ChatProvider>

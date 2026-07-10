@@ -1471,7 +1471,13 @@ export default function SalesInvoiceDashboard() {
   }, [debouncedSearch, itemsPerPage, periodFilter, paymentStatusFilter, deliveryFilter, userFilter, startDate, endDate]);
 
   useEffect(() => {
-    const st = location.state as { refreshSalesList?: boolean } | null;
+    const st = location.state as { refreshSalesList?: boolean; paymentStatusFilter?: string[] } | null;
+    if (st?.paymentStatusFilter?.length) {
+      setPaymentStatusFilter(st.paymentStatusFilter);
+      setCurrentPage(1);
+      window.history.replaceState({}, document.title);
+      return;
+    }
     if (!st?.refreshSalesList) return;
     setCurrentPage(1);
     void queryClient.invalidateQueries({ queryKey: ["invoice-dashboard-unified"] });

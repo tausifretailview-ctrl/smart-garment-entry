@@ -74,6 +74,7 @@ export function invalidateOrgLedgerReferenceData(
   queryClient.invalidateQueries({ queryKey: [LEGACY_ACCOUNTS_SALES_SUMMARY_QUERY_KEY, organizationId] });
   queryClient.invalidateQueries({ queryKey: ["customer-ledger", organizationId] });
   queryClient.invalidateQueries({ queryKey: ["outstanding-dashboard", organizationId] });
+  queryClient.invalidateQueries({ queryKey: ["activity-center-payments", organizationId] });
 }
 
 type UseOrgLedgerReferenceDataOptions = {

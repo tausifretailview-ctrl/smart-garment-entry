@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo, useCallback, useRef, type ReactNode } from "react";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
-import { useSearchParams, useNavigate } from "react-router-dom";
+import { useSearchParams, useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -374,6 +374,15 @@ export default function StockReport() {
   const [supplierFilter, setSupplierFilter] = useState<string>("all");
   const [supplierInvoiceFilter, setSupplierInvoiceFilter] = useState<string>("all");
   const [stockStatusFilter, setStockStatusFilter] = useState<string>("all");
+  const location = useLocation();
+
+  useEffect(() => {
+    const st = location.state as { stockStatusFilter?: string } | null;
+    if (st?.stockStatusFilter) {
+      setStockStatusFilter(st.stockStatusFilter);
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state]);
   const [colorFilter, setColorFilter] = useState<string>("all");
   const [oldBarcodeVariantMap, setOldBarcodeVariantMap] = useState<Map<string, string>>(new Map());
   const [pinnedProducts, setPinnedProducts] = useState<Array<{ id: string; product_name: string; brand: string; category: string; style: string }>>([]); 

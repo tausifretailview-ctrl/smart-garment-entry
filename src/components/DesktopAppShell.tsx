@@ -20,6 +20,7 @@ import { isHideGlobalHeaderPath, isNoSidebarEntryPath } from "@/lib/entryPageLay
 import { cn } from "@/lib/utils";
 import { CommandPaletteProvider } from "@/contexts/CommandPaletteContext";
 import { CommandPaletteHost } from "@/components/command-palette/CommandPaletteHost";
+import { ActivityCenterProvider } from "@/contexts/ActivityCenterContext";
 
 interface DesktopAppShellProps {
   children: ReactNode;
@@ -41,6 +42,7 @@ export function DesktopAppShell({ children, className }: DesktopAppShellProps) {
       <DashboardToolbarProvider>
         <MobileScanProvider>
           <CommandPaletteProvider>
+          <ActivityCenterProvider>
           <SidebarProvider defaultOpen={readSidebarLockedOpen()}>
             <OfflineIndicator />
 
@@ -69,6 +71,7 @@ export function DesktopAppShell({ children, className }: DesktopAppShellProps) {
             <DesktopViewEscapeHatch />
             <CommandPaletteHost />
           </SidebarProvider>
+          </ActivityCenterProvider>
           </CommandPaletteProvider>
         </MobileScanProvider>
       </DashboardToolbarProvider>

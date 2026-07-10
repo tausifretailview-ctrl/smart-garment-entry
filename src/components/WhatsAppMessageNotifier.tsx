@@ -85,6 +85,9 @@ export function WhatsAppMessageNotifier() {
             queryKey: ["whatsapp-unread-count", currentOrganization.id],
           });
           queryClient.invalidateQueries({
+            queryKey: ["activity-center-whatsapp-preview", currentOrganization.id],
+          });
+          queryClient.invalidateQueries({
             queryKey: ["whatsapp-conversations", currentOrganization.id],
           });
           queryClient.invalidateQueries({ queryKey: ["whatsapp-messages"] });
