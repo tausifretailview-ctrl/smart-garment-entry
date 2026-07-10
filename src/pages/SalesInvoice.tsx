@@ -118,6 +118,10 @@ import {
   type StockIssuePresentation,
 } from "@/utils/stockErrorMessages";
 import { mergeSizeColorVariantsForGrid } from "@/utils/mergeSizeColorVariantsForGrid";
+import {
+  useSalesInvoiceLineGridKeyboard,
+  type SaleLineGridColKey,
+} from "@/hooks/useSalesInvoiceLineGridKeyboard";
 import { useShopName } from "@/hooks/useShopName";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { logError } from "@/lib/errorLogger";
@@ -379,6 +383,7 @@ export default function SalesInvoice() {
   const printRef = useRef<HTMLDivElement>(null);
   const tableContainerRef = useRef<HTMLDivElement>(null);
   const barcodeInputRef = useRef<HTMLInputElement>(null);
+  const scheduleGridFocusRef = useRef<(itemId: string) => void>(() => {});
   const lastInputTime = useRef<number>(0);
   const dropdownDebounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** Synchronous staged qty per variant — avoids stale lineItems closure during rapid barcode scans. */
@@ -1819,7 +1824,6 @@ export default function SalesInvoice() {
       playSuccessBeep();
       await addProductToInvoice(foundProduct, foundVariant, undefined, { skipSizeGrid: true });
       setSearchInput("");
-      setTimeout(() => barcodeInputRef.current?.focus(), 50);
       return;
     }
 
@@ -2002,6 +2006,7 @@ export default function SalesInvoice() {
 
     // Use functional update with duplicate check INSIDE to prevent stale state during rapid barcode scans
     hasManuallyAddedNewItemRef.current = true;
+    let touchedItemId: string | null = null;
     setLineItems(prev => {
       // Check for existing item inside the updater to always see latest state
       const existingIndex = prev.findIndex(item => item.variantId === variant.id && item.productId !== '');
@@ -2014,6 +2019,7 @@ export default function SalesInvoice() {
           ...updatedItems[existingIndex],
           quantity: updatedItems[existingIndex].quantity + 1,
         });
+        touchedItemId = updatedItems[existingIndex].id;
         next = updatedItems;
       } else {
         // New item: find empty row or append
@@ -2044,6 +2050,7 @@ export default function SalesInvoice() {
             ...newItemBase,
             id: `row-${prev.length}`,
           });
+          touchedItemId = newItem.id;
           next = [...prev, newItem];
         } else {
           const updatedItems = [...prev];
@@ -2051,6 +2058,7 @@ export default function SalesInvoice() {
             ...newItemBase,
             id: updatedItems[emptyRowIndex].id,
           });
+          touchedItemId = updatedItems[emptyRowIndex].id;
           next = updatedItems;
         }
       }
@@ -2073,9 +2081,10 @@ export default function SalesInvoice() {
     setTimeout(() => {
       tableContainerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }, 100);
-    
-    // Return focus to barcode input for continuous scanning
-    setTimeout(() => barcodeInputRef.current?.focus(), 50);
+
+    if (touchedItemId) {
+      scheduleGridFocusRef.current(touchedItemId);
+    }
     
     // Toast removed - was interrupting workflow
   };
@@ -2502,6 +2511,81 @@ export default function SalesInvoice() {
     setLineItems(updatedItems);
     rebuildStagedQtyByVariantRef(updatedItems);
   };
+
+  const filledLineItems = useMemo(
+    () => lineItems.filter((item) => item.productId !== ""),
+    [lineItems],
+  );
+  const displayLineItems = useMemo(
+    () => filledLineItems.slice().reverse(),
+    [filledLineItems],
+  );
+
+  const revertQtyForGrid = useCallback((id: string, previousQty: number) => {
+    setLineItems((prev) =>
+      prev.map((li) =>
+        li.id === id ? calculateLineTotal({ ...li, quantity: previousQty }) : li,
+      ),
+    );
+  }, []);
+
+  const revertNumericForGrid = useCallback(
+    (id: string, colKey: SaleLineGridColKey, previousValue: string | number) => {
+      setLineItems((prev) =>
+        prev.map((li) => {
+          if (li.id !== id) return li;
+          if (colKey === "box") return { ...li, box: String(previousValue) };
+          if (colKey === "mrp") return calculateLineTotal({ ...li, mrp: Number(previousValue) || 0 });
+          if (colKey === "price") return calculateLineTotal({ ...li, salePrice: Number(previousValue) || 0 });
+          if (colKey === "disc_percent") {
+            return calculateLineTotal({ ...li, discountPercent: Number(previousValue) || 0, discountAmount: 0 });
+          }
+          if (colKey === "disc_amount") {
+            return calculateLineTotal({ ...li, discountAmount: Number(previousValue) || 0, discountPercent: 0 });
+          }
+          return li;
+        }),
+      );
+    },
+    [],
+  );
+
+  const getDisplayItemIdForRow = useCallback(
+    (rowIndex: number) => displayLineItems[rowIndex]?.id,
+    [displayLineItems],
+  );
+
+  const lineGrid = useSalesInvoiceLineGridKeyboard({
+    showCol,
+    displayRowCount: displayLineItems.length,
+    getItemIdForRow: getDisplayItemIdForRow,
+    scrollContainerRef: tableContainerRef,
+    onRemoveRow: removeItem,
+    onCommitQty: handleQtyInputBlur,
+    onRevertQty: revertQtyForGrid,
+    onRevertNumeric: revertNumericForGrid,
+    onEditSeed: (itemId, colKey, seed) => {
+      if (colKey === "qty") handleQtyInputChange(itemId, seed);
+      else if (colKey === "price") updateSalePrice(itemId, parseFloat(seed) || 0);
+      else if (colKey === "mrp") updateMRP(itemId, parseFloat(seed) || 0);
+      else if (colKey === "disc_percent") updateDiscountPercent(itemId, parseFloat(seed) || 0);
+      else if (colKey === "disc_amount") updateDiscountAmount(itemId, parseFloat(seed) || 0);
+      else if (colKey === "box") updateBox(itemId, seed);
+    },
+    getCellEditValue: (itemId, colKey) => {
+      const item = lineItems.find((li) => li.id === itemId);
+      if (!item) return 0;
+      if (colKey === "qty") return item.quantity;
+      if (colKey === "box") return item.box || "";
+      if (colKey === "mrp") return item.mrp;
+      if (colKey === "price") return item.salePrice;
+      if (colKey === "disc_percent") return item.discountPercent;
+      if (colKey === "disc_amount") return item.discountAmount;
+      return 0;
+    },
+  });
+
+  scheduleGridFocusRef.current = lineGrid.scheduleFocusOnItem;
 
   const handleCreateCustomer = async (values: z.infer<typeof customerSchema>) => {
     try {
@@ -4247,9 +4331,14 @@ Thank you for choosing us!`;
         <div
           ref={tableContainerRef}
           className="sale-bill-lines-scroll h-full w-full min-w-0 overflow-x-auto overflow-y-auto isolate rounded-lg border border-slate-200 shadow-sm bg-white"
+          onKeyDown={lineGrid.handleGridKeyDown}
         >
          <div className="w-full min-w-full">
-          <table className="w-full min-w-full table-fixed border-separate border-spacing-0 erp-desktop-table erp-entry-lines-table">
+          <table
+            className="w-full min-w-full table-fixed border-separate border-spacing-0 erp-desktop-table erp-entry-lines-table"
+            role="grid"
+            aria-label="Invoice line items"
+          >
             <thead className="sticky top-0 z-10">
               <tr className="bg-slate-800 border-b-2 border-blue-600">
                 <th className="text-center text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 w-10 rounded-tl-lg">#</th>
@@ -4271,9 +4360,7 @@ Thank you for choosing us!`;
             </thead>
             <tbody>
               {(() => {
-                const filledItems = lineItems.filter(item => item.productId !== '');
-
-                if (filledItems.length === 0) {
+                if (filledLineItems.length === 0) {
                   const baseCols = 8; // #, product, size, barcode, qty, price, total, action
                   const optCols = [showCol.color, showCol.hsn, showCol.box, showCol.mrp, showCol.disc_percent, showCol.disc_amount, showCol.gst].filter(Boolean).length;
                   const totalCols = baseCols + optCols;
@@ -4287,28 +4374,40 @@ Thank you for choosing us!`;
                   ));
                 }
 
-                // Reverse filled items so newest appears first
-                const displayItems = filledItems.slice().reverse();
-
                 const baseCols = 8;
                 const optCols = [showCol.color, showCol.hsn, showCol.box, showCol.mrp, showCol.disc_percent, showCol.disc_amount, showCol.gst].filter(Boolean).length;
                 const totalCols = baseCols + optCols;
                 const padCount = tablePadRowCount;
 
-                const itemRows = displayItems.map((item, displayIndex) => {
+                const itemRows = displayLineItems.map((item, displayIndex) => {
                   const originalIndex = lineItems.findIndex(li => li.id === item.id);
                   const srNo = originalIndex + 1;
+                  const qtyEditing = lineGrid.isCellEditing(displayIndex, "qty");
+                  const priceEditing = lineGrid.isCellEditing(displayIndex, "price");
+                  const boxEditing = lineGrid.isCellEditing(displayIndex, "box");
+                  const mrpEditing = lineGrid.isCellEditing(displayIndex, "mrp");
+                  const discPctEditing = lineGrid.isCellEditing(displayIndex, "disc_percent");
+                  const discAmtEditing = lineGrid.isCellEditing(displayIndex, "disc_amount");
 
                   return (
                     <tr
                       key={item.id}
-                      className={`group border-b border-border/40 transition-colors ${displayIndex % 2 === 0 ? 'bg-white' : 'bg-slate-50/60'} hover:bg-blue-50/50`}
+                      role="row"
+                      className={lineGrid.getRowClassName(
+                        displayIndex,
+                        `group border-b border-border/40 transition-colors ${displayIndex % 2 === 0 ? 'bg-white' : 'bg-slate-50/60'} hover:bg-blue-50/50`,
+                      )}
                     >
-                      <td className="text-center text-[15px] text-muted-foreground px-3 py-2.5">{srNo}</td>
-                      <td className="col-product px-3 py-2">
+                      <td {...lineGrid.getCellProps(displayIndex, "index", { baseClassName: "text-center text-[15px] text-muted-foreground px-3 py-2.5" })}>
+                        {srNo}
+                      </td>
+                      <td {...lineGrid.getCellProps(displayIndex, "product", { baseClassName: "col-product px-3 py-2" })}>
                         <button
                           type="button"
-                          onClick={() => setHistoryProduct({ id: item.productId, name: item.productName })}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setHistoryProduct({ id: item.productId, name: item.productName });
+                          }}
                           className="text-primary hover:underline text-left font-semibold break-words whitespace-normal leading-tight text-[14px]"
                         >
                           {item.productName}
@@ -4317,7 +4416,7 @@ Thank you for choosing us!`;
                           <div className="text-xs text-muted-foreground mt-0.5">{item.color}</div>
                         )}
                       </td>
-                      <td className="text-center px-3 py-2">
+                      <td {...lineGrid.getCellProps(displayIndex, "size", { baseClassName: "text-center px-3 py-2" })}>
                         {item.size ? (
                           <span className={`inline-block text-[15px] font-bold px-2 py-0.5 rounded ${
                             ['XS','S','M','L','XL','XXL','XXXL'].includes(item.size?.toUpperCase())
@@ -4330,117 +4429,202 @@ Thank you for choosing us!`;
                           </span>
                         ) : <span className="text-slate-300">—</span>}
                       </td>
-                      {showCol.color && <td className="text-center text-[15px] font-semibold text-slate-900 dark:text-slate-100 px-3 py-2.5">
-                        {item.color || <span className="text-slate-300">—</span>}
-                      </td>}
-                      <td className="text-center px-3 py-2">
+                      {showCol.color && (
+                        <td {...lineGrid.getCellProps(displayIndex, "color", { baseClassName: "text-center text-[15px] font-semibold text-slate-900 dark:text-slate-100 px-3 py-2.5" })}>
+                          {item.color || <span className="text-slate-300">—</span>}
+                        </td>
+                      )}
+                      <td {...lineGrid.getCellProps(displayIndex, "barcode", { baseClassName: "text-center px-3 py-2" })}>
                         <span className="font-mono text-[15px] font-semibold text-blue-600">{item.barcode || <span className="text-slate-300 font-normal">—</span>}</span>
                       </td>
-                      {showCol.hsn && <td className="text-center text-[15px] font-semibold text-slate-900 dark:text-slate-100 px-3 py-2.5">{item.hsnCode || <span className="text-slate-300">—</span>}</td>}
-                      <td className="text-center px-1.5 py-1">
-                        <Input
-                          type="number"
-                          min={isDecimalUOM(item.uom) ? "0.001" : "1"}
-                          step={isDecimalUOM(item.uom) ? "0.001" : "1"}
-                          value={item.quantity || ""}
-                          placeholder="1"
-                          onChange={(e) => handleQtyInputChange(item.id, e.target.value)}
-                          onFocus={(e) => e.target.select()}
-                          onBlur={() => handleQtyInputBlur(item.id)}
-                          onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                          className="w-24 h-10 text-center font-bold text-[17px] bg-warning/10 border-warning/30 focus:border-warning mx-auto tabular-nums"
-                        />
+                      {showCol.hsn && (
+                        <td {...lineGrid.getCellProps(displayIndex, "hsn", { baseClassName: "text-center text-[15px] font-semibold text-slate-900 dark:text-slate-100 px-3 py-2.5" })}>
+                          {item.hsnCode || <span className="text-slate-300">—</span>}
+                        </td>
+                      )}
+                      <td
+                        {...lineGrid.getCellProps(displayIndex, "qty", {
+                          baseClassName: "text-center px-1.5 py-1",
+                          onActivateEdit: () => lineGrid.beginEditWithSnapshot(item.quantity),
+                        })}
+                      >
+                        {qtyEditing ? (
+                          <Input
+                            ref={lineGrid.editInputRef}
+                            type="number"
+                            min={isDecimalUOM(item.uom) ? "0.001" : "1"}
+                            step={isDecimalUOM(item.uom) ? "0.001" : "1"}
+                            value={item.quantity || ""}
+                            placeholder="1"
+                            onChange={(e) => handleQtyInputChange(item.id, e.target.value)}
+                            onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                            className="w-full h-9 text-center font-bold text-[17px] bg-white border-0 shadow-none focus-visible:ring-0 mx-auto tabular-nums rounded-none"
+                          />
+                        ) : (
+                          <span className="block w-24 mx-auto h-10 leading-10 text-center font-bold text-[17px] tabular-nums bg-warning/10 rounded">
+                            {item.quantity || "—"}
+                          </span>
+                        )}
                         {item.uom && item.uom !== 'NOS' && item.uom !== 'PCS' && (
                           <span className="text-[10px] text-muted-foreground text-center block">{item.uom}</span>
                         )}
                       </td>
-                      {showCol.box && <td className="text-center px-1.5 py-1">
-                        <Input
-                          type="text"
-                          value={item.box || ''}
-                          onChange={(e) => updateBox(item.id, e.target.value)}
-                          placeholder=""
-                          className="w-14 h-10 text-center text-[15px] mx-auto"
-                        />
-                      </td>}
-                      {showCol.mrp && <td className="text-right px-1.5 py-1">
-                        <Input
-                          type="number"
-                          min="0"
-                          value={item.mrp || ""}
-                          placeholder="0"
-                          onChange={(e) => updateMRP(item.id, parseFloat(e.target.value) || 0)}
-                          onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                          className="w-[120px] h-10 text-right text-[17px] tabular-nums ml-auto"
-                        />
-                      </td>}
-                      <td className="text-right px-1.5 py-1">
-                        <Input
-                          type="number"
-                          min="0"
-                          value={item.salePrice || ""}
-                          placeholder="0"
-                          onChange={(e) => updateSalePrice(item.id, parseFloat(e.target.value) || 0)}
-                          onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                          className="w-[120px] h-10 text-right text-[15px] font-semibold tabular-nums ml-auto"
-                        />
-                      </td>
-                      {showCol.disc_percent && <td className="text-right px-1.5 py-1">
-                        <div className="flex items-center justify-end gap-0.5">
+                      {showCol.box && (
+                        <td
+                          {...lineGrid.getCellProps(displayIndex, "box", {
+                            baseClassName: "text-center px-1.5 py-1",
+                            onActivateEdit: () => lineGrid.beginEditWithSnapshot(item.box || ""),
+                          })}
+                        >
+                          {boxEditing ? (
+                            <Input
+                              ref={lineGrid.editInputRef}
+                              type="text"
+                              value={item.box || ''}
+                              onChange={(e) => updateBox(item.id, e.target.value)}
+                              className="w-full h-9 text-center text-[15px] bg-white border-0 shadow-none focus-visible:ring-0 mx-auto rounded-none"
+                            />
+                          ) : (
+                            <span className="block w-14 mx-auto h-10 leading-10 text-center text-[15px]">
+                              {item.box || "—"}
+                            </span>
+                          )}
+                        </td>
+                      )}
+                      {showCol.mrp && (
+                        <td
+                          {...lineGrid.getCellProps(displayIndex, "mrp", {
+                            baseClassName: "text-right px-1.5 py-1",
+                            onActivateEdit: () => lineGrid.beginEditWithSnapshot(item.mrp),
+                          })}
+                        >
+                          {mrpEditing ? (
+                            <Input
+                              ref={lineGrid.editInputRef}
+                              type="number"
+                              min="0"
+                              value={item.mrp || ""}
+                              placeholder="0"
+                              onChange={(e) => updateMRP(item.id, parseFloat(e.target.value) || 0)}
+                              onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                              className="w-full h-9 text-right text-[17px] bg-white border-0 shadow-none focus-visible:ring-0 ml-auto tabular-nums rounded-none"
+                            />
+                          ) : (
+                            <span className="block w-[120px] ml-auto h-10 leading-10 text-right text-[17px] tabular-nums">
+                              {item.mrp || "—"}
+                            </span>
+                          )}
+                        </td>
+                      )}
+                      <td
+                        {...lineGrid.getCellProps(displayIndex, "price", {
+                          baseClassName: "text-right px-1.5 py-1",
+                          onActivateEdit: () => lineGrid.beginEditWithSnapshot(item.salePrice),
+                        })}
+                      >
+                        {priceEditing ? (
                           <Input
+                            ref={lineGrid.editInputRef}
                             type="number"
                             min="0"
-                            max="100"
-                            value={item.discountPercent || ""}
+                            value={item.salePrice || ""}
                             placeholder="0"
-                            onChange={(e) => updateDiscountPercent(item.id, parseFloat(e.target.value) || 0)}
+                            onChange={(e) => updateSalePrice(item.id, parseFloat(e.target.value) || 0)}
                             onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                            className="w-16 h-10 text-right text-[17px] tabular-nums ml-auto"
+                            className="w-full h-9 text-right text-[15px] font-semibold bg-white border-0 shadow-none focus-visible:ring-0 ml-auto tabular-nums rounded-none"
                           />
-                          {editingInvoiceId &&
-                            item.productId &&
-                            !customerHasMasterFlatDiscount &&
-                            (() => {
-                              const currentRate = getCurrentBrandDiscountForLineItem(item);
-                              if (
-                                currentRate <= 0 ||
-                                Math.abs((item.discountPercent || 0) - currentRate) <= 0.009
-                              ) {
-                                return null;
-                              }
-                              return (
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <span
-                                      className="text-muted-foreground cursor-help text-xs leading-none select-none shrink-0"
-                                      aria-label="Historical discount rate"
-                                    >
-                                      ⓘ
-                                    </span>
-                                  </TooltipTrigger>
-                                  <TooltipContent side="top" className="max-w-xs text-xs">
-                                    Saved at {item.discountPercent}% (current rate: {currentRate}%)
-                                  </TooltipContent>
-                                </Tooltip>
-                              );
-                            })()}
-                        </div>
-                      </td>}
-                      {showCol.disc_amount && <td className="text-right px-1.5 py-1">
-                        <Input
-                          type="number"
-                          min="0"
-                          value={item.discountAmount || ""}
-                          placeholder="-"
-                          onChange={(e) => updateDiscountAmount(item.id, parseFloat(e.target.value) || 0)}
-                          onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                          className="w-20 h-10 text-right text-[17px] tabular-nums ml-auto text-destructive"
-                        />
-                      </td>}
-                      {showCol.gst && <td className="text-center px-3 py-2">
-                        <span className="text-[15px] font-semibold text-muted-foreground">{item.gstPercent}%</span>
-                      </td>}
-                      <td className="text-right px-3 py-2 bg-blue-50/40">
+                        ) : (
+                          <span className="block w-[120px] ml-auto h-10 leading-10 text-right text-[15px] font-semibold tabular-nums">
+                            {item.salePrice || "—"}
+                          </span>
+                        )}
+                      </td>
+                      {showCol.disc_percent && (
+                        <td
+                          {...lineGrid.getCellProps(displayIndex, "disc_percent", {
+                            baseClassName: "text-right px-1.5 py-1",
+                            onActivateEdit: () => lineGrid.beginEditWithSnapshot(item.discountPercent),
+                          })}
+                        >
+                          <div className="flex items-center justify-end gap-0.5">
+                            {discPctEditing ? (
+                              <Input
+                                ref={lineGrid.editInputRef}
+                                type="number"
+                                min="0"
+                                max="100"
+                                value={item.discountPercent || ""}
+                                placeholder="0"
+                                onChange={(e) => updateDiscountPercent(item.id, parseFloat(e.target.value) || 0)}
+                                onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                                className="w-16 h-9 text-right text-[17px] bg-white border-0 shadow-none focus-visible:ring-0 ml-auto tabular-nums rounded-none"
+                              />
+                            ) : (
+                              <span className="block w-16 ml-auto h-10 leading-10 text-right text-[17px] tabular-nums">
+                                {item.discountPercent || "0"}
+                              </span>
+                            )}
+                            {editingInvoiceId &&
+                              item.productId &&
+                              !customerHasMasterFlatDiscount &&
+                              (() => {
+                                const currentRate = getCurrentBrandDiscountForLineItem(item);
+                                if (
+                                  currentRate <= 0 ||
+                                  Math.abs((item.discountPercent || 0) - currentRate) <= 0.009
+                                ) {
+                                  return null;
+                                }
+                                return (
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <span
+                                        className="text-muted-foreground cursor-help text-xs leading-none select-none shrink-0"
+                                        aria-label="Historical discount rate"
+                                      >
+                                        ⓘ
+                                      </span>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="top" className="max-w-xs text-xs">
+                                      Saved at {item.discountPercent}% (current rate: {currentRate}%)
+                                    </TooltipContent>
+                                  </Tooltip>
+                                );
+                              })()}
+                          </div>
+                        </td>
+                      )}
+                      {showCol.disc_amount && (
+                        <td
+                          {...lineGrid.getCellProps(displayIndex, "disc_amount", {
+                            baseClassName: "text-right px-1.5 py-1",
+                            onActivateEdit: () => lineGrid.beginEditWithSnapshot(item.discountAmount),
+                          })}
+                        >
+                          {discAmtEditing ? (
+                            <Input
+                              ref={lineGrid.editInputRef}
+                              type="number"
+                              min="0"
+                              value={item.discountAmount || ""}
+                              placeholder="-"
+                              onChange={(e) => updateDiscountAmount(item.id, parseFloat(e.target.value) || 0)}
+                              onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                              className="w-full h-9 text-right text-[17px] bg-white border-0 shadow-none focus-visible:ring-0 ml-auto tabular-nums text-destructive rounded-none"
+                            />
+                          ) : (
+                            <span className="block w-20 ml-auto h-10 leading-10 text-right text-[17px] tabular-nums text-destructive">
+                              {item.discountAmount || "—"}
+                            </span>
+                          )}
+                        </td>
+                      )}
+                      {showCol.gst && (
+                        <td {...lineGrid.getCellProps(displayIndex, "gst", { baseClassName: "text-center px-3 py-2" })}>
+                          <span className="text-[15px] font-semibold text-muted-foreground">{item.gstPercent}%</span>
+                        </td>
+                      )}
+                      <td {...lineGrid.getCellProps(displayIndex, "total", { baseClassName: "text-right px-3 py-2 bg-blue-50/40" })}>
                         <span className="text-[17px] font-bold text-blue-700 font-mono tabular-nums">
                           ₹{item.lineTotal.toFixed(2)}
                         </span>
@@ -4455,7 +4639,7 @@ Thank you for choosing us!`;
                 });
 
                 const padRows = Array.from({ length: padCount }, (_, i) => {
-                  const srNo = displayItems.length + i + 1;
+                  const srNo = displayLineItems.length + i + 1;
                   return (
                     <tr key={`pad-${i}`} className="sale-bill-pad-row border-b border-border/40 bg-white">
                       <td className="text-center text-[12px] text-muted-foreground/40 px-3">{srNo}</td>
