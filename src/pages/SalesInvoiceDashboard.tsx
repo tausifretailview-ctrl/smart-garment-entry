@@ -1686,10 +1686,13 @@ export default function SalesInvoiceDashboard() {
           outstanding: result.outstanding,
           sale_return_adjust: inv.sale_return_adjust || 0,
         });
-      } else if (!result.ok && (result.reason === "no_balance" || result.reason === "already_paid")) {
-        skipped++;
       } else {
-        failed++;
+        const reason = (result as { reason?: string }).reason;
+        if (reason === "no_balance" || reason === "already_paid") {
+          skipped++;
+        } else {
+          failed++;
+        }
       }
     }
 
