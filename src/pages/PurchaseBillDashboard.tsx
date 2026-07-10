@@ -79,6 +79,9 @@ import { MobilePageHeader } from "@/components/mobile/MobilePageHeader";
 import { MobileStatStrip } from "@/components/mobile/MobileStatStrip";
 import { MobileBottomNav } from "@/components/mobile/MobileBottomNav";
 import { Skeleton } from "@/components/ui/skeleton";
+import { SkeletonKpiCards } from "@/components/skeletons/SkeletonKpiCards";
+import { SkeletonMobileListRows } from "@/components/skeletons/SkeletonTableRows";
+import { PURCHASE_BILL_TABLE_SKELETON_COLUMNS } from "@/components/skeletons/dashboardSkeletonPresets";
 import { fetchProductsByIds, fetchPurchaseItemsByBillId } from "@/utils/fetchAllRows";
 
 /** Purchase bills table — hidden by default; enable via Columns menu. */
@@ -2125,9 +2128,7 @@ const PurchaseBillDashboard = () => {
 
         <div className="flex-1 min-h-0 overflow-auto px-4 space-y-2.5 pb-4">
           {isDashboardInitialLoad ? (
-            Array.from({length: 5}).map((_,i) => (
-              <Skeleton key={i} className="h-20 rounded-2xl" />
-            ))
+            <SkeletonMobileListRows count={6} />
           ) : paginatedBills.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
               <Receipt className="h-12 w-12 mb-3 opacity-30" />
@@ -2454,6 +2455,9 @@ const PurchaseBillDashboard = () => {
           </Card>
         )}
 
+        {loading ? (
+          <SkeletonKpiCards count={5} columnsClassName="grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5 lg:gap-3" />
+        ) : (
         <div className="grid shrink-0 grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5 lg:gap-3">
           <PurchaseKpiCard
             title="Total Bills"
@@ -2487,6 +2491,7 @@ const PurchaseBillDashboard = () => {
             valueClass="text-violet-800"
           />
         </div>
+        )}
 
         <Card className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-slate-200 shadow-sm p-0">
           <div className="flex flex-col flex-1 min-h-0">
@@ -2603,6 +2608,8 @@ const PurchaseBillDashboard = () => {
                 stickyFirstColumn={false}
                 fitToContainer
                 isLoading={loading}
+                skeletonColumns={PURCHASE_BILL_TABLE_SKELETON_COLUMNS}
+                skeletonRowCount={8}
                 emptyMessage="No purchase bills found"
                 className="purchase-dashboard-table [&_td]:!text-base [&_th]:!text-sm [&_th]:!font-semibold [&_th]:!uppercase [&_th]:!tracking-wide [&_tbody_tr:nth-child(even)]:bg-slate-50/80 [&_tbody_tr:hover]:bg-sky-50/70"
                 renderSubRow={renderSubRow}

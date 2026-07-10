@@ -29,6 +29,7 @@ import { DraggableHeader } from "./DraggableHeader";
 import { ERPTableToolbar } from "./ERPTableToolbar";
 import { useERPTablePersistence, ERPTableDensity } from "./useERPTablePersistence";
 import { Skeleton } from "@/components/ui/skeleton";
+import { SkeletonTableRows, type SkeletonTableColumn } from "@/components/skeletons/SkeletonTableRows";
 import { ChevronDown, ChevronRight } from "lucide-react";
 
 export interface ERPTableProps<T> {
@@ -42,6 +43,9 @@ export interface ERPTableProps<T> {
   onRowClick?: (row: T) => void;
   onRowContextMenu?: (e: React.MouseEvent, row: T) => void;
   isLoading?: boolean;
+  /** Content-shaped skeleton columns while loading (replaces generic bars). */
+  skeletonColumns?: SkeletonTableColumn[];
+  skeletonRowCount?: number;
   emptyMessage?: string;
   showToolbar?: boolean;
   className?: string;
@@ -72,6 +76,8 @@ export function ERPTable<T>({
   onRowClick,
   onRowContextMenu,
   isLoading = false,
+  skeletonColumns,
+  skeletonRowCount = 8,
   emptyMessage = "No data found",
   showToolbar = true,
   className,
@@ -197,15 +203,25 @@ export function ERPTable<T>({
 
               <tbody>
                 {isLoading ? (
-                  Array.from({ length: 5 }).map((_, i) => (
-                    <tr key={`skel-${i}`} className={rowHeight}>
-                      {headerIds.map((id) => (
-                        <td key={id} className="px-5 py-3">
-                          <Skeleton className="h-4 w-full" />
-                        </td>
-                      ))}
-                    </tr>
-                  ))
+                  skeletonColumns && skeletonColumns.length > 0 ? (
+                    <SkeletonTableRows
+                      count={skeletonRowCount}
+                      columns={skeletonColumns}
+                      asNative
+                      rowClassName={rowHeight}
+                      cellClassName={persistence.density === "compact" ? "px-3 py-1.5" : "px-5 py-4"}
+                    />
+                  ) : (
+                    Array.from({ length: 5 }).map((_, i) => (
+                      <tr key={`skel-${i}`} className={rowHeight}>
+                        {headerIds.map((id) => (
+                          <td key={id} className="px-5 py-3">
+                            <Skeleton className="h-4 w-full" />
+                          </td>
+                        ))}
+                      </tr>
+                    ))
+                  )
                 ) : rows.length === 0 ? (
                   <tr>
                     <td

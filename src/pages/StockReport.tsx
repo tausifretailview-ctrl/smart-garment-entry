@@ -7,10 +7,14 @@ import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, Table
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Package, Search, Filter, ChevronDown, ChevronUp, Grid3X3, IndianRupee, ChevronLeft, ChevronRight, FileSpreadsheet, FileText, Loader2, Printer, ArrowLeft } from "lucide-react";
+import { SkeletonGradientKpiStrip } from "@/components/skeletons/SkeletonKpiCards";
+import { SkeletonMobileListRows, SkeletonTableRows } from "@/components/skeletons/SkeletonTableRows";
+import { STOCK_REPORT_TABLE_SKELETON_COLUMNS } from "@/components/skeletons/dashboardSkeletonPresets";
 import type { ReportKpiItem } from "@/components/reports/ReportKpiCards";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { cn } from "@/lib/utils";
+import { Skeleton } from "@/components/ui/skeleton";
 import { MobilePageHeader } from "@/components/mobile/MobilePageHeader";
 import { MobileStatStrip } from "@/components/mobile/MobileStatStrip";
 import { MobileBottomNav } from "@/components/mobile/MobileBottomNav";
@@ -1600,7 +1604,12 @@ export default function StockReport() {
     filteredKpiLoading,
   ]);
 
-  const compactStockKpiStrip = (
+  const kpiStripLoading =
+    (globalTotals.isLoading && !hasSearched) || (hasSearched && filteredKpiLoading);
+
+  const compactStockKpiStrip = kpiStripLoading ? (
+    <SkeletonGradientKpiStrip count={3} />
+  ) : (
     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 w-full shrink-0 print:hidden">
       {stockKpiItems.map((item) => (
         <div
@@ -1652,9 +1661,7 @@ export default function StockReport() {
               </Button>
             </div>
           ) : loading ? (
-            Array.from({length: 6}).map((_,i) => (
-              <div key={i} className="h-16 bg-card rounded-2xl animate-pulse" />
-            ))
+            <SkeletonMobileListRows count={6} />
           ) : filteredStockItems.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
               <Package className="h-12 w-12 mb-3 opacity-30" />
@@ -1907,9 +1914,44 @@ export default function StockReport() {
             </p>
           </div>
         ) : loading ? (
-          <div className="flex-1 flex items-center justify-center gap-2 py-8 text-base text-muted-foreground print:hidden">
-            <Loader2 className="h-5 w-5 animate-spin text-primary" />
-            Loading stock data…
+          <div className="flex-1 min-h-0 flex flex-col print:hidden">
+            <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 border-b border-slate-100 bg-white shrink-0">
+              <div className="flex gap-2">
+                <Skeleton className="h-9 w-24 rounded-md" />
+                <Skeleton className="h-9 w-28 rounded-md" />
+              </div>
+              <Skeleton className="h-4 w-32 rounded" />
+            </div>
+            <div className={cn(STOCK_TABLE_SCROLL, "border-b border-slate-100 flex-1 min-h-0")}>
+              <Table className="text-sm border-separate border-spacing-0 min-w-max">
+                <TableHeader className={STOCK_TABLE_HEAD}>
+                  <TableRow>
+                    <TableHead className={cn("w-16 text-center", STOCK_NEUTRAL_TH)}>Sr No</TableHead>
+                    <TableHead className={STOCK_NEUTRAL_TH}>Supplier</TableHead>
+                    <TableHead className={STOCK_NEUTRAL_TH}>Supplier Invoice</TableHead>
+                    <TableHead className={STOCK_NEUTRAL_TH}>Product</TableHead>
+                    <TableHead className={STOCK_NEUTRAL_TH}>{fieldLabels.brand}</TableHead>
+                    <TableHead className={STOCK_NEUTRAL_TH}>Size</TableHead>
+                    <TableHead className={STOCK_NEUTRAL_TH}>{fieldLabels.color}</TableHead>
+                    <TableHead className={STOCK_NEUTRAL_TH}>{fieldLabels.style}</TableHead>
+                    <TableHead className={STOCK_NEUTRAL_TH}>Barcode</TableHead>
+                    <TableHead className={cn("text-right", STOCK_NEUTRAL_TH, "bg-blue-50 dark:bg-blue-950 text-blue-800 dark:text-blue-100")}>Opening Qty</TableHead>
+                    <TableHead className={cn("text-right", STOCK_NEUTRAL_TH, "bg-green-50 dark:bg-green-950 text-green-800 dark:text-green-100")}>Purchase Qty</TableHead>
+                    <TableHead className={cn("text-right", STOCK_NEUTRAL_TH, "bg-orange-50 dark:bg-orange-950 text-orange-800 dark:text-orange-100")}>Pur Return</TableHead>
+                    <TableHead className={cn("text-right", STOCK_NEUTRAL_TH, "bg-red-50 dark:bg-red-950 text-red-800 dark:text-red-100")}>Sales Qty</TableHead>
+                    <TableHead className={cn("text-right", STOCK_NEUTRAL_TH, "bg-emerald-50 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-100")}>Sale Return</TableHead>
+                    <TableHead className={cn("text-right", STOCK_NEUTRAL_TH, "bg-violet-50 dark:bg-violet-950 text-violet-800 dark:text-violet-100")}>Current Stock</TableHead>
+                    <TableHead className={cn("text-right", STOCK_NEUTRAL_TH)}>Pur Price</TableHead>
+                    <TableHead className={cn("text-right", STOCK_NEUTRAL_TH)}>Stock Value</TableHead>
+                    <TableHead className={cn("text-right", STOCK_NEUTRAL_TH)}>Sale Price</TableHead>
+                    <TableHead className={STOCK_NEUTRAL_TH}>Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  <SkeletonTableRows count={8} columns={STOCK_REPORT_TABLE_SKELETON_COLUMNS} />
+                </TableBody>
+              </Table>
+            </div>
           </div>
         ) : (
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full flex-1 min-h-0 flex flex-col print:block">

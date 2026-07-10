@@ -26,6 +26,9 @@ import { ColumnDef } from "@tanstack/react-table";
 import { Badge } from "@/components/ui/badge";
 import { ReportSkeleton, TableSkeleton } from "@/components/ui/skeletons";
 import { LoadingButton } from "@/components/ui/loading-button";
+import { SkeletonKpiCards } from "@/components/skeletons/SkeletonKpiCards";
+import { SkeletonMobileListRows, SkeletonTableRows } from "@/components/skeletons/SkeletonTableRows";
+import { SALES_INVOICE_TABLE_SKELETON_COLUMNS } from "@/components/skeletons/dashboardSkeletonPresets";
 
 import { Search, Printer, Edit, ChevronDown, ChevronUp, Trash2, Loader2, MessageCircle, Link2, Settings2, Package, IndianRupee, Send, FileText, TrendingUp, CheckCircle2, Clock, CalendarIcon, Download, Percent, Zap, FileDown, Lock, X, Plus, RefreshCw, Copy, Ban, Eye, MoreHorizontal, FileSpreadsheet, User, Phone, AlertTriangle, Receipt } from "lucide-react";
 import * as XLSX from "xlsx";
@@ -2984,9 +2987,7 @@ export default function SalesInvoiceDashboard() {
 
         <div className="flex-1 px-4 space-y-2.5 pb-4">
           {isDashboardInitialLoad ? (
-            Array.from({length: 5}).map((_,i) => (
-              <div key={i} className="h-20 bg-card rounded-2xl animate-pulse" />
-            ))
+            <SkeletonMobileListRows count={6} />
           ) : invoicesError ? (
             <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-3">
               <AlertTriangle className="h-12 w-12 text-destructive/70" />
@@ -3381,6 +3382,9 @@ export default function SalesInvoiceDashboard() {
         )}
 
         {/* Summary Statistics — compact ERP dashboard cards */}
+        {isDashboardInitialLoad ? (
+          <SkeletonKpiCards count={7} columnsClassName="grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7 lg:gap-3" />
+        ) : (
         <div className="grid shrink-0 grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7 lg:gap-3">
           <button type="button" onClick={() => setDeliveryFilter("all")} className="min-h-[72px] rounded-xl border border-sky-200/70 bg-sky-50 px-2.5 py-2.5 text-center shadow-sm transition-colors hover:bg-sky-100/80">
             <p className="text-sm font-semibold leading-snug text-slate-600 truncate">Total Invoices</p>
@@ -3416,6 +3420,7 @@ export default function SalesInvoiceDashboard() {
             <p className="mt-1.5 text-2xl font-bold text-rose-800 tabular-nums leading-none">{effectiveStats.undeliveredCount}</p>
           </button>
         </div>
+        )}
 
         <Card className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-slate-200 shadow-sm p-0">
             <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-slate-100 bg-white px-3 py-2.5 overflow-x-auto">
@@ -3712,18 +3717,10 @@ export default function SalesInvoiceDashboard() {
                   </TableHeader>
                   <TableBody>
                     {isDashboardInitialLoad ? (
-                      Array.from({ length: 8 }).map((_, i) => (
-                        <TableRow key={`invoice-skel-${i}`}>
-                          <TableCell colSpan={invoiceTableColumnCount} className="py-2.5">
-                            <div className="flex items-center gap-3 px-1">
-                              <div className="h-4 w-4 rounded bg-muted animate-pulse shrink-0" />
-                              <div className="h-4 flex-1 max-w-[12rem] rounded bg-muted animate-pulse" />
-                              <div className="h-4 flex-1 max-w-[10rem] rounded bg-muted animate-pulse hidden sm:block" />
-                              <div className="h-4 w-20 rounded bg-muted animate-pulse shrink-0 ml-auto" />
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))
+                      <SkeletonTableRows
+                        count={8}
+                        columns={SALES_INVOICE_TABLE_SKELETON_COLUMNS}
+                      />
                     ) : invoicesError ? (
                       <TableRow>
                         <TableCell colSpan={invoiceTableColumnCount} className="text-center py-10">
