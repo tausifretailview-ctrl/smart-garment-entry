@@ -148,73 +148,19 @@ async function fetchSaleIdsMatchingLineItems(
   searchStr: string,
   itemLimit: number,
 ): Promise<string[]> {
-  const saleIdsInRange: string[] = [];
-  const PAGE = 1000;
-  let offset = 0;
-  while (true) {
-    let q = client
-      .from("sales")
-      .select("id")
-      .eq("organization_id", organizationId)
-      .eq("sale_type", "invoice")
-      .is("deleted_at", null);
-    if (saleDateFilter.start) q = q.gte("sale_date", saleDateFilter.start);
-    if (saleDateFilter.end) q = q.lte("sale_date", saleDateFilter.end);
-    const { data, error } = await q.range(offset, offset + PAGE - 1);
-    if (error) throw error;
-    if (!data?.length) break;
-    saleIdsInRange.push(...data.map((r) => r.id).filter(Boolean));
-    if (data.length < PAGE) break;
-    offset += PAGE;
-  }
-  if (saleIdsInRange.length === 0) return [];
-
-  const escSearch = searchStr.replace(/[%_,]/g, "");
-  const { data: styleProducts } = await client
-    .from("products")
-    .select("id")
-    .eq("organization_id", organizationId)
-    .is("deleted_at", null)
-    .or(`style.ilike.%${escSearch}%,category.ilike.%${escSearch}%,brand.ilike.%${escSearch}%`)
-    .limit(200);
-  const styleProductIds = (styleProducts || []).map((p: { id: string }) => p.id);
-
-  const orFilter =
-    `barcode.ilike.%${escSearch}%,` +
-    `product_name.ilike.%${escSearch}%,` +
-    `size.ilike.%${escSearch}%,` +
-    `color.ilike.%${escSearch}%`;
-
-  const matched = new Set<string>();
-  for (let i = 0; i < saleIdsInRange.length; i += 200) {
-    const batch = saleIdsInRange.slice(i, i + 200);
-    const { data: matchingItems, error } = await client
-      .from("sale_items")
-      .select("sale_id")
-      .in("sale_id", batch)
-      .is("deleted_at", null)
-      .or(orFilter)
-      .limit(itemLimit);
-    if (error) throw error;
-    (matchingItems || []).forEach((row) => {
-      if (row.sale_id) matched.add(row.sale_id);
-    });
-    if (styleProductIds.length > 0) {
-      const { data: byProduct, error: prodErr } = await client
-        .from("sale_items")
-        .select("sale_id")
-        .in("sale_id", batch)
-        .in("product_id", styleProductIds)
-        .is("deleted_at", null)
-        .limit(itemLimit);
-      if (prodErr) throw prodErr;
-      (byProduct || []).forEach((row) => {
-        if (row.sale_id) matched.add(row.sale_id);
-      });
-    }
-    if (matched.size >= itemLimit) break;
-  }
-  return [...matched];
+  const term = searchStr.trim();
+  if (!term) return [];
+  const { data, error } = await client.rpc("search_invoice_sale_ids", {
+    p_org_id: organizationId,
+    p_search: term,
+    p_date_from: saleDateFilter.start,
+    p_date_to: saleDateFilter.end,
+    p_limit: itemLimit,
+  });
+  if (error) throw error;
+  return (data ?? [])
+    .map((r: { sale_id: string | null }) => r.sale_id)
+    .filter((id: string | null): id is string => Boolean(id));
 }
 
 function applyInvoiceDashboardFilters(query: any, filters: InvoiceDashboardFilters) {
