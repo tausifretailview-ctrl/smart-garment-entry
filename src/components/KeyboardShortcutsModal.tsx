@@ -27,6 +27,7 @@ const generalShortcuts: ShortcutGroup[] = [
   {
     title: "Global",
     shortcuts: [
+      { keys: ["Ctrl", "K"], description: "Command palette — search & navigate" },
       { keys: ["Esc"], description: "Go back (Tally-style) / Close dialog" },
       { keys: ["?"], description: "Show this shortcuts help" },
     ],

@@ -18,6 +18,8 @@ import { DashboardToolbarProvider } from "@/contexts/DashboardToolbarContext";
 import { readSidebarLockedOpen } from "@/lib/sidebarPreference";
 import { isHideGlobalHeaderPath, isNoSidebarEntryPath } from "@/lib/entryPageLayout";
 import { cn } from "@/lib/utils";
+import { CommandPaletteProvider } from "@/contexts/CommandPaletteContext";
+import { CommandPaletteHost } from "@/components/command-palette/CommandPaletteHost";
 
 interface DesktopAppShellProps {
   children: ReactNode;
@@ -38,6 +40,7 @@ export function DesktopAppShell({ children, className }: DesktopAppShellProps) {
     <ChatProvider>
       <DashboardToolbarProvider>
         <MobileScanProvider>
+          <CommandPaletteProvider>
           <SidebarProvider defaultOpen={readSidebarLockedOpen()}>
             <OfflineIndicator />
 
@@ -64,7 +67,9 @@ export function DesktopAppShell({ children, className }: DesktopAppShellProps) {
               </div>
             </IdleMount>
             <DesktopViewEscapeHatch />
+            <CommandPaletteHost />
           </SidebarProvider>
+          </CommandPaletteProvider>
         </MobileScanProvider>
       </DashboardToolbarProvider>
     </ChatProvider>
