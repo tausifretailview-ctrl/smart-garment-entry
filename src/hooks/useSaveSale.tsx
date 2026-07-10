@@ -28,6 +28,7 @@ import {
 import { invalidateAfterSaleSave } from "@/utils/invalidateDashboardQueries";
 import { istCalendarYmd, saleDateIsoIst } from "@/lib/localDayBounds";
 import { buildSalesInvoiceWhatsAppCaption } from "@/utils/whatsappInvoiceCaption";
+import { ensureFreshSupabaseSession, isJwtExpiredError } from "@/lib/jwtRetry";
 
 interface CartItem {
   id: string;
@@ -594,6 +595,10 @@ export const useSaveSale = () => {
 
     let insertedSaleIdForRollback: string | null = null;
     try {
+      // Refresh access token proactively if it's near expiry — POS terminals
+      // often stay visible for hours and can miss auto-refresh, causing "JWT
+      // expired" mid-save.
+      await ensureFreshSupabaseSession();
       // Read cached settings (no extra round-trip)
       let saleNumber: string;
       const saleSettings = (orgSettings as any)?.sale_settings as Record<string, any> | null;
@@ -1137,11 +1142,16 @@ export const useSaveSale = () => {
         title: isDuplicate ? "Bill number conflict" : "Error saving sale",
         description: isDuplicate
           ? "Another user saved a bill at the same time. Please try again."
-          : isStatementTimeoutError(error)
-            ? saleSaveTimeoutMessage()
-            : error.message || "An error occurred while saving the sale",
+          : isJwtExpiredError(error)
+            ? "Session expired — refreshing. Please click Save again."
+            : isStatementTimeoutError(error)
+              ? saleSaveTimeoutMessage()
+              : error.message || "An error occurred while saving the sale",
         variant: "destructive",
       });
+      if (isJwtExpiredError(error)) {
+        void supabase.auth.refreshSession();
+      }
       return null;
     } finally {
       savingLockRef.current = false;
@@ -1253,6 +1263,7 @@ export const useSaveSale = () => {
     setIsSaving(true);
 
     try {
+      await ensureFreshSupabaseSession();
       // Fetch current paid_amount to preserve partial payments during edit
       const { data: existingSale } = await supabase
         .from('sales')
@@ -1601,11 +1612,14 @@ export const useSaveSale = () => {
       console.error('Error updating sale:', error);
       toast({
         title: "Error updating sale",
-        description: isStatementTimeoutError(error)
-          ? saleSaveTimeoutMessage()
-          : error.message || "An error occurred while updating the sale",
+        description: isJwtExpiredError(error)
+          ? "Session expired — refreshing. Please click Save again."
+          : isStatementTimeoutError(error)
+            ? saleSaveTimeoutMessage()
+            : error.message || "An error occurred while updating the sale",
         variant: "destructive",
       });
+      if (isJwtExpiredError(error)) void supabase.auth.refreshSession();
       return null;
     } finally {
       savingLockRef.current = false;
@@ -1654,6 +1668,7 @@ export const useSaveSale = () => {
     setIsSaving(true);
 
     try {
+      await ensureFreshSupabaseSession();
       // Store items as JSON in dedicated held_cart_data column (notes preserved for real customer notes)
       const holdData = {
         items: saleData.items,
@@ -1794,9 +1809,12 @@ export const useSaveSale = () => {
         title: isDuplicate ? "Bill number conflict" : "Error holding sale",
         description: isDuplicate 
           ? "Another user saved a bill at the same time. Please try again."
-          : error.message || "An error occurred while holding the sale",
+          : isJwtExpiredError(error)
+            ? "Session expired — refreshing. Please click Hold again."
+            : error.message || "An error occurred while holding the sale",
         variant: "destructive",
       });
+      if (isJwtExpiredError(error)) void supabase.auth.refreshSession();
       return null;
     } finally {
       savingLockRef.current = false;
@@ -1859,6 +1877,7 @@ export const useSaveSale = () => {
     setIsSaving(true);
 
     try {
+      await ensureFreshSupabaseSession();
       // Generate a NEW running POS number for the resumed sale (cached settings)
       const saleSettings = (orgSettings as any)?.sale_settings as Record<string, any> | null;
       let newSaleNumber: string;
@@ -2002,11 +2021,14 @@ export const useSaveSale = () => {
       console.error('Error resuming held sale:', error);
       toast({
         title: "Error completing sale",
-        description: isStatementTimeoutError(error)
-          ? saleSaveTimeoutMessage()
-          : error.message || "An error occurred while completing the sale",
+        description: isJwtExpiredError(error)
+          ? "Session expired — refreshing. Please click Save again."
+          : isStatementTimeoutError(error)
+            ? saleSaveTimeoutMessage()
+            : error.message || "An error occurred while completing the sale",
         variant: "destructive",
       });
+      if (isJwtExpiredError(error)) void supabase.auth.refreshSession();
       return null;
     } finally {
       savingLockRef.current = false;
