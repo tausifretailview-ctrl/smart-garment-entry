@@ -1263,6 +1263,7 @@ export const useSaveSale = () => {
     setIsSaving(true);
 
     try {
+      await ensureFreshSupabaseSession();
       // Fetch current paid_amount to preserve partial payments during edit
       const { data: existingSale } = await supabase
         .from('sales')
