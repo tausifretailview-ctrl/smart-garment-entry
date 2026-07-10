@@ -893,7 +893,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                             objectFit: "contain",
                             position: "absolute",
                             ...(isRealTast
-                              ? { top: "8px", right: "8px" }
+                              ? { bottom: "8px", right: "8px" }
                               : {
                                   top: "4px",
                                   ...(stampPosition === "bottom-left" ? { left: "8px" } : { right: "8px" }),
@@ -901,18 +901,18 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                           }}
                         />
                       )}
-                      {isRealTast && <div style={{ flex: 1, minHeight: "48px" }} aria-hidden="true" />}
                       <div
                         style={{
                           textAlign: "center",
                           fontSize: isA4 ? (isRealTast ? "12px" : "10px") : "8px",
                           fontWeight: "bold",
-                          marginBottom: isRealTast ? "2px" : "4px",
+                          marginBottom: isRealTast ? "0" : "4px",
                           width: "100%",
                         }}
                       >
                         For {businessName}
                       </div>
+                      {isRealTast && <div style={{ flex: 1, minHeight: "72px" }} aria-hidden="true" />}
                       {qrCodeUrl && !isRealTast && (
                         <img src={qrCodeUrl} alt="QR" style={{ width: isA4 ? "150px" : "115px", height: isA4 ? "150px" : "115px", border: "1px solid #ccc" }} />
                       )}
