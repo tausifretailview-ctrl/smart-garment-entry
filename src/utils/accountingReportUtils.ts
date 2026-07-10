@@ -1259,7 +1259,7 @@ export async function calculateNetProfitSummary(
     
     if (saleItems && saleItems.length > 0) {
       const variantIds = [...new Set(saleItems.map(item => item.variant_id).filter(Boolean))];
-      const variants = await fetchVariantsByIds(variantIds, "id, pur_price");
+      const variants = await fetchVariantsByIds(variantIds, "id, pur_price", organizationId);
       const variantPriceMap = new Map(variants?.map((v: any) => [v.id, v.pur_price || 0]) || []);
       
       saleItems.forEach(item => {
