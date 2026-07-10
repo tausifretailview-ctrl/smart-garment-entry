@@ -1,4 +1,4 @@
-import { ReactNode, useState } from "react";
+import { ReactNode, Suspense, lazy, useState } from "react";
 import { Menu, Home, Package, ShoppingCart, FileText, Settings, LogOut, Store, PlusCircle, Trash2, Keyboard, LayoutGrid, BarChart3, Package as PackageIcon, RotateCcw, Wallet, Banknote, Save, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -21,10 +21,15 @@ import { useNavigate } from "react-router-dom";
 import { usePOS, POSProvider } from "@/contexts/POSContext";
 import { KeyboardShortcutsModal, useKeyboardShortcuts } from "@/components/KeyboardShortcutsModal";
 import { useSharedAppShell } from "@/contexts/SharedAppShellContext";
-import { ChatProvider } from "@/contexts/ChatContext";
-import { FloatingChatButton } from "@/components/AIChatbot/FloatingChatButton";
-import { FloatingWhatsAppInbox } from "@/components/FloatingWhatsAppInbox";
-import { WhatsAppMessageNotifier } from "@/components/WhatsAppMessageNotifier";
+// Non-critical floating widgets — code-split so POS first paint / bundle
+// doesn't include chat, WhatsApp inbox, or the realtime notifier.
+const LazyFloatingWhatsAppInbox = lazy(() =>
+  import("@/components/FloatingWhatsAppInbox").then((m) => ({ default: m.FloatingWhatsAppInbox })),
+);
+const LazyWhatsAppMessageNotifier = lazy(() =>
+  import("@/components/WhatsAppMessageNotifier").then((m) => ({ default: m.WhatsAppMessageNotifier })),
+);
+const LazyPOSFloatingChat = lazy(() => import("@/components/POSFloatingChat"));
 import { MobileBottomNav } from "@/components/mobile/MobileBottomNav";
 import { OfflineIndicator } from "@/components/mobile/OfflineIndicator";
 import { SizeStockDialog } from "@/components/SizeStockDialog";
@@ -371,29 +376,32 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
       {posMain}
       <MobileBottomNav />
       {posDialogs}
-      <WhatsAppMessageNotifier />
+      {/* All floating/background widgets deferred until browser is idle so
+          POS scan/tender/save/print stay on the critical path. */}
       <IdleMount>
         <PwaInstallBanner />
+        <Suspense fallback={null}>
+          <LazyWhatsAppMessageNotifier />
+        </Suspense>
         <div className="hidden lg:contents">
-          <FloatingWhatsAppInbox />
+          <Suspense fallback={null}>
+            <LazyFloatingWhatsAppInbox />
+          </Suspense>
         </div>
+        <Suspense fallback={null}>
+          <LazyPOSFloatingChat />
+        </Suspense>
       </IdleMount>
     </div>
   );
 };
 
 export const POSLayout = ({ children }: POSLayoutProps) => {
-  const sharedShell = useSharedAppShell();
-
-  const inner = (
+  // ChatProvider is bundled inside the lazy POSFloatingChat chunk, so the POS
+  // shell no longer eagerly loads chat context on mount.
+  return (
     <POSProvider>
       <POSLayoutContent>{children}</POSLayoutContent>
     </POSProvider>
   );
-
-  if (sharedShell) {
-    return inner;
-  }
-
-  return <ChatProvider>{inner}</ChatProvider>;
 };
