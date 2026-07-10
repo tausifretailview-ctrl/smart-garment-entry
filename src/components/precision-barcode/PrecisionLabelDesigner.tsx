@@ -201,6 +201,8 @@ export function PrecisionLabelDesigner({
     config,
     zoom,
     productFieldSettings,
+    fieldLabels,
+    defaultUom,
     activeField,
     activeLineIndex,
     activeCustomTextIndex,
@@ -770,6 +772,9 @@ export function PrecisionLabelDesigner({
         <div className="text-[10px] text-muted-foreground text-center mt-1 shrink-0">
           {labelWidth}mm × {labelHeight}mm
           {is2Up ? ` × 2 · gap ${horizontalGap}mm` : ""} · drag to move · Delete removes line
+          <span className="block mt-0.5 text-[9px] text-muted-foreground/80">
+            Empty fields show field name here only (not on print)
+          </span>
         </div>
         </div>
       </div>
