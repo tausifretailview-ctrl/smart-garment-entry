@@ -942,42 +942,54 @@ export async function calculateStockValueAtDate(
     (sum, p) => sum + ((p.qty || 0) * (p.pur_price || 0)), 0
   ) || 0;
   
-  // Get sales after the date with variant purchase prices
-  const { data: saleItemsAfter } = await supabase
-    .from("sale_items")
-    .select(`
-      quantity, variant_id,
-      sales!inner(id, organization_id, sale_date, deleted_at),
-      product_variants(pur_price)
-    `)
-    .eq("sales.organization_id", organizationId)
-    .gt("sales.sale_date", asOfDate)
-    .is("sales.deleted_at", null)
+  // F1 (Batch C1): Split the LATERAL sales/sale_returns joins into (a) parent-id lookup
+  // scoped by organization_id + date, then (b) chunked `.in(sale_id, ids)` on the child
+  // table. Postgres no longer re-evaluates the parent join per child row.
+  const IN_CHUNK = 500;
+
+  const { data: saleIdRows } = await supabase
+    .from("sales")
+    .select("id")
+    .eq("organization_id", organizationId)
+    .gt("sale_date", asOfDate)
     .is("deleted_at", null);
-  
-  // Calculate sales value at PURCHASE PRICE (cost), not selling price
-  const salesCostAfter = (saleItemsAfter ?? []).reduce((sum, s: any) => {
-    const purPrice = s.product_variants?.pur_price || 0;
-    return sum + ((s.quantity || 0) * purPrice);
-  }, 0);
-  
-  // Get sale returns after the date (items returned to stock at cost)
-  const { data: returnItemsAfter } = await supabase
-    .from("sale_return_items")
-    .select(`
-      quantity, variant_id,
-      sale_returns!inner(id, organization_id, return_date, deleted_at),
-      product_variants(pur_price)
-    `)
-    .eq("sale_returns.organization_id", organizationId)
-    .gt("sale_returns.return_date", asOfDate)
-    .is("sale_returns.deleted_at", null)
+  const saleIdList = (saleIdRows ?? []).map((r: any) => r.id as string);
+
+  let salesCostAfter = 0;
+  for (let i = 0; i < saleIdList.length; i += IN_CHUNK) {
+    const batch = saleIdList.slice(i, i + IN_CHUNK);
+    const { data: saleItemsAfter } = await supabase
+      .from("sale_items")
+      .select("quantity, variant_id, product_variants(pur_price)")
+      .in("sale_id", batch)
+      .is("deleted_at", null);
+    salesCostAfter += (saleItemsAfter ?? []).reduce((sum, s: any) => {
+      const purPrice = s.product_variants?.pur_price || 0;
+      return sum + ((s.quantity || 0) * purPrice);
+    }, 0);
+  }
+
+  const { data: returnIdRows } = await supabase
+    .from("sale_returns")
+    .select("id")
+    .eq("organization_id", organizationId)
+    .gt("return_date", asOfDate)
     .is("deleted_at", null);
-  
-  const returnsValueAfter = (returnItemsAfter ?? []).reduce((sum, r: any) => {
-    const purPrice = r.product_variants?.pur_price || 0;
-    return sum + ((r.quantity || 0) * purPrice);
-  }, 0);
+  const returnIdList = (returnIdRows ?? []).map((r: any) => r.id as string);
+
+  let returnsValueAfter = 0;
+  for (let i = 0; i < returnIdList.length; i += IN_CHUNK) {
+    const batch = returnIdList.slice(i, i + IN_CHUNK);
+    const { data: returnItemsAfter } = await supabase
+      .from("sale_return_items")
+      .select("quantity, variant_id, product_variants(pur_price)")
+      .in("sale_return_id", batch)
+      .is("deleted_at", null);
+    returnsValueAfter += (returnItemsAfter ?? []).reduce((sum, r: any) => {
+      const purPrice = r.product_variants?.pur_price || 0;
+      return sum + ((r.quantity || 0) * purPrice);
+    }, 0);
+  }
   
   // Get purchase returns after the date (items returned to supplier at cost)
   const { data: purchaseReturnsAfter } = await supabase
