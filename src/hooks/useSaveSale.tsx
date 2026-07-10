@@ -1612,11 +1612,14 @@ export const useSaveSale = () => {
       console.error('Error updating sale:', error);
       toast({
         title: "Error updating sale",
-        description: isStatementTimeoutError(error)
-          ? saleSaveTimeoutMessage()
-          : error.message || "An error occurred while updating the sale",
+        description: isJwtExpiredError(error)
+          ? "Session expired — refreshing. Please click Save again."
+          : isStatementTimeoutError(error)
+            ? saleSaveTimeoutMessage()
+            : error.message || "An error occurred while updating the sale",
         variant: "destructive",
       });
+      if (isJwtExpiredError(error)) void supabase.auth.refreshSession();
       return null;
     } finally {
       savingLockRef.current = false;
@@ -1806,9 +1809,12 @@ export const useSaveSale = () => {
         title: isDuplicate ? "Bill number conflict" : "Error holding sale",
         description: isDuplicate 
           ? "Another user saved a bill at the same time. Please try again."
-          : error.message || "An error occurred while holding the sale",
+          : isJwtExpiredError(error)
+            ? "Session expired — refreshing. Please click Hold again."
+            : error.message || "An error occurred while holding the sale",
         variant: "destructive",
       });
+      if (isJwtExpiredError(error)) void supabase.auth.refreshSession();
       return null;
     } finally {
       savingLockRef.current = false;
@@ -2015,11 +2021,14 @@ export const useSaveSale = () => {
       console.error('Error resuming held sale:', error);
       toast({
         title: "Error completing sale",
-        description: isStatementTimeoutError(error)
-          ? saleSaveTimeoutMessage()
-          : error.message || "An error occurred while completing the sale",
+        description: isJwtExpiredError(error)
+          ? "Session expired — refreshing. Please click Save again."
+          : isStatementTimeoutError(error)
+            ? saleSaveTimeoutMessage()
+            : error.message || "An error occurred while completing the sale",
         variant: "destructive",
       });
+      if (isJwtExpiredError(error)) void supabase.auth.refreshSession();
       return null;
     } finally {
       savingLockRef.current = false;
