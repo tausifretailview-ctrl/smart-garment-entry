@@ -28,6 +28,7 @@ import {
 import { invalidateAfterSaleSave } from "@/utils/invalidateDashboardQueries";
 import { istCalendarYmd, saleDateIsoIst } from "@/lib/localDayBounds";
 import { buildSalesInvoiceWhatsAppCaption } from "@/utils/whatsappInvoiceCaption";
+import { ensureFreshSupabaseSession, isJwtExpiredError } from "@/lib/jwtRetry";
 
 interface CartItem {
   id: string;
