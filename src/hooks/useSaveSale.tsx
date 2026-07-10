@@ -1138,11 +1138,16 @@ export const useSaveSale = () => {
         title: isDuplicate ? "Bill number conflict" : "Error saving sale",
         description: isDuplicate
           ? "Another user saved a bill at the same time. Please try again."
-          : isStatementTimeoutError(error)
-            ? saleSaveTimeoutMessage()
-            : error.message || "An error occurred while saving the sale",
+          : isJwtExpiredError(error)
+            ? "Session expired — refreshing. Please click Save again."
+            : isStatementTimeoutError(error)
+              ? saleSaveTimeoutMessage()
+              : error.message || "An error occurred while saving the sale",
         variant: "destructive",
       });
+      if (isJwtExpiredError(error)) {
+        void supabase.auth.refreshSession();
+      }
       return null;
     } finally {
       savingLockRef.current = false;
