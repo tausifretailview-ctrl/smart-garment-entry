@@ -83,7 +83,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   const { currentOrganization } = useOrganization();
   const { orgNavigate } = useOrgNavigation();
   const openCustomerAccount = useOpenCustomerAccount();
-  const { hasMenuAccess, permissions, permissionsLoading } = useUserPermissions();
+  const { hasMenuAccess, permissions, loading: permissionsLoading } = useUserPermissions();
   const location = useLocation();
 
   const [query, setQuery] = useState("");

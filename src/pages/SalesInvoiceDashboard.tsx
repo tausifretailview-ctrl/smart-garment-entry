@@ -1481,7 +1481,7 @@ export default function SalesInvoiceDashboard() {
       const { data, error } = await supabase
         .from("sales")
         .select(
-          "id, sale_number, sale_date, customer_id, customer_name, customer_phone, customer_address, total_qty, gross_amount, discount_amount, flat_discount_amount, net_amount, paid_amount, sale_return_adjust, credit_applied, outstanding, payment_status, payment_method, delivery_status, salesman, due_date, is_cancelled, cash_amount, card_amount, upi_amount, notes, other_charges, round_off",
+          "id, sale_number, sale_date, customer_id, customer_name, customer_phone, customer_address, total_qty, gross_amount, discount_amount, flat_discount_amount, net_amount, paid_amount, sale_return_adjust, credit_applied, payment_status, payment_method, delivery_status, salesman, due_date, is_cancelled, cash_amount, card_amount, upi_amount, notes, other_charges, round_off",
         )
         .eq("organization_id", orgId)
         .eq("sale_type", "invoice")
@@ -1686,7 +1686,7 @@ export default function SalesInvoiceDashboard() {
           outstanding: result.outstanding,
           sale_return_adjust: inv.sale_return_adjust || 0,
         });
-      } else if (result.reason === "no_balance" || result.reason === "already_paid") {
+      } else if (!result.ok && (result.reason === "no_balance" || result.reason === "already_paid")) {
         skipped++;
       } else {
         failed++;
