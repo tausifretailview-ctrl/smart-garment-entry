@@ -397,6 +397,29 @@ export default function SalesInvoiceDashboard() {
     [columnSettings.phone]
   );
 
+  /** Scale column % widths to 100% so the grid fits one page without horizontal scroll. */
+  const invoiceTableColWidths = useMemo(() => {
+    const slots: { pct: number }[] = [
+      { pct: 2 },
+      { pct: 2 },
+      { pct: 9 },
+      { pct: 18 },
+    ];
+    if (columnSettings.phone) slots.push({ pct: 7 });
+    slots.push({ pct: 6 }, { pct: 3.5 }, { pct: 5.5 }, { pct: 7 });
+    if (columnSettings.status) slots.push({ pct: 6.5 }, { pct: 6.5 });
+    if (columnSettings.delivery) slots.push({ pct: 5.5 });
+    slots.push({ pct: columnSettings.whatsappActions ? 14 : 11 });
+    const total = slots.reduce((sum, slot) => sum + slot.pct, 0);
+    const scale = 100 / total;
+    return slots.map((slot) => `${(slot.pct * scale).toFixed(2)}%`);
+  }, [
+    columnSettings.phone,
+    columnSettings.status,
+    columnSettings.delivery,
+    columnSettings.whatsappActions,
+  ]);
+
   // Sale returns state
   const [saleReturns, setSaleReturns] = useState<Record<string, any[]>>({});
 
@@ -3241,11 +3264,11 @@ export default function SalesInvoiceDashboard() {
       <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col gap-2">
         <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
           <div>
-            <h1 className="flex items-center gap-2 text-xl font-bold leading-none tracking-tight text-teal-700">
+            <h1 className="flex items-center gap-2 text-2xl font-bold leading-none tracking-tight text-teal-700">
               <Receipt className="h-4 w-4 shrink-0 opacity-70" />
               Sales Invoice Dashboard
             </h1>
-            <p className="mt-1 flex items-center gap-1.5 text-sm text-slate-500">
+            <p className="mt-1 flex items-center gap-1.5 text-base text-slate-500">
               {isDashboardBackgroundRefresh ? (
                 <>
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -3359,38 +3382,38 @@ export default function SalesInvoiceDashboard() {
 
         {/* Summary Statistics — compact ERP dashboard cards */}
         <div className="grid shrink-0 grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7 lg:gap-3">
-          <button type="button" onClick={() => setDeliveryFilter("all")} className="min-h-[64px] rounded-xl border border-sky-200/70 bg-sky-50 px-2 py-2 text-center shadow-sm transition-colors hover:bg-sky-100/80">
-            <p className="text-xs font-semibold leading-snug text-slate-600 truncate">Total Invoices</p>
-            <p className="mt-1 text-xl font-bold text-sky-800 tabular-nums leading-none">{effectiveStats.totalInvoices}</p>
+          <button type="button" onClick={() => setDeliveryFilter("all")} className="min-h-[72px] rounded-xl border border-sky-200/70 bg-sky-50 px-2.5 py-2.5 text-center shadow-sm transition-colors hover:bg-sky-100/80">
+            <p className="text-sm font-semibold leading-snug text-slate-600 truncate">Total Invoices</p>
+            <p className="mt-1.5 text-2xl font-bold text-sky-800 tabular-nums leading-none">{effectiveStats.totalInvoices}</p>
           </button>
-          <button type="button" onClick={() => setDeliveryFilter("all")} className="min-h-[64px] rounded-xl border border-indigo-200/70 bg-indigo-50 px-2 py-2 text-center shadow-sm transition-colors hover:bg-indigo-100/80">
-            <p className="text-xs font-semibold leading-snug text-slate-600 truncate">Total Qty</p>
-            <p className="mt-1 text-xl font-bold text-indigo-800 tabular-nums leading-none">{effectiveStats.totalQty}</p>
+          <button type="button" onClick={() => setDeliveryFilter("all")} className="min-h-[72px] rounded-xl border border-indigo-200/70 bg-indigo-50 px-2.5 py-2.5 text-center shadow-sm transition-colors hover:bg-indigo-100/80">
+            <p className="text-sm font-semibold leading-snug text-slate-600 truncate">Total Qty</p>
+            <p className="mt-1.5 text-2xl font-bold text-indigo-800 tabular-nums leading-none">{effectiveStats.totalQty}</p>
           </button>
-          <button type="button" onClick={() => setDeliveryFilter("all")} className="min-h-[64px] rounded-xl border border-emerald-200/70 bg-emerald-50 px-2 py-2 text-center shadow-sm transition-colors hover:bg-emerald-100/80">
-            <p className="text-xs font-semibold leading-snug text-slate-600 truncate">Total Revenue</p>
-            <p className="mt-1 text-xl font-bold text-emerald-800 tabular-nums leading-none truncate">₹{effectiveStats.totalAmount.toFixed(0)}</p>
+          <button type="button" onClick={() => setDeliveryFilter("all")} className="min-h-[72px] rounded-xl border border-emerald-200/70 bg-emerald-50 px-2.5 py-2.5 text-center shadow-sm transition-colors hover:bg-emerald-100/80">
+            <p className="text-sm font-semibold leading-snug text-slate-600 truncate">Total Revenue</p>
+            <p className="mt-1.5 text-2xl font-bold text-emerald-800 tabular-nums leading-none truncate">₹{effectiveStats.totalAmount.toFixed(0)}</p>
           </button>
-          <button type="button" onClick={() => setDeliveryFilter("all")} className="min-h-[64px] rounded-xl border border-fuchsia-200/70 bg-fuchsia-50 px-2 py-2 text-center shadow-sm transition-colors hover:bg-fuchsia-100/80">
-            <p className="text-xs font-semibold leading-snug text-slate-600 truncate">Total Discount</p>
-            <p className="mt-1 text-xl font-bold text-fuchsia-800 tabular-nums leading-none truncate">₹{effectiveStats.totalDiscount.toFixed(0)}</p>
+          <button type="button" onClick={() => setDeliveryFilter("all")} className="min-h-[72px] rounded-xl border border-fuchsia-200/70 bg-fuchsia-50 px-2.5 py-2.5 text-center shadow-sm transition-colors hover:bg-fuchsia-100/80">
+            <p className="text-sm font-semibold leading-snug text-slate-600 truncate">Total Discount</p>
+            <p className="mt-1.5 text-2xl font-bold text-fuchsia-800 tabular-nums leading-none truncate">₹{effectiveStats.totalDiscount.toFixed(0)}</p>
           </button>
           <button
             type="button"
             onClick={() => setDeliveryFilter("all")}
             title={filteredCustomer ? "Matches invoice Balance after CN & advance. Unused advance is not included until applied per invoice." : undefined}
-            className="min-h-[64px] rounded-xl border border-amber-200/70 bg-amber-50 px-2 py-2 text-center shadow-sm transition-colors hover:bg-amber-100/80"
+            className="min-h-[72px] rounded-xl border border-amber-200/70 bg-amber-50 px-2.5 py-2.5 text-center shadow-sm transition-colors hover:bg-amber-100/80"
           >
-            <p className="text-xs font-semibold leading-snug text-slate-600 truncate">Pending Amount</p>
-            <p className="mt-1 text-xl font-bold text-amber-800 tabular-nums leading-none truncate">₹{effectiveStats.pendingAmount.toFixed(0)}</p>
+            <p className="text-sm font-semibold leading-snug text-slate-600 truncate">Pending Amount</p>
+            <p className="mt-1.5 text-2xl font-bold text-amber-800 tabular-nums leading-none truncate">₹{effectiveStats.pendingAmount.toFixed(0)}</p>
           </button>
-          <button type="button" onClick={() => setDeliveryFilter("delivered")} className="min-h-[64px] rounded-xl border border-teal-200/70 bg-teal-50 px-2 py-2 text-center shadow-sm transition-colors hover:bg-teal-100/80">
-            <p className="text-xs font-semibold leading-snug text-slate-600 truncate">Delivered</p>
-            <p className="mt-1 text-xl font-bold text-teal-800 tabular-nums leading-none">{effectiveStats.deliveredCount}</p>
+          <button type="button" onClick={() => setDeliveryFilter("delivered")} className="min-h-[72px] rounded-xl border border-teal-200/70 bg-teal-50 px-2.5 py-2.5 text-center shadow-sm transition-colors hover:bg-teal-100/80">
+            <p className="text-sm font-semibold leading-snug text-slate-600 truncate">Delivered</p>
+            <p className="mt-1.5 text-2xl font-bold text-teal-800 tabular-nums leading-none">{effectiveStats.deliveredCount}</p>
           </button>
-          <button type="button" onClick={() => setDeliveryFilter("undelivered")} className="min-h-[64px] rounded-xl border border-rose-200/70 bg-rose-50 px-2 py-2 text-center shadow-sm transition-colors hover:bg-rose-100/80">
-            <p className="text-xs font-semibold leading-snug text-slate-600 truncate">Undelivered</p>
-            <p className="mt-1 text-xl font-bold text-rose-800 tabular-nums leading-none">{effectiveStats.undeliveredCount}</p>
+          <button type="button" onClick={() => setDeliveryFilter("undelivered")} className="min-h-[72px] rounded-xl border border-rose-200/70 bg-rose-50 px-2.5 py-2.5 text-center shadow-sm transition-colors hover:bg-rose-100/80">
+            <p className="text-sm font-semibold leading-snug text-slate-600 truncate">Undelivered</p>
+            <p className="mt-1.5 text-2xl font-bold text-rose-800 tabular-nums leading-none">{effectiveStats.undeliveredCount}</p>
           </button>
         </div>
 
@@ -3402,7 +3425,7 @@ export default function SalesInvoiceDashboard() {
                   placeholder="Search by invoice, customer, barcode..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-8 h-9 text-sm border-slate-200 bg-slate-50 focus:bg-white"
+                  className="pl-8 h-10 text-base border-slate-200 bg-slate-50 focus:bg-white"
                 />
               </div>
               <Select value={periodFilter} onValueChange={setPeriodFilter}>
@@ -3655,21 +3678,11 @@ export default function SalesInvoiceDashboard() {
                   onWheel={onWheelScrollContainer}
                   className="sales-dashboard-table-panel flex-1 min-h-0 overflow-y-auto overflow-x-auto tab-scroll-stable overscroll-y-contain"
                 >
-                <Table className="w-full min-w-[1000px] table-fixed border-collapse sales-invoice-grid [&_thead_th]:!px-2 [&_tbody_td]:!px-2 [&_thead_th]:!py-2 [&_tbody_td]:!py-1.5 [&_thead_th]:text-[11px] [&_thead_th]:font-semibold [&_thead_th]:uppercase [&_thead_th]:tracking-wide [&_tbody_td]:text-sm [&_tbody_td]:align-middle [&_tbody_td]:leading-tight [&_tbody_tr:nth-child(even)]:bg-slate-50/80 [&_tbody_tr:hover]:bg-sky-50/70">
+                <Table className="w-full table-fixed border-collapse sales-invoice-grid [&_thead_th]:!px-2 [&_tbody_td]:!px-2 [&_thead_th]:!py-2.5 [&_tbody_td]:!py-2 [&_thead_th]:text-sm [&_thead_th]:font-semibold [&_thead_th]:uppercase [&_thead_th]:tracking-wide [&_tbody_td]:text-base [&_tbody_td]:align-middle [&_tbody_td]:leading-snug [&_tbody_tr:nth-child(even)]:bg-slate-50/80 [&_tbody_tr:hover]:bg-sky-50/70">
                   <colgroup>
-                    <col className="w-10" />
-                    <col className="w-10" />
-                    <col className="w-[7.5rem]" />
-                    <col className="w-[9rem]" />
-                    {columnSettings.phone && <col className="w-[5rem]" />}
-                    <col className="w-[4.25rem]" />
-                    <col className="w-[2rem]" />
-                    <col className="w-[5rem]" />
-                    <col className="w-[4.5rem]" />
-                    {columnSettings.status && <col className="w-[4.5rem]" />}
-                    {columnSettings.status && <col className="w-[4rem]" />}
-                    {columnSettings.delivery && <col className="w-[4.5rem]" />}
-                    <col className={columnSettings.whatsappActions ? "w-[9rem]" : "w-[7.5rem]"} />
+                    {invoiceTableColWidths.map((width, index) => (
+                      <col key={`inv-col-${index}`} style={{ width }} />
+                    ))}
                   </colgroup>
                   <TableHeader className="sticky top-0 z-10 bg-slate-950 text-white [&_tr]:border-slate-800">
                     <TableRow className="border-slate-800 hover:bg-slate-950">
@@ -3737,7 +3750,7 @@ export default function SalesInvoiceDashboard() {
                         <>
                           <TableRow 
                             key={invoice.id} 
-                            className="h-9 cursor-pointer border-b border-slate-100"
+                            className="min-h-11 cursor-pointer border-b border-slate-100"
                             onContextMenu={(e) => handleRowContextMenu(e, invoice)}
                           >
                             <TableCell onClick={(e) => e.stopPropagation()}>
@@ -3761,7 +3774,7 @@ export default function SalesInvoiceDashboard() {
                               <div className="flex flex-col gap-0.5 min-w-0 max-w-full">
                                 <div className="flex items-center gap-1 flex-wrap">
                                   <span
-                                    className="break-words font-mono text-[15px] font-bold text-blue-700 cursor-pointer hover:underline"
+                                    className="break-words font-mono text-base font-bold text-blue-700 cursor-pointer hover:underline"
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       setSelectedInvoiceForHistory({ id: invoice.id });
@@ -3781,30 +3794,30 @@ export default function SalesInvoiceDashboard() {
                                     </span>
                                   )}
                                 </div>
-                                <span className="text-[10px] text-slate-500 tabular-nums leading-none">
+                                <span className="text-xs text-slate-500 tabular-nums leading-none">
                                   {invoice.sale_date ? format(new Date(invoice.sale_date), 'hh:mm a') : ''}
                                 </span>
                               </div>
                             </TableCell>
                             <TableCell
-                              className="cursor-pointer text-blue-700 hover:underline align-top truncate max-w-0 text-sm font-semibold"
+                              className="cursor-pointer text-blue-700 hover:underline align-top max-w-0 text-base font-semibold leading-snug"
                               title={invoice.customer_name?.toUpperCase()}
                               onClick={(e) => {
                                 e.stopPropagation();
                                 openCustomerAccount(invoice.customer_id, invoice.customer_name);
                               }}
                             >
-                              {invoice.customer_name?.toUpperCase()}
+                              <span className="line-clamp-2 break-words">{invoice.customer_name?.toUpperCase()}</span>
                             </TableCell>
                             {columnSettings.phone && (
-                              <TableCell className="text-sm font-medium tabular-nums" onClick={() => toggleExpanded(invoice.id, invoice.sale_number)}>
+                              <TableCell className="text-base font-medium tabular-nums" onClick={() => toggleExpanded(invoice.id, invoice.sale_number)}>
                                 {invoice.customer_phone || '-'}
                               </TableCell>
                             )}
-                            <TableCell className="text-sm font-medium tabular-nums" onClick={() => toggleExpanded(invoice.id, invoice.sale_number)}>
+                            <TableCell className="text-base font-medium tabular-nums" onClick={() => toggleExpanded(invoice.id, invoice.sale_number)}>
                               {invoice.sale_date ? format(new Date(invoice.sale_date), 'dd/MM/yyyy') : '-'}
                             </TableCell>
-                            <TableCell className="text-center px-0.5 tabular-nums text-sm font-medium" onClick={() => toggleExpanded(invoice.id, invoice.sale_number)}>
+                            <TableCell className="text-center px-0.5 tabular-nums text-base font-medium" onClick={() => toggleExpanded(invoice.id, invoice.sale_number)}>
                               {invoice.total_qty || 0}
                             </TableCell>
                             <TableCell className="text-right px-1" onClick={() => toggleExpanded(invoice.id, invoice.sale_number)}>
@@ -3813,7 +3826,7 @@ export default function SalesInvoiceDashboard() {
                                   ₹{Math.round((invoice.discount_amount || 0) + (invoice.flat_discount_amount || 0)).toLocaleString("en-IN")}
                                 </span>
                                 {(invoice.sale_return_adjust || 0) > 0 && (
-                                  <span className="text-xs text-amber-600 whitespace-nowrap tabular-nums leading-none">
+                                  <span className="text-sm text-amber-600 whitespace-nowrap tabular-nums leading-none">
                                     +S/R: ₹{Math.round(invoice.sale_return_adjust).toLocaleString("en-IN")}
                                     {invoice.cn_adjust_date
                                       ? ` · adj. ${format(new Date(invoice.cn_adjust_date + "T12:00:00"), "dd/MM/yyyy")}`
@@ -3822,11 +3835,11 @@ export default function SalesInvoiceDashboard() {
                                 )}
                               </div>
                             </TableCell>
-                            <TableCell onClick={() => toggleExpanded(invoice.id, invoice.sale_number)} className={cn("text-sm font-bold text-blue-700 tabular-nums text-right", isSaleInvoiceCancelled(invoice) && "line-through text-muted-foreground")}>₹{Math.round(invoice.net_amount).toLocaleString('en-IN')}</TableCell>
+                            <TableCell onClick={() => toggleExpanded(invoice.id, invoice.sale_number)} className={cn("text-base font-bold text-blue-700 tabular-nums text-right", isSaleInvoiceCancelled(invoice) && "line-through text-muted-foreground")}>₹{Math.round(invoice.net_amount).toLocaleString('en-IN')}</TableCell>
                             {columnSettings.status && (
                               <TableCell className="text-center" onClick={() => toggleExpanded(invoice.id, invoice.sale_number)}>
                                 {isSaleInvoiceCancelled(invoice) ? (
-                                  <Badge className="min-w-0 max-w-full justify-center whitespace-normal text-center bg-red-500 hover:bg-red-600 text-white text-[11px] px-1.5 py-0 leading-tight">
+                                  <Badge className="min-w-0 max-w-full justify-center whitespace-normal text-center bg-red-500 hover:bg-red-600 text-white text-xs px-1.5 py-0.5 leading-tight">
                                     Cancelled
                                   </Badge>
                                 ) : (
@@ -3834,7 +3847,7 @@ export default function SalesInvoiceDashboard() {
                                     const displayStatus = getInvoiceDashboardDisplayStatus(invoice);
                                     return (
                                   <Badge
-                                    className={`min-w-0 max-w-full justify-center whitespace-normal text-center text-[11px] px-1.5 py-0 leading-tight ${
+                                    className={`min-w-0 max-w-full justify-center whitespace-normal text-center text-xs px-1.5 py-0.5 leading-tight ${
                                       displayStatus === 'completed'
                                         ? 'bg-green-500 hover:bg-green-600 text-white'
                                         : displayStatus === 'partial'
@@ -3854,14 +3867,14 @@ export default function SalesInvoiceDashboard() {
                               </TableCell>
                             )}
                             {columnSettings.status && (
-                              <TableCell className="text-right text-sm font-medium tabular-nums" onClick={() => toggleExpanded(invoice.id, invoice.sale_number)}>
+                              <TableCell className="text-right text-base font-medium tabular-nums" onClick={() => toggleExpanded(invoice.id, invoice.sale_number)}>
                                  ₹{isSaleInvoiceCancelled(invoice) ? 0 : Math.round(Number(invoice.outstanding ?? Math.max(0, (invoice.net_amount || 0) - (invoice.paid_amount || 0) - Math.max(invoice.sale_return_adjust || 0, invoice.credit_applied || 0)))).toLocaleString('en-IN')}
                               </TableCell>
                             )}
                             {columnSettings.delivery && (
                               <TableCell onClick={(e) => e.stopPropagation()}>
                                 <Badge 
-                                  className={`cursor-pointer text-[11px] px-1.5 py-0 leading-tight ${getDeliveryBadgeClass(invoice.delivery_status || 'undelivered')}`}
+                                  className={`cursor-pointer text-xs px-1.5 py-0.5 leading-tight ${getDeliveryBadgeClass(invoice.delivery_status || 'undelivered')}`}
                                   onClick={() => openStatusDialog(invoice)}
                                 >
                                   {getDeliveryLabel(invoice.delivery_status || 'undelivered')}
@@ -3870,7 +3883,7 @@ export default function SalesInvoiceDashboard() {
                             )}
                             <TableCell className="text-right align-middle whitespace-nowrap py-1 max-w-0 overflow-hidden" onClick={(e) => e.stopPropagation()}>
                               {/* Desktop: compact single-line action icons */}
-                              <div className="hidden lg:flex justify-end items-center gap-0.5 flex-nowrap [&_button]:h-6 [&_button]:w-6 [&_button]:shrink-0 min-w-0">
+                              <div className="hidden lg:flex justify-end items-center gap-0.5 flex-nowrap [&_button]:h-7 [&_button]:w-7 [&_button]:shrink-0 min-w-0">
                                 {isEInvoiceEnabled && invoice.customers?.gst_number && (
                                   <>
                                     <Button variant="ghost" size="icon" onClick={() => handleGenerateEInvoice(invoice)} title={invoice.irn ? `IRN: ${invoice.irn.substring(0, 20)}...` : "Generate E-Invoice"} disabled={isGeneratingEInvoice === invoice.id} className={invoice.irn ? "text-green-600" : "text-orange-600"}>
@@ -4181,7 +4194,7 @@ export default function SalesInvoiceDashboard() {
                     )}
                     {/* Page Totals Row */}
                     {paginatedInvoices.length > 0 && (
-                      <TableRow className="bg-muted/70 font-semibold border-t-2 text-sm">
+                      <TableRow className="bg-muted/70 font-semibold border-t-2 text-base">
                         <TableCell colSpan={invoiceTableColSpanBeforeQty} className="text-right">Page Total:</TableCell>
                         <TableCell className="text-center">{pageTotals.qty}</TableCell>
                         <TableCell className="text-right">₹{Math.round(pageTotals.discount).toLocaleString('en-IN')}</TableCell>
@@ -4198,7 +4211,7 @@ export default function SalesInvoiceDashboard() {
             {totalCount > 0 && (
               <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-slate-100 bg-white px-4 py-2.5">
                 <div className="flex flex-wrap items-center gap-4">
-                  <div className="text-sm text-slate-500 tabular-nums">
+                  <div className="text-base text-slate-500 tabular-nums">
                     Showing {(currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, totalCount)} of {totalCount} invoices
                   </div>
                   <div className="flex items-center gap-2">
