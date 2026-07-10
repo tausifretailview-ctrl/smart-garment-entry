@@ -1665,6 +1665,7 @@ export const useSaveSale = () => {
     setIsSaving(true);
 
     try {
+      await ensureFreshSupabaseSession();
       // Store items as JSON in dedicated held_cart_data column (notes preserved for real customer notes)
       const holdData = {
         items: saleData.items,
@@ -1870,6 +1871,7 @@ export const useSaveSale = () => {
     setIsSaving(true);
 
     try {
+      await ensureFreshSupabaseSession();
       // Generate a NEW running POS number for the resumed sale (cached settings)
       const saleSettings = (orgSettings as any)?.sale_settings as Record<string, any> | null;
       let newSaleNumber: string;
