@@ -3320,9 +3320,23 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
               {/* Roll-wise MTR info banner */}
               {rollWiseMtrEnabled && formData.uom === 'MTR' && (
                  <div className="rounded-lg border border-blue-200 bg-blue-50/60 dark:bg-blue-950/20 dark:border-blue-800 p-3">
-                  <p className="text-xs text-blue-700 dark:text-blue-300 font-medium">
-                    📏 Roll-wise MTR mode: Enter comma-separated roll lengths (e.g. 75,80,85) next to each color above, then click "Generate Color Variants".
-                  </p>
+                  <div className="flex items-center justify-between gap-3 flex-wrap">
+                    <p className="text-xs text-blue-700 dark:text-blue-300 font-medium flex-1 min-w-0">
+                      📏 Roll-wise MTR mode: Enter comma-separated roll lengths (e.g. 75,80,85) next to each color above, then click "Generate Color Variants".
+                    </p>
+                    {isPurchaseBillForm && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={handleGenerateSizeVariants}
+                        disabled={formData.colors.length === 0}
+                        className="gap-1.5 font-semibold bg-violet-600 hover:bg-violet-700 text-white shrink-0"
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                        Generate Color Variants
+                      </Button>
+                    )}
+                  </div>
                 </div>
               )}
 
