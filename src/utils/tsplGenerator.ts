@@ -173,6 +173,22 @@ export function computeLabelBarcodeLayout(
   const labelHeightDots = mmToDots(labelConfig.height, dpi);
   const clampedYMm = clampPosition(barcodeConfig.y ?? 0, labelConfig.height, 'barcode', 'y');
   const barcodeYDots = mmToDots(clampedYMm, dpi);
+
+  if (options.hasAbsolutePos) {
+    const sliderValue = templateConfig.barcodeHeight || 30;
+    const desiredHeightMm = (sliderValue / 100) * labelConfig.height;
+    const maxMm = Math.max(1, labelConfig.height - clampedYMm - 0.5);
+    const heightMm = Math.min(desiredHeightMm, maxMm);
+    const barcodeHeightDots = Math.round(mmToDots(heightMm, dpi));
+    return {
+      barcodeYDots,
+      barcodeHeightDots,
+      barcodeHeightMm: dotsToMm(barcodeHeightDots, dpi),
+      derivedFieldYDots: {},
+      skippedPostBarcodeFields: [],
+    };
+  }
+
   const gapDots = options.applyCompactAdjustments ? mmToDots(0.5, dpi) : mmToDots(0.6, dpi);
   const bottomPaddingDots = options.compactBottomPaddingDots || mmToDots(0.5, dpi);
   const absoluteMinDots = mmToDots(3, dpi);

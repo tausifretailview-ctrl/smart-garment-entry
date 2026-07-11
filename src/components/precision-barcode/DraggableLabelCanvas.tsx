@@ -1,4 +1,4 @@
-import { useRef, useState, useCallback, useEffect } from "react";
+import { useRef, useState, useCallback, useEffect, useMemo } from "react";
 import { LabelDesignConfig, LabelFieldConfig, FieldKey, LabelItem } from "@/types/labelTypes";
 import { getCustomTextFields, usesCustomTextFields } from "@/utils/labelCustomText";
 import type { ProductFieldsConfig } from "@/utils/productFieldSettingsForLabels";
@@ -6,25 +6,13 @@ import {
   filterLabelFieldKeys,
   isLabelFieldAllowedByProductSettings,
 } from "@/utils/productFieldSettingsForLabels";
-import { applyJsBarcodeToElement, BARCODE_MM_TO_PX, legacyBarcodeHeightMm } from "@/utils/barcodeLabelLayout";
+import { applyJsBarcodeToElement, BARCODE_MM_TO_PX, legacyBarcodeHeightMm, resolveBarcodeSlotMm } from "@/utils/barcodeLabelLayout";
+import type { LabelData, TSPLTemplateConfig } from "@/utils/tsplGenerator";
 import {
   collectEnabledDesignerFieldKeys,
   getLabelDesignerFieldDisplay,
   resolveLabelDesignerFieldLabel,
 } from "@/utils/labelDesignerPlaceholders";
-
-function resolveDesignerBarcodeWidthMm(
-  barcodeConfig: LabelDesignConfig["barcode"] | undefined,
-  labelWidthMm: number,
-): number {
-  const slotX = barcodeConfig?.x ?? 0;
-  const available = Math.max(1, labelWidthMm - slotX);
-  if (!barcodeConfig?.width) return available;
-  if (barcodeConfig.width > labelWidthMm) {
-    return Math.min(available, (barcodeConfig.width / 100) * labelWidthMm);
-  }
-  return Math.min(available, barcodeConfig.width);
-}
 
 interface DraggableLabelCanvasProps {
   item: LabelItem;
@@ -88,8 +76,32 @@ export function DraggableLabelCanvas({
 
   const barcodeLineWidth = config.barcodeWidth ?? 1.5;
   const barcodeConfig = config.barcode;
-  const designerBarcodeHeightMm = legacyBarcodeHeightMm(config.barcodeHeight, height);
-  const designerBarcodeWidthMm = resolveDesignerBarcodeWidthMm(barcodeConfig, width);
+
+  const labelData = useMemo((): LabelData => ({
+    productName: item.product_name,
+    brand: item.brand,
+    category: item.category,
+    style: item.style,
+    color: item.color,
+    size: item.size,
+    mrp: item.mrp,
+    salePrice: item.sale_price,
+    barcode: item.barcode,
+    billNumber: item.bill_number,
+    purchaseCode: item.purchase_code,
+    supplierCode: item.supplier_code,
+    supplierInvoiceNo: item.supplier_invoice_no,
+    businessName: item.businessName,
+  }), [item]);
+
+  const barcodeSlot = useMemo(
+    () => resolveBarcodeSlotMm({ width, height }, config as unknown as TSPLTemplateConfig, labelData),
+    [config, width, height, labelData],
+  );
+
+  const designerBarcodeHeightMm =
+    barcodeSlot.layout?.barcodeHeightMm ?? legacyBarcodeHeightMm(config.barcodeHeight, height);
+  const designerBarcodeWidthMm = barcodeSlot.widthMm;
 
   useEffect(() => {
     if (barcodeRef.current && item.barcode && barcodeConfig?.show) {
