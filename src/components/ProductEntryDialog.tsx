@@ -2397,8 +2397,12 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                 )}
               </div>
 
-              {/* Colors Section — stacked unless purchase bill (one row with size group) */}
-              {isFieldEnabled("color") && formData.product_type !== 'service' && !isPurchaseBillForm && (
+              {/* Colors Section — stacked unless purchase bill (one row with size group).
+                  Roll-wise MTR in purchase bill also uses the stacked layout so users can
+                  enter comma-separated roll lengths per color. */}
+              {isFieldEnabled("color") && formData.product_type !== 'service' && (
+                !isPurchaseBillForm || (rollWiseMtrEnabled && formData.uom === 'MTR')
+              ) && (
                 <div className="space-y-2">
                   <Label>{getFieldLabel("color", "Colors")} (comma-separated)</Label>
                   <div className="flex gap-2">
