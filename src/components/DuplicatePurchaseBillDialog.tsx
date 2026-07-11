@@ -54,25 +54,23 @@ export const DuplicatePurchaseBillDialog = ({
             <AlertTriangle className="h-5 w-5" />
             Possible Duplicate Purchase Bill
           </AlertDialogTitle>
-          <AlertDialogDescription asChild>
-            <div className="space-y-3 text-sm">
-              <p className="text-foreground">
-                A bill that looks identical to this one already exists. Saving again will <b>double-count stock</b>.
-              </p>
-              <div className="rounded-md border border-border bg-muted/40 p-3 space-y-1">
-                <div className="flex justify-between"><span className="text-muted-foreground">Bill No</span><span className="font-semibold">{existingBill.software_bill_no}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Supplier</span><span className="font-medium">{existingBill.supplier_name}</span></div>
-                {existingBill.supplier_invoice_no && (
-                  <div className="flex justify-between"><span className="text-muted-foreground">Supplier Inv No</span><span className="font-medium">{existingBill.supplier_invoice_no}</span></div>
-                )}
-                <div className="flex justify-between"><span className="text-muted-foreground">Bill Date</span><span>{format(new Date(existingBill.bill_date), "dd-MMM-yyyy")}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Net Amount</span><span className="font-semibold">₹{Math.round(existingBill.net_amount).toLocaleString("en-IN")}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Saved On</span><span>{format(new Date(existingBill.created_at), "dd-MMM-yyyy HH:mm")}</span></div>
-              </div>
-              <p className="text-xs text-muted-foreground"><b>Match:</b> {matchReason}</p>
-            </div>
+          <AlertDialogDescription>
+            A bill that looks identical to this one already exists. Saving again will double-count stock.
           </AlertDialogDescription>
         </AlertDialogHeader>
+        <div className="space-y-3 text-sm">
+          <div className="rounded-md border border-border bg-muted/40 p-3 space-y-1">
+            <div className="flex justify-between"><span className="text-muted-foreground">Bill No</span><span className="font-semibold">{existingBill.software_bill_no}</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">Supplier</span><span className="font-medium">{existingBill.supplier_name}</span></div>
+            {existingBill.supplier_invoice_no && (
+              <div className="flex justify-between"><span className="text-muted-foreground">Supplier Inv No</span><span className="font-medium">{existingBill.supplier_invoice_no}</span></div>
+            )}
+            <div className="flex justify-between"><span className="text-muted-foreground">Bill Date</span><span>{format(new Date(existingBill.bill_date), "dd-MMM-yyyy")}</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">Net Amount</span><span className="font-semibold">₹{Math.round(existingBill.net_amount).toLocaleString("en-IN")}</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">Saved On</span><span>{format(new Date(existingBill.created_at), "dd-MMM-yyyy HH:mm")}</span></div>
+          </div>
+          <p className="text-xs text-muted-foreground"><b>Match:</b> {matchReason}</p>
+        </div>
         <AlertDialogFooter className="gap-2">
           <Button variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
           <Button variant="secondary" onClick={() => onOpenExisting(existingBill.id)} disabled={saving} className="gap-1.5">

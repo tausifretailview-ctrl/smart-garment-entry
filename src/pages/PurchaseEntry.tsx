@@ -4313,6 +4313,11 @@ const PurchaseEntry = () => {
                 ? `Same supplier, same date, same total qty (${filledQty}) — saved ${Math.round(minsAgo)} min ago.`
                 : `Same supplier, same date, same net amount (₹${Math.round(calcNet).toLocaleString("en-IN")}) — saved ${Math.round(minsAgo)} min ago.`;
             setDuplicateWarning({ bill: match as ExistingDuplicateBill, reason });
+            toast({
+              variant: "destructive",
+              title: "Possible duplicate bill",
+              description: "See warning dialog to open the existing bill or save anyway.",
+            });
             return;
           }
         }
