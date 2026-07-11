@@ -1702,11 +1702,14 @@ const PurchaseEntry = () => {
     });
   }, [lineItems.length]);
 
-  // Warm Add Product dialog chunk after Purchase Entry is interactive — avoids
-  // competing with the purchase-entry chunk + post-login prefetch on first login.
+  // Warm Add Product dialog chunk as soon as Purchase Entry mounts so the
+  // dialog opens instantly. We also kick an immediate prefetch (not just idle)
+  // because on slow machines users hit "Add Product" before the idle callback
+  // fires, which used to leave them staring at "Loading product form…".
   useEffect(() => {
+    prefetchProductEntryDialog();
     return scheduleIdleWork(() => prefetchProductEntryDialog(), {
-      minDelay: 800,
+      minDelay: 0,
       timeout: 15_000,
     });
   }, []);
