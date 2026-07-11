@@ -9173,6 +9173,14 @@ export type Database = {
           source: string
         }[]
       }
+      reconcile_customer_balance_v2: {
+        Args: { p_customer_id: string; p_organization_id: string }
+        Returns: {
+          amount: number
+          detail: string
+          source: string
+        }[]
+      }
       reconcile_customer_balances: {
         Args: { p_organization_id: string }
         Returns: {
