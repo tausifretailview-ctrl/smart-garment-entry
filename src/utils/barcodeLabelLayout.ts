@@ -1,4 +1,5 @@
 import JsBarcode from "jsbarcode";
+import type { LabelFieldConfig } from "@/types/labelTypes";
 import {
   computeLabelBarcodeLayout,
   mmToDots,
@@ -132,4 +133,9 @@ export function barcodeHeightPxFromMm(heightMm: number): number {
 export function legacyBarcodeHeightMm(barcodeHeightSlider: number | undefined, labelHeightMm: number): number {
   const slider = barcodeHeightSlider ?? 30;
   return (slider / 100) * labelHeightMm;
+}
+
+/** Tight lineHeight (≤1.15) signals a designed multi-line text slot. */
+export function labelFieldAllowsMultiline(field: Pick<LabelFieldConfig, "lineHeight">): boolean {
+  return field.lineHeight != null && field.lineHeight <= 1.15;
 }

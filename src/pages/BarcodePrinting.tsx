@@ -25,6 +25,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import JsBarcode from "jsbarcode";
 import {
+  labelFieldAllowsMultiline,
   legacyBarcodeHeightMm,
   renderBarcodeSvgString,
   resolveBarcodeSlotMm,
@@ -111,6 +112,9 @@ import {
   isFixedBuiltinLabelPreset,
   resolveFixedBuiltinLabelConfig,
 } from "@/constants/fixedBuiltinLabelPresets";
+import {
+  RANAWAT_BLING_TEMPLATE_NAME,
+} from "@/constants/ranawatBlingLabelTemplate";
 
 const precisionPresetStorageKey = (orgId: string) => `precision_active_preset_${orgId}`;
 
@@ -3387,6 +3391,7 @@ export default function BarcodePrinting() {
             </div>
           `;
         } else {
+          const allowsMultiline = labelFieldAllowsMultiline(field);
           // Text field with absolute positioning
           fieldsHtml += `
             <div style="
@@ -3400,9 +3405,10 @@ export default function BarcodePrinting() {
               ${field.fontFamily ? `font-family: ${field.fontFamily};` : ''}
               text-align: ${field.textAlign || 'center'};
               line-height: ${field.lineHeight || 1.1};
-              white-space: nowrap;
+              white-space: ${allowsMultiline ? 'normal' : 'nowrap'};
+              ${allowsMultiline ? 'word-break: break-word;' : ''}
               overflow: hidden;
-              text-overflow: ellipsis;
+              ${allowsMultiline ? '' : 'text-overflow: ellipsis;'}
             ">${content}</div>
           `;
         }
@@ -6179,6 +6185,9 @@ export default function BarcodePrinting() {
                     </SelectItem>
                     <SelectItem value="preset:jewellery" className="text-xs">
                       Jewellery Tag (100×15mm 1UP) — fixed layout
+                    </SelectItem>
+                    <SelectItem value={`preset:${RANAWAT_BLING_TEMPLATE_NAME}`} className="text-xs">
+                      BLING JEWELLERY LABEL (100×15mm 1UP) — fixed layout
                     </SelectItem>
                     {savedLabelTemplates.length === 0 && dbPresets.filter(p => p.labelConfig).length === 0 ? (
                       <div className="px-2 py-2 text-xs text-muted-foreground">No other saved templates yet.</div>

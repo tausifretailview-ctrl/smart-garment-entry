@@ -9,9 +9,18 @@ import {
   JEWELLERY_100X15_DIMENSIONS,
   resolveJewelleryLabelConfig,
 } from "@/constants/jewelleryLabelTemplate";
+import {
+  isRanawatBlingPresetName,
+  RANAWAT_BLING_100X15_DIMENSIONS,
+  resolveRanawatBlingLabelConfig,
+} from "@/constants/ranawatBlingLabelTemplate";
 
 export function isFixedBuiltinLabelPreset(name: string | null | undefined): boolean {
-  return isKidszonePresetName(name) || isJewelleryPresetName(name);
+  return (
+    isKidszonePresetName(name) ||
+    isJewelleryPresetName(name) ||
+    isRanawatBlingPresetName(name)
+  );
 }
 
 export function resolveFixedBuiltinLabelConfig(
@@ -19,6 +28,7 @@ export function resolveFixedBuiltinLabelConfig(
 ): LabelDesignConfig | null {
   if (isKidszonePresetName(name)) return resolveKidszoneLabelConfig();
   if (isJewelleryPresetName(name)) return resolveJewelleryLabelConfig();
+  if (isRanawatBlingPresetName(name)) return resolveRanawatBlingLabelConfig();
   return null;
 }
 
@@ -27,11 +37,13 @@ export function getFixedBuiltinLabelDimensions(
 ): { width: number; height: number } | null {
   if (isKidszonePresetName(name)) return { ...KIDSZONE_50X40_DIMENSIONS };
   if (isJewelleryPresetName(name)) return { ...JEWELLERY_100X15_DIMENSIONS };
+  if (isRanawatBlingPresetName(name)) return { ...RANAWAT_BLING_100X15_DIMENSIONS };
   return null;
 }
 
 export function fixedBuiltinPresetLabel(name: string | null | undefined): string | null {
   if (isKidszonePresetName(name)) return "kidszone (50×40mm) — fixed layout";
   if (isJewelleryPresetName(name)) return "Jewellery Tag (100×15mm 1UP) — fixed layout";
+  if (isRanawatBlingPresetName(name)) return "BLING JEWELLERY LABEL (100×15mm 1UP) — fixed layout";
   return null;
 }

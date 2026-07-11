@@ -6,7 +6,7 @@ import {
   filterLabelFieldKeys,
   isLabelFieldAllowedByProductSettings,
 } from "@/utils/productFieldSettingsForLabels";
-import { applyJsBarcodeToElement, BARCODE_MM_TO_PX, legacyBarcodeHeightMm, resolveBarcodeSlotMm } from "@/utils/barcodeLabelLayout";
+import { applyJsBarcodeToElement, BARCODE_MM_TO_PX, labelFieldAllowsMultiline, legacyBarcodeHeightMm, resolveBarcodeSlotMm } from "@/utils/barcodeLabelLayout";
 import type { LabelData, TSPLTemplateConfig } from "@/utils/tsplGenerator";
 import {
   collectEnabledDesignerFieldKeys,
@@ -312,8 +312,9 @@ export function DraggableLabelCanvas({
                 textAlign: (field.textAlign as any) || "left",
                 lineHeight: field.lineHeight ?? 1.2,
                 overflow: "hidden",
-                whiteSpace: "nowrap",
-                textOverflow: "ellipsis",
+                whiteSpace: labelFieldAllowsMultiline(field) ? "normal" : "nowrap",
+                wordBreak: labelFieldAllowsMultiline(field) ? "break-word" : undefined,
+                textOverflow: labelFieldAllowsMultiline(field) ? undefined : "ellipsis",
                 cursor: "grab",
                 outline: isSelected ? "2px solid hsl(var(--primary))" : "1px dashed transparent",
                 outlineOffset: 1,

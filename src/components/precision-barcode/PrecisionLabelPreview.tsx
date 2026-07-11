@@ -11,6 +11,7 @@ import type { LabelData, TSPLTemplateConfig } from "@/utils/tsplGenerator";
 import {
   applyJsBarcodeToElement,
   legacyBarcodeHeightMm,
+  labelFieldAllowsMultiline,
   resolveBarcodeSlotMm,
 } from "@/utils/barcodeLabelLayout";
 
@@ -198,6 +199,7 @@ export function PrecisionLabelPreview({
         const derivedYMm = barcodeSlot?.layout?.derivedFieldYDots[key] != null
           ? barcodeSlot.layout.derivedFieldYDots[key]! / (203 / 25.4)
           : undefined;
+        const allowsMultiline = labelFieldAllowsMultiline(field);
 
         return (
           <div
@@ -213,8 +215,9 @@ export function PrecisionLabelPreview({
               textAlign: (field.textAlign as any) || "left",
               lineHeight: field.lineHeight ?? 1.2,
               overflow: "hidden",
-              whiteSpace: "nowrap",
-              textOverflow: "ellipsis",
+              whiteSpace: allowsMultiline ? "normal" : "nowrap",
+              wordBreak: allowsMultiline ? "break-word" : undefined,
+              textOverflow: allowsMultiline ? undefined : "ellipsis",
               color: "#000000",
               letterSpacing: "0.2px",
               textDecoration: "none",
