@@ -177,7 +177,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   const invoiceNoteText =
     notes && notes.trim() && !/^\d+$/.test(notes.trim()) ? notes.trim() : "";
   const MAX_ITEMS_PER_PAGE = isA4 ? 20 : 15;
-  const TARGET_ROWS = isRealTast ? 18 : isA4 ? 14 : 10;
+  const TARGET_ROWS = isA4 ? 14 : 10;
   const MIN_BLANK_ROWS = 2;
 
   const fmt = (amount: number) => {
@@ -399,10 +399,12 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
         return (
           <div
             key={pageIndex}
-            className={`retail-erp-invoice-template bg-white text-black${isRealTast ? " real-tast-variant" : ""}`}
+            className="retail-erp-invoice-template bg-white text-black"
+            data-invoice-variant={isRealTast ? "real-tast" : undefined}
             style={{
               width: pageW,
               minHeight: pageH,
+              ...(isRealTast ? { height: pageH } : {}),
               padding: pad,
               fontFamily: "Arial, Helvetica, sans-serif",
               fontSize: fsBody,
@@ -410,18 +412,17 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
               display: "flex",
               flexDirection: "column",
               position: "relative",
-              overflow: "visible",
+              overflow: isRealTast ? "hidden" : "visible",
             }}
           >
             <div
-              className="retail-erp-page-body"
               style={{
                 border: B2,
                 flex: 1,
                 display: "flex",
                 flexDirection: "column",
-                overflow: "visible",
-                justifyContent: "flex-start",
+                overflow: isRealTast ? "hidden" : "visible",
+                justifyContent: isRealTast ? "space-between" : "flex-start",
               }}
             >
 
@@ -531,7 +532,14 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
               </div>
 
               {/* ===== ITEMS TABLE — Full Grid ===== */}
-              <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed", flex: isLastPage ? "0 0 auto" : "1 1 auto" }}>
+              <table
+                style={{
+                  width: "100%",
+                  borderCollapse: "collapse",
+                  tableLayout: "fixed",
+                  flex: isRealTast ? 1 : isLastPage ? "0 0 auto" : "1 1 auto",
+                }}
+              >
                 <colgroup>
                   {cols.map((c) => (
                     <col key={c.key} style={{ width: c.width }} />
@@ -567,41 +575,22 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                     const lineDisc =
                       itemGlobalIdx >= 0 ? lineBillDiscounts[itemGlobalIdx] ?? 0 : 0;
                     const rowHasDisc = lineDisc > 0.005;
-                    const rowAllowsWrap =
-                      isRealTast &&
-                      Boolean(
-                        item?.itemNotes?.trim() ||
-                          (item?.particulars && item.particulars.length > 42),
-                      );
-                    const rowHeight = rowAllowsWrap
-                      ? "auto"
-                      : rowHasDisc
-                        ? ROW_H_WITH_DISC
-                        : ROW_H;
                     return (
-                      <tr key={idx} style={{ height: rowHeight }}>
+                      <tr key={idx} style={{ height: rowHasDisc ? ROW_H_WITH_DISC : ROW_H }}>
                         {cols.map((c, ci) => {
                           const isLast = ci === cols.length - 1;
                           const style: React.CSSProperties = {
                             ...cellBase,
                             textAlign: c.align,
                             borderRight: isLast ? "none" : B,
-                            ...(rowAllowsWrap && c.key === "description"
+                            ...(rowHasDisc && c.key === "amount"
                               ? {
-                                  height: "auto",
-                                  minHeight: ROW_H,
                                   maxHeight: "none",
+                                  height: "auto",
+                                  minHeight: ROW_H_WITH_DISC,
                                   overflow: "visible",
-                                  whiteSpace: "normal",
                                 }
-                              : rowHasDisc && c.key === "amount"
-                                ? {
-                                    maxHeight: "none",
-                                    height: "auto",
-                                    minHeight: ROW_H_WITH_DISC,
-                                    overflow: "visible",
-                                  }
-                                : {}),
+                              : {}),
                           };
                           let content: React.ReactNode = "\u00A0";
                           if (item) {
@@ -609,15 +598,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                               case "sr": content = srNo; break;
                               case "description":
                                 content = (
-                                  <span
-                                    style={{
-                                      overflow: rowAllowsWrap ? "visible" : "hidden",
-                                      textOverflow: rowAllowsWrap ? undefined : "ellipsis",
-                                      whiteSpace: rowAllowsWrap ? "normal" : "nowrap",
-                                      display: "block",
-                                      wordBreak: rowAllowsWrap ? "break-word" : undefined,
-                                    }}
-                                  >
+                                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "block" }}>
                                     {item.particulars}
                                     {item.color && <span style={{ fontSize: "9px", marginLeft: "3px" }}>({item.color})</span>}
                                     {item.itemNotes ? (
@@ -728,15 +709,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
 
               {/* ===== FOOTER ===== */}
               {isLastPage && (
-              <div
-                className={`retail-erp-footer${isRealTast ? " real-tast-footer" : ""}`}
-                style={{
-                  borderTop: B2,
-                  fontSize: fsBody,
-                  flexShrink: 0,
-                  ...(isRealTast ? { marginTop: "auto" } : {}),
-                }}
-              >
+              <div className="retail-erp-footer" style={{ borderTop: B2, fontSize: fsBody, flexShrink: 0 }}>
 
                   {/* Note (left) + Totals (right) — uses blank space beside subtotal block */}
                   <div style={{ display: "flex", borderBottom: B, width: "100%", alignItems: "stretch" }}>
@@ -796,10 +769,6 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                         fontSize: fsTotals,
                         color: "#111",
                         flexShrink: 0,
-                        display: "flex",
-                        flexDirection: "column",
-                        justifyContent: "flex-end",
-                        alignSelf: "stretch",
                       }}
                     >
                       {!isRealTast && (
@@ -884,23 +853,14 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                       display: "flex",
                       alignItems: "stretch",
                       minHeight: isA4
-                        ? (showPaymentQr ? "36mm" : isRealTast ? "100px" : "80px")
+                        ? (showPaymentQr ? "36mm" : isRealTast ? "110px" : "80px")
                         : (showPaymentQr ? "30mm" : "60px"),
+                      position: "relative",
                     }}
                   >
                     {/* Left — Terms */}
-                    <div
-                      style={{
-                        flex: 1,
-                        borderRight: B,
-                        padding: isA4 ? "4px 8px" : "3px 6px",
-                        display: "flex",
-                        flexDirection: "column",
-                        justifyContent: "flex-start",
-                        minHeight: "100%",
-                      }}
-                    >
-                      <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
+                    <div style={{ flex: 1, borderRight: B, padding: isA4 ? "4px 8px" : "3px 6px", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+                      <div>
                         {termsConditions.length > 0 && (
                           <div>
                             <strong
@@ -931,8 +891,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                         <div
                           style={{
                             fontSize: isA4 ? (isRealTast ? "11px" : "9px") : "7px",
-                            marginTop: "auto",
-                            paddingTop: "4px",
+                            marginTop: "2px",
                             fontWeight: isRealTast ? 800 : 400,
                             color: isRealTast ? "#000" : undefined,
                           }}
@@ -949,58 +908,43 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                         padding: isA4 ? "4px 8px" : "3px 6px",
                         display: "flex",
                         flexDirection: "column",
-                        alignItems: "stretch",
-                        justifyContent: "flex-end",
+                        alignItems: "center",
+                        justifyContent: isRealTast ? "flex-start" : "center",
                         position: "relative",
                         boxSizing: "border-box",
                         flexShrink: 0,
-                        minHeight: "100%",
                       }}
                     >
+                      {stampImageBase64 && (
+                        <img
+                          src={stampImageBase64}
+                          alt="Stamp"
+                          style={{
+                            width: stampDim,
+                            height: stampDim,
+                            objectFit: "contain",
+                            position: "absolute",
+                            ...(isRealTast
+                              ? { top: "8px", right: "8px" }
+                              : {
+                                  top: "4px",
+                                  ...(stampPosition === "bottom-left" ? { left: "8px" } : { right: "8px" }),
+                                }),
+                          }}
+                        />
+                      )}
+                      {isRealTast && <div style={{ flex: 1, minHeight: "48px" }} aria-hidden="true" />}
                       <div
                         style={{
-                          marginTop: "auto",
-                          display: "flex",
-                          flexDirection: "column",
-                          alignItems: "center",
-                          justifyContent: "flex-end",
-                          minHeight: isRealTast ? "88px" : "72px",
+                          textAlign: "center",
+                          fontSize: isA4 ? (isRealTast ? "12px" : "10px") : "8px",
+                          fontWeight: "bold",
+                          marginBottom: isRealTast ? "2px" : "4px",
                           width: "100%",
-                          position: "relative",
-                          paddingBottom: isRealTast ? "4px" : "0",
+                          flexShrink: 0,
                         }}
                       >
-                        {stampImageBase64 && (
-                          <img
-                            src={stampImageBase64}
-                            alt="Stamp"
-                            style={{
-                              width: stampDim,
-                              height: stampDim,
-                              objectFit: "contain",
-                              position: "absolute",
-                              ...(isRealTast
-                                ? { bottom: "0", right: "0" }
-                                : {
-                                    top: "0",
-                                    ...(stampPosition === "bottom-left" ? { left: "0" } : { right: "0" }),
-                                  }),
-                            }}
-                          />
-                        )}
-                        <div
-                          style={{
-                            textAlign: "center",
-                            fontSize: isA4 ? (isRealTast ? "12px" : "10px") : "8px",
-                            fontWeight: "bold",
-                            marginBottom: isRealTast ? "0" : "4px",
-                            width: "100%",
-                            flexShrink: 0,
-                            marginTop: "auto",
-                          }}
-                        >
-                          For {businessName}
-                        </div>
+                        For {businessName}
                       </div>
                       {showPaymentQr && (
                         <div
@@ -1065,18 +1009,10 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
             padding: ${pad} !important;
             overflow: visible !important;
           }
-          .retail-erp-invoice-template.real-tast-variant {
+          .retail-erp-invoice-template[data-invoice-variant="real-tast"] {
             height: ${pageH} !important;
             min-height: ${pageH} !important;
-          }
-          .retail-erp-invoice-template.real-tast-variant .retail-erp-page-body {
-            flex: 1 1 auto !important;
-            min-height: 0 !important;
-          }
-          .retail-erp-invoice-template.real-tast-variant .real-tast-footer {
-            margin-top: auto !important;
-            page-break-inside: avoid;
-            break-inside: avoid;
+            overflow: hidden !important;
           }
           .retail-erp-invoice-template td,
           .retail-erp-invoice-template th,
