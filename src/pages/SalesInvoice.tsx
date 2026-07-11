@@ -4347,14 +4347,14 @@ Thank you for choosing us!`;
                 {showCol.color && <th className="text-center text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 w-20">COLOR</th>}
                 <th className="text-center text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 w-24">BARCODE</th>
                 {showCol.hsn && <th className="text-center text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 w-20">HSN</th>}
-                <th className="text-center text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 w-24">QTY</th>
-                {showCol.box && <th className="text-center text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 w-16">BOX</th>}
-                {showCol.mrp && <th className="text-right text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 w-24">MRP</th>}
-                <th className="text-right text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 w-24">PRICE</th>
-                {showCol.disc_percent && <th className="text-right text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 w-20">DISC%</th>}
-                {showCol.disc_amount && <th className="text-right text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 w-24">DISC ₹</th>}
-                {showCol.gst && <th className="text-center text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 w-16">GST%</th>}
-                <th className="text-right text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 w-28 bg-blue-700 rounded-tr-lg">TOTAL</th>
+                <th className="text-center text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-2 sale-col-qty">QTY</th>
+                {showCol.box && <th className="text-center text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-2 w-16">BOX</th>}
+                {showCol.mrp && <th className="text-right text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-2 sale-col-mrp">MRP</th>}
+                <th className="text-right text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-2 sale-col-price">PRICE</th>
+                {showCol.disc_percent && <th className="text-right text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-2 w-20">DISC%</th>}
+                {showCol.disc_amount && <th className="text-right text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-2 w-24">DISC ₹</th>}
+                {showCol.gst && <th className="text-center text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-2 w-16">GST%</th>}
+                <th className="text-right text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-2 sale-col-total bg-blue-700 rounded-tr-lg">TOTAL</th>
                 <th className="col-action h-10 bg-slate-800" aria-hidden="true" />
               </tr>
             </thead>
@@ -4444,30 +4444,32 @@ Thank you for choosing us!`;
                       )}
                       <td
                         {...lineGrid.getCellProps(displayIndex, "qty", {
-                          baseClassName: "text-center px-1.5 py-1",
+                          baseClassName: "sale-col-qty text-center px-1.5 py-1 align-middle overflow-hidden",
                           onActivateEdit: () => lineGrid.beginEditWithSnapshot(item.quantity),
                         })}
                       >
-                        {qtyEditing ? (
-                          <Input
-                            ref={lineGrid.editInputRef}
-                            type="number"
-                            min={isDecimalUOM(item.uom) ? "0.001" : "1"}
-                            step={isDecimalUOM(item.uom) ? "0.001" : "1"}
-                            value={item.quantity || ""}
-                            placeholder="1"
-                            onChange={(e) => handleQtyInputChange(item.id, e.target.value)}
-                            onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                            className="w-full h-9 text-center font-bold text-[17px] bg-white border-0 shadow-none focus-visible:ring-0 mx-auto tabular-nums rounded-none"
-                          />
-                        ) : (
-                          <span className="block w-24 mx-auto h-10 leading-10 text-center font-bold text-[17px] tabular-nums bg-warning/10 rounded">
-                            {item.quantity || "—"}
-                          </span>
-                        )}
-                        {item.uom && item.uom !== 'NOS' && item.uom !== 'PCS' && (
-                          <span className="text-[10px] text-muted-foreground text-center block">{item.uom}</span>
-                        )}
+                        <div className="flex flex-col items-center justify-center w-full min-w-0 mx-auto">
+                          {qtyEditing ? (
+                            <Input
+                              ref={lineGrid.editInputRef}
+                              type="number"
+                              min={isDecimalUOM(item.uom) ? "0.001" : "1"}
+                              step={isDecimalUOM(item.uom) ? "0.001" : "1"}
+                              value={item.quantity || ""}
+                              placeholder="1"
+                              onChange={(e) => handleQtyInputChange(item.id, e.target.value)}
+                              onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                              className="sale-qty-box w-full max-w-full h-9 text-center font-bold text-[17px] bg-white border border-amber-200 shadow-none focus-visible:ring-1 focus-visible:ring-amber-400 tabular-nums rounded-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            />
+                          ) : (
+                            <span className="sale-qty-box block w-full max-w-full h-9 leading-9 text-center font-bold text-[17px] tabular-nums bg-warning/10 rounded-sm">
+                              {item.quantity || "—"}
+                            </span>
+                          )}
+                          {item.uom && item.uom !== 'NOS' && item.uom !== 'PCS' && (
+                            <span className="text-[10px] text-muted-foreground text-center w-full truncate leading-tight mt-0.5">{item.uom}</span>
+                          )}
+                        </div>
                       </td>
                       {showCol.box && (
                         <td
@@ -4494,7 +4496,7 @@ Thank you for choosing us!`;
                       {showCol.mrp && (
                         <td
                           {...lineGrid.getCellProps(displayIndex, "mrp", {
-                            baseClassName: "text-right px-1.5 py-1",
+                            baseClassName: "sale-col-mrp text-right px-1.5 py-1 align-middle overflow-hidden",
                             onActivateEdit: () => lineGrid.beginEditWithSnapshot(item.mrp),
                           })}
                         >
@@ -4507,10 +4509,10 @@ Thank you for choosing us!`;
                               placeholder="0"
                               onChange={(e) => updateMRP(item.id, parseFloat(e.target.value) || 0)}
                               onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                              className="w-full h-9 text-right text-[17px] bg-white border-0 shadow-none focus-visible:ring-0 ml-auto tabular-nums rounded-none"
+                              className="sale-num-box w-full max-w-full h-9 text-right text-[17px] bg-white border border-slate-200 shadow-none focus-visible:ring-1 tabular-nums rounded-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                             />
                           ) : (
-                            <span className="block w-[120px] ml-auto h-10 leading-10 text-right text-[17px] tabular-nums">
+                            <span className="sale-num-box block w-full max-w-full h-9 leading-9 text-right text-[17px] tabular-nums">
                               {item.mrp || "—"}
                             </span>
                           )}
@@ -4518,7 +4520,7 @@ Thank you for choosing us!`;
                       )}
                       <td
                         {...lineGrid.getCellProps(displayIndex, "price", {
-                          baseClassName: "text-right px-1.5 py-1",
+                          baseClassName: "sale-col-price text-right px-1.5 py-1 align-middle overflow-hidden",
                           onActivateEdit: () => lineGrid.beginEditWithSnapshot(item.salePrice),
                         })}
                       >
@@ -4531,10 +4533,10 @@ Thank you for choosing us!`;
                             placeholder="0"
                             onChange={(e) => updateSalePrice(item.id, parseFloat(e.target.value) || 0)}
                             onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                            className="w-full h-9 text-right text-[15px] font-semibold bg-white border-0 shadow-none focus-visible:ring-0 ml-auto tabular-nums rounded-none"
+                            className="sale-num-box w-full max-w-full h-9 text-right text-[15px] font-semibold bg-white border border-slate-200 shadow-none focus-visible:ring-1 tabular-nums rounded-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                           />
                         ) : (
-                          <span className="block w-[120px] ml-auto h-10 leading-10 text-right text-[15px] font-semibold tabular-nums">
+                          <span className="sale-num-box block w-full max-w-full h-9 leading-9 text-right text-[15px] font-semibold tabular-nums">
                             {item.salePrice || "—"}
                           </span>
                         )}
@@ -4624,8 +4626,8 @@ Thank you for choosing us!`;
                           <span className="text-[15px] font-semibold text-muted-foreground">{item.gstPercent}%</span>
                         </td>
                       )}
-                      <td {...lineGrid.getCellProps(displayIndex, "total", { baseClassName: "text-right px-3 py-2 bg-blue-50/40" })}>
-                        <span className="text-[17px] font-bold text-blue-700 font-mono tabular-nums">
+                      <td {...lineGrid.getCellProps(displayIndex, "total", { baseClassName: "sale-col-total text-right px-2 py-2 bg-blue-50/40 align-middle overflow-hidden" })}>
+                        <span className="block w-full max-w-full text-[17px] font-bold text-blue-700 font-mono tabular-nums truncate">
                           ₹{item.lineTotal.toFixed(2)}
                         </span>
                       </td>
@@ -4656,11 +4658,11 @@ Thank you for choosing us!`;
               {lineItems.some(item => item.productId) && (
                 <tr className="bg-muted/50 font-medium">
                   <td className="px-3 py-2" colSpan={saleLineLeadColSpan} />
-                  <td className="text-center font-bold text-primary text-sm tabular-nums px-3 py-2">
+                  <td className="sale-col-qty text-center font-bold text-primary text-sm tabular-nums px-1.5 py-2">
                     {lineItems.reduce((sum, item) => sum + (item.productId ? item.quantity : 0), 0)}
                   </td>
                   <td className="px-3 py-2" colSpan={saleLineMidColSpan} />
-                  <td className="text-right font-bold text-sm tabular-nums px-3 py-2">₹{grossAmount.toFixed(2)}</td>
+                  <td className="sale-col-total text-right font-bold text-sm tabular-nums px-2 py-2">₹{grossAmount.toFixed(2)}</td>
                   <td className="px-1 py-2" />
                 </tr>
               )}

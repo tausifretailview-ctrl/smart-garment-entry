@@ -2555,6 +2555,28 @@ main:has(.supplier-party-balances-workspace) {
   .sale-bill-readable .erp-entry-lines-table tbody .font-mono {
     font-size: 15px !important;
   }
+  .sale-bill-readable .erp-entry-lines-table .sale-col-qty {
+    width: 5.5rem;
+    min-width: 5.5rem;
+    max-width: 5.5rem;
+  }
+  .sale-bill-readable .erp-entry-lines-table .sale-col-price,
+  .sale-bill-readable .erp-entry-lines-table .sale-col-mrp {
+    width: 6rem;
+    min-width: 6rem;
+    max-width: 6rem;
+  }
+  .sale-bill-readable .erp-entry-lines-table .sale-col-total {
+    width: 7rem;
+    min-width: 7rem;
+    max-width: 7rem;
+  }
+  .sale-bill-readable .erp-entry-lines-table .sale-qty-box,
+  .sale-bill-readable .erp-entry-lines-table .sale-num-box {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
   .sale-bill-readable .entry-page-header-row {
     height: 3rem !important;
     min-height: 3rem !important;
