@@ -1,0 +1,1 @@
+UPDATE printer_presets SET print_mode='thermal3up', thermal_cols=3, updated_at=now() WHERE id='4794440e-1539-4779-acb1-06688cd09272' AND organization_id='67443f44-6372-4cf3-b017-fddd7e3bb71b';
