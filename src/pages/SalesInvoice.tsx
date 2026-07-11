@@ -85,7 +85,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { useOpenSettlementVariantIds, LOCKED_VARIANT_TOAST } from "@/hooks/useOpenSettlementVariantIds";
+import { useOpenSettlementVariantIds, SETTLEMENT_LOCK_TOAST_DURATION_MS, settlementLockedAddToast, getSettlementLockedCartItems, settlementLockedSaveToast } from "@/hooks/useOpenSettlementVariantIds";
 import { useStockValidation } from "@/hooks/useStockValidation";
 import {
   insertSaleItemsInChunks,
@@ -301,7 +301,7 @@ function applyFlatDiscountFromInvoice(
 
 export default function SalesInvoice() {
   const { toast } = useToast();
-  const { isLocked: isVariantLockedForSettlement } = useOpenSettlementVariantIds();
+  const { lockedVariantIds, isLocked: isVariantLockedForSettlement } = useOpenSettlementVariantIds();
   const queryClient = useQueryClient();
   const { scheduleInvalidateSales, flushScheduledSalesInvalidation, invalidateSales } = useDashboardInvalidation();
   const { currentOrganization } = useOrganization();
@@ -485,6 +485,57 @@ export default function SalesInvoice() {
   const isInitializingEditRef = useRef(false);
   const hasManuallyAddedNewItemRef = useRef(false);
   const [originalItemsForEdit, setOriginalItemsForEdit] = useState<Array<{ variantId: string; quantity: number }>>([]);
+
+  const blockSettlementLockedVariant = useCallback(
+    (
+      variant: { id?: string } | null | undefined,
+      productName: string,
+      barcode: string,
+      options?: { allowIfOnOriginal?: boolean },
+    ): boolean => {
+      if (!variant?.id || !isVariantLockedForSettlement(variant.id)) return false;
+      if (
+        options?.allowIfOnOriginal &&
+        editingInvoiceId &&
+        originalItemsForEdit.some((o) => o.variantId === variant.id)
+      ) {
+        return false;
+      }
+      const locked = settlementLockedAddToast(productName, barcode);
+      toast({
+        title: locked.title,
+        description: locked.description,
+        variant: "destructive",
+        duration: SETTLEMENT_LOCK_TOAST_DURATION_MS,
+      });
+      playErrorBeep();
+      setSearchInput("");
+      if (barcodeInputRef.current) {
+        barcodeInputRef.current.value = "";
+      }
+      barcodeInputRef.current?.focus();
+      return true;
+    },
+    [isVariantLockedForSettlement, editingInvoiceId, originalItemsForEdit, toast, playErrorBeep],
+  );
+
+  const validateCartSettlementLocks = useCallback(
+    (cartItems: Array<{ variantId: string; productName: string; barcode?: string | null }>): boolean => {
+      const locked = getSettlementLockedCartItems(cartItems, lockedVariantIds);
+      if (locked.length === 0) return true;
+      const lockedToast = settlementLockedSaveToast(locked);
+      toast({
+        title: lockedToast.title,
+        description: lockedToast.description,
+        variant: "destructive",
+        duration: SETTLEMENT_LOCK_TOAST_DURATION_MS,
+      });
+      playErrorBeep();
+      return false;
+    },
+    [lockedVariantIds, toast, playErrorBeep],
+  );
+
   const [taxType, setTaxType] = useState<"exclusive" | "inclusive">("inclusive");
   const [showPrintDialog, setShowPrintDialog] = useState(false);
   const [savedInvoiceData, setSavedInvoiceData] = useState<any>(null);
@@ -1607,6 +1658,17 @@ export default function SalesInvoice() {
     let addedCount = 0;
 
     for (const { variant, qty } of items) {
+      if (
+        blockSettlementLockedVariant(
+          variant,
+          product.product_name || buildProductDisplayName(product),
+          variant.barcode || "",
+          { allowIfOnOriginal: true },
+        )
+      ) {
+        continue;
+      }
+
       // In edit mode, calculate freed stock from original invoice for this variant
       let freedQty = 0;
       if (editingInvoiceId && originalItemsForEdit.length > 0) {
@@ -1866,19 +1928,16 @@ export default function SalesInvoice() {
 
   const addProductToInvoice = async (product: any, variant: any, overridePrice?: { sale_price: number; mrp: number }, options?: { skipSizeGrid?: boolean }) => {
     // Block variants currently in an open Stock Settlement session.
-    // In edit mode we still allow the variant if it was on the original invoice
-    // (adding beyond that qty is still blocked further below by stock checks).
-    if (variant?.id && isVariantLockedForSettlement(variant.id)) {
-      const wasOnOriginal = !!(editingInvoiceId && originalItemsForEdit.some((o) => o.variantId === variant.id));
-      if (!wasOnOriginal) {
-        toast({
-          title: LOCKED_VARIANT_TOAST.title,
-          description: LOCKED_VARIANT_TOAST.description,
-          variant: "destructive",
-        });
-        setSearchInput("");
-        return;
-      }
+    // In edit mode we still allow the variant if it was on the original invoice.
+    if (
+      blockSettlementLockedVariant(
+        variant,
+        product.product_name || buildProductDisplayName(product),
+        variant.barcode || "",
+        { allowIfOnOriginal: true },
+      )
+    ) {
+      return;
     }
 
     // Cache this product's brand (targeted) so the brand-discount effect has a fallback
@@ -2839,6 +2898,11 @@ Thank you for choosing us!`;
         title: "Invalid Quantity",
         description: `${zeroQtyItems.length} item(s) have zero or invalid quantity. Please fix before saving.`,
       });
+      return;
+    }
+
+    if (!validateCartSettlementLocks(filledItems)) {
+      savingLockRef.current = false;
       return;
     }
 

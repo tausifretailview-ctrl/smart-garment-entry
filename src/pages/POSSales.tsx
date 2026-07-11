@@ -41,7 +41,7 @@ import { CameraScanButton } from "@/components/CameraBarcodeScannerDialog";
 import { toast } from "sonner";
 import { useSaveSale } from "@/hooks/useSaveSale";
 import { useStockValidation } from "@/hooks/useStockValidation";
-import { useOpenSettlementVariantIds, LOCKED_VARIANT_TOAST } from "@/hooks/useOpenSettlementVariantIds";
+import { useOpenSettlementVariantIds, SETTLEMENT_LOCK_TOAST_DURATION_MS, settlementLockedAddToast, getSettlementLockedCartItems, settlementLockedSaveToast } from "@/hooks/useOpenSettlementVariantIds";
 import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
 import { useCustomerPoints, useCustomerPointsBalance } from "@/hooks/useCustomerPoints";
 import { useCustomerBrandDiscounts } from "@/hooks/useCustomerBrandDiscounts";
@@ -538,7 +538,7 @@ export default function POSSales() {
   const [recentAdjustedSaleReturnCredits, setRecentAdjustedSaleReturnCredits] = useState<Array<{ id: string; return_number: string; net_amount: number; linked_sale_id: string | null; linked_sale_number?: string }>>([]);
   const [showSRCreditDropdown, setShowSRCreditDropdown] = useState(false);
   const { checkStock, validateCartStock } = useStockValidation();
-  const { isLocked: isVariantLockedForSettlement } = useOpenSettlementVariantIds();
+  const { lockedVariantIds, isLocked: isVariantLockedForSettlement } = useOpenSettlementVariantIds();
   const queryClient = useQueryClient();
 
   const refreshPosAfterBillPrint = useCallback(() => {
@@ -811,6 +811,41 @@ export default function POSSales() {
     setStockIssuePresentation(issue);
     setShowStockIssueDialog(true);
   }, [playErrorBeep]);
+
+  const clearPosScanInput = useCallback(() => {
+    setSearchInput("");
+    if (barcodeInputRef.current) {
+      barcodeInputRef.current.value = "";
+    }
+    barcodeInputRef.current?.focus();
+  }, []);
+
+  const blockSettlementLockedVariant = useCallback(
+    (variant: { id?: string } | null | undefined, productName: string, barcode: string): boolean => {
+      if (!variant?.id || !isVariantLockedForSettlement(variant.id)) return false;
+      const locked = settlementLockedAddToast(productName, barcode);
+      toast.error(locked.title, { description: locked.description, duration: SETTLEMENT_LOCK_TOAST_DURATION_MS });
+      playErrorBeep();
+      clearPosScanInput();
+      return true;
+    },
+    [isVariantLockedForSettlement, playErrorBeep, clearPosScanInput],
+  );
+
+  const validateCartSettlementLocks = useCallback(
+    (cartItems: Array<{ variantId: string; productName: string; barcode?: string }>): boolean => {
+      const locked = getSettlementLockedCartItems(cartItems, lockedVariantIds);
+      if (locked.length === 0) return true;
+      const lockedToast = settlementLockedSaveToast(locked);
+      toast.error(lockedToast.title, {
+        description: lockedToast.description,
+        duration: SETTLEMENT_LOCK_TOAST_DURATION_MS,
+      });
+      playErrorBeep();
+      return false;
+    },
+    [lockedVariantIds, playErrorBeep],
+  );
 
   // Cash drawer hook
   const { openDrawer: openCashDrawer } = useCashDrawer();
@@ -2617,6 +2652,9 @@ export default function POSSales() {
     // If we have a pre-identified product (from barcode scan), use it directly
     if (quickServiceProductForAdd) {
       const { product, variant } = quickServiceProductForAdd;
+      if (blockSettlementLockedVariant(variant, product.product_name || "Product", variant.barcode || code)) {
+        return;
+      }
       const baseServiceGst = product.sale_gst_percent || product.gst_per || 0;
       const newItem: CartItem = {
         id: `service-${variant.id}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
@@ -2672,6 +2710,10 @@ export default function POSSales() {
       return;
     }
 
+    if (blockSettlementLockedVariant({ id: variantId }, productName, code)) {
+      return;
+    }
+
     const newItem: CartItem = {
       id: `service-${code}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
       barcode: code,
@@ -2694,7 +2736,7 @@ export default function POSSales() {
       itemNotes: description || null,
     };
     finishQuickServiceAdd(newItem);
-  }, [setItems, playSuccessBeep, currentOrganization?.id, toast, quickServiceProductForAdd, bumpCartHighlight, garmentGstSettings]);
+  }, [setItems, playSuccessBeep, currentOrganization?.id, toast, quickServiceProductForAdd, bumpCartHighlight, garmentGstSettings, blockSettlementLockedVariant]);
 
   const addItemToCart = async (
     product: any,
@@ -2703,9 +2745,7 @@ export default function POSSales() {
     addSource: 'manual' | 'barcode' = 'manual'
   ) => {
     // Block variants currently in an open Stock Settlement session
-    if (variant?.id && isVariantLockedForSettlement(variant.id)) {
-      toast.error(LOCKED_VARIANT_TOAST.title, { description: LOCKED_VARIANT_TOAST.description });
-      setSearchInput("");
+    if (blockSettlementLockedVariant(variant, product.product_name || product.name || "Product", variant.barcode || "")) {
       return;
     }
 
@@ -3353,6 +3393,10 @@ export default function POSSales() {
       return;
     }
 
+    if (!validateCartSettlementLocks(items)) {
+      return;
+    }
+
     const effectiveMethod = forcePaymentMethod || paymentMethod;
     // Credit / Pay Later must always have a named customer
     if (effectiveMethod === 'pay_later' && !hasNamedPosCustomer()) {
@@ -3602,6 +3646,11 @@ export default function POSSales() {
       return;
     }
 
+    if (!validateCartSettlementLocks(items)) {
+      paymentLockRef.current = false;
+      return;
+    }
+
     if (method === 'pay_later' && !hasNamedPosCustomer()) {
       paymentLockRef.current = false;
       showCustomerNameRequiredWindow();
@@ -3804,6 +3853,10 @@ export default function POSSales() {
     
     if (insufficientItems.length > 0) {
       openStockIssueDialog(buildMultipleStockIssues(insufficientItems));
+      return;
+    }
+
+    if (!validateCartSettlementLocks(items)) {
       return;
     }
 

@@ -63,7 +63,39 @@ export function useOpenSettlementVariantIds() {
 }
 
 export const LOCKED_VARIANT_TOAST = {
-  title: "Product locked",
+  title: "Product locked — stock settlement in progress",
   description:
-    "Currently in Stock Settlement. Settle the open session before selling.",
+    "This product is currently scanned into an open stock settlement session. Settle or remove it from the settlement session before selling.",
 } as const;
+
+export const SETTLEMENT_LOCK_TOAST_DURATION_MS = 8000;
+
+export function settlementLockedAddToast(productName: string, barcode: string) {
+  const code = (barcode || "").trim() || "—";
+  return {
+    title: LOCKED_VARIANT_TOAST.title,
+    description: `${productName} (${code}) is currently scanned into an open stock settlement session. Settle or remove it from the settlement session before selling.`,
+  };
+}
+
+export function getSettlementLockedCartItems<
+  T extends { variantId?: string | null; productName?: string; barcode?: string | null },
+>(items: T[], lockedVariantIds: Set<string>): T[] {
+  return items.filter((item) => !!item.variantId && lockedVariantIds.has(item.variantId));
+}
+
+export function settlementLockedSaveToast(
+  items: Array<{ productName?: string; barcode?: string | null }>,
+) {
+  const list = items
+    .map((item) => {
+      const name = (item.productName || "Product").trim();
+      const code = (item.barcode || "").trim() || "—";
+      return `${name} (${code})`;
+    })
+    .join(", ");
+  return {
+    title: "Cannot save — stock settlement in progress",
+    description: `These products are locked in an open stock settlement session: ${list}. Settle or remove them from settlement before selling.`,
+  };
+}
