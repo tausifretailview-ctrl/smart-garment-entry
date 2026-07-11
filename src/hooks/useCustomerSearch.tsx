@@ -184,6 +184,8 @@ type UseCustomerBalancesOptions = {
   customerIds?: string[];
 };
 
+const VISIBLE_BALANCE_CUSTOMER_LIMIT = 20;
+
 function stableIdKey(ids: string[]): string {
   return [...new Set(ids.filter(Boolean))].sort().join(",");
 }
@@ -196,12 +198,16 @@ export const useCustomerBalances = (options?: UseCustomerBalancesOptions) => {
   const { currentOrganization } = useOrganization();
   const queryEnabled = options?.enabled ?? true;
   const scopedIds = options?.customerIds;
+  const visibleIds = useMemo(() => {
+    if (!scopedIds || scopedIds.length === 0) return undefined;
+    return [...new Set(scopedIds.filter(Boolean))].slice(0, VISIBLE_BALANCE_CUSTOMER_LIMIT);
+  }, [scopedIds]);
   const scopedKey = useMemo(
-    () => (scopedIds && scopedIds.length > 0 ? stableIdKey(scopedIds) : "all"),
-    [scopedIds],
+    () => (visibleIds && visibleIds.length > 0 ? stableIdKey(visibleIds) : "all"),
+    [visibleIds],
   );
-  const scopedIdsRef = useRef(scopedIds);
-  scopedIdsRef.current = scopedIds;
+  const visibleIdsRef = useRef(visibleIds);
+  visibleIdsRef.current = visibleIds;
 
   const {
     data: snapshotByCustomerId = {},
@@ -213,8 +219,8 @@ export const useCustomerBalances = (options?: UseCustomerBalancesOptions) => {
       if (!currentOrganization?.id) return {} as Record<string, CustomerFinancialSnapshot>;
 
       const ids =
-        scopedIdsRef.current && scopedIdsRef.current.length > 0
-          ? [...new Set(scopedIdsRef.current.filter(Boolean))]
+        visibleIdsRef.current && visibleIdsRef.current.length > 0
+          ? [...visibleIdsRef.current]
           : (await fetchAllCustomers(currentOrganization.id))
               .map((c: { id: string }) => c.id)
               .filter(Boolean);

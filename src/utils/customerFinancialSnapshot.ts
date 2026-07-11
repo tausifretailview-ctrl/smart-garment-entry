@@ -27,17 +27,25 @@ const EMPTY_SNAPSHOT: CustomerFinancialSnapshot = {
 const SNAPSHOT_BATCH_CHUNK = 10;
 
 /**
- * Customers that may have a non-zero financial position (sales, advances, or returns).
- * Used to skip snapshot RPCs for customers with no transaction history.
+ * Customers that may have a non-zero financial position (sales, advances, returns,
+ * adjustments, vouchers, or non-zero opening balance).
+ * Used to skip snapshot RPCs for customers with no possible balance activity.
  */
-export async function fetchCustomerIdsWithFinancialRecords(
+export async function fetchCustomersWithFinancialActivity(
   organizationId: string,
   client: SupabaseClient = supabase,
 ): Promise<Set<string>> {
   const ids = new Set<string>();
   if (!organizationId) return ids;
 
-  const [salesRes, advancesRes, returnsRes] = await Promise.all([
+  const [
+    salesRes,
+    advancesRes,
+    returnsRes,
+    adjustmentsRes,
+    vouchersRes,
+    openingBalanceRes,
+  ] = await Promise.all([
     client
       .from("sales")
       .select("customer_id")
@@ -47,13 +55,31 @@ export async function fetchCustomerIdsWithFinancialRecords(
     client
       .from("customer_advances")
       .select("customer_id")
-      .eq("organization_id", organizationId),
+      .eq("organization_id", organizationId)
+      .not("customer_id", "is", null),
     client
       .from("sale_returns")
       .select("customer_id")
       .eq("organization_id", organizationId)
       .is("deleted_at", null)
       .not("customer_id", "is", null),
+    client
+      .from("customer_balance_adjustments")
+      .select("customer_id")
+      .eq("organization_id", organizationId)
+      .not("customer_id", "is", null),
+    client
+      .from("voucher_entries")
+      .select("reference_id")
+      .eq("organization_id", organizationId)
+      .eq("reference_type", "customer")
+      .not("reference_id", "is", null),
+    client
+      .from("customers")
+      .select("id")
+      .eq("organization_id", organizationId)
+      .is("deleted_at", null)
+      .neq("opening_balance", 0),
   ]);
 
   for (const row of salesRes.data || []) {
@@ -65,8 +91,25 @@ export async function fetchCustomerIdsWithFinancialRecords(
   for (const row of returnsRes.data || []) {
     if (row.customer_id) ids.add(row.customer_id);
   }
+  for (const row of adjustmentsRes.data || []) {
+    if (row.customer_id) ids.add(row.customer_id);
+  }
+  for (const row of vouchersRes.data || []) {
+    if (row.reference_id) ids.add(row.reference_id);
+  }
+  for (const row of openingBalanceRes.data || []) {
+    if (row.id) ids.add(row.id);
+  }
 
   return ids;
+}
+
+/** @deprecated Use fetchCustomersWithFinancialActivity — narrower pre-filter. */
+export async function fetchCustomerIdsWithFinancialRecords(
+  organizationId: string,
+  client: SupabaseClient = supabase,
+): Promise<Set<string>> {
+  return fetchCustomersWithFinancialActivity(organizationId, client);
 }
 
 function normalizeRow(row: {
@@ -200,8 +243,8 @@ export async function fetchOrganizationCustomerAccountTotals(
   const ids = (customers || []).map((c: { id: string }) => c.id).filter(Boolean);
   if (ids.length === 0) return empty;
 
-  const financialIds = await fetchCustomerIdsWithFinancialRecords(organizationId, client);
-  const idsToFetch = ids.filter((id) => financialIds.has(id));
+  const activeIds = await fetchCustomersWithFinancialActivity(organizationId, client);
+  const idsToFetch = ids.filter((id) => activeIds.has(id));
   const map = await fetchCustomerFinancialSnapshotMap(organizationId, idsToFetch, client);
 
   const totals = { ...empty, customerCount: ids.length };

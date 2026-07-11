@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -23,7 +23,7 @@ import { PaymentLinkDialog } from "@/components/PaymentLinkDialog";
 import { fetchAllCustomers, fetchAllSalesSummary } from "@/utils/fetchAllRows";
 import {
   fetchCustomerFinancialSnapshotMap,
-  fetchCustomerIdsWithFinancialRecords,
+  fetchCustomersWithFinancialActivity,
 } from "@/utils/customerFinancialSnapshot";
 
 interface CustomerOutstanding {
@@ -58,7 +58,7 @@ const SalesmanOutstanding = () => {
     queryFn: async () => {
       const customersData = await fetchAllCustomers(orgId!);
       const allSales = await fetchAllSalesSummary(orgId!);
-      const financialIds = await fetchCustomerIdsWithFinancialRecords(orgId!);
+      const financialIds = await fetchCustomersWithFinancialActivity(orgId!);
       const customerIds = (customersData || [])
         .map((c: { id: string }) => c.id)
         .filter((id) => financialIds.has(id));
