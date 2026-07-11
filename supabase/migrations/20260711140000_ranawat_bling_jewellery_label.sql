@@ -31,14 +31,10 @@ DECLARE
   }'::jsonb;
   v_setting_data jsonb;
 BEGIN
-  SELECT id INTO v_org_id
-  FROM organizations
-  WHERE slug ILIKE '%ranawat%' OR name ILIKE '%ranawat%'
-  ORDER BY created_at
-  LIMIT 1;
+  v_org_id := '67443f44-6372-4cf3-b017-fddd7e3bb71b'::uuid;
 
-  IF v_org_id IS NULL THEN
-    RAISE NOTICE 'Ranawat organization not found — skipping BLING JEWELLERY LABEL seed';
+  IF NOT EXISTS (SELECT 1 FROM organizations WHERE id = v_org_id) THEN
+    RAISE NOTICE 'Ranawat Bling organization (67443f44-6372-4cf3-b017-fddd7e3bb71b) not found — skipping BLING JEWELLERY LABEL seed';
     RETURN;
   END IF;
 
