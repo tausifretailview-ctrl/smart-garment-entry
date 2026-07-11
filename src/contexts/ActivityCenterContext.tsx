@@ -52,6 +52,15 @@ export function ActivityCenterProvider({ children }: { children: ReactNode }) {
     setReadState(loadActivityReadState(orgId, userId));
   }, [orgId, userId]);
 
+  // Warm the panel chunk after org login so first open is not stuck on Suspense.
+  useEffect(() => {
+    if (!orgId) return;
+    const timer = window.setTimeout(() => {
+      void import("@/components/activity-center/ActivityCenterPanel");
+    }, 1200);
+    return () => window.clearTimeout(timer);
+  }, [orgId]);
+
   const persistReadState = useCallback(
     (next: ActivityReadState) => {
       setReadState(next);

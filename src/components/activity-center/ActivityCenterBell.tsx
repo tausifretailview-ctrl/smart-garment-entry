@@ -11,6 +11,10 @@ const ActivityCenterPanel = lazy(() =>
   })),
 );
 
+const prefetchActivityCenterPanel = () => {
+  void import("@/components/activity-center/ActivityCenterPanel");
+};
+
 /** Bell trigger in the header; panel chunk loads on first open. */
 export function ActivityCenterBell() {
   const {
@@ -26,7 +30,10 @@ export function ActivityCenterBell() {
     <Popover
       open={open}
       onOpenChange={(next) => {
-        if (next) requestPanelMount();
+        if (next) {
+          prefetchActivityCenterPanel();
+          requestPanelMount();
+        }
         setOpen(next);
       }}
     >
@@ -35,6 +42,8 @@ export function ActivityCenterBell() {
           ref={triggerRef}
           variant="ghost"
           size="icon"
+          onMouseEnter={prefetchActivityCenterPanel}
+          onFocus={prefetchActivityCenterPanel}
           className={cn(
             "erp-no-drag relative h-8 w-8 text-[var(--erp-chrome-ink-dim)] hover:text-white hover:bg-white/10",
             open && "bg-white/12 text-white",

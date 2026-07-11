@@ -18,7 +18,6 @@ import {
   fetchActivitySystemEvents,
   fetchActivityWhatsAppPreview,
 } from "@/utils/activityCenterData";
-import { fetchActualUnreadMessageCount } from "@/utils/whatsappInboxUnread";
 
 export type ActivityTab = "all" | ActivityCategory;
 
@@ -112,14 +111,6 @@ export function useActivityNotifications(
     refetchOnWindowFocus: false,
   });
 
-  const whatsappCount = useQuery({
-    queryKey: ["whatsapp-unread-count", orgId],
-    queryFn: () => fetchActualUnreadMessageCount(orgId!),
-    enabled: enabled && !!orgId && canWhatsApp,
-    staleTime: STALE_REFERENCE,
-    refetchOnWindowFocus: false,
-  });
-
   const systemEvents = useQuery({
     queryKey: [ACTIVITY_CENTER_SYSTEM_KEY, orgId],
     queryFn: () => fetchActivitySystemEvents(orgId!),
@@ -175,8 +166,8 @@ export function useActivityNotifications(
       });
     }
 
-    if (canWhatsApp && (whatsappCount.data ?? 0) > 0) {
-      const count = whatsappCount.data ?? 0;
+    if (canWhatsApp && (whatsappPreview.data?.unreadCount ?? 0) > 0) {
+      const count = whatsappPreview.data?.unreadCount ?? 0;
       const preview = whatsappPreview.data;
       const names = preview?.previewNames ?? [];
       const subtitle =
@@ -225,7 +216,6 @@ export function useActivityNotifications(
     lowStock.data,
     lowStock.dataUpdatedAt,
     payments.data,
-    whatsappCount.data,
     whatsappPreview.data,
     systemEvents.data,
     readState,
@@ -251,11 +241,24 @@ export function useActivityNotifications(
     return counts;
   }, [notifications]);
 
+  const sourcesEnabled =
+    (canStock ? 1 : 0) +
+    (canPayments ? 1 : 0) +
+    (canWhatsApp ? 1 : 0) +
+    (canSystem ? 1 : 0);
+
+  const sourcesReady =
+    (!canStock || lowStock.isFetched) &&
+    (!canPayments || payments.isFetched) &&
+    (!canWhatsApp || whatsappPreview.isFetched) &&
+    (!canSystem || systemEvents.isFetched);
+
   const isLoading =
-    (canStock && lowStock.isLoading) ||
-    (canPayments && payments.isLoading) ||
-    (canWhatsApp && (whatsappCount.isLoading || whatsappPreview.isLoading)) ||
-    (canSystem && systemEvents.isLoading);
+    (permLoading && notifications.length === 0) ||
+    (sourcesEnabled > 0 &&
+      !sourcesReady &&
+      notifications.length === 0 &&
+      (lowStock.isFetching || payments.isFetching || whatsappPreview.isFetching || systemEvents.isFetching));
 
   return {
     notifications,
