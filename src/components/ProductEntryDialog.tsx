@@ -154,6 +154,67 @@ function focusNextFieldInProductForm(currentEl: HTMLElement) {
   }
 }
 
+type ProductSuggestionCache = {
+  productNames: string[];
+  categories: string[];
+  brands: string[];
+  hsnCodes: string[];
+  styles: string[];
+  colors: string[];
+};
+
+const EMPTY_SUGGESTION_CACHE: ProductSuggestionCache = {
+  productNames: [],
+  categories: [],
+  brands: [],
+  hsnCodes: [],
+  styles: [],
+  colors: [],
+};
+
+function productSuggestionCacheKey(orgId: string) {
+  return `product_entry_suggestions_${orgId}`;
+}
+
+function loadProductSuggestionCache(orgId: string): ProductSuggestionCache {
+  try {
+    const raw = localStorage.getItem(productSuggestionCacheKey(orgId));
+    if (!raw) return { ...EMPTY_SUGGESTION_CACHE };
+    const parsed = JSON.parse(raw) as Partial<ProductSuggestionCache>;
+    return {
+      productNames: parsed.productNames ?? [],
+      categories: parsed.categories ?? [],
+      brands: parsed.brands ?? [],
+      hsnCodes: parsed.hsnCodes ?? [],
+      styles: parsed.styles ?? [],
+      colors: parsed.colors ?? [],
+    };
+  } catch {
+    return { ...EMPTY_SUGGESTION_CACHE };
+  }
+}
+
+function saveProductSuggestionCache(orgId: string, cache: ProductSuggestionCache) {
+  try {
+    localStorage.setItem(productSuggestionCacheKey(orgId), JSON.stringify(cache));
+  } catch {
+    // non-blocking
+  }
+}
+
+function appendUniqueSorted(list: string[], value: string | null | undefined): string[] {
+  const trimmed = value?.trim();
+  if (!trimmed) return list;
+  if (list.some((item) => item.toLowerCase() === trimmed.toLowerCase())) return list;
+  return [...list, trimmed].sort((a, b) => a.localeCompare(b));
+}
+
+function mergeSortedUnique(...lists: string[][]): string[] {
+  return [...new Set(lists.flat().map((v) => v.trim()).filter(Boolean))].sort((a, b) =>
+    a.localeCompare(b),
+  );
+}
+
 /** Searchable suggestions with free-text entry (not restricted to list values). */
 function FreeTextFieldCombobox({
   id,
@@ -162,6 +223,7 @@ function FreeTextFieldCombobox({
   options,
   placeholder,
   onKeyDown,
+  onValueCommitted,
   inputRef: externalInputRef,
   className,
 }: {
@@ -171,6 +233,7 @@ function FreeTextFieldCombobox({
   options: string[];
   placeholder?: string;
   onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void;
+  onValueCommitted?: (value: string) => void;
   inputRef?: React.RefObject<HTMLInputElement | null>;
   className?: string;
 }) {
@@ -219,6 +282,7 @@ function FreeTextFieldCombobox({
 
   const handleSelect = (selected: string) => {
     onChange(selected);
+    onValueCommitted?.(selected);
     setOpen(false);
     suppressOpenRef.current = true;
     inputRef.current?.focus();
@@ -297,6 +361,10 @@ function FreeTextFieldCombobox({
               setOpen(true);
             }}
             onKeyDown={handleInputKeyDown}
+            onBlur={() => {
+              const trimmed = value.trim();
+              if (trimmed) onValueCommitted?.(trimmed);
+            }}
             placeholder={placeholder}
             autoComplete="off"
             className={className}
@@ -430,6 +498,75 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
   const [hsnCodes, setHsnCodes] = useState<string[]>([]);
   const [styles, setStyles] = useState<string[]>([]);
   const [existingColors, setExistingColors] = useState<string[]>([]);
+
+  const applySuggestionCache = useCallback((cache: ProductSuggestionCache) => {
+    setProductNames(cache.productNames);
+    setCategories(cache.categories);
+    setBrands(cache.brands);
+    setHsnCodes(cache.hsnCodes);
+    setStyles(cache.styles);
+    setExistingColors(cache.colors);
+  }, []);
+
+  const commitPreviousValue = useCallback(
+    (field: keyof ProductSuggestionCache, value: string | null | undefined) => {
+      if (!currentOrganization?.id) return;
+      const trimmed = value?.trim();
+      if (!trimmed) return;
+
+      const orgId = currentOrganization.id;
+      const cache = loadProductSuggestionCache(orgId);
+      const next: ProductSuggestionCache = {
+        ...cache,
+        [field]: appendUniqueSorted(cache[field], trimmed),
+      };
+      saveProductSuggestionCache(orgId, next);
+
+      switch (field) {
+        case "productNames":
+          setProductNames(next.productNames);
+          break;
+        case "categories":
+          setCategories(next.categories);
+          break;
+        case "brands":
+          setBrands(next.brands);
+          break;
+        case "hsnCodes":
+          setHsnCodes(next.hsnCodes);
+          break;
+        case "styles":
+          setStyles(next.styles);
+          break;
+        case "colors":
+          setExistingColors(next.colors);
+          break;
+      }
+    },
+    [currentOrganization?.id],
+  );
+
+  const commitProductFormSuggestions = useCallback(
+    (data: Pick<ProductForm, "product_name" | "category" | "brand" | "style" | "hsn_code" | "colors">) => {
+      if (!currentOrganization?.id) return;
+      const orgId = currentOrganization.id;
+      const cache = loadProductSuggestionCache(orgId);
+      const next: ProductSuggestionCache = {
+        productNames: appendUniqueSorted(cache.productNames, data.product_name),
+        categories: appendUniqueSorted(cache.categories, data.category),
+        brands: appendUniqueSorted(cache.brands, data.brand),
+        styles: appendUniqueSorted(cache.styles, data.style),
+        hsnCodes: appendUniqueSorted(cache.hsnCodes, data.hsn_code),
+        colors: data.colors.reduce(
+          (list, color) => appendUniqueSorted(list, color),
+          cache.colors,
+        ),
+      };
+      saveProductSuggestionCache(orgId, next);
+      applySuggestionCache(next);
+    },
+    [currentOrganization?.id, applySuggestionCache],
+  );
   
   const [formData, setFormData] = useState<ProductForm>({
     product_type: "goods",
@@ -464,6 +601,9 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
   // Reset form when dialog opens - pre-fill from last saved product
   useEffect(() => {
     if (open) {
+      if (currentOrganization?.id) {
+        applySuggestionCache(loadProductSuggestionCache(currentOrganization.id));
+      }
       resetForm();
       fetchSizeGroups();
       fetchDefaultSizeGroup();
@@ -475,7 +615,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
       // Auto-focus product name field
       setTimeout(() => productNameInputRef.current?.focus(), 150);
     }
-  }, [open]);
+  }, [open, currentOrganization?.id, applySuggestionCache]);
 
   // Re-apply garment GST rule when settings load or sale price changes
   useEffect(() => {
@@ -637,41 +777,72 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
   // Fetch unique categories, brands, HSN codes, and styles from existing products
   const fetchPreviousValues = async () => {
     if (!currentOrganization) return;
+    const orgId = currentOrganization.id;
+    const cached = loadProductSuggestionCache(orgId);
     
     const { data, error } = await supabase
       .from("products")
       .select("product_name, category, brand, hsn_code, style")
-      .eq("organization_id", currentOrganization.id)
+      .eq("organization_id", orgId)
       .is("deleted_at", null)
       .limit(2000);
 
+    let uniqueProductNames = cached.productNames;
+    let uniqueCategories = cached.categories;
+    let uniqueBrands = cached.brands;
+    let uniqueHsnCodes = cached.hsnCodes;
+    let uniqueStyles = cached.styles;
+
     if (!error && data) {
-      const uniqueProductNames = [...new Set(data.map(p => p.product_name).filter(Boolean) as string[])].sort();
-      const uniqueCategories = [...new Set(data.map(p => p.category).filter(Boolean) as string[])].sort();
-      const uniqueBrands = [...new Set(data.map(p => p.brand).filter(Boolean) as string[])].sort();
-      const uniqueHsnCodes = [...new Set(data.map(p => p.hsn_code).filter(Boolean) as string[])].sort();
-      const uniqueStyles = [...new Set(data.map(p => p.style).filter(Boolean) as string[])].sort();
-      
-      setProductNames(uniqueProductNames);
-      setCategories(uniqueCategories);
-      setBrands(uniqueBrands);
-      setHsnCodes(uniqueHsnCodes);
-      setStyles(uniqueStyles);
+      uniqueProductNames = mergeSortedUnique(
+        cached.productNames,
+        data.map((p) => p.product_name).filter(Boolean) as string[],
+      );
+      uniqueCategories = mergeSortedUnique(
+        cached.categories,
+        data.map((p) => p.category).filter(Boolean) as string[],
+      );
+      uniqueBrands = mergeSortedUnique(
+        cached.brands,
+        data.map((p) => p.brand).filter(Boolean) as string[],
+      );
+      uniqueHsnCodes = mergeSortedUnique(
+        cached.hsnCodes,
+        data.map((p) => p.hsn_code).filter(Boolean) as string[],
+      );
+      uniqueStyles = mergeSortedUnique(
+        cached.styles,
+        data.map((p) => p.style).filter(Boolean) as string[],
+      );
     }
 
     // Fetch unique colors from product_variants
     const { data: variantsData, error: variantsError } = await supabase
       .from("product_variants")
       .select("color")
-      .eq("organization_id", currentOrganization.id)
+      .eq("organization_id", orgId)
       .is("deleted_at", null)
       .not("color", "is", null)
       .limit(1000);
 
+    let uniqueColors = cached.colors;
     if (!variantsError && variantsData) {
-      const uniqueColors = [...new Set(variantsData.map((v: any) => v.color).filter(Boolean) as string[])].sort();
-      setExistingColors(uniqueColors);
+      uniqueColors = mergeSortedUnique(
+        cached.colors,
+        variantsData.map((v: { color: string | null }) => v.color).filter(Boolean) as string[],
+      );
     }
+
+    const merged: ProductSuggestionCache = {
+      productNames: uniqueProductNames,
+      categories: uniqueCategories,
+      brands: uniqueBrands,
+      hsnCodes: uniqueHsnCodes,
+      styles: uniqueStyles,
+      colors: uniqueColors,
+    };
+    saveProductSuggestionCache(orgId, merged);
+    applySuggestionCache(merged);
   };
 
   const LAST_PRODUCT_KEY = `last_product_details_${currentOrganization?.id || ''}`;
@@ -1530,6 +1701,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
 
       // Save last product details for quick entry next time
       saveLastProductDetails();
+      commitProductFormSuggestions(formData);
 
       // Call the callback with product data — include purchase_qty from variants
       const variantsWithQty = insertedVariants.map((iv: any) => {
@@ -1575,6 +1747,17 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
       const uniqueNewColors = colorsToAdd.filter(c => !formData.colors.includes(c));
       if (uniqueNewColors.length > 0) {
         setFormData({ ...formData, colors: [...formData.colors, ...uniqueNewColors] });
+        if (currentOrganization?.id) {
+          const orgId = currentOrganization.id;
+          const cache = loadProductSuggestionCache(orgId);
+          const nextColors = uniqueNewColors.reduce(
+            (list, color) => appendUniqueSorted(list, color),
+            cache.colors,
+          );
+          const next = { ...cache, colors: nextColors };
+          saveProductSuggestionCache(orgId, next);
+          setExistingColors(nextColors);
+        }
       }
       setColorInput("");
     }
@@ -1888,6 +2071,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                       inputRef={productNameInputRef}
                       value={formData.product_name}
                       onChange={(product_name) => setFormData({ ...formData, product_name })}
+                      onValueCommitted={(product_name) => commitPreviousValue("productNames", product_name)}
                       options={productNames}
                       placeholder={lastProductNameHint}
                       onKeyDown={handleEnterAsTab}
@@ -1902,6 +2086,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                       id="category"
                       value={formData.category}
                       onChange={(category) => setFormData({ ...formData, category })}
+                      onValueCommitted={(category) => commitPreviousValue("categories", category)}
                       options={categories}
                       placeholder="Category"
                       onKeyDown={handleEnterAsTab}
@@ -1916,6 +2101,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                       id="brand"
                       value={formData.brand}
                       onChange={(brand) => setFormData({ ...formData, brand })}
+                      onValueCommitted={(brand) => commitPreviousValue("brands", brand)}
                       options={brands}
                       placeholder="Brand"
                       onKeyDown={handleEnterAsTab}
@@ -1930,6 +2116,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                       id="style"
                       value={formData.style}
                       onChange={(style) => setFormData({ ...formData, style })}
+                      onValueCommitted={(style) => commitPreviousValue("styles", style)}
                       options={styles}
                       placeholder="Style"
                       onKeyDown={handleEnterAsTab}
@@ -1944,6 +2131,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                     id="hsn_code"
                     value={formData.hsn_code}
                     onChange={(hsn_code) => setFormData({ ...formData, hsn_code })}
+                    onValueCommitted={(hsn_code) => commitPreviousValue("hsnCodes", hsn_code)}
                     options={hsnCodes}
                     placeholder="HSN Code"
                     onKeyDown={handleEnterAsTab}
