@@ -3362,7 +3362,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                       </p>
                     </div>
                   </div>
-                  {!isPurchaseBillForm && (
+                  {(!isPurchaseBillForm || (rollWiseMtrEnabled && formData.uom === 'MTR')) && (
                   <Button
                     type="button"
                     onClick={handleGenerateSizeVariants}
