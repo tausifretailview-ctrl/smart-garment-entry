@@ -933,7 +933,6 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                           }}
                         />
                       )}
-                      {isRealTast && <div style={{ flex: 1, minHeight: "48px" }} aria-hidden="true" />}
                       <div
                         style={{
                           textAlign: "center",
@@ -946,6 +945,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                       >
                         For {businessName}
                       </div>
+                      {isRealTast && <div style={{ flex: 1, minHeight: "48px" }} aria-hidden="true" />}
                       {showPaymentQr && (
                         <div
                           className="retail-erp-qr-box"
