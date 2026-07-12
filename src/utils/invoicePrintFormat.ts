@@ -40,7 +40,7 @@ function fallbackFormatForFullPageTemplate(
 export function resolvePosBillFormat(
   invoiceTemplate: string | undefined,
   posBillFormat: PosBillFormat,
-  _invoicePaperFormat?: string,
+  invoicePaperFormat?: string,
 ): PosBillFormat {
   if (invoiceTemplate && THERMAL_ONLY_INVOICE_TEMPLATES.has(invoiceTemplate)) {
     return 'thermal';
