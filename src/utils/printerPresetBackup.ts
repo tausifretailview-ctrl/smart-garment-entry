@@ -5,6 +5,7 @@ export type PrinterPresetBackupRow = {
   backup_id: string;
   preset_id: string | null;
   organization_id: string;
+  org_name?: string | null;
   name: string | null;
   label_width: number | null;
   label_height: number | null;
@@ -17,10 +18,13 @@ export type PrinterPresetBackupRow = {
   is_default: boolean | null;
   print_mode: string | null;
   thermal_cols: number | null;
+  /** Inferred from note — production table has no backup_type column. */
   backup_type: "auto" | "manual";
   note: string | null;
   created_by: string | null;
+  /** Mapped from backed_up_at for UI compatibility. */
   created_at: string;
+  backed_up_at?: string;
 };
 
 export type PrinterPresetExportPreset = {
@@ -82,15 +86,60 @@ function mapPresetRow(row: Record<string, unknown>): PrinterPresetRow {
   };
 }
 
+function inferBackupType(note: string | null | undefined): "auto" | "manual" {
+  if (!note || !note.trim()) return "auto";
+  const n = note.trim().toLowerCase();
+  if (n === "before restore" || n === "before import") return "auto";
+  if (n.startsWith("full snapshot") || n.startsWith("migrated from")) return "auto";
+  return "manual";
+}
+
+function mapBackupRow(row: Record<string, unknown>): PrinterPresetBackupRow {
+  const backedUpAt = String(row.backed_up_at ?? row.created_at ?? new Date().toISOString());
+  const note = row.note != null ? String(row.note) : null;
+  return {
+    backup_id: String(row.backup_id),
+    preset_id: row.preset_id != null ? String(row.preset_id) : null,
+    organization_id: String(row.organization_id),
+    org_name: row.org_name != null ? String(row.org_name) : null,
+    name: row.name != null ? String(row.name) : null,
+    label_width: row.label_width != null ? Number(row.label_width) : null,
+    label_height: row.label_height != null ? Number(row.label_height) : null,
+    x_offset: row.x_offset != null ? Number(row.x_offset) : null,
+    y_offset: row.y_offset != null ? Number(row.y_offset) : null,
+    v_gap: row.v_gap != null ? Number(row.v_gap) : null,
+    a4_cols: row.a4_cols != null ? Number(row.a4_cols) : null,
+    a4_rows: row.a4_rows != null ? Number(row.a4_rows) : null,
+    label_config: (row.label_config as LabelDesignConfig) ?? null,
+    is_default: row.is_default != null ? Boolean(row.is_default) : null,
+    print_mode: row.print_mode != null ? String(row.print_mode) : null,
+    thermal_cols: row.thermal_cols != null ? Number(row.thermal_cols) : null,
+    backup_type: inferBackupType(note),
+    note,
+    created_by: row.created_by != null ? String(row.created_by) : null,
+    created_at: backedUpAt,
+    backed_up_at: backedUpAt,
+  };
+}
+
+export function getPrinterPresetBackupErrorMessage(err: unknown): string {
+  if (err && typeof err === "object" && "message" in err && typeof (err as { message: unknown }).message === "string") {
+    return (err as { message: string }).message;
+  }
+  if (err instanceof Error) return err.message;
+  return "Unknown error";
+}
+
 function snapshotToInsert(
   preset: PrinterPresetRow,
   organizationId: string,
-  backupType: "auto" | "manual",
+  organizationName: string,
   note?: string | null,
 ) {
   return {
     preset_id: preset.id,
     organization_id: organizationId,
+    org_name: organizationName,
     name: preset.name,
     label_width: preset.label_width,
     label_height: preset.label_height,
@@ -103,7 +152,6 @@ function snapshotToInsert(
     is_default: preset.is_default,
     print_mode: preset.print_mode,
     thermal_cols: preset.thermal_cols,
-    backup_type: backupType,
     note: note ?? null,
   };
 }
@@ -115,10 +163,10 @@ export async function fetchPrinterPresetBackups(
     .from("printer_presets_backup")
     .select("*")
     .eq("organization_id", organizationId)
-    .order("created_at", { ascending: false });
+    .order("backed_up_at", { ascending: false });
 
   if (error) throw error;
-  return (data || []) as PrinterPresetBackupRow[];
+  return (data || []).map((row) => mapBackupRow(row as Record<string, unknown>));
 }
 
 export async function fetchOrgPrinterPresets(organizationId: string): Promise<PrinterPresetRow[]> {
@@ -134,6 +182,7 @@ export async function fetchOrgPrinterPresets(organizationId: string): Promise<Pr
 
 export async function createManualPrinterPresetBackup(
   organizationId: string,
+  organizationName: string,
   presetId: string,
   note?: string,
 ): Promise<void> {
@@ -149,7 +198,7 @@ export async function createManualPrinterPresetBackup(
 
   const preset = mapPresetRow(data as Record<string, unknown>);
   const { error: insertError } = await supabase.from("printer_presets_backup").insert(
-    snapshotToInsert(preset, organizationId, "manual", note?.trim() || null),
+    snapshotToInsert(preset, organizationId, organizationName, note?.trim() || null),
   );
   if (insertError) throw insertError;
 }
@@ -157,17 +206,18 @@ export async function createManualPrinterPresetBackup(
 async function insertPresetSnapshotBackup(
   preset: PrinterPresetRow,
   organizationId: string,
-  backupType: "auto" | "manual",
+  organizationName: string,
   note?: string,
 ): Promise<void> {
   const { error } = await supabase.from("printer_presets_backup").insert(
-    snapshotToInsert(preset, organizationId, backupType, note),
+    snapshotToInsert(preset, organizationId, organizationName, note),
   );
   if (error) throw error;
 }
 
 export async function restorePrinterPresetFromBackup(
   organizationId: string,
+  organizationName: string,
   backup: PrinterPresetBackupRow,
 ): Promise<PrinterPresetRow> {
   if (backup.organization_id !== organizationId) {
@@ -198,7 +248,12 @@ export async function restorePrinterPresetFromBackup(
   }
 
   if (current) {
-    await insertPresetSnapshotBackup(current, organizationId, "auto", "before restore");
+    await insertPresetSnapshotBackup(
+      current,
+      organizationId,
+      backup.org_name || organizationName,
+      "before restore",
+    );
   }
 
   const payload = {
@@ -307,19 +362,23 @@ export function validatePrinterPresetImportFile(
   };
 }
 
-export async function backupAllPresetsBeforeImport(organizationId: string): Promise<void> {
+export async function backupAllPresetsBeforeImport(
+  organizationId: string,
+  organizationName: string,
+): Promise<void> {
   const presets = await fetchOrgPrinterPresets(organizationId);
   if (presets.length === 0) return;
   for (const preset of presets) {
-    await insertPresetSnapshotBackup(preset, organizationId, "auto", "before import");
+    await insertPresetSnapshotBackup(preset, organizationId, organizationName, "before import");
   }
 }
 
 export async function importPrinterPresetExportFile(
   organizationId: string,
+  organizationName: string,
   file: PrinterPresetExportFile,
 ): Promise<number> {
-  await backupAllPresetsBeforeImport(organizationId);
+  await backupAllPresetsBeforeImport(organizationId, organizationName);
 
   const rows = file.presets.map((p) => ({
     organization_id: organizationId,

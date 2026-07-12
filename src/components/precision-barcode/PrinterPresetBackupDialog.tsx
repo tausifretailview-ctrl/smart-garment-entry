@@ -37,13 +37,13 @@ import { PrecisionLabelPreview } from "@/components/precision-barcode/PrecisionL
 import type { LabelDesignConfig, LabelItem } from "@/types/labelTypes";
 import type { ProductFieldsConfig } from "@/utils/productFieldSettingsForLabels";
 import {
-  backupAllPresetsBeforeImport,
   buildPrinterPresetExportFile,
   createManualPrinterPresetBackup,
   downloadPrinterPresetExport,
   fetchOrgPrinterPresets,
   fetchPrinterPresetBackups,
   formatBackupDateTime,
+  getPrinterPresetBackupErrorMessage,
   importPrinterPresetExportFile,
   restorePrinterPresetFromBackup,
   validatePrinterPresetImportFile,
@@ -159,14 +159,14 @@ export function PrinterPresetBackupDialog({
     }
     setIsCreating(true);
     try {
-      await createManualPrinterPresetBackup(organizationId, selectedPresetId, manualNote);
+      await createManualPrinterPresetBackup(organizationId, organizationName, selectedPresetId, manualNote);
       toast.success("Manual backup created");
       setManualNote("");
       await invalidateAndRefresh();
       setTab("backups");
     } catch (err) {
       console.error(err);
-      toast.error("Failed to create backup");
+      toast.error(`Failed to create backup: ${getPrinterPresetBackupErrorMessage(err)}`);
     } finally {
       setIsCreating(false);
     }
@@ -176,7 +176,7 @@ export function PrinterPresetBackupDialog({
     if (!organizationId || !restoreTarget) return;
     setIsRestoring(true);
     try {
-      await restorePrinterPresetFromBackup(organizationId, restoreTarget);
+      await restorePrinterPresetFromBackup(organizationId, organizationName, restoreTarget);
       toast.success(`Restored "${restoreTarget.name}" from backup`);
       setRestoreTarget(null);
       await invalidateAndRefresh();
@@ -229,7 +229,7 @@ export function PrinterPresetBackupDialog({
     if (!organizationId || !importPreview) return;
     setIsImporting(true);
     try {
-      const count = await importPrinterPresetExportFile(organizationId, importPreview);
+      const count = await importPrinterPresetExportFile(organizationId, organizationName, importPreview);
       toast.success(`Imported ${count} design(s). Previous presets were backed up first.`);
       setImportPreview(null);
       await invalidateAndRefresh();
