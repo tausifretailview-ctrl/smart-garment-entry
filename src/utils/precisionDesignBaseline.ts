@@ -55,21 +55,47 @@ export function precisionDesignHasUnsavedChanges(
   settings: PrecisionSettingsSlice,
   presetName: string | null,
 ): boolean {
-  if (!baseline?.presetName || !presetName) return false;
-  if (baseline.presetName !== presetName) return true;
-
-  const current = snapshotPrecisionDesign(settings, presetName);
-  return (
-    current.xOffset !== baseline.xOffset ||
-    current.yOffset !== baseline.yOffset ||
-    current.vGap !== baseline.vGap ||
-    current.hGap !== baseline.hGap ||
-    current.labelWidth !== baseline.labelWidth ||
-    current.labelHeight !== baseline.labelHeight ||
-    current.a4Cols !== baseline.a4Cols ||
-    current.a4Rows !== baseline.a4Rows ||
-    current.thermalCols !== baseline.thermalCols ||
-    current.printMode !== baseline.printMode ||
-    current.labelConfigJson !== baseline.labelConfigJson
+  return precisionLabelDesignHasUnsavedChanges(
+    baseline,
+    settings.labelConfig,
+    presetName,
   );
+}
+
+/** True only when Label Designer field layout changed vs last saved/loaded snapshot. */
+export function precisionLabelDesignHasUnsavedChanges(
+  baseline: PrecisionDesignBaseline | null,
+  labelConfig: LabelDesignConfig | null,
+  presetName: string | null,
+): boolean {
+  if (!baseline?.presetName || !presetName) return false;
+  if (baseline.presetName !== presetName) return false;
+  const currentJson = JSON.stringify(labelConfig ?? null);
+  return currentJson !== baseline.labelConfigJson;
+}
+
+export function syncBaselineLabelConfig(
+  baseline: PrecisionDesignBaseline | null,
+  presetName: string | null,
+  labelConfig: LabelDesignConfig | null,
+): PrecisionDesignBaseline | null {
+  if (!presetName) return baseline;
+  const labelConfigJson = JSON.stringify(labelConfig ?? null);
+  if (!baseline) {
+    return {
+      presetName,
+      xOffset: 0,
+      yOffset: 0,
+      vGap: 0,
+      hGap: 0,
+      labelWidth: 0,
+      labelHeight: 0,
+      a4Cols: 4,
+      a4Rows: 12,
+      thermalCols: 1,
+      printMode: "thermal",
+      labelConfigJson,
+    };
+  }
+  return { ...baseline, presetName, labelConfigJson };
 }

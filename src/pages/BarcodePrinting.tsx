@@ -64,8 +64,9 @@ import {
   type PrecisionPrintMode,
 } from "@/utils/precisionThermalModes";
 import {
-  precisionDesignHasUnsavedChanges,
+  precisionLabelDesignHasUnsavedChanges,
   snapshotPrecisionDesign,
+  syncBaselineLabelConfig,
 } from "@/utils/precisionDesignBaseline";
 import {
   persistBarcodePurchaseBillContext,
@@ -1600,6 +1601,20 @@ export default function BarcodePrinting() {
     }
   }, [saveTemplateToDb]);
 
+  const markLabelDesignBaselineSaved = useCallback(
+    (labelConfig: LabelDesignConfig | null, presetName?: string | null) => {
+      const baseName =
+        (presetName ?? activePrecisionTemplateName)?.replace(/^preset:/, "") ?? null;
+      if (!baseName) return;
+      precisionDesignBaselineRef.current = syncBaselineLabelConfig(
+        precisionDesignBaselineRef.current,
+        baseName,
+        labelConfig,
+      );
+    },
+    [activePrecisionTemplateName],
+  );
+
   // Sync database settings with local state
   useEffect(() => {
     if (isLoadingSettings) return;
@@ -1881,19 +1896,25 @@ export default function BarcodePrinting() {
     if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
     
     autoSaveTimerRef.current = setTimeout(() => {
-      void autoSavePrecisionConfig(
-        activePrecisionTemplateName,
-        precisionSettings.labelConfig,
-        precisionSettings.labelWidth,
-        precisionSettings.labelHeight,
-        currentOrganization.id
-      );
+      void (async () => {
+        const cfg = precisionSettings.labelConfig;
+        const ok = await autoSavePrecisionConfig(
+          activePrecisionTemplateName,
+          cfg,
+          precisionSettings.labelWidth,
+          precisionSettings.labelHeight,
+          currentOrganization.id,
+        );
+        if (ok) {
+          markLabelDesignBaselineSaved(cfg, activePrecisionTemplateName);
+        }
+      })();
     }, 800);
     
     return () => {
       if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
     };
-  }, [precisionSettings.labelConfig, precisionSettings.labelWidth, precisionSettings.labelHeight, activePrecisionTemplateName, currentOrganization?.id, autoSavePrecisionConfig]);
+  }, [precisionSettings.labelConfig, precisionSettings.labelWidth, precisionSettings.labelHeight, activePrecisionTemplateName, currentOrganization?.id, autoSavePrecisionConfig, markLabelDesignBaselineSaved]);
 
   // Fetch business name from settings (organization-scoped) — once per org.
   useEffect(() => {
@@ -2190,13 +2211,18 @@ export default function BarcodePrinting() {
     if (mode === precisionSettings.printMode) return;
 
     const presetName = activePrecisionTemplateName?.replace(/^preset:/, "") ?? null;
-    const hasUnsaved = precisionDesignHasUnsavedChanges(
-      precisionDesignBaselineRef.current,
-      precisionSettings,
-      presetName,
+    const isSavedUserPreset = Boolean(
+      presetName && dbPresets.some((p) => p.name === presetName),
     );
+    const hasUnsavedLabelDesign =
+      isSavedUserPreset &&
+      precisionLabelDesignHasUnsavedChanges(
+        precisionDesignBaselineRef.current,
+        precisionSettings.labelConfig,
+        presetName,
+      );
 
-    if (hasUnsaved && presetName) {
+    if (hasUnsavedLabelDesign) {
       pendingPrintModeSwitchRef.current = mode;
       setModeSwitchConfirmOpen(true);
       return;
@@ -2205,8 +2231,10 @@ export default function BarcodePrinting() {
     executePrintModeSwitch(mode);
   }, [
     activePrecisionTemplateName,
+    dbPresets,
     executePrintModeSwitch,
-    precisionSettings,
+    precisionSettings.labelConfig,
+    precisionSettings.printMode,
   ]);
 
   const saveActivePrecisionPreset = useCallback(async (): Promise<boolean> => {
@@ -2260,12 +2288,14 @@ export default function BarcodePrinting() {
     }
 
     precisionDesignBaselineRef.current = snapshotPrecisionDesign(precisionSettings, baseName);
+    markLabelDesignBaselineSaved(precisionSettings.labelConfig, baseName);
     toast.success(`Preset "${baseName}" saved`);
     return true;
   }, [
     activePrecisionTemplateName,
     currentOrganization?.id,
     dbPresets,
+    markLabelDesignBaselineSaved,
     precisionSettings,
   ]);
 
@@ -6352,6 +6382,7 @@ export default function BarcodePrinting() {
                   },
                   preset.name,
                 );
+                markLabelDesignBaselineSaved(preset.labelConfig ?? null, preset.name);
               }}
               onDeletePreset={async (presetId) => {
                 const { error } = await supabase.from("printer_presets").delete().eq("id", presetId);
@@ -6569,6 +6600,8 @@ export default function BarcodePrinting() {
                       toast.error("Failed to save label design");
                       return;
                     }
+
+                    markLabelDesignBaselineSaved(configToSave, activePrecisionTemplateName);
 
                     const cleanName = activePrecisionTemplateName.startsWith("preset:")
                       ? activePrecisionTemplateName.replace("preset:", "")
@@ -6887,15 +6920,16 @@ export default function BarcodePrinting() {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Unsaved changes</AlertDialogTitle>
+            <AlertDialogTitle>Unsaved label design</AlertDialogTitle>
             <AlertDialogDescription>
-              You have unsaved changes to &ldquo;{activePrecisionTemplateBaseName}&rdquo;. Switch mode and discard them?
+              You have unsaved changes in the Label Designer for &ldquo;{activePrecisionTemplateBaseName}&rdquo;.
+              Save the design or discard before switching print mode.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="flex-col-reverse sm:flex-row sm:justify-end gap-2">
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <Button type="button" variant="outline" onClick={() => void handleSaveFirstModeSwitch()}>
-              Save first
+              Save design
             </Button>
             <AlertDialogAction onClick={handleDiscardModeSwitch}>
               Discard and switch
