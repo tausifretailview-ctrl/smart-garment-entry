@@ -6,7 +6,7 @@ import { Slider } from "@/components/ui/slider";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { HelpCircle, Minus, Plus, Save, Trash2, RefreshCw, Star } from "lucide-react";
+import { HelpCircle, Minus, Plus, Save, Trash2, RefreshCw, Star, History } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { PrecisionThermalRowPreview } from "./PrecisionThermalRowPreview";
 import { PrecisionLabelCell } from "./PrecisionLabelCell";
@@ -170,6 +170,8 @@ interface LabelCalibrationUIProps {
   onA4RowsChange?: (rows: number) => void;
   /** Controlled active preset/template name - persists across tab switches */
   activePresetValue?: string | null;
+  /** Open label design backup & restore dialog */
+  onOpenBackupRestore?: () => void;
   /** @deprecated Use onSavePreset/onDeletePreset instead */
   onPresetsChange?: (presets: CalibrationPreset[]) => void;
 }
@@ -197,6 +199,7 @@ export function LabelCalibrationUI({
   onA4ColsChange,
   onA4RowsChange,
   activePresetValue,
+  onOpenBackupRestore,
 }: LabelCalibrationUIProps) {
   const [savePresetOpen, setSavePresetOpen] = useState(false);
   const [newPresetName, setNewPresetName] = useState("");
@@ -570,6 +573,19 @@ export function LabelCalibrationUI({
               ))}
             </SelectContent>
           </Select>
+        )}
+
+        {onOpenBackupRestore && (
+          <Button
+            type="button"
+            variant="outline"
+            size="xs"
+            className="h-8"
+            onClick={onOpenBackupRestore}
+          >
+            <History className="h-3 w-3 mr-1" />
+            Backup &amp; Restore
+          </Button>
         )}
       </div>
 

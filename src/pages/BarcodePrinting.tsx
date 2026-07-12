@@ -31,7 +31,7 @@ import {
   resolveBarcodeSlotMm,
 } from "@/utils/barcodeLabelLayout";
 import type { LabelData, TSPLTemplateConfig } from "@/utils/tsplGenerator";
-import { Check, Save, Trash2, GripVertical, Eye, Download, RefreshCw, Edit, Printer, AlertTriangle, Plus, Loader2, ChevronDown, ChevronLeft, Search, Package } from "lucide-react";
+import { Check, Save, Trash2, GripVertical, Eye, Download, RefreshCw, Edit, Printer, AlertTriangle, Plus, Loader2, ChevronDown, ChevronLeft, Search, Package, History } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Badge } from "@/components/ui/badge";
 import jsPDF from "jspdf";
@@ -107,6 +107,7 @@ import { LabelCalibrationUI, type CalibrationPreset } from "@/components/precisi
 import { TestLabelPrint } from "@/components/precision-barcode/TestLabelPrint";
 import { PrecisionPrintCSS } from "@/components/precision-barcode/PrecisionPrintCSS";
 import { PrecisionLabelDesigner, DEFAULT_PRECISION_CONFIG } from "@/components/precision-barcode/PrecisionLabelDesigner";
+import { PrinterPresetBackupDialog } from "@/components/precision-barcode/PrinterPresetBackupDialog";
 import {
   getFixedBuiltinLabelDimensions,
   isFixedBuiltinLabelPreset,
@@ -1358,6 +1359,7 @@ export default function BarcodePrinting() {
     thermalCols: 1,
   });
   const [dbPresets, setDbPresets] = useState<CalibrationPreset[]>([]);
+  const [backupRestoreOpen, setBackupRestoreOpen] = useState(false);
   const [precisionConfigReady, setPrecisionConfigReady] = useState(false);
   const precisionPrintRef = useRef<HTMLDivElement>(null);
   const testPrintRef = useRef<HTMLDivElement>(null);
@@ -2083,6 +2085,67 @@ export default function BarcodePrinting() {
       setLabelConfig(migratedConfig);
     }
   }, [savedLabelTemplates, setActivePrecisionTemplateName]);
+
+  const refreshDbPresetsFromServer = useCallback(async () => {
+    if (!currentOrganization?.id) return;
+    const { data, error } = await supabase
+      .from("printer_presets")
+      .select("*")
+      .eq("organization_id", currentOrganization.id)
+      .order("name");
+    if (error) throw error;
+    if (data) {
+      const mapped = data.map((p: Record<string, unknown>) => ({
+        id: String(p.id),
+        name: String(p.name),
+        xOffset: Number(p.x_offset),
+        yOffset: Number(p.y_offset),
+        vGap: Number(p.v_gap),
+        width: Number(p.label_width),
+        height: Number(p.label_height),
+        a4Cols: p.a4_cols != null ? Number(p.a4_cols) : undefined,
+        a4Rows: p.a4_rows != null ? Number(p.a4_rows) : undefined,
+        printMode: (p.print_mode as CalibrationPreset["printMode"]) || "thermal",
+        labelConfig: p.label_config as LabelDesignConfig | null,
+        isDefault: Boolean(p.is_default),
+        thermalCols: p.thermal_cols != null ? Number(p.thermal_cols) : undefined,
+      }));
+      setDbPresets(mapped);
+    }
+  }, [currentOrganization?.id]);
+
+  const handlePresetsChangedAfterBackup = useCallback(async () => {
+    await refreshDbPresetsFromServer();
+    const activeName = activePrecisionTemplateName?.replace(/^preset:/, "");
+    if (!activeName || !currentOrganization?.id) return;
+    const { data } = await supabase
+      .from("printer_presets")
+      .select("*")
+      .eq("organization_id", currentOrganization.id)
+      .eq("name", activeName)
+      .maybeSingle();
+    if (!data) return;
+    handlePrecisionPresetLoad({
+      id: String(data.id),
+      name: String(data.name),
+      xOffset: Number(data.x_offset),
+      yOffset: Number(data.y_offset),
+      vGap: Number(data.v_gap),
+      width: Number(data.label_width),
+      height: Number(data.label_height),
+      a4Cols: data.a4_cols != null ? Number(data.a4_cols) : undefined,
+      a4Rows: data.a4_rows != null ? Number(data.a4_rows) : undefined,
+      printMode: (data.print_mode as CalibrationPreset["printMode"]) || "thermal",
+      labelConfig: data.label_config as LabelDesignConfig | null,
+      isDefault: Boolean(data.is_default),
+      thermalCols: data.thermal_cols != null ? Number(data.thermal_cols) : undefined,
+    });
+  }, [
+    activePrecisionTemplateName,
+    currentOrganization?.id,
+    handlePrecisionPresetLoad,
+    refreshDbPresetsFromServer,
+  ]);
 
   // Recalculate purchase codes when alphabet changes (handles timing issues)
   useEffect(() => {
@@ -6117,6 +6180,7 @@ export default function BarcodePrinting() {
               sampleItem={labelItems.length > 0 ? { ...labelItems[0], businessName } : undefined}
               fullWorkspace
               activePresetValue={activePrecisionTemplateName}
+              onOpenBackupRestore={() => setBackupRestoreOpen(true)}
             />
             </div>
           </div>
@@ -6126,6 +6190,16 @@ export default function BarcodePrinting() {
           <div className="border rounded-md flex flex-col flex-1 min-h-0 overflow-hidden">
             <div className="flex flex-wrap items-center gap-2 px-3 py-2 border-b bg-muted/30 shrink-0">
               <h2 className="text-sm font-semibold">Label Designer</h2>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8 text-xs gap-1.5"
+                onClick={() => setBackupRestoreOpen(true)}
+              >
+                <History className="h-3.5 w-3.5" />
+                Backup &amp; Restore
+              </Button>
               {activePrecisionTemplateName && (
                 <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-900/30 border border-green-200 dark:border-green-800">
                   <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
@@ -6934,6 +7008,20 @@ export default function BarcodePrinting() {
           }
         }
       `}</style>}
+
+      <PrinterPresetBackupDialog
+        open={backupRestoreOpen}
+        onOpenChange={setBackupRestoreOpen}
+        organizationId={currentOrganization?.id}
+        organizationName={businessName || currentOrganization?.name || "organization"}
+        presets={dbPresets
+          .filter((p) => p.id)
+          .map((p) => ({ id: p.id!, name: p.name, width: p.width, height: p.height }))}
+        activePresetName={activePrecisionTemplateName}
+        sampleItem={labelItems.length > 0 ? { ...labelItems[0], businessName } : undefined}
+        productFieldSettings={productFieldSettings}
+        onPresetsChanged={handlePresetsChangedAfterBackup}
+      />
     </div>
   );
 }
