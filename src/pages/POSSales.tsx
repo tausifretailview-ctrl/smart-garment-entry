@@ -364,6 +364,8 @@ interface PosProductRow {
 
 const POS_BARCODE_REPEAT_CACHE_MS = 5_000;
 const posRecentBarcodeScanAt = new Map<string, number>();
+/** Barcodes currently going through searchAndAddProduct (prevents Enter + debounce double-add). */
+const posSearchAndAddInFlight = new Set<string>();
 
 /** Swallow scanner double-fire within 5s after a successful add for the same barcode. */
 function shouldSwallowPosRepeatBarcodeScan(barcode: string): boolean {
@@ -894,12 +896,32 @@ export default function POSSales() {
   }, [currentOrganization?.id, items.length, currentSaleId, setItems]);
 
   // Barcode scanner detection for instant cart add
-  const { recordKeystroke, reset: resetScannerDetection, detectScannerInput, scheduleAutoSubmit, cancelAutoSubmit, markSubmitted } = useBarcodeScanner();
+  const {
+    recordKeystroke,
+    reset: resetScannerDetection,
+    detectScannerInput,
+    scheduleAutoSubmit,
+    cancelAutoSubmit,
+    markSubmitted,
+    wasRecentlySubmitted,
+  } = useBarcodeScanner();
   const mobileERP = useMobileERP();
   const lastInputTime = useRef<number>(0);
   const dropdownDebounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const manualBarcodeDebounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const productSearchSeqRef = useRef(0);
+
+  const clearPosBarcodeSubmitTimers = useCallback(() => {
+    if (dropdownDebounceTimer.current) {
+      clearTimeout(dropdownDebounceTimer.current);
+      dropdownDebounceTimer.current = null;
+    }
+    if (manualBarcodeDebounceTimer.current) {
+      clearTimeout(manualBarcodeDebounceTimer.current);
+      manualBarcodeDebounceTimer.current = null;
+    }
+    cancelAutoSubmit();
+  }, [cancelAutoSubmit]);
   
   // Visibility-based polling - pauses when tab is hidden
   const posRefetchInterval = useVisibilityRefetch(300000); // 5 minutes (reduced from 1 min for multi-tab perf)
@@ -2088,29 +2110,20 @@ export default function POSSales() {
       const rawValue = (e.currentTarget || e.target as HTMLInputElement)?.value?.trim();
       if (!rawValue) return;
       e.preventDefault();
-      
-      // Clear any pending dropdown / auto-submit timer
-      if (dropdownDebounceTimer.current) {
-        clearTimeout(dropdownDebounceTimer.current);
-        dropdownDebounceTimer.current = null;
-      }
-      if (manualBarcodeDebounceTimer.current) {
-        clearTimeout(manualBarcodeDebounceTimer.current);
-        manualBarcodeDebounceTimer.current = null;
-      }
-      cancelAutoSubmit();
+
+      clearPosBarcodeSubmitTimers();
       markSubmitted(rawValue);
-      
+
       // Close dropdown immediately for scanner input
       setOpenProductSearch(false);
-      
+
       // Search and add product directly (refocus happens after add completes)
       void searchAndAddProduct(rawValue);
-      
+
       // Reset scanner detection for next input
       resetScannerDetection();
     }
-  }, [resetScannerDetection, cancelAutoSubmit, markSubmitted, searchAndAddProduct]);
+  }, [resetScannerDetection, clearPosBarcodeSubmitTimers, markSubmitted, searchAndAddProduct]);
 
   // Optimized input change handler with scanner detection
   const handleBarcodeInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -2168,6 +2181,7 @@ export default function POSSales() {
           void (async () => {
             const term = value.trim();
             if (!term || /\s/.test(term)) return;
+            if (wasRecentlySubmitted(term) || posSearchAndAddInFlight.has(term)) return;
 
             const orgId = currentOrganization?.id;
             if (!orgId) return;
@@ -2202,7 +2216,7 @@ export default function POSSales() {
       setProductSearchResults([]);
       setIsProductSearchLoading(false);
     }
-  }, [recordKeystroke, detectScannerInput, scheduleAutoSubmit, searchAndAddProduct, resetScannerDetection, cancelAutoSubmit, markSubmitted, currentOrganization?.id, mobileERP]);
+  }, [recordKeystroke, detectScannerInput, scheduleAutoSubmit, searchAndAddProduct, resetScannerDetection, clearPosBarcodeSubmitTimers, markSubmitted, wasRecentlySubmitted, currentOrganization?.id, mobileERP]);
 
   useEffect(() => {
     const term = searchInput.trim();
@@ -2469,6 +2483,14 @@ export default function POSSales() {
       return;
     }
 
+    if (posSearchAndAddInFlight.has(trimmedTerm)) {
+      setSearchInput("");
+      focusBarcodeScanInput();
+      return;
+    }
+
+    posSearchAndAddInFlight.add(trimmedTerm);
+
     try {
       // Quick service shortcodes (1-9): open dialog only when no real product has this barcode
       if (/^[1-9]$/.test(trimmedTerm)) {
@@ -2610,6 +2632,7 @@ export default function POSSales() {
       toast.error('Lookup failed', { description: error.message || 'Could not search products. Try again.' });
       focusBarcodeScanInput();
     } finally {
+      posSearchAndAddInFlight.delete(trimmedTerm);
       setIsProductSearchLoading(false);
     }
   }
@@ -2953,8 +2976,44 @@ export default function POSSales() {
       };
       const pricedItem = applyPosGarmentGstToItem(newItem, garmentGstSettings);
       hasManuallyAddedNewItemRef.current = true;
-      setItems(prev => [...prev, pricedItem]);
-      bumpCartHighlight(newItem.id);
+      setItems((prev) => {
+        if (!isServiceProduct) {
+          const mergeIdx = prev.findIndex((item) => item.barcode === variant.barcode);
+          if (mergeIdx >= 0) {
+            const updated = [...prev];
+            const line = updated[mergeIdx];
+            const mergedQty = line.quantity + 1;
+            updated[mergeIdx] = {
+              ...line,
+              quantity: mergedQty,
+              netAmount: calculatePosCartLineNet({ ...line, quantity: mergedQty }),
+            };
+            bumpCartHighlight(line.id);
+            return updated;
+          }
+        } else if (overridePrice) {
+          const mergeIdx = findPosServiceMergeIndex(prev, {
+            barcode: variant.barcode || '',
+            variantId: variant.id,
+            mrp: overridePrice.mrp || overridePrice.sale_price,
+            unitCost: overridePrice.sale_price || overridePrice.mrp || overridePrice.sale_price,
+          });
+          if (mergeIdx >= 0) {
+            const updated = [...prev];
+            const line = updated[mergeIdx];
+            const mergedQty = line.quantity + 1;
+            updated[mergeIdx] = {
+              ...line,
+              quantity: mergedQty,
+              netAmount: calculatePosCartLineNet({ ...line, quantity: mergedQty }),
+            };
+            bumpCartHighlight(line.id);
+            return updated;
+          }
+        }
+        bumpCartHighlight(pricedItem.id);
+        return [...prev, pricedItem];
+      });
       
       // Play success beep for new item added
       playSuccessBeep();
@@ -5175,8 +5234,8 @@ export default function POSSales() {
           onBarcodeSubmit={() => {
             const rawValue = barcodeInputRef.current?.value?.trim() || searchInput.trim();
             if (rawValue) {
+              clearPosBarcodeSubmitTimers();
               markSubmitted(rawValue);
-              cancelAutoSubmit();
               searchAndAddProduct(rawValue);
               setSearchInput("");
             }
@@ -5318,8 +5377,8 @@ export default function POSSales() {
           onBarcodeSubmit={() => {
             const rawValue = barcodeInputRef.current?.value?.trim() || searchInput.trim();
             if (rawValue) {
+              clearPosBarcodeSubmitTimers();
               markSubmitted(rawValue);
-              cancelAutoSubmit();
               searchAndAddProduct(rawValue);
               setSearchInput("");
             }
@@ -5709,8 +5768,11 @@ export default function POSSales() {
                           }
                           if (e.key === 'Enter' || e.key === 'Go' || (e as any).keyCode === 13) {
                             e.preventDefault();
+                            const rawValue = (e.currentTarget as HTMLInputElement)?.value?.trim() || searchInput.trim();
                             const selected = filteredProducts[selectedProductIndex] || filteredProducts[0];
                             if (selected?.product && selected?.variant) {
+                              clearPosBarcodeSubmitTimers();
+                              if (rawValue) markSubmitted(rawValue);
                               addItemToCart(selected.product, selected.variant);
                               setOpenProductSearch(false);
                               setSearchInput("");
@@ -5730,8 +5792,8 @@ export default function POSSales() {
                     onBarcodeScanned={(barcode) => {
                       const trimmed = barcode.trim();
                       if (!trimmed) return;
+                      clearPosBarcodeSubmitTimers();
                       markSubmitted(trimmed);
-                      cancelAutoSubmit();
                       setSearchInput("");
                       searchAndAddProduct(trimmed);
                       setTimeout(() => barcodeInputRef.current?.focus(), 50);

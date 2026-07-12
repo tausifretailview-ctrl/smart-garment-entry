@@ -33,6 +33,8 @@ interface BarcodeScannerResult {
    * won't fire again for the same value.
    */
   markSubmitted: (value: string) => void;
+  /** True when this value was already submitted (Enter, auto-submit, or dropdown pick). */
+  wasRecentlySubmitted: (value: string) => boolean;
 }
 
 /**
@@ -95,6 +97,11 @@ export function useBarcodeScanner(config: BarcodeScannerConfig = {}): BarcodeSca
 
   const markSubmitted = useCallback((value: string) => {
     lastSubmittedValue.current = value.trim().toLowerCase();
+  }, []);
+
+  const wasRecentlySubmitted = useCallback((value: string) => {
+    const key = value.trim().toLowerCase();
+    return key.length > 0 && key === lastSubmittedValue.current;
   }, []);
 
   /**
@@ -173,5 +180,6 @@ export function useBarcodeScanner(config: BarcodeScannerConfig = {}): BarcodeSca
     scheduleAutoSubmit,
     cancelAutoSubmit,
     markSubmitted,
+    wasRecentlySubmitted,
   };
 }
