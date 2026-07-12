@@ -52,6 +52,8 @@ import {
 import { isElectron } from "@/utils/appPrint";
 import { resolveBarcodePrintTab, type ResolveBarcodePrintTabInput } from "@/utils/resolveBarcodePrintTab";
 import {
+  findDefaultPresetForMode,
+  getPrecisionPrintModeDisplayName,
   getPrecisionThermalCols,
   getPrecisionThermalModeLabel,
   inferPrecisionPrintMode,
@@ -61,6 +63,10 @@ import {
   printModeToThermalCols,
   type PrecisionPrintMode,
 } from "@/utils/precisionThermalModes";
+import {
+  precisionDesignHasUnsavedChanges,
+  snapshotPrecisionDesign,
+} from "@/utils/precisionDesignBaseline";
 import {
   persistBarcodePurchaseBillContext,
   readBarcodePurchaseBillContext,
@@ -1359,6 +1365,26 @@ export default function BarcodePrinting() {
   const [precisionPrintConfirmOpen, setPrecisionPrintConfirmOpen] = useState(false);
   const [precisionPrintConfirmQty, setPrecisionPrintConfirmQty] = useState(0);
   const [isPrecisionPrintRunning, setIsPrecisionPrintRunning] = useState(false);
+  const [modeSwitchConfirmOpen, setModeSwitchConfirmOpen] = useState(false);
+  const pendingPrintModeSwitchRef = useRef<PrecisionPrintMode | null>(null);
+  const precisionDesignBaselineRef = useRef(
+    snapshotPrecisionDesign(
+      {
+        xOffset: 0,
+        yOffset: 0,
+        vGap: 2,
+        hGap: 0,
+        labelWidth: 50,
+        labelHeight: 25,
+        a4Cols: 4,
+        a4Rows: 12,
+        thermalCols: 1,
+        printMode: "thermal",
+        labelConfig: null,
+      },
+      null,
+    ),
+  );
   const precisionPrintOkRef = useRef<HTMLButtonElement>(null);
   const [purchaseCodeAlphabet, setPurchaseCodeAlphabet] = useState("ABCDEFGHIK");
   const [showPurchaseCode, setShowPurchaseCode] = useState(false);
@@ -1387,6 +1413,14 @@ export default function BarcodePrinting() {
       ),
     [dbPresets, precisionSettings.printMode],
   );
+  const defaultPresetNameForMode = useMemo(
+    () => findDefaultPresetForMode(dbPresets, precisionSettings.printMode)?.name ?? null,
+    [dbPresets, precisionSettings.printMode],
+  );
+  const noDefaultForModeHint = useMemo(() => {
+    if (findDefaultPresetForMode(dbPresets, precisionSettings.printMode)) return null;
+    return `No default set for ${getPrecisionPrintModeDisplayName(precisionSettings.printMode)}. Save a design and click Set Default.`;
+  }, [dbPresets, precisionSettings.printMode]);
   const showDesignerLabelTemplates =
     precisionSettings.printMode === "thermal" || precisionSettings.printMode === "a4";
   const [backupRestoreOpen, setBackupRestoreOpen] = useState(false);
@@ -1867,6 +1901,8 @@ export default function BarcodePrinting() {
     if (!orgId) return;
     if (settingsOrgLoadedRef.current === orgId) return;
 
+    let resolvedPrintMode: PrecisionPrintMode = "thermal";
+
     const fetchBusinessName = async () => {
       if (!currentOrganization?.id) return;
       
@@ -1918,6 +1954,7 @@ export default function BarcodePrinting() {
               : "auto";
           setSettingsDefaultBarTab(configuredDefaultTab);
           setPrecisionProEnabledFromSettings(bbs.precision_pro_enabled === true);
+          resolvedPrintMode = (bbs.precision_print_mode as PrecisionPrintMode) || "thermal";
           setPrecisionSettings(prev => ({
             ...prev,
             enabled: bbs.precision_pro_enabled === true,
@@ -1928,7 +1965,7 @@ export default function BarcodePrinting() {
             labelHeight: bbs.precision_label_height ?? prev.labelHeight,
             a4Cols: bbs.precision_a4_cols ?? prev.a4Cols,
             a4Rows: bbs.precision_a4_rows ?? prev.a4Rows,
-            printMode: bbs.precision_print_mode ?? prev.printMode,
+            printMode: resolvedPrintMode,
             // Only use settings labelConfig as fallback when NO active preset is selected from localStorage
             // If activePrecisionTemplateName is set, the preset's labelConfig will be loaded by fetchDbPresets
             labelConfig: prev.labelConfig || (!activePrecisionTemplateName ? (bbs.precision_label_config || null) : prev.labelConfig),
@@ -1951,36 +1988,42 @@ export default function BarcodePrinting() {
           const mapped = data.map((p: any) => mapPrinterPresetFromRow(p));
           setDbPresets(mapped);
 
-          // Auto-load preset: either the one saved in localStorage or the default preset
-          const localStoragePresetName = activePrecisionTemplateName?.replace('preset:', '') || null;
-          const presetToLoad = localStoragePresetName 
+          // Auto-load preset: localStorage selection, else default for the active print mode
+          const localStoragePresetName = activePrecisionTemplateName?.replace("preset:", "") || null;
+          const presetToLoad = localStoragePresetName
             ? mapped.find((p: any) => p.name === localStoragePresetName)
-            : mapped.find((p: any) => p.isDefault);
-          
+            : findDefaultPresetForMode(mapped, resolvedPrintMode);
+
           if (presetToLoad) {
             const fixedDims = getFixedBuiltinLabelDimensions(presetToLoad.name);
             const resolvedConfig = fixedDims || presetToLoad.labelConfig
               ? resolvePresetLabelConfig(presetToLoad.name, presetToLoad.labelConfig)
               : undefined;
-            setPrecisionSettings((prev) => ({
-              ...prev,
-              xOffset: presetToLoad.xOffset,
-              yOffset: presetToLoad.yOffset,
-              vGap: presetToLoad.vGap,
-              hGap: presetToLoad.hGap ?? 0,
-              labelWidth: fixedDims?.width ?? presetToLoad.width,
-              labelHeight: fixedDims?.height ?? presetToLoad.height,
-              ...(presetToLoad.a4Cols ? { a4Cols: presetToLoad.a4Cols } : {}),
-              ...(presetToLoad.a4Rows ? { a4Rows: presetToLoad.a4Rows } : {}),
-              printMode: inferPrecisionPrintMode(presetToLoad),
-              ...(resolvedConfig ? { labelConfig: resolvedConfig } : {}),
-              thermalCols: presetToLoad.thermalCols || printModeToThermalCols(inferPrecisionPrintMode(presetToLoad)),
-              enabled: true,
-            }));
-            // Set name without "preset:" prefix — Fix 1 in settings sync will correct if needed
+            const loadedMode = inferPrecisionPrintMode(presetToLoad);
+            setPrecisionSettings((prev) => {
+              const next = {
+                ...prev,
+                xOffset: presetToLoad.xOffset,
+                yOffset: presetToLoad.yOffset,
+                vGap: presetToLoad.vGap,
+                hGap: presetToLoad.hGap ?? 0,
+                labelWidth: fixedDims?.width ?? presetToLoad.width,
+                labelHeight: fixedDims?.height ?? presetToLoad.height,
+                ...(presetToLoad.a4Cols ? { a4Cols: presetToLoad.a4Cols } : {}),
+                ...(presetToLoad.a4Rows ? { a4Rows: presetToLoad.a4Rows } : {}),
+                printMode: loadedMode,
+                ...(resolvedConfig ? { labelConfig: resolvedConfig } : {}),
+                thermalCols: presetToLoad.thermalCols || printModeToThermalCols(loadedMode),
+                enabled: true,
+              };
+              precisionDesignBaselineRef.current = snapshotPrecisionDesign(next, presetToLoad.name);
+              return next;
+            });
             if (!localStoragePresetName) {
               setActivePrecisionTemplateName(presetToLoad.name);
-              toast.success(`Auto-loaded preset "${presetToLoad.name}" (${presetToLoad.width}×${presetToLoad.height}mm, ${getPrecisionThermalModeLabel(inferPrecisionPrintMode(presetToLoad))})`);
+              toast.success(
+                `Auto-loaded preset "${presetToLoad.name}" (${presetToLoad.width}×${presetToLoad.height}mm, ${getPrecisionThermalModeLabel(loadedMode)})`,
+              );
             }
           }
         }
@@ -2001,20 +2044,31 @@ export default function BarcodePrinting() {
     loadAll();
   }, [currentOrganization?.id]);
 
-  // Set a preset as default for auto-loading from purchase
-  const handleSetDefaultPreset = async (presetId: string, presetName: string) => {
+  // Set a preset as default for its print mode only
+  const handleSetDefaultPreset = async (
+    presetId: string,
+    presetName: string,
+    printMode: PrecisionPrintMode,
+  ) => {
     if (!currentOrganization?.id) return;
     await supabase
       .from("printer_presets")
       .update({ is_default: false })
-      .eq("organization_id", currentOrganization.id);
+      .eq("organization_id", currentOrganization.id)
+      .eq("print_mode", printMode);
     const { error } = await supabase
       .from("printer_presets")
       .update({ is_default: true })
       .eq("id", presetId);
     if (error) { toast.error("Failed to set default"); return; }
-    toast.success(`"${presetName}" set as default preset`);
-    setDbPresets(prev => prev.map(p => ({ ...p, isDefault: p.id === presetId })));
+    toast.success(`"${presetName}" set as default for ${getPrecisionPrintModeDisplayName(printMode)}`);
+    setDbPresets((prev) =>
+      prev.map((p) => {
+        if (p.id === presetId) return { ...p, isDefault: true };
+        if (presetMatchesPrintMode(p, printMode)) return { ...p, isDefault: false };
+        return p;
+      }),
+    );
     try {
       localStorage.removeItem("precision_active_preset");
       if (currentOrganization?.id) {
@@ -2023,15 +2077,17 @@ export default function BarcodePrinting() {
     } catch {}
   };
 
-  // Set a label template as default by saving it as a printer_preset with is_default
+  // Set a label template as default for the current print mode
   const handleSetTemplateDefault = async (templateName: string) => {
     if (!currentOrganization?.id) return;
     const template = savedLabelTemplates.find(t => t.name === templateName);
     if (!template) { toast.error("Template not found"); return; }
+    const mode = precisionSettings.printMode;
     await supabase
       .from("printer_presets")
       .update({ is_default: false })
-      .eq("organization_id", currentOrganization.id);
+      .eq("organization_id", currentOrganization.id)
+      .eq("print_mode", mode);
     const { error } = await supabase
       .from("printer_presets")
       .upsert({
@@ -2045,12 +2101,12 @@ export default function BarcodePrinting() {
         h_gap: precisionSettings.hGap,
         a4_cols: precisionSettings.a4Cols,
         a4_rows: precisionSettings.a4Rows,
-        print_mode: precisionSettings.printMode,
+        print_mode: mode,
         label_config: template.config as any,
         is_default: true,
       }, { onConflict: "organization_id,name" });
     if (error) { toast.error("Failed to set default"); return; }
-    toast.success(`"${templateName}" set as default`);
+    toast.success(`"${templateName}" set as default for ${getPrecisionPrintModeDisplayName(mode)}`);
     const { data } = await supabase
       .from("printer_presets")
       .select("*")
@@ -2067,30 +2123,36 @@ export default function BarcodePrinting() {
     const migratedConfig = resolvePresetLabelConfig(preset.name, preset.labelConfig);
     const mode = inferPrecisionPrintMode(preset);
 
-    setPrecisionSettings((prev) => ({
-      ...prev,
-      labelConfig: migratedConfig,
-      ...(fixedDims
-        ? {
-            labelWidth: fixedDims.width,
-            labelHeight: fixedDims.height,
-          }
-        : {
-            labelWidth: preset.width ?? prev.labelWidth,
-            labelHeight: preset.height ?? prev.labelHeight,
-          }),
-      xOffset: preset.xOffset ?? prev.xOffset,
-      yOffset: preset.yOffset ?? prev.yOffset,
-      vGap: preset.vGap ?? prev.vGap,
-      hGap: preset.hGap ?? prev.hGap ?? 0,
-      ...(preset.a4Cols ? { a4Cols: preset.a4Cols } : {}),
-      ...(preset.a4Rows ? { a4Rows: preset.a4Rows } : {}),
-      thermalCols: preset.thermalCols || printModeToThermalCols(mode),
-      printMode: mode,
-    }));
-
     const isLabelTemplate = savedLabelTemplates.some((t) => t.name === preset.name);
-    setActivePrecisionTemplateName(isLabelTemplate ? preset.name : `preset:${preset.name}`);
+    const activeName = isLabelTemplate ? preset.name : `preset:${preset.name}`;
+
+    setPrecisionSettings((prev) => {
+      const next = {
+        ...prev,
+        labelConfig: migratedConfig,
+        ...(fixedDims
+          ? {
+              labelWidth: fixedDims.width,
+              labelHeight: fixedDims.height,
+            }
+          : {
+              labelWidth: preset.width ?? prev.labelWidth,
+              labelHeight: preset.height ?? prev.labelHeight,
+            }),
+        xOffset: preset.xOffset ?? prev.xOffset,
+        yOffset: preset.yOffset ?? prev.yOffset,
+        vGap: preset.vGap ?? prev.vGap,
+        hGap: preset.hGap ?? prev.hGap ?? 0,
+        ...(preset.a4Cols ? { a4Cols: preset.a4Cols } : {}),
+        ...(preset.a4Rows ? { a4Rows: preset.a4Rows } : {}),
+        thermalCols: preset.thermalCols || printModeToThermalCols(mode),
+        printMode: mode,
+      };
+      precisionDesignBaselineRef.current = snapshotPrecisionDesign(next, preset.name);
+      return next;
+    });
+
+    setActivePrecisionTemplateName(activeName);
 
     const template = savedLabelTemplates.find((t) => t.name === preset.name);
     if (template) {
@@ -2098,6 +2160,130 @@ export default function BarcodePrinting() {
       setLabelConfig(migratedConfig);
     }
   }, [savedLabelTemplates, setActivePrecisionTemplateName]);
+
+  const executePrintModeSwitch = useCallback((mode: PrecisionPrintMode) => {
+    const defaultPreset = findDefaultPresetForMode(dbPresets, mode);
+    if (defaultPreset) {
+      handlePrecisionPresetLoad(defaultPreset);
+      return;
+    }
+
+    const activeName = activePrecisionTemplateName?.replace(/^preset:/, "") ?? null;
+    setPrecisionSettings((prev) => {
+      const next = {
+        ...prev,
+        printMode: mode,
+        ...(mode === "thermal3up"
+          ? { thermalCols: 3 }
+          : mode === "thermal2up"
+            ? { thermalCols: 2 }
+            : mode === "thermal"
+              ? { thermalCols: 1 }
+              : {}),
+      };
+      precisionDesignBaselineRef.current = snapshotPrecisionDesign(next, activeName);
+      return next;
+    });
+  }, [activePrecisionTemplateName, dbPresets, handlePrecisionPresetLoad]);
+
+  const requestPrintModeChange = useCallback((mode: PrecisionPrintMode) => {
+    if (mode === precisionSettings.printMode) return;
+
+    const presetName = activePrecisionTemplateName?.replace(/^preset:/, "") ?? null;
+    const hasUnsaved = precisionDesignHasUnsavedChanges(
+      precisionDesignBaselineRef.current,
+      precisionSettings,
+      presetName,
+    );
+
+    if (hasUnsaved && presetName) {
+      pendingPrintModeSwitchRef.current = mode;
+      setModeSwitchConfirmOpen(true);
+      return;
+    }
+
+    executePrintModeSwitch(mode);
+  }, [
+    activePrecisionTemplateName,
+    executePrintModeSwitch,
+    precisionSettings,
+  ]);
+
+  const saveActivePrecisionPreset = useCallback(async (): Promise<boolean> => {
+    const baseName = activePrecisionTemplateName?.replace(/^preset:/, "");
+    if (!baseName || !currentOrganization?.id) {
+      toast.error("No saved preset to update — save the design first");
+      return false;
+    }
+    const existing = dbPresets.find((p) => p.name === baseName);
+    if (!existing?.id) {
+      toast.error("No saved preset to update — save the design first");
+      return false;
+    }
+
+    const preset: CalibrationPreset = {
+      ...existing,
+      xOffset: precisionSettings.xOffset,
+      yOffset: precisionSettings.yOffset,
+      vGap: precisionSettings.vGap,
+      hGap: precisionSettings.hGap,
+      width: precisionSettings.labelWidth,
+      height: precisionSettings.labelHeight,
+      a4Cols: precisionSettings.a4Cols,
+      a4Rows: precisionSettings.a4Rows,
+      printMode: precisionSettings.printMode,
+      thermalCols: precisionSettings.thermalCols,
+      labelConfig: precisionSettings.labelConfig,
+    };
+
+    const { error } = await supabase
+      .from("printer_presets")
+      .upsert({
+        id: existing.id,
+        organization_id: currentOrganization.id,
+        name: preset.name,
+        label_width: preset.width,
+        label_height: preset.height,
+        x_offset: preset.xOffset,
+        y_offset: preset.yOffset,
+        v_gap: preset.vGap,
+        h_gap: preset.hGap ?? 0,
+        a4_cols: preset.a4Cols ?? precisionSettings.a4Cols,
+        a4_rows: preset.a4Rows ?? precisionSettings.a4Rows,
+        print_mode: precisionSettings.printMode,
+        label_config: preset.labelConfig as any,
+        thermal_cols: preset.thermalCols || precisionSettings.thermalCols || 1,
+      }, { onConflict: "organization_id,name" });
+    if (error) {
+      toast.error("Failed to save preset");
+      return false;
+    }
+
+    precisionDesignBaselineRef.current = snapshotPrecisionDesign(precisionSettings, baseName);
+    toast.success(`Preset "${baseName}" saved`);
+    return true;
+  }, [
+    activePrecisionTemplateName,
+    currentOrganization?.id,
+    dbPresets,
+    precisionSettings,
+  ]);
+
+  const handleDiscardModeSwitch = useCallback(() => {
+    const mode = pendingPrintModeSwitchRef.current;
+    pendingPrintModeSwitchRef.current = null;
+    setModeSwitchConfirmOpen(false);
+    if (mode) executePrintModeSwitch(mode);
+  }, [executePrintModeSwitch]);
+
+  const handleSaveFirstModeSwitch = useCallback(async () => {
+    const mode = pendingPrintModeSwitchRef.current;
+    const saved = await saveActivePrecisionPreset();
+    if (!saved) return;
+    pendingPrintModeSwitchRef.current = null;
+    setModeSwitchConfirmOpen(false);
+    if (mode) executePrintModeSwitch(mode);
+  }, [executePrintModeSwitch, saveActivePrecisionPreset]);
 
   const refreshDbPresetsFromServer = useCallback(async () => {
     if (!currentOrganization?.id) return;
@@ -6149,6 +6335,23 @@ export default function BarcodePrinting() {
                 if (data) {
                   setDbPresets(data.map((p: any) => mapPrinterPresetFromRow(p)));
                 }
+                precisionDesignBaselineRef.current = snapshotPrecisionDesign(
+                  {
+                    ...precisionSettings,
+                    xOffset: preset.xOffset,
+                    yOffset: preset.yOffset,
+                    vGap: preset.vGap,
+                    hGap: preset.hGap ?? 0,
+                    labelWidth: preset.width,
+                    labelHeight: preset.height,
+                    a4Cols: preset.a4Cols ?? precisionSettings.a4Cols,
+                    a4Rows: preset.a4Rows ?? precisionSettings.a4Rows,
+                    printMode: precisionSettings.printMode,
+                    labelConfig: preset.labelConfig,
+                    thermalCols: preset.thermalCols || precisionSettings.thermalCols,
+                  },
+                  preset.name,
+                );
               }}
               onDeletePreset={async (presetId) => {
                 const { error } = await supabase.from("printer_presets").delete().eq("id", presetId);
@@ -6158,20 +6361,15 @@ export default function BarcodePrinting() {
               }}
               onSetDefault={handleSetDefaultPreset}
               onSetTemplateDefault={handleSetTemplateDefault}
-              defaultTemplateName={dbPresets.find(p => p.isDefault)?.name || null}
+              defaultTemplateName={defaultPresetNameForMode}
               onLoadPreset={handlePrecisionPresetLoad}
               labelConfig={effectivePrecisionLabelConfig}
               savedTemplates={savedLabelTemplates}
               printMode={precisionSettings.printMode}
               a4Cols={precisionSettings.a4Cols}
               a4Rows={precisionSettings.a4Rows}
-              onPrintModeChange={(mode) => {
-                setPrecisionSettings((prev) => ({
-                  ...prev,
-                  printMode: mode,
-                  ...(mode === 'thermal3up' ? { thermalCols: 3 } : mode === 'thermal2up' ? { thermalCols: 2 } : mode === 'thermal' ? { thermalCols: 1 } : {}),
-                }));
-              }}
+              onPrintModeChange={requestPrintModeChange}
+              noDefaultForModeHint={noDefaultForModeHint}
               onA4ColsChange={(cols) => setPrecisionSettings((prev) => ({ ...prev, a4Cols: cols }))}
               onA4RowsChange={(rows) => setPrecisionSettings((prev) => ({ ...prev, a4Rows: rows }))}
               sampleItem={labelItems.length > 0 ? { ...labelItems[0], businessName } : undefined}
@@ -6542,7 +6740,7 @@ export default function BarcodePrinting() {
                 }}
                 onSetDefault={handleSetDefaultPreset}
                 onSetTemplateDefault={handleSetTemplateDefault}
-                defaultTemplateName={dbPresets.find((p) => p.isDefault)?.name || null}
+                defaultTemplateName={defaultPresetNameForMode}
                 onLoadPreset={handlePrecisionPresetLoad}
                 labelConfig={effectivePrecisionLabelConfig}
                 savedTemplates={savedLabelTemplates}
@@ -6678,6 +6876,33 @@ export default function BarcodePrinting() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Unsaved design guard when switching print mode */}
+      <AlertDialog
+        open={modeSwitchConfirmOpen}
+        onOpenChange={(open) => {
+          setModeSwitchConfirmOpen(open);
+          if (!open) pendingPrintModeSwitchRef.current = null;
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Unsaved changes</AlertDialogTitle>
+            <AlertDialogDescription>
+              You have unsaved changes to &ldquo;{activePrecisionTemplateBaseName}&rdquo;. Switch mode and discard them?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-col-reverse sm:flex-row sm:justify-end gap-2">
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <Button type="button" variant="outline" onClick={() => void handleSaveFirstModeSwitch()}>
+              Save first
+            </Button>
+            <AlertDialogAction onClick={handleDiscardModeSwitch}>
+              Discard and switch
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Windows app: confirm barcode qty before Precision Pro print */}
       <AlertDialog open={precisionPrintConfirmOpen} onOpenChange={setPrecisionPrintConfirmOpen}>

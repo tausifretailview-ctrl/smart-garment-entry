@@ -84,6 +84,33 @@ export function getPrecisionThermalModeLabel(mode: string): string {
   return "1-Up";
 }
 
+/** Full print-mode label for UI buttons and hints. */
+export function getPrecisionPrintModeDisplayName(mode: PrecisionPrintMode): string {
+  if (mode === "thermal3up") return "Thermal (3-Up)";
+  if (mode === "thermal2up") return "Thermal (2-Up)";
+  if (mode === "a4") return "A4 Sheet";
+  return "Thermal (1-Up)";
+}
+
+export function resolvePresetPrintMode(preset: PrecisionPresetModeHint): PrecisionPrintMode {
+  if (
+    preset.printMode === "thermal" ||
+    preset.printMode === "thermal2up" ||
+    preset.printMode === "thermal3up" ||
+    preset.printMode === "a4"
+  ) {
+    return preset.printMode;
+  }
+  return inferPrecisionPrintMode(preset);
+}
+
+export function findDefaultPresetForMode<T extends PrecisionPresetModeHint & { isDefault?: boolean }>(
+  presets: T[],
+  mode: PrecisionPrintMode,
+): T | undefined {
+  return presets.find((p) => p.isDefault && presetMatchesPrintMode(p, mode));
+}
+
 export function getThermalPreviewCols(mode: string): number {
   return getPrecisionThermalCols(mode);
 }

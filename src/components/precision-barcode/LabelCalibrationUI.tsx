@@ -8,12 +8,14 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { HelpCircle, Minus, Plus, Save, Trash2, RefreshCw, Star, History } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { PrecisionThermalRowPreview } from "./PrecisionThermalRowPreview";
 import { PrecisionLabelCell } from "./PrecisionLabelCell";
 import { LabelDesignConfig, LabelItem, LabelTemplate } from "@/types/labelTypes";
 import { cn } from "@/lib/utils";
 import type { PrecisionPrintMode } from "@/utils/precisionThermalModes";
-import { presetMatchesPrintMode } from "@/utils/precisionThermalModes";
+import { presetMatchesPrintMode, getPrecisionPrintModeDisplayName } from "@/utils/precisionThermalModes";
 import { getThermalPreviewCols } from "@/utils/precisionThermalModes";
 
 export interface CalibrationValues {
@@ -156,7 +158,7 @@ interface LabelCalibrationUIProps {
   onSavePreset?: (preset: CalibrationPreset) => Promise<void> | void;
   onDeletePreset?: (presetId: string) => Promise<void> | void;
   onLoadPreset?: (preset: CalibrationPreset) => void;
-  onSetDefault?: (presetId: string, presetName: string) => Promise<void> | void;
+  onSetDefault?: (presetId: string, presetName: string, printMode: PrecisionPrintMode) => Promise<void> | void;
   onSetTemplateDefault?: (templateName: string) => Promise<void> | void;
   defaultTemplateName?: string | null;
   labelConfig?: LabelDesignConfig;
@@ -175,7 +177,8 @@ interface LabelCalibrationUIProps {
   activePresetValue?: string | null;
   /** Open label design backup & restore dialog */
   onOpenBackupRestore?: () => void;
-  /** @deprecated Use onSavePreset/onDeletePreset instead */
+  /** Shown when the active print mode has no default preset saved. */
+  noDefaultForModeHint?: string | null;
   onPresetsChange?: (presets: CalibrationPreset[]) => void;
 }
 
@@ -203,6 +206,7 @@ export function LabelCalibrationUI({
   onA4RowsChange,
   activePresetValue,
   onOpenBackupRestore,
+  noDefaultForModeHint,
 }: LabelCalibrationUIProps) {
   const [savePresetOpen, setSavePresetOpen] = useState(false);
   const [newPresetName, setNewPresetName] = useState("");
@@ -232,12 +236,15 @@ export function LabelCalibrationUI({
   const [saveA4Open, setSaveA4Open] = useState(false);
   const [newA4PresetName, setNewA4PresetName] = useState("");
   const [activeA4PresetName, setActiveA4PresetName] = useState<string | null>(null);
+  const [showAllModes, setShowAllModes] = useState(false);
 
   const modeFilteredBuiltInPresets = BUILT_IN_PRESETS.filter((p) =>
     presetMatchesPrintMode(p, printMode),
   );
-  const modeFilteredUserPresets = presets.filter((p) => presetMatchesPrintMode(p, printMode));
-  const allPresets = [...modeFilteredBuiltInPresets, ...modeFilteredUserPresets];
+  const visibleUserPresets = showAllModes
+    ? presets
+    : presets.filter((p) => presetMatchesPrintMode(p, printMode));
+  const allPresets = [...modeFilteredBuiltInPresets, ...visibleUserPresets];
   const a4UserPresets = presets.filter((p) => presetMatchesPrintMode(p, "a4"));
   const modeFilteredTemplates =
     printMode === "thermal"
@@ -387,7 +394,17 @@ export function LabelCalibrationUI({
       {/* Presets Row */}
       <div className="flex items-end gap-2 flex-wrap">
         <div className="flex-1 min-w-[160px] space-y-1">
-          <Label className="text-xs">Load Preset</Label>
+          <div className="flex items-center justify-between gap-2">
+            <Label className="text-xs">Load Preset</Label>
+            <label className="flex items-center gap-1.5 cursor-pointer shrink-0">
+              <Checkbox
+                checked={showAllModes}
+                onCheckedChange={(v) => setShowAllModes(v === true)}
+                className="h-3.5 w-3.5"
+              />
+              <span className="text-[10px] text-muted-foreground whitespace-nowrap">Show all modes</span>
+            </label>
+          </div>
           <Select value={selectValue} onValueChange={loadPreset}>
             <SelectTrigger className="h-8 text-xs">
               <SelectValue placeholder="Select a preset..." />
@@ -410,18 +427,29 @@ export function LabelCalibrationUI({
                   </SelectItem>
                 ))}
               {modeFilteredTemplates.length > 0 &&
-                modeFilteredUserPresets.length > 0 && (
+                visibleUserPresets.length > 0 && (
                   <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50 mt-1">
                     🖨️ Printer Presets
                   </div>
                 )}
               {allPresets.map((p) => (
                 <SelectItem key={p.name} value={p.name} className="text-xs">
-                  {p.isDefault && <Star className="h-3 w-3 inline mr-1 text-amber-500 fill-amber-500" />}
+                  {p.isDefault && presetMatchesPrintMode(p, printMode) && (
+                    <Badge variant="secondary" className="mr-1 h-4 px-1 text-[9px] font-semibold align-middle">
+                      Default
+                    </Badge>
+                  )}
                   {p.name}
                   <span className="ml-1 text-muted-foreground">
                     ({p.width}×{p.height})
                   </span>
+                  {showAllModes && !presetMatchesPrintMode(p, printMode) && (
+                    <span className="ml-1 text-muted-foreground">
+                      · {getPrecisionPrintModeDisplayName(
+                        (p.printMode as PrecisionPrintMode) || "thermal",
+                      )}
+                    </span>
+                  )}
                 </SelectItem>
               ))}
                 </>
@@ -446,7 +474,12 @@ export function LabelCalibrationUI({
 
         {isUserPreset && onSetDefault && (() => {
           const activePreset = presets.find(p => p.name === effectivePresetName);
-          const isAlreadyDefault = activePreset?.isDefault;
+          const presetMode = (activePreset?.printMode as PrecisionPrintMode) || printMode;
+          const isAlreadyDefault =
+            activePreset?.isDefault && presetMatchesPrintMode(activePreset, printMode);
+          const setDefaultLabel = isAlreadyDefault
+            ? `Default for ${getPrecisionPrintModeDisplayName(printMode)}`
+            : `Set as default for ${getPrecisionPrintModeDisplayName(presetMode)}`;
           return activePreset?.id ? (
             <TooltipProvider>
               <Tooltip>
@@ -456,15 +489,19 @@ export function LabelCalibrationUI({
                     variant={isAlreadyDefault ? "default" : "outline"}
                     size="xs"
                     className={`h-8 ${isAlreadyDefault ? 'bg-amber-500 hover:bg-amber-600 text-white' : ''}`}
-                    onClick={() => onSetDefault(activePreset.id!, activePreset.name)}
+                    onClick={() => onSetDefault(activePreset.id!, activePreset.name, presetMode)}
                     disabled={saving}
                   >
                     <Star className={`h-3 w-3 mr-1 ${isAlreadyDefault ? 'fill-white' : ''}`} />
-                    {isAlreadyDefault ? "Default" : "Set Default"}
+                    {setDefaultLabel}
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
-                  <p className="text-xs">{isAlreadyDefault ? "This is the default preset" : "Set as default preset for auto-loading"}</p>
+                  <p className="text-xs">
+                    {isAlreadyDefault
+                      ? `Default preset when ${getPrecisionPrintModeDisplayName(printMode)} is selected`
+                      : `Set as the default design for ${getPrecisionPrintModeDisplayName(presetMode)} only`}
+                  </p>
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
@@ -486,11 +523,17 @@ export function LabelCalibrationUI({
                     disabled={saving}
                   >
                     <Star className={`h-3 w-3 mr-1 ${isAlreadyDefault ? 'fill-white' : ''}`} />
-                    {isAlreadyDefault ? "Default" : "Set Default"}
+                    {isAlreadyDefault
+                      ? `Default for ${getPrecisionPrintModeDisplayName(printMode)}`
+                      : `Set as default for ${getPrecisionPrintModeDisplayName(printMode)}`}
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
-                  <p className="text-xs">{isAlreadyDefault ? "This is the default template" : "Set as default template for auto-loading"}</p>
+                  <p className="text-xs">
+                    {isAlreadyDefault
+                      ? `Default template for ${getPrecisionPrintModeDisplayName(printMode)}`
+                      : `Set as the default template for ${getPrecisionPrintModeDisplayName(printMode)} only`}
+                  </p>
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
@@ -639,10 +682,7 @@ export function LabelCalibrationUI({
                     ? 'bg-primary text-primary-foreground'
                     : 'bg-muted/30 text-muted-foreground hover:bg-muted/50'
                 }`}
-                onClick={() => {
-                  onPrintModeChange('thermal2up');
-                  onChange({ ...values, labelWidth: 38, labelHeight: 25 });
-                }}
+                onClick={() => onPrintModeChange('thermal2up')}
               >
                 🖨️ Thermal (2-Up)
               </button>
@@ -653,10 +693,7 @@ export function LabelCalibrationUI({
                     ? 'bg-primary text-primary-foreground'
                     : 'bg-muted/30 text-muted-foreground hover:bg-muted/50'
                 }`}
-                onClick={() => {
-                  onPrintModeChange('thermal3up');
-                  onChange({ ...values, labelWidth: 32, labelHeight: 19 });
-                }}
+                onClick={() => onPrintModeChange('thermal3up')}
               >
                 🖨️ Thermal (3-Up)
               </button>
@@ -673,6 +710,12 @@ export function LabelCalibrationUI({
               </button>
             </div>
           </div>
+
+          {noDefaultForModeHint && (
+            <p className="text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-md px-2.5 py-2">
+              {noDefaultForModeHint}
+            </p>
+          )}
 
           {printMode === 'a4' && (
             <div className="border rounded-lg p-3 space-y-3 bg-muted/10">
