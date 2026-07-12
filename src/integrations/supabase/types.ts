@@ -3627,6 +3627,69 @@ export type Database = {
           },
         ]
       }
+      printer_presets_backup: {
+        Row: {
+          a4_cols: number | null
+          a4_rows: number | null
+          backed_up_at: string
+          backup_id: string
+          is_default: boolean | null
+          label_config: Json | null
+          label_height: number | null
+          label_width: number | null
+          name: string | null
+          note: string | null
+          org_name: string | null
+          organization_id: string | null
+          preset_id: string | null
+          print_mode: string | null
+          thermal_cols: number | null
+          v_gap: number | null
+          x_offset: number | null
+          y_offset: number | null
+        }
+        Insert: {
+          a4_cols?: number | null
+          a4_rows?: number | null
+          backed_up_at?: string
+          backup_id?: string
+          is_default?: boolean | null
+          label_config?: Json | null
+          label_height?: number | null
+          label_width?: number | null
+          name?: string | null
+          note?: string | null
+          org_name?: string | null
+          organization_id?: string | null
+          preset_id?: string | null
+          print_mode?: string | null
+          thermal_cols?: number | null
+          v_gap?: number | null
+          x_offset?: number | null
+          y_offset?: number | null
+        }
+        Update: {
+          a4_cols?: number | null
+          a4_rows?: number | null
+          backed_up_at?: string
+          backup_id?: string
+          is_default?: boolean | null
+          label_config?: Json | null
+          label_height?: number | null
+          label_width?: number | null
+          name?: string | null
+          note?: string | null
+          org_name?: string | null
+          organization_id?: string | null
+          preset_id?: string | null
+          print_mode?: string | null
+          thermal_cols?: number | null
+          v_gap?: number | null
+          x_offset?: number | null
+          y_offset?: number | null
+        }
+        Relationships: []
+      }
       product_images: {
         Row: {
           created_at: string
