@@ -1340,7 +1340,7 @@ export default function POSSales() {
           ? '148mm'
           : posBillFormat === 'thermal'
             ? 'auto'
-            : '210mm';
+            : 'auto';
     const maxHeight =
       posBillFormat === 'thermal'
         ? 'none'
@@ -1348,7 +1348,7 @@ export default function POSSales() {
           ? '297mm'
           : posBillFormat === 'a5-horizontal'
             ? '148mm'
-            : '210mm';
+            : 'none';
     return { width, minHeight, maxHeight, overflow: 'visible' as const };
   }, [posBillFormat, posThermalPaper]);
   const showInvoicePreviewSetting: boolean = _posSaleSettings.show_invoice_preview ?? true;
@@ -4097,7 +4097,7 @@ export default function POSSales() {
     let size = 'A5 portrait';
     let margin = '5mm';
 
-    if (posInvoiceTemplate === 'retail-tax-ezzy' || posInvoiceTemplate === 'wholesale-a5') {
+    if (posInvoiceTemplate === 'retail-tax-ezzy' || posInvoiceTemplate === 'wholesale-a5' || posInvoiceTemplate === 'retail-erp') {
       return `
       @page {
         size: A5 portrait;
@@ -4109,7 +4109,8 @@ export default function POSSales() {
           margin: 0;
           padding: 0;
         }
-        .retail-tax-ezzy-page {
+        .retail-tax-ezzy-page,
+        .retail-erp-invoice-template {
           width: 100% !important;
           max-width: none !important;
           overflow: visible !important;

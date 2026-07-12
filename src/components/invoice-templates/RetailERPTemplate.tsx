@@ -176,8 +176,8 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   const isA4 = format === "a4" || isRealTast;
   const invoiceNoteText =
     notes && notes.trim() && !/^\d+$/.test(notes.trim()) ? notes.trim() : "";
-  const MAX_ITEMS_PER_PAGE = isA4 ? 20 : 15;
-  const TARGET_ROWS = isA4 ? 14 : 10;
+  const MAX_ITEMS_PER_PAGE = isA4 ? 20 : 12;
+  const TARGET_ROWS = isA4 ? 14 : 8;
   const MIN_BLANK_ROWS = 2;
 
   const fmt = (amount: number) => {
@@ -198,7 +198,9 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   }
   if (itemPages.length > 0) {
     const lastPage = itemPages[itemPages.length - 1];
-    const minRows = Math.max(TARGET_ROWS, lastPage.length, MIN_BLANK_ROWS);
+    const minRows = isA4
+      ? Math.max(TARGET_ROWS, lastPage.length, MIN_BLANK_ROWS)
+      : Math.max(lastPage.length + MIN_BLANK_ROWS, MIN_BLANK_ROWS);
     while (lastPage.length < minRows) {
       lastPage.push(null);
       if (lastPage.length >= MAX_ITEMS_PER_PAGE) break;
@@ -323,7 +325,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
 
   const pageW = isA4 ? "210mm" : "148mm";
   const pageH = isA4 ? "297mm" : "210mm";
-  const pad = isA4 ? "10mm" : "5mm";
+  const pad = isA4 ? "10mm" : "4mm";
   const fsBody = isA4 ? "13px" : "12px";
   const fsHeader = isA4 ? "14px" : "12px";
   const fsHeading = isA4 ? "13px" : "12px";
@@ -1000,13 +1002,16 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
       <style>{`
         @media print {
           body { margin: 0; padding: 0; background: #fff; }
-          @page { size: ${isA4 ? "A4 portrait" : "A5 portrait"}; margin: 0; }
+          @page { size: ${isA4 ? "A4 portrait" : "148mm 210mm"}; margin: ${isA4 ? "0" : "4mm"}; }
           .retail-erp-invoice-template {
             width: ${pageW} !important;
+            max-width: ${pageW} !important;
             min-height: auto !important;
             height: auto !important;
             padding: ${pad} !important;
             overflow: visible !important;
+            margin-left: auto !important;
+            margin-right: auto !important;
           }
           .retail-erp-invoice-template[data-invoice-variant="real-tast"] {
             height: ${pageH} !important;

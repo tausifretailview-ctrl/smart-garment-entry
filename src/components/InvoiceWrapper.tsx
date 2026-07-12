@@ -266,7 +266,11 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
     const templateForFormat = props.template || settings?.sale_settings?.invoice_template || 'professional';
     let format = rawFormat === 'a5' ? 'a5-vertical' : rawFormat;
     // A5-only templates must not be routed through the thermal receipt path.
-    if (templateForFormat === 'retail-tax-ezzy' || templateForFormat === 'wholesale-a5') {
+    if (
+      templateForFormat === 'retail-tax-ezzy' ||
+      templateForFormat === 'wholesale-a5' ||
+      templateForFormat === 'retail-erp'
+    ) {
       format = 'a5-vertical';
     }
     // Kids 80mm is thermal-only — always use roll receipt layout.

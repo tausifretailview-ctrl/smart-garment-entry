@@ -311,7 +311,7 @@ export default function PublicInvoiceView() {
       case 'gift_tally': return <GiftTallyInvoiceTemplate {...templateProps} />;
       case 'a4-electronic': return <A4ElectronicTemplate {...templateProps} />;
       case 'retail': return <RetailTemplate {...templateProps} />;
-      case 'retail-erp': return <RetailERPTemplate {...templateProps} />;
+      case 'retail-erp': return <RetailERPTemplate {...templateProps} format="a5-vertical" />;
       case 'real-tast':
         return (
           <RetailERPTemplate
@@ -345,7 +345,7 @@ export default function PublicInvoiceView() {
 
         <style>{`
           @media print {
-            @page { size: ${formatParam === 'thermal' ? '80mm auto' : template === 'retail-tax-ezzy' ? 'A5 portrait' : 'A4 portrait'}; margin: ${formatParam === 'thermal' ? '3mm' : '5mm'}; }
+            @page { size: ${formatParam === 'thermal' ? '80mm auto' : template === 'retail-tax-ezzy' || template === 'retail-erp' || template === 'wholesale-a5' ? 'A5 portrait' : 'A4 portrait'}; margin: ${formatParam === 'thermal' ? '3mm' : template === 'retail-erp' || template === 'retail-tax-ezzy' ? '4mm' : '5mm'}; }
             body { margin: 0; padding: 0; }
             .public-invoice-print-wrap {
               box-shadow: none !important;

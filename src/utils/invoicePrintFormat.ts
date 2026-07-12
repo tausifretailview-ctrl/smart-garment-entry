@@ -2,7 +2,7 @@
 export const A4_ONLY_INVOICE_TEMPLATES = new Set(['real-tast']);
 
 /** Templates that must print on A5 — not thermal 80mm. */
-export const A5_ONLY_INVOICE_TEMPLATES = new Set(['retail-tax-ezzy', 'wholesale-a5']);
+export const A5_ONLY_INVOICE_TEMPLATES = new Set(['retail-tax-ezzy', 'wholesale-a5', 'retail-erp']);
 
 /** Thermal-only invoice templates — always route through 80mm receipt path. */
 export const THERMAL_ONLY_INVOICE_TEMPLATES = new Set(['kids-80mm']);
@@ -45,14 +45,21 @@ export function resolvePosBillFormat(
   if (invoiceTemplate && THERMAL_ONLY_INVOICE_TEMPLATES.has(invoiceTemplate)) {
     return 'thermal';
   }
-  if (posBillFormat === 'thermal') {
-    return 'thermal';
-  }
   if (invoiceTemplate && A5_ONLY_INVOICE_TEMPLATES.has(invoiceTemplate)) {
     return 'a5';
   }
   if (invoiceTemplate && A4_ONLY_INVOICE_TEMPLATES.has(invoiceTemplate)) {
     return 'a4';
+  }
+  if (
+    invoiceTemplate &&
+    FULL_PAGE_INVOICE_TEMPLATES.has(invoiceTemplate) &&
+    posBillFormat === 'thermal'
+  ) {
+    return fallbackFormatForFullPageTemplate(invoicePaperFormat);
+  }
+  if (posBillFormat === 'thermal') {
+    return 'thermal';
   }
   return posBillFormat;
 }

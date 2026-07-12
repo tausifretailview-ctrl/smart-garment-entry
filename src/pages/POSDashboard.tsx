@@ -568,7 +568,7 @@ const POSDashboard = () => {
             ? "auto"
             : effectivePosBillFormat === "a5-horizontal"
               ? "148mm"
-              : "210mm",
+              : "auto",
     };
     },
     [effectivePosBillFormat, posThermalPaper],
@@ -1105,7 +1105,7 @@ const POSDashboard = () => {
   // Note: toggleSelectAll moved after filteredSales is defined
 
   const getPageStyle = () => {
-    if (posInvoiceTemplate === 'retail-tax-ezzy' || posInvoiceTemplate === 'wholesale-a5') {
+    if (posInvoiceTemplate === "retail-tax-ezzy" || posInvoiceTemplate === "wholesale-a5" || posInvoiceTemplate === "retail-erp") {
       return `
       @page {
         size: A5 portrait;
@@ -1117,7 +1117,8 @@ const POSDashboard = () => {
           margin: 0;
           padding: 0;
         }
-        .retail-tax-ezzy-page {
+        .retail-tax-ezzy-page,
+        .retail-erp-invoice-template {
           width: 100% !important;
           max-width: none !important;
           overflow: visible !important;

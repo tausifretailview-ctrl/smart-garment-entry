@@ -711,7 +711,7 @@ export default function SalesInvoiceDashboard() {
             ? "auto"
             : effectiveSaleBillFormat === "a5-horizontal"
               ? "148mm"
-              : "210mm",
+              : "auto",
     }),
     [effectiveSaleBillFormat],
   );
@@ -1759,7 +1759,7 @@ export default function SalesInvoiceDashboard() {
   };
 
   const getPageStyle = () => {
-    if (invoiceTemplate === 'retail-tax-ezzy' || invoiceTemplate === 'wholesale-a5') {
+    if (invoiceTemplate === 'retail-tax-ezzy' || invoiceTemplate === 'wholesale-a5' || invoiceTemplate === 'retail-erp') {
       return `
       @page {
         size: A5 portrait;
@@ -1771,7 +1771,8 @@ export default function SalesInvoiceDashboard() {
           margin: 0;
           padding: 0;
         }
-        .retail-tax-ezzy-page {
+        .retail-tax-ezzy-page,
+        .retail-erp-invoice-template {
           width: 100% !important;
           max-width: none !important;
           overflow: visible !important;
