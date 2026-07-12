@@ -12,15 +12,10 @@ import {
 import {
   isRanawatBlingPresetName,
   RANAWAT_BLING_100X15_DIMENSIONS,
-  resolveRanawatBlingLabelConfig,
 } from "@/constants/ranawatBlingLabelTemplate";
 
 export function isFixedBuiltinLabelPreset(name: string | null | undefined): boolean {
-  return (
-    isKidszonePresetName(name) ||
-    isJewelleryPresetName(name) ||
-    isRanawatBlingPresetName(name)
-  );
+  return isKidszonePresetName(name) || isJewelleryPresetName(name);
 }
 
 export function resolveFixedBuiltinLabelConfig(
@@ -28,7 +23,6 @@ export function resolveFixedBuiltinLabelConfig(
 ): LabelDesignConfig | null {
   if (isKidszonePresetName(name)) return resolveKidszoneLabelConfig();
   if (isJewelleryPresetName(name)) return resolveJewelleryLabelConfig();
-  if (isRanawatBlingPresetName(name)) return resolveRanawatBlingLabelConfig();
   return null;
 }
 
@@ -44,6 +38,6 @@ export function getFixedBuiltinLabelDimensions(
 export function fixedBuiltinPresetLabel(name: string | null | undefined): string | null {
   if (isKidszonePresetName(name)) return "kidszone (50×40mm) — fixed layout";
   if (isJewelleryPresetName(name)) return "Jewellery Tag (100×15mm 1UP) — fixed layout";
-  if (isRanawatBlingPresetName(name)) return "BLING JEWELLERY LABEL (100×15mm 1UP) — fixed layout";
+  if (isRanawatBlingPresetName(name)) return "BLING JEWELLERY LABEL (100×15mm 1UP)";
   return null;
 }

@@ -114,6 +114,8 @@ import {
 } from "@/constants/fixedBuiltinLabelPresets";
 import {
   RANAWAT_BLING_TEMPLATE_NAME,
+  isRanawatBlingPresetName,
+  resolveRanawatBlingLabelConfig,
 } from "@/constants/ranawatBlingLabelTemplate";
 
 const precisionPresetStorageKey = (orgId: string) => `precision_active_preset_${orgId}`;
@@ -124,6 +126,12 @@ const resolvePresetLabelConfig = (
 ): LabelDesignConfig => {
   const fixed = resolveFixedBuiltinLabelConfig(presetName);
   if (fixed) return fixed;
+  if (isRanawatBlingPresetName(presetName)) {
+    if (stored && (stored.fieldOrder?.length || stored.businessName || stored.barcode)) {
+      return ensureCompleteFieldOrder(stored);
+    }
+    return resolveRanawatBlingLabelConfig();
+  }
   return ensureCompleteFieldOrder(stored || {});
 };
 
@@ -1385,7 +1393,7 @@ export default function BarcodePrinting() {
 
   const activePrecisionTemplateBaseName = activePrecisionTemplateName?.replace(/^preset:/, "") ?? null;
 
-  /** Kids Zone uses a hard-coded layout so every PC/login renders the same design. */
+  /** Kids Zone / Jewellery use a hard-coded layout; other presets use saved DB config. */
   const effectivePrecisionLabelConfig = useMemo((): LabelDesignConfig => {
     const fixed = resolveFixedBuiltinLabelConfig(activePrecisionTemplateBaseName);
     if (fixed) return fixed;
@@ -6136,8 +6144,8 @@ export default function BarcodePrinting() {
                       const presetName = name.replace("preset:", "");
                       const preset = dbPresets.find((p) => p.name === presetName);
                       const fixedDims = getFixedBuiltinLabelDimensions(presetName);
-                      const fixedConfig = resolveFixedBuiltinLabelConfig(presetName);
-                      if (preset || fixedConfig) {
+                      const labelConfig = resolvePresetLabelConfig(presetName, preset?.labelConfig);
+                      if (preset || isRanawatBlingPresetName(presetName)) {
                         handlePrecisionPresetLoad({
                           name: presetName,
                           xOffset: preset?.xOffset ?? precisionSettings.xOffset,
@@ -6145,7 +6153,7 @@ export default function BarcodePrinting() {
                           vGap: preset?.vGap ?? precisionSettings.vGap,
                           width: fixedDims?.width ?? preset?.width ?? precisionSettings.labelWidth,
                           height: fixedDims?.height ?? preset?.height ?? precisionSettings.labelHeight,
-                          labelConfig: fixedConfig ?? preset?.labelConfig,
+                          labelConfig,
                           printMode: preset?.printMode,
                           thermalCols: preset?.thermalCols,
                           a4Cols: preset?.a4Cols,
@@ -6187,7 +6195,7 @@ export default function BarcodePrinting() {
                       Jewellery Tag (100×15mm 1UP) — fixed layout
                     </SelectItem>
                     <SelectItem value={`preset:${RANAWAT_BLING_TEMPLATE_NAME}`} className="text-xs">
-                      BLING JEWELLERY LABEL (100×15mm 1UP) — fixed layout
+                      BLING JEWELLERY LABEL (100×15mm 1UP)
                     </SelectItem>
                     {savedLabelTemplates.length === 0 && dbPresets.filter(p => p.labelConfig).length === 0 ? (
                       <div className="px-2 py-2 text-xs text-muted-foreground">No other saved templates yet.</div>
