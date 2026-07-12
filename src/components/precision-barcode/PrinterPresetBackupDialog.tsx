@@ -215,7 +215,7 @@ export function PrinterPresetBackupDialog({
       const text = await file.text();
       const parsed = JSON.parse(text) as unknown;
       const validated = validatePrinterPresetImportFile(parsed);
-      if (!validated.ok) {
+      if (validated.ok === false) {
         setImportError(validated.error);
         return;
       }
