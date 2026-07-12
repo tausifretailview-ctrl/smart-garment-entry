@@ -163,6 +163,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   amountWithDecimal = true,
   amountWithGrouping = true,
   format = "a5-vertical",
+  minItemRows = 12,
   salesman,
   customHeaderText,
   documentTitle,
@@ -176,8 +177,8 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   const isA4 = format === "a4" || isRealTast;
   const invoiceNoteText =
     notes && notes.trim() && !/^\d+$/.test(notes.trim()) ? notes.trim() : "";
-  const MAX_ITEMS_PER_PAGE = isA4 ? 20 : 10;
-  const TARGET_ROWS = isA4 ? 14 : 7;
+  const MAX_ITEMS_PER_PAGE = isA4 ? 20 : 12;
+  const TARGET_ROWS = isA4 ? Math.max(14, minItemRows) : Math.max(8, minItemRows);
   const MIN_BLANK_ROWS = 2;
 
   const fmt = (amount: number) => {
@@ -415,7 +416,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
               ...(isRealTast
                 ? { minHeight: pageH, height: pageH }
                 : isA5Retail
-                  ? { height: pageH, maxHeight: pageH, overflow: "hidden" }
+                  ? { maxHeight: pageH, overflow: "hidden" }
                   : {}),
               padding: pad,
               fontFamily: "Arial, Helvetica, sans-serif",
@@ -430,11 +431,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
             <div
               style={{
                 border: B2,
-                ...(isRealTast
-                  ? { flex: 1 }
-                  : isA5Retail
-                    ? { flex: 1, display: "flex", flexDirection: "column", minHeight: 0, overflow: "hidden" }
-                    : {}),
+                ...(isRealTast ? { flex: 1 } : {}),
                 display: "flex",
                 flexDirection: "column",
                 overflow: isRealTast ? "hidden" : "visible",
@@ -725,7 +722,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
 
               {/* ===== FOOTER ===== */}
               {isLastPage && (
-              <div className="retail-erp-footer" style={{ borderTop: B2, fontSize: fsBody, flexShrink: 0, ...(isA5Retail ? { marginTop: "auto" } : {}) }}>
+              <div className="retail-erp-footer" style={{ borderTop: B2, fontSize: fsBody, flexShrink: 0 }}>
 
                   {/* Note (left) + Totals (right) — uses blank space beside subtotal block */}
                   <div style={{ display: "flex", borderBottom: B, width: "100%", alignItems: "stretch" }}>
@@ -1026,8 +1023,8 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
           .retail-erp-invoice-template {
             width: ${pageW} !important;
             max-width: ${pageW} !important;
-            min-height: ${isA4 ? "auto" : isA5Retail ? pageH : "auto"} !important;
-            height: ${isA5Retail ? pageH : "auto"} !important;
+            min-height: ${isA4 ? "auto" : "auto"} !important;
+            height: auto !important;
             max-height: ${isA5Retail ? pageH : "none"} !important;
             padding: ${pad} !important;
             overflow: ${isA5Retail ? "hidden" : "visible"} !important;
