@@ -57,6 +57,7 @@ import {
   inferPrecisionPrintMode,
   isPrecisionThermalMultiUp,
   isPrecisionThermalSheetMode,
+  presetMatchesPrintMode,
   printModeToThermalCols,
   type PrecisionPrintMode,
 } from "@/utils/precisionThermalModes";
@@ -1359,6 +1360,15 @@ export default function BarcodePrinting() {
     thermalCols: 1,
   });
   const [dbPresets, setDbPresets] = useState<CalibrationPreset[]>([]);
+  const designerPresetsForMode = useMemo(
+    () =>
+      dbPresets.filter(
+        (p) => p.labelConfig && presetMatchesPrintMode(p, precisionSettings.printMode),
+      ),
+    [dbPresets, precisionSettings.printMode],
+  );
+  const showDesignerLabelTemplates =
+    precisionSettings.printMode === "thermal" || precisionSettings.printMode === "a4";
   const [backupRestoreOpen, setBackupRestoreOpen] = useState(false);
   const [precisionConfigReady, setPrecisionConfigReady] = useState(false);
   const precisionPrintRef = useRef<HTMLDivElement>(null);
@@ -6261,21 +6271,30 @@ export default function BarcodePrinting() {
                     <SelectValue placeholder="Select a template to edit..." />
                   </SelectTrigger>
                   <SelectContent>
-                    <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50">📌 Built-in</div>
-                    <SelectItem value="preset:kidszone" className="text-xs">
-                      kidszone (50×40mm) — fixed layout
-                    </SelectItem>
-                    <SelectItem value="preset:jewellery" className="text-xs">
-                      Jewellery Tag (100×15mm 1UP) — fixed layout
-                    </SelectItem>
-                    <SelectItem value={`preset:${RANAWAT_BLING_TEMPLATE_NAME}`} className="text-xs">
-                      BLING JEWELLERY LABEL (100×15mm 1UP)
-                    </SelectItem>
-                    {savedLabelTemplates.length === 0 && dbPresets.filter(p => p.labelConfig).length === 0 ? (
-                      <div className="px-2 py-2 text-xs text-muted-foreground">No other saved templates yet.</div>
+                    {precisionSettings.printMode === "thermal" && (
+                      <>
+                        <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50">📌 Built-in (1-Up)</div>
+                        <SelectItem value="preset:kidszone" className="text-xs">
+                          kidszone (50×40mm) — fixed layout
+                        </SelectItem>
+                        <SelectItem value="preset:jewellery" className="text-xs">
+                          Jewellery Tag (100×15mm 1UP) — fixed layout
+                        </SelectItem>
+                        <SelectItem value={`preset:${RANAWAT_BLING_TEMPLATE_NAME}`} className="text-xs">
+                          BLING JEWELLERY LABEL (100×15mm 1UP)
+                        </SelectItem>
+                      </>
+                    )}
+                    {showDesignerLabelTemplates &&
+                    savedLabelTemplates.length === 0 &&
+                    designerPresetsForMode.length === 0 &&
+                    precisionSettings.printMode !== "thermal" ? (
+                      <div className="px-2 py-2 text-xs text-muted-foreground">
+                        No saved designs for {getPrecisionThermalModeLabel(precisionSettings.printMode)} mode.
+                      </div>
                     ) : (
                       <>
-                        {savedLabelTemplates.length > 0 && (
+                        {showDesignerLabelTemplates && savedLabelTemplates.length > 0 && (
                           <>
                             <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50">💾 Label Templates</div>
                             {savedLabelTemplates.map((t) => (
@@ -6290,10 +6309,10 @@ export default function BarcodePrinting() {
                             ))}
                           </>
                         )}
-                        {dbPresets.filter(p => p.labelConfig).length > 0 && (
+                        {designerPresetsForMode.length > 0 && (
                           <>
                             <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50 mt-1">🖨️ Printer Presets</div>
-                            {dbPresets.filter(p => p.labelConfig).map((p) => (
+                            {designerPresetsForMode.map((p) => (
                               <SelectItem key={`pp-${p.name}`} value={`preset:${p.name}`} className="text-xs">
                                 🖨️ {p.name} ({p.width}×{p.height}mm)
                               </SelectItem>

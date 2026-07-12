@@ -1,5 +1,28 @@
 export type PrecisionPrintMode = "thermal" | "thermal2up" | "thermal3up" | "a4";
 
+export type PrecisionPresetModeHint = {
+  name?: string;
+  printMode?: string;
+  a4Cols?: number;
+  a4Rows?: number;
+  thermalCols?: number;
+};
+
+/** Infer multi-up mode from preset name when DB print_mode is missing or stale. */
+export function inferPrintModeFromName(name: string): PrecisionPrintMode | null {
+  const n = name.toLowerCase();
+  if (/\b3\s*[-*]?\s*up\b/.test(n) || n.includes("3up") || n.includes("3-up")) {
+    return "thermal3up";
+  }
+  if (/\b2\s*[-*]?\s*up\b/.test(n) || n.includes("2up") || n.includes("2-up")) {
+    return "thermal2up";
+  }
+  if (/\b1\s*[-*]?\s*up\b/.test(n) || n.includes("1up") || n.includes("1-up")) {
+    return "thermal";
+  }
+  return null;
+}
+
 export function isPrecisionThermalSheetMode(mode: string): boolean {
   return mode === "thermal" || mode === "thermal2up" || mode === "thermal3up";
 }
@@ -26,17 +49,32 @@ export function getPrecisionThermalCols(mode: string, thermalCols = 1): number {
   return 1;
 }
 
-export function inferPrecisionPrintMode(preset: {
-  printMode?: string;
-  a4Cols?: number;
-  a4Rows?: number;
-  thermalCols?: number;
-}): PrecisionPrintMode {
-  if (preset.printMode === "thermal" || preset.printMode === "thermal2up" || preset.printMode === "thermal3up" || preset.printMode === "a4") {
+export function inferPrecisionPrintMode(preset: PrecisionPresetModeHint): PrecisionPrintMode {
+  if (
+    preset.printMode === "thermal2up" ||
+    preset.printMode === "thermal3up" ||
+    preset.printMode === "a4"
+  ) {
     return preset.printMode;
   }
   if (preset.a4Cols && preset.a4Rows) return "a4";
+  if (preset.name) {
+    const fromName = inferPrintModeFromName(preset.name);
+    if (fromName === "thermal3up" || fromName === "thermal2up") return fromName;
+  }
+  if (preset.printMode === "thermal") return "thermal";
+  if (preset.name) {
+    const fromName = inferPrintModeFromName(preset.name);
+    if (fromName) return fromName;
+  }
   return thermalColsToPrintMode(preset.thermalCols || 1);
+}
+
+export function presetMatchesPrintMode(
+  preset: PrecisionPresetModeHint,
+  mode: PrecisionPrintMode,
+): boolean {
+  return inferPrecisionPrintMode(preset) === mode;
 }
 
 export function getPrecisionThermalModeLabel(mode: string): string {

@@ -13,6 +13,7 @@ import { PrecisionLabelCell } from "./PrecisionLabelCell";
 import { LabelDesignConfig, LabelItem, LabelTemplate } from "@/types/labelTypes";
 import { cn } from "@/lib/utils";
 import type { PrecisionPrintMode } from "@/utils/precisionThermalModes";
+import { presetMatchesPrintMode } from "@/utils/precisionThermalModes";
 import { getThermalPreviewCols } from "@/utils/precisionThermalModes";
 
 export interface CalibrationValues {
@@ -230,8 +231,18 @@ export function LabelCalibrationUI({
   const [newA4PresetName, setNewA4PresetName] = useState("");
   const [activeA4PresetName, setActiveA4PresetName] = useState<string | null>(null);
 
-  const allPresets = [...BUILT_IN_PRESETS, ...presets];
-  const a4UserPresets = presets.filter(p => p.printMode === 'a4');
+  const modeFilteredBuiltInPresets = BUILT_IN_PRESETS.filter((p) =>
+    presetMatchesPrintMode(p, printMode),
+  );
+  const modeFilteredUserPresets = presets.filter((p) => presetMatchesPrintMode(p, printMode));
+  const allPresets = [...modeFilteredBuiltInPresets, ...modeFilteredUserPresets];
+  const a4UserPresets = presets.filter((p) => presetMatchesPrintMode(p, "a4"));
+  const modeFilteredTemplates =
+    printMode === "thermal"
+      ? savedTemplates.filter((t) => !presets.some((p) => p.name === t.name))
+      : printMode === "a4"
+        ? savedTemplates.filter((t) => !presets.some((p) => p.name === t.name))
+        : [];
   const isA4UserPreset = activeA4PresetName ? a4UserPresets.some(p => p.name === activeA4PresetName) : false;
 
   // Check both active name and ref for DB preset detection
@@ -373,9 +384,13 @@ export function LabelCalibrationUI({
               <SelectValue placeholder="Select a preset..." />
             </SelectTrigger>
             <SelectContent>
-              {savedTemplates
-                .filter((t) => !presets.some((p) => p.name === t.name))
-                .map((t) => (
+              {modeFilteredTemplates.length === 0 && allPresets.length === 0 ? (
+                <div className="px-2 py-2 text-xs text-muted-foreground">
+                  No presets for this print mode.
+                </div>
+              ) : (
+                <>
+              {modeFilteredTemplates.map((t) => (
                   <SelectItem key={`template-${t.name}`} value={`template_${t.name}`} className="text-xs">
                     📐 {t.name}
                     {t.labelWidth && t.labelHeight && (
@@ -385,8 +400,8 @@ export function LabelCalibrationUI({
                     )}
                   </SelectItem>
                 ))}
-              {savedTemplates.some((t) => !presets.some((p) => p.name === t.name)) &&
-                presets.length > 0 && (
+              {modeFilteredTemplates.length > 0 &&
+                modeFilteredUserPresets.length > 0 && (
                   <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50 mt-1">
                     🖨️ Printer Presets
                   </div>
@@ -400,6 +415,8 @@ export function LabelCalibrationUI({
                   </span>
                 </SelectItem>
               ))}
+                </>
+              )}
             </SelectContent>
           </Select>
         </div>
