@@ -112,6 +112,7 @@ import { fetchCustomerProductPrice } from "@/hooks/useCustomerProductPrice";
 import { ProductHistoryDialog } from "@/components/ProductHistoryDialog";
 import { PriceSelectionDialog } from "@/components/PriceSelectionDialog";
 import { StockIssueAlertDialog } from "@/components/StockIssueAlertDialog";
+import { CustomerPhoneLookupInput, type CustomerPhoneLookupRow } from "@/components/CustomerPhoneLookupInput";
 import {
   buildInsufficientStockIssue,
   buildMultipleStockIssues,
@@ -2646,6 +2647,18 @@ export default function SalesInvoice() {
 
   scheduleGridFocusRef.current = lineGrid.scheduleFocusOnItem;
 
+  const handleSelectExistingCustomerFromAddDialog = useCallback((customer: CustomerPhoneLookupRow) => {
+    setSelectedCustomerId(customer.id);
+    setSelectedCustomer(customer);
+    setPointsToRedeem(0);
+    customerForm.reset();
+    setOpenCustomerDialog(false);
+    toast({
+      title: "Customer Selected",
+      description: `${customer.customer_name} is already registered and has been selected`,
+    });
+  }, [customerForm, toast]);
+
   const handleCreateCustomer = async (values: z.infer<typeof customerSchema>) => {
     try {
       if (!currentOrganization?.id) throw new Error("No organization selected");
@@ -3730,7 +3743,18 @@ Thank you for choosing us!`;
           <DialogContent><DialogHeader><DialogTitle>New Customer</DialogTitle></DialogHeader>
             <Form {...customerForm}>
               <form onSubmit={customerForm.handleSubmit((data) => { /* handled by existing logic */ })} className="space-y-3">
-                <FormField control={customerForm.control} name="phone" render={({ field }) => (<FormItem><FormLabel>Phone *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                <FormField control={customerForm.control} name="phone" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Phone *</FormLabel>
+                    <FormControl>
+                      <CustomerPhoneLookupInput
+                        {...field}
+                        onExistingCustomerSelect={handleSelectExistingCustomerFromAddDialog}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
                 <FormField control={customerForm.control} name="customer_name" render={({ field }) => (<FormItem><FormLabel>Name</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)} />
                 <Button type="submit" className="w-full">Create</Button>
               </form>
@@ -5049,7 +5073,11 @@ Thank you for choosing us!`;
                   <FormItem>
                     <FormLabel>Mobile Number<span className="text-destructive">*</span></FormLabel>
                     <FormControl>
-                      <Input {...field} placeholder="Enter mobile number" autoFocus />
+                      <CustomerPhoneLookupInput
+                        {...field}
+                        autoFocus
+                        onExistingCustomerSelect={handleSelectExistingCustomerFromAddDialog}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
