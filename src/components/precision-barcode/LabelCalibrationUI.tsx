@@ -20,6 +20,7 @@ export interface CalibrationValues {
   xOffset: number;
   yOffset: number;
   vGap: number;
+  hGap: number;
   labelWidth: number;
   labelHeight: number;
   thermalCols?: number;
@@ -31,6 +32,7 @@ export interface CalibrationPreset {
   xOffset: number;
   yOffset: number;
   vGap: number;
+  hGap?: number;
   width: number;
   height: number;
   a4Cols?: number;
@@ -277,7 +279,7 @@ export function LabelCalibrationUI({
             labelHeight: template.labelHeight,
           });
         }
-        onLoadPreset?.({ name: templateName, xOffset: values.xOffset, yOffset: values.yOffset, vGap: values.vGap, width: template.labelWidth || values.labelWidth, height: template.labelHeight || values.labelHeight, labelConfig: template.config });
+        onLoadPreset?.({ name: templateName, xOffset: values.xOffset, yOffset: values.yOffset, vGap: values.vGap, hGap: values.hGap, width: template.labelWidth || values.labelWidth, height: template.labelHeight || values.labelHeight, labelConfig: template.config });
         // Set local active name to the template name so it persists in the dropdown
         setActivePresetName(templateName);
       }
@@ -290,6 +292,7 @@ export function LabelCalibrationUI({
         xOffset: preset.xOffset,
         yOffset: preset.yOffset,
         vGap: preset.vGap,
+        hGap: preset.hGap ?? 0,
         labelWidth: preset.width,
         labelHeight: preset.height,
         thermalCols: preset.thermalCols,
@@ -310,6 +313,7 @@ export function LabelCalibrationUI({
       xOffset: values.xOffset,
       yOffset: values.yOffset,
       vGap: values.vGap,
+      hGap: values.hGap,
       width: values.labelWidth,
       height: values.labelHeight,
       labelConfig: labelConfig || null,
@@ -331,6 +335,7 @@ export function LabelCalibrationUI({
       xOffset: values.xOffset,
       yOffset: values.yOffset,
       vGap: values.vGap,
+      hGap: values.hGap,
       width: newPresetWidth,
       height: newPresetHeight,
       printMode: newPresetMode,
@@ -367,6 +372,10 @@ export function LabelCalibrationUI({
   };
 
   const previewScale = compact ? 2 : 2.5;
+  const showHGap =
+    printMode === "thermal2up" ||
+    printMode === "thermal3up" ||
+    (printMode === "a4" && a4Cols > 1);
 
   return (
     <div
@@ -694,6 +703,7 @@ export function LabelCalibrationUI({
                         xOffset: userPreset.xOffset,
                         yOffset: userPreset.yOffset,
                         vGap: userPreset.vGap,
+                        hGap: userPreset.hGap ?? 0,
                         labelWidth: userPreset.width,
                         labelHeight: userPreset.height,
                       });
@@ -732,7 +742,7 @@ export function LabelCalibrationUI({
                     const existing = a4UserPresets.find(p => p.name === activeA4PresetName);
                     if (!existing) return;
                     const updated: CalibrationPreset = {
-                      ...existing, xOffset: values.xOffset, yOffset: values.yOffset, vGap: values.vGap,
+                      ...existing, xOffset: values.xOffset, yOffset: values.yOffset, vGap: values.vGap, hGap: values.hGap,
                       width: values.labelWidth, height: values.labelHeight, a4Cols, a4Rows, printMode: 'a4',
                       labelConfig: labelConfig || null,
                     };
@@ -761,7 +771,7 @@ export function LabelCalibrationUI({
                           onKeyDown={(e) => { if (e.key === "Enter") {
                             if (!newA4PresetName.trim()) return;
                             const newP: CalibrationPreset = {
-                              name: newA4PresetName.trim(), xOffset: values.xOffset, yOffset: values.yOffset, vGap: values.vGap,
+                              name: newA4PresetName.trim(), xOffset: values.xOffset, yOffset: values.yOffset, vGap: values.vGap, hGap: values.hGap,
                               width: values.labelWidth, height: values.labelHeight, a4Cols, a4Rows, printMode: 'a4',
                               labelConfig: labelConfig || null,
                             };
@@ -776,7 +786,7 @@ export function LabelCalibrationUI({
                         <Button type="button" size="xs" disabled={!newA4PresetName.trim() || saving} onClick={async () => {
                           if (!newA4PresetName.trim()) return;
                           const newP: CalibrationPreset = {
-                            name: newA4PresetName.trim(), xOffset: values.xOffset, yOffset: values.yOffset, vGap: values.vGap,
+                            name: newA4PresetName.trim(), xOffset: values.xOffset, yOffset: values.yOffset, vGap: values.vGap, hGap: values.hGap,
                             width: values.labelWidth, height: values.labelHeight, a4Cols, a4Rows, printMode: 'a4',
                             labelConfig: labelConfig || null,
                           };
@@ -844,10 +854,13 @@ export function LabelCalibrationUI({
               </Tooltip>
             </TooltipProvider>
           </div>
-          <div className="grid grid-cols-3 gap-2">
+          <div className={cn("grid gap-2", showHGap ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-3")}>
             <NudgeField label="X-Offset" value={values.xOffset} onChange={(v) => update({ xOffset: v })} min={-15} max={15} />
             <NudgeField label="Y-Offset" value={values.yOffset} onChange={(v) => update({ yOffset: v })} min={-15} max={15} />
             <NudgeField label="V-Gap" value={values.vGap} onChange={(v) => update({ vGap: v })} min={0} max={10} />
+            {showHGap && (
+              <NudgeField label="H-Gap" value={values.hGap} onChange={(v) => update({ hGap: v })} min={0} max={20} />
+            )}
           </div>
 
           <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide pt-1">Label Dimensions</p>
@@ -881,7 +894,7 @@ export function LabelCalibrationUI({
                     labelHeight={values.labelHeight}
                     xOffset={values.xOffset}
                     yOffset={values.yOffset}
-                    horizontalGap={values.vGap}
+                    horizontalGap={values.hGap}
                     thermalCols={getThermalPreviewCols(printMode)}
                     showBorder
                     config={labelConfig}

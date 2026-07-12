@@ -711,7 +711,15 @@ export default function SalesInvoiceDashboard() {
             ? "auto"
             : effectiveSaleBillFormat === "a5-horizontal"
               ? "148mm"
-              : "auto",
+              : "210mm",
+      maxHeight:
+        effectiveSaleBillFormat === "a4"
+          ? "297mm"
+          : effectiveSaleBillFormat === "thermal"
+            ? "none"
+            : effectiveSaleBillFormat === "a5-horizontal"
+              ? "148mm"
+              : "210mm",
     }),
     [effectiveSaleBillFormat],
   );

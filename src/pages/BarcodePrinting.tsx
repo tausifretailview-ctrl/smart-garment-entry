@@ -122,6 +122,25 @@ import {
 
 const precisionPresetStorageKey = (orgId: string) => `precision_active_preset_${orgId}`;
 
+function mapPrinterPresetFromRow(p: Record<string, unknown>): CalibrationPreset {
+  return {
+    id: p.id != null ? String(p.id) : undefined,
+    name: String(p.name),
+    xOffset: Number(p.x_offset),
+    yOffset: Number(p.y_offset),
+    vGap: Number(p.v_gap),
+    hGap: p.h_gap != null ? Number(p.h_gap) : 0,
+    width: Number(p.label_width),
+    height: Number(p.label_height),
+    a4Cols: p.a4_cols != null ? Number(p.a4_cols) : undefined,
+    a4Rows: p.a4_rows != null ? Number(p.a4_rows) : undefined,
+    printMode: (p.print_mode as CalibrationPreset["printMode"]) || "thermal",
+    labelConfig: p.label_config as LabelDesignConfig | null,
+    isDefault: Boolean(p.is_default),
+    thermalCols: p.thermal_cols != null ? Number(p.thermal_cols) : undefined,
+  };
+}
+
 const resolvePresetLabelConfig = (
   presetName: string,
   stored?: Partial<LabelDesignConfig> | null,
@@ -1351,6 +1370,7 @@ export default function BarcodePrinting() {
     xOffset: 0,
     yOffset: 0,
     vGap: 2,
+    hGap: 0,
     labelWidth: 50,
     labelHeight: 25,
     a4Cols: 4,
@@ -1928,21 +1948,7 @@ export default function BarcodePrinting() {
           .eq("organization_id", currentOrganization.id)
           .order("name");
         if (data) {
-          const mapped = data.map((p: any) => ({
-            id: p.id,
-            name: p.name,
-            xOffset: Number(p.x_offset),
-            yOffset: Number(p.y_offset),
-            vGap: Number(p.v_gap),
-            width: Number(p.label_width),
-            height: Number(p.label_height),
-            a4Cols: p.a4_cols,
-            a4Rows: p.a4_rows,
-            printMode: p.print_mode || 'thermal',
-            labelConfig: p.label_config,
-            isDefault: p.is_default,
-            thermalCols: p.thermal_cols || undefined,
-          }));
+          const mapped = data.map((p: any) => mapPrinterPresetFromRow(p));
           setDbPresets(mapped);
 
           // Auto-load preset: either the one saved in localStorage or the default preset
@@ -1961,6 +1967,7 @@ export default function BarcodePrinting() {
               xOffset: presetToLoad.xOffset,
               yOffset: presetToLoad.yOffset,
               vGap: presetToLoad.vGap,
+              hGap: presetToLoad.hGap ?? 0,
               labelWidth: fixedDims?.width ?? presetToLoad.width,
               labelHeight: fixedDims?.height ?? presetToLoad.height,
               ...(presetToLoad.a4Cols ? { a4Cols: presetToLoad.a4Cols } : {}),
@@ -2035,6 +2042,7 @@ export default function BarcodePrinting() {
         x_offset: precisionSettings.xOffset,
         y_offset: precisionSettings.yOffset,
         v_gap: precisionSettings.vGap,
+        h_gap: precisionSettings.hGap,
         a4_cols: precisionSettings.a4Cols,
         a4_rows: precisionSettings.a4Rows,
         print_mode: precisionSettings.printMode,
@@ -2049,13 +2057,7 @@ export default function BarcodePrinting() {
       .eq("organization_id", currentOrganization.id)
       .order("name");
     if (data) {
-      setDbPresets(data.map((p: any) => ({
-        id: p.id, name: p.name,
-        xOffset: Number(p.x_offset), yOffset: Number(p.y_offset),
-        vGap: Number(p.v_gap), width: Number(p.label_width), height: Number(p.label_height),
-        a4Cols: p.a4_cols, a4Rows: p.a4_rows, printMode: p.print_mode || 'thermal',
-        labelConfig: p.label_config, isDefault: p.is_default,
-      })));
+      setDbPresets(data.map((p: any) => mapPrinterPresetFromRow(p)));
     }
   };
 
@@ -2080,6 +2082,7 @@ export default function BarcodePrinting() {
       xOffset: preset.xOffset ?? prev.xOffset,
       yOffset: preset.yOffset ?? prev.yOffset,
       vGap: preset.vGap ?? prev.vGap,
+      hGap: preset.hGap ?? prev.hGap ?? 0,
       ...(preset.a4Cols ? { a4Cols: preset.a4Cols } : {}),
       ...(preset.a4Rows ? { a4Rows: preset.a4Rows } : {}),
       thermalCols: preset.thermalCols || printModeToThermalCols(mode),
@@ -2105,21 +2108,7 @@ export default function BarcodePrinting() {
       .order("name");
     if (error) throw error;
     if (data) {
-      const mapped = data.map((p: Record<string, unknown>) => ({
-        id: String(p.id),
-        name: String(p.name),
-        xOffset: Number(p.x_offset),
-        yOffset: Number(p.y_offset),
-        vGap: Number(p.v_gap),
-        width: Number(p.label_width),
-        height: Number(p.label_height),
-        a4Cols: p.a4_cols != null ? Number(p.a4_cols) : undefined,
-        a4Rows: p.a4_rows != null ? Number(p.a4_rows) : undefined,
-        printMode: (p.print_mode as CalibrationPreset["printMode"]) || "thermal",
-        labelConfig: p.label_config as LabelDesignConfig | null,
-        isDefault: Boolean(p.is_default),
-        thermalCols: p.thermal_cols != null ? Number(p.thermal_cols) : undefined,
-      }));
+      const mapped = data.map((p: Record<string, unknown>) => mapPrinterPresetFromRow(p));
       setDbPresets(mapped);
     }
   }, [currentOrganization?.id]);
@@ -2141,6 +2130,7 @@ export default function BarcodePrinting() {
       xOffset: Number(data.x_offset),
       yOffset: Number(data.y_offset),
       vGap: Number(data.v_gap),
+      hGap: data.h_gap != null ? Number(data.h_gap) : 0,
       width: Number(data.label_width),
       height: Number(data.label_height),
       a4Cols: data.a4_cols != null ? Number(data.a4_cols) : undefined,
@@ -3245,6 +3235,7 @@ export default function BarcodePrinting() {
         xOffset: precisionSettings.xOffset,
         yOffset: precisionSettings.yOffset,
         vGap: precisionSettings.vGap,
+        hGap: precisionSettings.hGap,
         width: templateDims?.width ?? template.labelWidth ?? precisionSettings.labelWidth,
         height: templateDims?.height ?? template.labelHeight ?? precisionSettings.labelHeight,
         labelConfig: template.config,
@@ -3611,9 +3602,8 @@ export default function BarcodePrinting() {
   const getThermalMultiUpGap = (): number => {
     if (!isThermalMultiUp()) return 0;
 
-    // Precision Pro: horizontal gap between multi-up labels uses calibration V-Gap
     if (precisionSettings.enabled) {
-      return Math.max(0, precisionSettings.vGap || 0);
+      return Math.max(0, precisionSettings.hGap || 0);
     }
 
     if (sheetType === "custom") {
@@ -3622,6 +3612,11 @@ export default function BarcodePrinting() {
 
     const preset = sheetPresets[sheetType];
     return preset?.cols === 2 ? parseFloat(preset.gap) || 0 : 0;
+  };
+
+  const getA4ColumnGap = (): number => {
+    if (precisionSettings.printMode !== "a4" || precisionSettings.a4Cols <= 1) return 0;
+    return Math.max(0, precisionSettings.hGap || 0);
   };
 
   // Auto-fit scale: shrink content to fit within A4 default-margin printable area
@@ -4223,6 +4218,7 @@ export default function BarcodePrinting() {
           x_offset: precisionSettings.xOffset,
           y_offset: precisionSettings.yOffset,
           v_gap: precisionSettings.vGap,
+          h_gap: precisionSettings.hGap,
           a4_cols: precisionSettings.a4Cols,
           a4_rows: precisionSettings.a4Rows,
           thermal_cols: precisionSettings.thermalCols || 1,
@@ -4238,13 +4234,7 @@ export default function BarcodePrinting() {
           .eq("organization_id", currentOrganization.id)
           .order("name");
         if (data) {
-          setDbPresets(data.map((p: any) => ({
-            id: p.id, name: p.name,
-            xOffset: Number(p.x_offset), yOffset: Number(p.y_offset),
-            vGap: Number(p.v_gap), width: Number(p.label_width), height: Number(p.label_height),
-            a4Cols: p.a4_cols, a4Rows: p.a4_rows, printMode: p.print_mode || 'thermal',
-            labelConfig: p.label_config, isDefault: p.is_default,
-          })));
+          setDbPresets(data.map((p: any) => mapPrinterPresetFromRow(p)));
         }
       }
     }
@@ -5115,6 +5105,7 @@ export default function BarcodePrinting() {
                 xOffset: precisionSettings.xOffset,
                 yOffset: precisionSettings.yOffset,
                 vGap: precisionSettings.vGap,
+                hGap: precisionSettings.hGap,
                 width: templateDims?.width ?? template.labelWidth ?? precisionSettings.labelWidth,
                 height: templateDims?.height ?? template.labelHeight ?? precisionSettings.labelHeight,
                 labelConfig: template.config,
@@ -6098,6 +6089,7 @@ export default function BarcodePrinting() {
                 xOffset: precisionSettings.xOffset,
                 yOffset: precisionSettings.yOffset,
                 vGap: precisionSettings.vGap,
+                hGap: precisionSettings.hGap,
                 labelWidth: precisionSettings.labelWidth,
                 labelHeight: precisionSettings.labelHeight,
                 thermalCols: precisionSettings.thermalCols,
@@ -6108,6 +6100,7 @@ export default function BarcodePrinting() {
                   xOffset: vals.xOffset,
                   yOffset: vals.yOffset,
                   vGap: vals.vGap,
+                  hGap: vals.hGap,
                   labelWidth: vals.labelWidth,
                   labelHeight: vals.labelHeight,
                   thermalCols: vals.thermalCols || 1,
@@ -6127,6 +6120,7 @@ export default function BarcodePrinting() {
                     x_offset: preset.xOffset,
                     y_offset: preset.yOffset,
                     v_gap: preset.vGap,
+                    h_gap: preset.hGap ?? 0,
                     a4_cols: preset.a4Cols ?? precisionSettings.a4Cols,
                     a4_rows: preset.a4Rows ?? precisionSettings.a4Rows,
                     print_mode: precisionSettings.printMode,
@@ -6153,14 +6147,7 @@ export default function BarcodePrinting() {
                   .eq("organization_id", currentOrganization.id)
                   .order("name");
                 if (data) {
-                  setDbPresets(data.map((p: any) => ({
-                    id: p.id, name: p.name,
-                    xOffset: Number(p.x_offset), yOffset: Number(p.y_offset),
-                    vGap: Number(p.v_gap), width: Number(p.label_width), height: Number(p.label_height),
-                    a4Cols: p.a4_cols, a4Rows: p.a4_rows, printMode: p.print_mode || 'thermal',
-                    labelConfig: p.label_config, isDefault: p.is_default,
-                    thermalCols: p.thermal_cols || undefined,
-                  })));
+                  setDbPresets(data.map((p: any) => mapPrinterPresetFromRow(p)));
                 }
               }}
               onDeletePreset={async (presetId) => {
@@ -6235,6 +6222,7 @@ export default function BarcodePrinting() {
                           xOffset: preset?.xOffset ?? precisionSettings.xOffset,
                           yOffset: preset?.yOffset ?? precisionSettings.yOffset,
                           vGap: preset?.vGap ?? precisionSettings.vGap,
+                          hGap: preset?.hGap ?? precisionSettings.hGap,
                           width: fixedDims?.width ?? preset?.width ?? precisionSettings.labelWidth,
                           height: fixedDims?.height ?? preset?.height ?? precisionSettings.labelHeight,
                           labelConfig,
@@ -6255,6 +6243,7 @@ export default function BarcodePrinting() {
                         xOffset: precisionSettings.xOffset,
                         yOffset: precisionSettings.yOffset,
                         vGap: precisionSettings.vGap,
+                        hGap: precisionSettings.hGap,
                         width: templateDims?.width ?? template.labelWidth ?? precisionSettings.labelWidth,
                         height: templateDims?.height ?? template.labelHeight ?? precisionSettings.labelHeight,
                         labelConfig: template.config,
@@ -6499,6 +6488,7 @@ export default function BarcodePrinting() {
                   xOffset: precisionSettings.xOffset,
                   yOffset: precisionSettings.yOffset,
                   vGap: precisionSettings.vGap,
+                  hGap: precisionSettings.hGap,
                   labelWidth: precisionSettings.labelWidth,
                   labelHeight: precisionSettings.labelHeight,
                   thermalCols: precisionSettings.thermalCols,
@@ -6509,6 +6499,7 @@ export default function BarcodePrinting() {
                     xOffset: vals.xOffset,
                     yOffset: vals.yOffset,
                     vGap: vals.vGap,
+                    hGap: vals.hGap,
                     labelWidth: vals.labelWidth,
                     labelHeight: vals.labelHeight,
                     thermalCols: vals.thermalCols || 1,
@@ -6528,6 +6519,7 @@ export default function BarcodePrinting() {
                       x_offset: preset.xOffset,
                       y_offset: preset.yOffset,
                       v_gap: preset.vGap,
+                      h_gap: preset.hGap ?? 0,
                       a4_cols: preset.a4Cols ?? precisionSettings.a4Cols,
                       a4_rows: preset.a4Rows ?? precisionSettings.a4Rows,
                       print_mode: precisionSettings.printMode,
@@ -6626,6 +6618,7 @@ export default function BarcodePrinting() {
                       xOffset={precisionSettings.xOffset}
                       yOffset={precisionSettings.yOffset}
                       vGap={precisionSettings.vGap}
+                      columnGap={getA4ColumnGap()}
                       config={effectivePrecisionLabelConfig}
                       startPosition={startPosition}
                       productFieldSettings={productFieldSettings}
@@ -6815,6 +6808,7 @@ export default function BarcodePrinting() {
               xOffset={precisionSettings.xOffset}
               yOffset={precisionSettings.yOffset}
               vGap={precisionSettings.vGap}
+              columnGap={getA4ColumnGap()}
               config={effectivePrecisionLabelConfig}
               startPosition={startPosition}
               active={printPageActive}

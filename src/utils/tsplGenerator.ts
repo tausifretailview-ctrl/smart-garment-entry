@@ -91,6 +91,240 @@ export interface TSPLTemplateConfig {
   barcodeWidth?: number;
 }
 
+export interface TSPLMultiUpLayout {
+  cols: number;
+  hGap: number;
+  xOffset: number;
+}
+
+export function computeMultiUpStripWidthMm(
+  singleLabelWidthMm: number,
+  cols: number,
+  hGap: number,
+): number {
+  const c = Math.max(1, cols);
+  const gap = Math.max(0, hGap);
+  return singleLabelWidthMm * c + gap * Math.max(0, c - 1);
+}
+
+interface TemplateLabelRenderOptions {
+  dpi: number;
+  columnOffsetMm?: number;
+  contentWidthMm?: number;
+}
+
+function appendTsplSetupCommands(
+  commands: string[],
+  labelConfig: TSPLLabelConfig,
+  pageWidthMm: number,
+): number {
+  const dpi = labelConfig.dpi || 203;
+  const direction = labelConfig.direction ?? 1;
+
+  commands.push(generateSizeCommand(pageWidthMm, labelConfig.height));
+
+  const gapMode = labelConfig.gapMode || 'gap';
+  if (gapMode === 'continuous') {
+    commands.push('GAP 0 mm, 0 mm');
+  } else if (gapMode === 'bline') {
+    commands.push(`BLINE ${labelConfig.gap} mm, 0 mm`);
+  } else {
+    commands.push(generateGapCommand(labelConfig.gap));
+  }
+
+  commands.push(`DIRECTION ${direction}`);
+
+  const topOffsetMm = labelConfig.topOffset ?? 0;
+  const leftOffsetMm = labelConfig.leftOffset ?? 0;
+  if (topOffsetMm !== 0) {
+    commands.push(`OFFSET ${mmToDots(topOffsetMm, dpi)}`);
+  }
+  if (leftOffsetMm !== 0) {
+    commands.push(`SHIFT ${mmToDots(leftOffsetMm, dpi)}`);
+  }
+
+  if (labelConfig.speed) {
+    commands.push(`SPEED ${labelConfig.speed}`);
+  }
+  if (labelConfig.density) {
+    commands.push(`DENSITY ${labelConfig.density}`);
+  }
+
+  commands.push('CODEPAGE UTF-8');
+  commands.push('CLS');
+
+  return dpi;
+}
+
+function appendTemplateLabelBody(
+  commands: string[],
+  labelConfig: TSPLLabelConfig,
+  templateConfig: TSPLTemplateConfig,
+  data: LabelData,
+  options: TemplateLabelRenderOptions,
+): void {
+  const dpi = options.dpi;
+  const columnOffsetMm = options.columnOffsetMm ?? 0;
+  const contentWidthMm = options.contentWidthMm ?? labelConfig.width;
+  const contentHeightMm = labelConfig.height;
+
+  const labelWidthDots = mmToDots(contentWidthMm, dpi);
+  const labelHeightDots = mmToDots(contentHeightMm, dpi);
+  const isCompactLabel = contentWidthMm <= 40 && contentHeightMm <= 25;
+
+  const hasAbsolutePos = templateConfig.fieldOrder.some(fieldKey => {
+    const field = templateConfig[fieldKey as keyof TSPLTemplateConfig] as TSPLFieldConfig;
+    return field && (field.x !== undefined || field.y !== undefined);
+  });
+
+  const applyCompactAdjustments = isCompactLabel && !hasAbsolutePos;
+  const compactTopPaddingDots = applyCompactAdjustments ? mmToDots(0.8, dpi) : 0;
+  const compactBottomPaddingDots = applyCompactAdjustments ? mmToDots(0.8, dpi) : mmToDots(0.5, dpi);
+
+  const shouldAutoPrintBusinessName = applyCompactAdjustments && !!data.businessName && !templateConfig.businessName?.show;
+  if (shouldAutoPrintBusinessName) {
+    const autoBusinessFontSize = getScaledFontSize(8, contentHeightMm, hasAbsolutePos);
+    const autoBusinessFont = mapFontSize(autoBusinessFontSize, true);
+    const autoBusinessWidth = getTextWidthDots(data.businessName as string, autoBusinessFontSize, true);
+    const autoBusinessX = Math.max(0, Math.round((labelWidthDots - autoBusinessWidth) / 2));
+
+    commands.push(`TEXT ${mmToDots(columnOffsetMm, dpi) + autoBusinessX},${compactTopPaddingDots},"${autoBusinessFont.font}",0,${autoBusinessFont.xMul},${autoBusinessFont.yMul},"${(data.businessName as string).substring(0, 32)}"`);
+  }
+
+  const postBarcodeLayout = computeLabelBarcodeLayout(
+    { ...labelConfig, width: contentWidthMm, height: contentHeightMm },
+    templateConfig,
+    data,
+    {
+      dpi,
+      hasAbsolutePos,
+      applyCompactAdjustments,
+      compactBottomPaddingDots,
+    },
+  );
+
+  for (const fieldKey of templateConfig.fieldOrder) {
+    if (fieldKey === 'barcode') {
+      const barcodeConfig = templateConfig.barcode;
+      if (barcodeConfig?.show && data.barcode) {
+        const clampedX = clampPosition(barcodeConfig.x ?? 0, contentWidthMm, 'barcode', 'x');
+        const clampedY = clampPosition(barcodeConfig.y ?? 0, contentHeightMm, 'barcode', 'y');
+
+        const barcodeX = mmToDots(clampedX + columnOffsetMm, dpi);
+        const barcodeY = postBarcodeLayout?.barcodeYDots ?? mmToDots(clampedY, dpi);
+        const barcodeHeightDots = postBarcodeLayout?.barcodeHeightDots ?? mmToDots(3, dpi);
+
+        const barcodeNarrow = Math.max(1, Math.round(templateConfig.barcodeWidth || 1.5));
+
+        const barcodeModules = (data.barcode.length + 4) * 11;
+        const barcodeWidthDots = barcodeModules * barcodeNarrow;
+
+        let finalBarcodeX = barcodeX;
+
+        if (barcodeConfig.width) {
+          let fieldWidthDots = labelWidthDots;
+          if (barcodeConfig.width > contentWidthMm) {
+            fieldWidthDots = mmToDots((barcodeConfig.width / 100) * contentWidthMm, dpi);
+          } else {
+            fieldWidthDots = mmToDots(barcodeConfig.width, dpi);
+          }
+
+          if (barcodeConfig.textAlign === 'center') {
+            finalBarcodeX = barcodeX + Math.max(0, (fieldWidthDots - barcodeWidthDots) / 2);
+          } else if (barcodeConfig.textAlign === 'right') {
+            finalBarcodeX = barcodeX + fieldWidthDots - barcodeWidthDots;
+          }
+        } else {
+          finalBarcodeX = mmToDots(columnOffsetMm, dpi) + Math.max(0, (labelWidthDots - barcodeWidthDots) / 2);
+        }
+
+        commands.push(generateBarcodeCommand({
+          x: Math.round(finalBarcodeX),
+          y: barcodeY,
+          type: '128',
+          height: barcodeHeightDots,
+          data: data.barcode,
+          readable: 0,
+          narrow: barcodeNarrow,
+          wide: barcodeNarrow,
+        }));
+      }
+      continue;
+    }
+
+    const fieldConfig = templateConfig[fieldKey as keyof TSPLTemplateConfig] as TSPLFieldConfig;
+    if (!fieldConfig || !fieldConfig.show) continue;
+
+    if (postBarcodeLayout?.skippedPostBarcodeFields.includes(fieldKey)) {
+      console.warn(`TSPL: Skipping ${fieldKey} — no room below barcode on short label`);
+      continue;
+    }
+
+    const content = getFieldContent(fieldKey, data);
+    if (!content) continue;
+
+    const rawX = fieldConfig.x ?? 0;
+    const rawY = fieldConfig.y ?? 0;
+    const clampedX = hasAbsolutePos ? Math.max(0, rawX) : clampPosition(rawX, contentWidthMm, fieldKey, 'x');
+    const clampedY = hasAbsolutePos ? Math.max(0, rawY) : clampPosition(rawY, contentHeightMm, fieldKey, 'y');
+
+    if (clampedY >= contentHeightMm - 1) {
+      console.warn(`TSPL: Skipping ${fieldKey} - position off label`);
+      continue;
+    }
+
+    const fieldX = mmToDots(clampedX + columnOffsetMm, dpi);
+    const fieldY = mmToDots(clampedY, dpi);
+
+    let fieldWidth = labelWidthDots;
+    if (fieldConfig.width) {
+      if (fieldConfig.width > contentWidthMm) {
+        fieldWidth = mmToDots((fieldConfig.width / 100) * contentWidthMm, dpi);
+      } else {
+        fieldWidth = mmToDots(fieldConfig.width, dpi);
+      }
+    }
+
+    const scaledFontSize = getScaledFontSize(fieldConfig.fontSize, contentHeightMm, hasAbsolutePos);
+    const fontInfo = mapFontSize(scaledFontSize, fieldConfig.bold);
+    const textWidthDots = getTextWidthDots(content, scaledFontSize, fieldConfig.bold);
+    const textHeightDots = getTextHeightDots(scaledFontSize, fieldConfig.bold);
+
+    let textX = fieldX;
+
+    if (fieldConfig.textAlign === 'center') {
+      textX = fieldX + Math.max(0, (fieldWidth - textWidthDots) / 2);
+    } else if (fieldConfig.textAlign === 'right') {
+      textX = fieldX + Math.max(0, fieldWidth - textWidthDots);
+    }
+
+    let textY = postBarcodeLayout?.derivedFieldYDots[fieldKey] ?? fieldY;
+
+    if (!hasAbsolutePos) {
+      if (applyCompactAdjustments && textY < compactTopPaddingDots) {
+        textY = compactTopPaddingDots;
+      }
+
+      if (fieldKey === 'barcodeText' && applyCompactAdjustments) {
+        textY = Math.max(textY, labelHeightDots - textHeightDots - compactBottomPaddingDots);
+      }
+
+      const maxTextY = Math.max(0, labelHeightDots - textHeightDots - compactBottomPaddingDots);
+      textY = Math.min(textY, maxTextY);
+    }
+
+    textX = Math.max(0, textX);
+
+    const { charWidth } = getFontMetrics(fontInfo.font);
+    const maxChars = Math.floor((labelWidthDots - (textX - mmToDots(columnOffsetMm, dpi))) / charWidth);
+    const hardCap = content.length > 40 ? 40 : content.length;
+    const safeMaxChars = Math.max(1, Math.min(maxChars, hardCap));
+    const truncatedContent = content.substring(0, safeMaxChars);
+
+    commands.push(`TEXT ${Math.round(textX)},${Math.round(textY)},"${fontInfo.font}",0,${fontInfo.xMul},${fontInfo.yMul},"${truncatedContent}"`);
+  }
+}
+
 // Convert mm to dots (203 DPI = 8 dots per mm)
 export const mmToDots = (mm: number, dpi: number = 203): number => {
   return Math.round(mm * (dpi / 25.4));
@@ -337,230 +571,42 @@ export const generateTSPLLabelFromTemplate = (
   copies: number = 1
 ): string => {
   const commands: string[] = [];
-  
-  // Get DPI and direction from config (defaults: 203 DPI, DIRECTION 1)
-  const dpi = labelConfig.dpi || 203;
-  const direction = labelConfig.direction ?? 1; // Default to 1 (standard for most TSC printers)
-  
-  // Label setup
-  commands.push(generateSizeCommand(labelConfig.width, labelConfig.height));
-  
-  // Gap mode: gap (default), continuous, or black mark
-  const gapMode = labelConfig.gapMode || 'gap';
-  if (gapMode === 'continuous') {
-    commands.push('GAP 0 mm, 0 mm');
-  } else if (gapMode === 'bline') {
-    commands.push(`BLINE ${labelConfig.gap} mm, 0 mm`);
-  } else {
-    commands.push(generateGapCommand(labelConfig.gap));
-  }
-  
-  commands.push(`DIRECTION ${direction}`);
-  
-  // Add OFFSET to compensate for printer's physical print origin shift
-  // OFFSET and SHIFT commands take values in dots
-  const topOffsetMm = labelConfig.topOffset ?? 0; // Default 0 - user configures via printer settings
-  const leftOffsetMm = labelConfig.leftOffset ?? 0;
-  if (topOffsetMm !== 0) {
-    const topOffsetDots = mmToDots(topOffsetMm, dpi);
-    commands.push(`OFFSET ${topOffsetDots}`);
-  }
-  if (leftOffsetMm !== 0) {
-    const leftOffsetDots = mmToDots(leftOffsetMm, dpi);
-    commands.push(`SHIFT ${leftOffsetDots}`);
-  }
-  
-  // Speed and density for printer compatibility
-  if (labelConfig.speed) {
-    commands.push(`SPEED ${labelConfig.speed}`);
-  }
-  if (labelConfig.density) {
-    commands.push(`DENSITY ${labelConfig.density}`);
-  }
-  
-  commands.push('CODEPAGE UTF-8');
-  commands.push('CLS'); // Clear buffer
-  
-  const labelWidthDots = mmToDots(labelConfig.width, dpi);
-  const labelHeightDots = mmToDots(labelConfig.height, dpi);
-  const isCompactLabel = labelConfig.width <= 40 && labelConfig.height <= 25;
-  
-  // Check if template has absolute positioning (designer mode)
-  const hasAbsolutePos = templateConfig.fieldOrder.some(fieldKey => {
-    const field = templateConfig[fieldKey as keyof TSPLTemplateConfig] as TSPLFieldConfig;
-    return field && (field.x !== undefined || field.y !== undefined);
-  });
-  
-  // Only apply compact adjustments for legacy/non-designer templates
-  const applyCompactAdjustments = isCompactLabel && !hasAbsolutePos;
-  const compactTopPaddingDots = applyCompactAdjustments ? mmToDots(0.8, dpi) : 0;
-  const compactBottomPaddingDots = applyCompactAdjustments ? mmToDots(0.8, dpi) : mmToDots(0.5, dpi);
-
-  // For compact labels without designer positioning, always print shop name at top if available
-  const shouldAutoPrintBusinessName = applyCompactAdjustments && !!data.businessName && !templateConfig.businessName?.show;
-  if (shouldAutoPrintBusinessName) {
-    const autoBusinessFontSize = getScaledFontSize(8, labelConfig.height, hasAbsolutePos);
-    const autoBusinessFont = mapFontSize(autoBusinessFontSize, true);
-    const autoBusinessWidth = getTextWidthDots(data.businessName as string, autoBusinessFontSize, true);
-    const autoBusinessX = Math.max(0, Math.round((labelWidthDots - autoBusinessWidth) / 2));
-
-    commands.push(`TEXT ${autoBusinessX},${compactTopPaddingDots},"${autoBusinessFont.font}",0,${autoBusinessFont.xMul},${autoBusinessFont.yMul},"${(data.businessName as string).substring(0, 32)}"`);
-  }
-
-  const postBarcodeLayout = computeLabelBarcodeLayout(labelConfig, templateConfig, data, {
-    dpi,
-    hasAbsolutePos,
-    applyCompactAdjustments,
-    compactBottomPaddingDots,
-  });
-  
-  // Process each field using its ABSOLUTE x/y coordinates from the template
-  for (const fieldKey of templateConfig.fieldOrder) {
-    if (fieldKey === 'barcode') {
-      // Handle barcode with absolute positioning
-      const barcodeConfig = templateConfig.barcode;
-      if (barcodeConfig?.show && data.barcode) {
-        // Clamp barcode position within label bounds
-        const clampedX = clampPosition(barcodeConfig.x ?? 0, labelConfig.width, 'barcode', 'x');
-        const clampedY = clampPosition(barcodeConfig.y ?? 0, labelConfig.height, 'barcode', 'y');
-        
-        const barcodeX = mmToDots(clampedX, dpi);
-        const barcodeY = postBarcodeLayout?.barcodeYDots ?? mmToDots(clampedY, dpi);
-        const barcodeHeightDots = postBarcodeLayout?.barcodeHeightDots ?? mmToDots(3, dpi);
-        
-        const barcodeNarrow = Math.max(1, Math.round(templateConfig.barcodeWidth || 1.5));
-        
-        // Calculate barcode width for centering within field width if specified
-        const barcodeModules = (data.barcode.length + 4) * 11;
-        const barcodeWidthDots = barcodeModules * barcodeNarrow;
-        
-        let finalBarcodeX = barcodeX;
-        
-        // If field width is specified, center barcode within it
-        // Width is stored as percentage of label width (0-100), convert to dots
-        if (barcodeConfig.width) {
-          let fieldWidthDots = labelWidthDots;
-          if (barcodeConfig.width > labelConfig.width) {
-            // It's a percentage value (e.g., 100 = 100% of label width)
-            fieldWidthDots = mmToDots((barcodeConfig.width / 100) * labelConfig.width, dpi);
-          } else {
-            // It's already in mm
-            fieldWidthDots = mmToDots(barcodeConfig.width, dpi);
-          }
-          
-          if (barcodeConfig.textAlign === 'center') {
-            finalBarcodeX = barcodeX + Math.max(0, (fieldWidthDots - barcodeWidthDots) / 2);
-          } else if (barcodeConfig.textAlign === 'right') {
-            finalBarcodeX = barcodeX + fieldWidthDots - barcodeWidthDots;
-          }
-        } else {
-          // If no width specified, center on label
-          finalBarcodeX = Math.max(0, (labelWidthDots - barcodeWidthDots) / 2);
-        }
-        
-        commands.push(generateBarcodeCommand({
-          x: Math.round(finalBarcodeX),
-          y: barcodeY,
-          type: '128',
-          height: barcodeHeightDots,
-          data: data.barcode,
-          readable: 0, // No built-in text, we add barcodeText separately
-          narrow: barcodeNarrow,
-          wide: barcodeNarrow,
-        }));
-      }
-      continue;
-    }
-    
-    const fieldConfig = templateConfig[fieldKey as keyof TSPLTemplateConfig] as TSPLFieldConfig;
-    if (!fieldConfig || !fieldConfig.show) continue;
-
-    if (postBarcodeLayout?.skippedPostBarcodeFields.includes(fieldKey)) {
-      console.warn(`TSPL: Skipping ${fieldKey} — no room below barcode on short label`);
-      continue;
-    }
-    
-    const content = getFieldContent(fieldKey, data);
-    if (!content) continue;
-    
-    // For designer mode with absolute positioning, use exact coordinates without clamping
-    const rawX = fieldConfig.x ?? 0;
-    const rawY = fieldConfig.y ?? 0;
-    const clampedX = hasAbsolutePos ? Math.max(0, rawX) : clampPosition(rawX, labelConfig.width, fieldKey, 'x');
-    const clampedY = hasAbsolutePos ? Math.max(0, rawY) : clampPosition(rawY, labelConfig.height, fieldKey, 'y');
-    
-    // Skip fields that would be completely off-label (y position too close to bottom)
-    if (clampedY >= labelConfig.height - 1) {
-      console.warn(`TSPL: Skipping ${fieldKey} - position off label`);
-      continue;
-    }
-    
-    // Use ABSOLUTE x/y coordinates from the field config (convert mm to dots)
-    const fieldX = mmToDots(clampedX, dpi);
-    const fieldY = mmToDots(clampedY, dpi);
-    
-    // Width is stored as percentage of label width (0-100), convert to dots
-    // If width > labelConfig.width, treat it as percentage
-    let fieldWidth = labelWidthDots;
-    if (fieldConfig.width) {
-      if (fieldConfig.width > labelConfig.width) {
-        // It's a percentage value (e.g., 100 = 100% of label width)
-        fieldWidth = mmToDots((fieldConfig.width / 100) * labelConfig.width, dpi);
-      } else {
-        // It's already in mm
-        fieldWidth = mmToDots(fieldConfig.width, dpi);
-      }
-    }
-    
-    // Use exact font size for designer mode, scaled for legacy mode
-    const scaledFontSize = getScaledFontSize(fieldConfig.fontSize, labelConfig.height, hasAbsolutePos);
-    const fontInfo = mapFontSize(scaledFontSize, fieldConfig.bold);
-    const textWidthDots = getTextWidthDots(content, scaledFontSize, fieldConfig.bold);
-    const textHeightDots = getTextHeightDots(scaledFontSize, fieldConfig.bold);
-    
-    // Calculate final X position based on text alignment within field
-    let textX = fieldX;
-    
-    if (fieldConfig.textAlign === 'center') {
-      textX = fieldX + Math.max(0, (fieldWidth - textWidthDots) / 2);
-    } else if (fieldConfig.textAlign === 'right') {
-      textX = fieldX + Math.max(0, fieldWidth - textWidthDots);
-    }
-    
-    // For designer mode, use exact Y position from template unless derived from barcode layout
-    let textY = postBarcodeLayout?.derivedFieldYDots[fieldKey] ?? fieldY;
-    
-    if (!hasAbsolutePos) {
-      // Legacy compact-label safety: avoid top clipping and keep barcode text at bottom
-      if (applyCompactAdjustments && textY < compactTopPaddingDots) {
-        textY = compactTopPaddingDots;
-      }
-
-      if (fieldKey === 'barcodeText' && applyCompactAdjustments) {
-        textY = Math.max(textY, labelHeightDots - textHeightDots - compactBottomPaddingDots);
-      }
-
-      const maxTextY = Math.max(0, labelHeightDots - textHeightDots - compactBottomPaddingDots);
-      textY = Math.min(textY, maxTextY);
-    }
-    
-    // Ensure text doesn't start outside label bounds (but allow it to extend to edge)
-    textX = Math.max(0, textX);
-    
-    // Truncate text if it exceeds label width
-    const { charWidth } = getFontMetrics(fontInfo.font);
-    const maxChars = Math.floor((labelWidthDots - textX) / charWidth);
-    const hardCap = content.length > 40 ? 40 : content.length;
-    const safeMaxChars = Math.max(1, Math.min(maxChars, hardCap));
-    const truncatedContent = content.substring(0, safeMaxChars);
-    
-    commands.push(`TEXT ${Math.round(textX)},${Math.round(textY)},"${fontInfo.font}",0,${fontInfo.xMul},${fontInfo.yMul},"${truncatedContent}"`);
-  }
-  
-  // Print command
+  const dpi = appendTsplSetupCommands(commands, labelConfig, labelConfig.width);
+  appendTemplateLabelBody(commands, labelConfig, templateConfig, data, { dpi });
   commands.push(`PRINT ${copies},1`);
   commands.push('END');
-  
+  return commands.join('\n');
+};
+
+/** One physical thermal row with multiple columns (2-Up / 3-Up). */
+export const generateTSPLMultiUpRowFromTemplate = (
+  labelConfig: TSPLLabelConfig,
+  templateConfig: TSPLTemplateConfig,
+  rowItems: LabelData[],
+  layout: TSPLMultiUpLayout,
+  copies: number = 1,
+): string => {
+  const cols = Math.max(1, layout.cols);
+  const hGap = Math.max(0, layout.hGap);
+  const singleWidthMm = labelConfig.width;
+  const totalWidthMm = computeMultiUpStripWidthMm(singleWidthMm, cols, hGap);
+
+  const commands: string[] = [];
+  const dpi = appendTsplSetupCommands(commands, labelConfig, totalWidthMm);
+
+  for (let i = 0; i < cols; i++) {
+    const item = rowItems[i];
+    if (!item) continue;
+    const columnOriginMm = layout.xOffset + i * (singleWidthMm + hGap);
+    appendTemplateLabelBody(commands, labelConfig, templateConfig, item, {
+      dpi,
+      columnOffsetMm: columnOriginMm,
+      contentWidthMm: singleWidthMm,
+    });
+  }
+
+  commands.push(`PRINT ${copies},1`);
+  commands.push('END');
   return commands.join('\n');
 };
 
@@ -568,17 +614,35 @@ export const generateTSPLLabelFromTemplate = (
 export const generateTSPLBatchFromTemplate = (
   labelConfig: TSPLLabelConfig,
   templateConfig: TSPLTemplateConfig,
-  items: Array<{ data: LabelData; quantity: number }>
+  items: Array<{ data: LabelData; quantity: number }>,
+  multiUp?: TSPLMultiUpLayout,
 ): string => {
-  const allCommands: string[] = [];
-  
+  const cols = multiUp?.cols ?? 1;
+  if (cols <= 1) {
+    const allCommands: string[] = [];
+    items.forEach(item => {
+      if (item.quantity > 0) {
+        const labelCommands = generateTSPLLabelFromTemplate(labelConfig, templateConfig, item.data, item.quantity);
+        allCommands.push(labelCommands);
+      }
+    });
+    return allCommands.join('\n\n');
+  }
+
+  const expanded: LabelData[] = [];
   items.forEach(item => {
-    if (item.quantity > 0) {
-      const labelCommands = generateTSPLLabelFromTemplate(labelConfig, templateConfig, item.data, item.quantity);
-      allCommands.push(labelCommands);
+    for (let q = 0; q < item.quantity; q++) {
+      expanded.push(item.data);
     }
   });
-  
+
+  const allCommands: string[] = [];
+  for (let i = 0; i < expanded.length; i += cols) {
+    const row = expanded.slice(i, i + cols);
+    allCommands.push(
+      generateTSPLMultiUpRowFromTemplate(labelConfig, templateConfig, row, multiUp!, 1),
+    );
+  }
   return allCommands.join('\n\n');
 };
 

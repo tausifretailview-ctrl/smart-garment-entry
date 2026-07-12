@@ -87,3 +87,14 @@ export function getPrecisionThermalModeLabel(mode: string): string {
 export function getThermalPreviewCols(mode: string): number {
   return getPrecisionThermalCols(mode);
 }
+
+/** Total physical strip width for multi-column thermal rows (mm). */
+export function computeMultiUpStripWidthMm(
+  singleLabelWidthMm: number,
+  cols: number,
+  hGap: number,
+): number {
+  const c = Math.max(1, cols);
+  const gap = Math.max(0, hGap);
+  return singleLabelWidthMm * c + gap * Math.max(0, c - 1);
+}

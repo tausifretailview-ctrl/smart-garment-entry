@@ -12,6 +12,7 @@ export type PrinterPresetBackupRow = {
   x_offset: number | null;
   y_offset: number | null;
   v_gap: number | null;
+  h_gap?: number | null;
   a4_cols: number | null;
   a4_rows: number | null;
   label_config: LabelDesignConfig | null;
@@ -34,6 +35,7 @@ export type PrinterPresetExportPreset = {
   x_offset: number;
   y_offset: number;
   v_gap: number;
+  h_gap?: number;
   a4_cols: number | null;
   a4_rows: number | null;
   label_config: LabelDesignConfig | null;
@@ -59,6 +61,7 @@ type PrinterPresetRow = {
   x_offset: number;
   y_offset: number;
   v_gap: number;
+  h_gap?: number;
   a4_cols: number | null;
   a4_rows: number | null;
   label_config: LabelDesignConfig | null;
@@ -77,6 +80,7 @@ function mapPresetRow(row: Record<string, unknown>): PrinterPresetRow {
     x_offset: Number(row.x_offset),
     y_offset: Number(row.y_offset),
     v_gap: Number(row.v_gap),
+    h_gap: row.h_gap != null ? Number(row.h_gap) : 0,
     a4_cols: row.a4_cols != null ? Number(row.a4_cols) : null,
     a4_rows: row.a4_rows != null ? Number(row.a4_rows) : null,
     label_config: (row.label_config as LabelDesignConfig) ?? null,
@@ -108,6 +112,7 @@ function mapBackupRow(row: Record<string, unknown>): PrinterPresetBackupRow {
     x_offset: row.x_offset != null ? Number(row.x_offset) : null,
     y_offset: row.y_offset != null ? Number(row.y_offset) : null,
     v_gap: row.v_gap != null ? Number(row.v_gap) : null,
+    h_gap: row.h_gap != null ? Number(row.h_gap) : null,
     a4_cols: row.a4_cols != null ? Number(row.a4_cols) : null,
     a4_rows: row.a4_rows != null ? Number(row.a4_rows) : null,
     label_config: (row.label_config as LabelDesignConfig) ?? null,
@@ -146,6 +151,7 @@ function snapshotToInsert(
     x_offset: preset.x_offset,
     y_offset: preset.y_offset,
     v_gap: preset.v_gap,
+    h_gap: preset.h_gap ?? 0,
     a4_cols: preset.a4_cols,
     a4_rows: preset.a4_rows,
     label_config: preset.label_config as unknown as import("@/integrations/supabase/types").Json,
@@ -264,6 +270,7 @@ export async function restorePrinterPresetFromBackup(
     x_offset: backup.x_offset ?? 0,
     y_offset: backup.y_offset ?? 0,
     v_gap: backup.v_gap ?? 2,
+    h_gap: backup.h_gap ?? 0,
     a4_cols: backup.a4_cols,
     a4_rows: backup.a4_rows,
     label_config: backup.label_config as unknown as import("@/integrations/supabase/types").Json,
@@ -302,6 +309,7 @@ export function buildPrinterPresetExportFile(
       x_offset: p.x_offset,
       y_offset: p.y_offset,
       v_gap: p.v_gap,
+      h_gap: p.h_gap ?? 0,
       a4_cols: p.a4_cols,
       a4_rows: p.a4_rows,
       label_config: p.label_config,
@@ -341,7 +349,7 @@ export function validatePrinterPresetImportFile(
     if (preset.label_config != null && typeof preset.label_config !== "object") {
       return { ok: false, error: `Preset "${preset.name}" has invalid label_config` };
     }
-    for (const key of ["label_width", "label_height", "x_offset", "y_offset", "v_gap"] as const) {
+    for (const key of ["label_width", "label_height", "x_offset", "y_offset", "v_gap", "h_gap"] as const) {
       if (preset[key] != null && typeof preset[key] !== "number") {
         return { ok: false, error: `Preset "${preset.name}" has invalid ${key}` };
       }
@@ -386,6 +394,7 @@ export async function importPrinterPresetExportFile(
     x_offset: p.x_offset ?? 0,
     y_offset: p.y_offset ?? 0,
     v_gap: p.v_gap ?? 2,
+    h_gap: p.h_gap ?? 0,
     a4_cols: p.a4_cols,
     a4_rows: p.a4_rows,
     label_config: p.label_config as unknown as import("@/integrations/supabase/types").Json,

@@ -1,5 +1,4 @@
-import html2canvas from "html2canvas";
-import jsPDF from "jspdf";
+import { captureElementToPdfBlob } from "@/utils/invoiceElementToPdf";
 
 /**
  * Wait until every <img> inside `el` has loaded (or errored / timed out).
@@ -38,7 +37,7 @@ function nextFrame(): Promise<void> {
  */
 export async function captureElementToPdfBase64(
   el: HTMLElement,
-  opts: { extraSettleMs?: number } = {},
+  opts: { extraSettleMs?: number; pageFormat?: "a4" | "a5" } = {},
 ): Promise<string> {
   // Let React commit + layout settle (settings/logo may still be loading).
   await nextFrame();
@@ -49,36 +48,11 @@ export async function captureElementToPdfBase64(
   await waitForImages(el);
   await nextFrame();
 
-  const canvas = await html2canvas(el, {
-    scale: 2,
-    useCORS: true,
-    allowTaint: false,
-    backgroundColor: "#ffffff",
-    logging: false,
-    windowWidth: el.scrollWidth,
-    windowHeight: el.scrollHeight,
-  });
-
-  const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-  const pageW = pdf.internal.pageSize.getWidth();
-  const pageH = pdf.internal.pageSize.getHeight();
-  const imgW = pageW;
-  const imgH = (canvas.height * imgW) / canvas.width;
-
-  const imgData = canvas.toDataURL("image/jpeg", 0.92);
-
-  let heightLeft = imgH;
-  let position = 0;
-
-  pdf.addImage(imgData, "JPEG", 0, position, imgW, imgH);
-  heightLeft -= pageH;
-  while (heightLeft > 0) {
-    position = heightLeft - imgH;
-    pdf.addPage();
-    pdf.addImage(imgData, "JPEG", 0, position, imgW, imgH);
-    heightLeft -= pageH;
-  }
-
-  const dataUri = pdf.output("datauristring");
-  return dataUri.split(",")[1] ?? "";
+  const pageFormat = opts.pageFormat ?? "a4";
+  const blob = await captureElementToPdfBlob(el, { pageFormat });
+  const buffer = await blob.arrayBuffer();
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+  return btoa(binary);
 }

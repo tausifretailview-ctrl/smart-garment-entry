@@ -1348,7 +1348,7 @@ export default function POSSales() {
           ? '297mm'
           : posBillFormat === 'a5-horizontal'
             ? '148mm'
-            : 'none';
+            : '210mm';
     return { width, minHeight, maxHeight, overflow: 'visible' as const };
   }, [posBillFormat, posThermalPaper]);
   const showInvoicePreviewSetting: boolean = _posSaleSettings.show_invoice_preview ?? true;
@@ -3148,8 +3148,11 @@ export default function POSSales() {
           whatsappPdfResolverRef.current?.resolve(null);
           return;
         }
+        const waPageFormat =
+          posBillFormat === "a5" || posBillFormat === "a5-horizontal" ? "a5" : "a4";
         const base64 = await captureElementToPdfBase64(whatsappPdfRef.current, {
           extraSettleMs: 700,
+          pageFormat: waPageFormat,
         });
         if (cancelled) return;
         whatsappPdfResolverRef.current?.resolve(base64 || null);
@@ -3171,7 +3174,7 @@ export default function POSSales() {
     (meta: { saleNumber: string; saleId: string; saleDate: Date }): Promise<string | null> => {
       try {
         const props = {
-          format: 'a4' as const,
+          format: posInvoiceWrapperFormat,
           template: posInvoiceTemplate,
           billNo: meta.saleNumber,
           date: meta.saleDate,
@@ -3227,6 +3230,8 @@ export default function POSSales() {
     },
     [
       posInvoiceTemplate,
+      posInvoiceWrapperFormat,
+      posBillFormat,
       customerName,
       customers,
       customerId,
@@ -7534,7 +7539,8 @@ export default function POSSales() {
           position: 'fixed',
           left: '-100000px',
           top: 0,
-          width: '210mm',
+          width: posPrintSourceStyle.width,
+          maxWidth: posPrintSourceStyle.width,
           background: '#ffffff',
           pointerEvents: 'none',
           zIndex: -1,

@@ -568,7 +568,15 @@ const POSDashboard = () => {
             ? "auto"
             : effectivePosBillFormat === "a5-horizontal"
               ? "148mm"
-              : "auto",
+              : "210mm",
+      maxHeight:
+        effectivePosBillFormat === "a4"
+          ? "297mm"
+          : effectivePosBillFormat === "thermal"
+            ? "none"
+            : effectivePosBillFormat === "a5-horizontal"
+              ? "148mm"
+              : "210mm",
     };
     },
     [effectivePosBillFormat, posThermalPaper],

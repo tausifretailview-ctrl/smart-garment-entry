@@ -326,7 +326,6 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   const pageW = isA4 ? "210mm" : "148mm";
   const pageH = isA4 ? "297mm" : "210mm";
   const pad = isA4 ? "10mm" : "4mm";
-  const pageContentH = isA4 ? "297mm" : "calc(210mm - 8mm)";
   const fsBody = isA4 ? "13px" : "12px";
   const fsHeader = isA4 ? "14px" : "12px";
   const fsHeading = isA4 ? "13px" : "12px";
@@ -409,7 +408,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
               ...(isRealTast
                 ? { minHeight: pageH, height: pageH }
                 : isA5Retail
-                  ? { minHeight: pageContentH }
+                  ? { height: pageH, maxHeight: pageH, overflow: "hidden" }
                   : {}),
               padding: pad,
               fontFamily: "Arial, Helvetica, sans-serif",
@@ -427,7 +426,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                 ...(isRealTast
                   ? { flex: 1 }
                   : isA5Retail
-                    ? { flex: 1, display: "flex", flexDirection: "column", minHeight: pageContentH }
+                    ? { flex: 1, display: "flex", flexDirection: "column", minHeight: 0, overflow: "hidden" }
                     : {}),
                 display: "flex",
                 flexDirection: "column",
@@ -547,7 +546,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                   width: "100%",
                   borderCollapse: "collapse",
                   tableLayout: "fixed",
-                  flex: isRealTast ? 1 : isA5Retail && isLastPage ? "1 1 auto" : isLastPage ? "0 0 auto" : "1 1 auto",
+                  flex: isRealTast ? 1 : isA5Retail ? "0 0 auto" : isLastPage ? "0 0 auto" : "1 1 auto",
                 }}
               >
                 <colgroup>
@@ -1015,10 +1014,11 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
           .retail-erp-invoice-template {
             width: ${pageW} !important;
             max-width: ${pageW} !important;
-            min-height: ${isA4 ? "auto" : isA5Retail ? pageContentH : "auto"} !important;
-            height: auto !important;
+            min-height: ${isA4 ? "auto" : isA5Retail ? pageH : "auto"} !important;
+            height: ${isA5Retail ? pageH : "auto"} !important;
+            max-height: ${isA5Retail ? pageH : "none"} !important;
             padding: ${pad} !important;
-            overflow: visible !important;
+            overflow: ${isA5Retail ? "hidden" : "visible"} !important;
             margin-left: auto !important;
             margin-right: auto !important;
           }
