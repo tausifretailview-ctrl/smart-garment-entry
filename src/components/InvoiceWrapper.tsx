@@ -265,11 +265,13 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
       })() || 'a4';
     const templateForFormat = props.template || settings?.sale_settings?.invoice_template || 'professional';
     let format = rawFormat === 'a5' ? 'a5-vertical' : rawFormat;
-    // A5-only templates must not be routed through the thermal receipt path.
+    const isThermalFormat = format === 'thermal' || format === 'thermal-receipt';
+    // A5-only templates use A5 when printing laser — not when caller requests thermal receipt.
     if (
-      templateForFormat === 'retail-tax-ezzy' ||
-      templateForFormat === 'wholesale-a5' ||
-      templateForFormat === 'retail-erp'
+      !isThermalFormat &&
+      (templateForFormat === 'retail-tax-ezzy' ||
+        templateForFormat === 'wholesale-a5' ||
+        templateForFormat === 'retail-erp')
     ) {
       format = 'a5-vertical';
     }
@@ -278,11 +280,11 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
       format = 'thermal';
     }
     // Real Tast is A4 Bill of Supply only.
-    if (templateForFormat === 'real-tast') {
+    if (!isThermalFormat && templateForFormat === 'real-tast') {
       format = 'a4';
     }
     // Gift Tally is A4 GST tax invoice only.
-    if (templateForFormat === 'gift_tally') {
+    if (!isThermalFormat && templateForFormat === 'gift_tally') {
       format = 'a4';
     }
     

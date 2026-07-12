@@ -1,5 +1,5 @@
 /** A4-only invoice templates — always print on A4 portrait. */
-export const A4_ONLY_INVOICE_TEMPLATES = new Set(['real-tast']);
+export const A4_ONLY_INVOICE_TEMPLATES = new Set(['real-tast', 'gift_tally']);
 
 /** Templates that must print on A5 — not thermal 80mm. */
 export const A5_ONLY_INVOICE_TEMPLATES = new Set(['retail-tax-ezzy', 'wholesale-a5', 'retail-erp']);
@@ -36,30 +36,24 @@ function fallbackFormatForFullPageTemplate(
   return 'a4';
 }
 
-/** POS paper size — honor thermal receipt setting (template name does not force A4 on POS). */
+/** POS paper size — pos_bill_format thermal wins over full-page invoice templates. */
 export function resolvePosBillFormat(
   invoiceTemplate: string | undefined,
   posBillFormat: PosBillFormat,
-  invoicePaperFormat?: string,
+  _invoicePaperFormat?: string,
 ): PosBillFormat {
   if (invoiceTemplate && THERMAL_ONLY_INVOICE_TEMPLATES.has(invoiceTemplate)) {
     return 'thermal';
   }
-  if (invoiceTemplate && A5_ONLY_INVOICE_TEMPLATES.has(invoiceTemplate)) {
-    return 'a5';
-  }
   if (invoiceTemplate && A4_ONLY_INVOICE_TEMPLATES.has(invoiceTemplate)) {
     return 'a4';
   }
-  if (
-    invoiceTemplate &&
-    FULL_PAGE_INVOICE_TEMPLATES.has(invoiceTemplate) &&
-    posBillFormat === 'thermal'
-  ) {
-    return fallbackFormatForFullPageTemplate(invoicePaperFormat);
-  }
+  // User chose POS thermal — use 80mm receipt even if sale invoice template is A5/laser.
   if (posBillFormat === 'thermal') {
     return 'thermal';
+  }
+  if (invoiceTemplate && A5_ONLY_INVOICE_TEMPLATES.has(invoiceTemplate)) {
+    return 'a5';
   }
   return posBillFormat;
 }
