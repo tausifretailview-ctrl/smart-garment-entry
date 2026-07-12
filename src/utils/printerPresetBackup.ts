@@ -148,7 +148,7 @@ function snapshotToInsert(
     v_gap: preset.v_gap,
     a4_cols: preset.a4_cols,
     a4_rows: preset.a4_rows,
-    label_config: preset.label_config as unknown as Record<string, unknown>,
+    label_config: preset.label_config as unknown as import("@/integrations/supabase/types").Json,
     is_default: preset.is_default,
     print_mode: preset.print_mode,
     thermal_cols: preset.thermal_cols,
@@ -198,7 +198,7 @@ export async function createManualPrinterPresetBackup(
 
   const preset = mapPresetRow(data as Record<string, unknown>);
   const { error: insertError } = await supabase.from("printer_presets_backup").insert(
-    snapshotToInsert(preset, organizationId, organizationName, note?.trim() || null),
+    [snapshotToInsert(preset, organizationId, organizationName, note?.trim() || null)],
   );
   if (insertError) throw insertError;
 }
@@ -210,7 +210,7 @@ async function insertPresetSnapshotBackup(
   note?: string,
 ): Promise<void> {
   const { error } = await supabase.from("printer_presets_backup").insert(
-    snapshotToInsert(preset, organizationId, organizationName, note),
+    [snapshotToInsert(preset, organizationId, organizationName, note)],
   );
   if (error) throw error;
 }
@@ -266,7 +266,7 @@ export async function restorePrinterPresetFromBackup(
     v_gap: backup.v_gap ?? 2,
     a4_cols: backup.a4_cols,
     a4_rows: backup.a4_rows,
-    label_config: backup.label_config as unknown as Record<string, unknown>,
+    label_config: backup.label_config as unknown as import("@/integrations/supabase/types").Json,
     is_default: backup.is_default ?? false,
     print_mode: backup.print_mode ?? "thermal",
     thermal_cols: backup.thermal_cols ?? 1,
@@ -275,9 +275,7 @@ export async function restorePrinterPresetFromBackup(
   const { data: restored, error } = await supabase
     .from("printer_presets")
     .upsert(
-      current
-        ? { id: current.id, ...payload }
-        : payload,
+      [current ? { id: current.id, ...payload } : payload],
       { onConflict: "organization_id,name" },
     )
     .select("*")
@@ -390,7 +388,7 @@ export async function importPrinterPresetExportFile(
     v_gap: p.v_gap ?? 2,
     a4_cols: p.a4_cols,
     a4_rows: p.a4_rows,
-    label_config: p.label_config as unknown as Record<string, unknown>,
+    label_config: p.label_config as unknown as import("@/integrations/supabase/types").Json,
     is_default: p.is_default ?? false,
     print_mode: p.print_mode ?? "thermal",
     thermal_cols: p.thermal_cols ?? 1,

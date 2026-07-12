@@ -2146,7 +2146,7 @@ export default function BarcodePrinting() {
       a4Cols: data.a4_cols != null ? Number(data.a4_cols) : undefined,
       a4Rows: data.a4_rows != null ? Number(data.a4_rows) : undefined,
       printMode: (data.print_mode as CalibrationPreset["printMode"]) || "thermal",
-      labelConfig: data.label_config as LabelDesignConfig | null,
+      labelConfig: data.label_config as unknown as LabelDesignConfig | null,
       isDefault: Boolean(data.is_default),
       thermalCols: data.thermal_cols != null ? Number(data.thermal_cols) : undefined,
     });
