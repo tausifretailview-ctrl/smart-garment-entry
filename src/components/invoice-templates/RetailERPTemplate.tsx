@@ -351,14 +351,14 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   const showBarcodeCol = !isRealTast;
 
   const cols: { key: string; label: string; width: string; align: "center" | "left" | "right" }[] = [
-    { key: "sr", label: "SN", width: isRealTast ? "5%" : isA5Retail ? "3%" : "5%", align: "center" },
+    { key: "sr", label: "SN", width: isRealTast ? "5%" : isA5Retail ? "5%" : "5%", align: "center" },
     {
       key: "description",
       label: "DESCRIPTION",
       width: isRealTast
         ? (showHSNCol ? "38%" : "46%")
         : isA5Retail
-          ? (showHSNCol ? "26%" : "32%")
+          ? (showHSNCol ? "24%" : "30%")
           : showHSNCol
             ? "24%"
             : "30%",
@@ -867,8 +867,8 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                       alignItems: "stretch",
                       minHeight: isA4
                         ? (showPaymentQr ? "36mm" : isRealTast ? "110px" : "80px")
-                        : (showPaymentQr ? "26mm" : "52px"),
-                      maxHeight: isA5Retail ? (showPaymentQr ? "28mm" : "56px") : undefined,
+                        : (showPaymentQr ? "30mm" : "56px"),
+                      maxHeight: isA5Retail ? (showPaymentQr ? "34mm" : "60px") : undefined,
                       overflow: isA5Retail ? "hidden" : "visible",
                       position: "relative",
                       flexShrink: 0,
@@ -882,7 +882,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                             <strong
                               style={{
                                 textDecoration: "underline",
-                                fontSize: isA4 ? (isRealTast ? "14px" : "13px") : "9px",
+                                fontSize: isA4 ? (isRealTast ? "14px" : "13px") : "10px",
                                 fontWeight: isRealTast ? 900 : 700,
                                 color: isRealTast ? "#000" : undefined,
                               }}
@@ -891,12 +891,12 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                             </strong>
                             <ul
                               style={{
-                                margin: isA5Retail ? "1px 0 0 10px" : "2px 0 0 14px",
+                                margin: isA5Retail ? "2px 0 0 12px" : "2px 0 0 14px",
                                 padding: 0,
                                 listStyleType: "disc",
-                                fontSize: isA4 ? (isRealTast ? "13px" : "12px") : "8px",
-                                lineHeight: isA5Retail ? 1.2 : 1.6,
-                                fontWeight: isRealTast ? 800 : 400,
+                                fontSize: isA4 ? (isRealTast ? "13px" : "12px") : "10px",
+                                lineHeight: isA5Retail ? 1.3 : 1.6,
+                                fontWeight: isRealTast ? 800 : 500,
                                 color: isRealTast ? "#000" : "#111",
                               }}
                             >
@@ -906,8 +906,8 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                         )}
                         <div
                           style={{
-                            fontSize: isA4 ? (isRealTast ? "11px" : "9px") : "7px",
-                            marginTop: isA5Retail ? "1px" : "2px",
+                            fontSize: isA4 ? (isRealTast ? "11px" : "9px") : "9px",
+                            marginTop: isA5Retail ? "2px" : "2px",
                             fontWeight: isRealTast ? 800 : 400,
                             color: isRealTast ? "#000" : undefined,
                           }}
