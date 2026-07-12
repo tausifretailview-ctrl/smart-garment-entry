@@ -198,16 +198,14 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   }
   if (itemPages.length > 0) {
     const lastPage = itemPages[itemPages.length - 1];
-    const minRows = isA4
-      ? Math.max(TARGET_ROWS, lastPage.length, MIN_BLANK_ROWS)
-      : Math.max(lastPage.length + MIN_BLANK_ROWS, MIN_BLANK_ROWS);
+    const minRows = Math.max(TARGET_ROWS, lastPage.length, MIN_BLANK_ROWS);
     while (lastPage.length < minRows) {
       lastPage.push(null);
       if (lastPage.length >= MAX_ITEMS_PER_PAGE) break;
     }
   }
   if (itemPages.length === 0) {
-    const blank: (InvoiceItem | null)[] = Array(MIN_BLANK_ROWS).fill(null);
+    const blank: (InvoiceItem | null)[] = Array(TARGET_ROWS).fill(null);
     itemPages.push(blank);
   }
 
@@ -571,7 +569,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                 <tbody>
                   {pageItems.map((item, idx) => {
                     if (item) srCounter++;
-                    const srNo = item ? pageStartSr + srCounter : null;
+                    const srNo = pageStartSr + idx + 1;
                     const itemGlobalIdx = item ? pageStartSr + srCounter - 1 : -1;
                     const lineDisc =
                       itemGlobalIdx >= 0 ? lineBillDiscounts[itemGlobalIdx] ?? 0 : 0;
