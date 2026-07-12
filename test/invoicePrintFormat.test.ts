@@ -2,11 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { resolvePosBillFormat, resolveSaleBillFormat } from '@/utils/invoicePrintFormat';
 
 describe('resolvePosBillFormat', () => {
-  it('honors POS thermal when invoice template is retail-erp (laser A5 design)', () => {
-    expect(resolvePosBillFormat('retail-erp', 'thermal', 'a4')).toBe('thermal');
+  it('uses A5 Retail ERP when template is retail-erp even if POS format is thermal', () => {
+    expect(resolvePosBillFormat('retail-erp', 'thermal', 'thermal')).toBe('a5');
   });
 
-  it('honors POS thermal when invoice template is tax-invoice', () => {
+  it('honors POS thermal for generic tax-invoice template', () => {
     expect(resolvePosBillFormat('tax-invoice', 'thermal', 'a4')).toBe('thermal');
   });
 

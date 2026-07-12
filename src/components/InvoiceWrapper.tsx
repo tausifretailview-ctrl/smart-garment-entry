@@ -335,6 +335,14 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
     const thermalPaper =
       props.thermalPaper ??
       resolvePosThermalPaper((settings?.bill_barcode_settings as { direct_print_pos_paper?: string })?.direct_print_pos_paper);
+    const upiId =
+      props.isDcInvoice && settings?.bill_barcode_settings?.dc_upi_id
+        ? settings.bill_barcode_settings.dc_upi_id
+        : settings?.bill_barcode_settings?.upi_id;
+    const isThermalReceipt = format === 'thermal' || format === 'thermal-receipt';
+    const templateUsesPaymentQr =
+      !isThermalReceipt && templateForFormat !== 'real-tast' && templateForFormat !== 'gift_tally';
+    const qrPending = Boolean(upiId && templateUsesPaymentQr && !qrCodeUrl);
     const sellerGstin = settings?.gst_number || '';
     const buyerGstin = props.customerGSTIN || '';
     const isInterState =
@@ -706,7 +714,7 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
     };
 
     return (
-      <div ref={ref} className="invoice-print-root">
+      <div ref={ref} className="invoice-print-root" data-qr-pending={qrPending ? 'true' : 'false'}>
         {renderTemplate()}
       </div>
     );

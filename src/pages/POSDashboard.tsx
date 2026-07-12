@@ -1370,7 +1370,13 @@ const POSDashboard = () => {
         });
         if (!invoicePrintRef.current) return null;
         return (
-          (await captureElementToPdfBase64(invoicePrintRef.current, { extraSettleMs: 300 })) ||
+          (await captureElementToPdfBase64(invoicePrintRef.current, {
+            extraSettleMs: 700,
+            pageFormat:
+              effectivePosBillFormat === "a5" || effectivePosBillFormat === "a5-horizontal"
+                ? "a5"
+                : "a4",
+          })) ||
           null
         );
       } finally {

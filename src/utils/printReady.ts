@@ -21,6 +21,7 @@ export const waitForPrintReady = (
       el &&
       el.childElementCount > 0 &&
       !hasLoadingAttr &&
+      el.querySelector('[data-qr-pending="true"]') === null &&
       text.length > 32 &&
       !/^loading\.?\.?\.?$/i.test(text);
 

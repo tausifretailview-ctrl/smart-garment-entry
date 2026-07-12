@@ -1057,6 +1057,8 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
             max-width: 100% !important;
             max-height: 100% !important;
             object-fit: contain !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
           }
           .retail-erp-all-pages .retail-erp-invoice-template:not(:last-child) {
             page-break-after: always;

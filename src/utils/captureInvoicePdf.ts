@@ -6,7 +6,13 @@ import { captureElementToPdfBlob } from "@/utils/invoiceElementToPdf";
  */
 async function waitForImages(el: HTMLElement, timeoutMs = 5000): Promise<void> {
   const imgs = Array.from(el.querySelectorAll("img"));
-  if (imgs.length === 0) return;
+  if (imgs.length === 0) {
+    if (el.querySelector('[data-qr-pending="true"]')) {
+      await new Promise((r) => setTimeout(r, Math.min(timeoutMs, 1500)));
+      return waitForImages(el, Math.max(0, timeoutMs - 1500));
+    }
+    return;
+  }
   await Promise.all(
     imgs.map(
       (img) =>
