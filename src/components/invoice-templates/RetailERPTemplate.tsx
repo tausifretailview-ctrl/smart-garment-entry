@@ -177,7 +177,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   const invoiceNoteText =
     notes && notes.trim() && !/^\d+$/.test(notes.trim()) ? notes.trim() : "";
   const MAX_ITEMS_PER_PAGE = isA4 ? 20 : 12;
-  const TARGET_ROWS = isA4 ? 14 : 8;
+  const TARGET_ROWS = isA4 ? 14 : 11;
   const MIN_BLANK_ROWS = 2;
 
   const fmt = (amount: number) => {
@@ -321,9 +321,12 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   const currentBalance = billTotal - receivedToday;
   const totalDue = currentBalance + previousBalance;
 
+  const isA5Retail = !isA4 && !isRealTast;
+
   const pageW = isA4 ? "210mm" : "148mm";
   const pageH = isA4 ? "297mm" : "210mm";
   const pad = isA4 ? "10mm" : "4mm";
+  const pageContentH = isA4 ? "297mm" : "calc(210mm - 8mm)";
   const fsBody = isA4 ? "13px" : "12px";
   const fsHeader = isA4 ? "14px" : "12px";
   const fsHeading = isA4 ? "13px" : "12px";
@@ -340,8 +343,8 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   const fsInvoiceNo = isA4 ? "15px" : "13px";
   const fsDiscMedium = isA4 ? "11px" : "10px";
 
-  const ROW_H = isA4 ? "26px" : "22px";
-  const ROW_H_WITH_DISC = isA4 ? "36px" : "32px";
+  const ROW_H = isA4 ? "26px" : "25px";
+  const ROW_H_WITH_DISC = isA4 ? "36px" : "34px";
 
   // Real Tast: no size or barcode; HSN optional via show_hsn_code setting
   const showHSNCol = showHSN;
@@ -385,8 +388,8 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
 
   const stampSizeMap: Record<string, string> = { small: "60px", medium: "90px", large: "120px" };
   const stampDim = stampSizeMap[stampSize] || "90px";
-  const qrBoxMm = isA4 ? 26 : 22;
-  const qrPadMm = 2;
+  const qrBoxMm = isA4 ? 26 : 30;
+  const qrPadMm = isA4 ? 2 : 1.5;
   const showPaymentQr = Boolean(qrCodeUrl && !isRealTast);
 
   return (
@@ -403,7 +406,11 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
             data-invoice-variant={isRealTast ? "real-tast" : undefined}
             style={{
               width: pageW,
-              ...(isRealTast ? { minHeight: pageH, height: pageH } : {}),
+              ...(isRealTast
+                ? { minHeight: pageH, height: pageH }
+                : isA5Retail
+                  ? { minHeight: pageContentH }
+                  : {}),
               padding: pad,
               fontFamily: "Arial, Helvetica, sans-serif",
               fontSize: fsBody,
@@ -417,7 +424,11 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
             <div
               style={{
                 border: B2,
-                ...(isRealTast ? { flex: 1 } : {}),
+                ...(isRealTast
+                  ? { flex: 1 }
+                  : isA5Retail
+                    ? { flex: 1, display: "flex", flexDirection: "column", minHeight: pageContentH }
+                    : {}),
                 display: "flex",
                 flexDirection: "column",
                 overflow: isRealTast ? "hidden" : "visible",
@@ -536,7 +547,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                   width: "100%",
                   borderCollapse: "collapse",
                   tableLayout: "fixed",
-                  flex: isRealTast ? 1 : isLastPage ? "0 0 auto" : "1 1 auto",
+                  flex: isRealTast ? 1 : isA5Retail && isLastPage ? "1 1 auto" : isLastPage ? "0 0 auto" : "1 1 auto",
                 }}
               >
                 <colgroup>
@@ -708,7 +719,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
 
               {/* ===== FOOTER ===== */}
               {isLastPage && (
-              <div className="retail-erp-footer" style={{ borderTop: B2, fontSize: fsBody, flexShrink: 0 }}>
+              <div className="retail-erp-footer" style={{ borderTop: B2, fontSize: fsBody, flexShrink: 0, ...(isA5Retail ? { marginTop: "auto" } : {}) }}>
 
                   {/* Note (left) + Totals (right) — uses blank space beside subtotal block */}
                   <div style={{ display: "flex", borderBottom: B, width: "100%", alignItems: "stretch" }}>
@@ -853,7 +864,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                       alignItems: "stretch",
                       minHeight: isA4
                         ? (showPaymentQr ? "36mm" : isRealTast ? "110px" : "80px")
-                        : (showPaymentQr ? "30mm" : "60px"),
+                        : (showPaymentQr ? "40mm" : "68px"),
                       position: "relative",
                     }}
                   >
@@ -1004,7 +1015,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
           .retail-erp-invoice-template {
             width: ${pageW} !important;
             max-width: ${pageW} !important;
-            min-height: auto !important;
+            min-height: ${isA4 ? "auto" : isA5Retail ? pageContentH : "auto"} !important;
             height: auto !important;
             padding: ${pad} !important;
             overflow: visible !important;
