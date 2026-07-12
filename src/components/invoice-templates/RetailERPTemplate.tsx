@@ -403,8 +403,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
             data-invoice-variant={isRealTast ? "real-tast" : undefined}
             style={{
               width: pageW,
-              minHeight: pageH,
-              ...(isRealTast ? { height: pageH } : {}),
+              ...(isRealTast ? { minHeight: pageH, height: pageH } : {}),
               padding: pad,
               fontFamily: "Arial, Helvetica, sans-serif",
               fontSize: fsBody,
@@ -418,7 +417,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
             <div
               style={{
                 border: B2,
-                flex: 1,
+                ...(isRealTast ? { flex: 1 } : {}),
                 display: "flex",
                 flexDirection: "column",
                 overflow: isRealTast ? "hidden" : "visible",
@@ -909,7 +908,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                         display: "flex",
                         flexDirection: "column",
                         alignItems: "center",
-                        justifyContent: isRealTast ? "flex-start" : "center",
+                        justifyContent: "flex-start",
                         position: "relative",
                         boxSizing: "border-box",
                         flexShrink: 0,
@@ -1004,7 +1003,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
           @page { size: ${isA4 ? "A4 portrait" : "A5 portrait"}; margin: 0; }
           .retail-erp-invoice-template {
             width: ${pageW} !important;
-            min-height: ${pageH} !important;
+            min-height: auto !important;
             height: auto !important;
             padding: ${pad} !important;
             overflow: visible !important;
