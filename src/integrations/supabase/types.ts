@@ -1198,6 +1198,51 @@ export type Database = {
           },
         ]
       }
+      credit_repair_log_20260713: {
+        Row: {
+          captured_at: string | null
+          credit_applied_before: number | null
+          customer_id: string | null
+          customer_name: string | null
+          net_amount: number | null
+          organization_id: string | null
+          paid_amount_before: number | null
+          pattern: string | null
+          payment_status_before: string | null
+          sale_id: string | null
+          sale_number: string | null
+          sale_return_adjust_before: number | null
+        }
+        Insert: {
+          captured_at?: string | null
+          credit_applied_before?: number | null
+          customer_id?: string | null
+          customer_name?: string | null
+          net_amount?: number | null
+          organization_id?: string | null
+          paid_amount_before?: number | null
+          pattern?: string | null
+          payment_status_before?: string | null
+          sale_id?: string | null
+          sale_number?: string | null
+          sale_return_adjust_before?: number | null
+        }
+        Update: {
+          captured_at?: string | null
+          credit_applied_before?: number | null
+          customer_id?: string | null
+          customer_name?: string | null
+          net_amount?: number | null
+          organization_id?: string | null
+          paid_amount_before?: number | null
+          pattern?: string | null
+          payment_status_before?: string | null
+          sale_id?: string | null
+          sale_number?: string | null
+          sale_return_adjust_before?: number | null
+        }
+        Relationships: []
+      }
       customer_advances: {
         Row: {
           advance_date: string
