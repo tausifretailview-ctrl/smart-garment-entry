@@ -3815,6 +3815,77 @@ main.overflow-auto,
   margin-bottom: 0;
 }
 
+.barcode-standard-scroll {
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--muted-foreground) / 0.45) hsl(var(--muted) / 0.35);
+}
+
+.barcode-standard-scroll::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.barcode-standard-scroll::-webkit-scrollbar-track {
+  background: hsl(var(--muted) / 0.35);
+  border-radius: 6px;
+}
+
+.barcode-standard-scroll::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground) / 0.45);
+  border-radius: 6px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+.barcode-standard-scroll::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.65);
+  background-clip: content-box;
+}
+
+.barcode-standard-a4-preview {
+  min-height: 240px;
+}
+
+.barcode-standard-a4-preview-body {
+  overflow: auto;
+  max-height: min(52vh, 560px);
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--muted-foreground) / 0.45) hsl(var(--muted) / 0.35);
+}
+
+.barcode-standard-a4-preview-body::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.barcode-standard-a4-preview-body::-webkit-scrollbar-track {
+  background: hsl(var(--muted) / 0.35);
+  border-radius: 6px;
+}
+
+.barcode-standard-a4-preview-body::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground) / 0.45);
+  border-radius: 6px;
+}
+
+.barcode-standard-preview-canvas .barcode-a4-preview-summary {
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+
+.barcode-standard-preview-canvas .barcode-a4-page-frame {
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.1);
+}
+
+.barcode-standard-preview-canvas .total-page-counter,
+.barcode-standard-preview-canvas .page-separator {
+  font-size: 12px !important;
+  padding: 8px !important;
+}
+
 /* ============================================================
    Org login page — premium SaaS polish (scoped to .login-page)
    Overrides are scoped so the Electron desktop-shell injected

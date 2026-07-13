@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from "react";
 
 import { useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -3810,6 +3810,16 @@ export default function BarcodePrinting() {
     return isPrecisionThermalMultiUp(precisionSettings.printMode);
   };
 
+  const isA4SheetType = (): boolean => {
+    if (sheetType === "precision_pro_tsc" || sheetType === "jewellery_100x15_1up") return false;
+    if (isThermal1Up() || isThermalMultiUp()) return false;
+    if (sheetType === "custom") {
+      return customCols > 1 || customRows > 1;
+    }
+    const preset = sheetPresets[sheetType] as { category?: string; thermal?: boolean };
+    return preset?.category === "a4" || (!preset?.thermal && !sheetType.includes("thermal"));
+  };
+
   const getThermalMultiUpCols = (): number => {
     if (!isThermalMultiUp()) return 1;
     return getPrecisionThermalCols(precisionSettings.printMode, precisionSettings.thermalCols);
@@ -3882,7 +3892,14 @@ export default function BarcodePrinting() {
     const printArea = document.getElementById(targetElementId);
     if (!printArea) return;
 
-    const isPreviewMode = targetElementId === "previewArea";
+    const isInlineStandardPreview = targetElementId === "standardInlinePreviewArea";
+    const isPreviewMode = targetElementId === "previewArea" || isInlineStandardPreview;
+
+    if (isInlineStandardPreview) {
+      printArea.className = "barcode-standard-preview-canvas";
+    } else if (targetElementId === "previewArea") {
+      printArea.className = "";
+    }
 
     // Use custom dimensions if custom sheet type, otherwise use preset
     const dimensions = sheetType === "custom"
@@ -3900,6 +3917,26 @@ export default function BarcodePrinting() {
         };
     
     printArea.innerHTML = "";
+
+    const appendScaledA4Page = (pageEl: HTMLElement) => {
+      if (!isInlineStandardPreview) {
+        printArea.appendChild(pageEl);
+        return;
+      }
+      const scale = 0.52;
+      const wrap = document.createElement("div");
+      wrap.className = "barcode-a4-inline-scale-wrap";
+      wrap.style.cssText = `
+        width: calc(210mm * ${scale});
+        height: calc(297mm * ${scale});
+        margin: 0 auto;
+        overflow: hidden;
+      `;
+      pageEl.style.transform = `scale(${scale})`;
+      pageEl.style.transformOrigin = "top left";
+      wrap.appendChild(pageEl);
+      printArea.appendChild(wrap);
+    };
 
     // Calculate total labels (only for preview mode)
     const totalLabels = labelItems.reduce((sum, item) => sum + (Number(item.qty) || 0), 0);
@@ -3927,6 +3964,66 @@ export default function BarcodePrinting() {
         allLabels.push({ html: getLabelHTML(item, designFormat), item });
       }
     });
+
+    if (isPreviewMode && !isThermal1Up() && !isThermalMultiUp() && numPages === 0) {
+      const availableHeight = 297 - topOffset - bottomOffset;
+      const explicitRowsP = sheetType === "custom" ? customRows : ((sheetPresets[sheetType] as any)?.rows || null);
+      const rowsPerPage = explicitRowsP
+        ? explicitRowsP
+        : Math.max(1, Math.floor(availableHeight / (dimensions.height + dimensions.gap)));
+      const labelsPerPage = dimensions.cols * rowsPerPage;
+      const previewMargins = getSheetPageMargins();
+
+      const summary = document.createElement("div");
+      summary.className = "barcode-a4-preview-summary";
+      summary.style.cssText =
+        "margin-bottom: 12px; padding: 10px 12px; background: hsl(var(--muted)); border-radius: 6px; font-size: 13px; font-weight: 600; text-align: center; color: hsl(var(--foreground));";
+      summary.textContent =
+        totalLabels === 0
+          ? `A4 sheet layout — ${dimensions.width}×${dimensions.height}mm · ${dimensions.cols}×${rowsPerPage} grid (${labelsPerPage} labels per page)`
+          : `A4 sheet layout — add label quantities to preview printed content`;
+      printArea.appendChild(summary);
+
+      const pageWrap = document.createElement("div");
+      pageWrap.className = "barcode-a4-page-frame";
+      pageWrap.style.cssText =
+        "width: 210mm; min-height: 297mm; box-sizing: border-box; border: 2px solid #64748b; background: #fff; margin: 0 auto; box-shadow: 0 4px 16px rgba(15, 23, 42, 0.12);";
+
+      const gridDiv = document.createElement("div");
+      gridDiv.className = "label-grid barcode-a4-layout-grid";
+      gridDiv.style.cssText = `
+        display: grid;
+        grid-template-columns: repeat(${dimensions.cols}, ${dimensions.width}mm);
+        grid-template-rows: repeat(${rowsPerPage}, ${dimensions.height}mm);
+        gap: ${dimensions.gap}mm;
+        margin: ${previewMargins.marginTop}mm ${previewMargins.marginRight}mm ${previewMargins.marginBottom}mm ${previewMargins.marginLeft}mm;
+      `;
+
+      for (let i = 0; i < labelsPerPage; i++) {
+        const slot = i + 1;
+        const isSkipped = slot < startPosition;
+        const cell = document.createElement("div");
+        cell.style.cssText = `
+          width: ${dimensions.width}mm;
+          height: ${dimensions.height}mm;
+          border: 1px dashed ${isSkipped ? "#cbd5e1" : "#94a3b8"};
+          background: ${isSkipped ? "#f1f5f9" : "#ffffff"};
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 11px;
+          font-weight: 600;
+          color: #64748b;
+          box-sizing: border-box;
+        `;
+        cell.textContent = isSkipped ? "—" : String(slot);
+        gridDiv.appendChild(cell);
+      }
+
+      pageWrap.appendChild(gridDiv);
+      appendScaledA4Page(pageWrap);
+      return;
+    }
 
     if (isPreviewMode && numPages > 0) {
       // Preview mode: Show pages with separators
@@ -4180,6 +4277,29 @@ export default function BarcodePrinting() {
     }
     // Barcodes are now pre-rendered as images in getLabelHTML, no setTimeout needed
   };
+
+  useLayoutEffect(() => {
+    if (activeBarTab !== "standard" || !isA4SheetType()) return;
+    generatePreview("standardInlinePreviewArea");
+  }, [
+    activeBarTab,
+    sheetType,
+    customWidth,
+    customHeight,
+    customCols,
+    customRows,
+    customGap,
+    topOffset,
+    leftOffset,
+    bottomOffset,
+    rightOffset,
+    startPosition,
+    designFormat,
+    labelItems,
+    labelConfig,
+    selectedPreset,
+    printScale,
+  ]);
 
   const getTotalBarcodeLabelQty = useCallback(
     () => labelItems.reduce((sum, item) => sum + (Number(item.qty) || 0), 0),
@@ -5021,7 +5141,7 @@ export default function BarcodePrinting() {
       <main
         className={cn(
           "flex-1 min-h-0 flex flex-col gap-2 p-2",
-          activeBarTab === "designer" || activeBarTab === "precision"
+          activeBarTab === "designer" || activeBarTab === "precision" || activeBarTab === "standard"
             ? "overflow-hidden"
             : "overflow-y-auto overflow-x-hidden",
         )}
@@ -5221,7 +5341,7 @@ export default function BarcodePrinting() {
             ? "max-h-[32vh]"
             : activeBarTab === "precision"
               ? "max-h-[42vh]"
-              : "max-h-[48vh]",
+              : "max-h-[28vh]",
         )}>
           <div className="bg-slate-900 text-white px-3 py-2 border-b flex items-center justify-between gap-2">
             <p className="text-sm font-semibold tabular-nums">
@@ -5350,7 +5470,8 @@ export default function BarcodePrinting() {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="standard" className="space-y-2 mt-0 flex-1 min-h-0">
+        <TabsContent value="standard" className="mt-0 flex-1 min-h-0 flex flex-col data-[state=inactive]:hidden">
+      <div className="barcode-standard-scroll flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain space-y-2 pr-1">
       <Collapsible open={layoutStyleOpen} onOpenChange={setLayoutStyleOpen}>
         <div className="border rounded-md overflow-hidden bg-card">
           <CollapsibleTrigger asChild>
@@ -5479,6 +5600,16 @@ export default function BarcodePrinting() {
                 <strong>Recommended Print Settings:</strong> Scale 150% (auto-applied), Margins: None, Headers/Footers: Off<br />
                 <strong>Starting Offsets:</strong> Top 2mm, Left 1mm (auto-loaded, adjust as needed)
               </p>
+            )}
+            {isA4SheetType() && sheetType !== "custom" && (
+              <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 gap-2 p-2 bg-muted/30 rounded border text-xs">
+                <div><span className="text-muted-foreground">Width:</span> <span className="font-semibold tabular-nums">{parseFloat(sheetPresets[sheetType].width)}mm</span></div>
+                <div><span className="text-muted-foreground">Height:</span> <span className="font-semibold tabular-nums">{parseFloat(sheetPresets[sheetType].height)}mm</span></div>
+                <div><span className="text-muted-foreground">Columns:</span> <span className="font-semibold tabular-nums">{sheetPresets[sheetType].cols}</span></div>
+                <div><span className="text-muted-foreground">Rows:</span> <span className="font-semibold tabular-nums">{(sheetPresets[sheetType] as { rows?: number }).rows || "—"}</span></div>
+                <div><span className="text-muted-foreground">Gap:</span> <span className="font-semibold tabular-nums">{parseFloat(sheetPresets[sheetType].gap)}mm</span></div>
+                <div><span className="text-muted-foreground">Per sheet:</span> <span className="font-semibold tabular-nums">{sheetPresets[sheetType].cols * ((sheetPresets[sheetType] as { rows?: number }).rows || 0)} labels</span></div>
+              </div>
             )}
             {(sheetType.startsWith("thermal") || sheetType === "precision_pro_tsc" || sheetType === "jewellery_100x15_1up") && (
               <div className="mt-2 p-3 bg-orange-50 dark:bg-orange-950/30 rounded-lg border border-orange-200 dark:border-orange-800">
@@ -6246,6 +6377,19 @@ export default function BarcodePrinting() {
           </CollapsibleContent>
         </div>
       </Collapsible>
+
+      {isA4SheetType() && (
+        <div className="barcode-standard-a4-preview border rounded-md overflow-hidden bg-card flex flex-col shrink-0">
+          <div className="px-3 py-2 border-b bg-muted/40 flex items-center justify-between gap-2 shrink-0">
+            <span className="text-sm font-bold">A4 Sheet Preview</span>
+            <span className="text-xs text-muted-foreground truncate">{sheetLayoutSummary}</span>
+          </div>
+          <div className="barcode-standard-a4-preview-body p-3 bg-slate-100/80 dark:bg-muted/20">
+            <div id="standardInlinePreviewArea" className="barcode-standard-preview-canvas min-h-[200px]" />
+          </div>
+        </div>
+      )}
+      </div>
         </TabsContent>
 
         <TabsContent value="precision" className="barcode-precision-workspace mt-0 flex-1 min-h-0 flex flex-col data-[state=inactive]:hidden">
