@@ -1230,6 +1230,7 @@ export default function BarcodePrinting() {
   });
   const [labelSourceOpen, setLabelSourceOpen] = useState(false);
   const [layoutStyleOpen, setLayoutStyleOpen] = useState(false);
+  const [marginSectionOpen, setMarginSectionOpen] = useState(false);
   const [quantityMode, setQuantityMode] = useState<QuantityMode>("manual");
   const [sizeSortOrder, setSizeSortOrder] = useState<SizeSortOrder>("barcode_asc");
   const [billNumber, setBillNumber] = useState("");
@@ -1361,7 +1362,7 @@ export default function BarcodePrinting() {
   const [isLabelTemplateSaveDialogOpen, setIsLabelTemplateSaveDialogOpen] = useState(false);
   const [newLabelTemplateName, setNewLabelTemplateName] = useState("");
   const [isEditingLabelTemplate, setIsEditingLabelTemplate] = useState(false);
-  const [showCustomizeFields, setShowCustomizeFields] = useState(false);
+  const [showCustomizeFields, setShowCustomizeFields] = useState(true);
   const [isPreviewDialogOpen, setIsPreviewDialogOpen] = useState(false);
   const [precisionPrintConfirmOpen, setPrecisionPrintConfirmOpen] = useState(false);
   const [precisionPrintConfirmQty, setPrecisionPrintConfirmQty] = useState(0);
@@ -5221,7 +5222,9 @@ export default function BarcodePrinting() {
             ? "max-h-[32vh]"
             : activeBarTab === "precision"
               ? "max-h-[42vh]"
-              : "max-h-[48vh]",
+              : showCustomizeFields
+                ? "max-h-[30vh]"
+                : "max-h-[48vh]",
         )}>
           <div className="bg-slate-900 text-white px-3 py-2 border-b flex items-center justify-between gap-2">
             <p className="text-sm font-semibold tabular-nums">
@@ -5350,7 +5353,7 @@ export default function BarcodePrinting() {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="standard" className="space-y-2 mt-0 flex-1 min-h-0">
+        <TabsContent value="standard" className="space-y-2 mt-0 flex-1 min-h-0 flex flex-col overflow-hidden">
       <Collapsible open={layoutStyleOpen} onOpenChange={setLayoutStyleOpen}>
         <div className="border rounded-md overflow-hidden bg-card">
           <CollapsibleTrigger asChild>
@@ -5902,10 +5905,10 @@ export default function BarcodePrinting() {
 
                 <Button 
                   size="sm" 
-                  variant="outline"
+                  variant={showCustomizeFields ? "secondary" : "outline"}
                   onClick={() => setShowCustomizeFields(!showCustomizeFields)}
                 >
-                  {showCustomizeFields ? "Hide" : "Edit"} Fields
+                  {showCustomizeFields ? "Hide" : "Show"} Designer
                 </Button>
 
                 <Dialog open={isLabelTemplateSaveDialogOpen} onOpenChange={setIsLabelTemplateSaveDialogOpen}>
@@ -5980,11 +5983,11 @@ export default function BarcodePrinting() {
             </div>
             
             {showCustomizeFields && (
-              <div className="pt-4 border-t">
-                <div className="flex items-center justify-between mb-4">
+              <div className="pt-3 border-t flex-1 min-h-0 flex flex-col overflow-hidden">
+                <div className="flex items-center justify-between mb-2 shrink-0">
                   <div>
-                    <h4 className="font-medium text-sm mb-1">Interactive Label Editor</h4>
-                    <p className="text-xs text-muted-foreground">Click fields in preview to edit, use arrow keys for precise spacing</p>
+                    <h4 className="font-medium text-sm mb-0.5">Label Designer</h4>
+                    <p className="text-xs text-muted-foreground">Drag fields on preview • click <strong>Expand</strong> for full-screen design</p>
                   </div>
                   {selectedLabelTemplate && (
                     <Button 
@@ -6028,8 +6031,25 @@ export default function BarcodePrinting() {
             )}
           </div>
 
-          {/* Margin Presets Section */}
-          <div className="col-span-full border rounded-lg p-4 space-y-4 bg-muted/30">
+          {/* Margin Presets Section — collapsed by default to give designer more room */}
+          <Collapsible open={marginSectionOpen} onOpenChange={setMarginSectionOpen}>
+          <div className="col-span-full border rounded-lg overflow-hidden bg-muted/30">
+            <CollapsibleTrigger asChild>
+              <button
+                type="button"
+                className="w-full flex items-center gap-2 px-4 py-3 text-left hover:bg-muted/50 transition-colors"
+              >
+                <ChevronDown className={cn("h-4 w-4 shrink-0 text-muted-foreground transition-transform", marginSectionOpen && "rotate-180")} />
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-semibold text-sm">Sheet Margins &amp; Offsets</h3>
+                  <p className="text-xs text-muted-foreground truncate">
+                    Top {topOffset}mm · Left {leftOffset}mm · Bottom {bottomOffset}mm · Right {rightOffset}mm
+                  </p>
+                </div>
+              </button>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+          <div className="px-4 pb-4 pt-0 space-y-4 border-t">
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="font-semibold">Sheet Margin Presets</h3>
@@ -6163,8 +6183,8 @@ export default function BarcodePrinting() {
                 )}
               </div>
             </div>
-          </div>
 
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
           <div className="space-y-2">
             <Label>Top Margin (mm)</Label>
             <Input
@@ -6241,7 +6261,13 @@ export default function BarcodePrinting() {
               Skip already-used labels on the sheet. Default 1 (start from first label).
             </p>
           </div>
-        </div>
+          </div>
+          </div>
+            </CollapsibleContent>
+          </div>
+        </Collapsible>
+
+            </div>
             </div>
           </CollapsibleContent>
         </div>

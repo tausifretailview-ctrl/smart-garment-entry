@@ -11,8 +11,9 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { 
   Eye, ZoomIn, ZoomOut, AlignLeft, AlignCenter, AlignRight, 
   Bold, Type, Maximize2, Move, Save, Trash2, FolderOpen,
-  LayoutGrid, Printer, Rows
+  LayoutGrid, Printer, Rows, PanelLeftClose, PanelRightClose, Minimize2
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import JsBarcode from "jsbarcode";
 import { toast } from "sonner";
 import { LabelFieldConfig, LabelDesignConfig, LabelItem, LabelTemplate, FieldKey } from "@/types/labelTypes";
@@ -324,6 +325,9 @@ export function BarTenderLabelDesigner({
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
   const [templateName, setTemplateName] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [fieldsPanelOpen, setFieldsPanelOpen] = useState(true);
+  const [propsPanelOpen, setPropsPanelOpen] = useState(true);
 
   // Calculate scale factor for proper mm to px conversion
   const basePxPerMm = 3.78;
@@ -677,6 +681,473 @@ export function BarTenderLabelDesigner({
     </div>
   );
 
+  const previewColSpan = fieldsPanelOpen && propsPanelOpen
+    ? "lg:col-span-7"
+    : fieldsPanelOpen || propsPanelOpen
+      ? "lg:col-span-10"
+      : "lg:col-span-12";
+
+  const renderDesignerWorkspace = (expanded = false) => (
+    <div className={cn("flex flex-col min-h-0", expanded ? "h-full" : "")}>
+      {/* Template Toolbar */}
+      <div className="flex flex-wrap items-center gap-2 p-2.5 bg-muted/50 rounded-lg border shrink-0">
+        <div className="flex items-center gap-2">
+          <FolderOpen className="h-4 w-4 text-muted-foreground" />
+          <span className="text-sm font-medium">Templates:</span>
+        </div>
+
+        {savedTemplates.length > 0 ? (
+          <Select
+            value={selectedTemplateName || undefined}
+            onValueChange={(value) => {
+              const template = savedTemplates.find((t) => t.name === value);
+              if (template) handleLoadTemplate(template);
+            }}
+          >
+            <SelectTrigger className="w-44 h-8">
+              <SelectValue placeholder="Load a template..." />
+            </SelectTrigger>
+            <SelectContent>
+              {savedTemplates.map((template) => (
+                <SelectItem key={template.name} value={template.name}>
+                  {template.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : (
+          <span className="text-xs text-muted-foreground">No saved templates</span>
+        )}
+
+        <div className="flex-1 min-w-[8px]" />
+
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-8"
+          onClick={() => setFieldsPanelOpen((v) => !v)}
+          title={fieldsPanelOpen ? "Hide field list" : "Show field list"}
+        >
+          <PanelLeftClose className="h-3.5 w-3.5 mr-1" />
+          Fields
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-8"
+          onClick={() => setPropsPanelOpen((v) => !v)}
+          title={propsPanelOpen ? "Hide properties" : "Show properties"}
+        >
+          <PanelRightClose className="h-3.5 w-3.5 mr-1" />
+          Properties
+        </Button>
+
+        {onSaveTemplate && (
+          <Button size="sm" variant="outline" className="h-8" onClick={() => setSaveDialogOpen(true)}>
+            <Save className="h-4 w-4 mr-1.5" />
+            Save
+          </Button>
+        )}
+
+        {savedTemplates.length > 0 && onDeleteTemplate && (
+          <Select onValueChange={handleDeleteTemplate}>
+            <SelectTrigger className="w-28 h-8 text-destructive border-destructive/30">
+              <SelectValue placeholder="Delete..." />
+            </SelectTrigger>
+            <SelectContent>
+              {savedTemplates.map((template) => (
+                <SelectItem key={template.name} value={template.name} className="text-destructive">
+                  <div className="flex items-center gap-2">
+                    <Trash2 className="h-3 w-3" />
+                    {template.name}
+                  </div>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+
+        {!expanded ? (
+          <Button size="sm" variant="default" className="h-8" onClick={() => setIsExpanded(true)}>
+            <Maximize2 className="h-4 w-4 mr-1.5" />
+            Expand
+          </Button>
+        ) : (
+          <Button size="sm" variant="outline" className="h-8" onClick={() => setIsExpanded(false)}>
+            <Minimize2 className="h-4 w-4 mr-1.5" />
+            Close
+          </Button>
+        )}
+      </div>
+
+      <div className={cn(
+        "grid grid-cols-1 gap-3 mt-3 min-h-0",
+        expanded ? "flex-1 lg:grid-cols-12" : "lg:grid-cols-12",
+        expanded ? "min-h-[min(68vh,640px)]" : "min-h-[min(48vh,420px)]",
+      )}>
+        {fieldsPanelOpen && (
+          <Card className="lg:col-span-2 p-3 flex flex-col min-h-0 overflow-hidden">
+            <div className="flex items-center gap-2 mb-2 shrink-0">
+              <LayoutGrid className="h-4 w-4 text-primary" />
+              <h3 className="font-semibold text-sm">Fields</h3>
+            </div>
+            <p className="text-[11px] text-muted-foreground mb-2 shrink-0">
+              Tick to show • click to edit
+            </p>
+            <div className="space-y-1 overflow-y-auto flex-1 min-h-0 pr-0.5">
+              {designerFieldOrder.map((fieldKey) => {
+                const field = labelConfig[fieldKey] as LabelFieldConfig;
+                return (
+                  <FieldListItem
+                    key={fieldKey}
+                    fieldKey={fieldKey}
+                    field={field}
+                    isSelected={selectedField === fieldKey}
+                    onSelect={() => setSelectedField(fieldKey)}
+                    onToggle={(show) => handleFieldToggle(fieldKey, show)}
+                    fieldLabels={fieldLabels}
+                  />
+                );
+              })}
+            </div>
+          </Card>
+        )}
+
+        <Card className={cn("p-3 flex flex-col min-h-0 overflow-hidden", previewColSpan)}>
+          <div className="flex items-center justify-between mb-2 shrink-0">
+            <div className="flex items-center gap-2">
+              <Eye className="h-4 w-4 text-primary" />
+              <h3 className="font-semibold text-sm">Live Preview</h3>
+            </div>
+            <div className="flex items-center gap-2 text-xs bg-muted px-2 py-1 rounded">
+              <Maximize2 className="h-3 w-3" />
+              <span>{labelWidth}×{labelHeight}mm</span>
+              {columns > 1 && <span className="text-primary font-medium">({columns}UP)</span>}
+            </div>
+          </div>
+
+          <div className="flex items-center justify-center gap-2 mb-2 shrink-0 p-1.5 bg-muted/50 rounded">
+            <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setZoom(Math.max(50, zoom - 25))}>
+              <ZoomOut className="h-4 w-4" />
+            </Button>
+            <div className="flex items-center gap-2 min-w-[100px]">
+              <Slider
+                value={[zoom]}
+                onValueChange={([value]) => setZoom(value)}
+                min={50}
+                max={300}
+                step={10}
+                className="w-16"
+              />
+              <span className="text-xs font-medium w-10 text-center">{zoom}%</span>
+            </div>
+            <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setZoom(Math.min(300, zoom + 25))}>
+              <ZoomIn className="h-4 w-4" />
+            </Button>
+          </div>
+
+          <div
+            className="flex justify-center items-start overflow-auto p-3 bg-gray-100 rounded flex-1 min-h-0"
+            style={{
+              backgroundImage:
+                "linear-gradient(45deg, #e5e5e5 25%, transparent 25%), linear-gradient(-45deg, #e5e5e5 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #e5e5e5 75%), linear-gradient(-45deg, transparent 75%, #e5e5e5 75%)",
+              backgroundSize: "10px 10px",
+              backgroundPosition: "0 0, 0 5px, 5px -5px, -5px 0px",
+            }}
+            onClick={() => setSelectedField(null)}
+          >
+            <div className="flex gap-2" ref={previewRef}>
+              {Array.from({ length: columns }).map((_, idx) => (
+                <div
+                  key={idx}
+                  className="bg-white border-2 border-gray-400 shadow-lg relative overflow-hidden"
+                  style={{
+                    width: `${labelWidthPx}px`,
+                    height: `${labelHeightPx}px`,
+                    fontFamily: "Arial, sans-serif",
+                  }}
+                >
+                  <div className="absolute top-0 left-0 w-2 h-2 border-t-2 border-l-2 border-blue-500 z-20" />
+                  <div className="absolute top-0 right-0 w-2 h-2 border-t-2 border-r-2 border-blue-500 z-20" />
+                  <div className="absolute bottom-0 left-0 w-2 h-2 border-b-2 border-l-2 border-blue-500 z-20" />
+                  <div className="absolute bottom-0 right-0 w-2 h-2 border-b-2 border-r-2 border-blue-500 z-20" />
+                  <div
+                    className="absolute inset-0 pointer-events-none opacity-20"
+                    style={{
+                      backgroundImage: `
+                        linear-gradient(to right, #ccc 1px, transparent 1px),
+                        linear-gradient(to bottom, #ccc 1px, transparent 1px)
+                      `,
+                      backgroundSize: `${5 * scale}px ${5 * scale}px`,
+                    }}
+                  />
+                  {renderLabelContent()}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <p className="text-[11px] text-muted-foreground text-center mt-2 shrink-0">
+            {selectedField
+              ? <span className="font-medium text-blue-600">Editing: {fieldLabels[selectedField]} — drag or arrow keys</span>
+              : "Click a field to select • drag to move"}
+          </p>
+        </Card>
+
+        {propsPanelOpen && (
+          <Card className="lg:col-span-3 p-3 flex flex-col min-h-0 overflow-hidden">
+            <div className="flex items-center gap-2 mb-2 shrink-0">
+              <Type className="h-4 w-4 text-primary" />
+              <h3 className="font-semibold text-sm">Properties</h3>
+            </div>
+
+            <div className="overflow-y-auto flex-1 min-h-0 pr-0.5">
+              {selectedField && selectedFieldConfig ? (
+                <div className="space-y-3">
+                  <div className="p-2.5 bg-blue-50 rounded border border-blue-200">
+                    <p className="font-medium text-sm text-blue-900">{fieldLabels[selectedField]}</p>
+                    <p className="text-[11px] text-blue-600">Drag on canvas or use arrows</p>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="field-show"
+                      checked={selectedFieldConfig.show}
+                      onCheckedChange={(checked) => updateFieldProperty("show", checked === true)}
+                    />
+                    <Label htmlFor="field-show" className="cursor-pointer text-sm">Show on label</Label>
+                  </div>
+
+                  <Separator />
+
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-medium">Quick Layout</Label>
+                    <div className="flex flex-wrap gap-1">
+                      <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => applyLayoutPreset("full-width")}>
+                        <Rows className="h-3 w-3 mr-1" /> Full
+                      </Button>
+                      <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => applyLayoutPreset("left")}>
+                        <AlignLeft className="h-3 w-3 mr-1" /> Left
+                      </Button>
+                      <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => applyLayoutPreset("right")}>
+                        <AlignRight className="h-3 w-3 mr-1" /> Right
+                      </Button>
+                    </div>
+                  </div>
+
+                  <Separator />
+
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      <Move className="h-4 w-4 text-muted-foreground" />
+                      <Label className="text-xs font-medium">Position (mm)</Label>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <Label className="text-xs">X (Left)</Label>
+                        <Input
+                          type="number"
+                          min="0"
+                          max={labelWidth}
+                          step="0.5"
+                          value={(selectedFieldConfig.x ?? 0).toFixed(1)}
+                          onChange={(e) => updateFieldProperty("x", parseFloat(e.target.value) || 0)}
+                          className="h-8"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Y (Top)</Label>
+                        <Input
+                          type="number"
+                          min="0"
+                          max={labelHeight}
+                          step="0.5"
+                          value={(selectedFieldConfig.y ?? 0).toFixed(1)}
+                          onChange={(e) => updateFieldProperty("y", parseFloat(e.target.value) || 0)}
+                          className="h-8"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <Label className="text-xs font-medium">Width (%)</Label>
+                      <div className="flex items-center gap-2">
+                        <Slider
+                          value={[selectedFieldConfig.width ?? 100]}
+                          onValueChange={([value]) => updateFieldProperty("width", value)}
+                          min={20}
+                          max={100}
+                          step={5}
+                          className="flex-1"
+                        />
+                        <span className="text-xs w-8">{selectedFieldConfig.width ?? 100}%</span>
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs font-medium">Height (mm)</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        max="20"
+                        step="0.5"
+                        value={selectedFieldConfig.height ?? ""}
+                        onChange={(e) => updateFieldProperty("height", e.target.value ? parseFloat(e.target.value) : undefined)}
+                        placeholder="Auto"
+                        className="h-7 text-xs"
+                      />
+                    </div>
+                  </div>
+
+                  <Separator />
+
+                  {selectedField !== "barcode" ? (
+                    <>
+                      {selectedField === "customText" && (
+                        <div className="space-y-1.5">
+                          <Label className="text-xs font-medium">Custom Text Value</Label>
+                          <Input
+                            type="text"
+                            value={labelConfig.customTextValue || ""}
+                            onChange={(e) => setLabelConfig((prev) => ({ ...prev, customTextValue: e.target.value }))}
+                            placeholder="Enter custom text..."
+                            className="h-8"
+                          />
+                        </div>
+                      )}
+
+                      <div className="space-y-1.5">
+                        <Label className="text-xs font-medium">Font Size</Label>
+                        <div className="flex items-center gap-3">
+                          <Slider
+                            value={[selectedFieldConfig.fontSize]}
+                            onValueChange={([value]) => updateFieldProperty("fontSize", value)}
+                            min={6}
+                            max={24}
+                            step={1}
+                            className="flex-1"
+                          />
+                          <span className="text-sm font-medium w-8 text-center">{selectedFieldConfig.fontSize}</span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-2">
+                          <Button
+                            size="sm"
+                            variant={selectedFieldConfig.bold ? "default" : "outline"}
+                            onClick={() => updateFieldProperty("bold", !selectedFieldConfig.bold)}
+                            className="h-8 w-8 p-0"
+                          >
+                            <Bold className="h-4 w-4" />
+                          </Button>
+                          <span className="text-xs text-muted-foreground">Bold</span>
+                        </div>
+                        <div className="flex gap-1">
+                          <Button
+                            size="sm"
+                            variant={selectedFieldConfig.textAlign === "left" ? "default" : "outline"}
+                            onClick={() => updateFieldProperty("textAlign", "left")}
+                            className="h-8 w-8 p-0"
+                          >
+                            <AlignLeft className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant={selectedFieldConfig.textAlign === "center" || !selectedFieldConfig.textAlign ? "default" : "outline"}
+                            onClick={() => updateFieldProperty("textAlign", "center")}
+                            className="h-8 w-8 p-0"
+                          >
+                            <AlignCenter className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant={selectedFieldConfig.textAlign === "right" ? "default" : "outline"}
+                            onClick={() => updateFieldProperty("textAlign", "right")}
+                            className="h-8 w-8 p-0"
+                          >
+                            <AlignRight className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs font-medium">Barcode Height</Label>
+                        <div className="flex items-center gap-3">
+                          <Slider
+                            value={[labelConfig.barcodeHeight || 25]}
+                            onValueChange={([value]) => setLabelConfig((prev) => ({ ...prev, barcodeHeight: value }))}
+                            min={15}
+                            max={60}
+                            step={1}
+                            className="flex-1"
+                          />
+                          <span className="text-sm font-medium w-8 text-center">{labelConfig.barcodeHeight || 25}</span>
+                        </div>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs font-medium">Barcode Width</Label>
+                        <div className="flex items-center gap-3">
+                          <Slider
+                            value={[(labelConfig.barcodeWidth || 1.5) * 10]}
+                            onValueChange={([value]) => setLabelConfig((prev) => ({ ...prev, barcodeWidth: value / 10 }))}
+                            min={8}
+                            max={25}
+                            step={1}
+                            className="flex-1"
+                          />
+                          <span className="text-sm font-medium w-8 text-center">{(labelConfig.barcodeWidth || 1.5).toFixed(1)}</span>
+                        </div>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs font-medium">Alignment</Label>
+                        <div className="flex gap-1">
+                          <Button
+                            size="sm"
+                            variant={selectedFieldConfig.textAlign === "left" ? "default" : "outline"}
+                            onClick={() => updateFieldProperty("textAlign", "left")}
+                            className="h-8 w-8 p-0"
+                          >
+                            <AlignLeft className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant={selectedFieldConfig.textAlign === "center" || !selectedFieldConfig.textAlign ? "default" : "outline"}
+                            onClick={() => updateFieldProperty("textAlign", "center")}
+                            className="h-8 w-8 p-0"
+                          >
+                            <AlignCenter className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant={selectedFieldConfig.textAlign === "right" ? "default" : "outline"}
+                            onClick={() => updateFieldProperty("textAlign", "right")}
+                            className="h-8 w-8 p-0"
+                          >
+                            <AlignRight className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-8 text-center text-muted-foreground">
+                  <Printer className="h-10 w-10 mb-3 opacity-20" />
+                  <p className="text-sm">Select a field to edit</p>
+                  <p className="text-xs mt-1">Click in preview or field list</p>
+                </div>
+              )}
+            </div>
+          </Card>
+        )}
+      </div>
+    </div>
+  );
+
   return (
     <>
     {/* Save Template Dialog */}
@@ -712,456 +1183,21 @@ export function BarTenderLabelDesigner({
       </DialogContent>
     </Dialog>
 
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-      {/* Template Toolbar */}
-      <div className="lg:col-span-12 flex items-center gap-3 p-3 bg-muted/50 rounded-lg border">
-        <div className="flex items-center gap-2">
-          <FolderOpen className="h-4 w-4 text-muted-foreground" />
-          <span className="text-sm font-medium">Templates:</span>
+    {!isExpanded && renderDesignerWorkspace()}
+
+    <Dialog open={isExpanded} onOpenChange={setIsExpanded}>
+      <DialogContent className="max-w-[96vw] w-[96vw] max-h-[92vh] h-[92vh] overflow-hidden flex flex-col gap-0 p-4">
+        <DialogHeader className="shrink-0 pb-2">
+          <DialogTitle className="text-base">Label Designer — full screen</DialogTitle>
+          <DialogDescription className="text-xs">
+            Drag fields on the preview • use Expand/Close to switch views
+          </DialogDescription>
+        </DialogHeader>
+        <div className="flex-1 min-h-0 overflow-hidden">
+          {renderDesignerWorkspace(true)}
         </div>
-        
-        {savedTemplates.length > 0 ? (
-          <Select 
-            value={selectedTemplateName || undefined}
-            onValueChange={(value) => {
-              const template = savedTemplates.find(t => t.name === value);
-              if (template) handleLoadTemplate(template);
-            }}
-          >
-            <SelectTrigger className="w-48 h-8">
-              <SelectValue placeholder="Load a template..." />
-            </SelectTrigger>
-            <SelectContent>
-              {savedTemplates.map((template) => (
-                <SelectItem key={template.name} value={template.name}>
-                  {template.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        ) : (
-          <span className="text-xs text-muted-foreground">No saved templates</span>
-        )}
-
-        <div className="flex-1" />
-
-        {onSaveTemplate && (
-          <Button size="sm" variant="outline" onClick={() => setSaveDialogOpen(true)}>
-            <Save className="h-4 w-4 mr-2" />
-            Save Current
-          </Button>
-        )}
-
-        {savedTemplates.length > 0 && onDeleteTemplate && (
-          <Select onValueChange={handleDeleteTemplate}>
-            <SelectTrigger className="w-32 h-8 text-destructive border-destructive/30">
-              <SelectValue placeholder="Delete..." />
-            </SelectTrigger>
-            <SelectContent>
-              {savedTemplates.map((template) => (
-                <SelectItem key={template.name} value={template.name} className="text-destructive">
-                  <div className="flex items-center gap-2">
-                    <Trash2 className="h-3 w-3" />
-                    {template.name}
-                  </div>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
-      </div>
-
-      {/* Left Panel - Field List */}
-      <Card className="lg:col-span-3 p-4">
-        <div className="flex items-center gap-2 mb-3">
-          <LayoutGrid className="h-4 w-4 text-primary" />
-          <h3 className="font-semibold text-sm">Label Fields</h3>
-        </div>
-        <p className="text-xs text-muted-foreground mb-3">
-          Drag fields on canvas • Click to edit
-        </p>
-        
-        <div className="space-y-1.5 max-h-[500px] overflow-y-auto pr-1">
-          {designerFieldOrder.map((fieldKey) => {
-            const field = labelConfig[fieldKey] as LabelFieldConfig;
-            return (
-              <FieldListItem
-                key={fieldKey}
-                fieldKey={fieldKey}
-                field={field}
-                isSelected={selectedField === fieldKey}
-                onSelect={() => setSelectedField(fieldKey)}
-                onToggle={(show) => handleFieldToggle(fieldKey, show)}
-                fieldLabels={fieldLabels}
-              />
-            );
-          })}
-        </div>
-      </Card>
-
-      {/* Center Panel - Live Preview Canvas */}
-      <Card className="lg:col-span-5 p-4">
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <Eye className="h-4 w-4 text-primary" />
-            <h3 className="font-semibold text-sm">Live Preview</h3>
-          </div>
-          <div className="flex items-center gap-2 text-xs bg-muted px-2 py-1 rounded">
-            <Maximize2 className="h-3 w-3" />
-            <span>{labelWidth}×{labelHeight}mm</span>
-            {columns > 1 && <span className="text-primary font-medium">({columns}UP)</span>}
-          </div>
-        </div>
-
-        {/* Zoom Controls */}
-        <div className="flex items-center justify-center gap-3 mb-4 p-2 bg-muted/50 rounded">
-          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setZoom(Math.max(50, zoom - 25))}>
-            <ZoomOut className="h-4 w-4" />
-          </Button>
-          <div className="flex items-center gap-2 min-w-[120px]">
-            <Slider
-              value={[zoom]}
-              onValueChange={([value]) => setZoom(value)}
-              min={50}
-              max={300}
-              step={10}
-              className="w-20"
-            />
-            <span className="text-xs font-medium w-12 text-center">{zoom}%</span>
-          </div>
-          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setZoom(Math.min(300, zoom + 25))}>
-            <ZoomIn className="h-4 w-4" />
-          </Button>
-        </div>
-
-        {/* Label Preview Container - Canvas style */}
-        <div 
-          className="flex justify-center items-start overflow-auto p-4 bg-gray-100 rounded min-h-[350px]"
-          style={{ 
-            backgroundImage: 'linear-gradient(45deg, #e5e5e5 25%, transparent 25%), linear-gradient(-45deg, #e5e5e5 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #e5e5e5 75%), linear-gradient(-45deg, transparent 75%, #e5e5e5 75%)',
-            backgroundSize: '10px 10px',
-            backgroundPosition: '0 0, 0 5px, 5px -5px, -5px 0px'
-          }}
-          onClick={() => setSelectedField(null)}
-        >
-          <div className="flex gap-2" ref={previewRef}>
-            {Array.from({ length: columns }).map((_, idx) => (
-              <div
-                key={idx}
-                className="bg-white border-2 border-gray-400 shadow-lg relative overflow-hidden"
-                style={{
-                  width: `${labelWidthPx}px`,
-                  height: `${labelHeightPx}px`,
-                  fontFamily: 'Arial, sans-serif',
-                }}
-              >
-                {/* Corner markers */}
-                <div className="absolute top-0 left-0 w-2 h-2 border-t-2 border-l-2 border-blue-500 z-20" />
-                <div className="absolute top-0 right-0 w-2 h-2 border-t-2 border-r-2 border-blue-500 z-20" />
-                <div className="absolute bottom-0 left-0 w-2 h-2 border-b-2 border-l-2 border-blue-500 z-20" />
-                <div className="absolute bottom-0 right-0 w-2 h-2 border-b-2 border-r-2 border-blue-500 z-20" />
-                
-                {/* Grid lines for reference */}
-                <div 
-                  className="absolute inset-0 pointer-events-none opacity-20"
-                  style={{
-                    backgroundImage: `
-                      linear-gradient(to right, #ccc 1px, transparent 1px),
-                      linear-gradient(to bottom, #ccc 1px, transparent 1px)
-                    `,
-                    backgroundSize: `${5 * scale}px ${5 * scale}px`
-                  }}
-                />
-                
-                {renderLabelContent()}
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Info */}
-        <div className="mt-3 text-center">
-          <p className="text-xs text-muted-foreground">
-            {selectedField 
-              ? <span className="font-medium text-blue-600">Editing: {fieldLabels[selectedField]} • Drag to move</span>
-              : 'Click a field to select • Drag to reposition'}
-          </p>
-          <p className="text-xs text-muted-foreground mt-1">
-            Arrow keys: move • Shift+Arrow: move faster • ESC: deselect
-          </p>
-          <p className="text-[9px] text-muted-foreground/80 mt-1">
-            Empty fields show field name here only (not on print)
-          </p>
-          <p className="text-[10px] text-muted-foreground/80 mt-1">
-            Empty fields show field name here only (not on print)
-          </p>
-        </div>
-      </Card>
-
-      {/* Right Panel - Field Properties */}
-      <Card className="lg:col-span-4 p-4">
-        <div className="flex items-center gap-2 mb-3">
-          <Type className="h-4 w-4 text-primary" />
-          <h3 className="font-semibold text-sm">Field Properties</h3>
-        </div>
-
-        {selectedField && selectedFieldConfig ? (
-          <div className="space-y-4">
-            {/* Field Header */}
-            <div className="p-3 bg-blue-50 rounded border border-blue-200">
-              <p className="font-medium text-sm text-blue-900">{fieldLabels[selectedField]}</p>
-              <p className="text-xs text-blue-600">Drag on canvas or use arrows</p>
-            </div>
-
-            {/* Visibility */}
-            <div className="flex items-center gap-2">
-              <Checkbox
-                id="field-show"
-                checked={selectedFieldConfig.show}
-                onCheckedChange={(checked) => updateFieldProperty('show', checked === true)}
-              />
-              <Label htmlFor="field-show" className="cursor-pointer text-sm">Show on label</Label>
-            </div>
-
-            <Separator />
-
-            {/* Layout Presets */}
-            <div className="space-y-2">
-              <Label className="text-xs font-medium">Quick Layout</Label>
-              <div className="flex flex-wrap gap-1">
-                <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => applyLayoutPreset('full-width')}>
-                  <Rows className="h-3 w-3 mr-1" /> Full Width
-                </Button>
-                <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => applyLayoutPreset('left')}>
-                  <AlignLeft className="h-3 w-3 mr-1" /> Left Half
-                </Button>
-                <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => applyLayoutPreset('right')}>
-                  <AlignRight className="h-3 w-3 mr-1" /> Right Half
-                </Button>
-              </div>
-            </div>
-
-            <Separator />
-
-            {/* Position Controls */}
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <Move className="h-4 w-4 text-muted-foreground" />
-                <Label className="text-xs font-medium">Position (mm)</Label>
-              </div>
-              
-              <div className="grid grid-cols-2 gap-2">
-                <div className="space-y-1">
-                  <Label className="text-xs">X (Left)</Label>
-                  <Input
-                    type="number"
-                    min="0"
-                    max={labelWidth}
-                    step="0.5"
-                    value={(selectedFieldConfig.x ?? 0).toFixed(1)}
-                    onChange={(e) => updateFieldProperty('x', parseFloat(e.target.value) || 0)}
-                    className="h-8"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Y (Top)</Label>
-                  <Input
-                    type="number"
-                    min="0"
-                    max={labelHeight}
-                    step="0.5"
-                    value={(selectedFieldConfig.y ?? 0).toFixed(1)}
-                    onChange={(e) => updateFieldProperty('y', parseFloat(e.target.value) || 0)}
-                    className="h-8"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Width & Height Controls */}
-            <div className="grid grid-cols-2 gap-2">
-              <div className="space-y-1">
-                <Label className="text-xs font-medium">Width (%)</Label>
-                <div className="flex items-center gap-2">
-                  <Slider
-                    value={[selectedFieldConfig.width ?? 100]}
-                    onValueChange={([value]) => updateFieldProperty('width', value)}
-                    min={20}
-                    max={100}
-                    step={5}
-                    className="flex-1"
-                  />
-                  <span className="text-xs w-8">{selectedFieldConfig.width ?? 100}%</span>
-                </div>
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs font-medium">Height (mm)</Label>
-                <div className="flex items-center gap-2">
-                  <Input
-                    type="number"
-                    min="0"
-                    max="20"
-                    step="0.5"
-                    value={selectedFieldConfig.height ?? ''}
-                    onChange={(e) => updateFieldProperty('height', e.target.value ? parseFloat(e.target.value) : undefined)}
-                    placeholder="Auto"
-                    className="h-7 text-xs"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <Separator />
-
-            {selectedField !== 'barcode' ? (
-              <>
-                {/* Custom Text Value Input - only for customText field */}
-                {selectedField === 'customText' && (
-                  <div className="space-y-2">
-                    <Label className="text-xs font-medium">Custom Text Value</Label>
-                    <Input
-                      type="text"
-                      value={labelConfig.customTextValue || ''}
-                      onChange={(e) => setLabelConfig(prev => ({ ...prev, customTextValue: e.target.value }))}
-                      placeholder="Enter custom text..."
-                      className="h-8"
-                    />
-                  </div>
-                )}
-
-                {/* Font Size */}
-                <div className="space-y-2">
-                  <Label className="text-xs font-medium">Font Size</Label>
-                  <div className="flex items-center gap-3">
-                    <Slider
-                      value={[selectedFieldConfig.fontSize]}
-                      onValueChange={([value]) => updateFieldProperty('fontSize', value)}
-                      min={6}
-                      max={24}
-                      step={1}
-                      className="flex-1"
-                    />
-                    <span className="text-sm font-medium w-8 text-center">{selectedFieldConfig.fontSize}</span>
-                  </div>
-                </div>
-
-                {/* Bold & Alignment Row */}
-                <div className="flex items-center gap-4">
-                  <div className="flex items-center gap-2">
-                    <Button
-                      size="sm"
-                      variant={selectedFieldConfig.bold ? 'default' : 'outline'}
-                      onClick={() => updateFieldProperty('bold', !selectedFieldConfig.bold)}
-                      className="h-8 w-8 p-0"
-                    >
-                      <Bold className="h-4 w-4" />
-                    </Button>
-                    <span className="text-xs text-muted-foreground">Bold</span>
-                  </div>
-                  
-                  <div className="flex gap-1">
-                    <Button
-                      size="sm"
-                      variant={selectedFieldConfig.textAlign === 'left' ? 'default' : 'outline'}
-                      onClick={() => updateFieldProperty('textAlign', 'left')}
-                      className="h-8 w-8 p-0"
-                    >
-                      <AlignLeft className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant={selectedFieldConfig.textAlign === 'center' || !selectedFieldConfig.textAlign ? 'default' : 'outline'}
-                      onClick={() => updateFieldProperty('textAlign', 'center')}
-                      className="h-8 w-8 p-0"
-                    >
-                      <AlignCenter className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant={selectedFieldConfig.textAlign === 'right' ? 'default' : 'outline'}
-                      onClick={() => updateFieldProperty('textAlign', 'right')}
-                      className="h-8 w-8 p-0"
-                    >
-                      <AlignRight className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              </>
-            ) : (
-              <>
-                {/* Barcode Size Controls */}
-                <div className="space-y-2">
-                  <Label className="text-xs font-medium">Barcode Height</Label>
-                  <div className="flex items-center gap-3">
-                    <Slider
-                      value={[labelConfig.barcodeHeight || 25]}
-                      onValueChange={([value]) => setLabelConfig(prev => ({ ...prev, barcodeHeight: value }))}
-                      min={15}
-                      max={60}
-                      step={1}
-                      className="flex-1"
-                    />
-                    <span className="text-sm font-medium w-8 text-center">{labelConfig.barcodeHeight || 25}</span>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label className="text-xs font-medium">Barcode Width</Label>
-                  <div className="flex items-center gap-3">
-                    <Slider
-                      value={[(labelConfig.barcodeWidth || 1.5) * 10]}
-                      onValueChange={([value]) => setLabelConfig(prev => ({ ...prev, barcodeWidth: value / 10 }))}
-                      min={8}
-                      max={25}
-                      step={1}
-                      className="flex-1"
-                    />
-                    <span className="text-sm font-medium w-8 text-center">{(labelConfig.barcodeWidth || 1.5).toFixed(1)}</span>
-                  </div>
-                </div>
-
-                {/* Alignment for barcode */}
-                <div className="space-y-2">
-                  <Label className="text-xs font-medium">Alignment</Label>
-                  <div className="flex gap-1">
-                    <Button
-                      size="sm"
-                      variant={selectedFieldConfig.textAlign === 'left' ? 'default' : 'outline'}
-                      onClick={() => updateFieldProperty('textAlign', 'left')}
-                      className="h-8 w-8 p-0"
-                    >
-                      <AlignLeft className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant={selectedFieldConfig.textAlign === 'center' || !selectedFieldConfig.textAlign ? 'default' : 'outline'}
-                      onClick={() => updateFieldProperty('textAlign', 'center')}
-                      className="h-8 w-8 p-0"
-                    >
-                      <AlignCenter className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant={selectedFieldConfig.textAlign === 'right' ? 'default' : 'outline'}
-                      onClick={() => updateFieldProperty('textAlign', 'right')}
-                      className="h-8 w-8 p-0"
-                    >
-                      <AlignRight className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
-        ) : (
-          <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground">
-            <Printer className="h-12 w-12 mb-4 opacity-20" />
-            <p className="text-sm">Select a field to edit</p>
-            <p className="text-xs mt-2">Click any field in the preview or list</p>
-          </div>
-        )}
-      </Card>
-    </div>
+      </DialogContent>
+    </Dialog>
     </>
   );
 }
