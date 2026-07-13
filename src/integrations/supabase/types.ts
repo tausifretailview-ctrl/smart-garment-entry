@@ -8343,6 +8343,13 @@ export type Database = {
           new_status: string
         }[]
       }
+      compute_sale_settlement_v2: {
+        Args: { p_org_id: string; p_sale_id: string }
+        Returns: {
+          new_paid: number
+          new_status: string
+        }[]
+      }
       create_organization: {
         Args: { p_name: string; p_user_id?: string }
         Returns: Json
