@@ -16,6 +16,7 @@ import {
 import { fetchCustomerSegmentCounts, type CustomerSegmentCounts } from "@/utils/customerSegments";
 import type { OrganizationReceivablesSummary } from "@/utils/organizationReceivables";
 import { PageContextMenu, ContextMenuItem } from "@/components/DesktopContextMenu";
+import { DriftBanner } from "@/components/dashboard/DriftBanner";
 import { DashboardSkeleton, MetricCardSkeleton } from "@/components/ui/skeletons";
 import {
   Package,
