@@ -351,12 +351,12 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   const showBarcodeCol = !isRealTast;
 
   const cols: { key: string; label: string; width: string; align: "center" | "left" | "right" }[] = [
-    { key: "sr", label: "SN", width: isRealTast ? "5%" : isA5Retail ? "5%" : "5%", align: "center" },
+    { key: "sr", label: "SN", width: isRealTast ? "4%" : isA5Retail ? "5%" : "5%", align: "center" },
     {
       key: "description",
       label: "DESCRIPTION",
       width: isRealTast
-        ? (showHSNCol ? "38%" : "46%")
+        ? (showHSNCol ? "47%" : "54%")
         : isA5Retail
           ? (showHSNCol ? "24%" : "30%")
           : showHSNCol
@@ -372,11 +372,11 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
       : []),
   ];
   if (showHSNCol) {
-    cols.push({ key: "hsn", label: "HSN", width: isRealTast ? "8%" : "7%", align: "center" });
+    cols.push({ key: "hsn", label: "HSN", width: isRealTast ? "10%" : "7%", align: "center" });
   }
-  cols.push({ key: "qty", label: "QTY", width: isRealTast ? "7%" : "6%", align: "center" });
-  cols.push({ key: "rate", label: "RATE", width: isRealTast ? (showHSNCol ? "16%" : "18%") : "12%", align: "right" });
-  cols.push({ key: "amount", label: "AMOUNT", width: isRealTast ? (showHSNCol ? "20%" : "22%") : "14%", align: "right" });
+  cols.push({ key: "qty", label: "QTY", width: isRealTast ? "6%" : "6%", align: "center" });
+  cols.push({ key: "rate", label: "RATE", width: isRealTast ? (showHSNCol ? "11%" : "12%") : "12%", align: "right" });
+  cols.push({ key: "amount", label: "AMOUNT", width: isRealTast ? (showHSNCol ? "12%" : "13%") : "14%", align: "right" });
 
   const cellBase: React.CSSProperties = {
     borderRight: B,
@@ -596,6 +596,18 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                             ...cellBase,
                             textAlign: c.align,
                             borderRight: isLast ? "none" : B,
+                            ...(isRealTast &&
+                            (c.key === "rate" || c.key === "amount" || c.key === "qty" || c.key === "hsn")
+                              ? {
+                                  padding: isA4 ? "2px 3px" : cellBase.padding,
+                                  fontFamily: "ui-monospace, Consolas, Monaco, monospace",
+                                  fontVariantNumeric: "tabular-nums",
+                                  whiteSpace: "nowrap",
+                                }
+                              : {}),
+                            ...(isRealTast && c.key === "description"
+                              ? { padding: isA4 ? "2px 6px" : cellBase.padding }
+                              : {}),
                             ...(rowHasDisc && c.key === "amount"
                               ? {
                                   maxHeight: "none",
@@ -611,7 +623,15 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                               case "sr": content = srNo; break;
                               case "description":
                                 content = (
-                                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "block" }}>
+                                  <span
+                                    style={{
+                                      overflow: isRealTast ? "visible" : "hidden",
+                                      textOverflow: isRealTast ? "clip" : "ellipsis",
+                                      whiteSpace: isRealTast ? "normal" : "nowrap",
+                                      display: "block",
+                                      lineHeight: 1.2,
+                                    }}
+                                  >
                                     {item.particulars}
                                     {item.color && <span style={{ fontSize: "9px", marginLeft: "3px" }}>({item.color})</span>}
                                     {item.itemNotes ? (
@@ -638,7 +658,24 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                                   </span>
                                 );
                                 break;
-                              case "hsn": content = item.hsn || ""; break;
+                              case "hsn":
+                                content = (
+                                  <span
+                                    style={
+                                      isRealTast
+                                        ? {
+                                            fontFamily: "ui-monospace, Consolas, Monaco, monospace",
+                                            fontSize: isA4 ? "11px" : fsBody,
+                                            letterSpacing: "0.02em",
+                                            whiteSpace: "nowrap",
+                                          }
+                                        : undefined
+                                    }
+                                  >
+                                    {item.hsn || ""}
+                                  </span>
+                                );
+                                break;
                               case "qty": content = item.qty; break;
                               case "rate":
                                 content = (
@@ -1035,6 +1072,10 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
             height: ${pageH} !important;
             min-height: ${pageH} !important;
             overflow: hidden !important;
+          }
+          .retail-erp-invoice-template[data-invoice-variant="real-tast"] table {
+            table-layout: fixed !important;
+            width: 100% !important;
           }
           .retail-erp-invoice-template td,
           .retail-erp-invoice-template th,
