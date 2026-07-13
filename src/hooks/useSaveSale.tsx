@@ -381,6 +381,8 @@ export const useSaveSale = () => {
       cashAmount: number;
       cardAmount: number;
       upiAmount: number;
+      bankAmount?: number;
+      financeAmount?: number;
       totalPaid: number;
       refundAmount: number;
     },
@@ -399,7 +401,10 @@ export const useSaveSale = () => {
 
     if (paymentBreakdown) {
       cashAmt = paymentBreakdown.cashAmount;
-      cardAmt = paymentBreakdown.cardAmount;
+      cardAmt =
+        paymentBreakdown.cardAmount +
+        (paymentBreakdown.bankAmount || 0) +
+        (paymentBreakdown.financeAmount || 0);
       upiAmt = paymentBreakdown.upiAmount;
       paidAmt = paymentBreakdown.totalPaid;
       refundAmt = paymentBreakdown.refundAmount;

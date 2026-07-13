@@ -90,6 +90,7 @@ const OrgAuth = lazyWithRetry(() => import("./pages/OrgAuth"));
 const FieldSalesAuth = lazyWithRetry(() => import("./pages/FieldSalesAuth"));
 const NotFound = lazyWithRetry(() => import("./pages/NotFound"));
 const PlatformAdmin = lazyWithRetry(() => import("./pages/PlatformAdmin"));
+const PlatformDataIntegrity = lazyWithRetry(() => import("./pages/PlatformDataIntegrity"));
 const PublicInvoiceView = lazyWithRetry(() => import("./pages/PublicInvoiceView"));
 const PublicPaymentPage = lazyWithRetry(() => import("./pages/PublicPaymentPage"));
 const ItemWiseSalesReport = lazyWithRetry(() => import("./pages/ItemWiseSalesReport"));
@@ -412,6 +413,16 @@ const App = () => {
                   <ProtectedRoute>
                     <RoleProtectedRoute allowedRoles={["platform_admin"]}>
                       <PlatformAdmin />
+                    </RoleProtectedRoute>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/platform-admin/data-integrity"
+                element={
+                  <ProtectedRoute>
+                    <RoleProtectedRoute allowedRoles={["platform_admin"]}>
+                      <PlatformDataIntegrity />
                     </RoleProtectedRoute>
                   </ProtectedRoute>
                 }

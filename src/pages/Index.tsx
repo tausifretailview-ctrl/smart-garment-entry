@@ -16,6 +16,7 @@ import {
 import { fetchCustomerSegmentCounts, type CustomerSegmentCounts } from "@/utils/customerSegments";
 import type { OrganizationReceivablesSummary } from "@/utils/organizationReceivables";
 import { PageContextMenu, ContextMenuItem } from "@/components/DesktopContextMenu";
+import { DriftBanner } from "@/components/dashboard/DriftBanner";
 import { DashboardSkeleton, MetricCardSkeleton } from "@/components/ui/skeletons";
 import {
   Package,
@@ -836,6 +837,7 @@ const DesktopDashboard = () => {
       />
 
       {/* Dashboard toolbar */}
+      <DriftBanner />
       <div className="dashboard-toolbar mb-2 flex shrink-0 flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-sm">
         <div className="min-w-0">
           <h1 className="text-lg font-bold leading-none tracking-tight text-teal-700 sm:text-xl">

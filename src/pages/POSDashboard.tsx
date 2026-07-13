@@ -949,10 +949,20 @@ const POSDashboard = () => {
   const { softDelete, bulkSoftDelete } = useSoftDelete();
 
   const handleInitiateDelete = async (sale: Sale) => {
+    const ownership = canModifyEntry((sale as any).created_by, creatorLabel((sale as any).created_by));
+    if (!ownership.allowed) {
+      toast({
+        title: "Not allowed",
+        description: ownership.reason || "Only the creator or an admin can delete this entry.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setItemCountToDelete(null);
     setSaleToDelete(sale);
-    // Fetch item count in background to show in dialog
-    if (currentOrganization?.id) {
+    // Cancelled invoices have line items removed on cancel — skip stock count.
+    if (!isSaleInvoiceCancelled(sale) && currentOrganization?.id) {
       try {
         const { count } = await supabase
           .from('sale_items')
@@ -1761,9 +1771,38 @@ const POSDashboard = () => {
         { existingSale: selectedSaleForPayment },
       );
 
+      const colField =
+        paymentMode === "upi"
+          ? "upi_amount"
+          : paymentMode === "card" ||
+              paymentMode === "cheque" ||
+              paymentMode === "bank_transfer"
+            ? "card_amount"
+            : "cash_amount";
+
+      let nextCash = Number(selectedSaleForPayment.cash_amount) || 0;
+      let nextCard = Number(selectedSaleForPayment.card_amount) || 0;
+      let nextUpi = Number(selectedSaleForPayment.upi_amount) || 0;
+      if (colField === "cash_amount") nextCash += amount;
+      else if (colField === "card_amount") nextCard += amount;
+      else nextUpi += amount;
+
+      const modesUsed = [nextCash, nextCard, nextUpi].filter((v) => v > 0.01).length;
+      const nextPaymentMethod =
+        modesUsed > 1
+          ? "multiple"
+          : selectedSaleForPayment.payment_method === "multiple"
+            ? "multiple"
+            : paymentMode;
+
       const { error: paymentMethodError } = await supabase
         .from("sales")
-        .update({ payment_method: paymentMode })
+        .update({
+          payment_method: nextPaymentMethod,
+          cash_amount: nextCash,
+          card_amount: nextCard,
+          upi_amount: nextUpi,
+        })
         .eq("id", selectedSaleForPayment.id)
         .eq("organization_id", currentOrganization!.id);
       if (paymentMethodError) throw paymentMethodError;
@@ -1956,10 +1995,7 @@ const POSDashboard = () => {
   }, [currentOrganization?.id, posDashboardFilters, toast]);
 
   // Memoized event handlers (defined after filteredSales/paginatedSales)
-  const selectableSales = useMemo(
-    () => paginatedSales.filter((sale) => !isSaleInvoiceCancelled(sale)),
-    [paginatedSales],
-  );
+  const selectableSales = useMemo(() => paginatedSales, [paginatedSales]);
 
   const toggleSelectAll = useCallback(() => {
     if (selectableSales.length > 0 && selectedSales.size === selectableSales.length) {
@@ -1970,8 +2006,6 @@ const POSDashboard = () => {
   }, [selectedSales.size, selectableSales]);
 
   const toggleSelectSale = useCallback((saleId: string) => {
-    const sale = paginatedSales.find((s) => s.id === saleId);
-    if (sale && isSaleInvoiceCancelled(sale)) return;
     setSelectedSales(prev => {
       const newSelected = new Set(prev);
       if (newSelected.has(saleId)) {
@@ -1981,7 +2015,7 @@ const POSDashboard = () => {
       }
       return newSelected;
     });
-  }, [paginatedSales]);
+  }, []);
 
   const handleEditSale = useCallback((saleId: string, event: React.MouseEvent) => {
     event.stopPropagation();
@@ -3023,7 +3057,6 @@ const POSDashboard = () => {
                               <Checkbox
                                 checked={selectedSales.has(sale.id)}
                                 onCheckedChange={() => toggleSelectSale(sale.id)}
-                                disabled={isSaleInvoiceCancelled(sale)}
                               />
                             </TableCell>
                             <TableCell className="px-2 py-2.5" onClick={() => toggleExpanded(sale.id)}>
@@ -3417,7 +3450,7 @@ const POSDashboard = () => {
                                     {isDownloadingEInvoice === sale.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileCheck className="h-3.5 w-3.5 text-green-600" />}
                                   </Button>
                                 )}
-                                {columnSettings.modify && hasSpecialPermission('modify_records') && (() => {
+                                {columnSettings.modify && hasSpecialPermission('modify_records') && !cancelled && (() => {
                                   const own = canModifyEntry((sale as any).created_by, creatorLabel((sale as any).created_by));
                                   return (
                                     <Button
@@ -3431,6 +3464,24 @@ const POSDashboard = () => {
                                     </Button>
                                   );
                                 })()}
+                                {cancelled && hasSpecialPermission('delete_records') && (() => {
+                                  const own = canModifyEntry((sale as any).created_by, creatorLabel((sale as any).created_by));
+                                  return (
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleInitiateDelete(sale);
+                                      }}
+                                      disabled={!own.allowed}
+                                      title={own.allowed ? "Delete cancelled invoice" : own.reason}
+                                      className="text-destructive hover:text-destructive"
+                                    >
+                                      <Trash2 className="h-3.5 w-3.5" />
+                                    </Button>
+                                  );
+                                })()}
                               </div>
                             </TableCell>
                           </TableRow>
@@ -3439,8 +3490,32 @@ const POSDashboard = () => {
                               <TableCell colSpan={(columnSettings.status ? 1 : 0) + (columnSettings.refund ? 1 : 0) + (isEInvoiceEnabled ? 1 : 0) + 16} className="bg-muted/30 p-3">
                                 <div className="space-y-3">
                                   {cancelled && (
-                                    <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 dark:border-red-800 dark:bg-red-950/30 dark:text-red-400">
-                                      This invoice has been cancelled.
+                                    <div className="flex flex-col gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 dark:border-red-800 dark:bg-red-950/30 dark:text-red-400 sm:flex-row sm:items-center sm:justify-between">
+                                      <div>
+                                        <p>This invoice has been cancelled.</p>
+                                        <p className="mt-1 text-xs font-normal text-red-600/90 dark:text-red-400/90">
+                                          Delete it to move to Recycle Bin and free this POS bill number for reuse.
+                                        </p>
+                                      </div>
+                                      {hasSpecialPermission('delete_records') && (() => {
+                                        const own = canModifyEntry((sale as any).created_by, creatorLabel((sale as any).created_by));
+                                        return (
+                                          <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="shrink-0 border-red-300 text-red-700 hover:bg-red-100 hover:text-red-800 dark:border-red-700 dark:text-red-400"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              handleInitiateDelete(sale);
+                                            }}
+                                            disabled={!own.allowed}
+                                            title={own.allowed ? "Delete cancelled invoice" : own.reason}
+                                          >
+                                            <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+                                            Delete
+                                          </Button>
+                                        );
+                                      })()}
                                     </div>
                                   )}
                                   <div>
@@ -3787,14 +3862,21 @@ const POSDashboard = () => {
       <AlertDialog open={!!saleToDelete} onOpenChange={() => { setSaleToDelete(null); setItemCountToDelete(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Sale</AlertDialogTitle>
+            <AlertDialogTitle>
+              {saleToDelete && isSaleInvoiceCancelled(saleToDelete) ? "Delete Cancelled Invoice" : "Delete Sale"}
+            </AlertDialogTitle>
             <AlertDialogDescription asChild>
               <div className="space-y-1">
                 <p>Are you sure you want to delete sale <strong>{saleToDelete?.sale_number}</strong>?</p>
-                {itemCountToDelete !== null && (
+                {saleToDelete && isSaleInvoiceCancelled(saleToDelete) ? (
+                  <p>
+                    This cancelled invoice will move to the Recycle Bin. After all cancelled bills using earlier
+                    numbers are deleted, the next POS bill can reuse the lowest available number (e.g. POS/26-27/1).
+                  </p>
+                ) : itemCountToDelete !== null ? (
                   <p>This will reverse <strong>{itemCountToDelete} stock movement{itemCountToDelete !== 1 ? 's' : ''}</strong> across {itemCountToDelete} line item{itemCountToDelete !== 1 ? 's' : ''}.</p>
-                )}
-                <p className="text-destructive font-medium">This action cannot be undone.</p>
+                ) : null}
+                <p className="text-muted-foreground text-sm">You can restore it from Recycle Bin unless permanently purged.</p>
               </div>
             </AlertDialogDescription>
           </AlertDialogHeader>

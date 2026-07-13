@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { DASHBOARD_TAB_RETURN_QUERY_OPTIONS } from "@/lib/dashboardQueryOptions";
 import { useCreateFormDraftPersistence } from "@/hooks/useCreateFormDraftPersistence";
@@ -895,6 +896,12 @@ export default function PlatformAdmin() {
             <TabsTrigger value="whatsapp-logs">WhatsApp Logs</TabsTrigger>
             <TabsTrigger value="ledger-health">Ledger Health</TabsTrigger>
             <TabsTrigger value="settings">Settings</TabsTrigger>
+            <Link
+              to="/platform-admin/data-integrity"
+              className="ml-auto inline-flex items-center rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-800 hover:bg-amber-100"
+            >
+              Data Integrity →
+            </Link>
           </TabsList>
 
           {/* WhatsApp Tab */}
