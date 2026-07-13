@@ -1,3 +1,5 @@
+import { isStandardA4SheetType } from "@/utils/standardA4SheetType";
+
 export type BarcodePrintTab = "standard" | "precision";
 
 export type ResolveBarcodePrintTabInput = {
@@ -10,32 +12,23 @@ export type ResolveBarcodePrintTabInput = {
   /** Saved standard default format from barcode_label_settings */
   defaultFormat?: {
     sheetType?: string;
-    customDimensions?: { width?: number; cols?: number; gap?: number };
+    customDimensions?: { width?: number; height?: number; cols?: number; rows?: number; gap?: number };
     defaultTemplate?: string | null;
   } | null;
   /** printer_presets rows for org */
   presets?: Array<{ isDefault?: boolean }> | null;
 };
 
-function isA4SheetType(st: unknown, defaultFormat: ResolveBarcodePrintTabInput["defaultFormat"]): boolean {
-  if (typeof st !== "string") return false;
-  if (st.startsWith("a4_")) return true;
-  if (st === "custom") {
-    const dim = defaultFormat?.customDimensions;
-    if (dim && Number(dim.width) > 0 && Number(dim.cols) > 0) {
-      const totalWidth =
-        Number(dim.width) * Number(dim.cols) + Number(dim.gap || 0) * (Number(dim.cols) - 1);
-      if (totalWidth >= 180 && totalWidth <= 230) return true;
-    }
-  }
-  return false;
+function hasA4SheetDefault(defaultFormat: ResolveBarcodePrintTabInput["defaultFormat"]): boolean {
+  if (!defaultFormat?.sheetType) return false;
+  return isStandardA4SheetType(defaultFormat.sheetType, defaultFormat.customDimensions);
 }
 
 /**
  * Match Settings → Barcode tab "Auto" rules:
- * - A4 sheet default → Standard Printing (laser)
+ * - A4 sheet default → Standard Printing (laser) — always, even if thermal preset exists
  * - Precision Pro enabled or default thermal preset → Precision Pro (1-up / 2-up)
- * - Manual override in settings when valid
+ * - Manual override in settings when valid (except A4 default always wins)
  */
 export function resolveBarcodePrintTab(input: ResolveBarcodePrintTabInput): BarcodePrintTab {
   const {
@@ -50,20 +43,22 @@ export function resolveBarcodePrintTab(input: ResolveBarcodePrintTabInput): Barc
     return routeRequestedTab;
   }
 
-  const hasA4Default = !!defaultFormat && isA4SheetType(defaultFormat.sheetType, defaultFormat);
+  const hasA4Default = hasA4SheetDefault(defaultFormat);
   const hasDefaultPreset = Array.isArray(presets) && presets.some((p) => p?.isDefault);
   const manualOverride: BarcodePrintTab | null =
     settingsDefaultBarTab === "standard" || settingsDefaultBarTab === "precision"
       ? settingsDefaultBarTab
       : null;
 
+  // A4 sheet labels always use Standard Printing (purchase bill, dashboard, etc.)
+  if (hasA4Default) {
+    return "standard";
+  }
+
   if (manualOverride === "precision" && (precisionProEnabled || hasDefaultPreset)) {
     return "precision";
   }
   if (manualOverride === "standard") {
-    return "standard";
-  }
-  if (hasA4Default) {
     return "standard";
   }
   if (hasDefaultPreset || precisionProEnabled) {
