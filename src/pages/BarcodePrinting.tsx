@@ -2347,7 +2347,7 @@ export default function BarcodePrinting() {
       xOffset: Number(data.x_offset),
       yOffset: Number(data.y_offset),
       vGap: Number(data.v_gap),
-      hGap: data.h_gap != null ? Number(data.h_gap) : 0,
+      hGap: 0,
       width: Number(data.label_width),
       height: Number(data.label_height),
       a4Cols: data.a4_cols != null ? Number(data.a4_cols) : undefined,

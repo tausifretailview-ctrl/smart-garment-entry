@@ -1,40 +1,68 @@
+## Goal
 
-## What the user is seeing
+Repair Khadija Sheikh's per-invoice allocation in Ella Noor so the invoice list, dashboard KPI, and `reconcile_customer_balance` all agree at **Cr ₹3,100**. Zero economic change; every write creates an audit-trail voucher.
 
-Video from RealTaste Catering shows the POS bill save failing with a red toast:
+Scope: single customer `aacca229-d4da-4c65-a7b7-39b528743fff`, org `3fdca631-1e0c-4417-9704-421f5129ff67`. Rest of the 22-customer list stays untouched pending your sign-off on this pilot.
 
-> **Error saving sale — JWT expired**
+Also: fix the pre-existing `BarcodePrinting.tsx` build error (`h_gap` → `v_gap` on line 2350) as a same-turn hotfix once we're in build mode.
 
-Cart had service products and a ₹25,596 net amount. The user attributed it to service items, but the actual server response is `JWT expired` (auth token timed out while the tab was left open). Nothing about service products triggers this — any cart type would fail the same way once the token expires.
+## Migration steps (single atomic block)
 
-## Root cause
+### 1. Reset stale `credit_applied`
 
-The POS save path (`src/hooks/useSaveSale.tsx`) does **not** wrap its Supabase inserts in the existing `withJwtRetry` helper. When Supabase returns `JWT expired` (code `PGRST301` / 401), the error bubbles straight to the catch block and shows the toast. The auto-refresh interval failed to fire (tab likely backgrounded on the POS terminal), so the access token was stale by the time the user clicked Save.
+For INV/25-26/856 and INV/25-26/1194 — their backing CN vouchers were soft-deleted 2026-06-06 but `credit_applied` was never zeroed.
 
-We already have `src/lib/jwtRetry.ts` with `withJwtRetry` and `isJwtExpiredError`, but it is only used in one component (`SizeGroupManagement.tsx`).
+- Set `credit_applied = 0` on both.
+- Call `compute_sale_settlement(sale_id, org_id)` on each → recomputes `paid_amount` / `payment_status` from real vouchers only. Post-state:
+  - INV 856: paid 4,400, headroom 650, status `partial`.
+  - INV 1194: paid 10,100, headroom 100, status `partial`.
 
-## Fix
+### 2. FIFO-allocate balance-adjustment pool (₹11,050) via `adjust_invoice_balance`
 
-1. **Wrap the critical writes in the sale save flow** (`useSaveSale.tsx`) with `withJwtRetry`, so a single expired-JWT failure triggers `supabase.auth.refreshSession()` and one retry before showing an error:
-   - `sales` insert (new sale) and update (edit sale)
-   - `sale_items` chunk inserts (via `insertSaleItemsInChunks` — add an optional retry wrapper or call `refreshSession` before the loop if any chunk errors with JWT expired)
-   - Receipt voucher / ledger writes that run inside the same save
+Walk pending/partial invoices in `sale_date ASC`. For each, apply `LEAST(pool_remaining, net − paid − sale_return_adjust)`; the RPC writes a `credit_note_adjustment`-shape receipt voucher, atomically numbers it, bumps `sale_return_adjust`, and re-runs `compute_sale_settlement`.
 
-2. **Detect JWT-expired in the outer `catch`** and, instead of showing `"Error saving sale"`, show a clearer message like `"Session expired — please try Save again"` and proactively call `supabase.auth.refreshSession()` so the next click succeeds without a page reload.
+Expected allocation:
 
-3. **Same treatment for the two sibling save paths** in the file (edit sale, POS-return-adjust) that also emit `Error saving sale`.
+| Invoice | Headroom | Applied | Pool left |
+|---|---|---|---|
+| INV/25-26/585 | 0 (overpaid) | 0 | 11,050 |
+| INV/25-26/856 | 650 | 650 | 10,400 |
+| INV/25-26/903 | 4,500 | 4,500 | 5,900 |
+| INV/25-26/1194 | 100 | 100 | 5,800 |
+| INV/26-27/1629 | 1,200 | 1,200 | 4,600 |
 
-4. **Optional hardening (small):** in `AuthContext`, on `visibilitychange → visible`, call `supabase.auth.getSession()` to force an early refresh when the POS tab regains focus, so long-idle POS terminals don't reach save with a dead token.
+Post-state: all 18 invoices `completed`; ₹4,600 residual pool remains as unallocated balance-adjustment credit (represented by remaining `customer_balance_adjustments` rows — we mark ₹6,450 of them as used against the vouchers we just wrote via a linkage table, or leave them in place if the reconcile RPC keeps their outstanding_difference).
 
-Out of scope: no schema change, no change to service-product handling (it was a red herring), no change to unrelated pages.
+### 3. Verification (inside same transaction)
 
-## Files touched
+```sql
+-- Must equal −3100 (unchanged pre → post)
+SELECT sum(amount) FROM public.reconcile_customer_balance(<khadija>, <org>);
 
-- `src/hooks/useSaveSale.tsx` — wrap sale insert / update / sale_items writes with `withJwtRetry`; friendlier JWT-expired toast.
-- `src/utils/insertSaleItemsInChunks.ts` — accept an optional `refreshSession` hook / detect JWT expired per chunk and retry once.
-- `src/contexts/AuthContext.tsx` — (optional) refresh session on tab focus.
+-- Must be 0 rows
+SELECT sale_number FROM sales
+WHERE customer_id=<khadija> AND organization_id=<org>
+  AND deleted_at IS NULL AND COALESCE(is_cancelled,false)=false
+  AND payment_status IN ('pending','partial');
+```
 
-## Verification
+`RAISE EXCEPTION` if either check fails → whole migration rolls back.
 
-- Manually expire the session in devtools (`localStorage` sb-*-auth-token → set `expires_at` to past), open POS, add a service item, click Save → save should succeed after a silent refresh instead of showing the red toast.
-- Existing money tests (`test/money/saleSettlement.test.ts`) continue to pass — logic is unchanged, only retry wrapping is added.
+## Files
+
+```text
+supabase/migrations/<ts>_khadija_sheikh_fifo_reallocation.sql
+  - DO $$ block scoped to one customer_id + org_id
+  - No schema changes; uses adjust_invoice_balance + compute_sale_settlement
+
+src/pages/BarcodePrinting.tsx
+  - line 2350: rename `h_gap` reference to `v_gap` (matches type)
+```
+
+## Post-run manual check
+
+Re-run the recipe from `docs/customer-balance-verification-recipe.md` for Khadija; expect all invoices completed, KPI "Pending ₹0" for this customer, ledger Cr ₹3,100.
+
+## Not in scope
+
+Other 21 customers, dashboard KPI vs row-list filter discrepancy (separate bug), and the org-wide auto-allocation rollout — those wait until this pilot verifies clean.
