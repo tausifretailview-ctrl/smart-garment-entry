@@ -2198,6 +2198,39 @@ export type Database = {
           },
         ]
       }
+      drift_detection_runs: {
+        Row: {
+          critical_count: number
+          drifts_found: number
+          duration_ms: number | null
+          error: string | null
+          id: string
+          organization_id: string | null
+          orgs_scanned: number
+          run_at: string
+        }
+        Insert: {
+          critical_count?: number
+          drifts_found?: number
+          duration_ms?: number | null
+          error?: string | null
+          id?: string
+          organization_id?: string | null
+          orgs_scanned?: number
+          run_at?: string
+        }
+        Update: {
+          critical_count?: number
+          drifts_found?: number
+          duration_ms?: number | null
+          error?: string | null
+          id?: string
+          organization_id?: string | null
+          orgs_scanned?: number
+          run_at?: string
+        }
+        Relationships: []
+      }
       employees: {
         Row: {
           address: string | null
@@ -5997,6 +6030,63 @@ export type Database = {
           },
         ]
       }
+      settlement_drift_log: {
+        Row: {
+          customer_id: string | null
+          detected_at: string
+          drift_amount: number | null
+          drift_type: string
+          id: string
+          net_amount: number | null
+          organization_id: string
+          recorded_paid: number | null
+          recorded_status: string | null
+          resolution_note: string | null
+          resolved_at: string | null
+          resolved_by: string | null
+          sale_id: string
+          sale_number: string | null
+          severity: string
+          voucher_paid: number | null
+        }
+        Insert: {
+          customer_id?: string | null
+          detected_at?: string
+          drift_amount?: number | null
+          drift_type: string
+          id?: string
+          net_amount?: number | null
+          organization_id: string
+          recorded_paid?: number | null
+          recorded_status?: string | null
+          resolution_note?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          sale_id: string
+          sale_number?: string | null
+          severity: string
+          voucher_paid?: number | null
+        }
+        Update: {
+          customer_id?: string | null
+          detected_at?: string
+          drift_amount?: number | null
+          drift_type?: string
+          id?: string
+          net_amount?: number | null
+          organization_id?: string
+          recorded_paid?: number | null
+          recorded_status?: string | null
+          resolution_note?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          sale_id?: string
+          sale_number?: string | null
+          severity?: string
+          voucher_paid?: number | null
+        }
+        Relationships: []
+      }
       size_groups: {
         Row: {
           created_at: string | null
@@ -8374,6 +8464,13 @@ export type Database = {
           p_payment_method?: string
         }
         Returns: string
+      }
+      detect_settlement_drift: {
+        Args: { p_organization_id?: string }
+        Returns: {
+          drifts_found: number
+          org_id: string
+        }[]
       }
       detect_stock_discrepancies: {
         Args: { p_organization_id: string }
