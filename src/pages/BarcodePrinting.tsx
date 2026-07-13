@@ -51,6 +51,7 @@ import {
 } from '@/utils/barcodeDesktopPrint';
 import { isElectron } from "@/utils/appPrint";
 import { resolveBarcodePrintTab, type ResolveBarcodePrintTabInput } from "@/utils/resolveBarcodePrintTab";
+import { isStandardA4SheetType } from "@/utils/standardA4SheetType";
 import {
   findDefaultPresetForMode,
   getPrecisionPrintModeDisplayName,
@@ -3811,13 +3812,17 @@ export default function BarcodePrinting() {
   };
 
   const isA4SheetType = (): boolean => {
-    if (sheetType === "precision_pro_tsc" || sheetType === "jewellery_100x15_1up") return false;
-    if (isThermal1Up() || isThermalMultiUp()) return false;
+    if (isThermalMultiUp()) return false;
     if (sheetType === "custom") {
-      return customCols > 1 || customRows > 1;
+      return isStandardA4SheetType("custom", {
+        width: customWidth,
+        height: customHeight,
+        cols: customCols,
+        rows: customRows,
+        gap: customGap,
+      });
     }
-    const preset = sheetPresets[sheetType] as { category?: string; thermal?: boolean };
-    return preset?.category === "a4" || (!preset?.thermal && !sheetType.includes("thermal"));
+    return isStandardA4SheetType(sheetType);
   };
 
   const getThermalMultiUpCols = (): number => {
