@@ -1761,9 +1761,38 @@ const POSDashboard = () => {
         { existingSale: selectedSaleForPayment },
       );
 
+      const colField =
+        paymentMode === "upi"
+          ? "upi_amount"
+          : paymentMode === "card" ||
+              paymentMode === "cheque" ||
+              paymentMode === "bank_transfer"
+            ? "card_amount"
+            : "cash_amount";
+
+      let nextCash = Number(selectedSaleForPayment.cash_amount) || 0;
+      let nextCard = Number(selectedSaleForPayment.card_amount) || 0;
+      let nextUpi = Number(selectedSaleForPayment.upi_amount) || 0;
+      if (colField === "cash_amount") nextCash += amount;
+      else if (colField === "card_amount") nextCard += amount;
+      else nextUpi += amount;
+
+      const modesUsed = [nextCash, nextCard, nextUpi].filter((v) => v > 0.01).length;
+      const nextPaymentMethod =
+        modesUsed > 1
+          ? "multiple"
+          : selectedSaleForPayment.payment_method === "multiple"
+            ? "multiple"
+            : paymentMode;
+
       const { error: paymentMethodError } = await supabase
         .from("sales")
-        .update({ payment_method: paymentMode })
+        .update({
+          payment_method: nextPaymentMethod,
+          cash_amount: nextCash,
+          card_amount: nextCard,
+          upi_amount: nextUpi,
+        })
         .eq("id", selectedSaleForPayment.id)
         .eq("organization_id", currentOrganization!.id);
       if (paymentMethodError) throw paymentMethodError;

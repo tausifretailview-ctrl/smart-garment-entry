@@ -493,6 +493,157 @@ export function buildSaleReceiptSplitMap(
   }
 }
 
+export type SaleReceiptModeAmounts = { cash: number; card: number; upi: number };
+
+const emptyModeAmounts = (): SaleReceiptModeAmounts => ({ cash: 0, card: 0, upi: 0 });
+
+function mapReceiptRowToPosModeColumn(
+  method: string | null | undefined,
+): keyof SaleReceiptModeAmounts {
+  const m = String(method || "cash").toLowerCase();
+  if (m === "upi") return "upi";
+  if (
+    m === "card" ||
+    m === "cheque" ||
+    m === "bank_transfer" ||
+    m === "bank" ||
+    m === "finance"
+  ) {
+    return "card";
+  }
+  return "cash";
+}
+
+function addReceiptRowToModeMap(
+  map: Map<string, SaleReceiptModeAmounts>,
+  saleId: string,
+  row: SaleReceiptVoucherRow,
+): void {
+  const v: VoucherLedgerRow = {
+    reference_id: row.reference_id,
+    total_amount: row.total_amount,
+    discount_amount: row.discount_amount,
+    payment_method: row.payment_method,
+    description: row.description,
+  };
+  if (isAdvVoucher(v) || isCnVoucher(v)) return;
+  const amt = Number(row.total_amount || 0) + Number(row.discount_amount || 0);
+  if (amt <= 0) return;
+  const cur = map.get(saleId) || emptyModeAmounts();
+  const col = mapReceiptRowToPosModeColumn(row.payment_method);
+  cur[col] += amt;
+  map.set(saleId, cur);
+}
+
+export function augmentSaleReceiptModeAmountsFromCustomerVouchers(
+  modeBySale: Map<string, SaleReceiptModeAmounts>,
+  voucherRows: SaleReceiptVoucherRow[],
+  invoices: Array<{
+    id: string;
+    sale_number?: string | null;
+    net_amount?: number | null;
+    sale_return_adjust?: number | null;
+  }>,
+): Map<string, SaleReceiptModeAmounts> {
+  const result = new Map(modeBySale);
+  const saleIdSet = new Set(invoices.map((i) => i.id).filter(Boolean));
+
+  for (const row of voucherRows) {
+    try {
+      if (!row?.reference_id) continue;
+      if (saleIdSet.has(row.reference_id)) continue;
+      const refType = String(row.reference_type || "").toLowerCase();
+      if (refType === "supplier" || refType === "employee" || refType === "expense") continue;
+
+      const matchedIds = matchInvoiceIdsFromCustomerReceiptRow(row, invoices);
+      for (const saleId of matchedIds) {
+        addReceiptRowToModeMap(result, saleId, row);
+      }
+    } catch (rowErr) {
+      console.warn("[customerBalance] skip customer receipt mode row", rowErr);
+    }
+  }
+
+  return result;
+}
+
+/** Sale-linked + customer-linked receipts → per-invoice Cash/Card/UPI from vouchers. */
+export function buildSaleReceiptModeAmountMap(
+  invoices: Array<{
+    id: string;
+    sale_number?: string | null;
+    customer_id?: string | null;
+    net_amount?: number | null;
+    sale_return_adjust?: number | null;
+  }>,
+  voucherRows: SaleReceiptVoucherRow[],
+): Map<string, SaleReceiptModeAmounts> {
+  try {
+    const saleIds = new Set(invoices.map((i) => i.id).filter(Boolean));
+    const directRows = voucherRows.filter((r) => r?.reference_id && saleIds.has(r.reference_id));
+    const base = new Map<string, SaleReceiptModeAmounts>();
+    for (const row of directRows) {
+      if (row.reference_id) addReceiptRowToModeMap(base, row.reference_id, row);
+    }
+    return augmentSaleReceiptModeAmountsFromCustomerVouchers(base, voucherRows, invoices);
+  } catch (err) {
+    console.error("[customerBalance] buildSaleReceiptModeAmountMap failed", err);
+    return new Map<string, SaleReceiptModeAmounts>();
+  }
+}
+
+async function fetchSaleReceiptVoucherRowsForInvoicesInternal(
+  client: SupabaseClient,
+  organizationId: string,
+  invoices: Array<{ id: string; sale_number?: string | null; customer_id?: string | null }>,
+  options?: FetchSaleReceiptSplitsOptions,
+): Promise<SaleReceiptVoucherRow[]> {
+  const saleIds = invoices.map((i) => i.id).filter(Boolean);
+  if (saleIds.length === 0) return [];
+
+  const customerIds = [
+    ...new Set(invoices.map((i) => i.customer_id).filter(Boolean)),
+  ] as string[];
+
+  const merged: SaleReceiptVoucherRow[] = [];
+
+  for (let i = 0; i < saleIds.length; i += SALE_ID_IN_CHUNK) {
+    const chunk = saleIds.slice(i, i + SALE_ID_IN_CHUNK);
+    try {
+      const rows = await fetchPaginatedReceiptRows(client, organizationId, (q) =>
+        q.in("reference_id", chunk),
+      );
+      merged.push(...rows);
+    } catch (chunkErr) {
+      console.warn("[customerBalance] skip sale-id receipt chunk", chunkErr);
+    }
+  }
+
+  const applyVoucherDateBounds = (q: any) => {
+    let bounded = q;
+    if (options?.voucherDateFrom) {
+      bounded = bounded.gte("voucher_date", options.voucherDateFrom);
+    }
+    if (options?.voucherDateTo) {
+      bounded = bounded.lte("voucher_date", options.voucherDateTo);
+    }
+    return bounded;
+  };
+
+  for (const customerId of customerIds) {
+    try {
+      const rows = await fetchPaginatedReceiptRows(client, organizationId, (q) =>
+        applyVoucherDateBounds(q.eq("reference_id", customerId)),
+      );
+      merged.push(...rows);
+    } catch (custErr) {
+      console.warn("[customerBalance] skip customer receipt rows", customerId, custErr);
+    }
+  }
+
+  return dedupeReceiptRows(merged);
+}
+
 const RECEIPT_SPLIT_SELECT =
   "reference_id, reference_type, total_amount, discount_amount, payment_method, description";
 
@@ -555,54 +706,39 @@ export async function fetchSaleReceiptSplitsForInvoices(
 ): Promise<Map<string, SaleReceiptVoucherSplit>> {
   const empty = new Map<string, SaleReceiptVoucherSplit>();
   try {
-    const saleIds = invoices.map((i) => i.id).filter(Boolean);
-    if (saleIds.length === 0) return empty;
-
-    const customerIds = [
-      ...new Set(invoices.map((i) => i.customer_id).filter(Boolean)),
-    ] as string[];
-
-    const merged: SaleReceiptVoucherRow[] = [];
-
-    for (let i = 0; i < saleIds.length; i += SALE_ID_IN_CHUNK) {
-      const chunk = saleIds.slice(i, i + SALE_ID_IN_CHUNK);
-      try {
-        const rows = await fetchPaginatedReceiptRows(client, organizationId, (q) =>
-          q.in("reference_id", chunk),
-        );
-        merged.push(...rows);
-      } catch (chunkErr) {
-        console.warn("[customerBalance] skip sale-id receipt chunk", chunkErr);
-      }
-    }
-
-    const applyVoucherDateBounds = (q: any) => {
-      let bounded = q;
-      if (options?.voucherDateFrom) {
-        bounded = bounded.gte("voucher_date", options.voucherDateFrom);
-      }
-      if (options?.voucherDateTo) {
-        bounded = bounded.lte("voucher_date", options.voucherDateTo);
-      }
-      return bounded;
-    };
-
-    for (const customerId of customerIds) {
-      try {
-        const rows = await fetchPaginatedReceiptRows(client, organizationId, (q) =>
-          applyVoucherDateBounds(q.eq("reference_id", customerId)),
-        );
-        merged.push(...rows);
-      } catch (custErr) {
-        console.warn("[customerBalance] skip customer receipt rows", customerId, custErr);
-      }
-    }
-
-    const map = buildSaleReceiptSplitMap(invoices, dedupeReceiptRows(merged));
+    if (invoices.length === 0) return empty;
+    const rows = await fetchSaleReceiptVoucherRowsForInvoicesInternal(
+      client,
+      organizationId,
+      invoices,
+      options,
+    );
+    const map = buildSaleReceiptSplitMap(invoices, rows);
     return map instanceof Map ? map : empty;
   } catch (err) {
     console.error("[customerBalance] fetchSaleReceiptSplitsForInvoices failed", err);
     return empty;
+  }
+}
+
+/** Raw receipt voucher rows for POS payment-mode columns (Cash/Card/UPI). */
+export async function fetchSaleReceiptVoucherRowsForInvoices(
+  client: SupabaseClient,
+  organizationId: string,
+  invoices: Array<{ id: string; sale_number?: string | null; customer_id?: string | null }>,
+  options?: FetchSaleReceiptSplitsOptions,
+): Promise<SaleReceiptVoucherRow[]> {
+  try {
+    if (invoices.length === 0) return [];
+    return await fetchSaleReceiptVoucherRowsForInvoicesInternal(
+      client,
+      organizationId,
+      invoices,
+      options,
+    );
+  } catch (err) {
+    console.error("[customerBalance] fetchSaleReceiptVoucherRowsForInvoices failed", err);
+    return [];
   }
 }
 

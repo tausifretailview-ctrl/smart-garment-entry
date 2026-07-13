@@ -10,10 +10,13 @@ import {
 } from "@/utils/posDashboardSearch";
 import {
   fetchSaleReceiptSplitsForInvoices,
+  fetchSaleReceiptVoucherRowsForInvoices,
+  buildSaleReceiptModeAmountMap,
   reconcileSaleInvoiceWithSplit,
 } from "@/utils/customerBalanceUtils";
 import {
   getEffectivePaidAmountForPosDashboard,
+  getPosPaymentModeDisplayAmounts,
   getPosSaleOutstandingBalance,
   isHoldLikePosSale,
   isPosSalePaidCompleted,
@@ -588,26 +591,40 @@ async function enrichPosSalesWithReceiptSettlement(
 ): Promise<any[]> {
   if (!organizationId || sales.length === 0) return sales;
 
-  const splitBySale = await fetchSaleReceiptSplitsForInvoices(
-    client,
-    organizationId,
-    sales.map((sale) => ({
-      id: sale.id,
-      sale_number: sale.sale_number,
-      customer_id: sale.customer_id,
-    })),
-  );
+  const invoiceRefs = sales.map((sale) => ({
+    id: sale.id,
+    sale_number: sale.sale_number,
+    customer_id: sale.customer_id,
+    net_amount: sale.net_amount,
+    sale_return_adjust: sale.sale_return_adjust,
+  }));
+
+  const [splitBySale, voucherRows] = await Promise.all([
+    fetchSaleReceiptSplitsForInvoices(client, organizationId, invoiceRefs),
+    fetchSaleReceiptVoucherRowsForInvoices(client, organizationId, invoiceRefs),
+  ]);
+  const modeBySale = buildSaleReceiptModeAmountMap(invoiceRefs, voucherRows);
 
   return sales.map((sale) => {
     if (sale.is_cancelled || sale.payment_status === "cancelled" || sale.payment_status === "hold") {
       return sale;
     }
     const rec = reconcileSaleInvoiceWithSplit(sale, splitBySale.get(sale.id) ?? null);
-    return {
+    const enrichedSale = {
       ...sale,
       paid_amount: rec.paid_amount,
       payment_status: rec.payment_status,
       pos_outstanding: rec.outstanding,
+    };
+    const displayModes = getPosPaymentModeDisplayAmounts(
+      enrichedSale,
+      modeBySale.get(sale.id) ?? null,
+    );
+    return {
+      ...enrichedSale,
+      cash_amount: displayModes.cash,
+      card_amount: displayModes.card,
+      upi_amount: displayModes.upi,
     };
   });
 }

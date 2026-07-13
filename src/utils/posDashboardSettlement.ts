@@ -87,3 +87,75 @@ export function getPosSaleOutstandingBalance(sale: PosDashboardSaleLike): number
       Number(sale.sale_return_adjust || 0),
   );
 }
+
+export type PosPaymentModeAmounts = {
+  cash: number;
+  card: number;
+  upi: number;
+};
+
+/** Map receipt / POS payment_method to dashboard Cash / Card / UPI columns. */
+export function mapPaymentMethodToPosModeColumn(
+  method: string | null | undefined,
+): keyof PosPaymentModeAmounts {
+  const m = String(method || "cash").toLowerCase();
+  if (m === "upi") return "upi";
+  if (
+    m === "card" ||
+    m === "cheque" ||
+    m === "bank_transfer" ||
+    m === "bank" ||
+    m === "finance"
+  ) {
+    return "card";
+  }
+  return "cash";
+}
+
+/**
+ * Cash / Card / UPI columns for POS Dashboard.
+ * Merges at-sale tender, receipt vouchers, and any paid_amount gap on mix bills
+ * (e.g. bank/finance tender stored in paid_amount but not in card_amount).
+ */
+export function getPosPaymentModeDisplayAmounts(
+  sale: PosDashboardSaleLike,
+  voucherModeAmounts?: PosPaymentModeAmounts | null,
+): PosPaymentModeAmounts {
+  let cash = Number(sale.cash_amount) || 0;
+  let card = Number(sale.card_amount) || 0;
+  let upi = Number(sale.upi_amount) || 0;
+
+  if (voucherModeAmounts) {
+    cash += voucherModeAmounts.cash;
+    card += voucherModeAmounts.card;
+    upi += voucherModeAmounts.upi;
+  }
+
+  const tenderSum = Math.round((cash + card + upi) * 100) / 100;
+  const effectivePaid = getEffectivePaidAmountForPosDashboard(sale);
+
+  if (effectivePaid > tenderSum + SETTLEMENT_EPS) {
+    const gap = Math.round((effectivePaid - tenderSum) * 100) / 100;
+    const method = String(sale.payment_method || "").toLowerCase();
+    if (method === "upi") upi += gap;
+    else if (method === "cash") cash += gap;
+    else if (method === "multiple") card += gap;
+    else if (
+      method === "card" ||
+      method === "cheque" ||
+      method === "bank_transfer" ||
+      method === "bank" ||
+      method === "finance"
+    ) {
+      card += gap;
+    } else {
+      card += gap;
+    }
+  }
+
+  return {
+    cash: Math.round(cash * 100) / 100,
+    card: Math.round(card * 100) / 100,
+    upi: Math.round(upi * 100) / 100,
+  };
+}
