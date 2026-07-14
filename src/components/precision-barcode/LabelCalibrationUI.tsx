@@ -15,7 +15,7 @@ import { PrecisionLabelCell } from "./PrecisionLabelCell";
 import { LabelDesignConfig, LabelItem, LabelTemplate } from "@/types/labelTypes";
 import { cn } from "@/lib/utils";
 import type { PrecisionPrintMode } from "@/utils/precisionThermalModes";
-import { presetMatchesPrintMode, getPrecisionPrintModeDisplayName } from "@/utils/precisionThermalModes";
+import { presetMatchesPrintMode, getPrecisionPrintModeDisplayName, inferPrecisionPrintMode } from "@/utils/precisionThermalModes";
 import { getThermalPreviewCols } from "@/utils/precisionThermalModes";
 
 export interface CalibrationValues {
@@ -323,6 +323,11 @@ export function LabelCalibrationUI({
       hGap: values.hGap,
       width: values.labelWidth,
       height: values.labelHeight,
+      // Bind to the currently selected print mode so "Update" re-homes the preset
+      // (e.g. Thermal 1-Up designs mis-saved under A4 show up in the 1-Up list).
+      printMode,
+      thermalCols:
+        printMode === "thermal3up" ? 3 : printMode === "thermal2up" ? 2 : 1,
       labelConfig: labelConfig || null,
     };
 
@@ -445,9 +450,7 @@ export function LabelCalibrationUI({
                   </span>
                   {showAllModes && !presetMatchesPrintMode(p, printMode) && (
                     <span className="ml-1 text-muted-foreground">
-                      · {getPrecisionPrintModeDisplayName(
-                        (p.printMode as PrecisionPrintMode) || "thermal",
-                      )}
+                      · {getPrecisionPrintModeDisplayName(inferPrecisionPrintMode(p))}
                     </span>
                   )}
                 </SelectItem>
@@ -474,12 +477,13 @@ export function LabelCalibrationUI({
 
         {isUserPreset && onSetDefault && (() => {
           const activePreset = presets.find(p => p.name === effectivePresetName);
-          const presetMode = (activePreset?.printMode as PrecisionPrintMode) || printMode;
+          // Always set default for the *currently selected* print mode so users can
+          // reassign a mis-tagged preset (e.g. Bling Jewellery → Thermal 1-Up).
           const isAlreadyDefault =
             activePreset?.isDefault && presetMatchesPrintMode(activePreset, printMode);
           const setDefaultLabel = isAlreadyDefault
             ? `Default for ${getPrecisionPrintModeDisplayName(printMode)}`
-            : `Set as default for ${getPrecisionPrintModeDisplayName(presetMode)}`;
+            : `Set as default for ${getPrecisionPrintModeDisplayName(printMode)}`;
           return activePreset?.id ? (
             <TooltipProvider>
               <Tooltip>
@@ -489,7 +493,7 @@ export function LabelCalibrationUI({
                     variant={isAlreadyDefault ? "default" : "outline"}
                     size="xs"
                     className={`h-8 ${isAlreadyDefault ? 'bg-amber-500 hover:bg-amber-600 text-white' : ''}`}
-                    onClick={() => onSetDefault(activePreset.id!, activePreset.name, presetMode)}
+                    onClick={() => onSetDefault(activePreset.id!, activePreset.name, printMode)}
                     disabled={saving}
                   >
                     <Star className={`h-3 w-3 mr-1 ${isAlreadyDefault ? 'fill-white' : ''}`} />
@@ -500,7 +504,7 @@ export function LabelCalibrationUI({
                   <p className="text-xs">
                     {isAlreadyDefault
                       ? `Default preset when ${getPrecisionPrintModeDisplayName(printMode)} is selected`
-                      : `Set as the default design for ${getPrecisionPrintModeDisplayName(presetMode)} only`}
+                      : `Set as the default design for ${getPrecisionPrintModeDisplayName(printMode)} and bind this preset to that mode`}
                   </p>
                 </TooltipContent>
               </Tooltip>

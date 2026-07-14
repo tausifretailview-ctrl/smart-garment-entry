@@ -2081,14 +2081,29 @@ export default function BarcodePrinting() {
       .eq("print_mode", printMode);
     const { error } = await supabase
       .from("printer_presets")
-      .update({ is_default: true })
+      .update({
+        is_default: true,
+        print_mode: printMode,
+        thermal_cols:
+          printMode === "thermal3up" ? 3 : printMode === "thermal2up" ? 2 : 1,
+      })
       .eq("id", presetId);
     if (error) { toast.error("Failed to set default"); return; }
     toast.success(`"${presetName}" set as default for ${getPrecisionPrintModeDisplayName(printMode)}`);
     setDbPresets((prev) =>
       prev.map((p) => {
-        if (p.id === presetId) return { ...p, isDefault: true };
-        if (presetMatchesPrintMode(p, printMode)) return { ...p, isDefault: false };
+        if (p.id === presetId) {
+          return {
+            ...p,
+            isDefault: true,
+            printMode,
+            thermalCols:
+              printMode === "thermal3up" ? 3 : printMode === "thermal2up" ? 2 : 1,
+          };
+        }
+        if (presetMatchesPrintMode(p, printMode) || p.printMode === printMode) {
+          return { ...p, isDefault: false };
+        }
         return p;
       }),
     );
@@ -6514,7 +6529,7 @@ export default function BarcodePrinting() {
                     h_gap: preset.hGap ?? 0,
                     a4_cols: preset.a4Cols ?? precisionSettings.a4Cols,
                     a4_rows: preset.a4Rows ?? precisionSettings.a4Rows,
-                    print_mode: precisionSettings.printMode,
+                    print_mode: preset.printMode ?? precisionSettings.printMode,
                     label_config: preset.labelConfig as any,
                     thermal_cols: preset.thermalCols || precisionSettings.thermalCols || 1,
                   }, { onConflict: "organization_id,name" });
@@ -6928,7 +6943,7 @@ export default function BarcodePrinting() {
                       h_gap: preset.hGap ?? 0,
                       a4_cols: preset.a4Cols ?? precisionSettings.a4Cols,
                       a4_rows: preset.a4Rows ?? precisionSettings.a4Rows,
-                      print_mode: precisionSettings.printMode,
+                      print_mode: preset.printMode ?? precisionSettings.printMode,
                       label_config: preset.labelConfig as any,
                     }, { onConflict: "organization_id,name" });
                   if (error) {

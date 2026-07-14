@@ -50,23 +50,22 @@ export function getPrecisionThermalCols(mode: string, thermalCols = 1): number {
 }
 
 export function inferPrecisionPrintMode(preset: PrecisionPresetModeHint): PrecisionPrintMode {
+  // Trust an explicit stored print_mode first — thermal presets often also persist
+  // a4_cols/a4_rows from the shared settings form; those must not override mode.
   if (
+    preset.printMode === "thermal" ||
     preset.printMode === "thermal2up" ||
     preset.printMode === "thermal3up" ||
     preset.printMode === "a4"
   ) {
     return preset.printMode;
   }
-  if (preset.a4Cols && preset.a4Rows) return "a4";
-  if (preset.name) {
-    const fromName = inferPrintModeFromName(preset.name);
-    if (fromName === "thermal3up" || fromName === "thermal2up") return fromName;
-  }
-  if (preset.printMode === "thermal") return "thermal";
   if (preset.name) {
     const fromName = inferPrintModeFromName(preset.name);
     if (fromName) return fromName;
   }
+  // Only treat as A4 when mode is unknown and sheet grid dims are present
+  if (preset.a4Cols && preset.a4Rows) return "a4";
   return thermalColsToPrintMode(preset.thermalCols || 1);
 }
 
