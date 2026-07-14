@@ -24,6 +24,11 @@ interface DraggableLabelCanvasProps {
   /** Human-readable field names for designer-only placeholders */
   fieldLabels?: Partial<Record<FieldKey, string>>;
   defaultUom?: string;
+  /**
+   * When false (multi-up row), keep natural label width instead of flex-filling
+   * a squeezed cell that clips the left edge via overflow+centering.
+   */
+  fillAvailable?: boolean;
   activeField: FieldKey | null;
   activeLineIndex: number | null;
   activeCustomTextIndex: number | null;
@@ -60,6 +65,7 @@ export function DraggableLabelCanvas({
   productFieldSettings = null,
   fieldLabels,
   defaultUom = "NOS",
+  fillAvailable = true,
 }: DraggableLabelCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const barcodeRef = useRef<SVGSVGElement>(null);
@@ -227,10 +233,22 @@ export function DraggableLabelCanvas({
   const showBarcode = barcodeFieldEnabled && !!item.barcode;
   const showBarcodePlaceholder = barcodeFieldEnabled && !item.barcode;
 
+  // Avoid flex + justify-center + overflow-auto on the same box: when the zoomed
+  // label is wider than the cell, that combo clips the left edge and makes it
+  // unreachable via scroll (classic CSS overflow centering bug).
+  // `safe center` falls back to start alignment when content overflows.
   return (
     <div
-      className="border rounded-md overflow-auto bg-muted/20 p-2 flex items-center justify-center flex-1 min-h-[120px] max-h-full"
-      style={{ minHeight: 120 }}
+      className={
+        fillAvailable
+          ? "border rounded-md overflow-auto bg-muted/20 p-2 flex flex-1 min-h-[120px] max-h-full min-w-0"
+          : "border rounded-md overflow-visible bg-muted/20 p-2 shrink-0"
+      }
+      style={
+        fillAvailable
+          ? { minHeight: 120, justifyContent: "safe center", alignItems: "safe center" }
+          : { minHeight: 120 }
+      }
       tabIndex={0}
       onKeyDown={handleKeyDown}
     >

@@ -759,13 +759,15 @@ export function PrecisionLabelDesigner({
 
         <div className="flex-1 min-h-0 overflow-y-auto flex flex-col p-2">
         {isMultiUp ? (
-          <div
-            className="flex items-center justify-center flex-1 min-h-[120px]"
-            style={{ gap: gapPx }}
-          >
-            {Array.from({ length: multiUpCols }).map((_, idx) => (
-              <DraggableLabelCanvas key={idx} {...canvasProps} />
-            ))}
+          <div className="flex-1 min-h-[120px] min-w-0 overflow-x-auto overflow-y-auto">
+            <div
+              className="flex items-start justify-start w-max mx-auto py-1"
+              style={{ gap: gapPx }}
+            >
+              {Array.from({ length: multiUpCols }).map((_, idx) => (
+                <DraggableLabelCanvas key={idx} {...canvasProps} fillAvailable={false} />
+              ))}
+            </div>
           </div>
         ) : (
           <DraggableLabelCanvas {...canvasProps} />
