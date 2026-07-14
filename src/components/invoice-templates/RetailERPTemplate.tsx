@@ -183,9 +183,9 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   const isPreprintedAny = isPreprinted;
   const invoiceNoteText =
     notes && notes.trim() && !/^\d+$/.test(notes.trim()) ? notes.trim() : "";
-  /** Default 5–6 SN rows on preprinted (same visual density as Retail ERP). */
-  const PREPRINTED_DEFAULT_ROWS = 6;
-  const MAX_ITEMS_PER_PAGE = isA4 ? 20 : isPreprintedA5 ? 8 : 12;
+  /** Default SN rows on preprinted — stretch to fill space above totals (no blank gap). */
+  const PREPRINTED_DEFAULT_ROWS = isA4 ? 12 : 8;
+  const MAX_ITEMS_PER_PAGE = isA4 ? 20 : isPreprintedA5 ? 10 : 12;
   const TARGET_ROWS = isPreprintedAny
     ? Math.max(items.length, PREPRINTED_DEFAULT_ROWS)
     : isA4
@@ -565,13 +565,35 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                 </div>
               </div>
 
-              {/* ===== ITEMS TABLE — Full Grid ===== */}
+              {/* ===== ITEMS TABLE — Full Grid (preprinted: grow so SN rows fill gap above totals) ===== */}
+              <div
+                className={isPreprintedAny ? "retail-erp-items-grow" : undefined}
+                style={
+                  isPreprintedAny
+                    ? {
+                        flex: 1,
+                        minHeight: 0,
+                        display: "flex",
+                        flexDirection: "column",
+                      }
+                    : undefined
+                }
+              >
               <table
                 style={{
                   width: "100%",
+                  height: isPreprintedAny ? "100%" : undefined,
                   borderCollapse: "collapse",
                   tableLayout: "fixed",
-                  flex: isRealTast || isPreprintedAny ? "0 0 auto" : isA5Retail ? "0 0 auto" : isLastPage ? "0 0 auto" : "1 1 auto",
+                  flex: isPreprintedAny
+                    ? "1 1 auto"
+                    : isRealTast
+                      ? 1
+                      : isA5Retail
+                        ? "0 0 auto"
+                        : isLastPage
+                          ? "0 0 auto"
+                          : "1 1 auto",
                 }}
               >
                 <colgroup>
@@ -609,14 +631,29 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                     const lineDisc =
                       itemGlobalIdx >= 0 ? lineBillDiscounts[itemGlobalIdx] ?? 0 : 0;
                     const rowHasDisc = lineDisc > 0.005;
+                    const isBlankRow = !item;
                     return (
-                      <tr key={idx} style={{ height: rowHasDisc ? ROW_H_WITH_DISC : ROW_H }}>
+                      <tr
+                        key={idx}
+                        style={
+                          isPreprintedAny && isBlankRow
+                            ? { height: "auto" }
+                            : { height: rowHasDisc ? ROW_H_WITH_DISC : ROW_H }
+                        }
+                      >
                         {cols.map((c, ci) => {
                           const isLast = ci === cols.length - 1;
                           const style: React.CSSProperties = {
                             ...cellBase,
                             textAlign: c.align,
                             borderRight: isLast ? "none" : B,
+                            ...(isPreprintedAny && isBlankRow
+                              ? {
+                                  height: "auto",
+                                  minHeight: ROW_H,
+                                  maxHeight: "none",
+                                }
+                              : {}),
                             ...(isRealTast &&
                             (c.key === "rate" || c.key === "amount" || c.key === "qty" || c.key === "hsn")
                               ? {
@@ -777,11 +814,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                   </tr>
                 </tbody>
               </table>
-
-              {/* Preprinted: push terms/QR/totals block to physical page bottom */}
-              {isPreprintedAny && isLastPage && (
-                <div aria-hidden style={{ flex: 1, minHeight: "4mm" }} />
-              )}
+              </div>
 
               {/* ===== FOOTER ===== */}
               {isLastPage && (
@@ -791,7 +824,6 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                   borderTop: B2,
                   fontSize: fsBody,
                   flexShrink: 0,
-                  marginTop: isPreprintedAny ? 0 : undefined,
                 }}
               >
 
@@ -1130,6 +1162,17 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
             min-height: 0 !important;
             display: flex !important;
             flex-direction: column !important;
+          }
+          .retail-erp-invoice-template[data-invoice-variant="preprinted"] .retail-erp-items-grow {
+            flex: 1 1 auto !important;
+            min-height: 0 !important;
+            display: flex !important;
+            flex-direction: column !important;
+          }
+          .retail-erp-invoice-template[data-invoice-variant="preprinted"] .retail-erp-items-grow > table {
+            flex: 1 1 auto !important;
+            height: 100% !important;
+            width: 100% !important;
           }
           .retail-erp-invoice-template[data-invoice-variant="real-tast"] {
             height: ${pageH} !important;
