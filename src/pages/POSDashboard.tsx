@@ -1168,6 +1168,9 @@ const POSDashboard = () => {
           margin: 0 !important;
           box-sizing: border-box !important;
           overflow: hidden !important;
+          padding-left: ${isA5 ? "5.5mm" : "8mm"} !important;
+          padding-right: ${isA5 ? "7mm" : "10mm"} !important;
+          padding-bottom: ${isA5 ? "7mm" : "8mm"} !important;
           page-break-after: avoid !important;
           page-break-inside: avoid !important;
         }

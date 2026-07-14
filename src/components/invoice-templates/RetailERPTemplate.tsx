@@ -338,6 +338,10 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   const pageH = isA4 ? "297mm" : "210mm";
   const pad = isA4 ? "10mm" : "4mm";
   const letterheadGap = isPreprinted ? "2in" : pad;
+  // Preprinted: extra right/bottom inset so border lines stay inside printer safe area
+  const preprintedPadX = isPreprintedA5 ? "5.5mm" : isPreprinted ? "8mm" : pad;
+  const preprintedPadRight = isPreprintedA5 ? "7mm" : isPreprinted ? "10mm" : pad;
+  const preprintedPadBottom = isPreprintedA5 ? "7mm" : isPreprinted ? "8mm" : pad;
   // Same typography as standard Retail ERP — only top letterhead gap differs.
   const fsBody = isA4 ? "13px" : "12px";
   const fsHeader = isA4 ? "14px" : "12px";
@@ -434,9 +438,9 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                   : {}),
               // Preprinted: only top letterhead blank (2in); rest matches Retail ERP layout.
               paddingTop: isPreprinted ? letterheadGap : pad,
-              paddingRight: pad,
-              paddingBottom: isPreprintedA5 ? "2mm" : pad,
-              paddingLeft: pad,
+              paddingRight: isPreprinted ? preprintedPadRight : pad,
+              paddingBottom: isPreprinted ? preprintedPadBottom : pad,
+              paddingLeft: isPreprinted ? preprintedPadX : pad,
               fontFamily: "Arial, Helvetica, sans-serif",
               fontSize: fsBody,
               boxSizing: "border-box",
@@ -1142,9 +1146,9 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
             height: ${isPreprintedAny ? pageH : "auto"} !important;
             max-height: ${isPreprintedAny || (isA5Retail && !isPreprinted) ? pageH : "none"} !important;
             padding-top: ${isPreprinted ? letterheadGap : pad} !important;
-            padding-right: ${pad} !important;
-            padding-bottom: ${isPreprintedA5 ? "2mm" : pad} !important;
-            padding-left: ${pad} !important;
+            padding-right: ${isPreprinted ? preprintedPadRight : pad} !important;
+            padding-bottom: ${isPreprinted ? preprintedPadBottom : pad} !important;
+            padding-left: ${isPreprinted ? preprintedPadX : pad} !important;
             overflow: ${isPreprintedAny || (isA5Retail && !isPreprinted) ? "hidden" : "visible"} !important;
             margin: 0 auto !important;
             box-sizing: border-box !important;
