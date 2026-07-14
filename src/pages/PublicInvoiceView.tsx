@@ -312,8 +312,21 @@ export default function PublicInvoiceView() {
       case 'a4-electronic': return <A4ElectronicTemplate {...templateProps} />;
       case 'retail': return <RetailTemplate {...templateProps} />;
       case 'retail-erp': return <RetailERPTemplate {...templateProps} format="a5-vertical" />;
-      case 'retail-erp-preprinted':
-        return <RetailERPTemplate {...templateProps} variant="preprinted" format="a4" />;
+      case 'retail-erp-preprinted': {
+        const preprintedFormat =
+          formatParam === 'a5' || formatParam === 'a5-vertical'
+            ? 'a5-vertical'
+            : formatParam === 'a5-horizontal'
+              ? 'a5-horizontal'
+              : 'a4';
+        return (
+          <RetailERPTemplate
+            {...templateProps}
+            variant="preprinted"
+            format={preprintedFormat}
+          />
+        );
+      }
       case 'real-tast':
         return (
           <RetailERPTemplate
@@ -347,7 +360,7 @@ export default function PublicInvoiceView() {
 
         <style>{`
           @media print {
-            @page { size: ${formatParam === 'thermal' ? '80mm auto' : template === 'retail-erp-preprinted' ? 'A4 portrait' : template === 'retail-tax-ezzy' || template === 'retail-erp' || template === 'wholesale-a5' ? 'A5 portrait' : 'A4 portrait'}; margin: ${formatParam === 'thermal' ? '3mm' : template === 'retail-erp-preprinted' ? '0 10mm 10mm 10mm' : template === 'retail-erp' || template === 'retail-tax-ezzy' ? '4mm' : '5mm'}; }
+            @page { size: ${formatParam === 'thermal' ? '80mm auto' : template === 'retail-erp-preprinted' ? (formatParam === 'a5-horizontal' ? 'A5 landscape' : formatParam === 'a5' || formatParam === 'a5-vertical' ? 'A5 portrait' : 'A4 portrait') : template === 'retail-tax-ezzy' || template === 'retail-erp' || template === 'wholesale-a5' ? 'A5 portrait' : 'A4 portrait'}; margin: ${formatParam === 'thermal' ? '3mm' : template === 'retail-erp-preprinted' ? (formatParam === 'a5' || formatParam === 'a5-vertical' || formatParam === 'a5-horizontal' ? '0 4mm 4mm 4mm' : '0 10mm 10mm 10mm') : template === 'retail-erp' || template === 'retail-tax-ezzy' ? '4mm' : '5mm'}; }
             body { margin: 0; padding: 0; }
             .public-invoice-print-wrap {
               box-shadow: none !important;

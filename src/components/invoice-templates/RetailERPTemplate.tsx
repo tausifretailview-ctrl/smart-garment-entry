@@ -419,7 +419,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
               width: pageW,
               ...(isRealTast
                 ? { minHeight: pageH, height: pageH }
-                : isA5Retail
+                : isA5Retail && !isPreprinted
                   ? { maxHeight: pageH, overflow: "hidden" }
                   : {}),
               // Preprinted letterhead: reserve 2in from page top, then Tax Invoice body.
@@ -1066,15 +1066,18 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
       <style>{`
         @media print {
           body { margin: 0; padding: 0; background: #fff; }
-          @page { size: ${isA4 ? "A4 portrait" : "148mm 210mm"}; margin: ${isA4 ? "0" : "4mm"}; }
+          @page { size: ${isA4 ? "A4 portrait" : "148mm 210mm"}; margin: ${isPreprinted ? "0" : isA4 ? "0" : "4mm"}; }
           .retail-erp-invoice-template {
             width: ${pageW} !important;
             max-width: ${pageW} !important;
             min-height: ${isA4 ? "auto" : "auto"} !important;
             height: auto !important;
-            max-height: ${isA5Retail ? pageH : "none"} !important;
-            padding: ${pad} !important;
-            overflow: ${isA5Retail ? "hidden" : "visible"} !important;
+            max-height: ${isA5Retail && !isPreprinted ? pageH : "none"} !important;
+            padding-top: ${isPreprinted ? "2in" : pad} !important;
+            padding-right: ${pad} !important;
+            padding-bottom: ${pad} !important;
+            padding-left: ${pad} !important;
+            overflow: ${isA5Retail && !isPreprinted ? "hidden" : "visible"} !important;
             margin-left: auto !important;
             margin-right: auto !important;
           }
@@ -1095,7 +1098,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
           .retail-erp-footer {
             page-break-inside: avoid;
             break-inside: avoid;
-            overflow: ${isA5Retail ? "hidden" : "visible"} !important;
+            overflow: ${isA5Retail && !isPreprinted ? "hidden" : "visible"} !important;
           }
           .retail-erp-qr-box {
             page-break-inside: avoid;

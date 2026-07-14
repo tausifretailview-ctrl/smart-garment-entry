@@ -3191,7 +3191,7 @@ export default function Settings() {
                         <SelectItem value="retail-erp-preprinted">
                           <span className="flex items-center gap-2">
                             <span className="text-violet-700 font-bold text-xs w-5">PRE</span>
-                            Preprinted Invoice — Retail ERP tax + 2&quot; letterhead (A4)
+                            Preprinted Invoice — Retail ERP tax + 2&quot; letterhead (A4/A5)
                           </span>
                         </SelectItem>
                         <SelectItem value="real-tast">
@@ -3224,7 +3224,7 @@ export default function Settings() {
                       {settings.sale_settings?.invoice_template === 'kids-80mm'
                         ? 'Kids 80mm prints on 80mm thermal roll — product name, size, qty, sale price, MRP total, fixed footer & terms.'
                         : settings.sale_settings?.invoice_template === 'retail-erp-preprinted'
-                          ? 'Preprinted Invoice (A4) matches Retail ERP tax layout — leaves a 2-inch top gap for letterhead (shop name, logo, address already on paper), then prints TAX INVOICE.'
+                          ? 'Preprinted Invoice matches Retail ERP tax layout with a 2-inch top letterhead gap. Paper size follows POS Bill Format / Sale Invoice Format (A4 or A5).'
                         : settings.sale_settings?.invoice_template === 'real-tast'
                           ? 'Real Tast prints on A4 — SN, Description, HSN, Qty, Rate, Amount. Set document title and terms in Sale settings below.'
                         : settings.sale_settings?.invoice_template === 'gift_tally'

@@ -1124,10 +1124,15 @@ const POSDashboard = () => {
 
   const getPageStyle = () => {
     if (posInvoiceTemplate === "retail-erp-preprinted") {
+      const isA5 =
+        effectivePosBillFormat === "a5" || effectivePosBillFormat === "a5-horizontal";
+      const pageSize =
+        effectivePosBillFormat === "a5-horizontal" ? "A5 landscape" : isA5 ? "A5 portrait" : "A4 portrait";
+      const pageMargin = isA5 ? "0 4mm 4mm 4mm" : "0 10mm 10mm 10mm";
       return `
       @page {
-        size: A4 portrait;
-        margin: 0 10mm 10mm 10mm;
+        size: ${pageSize};
+        margin: ${pageMargin};
       }
       @media print {
         html, body {

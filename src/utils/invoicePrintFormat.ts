@@ -1,5 +1,5 @@
 /** A4-only invoice templates — always print on A4 portrait. */
-export const A4_ONLY_INVOICE_TEMPLATES = new Set(['real-tast', 'gift_tally', 'retail-erp-preprinted']);
+export const A4_ONLY_INVOICE_TEMPLATES = new Set(['real-tast', 'gift_tally']);
 
 /** Templates that must print on A5 — not thermal 80mm. */
 export const A5_ONLY_INVOICE_TEMPLATES = new Set([
@@ -7,6 +7,12 @@ export const A5_ONLY_INVOICE_TEMPLATES = new Set([
   'wholesale-a5',
   'retail-erp',
 ]);
+
+/**
+ * Preprinted letterhead templates — follow POS/Sale paper size (A4 or A5),
+ * but never thermal 80mm.
+ */
+export const PREPRINTED_LETTERHEAD_TEMPLATES = new Set(['retail-erp-preprinted']);
 
 /** Thermal-only invoice templates — always route through 80mm receipt path. */
 export const THERMAL_ONLY_INVOICE_TEMPLATES = new Set(['kids-80mm']);
@@ -41,11 +47,22 @@ function fallbackFormatForFullPageTemplate(
   return 'a4';
 }
 
+/** Resolve A4/A5 for preprinted letterhead templates from bill-format setting. */
+export function resolvePreprintedPaperFormat(
+  billFormat: PosBillFormat,
+  invoicePaperFormat?: string,
+): Exclude<PosBillFormat, 'thermal'> {
+  if (billFormat === 'a5' || billFormat === 'a5-horizontal') return billFormat;
+  if (billFormat === 'a4') return 'a4';
+  // thermal (or unknown) — use invoice paper / A4 fallback
+  return fallbackFormatForFullPageTemplate(invoicePaperFormat);
+}
+
 /** POS paper size — named templates (Retail ERP, etc.) override generic thermal/A5 setting. */
 export function resolvePosBillFormat(
   invoiceTemplate: string | undefined,
   posBillFormat: PosBillFormat,
-  _invoicePaperFormat?: string,
+  invoicePaperFormat?: string,
 ): PosBillFormat {
   if (invoiceTemplate && THERMAL_ONLY_INVOICE_TEMPLATES.has(invoiceTemplate)) {
     return 'thermal';
@@ -55,6 +72,9 @@ export function resolvePosBillFormat(
   }
   if (invoiceTemplate && A5_ONLY_INVOICE_TEMPLATES.has(invoiceTemplate)) {
     return 'a5';
+  }
+  if (invoiceTemplate && PREPRINTED_LETTERHEAD_TEMPLATES.has(invoiceTemplate)) {
+    return resolvePreprintedPaperFormat(posBillFormat, invoicePaperFormat);
   }
   if (posBillFormat === 'thermal') {
     return 'thermal';
@@ -76,6 +96,9 @@ export function resolveSaleBillFormat(
   }
   if (invoiceTemplate && A4_ONLY_INVOICE_TEMPLATES.has(invoiceTemplate)) {
     return 'a4';
+  }
+  if (invoiceTemplate && PREPRINTED_LETTERHEAD_TEMPLATES.has(invoiceTemplate)) {
+    return resolvePreprintedPaperFormat(salesBillFormat, invoicePaperFormat);
   }
   if (
     invoiceTemplate &&

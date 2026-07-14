@@ -4162,10 +4162,14 @@ export default function POSSales() {
     let margin = '5mm';
 
     if (posInvoiceTemplate === 'retail-erp-preprinted') {
+      const isA5 = format === 'a5' || format === 'a5-horizontal';
+      const pageSize =
+        format === 'a5-horizontal' ? 'A5 landscape' : isA5 ? 'A5 portrait' : 'A4 portrait';
+      const pageMargin = isA5 ? '0 4mm 4mm 4mm' : '0 10mm 10mm 10mm';
       return `
       @page {
-        size: A4 portrait;
-        margin: 0 10mm 10mm 10mm;
+        size: ${pageSize};
+        margin: ${pageMargin};
       }
       @media print {
         html, body {

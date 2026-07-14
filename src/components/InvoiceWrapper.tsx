@@ -283,9 +283,15 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
     if (!isThermalFormat && templateForFormat === 'real-tast') {
       format = 'a4';
     }
-    // Preprinted Retail ERP — A4 letterhead (2in top gap).
-    if (!isThermalFormat && templateForFormat === 'retail-erp-preprinted') {
-      format = 'a4';
+    // Preprinted letterhead — follow Settings paper size (A4 / A5); never thermal.
+    if (templateForFormat === 'retail-erp-preprinted') {
+      if (format === 'a5' || format === 'a5-vertical') {
+        format = 'a5-vertical';
+      } else if (format === 'a5-horizontal') {
+        format = 'a5-horizontal';
+      } else {
+        format = 'a4';
+      }
     }
     // Gift Tally is A4 GST tax invoice only.
     if (!isThermalFormat && templateForFormat === 'gift_tally') {
@@ -702,7 +708,6 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
             <RetailERPTemplate
               {...commonProps}
               variant="preprinted"
-              format="a4"
             />
           );
         case 'real-tast':
