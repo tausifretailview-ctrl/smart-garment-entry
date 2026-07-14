@@ -1767,6 +1767,27 @@ export default function SalesInvoiceDashboard() {
   };
 
   const getPageStyle = () => {
+    if (invoiceTemplate === 'retail-erp-preprinted') {
+      return `
+      @page {
+        size: A4 portrait;
+        margin: 0 10mm 10mm 10mm;
+      }
+      @media print {
+        html, body {
+          width: 100%;
+          margin: 0;
+          padding: 0;
+        }
+        .retail-erp-invoice-template {
+          width: 100% !important;
+          max-width: none !important;
+          overflow: visible !important;
+        }
+      }
+    `;
+    }
+
     if (invoiceTemplate === 'retail-tax-ezzy' || invoiceTemplate === 'wholesale-a5' || invoiceTemplate === 'retail-erp') {
       return `
       @page {

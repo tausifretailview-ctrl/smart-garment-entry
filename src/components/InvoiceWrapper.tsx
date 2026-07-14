@@ -283,6 +283,10 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
     if (!isThermalFormat && templateForFormat === 'real-tast') {
       format = 'a4';
     }
+    // Preprinted Retail ERP — A4 letterhead (2in top gap).
+    if (!isThermalFormat && templateForFormat === 'retail-erp-preprinted') {
+      format = 'a4';
+    }
     // Gift Tally is A4 GST tax invoice only.
     if (!isThermalFormat && templateForFormat === 'gift_tally') {
       format = 'a4';
@@ -693,6 +697,14 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
           return <RetailTemplate {...commonProps} />;
         case 'retail-erp':
           return <RetailERPTemplate {...commonProps} />;
+        case 'retail-erp-preprinted':
+          return (
+            <RetailERPTemplate
+              {...commonProps}
+              variant="preprinted"
+              format="a4"
+            />
+          );
         case 'real-tast':
           return (
             <RetailERPTemplate

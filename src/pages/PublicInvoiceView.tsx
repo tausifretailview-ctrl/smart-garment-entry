@@ -312,6 +312,8 @@ export default function PublicInvoiceView() {
       case 'a4-electronic': return <A4ElectronicTemplate {...templateProps} />;
       case 'retail': return <RetailTemplate {...templateProps} />;
       case 'retail-erp': return <RetailERPTemplate {...templateProps} format="a5-vertical" />;
+      case 'retail-erp-preprinted':
+        return <RetailERPTemplate {...templateProps} variant="preprinted" format="a4" />;
       case 'real-tast':
         return (
           <RetailERPTemplate
@@ -345,7 +347,7 @@ export default function PublicInvoiceView() {
 
         <style>{`
           @media print {
-            @page { size: ${formatParam === 'thermal' ? '80mm auto' : template === 'retail-tax-ezzy' || template === 'retail-erp' || template === 'wholesale-a5' ? 'A5 portrait' : 'A4 portrait'}; margin: ${formatParam === 'thermal' ? '3mm' : template === 'retail-erp' || template === 'retail-tax-ezzy' ? '4mm' : '5mm'}; }
+            @page { size: ${formatParam === 'thermal' ? '80mm auto' : template === 'retail-erp-preprinted' ? 'A4 portrait' : template === 'retail-tax-ezzy' || template === 'retail-erp' || template === 'wholesale-a5' ? 'A5 portrait' : 'A4 portrait'}; margin: ${formatParam === 'thermal' ? '3mm' : template === 'retail-erp-preprinted' ? '0 10mm 10mm 10mm' : template === 'retail-erp' || template === 'retail-tax-ezzy' ? '4mm' : '5mm'}; }
             body { margin: 0; padding: 0; }
             .public-invoice-print-wrap {
               box-shadow: none !important;

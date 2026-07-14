@@ -1,8 +1,12 @@
 /** A4-only invoice templates — always print on A4 portrait. */
-export const A4_ONLY_INVOICE_TEMPLATES = new Set(['real-tast', 'gift_tally']);
+export const A4_ONLY_INVOICE_TEMPLATES = new Set(['real-tast', 'gift_tally', 'retail-erp-preprinted']);
 
 /** Templates that must print on A5 — not thermal 80mm. */
-export const A5_ONLY_INVOICE_TEMPLATES = new Set(['retail-tax-ezzy', 'wholesale-a5', 'retail-erp']);
+export const A5_ONLY_INVOICE_TEMPLATES = new Set([
+  'retail-tax-ezzy',
+  'wholesale-a5',
+  'retail-erp',
+]);
 
 /** Thermal-only invoice templates — always route through 80mm receipt path. */
 export const THERMAL_ONLY_INVOICE_TEMPLATES = new Set(['kids-80mm']);
@@ -23,6 +27,7 @@ export const FULL_PAGE_INVOICE_TEMPLATES = new Set([
   'a4-electronic',
   'retail',
   'retail-erp',
+  'retail-erp-preprinted',
   'real-tast',
 ]);
 

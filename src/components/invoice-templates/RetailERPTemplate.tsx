@@ -113,8 +113,9 @@ interface RetailERPTemplateProps {
   stampSize?: string;
   financerDetails?: any;
   instagramLink?: string;
-  /** Real Tast — Bill of Supply A4 (no size, payment, balance, state code). */
-  variant?: "standard" | "real-tast";
+  /** Real Tast — Bill of Supply A4 (no size, payment, balance, state code).
+   *  Preprinted — same tax layout as standard, but 2in top gap for letterhead (no shop name/logo). */
+  variant?: "standard" | "real-tast" | "preprinted";
 }
 
 const B = "1px solid #000";
@@ -174,6 +175,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   variant = "standard",
 }) => {
   const isRealTast = variant === "real-tast";
+  const isPreprinted = variant === "preprinted";
   const isA4 = format === "a4" || isRealTast;
   const invoiceNoteText =
     notes && notes.trim() && !/^\d+$/.test(notes.trim()) ? notes.trim() : "";
@@ -410,7 +412,9 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
           <div
             key={pageIndex}
             className="retail-erp-invoice-template bg-white text-black"
-            data-invoice-variant={isRealTast ? "real-tast" : undefined}
+            data-invoice-variant={
+              isRealTast ? "real-tast" : isPreprinted ? "preprinted" : undefined
+            }
             style={{
               width: pageW,
               ...(isRealTast
@@ -418,7 +422,11 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                 : isA5Retail
                   ? { maxHeight: pageH, overflow: "hidden" }
                   : {}),
-              padding: pad,
+              // Preprinted letterhead: reserve 2in from page top, then Tax Invoice body.
+              paddingTop: isPreprinted ? "2in" : pad,
+              paddingRight: pad,
+              paddingBottom: pad,
+              paddingLeft: pad,
               fontFamily: "Arial, Helvetica, sans-serif",
               fontSize: fsBody,
               boxSizing: "border-box",
@@ -439,7 +447,8 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
               }}
             >
 
-              {/* ===== HEADER — Center Aligned ===== */}
+              {/* ===== HEADER — Center Aligned (skipped for preprinted letterhead) ===== */}
+              {!isPreprinted && (
               <div style={{ borderBottom: B2, padding: isA4 ? "6px 10px 4px" : "3px 6px 2px", textAlign: "center", position: "relative" }}>
                 {logoUrl && (
                   <img
@@ -483,6 +492,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                   <div style={{ fontSize: isA4 ? "10px" : "8px", color: "#333", marginTop: "1px" }}>{customHeaderText}</div>
                 )}
               </div>
+              )}
 
               {/* ===== TAX INVOICE / CREDIT NOTE — flush, no gap ===== */}
               <div style={{ textAlign: "center", fontWeight: "bold", fontSize: titleFs, borderBottom: B2, padding: "1px 0", lineHeight: "1.2", margin: 0, textTransform: "uppercase", letterSpacing: "1px" }}>

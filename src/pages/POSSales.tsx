@@ -4161,6 +4161,41 @@ export default function POSSales() {
     let size = 'A5 portrait';
     let margin = '5mm';
 
+    if (posInvoiceTemplate === 'retail-erp-preprinted') {
+      return `
+      @page {
+        size: A4 portrait;
+        margin: 0 10mm 10mm 10mm;
+      }
+      @media print {
+        html, body {
+          width: 100%;
+          margin: 0;
+          padding: 0;
+        }
+        .retail-erp-invoice-template {
+          width: 100% !important;
+          max-width: none !important;
+          overflow: visible !important;
+        }
+        .invoice-print-source,
+        .invoice-print-source-screen,
+        .invoice-print-root,
+        .thermal-print-80mm,
+        .thermal-receipt-container {
+          visibility: visible !important;
+          opacity: 1 !important;
+          display: block !important;
+          clip: auto !important;
+          clip-path: none !important;
+          transform: none !important;
+          overflow: visible !important;
+        }
+      }
+      ${INVOICE_PRINT_VISIBILITY_OVERRIDE_CSS}
+    `;
+    }
+
     if (posInvoiceTemplate === 'retail-tax-ezzy' || posInvoiceTemplate === 'wholesale-a5' || posInvoiceTemplate === 'retail-erp') {
       return `
       @page {
