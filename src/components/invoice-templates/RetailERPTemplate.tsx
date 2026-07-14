@@ -1080,7 +1080,19 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
       <style>{`
         @media print {
           body { margin: 0; padding: 0; background: #fff; }
-          @page { size: ${isA4 ? "A4 portrait" : "148mm 210mm"}; margin: ${isPreprinted ? "0" : isA4 ? "0" : "4mm"}; }
+          @page { size: ${isA4 ? "210mm 297mm" : "148mm 210mm"}; margin: 0; }
+          html, body {
+            width: ${pageW} !important;
+            ${isPreprintedA5 || isA5Retail ? `height: ${pageH} !important; max-height: ${pageH} !important;` : ""}
+            margin: 0 !important;
+            padding: 0 !important;
+            background: #fff !important;
+          }
+          .retail-erp-all-pages {
+            width: ${pageW} !important;
+            max-width: ${pageW} !important;
+            margin: 0 !important;
+          }
           .retail-erp-invoice-template {
             width: ${pageW} !important;
             max-width: ${pageW} !important;
@@ -1092,8 +1104,8 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
             padding-bottom: ${isPreprintedA5 ? "1.5mm" : pad} !important;
             padding-left: ${pad} !important;
             overflow: ${isPreprintedA5 || (isA5Retail && !isPreprinted) ? "hidden" : "visible"} !important;
-            margin-left: auto !important;
-            margin-right: auto !important;
+            margin: 0 auto !important;
+            box-sizing: border-box !important;
             ${isPreprintedA5 ? "page-break-inside: avoid !important; break-inside: avoid !important;" : ""}
           }
           .retail-erp-invoice-template[data-invoice-variant="preprinted"] {

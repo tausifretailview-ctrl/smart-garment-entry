@@ -1126,24 +1126,50 @@ const POSDashboard = () => {
     if (posInvoiceTemplate === "retail-erp-preprinted") {
       const isA5 =
         effectivePosBillFormat === "a5" || effectivePosBillFormat === "a5-horizontal";
-      const pageSize =
-        effectivePosBillFormat === "a5-horizontal" ? "A5 landscape" : isA5 ? "A5 portrait" : "A4 portrait";
-      const pageMargin = isA5 ? "0 4mm 4mm 4mm" : "0 10mm 10mm 10mm";
+      const isA5Landscape = effectivePosBillFormat === "a5-horizontal";
+      const pageSize = isA5Landscape
+        ? "210mm 148mm"
+        : isA5
+          ? "148mm 210mm"
+          : "210mm 297mm";
+      const contentW = isA5Landscape ? "210mm" : isA5 ? "148mm" : "210mm";
+      const contentH = isA5Landscape ? "148mm" : isA5 ? "210mm" : "297mm";
       return `
       @page {
         size: ${pageSize};
-        margin: ${pageMargin};
+        margin: 0;
       }
       @media print {
         html, body {
-          width: 100%;
-          margin: 0;
-          padding: 0;
+          width: ${contentW} !important;
+          height: ${contentH} !important;
+          max-width: ${contentW} !important;
+          max-height: ${contentH} !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          overflow: hidden !important;
+          background: #fff !important;
+        }
+        .invoice-print-source,
+        .invoice-print-source-screen,
+        .invoice-print-root,
+        .retail-erp-all-pages {
+          width: ${contentW} !important;
+          max-width: ${contentW} !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          overflow: hidden !important;
         }
         .retail-erp-invoice-template {
-          width: 100% !important;
-          max-width: none !important;
-          overflow: visible !important;
+          width: ${contentW} !important;
+          max-width: ${contentW} !important;
+          height: ${contentH} !important;
+          max-height: ${contentH} !important;
+          margin: 0 !important;
+          box-sizing: border-box !important;
+          overflow: hidden !important;
+          page-break-after: avoid !important;
+          page-break-inside: avoid !important;
         }
       }
       ${INVOICE_PRINT_VISIBILITY_OVERRIDE_CSS}
