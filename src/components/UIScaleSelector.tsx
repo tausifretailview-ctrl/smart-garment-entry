@@ -11,13 +11,33 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 
-const SCALE_OPTIONS = [
+type ScaleKey = "compact" | "standard" | "large";
+
+type ScaleOption = {
+  key: ScaleKey;
+  label: string;
+  desc: string;
+  size: string;
+  zoom: number;
+};
+
+/** Windows desktop app — denser roots for 1080p / 125% OS scaling. */
+const ELECTRON_SCALE_OPTIONS: ScaleOption[] = [
   { key: "compact", label: "Compact", desc: "High density (13px)", size: "13px", zoom: 0.85 },
   { key: "standard", label: "Standard", desc: "Default (14px)", size: "14px", zoom: 1.0 },
   { key: "large", label: "Large", desc: "Easy reading (15px)", size: "15px", zoom: 1.05 },
-] as const;
+];
 
-type ScaleKey = (typeof SCALE_OPTIONS)[number]["key"];
+/** Web / PWA — previous browser sizes (not the desktop 13px roots). */
+const WEB_SCALE_OPTIONS: ScaleOption[] = [
+  { key: "compact", label: "Compact", desc: "High density (16px)", size: "16px", zoom: 0.85 },
+  { key: "standard", label: "Standard", desc: "Default (18px)", size: "18px", zoom: 1.0 },
+  { key: "large", label: "Large", desc: "Easy reading (19px)", size: "19px", zoom: 1.05 },
+];
+
+function getScaleOptions(): ScaleOption[] {
+  return isElectronShell() ? ELECTRON_SCALE_OPTIONS : WEB_SCALE_OPTIONS;
+}
 
 const UI_SCALE_STORAGE_KEY = "ui-scale";
 
@@ -27,7 +47,7 @@ const ELECTRON_DEFAULT_SCALE: ScaleKey = "compact";
 function readSavedScale(): ScaleKey | null {
   try {
     const saved = localStorage.getItem(UI_SCALE_STORAGE_KEY) as ScaleKey | null;
-    if (saved && SCALE_OPTIONS.some((o) => o.key === saved)) return saved;
+    if (saved && getScaleOptions().some((o) => o.key === saved)) return saved;
   } catch {
     /* private mode */
   }
@@ -39,7 +59,7 @@ function defaultScaleKey(): ScaleKey {
 }
 
 function applyScale(key: ScaleKey) {
-  const opt = SCALE_OPTIONS.find((o) => o.key === key)!;
+  const opt = getScaleOptions().find((o) => o.key === key)!;
   document.documentElement.style.fontSize = opt.size;
   if (key === "compact") {
     document.documentElement.classList.add("scale-compact");
@@ -90,6 +110,7 @@ type UIScaleSelectorProps = {
 
 export const UIScaleSelector = ({ triggerClassName }: UIScaleSelectorProps) => {
   const [scale, setScale] = useState<ScaleKey>(() => readSavedScale() ?? defaultScaleKey());
+  const scaleOptions = getScaleOptions();
 
   useEffect(() => {
     applyScale(scale);
@@ -119,7 +140,7 @@ export const UIScaleSelector = ({ triggerClassName }: UIScaleSelectorProps) => {
       <DropdownMenuContent align="end" className="w-48">
         <DropdownMenuLabel className="text-xs">Display Scale</DropdownMenuLabel>
         <DropdownMenuSeparator />
-        {SCALE_OPTIONS.map((opt) => (
+        {scaleOptions.map((opt) => (
           <DropdownMenuItem
             key={opt.key}
             onClick={() => handleSelect(opt.key)}
