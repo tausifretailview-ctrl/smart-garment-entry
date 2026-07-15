@@ -17,6 +17,12 @@ import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { fetchAllCustomers } from "@/utils/fetchAllRows";
+import { fetchCustomerBalanceSnapshot } from "@/utils/customerBalanceUtils";
+import {
+  fetchCustomerFinancialSnapshotMap,
+  fetchCustomersWithFinancialActivity,
+  invalidateCustomerFinancialSnapshot,
+} from "@/utils/customerFinancialSnapshot";
 import {
   applyAdjustmentToInvoices,
   reverseBalanceAdjustmentVouchers,
@@ -62,186 +68,59 @@ export function CustomerBalanceAdjustmentDialog({
 
   const invalidateAll = () => {
     INVALIDATION_KEYS.forEach((key) => queryClient.invalidateQueries({ queryKey: key }));
+    invalidateCustomerFinancialSnapshot(queryClient, organizationId);
   };
 
-  // Fetch customers with outstanding and advance balances
+  // Fetch customers with outstanding and advance balances (same SQL snapshot as ledger / POS)
   const { data: customers } = useQuery({
     queryKey: ["all-customers-adjustment-balances", organizationId],
     queryFn: async () => {
       const allCustomers = await fetchAllCustomers(organizationId);
+      const activeIds = await fetchCustomersWithFinancialActivity(organizationId);
+      const idsToSnapshot = allCustomers
+        .map((c: { id: string }) => c.id)
+        .filter((id) => activeIds.has(id));
+      const snapshotMap = await fetchCustomerFinancialSnapshotMap(
+        organizationId,
+        idsToSnapshot,
+      );
 
-      const { data: allSales } = await supabase
-        .from("sales")
-        .select("id, customer_id, net_amount, paid_amount")
-        .eq("organization_id", organizationId)
-        .is("deleted_at", null);
-
-      const { data: allVouchers } = await supabase
-        .from("voucher_entries")
-        .select("reference_id, reference_type, total_amount")
-        .eq("organization_id", organizationId)
-        .eq("voucher_type", "receipt")
-        .is("deleted_at", null);
-
-      const { data: allAdvances } = await supabase
-        .from("customer_advances")
-        .select("customer_id, amount, used_amount")
-        .eq("organization_id", organizationId)
-        .eq("status", "active");
-
-      const saleIdSet = new Set((allSales || []).map((s: any) => s.id));
-      const invoiceVoucherPayments = new Map<string, number>();
-      const openingBalancePayments = new Map<string, number>();
-
-      (allVouchers || []).forEach((v: any) => {
-        if (!v.reference_id) return;
-        if (saleIdSet.has(v.reference_id)) {
-          invoiceVoucherPayments.set(v.reference_id, (invoiceVoucherPayments.get(v.reference_id) || 0) + (Number(v.total_amount) || 0));
-        } else if (v.reference_type === "customer") {
-          openingBalancePayments.set(v.reference_id, (openingBalancePayments.get(v.reference_id) || 0) + (Number(v.total_amount) || 0));
-        }
+      return allCustomers.map((c: any) => {
+        const snap = snapshotMap.get(c.id);
+        return {
+          ...c,
+          outstandingBalance: Math.round(snap?.outstandingDr ?? 0),
+          advanceBalance: Math.round(snap?.advanceAvailable ?? 0),
+        };
       });
-
-      const customerOutstanding = new Map<string, number>();
-      (allSales || []).forEach((sale: any) => {
-        if (!sale.customer_id) return;
-        const salePaid = sale.paid_amount || 0;
-        const voucherPaid = invoiceVoucherPayments.get(sale.id) || 0;
-        const effectivePaid = Math.max(salePaid, voucherPaid);
-        const outstanding = Math.max(0, Math.round((sale.net_amount || 0) - effectivePaid));
-        customerOutstanding.set(sale.customer_id, (customerOutstanding.get(sale.customer_id) || 0) + outstanding);
-      });
-
-      const customerAdvance = new Map<string, number>();
-      (allAdvances || []).forEach((a: any) => {
-        if (!a.customer_id) return;
-        const available = (a.amount || 0) - (a.used_amount || 0);
-        if (available > 0) {
-          customerAdvance.set(a.customer_id, (customerAdvance.get(a.customer_id) || 0) + available);
-        }
-      });
-
-      return allCustomers.map((c: any) => ({
-        ...c,
-        outstandingBalance: Math.round((c.opening_balance || 0) + (customerOutstanding.get(c.id) || 0) - (openingBalancePayments.get(c.id) || 0)),
-        advanceBalance: Math.round(customerAdvance.get(c.id) || 0),
-      }));
     },
     enabled: !!organizationId && open,
   });
 
-  // Fetch current outstanding for selected customer
+  // Current outstanding — same math as Customer Ledger / useCustomerBalance
   const { data: currentBalance, isLoading: balanceLoading } = useQuery({
     queryKey: ["customer-adjustment-balance", selectedCustomerId, organizationId],
     queryFn: async () => {
-      const { data: customer } = await supabase
-        .from("customers")
-        .select("opening_balance")
-        .eq("id", selectedCustomerId)
-        .single();
-      const openingBalance = customer?.opening_balance || 0;
-
-      // 1. Gross invoices (net_amount + sale_return_adjust)
-      const { data: sales } = await supabase
-        .from("sales")
-        .select("id, net_amount, sale_return_adjust")
-        .eq("customer_id", selectedCustomerId)
-        .eq("organization_id", organizationId)
-        .is("deleted_at", null)
-        .neq("payment_status", "cancelled");
-      const totalGrossInvoices = (sales || []).reduce(
-        (sum, s) => sum + (s.net_amount || 0), 0);
-      const saleIdSet = new Set((sales || []).map((s: any) => s.id));
-
-      // 2. Cash/card/UPI payments ONLY (exclude advance & CN adjustments)
-      const { data: vouchers } = await supabase
-        .from("voucher_entries")
-        .select("reference_id, reference_type, total_amount, payment_method, description")
-        .eq("organization_id", organizationId)
-        .eq("voucher_type", "receipt")
-        .is("deleted_at", null);
-
-      let totalCashPayments = 0;
-      (vouchers || []).forEach((v: any) => {
-        if (!v.reference_id) return;
-        if (v.payment_method === 'advance_adjustment' || v.payment_method === 'credit_note_adjustment') return;
-        const desc = (v.description || '').toLowerCase();
-        if (desc.includes('adjusted from advance balance') || desc.includes('advance adjusted')) return;
-        if (desc.includes('credit note adjusted') || desc.includes('cn adjusted')) return;
-        // Count if it's a sale payment for this customer or an opening balance payment
-        if (saleIdSet.has(v.reference_id) || (v.reference_type === 'customer' && v.reference_id === selectedCustomerId)) {
-          totalCashPayments += Number(v.total_amount) || 0;
-        }
-      });
-
-      // 3. Customer advances (total booked)
-      const { data: advances } = await supabase
-        .from("customer_advances")
-        .select("id, amount, used_amount")
-        .eq("customer_id", selectedCustomerId)
-        .eq("organization_id", organizationId);
-      const totalAdvanceBooked = (advances || []).reduce((sum, a) => sum + (a.amount || 0), 0);
-      const totalAdvanceUsed = (advances || []).reduce((sum, a) => sum + (a.used_amount || 0), 0);
-
-      // 4. Sale returns
-      const { data: returns } = await supabase
-        .from("sale_returns")
-        .select("net_amount")
-        .eq("customer_id", selectedCustomerId)
-        .eq("organization_id", organizationId)
-        .is("deleted_at", null);
-      const totalReturns = (returns || []).reduce((sum, r) => sum + (r.net_amount || 0), 0);
-
-      // 5. Advance refunds
-      const advanceIds = (advances || []).map((a: any) => a.id);
-      let totalRefunds = 0;
-      if (advanceIds.length > 0) {
-        const { data: refunds } = await supabase
-          .from("advance_refunds")
-          .select("refund_amount")
-          .in("advance_id", advanceIds);
-        totalRefunds = (refunds || []).reduce((sum, r) => sum + (r.refund_amount || 0), 0);
-      }
-
-      // 6. Refund vouchers (payment type, reference_type=customer)
-      const { data: refundVouchers } = await supabase
-        .from("voucher_entries")
-        .select("total_amount")
-        .eq("organization_id", organizationId)
-        .eq("voucher_type", "payment")
-        .eq("reference_type", "customer")
-        .eq("reference_id", selectedCustomerId)
-        .is("deleted_at", null);
-      const totalRefundsPaid = (refundVouchers || []).reduce((s, v) => s + (v.total_amount || 0), 0);
-
-      // 7. Previous balance adjustments
-      const { data: adjustments } = await supabase
-        .from("customer_balance_adjustments")
-        .select("outstanding_difference")
-        .eq("customer_id", selectedCustomerId)
-        .eq("organization_id", organizationId);
-      const totalAdjustments = (adjustments || []).reduce(
-        (sum, a) => sum + (a.outstanding_difference || 0), 0);
-
-      // Balance = Opening + GrossInvoices - CashPayments - Advances - Returns + Refunds + Adjustments + RefundsPaid
-      const outstanding = Math.round(
-        openingBalance + totalGrossInvoices - totalCashPayments
-        - totalAdvanceBooked - totalReturns + totalRefunds + totalAdjustments + totalRefundsPaid
+      const snap = await fetchCustomerBalanceSnapshot(
+        supabase,
+        organizationId,
+        selectedCustomerId,
       );
-      const advanceAvailable = Math.round(Math.max(0, totalAdvanceBooked - totalAdvanceUsed - totalRefunds));
 
       return {
-        outstanding,
-        advance: advanceAvailable,
+        // Signed receivable: positive = Dr outstanding, negative = Cr
+        outstanding: Math.round(snap.balance),
+        advance: Math.round(snap.unusedAdvanceTotal),
         breakdown: {
-          openingBalance: Math.round(openingBalance),
-          totalGrossInvoices: Math.round(totalGrossInvoices),
-          totalCashPayments: Math.round(totalCashPayments),
-          totalAdvanceBooked: Math.round(totalAdvanceBooked),
-          totalReturns: Math.round(totalReturns),
-          totalRefunds: Math.round(totalRefunds),
-          totalAdjustments: Math.round(totalAdjustments),
-          totalRefundsPaid: Math.round(totalRefundsPaid),
+          openingBalance: snap.openingBalance,
+          totalGrossInvoices: snap.totalSalesGross,
+          totalCnOnInvoices: snap.totalSaleReturnAdjustOnSales,
+          totalCashPayments: snap.totalCashPaid,
+          totalAdvanceApplied: snap.totalAdvanceApplied,
+          totalCnApplied: snap.totalCnApplied,
+          totalReturns: snap.saleReturnTotal,
+          totalAdjustments: snap.adjustmentTotal,
+          unusedAdvance: snap.unusedAdvanceTotal,
         },
       };
     },
@@ -592,8 +471,23 @@ export function CustomerBalanceAdjustmentDialog({
               <div className="grid grid-cols-2 gap-4">
                 <div className="p-3 rounded-lg border bg-muted/50">
                   <Label className="text-xs text-muted-foreground">Current Outstanding</Label>
-                  <p className="text-lg font-bold text-destructive">
-                    {balanceLoading ? "..." : `₹${(currentBalance?.outstanding || 0).toLocaleString("en-IN")}`}
+                  <p className={cn(
+                    "text-lg font-bold",
+                    (currentBalance?.outstanding || 0) > 0
+                      ? "text-destructive"
+                      : (currentBalance?.outstanding || 0) < 0
+                        ? "text-green-600 dark:text-green-400"
+                        : "",
+                  )}>
+                    {balanceLoading
+                      ? "..."
+                      : `₹${Math.abs(currentBalance?.outstanding || 0).toLocaleString("en-IN")}${
+                          (currentBalance?.outstanding || 0) < 0
+                            ? " Cr"
+                            : (currentBalance?.outstanding || 0) > 0
+                              ? " Dr"
+                              : ""
+                        }`}
                   </p>
                 </div>
                 <div className="p-3 rounded-lg border bg-muted/50">
@@ -605,21 +499,21 @@ export function CustomerBalanceAdjustmentDialog({
               </div>
             )}
 
-            {/* Balance Breakdown */}
+            {/* Balance Breakdown — aligned with Customer Ledger recon */}
             {selectedCustomerId && !balanceLoading && currentBalance?.breakdown && (
               <details className="text-xs border rounded-md">
                 <summary className="px-3 py-2 cursor-pointer text-muted-foreground hover:text-foreground font-medium">
-                  Balance Breakdown
+                  Balance Breakdown (same as Customer Ledger)
                 </summary>
                 <div className="px-3 pb-2 space-y-1">
                   {[
                     ["Opening Balance", currentBalance.breakdown.openingBalance],
                     ["+ Gross Invoices", currentBalance.breakdown.totalGrossInvoices],
-                    ["− Cash/UPI Payments", currentBalance.breakdown.totalCashPayments],
-                    ["− Advances Booked", currentBalance.breakdown.totalAdvanceBooked],
-                    ["− Sale Returns", currentBalance.breakdown.totalReturns],
-                    ["+ Advance Refunds", currentBalance.breakdown.totalRefunds],
-                    ["+ Refunds Paid", currentBalance.breakdown.totalRefundsPaid],
+                    ["− CN/SR on Invoices", -currentBalance.breakdown.totalCnOnInvoices],
+                    ["− Pending Sale Returns", -currentBalance.breakdown.totalReturns],
+                    ["− Cash/UPI/Card Received", -currentBalance.breakdown.totalCashPayments],
+                    ["− Advance Applied", -currentBalance.breakdown.totalAdvanceApplied],
+                    ["− CN Applied", -currentBalance.breakdown.totalCnApplied],
                     ["± Adjustments", currentBalance.breakdown.totalAdjustments],
                   ].map(([label, val]) => (
                     <div key={String(label)} className="flex justify-between">
@@ -629,8 +523,17 @@ export function CustomerBalanceAdjustmentDialog({
                   ))}
                   <div className="flex justify-between border-t pt-1 font-semibold">
                     <span>= Outstanding</span>
-                    <span className="font-mono">₹{currentBalance.outstanding.toLocaleString("en-IN")}</span>
+                    <span className="font-mono">
+                      ₹{Math.abs(currentBalance.outstanding).toLocaleString("en-IN")}
+                      {currentBalance.outstanding < 0 ? " Cr" : currentBalance.outstanding > 0 ? " Dr" : ""}
+                    </span>
                   </div>
+                  {currentBalance.breakdown.unusedAdvance > 0 && (
+                    <div className="flex justify-between text-muted-foreground pt-1">
+                      <span>Advance available (not in outstanding)</span>
+                      <span className="font-mono">₹{currentBalance.breakdown.unusedAdvance.toLocaleString("en-IN")}</span>
+                    </div>
+                  )}
                 </div>
               </details>
             )}
@@ -640,17 +543,22 @@ export function CustomerBalanceAdjustmentDialog({
               <>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label>New Outstanding</Label>
+                    <Label>New Outstanding (Dr)</Label>
                     <Input
                       type="number"
-                      placeholder={String(currentBalance?.outstanding || 0)}
+                      placeholder={String(Math.max(0, currentBalance?.outstanding || 0))}
                       value={newOutstanding}
                       onChange={(e) => setNewOutstanding(e.target.value)}
                     />
                     {newOutstanding !== "" && (
-                      <Badge variant={outstandingDiff > 0 ? "destructive" : outstandingDiff < 0 ? "default" : "secondary"} className="text-xs">
-                        {outstandingDiff > 0 ? "+" : ""}{outstandingDiff.toLocaleString("en-IN")}
-                      </Badge>
+                      <div className="space-y-1">
+                        <Badge variant={outstandingDiff > 0 ? "destructive" : outstandingDiff < 0 ? "default" : "secondary"} className="text-xs">
+                          Ledger entry: {outstandingDiff > 0 ? "+" : ""}{outstandingDiff.toLocaleString("en-IN")}
+                        </Badge>
+                        <p className="text-[10px] text-muted-foreground">
+                          Customer ledger posts this difference, not the new balance figure.
+                        </p>
+                      </div>
                     )}
                   </div>
                   <div className="space-y-2">
