@@ -131,7 +131,8 @@ export function buildThermalReceiptPrintCss(
   .thermal-print-80mm,
   .thermal-receipt-container,
   .modern-thermal-receipt,
-  .kids-thermal-receipt-80mm {
+  .kids-thermal-receipt-80mm,
+  .tvs-thermal-receipt-80mm {
     width: ${contentWidth} !important;
     max-width: ${contentWidth} !important;
     margin: 0 auto !important;

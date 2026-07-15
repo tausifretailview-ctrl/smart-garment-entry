@@ -22,6 +22,7 @@ import { A5HorizontalBillFormat } from './A5HorizontalBillFormat';
 import { ThermalPrint80mm } from './ThermalPrint80mm';
 import { ThermalReceiptCompact } from './ThermalReceiptCompact';
 import { ModernThermalReceipt80mm } from './ModernThermalReceipt80mm';
+import { TvsThermalReceipt80mm } from './TvsThermalReceipt80mm';
 import { KidsThermalReceipt80mm } from './KidsThermalReceipt80mm';
 import QRCode from 'qrcode';
 import {
@@ -566,7 +567,11 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
           );
         }
         const thermalStyle = (settings?.sale_settings as any)?.thermal_receipt_style || 'classic';
-        const ThermalComponent = thermalStyle === 'modern' ? ModernThermalReceipt80mm : thermalStyle === 'compact' ? ThermalReceiptCompact : ThermalPrint80mm;
+        const ThermalComponent =
+          thermalStyle === 'modern' ? ModernThermalReceipt80mm
+          : thermalStyle === 'compact' ? ThermalReceiptCompact
+          : thermalStyle === 'tvs' ? TvsThermalReceipt80mm
+          : ThermalPrint80mm;
         // Compute rate-wise GST breakdown for thermal receipt
         const rateMap = new Map<number, { taxable: number; tax: number }>();
         props.items.forEach(item => {
