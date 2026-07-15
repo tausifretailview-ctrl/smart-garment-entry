@@ -1,6 +1,6 @@
 import { DesktopWindowControls } from "@/components/desktop/DesktopWindowControls";
 import { HeaderMenubar } from "@/components/desktop/HeaderMenubar";
-import { Menu, ShoppingCart, Package, Download, LayoutGrid, BoxIcon, Plus, FileText, Banknote, RefreshCw, BarChart3, Settings, Users, Building2 } from "lucide-react";
+import { Menu, ShoppingCart, Package, Download, LayoutGrid, BoxIcon, Plus, FileText, Banknote, RefreshCw, BarChart3, Settings, Users, Building2, Wallet } from "lucide-react";
 import { UIScaleSelector } from "@/components/UIScaleSelector";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -414,10 +414,10 @@ export const Header = () => {
               Reports
             </button>
           )}
-          {can("settings_view") && (
-            <button type="button" className="erp-tbtn" onClick={() => orgNavigate("/settings")}>
-              <Settings className="erp-tbtn__icon" />
-              Settings
+          {can("daily_cashier_report") && (
+            <button type="button" className="erp-tbtn" onClick={() => orgNavigate("/daily-cashier-report")}>
+              <Wallet className="erp-tbtn__icon" />
+              Cashier Report
             </button>
           )}
           {/* Secondary quick actions — compact, after primary mockup row */}
