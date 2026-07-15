@@ -1209,7 +1209,7 @@ const PurchaseEntry = () => {
         dispatchPurchaseDraftSaved(currentOrganization.id, user.id);
       }
       clearEntrySession();
-      invalidatePurchases();
+      invalidatePurchases(currentOrganization?.id);
       startAutoSave();
     },
     [
@@ -2590,7 +2590,7 @@ const PurchaseEntry = () => {
         skipSnapshotEffectRef.current = true;
         importJustAppliedRef.current = true;
         await persistEntrySnapshotNow({ lineItems: mergedItems });
-        invalidatePurchases();
+        invalidatePurchases(currentOrganization?.id);
 
         // Blur so "1" shortcut works immediately
         (document.activeElement as HTMLElement)?.blur();

@@ -20,11 +20,21 @@ export function invalidateStatusBarSummary(queryClient: QueryClient, organizatio
 }
 
 /** Purchase bill list + summary tiles + shared dashboard stats. */
-export function invalidatePurchaseDashboardQueries(queryClient: QueryClient) {
+export function invalidatePurchaseDashboardQueries(
+  queryClient: QueryClient,
+  organizationId?: string,
+) {
   queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
   queryClient.invalidateQueries({ queryKey: ["purchase-trend"] });
-  queryClient.invalidateQueries({ queryKey: ["purchase-bills"] });
-  queryClient.invalidateQueries({ queryKey: ["purchase-summary"] });
+  queryClient.invalidateQueries({
+    queryKey: organizationId ? ["purchase-bills", organizationId] : ["purchase-bills"],
+    // Refetch inactive tab-cached list queries when Entry saves while dashboard is unmounted.
+    refetchType: "all",
+  });
+  queryClient.invalidateQueries({
+    queryKey: organizationId ? ["purchase-summary", organizationId] : ["purchase-summary"],
+    refetchType: "all",
+  });
   queryClient.invalidateQueries({ queryKey: ["last-purchase-bill"] });
   queryClient.invalidateQueries({ queryKey: ["all-purchase-bill-ids"] });
   queryClient.invalidateQueries({ queryKey: ["pos-products"] });

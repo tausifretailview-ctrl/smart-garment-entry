@@ -43,6 +43,7 @@ import {
 } from "@/lib/purchaseEntryPersistence";
 import { useSettings } from "@/hooks/useSettings";
 import { DASHBOARD_TAB_RETURN_QUERY_OPTIONS } from "@/lib/dashboardQueryOptions";
+import { invalidatePurchaseDashboardQueries } from "@/utils/invalidateDashboardQueries";
 import { runFixMissingMrpEquivalenceCheck } from "@/utils/fixMissingMrpEquivalence";
 import { fixMissingMrpForOrgViaRpc } from "@/utils/fixMissingMrpForOrg";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -636,6 +637,8 @@ const PurchaseBillDashboard = () => {
     },
     enabled: purchaseQueriesEnabled,
     ...DASHBOARD_TAB_RETURN_QUERY_OPTIONS,
+    // After Entry save, list must refresh when user opens this dashboard (invalidation marks stale).
+    refetchOnMount: true,
   });
 
   const bills = billsQueryData?.bills ?? [];
@@ -667,9 +670,13 @@ const PurchaseBillDashboard = () => {
     refreshBrowserDraftMeta();
     void checkDraft();
     setDraftBannerDismissed(true);
-    void queryClient.invalidateQueries({ queryKey: ["purchase-bills"] });
+    if (currentOrganization?.id) {
+      invalidatePurchaseDashboardQueries(queryClient, currentOrganization.id);
+    } else {
+      void queryClient.invalidateQueries({ queryKey: ["purchase-bills"], refetchType: "all" });
+    }
     void refetchBills();
-  }, [checkDraft, queryClient, refetchBills, refreshBrowserDraftMeta]);
+  }, [checkDraft, currentOrganization?.id, queryClient, refetchBills, refreshBrowserDraftMeta]);
 
   // Entry tab save/discards clear sessionStorage — refresh banner + bill list (Windows tab cache).
   useEffect(() => {
@@ -680,12 +687,24 @@ const PurchaseBillDashboard = () => {
     );
   }, [currentOrganization?.id, user?.id, syncAfterPurchaseDraftCommitted]);
 
-  // When user switches to this dashboard tab, re-read browser draft meta (may have been cleared on save).
+  // When user switches to this dashboard tab, re-read browser draft meta and refresh list.
   useEffect(() => {
     if (!location.pathname.includes("purchase-bill")) return;
     refreshBrowserDraftMeta();
     void checkDraft();
-  }, [location.pathname, refreshBrowserDraftMeta, checkDraft]);
+    if (!purchaseQueriesEnabled || !currentOrganization?.id) return;
+    void queryClient.refetchQueries({
+      queryKey: ["purchase-bills", currentOrganization.id],
+      type: "active",
+    });
+  }, [
+    location.pathname,
+    refreshBrowserDraftMeta,
+    checkDraft,
+    purchaseQueriesEnabled,
+    currentOrganization?.id,
+    queryClient,
+  ]);
 
   const fetchBillItems = async (billId: string, isCancelled?: boolean) => {
     if (billItems[billId]) {

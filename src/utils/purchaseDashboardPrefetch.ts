@@ -10,6 +10,7 @@ export function purchaseBillsDefaultQueryKey(organizationId: string) {
     "purchase-bills",
     organizationId,
     "",
+    "all",
     "",
     "",
     "desc",
