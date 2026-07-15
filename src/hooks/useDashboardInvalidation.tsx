@@ -48,10 +48,13 @@ export const useDashboardInvalidation = () => {
     [queryClient],
   );
 
-  const invalidatePurchases = useCallback(() => {
-    invalidatePurchaseDashboardQueries(queryClient);
-    queryClient.invalidateQueries({ queryKey: ["statusbar-summary"] });
-  }, [queryClient]);
+  const invalidatePurchases = useCallback(
+    (organizationId?: string) => {
+      invalidatePurchaseDashboardQueries(queryClient, organizationId);
+      queryClient.invalidateQueries({ queryKey: ["statusbar-summary"] });
+    },
+    [queryClient],
+  );
 
   const invalidateCustomers = useCallback(
     (organizationId?: string) => {
