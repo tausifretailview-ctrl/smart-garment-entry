@@ -303,6 +303,8 @@ type ExcelImportLoadingState = {
 };
 
 const BARCODE_VALIDATION_CHUNK = 500;
+/** Full-screen overlay only for large bills — routine adds validate silently in the background. */
+const BARCODE_VALIDATION_OVERLAY_MIN = 50;
 /** PostgREST `.in()` via GET — keep small to avoid URL length limits (barcodes + UUIDs). */
 const BARCODE_IN_QUERY_SIZE = 80;
 
@@ -1795,28 +1797,34 @@ const PurchaseEntry = () => {
 
       if (uniqueBarcodes.length > 0) {
         const totalChunks = Math.ceil(uniqueBarcodes.length / BARCODE_VALIDATION_CHUNK);
-        setBarcodeValidationProgress({
-          current: 0,
-          total: totalChunks,
-          label: `Validating barcodes (0 of ${uniqueBarcodes.length})`,
-        });
+        const showValidationOverlay =
+          uniqueBarcodes.length >= BARCODE_VALIDATION_OVERLAY_MIN || totalChunks > 1;
+        if (showValidationOverlay) {
+          setBarcodeValidationProgress({
+            current: 0,
+            total: totalChunks,
+            label: `Validating barcodes (0 of ${uniqueBarcodes.length})`,
+          });
+        }
         try {
           barcodeLookup = await fetchBarcodeDuplicateLookup(
             currentOrganization.id,
             uniqueBarcodes,
-            (currentChunk, total, validatedCount, totalBarcodes) => {
-              if (checkGen !== barcodeCheckGenRef.current) return;
-              setBarcodeValidationProgress({
-                current: currentChunk,
-                total,
-                label: `Validating barcodes (${validatedCount} of ${totalBarcodes})`,
-              });
-            },
+            showValidationOverlay
+              ? (currentChunk, total, validatedCount, totalBarcodes) => {
+                  if (checkGen !== barcodeCheckGenRef.current) return;
+                  setBarcodeValidationProgress({
+                    current: currentChunk,
+                    total,
+                    label: `Validating barcodes (${validatedCount} of ${totalBarcodes})`,
+                  });
+                }
+              : undefined,
           );
         } catch (err) {
           console.error("[PurchaseEntry] Batched barcode validation failed:", err);
         } finally {
-          if (checkGen === barcodeCheckGenRef.current) {
+          if (showValidationOverlay && checkGen === barcodeCheckGenRef.current) {
             setBarcodeValidationProgress(null);
           }
         }
