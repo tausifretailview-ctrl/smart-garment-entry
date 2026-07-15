@@ -244,7 +244,10 @@ export function LabelCalibrationUI({
   const visibleUserPresets = showAllModes
     ? presets
     : presets.filter((p) => presetMatchesPrintMode(p, printMode));
-  const allPresets = [...modeFilteredBuiltInPresets, ...visibleUserPresets];
+  const builtInWithoutDbOverrides = modeFilteredBuiltInPresets.filter(
+    (builtin) => !presets.some((p) => p.name === builtin.name),
+  );
+  const allPresets = [...builtInWithoutDbOverrides, ...visibleUserPresets];
   const a4UserPresets = presets.filter((p) => presetMatchesPrintMode(p, "a4"));
   const modeFilteredTemplates =
     printMode === "thermal"
@@ -334,6 +337,8 @@ export function LabelCalibrationUI({
     if (onSavePreset) {
       setSaving(true);
       try { await onSavePreset(updatedPreset); } finally { setSaving(false); }
+      setActivePresetName(presetName);
+      loadedDbPresetRef.current = presetName;
     } else if (onPresetsChange) {
       const updated = presets.map((p) => p.name === presetName ? updatedPreset : p);
       onPresetsChange(updated);
@@ -359,6 +364,8 @@ export function LabelCalibrationUI({
       setSaving(true);
       try {
         await onSavePreset(newPreset);
+        setActivePresetName(newPreset.name);
+        loadedDbPresetRef.current = newPreset.name;
         setNewPresetName("");
         setSavePresetOpen(false);
       } finally { setSaving(false); }
