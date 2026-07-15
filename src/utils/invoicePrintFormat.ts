@@ -41,7 +41,7 @@ export type PosBillFormat = 'a4' | 'a5' | 'a5-horizontal' | 'thermal';
 
 function fallbackFormatForFullPageTemplate(
   invoicePaperFormat?: string,
-): PosBillFormat {
+): Exclude<PosBillFormat, 'thermal'> {
   if (invoicePaperFormat === 'a5-horizontal') return 'a5-horizontal';
   if (invoicePaperFormat === 'a5' || invoicePaperFormat === 'a5-vertical') return 'a5';
   return 'a4';
