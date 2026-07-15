@@ -308,32 +308,32 @@ function FreeTextFieldCombobox({
         setHighlightIndex((i) => Math.max(i - 1, 0));
         return;
       }
-      if (e.key === "Enter") {
-        e.preventDefault();
-        e.stopPropagation();
-        // Accept an explicitly arrow-highlighted suggestion that differs from the
-        // typed text, then ALWAYS close the list and advance to the next field in
-        // the SAME Enter press. highlightIndex 0 is the "Use <typed>" row (or the
-        // exact match), so plain typing keeps the typed text and just moves on —
-        // one Enter, one hop. (No handleSelect here: it refocuses and reopens.)
+    }
+
+    if (e.key === "ArrowDown" && !open && displayItems.length > 0) {
+      e.preventDefault();
+      setOpen(true);
+      return;
+    }
+
+    if (e.key === "Enter") {
+      e.preventDefault();
+      e.stopPropagation();
+      // Accept an explicitly arrow-highlighted suggestion that differs from the
+      // typed text, then close the list and advance to the next field in one Enter.
+      if (open && displayItems.length > 0) {
         const item = displayItems[highlightIndex];
         if (
-          open &&
           highlightIndex > 0 &&
           item &&
           value.trim().toLowerCase() !== item.value.trim().toLowerCase()
         ) {
           onChange(item.value);
         }
-        setOpen(false);
-        onKeyDown?.(e);
-        return;
       }
-    }
-
-    if (e.key === "ArrowDown" && !open && displayItems.length > 0) {
-      e.preventDefault();
-      setOpen(true);
+      setOpen(false);
+      suppressOpenRef.current = true;
+      onKeyDown?.(e);
       return;
     }
 
@@ -1781,10 +1781,6 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
   const handleEnterAsTab = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
       const currentEl = e.target as HTMLElement;
-      if (currentEl.getAttribute("data-combobox-open") === "true") {
-        return;
-      }
-
       e.preventDefault();
       const currentId = currentEl.id || currentEl.getAttribute("name") || "";
 
