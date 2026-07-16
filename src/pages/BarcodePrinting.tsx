@@ -127,6 +127,7 @@ import {
   isRanawatBlingPresetName,
   resolveRanawatBlingLabelConfig,
 } from "@/constants/ranawatBlingLabelTemplate";
+import { upsertPrinterPresetRow } from "@/utils/printerPresetDbCompat";
 
 const precisionPresetStorageKey = (orgId: string) => `precision_active_preset_${orgId}`;
 
@@ -2134,38 +2135,50 @@ export default function BarcodePrinting() {
     async (preset: CalibrationPreset): Promise<void> => {
       if (!currentOrganization?.id) return;
       const printMode = preset.printMode ?? precisionSettings.printMode;
-      const { data, error } = await supabase
-        .from("printer_presets")
-        .upsert(
-          {
-            id: preset.id || undefined,
-            organization_id: currentOrganization.id,
-            name: preset.name,
-            label_width: preset.width,
-            label_height: preset.height,
-            x_offset: preset.xOffset,
-            y_offset: preset.yOffset,
-            v_gap: preset.vGap,
-            h_gap: preset.hGap ?? 0,
-            a4_cols: preset.a4Cols ?? precisionSettings.a4Cols,
-            a4_rows: preset.a4Rows ?? precisionSettings.a4Rows,
-            print_mode: printMode,
-            label_config: preset.labelConfig as any,
-            thermal_cols:
-              preset.thermalCols ??
-              precisionSettings.thermalCols ??
-              printModeToThermalCols(printMode),
-          },
-          { onConflict: "organization_id,name" },
-        )
-        .select("*")
-        .single();
+      const row: Record<string, unknown> = {
+        id: preset.id || undefined,
+        organization_id: currentOrganization.id,
+        name: preset.name,
+        label_width: preset.width,
+        label_height: preset.height,
+        x_offset: preset.xOffset,
+        y_offset: preset.yOffset,
+        v_gap: preset.vGap,
+        h_gap: preset.hGap ?? 0,
+        a4_cols: preset.a4Cols ?? precisionSettings.a4Cols,
+        a4_rows: preset.a4Rows ?? precisionSettings.a4Rows,
+        print_mode: printMode,
+        label_config: preset.labelConfig as any,
+        thermal_cols:
+          preset.thermalCols ??
+          precisionSettings.thermalCols ??
+          printModeToThermalCols(printMode),
+      };
+
+      let data;
+      let error;
+      ({ data, error } = await upsertPrinterPresetRow(row));
 
       if (error) {
         console.error("Failed to save printer preset:", error);
         toast.error(error.message ? `Failed to save preset: ${error.message}` : "Failed to save preset");
         return;
       }
+
+      setPrecisionSettings((prev) => ({
+        ...prev,
+        labelWidth: preset.width,
+        labelHeight: preset.height,
+        xOffset: preset.xOffset,
+        yOffset: preset.yOffset,
+        vGap: preset.vGap,
+        hGap: preset.hGap ?? 0,
+        thermalCols:
+          preset.thermalCols ??
+          prev.thermalCols ??
+          printModeToThermalCols(printMode),
+        printMode,
+      }));
 
       if (preset.labelConfig) {
         try {
@@ -2283,29 +2296,28 @@ export default function BarcodePrinting() {
     const cleared = await clearDefaultPresetsForMode(mode);
     if (!cleared) return;
 
-    const { data: upserted, error } = await supabase
-      .from("printer_presets")
-      .upsert({
-        organization_id: currentOrganization.id,
-        name: templateName,
-        label_width: template.labelWidth || precisionSettings.labelWidth,
-        label_height: template.labelHeight || precisionSettings.labelHeight,
-        x_offset: precisionSettings.xOffset,
-        y_offset: precisionSettings.yOffset,
-        v_gap: precisionSettings.vGap,
-        h_gap: precisionSettings.hGap,
-        a4_cols: precisionSettings.a4Cols,
-        a4_rows: precisionSettings.a4Rows,
-        print_mode: mode,
-        label_config: template.config as any,
-        thermal_cols:
-          mode === "thermal3up" ? 3 : mode === "thermal2up" ? 2 : precisionSettings.thermalCols || 1,
-        is_default: true,
-      }, { onConflict: "organization_id,name" })
-      .select("id")
-      .maybeSingle();
+    const templateRow: Record<string, unknown> = {
+      organization_id: currentOrganization.id,
+      name: templateName,
+      label_width: template.labelWidth || precisionSettings.labelWidth,
+      label_height: template.labelHeight || precisionSettings.labelHeight,
+      x_offset: precisionSettings.xOffset,
+      y_offset: precisionSettings.yOffset,
+      v_gap: precisionSettings.vGap,
+      h_gap: precisionSettings.hGap,
+      a4_cols: precisionSettings.a4Cols,
+      a4_rows: precisionSettings.a4Rows,
+      print_mode: mode,
+      label_config: template.config as any,
+      thermal_cols:
+        mode === "thermal3up" ? 3 : mode === "thermal2up" ? 2 : precisionSettings.thermalCols || 1,
+      is_default: true,
+    };
 
-    if (error || !upserted) {
+    const { data: upserted, error } = await upsertPrinterPresetRow(templateRow, { single: false });
+    const upsertedRow = Array.isArray(upserted) ? upserted[0] : upserted;
+
+    if (error || !upsertedRow) {
       console.error("Failed to set template default:", error);
       toast.error(error?.message ? `Failed to set default: ${error.message}` : "Failed to set default");
       return;
@@ -2447,24 +2459,24 @@ export default function BarcodePrinting() {
       labelConfig: precisionSettings.labelConfig,
     };
 
-    const { error } = await supabase
-      .from("printer_presets")
-      .upsert({
-        id: existing.id,
-        organization_id: currentOrganization.id,
-        name: preset.name,
-        label_width: preset.width,
-        label_height: preset.height,
-        x_offset: preset.xOffset,
-        y_offset: preset.yOffset,
-        v_gap: preset.vGap,
-        h_gap: preset.hGap ?? 0,
-        a4_cols: preset.a4Cols ?? precisionSettings.a4Cols,
-        a4_rows: preset.a4Rows ?? precisionSettings.a4Rows,
-        print_mode: precisionSettings.printMode,
-        label_config: preset.labelConfig as any,
-        thermal_cols: preset.thermalCols || precisionSettings.thermalCols || 1,
-      }, { onConflict: "organization_id,name" });
+    const presetRow: Record<string, unknown> = {
+      id: existing.id,
+      organization_id: currentOrganization.id,
+      name: preset.name,
+      label_width: preset.width,
+      label_height: preset.height,
+      x_offset: preset.xOffset,
+      y_offset: preset.yOffset,
+      v_gap: preset.vGap,
+      h_gap: preset.hGap ?? 0,
+      a4_cols: preset.a4Cols ?? precisionSettings.a4Cols,
+      a4_rows: preset.a4Rows ?? precisionSettings.a4Rows,
+      print_mode: precisionSettings.printMode,
+      label_config: preset.labelConfig as any,
+      thermal_cols: preset.thermalCols || precisionSettings.thermalCols || 1,
+    };
+
+    const { error } = await upsertPrinterPresetRow(presetRow, { single: false, select: "id" });
     if (error) {
       toast.error("Failed to save preset");
       return false;
@@ -4497,7 +4509,8 @@ export default function BarcodePrinting() {
       });
     }
 
-    await new Promise<void>((resolve) => setTimeout(resolve, 300));
+    await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+    await new Promise<void>((resolve) => setTimeout(resolve, 200));
 
     const printArea = precisionPrintRef.current;
     if (!printArea) return;
@@ -4505,16 +4518,17 @@ export default function BarcodePrinting() {
     const labelHTML = printArea.innerHTML;
     const cols = getPrecisionThermalCols(precisionSettings.printMode, precisionSettings.thermalCols);
     const horizontalGap = cols > 1 ? getThermalMultiUpGap() : 0;
-    const w = effectivePrecisionLabelWidth * cols + horizontalGap * Math.max(0, cols - 1);
+    const labelW = effectivePrecisionLabelWidth;
+    const labelH = effectivePrecisionLabelHeight;
+    const w = labelW * cols + horizontalGap * Math.max(0, cols - 1);
     const isA4 = precisionSettings.printMode === "a4";
-    // Thermal: page size must match physical sticker (50×38 etc.). vGap is A4 row gap only.
-    const h = isA4
-      ? 297
-      : effectivePrecisionLabelHeight;
+    // Thermal: page size must match physical sticker. vGap is roll spacing only — never add to page height.
+    const h = isA4 ? 297 : labelH;
 
     const htmlDoc = buildPrecisionLabelDocument(labelHTML, {
       contentWidthMm: w,
       pageHeightMm: h,
+      labelWidthMm: labelW,
       isA4,
       thermalCols: cols,
     });
@@ -4717,21 +4731,20 @@ export default function BarcodePrinting() {
     // Auto-save calibration to printer_presets
     if (currentOrganization?.id) {
       const presetName = `Auto-Cal ${precisionSettings.labelWidth}x${precisionSettings.labelHeight}mm`;
-      const { error } = await supabase
-        .from("printer_presets")
-        .upsert({
-          organization_id: currentOrganization.id,
-          name: presetName,
-          label_width: precisionSettings.labelWidth,
-          label_height: precisionSettings.labelHeight,
-          x_offset: precisionSettings.xOffset,
-          y_offset: precisionSettings.yOffset,
-          v_gap: precisionSettings.vGap,
-          h_gap: precisionSettings.hGap,
-          a4_cols: precisionSettings.a4Cols,
-          a4_rows: precisionSettings.a4Rows,
-          thermal_cols: precisionSettings.thermalCols || 1,
-        }, { onConflict: "organization_id,name" });
+      const testRow: Record<string, unknown> = {
+        organization_id: currentOrganization.id,
+        name: presetName,
+        label_width: precisionSettings.labelWidth,
+        label_height: precisionSettings.labelHeight,
+        x_offset: precisionSettings.xOffset,
+        y_offset: precisionSettings.yOffset,
+        v_gap: precisionSettings.vGap,
+        h_gap: precisionSettings.hGap,
+        a4_cols: precisionSettings.a4Cols,
+        a4_rows: precisionSettings.a4Rows,
+        thermal_cols: precisionSettings.thermalCols || 1,
+      };
+      const { error } = await upsertPrinterPresetRow(testRow, { single: false });
       if (error) {
         toast.error("Failed to save calibration");
       } else {
