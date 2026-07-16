@@ -21,6 +21,7 @@ import { fetchCustomerBalanceSnapshot } from "@/utils/customerBalanceUtils";
 import {
   fetchCustomerFinancialSnapshotMap,
   fetchCustomersWithFinancialActivity,
+  fetchAuthoritativeCustomerSignedOutstanding,
   invalidateCustomerFinancialSnapshot,
 } from "@/utils/customerFinancialSnapshot";
 import {
@@ -97,19 +98,31 @@ export function CustomerBalanceAdjustmentDialog({
     enabled: !!organizationId && open,
   });
 
-  // Current outstanding — same math as Customer Ledger / useCustomerBalance
+  // Current outstanding — SQL reconcile (canonical) + JS breakdown for audit display
   const { data: currentBalance, isLoading: balanceLoading } = useQuery({
     queryKey: ["customer-adjustment-balance", selectedCustomerId, organizationId],
     queryFn: async () => {
-      const snap = await fetchCustomerBalanceSnapshot(
-        supabase,
-        organizationId,
-        selectedCustomerId,
-      );
+      const [sqlOutstanding, snap] = await Promise.all([
+        fetchAuthoritativeCustomerSignedOutstanding(
+          supabase,
+          organizationId,
+          selectedCustomerId,
+        ),
+        fetchCustomerBalanceSnapshot(
+          supabase,
+          organizationId,
+          selectedCustomerId,
+        ),
+      ]);
+
+      const jsOutstanding = Math.round(snap.balance);
+      const mismatch = Math.abs(sqlOutstanding - jsOutstanding) > 1;
 
       return {
-        // Signed receivable: positive = Dr outstanding, negative = Cr
-        outstanding: Math.round(snap.balance),
+        // Signed receivable: positive = Dr outstanding, negative = Cr (SQL reconcile)
+        outstanding: sqlOutstanding,
+        jsOutstanding,
+        outstandingMismatch: mismatch,
         advance: Math.round(snap.unusedAdvanceTotal),
         breakdown: {
           openingBalance: snap.openingBalance,
@@ -211,17 +224,40 @@ export function CustomerBalanceAdjustmentDialog({
       if (!selectedCustomerId || !reason.trim()) throw new Error("Customer and reason are required");
       if (newOutstanding === "" && newAdvance === "") throw new Error("Enter at least one adjustment value");
 
-      const outDelta = newOutstanding !== "" ? outstandingDiff : 0;
-      const effectiveAdvDiff = newAdvance !== "" ? advanceDiff : 0;
+      const [sqlOutstanding, snap] = await Promise.all([
+        fetchAuthoritativeCustomerSignedOutstanding(
+          supabase,
+          organizationId,
+          selectedCustomerId,
+        ),
+        fetchCustomerBalanceSnapshot(
+          supabase,
+          organizationId,
+          selectedCustomerId,
+        ),
+      ]);
+      const currentOutstanding = sqlOutstanding;
+      const currentAdvance = Math.round(snap.unusedAdvanceTotal);
+
+      if (Math.abs(sqlOutstanding - Math.round(snap.balance)) > 1) {
+        console.warn(
+          "[BalanceAdjustment] SQL vs JS outstanding mismatch",
+          { sqlOutstanding, jsOutstanding: snap.balance, customerId: selectedCustomerId },
+        );
+      }
+
+      const outDelta = newOutstanding !== "" ? parseFloat(newOutstanding) - currentOutstanding : 0;
+      const effectiveAdvDiff =
+        newAdvance !== "" ? parseFloat(newAdvance) - currentAdvance : 0;
       const isOutstandingReduction = newOutstanding !== "" && outDelta < -0.5;
 
       const baseInsert = {
         organization_id: organizationId,
         customer_id: selectedCustomerId,
-        previous_outstanding: currentBalance?.outstanding || 0,
-        new_outstanding: newOutstanding !== "" ? parseFloat(newOutstanding) : currentBalance?.outstanding || 0,
-        previous_advance: currentBalance?.advance || 0,
-        new_advance: newAdvance !== "" ? parseFloat(newAdvance) : currentBalance?.advance || 0,
+        previous_outstanding: currentOutstanding,
+        new_outstanding: newOutstanding !== "" ? parseFloat(newOutstanding) : currentOutstanding,
+        previous_advance: currentAdvance,
+        new_advance: newAdvance !== "" ? parseFloat(newAdvance) : currentAdvance,
         advance_difference: effectiveAdvDiff,
         reason: reason.trim(),
         created_by: user?.id,
@@ -538,6 +574,17 @@ export function CustomerBalanceAdjustmentDialog({
               </details>
             )}
 
+            {selectedCustomerId && !balanceLoading && currentBalance?.outstandingMismatch && (
+              <div className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                <span>
+                  Outstanding shown uses live SQL reconcile (₹{Math.abs(currentBalance.outstanding).toLocaleString("en-IN")}
+                  {currentBalance.outstanding < 0 ? " Cr" : currentBalance.outstanding > 0 ? " Dr" : ""}).
+                  A secondary calculation differed — save uses the SQL figure so the ledger matches.
+                </span>
+              </div>
+            )}
+
             {/* New Values */}
             {selectedCustomerId && !balanceLoading && (
               <>
@@ -556,7 +603,7 @@ export function CustomerBalanceAdjustmentDialog({
                           Ledger entry: {outstandingDiff > 0 ? "+" : ""}{outstandingDiff.toLocaleString("en-IN")}
                         </Badge>
                         <p className="text-[10px] text-muted-foreground">
-                          Customer ledger posts this difference, not the new balance figure.
+                          Difference from current SQL outstanding (ledger-aligned), not opening + gross.
                         </p>
                       </div>
                     )}
