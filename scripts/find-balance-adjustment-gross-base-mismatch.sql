@@ -161,42 +161,9 @@ ORDER BY excess_over_correction DESC, created_at DESC;
 
 -- =============================================================================
 -- QUERY B — Per-customer summary (current outstanding vs last target)
+-- Run scripts/find-balance-adjustment-gross-base-mismatch-summary.sql
+-- (uses get_customer_party_balances batch — not per-row reconcile_customer_balance)
 -- =============================================================================
-/*
-WITH params AS (
-  SELECT 'YOUR_ORGANIZATION_UUID'::uuid AS organization_id
-),
-adj_rows AS (
-  -- same as QUERY A adj_rows CTE
-  ...
-),
-scored AS ( ... ),
-flagged AS ( ... )
-SELECT
-  f.customer_id,
-  f.customer_name,
-  f.phone,
-  COUNT(*) AS bad_adjustment_count,
-  ROUND(SUM(GREATEST(0, f.excess_over_correction)), 2) AS total_excess_over_correction,
-  ROUND(COALESCE(cc.current_outstanding, 0), 2) AS current_outstanding,
-  ROUND(MAX(f.new_outstanding), 2) AS last_target_outstanding,
-  ROUND(COALESCE(cc.current_outstanding, 0) - MAX(f.new_outstanding), 2) AS drift_from_target
-FROM flagged f
-LEFT JOIN (
-  SELECT
-    c.id AS customer_id,
-    (
-      SELECT COALESCE(SUM(r.amount), 0)::numeric
-      FROM public.reconcile_customer_balance(c.id, c.organization_id) AS r
-    ) AS current_outstanding
-  FROM public.customers c
-  CROSS JOIN params p
-  WHERE c.organization_id = p.organization_id
-) cc ON cc.customer_id = f.customer_id
-WHERE f.issue_class <> 'OK_OR_MINOR'
-GROUP BY f.customer_id, f.customer_name, f.phone, f.organization_id, cc.current_outstanding
-ORDER BY total_excess_over_correction DESC;
-*/
 
 
 -- =============================================================================

@@ -1,8 +1,7 @@
 -- =============================================================================
--- QUERY B — Per-customer summary (run after setting org UUID)
--- Copy this entire block into Supabase SQL editor (separate from QUERY A).
--- If this still times out on a very large org, use QUERY B LITE instead:
---   scripts/find-balance-adjustment-gross-base-mismatch-summary-lite.sql
+-- QUERY B LITE — Per-customer summary WITHOUT live current outstanding
+-- Use this if QUERY B still times out on very large orgs.
+-- Repair list + excess amounts come from adjustment rows only (Query A logic).
 -- =============================================================================
 
 WITH params AS (
@@ -117,15 +116,6 @@ flagged AS (
       ELSE 'OK_OR_MINOR'
     END AS issue_class
   FROM scored s
-),
-
--- One batch balance fetch (SQL-editor safe: skips auth when auth.uid() IS NULL).
--- Do NOT use per-row reconcile_customer_balance() here — it times out.
-party_bal AS (
-  SELECT
-    pb.customer_id,
-    pb.signed_balance AS current_outstanding
-  FROM public.get_customer_party_balances((SELECT organization_id FROM params)) pb
 )
 
 SELECT
@@ -134,12 +124,9 @@ SELECT
   f.phone,
   COUNT(*) AS bad_adjustment_count,
   ROUND(SUM(GREATEST(0, f.excess_over_correction)), 2) AS total_excess_over_correction,
-  ROUND(COALESCE(pb.current_outstanding, 0), 2) AS current_outstanding,
   ROUND(MAX(f.new_outstanding), 2) AS last_target_outstanding,
-  ROUND(COALESCE(pb.current_outstanding, 0) - MAX(f.new_outstanding), 2) AS drift_from_target,
   STRING_AGG(f.adjustment_id::text, ', ' ORDER BY f.created_at DESC) AS adjustment_ids
 FROM flagged f
-LEFT JOIN party_bal pb ON pb.customer_id = f.customer_id
 WHERE f.issue_class <> 'OK_OR_MINOR'
-GROUP BY f.customer_id, f.customer_name, f.phone, pb.current_outstanding
+GROUP BY f.customer_id, f.customer_name, f.phone
 ORDER BY total_excess_over_correction DESC;
