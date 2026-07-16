@@ -127,6 +127,19 @@ function normalizeRow(row: {
 }
 
 /**
+ * Signed net receivable from SQL reconcile (same as Customer Ledger / party balances).
+ * Use for balance adjustments — not gross invoiced or unaudited JS-only totals.
+ */
+export async function fetchAuthoritativeCustomerSignedOutstanding(
+  client: SupabaseClient,
+  organizationId: string,
+  customerId: string,
+): Promise<number> {
+  const snap = await fetchCustomerFinancialSnapshot(client, organizationId, customerId);
+  return Math.round(snap.outstandingDr);
+}
+
+/**
  * Single source of truth for customer headline numbers (live SQL RPC).
  */
 export async function fetchCustomerFinancialSnapshot(
