@@ -1,61 +1,54 @@
-# Repair Plan — 10 Legacy Balance Adjustment Mismatches
+## Verification result: repairs NOT yet applied
 
-## Context
+The freshly uploaded Query B export (`query-results-export-2026-07-16_14-53-21.csv`) still lists all 10 original customers with the same `total_excess_over_correction` values (₹69,350 total). If any row had been repaired via Delete → Recreate, it would have dropped out of the query result set (that query only returns rows where `issue_class <> 'OK_OR_MINOR'` and excess > ₹1).
 
-The gross-base bug in `CustomerBalanceAdjustmentDialog` is already patched (via Cursor). New adjustments now post the correct FIFO Dr-reduction. Ten pre-fix rows remain over-reduced — listed in the uploaded CSV, total excess **₹69,350** across 10 customers.
+### Row-by-row status (target vs current outstanding)
 
-The Balance Adj. screen already exposes per-row **Delete (reverses effect)** and **Reverse (counter-entry)** actions wired to `reverseBalanceAdjustmentVouchers` in `src/utils/applyAdjustmentToInvoices.ts`. No new code needed — this is a data-repair procedure using the fixed UI.
+| Customer | Phone | current_outstanding | last_target_outstanding | drift_from_target | Status |
+|---|---|---:|---:|---:|---|
+| Tanvi Taufu | 9920527067 | 4,700 | 10,850 | −6,150 | Not repaired |
+| KHADIJA SHEIKH | 8889466946 | −9,550 | 0 | −9,550 | Not repaired |
+| Sana Chunawala | 9920614596 | 5,300 | 9,100 | −3,800 | Not repaired |
+| APPROVAL | 7021241202 | 293,200 | 303,800 | −10,600 | Not repaired |
+| Zainab Motiwala Jog | 9920243536 | 19,700 | 27,100 | −7,400 | Not repaired |
+| Anees Bhai Office | 7521810294 | −3,900 | 5,700 | −9,600 | Not repaired |
+| Syeda Fatima Sayed | 9160116600 | 0 | 11,700 | −11,700 | Not repaired |
+| Anwari Khan | 9372421617 | −4,150 | 0 | −4,150 | Not repaired |
+| Sana Rahil | 8408840858 | 5,700 | 21,700 | −16,000 | Not repaired |
+| Aisha Moin Adhikari | 9029401233 | 10,500 | 28,700 | −18,200 | Not repaired |
 
-## Procedure (repeat once per row in the CSV)
+All ten still show negative drift (current outstanding is BELOW target) — confirming the earlier over-reduction is still in the ledger and no Delete/Recreate has been performed yet through the UI.
 
-For each of the 10 adjustment IDs:
+### Interpretation of `drift_from_target`
+
+Note that `drift_from_target` in this run (e.g. Tanvi −6,150, Sana Rahil −16,000) is often larger than `total_excess_over_correction` (Tanvi 10,850, Sana Rahil 3,500). That's because current outstanding also reflects any new sales/receipts posted AFTER the bad adjustment. The authoritative number to restore is `last_target_outstanding` — that is what the operator originally intended.
+
+### Action required (unchanged from the approved plan)
+
+For each of the 10 rows, in the app:
 
 ```text
 Accounts → Balance Adj. tab
- ├─ Search customer (phone from CSV is fastest, e.g. 7521810294)
- ├─ Locate the flagged adjustment row (match adjustment_id / date)
- ├─ Click the ↩ Reverse icon  → confirms a counter-entry (audit-preserving)
- │      OR
- │  Click the 🗑 Delete icon  → reverses effect + removes row (cleanest)
- └─ Click + New Balance Adjustment
+ ├─ Search by phone (fastest)
+ ├─ Locate the flagged adjustment (adjustment_id in CSV)
+ ├─ 🗑 Delete   (reverses FIFO effect via reverseBalanceAdjustmentVouchers)
+ └─ + New Balance Adjustment
        ├─ Customer: same
-       ├─ New Outstanding: value from `last_target_outstanding` (CSV col)
+       ├─ New Outstanding: last_target_outstanding from CSV
        ├─ Reason: original reason + " — reposted after FIFO fix"
-       └─ Save   (now uses corrected logic → correct FIFO amount posts)
+       └─ Save   (fixed dialog now posts correct FIFO amount)
 ```
 
-Recommended: **Delete → recreate**. Reverse leaves two rows in history; Delete keeps the customer ledger cleaner. Both call the same `reverseBalanceAdjustmentVouchers` helper that soft-deletes the linked `balance_adjustment` voucher entries.
+### After each repair — verify
 
-## The 10 rows to repair (from `query-results-export-2026-07-16_14-40-21.csv`)
+1. Open the customer's Ledger → Outstanding should equal `last_target_outstanding`.
+2. Re-export Query B (`scripts/find-balance-adjustment-gross-base-mismatch-summary.sql`) — the repaired customer must disappear from the results (or show `total_excess_over_correction ≈ 0`).
 
-| Customer | Phone | Target Outstanding | Excess to recover |
-|---|---|---:|---:|
-| Tanvi Taufu | 9920527067 | 10,850 | 10,850 |
-| KHADIJA SHEIKH | 8889466946 | 0 | 9,300 |
-| Sana Chunawala | 9920614596 | 9,100 | 8,550 |
-| APPROVAL | 7021241202 | 303,800 | 8,050 |
-| Zainab Motiwala Jog | 9920243536 | 27,100 | 7,950 |
-| Anees Bhai Office | 7521810294 | 5,700 | 7,700 |
-| Syeda Fatima Sayed | 9160116600 | 11,700 | 6,350 |
-| Anwari Khan | 9372421617 | 0 | 4,150 |
-| Sana Rahil | 8408840858 | 21,700 | 3,500 |
-| Aisha Moin Adhikari | 9029401233 | 28,700 | 3,000 |
-| **Total** | | | **₹69,350** |
+### Completion criterion
 
-## Verification after each repair
+Repairs are complete when Query B returns **zero rows** for this organization. Current run returns 10 rows → 0 of 10 done.
 
-1. Open **Customer Ledger** for that customer → confirm Outstanding equals the CSV `last_target_outstanding`.
-2. Re-run `scripts/find-balance-adjustment-gross-base-mismatch-summary.sql` — the customer should drop out of the result set (or show `drift_from_target ≈ 0`).
-3. Per-row deep check (optional): `scripts/verify-balance-adjustment-fifo.sql` with the new adjustment_id.
+### Out of scope
 
-## Guardrails
-
-- Run during low-traffic window; each repair is one customer only.
-- Do NOT hand-edit `voucher_entries` or `customer_balance_adjustments` in SQL — the UI actions use tested reversal code that keeps ledger, advances, and CN links consistent.
-- If a customer had further receipts/CNs applied *after* the bad adjustment, still Delete → Recreate; FIFO re-computes against the current invoice state.
-- No app code changes in this plan (bug already fixed). Business logic untouched.
-
-## Out of scope
-
-- Bulk SQL repair script (possible but riskier; only 10 rows — manual UI path is safer and auditable).
-- Changes to detection scripts or the fixed dialog code.
+- No code changes (the underlying bug in `CustomerBalanceAdjustmentDialog` is already fixed via Cursor).
+- No bulk SQL repair — manual UI Delete→Recreate is safer and auditable for 10 rows.
