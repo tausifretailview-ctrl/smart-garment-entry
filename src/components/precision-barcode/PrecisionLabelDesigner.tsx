@@ -7,7 +7,7 @@ import { Slider } from "@/components/ui/slider";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Save, RotateCcw, ZoomIn, ZoomOut, Move, Plus, Trash2, Minus } from "lucide-react";
+import { Save, RotateCcw, ZoomIn, ZoomOut, Move, Plus, Trash2, Minus, ArrowLeft, ArrowRight, ArrowUp, ArrowDown } from "lucide-react";
 import { LabelDesignConfig, LabelFieldConfig, LabelLineConfig, FieldKey, LabelItem, CustomTextSlot } from "@/types/labelTypes";
 import { DraggableLabelCanvas } from "./DraggableLabelCanvas";
 import { getUOMLabel, getUOMFullLabel } from "@/constants/uom";
@@ -22,6 +22,12 @@ import {
   buildLabelDesignerFieldLabels,
   filterLabelFieldKeys,
 } from "@/utils/productFieldSettingsForLabels";
+import {
+  applyLabelDesignerShift,
+  captureLabelDesignerPositions,
+  nudgeLabelDesignerConfig,
+  type LabelDesignerPositionSnapshot,
+} from "@/utils/labelDesignerGroupMove";
 
 interface PrecisionLabelDesignerProps {
   labelWidth: number;
@@ -119,6 +125,8 @@ export function PrecisionLabelDesigner({
   const [activeLineIndex, setActiveLineIndex] = useState<number | null>(null);
   const [activeCustomTextIndex, setActiveCustomTextIndex] = useState<number | null>(null);
   const [zoom, setZoom] = useState(3);
+  const [selectAllActive, setSelectAllActive] = useState(false);
+  const groupDragSnapshotRef = useRef<LabelDesignerPositionSnapshot | null>(null);
 
   const customTextFields = getCustomTextFields(config);
   const hideLegacyCustomTextField = usesCustomTextFields(config);
@@ -168,6 +176,55 @@ export function PrecisionLabelDesigner({
     },
     [config, onConfigChange]
   );
+
+  const handleGroupDragStart = useCallback(() => {
+    groupDragSnapshotRef.current = captureLabelDesignerPositions(config);
+    setActiveField(null);
+    setActiveLineIndex(null);
+    setActiveCustomTextIndex(null);
+  }, [config]);
+
+  const handleGroupDrag = useCallback(
+    (dx: number, dy: number) => {
+      const snapshot = groupDragSnapshotRef.current;
+      if (!snapshot) return;
+      onConfigChange(
+        applyLabelDesignerShift(config, snapshot, dx, dy, {
+          width: labelWidth,
+          height: labelHeight,
+        }),
+      );
+    },
+    [config, onConfigChange, labelWidth, labelHeight],
+  );
+
+  const handleGroupDragEnd = useCallback(() => {
+    groupDragSnapshotRef.current = null;
+  }, []);
+
+  const handleNudge = useCallback(
+    (direction: "left" | "right" | "up" | "down") => {
+      onConfigChange(
+        nudgeLabelDesignerConfig(config, direction, {
+          width: labelWidth,
+          height: labelHeight,
+        }),
+      );
+    },
+    [config, onConfigChange, labelWidth, labelHeight],
+  );
+
+  const toggleSelectAll = useCallback(() => {
+    setSelectAllActive((prev) => {
+      const next = !prev;
+      if (next) {
+        setActiveField(null);
+        setActiveLineIndex(null);
+        setActiveCustomTextIndex(null);
+      }
+      return next;
+    });
+  }, []);
 
   const resetToDefault = () => {
     onConfigChange({
@@ -223,6 +280,10 @@ export function PrecisionLabelDesigner({
       setCustomTextFields(slots);
       setActiveCustomTextIndex(null);
     },
+    selectAllActive,
+    onGroupDragStart: handleGroupDragStart,
+    onGroupDrag: handleGroupDrag,
+    onGroupDragEnd: handleGroupDragEnd,
   };
 
   return (
@@ -746,7 +807,33 @@ export function PrecisionLabelDesigner({
       <div className="flex flex-col min-h-0 h-full min-w-0 border rounded-md bg-card overflow-hidden">
         <div className="flex items-center justify-between px-2.5 py-1.5 border-b shrink-0 bg-muted/30">
           <h3 className="text-xs font-bold uppercase tracking-wide text-foreground">Live Preview</h3>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1 flex-wrap justify-end">
+            <Button
+              variant={selectAllActive ? "default" : "outline"}
+              size="sm"
+              className="h-7 text-[10px] px-2"
+              onClick={toggleSelectAll}
+              title="Select all fields and drag together"
+            >
+              <Move className="h-3 w-3 mr-1" />
+              Select All
+            </Button>
+            {selectAllActive && (
+              <div className="flex items-center gap-0.5 border rounded-md p-0.5 bg-background">
+                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleNudge("left")} title="Move all left 0.5mm">
+                  <ArrowLeft className="h-3 w-3" />
+                </Button>
+                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleNudge("up")} title="Move all up 0.5mm">
+                  <ArrowUp className="h-3 w-3" />
+                </Button>
+                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleNudge("down")} title="Move all down 0.5mm">
+                  <ArrowDown className="h-3 w-3" />
+                </Button>
+                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleNudge("right")} title="Move all right 0.5mm">
+                  <ArrowRight className="h-3 w-3" />
+                </Button>
+              </div>
+            )}
             <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setZoom(z => Math.max(1, z - 0.5))}>
               <ZoomOut className="h-3.5 w-3.5" />
             </Button>
@@ -776,6 +863,7 @@ export function PrecisionLabelDesigner({
         <div className="text-[10px] text-muted-foreground text-center mt-1 shrink-0">
           {labelWidth}mm × {labelHeight}mm
           {isMultiUp ? ` × ${multiUpCols} · gap ${horizontalGap}mm` : ""} · drag to move · Delete removes line
+          {selectAllActive ? " · Select All: drag any field or use arrows (0.5mm)" : ""}
           <span className="block mt-0.5 text-[9px] text-muted-foreground/80">
             Empty fields show field name here only (not on print)
           </span>

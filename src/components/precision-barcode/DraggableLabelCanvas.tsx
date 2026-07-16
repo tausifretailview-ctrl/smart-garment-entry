@@ -40,6 +40,11 @@ interface DraggableLabelCanvasProps {
   onCustomTextSelect: (index: number | null) => void;
   onCustomTextDrag: (index: number, x: number, y: number) => void;
   onCustomTextDelete?: (index: number) => void;
+  /** When true, all fields highlight and drag moves the whole layout together */
+  selectAllActive?: boolean;
+  onGroupDragStart?: () => void;
+  onGroupDrag?: (dx: number, dy: number) => void;
+  onGroupDragEnd?: () => void;
 }
 
 // 1mm ≈ 3.7795px at 96dpi
@@ -66,11 +71,15 @@ export function DraggableLabelCanvas({
   fieldLabels,
   defaultUom = "NOS",
   fillAvailable = true,
+  selectAllActive = false,
+  onGroupDragStart,
+  onGroupDrag,
+  onGroupDragEnd,
 }: DraggableLabelCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const barcodeRef = useRef<SVGSVGElement>(null);
   const [dragging, setDragging] = useState<{
-    type: "field" | "line" | "customText";
+    type: "field" | "line" | "customText" | "group";
     key?: FieldKey;
     lineIndex?: number;
     customTextIndex?: number;
@@ -126,7 +135,27 @@ export function DraggableLabelCanvas({
   const pxWidth = width * MM_TO_PX;
   const pxHeight = height * MM_TO_PX;
 
+  const startGroupDrag = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    onFieldSelect(null);
+    onLineSelect(null);
+    onCustomTextSelect(null);
+    onGroupDragStart?.();
+    setDragging({
+      type: "group",
+      startX: e.clientX,
+      startY: e.clientY,
+      origX: 0,
+      origY: 0,
+    });
+  }, [onFieldSelect, onLineSelect, onCustomTextSelect, onGroupDragStart]);
+
   const handleFieldMouseDown = useCallback((e: React.MouseEvent, key: FieldKey) => {
+    if (selectAllActive) {
+      startGroupDrag(e);
+      return;
+    }
     e.stopPropagation();
     e.preventDefault();
     onFieldSelect(key);
@@ -142,9 +171,13 @@ export function DraggableLabelCanvas({
       origX: field.x ?? 0,
       origY: field.y ?? 0,
     });
-  }, [config, onFieldSelect, onLineSelect]);
+  }, [config, onFieldSelect, onLineSelect, onCustomTextSelect, selectAllActive, startGroupDrag]);
 
   const handleLineMouseDown = useCallback((e: React.MouseEvent, index: number) => {
+    if (selectAllActive) {
+      startGroupDrag(e);
+      return;
+    }
     e.stopPropagation();
     e.preventDefault();
     onLineSelect(index);
@@ -160,9 +193,13 @@ export function DraggableLabelCanvas({
       origX: line.x ?? 0,
       origY: line.y ?? 0,
     });
-  }, [config.lines, onLineSelect, onFieldSelect, onCustomTextSelect]);
+  }, [config.lines, onLineSelect, onFieldSelect, onCustomTextSelect, selectAllActive, startGroupDrag]);
 
   const handleCustomTextMouseDown = useCallback((e: React.MouseEvent, index: number) => {
+    if (selectAllActive) {
+      startGroupDrag(e);
+      return;
+    }
     e.stopPropagation();
     e.preventDefault();
     onCustomTextSelect(index);
@@ -178,12 +215,18 @@ export function DraggableLabelCanvas({
       origX: slot.x ?? 0,
       origY: slot.y ?? 0,
     });
-  }, [config, onCustomTextSelect, onFieldSelect, onLineSelect]);
+  }, [config, onCustomTextSelect, onFieldSelect, onLineSelect, selectAllActive, startGroupDrag]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     if (!dragging) return;
     const dx = (e.clientX - dragging.startX) / zoom / MM_TO_PX;
     const dy = (e.clientY - dragging.startY) / zoom / MM_TO_PX;
+
+    if (dragging.type === "group") {
+      onGroupDrag?.(dx, dy);
+      return;
+    }
+
     const newX = Math.max(0, Math.min(width, dragging.origX + dx));
     let maxY = height;
     if (dragging.type === "field" && dragging.key === "barcode") {
@@ -198,11 +241,14 @@ export function DraggableLabelCanvas({
     } else if (dragging.type === "customText" && dragging.customTextIndex !== undefined) {
       onCustomTextDrag(dragging.customTextIndex, newX, newY);
     }
-  }, [dragging, zoom, width, height, designerBarcodeHeightMm, onFieldDrag, onLineDrag, onCustomTextDrag]);
+  }, [dragging, zoom, width, height, designerBarcodeHeightMm, onFieldDrag, onLineDrag, onCustomTextDrag, onGroupDrag]);
 
   const handleMouseUp = useCallback(() => {
+    if (dragging?.type === "group") {
+      onGroupDragEnd?.();
+    }
     setDragging(null);
-  }, []);
+  }, [dragging, onGroupDragEnd]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Delete' || e.key === 'Backspace') {
@@ -312,6 +358,7 @@ export function DraggableLabelCanvas({
             defaultUom,
           });
           const isSelected = activeField === key;
+          const isGroupSelected = selectAllActive;
           const fieldX = field.x ?? 0;
           const maxFieldW = Math.max(0.5, width - fieldX);
           const fieldW = field.width ? Math.min(field.width, maxFieldW) : maxFieldW;
@@ -334,10 +381,10 @@ export function DraggableLabelCanvas({
                 wordBreak: labelFieldAllowsMultiline(field) ? "break-word" : undefined,
                 textOverflow: labelFieldAllowsMultiline(field) ? undefined : "ellipsis",
                 cursor: "grab",
-                outline: isSelected ? "2px solid hsl(var(--primary))" : "1px dashed transparent",
+                outline: isGroupSelected || isSelected ? "2px solid hsl(var(--primary))" : "1px dashed transparent",
                 outlineOffset: 1,
                 borderRadius: 2,
-                backgroundColor: isSelected ? "hsl(var(--primary) / 0.08)" : "transparent",
+                backgroundColor: isGroupSelected || isSelected ? "hsl(var(--primary) / 0.08)" : "transparent",
                 transition: "outline 0.15s, background-color 0.15s",
                 fontFamily: "Arial, Helvetica, sans-serif",
                 color: isPlaceholder ? "hsl(var(--muted-foreground))" : "#000000",
@@ -345,7 +392,7 @@ export function DraggableLabelCanvas({
                 textDecoration: "none",
                 userSelect: "none",
               }}
-              title={`${resolveLabelDesignerFieldLabel(key, fieldLabels, defaultUom)}: drag to reposition`}
+              title={`${resolveLabelDesignerFieldLabel(key, fieldLabels, defaultUom)}: ${selectAllActive ? "drag to move all fields" : "drag to reposition"}`}
             >
               {displayText}
               {field.strikethrough && (
@@ -369,6 +416,7 @@ export function DraggableLabelCanvas({
           if (!line.show) return null;
           const isHorizontal = line.orientation === 'horizontal';
           const isSelected = activeLineIndex === idx;
+          const isGroupSelected = selectAllActive;
           return (
             <div
               key={`line-${idx}`}
@@ -383,11 +431,11 @@ export function DraggableLabelCanvas({
                 alignItems: "center",
                 justifyContent: "center",
                 cursor: "grab",
-                outline: isSelected ? "2px solid hsl(var(--primary))" : "none",
+                outline: isGroupSelected || isSelected ? "2px solid hsl(var(--primary))" : "none",
                 outlineOffset: 2,
                 borderRadius: 1,
               }}
-              title={`Line ${idx + 1}: drag to reposition (Delete key to remove)`}
+              title={`Line ${idx + 1}: ${selectAllActive ? "drag to move all fields" : "drag to reposition (Delete key to remove)"}`}
             >
               <div style={{
                 width: isHorizontal ? "100%" : (line.thickness ?? 0.3) * MM_TO_PX * zoom,
@@ -401,6 +449,7 @@ export function DraggableLabelCanvas({
         {customTextSlots.map((slot, idx) => {
           if (!slot.show) return null;
           const isSelected = activeCustomTextIndex === idx;
+          const isGroupSelected = selectAllActive;
           const display = slot.value.trim() || `Custom ${idx + 1}`;
 
           return (
@@ -420,16 +469,16 @@ export function DraggableLabelCanvas({
                 whiteSpace: "nowrap",
                 textOverflow: "ellipsis",
                 cursor: "grab",
-                outline: isSelected ? "2px solid hsl(var(--primary))" : "1px dashed transparent",
+                outline: isGroupSelected || isSelected ? "2px solid hsl(var(--primary))" : "1px dashed transparent",
                 outlineOffset: 1,
                 borderRadius: 2,
-                backgroundColor: isSelected ? "hsl(var(--primary) / 0.08)" : "transparent",
+                backgroundColor: isGroupSelected || isSelected ? "hsl(var(--primary) / 0.08)" : "transparent",
                 fontFamily: "Arial, Helvetica, sans-serif",
                 color: slot.value.trim() ? "#000000" : "hsl(var(--muted-foreground))",
                 fontStyle: slot.value.trim() ? "normal" : "italic",
                 userSelect: "none",
               }}
-              title={`Custom text ${idx + 1}: drag to reposition`}
+              title={`Custom text ${idx + 1}: ${selectAllActive ? "drag to move all fields" : "drag to reposition"}`}
             >
               {display}
             </div>
@@ -451,13 +500,13 @@ export function DraggableLabelCanvas({
               alignItems: "center",
               overflow: "hidden",
               cursor: "grab",
-              outline: activeField === "barcode" ? "2px solid hsl(var(--primary))" : "1px dashed hsl(var(--border))",
+              outline: selectAllActive || activeField === "barcode" ? "2px solid hsl(var(--primary))" : "1px dashed hsl(var(--border))",
               outlineOffset: 1,
               borderRadius: 2,
-              backgroundColor: activeField === "barcode" ? "hsl(var(--primary) / 0.08)" : "hsl(var(--muted) / 0.25)",
+              backgroundColor: selectAllActive || activeField === "barcode" ? "hsl(var(--primary) / 0.08)" : "hsl(var(--muted) / 0.25)",
               userSelect: "none",
             }}
-            title={`${resolveLabelDesignerFieldLabel("barcode", fieldLabels, defaultUom)}: drag to reposition`}
+            title={`${resolveLabelDesignerFieldLabel("barcode", fieldLabels, defaultUom)}: ${selectAllActive ? "drag to move all fields" : "drag to reposition"}`}
           >
             {showBarcode ? (
               <svg
