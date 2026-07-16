@@ -4549,6 +4549,7 @@ export default function BarcodePrinting() {
     printWindow.document.write(htmlDoc);
     printWindow.document.close();
     printWindow.focus();
+    toast.info(`Print at 100% scale (Actual Size). Label: ${labelW}×${labelH}mm`);
     setTimeout(() => {
       printWindow.print();
       printWindow.close();

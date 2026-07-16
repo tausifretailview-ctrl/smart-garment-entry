@@ -112,6 +112,8 @@ export async function appPrint(options: AppPrintOptions): Promise<AppPrintResult
   const silent = options.silent !== false;
 
   const isReceipt = options.type === "receipt";
+  const isBarcode = options.type === "barcode";
+  const useCssPageSize = isReceipt || isBarcode;
   const printHtml =
     options.html && isReceipt
       ? wrapReceiptHtmlForElectron(options.html, thermalPaper)
@@ -122,12 +124,12 @@ export async function appPrint(options: AppPrintOptions): Promise<AppPrintResult
       ? await electronAPI.printHtml({
           html: printHtml,
           printerName,
-          pageSize,
+          pageSize: useCssPageSize ? undefined : pageSize,
           copies,
           margins,
           silent,
           printKind: isReceipt ? "receipt" : options.type,
-          preferCSSPageSize: isReceipt || options.type === "barcode",
+          preferCSSPageSize: useCssPageSize,
         })
       : await electronAPI.silentPrint({ printerName, pageSize, copies, margins });
     return { success: !!result?.success, method: "electron", error: result?.error ?? null };

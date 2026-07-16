@@ -31,6 +31,9 @@ export function PrecisionLabelCell({
   showBorder = false,
   productFieldSettings = null,
 }: PrecisionLabelCellProps) {
+  const innerWidth = Math.max(1, width - xOffset);
+  const innerHeight = Math.max(1, height - yOffset);
+
   const outerStyle = scaleFactor
     ? {
         width: width * MM_TO_PX * scaleFactor,
@@ -58,8 +61,8 @@ export function PrecisionLabelCell({
     >
       <PrecisionLabelPreview
         item={item}
-        width={width}
-        height={height}
+        width={innerWidth}
+        height={innerHeight}
         xOffset={0}
         yOffset={0}
         showBorder={showBorder}

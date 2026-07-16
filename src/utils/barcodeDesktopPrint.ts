@@ -23,6 +23,7 @@ export function buildPrecisionLabelDocument(
   const labelWidthMm = opts.labelWidthMm ?? opts.contentWidthMm;
   const thermalCols = Math.max(1, opts.thermalCols ?? 1);
   const isThermal2Up = !opts.isA4 && thermalCols > 1;
+  const isThermal1Up = !opts.isA4 && thermalCols === 1;
   const pageSelector = opts.isA4
     ? ".precision-print-area > div"
     : ".precision-print-area > .precision-thermal-page, .precision-print-area > div";
@@ -31,23 +32,38 @@ export function buildPrecisionLabelDocument(
     @page { size: ${pageSize}; margin: 0 !important; padding: 0 !important; }
     @page :first { size: ${pageSize}; margin: 0 !important; padding: 0 !important; }
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    html, body { margin: 0; padding: 0; width: ${pageWidth}; height: auto;
-      -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    .precision-print-area { margin: 0; padding: 0; width: ${pageWidth}; }
+    html, body {
+      margin: 0 !important;
+      padding: 0 !important;
+      width: ${pageWidth};
+      height: auto;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    .precision-print-area {
+      margin: 0;
+      padding: 0;
+      width: ${pageWidth};
+    }
     ${pageSelector} {
       margin: 0 !important;
+      padding: 0 !important;
       width: ${opts.isA4 ? pageWidth : `${labelWidthMm}mm`} !important;
       height: ${areaHeight} !important;
       min-height: ${areaHeight} !important;
       max-height: ${areaHeight} !important;
-      overflow: hidden !important; box-sizing: border-box !important;
+      overflow: hidden !important;
+      box-sizing: border-box !important;
       position: relative !important;
       display: ${isThermal2Up ? "flex" : "block"} !important;
       ${isThermal2Up ? "flex-wrap: nowrap !important; align-items: stretch !important;" : ""}
-      align-content: start !important;
-      page-break-after: always !important; page-break-inside: avoid !important;
-      break-after: page !important; break-inside: avoid !important;
+      align-content: flex-start !important;
+      page-break-after: always !important;
+      page-break-inside: avoid !important;
+      break-after: page !important;
+      break-inside: avoid !important;
       transform: none !important;
+      transform-origin: top left !important;
     }
     .precision-print-area > .precision-thermal-page-2up > div {
       flex: 0 0 auto !important;
@@ -55,9 +71,28 @@ export function buildPrecisionLabelDocument(
     }
     .precision-print-area > .precision-thermal-page:last-child,
     .precision-print-area > div:last-child {
-      page-break-after: auto !important; break-after: auto !important;
+      page-break-after: auto !important;
+      break-after: auto !important;
     }
-    .precision-label-container { position: relative !important; }
+    .precision-label-container {
+      position: absolute !important;
+      top: 0 !important;
+      left: 0 !important;
+      width: ${labelWidthMm}mm !important;
+      height: ${areaHeight} !important;
+      max-width: ${labelWidthMm}mm !important;
+      max-height: ${areaHeight} !important;
+      overflow: hidden !important;
+      transform: none !important;
+      transform-origin: top left !important;
+    }
+    ${isThermal1Up ? `
+    @media print {
+      html, body {
+        width: ${labelWidthMm}mm !important;
+        max-width: ${labelWidthMm}mm !important;
+      }
+    }` : ""}
     .precision-barcode-svg {
       image-rendering: pixelated;
       -webkit-print-color-adjust: exact; print-color-adjust: exact;

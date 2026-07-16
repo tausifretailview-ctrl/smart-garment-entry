@@ -1456,6 +1456,8 @@ ipcMain.handle('print-html', async (_event, payload = {}) => {
       pageSize &&
       Number(pageSize.width) >= 58000 &&
       Number(pageSize.width) <= 82000);
+  const isBarcode = printKind === 'barcode';
+  const useCssPageSize = !!preferCSSPageSize || isReceipt || isBarcode;
 
   return new Promise((resolve) => {
     let printWin = new BrowserWindow({
@@ -1493,14 +1495,14 @@ ipcMain.handle('print-html', async (_event, payload = {}) => {
             {
               silent: printSilent,
               deviceName: printerName || '',
-              pageSize: pageSize || 'A4',
+              pageSize: useCssPageSize ? undefined : (pageSize || 'A4'),
               copies: copies || 1,
               landscape: landscape || false,
-              margins: isReceipt
+              margins: isReceipt || isBarcode
                 ? { marginType: 'none' }
                 : margins || { marginType: 'default' },
               printBackground: true,
-              preferCSSPageSize: !!preferCSSPageSize || isReceipt,
+              preferCSSPageSize: useCssPageSize,
             },
             (success, failureReason) => {
               clearTimeout(timeout);
