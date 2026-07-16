@@ -81,6 +81,7 @@ export function PrecisionPrintCSS({ labelWidth, labelHeight, mode, thermalCols =
           page-break-inside: avoid !important;
           break-after: page !important;
           break-inside: avoid !important;
+          transform: none !important;
         }
         .precision-print-area > .precision-thermal-page-2up > div {
           flex: 0 0 auto !important;

@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { LabelDesignConfig } from "@/types/labelTypes";
+import { isMissingPgColumn, omitRecordKey } from "@/utils/printerPresetDbCompat";
 
 export type PrinterPresetBackupRow = {
   backup_id: string;
@@ -140,8 +141,9 @@ function snapshotToInsert(
   organizationId: string,
   organizationName: string,
   note?: string | null,
+  includeHGap = true,
 ) {
-  return {
+  const row: Record<string, unknown> = {
     preset_id: preset.id,
     organization_id: organizationId,
     org_name: organizationName,
@@ -151,7 +153,6 @@ function snapshotToInsert(
     x_offset: preset.x_offset,
     y_offset: preset.y_offset,
     v_gap: preset.v_gap,
-    h_gap: preset.h_gap ?? 0,
     a4_cols: preset.a4_cols,
     a4_rows: preset.a4_rows,
     label_config: preset.label_config as unknown as import("@/integrations/supabase/types").Json,
@@ -160,6 +161,25 @@ function snapshotToInsert(
     thermal_cols: preset.thermal_cols,
     note: note ?? null,
   };
+  if (includeHGap) {
+    row.h_gap = preset.h_gap ?? 0;
+  }
+  return row;
+}
+
+async function insertBackupRow(
+  row: Record<string, unknown>,
+): Promise<void> {
+  const { error } = await supabase.from("printer_presets_backup").insert([row]);
+  if (!error) return;
+  if (isMissingPgColumn(error, "h_gap") && "h_gap" in row) {
+    const { error: retryError } = await supabase
+      .from("printer_presets_backup")
+      .insert([omitRecordKey(row, "h_gap")]);
+    if (retryError) throw retryError;
+    return;
+  }
+  throw error;
 }
 
 export async function fetchPrinterPresetBackups(
@@ -203,10 +223,9 @@ export async function createManualPrinterPresetBackup(
   if (!data) throw new Error("Preset not found");
 
   const preset = mapPresetRow(data as Record<string, unknown>);
-  const { error: insertError } = await supabase.from("printer_presets_backup").insert(
-    [snapshotToInsert(preset, organizationId, organizationName, note?.trim() || null)],
+  await insertBackupRow(
+    snapshotToInsert(preset, organizationId, organizationName, note?.trim() || null),
   );
-  if (insertError) throw insertError;
 }
 
 async function insertPresetSnapshotBackup(
@@ -215,10 +234,9 @@ async function insertPresetSnapshotBackup(
   organizationName: string,
   note?: string,
 ): Promise<void> {
-  const { error } = await supabase.from("printer_presets_backup").insert(
-    [snapshotToInsert(preset, organizationId, organizationName, note)],
+  await insertBackupRow(
+    snapshotToInsert(preset, organizationId, organizationName, note),
   );
-  if (error) throw error;
 }
 
 export async function restorePrinterPresetFromBackup(
@@ -262,7 +280,7 @@ export async function restorePrinterPresetFromBackup(
     );
   }
 
-  const payload = {
+  const payload: Record<string, unknown> = {
     organization_id: organizationId,
     name: backup.name,
     label_width: backup.label_width ?? 50,
@@ -279,14 +297,28 @@ export async function restorePrinterPresetFromBackup(
     thermal_cols: backup.thermal_cols ?? 1,
   };
 
-  const { data: restored, error } = await supabase
+  let restored;
+  let error;
+  ({ data: restored, error } = await supabase
     .from("printer_presets")
     .upsert(
       [current ? { id: current.id, ...payload } : payload],
       { onConflict: "organization_id,name" },
     )
     .select("*")
-    .single();
+    .single());
+
+  if (error && isMissingPgColumn(error, "h_gap")) {
+    const without = omitRecordKey(payload, "h_gap");
+    ({ data: restored, error } = await supabase
+      .from("printer_presets")
+      .upsert(
+        [current ? { id: current.id, ...without } : without],
+        { onConflict: "organization_id,name" },
+      )
+      .select("*")
+      .single());
+  }
 
   if (error) throw error;
   return mapPresetRow(restored as Record<string, unknown>);
@@ -403,9 +435,16 @@ export async function importPrinterPresetExportFile(
     thermal_cols: p.thermal_cols ?? 1,
   }));
 
-  const { error } = await supabase
+  let { error } = await supabase
     .from("printer_presets")
     .upsert(rows, { onConflict: "organization_id,name" });
+
+  if (error && isMissingPgColumn(error, "h_gap")) {
+    const without = rows.map((row) => omitRecordKey(row, "h_gap"));
+    ({ error } = await supabase
+      .from("printer_presets")
+      .upsert(without, { onConflict: "organization_id,name" }));
+  }
 
   if (error) throw error;
   return rows.length;

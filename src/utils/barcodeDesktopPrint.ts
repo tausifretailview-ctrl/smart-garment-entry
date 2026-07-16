@@ -10,6 +10,8 @@ export function buildPrecisionLabelDocument(
   opts: {
     contentWidthMm: number;
     pageHeightMm: number;
+    /** Per-label width for 1-up thermal (defaults to contentWidthMm). */
+    labelWidthMm?: number;
     isA4: boolean;
     /** 2 = thermal 2-up row; must keep flex layout or labels stack as 1-up */
     thermalCols?: number;
@@ -18,6 +20,7 @@ export function buildPrecisionLabelDocument(
   const pageWidth = opts.isA4 ? "210mm" : `${opts.contentWidthMm}mm`;
   const pageSize = opts.isA4 ? "210mm 297mm" : `${opts.contentWidthMm}mm ${opts.pageHeightMm}mm`;
   const areaHeight = opts.isA4 ? "297mm" : `${opts.pageHeightMm}mm`;
+  const labelWidthMm = opts.labelWidthMm ?? opts.contentWidthMm;
   const thermalCols = Math.max(1, opts.thermalCols ?? 1);
   const isThermal2Up = !opts.isA4 && thermalCols > 1;
   const pageSelector = opts.isA4
@@ -26,13 +29,14 @@ export function buildPrecisionLabelDocument(
 
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
     @page { size: ${pageSize}; margin: 0 !important; padding: 0 !important; }
+    @page :first { size: ${pageSize}; margin: 0 !important; padding: 0 !important; }
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body { margin: 0; padding: 0; width: ${pageWidth}; height: auto;
       -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     .precision-print-area { margin: 0; padding: 0; width: ${pageWidth}; }
     ${pageSelector} {
       margin: 0 !important;
-      width: ${pageWidth} !important;
+      width: ${opts.isA4 ? pageWidth : `${labelWidthMm}mm`} !important;
       height: ${areaHeight} !important;
       min-height: ${areaHeight} !important;
       max-height: ${areaHeight} !important;
@@ -43,6 +47,7 @@ export function buildPrecisionLabelDocument(
       align-content: start !important;
       page-break-after: always !important; page-break-inside: avoid !important;
       break-after: page !important; break-inside: avoid !important;
+      transform: none !important;
     }
     .precision-print-area > .precision-thermal-page-2up > div {
       flex: 0 0 auto !important;

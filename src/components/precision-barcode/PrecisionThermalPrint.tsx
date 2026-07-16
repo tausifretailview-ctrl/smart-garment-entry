@@ -3,6 +3,7 @@ import { PrecisionLabelCell } from "./PrecisionLabelCell";
 import { PrecisionPrintCSS } from "./PrecisionPrintCSS";
 import { LabelItem, LabelDesignConfig } from "@/types/labelTypes";
 import type { ProductFieldsConfig } from "@/utils/productFieldSettingsForLabels";
+import { cn } from "@/lib/utils";
 
 interface PrecisionThermalPrintProps {
   items: LabelItem[];
@@ -91,7 +92,7 @@ export const PrecisionThermalPrint = forwardRef<HTMLDivElement, PrecisionThermal
           {expandedItems.map((item, idx) => (
             <div
               key={idx}
-              className="precision-thermal-page"
+              className={cn("precision-thermal-page", idx === 0 && "precision-thermal-page-first")}
               style={{
                 width: `${labelWidth}mm`,
                 height: `${labelHeight}mm`,

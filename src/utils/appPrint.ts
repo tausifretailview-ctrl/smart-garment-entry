@@ -127,7 +127,7 @@ export async function appPrint(options: AppPrintOptions): Promise<AppPrintResult
           margins,
           silent,
           printKind: isReceipt ? "receipt" : options.type,
-          preferCSSPageSize: isReceipt,
+          preferCSSPageSize: isReceipt || options.type === "barcode",
         })
       : await electronAPI.silentPrint({ printerName, pageSize, copies, margins });
     return { success: !!result?.success, method: "electron", error: result?.error ?? null };
