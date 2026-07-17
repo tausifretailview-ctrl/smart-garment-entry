@@ -31,7 +31,7 @@ import { requestPosBarcodeFocus } from "@/utils/posSalesRefresh";
 import { useForceDesktopView } from "@/hooks/useDesktopViewPreference";
 import { useIsNarrowViewport } from "@/hooks/use-mobile";
 import { ActivityCenterBell } from "@/components/activity-center/ActivityCenterBell";
-import { storeOrgSlug } from "@/lib/orgSlug";
+import { storeOrgSlug, getStoredOrgSlug } from "@/lib/orgSlug";
 import { resolveOrgLoginPath } from "@/lib/orgLoginRedirect";
 
 export const Header = () => {
