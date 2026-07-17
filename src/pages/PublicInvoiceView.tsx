@@ -24,6 +24,7 @@ import { A4ElectronicTemplate } from "@/components/invoice-templates/A4Electroni
 import { ThermalPrint80mm } from "@/components/ThermalPrint80mm";
 import { ModernThermalReceipt80mm } from "@/components/ModernThermalReceipt80mm";
 import { TvsThermalReceipt80mm } from "@/components/TvsThermalReceipt80mm";
+import { NewDesignThermalReceipt80mm } from "@/components/NewDesignThermalReceipt80mm";
 
 const updateMetaTags = (businessName: string, invoiceNumber: string, orgSlug?: string, logoUrl?: string) => {
   document.title = `Invoice ${invoiceNumber} - ${businessName}`;
@@ -299,6 +300,9 @@ export default function PublicInvoiceView() {
       }
       if (thermalStyle === 'tvs') {
         return <TvsThermalReceipt80mm ref={printRef} {...thermalProps} />;
+      }
+      if (thermalStyle === 'new-design') {
+        return <NewDesignThermalReceipt80mm ref={printRef} {...thermalProps} />;
       }
       return <ThermalPrint80mm ref={printRef} {...thermalProps} />;
     }

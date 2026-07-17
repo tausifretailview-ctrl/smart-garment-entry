@@ -240,7 +240,7 @@ interface SaleSettings {
   show_mrp_column?: boolean;
   // E-Invoice Settings
   einvoice_settings?: EInvoiceSettings;
-  thermal_receipt_style?: 'classic' | 'compact' | 'modern' | 'tvs';
+  thermal_receipt_style?: 'classic' | 'compact' | 'modern' | 'tvs' | 'new-design';
   auto_apply_advance?: boolean;
   pos_series_start?: string;
   invoice_series_start?: string;
@@ -2772,7 +2772,7 @@ export default function Settings() {
                             ...settings,
                             sale_settings: {
                               ...settings.sale_settings,
-                              thermal_receipt_style: value as 'classic' | 'compact' | 'modern' | 'tvs',
+                              thermal_receipt_style: value as 'classic' | 'compact' | 'modern' | 'tvs' | 'new-design',
                             },
                           })
                         }
@@ -2785,6 +2785,7 @@ export default function Settings() {
                           <SelectItem value="compact">Compact — Sans-serif, denser</SelectItem>
                           <SelectItem value="modern">Modern — Stylish, pill headers</SelectItem>
                           <SelectItem value="tvs">TVS 80mm — Bold columns, clear print</SelectItem>
+                          <SelectItem value="new-design">New Design — Clean sans-serif, restaurant style</SelectItem>
                         </SelectContent>
                       </Select>
                       <p className="text-xs text-muted-foreground">Applies to all thermal printers (sale + POS)</p>
