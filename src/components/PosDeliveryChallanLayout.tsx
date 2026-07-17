@@ -30,6 +30,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useNavigate } from "react-router-dom";
+import { resolveOrgLoginPath } from "@/lib/orgLoginRedirect";
 import { PosDCProvider, usePosDC } from "@/contexts/PosDCContext";
 import { KeyboardShortcutsModal, useKeyboardShortcuts } from "@/components/KeyboardShortcutsModal";
 import { WindowTabsBar } from "@/components/WindowTabsBar";
@@ -73,9 +74,8 @@ function PosDeliveryChallanLayoutContent({ children }: { children: ReactNode }) 
   const can = (id: string) => !permissionsLoading && (permissions === null || hasMenuAccess(id));
 
   const handleSignOut = async () => {
-    const slug = currentOrganization?.slug || orgSlug;
     await signOut();
-    navigate(slug ? `/${slug}` : "/auth");
+    navigate(resolveOrgLoginPath());
   };
 
   const header = (

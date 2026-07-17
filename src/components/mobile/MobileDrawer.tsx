@@ -4,6 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useNavigate } from "react-router-dom";
+import { resolveOrgLoginPath } from "@/lib/orgLoginRedirect";
 import {
   Drawer,
   DrawerContent,
@@ -33,13 +34,8 @@ export const MobileDrawer = ({ trigger }: MobileDrawerProps) => {
 
   const handleSignOut = async () => {
     setOpen(false);
-    const slug = currentOrganization?.slug || orgSlug;
     await signOut();
-    if (slug) {
-      navigate(`/${slug}`);
-    } else {
-      navigate("/auth");
-    }
+    navigate(resolveOrgLoginPath());
   };
 
   const menuItems = [

@@ -4,6 +4,7 @@ import { WifiOff, RefreshCw } from "lucide-react";
 import { AppBootSplash } from "@/components/AppBootSplash";
 import { hideAppBootSplash } from "@/lib/appBootSplash";
 import { getStoredOrgSlug, isValidOrgSlug, normalizeOrgSlug, getOrgSlugFromUrl, storeOrgSlug } from "@/lib/orgSlug";
+import { resolveOrgLoginPath } from "@/lib/orgLoginRedirect";
 import { resolveStartupOrgSlug } from "@/lib/bundledOrg";
 
 // Check if this is a Field Sales PWA context
@@ -73,8 +74,8 @@ export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
       return <Navigate to={`/${orgSlug}`} replace />;
     }
 
-    // Last resort: send to organization setup where they can enter their slug
-    return <Navigate to="/organization-setup" replace />;
+    // Last resort: org URL picker (never platform-admin /auth)
+    return <Navigate to={resolveOrgLoginPath()} replace />;
   }
 
   return <>{children}</>;

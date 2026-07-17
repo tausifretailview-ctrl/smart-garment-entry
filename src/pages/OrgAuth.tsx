@@ -495,7 +495,7 @@ export default function OrgAuth() {
             </Button>
 
             <Button
-              onClick={() => navigate("/auth")}
+              onClick={() => navigate("/auth?platform=1")}
               variant="outline"
               className="w-full"
             >

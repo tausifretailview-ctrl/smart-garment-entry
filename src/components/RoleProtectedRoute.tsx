@@ -1,6 +1,7 @@
 import { Navigate, useParams } from "react-router-dom";
 import { useUserRoles } from "@/hooks/useUserRoles";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { resolveOrgLoginPath } from "@/lib/orgLoginRedirect";
 import { useTabCacheLayout } from "@/contexts/TabCacheLayoutContext";
 import { Loader2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -67,9 +68,9 @@ export const RoleProtectedRoute = ({
   const hasRequiredRole = roles.some(role => allowedRoles.includes(role));
 
   if (!hasRequiredRole) {
-    // For platform admin routes, redirect to root auth
+    // For platform admin routes, send org users to their shop login (not /auth)
     if (isPlatformAdminOnly) {
-      return <Navigate to="/auth" replace />;
+      return <Navigate to={resolveOrgLoginPath()} replace />;
     }
     
     // For org-scoped routes, redirect to org dashboard
