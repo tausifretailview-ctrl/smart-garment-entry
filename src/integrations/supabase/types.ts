@@ -3638,6 +3638,7 @@ export type Database = {
           a4_cols: number | null
           a4_rows: number | null
           created_at: string | null
+          h_gap: number
           id: string
           is_default: boolean | null
           label_config: Json | null
@@ -3656,6 +3657,7 @@ export type Database = {
           a4_cols?: number | null
           a4_rows?: number | null
           created_at?: string | null
+          h_gap?: number
           id?: string
           is_default?: boolean | null
           label_config?: Json | null
@@ -3674,6 +3676,7 @@ export type Database = {
           a4_cols?: number | null
           a4_rows?: number | null
           created_at?: string | null
+          h_gap?: number
           id?: string
           is_default?: boolean | null
           label_config?: Json | null
@@ -3711,6 +3714,7 @@ export type Database = {
           a4_rows: number | null
           backed_up_at: string
           backup_id: string
+          h_gap: number | null
           is_default: boolean | null
           label_config: Json | null
           label_height: number | null
@@ -3731,6 +3735,7 @@ export type Database = {
           a4_rows?: number | null
           backed_up_at?: string
           backup_id?: string
+          h_gap?: number | null
           is_default?: boolean | null
           label_config?: Json | null
           label_height?: number | null
@@ -3751,6 +3756,7 @@ export type Database = {
           a4_rows?: number | null
           backed_up_at?: string
           backup_id?: string
+          h_gap?: number | null
           is_default?: boolean | null
           label_config?: Json | null
           label_height?: number | null
