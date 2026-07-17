@@ -9273,6 +9273,19 @@ export type Database = {
         }
         Returns: boolean
       }
+      invoice_reconcile_outstanding: {
+        Args: {
+          p_adv: number
+          p_cash: number
+          p_cn: number
+          p_discount: number
+          p_items_gross: number
+          p_net_amount: number
+          p_paid_residual: number
+          p_sale_return_adj: number
+        }
+        Returns: number
+      }
       is_entry_creator_or_admin: {
         Args: { _created_by: string; _organization_id: string }
         Returns: boolean
