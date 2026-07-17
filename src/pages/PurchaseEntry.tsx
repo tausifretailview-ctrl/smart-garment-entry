@@ -107,6 +107,8 @@ import {
   resolveNextSupplierInvoiceNumber,
 } from "@/utils/purchaseSupplierInvoiceNumber";
 import { checkBarcodeExists } from "@/utils/barcodeValidation";
+import { getUniversalCodeScanWarning } from "@/utils/imeiValidation";
+import { validateIMEI } from "@/hooks/useMobileERP";
 import { syncVariantPriceFromPurchase } from "@/utils/syncVariantPriceFromPurchase";
 import { IMEIScanDialog } from "@/components/IMEIScanDialog";
 import { RollEntryDialog } from "@/components/RollEntryDialog";
@@ -1933,6 +1935,7 @@ const PurchaseEntry = () => {
       locked_size_qty: merp.locked_size_qty ?? true,
       imei_min_length: merp.imei_min_length ?? 4,
       imei_max_length: merp.imei_max_length ?? 25,
+      allow_imei_edit_after_save: merp.allow_imei_edit_after_save ?? true,
     };
   })();
   const isMobileERPMode = !!mobileERPSettings?.enabled;
@@ -3734,6 +3737,58 @@ const PurchaseEntry = () => {
     setShowIMEIScanDialog(false);
     setImeiScanItem(null);
   };
+
+  const handleImeiCorrection = useCallback(
+    async (item: LineItem, rawBarcode: string) => {
+      if (!currentOrganization?.id || !mobileERPSettings?.allow_imei_edit_after_save || !item.sku_id) return;
+      const cleaned = rawBarcode.replace(/\s/g, "").toUpperCase();
+      if (!cleaned || cleaned === item.barcode) return;
+
+      if (!validateIMEI(cleaned, mobileERPSettings.imei_min_length, mobileERPSettings.imei_max_length)) {
+        toast({
+          title: "Invalid IMEI",
+          description: `IMEI must be ${mobileERPSettings.imei_min_length}-${mobileERPSettings.imei_max_length} characters.`,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const universalWarning = getUniversalCodeScanWarning(cleaned);
+      if (universalWarning) {
+        toast({ title: "Check scan", description: universalWarning });
+      }
+
+      try {
+        const conflict = await checkBarcodeExists(cleaned, currentOrganization.id, item.sku_id);
+        if (conflict.exists) {
+          toast({
+            title: "IMEI already exists",
+            description: `Used on ${conflict.productName}`,
+            variant: "destructive",
+          });
+          return;
+        }
+
+        const { error } = await supabase
+          .from("product_variants")
+          .update({ barcode: cleaned })
+          .eq("id", item.sku_id)
+          .eq("organization_id", currentOrganization.id);
+
+        if (error) throw error;
+
+        updateLineItem(item.temp_id, "barcode", cleaned);
+        toast({ title: "IMEI updated", description: cleaned });
+      } catch (err: any) {
+        toast({
+          title: "Could not update IMEI",
+          description: err.message || "Update failed",
+          variant: "destructive",
+        });
+      }
+    },
+    [currentOrganization?.id, mobileERPSettings, updateLineItem],
+  );
 
   // Handle Roll Entry confirmation — each roll becomes a variant with unique barcode
   const handleRollEntryConfirm = async (rolls: Array<{ color: string; meters: number }>) => {
@@ -6737,9 +6792,20 @@ const PurchaseEntry = () => {
                           </TableCell>
                         )}
                         <TableCell className="pur-col-barcode w-[9rem]">
+                          {isMobileERPMode && mobileERPSettings?.allow_imei_edit_after_save && !isBillLocked ? (
+                            <Input
+                              key={`imei-${item.temp_id}-${item.barcode}`}
+                              defaultValue={item.barcode || ""}
+                              onBlur={(e) => void handleImeiCorrection(item, e.target.value)}
+                              className="font-mono text-[13px] h-9 tracking-wider"
+                              placeholder="IMEI..."
+                              title="Edit IMEI — tab out to save"
+                            />
+                          ) : (
                           <Badge variant="outline" className={cn("text-[14px] font-mono px-2 py-1", isMobileERPMode && "tracking-wider")}>
                             {item.barcode || "—"}
                           </Badge>
+                          )}
                           {barcodeWarnings.has(item.temp_id) && (() => {
                             const msg = barcodeWarnings.get(item.temp_id) || '';
                             const isInBill = msg.includes('Duplicate barcode in this bill');
@@ -7459,6 +7525,7 @@ const PurchaseEntry = () => {
           onIndexChange={setEditPanelIndex}
           onProductUpdated={handleProductUpdated}
           focusField={editPanelFocusField}
+          mobileErpMode={mobileERPSettings || undefined}
         />
 
       {/* Unlock Confirmation Dialog */}

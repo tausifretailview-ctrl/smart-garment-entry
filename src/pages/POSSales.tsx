@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { getUOMLabel } from "@/constants/uom";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { useMobileERP, validateIMEI } from "@/hooks/useMobileERP";
+import { getUniversalCodeScanWarning } from "@/utils/imeiValidation";
 import { useSettings } from "@/hooks/useSettings";
 import { resolveGarmentGstForLine } from "@/utils/gstRules";
 import { useLocation, useSearchParams } from "react-router-dom";
@@ -2190,6 +2191,10 @@ export default function POSSales() {
               if (!validateIMEI(term, mobileERP.imei_min_length, mobileERP.imei_max_length)) {
                 return;
               }
+              const universalWarning = getUniversalCodeScanWarning(term);
+              if (universalWarning) {
+                toast.warning("Possible wrong barcode", { description: universalWarning });
+              }
             }
 
             const { data, error } = await posVariantBaseQuery(orgId).eq('barcode', term).limit(1);
@@ -2514,6 +2519,10 @@ export default function POSSales() {
           setSearchInput("");
           focusBarcodeScanInput();
           return;
+        }
+        const universalWarning = getUniversalCodeScanWarning(trimmedTerm);
+        if (universalWarning) {
+          toast.warning("Possible wrong barcode", { description: universalWarning });
         }
       }
 

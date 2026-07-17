@@ -5,6 +5,9 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Check, Smartphone, X, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { getUniversalCodeScanWarning } from "@/utils/imeiValidation";
+import { checkBarcodeExists } from "@/utils/barcodeValidation";
+import { validateIMEI } from "@/hooks/useMobileERP";
 
 interface IMEIScanDialogProps {
   open: boolean;
@@ -88,9 +91,11 @@ export function IMEIScanDialog({
             const val = imeiValues[i] || "";
             const valid = isValid(val);
             const isDuplicate = val.length > 0 && imeiValues.filter(v => v === val).length > 1;
+            const universalWarning = val.length > 0 ? getUniversalCodeScanWarning(val) : null;
 
             return (
-              <div key={i} className="flex items-center gap-2">
+              <div key={i} className="space-y-1">
+              <div className="flex items-center gap-2">
                 <span className="w-8 text-right text-xs font-bold text-muted-foreground shrink-0">
                   {i + 1}.
                 </span>
@@ -124,6 +129,13 @@ export function IMEIScanDialog({
                   {valid && !isDuplicate && <Check className="h-4 w-4 text-green-600" />}
                   {isDuplicate && <X className="h-4 w-4 text-destructive" />}
                 </div>
+              </div>
+              {universalWarning && (
+                <p className="ml-10 text-[11px] text-amber-700 dark:text-amber-400 flex items-start gap-1">
+                  <AlertTriangle className="h-3 w-3 shrink-0 mt-0.5" />
+                  {universalWarning}
+                </p>
+              )}
               </div>
             );
           })}

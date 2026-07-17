@@ -119,6 +119,7 @@ interface MobileERPConfig {
   financer_billing?: boolean;
   imei_min_length?: number;
   imei_max_length?: number;
+  allow_imei_edit_after_save?: boolean;
 }
 
 interface ProductSettings {
@@ -1652,6 +1653,30 @@ export default function Settings() {
                               mobile_erp: {
                                 ...settings.product_settings?.mobile_erp,
                                 financer_billing: checked,
+                              },
+                            },
+                          })
+                        }
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between p-3 border rounded-lg">
+                      <div>
+                        <Label className="font-medium">Allow IMEI Edit After Save</Label>
+                        <p className="text-xs text-muted-foreground">
+                          Let staff correct a wrong scan (e.g. universal box code instead of IMEI) on saved purchase bills
+                        </p>
+                      </div>
+                      <Switch
+                        checked={settings.product_settings?.mobile_erp?.allow_imei_edit_after_save ?? true}
+                        onCheckedChange={(checked) =>
+                          setSettings({
+                            ...settings,
+                            product_settings: {
+                              ...settings.product_settings,
+                              mobile_erp: {
+                                ...settings.product_settings?.mobile_erp,
+                                allow_imei_edit_after_save: checked,
                               },
                             },
                           })
