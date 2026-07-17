@@ -3514,60 +3514,6 @@ export default function SalesInvoiceDashboard() {
         )}
 
         {/* Dialogs — shared with desktop */}
-        <Dialog open={showPaymentDialog} onOpenChange={setShowPaymentDialog}>
-          <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Record Payment</DialogTitle>
-              <DialogDescription>
-                Record payment for Invoice {selectedInvoiceForPayment?.sale_number}
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-2 text-sm">
-                <span className="text-muted-foreground">Customer:</span>
-                <span className="font-medium">{selectedInvoiceForPayment?.customer_name?.toUpperCase()}</span>
-                <span className="text-muted-foreground">Amount:</span>
-                <span className="font-medium">₹{Math.round(selectedInvoiceForPayment?.net_amount || 0).toLocaleString('en-IN')}</span>
-                <span className="text-muted-foreground">Pending:</span>
-                <span className="font-semibold text-amber-600">
-                  ₹{Math.max(0, Math.round((selectedInvoiceForPayment?.net_amount || 0) - (selectedInvoiceForPayment?.paid_amount || 0) - Math.max(selectedInvoiceForPayment?.sale_return_adjust || 0, selectedInvoiceForPayment?.credit_applied || 0))).toLocaleString('en-IN')}
-                </span>
-              </div>
-              <div>
-                <Label>Payment Amount *</Label>
-                <Input type="number" value={paidAmount} onChange={(e) => setPaidAmount(e.target.value)} placeholder="Enter amount" step="0.01" />
-              </div>
-              <div>
-                <Label>Payment Mode</Label>
-                <Select value={paymentMode} onValueChange={handlePaymentModeChange}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent className="bg-popover z-50">
-                    <SelectItem value="cash">Cash</SelectItem>
-                    <SelectItem value="card">Card</SelectItem>
-                    <SelectItem value="upi">UPI</SelectItem>
-                    <SelectItem value="cheque">Cheque</SelectItem>
-                    <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              {currentOrganization?.id && (
-                <ReceivingBankAccountPicker
-                  organizationId={currentOrganization.id}
-                  paymentMethod={paymentMode}
-                  value={receivingBankAccountId}
-                  onChange={setReceivingBankAccountId}
-                />
-              )}
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setShowPaymentDialog(false)}>Cancel</Button>
-              <Button onClick={handleRecordPayment} disabled={isRecordingPayment}>
-                {isRecordingPayment ? "Recording..." : "Record Payment"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
         {/* Invoice preview (same as PDF layout) */}
         {invoiceToPrint && (
           <PrintPreviewDialog
