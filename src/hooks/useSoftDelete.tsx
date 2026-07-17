@@ -45,9 +45,15 @@ export type SoftDeleteOptions = {
   onPurchaseBillZeroStock?: (count: number) => void;
 };
 
+export interface BulkHardDeleteResult {
+  successCount: number;
+  failedCount: number;
+  blockedProducts: Array<{ id: string; usedIn: string[] }>;
+}
+
 export function useSoftDelete() {
   const { user } = useAuth();
-  const { organizationRole } = useOrganization();
+  const { organizationRole, currentOrganization } = useOrganization();
   const { toast } = useToast();
   const { checkVariantHasTransactions, checkProductHasTransactions } = useProductProtection();
 
@@ -414,9 +420,19 @@ export function useSoftDelete() {
     }
   };
 
-  const hardDelete = async (entity: SoftDeleteEntity, id: string) => {
+  const hardDelete = async (
+    entity: SoftDeleteEntity,
+    id: string,
+    options?: { suppressProductBlockedToast?: boolean },
+  ) => {
     if (!user?.id) {
       toast({ title: "Error", description: "User not authenticated", variant: "destructive" });
+      return false;
+    }
+
+    const orgId = currentOrganization?.id;
+    if (!orgId) {
+      toast({ title: "Error", description: "No organization selected", variant: "destructive" });
       return false;
     }
 
@@ -426,6 +442,8 @@ export function useSoftDelete() {
         "sales",
         "sale_returns",
         "purchase_returns",
+        "products",
+        "customers",
       ];
       const isAdminOrOwner = organizationRole === "admin";
       if (protectedEntities.includes(entity) && !isAdminOrOwner) {
@@ -441,11 +459,13 @@ export function useSoftDelete() {
       if (entity === "products") {
         const { hasTransactions, usedIn } = await checkProductHasTransactions(id);
         if (hasTransactions) {
-          toast({
-            title: "Cannot Delete Product",
-            description: `This product is used in ${usedIn.join(", ")} and cannot be permanently deleted.`,
-            variant: "destructive",
-          });
+          if (!options?.suppressProductBlockedToast) {
+            toast({
+              title: "Cannot Delete Product",
+              description: `This product is used in ${usedIn.join(", ")} and cannot be permanently deleted.`,
+              variant: "destructive",
+            });
+          }
           return false;
         }
       }
@@ -479,14 +499,30 @@ export function useSoftDelete() {
         case "voucher_entries":
           await supabase.from("voucher_items").delete().eq("voucher_id", id);
           break;
-        case "products":
-          await supabase.from("product_variants").delete().eq("product_id", id);
+        case "products": {
+          const { error: variantError } = await supabase
+            .from("product_variants")
+            .delete()
+            .eq("product_id", id)
+            .eq("organization_id", orgId);
+          if (variantError) throw variantError;
           break;
+        }
       }
 
-      // Delete the main record
-      const { error } = await supabase.from(entity).delete().eq("id", id);
+      // Delete the main record (scoped by org; verify a row was removed)
+      const { data: deletedRows, error } = await supabase
+        .from(entity)
+        .delete()
+        .eq("id", id)
+        .eq("organization_id", orgId)
+        .select("id");
       if (error) throw error;
+      if (!deletedRows?.length) {
+        throw new Error(
+          "Delete was not applied. You may not have permission to permanently delete this record.",
+        );
+      }
 
       return true;
     } catch (error: any) {
@@ -507,6 +543,64 @@ export function useSoftDelete() {
     }
   };
 
+  const bulkHardDelete = async (
+    entity: SoftDeleteEntity,
+    ids: string[],
+  ): Promise<BulkHardDeleteResult> => {
+    const result: BulkHardDeleteResult = {
+      successCount: 0,
+      failedCount: 0,
+      blockedProducts: [],
+    };
+
+    for (const id of ids) {
+      if (entity === "products") {
+        const { hasTransactions, usedIn } = await checkProductHasTransactions(id);
+        if (hasTransactions) {
+          result.blockedProducts.push({ id, usedIn });
+          result.failedCount++;
+          continue;
+        }
+      }
+
+      const success = await hardDelete(entity, id, { suppressProductBlockedToast: true });
+      if (success) {
+        result.successCount++;
+      } else {
+        result.failedCount++;
+      }
+    }
+
+    if (result.blockedProducts.length > 0 && result.successCount === 0) {
+      const first = result.blockedProducts[0];
+      toast({
+        title: "Cannot Delete Product(s)",
+        description:
+          result.blockedProducts.length === 1
+            ? `This product is used in ${first.usedIn.join(", ")} and cannot be permanently deleted.`
+            : `${result.blockedProducts.length} product(s) have transaction history and cannot be permanently deleted.`,
+        variant: "destructive",
+      });
+    } else if (result.failedCount > 0 && result.successCount > 0) {
+      toast({
+        title: "Partially Deleted",
+        description: `${result.successCount} deleted, ${result.failedCount} could not be deleted.`,
+        variant: "destructive",
+      });
+    }
+
+    return result;
+  };
+
+  const bulkRestore = async (entity: SoftDeleteEntity, ids: string[]) => {
+    let successCount = 0;
+    for (const id of ids) {
+      const success = await restore(entity, id);
+      if (success) successCount++;
+    }
+    return successCount;
+  };
+
   const checkPurchaseStockDependencies = async (billId: string): Promise<StockDependency[]> => {
     try {
       const { data, error } = await supabase.rpc("check_purchase_stock_dependencies", {
@@ -525,5 +619,13 @@ export function useSoftDelete() {
     }
   };
 
-  return { softDelete, bulkSoftDelete, restore, hardDelete, checkPurchaseStockDependencies };
+  return {
+    softDelete,
+    bulkSoftDelete,
+    restore,
+    hardDelete,
+    bulkHardDelete,
+    bulkRestore,
+    checkPurchaseStockDependencies,
+  };
 }
