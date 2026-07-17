@@ -34,7 +34,7 @@ export async function upsertPrinterPresetRow(
   const wantSingle = options?.single !== false;
 
   const run = (payload: Record<string, unknown>) => {
-    const base = supabase.from("printer_presets").upsert(payload, { onConflict }).select(select);
+    const base = supabase.from("printer_presets").upsert(payload as never, { onConflict }).select(select);
     return wantSingle ? base.single() : base;
   };
 
