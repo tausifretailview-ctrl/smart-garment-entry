@@ -25,7 +25,6 @@ import {
   invalidateCustomerFinancialSnapshot,
 } from "@/utils/customerFinancialSnapshot";
 import {
-  applyAdjustmentToInvoices,
   reverseBalanceAdjustmentVouchers,
   type AdjustmentAllocation,
 } from "@/utils/applyAdjustmentToInvoices";
