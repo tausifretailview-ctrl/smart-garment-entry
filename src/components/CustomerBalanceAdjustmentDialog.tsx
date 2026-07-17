@@ -263,47 +263,21 @@ export function CustomerBalanceAdjustmentDialog({
         created_by: user?.id,
       };
 
-      let allocations: AdjustmentAllocation[] = [];
-      let uncoveredAmount = 0;
+      const allocations: AdjustmentAllocation[] = [];
+      const uncoveredAmount = 0;
 
-      if (isOutstandingReduction) {
-        const { data: adjRow, error: adjErr } = await (supabase as any)
-          .from("customer_balance_adjustments")
-          .insert({
-            ...baseInsert,
-            outstanding_difference: 0,
-          })
-          .select("id")
-          .single();
-        if (adjErr || !adjRow?.id) {
-          throw adjErr || new Error("Failed to create adjustment record");
-        }
-
-        const result = await applyAdjustmentToInvoices({
-          organizationId,
-          customerId: selectedCustomerId,
-          adjustmentAmount: Math.abs(outDelta),
-          reason: reason.trim(),
-          adjustmentRowId: adjRow.id,
-          createdBy: user?.id,
+      // Ledger-level correction only — never touches invoices. Both increase and
+      // reduction branches write outstanding_difference directly on the
+      // customer_balance_adjustments row; adjustmentTotal is picked up by
+      // computeCustomerBalanceCore via fetchCustomerBalanceSnapshot.
+      const { error } = await (supabase as any)
+        .from("customer_balance_adjustments")
+        .insert({
+          ...baseInsert,
+          outstanding_difference: newOutstanding !== "" ? outDelta : 0,
         });
-        allocations = result.allocations;
-        uncoveredAmount = result.uncoveredAmount;
-
-        const { error: updErr } = await (supabase as any)
-          .from("customer_balance_adjustments")
-          .update({ outstanding_difference: -uncoveredAmount })
-          .eq("id", adjRow.id);
-        if (updErr) throw updErr;
-      } else {
-        const { error } = await (supabase as any)
-          .from("customer_balance_adjustments")
-          .insert({
-            ...baseInsert,
-            outstanding_difference: newOutstanding !== "" ? outDelta : 0,
-          });
-        if (error) throw error;
-      }
+      if (error) throw error;
+      void isOutstandingReduction; // retained for potential future UX messaging
 
       if (effectiveAdvDiff !== 0) {
         await applyAdjustmentEffects(selectedCustomerId, 0, effectiveAdvDiff, reason.trim());
