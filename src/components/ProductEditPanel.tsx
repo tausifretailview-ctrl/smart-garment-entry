@@ -18,6 +18,9 @@ import {
   Pencil, Save, Check, AlertTriangle, Clock
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { getUniversalCodeScanWarning } from "@/utils/imeiValidation";
+import { checkBarcodeExists } from "@/utils/barcodeValidation";
+import { validateIMEI } from "@/utils/imeiValidation";
 
 interface LineItem {
   temp_id: string;
@@ -48,6 +51,12 @@ interface ProductEditPanelProps {
   onIndexChange: (index: number) => void;
   onProductUpdated: (tempId: string, updates: Partial<LineItem>, applyToProductId?: string) => void;
   focusField?: string;
+  mobileErpMode?: {
+    enabled?: boolean;
+    allow_imei_edit_after_save?: boolean;
+    imei_min_length?: number;
+    imei_max_length?: number;
+  };
 }
 
 interface ProductData {
@@ -71,7 +80,7 @@ const MARGIN_CHIPS = [10, 15, 20, 25, 30, 50];
 const GST_RATES = [0, 5, 12, 18, 28];
 
 const ProductEditPanel = ({
-  open, onClose, lineItems, currentIndex, onIndexChange, onProductUpdated, focusField
+  open, onClose, lineItems, currentIndex, onIndexChange, onProductUpdated, focusField, mobileErpMode,
 }: ProductEditPanelProps) => {
   const { currentOrganization } = useOrganization();
   const { toast } = useToast();
@@ -92,6 +101,15 @@ const ProductEditPanel = ({
   } | null>(null);
   const [variantSize, setVariantSize] = useState("");
   const [sizeModified, setSizeModified] = useState(false);
+  const [variantBarcode, setVariantBarcode] = useState("");
+  const [barcodeModified, setBarcodeModified] = useState(false);
+  const [barcodeSaving, setBarcodeSaving] = useState(false);
+
+  const allowImeiEdit =
+    !!mobileErpMode?.enabled &&
+    (mobileErpMode.allow_imei_edit_after_save ?? true);
+  const imeiMin = mobileErpMode?.imei_min_length ?? 4;
+  const imeiMax = mobileErpMode?.imei_max_length ?? 25;
 
   // Section open states
   const [sections, setSections] = useState({
@@ -148,6 +166,8 @@ const ProductEditPanel = ({
         setCurrentVariant(null);
         setVariantSize("");
         setSizeModified(false);
+        setVariantBarcode("");
+        setBarcodeModified(false);
       }
 
       // Fetch current variant for size editing
@@ -161,6 +181,8 @@ const ProductEditPanel = ({
           setCurrentVariant(variantData as any);
           setVariantSize(variantData.size || "");
           setSizeModified(false);
+          setVariantBarcode(variantData.barcode || "");
+          setBarcodeModified(false);
         }
       }
     } catch (err) {
@@ -612,14 +634,43 @@ const ProductEditPanel = ({
                         )}
                       </div>
                       <div className="space-y-1">
-                        <Label className="text-xs font-medium">Barcode</Label>
-                        <div className="h-9 flex items-center px-3 bg-muted/50 rounded-md border text-sm font-mono text-muted-foreground">
-                          {currentVariant.barcode || "—"}
-                        </div>
+                        <Label className="text-xs font-medium">
+                          {allowImeiEdit ? "IMEI Number" : "Barcode"}
+                          {barcodeModified && <span className="ml-1 text-[10px] text-amber-600 font-semibold">(modified)</span>}
+                        </Label>
+                        {allowImeiEdit ? (
+                          <Input
+                            value={variantBarcode}
+                            onChange={(e) => {
+                              const next = e.target.value.replace(/\s/g, "").toUpperCase();
+                              setVariantBarcode(next);
+                              setBarcodeModified(next !== (currentVariant?.barcode || ""));
+                            }}
+                            className={cn(
+                              "h-9 text-sm font-mono tracking-wider",
+                              barcodeModified && "border-l-4 border-l-amber-500",
+                            )}
+                            placeholder="Scan or type IMEI..."
+                          />
+                        ) : (
+                          <div className="h-9 flex items-center px-3 bg-muted/50 rounded-md border text-sm font-mono text-muted-foreground">
+                            {currentVariant.barcode || "—"}
+                          </div>
+                        )}
+                        {barcodeModified && (
+                          <p className="text-[11px] text-amber-600 italic">was: {currentVariant.barcode || "—"}</p>
+                        )}
+                        {allowImeiEdit && variantBarcode && getUniversalCodeScanWarning(variantBarcode) && (
+                          <p className="text-[11px] text-amber-700 dark:text-amber-400">
+                            ⚠️ {getUniversalCodeScanWarning(variantBarcode)}
+                          </p>
+                        )}
                       </div>
                     </div>
-                    {sizeModified && (
-                      <div className="flex items-center gap-2 pt-1">
+                    {(sizeModified || barcodeModified) && (
+                      <div className="flex flex-col gap-2 pt-1">
+                        {sizeModified && (
+                        <div className="flex items-center gap-2">
                         <Button
                           size="sm"
                           className="h-7 text-xs gap-1 bg-amber-600 hover:bg-amber-700 text-white"
@@ -646,7 +697,66 @@ const ProductEditPanel = ({
                           onClick={() => { setVariantSize(currentVariant?.size || ""); setSizeModified(false); }}>
                           Cancel
                         </Button>
+                        </div>
+                        )}
+                        {barcodeModified && allowImeiEdit && (
+                        <div className="flex items-center gap-2 flex-wrap">
+                        <Button
+                          size="sm"
+                          className="h-7 text-xs gap-1 bg-violet-600 hover:bg-violet-700 text-white"
+                          disabled={barcodeSaving}
+                          onClick={async () => {
+                            if (!currentVariant?.id || !variantBarcode.trim() || !currentOrganization?.id) return;
+                            const cleaned = variantBarcode.trim();
+                            if (!validateIMEI(cleaned, imeiMin, imeiMax)) {
+                              toast({
+                                title: "Invalid IMEI",
+                                description: `IMEI must be ${imeiMin}-${imeiMax} characters.`,
+                                variant: "destructive",
+                              });
+                              return;
+                            }
+                            setBarcodeSaving(true);
+                            try {
+                              const conflict = await checkBarcodeExists(
+                                cleaned,
+                                currentOrganization.id,
+                                currentVariant.id,
+                              );
+                              if (conflict.exists) {
+                                throw new Error(`IMEI already used on ${conflict.productName}`);
+                              }
+                              const { error } = await supabase
+                                .from("product_variants")
+                                .update({ barcode: cleaned })
+                                .eq("id", currentVariant.id);
+                              if (error) throw error;
+                              setCurrentVariant(prev => prev ? { ...prev, barcode: cleaned } : prev);
+                              setBarcodeModified(false);
+                              onProductUpdated(item.temp_id, { barcode: cleaned });
+                              toast({ title: "IMEI Updated", description: `IMEI changed to ${cleaned}` });
+                            } catch (err: any) {
+                              toast({ title: "Error", description: err.message, variant: "destructive" });
+                            } finally {
+                              setBarcodeSaving(false);
+                            }
+                          }}
+                        >
+                          <Save className="h-3 w-3" /> Save IMEI Change
+                        </Button>
+                        <Button size="sm" variant="outline" className="h-7 text-xs"
+                          onClick={() => {
+                            setVariantBarcode(currentVariant?.barcode || "");
+                            setBarcodeModified(false);
+                          }}>
+                          Cancel
+                        </Button>
+                        <p className="text-[11px] text-amber-600 w-full">⚠️ Updates variant IMEI for this unit. Re-save the bill to sync purchase line.</p>
+                        </div>
+                        )}
+                        {sizeModified && (
                         <p className="text-[11px] text-amber-600">⚠️ Updates product master. Existing records unchanged.</p>
+                        )}
                       </div>
                     )}
                     <div className="grid grid-cols-3 gap-2 pt-1 border-t border-border/50">

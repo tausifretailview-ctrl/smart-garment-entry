@@ -1,4 +1,7 @@
 import { useSettings } from './useSettings';
+import { validateIMEI as validateIMEICore } from '@/utils/imeiValidation';
+
+export { validateIMEICore as validateIMEI };
 
 export interface MobileERPSettings {
   enabled: boolean;
@@ -7,6 +10,8 @@ export interface MobileERPSettings {
   financer_billing: boolean;
   imei_min_length: number;
   imei_max_length: number;
+  /** Allow correcting IMEI on saved purchase bills / product edit panel */
+  allow_imei_edit_after_save: boolean;
 }
 
 const DEFAULT_SETTINGS: MobileERPSettings = {
@@ -16,6 +21,7 @@ const DEFAULT_SETTINGS: MobileERPSettings = {
   financer_billing: true,
   imei_min_length: 4,
   imei_max_length: 25,
+  allow_imei_edit_after_save: true,
 };
 
 export function useMobileERP(): MobileERPSettings {
@@ -34,11 +40,6 @@ export function useMobileERP(): MobileERPSettings {
     financer_billing: mobileErp.financer_billing ?? true,
     imei_min_length: mobileErp.imei_min_length ?? 4,
     imei_max_length: mobileErp.imei_max_length ?? 25,
+    allow_imei_edit_after_save: mobileErp.allow_imei_edit_after_save ?? true,
   };
-}
-
-export function validateIMEI(imei: string, minLength: number = 4, maxLength: number = 25): boolean {
-  if (!imei) return false;
-  const cleaned = imei.replace(/\s/g, '');
-  return /^[a-zA-Z0-9\-_.\/]+$/.test(cleaned) && cleaned.length >= minLength && cleaned.length <= maxLength;
 }
