@@ -168,7 +168,7 @@ export const OrganizationSetup = () => {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
-              <Button variant="outline" className="w-full" onClick={() => navigate("/auth")}>
+              <Button variant="outline" className="w-full" onClick={() => navigate("/auth?platform=1")}>
                 <Shield className="mr-2 h-4 w-4" />
                 Platform Admin Login
               </Button>
@@ -224,7 +224,7 @@ export const OrganizationSetup = () => {
             </div>
           </div>
 
-          <Button variant="outline" className="h-12 w-full rounded-xl md:h-14 md:text-lg" onClick={() => navigate("/auth")}>
+          <Button variant="outline" className="h-12 w-full rounded-xl md:h-14 md:text-lg" onClick={() => navigate("/auth?platform=1")}>
             <Shield className="mr-2 h-4 w-4" />
             Platform Admin Login
           </Button>

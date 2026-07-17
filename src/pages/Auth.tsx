@@ -10,6 +10,9 @@ import { Loader2, Shield } from "lucide-react";
 import { validateAuth } from "@/lib/validations";
 import ezzyerpLogo from "@/assets/ezzyerp-logo.jpg";
 import { hideAppBootSplash } from "@/lib/appBootSplash";
+import { resolveStartupOrgSlug } from "@/lib/bundledOrg";
+import { isPlatformAdminLoginIntent, resolveOrgLoginPath } from "@/lib/orgLoginRedirect";
+import { useLocation } from "react-router-dom";
 
 const MAX_LOGIN_ATTEMPTS = 5;
 const LOCKOUT_DURATION_MS = 60000; // 1 minute
@@ -22,10 +25,21 @@ const Auth = () => {
   const [lockoutUntil, setLockoutUntil] = useState<Date | null>(null);
   const { toast } = useToast();
   const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
     hideAppBootSplash();
   }, []);
+
+  // Org users sometimes land here after password reset, sign-out, or old bookmarks.
+  // Send them to their shop login unless they explicitly opened platform-admin login.
+  useEffect(() => {
+    if (isPlatformAdminLoginIntent(location.search)) return;
+    const slug = resolveStartupOrgSlug();
+    if (slug) {
+      navigate(`/${slug}`, { replace: true });
+    }
+  }, [location.search, navigate]);
 
   // Check and clear lockout on mount
   useEffect(() => {
@@ -231,11 +245,19 @@ const Auth = () => {
               )}
             </Button>
           </form>
-          <div className="mt-6 pt-4 border-t border-border">
+          <div className="mt-6 pt-4 border-t border-border space-y-3">
             <p className="text-center text-sm text-muted-foreground">
               Organization users must login via their{" "}
               <span className="text-primary font-medium">organization URL</span>
             </p>
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full"
+              onClick={() => navigate(resolveOrgLoginPath())}
+            >
+              Go to Organization Login
+            </Button>
           </div>
         </CardContent>
       </Card>

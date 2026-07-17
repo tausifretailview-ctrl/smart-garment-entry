@@ -18,6 +18,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useNavigate } from "react-router-dom";
+import { resolveOrgLoginPath } from "@/lib/orgLoginRedirect";
 import { usePOS, POSProvider } from "@/contexts/POSContext";
 import { KeyboardShortcutsModal, useKeyboardShortcuts } from "@/components/KeyboardShortcutsModal";
 import { useSharedAppShell } from "@/contexts/SharedAppShellContext";
@@ -61,13 +62,8 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
   const can = (id: string) => !permissionsLoading && (permissions === null || hasMenuAccess(id));
 
   const handleSignOut = async () => {
-    const slug = currentOrganization?.slug || orgSlug;
     await signOut();
-    if (slug) {
-      navigate(`/${slug}`);
-    } else {
-      navigate("/auth");
-    }
+    navigate(resolveOrgLoginPath());
   };
 
   const posDialogs = (

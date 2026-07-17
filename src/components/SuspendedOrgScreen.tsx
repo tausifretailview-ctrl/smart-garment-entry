@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { resolveOrgLoginPath } from "@/lib/orgLoginRedirect";
 import { Button } from "@/components/ui/button";
 import { AlertCircle, LogOut } from "lucide-react";
 
@@ -16,14 +17,16 @@ export const SuspendedOrgScreen = ({ orgName, reason }: Props) => {
   useEffect(() => {
     // Auto sign-out after 8 seconds so no stale session lingers
     const t = setTimeout(() => {
-      void supabase.auth.signOut();
+      void supabase.auth.signOut().then(() => {
+        window.location.href = resolveOrgLoginPath();
+      });
     }, 8000);
     return () => clearTimeout(t);
   }, []);
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
-    window.location.href = "/auth";
+    window.location.href = resolveOrgLoginPath();
   };
 
   const waLink = `https://wa.me/${CONTACT_NUMBER.replace(/[^0-9]/g, "")}?text=${encodeURIComponent(

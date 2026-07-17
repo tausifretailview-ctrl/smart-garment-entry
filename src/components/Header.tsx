@@ -31,6 +31,8 @@ import { requestPosBarcodeFocus } from "@/utils/posSalesRefresh";
 import { useForceDesktopView } from "@/hooks/useDesktopViewPreference";
 import { useIsNarrowViewport } from "@/hooks/use-mobile";
 import { ActivityCenterBell } from "@/components/activity-center/ActivityCenterBell";
+import { storeOrgSlug } from "@/lib/orgSlug";
+import { resolveOrgLoginPath } from "@/lib/orgLoginRedirect";
 
 export const Header = () => {
   const { user, signOut } = useAuth();
@@ -126,21 +128,17 @@ export const Header = () => {
 
   const handleSignOut = async () => {
     // Get the organization slug (prefer current, fallback to localStorage)
-    const slug = currentOrganization?.slug || orgSlug || localStorage.getItem("selectedOrgSlug");
+    const slug = currentOrganization?.slug || orgSlug || getStoredOrgSlug();
     
     // Ensure slug is preserved in localStorage for PWA support before signing out
     if (slug) {
-      localStorage.setItem("selectedOrgSlug", slug);
+      storeOrgSlug(slug);
     }
     
     await signOut();
     
-    // Redirect to organization login URL if available, otherwise default auth
-    if (slug) {
-      navigate(`/${slug}`);
-    } else {
-      navigate('/auth');
-    }
+    // Redirect to organization login — never the platform-admin /auth page
+    navigate(resolveOrgLoginPath());
   };
 
   const initials = user?.email?.substring(0, 2).toUpperCase() || "U";

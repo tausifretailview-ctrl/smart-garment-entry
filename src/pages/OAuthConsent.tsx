@@ -23,7 +23,7 @@ export default function OAuthConsent() {
       if (!sess.session) {
         // Preserve the FULL consent URL so auth returns the user here.
         const next = window.location.pathname + window.location.search;
-        window.location.href = "/auth?next=" + encodeURIComponent(next);
+        window.location.href = `/auth?platform=1&next=${encodeURIComponent(next)}`;
         return;
       }
       const oauth = (supabase.auth as any).oauth;
