@@ -302,7 +302,7 @@ export async function restorePrinterPresetFromBackup(
   ({ data: restored, error } = await supabase
     .from("printer_presets")
     .upsert(
-      [current ? { id: current.id, ...payload } : payload],
+      [current ? { id: current.id, ...payload } : payload] as never,
       { onConflict: "organization_id,name" },
     )
     .select("*")
@@ -313,7 +313,7 @@ export async function restorePrinterPresetFromBackup(
     ({ data: restored, error } = await supabase
       .from("printer_presets")
       .upsert(
-        [current ? { id: current.id, ...without } : without],
+        [current ? { id: current.id, ...without } : without] as never,
         { onConflict: "organization_id,name" },
       )
       .select("*")
