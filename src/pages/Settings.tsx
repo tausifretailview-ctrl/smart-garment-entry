@@ -2337,7 +2337,7 @@ export default function Settings() {
                     placeholder="e.g., INV/25-26/100"
                   />
                   <p className="text-xs text-muted-foreground">
-                    Last sale invoice number already issued (e.g. INV/26-27/100 → next is 101). Leave blank to start from 1 when no active invoices exist. Deleted bills no longer reserve numbers.
+                    Last sale invoice number already issued (e.g. INV/26-27/18 → next is 19). Leave blank to continue from the highest active invoice. Do not enter a future/high number — that jumps the series (e.g. 261 → next 262). Deleted bills no longer reserve numbers.
                   </p>
                 </div>
                 
