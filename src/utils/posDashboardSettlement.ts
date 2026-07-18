@@ -1,7 +1,10 @@
 /**
  * POS Dashboard settlement display — aligns Paid / Not Paid with Cash/Card/UPI columns.
  * At-sale tender lives in cash_amount/card_amount/upi_amount; paid_amount can lag after receipt sync.
+ * Mode columns must never show change/over-tender above settled paid (see mixPaymentAllocation).
  */
+
+import { capPaymentModesToSettled } from "@/utils/mixPaymentAllocation";
 
 const SETTLEMENT_EPS = 0.01;
 
@@ -151,6 +154,17 @@ export function getPosPaymentModeDisplayAmounts(
     } else {
       card += gap;
     }
+  } else if (tenderSum > effectivePaid + SETTLEMENT_EPS) {
+    // Historical mix over-tender (e.g. cash_amount 8000 on net 4500) — show settled cash only.
+    const capped = capPaymentModesToSettled({
+      cash,
+      card,
+      upi,
+      settledPaid: effectivePaid,
+    });
+    cash = capped.cash;
+    card = capped.card;
+    upi = capped.upi;
   }
 
   return {

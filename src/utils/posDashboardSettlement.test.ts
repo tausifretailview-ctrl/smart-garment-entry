@@ -45,4 +45,18 @@ describe("getPosPaymentModeDisplayAmounts", () => {
     expect(amounts.upi).toBe(3849);
     expect(amounts.card).toBe(0);
   });
+
+  it("caps over-tender cash (ALBELI: ₹8000 tender on ₹4500 bill) to settled paid", () => {
+    const amounts = getPosPaymentModeDisplayAmounts({
+      payment_method: "multiple",
+      net_amount: 4500,
+      paid_amount: 4500,
+      cash_amount: 8000,
+      card_amount: 0,
+      upi_amount: 0,
+    });
+    expect(amounts.cash).toBe(4500);
+    expect(amounts.card).toBe(0);
+    expect(amounts.upi).toBe(0);
+  });
 });

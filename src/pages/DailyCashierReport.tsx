@@ -26,6 +26,7 @@ import {
   getSaleReportGrossAmount,
   getSaleReportNetAmount,
 } from "@/utils/cashierReportUtils";
+import { allocateMixPaymentToBill } from "@/utils/mixPaymentAllocation";
 import {
   Table,
   TableBody,
@@ -301,11 +302,17 @@ const DailyCashierReport = () => {
         totalBalance += balance;
         totalRefund += refundAmt;
         
-        // For mixed payments, add individual amounts
+        // For mixed payments, add individual amounts (cap change/over-tender to bill)
         if (sale.payment_method === "multiple") {
-          cashSale += Number(sale.cash_amount) || 0;
-          cardSale += Number(sale.card_amount) || 0;
-          upiSale += Number(sale.upi_amount) || 0;
+          const applied = allocateMixPaymentToBill({
+            billAmount: netAmount,
+            cashAmount: Number(sale.cash_amount) || 0,
+            cardAmount: Number(sale.card_amount) || 0,
+            upiAmount: Number(sale.upi_amount) || 0,
+          });
+          cashSale += applied.cash;
+          cardSale += applied.card;
+          upiSale += applied.upi;
           mixBills++;
         } else {
           // For single payment methods

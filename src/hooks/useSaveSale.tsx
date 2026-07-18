@@ -19,6 +19,7 @@ import {
   preSaveInvariants,
   warnSettlementPathMismatch,
 } from "@/utils/saleSettlement";
+import { allocateMixPaymentToBill } from "@/utils/mixPaymentAllocation";
 import { generateOrgSaleNumber } from "@/utils/saleNumber";
 import {
   insertSaleItemsInChunks,
@@ -400,13 +401,21 @@ export const useSaveSale = () => {
     let finalPaymentMethod: string = paymentMethod;
 
     if (paymentBreakdown) {
-      cashAmt = paymentBreakdown.cashAmount;
-      cardAmt =
-        paymentBreakdown.cardAmount +
-        (paymentBreakdown.bankAmount || 0) +
-        (paymentBreakdown.financeAmount || 0);
-      upiAmt = paymentBreakdown.upiAmount;
-      paidAmt = paymentBreakdown.totalPaid;
+      // Mix Payment may include cash tender above the bill (change). Persist only
+      // amounts applied to the bill — storing tender (e.g. ₹8000 on a ₹4500 bill)
+      // inflated POS Dashboard Cash / cash tally while Paid stayed capped at net.
+      const applied = allocateMixPaymentToBill({
+        billAmount: saleData.netAmount,
+        cashAmount: paymentBreakdown.cashAmount,
+        cardAmount: paymentBreakdown.cardAmount,
+        upiAmount: paymentBreakdown.upiAmount,
+        bankAmount: paymentBreakdown.bankAmount,
+        financeAmount: paymentBreakdown.financeAmount,
+      });
+      cashAmt = applied.cash;
+      cardAmt = applied.card;
+      upiAmt = applied.upi;
+      paidAmt = applied.totalApplied;
       refundAmt = paymentBreakdown.refundAmount;
       finalPaymentMethod = 'multiple';
     } else if (options?.isUpdate) {
