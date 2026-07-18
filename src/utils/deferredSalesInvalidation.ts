@@ -24,6 +24,12 @@ function runSalesInvalidation(queryClient: QueryClient, opts: PendingSalesInvali
   queryClient.invalidateQueries({ queryKey: ["todays-sales"] });
   queryClient.invalidateQueries({ queryKey: ["today-sales"] });
   queryClient.invalidateQueries({ queryKey: ["pos-products"] });
+  // Sale Return pickers: get_sold_variant_ids RPC (staleTime 5 min)
+  queryClient.invalidateQueries({
+    queryKey: opts.organizationId
+      ? ["sold-variant-ids", opts.organizationId]
+      : ["sold-variant-ids"],
+  });
   queryClient.invalidateQueries({
     queryKey: opts.organizationId
       ? ["pos-dashboard-sales", opts.organizationId]

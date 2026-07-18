@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -351,10 +352,23 @@ export const FloatingSaleReturn = ({
     setCustomerSearchOpen(false);
   }, []);
 
-  // Load sold products when dialog opens
+  const { data: soldVariantIdRows } = useQuery({
+    queryKey: ["sold-variant-ids", organizationId],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any).rpc("get_sold_variant_ids", {
+        p_org_id: organizationId,
+      });
+      if (error) throw error;
+      return (data || []) as Array<{ product_id: string | null; variant_id: string | null }>;
+    },
+    enabled: open && !!organizationId,
+    staleTime: 300_000,
+  });
+
+  // Load sold products when dialog opens / RPC cache updates
   useEffect(() => {
-    if (open && organizationId) {
-      loadSoldProducts();
+    if (open && organizationId && soldVariantIdRows) {
+      void loadSoldProducts(soldVariantIdRows);
       setTimeout(() => barcodeInputRef.current?.focus(), 200);
     }
     if (!open) {
@@ -376,7 +390,7 @@ export const FloatingSaleReturn = ({
       setCustomerSearchOpen(false);
       setShowQuickAddCustomer(false);
     }
-  }, [open, organizationId, customerId]);
+  }, [open, organizationId, customerId, soldVariantIdRows]);
 
   // Load pending credit notes whenever the effective customer changes
   // (covers both prop-passed customer and inline-picked customer).
@@ -415,31 +429,16 @@ export const FloatingSaleReturn = ({
       });
   }, [open, organizationId, effectiveCustomerId]);
 
-  const loadSoldProducts = async () => {
+  const loadSoldProducts = async (
+    soldRows: Array<{ product_id: string | null; variant_id: string | null }>,
+  ) => {
     setLoading(true);
     try {
       const soldVariantIds = new Set<string>();
       const soldProductIds = new Set<string>();
-      const PAGE_SIZE = 1000;
-      let page = 0;
-      let hasMore = true;
-
-      while (hasMore) {
-        const { data: batch, error } = await supabase
-          .from("sale_items")
-          .select("product_id, variant_id, sales!inner(organization_id)")
-          .eq("sales.organization_id", organizationId)
-          .is("deleted_at", null)
-          .order("id")
-          .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
-
-        if (error) throw error;
-        (batch || []).forEach(item => {
-          if (item.product_id) soldProductIds.add(item.product_id);
-          if (item.variant_id) soldVariantIds.add(item.variant_id);
-        });
-        hasMore = (batch?.length || 0) === PAGE_SIZE;
-        page++;
+      for (const item of soldRows) {
+        if (item.product_id) soldProductIds.add(item.product_id);
+        if (item.variant_id) soldVariantIds.add(item.variant_id);
       }
 
       const productIdArray = Array.from(soldProductIds);
