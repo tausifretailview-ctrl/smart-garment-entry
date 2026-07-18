@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, type ReactNode } from "react";
 import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
 import { restoreDashboardFilters, WINDOW_FILTER_IDS } from "@/lib/dashboardFilterPersistence";
 import { useQuery } from "@tanstack/react-query";
@@ -143,86 +143,84 @@ const PeriodSelector = ({
   const isActive = (f: string, t: string) => fromDate === f && toDate === t;
 
   return (
-    <div className="space-y-2 print:hidden">
-      {/* Pills */}
-      <div className="flex gap-1.5 flex-wrap">
+    <div className="print:hidden flex items-center gap-1.5 min-w-0 overflow-x-auto tab-scroll-stable pb-0.5">
+      <div className="flex items-center gap-1 shrink-0">
         {pills.map(p => (
           <Button
             key={p.value}
             variant={periodType === p.value ? "default" : "outline"}
             size="sm"
-            className="h-7 text-xs"
+            className="h-7 text-xs px-2.5 shrink-0"
             onClick={() => setPeriodType(p.value)}
           >
             {p.label}
           </Button>
         ))}
       </div>
-
-      {/* Contextual presets */}
-      <div className="flex gap-2 flex-wrap">
+      <Separator orientation="vertical" className="h-6 shrink-0" />
+      <div className="flex items-center gap-1 shrink-0">
         {periodType === "monthly" && (
           <>
-            <Button variant={isActive(format(startOfMonth(new Date()), "yyyy-MM-dd"), format(endOfMonth(new Date()), "yyyy-MM-dd")) ? "default" : "outline"} size="sm" className="h-7 text-xs" onClick={setThisMonth}>This Month</Button>
-            <Button variant={isActive(format(startOfMonth(subMonths(new Date(), 1)), "yyyy-MM-dd"), format(endOfMonth(subMonths(new Date(), 1)), "yyyy-MM-dd")) ? "default" : "outline"} size="sm" className="h-7 text-xs" onClick={setLastMonth}>Last Month</Button>
-            <Separator orientation="vertical" className="h-7" />
+            <Button variant={isActive(format(startOfMonth(new Date()), "yyyy-MM-dd"), format(endOfMonth(new Date()), "yyyy-MM-dd")) ? "default" : "outline"} size="sm" className="h-7 text-xs shrink-0" onClick={setThisMonth}>This Month</Button>
+            <Button variant={isActive(format(startOfMonth(subMonths(new Date(), 1)), "yyyy-MM-dd"), format(endOfMonth(subMonths(new Date(), 1)), "yyyy-MM-dd")) ? "default" : "outline"} size="sm" className="h-7 text-xs shrink-0" onClick={setLastMonth}>Last Month</Button>
+            <Separator orientation="vertical" className="h-6 shrink-0" />
             {monthButtons.map(m => (
-              <Button key={m.from} variant={isActive(m.from, m.to) ? "default" : "outline"} size="sm" className="h-7 text-xs px-2" onClick={() => { setFromDate(m.from); setToDate(m.to); }}>
+              <Button key={m.from} variant={isActive(m.from, m.to) ? "default" : "outline"} size="sm" className="h-7 text-xs px-2 shrink-0" onClick={() => { setFromDate(m.from); setToDate(m.to); }}>
                 {m.label}
               </Button>
             ))}
           </>
         )}
         {periodType === "quarterly" && quarters.map(q => (
-          <Button key={q.label} variant={isActive(q.fromDate, q.toDate) ? "default" : "outline"} size="sm" className="h-7 text-xs" onClick={() => { setFromDate(q.fromDate); setToDate(q.toDate); }}>
+          <Button key={q.label} variant={isActive(q.fromDate, q.toDate) ? "default" : "outline"} size="sm" className="h-7 text-xs shrink-0" onClick={() => { setFromDate(q.fromDate); setToDate(q.toDate); }}>
             {q.isCurrent ? `● ${q.label}` : q.label}
           </Button>
         ))}
         {periodType === "yearly" && fyPresets.map(fy => (
-          <Button key={fy.label} variant={isActive(fy.fromDate, fy.toDate) ? "default" : "outline"} size="sm" className="h-7 text-xs" onClick={() => { setFromDate(fy.fromDate); setToDate(fy.toDate); }}>
+          <Button key={fy.label} variant={isActive(fy.fromDate, fy.toDate) ? "default" : "outline"} size="sm" className="h-7 text-xs shrink-0" onClick={() => { setFromDate(fy.fromDate); setToDate(fy.toDate); }}>
             {fy.label}
           </Button>
         ))}
         {periodType === "custom" && (
           <>
-            <div className="flex items-center gap-2">
-              <Label className="text-xs">From:</Label>
-              <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="w-36 h-7 text-xs" />
-            </div>
-            <div className="flex items-center gap-2">
-              <Label className="text-xs">To:</Label>
-              <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="w-36 h-7 text-xs" />
-            </div>
+            <Label className="text-xs shrink-0">From</Label>
+            <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="w-32 h-7 text-xs shrink-0" />
+            <Label className="text-xs shrink-0">To</Label>
+            <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="w-32 h-7 text-xs shrink-0" />
           </>
         )}
       </div>
-
-      {/* Period display */}
-      <p className="text-xs text-muted-foreground">
-        Period: {format(new Date(fromDate), "d MMM yyyy")} – {format(new Date(toDate), "d MMM yyyy")}
-      </p>
+      <span className="text-xs text-muted-foreground whitespace-nowrap tabular-nums shrink-0 pl-1">
+        {format(new Date(fromDate), "d MMM yyyy")} – {format(new Date(toDate), "d MMM yyyy")}
+      </span>
     </div>
   );
 };
 
-// As-of date presets
-const AsOfDatePresets = ({ asOfDate, setAsOfDate }: { asOfDate: string; setAsOfDate: (v: string) => void }) => {
+// As-of date presets — single compact row
+const AsOfDatePresets = ({
+  asOfDate,
+  setAsOfDate,
+  leading,
+}: {
+  asOfDate: string;
+  setAsOfDate: (v: string) => void;
+  leading?: ReactNode;
+}) => {
   const fy = getIndiaFinancialYear(0);
   return (
-    <div className="space-y-2 print:hidden">
-      <div className="flex items-center gap-2">
-        <Label className="text-xs whitespace-nowrap">As of Date:</Label>
-        <Input type="date" value={asOfDate} onChange={(e) => setAsOfDate(e.target.value)} className="w-40 h-8 text-xs" />
-      </div>
-      <div className="flex gap-2 flex-wrap">
-        <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setAsOfDate(format(new Date(), "yyyy-MM-dd"))}>Today</Button>
-        <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setAsOfDate(format(endOfMonth(new Date()), "yyyy-MM-dd"))}>End of This Month</Button>
-        <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setAsOfDate(format(endOfMonth(subMonths(new Date(), 1)), "yyyy-MM-dd"))}>End of Last Month</Button>
-        <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setAsOfDate(fy.toDate)}>End of {fy.label}</Button>
-      </div>
-      <p className="text-xs text-muted-foreground">
-        As of: {format(new Date(asOfDate), "d MMM yyyy")}
-      </p>
+    <div className="print:hidden flex items-center gap-1.5 min-w-0 overflow-x-auto tab-scroll-stable pb-0.5">
+      {leading}
+      {leading ? <Separator orientation="vertical" className="h-6 shrink-0" /> : null}
+      <Label className="text-xs whitespace-nowrap shrink-0">As of</Label>
+      <Input type="date" value={asOfDate} onChange={(e) => setAsOfDate(e.target.value)} className="w-36 h-7 text-xs shrink-0" />
+      <Button variant="outline" size="sm" className="h-7 text-xs shrink-0" onClick={() => setAsOfDate(format(new Date(), "yyyy-MM-dd"))}>Today</Button>
+      <Button variant="outline" size="sm" className="h-7 text-xs shrink-0" onClick={() => setAsOfDate(format(endOfMonth(new Date()), "yyyy-MM-dd"))}>End of Month</Button>
+      <Button variant="outline" size="sm" className="h-7 text-xs shrink-0" onClick={() => setAsOfDate(format(endOfMonth(subMonths(new Date(), 1)), "yyyy-MM-dd"))}>End Last Month</Button>
+      <Button variant="outline" size="sm" className="h-7 text-xs shrink-0" onClick={() => setAsOfDate(fy.toDate)}>End {fy.label}</Button>
+      <span className="text-xs text-muted-foreground whitespace-nowrap tabular-nums shrink-0 pl-1">
+        {format(new Date(asOfDate), "d MMM yyyy")}
+      </span>
     </div>
   );
 };
@@ -1144,83 +1142,84 @@ export default function AccountingReports() {
                   </div>
                 </div>
               </div>
-              <div className="flex flex-col gap-1.5 print:hidden mb-2">
-                <p className="text-xs text-muted-foreground">
-                  <span className="font-medium text-foreground">Cumulative</span> = all posted lines through as-of.
-                  <span className="font-medium text-foreground"> Period only</span> = activity inside the selected range.
-                </p>
-                <div className="flex flex-wrap gap-2 items-center">
-                  <span className="text-xs text-muted-foreground">Quick period:</span>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="h-7 text-xs"
-                    onClick={() => {
-                      setGlTrialMode("period");
-                      const d = new Date();
-                      setFromDate(format(startOfMonth(d), "yyyy-MM-dd"));
-                      setToDate(format(endOfMonth(d), "yyyy-MM-dd"));
-                    }}
-                  >
-                    This calendar month
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="h-7 text-xs"
-                    onClick={() => {
-                      setGlTrialMode("period");
-                      const d = new Date(asOfDate);
-                      setFromDate(format(startOfMonth(d), "yyyy-MM-dd"));
-                      setToDate(format(endOfMonth(d), "yyyy-MM-dd"));
-                    }}
-                  >
-                    Month of as-of date
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="h-7 text-xs"
-                    onClick={() => {
-                      setGlTrialMode("period");
-                      const fy = getIndiaFinancialYear(0);
-                      setFromDate(fy.fromDate);
-                      setToDate(fy.toDate);
-                    }}
-                  >
-                    Current FY (Apr–Mar)
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="h-7 text-xs"
-                    onClick={() => {
-                      setGlTrialMode("period");
-                      const fy = getIndiaFinancialYear(-1);
-                      setFromDate(fy.fromDate);
-                      setToDate(fy.toDate);
-                    }}
-                  >
-                    Previous FY
-                  </Button>
-                </div>
+              <div className="print:hidden mb-2 space-y-1.5">
+                {glTrialMode === "cumulative" ? (
+                  <AsOfDatePresets
+                    asOfDate={asOfDate}
+                    setAsOfDate={setAsOfDate}
+                    leading={
+                      <>
+                        <span className="text-xs text-muted-foreground whitespace-nowrap shrink-0">Quick</span>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-7 text-xs shrink-0"
+                          onClick={() => {
+                            setGlTrialMode("period");
+                            const d = new Date();
+                            setFromDate(format(startOfMonth(d), "yyyy-MM-dd"));
+                            setToDate(format(endOfMonth(d), "yyyy-MM-dd"));
+                          }}
+                        >
+                          This month
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-7 text-xs shrink-0"
+                          onClick={() => {
+                            setGlTrialMode("period");
+                            const d = new Date(asOfDate);
+                            setFromDate(format(startOfMonth(d), "yyyy-MM-dd"));
+                            setToDate(format(endOfMonth(d), "yyyy-MM-dd"));
+                          }}
+                        >
+                          Month of as-of
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-7 text-xs shrink-0"
+                          onClick={() => {
+                            setGlTrialMode("period");
+                            const fy = getIndiaFinancialYear(0);
+                            setFromDate(fy.fromDate);
+                            setToDate(fy.toDate);
+                          }}
+                        >
+                          Current FY
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-7 text-xs shrink-0"
+                          onClick={() => {
+                            setGlTrialMode("period");
+                            const fy = getIndiaFinancialYear(-1);
+                            setFromDate(fy.fromDate);
+                            setToDate(fy.toDate);
+                          }}
+                        >
+                          Prev FY
+                        </Button>
+                      </>
+                    }
+                  />
+                ) : (
+                  <PeriodSelector
+                    periodType={periodType}
+                    setPeriodType={setPeriodType}
+                    fromDate={fromDate}
+                    toDate={toDate}
+                    setFromDate={setFromDate}
+                    setToDate={setToDate}
+                  />
+                )}
               </div>
-              {glTrialMode === "cumulative" ? (
-                <AsOfDatePresets asOfDate={asOfDate} setAsOfDate={setAsOfDate} />
-              ) : (
-                <PeriodSelector
-                  periodType={periodType}
-                  setPeriodType={setPeriodType}
-                  fromDate={fromDate}
-                  toDate={toDate}
-                  setFromDate={setFromDate}
-                  setToDate={setToDate}
-                />
-              )}
               <div className="hidden print:block">
                 <ReportHeader
                   title="GL Trial Balance"
