@@ -476,6 +476,17 @@ export async function applyCreditNoteFifoToSale(
     );
   }
 
+  if (applied > 0.01) {
+    try {
+      const { applyRecomputedSalePaymentState } = await import(
+        "@/utils/recomputeSalePaymentState"
+      );
+      await applyRecomputedSalePaymentState(params.saleId, params.organizationId, supabase);
+    } catch (recomputeErr) {
+      console.warn("CN FIFO: sale payment recompute failed", params.saleId, recomputeErr);
+    }
+  }
+
   return { applied, chunks };
 }
 

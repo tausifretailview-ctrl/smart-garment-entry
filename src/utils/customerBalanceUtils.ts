@@ -854,15 +854,16 @@ export function reconcileSaleInvoiceDisplay(params: {
     Math.round(Math.min(payable, effectiveCash + cappedNonCash))
   );
 
-  // Only genuine settlements signal "partial". `sr` is now fully baked into
-  // `net`, and a CN that merely duplicates the billing return (cn ≤ sr) is not a
-  // real payment, so use `cnNotInSr` rather than the raw CN bucket.
+  // Status matches adjust_invoice_balance / DB normalize: count SRA toward settlement
+  // vs net (Option A). Outstanding/due still uses the payable path above so
+  // post-return rows (SRA baked into net) do not double-credit the due amount.
+  const settledForStatus =
+    effectiveCash + adv + discount + cnNotInSr + Math.max(0, sr);
   const payment_status: "pending" | "partial" | "completed" =
-    outstanding <= INVOICE_RECON_TOL
+    outstanding <= INVOICE_RECON_TOL ||
+    net - settledForStatus <= INVOICE_RECON_TOL
       ? "completed"
-      : effectiveCash > INVOICE_RECON_TOL ||
-          adv > INVOICE_RECON_TOL ||
-          cnNotInSr > INVOICE_RECON_TOL
+      : settledForStatus > INVOICE_RECON_TOL
         ? "partial"
         : "pending";
 

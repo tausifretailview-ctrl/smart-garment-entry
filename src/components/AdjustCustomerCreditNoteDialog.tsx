@@ -28,6 +28,7 @@ import {
   formatCnApplyError,
   resolveSaleReturnCnAvailable,
 } from "@/utils/saleReturnCnBalance";
+import { applyRecomputedSalePaymentState } from "@/utils/recomputeSalePaymentState";
 
 interface AdjustCustomerCreditNoteDialogProps {
   open: boolean;
@@ -273,6 +274,18 @@ export function AdjustCustomerCreditNoteDialog({
         if (error) throw error;
         appliedTotal += applyAmt || 0;
 
+        // Persist status from compute_sale_settlement (paid + SRA vs net). Safe no-op when
+        // already correct; repairs rows if normalize had previously forced "pending".
+        try {
+          await applyRecomputedSalePaymentState(
+            saleId,
+            currentOrganization!.id,
+            supabase,
+          );
+        } catch (recomputeErr) {
+          console.warn("CN adjust: sale payment recompute failed", saleId, recomputeErr);
+        }
+
         if (glOn) {
           let voucherEntryId = voucherIdFromRpcPayload(rpcData);
 
@@ -331,6 +344,8 @@ export function AdjustCustomerCreditNoteDialog({
       });
 
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["invoice-dashboard-unified"] });
+      queryClient.invalidateQueries({ queryKey: ["invoice-dashboard"] });
       queryClient.invalidateQueries({ queryKey: ["cn-adjust-return-meta", saleReturnId] });
       queryClient.invalidateQueries({ queryKey: ["unpaid-customer-sales", customerId] });
       queryClient.invalidateQueries({ queryKey: ["customer-balance"] });
