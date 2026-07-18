@@ -12,13 +12,27 @@ export function autoCorrectFY(format: string): string {
   return format.replace(/\/(\d{2})-(\d{2})\//, `/${currentFY}/`);
 }
 
+/** Trailing numeric sequence from INV/26-27/18 → 18 (never concatenate FY digits). */
+export function trailingSaleSequence(saleNumber?: string | null): number | null {
+  const trimmed = String(saleNumber || "").trim();
+  if (!trimmed) return null;
+  const m = trimmed.match(/\/(\d+)$/);
+  if (!m) return null;
+  const n = parseInt(m[1], 10);
+  return Number.isFinite(n) ? n : null;
+}
+
 /** Settings "Series Start From" = last bill already used → next number is at least last + 1. */
 export function minSequenceFromSeriesStart(seriesStart?: string | null): number {
-  const trimmed = (seriesStart || "").trim();
-  if (!trimmed) return 1;
-  const m = trimmed.match(/(\d+)$/);
-  if (!m) return 1;
-  return parseInt(m[1], 10) + 1;
+  const seq = trailingSaleSequence(seriesStart);
+  if (seq == null) {
+    const trimmed = (seriesStart || "").trim();
+    if (!trimmed) return 1;
+    const m = trimmed.match(/(\d+)$/);
+    if (!m) return 1;
+    return parseInt(m[1], 10) + 1;
+  }
+  return seq + 1;
 }
 
 /** Build a LIKE prefix from a format with {###} placeholder, e.g. POS/26-27/{###} → POS/26-27/% */
