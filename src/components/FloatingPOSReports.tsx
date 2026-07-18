@@ -179,9 +179,16 @@ function FloatingCashierReport({ open, onOpenChange }: { open: boolean; onOpenCh
       totalRefund += Number(sale.refund_amount) || 0;
 
       if (sale.payment_method === "multiple") {
-        cashSale += Number(sale.cash_amount) || 0;
-        cardSale += Number(sale.card_amount) || 0;
-        upiSale += Number(sale.upi_amount) || 0;
+        const net = Number(sale.net_amount) || 0;
+        const applied = allocateMixPaymentToBill({
+          billAmount: net,
+          cashAmount: Number(sale.cash_amount) || 0,
+          cardAmount: Number(sale.card_amount) || 0,
+          upiAmount: Number(sale.upi_amount) || 0,
+        });
+        cashSale += applied.cash;
+        cardSale += applied.card;
+        upiSale += applied.upi;
       } else {
         const net = Number(sale.net_amount) || 0;
         switch (sale.payment_method) {
