@@ -1110,7 +1110,7 @@ export default function Settings() {
               size="sm"
               className="h-9 px-3 text-sm shrink-0"
               onClick={() => {
-                if (window.history.length > 1) navigate(-1);
+                if (window.history.length > 1) window.history.back();
                 else navigate("/");
               }}
             >
