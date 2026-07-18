@@ -258,13 +258,13 @@ export const RetailTaxEzzyTemplate: React.FC<RetailTaxEzzyTemplateProps> = ({
     | "amount";
 
   const colDefs: { key: ColKey; label: string; width: string; align: "left" | "center" | "right" }[] = [
-    { key: "sr", label: "S.No", width: "4%", align: "center" },
+    { key: "sr", label: "S.No", width: "7%", align: "center" },
   ];
   if (showBarcode) {
     colDefs.push({ key: "barcode", label: "Barcode", width: "11%", align: "center" });
   }
   colDefs.push(
-    { key: "description", label: "Product Description", width: showHSN ? "22%" : "28%", align: "left" },
+    { key: "description", label: "Product Description", width: showHSN ? "19%" : "25%", align: "left" },
   );
   if (showHSN) colDefs.push({ key: "hsn", label: "HSN", width: "7%", align: "center" });
   colDefs.push(
@@ -289,7 +289,11 @@ export const RetailTaxEzzyTemplate: React.FC<RetailTaxEzzyTemplateProps> = ({
     if (!item) return "\u00a0";
     switch (col) {
       case "sr":
-        return srNo ?? "\u00a0";
+        return (
+          <span className="block text-[13px] font-black leading-none tabular-nums">
+            {srNo ?? "\u00a0"}
+          </span>
+        );
       case "barcode":
         return (
           <span className="font-mono tabular-nums tracking-tight">{item.barcode || "—"}</span>
@@ -713,7 +717,7 @@ export const RetailTaxEzzyTemplate: React.FC<RetailTaxEzzyTemplateProps> = ({
                         <img
                           src={qrCodeUrl}
                           alt=""
-                          className="mt-1 h-[68px] w-[68px] border border-slate-300 object-contain"
+                          className="mt-1 h-[96px] w-[96px] border border-slate-300 object-contain"
                         />
                       ) : null}
                     </div>

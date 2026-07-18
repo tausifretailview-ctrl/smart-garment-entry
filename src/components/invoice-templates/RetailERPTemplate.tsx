@@ -389,15 +389,16 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   const showHSNCol = showHSN;
   const showBarcodeCol = !isRealTast;
 
+  // A5: wider SN column + larger digits (old retail ERP look); take width from DESCRIPTION.
   const cols: { key: string; label: string; width: string; align: "center" | "left" | "right" }[] = [
-    { key: "sr", label: "SN", width: isRealTast ? "4%" : isA5Retail ? "5%" : "5%", align: "center" },
+    { key: "sr", label: "SN", width: isRealTast ? "4%" : isA5Retail ? "8%" : "5%", align: "center" },
     {
       key: "description",
       label: "DESCRIPTION",
       width: isRealTast
         ? (showHSNCol ? "47%" : "54%")
         : isA5Retail
-          ? (showHSNCol ? "24%" : "30%")
+          ? (showHSNCol ? "21%" : "27%")
           : showHSNCol
             ? "24%"
             : "30%",
@@ -433,10 +434,15 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
 
   const stampSizeMap: Record<string, string> = { small: "60px", medium: "90px", large: "120px" };
   const stampDim = stampSizeMap[stampSize] || "90px";
-  const qrBoxMm = isA4 ? 26 : 20;
+  // A5 QR was ~85px in the older Retail ERP layout; bump from 20mm toward that scale.
+  const qrBoxMm = isA4 ? 26 : 28;
   const qrPadMm = isA4 ? 2 : 1;
   const showPaymentQr = Boolean(qrCodeUrl && !isRealTast);
-  const signColWidth = isA5Retail ? (showPaymentQr ? "34%" : "38%") : "40%";
+  const signColWidth = isA5Retail ? (showPaymentQr ? "38%" : "38%") : "40%";
+  const showGstPanel = !isRealTast && showGSTBreakdown && hasGSTData;
+  const fsGstLabel = isA4 ? "10px" : "9px";
+  const fsGstTable = isA4 ? "10px" : "8px";
+  const fsSrNo = isA5Retail ? "15px" : fsBody;
 
   return (
     <div className="retail-erp-all-pages">
@@ -639,7 +645,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                           borderTop: "none",
                           borderBottom: B2,
                           fontWeight: "bold",
-                          fontSize: fsHeading,
+                          fontSize: c.key === "sr" && isA5Retail ? "13px" : fsHeading,
                           backgroundColor: "#333",
                           color: "#fff",
                           borderRight: ci === cols.length - 1 ? "none" : B,
@@ -705,7 +711,20 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                           let content: React.ReactNode = "\u00A0";
                           if (item) {
                             switch (c.key) {
-                              case "sr": content = srNo; break;
+                              case "sr":
+                                content = (
+                                  <span
+                                    style={{
+                                      fontSize: fsSrNo,
+                                      fontWeight: 900,
+                                      lineHeight: 1.1,
+                                      display: "block",
+                                    }}
+                                  >
+                                    {srNo}
+                                  </span>
+                                );
+                                break;
                               case "description":
                                 content = (
                                   <span
@@ -854,21 +873,105 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                 }}
               >
 
-                  {/* Note (left) + Totals (right) — uses blank space beside subtotal block */}
+                  {/* GST Breakup / Note (left) + Totals (right) — Retail ERP tax layout */}
                   <div style={{ display: "flex", borderBottom: B, width: "100%", alignItems: "stretch" }}>
                     <div
                       style={{
                         flex: 1,
                         borderRight: B,
-                        minHeight: isA4 ? "78px" : "48px",
+                        minHeight: isA4 ? "78px" : showGstPanel ? "52px" : "48px",
                         padding: isA4 ? "6px 10px" : "3px 5px",
                         display: "flex",
                         flexDirection: "column",
                         justifyContent: "flex-start",
-                        alignItems: "flex-start",
+                        alignItems: "stretch",
                       }}
                     >
-                      {invoiceNoteText ? (
+                      {showGstPanel ? (
+                        <>
+                          <div
+                            style={{
+                              fontWeight: 800,
+                              fontSize: fsGstLabel,
+                              padding: "0 0 2px",
+                              textDecoration: "underline",
+                              color: "#000",
+                            }}
+                          >
+                            GST Breakup:
+                          </div>
+                          <table
+                            style={{
+                              width: "100%",
+                              borderCollapse: "collapse",
+                              fontSize: fsGstTable,
+                              fontWeight: 700,
+                              color: "#000",
+                            }}
+                          >
+                            <thead>
+                              <tr>
+                                <th style={{ borderBottom: B, borderRight: B, padding: "1px 2px", textAlign: "center" }}>HSN/SAC</th>
+                                <th style={{ borderBottom: B, borderRight: B, padding: "1px 2px", textAlign: "right" }}>Taxable</th>
+                                {!isInterState ? (
+                                  <>
+                                    <th style={{ borderBottom: B, borderRight: B, padding: "1px 2px", textAlign: "center" }}>CGST%</th>
+                                    <th style={{ borderBottom: B, borderRight: B, padding: "1px 2px", textAlign: "right" }}>CGST</th>
+                                    <th style={{ borderBottom: B, borderRight: B, padding: "1px 2px", textAlign: "center" }}>SGST%</th>
+                                    <th style={{ borderBottom: B, padding: "1px 2px", textAlign: "right" }}>SGST</th>
+                                  </>
+                                ) : (
+                                  <>
+                                    <th style={{ borderBottom: B, borderRight: B, padding: "1px 2px", textAlign: "center" }}>IGST%</th>
+                                    <th style={{ borderBottom: B, padding: "1px 2px", textAlign: "right" }}>IGST</th>
+                                  </>
+                                )}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {gstRates.map((rate) => {
+                                const row = gstBreakup[rate];
+                                return (
+                                  <tr key={rate}>
+                                    <td style={{ borderBottom: B, borderRight: B, padding: "1px 2px", textAlign: "center" }}>{row.hsn || "-"}</td>
+                                    <td style={{ borderBottom: B, borderRight: B, padding: "1px 2px", textAlign: "right" }}>{fmt(row.taxableValue)}</td>
+                                    {!isInterState ? (
+                                      <>
+                                        <td style={{ borderBottom: B, borderRight: B, padding: "1px 2px", textAlign: "center" }}>{(rate / 2).toFixed(1)}%</td>
+                                        <td style={{ borderBottom: B, borderRight: B, padding: "1px 2px", textAlign: "right" }}>{fmt(row.cgst)}</td>
+                                        <td style={{ borderBottom: B, borderRight: B, padding: "1px 2px", textAlign: "center" }}>{(rate / 2).toFixed(1)}%</td>
+                                        <td style={{ borderBottom: B, padding: "1px 2px", textAlign: "right" }}>{fmt(row.sgst)}</td>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <td style={{ borderBottom: B, borderRight: B, padding: "1px 2px", textAlign: "center" }}>{rate}%</td>
+                                        <td style={{ borderBottom: B, padding: "1px 2px", textAlign: "right" }}>{fmt(row.igst)}</td>
+                                      </>
+                                    )}
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                          {invoiceNoteText ? (
+                            <div style={{ marginTop: isA4 ? "4px" : "2px" }}>
+                              <span style={{ fontSize: fsNoteLabel, fontWeight: 800, color: "#000" }}>Note: </span>
+                              <span
+                                style={{
+                                  fontSize: isA4 ? fsNoteBody : "11px",
+                                  fontWeight: 700,
+                                  lineHeight: 1.25,
+                                  color: "#000",
+                                  whiteSpace: "pre-wrap",
+                                  wordBreak: "break-word",
+                                }}
+                              >
+                                {invoiceNoteText}
+                              </span>
+                            </div>
+                          ) : null}
+                        </>
+                      ) : invoiceNoteText ? (
                         <>
                           <span
                             style={{
@@ -917,6 +1020,26 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                       {!isRealTast && (
                         <div style={{ display: "flex", justifyContent: "space-between", borderBottom: B, padding: isA4 ? "3px 8px" : "3px 6px", fontSize: isA4 ? "14px" : "11px", fontWeight: "900", color: "#000" }}>
                           <span>Sub Total</span><span>₹{fmt(displaySubTotal)}</span>
+                        </div>
+                      )}
+                      {showGstPanel && totalBeforeTax > 0 && (
+                        <div style={{ display: "flex", justifyContent: "space-between", borderBottom: B, padding: isA4 ? "3px 8px" : "2px 6px", fontSize: isA4 ? "13px" : "10px", fontWeight: 800, color: "#000" }}>
+                          <span>Total Before Tax</span><span>₹{fmt(totalBeforeTax)}</span>
+                        </div>
+                      )}
+                      {showGstPanel && !isInterState && cgstAmount > 0 && (
+                        <div style={{ display: "flex", justifyContent: "space-between", borderBottom: B, padding: isA4 ? "3px 8px" : "2px 6px", fontSize: isA4 ? "13px" : "10px", fontWeight: 800, color: "#000" }}>
+                          <span>Add: CGST</span><span>₹{fmt(cgstAmount)}</span>
+                        </div>
+                      )}
+                      {showGstPanel && !isInterState && sgstAmount > 0 && (
+                        <div style={{ display: "flex", justifyContent: "space-between", borderBottom: B, padding: isA4 ? "3px 8px" : "2px 6px", fontSize: isA4 ? "13px" : "10px", fontWeight: 800, color: "#000" }}>
+                          <span>Add: SGST</span><span>₹{fmt(sgstAmount)}</span>
+                        </div>
+                      )}
+                      {showGstPanel && isInterState && igstAmount > 0 && (
+                        <div style={{ display: "flex", justifyContent: "space-between", borderBottom: B, padding: isA4 ? "3px 8px" : "2px 6px", fontSize: isA4 ? "13px" : "10px", fontWeight: 800, color: "#000" }}>
+                          <span>Add: IGST</span><span>₹{fmt(igstAmount)}</span>
                         </div>
                       )}
                       {saleReturnAdjust > 0 && (
@@ -998,8 +1121,8 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                       alignItems: "stretch",
                       minHeight: isA4
                         ? (showPaymentQr ? "36mm" : isRealTast ? "110px" : "80px")
-                        : (showPaymentQr ? "30mm" : "56px"),
-                      maxHeight: isA5Retail ? (showPaymentQr ? "34mm" : "60px") : undefined,
+                        : (showPaymentQr ? "38mm" : "56px"),
+                      maxHeight: isA5Retail ? (showPaymentQr ? "42mm" : "60px") : undefined,
                       overflow: isA5Retail ? "hidden" : "visible",
                       position: "relative",
                       flexShrink: 0,

@@ -298,8 +298,8 @@ export const A5HorizontalBillFormat = ({ data }: { data: BillData }) => {
         }
         
         .a5h-qr-small {
-          width: 80px;
-          height: 80px;
+          width: 100px;
+          height: 100px;
           flex-shrink: 0;
         }
         
