@@ -862,6 +862,9 @@ All colors MUST be HSL.
     flex-shrink: 0;
   }
 
+  /* Shortcut toolbar pills (Header ROW 2 only — erp-tbtn is not used elsewhere).
+     Motion matches shortcut_bar_animation_mockup: hover-lift 140ms, press-scale 100ms,
+     active color crossfade 140ms. Icons inherit container transform; no per-icon motion. */
   .erp-tbtn {
     height: var(--erp-ctrl-h);
     display: inline-flex;
@@ -875,13 +878,30 @@ All colors MUST be HSL.
     font-size: 1rem;
     font-weight: 600;
     cursor: pointer;
-    transition: all 0.12s ease;
     white-space: nowrap;
+    transform: translateY(0) scale(1);
+    box-shadow: none;
+    transition:
+      transform 100ms ease,
+      background-color 140ms ease,
+      border-color 140ms ease,
+      color 140ms ease,
+      box-shadow 140ms ease,
+      filter 140ms ease;
   }
 
-  .erp-tbtn:hover {
+  /* Hover-lift — inactive pills only (active/primary must not lift) */
+  .erp-tbtn:hover:not(.erp-tbtn--primary) {
     border-color: #c4ccd6;
     background: var(--erp-panel-2);
+    transform: translateY(-1px) scale(1);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+  }
+
+  /* Press-scale — all pills including active (wins over hover-lift) */
+  .erp-tbtn:active {
+    transform: scale(0.97);
+    box-shadow: none;
   }
 
   .erp-tbtn--primary {
@@ -893,12 +913,35 @@ All colors MUST be HSL.
   .erp-tbtn--primary:hover {
     filter: brightness(1.06);
     background: var(--erp-accent);
+    border-color: var(--erp-accent);
+    transform: none;
+    box-shadow: none;
+  }
+
+  .erp-tbtn--primary:active {
+    transform: scale(0.97);
+    filter: brightness(1.06);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .erp-tbtn {
+      transition: none;
+    }
+    .erp-tbtn:hover:not(.erp-tbtn--primary),
+    .erp-tbtn:active,
+    .erp-tbtn--primary:hover,
+    .erp-tbtn--primary:active {
+      transform: none;
+      box-shadow: none;
+    }
   }
 
   .erp-tbtn__icon {
     width: 1.0625rem;
     height: 1.0625rem;
     opacity: 0.8;
+    /* Motion on button container only — icons stay static relative to the pill */
+    transition: none;
   }
 
   .erp-tbtn--primary .erp-tbtn__icon {
