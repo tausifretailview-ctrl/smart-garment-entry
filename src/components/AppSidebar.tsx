@@ -47,6 +47,10 @@ import {
   ShieldCheck,
   LayoutList,
   Scale,
+  Instagram,
+  Facebook,
+  Linkedin,
+  Youtube,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { UIScaleSelector } from "@/components/UIScaleSelector";
@@ -73,6 +77,14 @@ import {
 } from "@/components/ui/sidebar";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { readSidebarLockedOpen, writeSidebarLockedOpen, SIDEBAR_PREFERENCE_SYNC_EVENT } from "@/lib/sidebarPreference";
+import { EZZY_SOCIAL } from "@/components/support/supportContacts";
+
+const SOCIAL_ICONS = {
+  instagram: Instagram,
+  facebook: Facebook,
+  linkedin: Linkedin,
+  youtube: Youtube,
+} as const;
 
 export function AppSidebar() {
   const { open, setOpen } = useSidebar();
@@ -1290,6 +1302,31 @@ export function AppSidebar() {
                   )}
                 </div>
               </SidebarMenuButton>
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+              <div
+                className={cn(
+                  "flex items-center gap-1.5 px-2 pt-1.5",
+                  !open && "flex-col justify-center w-full px-0 gap-1",
+                )}
+              >
+                {EZZY_SOCIAL.map((item) => {
+                  const Icon = SOCIAL_ICONS[item.id];
+                  return (
+                    <a
+                      key={item.id}
+                      href={item.href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title={item.label}
+                      aria-label={item.label}
+                      className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground opacity-70 transition-opacity hover:bg-sidebar-accent hover:text-sidebar-foreground hover:opacity-100"
+                    >
+                      <Icon className="h-4 w-4" />
+                    </a>
+                  );
+                })}
+              </div>
             </SidebarMenuItem>
           </SidebarMenu>
         </SidebarGroup>

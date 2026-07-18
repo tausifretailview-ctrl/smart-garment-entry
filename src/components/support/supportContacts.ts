@@ -8,6 +8,30 @@ export const EZZY_SUPPORT = {
   hours: "9:00 AM – 9:00 PM (IST)",
 } as const;
 
+/** EzzyERP public social profiles — icon-only links in the sidebar footer. */
+export const EZZY_SOCIAL = [
+  {
+    id: "instagram",
+    label: "Instagram",
+    href: "https://www.instagram.com/ezzyerp",
+  },
+  {
+    id: "facebook",
+    label: "Facebook",
+    href: "https://www.facebook.com/ezzyerp",
+  },
+  {
+    id: "linkedin",
+    label: "LinkedIn",
+    href: "https://www.linkedin.com/company/ezzyerp",
+  },
+  {
+    id: "youtube",
+    label: "YouTube",
+    href: "https://www.youtube.com/@ezzyerp",
+  },
+] as const;
+
 export type SupportCallbackPayload = {
   businessName: string;
   contactName: string;
