@@ -24,6 +24,7 @@ import { useReactToPrint } from "react-to-print";
 import { localDayBounds } from "@/lib/localDayBounds";
 import DailyTallyReport from "@/components/DailyTallyReport";
 import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
+import { allocateMixPaymentToBill } from "@/utils/mixPaymentAllocation";
 
 // ─── helpers ───────────────────────────────────────────────────────────
 const fmt = (n: number) =>
@@ -258,9 +259,16 @@ export const FloatingCashTally = ({ open, onOpenChange }: FloatingCashTallyProps
       const net = getEffectiveNet(s);
       const target = s.sale_type === "pos" ? posSales : invoiceSales;
       if (s.payment_method === "multiple") {
-        target.cash += Number(s.cash_amount) || 0;
-        target.card += Number(s.card_amount) || 0;
-        target.upi += Number(s.upi_amount) || 0;
+        // Cap over-tender (change) so cash tally matches bill settlement, not notes handed over.
+        const applied = allocateMixPaymentToBill({
+          billAmount: net,
+          cashAmount: Number(s.cash_amount) || 0,
+          cardAmount: Number(s.card_amount) || 0,
+          upiAmount: Number(s.upi_amount) || 0,
+        });
+        target.cash += applied.cash;
+        target.card += applied.card;
+        target.upi += applied.upi;
       } else {
         switch (s.payment_method) {
           case "cash": target.cash += Number(s.cash_amount) || net; break;

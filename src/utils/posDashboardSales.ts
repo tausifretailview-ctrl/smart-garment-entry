@@ -685,9 +685,24 @@ export function computePosDashboardSummaryStats(
         ),
       0,
     ),
-    totalCash: nonHoldSales.reduce((sum, sale) => sum + Number(sale.cash_amount || 0), 0),
-    totalCard: nonHoldSales.reduce((sum, sale) => sum + Number(sale.card_amount || 0), 0),
-    totalUpi: nonHoldSales.reduce((sum, sale) => sum + Number(sale.upi_amount || 0), 0),
+    ...(() => {
+      let totalCash = 0;
+      let totalCard = 0;
+      let totalUpi = 0;
+      let cashBillCount = 0;
+      let cardBillCount = 0;
+      let upiBillCount = 0;
+      for (const sale of nonHoldSales) {
+        const modes = getPosPaymentModeDisplayAmounts(sale);
+        totalCash += modes.cash;
+        totalCard += modes.card;
+        totalUpi += modes.upi;
+        if (modes.cash > 0) cashBillCount += 1;
+        if (modes.card > 0) cardBillCount += 1;
+        if (modes.upi > 0) upiBillCount += 1;
+      }
+      return { totalCash, totalCard, totalUpi, cashBillCount, cardBillCount, upiBillCount };
+    })(),
     totalBalance: nonHoldSales.reduce(
       (sum, sale) => sum + getPosSaleOutstandingBalance(sale),
       0,
@@ -697,9 +712,6 @@ export function computePosDashboardSummaryStats(
       0,
     ),
     totalRoundOff: nonHoldSales.reduce((sum, sale) => sum + Number(sale.round_off || 0), 0),
-    cashBillCount: nonHoldSales.filter((sale) => Number(sale.cash_amount || 0) > 0).length,
-    cardBillCount: nonHoldSales.filter((sale) => Number(sale.card_amount || 0) > 0).length,
-    upiBillCount: nonHoldSales.filter((sale) => Number(sale.upi_amount || 0) > 0).length,
   };
 }
 
@@ -773,6 +785,44 @@ async function scanPosDashboardSummaryRows(
   return settled;
 }
 
+const POS_DASHBOARD_MODE_CORRECT_SELECT =
+  "id, gross_amount, discount_amount, flat_discount_amount, points_redeemed_amount, net_amount, paid_amount, payment_status, payment_method, sale_number, cash_amount, card_amount, upi_amount, sale_return_adjust, round_off, is_cancelled";
+
+/**
+ * When mix over-tender inflated cash_amount, RPC SUM(cash_amount) exceeds net sale.
+ * Recompute mode totals with the same display cap used by table rows.
+ */
+async function correctPosDashboardModeTotalsIfNeeded(
+  client: SupabaseClient,
+  filters: PosDashboardFilters,
+  rpcStats: PosDashboardSummaryStats,
+): Promise<PosDashboardSummaryStats> {
+  const modeSum = rpcStats.totalCash + rpcStats.totalCard + rpcStats.totalUpi;
+  if (modeSum <= rpcStats.netSale + 1) return rpcStats;
+
+  try {
+    const rows = await scanPosDashboardSummaryRows(
+      client,
+      filters,
+      POS_DASHBOARD_MODE_CORRECT_SELECT,
+    );
+    if (rows.length === 0) return rpcStats;
+    const modeStats = computePosDashboardSummaryStats(rows);
+    return {
+      ...rpcStats,
+      totalCash: modeStats.totalCash,
+      totalCard: modeStats.totalCard,
+      totalUpi: modeStats.totalUpi,
+      cashBillCount: modeStats.cashBillCount,
+      cardBillCount: modeStats.cardBillCount,
+      upiBillCount: modeStats.upiBillCount,
+    };
+  } catch (err) {
+    console.warn("POS dashboard mode-total correction skipped:", err);
+    return rpcStats;
+  }
+}
+
 export async function fetchPosDashboardSummary(
   client: SupabaseClient,
   filters: PosDashboardFilters,
@@ -781,7 +831,8 @@ export async function fetchPosDashboardSummary(
 
   if (!isPosDashboardStatsRpcUnavailable()) {
     try {
-      return await fetchPosDashboardSummaryViaRpc(client, filters);
+      const rpcStats = await fetchPosDashboardSummaryViaRpc(client, filters);
+      return await correctPosDashboardModeTotalsIfNeeded(client, filters, rpcStats);
     } catch (err) {
       if (!isPosDashboardStatsRpcNotFoundError(err as { code?: string; message?: string; status?: number })) {
         console.warn("get_pos_dashboard_stats RPC threw, using client fallback:", err);

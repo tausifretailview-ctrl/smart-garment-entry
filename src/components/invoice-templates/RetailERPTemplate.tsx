@@ -310,28 +310,51 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   // Calculate totals
   const totalBeforeTax = Object.values(gstBreakup).reduce((s, v) => s + v.taxableValue, 0);
 
-  // Payment breakdown (mix / multiple — show total + per-mode amounts on print)
-  const cashPaidAmt = Number(cashAmount) || 0;
-  const upiPaidAmt = Number(upiAmount) || 0;
-  const cardPaidAmt = Number(cardAmount) || 0;
+  // Payment breakdown (mix / multiple — show amounts applied to the bill).
+  // Over-tender (customer change) must not print as Received > Bill / negative Balance.
+  const tenderCash = Number(cashAmount) || 0;
+  const tenderUpi = Number(upiAmount) || 0;
+  const tenderCard = Number(cardAmount) || 0;
   const creditPaidAmt = Number(creditAmount) || 0;
+  const billTotal = grandTotal;
+  const rawModeTender = tenderCash + tenderUpi + tenderCard;
+  let cashPaidAmt = tenderCash;
+  let upiPaidAmt = tenderUpi;
+  let cardPaidAmt = tenderCard;
+  let changeDue = 0;
+  if (rawModeTender > billTotal + 0.001) {
+    // Peel excess from cash first (same rule as allocateMixPaymentToBill)
+    let excess = Math.round((rawModeTender - billTotal) * 100) / 100;
+    const peel = (amt: number) => {
+      const take = Math.min(amt, excess);
+      excess = Math.round((excess - take) * 100) / 100;
+      return Math.round((amt - take) * 100) / 100;
+    };
+    cashPaidAmt = peel(cashPaidAmt);
+    cardPaidAmt = peel(cardPaidAmt);
+    upiPaidAmt = peel(upiPaidAmt);
+    changeDue = Math.round((rawModeTender - billTotal) * 100) / 100;
+  }
   const paymentParts: string[] = [];
   if (cashPaidAmt > 0) paymentParts.push(`Cash: ₹${fmt(cashPaidAmt)}`);
   if (upiPaidAmt > 0) paymentParts.push(`UPI: ₹${fmt(upiPaidAmt)}`);
   if (cardPaidAmt > 0) paymentParts.push(`Card: ₹${fmt(cardPaidAmt)}`);
   if (creditPaidAmt > 0) paymentParts.push(`Credit: ₹${fmt(creditPaidAmt)}`);
-  const mixTenderTotal = cashPaidAmt + upiPaidAmt + cardPaidAmt + creditPaidAmt;
+  const mixAppliedTotal = cashPaidAmt + upiPaidAmt + cardPaidAmt + creditPaidAmt;
   const isMixPayment = String(paymentMethod || "").toLowerCase() === "multiple";
   const mixPaymentDetail =
     isMixPayment && paymentParts.length > 0
-      ? `Total ₹${fmt(mixTenderTotal > 0 ? mixTenderTotal : grandTotal)} (${paymentParts.join(" | ")})`
+      ? `Total ₹${fmt(mixAppliedTotal > 0 ? mixAppliedTotal : grandTotal)} (${paymentParts.join(" | ")})`
       : paymentParts.length > 1
         ? paymentParts.join(" | ")
         : "";
 
-  const billTotal = grandTotal;
-  const receivedToday = mixTenderTotal > 0 ? mixTenderTotal : Number(paidAmount) || 0;
-  const currentBalance = billTotal - receivedToday;
+  const settledPaid = Number(paidAmount) || 0;
+  const receivedToday =
+    mixAppliedTotal > 0
+      ? Math.min(billTotal, mixAppliedTotal)
+      : Math.min(billTotal, settledPaid > 0 ? settledPaid : 0);
+  const currentBalance = Math.max(0, Math.round((billTotal - receivedToday) * 100) / 100);
   const totalDue = currentBalance + previousBalance;
 
   const pageW = isA4 ? "210mm" : "148mm";
@@ -945,6 +968,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                       <strong>Payment:</strong>{" "}
                       {isMixPayment ? "Mix Payment" : paymentMethod}
                       {mixPaymentDetail ? ` — ${mixPaymentDetail}` : ""}
+                      {changeDue > 0.001 ? ` | Change: ₹${fmt(changeDue)}` : ""}
                     </div>
                   )}
 
