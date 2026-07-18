@@ -346,6 +346,7 @@ export function AdjustCustomerCreditNoteDialog({
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
       queryClient.invalidateQueries({ queryKey: ["invoice-dashboard-unified"] });
       queryClient.invalidateQueries({ queryKey: ["invoice-dashboard"] });
+      queryClient.invalidateQueries({ queryKey: ["customer-invoices", customerId] });
       queryClient.invalidateQueries({ queryKey: ["cn-adjust-return-meta", saleReturnId] });
       queryClient.invalidateQueries({ queryKey: ["unpaid-customer-sales", customerId] });
       queryClient.invalidateQueries({ queryKey: ["customer-balance"] });
