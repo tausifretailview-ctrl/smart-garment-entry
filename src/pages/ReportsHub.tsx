@@ -256,8 +256,9 @@ const ALL_REPORTS: ReportItem[] = [
     icon: FileSpreadsheet,
     label: "Accounting Reports",
     path: "/accounting-reports",
-    desc: "P&L, balance sheet, and ledgers",
+    desc: "GL trial, P&L, balance sheet, reconcile",
     tab: "accounts",
+    favourite: true,
     permission: "accounting_reports_view",
   },
   {

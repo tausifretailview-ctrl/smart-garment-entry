@@ -25,7 +25,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
 import { 
   Loader2, Download, Printer, TrendingUp, TrendingDown, Wallet, PieChart, 
-  FileSpreadsheet, Scale, Calculator, AlertTriangle, Calendar, Building2, Clock, ExternalLink, RefreshCw, BookText, Landmark, BarChart3, Table2, Users, Info, ShieldCheck, FileText, CheckCircle2, Receipt, ChevronDown
+  FileSpreadsheet, Scale, Calculator, AlertTriangle, Calendar, Building2, Clock, ExternalLink, RefreshCw, BookText, Landmark, BarChart3, Table2, Users, Info, ShieldCheck, FileText, CheckCircle2, Receipt, ChevronDown, ArrowLeft, ChevronRight
 } from "lucide-react";
 import { format, startOfMonth, endOfMonth, subMonths } from "date-fns";
 import { toast } from "sonner";
@@ -830,18 +830,29 @@ export default function AccountingReports() {
   const journalVouchersHref = `${getOrgPath("/journal-vouchers")}?from=${encodeURIComponent(fromDate)}&to=${encodeURIComponent(toDate)}`;
 
   const renderGlTrialRow = (entry: GlTrialBalanceEntry) => (
-    <TableRow key={entry.accountId}>
-      <TableCell className="font-mono text-muted-foreground">{entry.accountCode}</TableCell>
-      <TableCell className="font-medium">{entry.accountName}</TableCell>
-      <TableCell>{glTbGrouped ? entry.accountGroup || entry.accountType : entry.accountType}</TableCell>
-      <TableCell className="text-right">{entry.debit > 0 ? formatCurrency(entry.debit) : "—"}</TableCell>
-      <TableCell className="text-right">{entry.credit > 0 ? formatCurrency(entry.credit) : "—"}</TableCell>
-      <TableCell className="text-right print:hidden">
+    <TableRow
+      key={entry.accountId}
+      className="h-10 hover:bg-teal-50/80 even:bg-slate-50/60"
+    >
+      <TableCell className="py-2 font-mono text-sm text-muted-foreground tabular-nums">
+        {entry.accountCode}
+      </TableCell>
+      <TableCell className="py-2 text-sm font-medium">{entry.accountName}</TableCell>
+      <TableCell className="py-2 text-sm text-slate-600">
+        {glTbGrouped ? entry.accountGroup || entry.accountType : entry.accountType}
+      </TableCell>
+      <TableCell className="py-2 text-right text-sm tabular-nums font-semibold text-red-600">
+        {entry.debit > 0 ? formatCurrency(entry.debit) : "—"}
+      </TableCell>
+      <TableCell className="py-2 text-right text-sm tabular-nums font-semibold text-emerald-600">
+        {entry.credit > 0 ? formatCurrency(entry.credit) : "—"}
+      </TableCell>
+      <TableCell className="py-2 text-right print:hidden">
         <Button
           type="button"
           variant="outline"
           size="sm"
-          className="h-7 text-xs"
+          className="h-7 text-xs border-slate-200"
           onClick={() => {
             setGlLedgerPartyId("all");
             setGlLedgerAccount(entry);
@@ -870,137 +881,168 @@ export default function AccountingReports() {
     [getOrgPath, journalVouchersHref],
   );
 
+  const tabTriggerClass =
+    "rounded-none border-b-2 border-transparent px-3 py-2 text-xs sm:text-sm font-semibold shrink-0 data-[state=active]:border-teal-600 data-[state=active]:bg-white data-[state=active]:text-teal-700 flex items-center gap-1.5";
+
   return (
-    <div className="h-full min-h-0 flex flex-col overflow-hidden bg-slate-50 print:bg-white print:overflow-visible">
-      <div className="shrink-0 flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-3 sm:px-4 py-2 border-b border-slate-200 bg-white print:hidden">
-        <div className="min-w-0">
-          <h1 className="text-xl font-bold flex items-center gap-2 text-blue-700">
-            <Calculator className="h-5 w-5 shrink-0" />
-            Accounting Reports
-          </h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            GL trial balance, P&amp;L, balance sheet, and reconciliation tools
-          </p>
-        </div>
-        <div className="flex gap-2 shrink-0">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={handleRefresh}
-            disabled={loading || glTabFetching}
-            title="Refresh"
-          >
-            <RefreshCw className={`h-4 w-4 ${loading || glTabFetching ? "animate-spin" : ""}`} />
-          </Button>
-          <Button variant="outline" onClick={handlePrint}>
-            <Printer className="h-4 w-4 mr-2" />
-            Print
-          </Button>
-          <Button variant="outline" onClick={exportToExcel}>
-            <Download className="h-4 w-4 mr-2" />
-            Export Excel
-          </Button>
-        </div>
-      </div>
-
-      <div
-        data-tab-scroll
-        className="flex-1 min-h-0 overflow-y-auto tab-scroll-stable px-3 sm:px-4 py-3 pb-4 print:overflow-visible"
-      >
-      <div className="space-y-4 print:space-y-6 max-w-[1600px] mx-auto w-full">
-
-      <section className="print:hidden">
-        <h2 className="text-lg font-semibold text-slate-800 flex items-center gap-2 mb-3">
-          <Table2 className="h-5 w-5 text-blue-600" />
-          Tally &amp; reconcile
-        </h2>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-          {accountingToolLinks.map((tool) => {
-            const Icon = tool.icon;
-            return (
-              <Link
-                key={tool.to}
-                to={tool.to}
-                className={cn(
-                  "flex flex-col gap-2 rounded-xl border border-slate-200 bg-white p-3 py-3.5",
-                  "hover:border-blue-300 hover:shadow-md transition-all min-h-[5.5rem]",
-                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2",
-                )}
-              >
-                <Icon className="h-5 w-5 text-blue-600 shrink-0" />
-                <div className="min-w-0">
-                  <span className="text-sm sm:text-base font-semibold text-slate-900 leading-snug block">
-                    {tool.label}
-                  </span>
-                  {tool.sub && (
-                    <span className="text-sm text-muted-foreground leading-snug block mt-0.5">{tool.sub}</span>
-                  )}
-                </div>
-              </Link>
-            );
-          })}
-        </div>
-      </section>
-
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-3 flex-1 flex flex-col min-h-0">
-        <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden print:hidden space-y-0">
-        <div className="flex items-center justify-between gap-3 px-3 py-2 border-b border-slate-100 bg-slate-50/60">
-          <p className="text-sm text-muted-foreground">Posted GL reports (Tally-style)</p>
-          <div className="flex items-center gap-2">
-            <Label htmlFor="legacy-reports-toggle" className="text-sm text-muted-foreground whitespace-nowrap">
-              Show operational tabs
-            </Label>
-            <Switch
-              id="legacy-reports-toggle"
-              checked={showLegacyReports}
-              onCheckedChange={setShowLegacyReports}
-            />
+    <div className="accounting-reports-workspace flex flex-col bg-slate-50 px-2 sm:px-3 py-2 min-h-0 h-full overflow-hidden w-full print:bg-white print:overflow-visible print:h-auto">
+      <div className="w-full min-w-0 flex flex-col flex-1 min-h-0 gap-2 print:gap-4">
+        {/* Toolbar — Customer Balances style */}
+        <div className="flex flex-wrap items-center justify-between gap-2 shrink-0 print:hidden">
+          <div className="flex items-center gap-2 min-w-0">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9 px-3 text-sm shrink-0 border-slate-200"
+              onClick={() => orgNavigate("/reports")}
+            >
+              <ArrowLeft className="h-4 w-4 mr-1" />
+              Reports
+            </Button>
+            <div className="min-w-0">
+              <h1 className="text-xl font-bold text-teal-700 tracking-tight leading-none flex items-center gap-2">
+                <Calculator className="h-5 w-5 shrink-0" />
+                Accounting Reports
+              </h1>
+              <p className="text-sm text-muted-foreground mt-1 truncate">
+                GL trial · P&amp;L · balance sheet · reconcile tools
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5 shrink-0">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRefresh}
+              disabled={loading || glTabFetching}
+              className="h-9 text-sm border-slate-200"
+            >
+              <RefreshCw className={cn("h-4 w-4 mr-1.5", (loading || glTabFetching) && "animate-spin")} />
+              Refresh
+            </Button>
+            <Button variant="outline" size="sm" onClick={handlePrint} className="h-9 text-sm border-slate-200">
+              <Printer className="h-4 w-4 mr-1.5" />
+              Print
+            </Button>
+            <Button variant="outline" size="sm" onClick={exportToExcel} className="h-9 text-sm border-slate-200">
+              <FileSpreadsheet className="h-4 w-4 mr-1.5" />
+              Export Excel
+            </Button>
           </div>
         </div>
-        <TabsList className="w-full h-auto p-0 bg-slate-50/80 border-b border-slate-100 rounded-none flex flex-nowrap justify-start overflow-x-auto gap-0">
-          <TabsTrigger value="gl-trial-balance" className="rounded-none border-b-2 border-transparent px-3 py-2.5 text-xs sm:text-sm font-medium shrink-0 data-[state=active]:border-blue-600 data-[state=active]:bg-white data-[state=active]:text-blue-700 flex items-center gap-2">
-            <BookText className="h-4 w-4" />
-            GL Trial
-          </TabsTrigger>
-          <TabsTrigger value="gl-profit-loss" className="rounded-none border-b-2 border-transparent px-3 py-2.5 text-xs sm:text-sm font-medium shrink-0 data-[state=active]:border-blue-600 data-[state=active]:bg-white data-[state=active]:text-blue-700 flex items-center gap-2">
-            <BarChart3 className="h-4 w-4" />
-            GL P&L
-          </TabsTrigger>
-          <TabsTrigger value="gl-balance-sheet" className="rounded-none border-b-2 border-transparent px-3 py-2.5 text-xs sm:text-sm font-medium shrink-0 data-[state=active]:border-blue-600 data-[state=active]:bg-white data-[state=active]:text-blue-700 flex items-center gap-2">
-            <Landmark className="h-4 w-4" />
-            GL Balance
-          </TabsTrigger>
-          {showLegacyReports && (
-            <>
-              <TabsTrigger value="trial-balance" className="rounded-none border-b-2 border-transparent px-3 py-2.5 text-xs sm:text-sm font-medium shrink-0 data-[state=active]:border-blue-600 data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-none flex items-center gap-2">
-                <Scale className="h-4 w-4" />
-                Trial Balance
-              </TabsTrigger>
-              <TabsTrigger value="profit-loss" className="rounded-none border-b-2 border-transparent px-3 py-2.5 text-xs sm:text-sm font-medium shrink-0 data-[state=active]:border-blue-600 data-[state=active]:bg-white data-[state=active]:text-blue-700 flex items-center gap-2">
-                <TrendingUp className="h-4 w-4" />
-                Profit & Loss
-              </TabsTrigger>
-              <TabsTrigger value="balance-sheet" className="rounded-none border-b-2 border-transparent px-3 py-2.5 text-xs sm:text-sm font-medium shrink-0 data-[state=active]:border-blue-600 data-[state=active]:bg-white data-[state=active]:text-blue-700 flex items-center gap-2">
-                <FileSpreadsheet className="h-4 w-4" />
-                Balance Sheet
-              </TabsTrigger>
-              <TabsTrigger value="net-profit" className="rounded-none border-b-2 border-transparent px-3 py-2.5 text-xs sm:text-sm font-medium shrink-0 data-[state=active]:border-blue-600 data-[state=active]:bg-white data-[state=active]:text-blue-700 flex items-center gap-2">
-                <PieChart className="h-4 w-4" />
-                Net Profit
-              </TabsTrigger>
-            </>
-          )}
-        </TabsList>
-        </div>
 
-        <div className="rounded-xl border border-slate-200 bg-white shadow-sm p-3 sm:p-4 min-h-0 flex-1">
+        {/* Tally & reconcile — dense Vasy rows (not spaced cards) */}
+        <Card className="rounded-lg border border-slate-200 shadow-sm overflow-hidden p-0 shrink-0 print:hidden">
+          <div className="flex items-center justify-between gap-2 px-3 py-1.5 border-b border-slate-100 bg-slate-800">
+            <p className="text-xs font-bold uppercase tracking-wide text-white flex items-center gap-1.5">
+              <Table2 className="h-3.5 w-3.5" />
+              Tally &amp; reconcile
+            </p>
+            <span className="text-xs text-slate-300 tabular-nums">
+              {accountingToolLinks.length} tools
+            </span>
+          </div>
+          <div className="max-h-[9.5rem] overflow-y-auto tab-scroll-stable bg-white">
+            <Table className="[&_td]:px-3 [&_th]:px-3">
+              <TableBody>
+                {accountingToolLinks.map((tool, idx) => {
+                  const Icon = tool.icon;
+                  return (
+                    <TableRow
+                      key={tool.to}
+                      className="h-9 hover:bg-teal-50/80 cursor-pointer even:bg-slate-50/60"
+                    >
+                      <TableCell className="py-1.5 w-10 text-sm tabular-nums text-muted-foreground font-medium">
+                        {idx + 1}
+                      </TableCell>
+                      <TableCell className="py-1.5 w-9">
+                        <Icon className="h-4 w-4 text-teal-700" />
+                      </TableCell>
+                      <TableCell className="py-1.5">
+                        <Link
+                          to={tool.to}
+                          className="flex items-center justify-between gap-2 min-w-0 group"
+                        >
+                          <span className="min-w-0">
+                            <span className="text-sm font-semibold text-slate-900 group-hover:text-teal-700 block leading-tight">
+                              {tool.label}
+                            </span>
+                            {tool.sub ? (
+                              <span className="text-xs text-muted-foreground leading-tight block">
+                                {tool.sub}
+                              </span>
+                            ) : null}
+                          </span>
+                          <ChevronRight className="h-4 w-4 text-slate-300 group-hover:text-teal-600 shrink-0" />
+                        </Link>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
+        </Card>
+
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0 gap-2">
+        <Card className="rounded-lg border border-slate-200 shadow-sm overflow-hidden p-0 shrink-0 print:hidden">
+          <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-1.5 border-b border-slate-100 bg-white">
+            <p className="text-sm font-medium text-slate-700">Posted GL reports</p>
+            <div className="flex items-center gap-2">
+              <Label htmlFor="legacy-reports-toggle" className="text-sm text-muted-foreground whitespace-nowrap">
+                Show operational tabs
+              </Label>
+              <Switch
+                id="legacy-reports-toggle"
+                checked={showLegacyReports}
+                onCheckedChange={setShowLegacyReports}
+              />
+            </div>
+          </div>
+          <TabsList className="w-full h-auto p-0 bg-slate-50/80 rounded-none flex flex-nowrap justify-start overflow-x-auto gap-0">
+            <TabsTrigger value="gl-trial-balance" className={tabTriggerClass}>
+              <BookText className="h-4 w-4" />
+              GL Trial
+            </TabsTrigger>
+            <TabsTrigger value="gl-profit-loss" className={tabTriggerClass}>
+              <BarChart3 className="h-4 w-4" />
+              GL P&L
+            </TabsTrigger>
+            <TabsTrigger value="gl-balance-sheet" className={tabTriggerClass}>
+              <Landmark className="h-4 w-4" />
+              GL Balance
+            </TabsTrigger>
+            {showLegacyReports && (
+              <>
+                <TabsTrigger value="trial-balance" className={tabTriggerClass}>
+                  <Scale className="h-4 w-4" />
+                  Trial Balance
+                </TabsTrigger>
+                <TabsTrigger value="profit-loss" className={tabTriggerClass}>
+                  <TrendingUp className="h-4 w-4" />
+                  Profit & Loss
+                </TabsTrigger>
+                <TabsTrigger value="balance-sheet" className={tabTriggerClass}>
+                  <FileSpreadsheet className="h-4 w-4" />
+                  Balance Sheet
+                </TabsTrigger>
+                <TabsTrigger value="net-profit" className={tabTriggerClass}>
+                  <PieChart className="h-4 w-4" />
+                  Net Profit
+                </TabsTrigger>
+              </>
+            )}
+          </TabsList>
+        </Card>
+
+        <Card className="rounded-lg border border-slate-200 shadow-sm p-2 sm:p-3 min-h-0 flex-1 overflow-y-auto tab-scroll-stable print:shadow-none print:border-0">
 
         {/* Trial Balance */}
-        <TabsContent value="trial-balance" className="space-y-4 mt-0 outline-none">
-          <div className="print:hidden space-y-3">
+        <TabsContent value="trial-balance" className="space-y-2 mt-0 outline-none">
+          <div className="print:hidden space-y-2">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-              <h2 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
-                <Scale className="h-5 w-5 text-blue-600" />
+              <h2 className="text-base font-bold text-teal-700 flex items-center gap-2">
+                <Scale className="h-4 w-4" />
                 Trial Balance
               </h2>
             </div>
@@ -1086,51 +1128,49 @@ export default function AccountingReports() {
         </TabsContent>
 
         {/* GL Trial Balance — from journal_lines / chart_of_accounts */}
-        <TabsContent value="gl-trial-balance" className="space-y-4">
-          <Card className="print:shadow-none print:border-0">
-            <CardHeader className="print:pb-2">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <CardTitle className="flex items-center gap-2 print:hidden">
-                  <BookText className="h-5 w-5" />
+        <TabsContent value="gl-trial-balance" className="space-y-2 mt-0 outline-none">
+          <div className="print:shadow-none">
+              <div className="flex flex-wrap items-center justify-between gap-2 print:hidden mb-2">
+                <h2 className="text-base font-bold text-teal-700 flex items-center gap-2">
+                  <BookText className="h-4 w-4" />
                   GL Trial Balance
-                  <Badge variant="secondary" className="ml-1 font-normal">
+                  <Badge variant="secondary" className="ml-0.5 font-normal text-xs">
                     Posted journals
                   </Badge>
-                </CardTitle>
-              </div>
-              <div className="flex flex-wrap gap-2 print:hidden items-center">
-                <Button
-                  type="button"
-                  size="sm"
-                  variant={glTrialMode === "cumulative" ? "default" : "outline"}
-                  className="h-8"
-                  onClick={() => setGlTrialMode("cumulative")}
-                >
-                  Cumulative
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant={glTrialMode === "period" ? "default" : "outline"}
-                  className="h-8"
-                  onClick={() => setGlTrialMode("period")}
-                >
-                  Period only
-                </Button>
-                <Separator orientation="vertical" className="h-6" />
-                <div className="flex items-center gap-2">
-                  <Label htmlFor="gl-tb-grouped" className="text-xs text-muted-foreground">
-                    Tally groups
-                  </Label>
-                  <Switch id="gl-tb-grouped" checked={glTbGrouped} onCheckedChange={setGlTbGrouped} />
+                </h2>
+                <div className="flex flex-wrap gap-1.5 items-center">
+                  <div className="flex items-center rounded-md border border-slate-200 bg-slate-50 p-0.5">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={glTrialMode === "cumulative" ? "default" : "ghost"}
+                      className={cn("h-8 px-3 text-sm font-semibold", glTrialMode === "cumulative" && "bg-slate-700 hover:bg-slate-700 text-white")}
+                      onClick={() => setGlTrialMode("cumulative")}
+                    >
+                      Cumulative
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={glTrialMode === "period" ? "default" : "ghost"}
+                      className={cn("h-8 px-3 text-sm font-semibold", glTrialMode === "period" && "bg-slate-700 hover:bg-slate-700 text-white")}
+                      onClick={() => setGlTrialMode("period")}
+                    >
+                      Period only
+                    </Button>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor="gl-tb-grouped" className="text-sm text-muted-foreground">
+                      Tally groups
+                    </Label>
+                    <Switch id="gl-tb-grouped" checked={glTbGrouped} onCheckedChange={setGlTbGrouped} />
+                  </div>
                 </div>
               </div>
-              <div className="flex flex-col gap-2 print:hidden">
+              <div className="flex flex-col gap-1.5 print:hidden mb-2">
                 <p className="text-xs text-muted-foreground">
-                  <span className="font-medium text-foreground">Cumulative</span> adds up every posted line from the beginning
-                  through the as-of date (not just today). For <span className="font-medium text-foreground">only sales and
-                  other activity inside one month or one financial year</span>, switch to{" "}
-                  <span className="font-medium text-foreground">Period only</span> or use a quick range below.
+                  <span className="font-medium text-foreground">Cumulative</span> = all posted lines through as-of.
+                  <span className="font-medium text-foreground"> Period only</span> = activity inside the selected range.
                 </p>
                 <div className="flex flex-wrap gap-2 items-center">
                   <span className="text-xs text-muted-foreground">Quick period:</span>
@@ -1204,12 +1244,6 @@ export default function AccountingReports() {
                   setToDate={setToDate}
                 />
               )}
-              <Alert className="print:hidden">
-                <AlertDescription className="text-sm">
-                  Built from <strong>journal_entries</strong> ({glTrialMode === "cumulative" ? "all history through as-of" : "inclusive period only — monthly/yearly here"}).
-                  Operational totals stay on the first tab. Codes <strong>1000–1099</strong> are summarized as cash / bank style liquidity.
-                </AlertDescription>
-              </Alert>
               <div className="hidden print:block">
                 <ReportHeader
                   title="GL Trial Balance"
@@ -1218,83 +1252,92 @@ export default function AccountingReports() {
                   generatedAt={format(new Date(), "dd MMM yyyy, hh:mm a")}
                 />
               </div>
-            </CardHeader>
-            <CardContent>
               {glTrialQuery.isFetching ? (
                 <div className="flex items-center justify-center py-8">
-                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                  <Loader2 className="h-8 w-8 animate-spin text-teal-600" />
                 </div>
               ) : glTrialQuery.isError ? (
                 <div className="text-center py-8 text-destructive text-sm">
                   Could not load GL trial balance. Check that the three-argument GL trial RPC migration is applied, then retry.
                 </div>
               ) : (
-                <div className="space-y-4">
+                <div className="space-y-2">
                   {glCashBankRows.length > 0 && (
-                    <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-muted/30 px-4 py-3 text-sm">
-                      <span className="font-medium text-muted-foreground">Cash / bank bucket (codes 1000–1099)</span>
-                      <span className="font-mono font-semibold">
+                    <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm">
+                      <span className="font-medium text-muted-foreground">Cash / bank (1000–1099)</span>
+                      <span className="font-mono font-semibold tabular-nums">
                         Net (Dr − Cr): {formatCurrency(glCashBankNet)}
                       </span>
                     </div>
                   )}
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="w-[88px]">Code</TableHead>
-                        <TableHead>Account</TableHead>
-                        {!glTbGrouped && <TableHead>Type</TableHead>}
-                        {glTbGrouped && <TableHead>Group</TableHead>}
-                        <TableHead className="text-right">Debit (₹)</TableHead>
-                        <TableHead className="text-right">Credit (₹)</TableHead>
-                        <TableHead className="w-[100px] text-right print:hidden">Ledger</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {glTbGrouped
-                        ? glTrialGrouped.flatMap((section) => [
-                            <TableRow key={`grp-${section.groupName}`} className="bg-slate-100/80">
-                              <TableCell colSpan={glTbGrouped ? 5 : 6} className="font-semibold text-sm py-2">
-                                {section.groupName}
-                                <span className="ml-2 text-xs font-normal text-muted-foreground">
-                                  Dr {formatCurrency(section.totalDebit)} · Cr {formatCurrency(section.totalCredit)}
-                                </span>
+                  <div className="rounded-lg border border-slate-200 overflow-hidden">
+                    <div className="max-h-[min(55vh,640px)] overflow-y-auto tab-scroll-stable">
+                      <Table className="[&_td]:px-3 [&_th]:px-3">
+                        <TableHeader className="sticky top-0 z-10">
+                          <TableRow className="bg-slate-800 hover:bg-slate-800 border-none">
+                            <TableHead className="h-10 w-[88px] text-xs font-bold uppercase tracking-wide text-white">Code</TableHead>
+                            <TableHead className="h-10 text-xs font-bold uppercase tracking-wide text-white">Account</TableHead>
+                            {!glTbGrouped && (
+                              <TableHead className="h-10 text-xs font-bold uppercase tracking-wide text-white">Type</TableHead>
+                            )}
+                            {glTbGrouped && (
+                              <TableHead className="h-10 text-xs font-bold uppercase tracking-wide text-white">Group</TableHead>
+                            )}
+                            <TableHead className="h-10 text-right text-xs font-bold uppercase tracking-wide text-white">Debit (₹)</TableHead>
+                            <TableHead className="h-10 text-right text-xs font-bold uppercase tracking-wide text-white">Credit (₹)</TableHead>
+                            <TableHead className="h-10 w-[100px] text-right text-xs font-bold uppercase tracking-wide text-white print:hidden">Ledger</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {glTbGrouped
+                            ? glTrialGrouped.flatMap((section) => [
+                                <TableRow key={`grp-${section.groupName}`} className="bg-slate-100/90">
+                                  <TableCell colSpan={5} className="font-semibold text-sm py-1.5 text-slate-800">
+                                    {section.groupName}
+                                    <span className="ml-2 text-xs font-normal text-muted-foreground">
+                                      Dr {formatCurrency(section.totalDebit)} · Cr {formatCurrency(section.totalCredit)}
+                                    </span>
+                                  </TableCell>
+                                  <TableCell className="print:hidden" />
+                                </TableRow>,
+                                ...section.entries.map((entry) => renderGlTrialRow(entry)),
+                              ])
+                            : glTrialBalance.map((entry) => renderGlTrialRow(entry))}
+                          {glTrialBalance.length === 0 && (
+                            <TableRow>
+                              <TableCell colSpan={6} className="h-20 text-center text-base text-muted-foreground">
+                                No posted journal lines for this view. Enable the accounting engine, widen the period, or pick a later as-of date.
+                              </TableCell>
+                            </TableRow>
+                          )}
+                        </TableBody>
+                        {glTrialBalance.length > 0 && (
+                          <TableFooter>
+                            <TableRow className="font-bold bg-slate-100">
+                              <TableCell colSpan={3} className="py-2 text-sm">Total</TableCell>
+                              <TableCell className="py-2 text-right text-sm tabular-nums text-red-700">
+                                {formatCurrency(glTbTotals.debit)}
+                              </TableCell>
+                              <TableCell className="py-2 text-right text-sm tabular-nums text-emerald-700">
+                                {formatCurrency(glTbTotals.credit)}
                               </TableCell>
                               <TableCell className="print:hidden" />
-                            </TableRow>,
-                            ...section.entries.map((entry) => renderGlTrialRow(entry)),
-                          ])
-                        : glTrialBalance.map((entry) => renderGlTrialRow(entry))}
-                      {glTrialBalance.length === 0 && (
-                        <TableRow>
-                          <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                            No posted journal lines for this view. Enable the accounting engine, widen the period, or pick a later as-of date.
-                          </TableCell>
-                        </TableRow>
-                      )}
-                    </TableBody>
-                    {glTrialBalance.length > 0 && (
-                      <TableFooter>
-                        <TableRow className="font-bold bg-muted/50">
-                          <TableCell colSpan={3}>Total</TableCell>
-                          <TableCell className="text-right">{formatCurrency(glTbTotals.debit)}</TableCell>
-                          <TableCell className="text-right">{formatCurrency(glTbTotals.credit)}</TableCell>
-                          <TableCell className="print:hidden" />
-                        </TableRow>
-                        {Math.abs(glTbTotals.debit - glTbTotals.credit) > 0.01 && (
-                          <TableRow className="text-destructive">
-                            <TableCell colSpan={6} className="text-center">
-                              Trial debits and credits differ by {formatCurrency(Math.abs(glTbTotals.debit - glTbTotals.credit))}
-                            </TableCell>
-                          </TableRow>
+                            </TableRow>
+                            {Math.abs(glTbTotals.debit - glTbTotals.credit) > 0.01 && (
+                              <TableRow className="text-destructive">
+                                <TableCell colSpan={6} className="text-center text-sm py-2">
+                                  Trial debits and credits differ by {formatCurrency(Math.abs(glTbTotals.debit - glTbTotals.credit))}
+                                </TableCell>
+                              </TableRow>
+                            )}
+                          </TableFooter>
                         )}
-                      </TableFooter>
-                    )}
-                  </Table>
+                      </Table>
+                    </div>
+                  </div>
                 </div>
               )}
-            </CardContent>
-          </Card>
+          </div>
         </TabsContent>
 
         {/* GL P&L — period-only Revenue & Expense from journal_lines */}
@@ -2088,87 +2131,39 @@ export default function AccountingReports() {
             </CardContent>
           </Card>
         </TabsContent>
-        </div>
+        </Card>
       </Tabs>
 
       <Collapsible
         open={guideSectionExpanded}
         onOpenChange={setGuideSectionExpanded}
-        className="print:hidden group/guide-section"
+        className="print:hidden group/guide-section shrink-0"
       >
-        <Card className="shadow-sm rounded-xl border-slate-200 border-dashed">
+        <Card className="shadow-sm rounded-lg border-slate-200 border-dashed overflow-hidden">
           <CollapsibleTrigger className="w-full text-left">
-            <CardHeader className="py-3 px-4 flex flex-row items-center justify-between gap-3">
+            <CardHeader className="py-2 px-3 flex flex-row items-center justify-between gap-3">
               <div className="min-w-0">
-                <CardTitle className="text-base font-semibold flex items-center gap-2 text-slate-800">
-                  <Info className="h-4 w-4 text-blue-600 shrink-0" />
+                <CardTitle className="text-sm font-semibold flex items-center gap-2 text-teal-700">
+                  <Info className="h-4 w-4 shrink-0" />
                   How accounting reports work
                 </CardTitle>
-                <CardDescription className="text-sm mt-0.5">
-                  Audit guidance, operational vs GL tabs, and how entries are built
+                <CardDescription className="text-xs mt-0.5">
+                  Audit guidance · operational vs GL · how entries are built
                 </CardDescription>
               </div>
-              <ChevronDown className="h-5 w-5 shrink-0 text-muted-foreground transition-transform group-data-[state=open]/guide-section:rotate-180" />
+              <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-data-[state=open]/guide-section:rotate-180" />
             </CardHeader>
           </CollapsibleTrigger>
           <CollapsibleContent>
-            <CardContent className="pt-0 px-4 pb-4 space-y-4">
+            <CardContent className="pt-0 px-3 pb-3 space-y-3">
               <p className="text-sm text-muted-foreground">
-                GL tabs (trial balance, P&amp;L, balance sheet) follow posted journals and Tally account groups. Use
-                operational tabs only when you need invoice-level stock and sales views.
+                GL tabs follow posted journals and Tally account groups. Use operational tabs for invoice-level stock and sales views.
               </p>
-
-              <Alert className="border-amber-200/80 bg-amber-50/60 rounded-xl">
-                <Info className="h-4 w-4 text-amber-700" />
-                <AlertTitle className="text-sm text-amber-900">Audit before sign-off</AlertTitle>
-                <AlertDescription className="text-sm text-amber-900/90 space-y-1">
-                  <p>
-                    Operational tabs use live invoices, stock, expenses, and salaries (sales{" "}
-                    <code className="text-xs">net_amount</code> includes discounts, round-off, and other charges). GL tabs
-                    use posted journals only—compare both for the same date.
-                  </p>
-                  <p className="opacity-90">
-                    Receivables match Customer Ledger snapshot. Trial balance omits duplicate purchase debits (stock is on
-                    the balance sheet).
-                  </p>
-                </AlertDescription>
-              </Alert>
-
               <AccountingEntriesGuide />
-
-              <ul className="text-sm text-muted-foreground list-disc pl-5 space-y-2 max-w-3xl">
-                <li>
-                  <span className="font-medium text-foreground">Tally export</span> builds ledger masters and voucher-style
-                  worksheets (sales, purchases, receipts, payments) for the period you choose there—ideal for import or manual
-                  posting in Tally.
-                </li>
-                <li>
-                  <span className="font-medium text-foreground">Journal vouchers</span> lists every auto-posted double entry;
-                  open an account from the GL Trial tab (Lines) to trace balances, then cross-check here for the same dates.
-                </li>
-                <li>
-                  <span className="font-medium text-foreground">Customer account statement</span> ties receivables to invoices
-                  and receipts—use it when operational AR does not match a debtor ledger in Tally.
-                </li>
-                <li>
-                  <span className="font-medium text-foreground">Account statement (audit)</span> uses the same register as the
-                  Customer Audit Report—use it beside the classic Customer Ledger to compare closing balances.
-                </li>
-                <li>
-                  <span className="font-medium text-foreground">Customer audit report</span> recalculates outstanding without
-                  double-counting advance-application receipts—use it to verify the account statement.
-                </li>
-                <li>
-                  <span className="font-medium text-foreground">Daily cash tally</span> records physical cash vs expected drawer
-                  cash; pair it with the GL cash/bank bucket (codes 1000–1099) on the GL Trial tab.
-                </li>
-              </ul>
             </CardContent>
           </CollapsibleContent>
         </Card>
       </Collapsible>
-
-      </div>
       </div>
 
       <Sheet

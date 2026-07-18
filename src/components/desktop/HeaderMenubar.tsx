@@ -10,6 +10,7 @@ import {
 import {
   BarChart3,
   BoxIcon,
+  FileSpreadsheet,
   FileText,
   LayoutGrid,
   Package,
@@ -258,6 +259,12 @@ export function HeaderMenubar({
               <BarChart3 className="h-3.5 w-3.5 mr-2 opacity-60" />
               Reports Hub
             </MenubarItem>
+            {can("accounting_reports_view") && (
+              <MenubarItem onClick={() => orgNavigate("/accounting-reports")}>
+                <FileSpreadsheet className="h-3.5 w-3.5 mr-2 opacity-60" />
+                Accounting Reports
+              </MenubarItem>
+            )}
             {can("customer_ledger") && (
               <>
                 <MenubarSeparator />
