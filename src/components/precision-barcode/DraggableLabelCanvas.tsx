@@ -373,7 +373,7 @@ export function DraggableLabelCanvas({
                 left: (field.x ?? 0) * MM_TO_PX * zoom,
                 width: fieldW * MM_TO_PX * zoom,
                 fontSize: field.fontSize * zoom,
-                fontWeight: field.bold ? 700 : 400,
+                fontWeight: field.bold ? 900 : 600,
                 textAlign: (field.textAlign as any) || "left",
                 lineHeight: field.lineHeight ?? 1.2,
                 overflow: "hidden",
@@ -390,6 +390,7 @@ export function DraggableLabelCanvas({
                 color: isPlaceholder ? "hsl(var(--muted-foreground))" : "#000000",
                 fontStyle: isPlaceholder ? "italic" : "normal",
                 textDecoration: "none",
+                WebkitTextStroke: field.bold && !isPlaceholder ? "0.3px #000" : "none",
                 userSelect: "none",
               }}
               title={`${resolveLabelDesignerFieldLabel(key, fieldLabels, defaultUom)}: ${selectAllActive ? "drag to move all fields" : "drag to reposition"}`}
@@ -462,7 +463,7 @@ export function DraggableLabelCanvas({
                 left: (slot.x ?? 0) * MM_TO_PX * zoom,
                 width: slot.width ? slot.width * MM_TO_PX * zoom : "auto",
                 fontSize: slot.fontSize * zoom,
-                fontWeight: slot.bold ? 700 : 400,
+                fontWeight: slot.bold ? 900 : 600,
                 textAlign: (slot.textAlign as "left" | "center" | "right") || "left",
                 lineHeight: 1.15,
                 overflow: "hidden",
@@ -476,6 +477,7 @@ export function DraggableLabelCanvas({
                 fontFamily: "Arial, Helvetica, sans-serif",
                 color: slot.value.trim() ? "#000000" : "hsl(var(--muted-foreground))",
                 fontStyle: slot.value.trim() ? "normal" : "italic",
+                WebkitTextStroke: slot.bold && slot.value.trim() ? "0.3px #000" : "none",
                 userSelect: "none",
               }}
               title={`Custom text ${idx + 1}: ${selectAllActive ? "drag to move all fields" : "drag to reposition"}`}

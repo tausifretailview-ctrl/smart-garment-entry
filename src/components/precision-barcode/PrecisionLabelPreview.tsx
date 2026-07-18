@@ -210,7 +210,9 @@ export function PrecisionLabelPreview({
               left: u(field.x ?? 0),
               width: u(fieldW),
               fontSize: fs(field.fontSize),
-              fontWeight: field.bold ? 700 : 400,
+              // Thermal printers need heavy weight + hairline stroke so bold fields
+              // stay solid (700 alone looks thin/shrunk on many TSC/Xprinter engines).
+              fontWeight: field.bold ? 900 : 600,
               fontFamily: fieldFont,
               textAlign: (field.textAlign as any) || "left",
               lineHeight: field.lineHeight ?? 1.2,
@@ -221,6 +223,7 @@ export function PrecisionLabelPreview({
               color: "#000000",
               letterSpacing: "0.2px",
               textDecoration: "none",
+              WebkitTextStroke: field.bold ? "0.3px #000" : "none",
             }}
           >
             {content}
@@ -255,7 +258,7 @@ export function PrecisionLabelPreview({
               left: u(slot.x ?? 0),
               width: u(fieldW),
               fontSize: fs(slot.fontSize),
-              fontWeight: slot.bold ? 700 : 400,
+              fontWeight: slot.bold ? 900 : 600,
               textAlign: (slot.textAlign as "left" | "center" | "right") || "left",
               lineHeight: 1.2,
               overflow: "hidden",
@@ -263,6 +266,7 @@ export function PrecisionLabelPreview({
               textOverflow: "ellipsis",
               color: "#000000",
               letterSpacing: "0.2px",
+              WebkitTextStroke: slot.bold ? "0.3px #000" : "none",
             }}
           >
             {slot.value}
