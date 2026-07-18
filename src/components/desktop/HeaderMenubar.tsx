@@ -12,7 +12,6 @@ import {
   BoxIcon,
   FileSpreadsheet,
   FileText,
-  Headset,
   LayoutGrid,
   Package,
   Plus,
@@ -32,7 +31,6 @@ export type HeaderMenubarProps = {
   orgNavigate: (path: string, options?: { state?: Record<string, unknown> }) => void;
   openPosSales: () => void;
   onRefresh: () => void;
-  onOpenSupport?: () => void;
   className?: string;
 };
 
@@ -44,7 +42,6 @@ export function HeaderMenubar({
   orgNavigate,
   openPosSales,
   onRefresh,
-  onOpenSupport,
   className,
 }: HeaderMenubarProps) {
   const showFile =
@@ -356,17 +353,6 @@ export function HeaderMenubar({
         </MenubarMenu>
       )}
 
-      {onOpenSupport && (
-        <button
-          type="button"
-          className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-sm border border-violet-200 bg-white text-violet-700 text-xs font-semibold hover:bg-violet-50 ml-0.5 shrink-0"
-          onClick={onOpenSupport}
-          title="Contact Support"
-        >
-          <Headset className="h-3.5 w-3.5" />
-          Support
-        </button>
-      )}
     </Menubar>
   );
 }

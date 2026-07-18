@@ -243,7 +243,6 @@ export const Header = () => {
             orgNavigate={orgNavigate}
             openPosSales={openPosSales}
             onRefresh={handleManualReload}
-            onOpenSupport={() => setSupportOpen(true)}
           />
         </div>
 
