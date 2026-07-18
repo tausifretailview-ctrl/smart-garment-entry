@@ -14,6 +14,7 @@ import {
   getSaleReportGrossAmount,
   getSaleReportNetAmount,
 } from "@/utils/cashierReportUtils";
+import { allocateMixPaymentToBill } from "@/utils/mixPaymentAllocation";
 import { 
   Receipt, 
   IndianRupee, 
