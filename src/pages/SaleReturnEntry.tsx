@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { logError } from "@/lib/errorLogger";
 import { insertLedgerCredit, deleteLedgerEntries } from "@/lib/customerLedger";
 import {
@@ -183,9 +183,26 @@ export default function SaleReturnEntry() {
       }).then(({ data }) => { if (data) setNextReturnNumber(data); });
     }
 
-    // Fetch all products
-    fetchAllProducts();
-  }, [currentOrganization]);
+  }, [currentOrganization, isEditMode]);
+
+  const { data: soldVariantIdRows } = useQuery({
+    queryKey: ["sold-variant-ids", currentOrganization?.id],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any).rpc("get_sold_variant_ids", {
+        p_org_id: currentOrganization!.id,
+      });
+      if (error) throw error;
+      return (data || []) as Array<{ product_id: string | null; variant_id: string | null }>;
+    },
+    enabled: !!currentOrganization?.id,
+    staleTime: 300_000,
+  });
+
+  // Load sold products/variants when RPC cache updates
+  useEffect(() => {
+    if (!currentOrganization || !soldVariantIdRows) return;
+    void fetchAllProducts(soldVariantIdRows);
+  }, [currentOrganization, soldVariantIdRows]);
 
   // Load existing return data when in edit mode
   useEffect(() => {
@@ -261,30 +278,15 @@ export default function SaleReturnEntry() {
     }
   };
 
-  const fetchAllProducts = async () => {
+  const fetchAllProducts = async (
+    soldRows: Array<{ product_id: string | null; variant_id: string | null }>,
+  ) => {
     try {
       const soldVariantIds = new Set<string>();
       const soldProductIds = new Set<string>();
-      const PAGE_SIZE = 1000;
-      let page = 0;
-      let hasMore = true;
-
-      while (hasMore) {
-        const { data: batch, error } = await supabase
-          .from("sale_items")
-          .select("product_id, variant_id, sales!inner(organization_id)")
-          .eq("sales.organization_id", currentOrganization?.id)
-          .is("deleted_at", null)
-          .order("id")
-          .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
-
-        if (error) throw error;
-        (batch || []).forEach(item => {
-          if (item.product_id) soldProductIds.add(item.product_id);
-          if (item.variant_id) soldVariantIds.add(item.variant_id);
-        });
-        hasMore = (batch?.length || 0) === PAGE_SIZE;
-        page++;
+      for (const item of soldRows) {
+        if (item.product_id) soldProductIds.add(item.product_id);
+        if (item.variant_id) soldVariantIds.add(item.variant_id);
       }
 
       const productIdArray = Array.from(soldProductIds);
