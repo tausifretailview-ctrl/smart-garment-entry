@@ -4,7 +4,7 @@ import { lazyWithRetry } from "@/lib/chunkLoadRetry";
 import { logError } from "@/lib/errorLogger";
 import { UOM_OPTIONS } from "@/constants/uom";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
-import { Home, Save, Eye, EyeOff, Shield, Printer, Package, Paintbrush, Copy, RefreshCw, CheckCircle2, Loader2, Building2, ShoppingCart, Receipt, CreditCard, BarChart2, Users, MessageSquare, MessageCircle, Database, Palette, FileText, Smartphone } from "lucide-react";
+import { ArrowLeft, Home, Save, Eye, EyeOff, Shield, Printer, Package, Paintbrush, Copy, RefreshCw, CheckCircle2, Loader2, Building2, ShoppingCart, Receipt, CreditCard, BarChart2, Users, MessageSquare, MessageCircle, Database, Palette, FileText, Smartphone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -1108,8 +1108,21 @@ export default function Settings() {
             <Button
               variant="outline"
               size="sm"
-              className="h-8 w-8 p-0 shrink-0"
+              className="h-9 px-3 text-sm shrink-0"
+              onClick={() => {
+                if (window.history.length > 1) navigate(-1);
+                else navigate("/");
+              }}
+            >
+              <ArrowLeft className="h-4 w-4 mr-1" />
+              Back
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9 w-9 p-0 shrink-0"
               onClick={() => navigate("/")}
+              title="Home"
             >
               <Home className="h-4 w-4" />
             </Button>
@@ -1117,11 +1130,11 @@ export default function Settings() {
           </div>
           <Button
             size="sm"
-            className="h-8 text-sm shrink-0"
+            className="h-9 text-sm shrink-0"
             onClick={handleSave}
             disabled={loading}
           >
-            <Save className="h-3.5 w-3.5 mr-1.5" />
+            <Save className="h-4 w-4 mr-1.5" />
             Save Settings
           </Button>
         </div>
