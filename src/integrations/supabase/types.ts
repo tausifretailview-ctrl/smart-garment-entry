@@ -9140,6 +9140,13 @@ export type Database = {
           variant_id: string
         }[]
       }
+      get_sold_variant_ids: {
+        Args: { p_org_id: string }
+        Returns: {
+          product_id: string
+          variant_id: string
+        }[]
+      }
       get_stock_at_time: {
         Args: { p_timestamp: string; p_variant_id: string }
         Returns: number
