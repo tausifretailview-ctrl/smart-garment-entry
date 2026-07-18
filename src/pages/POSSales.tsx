@@ -2590,11 +2590,14 @@ export default function POSSales() {
         }
       }
 
-      // Fallback: search purchase_items for IMEI barcode (for legacy IMEI purchases)
+      // Fallback: search purchase_items for IMEI barcode (for legacy IMEI purchases).
+      // Scope to current org via purchase_bills — purchase_items has no organization_id column.
       if (mobileERP.enabled) {
         const { data: purchaseItem, error: purchaseError } = await supabase
           .from('purchase_items')
-          .select('sku_id, barcode, product_name, size')
+          .select('sku_id, barcode, product_name, size, purchase_bills!inner(organization_id)')
+          .eq('purchase_bills.organization_id', orgId)
+          .is('purchase_bills.deleted_at', null)
           .eq('barcode', trimmedTerm)
           .is('deleted_at', null)
           .limit(1)

@@ -691,12 +691,15 @@ export default function StockReport() {
     if (!currentOrganization?.id) return;
     
     try {
-      // Search in purchase_items
+      // Search in purchase_items — scoped to current org via purchase_bills (no org col on lines).
       const { data: purchaseData } = await supabase
         .from("purchase_items")
-        .select("sku_id, barcode")
+        .select("sku_id, barcode, purchase_bills!inner(organization_id)")
+        .eq("purchase_bills.organization_id", currentOrganization.id)
+        .is("purchase_bills.deleted_at", null)
         .ilike("barcode", `%${barcode}%`)
         .not("sku_id", "is", null)
+        .is("deleted_at", null)
         .limit(50);
 
       // Search in sale_items
