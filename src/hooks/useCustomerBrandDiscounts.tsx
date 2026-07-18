@@ -2,6 +2,10 @@ import { useCallback } from "react";
 import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import {
+  findExactBrandDiscount,
+  resolveBrandDiscountForProduct,
+} from "@/utils/customerBrandDiscountLookup";
 
 interface BrandDiscount {
   brand: string;
@@ -48,41 +52,21 @@ export function useCustomerBrandDiscounts(customerId: string | null) {
     staleTime: 30000, // Cache for 30 seconds
   });
 
-  // Normalize brand strings before comparing: trim, collapse internal whitespace,
-  // and lowercase. Without this, a stored brand like "A WALK " (trailing space) or
-  // "A  WALK" silently fails to match the product's "A WALK", so the discount is
-  // intermittently "not calculated" depending on how the brand was typed.
-  const normalizeBrand = (s: string | null | undefined): string =>
-    (s || "").trim().toLowerCase().replace(/\s+/g, " ");
-
-  // Get discount for a specific brand
+  // Get discount for a specific brand (0 when not configured or configured at 0%).
   const getBrandDiscount = useCallback((brand: string | null | undefined): number => {
-    const target = normalizeBrand(brand);
-    if (!target) return 0;
-    const discount = brandDiscounts.find(
-      (bd) => normalizeBrand(bd.brand) === target
-    );
-    return discount?.discount_percent || 0;
+    return findExactBrandDiscount(brandDiscounts, brand) ?? 0;
   }, [brandDiscounts]);
 
-  /** Match product brand field, then fall back to tokens in product name (e.g. PUG-RLX-KIDS → RLX). */
+  /**
+   * Match product brand field (including intentional 0%), then fall back to
+   * tokens in product name only when that brand has no discount row.
+   */
   const getBrandDiscountForProduct = useCallback((
     brand: string | null | undefined,
     productName?: string | null,
   ): number => {
-    const direct = getBrandDiscount(brand);
-    if (direct > 0) return direct;
-    if (!productName || brandDiscounts.length === 0) return 0;
-    const segments = productName
-      .split(/[-/\s|]+/)
-      .map((s) => s.trim())
-      .filter(Boolean);
-    for (const segment of segments) {
-      const match = getBrandDiscount(segment);
-      if (match > 0) return match;
-    }
-    return 0;
-  }, [brandDiscounts, getBrandDiscount]);
+    return resolveBrandDiscountForProduct(brandDiscounts, brand, productName);
+  }, [brandDiscounts]);
 
   // Check if customer has any brand discounts configured
   const hasBrandDiscounts = brandDiscounts.length > 0;
