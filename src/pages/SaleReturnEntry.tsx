@@ -34,6 +34,7 @@ import {
 import { isSaleInvoiceCancelled } from "@/utils/saleInvoiceStatus";
 import { entryPageMainClass, entryPageSectionX, entryPageShellClass } from "@/lib/entryPageLayout";
 import { useEntryViewportSync } from "@/hooks/useEntryViewportSync";
+import { useBarcodeScanner } from "@/hooks/useBarcodeScanner";
 import { cn } from "@/lib/utils";
 import { invalidateStatusBarSummary } from "@/utils/invalidateDashboardQueries";
 
@@ -110,6 +111,13 @@ export default function SaleReturnEntry() {
   const savingRef = useRef(false);
   const [editLoading, setEditLoading] = useState(false);
   const barcodeInputRef = useRef<HTMLInputElement>(null);
+  const lastInputTimeRef = useRef(0);
+  const processingBarcodeRef = useRef(false);
+  const barcodeScanner = useBarcodeScanner({
+    minBarcodeLength: 4,
+    maxKeystrokeInterval: 50,
+    autoSubmitDelay: 120,
+  });
   const [originalSaleId, setOriginalSaleId] = useState<string>('');
   const [useOriginalPriceForReturn, setUseOriginalPriceForReturn] = useState(false);
 
@@ -464,114 +472,168 @@ export default function SaleReturnEntry() {
     setTimeout(() => barcodeInputRef.current?.focus(), 100);
   };
 
-  const handleBarcodeSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!barcodeInput.trim()) return;
-    const query = barcodeInput.trim();
-    
-    let variant = variants.find((v) => v.barcode === query);
-    let product = variant ? products.find((p) => p.id === variant!.product_id) : null;
-    
-    if (!variant) {
-      const matchedProduct = products.find((p) => 
-        p.product_name.toLowerCase().includes(query.toLowerCase())
-      );
-      if (matchedProduct) {
-        product = matchedProduct;
-        variant = variants.find((v) => v.product_id === matchedProduct.id);
-      }
-    }
-    
-    if (!variant || !product) {
-      try {
-        const { data: dbVariant } = await supabase
-          .from("product_variants")
-          .select("id, product_id, size, color, sale_price, stock_qty, barcode, products(id, product_name, brand, category, hsn_code, gst_per, status, deleted_at)")
-          .eq("organization_id", currentOrganization.id)
-          .eq("barcode", query)
-          .eq("active", true)
-          .is("deleted_at", null)
-          .maybeSingle();
+  /** Sale-bill style: scanner / Enter / camera auto-adds the return line. */
+  const searchAndAddProduct = async (rawQuery: string) => {
+    const query = rawQuery.trim();
+    if (!query || !currentOrganization?.id) return;
+    if (processingBarcodeRef.current) return;
 
-        if (dbVariant && (dbVariant.products as any)?.status === 'active' && !(dbVariant.products as any)?.deleted_at) {
-          const { count } = await supabase
-            .from("sale_items")
-            .select("id", { count: "exact", head: true })
-            .eq("variant_id", dbVariant.id)
-            .is("deleted_at", null);
+    processingBarcodeRef.current = true;
+    barcodeScanner.markSubmitted(query);
+    barcodeScanner.cancelAutoSubmit();
 
-          if (count && count > 0) {
-            const p = dbVariant.products as any;
-            product = { id: p.id, product_name: p.product_name, brand: p.brand, category: p.category, hsn_code: p.hsn_code };
-            variant = { id: dbVariant.id, product_id: dbVariant.product_id, size: dbVariant.size, color: dbVariant.color || null, sale_price: dbVariant.sale_price || 0, stock_qty: dbVariant.stock_qty, barcode: dbVariant.barcode, gst_per: p.gst_per || 0 };
-          }
+    try {
+      let variant = variants.find((v) => v.barcode === query);
+      let product = variant ? products.find((p) => p.id === variant!.product_id) : null;
+
+      if (!variant) {
+        const matchedProduct = products.find((p) =>
+          p.product_name.toLowerCase().includes(query.toLowerCase()),
+        );
+        if (matchedProduct) {
+          product = matchedProduct;
+          variant = variants.find((v) => v.product_id === matchedProduct.id);
         }
-      } catch (err) {
-        console.error("DB barcode lookup error:", err);
       }
-    }
-    
-    if (!variant || !product) {
-      toast({ 
-        title: "Not Found", 
-        description: "No product found with this barcode or name",
-        variant: "destructive" 
-      });
-      setBarcodeInput("");
-      return;
-    }
-    
-    // Check max returnable before adding
-    const maxReturnable = await getMaxReturnable(variant!.id);
-    
-    const existingIndex = returnItems.findIndex(
-      (item) => item.variantId === variant!.id
-    );
-    
-    if (existingIndex !== -1) {
-      const currentQty = returnItems[existingIndex].quantity;
-      if (currentQty >= maxReturnable) {
-        toast({ title: "Cannot Return", description: `${product!.product_name} (${variant!.size}) — max returnable is ${maxReturnable}`, variant: "destructive" });
+
+      if (!variant || !product) {
+        try {
+          const { data: dbVariant } = await supabase
+            .from("product_variants")
+            .select("id, product_id, size, color, sale_price, stock_qty, barcode, products(id, product_name, brand, category, hsn_code, gst_per, status, deleted_at)")
+            .eq("organization_id", currentOrganization.id)
+            .eq("barcode", query)
+            .eq("active", true)
+            .is("deleted_at", null)
+            .maybeSingle();
+
+          if (
+            dbVariant &&
+            (dbVariant.products as any)?.status === "active" &&
+            !(dbVariant.products as any)?.deleted_at
+          ) {
+            const { count } = await supabase
+              .from("sale_items")
+              .select("id", { count: "exact", head: true })
+              .eq("variant_id", dbVariant.id)
+              .is("deleted_at", null);
+
+            if (count && count > 0) {
+              const p = dbVariant.products as any;
+              product = {
+                id: p.id,
+                product_name: p.product_name,
+                brand: p.brand,
+                category: p.category,
+                hsn_code: p.hsn_code,
+              };
+              variant = {
+                id: dbVariant.id,
+                product_id: dbVariant.product_id,
+                size: dbVariant.size,
+                color: dbVariant.color || null,
+                sale_price: dbVariant.sale_price || 0,
+                stock_qty: dbVariant.stock_qty,
+                barcode: dbVariant.barcode,
+                gst_per: p.gst_per || 0,
+              };
+            }
+          }
+        } catch (err) {
+          console.error("DB barcode lookup error:", err);
+        }
+      }
+
+      if (!variant || !product) {
+        toast({
+          title: "Not Found",
+          description: "No product found with this barcode or name",
+          variant: "destructive",
+        });
         setBarcodeInput("");
         return;
       }
-      const updated = [...returnItems];
-      updated[existingIndex].quantity += 1;
-      updated[existingIndex].lineTotal = 
-        updated[existingIndex].quantity * updated[existingIndex].unitPrice;
-      updated[existingIndex].maxReturnable = maxReturnable;
-      setReturnItems(updated);
-    } else {
+
+      const maxReturnable = await getMaxReturnable(variant.id);
+      const variantId = variant.id;
+      const productSnap = product;
+      const variantSnap = variant;
+
+      const existing = returnItems.find((item) => item.variantId === variantId);
+      if (existing) {
+        if (existing.quantity >= maxReturnable) {
+          toast({
+            title: "Cannot Return",
+            description: `${productSnap.product_name} (${variantSnap.size}) — max returnable is ${maxReturnable}`,
+            variant: "destructive",
+          });
+          setBarcodeInput("");
+          return;
+        }
+        setReturnItems((prev) =>
+          prev.map((item) =>
+            item.variantId === variantId
+              ? {
+                  ...item,
+                  quantity: item.quantity + 1,
+                  lineTotal: (item.quantity + 1) * item.unitPrice,
+                  maxReturnable,
+                }
+              : item,
+          ),
+        );
+        setBarcodeInput("");
+        setTimeout(() => barcodeInputRef.current?.focus(), 50);
+        return;
+      }
+
       if (maxReturnable <= 0) {
-        toast({ title: "Cannot Return", description: `${product!.product_name} (${variant!.size}) — all sold units already returned`, variant: "destructive" });
+        toast({
+          title: "Cannot Return",
+          description: `${productSnap.product_name} (${variantSnap.size}) — all sold units already returned`,
+          variant: "destructive",
+        });
         setBarcodeInput("");
         return;
       }
-      const fetchedResult = await getPriceFromSale(variant!.id, originalSaleId || undefined, useOriginalPriceForReturn);
-      let unitPrice = fetchedResult?.price ?? variant!.sale_price;
+
+      const fetchedResult = await getPriceFromSale(
+        variantId,
+        originalSaleId || undefined,
+        useOriginalPriceForReturn,
+      );
+      const unitPrice = fetchedResult?.price ?? variantSnap.sale_price;
 
       const newItem: ReturnItem = {
-        productId: product!.id,
-        variantId: variant!.id,
-        productName: product!.product_name,
-        size: variant!.size,
-        color: variant!.color || undefined,
-        barcode: variant!.barcode,
+        productId: productSnap.id,
+        variantId,
+        productName: productSnap.product_name,
+        size: variantSnap.size,
+        color: variantSnap.color || undefined,
+        barcode: variantSnap.barcode,
         quantity: 1,
         unitPrice,
-        gstPercent: variant!.gst_per,
+        gstPercent: variantSnap.gst_per,
         lineTotal: unitPrice,
-        hsnCode: product!.hsn_code || '',
+        hsnCode: productSnap.hsn_code || "",
         maxReturnable,
         originalPrice: fetchedResult?.originalPrice,
         discountPercent: fetchedResult?.discountPercent,
       };
-      setReturnItems(prev => [...prev, newItem]);
+      setReturnItems((prev) => [...prev, newItem]);
+      setBarcodeInput("");
+      setTimeout(() => barcodeInputRef.current?.focus(), 50);
+    } finally {
+      setTimeout(() => {
+        processingBarcodeRef.current = false;
+      }, 150);
     }
-    
-    setBarcodeInput("");
-    barcodeInputRef.current?.focus();
+  };
+
+  const handleBarcodeSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    barcodeScanner.cancelAutoSubmit();
+    await searchAndAddProduct(barcodeInput);
   };
 
   const updateQuantity = (index: number, quantity: number) => {
@@ -1477,7 +1539,38 @@ export default function SaleReturnEntry() {
                 type="text"
                 placeholder="SCAN BARCODE OR SEARCH BY NAME, BRAND, CATEGORY..."
                 value={barcodeInput}
-                onChange={(e) => setBarcodeInput(e.target.value)}
+                onChange={(e) => {
+                  const newValue = e.target.value;
+                  const now = Date.now();
+                  const delta = now - lastInputTimeRef.current;
+                  lastInputTimeRef.current = now;
+                  barcodeScanner.recordKeystroke();
+                  setBarcodeInput(newValue);
+
+                  const isScannerLike =
+                    barcodeScanner.detectScannerInput(newValue, delta) ||
+                    (newValue.length >= 4 && delta < 50);
+
+                  if (isScannerLike) {
+                    barcodeScanner.scheduleAutoSubmit(newValue, (val) => {
+                      void searchAndAddProduct(val);
+                    });
+                  }
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    barcodeScanner.cancelAutoSubmit();
+                    const value = (e.currentTarget.value || barcodeInput).trim();
+                    if (!value) return;
+                    void searchAndAddProduct(value);
+                  }
+                  if (e.key === "Escape") {
+                    barcodeScanner.cancelAutoSubmit();
+                    setBarcodeInput("");
+                    barcodeScanner.reset();
+                  }
+                }}
                 className="pl-10 h-10 text-sm bg-white border-black/20 uppercase font-semibold"
                 autoFocus
                 autoComplete="off"
@@ -1485,14 +1578,7 @@ export default function SaleReturnEntry() {
             </div>
             <CameraScanButton
               onBarcodeScanned={(barcode) => {
-                setBarcodeInput(barcode);
-                setTimeout(() => {
-                  if (barcodeInputRef.current) {
-                    barcodeInputRef.current.focus();
-                    const enterEvent = new KeyboardEvent("keydown", { key: "Enter", bubbles: true });
-                    barcodeInputRef.current.dispatchEvent(enterEvent);
-                  }
-                }, 100);
+                void searchAndAddProduct(barcode);
               }}
               className="h-10 border-black/20"
             />

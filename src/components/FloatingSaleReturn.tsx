@@ -37,6 +37,7 @@ import {
   type StockIssuePresentation,
 } from "@/utils/stockErrorMessages";
 import { isSaleInvoiceCancelled } from "@/utils/saleInvoiceStatus";
+import { useBarcodeScanner } from "@/hooks/useBarcodeScanner";
 
 type RefundType = "cash_refund" | "credit_note" | "exchange";
 
@@ -189,6 +190,13 @@ export const FloatingSaleReturn = ({
   const [billItems, setBillItems] = useState<SaleItemRecord[]>([]);
   const [billLookupLoading, setBillLookupLoading] = useState(false);
   const barcodeInputRef = useRef<HTMLInputElement>(null);
+  const lastInputTimeRef = useRef(0);
+  const processingBarcodeRef = useRef(false);
+  const barcodeScanner = useBarcodeScanner({
+    minBarcodeLength: 4,
+    maxKeystrokeInterval: 50,
+    autoSubmitDelay: 120,
+  });
   const [refundType, setRefundType] = useState<RefundType>("exchange");
   /** When refund type is direct refund: how the shop paid the customer (Cash → 1000, UPI/Card/Bank → 1010). */
   const [directRefundPaymentMethod, setDirectRefundPaymentMethod] = useState<DirectRefundPaymentMethod>("cash");
@@ -665,91 +673,133 @@ export const FloatingSaleReturn = ({
     setTimeout(() => barcodeInputRef.current?.focus(), 100);
   };
 
+  const searchAndAddProduct = async (rawQuery: string) => {
+    const query = rawQuery.trim();
+    if (!query || !organizationId) return;
+    if (processingBarcodeRef.current) return;
+
+    processingBarcodeRef.current = true;
+    barcodeScanner.markSubmitted(query);
+    barcodeScanner.cancelAutoSubmit();
+
+    try {
+      let variant = variants.find((v) => v.barcode === query);
+      let product = variant ? products.find((p) => p.id === variant!.product_id) : null;
+
+      if (!variant) {
+        const matchedProduct = products.find((p) =>
+          p.product_name.toLowerCase().includes(query.toLowerCase()),
+        );
+        if (matchedProduct) {
+          product = matchedProduct;
+          variant = variants.find((v) => v.product_id === matchedProduct.id);
+        }
+      }
+
+      if (!variant || !product) {
+        try {
+          const { data: dbVariant } = await supabase
+            .from("product_variants")
+            .select("id, product_id, size, sale_price, barcode, products(id, product_name, brand, hsn_code, gst_per, status, deleted_at)")
+            .eq("organization_id", organizationId)
+            .eq("barcode", query)
+            .eq("active", true)
+            .is("deleted_at", null)
+            .maybeSingle();
+
+          if (
+            dbVariant &&
+            (dbVariant.products as any)?.status === "active" &&
+            !(dbVariant.products as any)?.deleted_at
+          ) {
+            const { count } = await supabase
+              .from("sale_items")
+              .select("id", { count: "exact", head: true })
+              .eq("variant_id", dbVariant.id)
+              .is("deleted_at", null);
+
+            if (count && count > 0) {
+              const p = dbVariant.products as any;
+              product = { id: p.id, product_name: p.product_name, brand: p.brand, hsn_code: p.hsn_code };
+              variant = {
+                id: dbVariant.id,
+                product_id: dbVariant.product_id,
+                size: dbVariant.size,
+                sale_price: dbVariant.sale_price || 0,
+                barcode: dbVariant.barcode,
+                gst_per: p.gst_per || 0,
+              };
+
+              if (!products.find((pp) => pp.id === p.id)) setProducts((prev) => [...prev, product!]);
+              if (!variants.find((vv) => vv.id === dbVariant.id)) setVariants((prev) => [...prev, variant!]);
+            }
+          }
+        } catch (err) {
+          console.error("DB barcode lookup error:", err);
+        }
+      }
+
+      if (!variant || !product) {
+        toast({
+          title: "Not Found",
+          description: "No sold product found with this barcode",
+          variant: "destructive",
+        });
+        setBarcodeInput("");
+        return;
+      }
+
+      if (billSaleId && billItems.length > 0) {
+        const inBill = billItems.find((bi) => bi.variant_id === variant!.id);
+        if (!inBill) {
+          toast({ title: "Warning", description: "This item was not found in the specified bill" });
+        }
+      }
+
+      const variantId = variant.id;
+      const existingIndex = returnItems.findIndex((item) => item.variantId === variantId);
+      if (existingIndex !== -1) {
+        setReturnItems((prev) =>
+          prev.map((item) =>
+            item.variantId === variantId
+              ? {
+                  ...item,
+                  quantity: item.quantity + 1,
+                  lineTotal: (item.quantity + 1) * item.unitPrice,
+                }
+              : item,
+          ),
+        );
+      } else {
+        const unitPrice = await fetchUnitPrice(variant.id, variant.sale_price);
+        setReturnItems((prev) => [
+          ...prev,
+          {
+            productId: product!.id,
+            variantId,
+            productName: product!.product_name,
+            size: variant!.size,
+            barcode: variant!.barcode,
+            quantity: 1,
+            unitPrice,
+            lineTotal: unitPrice,
+          },
+        ]);
+      }
+
+      setBarcodeInput("");
+      setTimeout(() => barcodeInputRef.current?.focus(), 50);
+    } finally {
+      setTimeout(() => {
+        processingBarcodeRef.current = false;
+      }, 150);
+    }
+  };
+
   const handleBarcodeSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!barcodeInput.trim()) return;
-    const query = barcodeInput.trim();
-
-    let variant = variants.find(v => v.barcode === query);
-    let product = variant ? products.find(p => p.id === variant!.product_id) : null;
-
-    if (!variant) {
-      const matchedProduct = products.find(p =>
-        p.product_name.toLowerCase().includes(query.toLowerCase())
-      );
-      if (matchedProduct) {
-        product = matchedProduct;
-        variant = variants.find(v => v.product_id === matchedProduct.id);
-      }
-    }
-
-    if (!variant || !product) {
-      try {
-        const { data: dbVariant } = await supabase
-          .from("product_variants")
-          .select("id, product_id, size, sale_price, barcode, products(id, product_name, brand, hsn_code, gst_per, status, deleted_at)")
-          .eq("organization_id", organizationId)
-          .eq("barcode", query)
-          .eq("active", true)
-          .is("deleted_at", null)
-          .maybeSingle();
-
-        if (dbVariant && (dbVariant.products as any)?.status === 'active' && !(dbVariant.products as any)?.deleted_at) {
-          const { count } = await supabase
-            .from("sale_items")
-            .select("id", { count: "exact", head: true })
-            .eq("variant_id", dbVariant.id)
-            .is("deleted_at", null);
-
-          if (count && count > 0) {
-            const p = dbVariant.products as any;
-            product = { id: p.id, product_name: p.product_name, brand: p.brand, hsn_code: p.hsn_code };
-            variant = { id: dbVariant.id, product_id: dbVariant.product_id, size: dbVariant.size, sale_price: dbVariant.sale_price || 0, barcode: dbVariant.barcode, gst_per: p.gst_per || 0 };
-
-            if (!products.find(pp => pp.id === p.id)) setProducts(prev => [...prev, product!]);
-            if (!variants.find(vv => vv.id === dbVariant.id)) setVariants(prev => [...prev, variant!]);
-          }
-        }
-      } catch (err) {
-        console.error("DB barcode lookup error:", err);
-      }
-    }
-
-    if (!variant || !product) {
-      toast({ title: "Not Found", description: "No sold product found with this barcode", variant: "destructive" });
-      setBarcodeInput("");
-      return;
-    }
-
-    if (billSaleId && billItems.length > 0) {
-      const inBill = billItems.find(bi => bi.variant_id === variant!.id);
-      if (!inBill) {
-        toast({ title: "Warning", description: "This item was not found in the specified bill" });
-      }
-    }
-
-    const existingIndex = returnItems.findIndex(item => item.variantId === variant!.id);
-    if (existingIndex !== -1) {
-      const updated = [...returnItems];
-      updated[existingIndex].quantity += 1;
-      updated[existingIndex].lineTotal = updated[existingIndex].quantity * updated[existingIndex].unitPrice;
-      setReturnItems(updated);
-    } else {
-      const unitPrice = await fetchUnitPrice(variant.id, variant.sale_price);
-      setReturnItems(prev => [...prev, {
-        productId: product!.id,
-        variantId: variant!.id,
-        productName: product!.product_name,
-        size: variant!.size,
-        barcode: variant!.barcode,
-        quantity: 1,
-        unitPrice,
-        lineTotal: unitPrice,
-      }]);
-    }
-
-    setBarcodeInput("");
-    barcodeInputRef.current?.focus();
+    barcodeScanner.cancelAutoSubmit();
+    await searchAndAddProduct(barcodeInput);
   };
 
   const updateQuantity = async (index: number, qty: number) => {
@@ -1547,7 +1597,7 @@ export const FloatingSaleReturn = ({
           </div>
         )}
 
-        {/* Barcode Scanner */}
+        {/* Barcode Scanner — sale-bill style auto-add on wedge scan */}
         <form onSubmit={handleBarcodeSubmit} className="flex gap-2">
           <div className="relative flex-1">
             <Scan className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -1556,9 +1606,41 @@ export const FloatingSaleReturn = ({
               type="text"
               placeholder="Scan barcode or enter product name..."
               value={barcodeInput}
-              onChange={(e) => setBarcodeInput(e.target.value)}
+              onChange={(e) => {
+                const newValue = e.target.value;
+                const now = Date.now();
+                const delta = now - lastInputTimeRef.current;
+                lastInputTimeRef.current = now;
+                barcodeScanner.recordKeystroke();
+                setBarcodeInput(newValue);
+
+                const isScannerLike =
+                  barcodeScanner.detectScannerInput(newValue, delta) ||
+                  (newValue.length >= 4 && delta < 50);
+
+                if (isScannerLike) {
+                  barcodeScanner.scheduleAutoSubmit(newValue, (val) => {
+                    void searchAndAddProduct(val);
+                  });
+                }
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  barcodeScanner.cancelAutoSubmit();
+                  const value = (e.currentTarget.value || barcodeInput).trim();
+                  if (!value) return;
+                  void searchAndAddProduct(value);
+                }
+                if (e.key === "Escape") {
+                  barcodeScanner.cancelAutoSubmit();
+                  setBarcodeInput("");
+                  barcodeScanner.reset();
+                }
+              }}
               className="pl-9"
               autoFocus
+              autoComplete="off"
             />
           </div>
           <Button type="submit" size="sm">Add</Button>
