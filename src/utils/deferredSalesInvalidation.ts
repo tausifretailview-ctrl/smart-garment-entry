@@ -24,7 +24,9 @@ function runSalesInvalidation(queryClient: QueryClient, opts: PendingSalesInvali
   queryClient.invalidateQueries({ queryKey: ["todays-sales"] });
   queryClient.invalidateQueries({ queryKey: ["today-sales"] });
   queryClient.invalidateQueries({ queryKey: ["pos-products"] });
-  // Sale Return pickers: get_sold_variant_ids RPC (staleTime 5 min)
+  // Sale Return pickers: get_sold_variant_ids RPC (staleTime 5 min).
+  // Set = all historically sold items (not "still sellable"); sale returns do not
+  // shrink it, so return-save paths need not invalidate this key.
   queryClient.invalidateQueries({
     queryKey: opts.organizationId
       ? ["sold-variant-ids", opts.organizationId]
