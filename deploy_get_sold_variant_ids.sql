@@ -22,7 +22,9 @@ $$;
 
 COMMENT ON FUNCTION public.get_sold_variant_ids(uuid) IS
   'Distinct (product_id, variant_id) from non-deleted sale_items for an org. '
-  'Used by Sale Return product pickers; client caches ~5 min and invalidates on sale save.';
+  'Intentionally includes all historically sold items regardless of sale_return status '
+  '(same as the old client pagination loops). Sale-return save need not invalidate this; '
+  'client caches ~5 min and invalidates on sale save/delete via ["sold-variant-ids"].';
 
 REVOKE ALL ON FUNCTION public.get_sold_variant_ids(uuid) FROM PUBLIC, anon;
 

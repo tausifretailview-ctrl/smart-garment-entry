@@ -185,6 +185,7 @@ export default function SaleReturnEntry() {
 
   }, [currentOrganization, isEditMode]);
 
+  // Historically sold IDs (not net-of-returns). Invalidated on sale save/delete only.
   const { data: soldVariantIdRows } = useQuery({
     queryKey: ["sold-variant-ids", currentOrganization?.id],
     queryFn: async () => {
