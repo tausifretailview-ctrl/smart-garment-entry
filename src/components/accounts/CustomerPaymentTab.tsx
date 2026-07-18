@@ -83,7 +83,6 @@ import {
 } from "@/utils/saleSettlement";
 import {
   fetchSaleReceiptSplitsForInvoices,
-  reconcileSaleInvoiceDisplay,
   reconcileSaleInvoiceWithSplit,
   resolveReceiptReprintBalances,
   splitSaleLinkedReceiptRows,
@@ -91,6 +90,7 @@ import {
   syncSalePaymentsFromVouchersBatch,
   type SaleReceiptVoucherSplit,
 } from "@/utils/customerBalanceUtils";
+import { fetchItemsGrossBySaleId } from "@/utils/fetchItemsGrossBySaleId";
 // Sentinel ID used to represent the customer's remaining Opening Balance
 // as a selectable row inside the invoice picker.
 const OPENING_BALANCE_ID = "__opening_balance__";
@@ -118,18 +118,9 @@ function customerInvoicesDepKey(invoices: any[] | undefined): string {
     .join("|");
 }
 
-/** Per-invoice due — same rules as Sales Invoice Dashboard (avoids double-counting CN in paid_amount + sr). */
-const getInvoiceOutstanding = (invoice: any, split?: SaleReceiptVoucherSplit | null) => {
-  const s = split ?? { cash: 0, cn: 0, adv: 0, discount: 0 };
-  const voucherBucketSum = s.cash + s.adv + s.cn;
-  const paidForReconcile = Math.max(0, Number(invoice?.paid_amount || 0) - voucherBucketSum);
-  return reconcileSaleInvoiceDisplay({
-    net_amount: Number(invoice?.net_amount || 0),
-    sale_return_adjust: Number(invoice?.sale_return_adjust || 0),
-    paid_amount: paidForReconcile,
-    split: s,
-  }).outstanding;
-};
+/** Per-invoice due — same rules as Sales Invoice Dashboard (includes sale_return_adjust / CN). */
+const getInvoiceOutstanding = (invoice: any, split?: SaleReceiptVoucherSplit | null) =>
+  reconcileSaleInvoiceWithSplit(invoice, split).outstanding;
 const toNumberOrZero = (value: any) => {
   const n = Number(value);
   return Number.isFinite(n) ? n : 0;
@@ -371,6 +362,24 @@ export function CustomerPaymentTab({
         );
       } catch (e) {
         console.error("CustomerPaymentTab: invoice receipt splits failed", e);
+      }
+
+      // Same pre/post-return gate as Sales dashboard — without this, CN/SRA is ignored in Pending.
+      let itemsGrossBySale = new Map<string, number>();
+      try {
+        const needingGross = salesRows
+          .filter((s: any) => Number(s.sale_return_adjust || 0) > 0.01)
+          .map((s: any) => s.id)
+          .filter(Boolean);
+        if (needingGross.length > 0) {
+          itemsGrossBySale = await fetchItemsGrossBySaleId(supabase, needingGross);
+        }
+      } catch (e) {
+        console.error("CustomerPaymentTab: items_gross fetch failed", e);
+      }
+      for (const sale of salesRows as any[]) {
+        const g = itemsGrossBySale.get(sale.id);
+        if (g != null) sale.items_gross = g;
       }
 
       // Sync paid_amount / payment_status from receipt vouchers (ledger-consistent).

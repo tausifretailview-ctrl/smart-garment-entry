@@ -36,4 +36,26 @@ describe("reconcileSaleInvoiceDisplay — Adjust Credit Note status", () => {
     });
     expect(rec.payment_status).toBe("pending");
   });
+
+  it("Customer Payment pending matches Sales dashboard after CN adjust (NEW SAHELI #214)", () => {
+    // net 2013 − cash 441 − S/R 1259 = 313
+    const withGross = reconcileSaleInvoiceDisplay({
+      net_amount: 2013,
+      sale_return_adjust: 1259,
+      paid_amount: 441,
+      split: { cash: 0, cn: 1259, adv: 0, discount: 0 },
+      items_gross: 2013,
+    });
+    expect(withGross.outstanding).toBe(313);
+    expect(withGross.payment_status).toBe("partial");
+
+    // Without items_gross, CN-backed SRA still reduces payable (was stuck at 1572).
+    const withoutGross = reconcileSaleInvoiceDisplay({
+      net_amount: 2013,
+      sale_return_adjust: 1259,
+      paid_amount: 441,
+      split: { cash: 0, cn: 1259, adv: 0, discount: 0 },
+    });
+    expect(withoutGross.outstanding).toBe(313);
+  });
 });
