@@ -32,6 +32,9 @@ interface UseCustomerSearchOptions {
 const CUSTOMER_SEARCH_COLUMNS =
   "id, customer_name, phone, email, address, gst_number, opening_balance, discount_percent, transport_details, points_balance, portal_enabled, portal_price_type, organization_id, created_at";
 
+/** First page size for POS/Sales customer picker (range 0..PAGE; +1 row detects hasMore). */
+const CUSTOMER_SEARCH_PAGE_SIZE = 200;
+
 /**
  * Reliable customer search hook with server-side search
  * Handles 2000+ customers efficiently by searching on the server
@@ -105,11 +108,11 @@ export const useCustomerSearch = (searchTerm: string = "", options: UseCustomerS
         query = query.or(filters.join(','));
       }
       
-      // Order and limit results
+      // Range page (200) + 1 sentinel row for hasMore — never dump the full org list.
       const { data, error: queryError } = await query
         .order("customer_name")
         .order("id") // Secondary sort for deterministic pagination
-        .limit(201); // Fetch 201 to detect if more results exist
+        .range(0, CUSTOMER_SEARCH_PAGE_SIZE);
       
       if (queryError) {
         console.error("Customer fetch error:", queryError);
@@ -124,7 +127,8 @@ export const useCustomerSearch = (searchTerm: string = "", options: UseCustomerS
             .is("deleted_at", null)
             .ilike("customer_name", `%${term}%`)
             .order("customer_name")
-            .limit(201);
+            .order("id")
+            .range(0, CUSTOMER_SEARCH_PAGE_SIZE);
           
           if (fallbackError) throw fallbackError;
           return (fallbackData || []) as Customer[];
@@ -141,7 +145,8 @@ export const useCustomerSearch = (searchTerm: string = "", options: UseCustomerS
           .is("deleted_at", null)
           .ilike("customer_name", `%${term}%`)
           .order("customer_name")
-          .limit(201);
+          .order("id")
+          .range(0, CUSTOMER_SEARCH_PAGE_SIZE);
         
         if (!fallbackError && fallbackData && fallbackData.length > 0) {
           return fallbackData as Customer[];
@@ -158,11 +163,11 @@ export const useCustomerSearch = (searchTerm: string = "", options: UseCustomerS
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
   });
 
-  // Detect hasMore from the extra row, then trim to display limit
-  const hasMore = customers.length > 200;
+  // Detect hasMore from the extra row, then trim to display page size
+  const hasMore = customers.length > CUSTOMER_SEARCH_PAGE_SIZE;
   
   const filteredCustomers = useMemo(() => {
-    return hasMore ? customers.slice(0, 200) : customers;
+    return hasMore ? customers.slice(0, CUSTOMER_SEARCH_PAGE_SIZE) : customers;
   }, [customers, hasMore]);
 
   return {

@@ -243,18 +243,10 @@ async function applySearchToSalesQuery(
     );
   }
 
+  // Reuse the caller's filtered query (full-row or count) — no separate id-only probe.
+  // Text header matches OR line-item sale ids, ANDed with existing org/date/status filters.
   if (matchingSaleIds.length > 0) {
-    const { data: textMatches, error } = await client
-      .from("sales")
-      .select("id")
-      .eq("organization_id", filters.organizationId)
-      .eq("sale_type", "invoice")
-      .is("deleted_at", null)
-      .or(saleTextFilter);
-    if (error) throw error;
-    const textMatchIds = (textMatches || []).map((s: any) => s.id);
-    const allMatchIds = [...new Set([...textMatchIds, ...matchingSaleIds])];
-    return query.in("id", allMatchIds);
+    return query.or(`${saleTextFilter},id.in.(${matchingSaleIds.join(",")})`);
   }
   return query.or(saleTextFilter);
 }
