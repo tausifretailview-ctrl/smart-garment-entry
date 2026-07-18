@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -45,11 +45,16 @@ export const Header = () => {
   const { open: sidebarOpen, openMobile, useSheetSidebar } = useSidebar();
   const { currentOrganization, organizationRole } = useOrganization();
   const navigate = useNavigate();
+  const location = useLocation();
   const { orgNavigate, getOrgPath, orgSlug } = useOrgNavigation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [sizeStockOpen, setSizeStockOpen] = useState(false);
   const [quickStockOpen, setQuickStockOpen] = useState(false);
   const [quickSaleOpen, setQuickSaleOpen] = useState(false);
+
+  /** Visual-only active pill for shortcut bar (enables 140ms color crossfade). */
+  const isShortcutPath = (segment: string) =>
+    new RegExp(`/${segment}(/|$)`).test(location.pathname);
   const [supportOpen, setSupportOpen] = useState(false);
   const [helpShortcutsOpen, setHelpShortcutsOpen] = useState(false);
   const { isInstallable, isInstalled, promptInstall } = useInstallPrompt();
@@ -383,7 +388,12 @@ export const Header = () => {
           {showPrimarySaleButton && (
             <button
               type="button"
-              className="erp-tbtn erp-tbtn--primary"
+              className={cn(
+                "erp-tbtn",
+                (can("pos_sales")
+                  ? isShortcutPath("pos-sales")
+                  : isShortcutPath("sales-invoice")) && "erp-tbtn--primary",
+              )}
               onClick={openPrimarySale}
             >
               {can("pos_sales") ? (
@@ -402,7 +412,7 @@ export const Header = () => {
           {can("purchase_bill") && (
             <button
               type="button"
-              className="erp-tbtn"
+              className={cn("erp-tbtn", isShortcutPath("purchase-entry") && "erp-tbtn--primary")}
               onClick={() => orgNavigate("/purchase-entry", { state: { newBill: true } })}
             >
               <Package className="erp-tbtn__icon" />
@@ -410,7 +420,11 @@ export const Header = () => {
             </button>
           )}
           {can("stock_report") && (
-            <button type="button" className="erp-tbtn" onClick={() => orgNavigate("/stock-report")}>
+            <button
+              type="button"
+              className={cn("erp-tbtn", isShortcutPath("stock-report") && "erp-tbtn--primary")}
+              onClick={() => orgNavigate("/stock-report")}
+            >
               <LayoutGrid className="erp-tbtn__icon" />
               Stock
             </button>
@@ -419,13 +433,21 @@ export const Header = () => {
             <div className="erp-toolbar-sep" />
           )}
           {canAccessReportsHub && (
-            <button type="button" className="erp-tbtn" onClick={() => orgNavigate("/reports")}>
+            <button
+              type="button"
+              className={cn("erp-tbtn", isShortcutPath("reports") && "erp-tbtn--primary")}
+              onClick={() => orgNavigate("/reports")}
+            >
               <BarChart3 className="erp-tbtn__icon" />
               Reports
             </button>
           )}
           {can("daily_cashier_report") && (
-            <button type="button" className="erp-tbtn" onClick={() => orgNavigate("/daily-cashier-report")}>
+            <button
+              type="button"
+              className={cn("erp-tbtn", isShortcutPath("daily-cashier-report") && "erp-tbtn--primary")}
+              onClick={() => orgNavigate("/daily-cashier-report")}
+            >
               <Wallet className="erp-tbtn__icon" />
               Cashier Report
             </button>
@@ -433,30 +455,50 @@ export const Header = () => {
           {/* Secondary quick actions — compact, after primary mockup row */}
           {can("stock_report") && (
             <>
-              <button type="button" className="erp-tbtn" onClick={() => setQuickStockOpen(true)}>
+              <button
+                type="button"
+                className={cn("erp-tbtn", quickStockOpen && "erp-tbtn--primary")}
+                onClick={() => setQuickStockOpen(true)}
+              >
                 <BoxIcon className="erp-tbtn__icon" />
                 Quick Stock
               </button>
-              <button type="button" className="erp-tbtn" onClick={() => setSizeStockOpen(true)}>
+              <button
+                type="button"
+                className={cn("erp-tbtn", sizeStockOpen && "erp-tbtn--primary")}
+                onClick={() => setSizeStockOpen(true)}
+              >
                 <LayoutGrid className="erp-tbtn__icon" />
                 Size Stock
               </button>
             </>
           )}
           {canQuickPayments && (
-            <button type="button" className="erp-tbtn" onClick={() => orgNavigate("/accounts-payments")}>
+            <button
+              type="button"
+              className={cn("erp-tbtn", isShortcutPath("accounts-payments") && "erp-tbtn--primary")}
+              onClick={() => orgNavigate("/accounts-payments")}
+            >
               <Banknote className="erp-tbtn__icon" />
               Payment
             </button>
           )}
           {canQuickSaleLookup && (
-            <button type="button" className="erp-tbtn" onClick={() => setQuickSaleOpen(true)}>
+            <button
+              type="button"
+              className={cn("erp-tbtn", quickSaleOpen && "erp-tbtn--primary")}
+              onClick={() => setQuickSaleOpen(true)}
+            >
               <FileText className="erp-tbtn__icon" />
               Quick Sale
             </button>
           )}
           {canSupplierBalance && (
-            <button type="button" className="erp-tbtn" onClick={() => orgNavigate("/supplier-party-balances")}>
+            <button
+              type="button"
+              className={cn("erp-tbtn", isShortcutPath("supplier-party-balances") && "erp-tbtn--primary")}
+              onClick={() => orgNavigate("/supplier-party-balances")}
+            >
               <Building2 className="erp-tbtn__icon" />
               Supplier Balance
             </button>
@@ -465,7 +507,11 @@ export const Header = () => {
 
         <div className="flex items-center gap-1.5 shrink-0 ml-auto">
           {canCustomerBalance && (
-            <button type="button" className="erp-tbtn" onClick={() => orgNavigate("/customer-party-balances")}>
+            <button
+              type="button"
+              className={cn("erp-tbtn", isShortcutPath("customer-party-balances") && "erp-tbtn--primary")}
+              onClick={() => orgNavigate("/customer-party-balances")}
+            >
               <Users className="erp-tbtn__icon" />
               Customer Balance
             </button>
