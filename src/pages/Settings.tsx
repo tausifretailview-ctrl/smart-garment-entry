@@ -1101,21 +1101,27 @@ export default function Settings() {
   };
 
   return (
-    <div className="min-h-screen bg-background px-6 py-6">
-      <div className="w-full">
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-4">
+    <div className="settings-workspace flex flex-col bg-slate-50 px-2 sm:px-3 py-2 min-h-0 h-full overflow-hidden w-full">
+      <div className="w-full min-w-0 flex flex-col flex-1 min-h-0 gap-1.5">
+        <div className="flex items-center justify-between gap-2 shrink-0">
+          <div className="flex items-center gap-2 min-w-0">
             <Button
               variant="outline"
-              size="icon"
+              size="sm"
+              className="h-8 w-8 p-0 shrink-0"
               onClick={() => navigate("/")}
             >
               <Home className="h-4 w-4" />
             </Button>
-            <h1 className="text-3xl font-bold">Settings</h1>
+            <h1 className="text-xl font-bold text-teal-700 tracking-tight leading-none">Settings</h1>
           </div>
-          <Button onClick={handleSave} disabled={loading}>
-            <Save className="h-4 w-4 mr-2" />
+          <Button
+            size="sm"
+            className="h-8 text-sm shrink-0"
+            onClick={handleSave}
+            disabled={loading}
+          >
+            <Save className="h-3.5 w-3.5 mr-1.5" />
             Save Settings
           </Button>
         </div>
@@ -1126,21 +1132,21 @@ export default function Settings() {
             setCurrentTab(value);
             setVisitedTabs((prev) => new Set([...prev, value]));
           }}
-          className="w-full"
+          className="settings-tabs w-full min-h-0"
         >
-          <TabsList className="flex flex-wrap gap-1 h-auto p-1 bg-muted/60 rounded-xl mb-2">
-            <TabsTrigger value="company" className="flex items-center gap-1.5 text-xs font-medium"><Building2 className="h-3.5 w-3.5" /> Company</TabsTrigger>
-            <TabsTrigger value="product" className="flex items-center gap-1.5 text-xs font-medium"><Package className="h-3.5 w-3.5" /> Product</TabsTrigger>
-            <TabsTrigger value="purchase" className="flex items-center gap-1.5 text-xs font-medium"><ShoppingCart className="h-3.5 w-3.5" /> Purchase</TabsTrigger>
-            <TabsTrigger value="sale" className="flex items-center gap-1.5 text-xs font-medium"><Receipt className="h-3.5 w-3.5" /> Sale</TabsTrigger>
-            <TabsTrigger value="bill" className="flex items-center gap-1.5 text-xs font-medium"><Printer className="h-3.5 w-3.5" /> Bill & Barcode</TabsTrigger>
-            <TabsTrigger value="payment" className="flex items-center gap-1.5 text-xs font-medium"><CreditCard className="h-3.5 w-3.5" /> Payment</TabsTrigger>
-            <TabsTrigger value="reports" className="flex items-center gap-1.5 text-xs font-medium"><BarChart2 className="h-3.5 w-3.5" /> Reports</TabsTrigger>
-            <TabsTrigger value="users" className="flex items-center gap-1.5 text-xs font-medium"><Users className="h-3.5 w-3.5" /> User Rights</TabsTrigger>
-            <TabsTrigger value="sms" className="flex items-center gap-1.5 text-xs font-medium"><MessageSquare className="h-3.5 w-3.5" /> SMS</TabsTrigger>
-            <TabsTrigger value="whatsapp" className="flex items-center gap-1.5 text-xs font-medium"><MessageCircle className="h-3.5 w-3.5" /> WhatsApp</TabsTrigger>
-            <TabsTrigger value="backup" className="flex items-center gap-1.5 text-xs font-medium"><Database className="h-3.5 w-3.5" /> Backup</TabsTrigger>
-            <TabsTrigger value="branding" className="flex items-center gap-1.5 text-xs font-medium"><Palette className="h-3.5 w-3.5" /> Branding</TabsTrigger>
+          <TabsList className="settings-tablist">
+            <TabsTrigger value="company" className="flex items-center gap-1"><Building2 className="h-3.5 w-3.5" /> Company</TabsTrigger>
+            <TabsTrigger value="product" className="flex items-center gap-1"><Package className="h-3.5 w-3.5" /> Product</TabsTrigger>
+            <TabsTrigger value="purchase" className="flex items-center gap-1"><ShoppingCart className="h-3.5 w-3.5" /> Purchase</TabsTrigger>
+            <TabsTrigger value="sale" className="flex items-center gap-1"><Receipt className="h-3.5 w-3.5" /> Sale</TabsTrigger>
+            <TabsTrigger value="bill" className="flex items-center gap-1"><Printer className="h-3.5 w-3.5" /> Bill & Barcode</TabsTrigger>
+            <TabsTrigger value="payment" className="flex items-center gap-1"><CreditCard className="h-3.5 w-3.5" /> Payment</TabsTrigger>
+            <TabsTrigger value="reports" className="flex items-center gap-1"><BarChart2 className="h-3.5 w-3.5" /> Reports</TabsTrigger>
+            <TabsTrigger value="users" className="flex items-center gap-1"><Users className="h-3.5 w-3.5" /> User Rights</TabsTrigger>
+            <TabsTrigger value="sms" className="flex items-center gap-1"><MessageSquare className="h-3.5 w-3.5" /> SMS</TabsTrigger>
+            <TabsTrigger value="whatsapp" className="flex items-center gap-1"><MessageCircle className="h-3.5 w-3.5" /> WhatsApp</TabsTrigger>
+            <TabsTrigger value="backup" className="flex items-center gap-1"><Database className="h-3.5 w-3.5" /> Backup</TabsTrigger>
+            <TabsTrigger value="branding" className="flex items-center gap-1"><Palette className="h-3.5 w-3.5" /> Branding</TabsTrigger>
           </TabsList>
 
           <TabsContent value="company">
@@ -2200,8 +2206,8 @@ export default function Settings() {
             </div>
           </TabsContent>
 
-          <TabsContent value="sale">
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+          <TabsContent value="sale" className="mt-0">
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-2 items-start">
               {/* Settings Form */}
               <Card className="h-fit">
                 <CardHeader>
@@ -2210,7 +2216,7 @@ export default function Settings() {
                     Configure sale-related preferences
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-4">
+                <CardContent className="space-y-2.5">
                 <div className="space-y-2">
                   <Label htmlFor="default_discount">Default Discount (%)</Label>
                   <Input
@@ -4439,12 +4445,12 @@ export default function Settings() {
               </Card>
               
               {/* Live Preview Panel */}
-              <Card className="sticky top-6 h-fit">
-                <CardHeader className="pb-3">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <CardTitle className="text-base">Live Invoice Preview</CardTitle>
-                      <CardDescription className="text-xs mt-1">Updates as you change settings</CardDescription>
+              <Card className="sticky top-2 h-fit">
+                <CardHeader className="pb-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <CardTitle className="text-sm">Live Invoice Preview</CardTitle>
+                      <CardDescription className="text-[11px] mt-0.5">Updates as you change settings</CardDescription>
                     </div>
                     {/* Format switcher buttons */}
                     <div className="flex gap-1">
