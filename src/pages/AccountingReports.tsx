@@ -25,7 +25,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
 import { 
   Loader2, Download, Printer, TrendingUp, TrendingDown, Wallet, PieChart, 
-  FileSpreadsheet, Scale, Calculator, AlertTriangle, Calendar, Building2, Clock, ExternalLink, RefreshCw, BookText, Landmark, BarChart3, Table2, Users, Info, ShieldCheck, FileText, CheckCircle2, Receipt, ChevronDown, ArrowLeft, ChevronRight
+  FileSpreadsheet, Scale, Calculator, AlertTriangle, Calendar, Building2, Clock, ExternalLink, RefreshCw, BookText, Landmark, BarChart3, Table2, Users, Info, ShieldCheck, FileText, CheckCircle2, Receipt, ChevronDown, ArrowLeft
 } from "lucide-react";
 import { format, startOfMonth, endOfMonth, subMonths } from "date-fns";
 import { toast } from "sonner";
@@ -931,56 +931,33 @@ export default function AccountingReports() {
           </div>
         </div>
 
-        {/* Tally & reconcile — dense Vasy rows (not spaced cards) */}
+        {/* Tally & reconcile — horizontal icon buttons (same row style as GL tabs) */}
         <Card className="rounded-lg border border-slate-200 shadow-sm overflow-hidden p-0 shrink-0 print:hidden">
-          <div className="flex items-center justify-between gap-2 px-3 py-1.5 border-b border-slate-100 bg-slate-800">
-            <p className="text-xs font-bold uppercase tracking-wide text-white flex items-center gap-1.5">
-              <Table2 className="h-3.5 w-3.5" />
+          <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-1.5 border-b border-slate-100 bg-white">
+            <p className="text-sm font-medium text-slate-700 flex items-center gap-1.5">
+              <Table2 className="h-4 w-4 text-teal-700" />
               Tally &amp; reconcile
             </p>
-            <span className="text-xs text-slate-300 tabular-nums">
-              {accountingToolLinks.length} tools
-            </span>
           </div>
-          <div className="max-h-[9.5rem] overflow-y-auto tab-scroll-stable bg-white">
-            <Table className="[&_td]:px-3 [&_th]:px-3">
-              <TableBody>
-                {accountingToolLinks.map((tool, idx) => {
-                  const Icon = tool.icon;
-                  return (
-                    <TableRow
-                      key={tool.to}
-                      className="h-9 hover:bg-teal-50/80 cursor-pointer even:bg-slate-50/60"
-                    >
-                      <TableCell className="py-1.5 w-10 text-sm tabular-nums text-muted-foreground font-medium">
-                        {idx + 1}
-                      </TableCell>
-                      <TableCell className="py-1.5 w-9">
-                        <Icon className="h-4 w-4 text-teal-700" />
-                      </TableCell>
-                      <TableCell className="py-1.5">
-                        <Link
-                          to={tool.to}
-                          className="flex items-center justify-between gap-2 min-w-0 group"
-                        >
-                          <span className="min-w-0">
-                            <span className="text-sm font-semibold text-slate-900 group-hover:text-teal-700 block leading-tight">
-                              {tool.label}
-                            </span>
-                            {tool.sub ? (
-                              <span className="text-xs text-muted-foreground leading-tight block">
-                                {tool.sub}
-                              </span>
-                            ) : null}
-                          </span>
-                          <ChevronRight className="h-4 w-4 text-slate-300 group-hover:text-teal-600 shrink-0" />
-                        </Link>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
+          <div className="w-full h-auto p-0 bg-slate-50/80 flex flex-nowrap justify-start overflow-x-auto gap-0">
+            {accountingToolLinks.map((tool) => {
+              const Icon = tool.icon;
+              return (
+                <Link
+                  key={tool.to}
+                  to={tool.to}
+                  title={tool.sub}
+                  className={cn(
+                    "rounded-none border-b-2 border-transparent px-3 py-2 text-xs sm:text-sm font-semibold shrink-0",
+                    "flex items-center gap-1.5 text-slate-700 hover:bg-white hover:text-teal-700 hover:border-teal-400",
+                    "focus-visible:outline-none focus-visible:bg-white focus-visible:text-teal-700",
+                  )}
+                >
+                  <Icon className="h-4 w-4 shrink-0" />
+                  <span className="whitespace-nowrap">{tool.label}</span>
+                </Link>
+              );
+            })}
           </div>
         </Card>
 
