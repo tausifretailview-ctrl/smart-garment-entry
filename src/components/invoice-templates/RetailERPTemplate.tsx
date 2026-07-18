@@ -389,19 +389,19 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   const showHSNCol = showHSN;
   const showBarcodeCol = !isRealTast;
 
-  // A5: wider SN column + larger digits (old retail ERP look); take width from DESCRIPTION.
+  // Retail ERP: wider SN / SR No column + larger digits (take width from DESCRIPTION).
   const cols: { key: string; label: string; width: string; align: "center" | "left" | "right" }[] = [
-    { key: "sr", label: "SN", width: isRealTast ? "4%" : isA5Retail ? "8%" : "5%", align: "center" },
+    { key: "sr", label: "SN", width: isRealTast ? "4%" : isA5Retail ? "10%" : "7%", align: "center" },
     {
       key: "description",
       label: "DESCRIPTION",
       width: isRealTast
         ? (showHSNCol ? "47%" : "54%")
         : isA5Retail
-          ? (showHSNCol ? "21%" : "27%")
+          ? (showHSNCol ? "19%" : "25%")
           : showHSNCol
-            ? "24%"
-            : "30%",
+            ? "22%"
+            : "28%",
       align: "left",
     },
     ...(isRealTast
@@ -438,11 +438,13 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   const qrBoxMm = isA4 ? 26 : 28;
   const qrPadMm = isA4 ? 2 : 1;
   const showPaymentQr = Boolean(qrCodeUrl && !isRealTast);
-  const signColWidth = isA5Retail ? (showPaymentQr ? "38%" : "38%") : "40%";
+  const signColWidth = isA5Retail ? "38%" : "40%";
   const showGstPanel = !isRealTast && showGSTBreakdown && hasGSTData;
   const fsGstLabel = isA4 ? "10px" : "9px";
   const fsGstTable = isA4 ? "10px" : "8px";
-  const fsSrNo = isA5Retail ? "15px" : fsBody;
+  // SR No must read clearly on A5 laser prints — larger than body text.
+  const fsSrNo = isRealTast ? fsBody : isA5Retail ? "18px" : "16px";
+  const fsSrHeader = isRealTast ? fsHeading : isA5Retail ? "14px" : "14px";
 
   return (
     <div className="retail-erp-all-pages">
@@ -645,7 +647,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                           borderTop: "none",
                           borderBottom: B2,
                           fontWeight: "bold",
-                          fontSize: c.key === "sr" && isA5Retail ? "13px" : fsHeading,
+                          fontSize: c.key === "sr" ? fsSrHeader : fsHeading,
                           backgroundColor: "#333",
                           color: "#fff",
                           borderRight: ci === cols.length - 1 ? "none" : B,
@@ -707,6 +709,16 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                                   overflow: "visible",
                                 }
                               : {}),
+                            ...(c.key === "sr" && !isRealTast
+                              ? {
+                                  fontSize: fsSrNo,
+                                  fontWeight: 900,
+                                  // Allow larger SR digits to paint fully inside the row.
+                                  overflow: "visible",
+                                  lineHeight: 1.05,
+                                  padding: isA4 ? "2px 2px" : "1px 2px",
+                                }
+                              : {}),
                           };
                           let content: React.ReactNode = "\u00A0";
                           if (item) {
@@ -717,8 +729,9 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                                     style={{
                                       fontSize: fsSrNo,
                                       fontWeight: 900,
-                                      lineHeight: 1.1,
+                                      lineHeight: 1.05,
                                       display: "block",
+                                      fontVariantNumeric: "tabular-nums",
                                     }}
                                   >
                                     {srNo}
