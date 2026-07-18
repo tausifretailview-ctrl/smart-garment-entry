@@ -1,10 +1,23 @@
 /**
- * Mix Payment can accept cash tender above the bill (customer change).
- * Persist only amounts applied to the bill — never store tender excess in
- * cash_amount/card_amount/upi_amount (that inflated POS Cash column / cash tally).
+ * Mix Payment allocation helpers.
+ * UI must not allow tender above the bill; save path still peels any legacy excess
+ * so cash_amount/card_amount/upi_amount never store change.
  */
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
+
+/** Clamp one Mix Payment mode so cash+card+upi+bank+finance never exceeds bill. */
+export function clampMixPaymentModeAmount(
+  nextAmount: number,
+  otherModesTotal: number,
+  billAmount: number,
+): number {
+  const bill = Math.max(0, Number(billAmount) || 0);
+  const others = Math.max(0, Number(otherModesTotal) || 0);
+  const maxAllowed = Math.max(0, round2(bill - others));
+  const raw = Math.max(0, Number(nextAmount) || 0);
+  return round2(Math.min(raw, maxAllowed));
+}
 
 export type MixPaymentTenderInput = {
   billAmount: number;

@@ -2,7 +2,22 @@ import { describe, expect, it } from "vitest";
 import {
   allocateMixPaymentToBill,
   capPaymentModesToSettled,
+  clampMixPaymentModeAmount,
 } from "./mixPaymentAllocation";
+
+describe("clampMixPaymentModeAmount", () => {
+  it("blocks a single mode from exceeding the bill", () => {
+    expect(clampMixPaymentModeAmount(8000, 0, 4500)).toBe(4500);
+  });
+
+  it("limits a mode to the remaining bill after other modes", () => {
+    expect(clampMixPaymentModeAmount(3000, 3000, 4500)).toBe(1500);
+  });
+
+  it("allows exact bill fill", () => {
+    expect(clampMixPaymentModeAmount(1500, 3000, 4500)).toBe(1500);
+  });
+});
 
 describe("allocateMixPaymentToBill", () => {
   it("keeps under-tender mix amounts unchanged", () => {
