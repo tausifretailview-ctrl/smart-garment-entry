@@ -31,6 +31,12 @@ import { requestPosBarcodeFocus } from "@/utils/posSalesRefresh";
 import { useForceDesktopView } from "@/hooks/useDesktopViewPreference";
 import { useIsNarrowViewport } from "@/hooks/use-mobile";
 import { ActivityCenterBell } from "@/components/activity-center/ActivityCenterBell";
+import {
+  ContactSupportSheet,
+  HelpToolbarButton,
+  SupportToolbarButton,
+} from "@/components/support/ContactSupportSheet";
+import { KeyboardShortcutsModal } from "@/components/KeyboardShortcutsModal";
 import { storeOrgSlug, getStoredOrgSlug } from "@/lib/orgSlug";
 import { resolveOrgLoginPath } from "@/lib/orgLoginRedirect";
 
@@ -44,6 +50,8 @@ export const Header = () => {
   const [sizeStockOpen, setSizeStockOpen] = useState(false);
   const [quickStockOpen, setQuickStockOpen] = useState(false);
   const [quickSaleOpen, setQuickSaleOpen] = useState(false);
+  const [supportOpen, setSupportOpen] = useState(false);
+  const [helpShortcutsOpen, setHelpShortcutsOpen] = useState(false);
   const { isInstallable, isInstalled, promptInstall } = useInstallPrompt();
   const isDesktopApp = isElectronShell();
   const { hasMenuAccess, hasMainMenuAccess, hasSpecialPermission, permissions, loading: permissionsLoading } = useUserPermissions();
@@ -235,6 +243,7 @@ export const Header = () => {
             orgNavigate={orgNavigate}
             openPosSales={openPosSales}
             onRefresh={handleManualReload}
+            onOpenSupport={() => setSupportOpen(true)}
           />
         </div>
 
@@ -326,6 +335,10 @@ export const Header = () => {
           >
             <RefreshCw className="h-4 w-4" />
           </Button>
+          <div className="hidden md:flex items-center gap-1.5 mr-0.5">
+            <HelpToolbarButton onClick={() => setHelpShortcutsOpen(true)} />
+            <SupportToolbarButton onClick={() => setSupportOpen(true)} />
+          </div>
           <ActivityCenterBell />
           <UIScaleSelector triggerClassName="h-8 w-8 text-[var(--erp-chrome-ink-dim)] hover:text-white hover:bg-white/10 hidden md:flex" />
           <DropdownMenu>
@@ -465,6 +478,8 @@ export const Header = () => {
       <SizeStockDialog open={sizeStockOpen} onOpenChange={setSizeStockOpen} />
       <FloatingStockReport open={quickStockOpen} onOpenChange={setQuickStockOpen} />
       <FloatingSaleReport open={quickSaleOpen} onOpenChange={setQuickSaleOpen} />
+      <ContactSupportSheet open={supportOpen} onOpenChange={setSupportOpen} />
+      <KeyboardShortcutsModal open={helpShortcutsOpen} onOpenChange={setHelpShortcutsOpen} context="general" />
     </>
   );
 };
