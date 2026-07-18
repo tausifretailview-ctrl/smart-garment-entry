@@ -50,6 +50,11 @@ import {
 } from "@/components/mobile/AdaptivePaymentMethodPicker";
 import { DEFAULT_RECEIPT_PAYMENT_METHODS } from "@/components/mobile/MobilePaymentMethodPickerSheet";
 import { isSaleExcludedFromCustomerPaymentPicker } from "@/utils/paymentVoucherFilters";
+import {
+  fetchSaleReceiptSplitsForInvoices,
+  reconcileSaleInvoiceWithSplit,
+} from "@/utils/customerBalanceUtils";
+import { fetchItemsGrossBySaleId } from "@/utils/fetchItemsGrossBySaleId";
 
 interface FloatingPaymentsProps {
   open: boolean;
@@ -197,20 +202,54 @@ function CustomerPaymentForm({
     retry: 2,
   });
 
-  // Customer invoices
+  // Customer invoices — pending uses same reconcile as Accounts Customer Payment (includes SRA/CN).
   const { data: customerInvoices } = useQuery({
-    queryKey: ["customer-invoices", organizationId, referenceId],
+    queryKey: ["customer-invoices", organizationId, referenceId, "with-sra"],
     queryFn: async () => {
       const { data } = await supabase
         .from("sales")
-        .select("id, sale_number, sale_date, net_amount, paid_amount, payment_status, customer_name, customer_phone, customer_address, is_cancelled")
+        .select(
+          "id, sale_number, sale_date, net_amount, paid_amount, sale_return_adjust, payment_status, payment_method, cash_amount, card_amount, upi_amount, customer_id, customer_name, customer_phone, customer_address, is_cancelled",
+        )
         .eq("organization_id", organizationId)
         .eq("customer_id", referenceId)
         .in("payment_status", ["pending", "partial"])
         .eq("is_cancelled", false)
         .is("deleted_at", null)
         .order("sale_date", { ascending: false });
-      return (data || []).filter((sale) => !isSaleExcludedFromCustomerPaymentPicker(sale));
+      const salesRows = (data || []).filter((sale) => !isSaleExcludedFromCustomerPaymentPicker(sale));
+      if (!organizationId || salesRows.length === 0) return salesRows;
+
+      const splitBySale = await fetchSaleReceiptSplitsForInvoices(
+        supabase,
+        organizationId,
+        salesRows.map((s) => ({
+          id: s.id,
+          sale_number: s.sale_number,
+          customer_id: s.customer_id,
+        })),
+      );
+      const needingGross = salesRows
+        .filter((s) => Number(s.sale_return_adjust || 0) > 0.01)
+        .map((s) => s.id);
+      const itemsGrossBySale =
+        needingGross.length > 0
+          ? await fetchItemsGrossBySaleId(supabase, needingGross)
+          : new Map<string, number>();
+
+      return salesRows
+        .map((sale) => {
+          const withGross = {
+            ...sale,
+            items_gross: itemsGrossBySale.get(sale.id) ?? null,
+          };
+          const rec = reconcileSaleInvoiceWithSplit(
+            withGross,
+            splitBySale.get(sale.id) ?? null,
+          );
+          return { ...withGross, _outstanding: rec.outstanding };
+        })
+        .filter((sale) => Number(sale._outstanding || 0) >= 1);
     },
     enabled: !!organizationId && !!referenceId && dialogOpen,
     ...DASHBOARD_TAB_RETURN_QUERY_OPTIONS,
@@ -229,12 +268,23 @@ function CustomerPaymentForm({
       const ob = await resolveCustomerOpeningBalance(organizationId, referenceId, queryClient);
       const { data: sales } = await supabase
         .from("sales")
-        .select("net_amount, paid_amount")
+        .select("net_amount, paid_amount, sale_return_adjust")
         .eq("organization_id", organizationId)
         .eq("customer_id", referenceId)
         .in("payment_status", ["pending", "partial"])
         .is("deleted_at", null);
-      const invoiceOutstanding = sales?.reduce((sum, s) => sum + Math.max(0, (s.net_amount || 0) - (s.paid_amount || 0)), 0) || 0;
+      const invoiceOutstanding =
+        sales?.reduce(
+          (sum, s) =>
+            sum +
+            Math.max(
+              0,
+              Number(s.net_amount || 0) -
+                Number(s.paid_amount || 0) -
+                Number(s.sale_return_adjust || 0),
+            ),
+          0,
+        ) || 0;
       const { data: obPayments } = await supabase
         .from("voucher_entries")
         .select("total_amount, discount_amount, reference_id")
@@ -256,7 +306,18 @@ function CustomerPaymentForm({
     if (selectedInvoiceIds.length === 0 || !customerInvoices) return;
     const total = customerInvoices
       .filter((inv) => selectedInvoiceIds.includes(inv.id))
-      .reduce((sum, inv) => sum + (inv.net_amount - (inv.paid_amount || 0)), 0);
+      .reduce(
+        (sum, inv) =>
+          sum +
+          Math.max(
+            0,
+            Number((inv as { _outstanding?: number })._outstanding ??
+              Number(inv.net_amount || 0) -
+                Number(inv.paid_amount || 0) -
+                Number((inv as { sale_return_adjust?: number }).sale_return_adjust || 0)),
+          ),
+        0,
+      );
     const nextAmount = total.toFixed(2);
     setAmount((prev) => (prev === nextAmount ? prev : nextAmount));
   }, [selectedInvoiceIds, customerInvoices]);
@@ -619,7 +680,13 @@ function CustomerPaymentForm({
           </div>
           <div className="border rounded max-h-[min(420px,44vh)] overflow-y-auto bg-white dark:bg-background">
             {customerInvoices.map(inv => {
-              const balance = (inv.net_amount || 0) - (inv.paid_amount || 0);
+              const balance = Math.max(
+                0,
+                Number((inv as { _outstanding?: number })._outstanding ??
+                  Number(inv.net_amount || 0) -
+                    Number(inv.paid_amount || 0) -
+                    Number((inv as { sale_return_adjust?: number }).sale_return_adjust || 0)),
+              );
               const isSelected = selectedInvoiceIds.includes(inv.id);
               return (
                 <div key={inv.id} className={cn("flex items-center gap-2 p-2 cursor-pointer border-b last:border-b-0", isSelected && "bg-primary/5")}

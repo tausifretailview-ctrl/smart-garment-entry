@@ -809,14 +809,6 @@ export function reconcileSaleInvoiceDisplay(params: {
   const net = Number(params.net_amount || 0);
   const sr = Number(params.sale_return_adjust || 0);
   const itemsGross = params.items_gross != null ? Number(params.items_gross) : null;
-  // Pre-return invoice: the full bill is still in `net` and the return was applied as a
-  // credit on top (no reduction of net). Subtract it once. Guard is conservative — it can
-  // never fire for a post-return row (where net + sr ≤ items_gross), the dangerous direction.
-  const srAppliedOnTop =
-    itemsGross != null &&
-    itemsGross > INVOICE_RECON_TOL &&
-    sr > INVOICE_RECON_TOL &&
-    net + sr > itemsGross + DUPLICATE_CN_PAID_MATCH_TOL;
   const salePaid = Number(params.paid_amount || 0);
   const { cash = 0, cn = 0, adv = 0, discount = 0 } = params.split || {
     cash: 0,
@@ -824,9 +816,28 @@ export function reconcileSaleInvoiceDisplay(params: {
     adv: 0,
     discount: 0,
   };
-  const advCn = adv + cn;
+  // Pre-return invoice: the full bill is still in `net` and the return was applied as a
+  // credit on top (no reduction of net). Subtract it once. Guard is conservative — it can
+  // never fire for a post-return row (where net + sr ≤ items_gross), the dangerous direction.
+  const grossKnown = itemsGross != null && itemsGross > INVOICE_RECON_TOL;
+  const srAppliedOnTopByGross =
+    grossKnown &&
+    sr > INVOICE_RECON_TOL &&
+    net + sr > (itemsGross as number) + DUPLICATE_CN_PAID_MATCH_TOL;
+  // Adjust CN writes matching credit_note_adjustment for SRA. When items_gross is missing,
+  // still credit SRA once so Customer Payment pending matches Sales dashboard.
+  const cnBackedSraOnTop =
+    !grossKnown &&
+    sr > INVOICE_RECON_TOL &&
+    cn > INVOICE_RECON_TOL &&
+    Math.abs(cn - sr) <= DUPLICATE_CN_PAID_MATCH_TOL;
+  const srAppliedOnTop = srAppliedOnTopByGross || cnBackedSraOnTop;
+  // Only peel CN that is NOT already represented in sale_return_adjust (Option A Adjust CN
+  // writes CN voucher + SRA; paid_amount stays cash-like and must not be zeroed by CN).
+  const cnToPeelFromPaid = Math.max(0, cn - Math.max(0, sr));
+  const advCnToPeel = adv + cnToPeelFromPaid;
   // At-sale tender (POS cash/card/UPI columns) plus follow-up receipt vouchers — not max().
-  let effectiveCash = Math.max(0, salePaid - advCn) + cash + discount;
+  let effectiveCash = Math.max(0, salePaid - advCnToPeel) + cash + discount;
 
   if (sr > INVOICE_RECON_TOL && Math.abs(salePaid - sr) <= DUPLICATE_CN_PAID_MATCH_TOL) {
     effectiveCash = Math.max(0, cash);
