@@ -76,9 +76,10 @@ export const StatusBar = () => {
       };
     },
     enabled: !!currentOrganization?.id,
-    // F2: StatusBar refetched ~every 10s on every page → biggest cloud read source.
-    // Reference-tier cache (2 min) + no polling. Save paths invalidate via
-    // ["statusbar-summary"] to keep stock/due fresh after mutations.
+    // F2 / Phase-0 #7: StatusBar mounts on every page. Was STALE_FREQUENT (~10–30s)
+    // and burned thousands of v_dashboard_stock_summary reads/week. Reference-tier
+    // (2 min) exceeds the STALE_FREQUENT floor; save paths invalidate
+    // ["statusbar-summary"] so stock/due stay fresh after mutations.
     staleTime: STALE_REFERENCE,
     refetchOnWindowFocus: false,
   });

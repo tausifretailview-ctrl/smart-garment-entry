@@ -96,7 +96,7 @@ interface Customer {
   created_at: string;
 }
 
-const ITEMS_PER_PAGE = 50;
+const ITEMS_PER_PAGE = 200;
 
 // F4: Narrow SELECT list — was SELECT * (22 cols). List row + edit dialog only
 // read these fields. Cuts payload ~60% on Customer Master pagination.
@@ -374,19 +374,26 @@ const CustomerMaster = () => {
         }
 
         if (term) {
-          const { data: searchRows, error: searchErr } = await supabase
-            .from("customers")
-            .select("id")
-            .eq("organization_id", orgId)
-            .is("deleted_at", null)
-            .or(
-              `customer_name.ilike.%${term}%,phone.ilike.%${term}%,email.ilike.%${term}%`,
-            );
-          if (searchErr) throw searchErr;
-          const idSet = new Set(segmentIds);
-          const intersection = (searchRows || [])
-            .map((r: { id: string }) => r.id)
-            .filter((id) => idSet.has(id));
+          // Search within segment IDs in batches — avoid org-wide unbounded id dump.
+          const SEGMENT_IN_BATCH = 200;
+          const matchSet = new Set<string>();
+          for (let i = 0; i < segmentIds.length; i += SEGMENT_IN_BATCH) {
+            const chunk = segmentIds.slice(i, i + SEGMENT_IN_BATCH);
+            const { data: searchRows, error: searchErr } = await supabase
+              .from("customers")
+              .select("id")
+              .eq("organization_id", orgId)
+              .is("deleted_at", null)
+              .in("id", chunk)
+              .or(
+                `customer_name.ilike.%${term}%,phone.ilike.%${term}%,email.ilike.%${term}%`,
+              );
+            if (searchErr) throw searchErr;
+            for (const row of searchRows || []) {
+              if (row.id) matchSet.add(row.id);
+            }
+          }
+          const intersection = segmentIds.filter((id) => matchSet.has(id));
           const filteredCount = intersection.length;
           const pageIds = intersection.slice(offset, offset + ITEMS_PER_PAGE);
           const customers = await fetchByIds(pageIds);
@@ -795,17 +802,23 @@ const CustomerMaster = () => {
         });
 
       if (term) {
-        const { data: searchRows, error: searchErr } = await supabase
-          .from("customers")
-          .select("id")
-          .eq("organization_id", orgId)
-          .is("deleted_at", null)
-          .or(`customer_name.ilike.%${term}%,phone.ilike.%${term}%,email.ilike.%${term}%`);
-        if (searchErr) throw searchErr;
-        const idSet = new Set(segmentIds);
-        segmentIds = (searchRows || [])
-          .map((r: { id: string }) => r.id)
-          .filter((id) => idSet.has(id));
+        const SEGMENT_IN_BATCH = 200;
+        const matchSet = new Set<string>();
+        for (let i = 0; i < segmentIds.length; i += SEGMENT_IN_BATCH) {
+          const chunk = segmentIds.slice(i, i + SEGMENT_IN_BATCH);
+          const { data: searchRows, error: searchErr } = await supabase
+            .from("customers")
+            .select("id")
+            .eq("organization_id", orgId)
+            .is("deleted_at", null)
+            .in("id", chunk)
+            .or(`customer_name.ilike.%${term}%,phone.ilike.%${term}%,email.ilike.%${term}%`);
+          if (searchErr) throw searchErr;
+          for (const row of searchRows || []) {
+            if (row.id) matchSet.add(row.id);
+          }
+        }
+        segmentIds = segmentIds.filter((id) => matchSet.has(id));
       }
 
       return fetchByIds(segmentIds);
