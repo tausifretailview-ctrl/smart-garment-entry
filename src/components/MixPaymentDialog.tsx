@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Banknote, CreditCard, Smartphone, Building2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { clampMixPaymentModeAmount } from "@/utils/mixPaymentAllocation";
 
 export type MixPaymentInitialBreakdown = {
   cashAmount?: number;
@@ -59,9 +60,11 @@ export function MixPaymentDialog({
 
   const isRefundMode = billAmount < 0;
   const refundRequired = Math.abs(billAmount);
+  const payableBill = Math.max(0, billAmount);
   const totalPaid = cashAmount + cardAmount + upiAmount + bankAmount + financeAmount;
-  const creditBalance = isRefundMode ? 0 : Math.max(0, billAmount - totalPaid);
-  const balanceAmount = isRefundMode ? 0 : billAmount - totalPaid;
+  const creditBalance = isRefundMode ? 0 : Math.max(0, payableBill - totalPaid);
+  const balanceAmount = isRefundMode ? 0 : Math.max(0, payableBill - totalPaid);
+  const exceedsBill = !isRefundMode && totalPaid > payableBill + 0.001;
 
   // On close: clear. On open (normal mode): restore saved mix tender from initialBreakdown (edit POS / revisit).
   useEffect(() => {
@@ -80,12 +83,44 @@ export function MixPaymentDialog({
       return;
     }
     const init = initialBreakdown;
-    setCashAmount(Number(init?.cashAmount) || 0);
-    setCardAmount(Number(init?.cardAmount) || 0);
-    setUpiAmount(Number(init?.upiAmount) || 0);
-    setBankAmount(Number(init?.bankAmount) || 0);
-    setFinanceAmount(Number(init?.financeAmount) || 0);
-  }, [open, isRefundMode, refundRequired, initialBreakdown]);
+    let cash = Math.max(0, Number(init?.cashAmount) || 0);
+    let card = Math.max(0, Number(init?.cardAmount) || 0);
+    let upi = Math.max(0, Number(init?.upiAmount) || 0);
+    let bank = Math.max(0, Number(init?.bankAmount) || 0);
+    let finance = Math.max(0, Number(init?.financeAmount) || 0);
+    // Cap restored values so legacy over-tender rows cannot re-enter excess.
+    cash = clampMixPaymentModeAmount(cash, 0, payableBill);
+    card = clampMixPaymentModeAmount(card, cash, payableBill);
+    upi = clampMixPaymentModeAmount(upi, cash + card, payableBill);
+    bank = clampMixPaymentModeAmount(bank, cash + card + upi, payableBill);
+    finance = clampMixPaymentModeAmount(finance, cash + card + upi + bank, payableBill);
+    setCashAmount(cash);
+    setCardAmount(card);
+    setUpiAmount(upi);
+    setBankAmount(bank);
+    setFinanceAmount(finance);
+  }, [open, isRefundMode, refundRequired, initialBreakdown, payableBill]);
+
+  const setClampedCash = (raw: number) => {
+    setCashAmount(
+      clampMixPaymentModeAmount(raw, cardAmount + upiAmount + bankAmount + financeAmount, payableBill),
+    );
+  };
+  const setClampedCard = (raw: number) => {
+    setCardAmount(
+      clampMixPaymentModeAmount(raw, cashAmount + upiAmount + bankAmount + financeAmount, payableBill),
+    );
+  };
+  const setClampedUpi = (raw: number) => {
+    setUpiAmount(
+      clampMixPaymentModeAmount(raw, cashAmount + cardAmount + bankAmount + financeAmount, payableBill),
+    );
+  };
+  const setClampedFinance = (raw: number) => {
+    setFinanceAmount(
+      clampMixPaymentModeAmount(raw, cashAmount + cardAmount + upiAmount + bankAmount, payableBill),
+    );
+  };
 
   const handleSave = (issueCreditNote: boolean = false) => {
     if (isRefundMode) {
@@ -105,7 +140,7 @@ export function MixPaymentDialog({
         refundMode,
       });
     } else {
-      if (totalPaid <= 0) {
+      if (totalPaid <= 0 || exceedsBill) {
         return;
       }
       onSave({
@@ -226,9 +261,10 @@ export function MixPaymentDialog({
                   id="cash"
                   type="number"
                   min="0"
+                  max={payableBill}
                   step="0.01"
                   value={cashAmount || ""}
-                  onChange={(e) => setCashAmount(Number(e.target.value) || 0)}
+                  onChange={(e) => setClampedCash(Number(e.target.value) || 0)}
                   placeholder="₹ 0.00"
                   className="text-right"
                 />
@@ -244,9 +280,10 @@ export function MixPaymentDialog({
                   id="card"
                   type="number"
                   min="0"
+                  max={payableBill}
                   step="0.01"
                   value={cardAmount || ""}
-                  onChange={(e) => setCardAmount(Number(e.target.value) || 0)}
+                  onChange={(e) => setClampedCard(Number(e.target.value) || 0)}
                   placeholder="₹ 0.00"
                   className="text-right"
                 />
@@ -262,9 +299,10 @@ export function MixPaymentDialog({
                   id="upi"
                   type="number"
                   min="0"
+                  max={payableBill}
                   step="0.01"
                   value={upiAmount || ""}
-                  onChange={(e) => setUpiAmount(Number(e.target.value) || 0)}
+                  onChange={(e) => setClampedUpi(Number(e.target.value) || 0)}
                   placeholder="₹ 0.00"
                   className="text-right"
                 />
@@ -280,9 +318,10 @@ export function MixPaymentDialog({
                   id="finance"
                   type="number"
                   min="0"
+                  max={payableBill}
                   step="0.01"
                   value={financeAmount || ""}
-                  onChange={(e) => setFinanceAmount(Number(e.target.value) || 0)}
+                  onChange={(e) => setClampedFinance(Number(e.target.value) || 0)}
                   placeholder="₹ 0.00 — financer amount"
                   className="text-right"
                 />
@@ -305,7 +344,7 @@ export function MixPaymentDialog({
               <div className="space-y-2 pt-2 border-t">
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium">Total Paid:</span>
-                  <span className={`text-lg font-bold ${totalPaid > billAmount ? 'text-orange-600' : 'text-green-600'}`}>
+                  <span className="text-lg font-bold text-green-600">
                     {formatCurrency(totalPaid)}
                   </span>
                 </div>
@@ -319,11 +358,13 @@ export function MixPaymentDialog({
                 )}
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium">Balance:</span>
-                  <span className={`text-lg font-bold ${balanceAmount > 0 ? 'text-red-600' : balanceAmount < 0 ? 'text-orange-600' : 'text-green-600'}`}>
-                    {formatCurrency(Math.abs(balanceAmount))}
-                    {balanceAmount < 0 && ' (Excess)'}
+                  <span className={`text-lg font-bold ${balanceAmount > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                    {formatCurrency(balanceAmount)}
                   </span>
                 </div>
+                <p className="text-xs text-muted-foreground">
+                  Payment total cannot exceed bill amount ({formatCurrency(payableBill)}).
+                </p>
               </div>
             </>
           )}
@@ -356,7 +397,7 @@ export function MixPaymentDialog({
           ) : (
             <Button
               onClick={() => handleSave(false)}
-              disabled={totalPaid <= 0}
+              disabled={totalPaid <= 0 || exceedsBill}
             >
               Save & Print
             </Button>
