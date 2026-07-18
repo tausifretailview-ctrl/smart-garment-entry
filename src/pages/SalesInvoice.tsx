@@ -4659,8 +4659,8 @@ Thank you for choosing us!`;
                               !customerHasMasterFlatDiscount &&
                               (() => {
                                 const currentRate = getCurrentBrandDiscountForLineItem(item);
+                                // Show when saved ≠ current, including current 0% after brand discount was cleared.
                                 if (
-                                  currentRate <= 0 ||
                                   Math.abs((item.discountPercent || 0) - currentRate) <= 0.009
                                 ) {
                                   return null;
