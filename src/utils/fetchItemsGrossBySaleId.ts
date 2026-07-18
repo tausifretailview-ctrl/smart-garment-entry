@@ -27,19 +27,20 @@ async function fetchItemsGrossBySaleIdRowScan(
     const chunk = unique.slice(i, i + SALE_ITEMS_GROSS_CHUNK);
     const { data, error } = await client
       .from("sale_items")
-      .select("sale_id, quantity, mrp")
+      .select("sale_id, quantity, mrp, line_total, unit_price")
       .in("sale_id", chunk)
       .is("deleted_at", null);
     if (error) throw error;
     for (const it of data || []) {
       const sid = String((it as { sale_id?: string }).sale_id || "");
       if (!sid) continue;
-      map.set(
-        sid,
-        (map.get(sid) || 0) +
-          (Number((it as { quantity?: number }).quantity) || 0) *
-            (Number((it as { mrp?: number }).mrp) || 0),
-      );
+      const qty = Number((it as { quantity?: number }).quantity) || 0;
+      const lineTotal = Number((it as { line_total?: number }).line_total) || 0;
+      const unitPrice = Number((it as { unit_price?: number }).unit_price) || 0;
+      const mrp = Number((it as { mrp?: number }).mrp) || 0;
+      // Prefer line_total (sale face) over MRP — MRP ≫ sale price breaks pre-return CN detection.
+      const lineFace = lineTotal > 0 ? lineTotal : unitPrice > 0 ? unitPrice * qty : mrp * qty;
+      map.set(sid, (map.get(sid) || 0) + lineFace);
     }
   }
   return map;
