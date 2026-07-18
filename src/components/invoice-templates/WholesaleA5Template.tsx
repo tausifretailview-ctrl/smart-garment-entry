@@ -262,7 +262,7 @@ export const WholesaleA5Template: React.FC<WholesaleA5TemplateProps> = ({
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '8.5pt' }}>
         <thead>
           <tr style={{ background: headerBg, color: headerColor, fontWeight: 700 }}>
-            <th style={{ border: cellBorder, padding: '1.5mm 1mm', width: '7%', textAlign: 'center' }}>SR</th>
+            <th style={{ border: cellBorder, padding: '1.5mm 1mm', width: '9%', textAlign: 'center', fontSize: '10pt' }}>SR</th>
             <th style={{ border: cellBorder, padding: '1.5mm 2mm', textAlign: 'center' }}>CODE</th>
             {showBarcode && (
               <th style={{ border: cellBorder, padding: '1.5mm 2mm', width: '18%', textAlign: 'center' }}>BARCODE</th>
@@ -275,7 +275,7 @@ export const WholesaleA5Template: React.FC<WholesaleA5TemplateProps> = ({
         <tbody>
           {items.map((item, idx) => (
             <tr key={idx}>
-              <td style={{ border: cellBorder, padding: '1mm', textAlign: 'center' }}>{idx + 1}</td>
+              <td style={{ border: cellBorder, padding: '1mm', textAlign: 'center', fontSize: '11pt', fontWeight: 900 }}>{idx + 1}</td>
               <td style={{ border: cellBorder, padding: '1mm 2mm', textAlign: 'center' }}>
                 <div>{item.particulars}</div>
                 {item.itemNotes ? (
@@ -393,7 +393,7 @@ export const WholesaleA5Template: React.FC<WholesaleA5TemplateProps> = ({
                     <tr>
                       <td colSpan={2} style={{ border: cellBorder, padding: '2mm', textAlign: 'center' }}>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '2mm' }}>
-                          <img src={qrCodeUrl} alt="Payment QR" style={{ width: '18mm', height: '18mm', objectFit: 'contain' }} />
+                          <img src={qrCodeUrl} alt="Payment QR" style={{ width: '26mm', height: '26mm', objectFit: 'contain' }} />
                           <span style={{ fontSize: '7pt', color: '#444' }}>Scan to Pay</span>
                         </div>
                       </td>

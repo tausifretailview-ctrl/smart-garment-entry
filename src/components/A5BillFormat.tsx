@@ -309,8 +309,8 @@ export const A5BillFormat = ({ data }: { data: BillData }) => {
         }
         
         .qr-box img {
-          width: 100px;
-          height: 100px;
+          width: 120px;
+          height: 120px;
           margin-bottom: 5px;
         }
         
@@ -472,9 +472,9 @@ export const A5BillFormat = ({ data }: { data: BillData }) => {
       <table className="items-table">
         <thead>
           <tr>
-            <th style={{width: '5%'}}>Sr</th>
+            <th style={{width: '8%'}}>Sr</th>
             <th style={{width: '18%'}}>Barcode</th>
-            <th style={{width: '33%'}}>Description</th>
+            <th style={{width: '30%'}}>Description</th>
             <th className="t-center" style={{width: '12%'}}>Qty</th>
             <th className="t-right" style={{width: '16%'}}>Price</th>
             <th className="t-right" style={{width: '16%'}}>Total</th>
@@ -483,7 +483,7 @@ export const A5BillFormat = ({ data }: { data: BillData }) => {
         <tbody>
           {data.items.map((item, index) => (
             <tr key={index}>
-              <td className="t-center" style={{fontWeight: 600, color: '#64748b'}}>{index + 1}</td>
+              <td className="t-center" style={{fontWeight: 900, fontSize: '12pt', color: '#0f172a'}}>{index + 1}</td>
               <td style={{fontSize: '8pt', fontFamily: 'monospace', color: '#475569'}}>{item.barcode}</td>
               <td>
                 <div className="item-name">{item.name}</div>

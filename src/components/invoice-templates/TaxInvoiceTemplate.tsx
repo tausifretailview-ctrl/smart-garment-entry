@@ -144,6 +144,9 @@ export const TaxInvoiceTemplate: React.FC<TaxInvoiceTemplateProps> = ({
 
   const width = format === 'a4' ? '210mm' : format === 'a5-horizontal' ? '210mm' : '148mm';
   const minHeight = format === 'a4' ? '297mm' : format === 'a5-horizontal' ? '148mm' : '210mm';
+  const isA5Paper = format !== 'a4';
+  const srColWidth = isA5Paper ? '34px' : '25px';
+  const srFontSize = isA5Paper ? '11px' : '8px';
 
   const colorSchemes: Record<string, { primary: string; secondary: string; accent: string }> = {
     blue: { primary: '#1e40af', secondary: '#3b82f6', accent: '#dbeafe' },
@@ -340,7 +343,7 @@ export const TaxInvoiceTemplate: React.FC<TaxInvoiceTemplateProps> = ({
       <table className="tax-invoice-items-table" style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '8px', fontSize: '8px', border: `1px solid ${colors.primary}` }}>
         <thead>
           <tr style={{ background: `linear-gradient(135deg, ${colors.primary} 0%, ${colors.secondary} 100%)`, color: 'white' }}>
-            <th style={{ textAlign: 'center', padding: '4px', border: `1px solid ${colors.primary}`, width: '25px' }}>Sr</th>
+            <th style={{ textAlign: 'center', padding: '4px', border: `1px solid ${colors.primary}`, width: srColWidth, fontSize: isA5Paper ? '10px' : undefined }}>Sr</th>
             <th style={{ textAlign: 'left', padding: '4px', border: `1px solid ${colors.primary}` }}>Description</th>
             <th style={{ textAlign: 'center', padding: '4px', border: `1px solid ${colors.primary}`, width: enableWholesaleGrouping ? '80px' : '40px' }}>
               {enableWholesaleGrouping ? 'Sizes' : 'HSN'}
@@ -361,7 +364,7 @@ export const TaxInvoiceTemplate: React.FC<TaxInvoiceTemplateProps> = ({
             }
             return (
               <tr key={index}>
-                <td style={{ textAlign: 'center', padding: '4px', border: `1px solid ${colors.primary}` }}>{index + 1}</td>
+                <td style={{ textAlign: 'center', padding: '4px', border: `1px solid ${colors.primary}`, fontSize: srFontSize, fontWeight: isA5Paper ? 800 : 600 }}>{index + 1}</td>
                 <td style={{ padding: '4px', border: `1px solid ${colors.primary}` }}>
                   {item.particulars}
                   {!enableWholesaleGrouping && items[index]?.size && ` (${items[index].size})`}

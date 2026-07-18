@@ -549,7 +549,7 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
             justifyContent: "center",
             borderRight: "1px solid #374151"
           }}>
-            <img src={qrCodeUrl} alt="UPI QR" style={{ width: isA5 ? "60px" : "80px", height: isA5 ? "60px" : "80px" }} />
+            <img src={qrCodeUrl} alt="UPI QR" style={{ width: isA5 ? "90px" : "80px", height: isA5 ? "90px" : "80px" }} />
             <div style={{ fontSize: isA5 ? "5pt" : "6pt", textAlign: "center", marginTop: "2px" }}>Scan to Pay</div>
             {upiId && <div style={{ fontSize: isA5 ? "4.5pt" : "5pt", textAlign: "center", color: "#666" }}>{upiId}</div>}
           </div>

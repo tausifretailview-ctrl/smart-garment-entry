@@ -212,6 +212,9 @@ export const ProfessionalTemplate: React.FC<ProfessionalTemplateProps> = ({
   };
 
   const { width, minHeight, padding } = getPageDimensions();
+  const isA5Paper = format === 'a5-vertical' || format === 'a5-horizontal';
+  const srColWidth = isA5Paper ? '34px' : '25px';
+  const qrSizePx = isA5Paper ? 120 : 100;
 
   const getFontSizes = () => {
     switch (format) {
@@ -516,7 +519,7 @@ export const ProfessionalTemplate: React.FC<ProfessionalTemplateProps> = ({
           background: `linear-gradient(135deg, ${colors.primary} 0%, ${colors.secondary} 100%)`, 
           color: 'white' 
         }}>
-          <th style={{ padding: '4px 2px', border: `1px solid ${colors.primary}`, width: '25px' }}>Sr</th>
+          <th style={{ padding: '4px 2px', border: `1px solid ${colors.primary}`, width: srColWidth, fontSize: isA5Paper ? '9pt' : undefined }}>Sr</th>
           <th style={{ padding: '4px 2px', border: `1px solid ${colors.primary}`, textAlign: 'left' }}>Description</th>
           {showHSN && !enableWholesaleGrouping && (
             <th style={{ padding: '4px 2px', border: `1px solid ${colors.primary}`, width: '50px' }}>HSN</th>
@@ -543,7 +546,7 @@ export const ProfessionalTemplate: React.FC<ProfessionalTemplateProps> = ({
           const originalIndex = startIndex + index;
           return (
             <tr key={index}>
-              <td style={{ padding: '3px 2px', border: `1px solid ${colors.primary}`, textAlign: 'center' }}>{originalIndex + 1}</td>
+              <td style={{ padding: '3px 2px', border: `1px solid ${colors.primary}`, textAlign: 'center', fontSize: isA5Paper ? '10pt' : undefined, fontWeight: isA5Paper ? 800 : undefined }}>{originalIndex + 1}</td>
               <td style={{ padding: '3px 2px', border: `1px solid ${colors.primary}` }}>
                 {item.particulars}
                 {!enableWholesaleGrouping && items[originalIndex]?.size && ` (${items[originalIndex].size})`}
@@ -822,7 +825,7 @@ export const ProfessionalTemplate: React.FC<ProfessionalTemplateProps> = ({
           )}
           {qrCodeUrl && (
             <div style={{ 
-              width: '110px', 
+              width: isA5Paper ? '130px' : '110px', 
               border: `1px solid ${colors.primary}`, 
               padding: '4px',
               display: 'flex',
@@ -831,7 +834,7 @@ export const ProfessionalTemplate: React.FC<ProfessionalTemplateProps> = ({
               justifyContent: 'center',
               borderRadius: '3px'
             }}>
-              <img src={qrCodeUrl} alt="UPI QR" style={{ width: '100px', height: '100px' }} />
+              <img src={qrCodeUrl} alt="UPI QR" style={{ width: `${qrSizePx}px`, height: `${qrSizePx}px` }} />
               <div style={{ fontSize: '6pt', textAlign: 'center', marginTop: '2px' }}>Scan to Pay</div>
             </div>
           )}

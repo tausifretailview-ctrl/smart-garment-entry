@@ -333,8 +333,8 @@ export const RetailTemplate: React.FC<RetailTemplateProps> = ({
               {/* ===== ITEMS TABLE ===== */}
               <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed", flex: 1 }}>
                 <colgroup>
-                  <col style={{ width: "5%" }} />
-                  <col style={{ width: "35%" }} />
+                  <col style={{ width: isA4 ? "5%" : "8%" }} />
+                  <col style={{ width: isA4 ? "35%" : "32%" }} />
                   <col style={{ width: "15%" }} />
                   <col style={{ width: "10%" }} />
                   <col style={{ width: "15%" }} />
@@ -356,7 +356,9 @@ export const RetailTemplate: React.FC<RetailTemplateProps> = ({
                     const srNo = item ? pageStartSr + srCounter : null;
                     return (
                       <tr key={idx} style={{ height: "18px" }}>
-                        <td style={cellC}>{srNo || "\u00A0"}</td>
+                        <td style={{ ...cellC, fontSize: isA4 ? cellC.fontSize : "13px", fontWeight: 900 }}>
+                          {srNo || "\u00A0"}
+                        </td>
                         <td style={{ ...cellL, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                           {item ? (
                             <>
@@ -471,7 +473,7 @@ export const RetailTemplate: React.FC<RetailTemplateProps> = ({
                     )}
                     {qrCodeUrl && isLastPage && (
                       <div style={{ marginTop: "6px" }}>
-                        <img src={qrCodeUrl} alt="QR Code" style={{ width: isA4 ? "120px" : "70px", height: isA4 ? "120px" : "70px", border: "1px solid #ccc" }} />
+                        <img src={qrCodeUrl} alt="QR Code" style={{ width: isA4 ? "120px" : "96px", height: isA4 ? "120px" : "96px", border: "1px solid #ccc" }} />
                       </div>
                     )}
                     <div style={{ marginTop: "4px", fontSize: isA4 ? "10px" : "8px" }}>E. & O.E.</div>
