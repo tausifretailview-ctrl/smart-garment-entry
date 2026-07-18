@@ -82,6 +82,8 @@ export const useUserPermissions = () => {
 
   // Special rights that stay off until explicitly enabled in User Rights (even for org admins).
   const OPT_IN_SPECIAL_PERMISSIONS = new Set(["system_health"]);
+  // Special rights enabled by default for all users/orgs when the key is missing.
+  const DEFAULT_ON_SPECIAL_PERMISSIONS = new Set(["ai_chatbot"]);
 
   // Helper to check special permissions
   const hasSpecialPermission = (permissionId: string): boolean => {
@@ -89,7 +91,11 @@ export const useUserPermissions = () => {
       if (OPT_IN_SPECIAL_PERMISSIONS.has(permissionId)) return false;
       return true;
     }
-    return permissions.special?.[permissionId] === true;
+    const value = permissions.special?.[permissionId];
+    if (value === undefined && DEFAULT_ON_SPECIAL_PERMISSIONS.has(permissionId)) {
+      return true;
+    }
+    return value === true;
   };
 
   // Helper to check column visibility

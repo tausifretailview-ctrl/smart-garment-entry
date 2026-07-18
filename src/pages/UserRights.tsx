@@ -408,7 +408,12 @@ const UserRights = () => {
       
       setPermissions(menuPerms);
       setMainMenuEnabled(mainMenus);
-      setSpecialPermissions(perms.special || (selectedUserRole === 'manager' ? defaultManagerSpecialRights : {}));
+      const special = {
+        ...(perms.special || (selectedUserRole === "manager" ? defaultManagerSpecialRights : {})),
+      };
+      // AI Assistant is on by default for every user/org unless explicitly disabled later.
+      if (special.ai_chatbot === undefined) special.ai_chatbot = true;
+      setSpecialPermissions(special);
       setColumnVisibility(perms.columns || {});
     } else if (selectedUserId) {
       // Use manager defaults if user is a manager, otherwise use basic defaults
@@ -424,7 +429,7 @@ const UserRights = () => {
           sales: true,
           reports: true,
         });
-        setSpecialPermissions({ cancel_invoice: true, delete_records: false });
+        setSpecialPermissions({ cancel_invoice: true, delete_records: false, ai_chatbot: true });
       }
       setColumnVisibility({});
     }

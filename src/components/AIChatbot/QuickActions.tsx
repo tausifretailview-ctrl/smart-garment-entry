@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { TrendingUp, Package, Users, HelpCircle } from "lucide-react";
+import { TrendingUp, Package, Users, HelpCircle, Wallet } from "lucide-react";
 
 interface QuickActionsProps {
   onAction: (query: string) => void;
@@ -21,6 +21,11 @@ const quickActions = [
     label: "Top Customers",
     query: "Who are the top 5 customers by sales?",
     icon: Users,
+  },
+  {
+    label: "Outstanding",
+    query: "Show customers with outstanding balance due",
+    icon: Wallet,
   },
   {
     label: "Help",

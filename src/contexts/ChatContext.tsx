@@ -25,7 +25,7 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
     {
       id: "welcome",
       role: "assistant",
-      content: "Hi! I'm your AI assistant. I can help you with:\n\n• **Stock queries** - Check inventory, low stock items\n• **Sales reports** - Today's sales, top products\n• **Customer info** - Balances, outstanding payments\n• **Technical support** - How to use the system\n\nHow can I help you today?",
+      content: "Hi! I'm your **EzzyERP AI Assistant**. Ask about this organization's live data:\n\n• **Stock** — inventory, barcode, low stock\n• **Sales** — today's total, recent bills, top products\n• **Customers** — top by sales, outstanding balances\n• **Purchases / suppliers** — pending bills\n• **Help** — how to use the system\n\nTry a quick action below, or type your question.",
       timestamp: new Date(),
     },
   ]);
@@ -45,7 +45,7 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
       {
         id: "welcome",
         role: "assistant",
-        content: "Hi! I'm your AI assistant. How can I help you today?",
+        content: "Hi! I'm your EzzyERP AI Assistant. Ask about this organization's stock, sales, customers, or purchases.",
         timestamp: new Date(),
       },
     ]);

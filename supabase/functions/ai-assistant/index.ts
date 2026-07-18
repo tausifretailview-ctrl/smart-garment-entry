@@ -27,6 +27,39 @@ const extractQuotedName = (query: string): string | null => {
   return nameMatch ? nameMatch[1] : null;
 };
 
+/** Parse "top 5" / "top 10" from natural language; default 5. */
+const extractTopN = (query: string, fallback = 5): number => {
+  const m = query.toLowerCase().match(/top\s+(\d{1,2})/);
+  if (!m) return fallback;
+  const n = parseInt(m[1], 10);
+  return Number.isFinite(n) ? Math.min(Math.max(n, 1), 20) : fallback;
+};
+
+/** Sale payment_status in app: completed | partial | pending (legacy: paid). */
+const isUnpaidSaleStatus = (status: string | null | undefined): boolean => {
+  const s = String(status || "pending").toLowerCase();
+  return s !== "completed" && s !== "paid";
+};
+
+/** Purchase bill unpaid statuses. */
+const isUnpaidPurchaseStatus = (status: string | null | undefined): boolean => {
+  const s = String(status || "pending").toLowerCase();
+  return s !== "paid" && s !== "completed";
+};
+
+const sumCustomerOutstandingFromRpc = async (supabase: any, orgId: string, customerId: string): Promise<number | null> => {
+  try {
+    const { data, error } = await supabase.rpc("reconcile_customer_balance", {
+      p_customer_id: customerId,
+      p_organization_id: orgId,
+    });
+    if (error || !data) return null;
+    return (data as { amount: number }[]).reduce((acc, row) => acc + (Number(row.amount) || 0), 0);
+  } catch {
+    return null;
+  }
+};
+
 const detectIntent = (query: string): QueryIntent => {
   const lowerQuery = query.toLowerCase();
   
@@ -43,6 +76,10 @@ const detectIntent = (query: string): QueryIntent => {
   
   // If query contains a barcode, treat as stock query
   if (hasBarcode) return "stock";
+
+  // "top customers by sales" must hit customer context, not recent-sales fallback
+  if (lowerQuery.includes("customer") || lowerQuery.includes("customers")) return "customer";
+  if (lowerQuery.includes("supplier") || lowerQuery.includes("vendors")) return "supplier";
   
   if (stockKeywords.some(kw => lowerQuery.includes(kw))) return "stock";
   if (salesKeywords.some(kw => lowerQuery.includes(kw))) return "sales";
@@ -217,7 +254,7 @@ const fetchPurchaseContext = async (supabase: any, orgId: string, query: string)
       .from("purchase_bills")
       .select("software_bill_no, supplier_name, net_amount, paid_amount, payment_status, bill_date")
       .eq("organization_id", orgId)
-      .neq("payment_status", "paid")
+      .in("payment_status", ["pending", "partial", "unpaid"])
       .is("deleted_at", null)
       .order("bill_date", { ascending: false })
       .limit(20);
@@ -263,15 +300,17 @@ const fetchCustomerContext = async (supabase: any, orgId: string, query: string)
         .limit(10);
       
       const totalSales = sales?.reduce((acc: number, s: any) => acc + (s.net_amount || 0), 0) || 0;
-      const pendingAmount = sales?.filter((s: any) => s.payment_status !== "paid")
+      const unpaidInvoiceTotal = sales?.filter((s: any) => isUnpaidSaleStatus(s.payment_status))
         .reduce((acc: number, s: any) => acc + (s.net_amount || 0), 0) || 0;
+      const outstandingBalance = await sumCustomerOutstandingFromRpc(supabase, orgId, customer.id);
       
       return { 
         type: "customer_detail", 
         customer, 
         recentSales: sales,
         totalSales, 
-        pendingAmount,
+        unpaidInvoiceTotal,
+        outstandingBalance,
         search_phone: phone
       };
     } else {
@@ -303,23 +342,31 @@ const fetchCustomerContext = async (supabase: any, orgId: string, query: string)
           .limit(10);
         
         const totalSales = sales?.reduce((acc: number, s: any) => acc + (s.net_amount || 0), 0) || 0;
-        const pendingAmount = sales?.filter((s: any) => s.payment_status !== "paid")
+        const unpaidInvoiceTotal = sales?.filter((s: any) => isUnpaidSaleStatus(s.payment_status))
           .reduce((acc: number, s: any) => acc + (s.net_amount || 0), 0) || 0;
+        const outstandingBalance = await sumCustomerOutstandingFromRpc(supabase, orgId, customer.id);
         
-        return { type: "customer_detail", customer, recentSales: sales, totalSales, pendingAmount };
+        return { type: "customer_detail", customer, recentSales: sales, totalSales, unpaidInvoiceTotal, outstandingBalance };
       }
       return { type: "customer_search", customers, search_term: customerName };
     }
     return { type: "customer_not_found", search_term: customerName };
   }
   
-  // Top customers
+  // Top customers by sales
   if (lowerQuery.includes("top")) {
+    const topN = extractTopN(query, 5);
+    const since = new Date();
+    since.setFullYear(since.getFullYear() - 1);
+    const sinceDate = since.toISOString().split("T")[0];
+
     const { data } = await supabase
       .from("sales")
       .select("customer_name, customer_id, net_amount")
       .eq("organization_id", orgId)
-      .is("deleted_at", null);
+      .is("deleted_at", null)
+      .gte("sale_date", sinceDate)
+      .limit(8000);
     
     const customerMap = new Map<string, number>();
     data?.forEach((sale: any) => {
@@ -331,14 +378,33 @@ const fetchCustomerContext = async (supabase: any, orgId: string, query: string)
     
     const topCustomers = Array.from(customerMap.entries())
       .sort((a, b) => b[1] - a[1])
-      .slice(0, 10)
-      .map(([name, amount]) => ({ customer_name: name, total_amount: amount }));
+      .slice(0, topN)
+      .map(([name, amount]) => ({ customer_name: name, total_sales: amount }));
     
-    return { type: "top_customers", customers: topCustomers };
+    return { type: "top_customers", customers: topCustomers, period: "last_12_months", limit: topN };
   }
   
-  // Customers with pending payments / outstanding
-  if (lowerQuery.includes("pending") || lowerQuery.includes("outstanding") || lowerQuery.includes("due")) {
+  // Customers with pending payments / outstanding (true party balances, not opening_balance alone)
+  if (lowerQuery.includes("pending") || lowerQuery.includes("outstanding") || lowerQuery.includes("due") || lowerQuery.includes("balance")) {
+    const { data: balances, error: balErr } = await supabase.rpc("get_customer_party_balances", {
+      p_organization_id: orgId,
+    });
+    if (!balErr && Array.isArray(balances)) {
+      const debtors = balances
+        .filter((r: any) => Number(r.signed_balance) > 0.5)
+        .sort((a: any, b: any) => Number(b.signed_balance) - Number(a.signed_balance))
+        .slice(0, 20)
+        .map((r: any) => ({
+          customer_name: r.customer_name,
+          outstanding: Number(r.signed_balance),
+          advance_available: Number(r.advance_available || 0),
+          direction: r.direction,
+        }));
+      const totalOutstanding = debtors.reduce((acc: number, c: any) => acc + (c.outstanding || 0), 0);
+      return { type: "pending_customers", customers: debtors, totalOutstanding, source: "party_balances" };
+    }
+
+    // Fallback if RPC unavailable
     const { data: customers } = await supabase
       .from("customers")
       .select("customer_name, phone, opening_balance")
@@ -349,7 +415,7 @@ const fetchCustomerContext = async (supabase: any, orgId: string, query: string)
       .limit(20);
     
     const totalOutstanding = customers?.reduce((acc: number, c: any) => acc + (c.opening_balance || 0), 0) || 0;
-    return { type: "pending_customers", customers, totalOutstanding };
+    return { type: "pending_customers", customers, totalOutstanding, source: "opening_balance_fallback" };
   }
   
   // All customers summary
@@ -380,7 +446,7 @@ const fetchSupplierContext = async (supabase: any, orgId: string, query: string)
     if (supplier) {
       const { data: purchases } = await supabase
         .from("purchase_bills")
-        .select("software_bill_no, net_amount, payment_status, bill_date")
+        .select("software_bill_no, net_amount, paid_amount, payment_status, bill_date")
         .eq("organization_id", orgId)
         .eq("supplier_id", supplier.id)
         .is("deleted_at", null)
@@ -388,8 +454,8 @@ const fetchSupplierContext = async (supabase: any, orgId: string, query: string)
         .limit(10);
       
       const totalPurchases = purchases?.reduce((acc: number, p: any) => acc + (p.net_amount || 0), 0) || 0;
-      const pendingAmount = purchases?.filter((p: any) => p.payment_status !== "paid")
-        .reduce((acc: number, p: any) => acc + (p.net_amount || 0), 0) || 0;
+      const pendingAmount = purchases?.filter((p: any) => isUnpaidPurchaseStatus(p.payment_status))
+        .reduce((acc: number, p: any) => acc + Math.max(0, (p.net_amount || 0) - (p.paid_amount || 0)), 0) || 0;
       
       return { type: "supplier_detail", supplier, recentPurchases: purchases, totalPurchases, pendingAmount };
     }
@@ -908,26 +974,26 @@ serve(async (req) => {
     console.log(`Fetched context: ${JSON.stringify(context).substring(0, 500)}`);
 
     // Build prompt for AI
-    const systemPrompt = `You are a helpful AI assistant for an inventory and billing software called "Tirtha Billing". 
-You help users with queries about their stock, sales, purchases, customers, and suppliers.
+    const systemPrompt = `You are the EzzyERP AI Assistant for this organization's live billing & inventory data.
+You answer only from the Organization Data Retrieved JSON for THIS organization. Never invent rows or amounts.
 
 IMPORTANT GUIDELINES:
-- Always be concise and format numbers nicely (use ₹ for Indian Rupees currency)
-- For stock queries with barcode, always show: Product Name, Size, Stock Qty, MRP, Sale Price
-- For customer/supplier queries, show balance, contact details, and recent transactions
-- If the data shows a specific product/customer/supplier, provide all relevant details
-- If data is not found (type contains "not_found"), clearly state that item was not found
-- For tabular data with multiple items, use markdown tables
-- Always answer based on the actual data provided, don't make up information
-- If opening_balance > 0 for customer, it means they owe money (receivable)
-- If opening_balance > 0 for supplier, it means we owe them money (payable)`;
+- Be concise. Format money as Indian Rupees with ₹ and thousands separators
+- Prefer markdown tables for lists (customers, products, bills)
+- Stock + barcode: show Product Name, Size, Stock Qty, MRP, Sale Price
+- Customer outstanding: prefer outstandingBalance / outstanding / signed_balance from party balances — NOT opening_balance alone
+- unpaidInvoiceTotal is only recent unpaid invoices; outstandingBalance is the true receivable
+- Sale payment_status values: completed (paid), partial, pending — treat completed/paid as paid
+- If type contains "not_found" or lists are empty, say clearly that no matching data was found
+- If the user asked for top N, return exactly those N rows from the provided data
+- Do not mention other software brands or internal field names unless helpful`;
 
-    const userPrompt = `Organization Data Retrieved:
+    const userPrompt = `Organization Data Retrieved (scoped to the user's organization only):
 ${JSON.stringify(context, null, 2)}
 
 User's Question: ${message}
 
-Based on the above data, provide a helpful and accurate response. If the data contains specific product/customer/supplier information, format it clearly with all available details.`;
+Answer using only the data above. Present clear totals and tables where useful.`;
 
     // Call Lovable AI
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");

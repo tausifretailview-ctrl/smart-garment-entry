@@ -72,7 +72,7 @@ export const POS_USER_PERMISSIONS_PRESET = {
     "sales_invoice.mrp": false,
   },
   special: {
-    ai_chatbot: false,
+    ai_chatbot: true,
     audit_logs: false,
     export_data: false,
     whatsapp_send: true,
