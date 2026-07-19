@@ -1,638 +1,385 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { Card, CardContent } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
-import { 
-  Loader2, Download, Printer, TrendingUp,
-  Users, Package, Search, Calendar, ArrowLeft, Building2, Clock
+import {
+  Loader2,
+  Download,
+  Printer,
+  TrendingUp,
+  Users,
+  Package,
+  Search,
+  Calendar,
+  ArrowLeft,
+  Building2,
+  Clock,
+  FileText,
+  UserRound,
+  UserCheck,
+  Layers,
 } from "lucide-react";
-import { format, startOfYear, startOfMonth, endOfMonth, startOfWeek, endOfWeek } from "date-fns";
+import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek } from "date-fns";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
-import { supabase } from "@/integrations/supabase/client";
 import { getIndiaFinancialYear, getCurrentQuarter } from "@/utils/accountingReportUtils";
 import { useLocation } from "react-router-dom";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
-import { fetchAllSaleItems, fetchAllPurchaseItems, fetchSaleReturnItemsByIds } from "@/utils/fetchAllRows";
+import { useProductFieldLabels } from "@/hooks/useSettings";
 import { cn } from "@/lib/utils";
+import {
+  loadProfitDataset,
+  aggregateForTab,
+  sumAggregates,
+  FIELD_DIMENSION_OPTIONS,
+  type ProfitDataset,
+  type ProfitAggregateRow,
+  type NetProfitTab,
+  type NetProfitFieldDimension,
+} from "@/utils/netProfitAnalysis";
 
-interface SupplierProfitData {
-  supplierId: string | null;
-  supplierName: string;
-  grossSales: number;
-  totalDiscounts: number;
-  netSales: number;
-  totalCOGS: number;
-  grossProfit: number;
-  marginPercent: number;
-  itemsSold: number;
-  zeroCostQty: number;
-}
-
-interface ProductProfitData {
-  productId: string;
-  productName: string;
-  brand: string | null;
-  category: string | null;
-  grossSales: number;
-  totalDiscounts: number;
-  netSales: number;
-  totalCOGS: number;
-  grossProfit: number;
-  marginPercent: number;
-  quantitySold: number;
-  zeroCostQty: number;
-}
-
-/** Per sale_item: gross, discounts, and net (includes round-off; matches net_after_discount on save). */
-function computeSaleLineRevenue(
-  item: {
-    quantity: number;
-    line_total: number;
-    unit_price: number;
-    mrp: number;
-    discount_percent: number;
-    discount_share?: number | null;
-    round_off_share?: number | null;
-    net_after_discount?: number | null;
-    sale_id: string;
-  },
-  saleMeta: { gross_amount: number; flat_discount_amount: number } | undefined
-): { grossLine: number; flatShare: number; roundOffShare: number; netLine: number; lineDiscount: number } {
-  const qty = Number(item.quantity) || 0;
-  const lineTotal = Number(item.line_total) || 0;
-  const unitP = Number(item.unit_price) || 0;
-  const mrp = Number(item.mrp) || 0;
-  const dPct = Number(item.discount_percent) || 0;
-
-  let lineGross = qty * (mrp > 0 ? mrp : unitP);
-  if (mrp <= 0 && dPct > 0 && dPct < 100) {
-    const reconstructed = lineTotal / (1 - dPct / 100);
-    if (Math.abs(reconstructed) > Math.abs(lineGross) && Number.isFinite(reconstructed)) {
-      lineGross = Math.round(reconstructed * 100) / 100;
-    }
-  }
-
-  // Keep signed discount so return/refund lines reduce correctly.
-  const lineDiscount = lineGross - lineTotal;
-
-  let flatShare: number;
-  if (item.discount_share != null && Number.isFinite(Number(item.discount_share))) {
-    flatShare = Number(item.discount_share);
-  } else {
-    const g = saleMeta?.gross_amount ?? 0;
-    const flat = saleMeta?.flat_discount_amount ?? 0;
-    flatShare = g > 0 && flat !== 0 ? (lineTotal / g) * flat : 0;
-  }
-
-  const roundOffShare = item.round_off_share != null && Number.isFinite(Number(item.round_off_share))
-    ? Number(item.round_off_share)
-    : 0;
-
-  // Prefer stored net (line − flat + round-off). Never strip round-off from net sales.
-  let netLine: number;
-  if (item.net_after_discount != null && Number.isFinite(Number(item.net_after_discount))) {
-    netLine = Number(item.net_after_discount);
-  } else {
-    netLine = lineTotal - flatShare + roundOffShare;
-  }
-
-  return { grossLine: lineGross, flatShare, roundOffShare, netLine, lineDiscount };
-}
-
-type VariantCostMaps = {
-  variantMap: Map<string, { id: string; pur_price: number | null; product_id: string }>;
-  variantPurchasePriceMap: Map<string, number>;
-  variantToSupplier: Map<string, { id: string | null; name: string }>;
-  productTypeById: Map<string, string>;
-};
-
-async function buildVariantCostMaps(
-  organizationId: string,
-  variantIds: string[],
-  productIds: string[],
-): Promise<VariantCostMaps> {
-  const allVariants: { id: string; pur_price: number | null; product_id: string }[] = [];
-  const variantBatchSize = 500;
-  for (let i = 0; i < variantIds.length; i += variantBatchSize) {
-    const batchIds = variantIds.slice(i, i + variantBatchSize);
-    const { data: batchVariants } = await supabase
-      .from("product_variants")
-      .select("id, pur_price, product_id")
-      .eq("organization_id", organizationId)
-      .in("id", batchIds);
-    if (batchVariants) allVariants.push(...batchVariants);
-  }
-  const variantMap = new Map(allVariants.map((v) => [v.id, v]));
-
-  const purchaseItems = await fetchAllPurchaseItems(variantIds);
-  const purPriceAccum: Record<string, { total: number; qty: number }> = {};
-  purchaseItems?.forEach((pi: any) => {
-    if (!pi.sku_id) return;
-    if (!purPriceAccum[pi.sku_id]) purPriceAccum[pi.sku_id] = { total: 0, qty: 0 };
-    const qty = Number(pi.qty) || 1;
-    purPriceAccum[pi.sku_id].total += (Number(pi.pur_price) || 0) * qty;
-    purPriceAccum[pi.sku_id].qty += qty;
-  });
-  const variantPurchasePriceMap = new Map<string, number>();
-  Object.entries(purPriceAccum).forEach(([skuId, acc]) => {
-    variantPurchasePriceMap.set(skuId, acc.qty > 0 ? acc.total / acc.qty : 0);
-  });
-
-  const billIds = [...new Set(purchaseItems?.map((pi) => pi.bill_id).filter(Boolean) || [])];
-  let purchaseBills: { id: string; supplier_id: string | null; supplier_name: string }[] | null = null;
-  if (billIds.length > 0) {
-    const { data } = await supabase
-      .from("purchase_bills")
-      .select("id, supplier_id, supplier_name")
-      .eq("organization_id", organizationId)
-      .in("id", billIds);
-    purchaseBills = data;
-  }
-
-  const variantToSupplier = new Map<string, { id: string | null; name: string }>();
-  purchaseItems?.forEach((pi) => {
-    if (!variantToSupplier.has(pi.sku_id)) {
-      const bill = purchaseBills?.find((pb) => pb.id === pi.bill_id);
-      if (bill) {
-        variantToSupplier.set(pi.sku_id, { id: bill.supplier_id, name: bill.supplier_name });
-      }
-    }
-  });
-
-  const productTypeById = new Map<string, string>();
-  const uniqueProductIds = [...new Set(productIds.filter(Boolean))];
-  for (let i = 0; i < uniqueProductIds.length; i += 500) {
-    const batchIds = uniqueProductIds.slice(i, i + 500);
-    const { data: products } = await supabase
-      .from("products")
-      .select("id, product_type")
-      .eq("organization_id", organizationId)
-      .in("id", batchIds);
-    products?.forEach((p) => productTypeById.set(p.id, p.product_type || "goods"));
-  }
-
-  return { variantMap, variantPurchasePriceMap, variantToSupplier, productTypeById };
-}
-
-async function fetchPeriodSaleReturnItems(organizationId: string, fromDate: string, toDate: string) {
-  const { data: returns, error } = await supabase
-    .from("sale_returns")
-    .select("id")
-    .eq("organization_id", organizationId)
-    .gte("return_date", fromDate)
-    .lte("return_date", `${toDate}T23:59:59`)
-    .is("deleted_at", null);
-
-  if (error) throw error;
-  if (!returns?.length) return [] as any[];
-
-  return fetchSaleReturnItemsByIds(
-    returns.map((r) => r.id),
-    "return_id, variant_id, product_id, product_name, quantity, line_total, unit_price",
-  );
-}
-
-function lineCogs(
-  qty: number,
-  variantId: string | null | undefined,
-  productId: string | null | undefined,
-  maps: Pick<VariantCostMaps, "variantMap" | "variantPurchasePriceMap" | "productTypeById">,
-): { cogs: number; purPrice: number; isService: boolean } {
-  const productType = productId ? maps.productTypeById.get(productId) : undefined;
-  const isService = productType === "service";
-  if (isService || !variantId) {
-    return { cogs: 0, purPrice: 0, isService };
-  }
-  const variant = maps.variantMap.get(variantId);
-  const purPrice = maps.variantPurchasePriceMap.get(variantId) || variant?.pur_price || 0;
-  return { cogs: qty * purPrice, purPrice, isService };
-}
-
-const formatCurrency = (amount: number) => {
-  return new Intl.NumberFormat("en-IN", {
+const formatCurrency = (amount: number) =>
+  new Intl.NumberFormat("en-IN", {
     style: "currency",
     currency: "INR",
     minimumFractionDigits: 2,
   }).format(amount);
-};
 
-// Financial Year Presets
-const FYPresets = ({ 
-  onSelect, 
-  currentSelection 
-}: { 
-  onSelect: (from: string, to: string, key: string) => void; 
+const FYPresets = ({
+  onSelect,
+  currentSelection,
+}: {
+  onSelect: (from: string, to: string, key: string) => void;
   currentSelection?: string;
 }) => {
   const currentFY = getIndiaFinancialYear(0);
   const previousFY = getIndiaFinancialYear(-1);
   const currentQ = getCurrentQuarter();
   const now = new Date();
-  
+
   const todayStart = format(now, "yyyy-MM-dd");
   const todayEnd = format(now, "yyyy-MM-dd");
   const weekStart = format(startOfWeek(now, { weekStartsOn: 1 }), "yyyy-MM-dd");
   const weekEnd = format(endOfWeek(now, { weekStartsOn: 1 }), "yyyy-MM-dd");
   const monthStart = format(startOfMonth(now), "yyyy-MM-dd");
   const monthEnd = format(endOfMonth(now), "yyyy-MM-dd");
-  
+
   return (
     <div className="flex flex-wrap gap-1.5">
-      <Button
-        variant={currentSelection === "today" ? "default" : "outline"}
-        size="sm"
-        className="h-11 text-base font-semibold"
-        onClick={() => onSelect(todayStart, todayEnd, "today")}
-      >
-        Today
-      </Button>
-      <Button
-        variant={currentSelection === "week" ? "default" : "outline"}
-        size="sm"
-        className="h-11 text-base font-semibold"
-        onClick={() => onSelect(weekStart, weekEnd, "week")}
-      >
-        This Week
-      </Button>
-      <Button
-        variant={currentSelection === "month" ? "default" : "outline"}
-        size="sm"
-        className="h-11 text-base font-semibold"
-        onClick={() => onSelect(monthStart, monthEnd, "month")}
-      >
-        This Month
-      </Button>
-      <Button
-        variant={currentSelection === "currentQ" ? "default" : "outline"}
-        size="sm"
-        className="h-11 text-base font-semibold"
-        onClick={() => onSelect(currentQ.fromDate, currentQ.toDate, "currentQ")}
-      >
-        {currentQ.label}
-      </Button>
-      <Button
-        variant={currentSelection === "currentFY" ? "default" : "outline"}
-        size="sm"
-        className="h-11 text-base font-semibold"
-        onClick={() => onSelect(currentFY.fromDate, currentFY.toDate, "currentFY")}
-      >
-        <Calendar className="mr-1 h-4 w-4" />
-        {currentFY.label}
-      </Button>
-      <Button
-        variant={currentSelection === "previousFY" ? "default" : "outline"}
-        size="sm"
-        className="h-11 text-base font-semibold"
-        onClick={() => onSelect(previousFY.fromDate, previousFY.toDate, "previousFY")}
-      >
-        {previousFY.label}
-      </Button>
+      {(
+        [
+          ["today", "Today", todayStart, todayEnd],
+          ["week", "This Week", weekStart, weekEnd],
+          ["month", "This Month", monthStart, monthEnd],
+          ["currentQ", currentQ.label, currentQ.fromDate, currentQ.toDate],
+          ["currentFY", currentFY.label, currentFY.fromDate, currentFY.toDate],
+          ["previousFY", previousFY.label, previousFY.fromDate, previousFY.toDate],
+        ] as const
+      ).map(([key, label, from, to]) => (
+        <Button
+          key={key}
+          variant={currentSelection === key ? "default" : "outline"}
+          size="sm"
+          className="h-11 text-base font-semibold"
+          onClick={() => onSelect(from, to, key)}
+        >
+          {key === "currentFY" && <Calendar className="mr-1 h-4 w-4" />}
+          {label}
+        </Button>
+      ))}
     </div>
   );
 };
+
+type ColumnDef = {
+  key: string;
+  header: string;
+  align?: "left" | "right";
+  money?: boolean;
+  accent?: "orange" | "amber" | "green" | "margin";
+  get: (row: ProfitAggregateRow) => string | number;
+  title?: string;
+};
+
+function ProfitBreakdownTable({
+  rows,
+  columns,
+  totals,
+  emptyLabel,
+  loading,
+  hasGenerated,
+}: {
+  rows: ProfitAggregateRow[];
+  columns: ColumnDef[];
+  totals: ReturnType<typeof sumAggregates>;
+  emptyLabel: string;
+  loading: boolean;
+  hasGenerated: boolean;
+}) {
+  const tableHeadClass = "h-12 px-4 text-sm font-bold uppercase tracking-wide text-white";
+  const tableRowClass = "h-12 hover:bg-teal-50/80 dark:hover:bg-teal-950/20";
+  const tableCellClass = "text-base font-medium tabular-nums";
+  const tableMoneyClass = "text-right font-mono text-base font-semibold tabular-nums";
+  const marginBadgeClass = "px-2.5 py-1 text-sm font-bold tabular-nums";
+
+  if (loading) {
+    return (
+      <div className="flex flex-1 items-center justify-center py-16">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+  if (!hasGenerated) {
+    return (
+      <div className="flex flex-1 items-center justify-center text-base text-muted-foreground">
+        Click Generate to load profit data
+      </div>
+    );
+  }
+
+  const renderMoney = (value: number, accent?: ColumnDef["accent"]) => {
+    if (accent === "orange") {
+      return (
+        <span className={cn(tableMoneyClass, "text-orange-600 dark:text-orange-400")}>
+          −{formatCurrency(value)}
+        </span>
+      );
+    }
+    if (accent === "amber") {
+      return (
+        <span className={cn(tableMoneyClass, "text-amber-600 dark:text-amber-400")}>
+          {formatCurrency(value)}
+        </span>
+      );
+    }
+    if (accent === "green") {
+      return (
+        <span className={cn(tableMoneyClass, "text-green-600 dark:text-green-400")}>
+          {formatCurrency(value)}
+        </span>
+      );
+    }
+    return <span className={tableMoneyClass}>{formatCurrency(value)}</span>;
+  };
+
+  const renderMargin = (pct: number, destructiveWhenNegative = true) => (
+    <Badge
+      variant={
+        pct >= 20 ? "default" : pct >= 0 || !destructiveWhenNegative ? "secondary" : "destructive"
+      }
+      className={marginBadgeClass}
+    >
+      <TrendingUp className="mr-1 h-3.5 w-3.5" />
+      {pct.toFixed(1)}%
+    </Badge>
+  );
+
+  return (
+    <div className="net-profit-table-scroll min-h-0 flex-1 overflow-y-auto overflow-x-auto tab-scroll-stable bg-white">
+      <Table className="[&_td]:px-4 [&_th]:px-4">
+        <TableHeader className="sticky top-0 z-10">
+          <TableRow className="border-none bg-slate-800 hover:bg-slate-800">
+            {columns.map((col) => (
+              <TableHead
+                key={col.key}
+                className={cn(
+                  tableHeadClass,
+                  col.align === "right" && "text-right",
+                  col.accent === "orange" && "text-orange-300",
+                )}
+                title={col.title}
+              >
+                {col.header}
+              </TableHead>
+            ))}
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {rows.length === 0 ? (
+            <TableRow>
+              <TableCell
+                colSpan={columns.length}
+                className="h-20 text-center text-base text-muted-foreground"
+              >
+                {emptyLabel}
+              </TableCell>
+            </TableRow>
+          ) : (
+            rows.map((row) => (
+              <TableRow key={row.key} className={tableRowClass}>
+                {columns.map((col) => {
+                  if (col.accent === "margin") {
+                    return (
+                      <TableCell key={col.key} className="text-right">
+                        {renderMargin(Number(col.get(row)))}
+                      </TableCell>
+                    );
+                  }
+                  if (col.money) {
+                    return (
+                      <TableCell key={col.key} className="text-right">
+                        {renderMoney(Number(col.get(row)), col.accent)}
+                        {col.key === "cogs" && row.zeroCostQty > 0 && (
+                          <span
+                            className="ml-1 text-sm text-amber-700 dark:text-amber-300"
+                            aria-hidden
+                            title={`${row.zeroCostQty} qty with no purchase rate`}
+                          >
+                            ⚠
+                          </span>
+                        )}
+                      </TableCell>
+                    );
+                  }
+                  const val = col.get(row);
+                  return (
+                    <TableCell
+                      key={col.key}
+                      className={cn(
+                        tableCellClass,
+                        col.align === "right" && "text-right",
+                        col.key === "label" && "font-semibold",
+                      )}
+                      title={col.key === "label" ? String(val) : undefined}
+                    >
+                      {val === null || val === undefined || val === "" ? "-" : val}
+                    </TableCell>
+                  );
+                })}
+              </TableRow>
+            ))
+          )}
+        </TableBody>
+        {rows.length > 0 && (
+          <TableFooter className="sticky bottom-0 z-10 border-t-2 bg-slate-100 font-bold">
+            <TableRow className="h-12">
+              {columns.map((col, idx) => {
+                if (idx === 0) {
+                  return (
+                    <TableCell key={col.key} className="text-base font-bold">
+                      TOTAL
+                    </TableCell>
+                  );
+                }
+                if (col.accent === "margin") {
+                  return (
+                    <TableCell key={col.key} className="text-right">
+                      <Badge
+                        variant={totals.grossProfit >= 0 ? "default" : "destructive"}
+                        className={marginBadgeClass}
+                      >
+                        {totals.marginPercent.toFixed(1)}%
+                      </Badge>
+                    </TableCell>
+                  );
+                }
+                if (col.key === "qty" || col.key === "items") {
+                  return (
+                    <TableCell key={col.key} className={cn(tableCellClass, "text-right font-bold")}>
+                      {totals.itemsSold}
+                    </TableCell>
+                  );
+                }
+                if (col.key === "secondary" || col.key === "tertiary" || col.key === "brand") {
+                  return (
+                    <TableCell key={col.key} className="text-base font-bold">
+                      -
+                    </TableCell>
+                  );
+                }
+                if (col.money) {
+                  const map: Record<string, number> = {
+                    gross: totals.grossSales,
+                    discounts: totals.totalDiscounts,
+                    net: totals.netSales,
+                    cogs: totals.totalCOGS,
+                    profit: totals.grossProfit,
+                  };
+                  return (
+                    <TableCell key={col.key} className="text-right">
+                      {renderMoney(map[col.key] ?? 0, col.accent)}
+                    </TableCell>
+                  );
+                }
+                return <TableCell key={col.key} className="text-base font-bold">-</TableCell>;
+              })}
+            </TableRow>
+          </TableFooter>
+        )}
+      </Table>
+    </div>
+  );
+}
 
 export default function NetProfitAnalysis() {
   const { currentOrganization } = useOrganization();
   const location = useLocation();
   const { orgNavigate } = useOrgNavigation();
-  
-  // Parse URL query parameters for date range
+  const fieldLabels = useProductFieldLabels();
+
   const searchParams = new URLSearchParams(location.search);
-  const urlFromDate = searchParams.get('from');
-  const urlToDate = searchParams.get('to');
-  
+  const urlFromDate = searchParams.get("from");
+  const urlToDate = searchParams.get("to");
+
   const currentFY = getIndiaFinancialYear(0);
   const [fromDate, setFromDate] = useState(urlFromDate || currentFY.fromDate);
   const [toDate, setToDate] = useState(urlToDate || format(new Date(), "yyyy-MM-dd"));
   const [fyPreset, setFyPreset] = useState<string>(urlFromDate ? "" : "");
-  
-  const [activeTab, setActiveTab] = useState("supplier-wise");
+
+  const [activeTab, setActiveTab] = useState<NetProfitTab>("supplier-wise");
+  const [fieldDimension, setFieldDimension] = useState<NetProfitFieldDimension>("brand");
   const [loading, setLoading] = useState(false);
-  const [supplierData, setSupplierData] = useState<SupplierProfitData[]>([]);
-  const [productData, setProductData] = useState<ProductProfitData[]>([]);
-  const [supplierSearch, setSupplierSearch] = useState("");
-  const [productSearch, setProductSearch] = useState("");
+  const [dataset, setDataset] = useState<ProfitDataset | null>(null);
+  const [search, setSearch] = useState("");
   const [hasGenerated, setHasGenerated] = useState(false);
 
-  const fetchSupplierWiseProfit = async () => {
+  const aggregatedRows = useMemo(() => {
+    if (!dataset) return [] as ProfitAggregateRow[];
+    return aggregateForTab(dataset.lines, activeTab, fieldDimension);
+  }, [dataset, activeTab, fieldDimension]);
+
+  const filteredRows = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return aggregatedRows;
+    return aggregatedRows.filter(
+      (r) =>
+        r.label.toLowerCase().includes(q) ||
+        (r.secondary && String(r.secondary).toLowerCase().includes(q)) ||
+        (r.tertiary && String(r.tertiary).toLowerCase().includes(q)),
+    );
+  }, [aggregatedRows, search]);
+
+  const activeTotals = useMemo(() => sumAggregates(filteredRows), [filteredRows]);
+
+  const handleGenerate = async () => {
     if (!currentOrganization?.id) return;
-    
-    setLoading(true);
-    try {
-      const orgId = currentOrganization.id;
-      const { data: sales } = await supabase
-        .from("sales")
-        .select("id, gross_amount, flat_discount_amount")
-        .eq("organization_id", orgId)
-        .gte("sale_date", fromDate)
-        .lte("sale_date", `${toDate}T23:59:59`)
-        .is("deleted_at", null)
-        .eq("is_cancelled", false)
-        .or("payment_status.is.null,payment_status.neq.cancelled")
-        .or("sale_type.is.null,sale_type.neq.sale_return");
-
-      const saleItems = sales?.length ? await fetchAllSaleItems(sales.map((s) => s.id)) : [];
-      const returnItems = await fetchPeriodSaleReturnItems(orgId, fromDate, toDate);
-
-      if ((!saleItems || saleItems.length === 0) && returnItems.length === 0) {
-        setSupplierData([]);
-        setLoading(false);
-        return;
-      }
-
-      const saleMetaById = new Map(
-        (sales || []).map((s) => [
-          s.id,
-          {
-            gross_amount: Number(s.gross_amount) || 0,
-            flat_discount_amount: Number(s.flat_discount_amount) || 0,
-          },
-        ])
-      );
-
-      const variantIds = [
-        ...new Set([
-          ...saleItems.map((si) => si.variant_id).filter(Boolean),
-          ...returnItems.map((ri: any) => ri.variant_id).filter(Boolean),
-        ]),
-      ] as string[];
-      const productIds = [
-        ...new Set([
-          ...saleItems.map((si) => si.product_id).filter(Boolean),
-          ...returnItems.map((ri: any) => ri.product_id).filter(Boolean),
-        ]),
-      ] as string[];
-
-      const maps = await buildVariantCostMaps(orgId, variantIds, productIds);
-      const supplierProfitMap = new Map<string, SupplierProfitData>();
-
-      const ensureSupplier = (supplierInfo: { id: string | null; name: string }) => {
-        const supplierKey = supplierInfo.id || supplierInfo.name;
-        if (!supplierProfitMap.has(supplierKey)) {
-          supplierProfitMap.set(supplierKey, {
-            supplierId: supplierInfo.id,
-            supplierName: supplierInfo.name,
-            grossSales: 0,
-            totalDiscounts: 0,
-            netSales: 0,
-            totalCOGS: 0,
-            grossProfit: 0,
-            marginPercent: 0,
-            itemsSold: 0,
-            zeroCostQty: 0,
-          });
-        }
-        return supplierProfitMap.get(supplierKey)!;
-      };
-
-      saleItems.forEach((item: any) => {
-        const variant = maps.variantMap.get(item.variant_id);
-        const productId = item.product_id || variant?.product_id || "";
-        const isService = maps.productTypeById.get(productId) === "service";
-        const supplierInfo =
-          maps.variantToSupplier.get(item.variant_id) ||
-          (isService
-            ? { id: null, name: "Services" }
-            : { id: null, name: "Unknown Supplier" });
-
-        const qty = Number(item.quantity) || 0;
-        const lineTotal = Number(item.line_total) || 0;
-        if (qty === 0 && lineTotal === 0) return;
-
-        const meta = saleMetaById.get(item.sale_id);
-        const { grossLine, flatShare, netLine, lineDiscount } = computeSaleLineRevenue(item, meta);
-        const { cogs, purPrice } = lineCogs(qty, item.variant_id, productId, maps);
-
-        const data = ensureSupplier(supplierInfo);
-        data.grossSales += grossLine;
-        // Discounts = item + bill flat only; round-off stays inside net sales.
-        data.totalDiscounts += lineDiscount + flatShare;
-        data.netSales += netLine;
-        data.totalCOGS += cogs;
-        data.itemsSold += qty;
-        if (!isService && purPrice === 0 && qty > 0) data.zeroCostQty += qty;
-      });
-
-      // Refunds / returns in period: reduce net sales + reverse COGS.
-      returnItems.forEach((item: any) => {
-        const variant = maps.variantMap.get(item.variant_id);
-        const productId = item.product_id || variant?.product_id || "";
-        const isService = maps.productTypeById.get(productId) === "service";
-        const supplierInfo =
-          maps.variantToSupplier.get(item.variant_id) ||
-          (isService
-            ? { id: null, name: "Services" }
-            : { id: null, name: "Unknown Supplier" });
-
-        const qty = Number(item.quantity) || 0;
-        const lineTotal = Number(item.line_total) || 0;
-        if (qty === 0 && lineTotal === 0) return;
-
-        const { cogs, purPrice } = lineCogs(qty, item.variant_id, productId, maps);
-        const data = ensureSupplier(supplierInfo);
-        data.grossSales -= lineTotal;
-        data.netSales -= lineTotal;
-        data.totalCOGS -= cogs;
-        data.itemsSold -= qty;
-        if (!isService && purPrice === 0 && qty > 0) data.zeroCostQty -= qty;
-      });
-
-      const result: SupplierProfitData[] = [];
-      supplierProfitMap.forEach((data) => {
-        data.grossProfit = data.netSales - data.totalCOGS;
-        data.marginPercent = data.netSales !== 0 ? (data.grossProfit / data.netSales) * 100 : 0;
-        result.push(data);
-      });
-
-      result.sort((a, b) => b.grossProfit - a.grossProfit);
-      setSupplierData(result);
-    } catch (error) {
-      console.error("Error fetching supplier-wise profit:", error);
-      toast.error("Failed to load supplier-wise data");
-    }
-    setLoading(false);
-  };
-
-  const fetchProductWiseProfit = async () => {
-    if (!currentOrganization?.id) return;
-    
-    setLoading(true);
-    try {
-      const orgId = currentOrganization.id;
-      const { data: sales } = await supabase
-        .from("sales")
-        .select("id, gross_amount, flat_discount_amount")
-        .eq("organization_id", orgId)
-        .gte("sale_date", fromDate)
-        .lte("sale_date", `${toDate}T23:59:59`)
-        .is("deleted_at", null)
-        .eq("is_cancelled", false)
-        .or("payment_status.is.null,payment_status.neq.cancelled")
-        .or("sale_type.is.null,sale_type.neq.sale_return");
-
-      const saleItems = sales?.length ? await fetchAllSaleItems(sales.map((s) => s.id)) : [];
-      const returnItems = await fetchPeriodSaleReturnItems(orgId, fromDate, toDate);
-
-      if ((!saleItems || saleItems.length === 0) && returnItems.length === 0) {
-        setProductData([]);
-        setLoading(false);
-        return;
-      }
-
-      const saleMetaById = new Map(
-        (sales || []).map((s) => [
-          s.id,
-          {
-            gross_amount: Number(s.gross_amount) || 0,
-            flat_discount_amount: Number(s.flat_discount_amount) || 0,
-          },
-        ])
-      );
-
-      const variantIds = [
-        ...new Set([
-          ...saleItems.map((si) => si.variant_id).filter(Boolean),
-          ...returnItems.map((ri: any) => ri.variant_id).filter(Boolean),
-        ]),
-      ] as string[];
-      const productIdsFromLines = [
-        ...new Set([
-          ...saleItems.map((si) => si.product_id).filter(Boolean),
-          ...returnItems.map((ri: any) => ri.product_id).filter(Boolean),
-        ]),
-      ] as string[];
-
-      const maps = await buildVariantCostMaps(orgId, variantIds, productIdsFromLines);
-
-      const { data: products } = productIdsFromLines.length
-        ? await supabase
-            .from("products")
-            .select("id, product_name, brand, category, product_type")
-            .eq("organization_id", orgId)
-            .in("id", productIdsFromLines)
-        : { data: [] as any[] };
-
-      const productMap = new Map(products?.map((p) => [p.id, p]) || []);
-      products?.forEach((p) => {
-        if (!maps.productTypeById.has(p.id)) {
-          maps.productTypeById.set(p.id, p.product_type || "goods");
-        }
-      });
-
-      const productProfitMap = new Map<string, ProductProfitData>();
-
-      const ensureProduct = (productId: string, fallbackName: string) => {
-        const key = productId || fallbackName || "unknown";
-        if (!productProfitMap.has(key)) {
-          const product = productMap.get(productId);
-          const isService = maps.productTypeById.get(productId) === "service";
-          productProfitMap.set(key, {
-            productId: key,
-            productName: fallbackName || product?.product_name || "Unknown Product",
-            brand: product?.brand || (isService ? "Service" : null),
-            category: product?.category || (isService ? "Services" : null),
-            grossSales: 0,
-            totalDiscounts: 0,
-            netSales: 0,
-            totalCOGS: 0,
-            grossProfit: 0,
-            marginPercent: 0,
-            quantitySold: 0,
-            zeroCostQty: 0,
-          });
-        }
-        return productProfitMap.get(key)!;
-      };
-
-      saleItems.forEach((item: any) => {
-        const variant = maps.variantMap.get(item.variant_id);
-        const productId = item.product_id || variant?.product_id || "";
-        const product = productMap.get(productId);
-        const isService = maps.productTypeById.get(productId) === "service";
-
-        const qty = Number(item.quantity) || 0;
-        const lineTotal = Number(item.line_total) || 0;
-        if (qty === 0 && lineTotal === 0) return;
-
-        const meta = saleMetaById.get(item.sale_id);
-        const { grossLine, flatShare, netLine, lineDiscount } = computeSaleLineRevenue(item, meta);
-        const { cogs, purPrice } = lineCogs(qty, item.variant_id, productId, maps);
-
-        const data = ensureProduct(
-          productId,
-          item.product_name || product?.product_name || (isService ? "Service" : "Unknown Product"),
-        );
-        data.grossSales += grossLine;
-        data.totalDiscounts += lineDiscount + flatShare;
-        data.netSales += netLine;
-        data.totalCOGS += cogs;
-        data.quantitySold += qty;
-        if (!isService && purPrice === 0 && qty > 0) data.zeroCostQty += qty;
-      });
-
-      returnItems.forEach((item: any) => {
-        const variant = maps.variantMap.get(item.variant_id);
-        const productId = item.product_id || variant?.product_id || "";
-        const product = productMap.get(productId);
-        const isService = maps.productTypeById.get(productId) === "service";
-
-        const qty = Number(item.quantity) || 0;
-        const lineTotal = Number(item.line_total) || 0;
-        if (qty === 0 && lineTotal === 0) return;
-
-        const { cogs, purPrice } = lineCogs(qty, item.variant_id, productId, maps);
-        const data = ensureProduct(
-          productId,
-          item.product_name || product?.product_name || (isService ? "Service" : "Unknown Product"),
-        );
-        data.grossSales -= lineTotal;
-        data.netSales -= lineTotal;
-        data.totalCOGS -= cogs;
-        data.quantitySold -= qty;
-        if (!isService && purPrice === 0 && qty > 0) data.zeroCostQty -= qty;
-      });
-
-      const result: ProductProfitData[] = [];
-      productProfitMap.forEach((data) => {
-        data.grossProfit = data.netSales - data.totalCOGS;
-        data.marginPercent = data.netSales !== 0 ? (data.grossProfit / data.netSales) * 100 : 0;
-        result.push(data);
-      });
-
-      result.sort((a, b) => b.grossProfit - a.grossProfit);
-      setProductData(result);
-    } catch (error) {
-      console.error("Error fetching product-wise profit:", error);
-      toast.error("Failed to load product-wise data");
-    }
-    setLoading(false);
-  };
-
-  const handleGenerate = () => {
     setHasGenerated(true);
-    if (activeTab === "supplier-wise") {
-      fetchSupplierWiseProfit();
-    } else {
-      fetchProductWiseProfit();
-    }
-  };
-
-  // Refetch when tab changes (after initial generation)
-  useEffect(() => {
-    if (hasGenerated) {
-      if (activeTab === "supplier-wise" && supplierData.length === 0) {
-        fetchSupplierWiseProfit();
-      } else if (activeTab === "product-wise" && productData.length === 0) {
-        fetchProductWiseProfit();
+    setLoading(true);
+    try {
+      const data = await loadProfitDataset(currentOrganization.id, fromDate, toDate);
+      setDataset(data);
+      if (data.lines.length === 0) {
+        toast.message("No sales or returns in the selected period");
       }
+    } catch (error) {
+      console.error("Error loading net profit dataset:", error);
+      toast.error("Failed to load net profit data");
+      setDataset(null);
     }
-  }, [activeTab, hasGenerated]);
+    setLoading(false);
+  };
 
   const handleFYPresetSelect = (from: string, to: string, key: string) => {
     setFromDate(from);
@@ -640,92 +387,149 @@ export default function NetProfitAnalysis() {
     setFyPreset(key);
   };
 
+  const fieldDimOpt = FIELD_DIMENSION_OPTIONS.find((o) => o.value === fieldDimension);
+  const fieldDimensionLabel = fieldDimOpt?.labelKey
+    ? fieldLabels[fieldDimOpt.labelKey]
+    : fieldDimOpt?.fallbackLabel || "Field";
+
   const handleExportExcel = () => {
-    if (activeTab === "supplier-wise") {
-      if (filteredSupplierData.length === 0) {
-        toast.error("No data to export");
-        return;
-      }
-      const ws = XLSX.utils.json_to_sheet(
-        filteredSupplierData.map((s) => ({
-          "Supplier": s.supplierName,
-          "Items Sold": s.itemsSold,
-          "Gross Sales": s.grossSales,
-          "Discounts": s.totalDiscounts,
-          "Net Sales": s.netSales,
-          "COGS": s.totalCOGS,
-          "Gross Profit": s.grossProfit,
-          "Margin %": `${s.marginPercent.toFixed(1)}%`,
-          "Qty w/o Cost": s.zeroCostQty,
-        }))
-      );
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "Supplier Profit");
-      XLSX.writeFile(wb, `supplier-profit-analysis-${format(new Date(), "yyyy-MM-dd")}.xlsx`);
-    } else {
-      if (filteredProductData.length === 0) {
-        toast.error("No data to export");
-        return;
-      }
-      const ws = XLSX.utils.json_to_sheet(
-        filteredProductData.map((p) => ({
-          "Product": p.productName,
-          "Brand": p.brand || "-",
-          "Category": p.category || "-",
-          "Qty Sold": p.quantitySold,
-          "Gross Sales": p.grossSales,
-          "Discounts": p.totalDiscounts,
-          "Net Sales": p.netSales,
-          "COGS": p.totalCOGS,
-          "Gross Profit": p.grossProfit,
-          "Margin %": `${p.marginPercent.toFixed(1)}%`,
-          "Qty w/o Cost": p.zeroCostQty,
-        }))
-      );
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "Product Profit");
-      XLSX.writeFile(wb, `product-profit-analysis-${format(new Date(), "yyyy-MM-dd")}.xlsx`);
+    if (filteredRows.length === 0) {
+      toast.error("No data to export");
+      return;
     }
-    toast.success("Excel exported successfully");
+
+    const sheetRows = filteredRows.map((r) => {
+      const base: Record<string, string | number> = {};
+      if (activeTab === "bill-wise") {
+        base["Bill No"] = r.label;
+        base["Date"] = r.secondary || "";
+        base["Customer"] = r.tertiary || "";
+      } else if (activeTab === "product-wise") {
+        base["Product"] = r.label;
+        base["Brand"] = r.secondary || "";
+        base["Category"] = r.tertiary || "";
+      } else if (activeTab === "field-wise") {
+        base[fieldDimensionLabel] = r.label;
+      } else if (activeTab === "customer-wise") {
+        base["Customer"] = r.label;
+      } else if (activeTab === "salesman-wise") {
+        base["Salesman"] = r.label;
+      } else {
+        base["Supplier"] = r.label;
+      }
+      base["Items / Qty"] = r.itemsSold;
+      base["Gross Sales"] = r.grossSales;
+      base["Discounts"] = r.totalDiscounts;
+      base["Net Sales"] = r.netSales;
+      base["COGS"] = r.totalCOGS;
+      base["Gross Profit"] = r.grossProfit;
+      base["Margin %"] = Number(r.marginPercent.toFixed(2));
+      return base;
+    });
+
+    const ws = XLSX.utils.json_to_sheet(sheetRows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, activeTab.slice(0, 28));
+    XLSX.writeFile(
+      wb,
+      `net-profit-${activeTab}-${fromDate}-to-${toDate}.xlsx`,
+    );
+    toast.success("Excel exported");
   };
 
-  const filteredSupplierData = supplierData.filter(s =>
-    s.supplierName.toLowerCase().includes(supplierSearch.toLowerCase())
-  );
+  const columnsForTab = useMemo((): ColumnDef[] => {
+    const qtyHeader =
+      activeTab === "product-wise" || activeTab === "field-wise" ? "Qty Sold" : "Items Sold";
+    const moneyCols: ColumnDef[] = [
+      { key: "items", header: qtyHeader, align: "right", get: (r) => r.itemsSold },
+      { key: "gross", header: "Gross Sales", align: "right", money: true, get: (r) => r.grossSales },
+      {
+        key: "discounts",
+        header: "Discounts",
+        align: "right",
+        money: true,
+        accent: "orange",
+        title: "Item discount + bill-level flat discount (round-off is in Net Sales)",
+        get: (r) => r.totalDiscounts,
+      },
+      { key: "net", header: "Net Sales", align: "right", money: true, get: (r) => r.netSales },
+      {
+        key: "cogs",
+        header: "COGS",
+        align: "right",
+        money: true,
+        accent: "amber",
+        get: (r) => r.totalCOGS,
+      },
+      {
+        key: "profit",
+        header: "Gross Profit",
+        align: "right",
+        money: true,
+        accent: "green",
+        get: (r) => r.grossProfit,
+      },
+      {
+        key: "margin",
+        header: "Margin %",
+        align: "right",
+        accent: "margin",
+        get: (r) => r.marginPercent,
+      },
+    ];
 
-  const filteredProductData = productData.filter(p =>
-    p.productName.toLowerCase().includes(productSearch.toLowerCase()) ||
-    (p.brand && p.brand.toLowerCase().includes(productSearch.toLowerCase())) ||
-    (p.category && p.category.toLowerCase().includes(productSearch.toLowerCase()))
-  );
+    if (activeTab === "bill-wise") {
+      return [
+        { key: "label", header: "Bill No", get: (r) => r.label },
+        { key: "secondary", header: "Date", get: (r) => r.secondary || "-" },
+        { key: "tertiary", header: "Customer", get: (r) => r.tertiary || "-" },
+        ...moneyCols,
+      ];
+    }
+    if (activeTab === "product-wise") {
+      return [
+        { key: "label", header: "Product", get: (r) => r.label },
+        { key: "brand", header: "Brand", get: (r) => r.secondary || "-" },
+        ...moneyCols,
+      ];
+    }
+    if (activeTab === "customer-wise") {
+      return [{ key: "label", header: "Customer", get: (r) => r.label }, ...moneyCols];
+    }
+    if (activeTab === "salesman-wise") {
+      return [{ key: "label", header: "Salesman", get: (r) => r.label }, ...moneyCols];
+    }
+    if (activeTab === "field-wise") {
+      return [{ key: "label", header: fieldDimensionLabel, get: (r) => r.label }, ...moneyCols];
+    }
+    return [{ key: "label", header: "Supplier", get: (r) => r.label }, ...moneyCols];
+  }, [activeTab, fieldDimensionLabel]);
 
-  const supplierTotals = filteredSupplierData.reduce(
-    (acc, s) => ({
-      grossSales: acc.grossSales + s.grossSales,
-      discounts: acc.discounts + s.totalDiscounts,
-      netSales: acc.netSales + s.netSales,
-      cogs: acc.cogs + s.totalCOGS,
-      profit: acc.profit + s.grossProfit,
-      items: acc.items + s.itemsSold,
-    }),
-    { grossSales: 0, discounts: 0, netSales: 0, cogs: 0, profit: 0, items: 0 }
-  );
+  const searchPlaceholder =
+    activeTab === "supplier-wise"
+      ? "SEARCH SUPPLIER..."
+      : activeTab === "product-wise"
+        ? "SEARCH PRODUCT, BRAND, CATEGORY..."
+        : activeTab === "bill-wise"
+          ? "SEARCH BILL NO, CUSTOMER..."
+          : activeTab === "customer-wise"
+            ? "SEARCH CUSTOMER..."
+            : activeTab === "salesman-wise"
+              ? "SEARCH SALESMAN..."
+              : `SEARCH ${fieldDimensionLabel.toUpperCase()}...`;
 
-  const productTotals = filteredProductData.reduce(
-    (acc, p) => ({
-      grossSales: acc.grossSales + p.grossSales,
-      discounts: acc.discounts + p.totalDiscounts,
-      netSales: acc.netSales + p.netSales,
-      cogs: acc.cogs + p.totalCOGS,
-      profit: acc.profit + p.grossProfit,
-      qty: acc.qty + p.quantitySold,
-    }),
-    { grossSales: 0, discounts: 0, netSales: 0, cogs: 0, profit: 0, qty: 0 }
-  );
-
-  const activeTotals = activeTab === "supplier-wise" ? supplierTotals : productTotals;
-  const activeMarginPct =
-    activeTotals.netSales !== 0 ? (activeTotals.profit / activeTotals.netSales) * 100 : 0;
+  const countLabel =
+    activeTab === "supplier-wise"
+      ? "suppliers"
+      : activeTab === "product-wise"
+        ? "products"
+        : activeTab === "bill-wise"
+          ? "bills"
+          : activeTab === "customer-wise"
+            ? "customers"
+            : activeTab === "salesman-wise"
+              ? "salesmen"
+              : "groups";
 
   const kpiItems = useMemo(
     () => [
@@ -741,30 +545,33 @@ export default function NetProfitAnalysis() {
       },
       {
         label: "Gross Profit",
-        value: formatCurrency(activeTotals.profit),
+        value: formatCurrency(activeTotals.grossProfit),
         gradient: "bg-gradient-to-br from-emerald-500 to-emerald-600",
       },
       {
         label: "Margin",
-        value: `${activeMarginPct.toFixed(1)}%`,
+        value: `${activeTotals.marginPercent.toFixed(1)}%`,
         gradient: "bg-gradient-to-br from-amber-500 to-amber-600",
       },
     ],
-    [activeTotals, activeMarginPct],
+    [activeTotals],
   );
 
-  const tableHeadClass = "h-12 px-4 text-sm font-bold uppercase tracking-wide text-white";
-  const tableRowClass = "h-12 hover:bg-teal-50/80 dark:hover:bg-teal-950/20";
-  const tableCellClass = "text-base font-medium tabular-nums";
-  const tableMoneyClass = "text-right font-mono text-base font-semibold tabular-nums";
-  const marginBadgeClass = "px-2.5 py-1 text-sm font-bold tabular-nums";
+  const tabs: { value: NetProfitTab; label: string; icon: typeof Users }[] = [
+    { value: "supplier-wise", label: "Supplier-wise", icon: Users },
+    { value: "product-wise", label: "Product-wise", icon: Package },
+    { value: "bill-wise", label: "Bill-wise", icon: FileText },
+    { value: "customer-wise", label: "Customer-wise", icon: UserRound },
+    { value: "salesman-wise", label: "Salesman-wise", icon: UserCheck },
+    { value: "field-wise", label: "Field-wise", icon: Layers },
+  ];
 
   return (
     <div className="net-profit-workspace net-profit-report flex h-full min-h-0 w-full flex-col overflow-hidden bg-slate-50 px-2 py-2 sm:px-3 print:min-h-screen print:h-auto print:overflow-visible print:bg-white print:p-4">
       <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col gap-2">
         <div className="print:hidden shrink-0 flex flex-wrap items-center justify-between gap-2">
           <div className="flex min-w-0 items-center gap-2">
-              <Button
+            <Button
               variant="outline"
               size="sm"
               className="h-10 shrink-0 px-3 text-base"
@@ -779,16 +586,26 @@ export default function NetProfitAnalysis() {
                 Net Profit Analysis
               </h1>
               <p className="mt-1.5 truncate text-base text-muted-foreground">
-                {currentOrganization?.name || "Organization"} · Supplier &amp; Product-wise Profit Breakdown
+                {currentOrganization?.name || "Organization"} · Multi-dimension Profit Breakdown
               </p>
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-1.5">
-            <Button variant="outline" size="sm" className="h-10 gap-1.5 border-slate-300 text-base" onClick={() => window.print()}>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-10 gap-1.5 border-slate-300 text-base"
+              onClick={() => window.print()}
+            >
               <Printer className="h-4 w-4" />
               Print
             </Button>
-            <Button variant="outline" size="sm" className="h-10 gap-1.5 border-slate-300 text-base" onClick={handleExportExcel}>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-10 gap-1.5 border-slate-300 text-base"
+              onClick={handleExportExcel}
+            >
               <Download className="h-4 w-4" />
               Excel
             </Button>
@@ -798,8 +615,13 @@ export default function NetProfitAnalysis() {
         {hasGenerated && !loading && (
           <div className="grid shrink-0 grid-cols-2 gap-2 print:hidden lg:grid-cols-4">
             {kpiItems.map((item) => (
-              <div key={item.label} className={cn("min-w-0 rounded-lg px-3.5 py-2.5 shadow-sm", item.gradient)}>
-                <p className="truncate text-sm font-semibold uppercase tracking-wide leading-none text-white/85">{item.label}</p>
+              <div
+                key={item.label}
+                className={cn("min-w-0 rounded-lg px-3.5 py-2.5 shadow-sm", item.gradient)}
+              >
+                <p className="truncate text-sm font-semibold uppercase tracking-wide leading-none text-white/85">
+                  {item.label}
+                </p>
                 <p className="mt-1.5 truncate text-xl font-black tabular-nums leading-tight text-white sm:text-2xl">
                   {item.value}
                 </p>
@@ -812,7 +634,9 @@ export default function NetProfitAnalysis() {
           <CardContent className="space-y-2 p-2.5">
             <div className="flex flex-wrap items-end gap-2">
               <div className="space-y-1">
-                <Label className="text-sm font-semibold uppercase tracking-wide text-slate-600">From</Label>
+                <Label className="text-sm font-semibold uppercase tracking-wide text-slate-600">
+                  From
+                </Label>
                 <Input
                   type="date"
                   value={fromDate}
@@ -821,7 +645,9 @@ export default function NetProfitAnalysis() {
                 />
               </div>
               <div className="space-y-1">
-                <Label className="text-sm font-semibold uppercase tracking-wide text-slate-600">To</Label>
+                <Label className="text-sm font-semibold uppercase tracking-wide text-slate-600">
+                  To
+                </Label>
                 <Input
                   type="date"
                   value={toDate}
@@ -829,19 +655,24 @@ export default function NetProfitAnalysis() {
                   className="h-11 w-40 border-slate-200 bg-slate-50 text-base"
                 />
               </div>
-              <Button onClick={handleGenerate} disabled={loading} size="sm" className="h-11 px-5 text-base font-semibold">
+              <Button
+                onClick={handleGenerate}
+                disabled={loading}
+                size="sm"
+                className="h-11 px-5 text-base font-semibold"
+              >
                 {loading && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
                 Generate
               </Button>
               <FYPresets onSelect={handleFYPresetSelect} currentSelection={fyPreset} />
             </div>
             <p className="text-base text-muted-foreground">
-              Period: {format(new Date(fromDate), "dd MMM yyyy")} – {format(new Date(toDate), "dd MMM yyyy")}
+              Period: {format(new Date(fromDate), "dd MMM yyyy")} –{" "}
+              {format(new Date(toDate), "dd MMM yyyy")}
             </p>
           </CardContent>
         </Card>
 
-        {/* Print Header */}
         <div className="hidden border-b p-4 print:block">
           <div className="text-center">
             <div className="mb-2 flex items-center justify-center gap-2">
@@ -849,10 +680,12 @@ export default function NetProfitAnalysis() {
             </div>
             <h1 className="text-xl font-bold">{currentOrganization?.name || "Organization"}</h1>
             <h2 className="mt-1 text-lg font-semibold">
-              Net Profit Analysis - {activeTab === "supplier-wise" ? "Supplier-wise" : "Product-wise"}
+              Net Profit Analysis - {tabs.find((t) => t.value === activeTab)?.label}
+              {activeTab === "field-wise" ? ` (${fieldDimensionLabel})` : ""}
             </h2>
             <p className="text-sm text-gray-600">
-              Period: {format(new Date(fromDate), "dd MMM yyyy")} - {format(new Date(toDate), "dd MMM yyyy")}
+              Period: {format(new Date(fromDate), "dd MMM yyyy")} -{" "}
+              {format(new Date(toDate), "dd MMM yyyy")}
             </p>
             <p className="mt-1 flex items-center justify-center gap-1 text-xs text-gray-500">
               <Clock className="h-3 w-3" />
@@ -861,275 +694,85 @@ export default function NetProfitAnalysis() {
           </div>
         </div>
 
-        {/* Main panel */}
         <Card className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-slate-200 p-0 shadow-sm">
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="flex h-full min-h-0 flex-col">
+          <div className="flex h-full min-h-0 flex-col">
             <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-slate-100 bg-white px-3 py-2.5 print:hidden">
-              <TabsList className="grid h-11 w-full max-w-md grid-cols-2 bg-slate-100 p-0.5">
-                <TabsTrigger value="supplier-wise" className="flex h-10 items-center gap-1.5 text-base font-semibold data-[state=active]:bg-white">
-                  <Users className="h-4 w-4" />
-                  Supplier-wise
-                </TabsTrigger>
-                <TabsTrigger value="product-wise" className="flex h-10 items-center gap-1.5 text-base font-semibold data-[state=active]:bg-white">
-                  <Package className="h-4 w-4" />
-                  Product-wise
-                </TabsTrigger>
-              </TabsList>
-            </div>
-
-          {/* Supplier-wise Tab */}
-          <TabsContent value="supplier-wise" className="mt-0 flex min-h-0 flex-1 flex-col data-[state=inactive]:hidden">
-            <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-slate-100 bg-white px-3 py-2.5 print:hidden">
-              <div className="relative min-w-[200px] max-w-md flex-1">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  placeholder="SEARCH SUPPLIER..."
-                  value={supplierSearch}
-                  onChange={(e) => setSupplierSearch(e.target.value)}
-                  className="h-11 border-slate-200 bg-slate-50 pl-10 text-base uppercase placeholder:normal-case"
-                />
-              </div>
-              <span className="ml-auto shrink-0 text-base font-medium tabular-nums text-muted-foreground">
-                {filteredSupplierData.length.toLocaleString("en-IN")} suppliers
-              </span>
-            </div>
-            <p className="shrink-0 px-3 py-1.5 text-sm text-muted-foreground print:hidden">
-              Net sales include round-off. Refunds/returns in the period reduce sales &amp; COGS. Services are included (COGS 0). Discounts = item + bill flat.
-            </p>
-
-            {loading ? (
-              <div className="flex flex-1 items-center justify-center py-16">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              </div>
-            ) : !hasGenerated ? (
-              <div className="flex flex-1 items-center justify-center text-base text-muted-foreground">
-                Click Generate to load supplier-wise profit data
-              </div>
-            ) : (
-              <div className="net-profit-table-scroll min-h-0 flex-1 overflow-y-auto overflow-x-auto tab-scroll-stable bg-white">
-                <Table className="[&_td]:px-4 [&_th]:px-4">
-                  <TableHeader className="sticky top-0 z-10">
-                    <TableRow className="border-none bg-slate-800 hover:bg-slate-800">
-                      <TableHead className={cn(tableHeadClass, "w-[200px]")}>Supplier</TableHead>
-                      <TableHead className={cn(tableHeadClass, "text-right")}>Items Sold</TableHead>
-                      <TableHead className={cn(tableHeadClass, "text-right")}>Gross Sales</TableHead>
-                      <TableHead
-                        className={cn(tableHeadClass, "text-right text-orange-300")}
-                        title="Item discount + bill-level flat discount (round-off is in Net Sales)"
+              <Tabs
+                value={activeTab}
+                onValueChange={(v) => {
+                  setActiveTab(v as NetProfitTab);
+                  setSearch("");
+                }}
+              >
+                <TabsList className="flex h-auto w-full max-w-full flex-wrap justify-start gap-1 bg-slate-100 p-1">
+                  {tabs.map((tab) => {
+                    const Icon = tab.icon;
+                    return (
+                      <TabsTrigger
+                        key={tab.value}
+                        value={tab.value}
+                        className="flex h-10 items-center gap-1.5 px-3 text-base font-semibold data-[state=active]:bg-white"
                       >
-                        Discounts
-                      </TableHead>
-                      <TableHead className={cn(tableHeadClass, "text-right")}>Net Sales</TableHead>
-                      <TableHead className={cn(tableHeadClass, "text-right")}>COGS</TableHead>
-                      <TableHead className={cn(tableHeadClass, "text-right")}>Gross Profit</TableHead>
-                      <TableHead className={cn(tableHeadClass, "text-right")}>Margin %</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredSupplierData.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={8} className="h-20 text-center text-base text-muted-foreground">
-                          No data available for the selected period
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      filteredSupplierData.map((supplier, idx) => (
-                        <TableRow key={supplier.supplierId || idx} className={tableRowClass}>
-                          <TableCell className={cn(tableCellClass, "font-semibold")}>{supplier.supplierName}</TableCell>
-                          <TableCell className={cn(tableCellClass, "text-right")}>{supplier.itemsSold}</TableCell>
-                          <TableCell className={tableMoneyClass}>{formatCurrency(supplier.grossSales)}</TableCell>
-                          <TableCell className={cn(tableMoneyClass, "text-orange-600 dark:text-orange-400")}>
-                            −{formatCurrency(supplier.totalDiscounts)}
-                          </TableCell>
-                          <TableCell className={tableMoneyClass}>{formatCurrency(supplier.netSales)}</TableCell>
-                          <TableCell
-                            className={cn(tableMoneyClass, "text-amber-600 dark:text-amber-400")}
-                            title={supplier.zeroCostQty > 0 ? `${supplier.zeroCostQty} qty sold with no purchase rate (COGS treated as 0)` : undefined}
-                          >
-                            {formatCurrency(supplier.totalCOGS)}
-                            {supplier.zeroCostQty > 0 && (
-                              <span className="ml-1 text-sm text-amber-700 dark:text-amber-300" aria-hidden>⚠</span>
-                            )}
-                          </TableCell>
-                          <TableCell className={cn(tableMoneyClass, "text-green-600 dark:text-green-400")}>
-                            {formatCurrency(supplier.grossProfit)}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <Badge
-                              variant={supplier.marginPercent >= 20 ? "default" : supplier.marginPercent >= 0 ? "secondary" : "destructive"}
-                              className={marginBadgeClass}
-                            >
-                              <TrendingUp className="mr-1 h-3.5 w-3.5" />
-                              {supplier.marginPercent.toFixed(1)}%
-                            </Badge>
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                  {filteredSupplierData.length > 0 && (
-                    <TableFooter className="sticky bottom-0 z-10 border-t-2 bg-slate-100 font-bold">
-                      <TableRow className="h-12">
-                        <TableCell className="text-base font-bold">TOTAL</TableCell>
-                        <TableCell className={cn(tableCellClass, "text-right font-bold")}>{supplierTotals.items}</TableCell>
-                        <TableCell className={cn(tableMoneyClass, "font-bold")}>{formatCurrency(supplierTotals.grossSales)}</TableCell>
-                        <TableCell className={cn(tableMoneyClass, "font-bold text-orange-600 dark:text-orange-400")}>
-                          −{formatCurrency(supplierTotals.discounts)}
-                        </TableCell>
-                        <TableCell className={cn(tableMoneyClass, "font-bold")}>{formatCurrency(supplierTotals.netSales)}</TableCell>
-                        <TableCell className={cn(tableMoneyClass, "font-bold text-amber-600 dark:text-amber-400")}>
-                          {formatCurrency(supplierTotals.cogs)}
-                        </TableCell>
-                        <TableCell className={cn(tableMoneyClass, "font-bold text-green-600 dark:text-green-400")}>
-                          {formatCurrency(supplierTotals.profit)}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Badge
-                            variant={supplierTotals.profit >= 0 ? "default" : "destructive"}
-                            className={marginBadgeClass}
-                          >
-                            {supplierTotals.netSales !== 0 ? ((supplierTotals.profit / supplierTotals.netSales) * 100).toFixed(1) : 0}%
-                          </Badge>
-                        </TableCell>
-                      </TableRow>
-                    </TableFooter>
-                  )}
-                </Table>
-              </div>
-            )}
-          </TabsContent>
-
-          {/* Product-wise Tab */}
-          <TabsContent value="product-wise" className="mt-0 flex min-h-0 flex-1 flex-col data-[state=inactive]:hidden">
-            <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-slate-100 bg-white px-3 py-2.5 print:hidden">
-              <div className="relative min-w-[200px] max-w-md flex-1">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  placeholder="SEARCH PRODUCT, BRAND, CATEGORY..."
-                  value={productSearch}
-                  onChange={(e) => setProductSearch(e.target.value)}
-                  className="h-11 border-slate-200 bg-slate-50 pl-10 text-base uppercase placeholder:normal-case"
-                />
-              </div>
-              <span className="ml-auto shrink-0 text-base font-medium tabular-nums text-muted-foreground">
-                {filteredProductData.length.toLocaleString("en-IN")} products
-              </span>
+                        <Icon className="h-4 w-4" />
+                        {tab.label}
+                      </TabsTrigger>
+                    );
+                  })}
+                </TabsList>
+              </Tabs>
             </div>
-            <p className="shrink-0 px-3 py-1.5 text-sm text-muted-foreground print:hidden">
-              Net sales include round-off. Refunds/returns in the period reduce sales &amp; COGS. Services are included (COGS 0). Discounts = item + bill flat.
-            </p>
 
-            {loading ? (
-              <div className="flex flex-1 items-center justify-center py-16">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <div className="flex min-h-0 flex-1 flex-col">
+              <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-slate-100 bg-white px-3 py-2.5 print:hidden">
+                {activeTab === "field-wise" && (
+                  <div className="flex items-center gap-2">
+                    <Label className="text-sm font-semibold text-slate-600">Group by</Label>
+                    <Select
+                      value={fieldDimension}
+                      onValueChange={(v) => setFieldDimension(v as NetProfitFieldDimension)}
+                    >
+                      <SelectTrigger className="h-11 w-48 text-base">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {FIELD_DIMENSION_OPTIONS.map((opt) => (
+                          <SelectItem key={opt.value} value={opt.value} className="text-base">
+                            {opt.labelKey ? fieldLabels[opt.labelKey] : opt.fallbackLabel}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+                <div className="relative min-w-[200px] max-w-md flex-1">
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    placeholder={searchPlaceholder}
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="h-11 border-slate-200 bg-slate-50 pl-10 text-base uppercase placeholder:normal-case"
+                  />
+                </div>
+                <span className="ml-auto shrink-0 text-base font-medium tabular-nums text-muted-foreground">
+                  {filteredRows.length.toLocaleString("en-IN")} {countLabel}
+                </span>
               </div>
-            ) : !hasGenerated ? (
-              <div className="flex flex-1 items-center justify-center text-base text-muted-foreground">
-                Click Generate to load product-wise profit data
-              </div>
-            ) : (
-              <div className="net-profit-table-scroll min-h-0 flex-1 overflow-y-auto overflow-x-auto tab-scroll-stable bg-white">
-                <Table className="[&_td]:px-4 [&_th]:px-4">
-                  <TableHeader className="sticky top-0 z-10">
-                    <TableRow className="border-none bg-slate-800 hover:bg-slate-800">
-                      <TableHead className={cn(tableHeadClass, "w-[200px]")}>Product</TableHead>
-                      <TableHead className={tableHeadClass}>Brand</TableHead>
-                      <TableHead className={cn(tableHeadClass, "text-right")}>Qty Sold</TableHead>
-                      <TableHead className={cn(tableHeadClass, "text-right")}>Gross Sales</TableHead>
-                      <TableHead
-                        className={cn(tableHeadClass, "text-right text-orange-300")}
-                        title="Item discount + bill-level flat discount (round-off is in Net Sales)"
-                      >
-                        Discounts
-                      </TableHead>
-                      <TableHead className={cn(tableHeadClass, "text-right")}>Net Sales</TableHead>
-                      <TableHead className={cn(tableHeadClass, "text-right")}>COGS</TableHead>
-                      <TableHead className={cn(tableHeadClass, "text-right")}>Gross Profit</TableHead>
-                      <TableHead className={cn(tableHeadClass, "text-right")}>Margin %</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredProductData.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={9} className="h-20 text-center text-base text-muted-foreground">
-                          No data available for the selected period
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      filteredProductData.map((product, idx) => (
-                        <TableRow key={product.productId || idx} className={tableRowClass}>
-                          <TableCell className={cn(tableCellClass, "max-w-[220px] truncate font-semibold")} title={product.productName}>
-                            {product.productName}
-                          </TableCell>
-                          <TableCell className="text-base">
-                            {product.brand ? (
-                              <Badge variant="outline" className="text-sm font-semibold">{product.brand}</Badge>
-                            ) : "-"}
-                          </TableCell>
-                          <TableCell className={cn(tableCellClass, "text-right")}>{product.quantitySold}</TableCell>
-                          <TableCell className={tableMoneyClass}>{formatCurrency(product.grossSales)}</TableCell>
-                          <TableCell className={cn(tableMoneyClass, "text-orange-600 dark:text-orange-400")}>
-                            −{formatCurrency(product.totalDiscounts)}
-                          </TableCell>
-                          <TableCell className={tableMoneyClass}>{formatCurrency(product.netSales)}</TableCell>
-                          <TableCell
-                            className={cn(tableMoneyClass, "text-amber-600 dark:text-amber-400")}
-                            title={product.zeroCostQty > 0 ? `${product.zeroCostQty} qty with no purchase rate (COGS treated as 0)` : undefined}
-                          >
-                            {formatCurrency(product.totalCOGS)}
-                            {product.zeroCostQty > 0 && (
-                              <span className="ml-1 text-sm text-amber-700 dark:text-amber-300" aria-hidden>⚠</span>
-                            )}
-                          </TableCell>
-                          <TableCell className={cn(tableMoneyClass, "text-green-600 dark:text-green-400")}>
-                            {formatCurrency(product.grossProfit)}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <Badge
-                              variant={product.marginPercent >= 20 ? "default" : product.marginPercent >= 0 ? "secondary" : "destructive"}
-                              className={marginBadgeClass}
-                            >
-                              <TrendingUp className="mr-1 h-3.5 w-3.5" />
-                              {product.marginPercent.toFixed(1)}%
-                            </Badge>
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                  {filteredProductData.length > 0 && (
-                    <TableFooter className="sticky bottom-0 z-10 border-t-2 bg-slate-100 font-bold">
-                      <TableRow className="h-12">
-                        <TableCell className="text-base font-bold">TOTAL</TableCell>
-                        <TableCell className="text-base font-bold">-</TableCell>
-                        <TableCell className={cn(tableCellClass, "text-right font-bold")}>{productTotals.qty}</TableCell>
-                        <TableCell className={cn(tableMoneyClass, "font-bold")}>{formatCurrency(productTotals.grossSales)}</TableCell>
-                        <TableCell className={cn(tableMoneyClass, "font-bold text-orange-600 dark:text-orange-400")}>
-                          −{formatCurrency(productTotals.discounts)}
-                        </TableCell>
-                        <TableCell className={cn(tableMoneyClass, "font-bold")}>{formatCurrency(productTotals.netSales)}</TableCell>
-                        <TableCell className={cn(tableMoneyClass, "font-bold text-amber-600 dark:text-amber-400")}>
-                          {formatCurrency(productTotals.cogs)}
-                        </TableCell>
-                        <TableCell className={cn(tableMoneyClass, "font-bold text-green-600 dark:text-green-400")}>
-                          {formatCurrency(productTotals.profit)}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Badge
-                            variant={productTotals.profit >= 0 ? "default" : "destructive"}
-                            className={marginBadgeClass}
-                          >
-                            {productTotals.netSales !== 0 ? ((productTotals.profit / productTotals.netSales) * 100).toFixed(1) : 0}%
-                          </Badge>
-                        </TableCell>
-                      </TableRow>
-                    </TableFooter>
-                  )}
-                </Table>
-              </div>
-            )}
-          </TabsContent>
-          </Tabs>
+              <p className="shrink-0 px-3 py-1.5 text-sm text-muted-foreground print:hidden">
+                Net sales include round-off. Refunds/returns in the period reduce sales &amp; COGS.
+                Services are included (COGS 0). Discounts = item + bill flat. Generate once — tabs
+                re-group in memory.
+              </p>
+
+              <ProfitBreakdownTable
+                rows={filteredRows}
+                columns={columnsForTab}
+                totals={activeTotals}
+                emptyLabel="No data available for the selected period"
+                loading={loading}
+                hasGenerated={hasGenerated}
+              />
+            </div>
+          </div>
         </Card>
       </div>
     </div>
