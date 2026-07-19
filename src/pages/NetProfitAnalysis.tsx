@@ -247,7 +247,7 @@ const FYPresets = ({
       <Button
         variant={currentSelection === "today" ? "default" : "outline"}
         size="sm"
-        className="h-9 text-sm"
+        className="h-11 text-base font-semibold"
         onClick={() => onSelect(todayStart, todayEnd, "today")}
       >
         Today
@@ -255,7 +255,7 @@ const FYPresets = ({
       <Button
         variant={currentSelection === "week" ? "default" : "outline"}
         size="sm"
-        className="h-9 text-sm"
+        className="h-11 text-base font-semibold"
         onClick={() => onSelect(weekStart, weekEnd, "week")}
       >
         This Week
@@ -263,7 +263,7 @@ const FYPresets = ({
       <Button
         variant={currentSelection === "month" ? "default" : "outline"}
         size="sm"
-        className="h-9 text-sm"
+        className="h-11 text-base font-semibold"
         onClick={() => onSelect(monthStart, monthEnd, "month")}
       >
         This Month
@@ -271,7 +271,7 @@ const FYPresets = ({
       <Button
         variant={currentSelection === "currentQ" ? "default" : "outline"}
         size="sm"
-        className="h-9 text-sm"
+        className="h-11 text-base font-semibold"
         onClick={() => onSelect(currentQ.fromDate, currentQ.toDate, "currentQ")}
       >
         {currentQ.label}
@@ -279,16 +279,16 @@ const FYPresets = ({
       <Button
         variant={currentSelection === "currentFY" ? "default" : "outline"}
         size="sm"
-        className="h-9 text-sm"
+        className="h-11 text-base font-semibold"
         onClick={() => onSelect(currentFY.fromDate, currentFY.toDate, "currentFY")}
       >
-        <Calendar className="mr-1 h-3.5 w-3.5" />
+        <Calendar className="mr-1 h-4 w-4" />
         {currentFY.label}
       </Button>
       <Button
         variant={currentSelection === "previousFY" ? "default" : "outline"}
         size="sm"
-        className="h-9 text-sm"
+        className="h-11 text-base font-semibold"
         onClick={() => onSelect(previousFY.fromDate, previousFY.toDate, "previousFY")}
       >
         {previousFY.label}
@@ -464,10 +464,11 @@ export default function NetProfitAnalysis() {
     
     setLoading(true);
     try {
+      const orgId = currentOrganization.id;
       const { data: sales } = await supabase
         .from("sales")
         .select("id, gross_amount, flat_discount_amount")
-        .eq("organization_id", currentOrganization.id)
+        .eq("organization_id", orgId)
         .gte("sale_date", fromDate)
         .lte("sale_date", `${toDate}T23:59:59`)
         .is("deleted_at", null)
@@ -475,15 +476,17 @@ export default function NetProfitAnalysis() {
         .or("payment_status.is.null,payment_status.neq.cancelled")
         .or("sale_type.is.null,sale_type.neq.sale_return");
 
-      if (!sales || sales.length === 0) {
+      const saleItems = sales?.length ? await fetchAllSaleItems(sales.map((s) => s.id)) : [];
+      const returnItems = await fetchPeriodSaleReturnItems(orgId, fromDate, toDate);
+
+      if ((!saleItems || saleItems.length === 0) && returnItems.length === 0) {
         setProductData([]);
         setLoading(false);
         return;
       }
 
-      const saleIds = sales.map(s => s.id);
       const saleMetaById = new Map(
-        sales.map((s) => [
+        (sales || []).map((s) => [
           s.id,
           {
             gross_amount: Number(s.gross_amount) || 0,
@@ -492,78 +495,48 @@ export default function NetProfitAnalysis() {
         ])
       );
 
-      // Use paginated fetch to get ALL sale items (bypasses 1000 row limit)
-      const saleItems = await fetchAllSaleItems(saleIds);
+      const variantIds = [
+        ...new Set([
+          ...saleItems.map((si) => si.variant_id).filter(Boolean),
+          ...returnItems.map((ri: any) => ri.variant_id).filter(Boolean),
+        ]),
+      ] as string[];
+      const productIdsFromLines = [
+        ...new Set([
+          ...saleItems.map((si) => si.product_id).filter(Boolean),
+          ...returnItems.map((ri: any) => ri.product_id).filter(Boolean),
+        ]),
+      ] as string[];
 
-      if (!saleItems || saleItems.length === 0) {
-        setProductData([]);
-        setLoading(false);
-        return;
-      }
+      const maps = await buildVariantCostMaps(orgId, variantIds, productIdsFromLines);
 
-      const variantIds = [...new Set(saleItems.map(si => si.variant_id))];
+      const { data: products } = productIdsFromLines.length
+        ? await supabase
+            .from("products")
+            .select("id, product_name, brand, category, product_type")
+            .eq("organization_id", orgId)
+            .in("id", productIdsFromLines)
+        : { data: [] as any[] };
 
-      // Batch fetch variants to handle more than 1000 IDs
-      const allVariants: { id: string; pur_price: number | null; product_id: string }[] = [];
-      const variantBatchSize = 500;
-      for (let i = 0; i < variantIds.length; i += variantBatchSize) {
-        const batchIds = variantIds.slice(i, i + variantBatchSize);
-        const { data: batchVariants } = await supabase
-          .from("product_variants")
-          .select("id, pur_price, product_id")
-          .in("id", batchIds);
-        if (batchVariants) allVariants.push(...batchVariants);
-      }
-
-      const variantMap = new Map(allVariants.map(v => [v.id, v]));
-
-      // Build weighted average purchase price map from actual purchase_items
-      const purchaseItems = await fetchAllPurchaseItems(variantIds);
-      const purPriceAccum: Record<string, { total: number; qty: number }> = {};
-      purchaseItems?.forEach((pi: any) => {
-        if (!pi.sku_id) return;
-        if (!purPriceAccum[pi.sku_id]) purPriceAccum[pi.sku_id] = { total: 0, qty: 0 };
-        purPriceAccum[pi.sku_id].total += (pi.pur_price || 0) * (pi.qty || 1);
-        purPriceAccum[pi.sku_id].qty += (pi.qty || 1);
+      const productMap = new Map(products?.map((p) => [p.id, p]) || []);
+      products?.forEach((p) => {
+        if (!maps.productTypeById.has(p.id)) {
+          maps.productTypeById.set(p.id, p.product_type || "goods");
+        }
       });
-      const variantPurchasePriceMap = new Map<string, number>();
-      Object.entries(purPriceAccum).forEach(([skuId, acc]) => {
-        variantPurchasePriceMap.set(skuId, acc.qty > 0 ? acc.total / acc.qty : 0);
-      });
-
-      const productIds = [...new Set(saleItems.map(si => si.product_id).filter(Boolean))];
-
-      const { data: products } = await supabase
-        .from("products")
-        .select("id, product_name, brand, category")
-        .in("id", productIds);
-
-      const productMap = new Map(products?.map(p => [p.id, p]) || []);
 
       const productProfitMap = new Map<string, ProductProfitData>();
 
-      saleItems.forEach((item: any) => {
-        const variant = variantMap.get(item.variant_id);
-        const productId = item.product_id || variant?.product_id || "";
-        const product = productMap.get(productId);
-
-        const qty = item.quantity || 0;
-        const lineTotal = Number(item.line_total) || 0;
-        if (qty === 0 && lineTotal === 0) return;
-        if (lineTotal < 0) return;
-
-        const meta = saleMetaById.get(item.sale_id);
-        const { grossLine, flatShare, roundOffShare, netLine, lineDiscount } = computeSaleLineRevenue(item, meta);
-
-        const purPrice = variantPurchasePriceMap.get(item.variant_id) || variant?.pur_price || 0;
-        const cogs = qty * purPrice;
-
-        if (!productProfitMap.has(productId)) {
-          productProfitMap.set(productId, {
-            productId,
-            productName: item.product_name || product?.product_name || "Unknown Product",
-            brand: product?.brand || null,
-            category: product?.category || null,
+      const ensureProduct = (productId: string, fallbackName: string) => {
+        const key = productId || fallbackName || "unknown";
+        if (!productProfitMap.has(key)) {
+          const product = productMap.get(productId);
+          const isService = maps.productTypeById.get(productId) === "service";
+          productProfitMap.set(key, {
+            productId: key,
+            productName: fallbackName || product?.product_name || "Unknown Product",
+            brand: product?.brand || (isService ? "Service" : null),
+            category: product?.category || (isService ? "Services" : null),
             grossSales: 0,
             totalDiscounts: 0,
             netSales: 0,
@@ -574,20 +547,61 @@ export default function NetProfitAnalysis() {
             zeroCostQty: 0,
           });
         }
+        return productProfitMap.get(key)!;
+      };
 
-        const data = productProfitMap.get(productId)!;
+      saleItems.forEach((item: any) => {
+        const variant = maps.variantMap.get(item.variant_id);
+        const productId = item.product_id || variant?.product_id || "";
+        const product = productMap.get(productId);
+        const isService = maps.productTypeById.get(productId) === "service";
+
+        const qty = Number(item.quantity) || 0;
+        const lineTotal = Number(item.line_total) || 0;
+        if (qty === 0 && lineTotal === 0) return;
+
+        const meta = saleMetaById.get(item.sale_id);
+        const { grossLine, flatShare, netLine, lineDiscount } = computeSaleLineRevenue(item, meta);
+        const { cogs, purPrice } = lineCogs(qty, item.variant_id, productId, maps);
+
+        const data = ensureProduct(
+          productId,
+          item.product_name || product?.product_name || (isService ? "Service" : "Unknown Product"),
+        );
         data.grossSales += grossLine;
-        data.totalDiscounts += lineDiscount + flatShare + roundOffShare;
+        data.totalDiscounts += lineDiscount + flatShare;
         data.netSales += netLine;
         data.totalCOGS += cogs;
         data.quantitySold += qty;
-        if (purPrice === 0 && qty > 0) data.zeroCostQty += qty;
+        if (!isService && purPrice === 0 && qty > 0) data.zeroCostQty += qty;
+      });
+
+      returnItems.forEach((item: any) => {
+        const variant = maps.variantMap.get(item.variant_id);
+        const productId = item.product_id || variant?.product_id || "";
+        const product = productMap.get(productId);
+        const isService = maps.productTypeById.get(productId) === "service";
+
+        const qty = Number(item.quantity) || 0;
+        const lineTotal = Number(item.line_total) || 0;
+        if (qty === 0 && lineTotal === 0) return;
+
+        const { cogs, purPrice } = lineCogs(qty, item.variant_id, productId, maps);
+        const data = ensureProduct(
+          productId,
+          item.product_name || product?.product_name || (isService ? "Service" : "Unknown Product"),
+        );
+        data.grossSales -= lineTotal;
+        data.netSales -= lineTotal;
+        data.totalCOGS -= cogs;
+        data.quantitySold -= qty;
+        if (!isService && purPrice === 0 && qty > 0) data.zeroCostQty -= qty;
       });
 
       const result: ProductProfitData[] = [];
-      productProfitMap.forEach(data => {
-        data.grossProfit = Math.max(0, data.netSales - data.totalCOGS);
-        data.marginPercent = data.netSales > 0 ? (data.grossProfit / data.netSales) * 100 : 0;
+      productProfitMap.forEach((data) => {
+        data.grossProfit = data.netSales - data.totalCOGS;
+        data.marginPercent = data.netSales !== 0 ? (data.grossProfit / data.netSales) * 100 : 0;
         result.push(data);
       });
 
@@ -711,7 +725,7 @@ export default function NetProfitAnalysis() {
 
   const activeTotals = activeTab === "supplier-wise" ? supplierTotals : productTotals;
   const activeMarginPct =
-    activeTotals.netSales > 0 ? (activeTotals.profit / activeTotals.netSales) * 100 : 0;
+    activeTotals.netSales !== 0 ? (activeTotals.profit / activeTotals.netSales) * 100 : 0;
 
   const kpiItems = useMemo(
     () => [
@@ -739,39 +753,42 @@ export default function NetProfitAnalysis() {
     [activeTotals, activeMarginPct],
   );
 
-  const tableHeadClass = "h-10 px-4 text-xs font-bold uppercase tracking-wide text-white";
-  const tableRowClass = "h-11 hover:bg-teal-50/80 dark:hover:bg-teal-950/20";
+  const tableHeadClass = "h-12 px-4 text-sm font-bold uppercase tracking-wide text-white";
+  const tableRowClass = "h-12 hover:bg-teal-50/80 dark:hover:bg-teal-950/20";
+  const tableCellClass = "text-base font-medium tabular-nums";
+  const tableMoneyClass = "text-right font-mono text-base font-semibold tabular-nums";
+  const marginBadgeClass = "px-2.5 py-1 text-sm font-bold tabular-nums";
 
   return (
     <div className="net-profit-workspace net-profit-report flex h-full min-h-0 w-full flex-col overflow-hidden bg-slate-50 px-2 py-2 sm:px-3 print:min-h-screen print:h-auto print:overflow-visible print:bg-white print:p-4">
       <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col gap-2">
         <div className="print:hidden shrink-0 flex flex-wrap items-center justify-between gap-2">
           <div className="flex min-w-0 items-center gap-2">
-            <Button
+              <Button
               variant="outline"
               size="sm"
-              className="h-9 shrink-0 px-3 text-sm"
+              className="h-10 shrink-0 px-3 text-base"
               onClick={() => orgNavigate("/reports")}
             >
               <ArrowLeft className="mr-1 h-4 w-4" />
               Reports
             </Button>
             <div className="min-w-0">
-              <h1 className="flex items-center gap-2 text-xl font-bold leading-none tracking-tight text-blue-700">
-                <TrendingUp className="h-5 w-5 shrink-0" />
+              <h1 className="flex items-center gap-2 text-2xl font-bold leading-none tracking-tight text-blue-700">
+                <TrendingUp className="h-6 w-6 shrink-0" />
                 Net Profit Analysis
               </h1>
-              <p className="mt-1 truncate text-sm text-muted-foreground">
+              <p className="mt-1.5 truncate text-base text-muted-foreground">
                 {currentOrganization?.name || "Organization"} · Supplier &amp; Product-wise Profit Breakdown
               </p>
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-1.5">
-            <Button variant="outline" size="sm" className="h-9 gap-1.5 border-slate-300 text-sm" onClick={() => window.print()}>
+            <Button variant="outline" size="sm" className="h-10 gap-1.5 border-slate-300 text-base" onClick={() => window.print()}>
               <Printer className="h-4 w-4" />
               Print
             </Button>
-            <Button variant="outline" size="sm" className="h-9 gap-1.5 border-slate-300 text-sm" onClick={handleExportExcel}>
+            <Button variant="outline" size="sm" className="h-10 gap-1.5 border-slate-300 text-base" onClick={handleExportExcel}>
               <Download className="h-4 w-4" />
               Excel
             </Button>
@@ -781,9 +798,9 @@ export default function NetProfitAnalysis() {
         {hasGenerated && !loading && (
           <div className="grid shrink-0 grid-cols-2 gap-2 print:hidden lg:grid-cols-4">
             {kpiItems.map((item) => (
-              <div key={item.label} className={cn("min-w-0 rounded-lg px-3 py-2 shadow-sm", item.gradient)}>
-                <p className="truncate text-xs font-medium leading-none text-white/80">{item.label}</p>
-                <p className="mt-1 truncate text-base font-black tabular-nums leading-tight text-white sm:text-lg">
+              <div key={item.label} className={cn("min-w-0 rounded-lg px-3.5 py-2.5 shadow-sm", item.gradient)}>
+                <p className="truncate text-sm font-semibold uppercase tracking-wide leading-none text-white/85">{item.label}</p>
+                <p className="mt-1.5 truncate text-xl font-black tabular-nums leading-tight text-white sm:text-2xl">
                   {item.value}
                 </p>
               </div>
@@ -792,33 +809,33 @@ export default function NetProfitAnalysis() {
         )}
 
         <Card className="shrink-0 rounded-lg border border-slate-200 shadow-sm print:hidden">
-          <CardContent className="space-y-2 p-2">
+          <CardContent className="space-y-2 p-2.5">
             <div className="flex flex-wrap items-end gap-2">
               <div className="space-y-1">
-                <Label className="text-xs font-semibold uppercase tracking-wide text-slate-500">From</Label>
+                <Label className="text-sm font-semibold uppercase tracking-wide text-slate-600">From</Label>
                 <Input
                   type="date"
                   value={fromDate}
                   onChange={(e) => setFromDate(e.target.value)}
-                  className="h-10 w-36 border-slate-200 bg-slate-50 text-sm"
+                  className="h-11 w-40 border-slate-200 bg-slate-50 text-base"
                 />
               </div>
               <div className="space-y-1">
-                <Label className="text-xs font-semibold uppercase tracking-wide text-slate-500">To</Label>
+                <Label className="text-sm font-semibold uppercase tracking-wide text-slate-600">To</Label>
                 <Input
                   type="date"
                   value={toDate}
                   onChange={(e) => setToDate(e.target.value)}
-                  className="h-10 w-36 border-slate-200 bg-slate-50 text-sm"
+                  className="h-11 w-40 border-slate-200 bg-slate-50 text-base"
                 />
               </div>
-              <Button onClick={handleGenerate} disabled={loading} size="sm" className="h-10 px-4 text-sm">
+              <Button onClick={handleGenerate} disabled={loading} size="sm" className="h-11 px-5 text-base font-semibold">
                 {loading && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
                 Generate
               </Button>
               <FYPresets onSelect={handleFYPresetSelect} currentSelection={fyPreset} />
             </div>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-base text-muted-foreground">
               Period: {format(new Date(fromDate), "dd MMM yyyy")} – {format(new Date(toDate), "dd MMM yyyy")}
             </p>
           </CardContent>
@@ -847,13 +864,13 @@ export default function NetProfitAnalysis() {
         {/* Main panel */}
         <Card className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-slate-200 p-0 shadow-sm">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="flex h-full min-h-0 flex-col">
-            <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-slate-100 bg-white px-3 py-2 print:hidden">
-              <TabsList className="grid h-9 w-full max-w-xs grid-cols-2 bg-slate-100 p-0.5">
-                <TabsTrigger value="supplier-wise" className="flex h-8 items-center gap-1.5 text-sm data-[state=active]:bg-white">
+            <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-slate-100 bg-white px-3 py-2.5 print:hidden">
+              <TabsList className="grid h-11 w-full max-w-md grid-cols-2 bg-slate-100 p-0.5">
+                <TabsTrigger value="supplier-wise" className="flex h-10 items-center gap-1.5 text-base font-semibold data-[state=active]:bg-white">
                   <Users className="h-4 w-4" />
                   Supplier-wise
                 </TabsTrigger>
-                <TabsTrigger value="product-wise" className="flex h-8 items-center gap-1.5 text-sm data-[state=active]:bg-white">
+                <TabsTrigger value="product-wise" className="flex h-10 items-center gap-1.5 text-base font-semibold data-[state=active]:bg-white">
                   <Package className="h-4 w-4" />
                   Product-wise
                 </TabsTrigger>
@@ -862,22 +879,22 @@ export default function NetProfitAnalysis() {
 
           {/* Supplier-wise Tab */}
           <TabsContent value="supplier-wise" className="mt-0 flex min-h-0 flex-1 flex-col data-[state=inactive]:hidden">
-            <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-slate-100 bg-white px-3 py-2 print:hidden">
+            <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-slate-100 bg-white px-3 py-2.5 print:hidden">
               <div className="relative min-w-[200px] max-w-md flex-1">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   placeholder="SEARCH SUPPLIER..."
                   value={supplierSearch}
                   onChange={(e) => setSupplierSearch(e.target.value)}
-                  className="h-10 border-slate-200 bg-slate-50 pl-10 text-sm uppercase placeholder:normal-case"
+                  className="h-11 border-slate-200 bg-slate-50 pl-10 text-base uppercase placeholder:normal-case"
                 />
               </div>
-              <span className="ml-auto shrink-0 text-sm tabular-nums text-muted-foreground">
+              <span className="ml-auto shrink-0 text-base font-medium tabular-nums text-muted-foreground">
                 {filteredSupplierData.length.toLocaleString("en-IN")} suppliers
               </span>
             </div>
-            <p className="shrink-0 px-3 py-1.5 text-xs text-muted-foreground print:hidden">
-              Discounts include item discount, bill-level flat discount, and round-off adjustment.
+            <p className="shrink-0 px-3 py-1.5 text-sm text-muted-foreground print:hidden">
+              Net sales include round-off. Refunds/returns in the period reduce sales &amp; COGS. Services are included (COGS 0). Discounts = item + bill flat.
             </p>
 
             {loading ? (
@@ -885,7 +902,7 @@ export default function NetProfitAnalysis() {
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
               </div>
             ) : !hasGenerated ? (
-              <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
+              <div className="flex flex-1 items-center justify-center text-base text-muted-foreground">
                 Click Generate to load supplier-wise profit data
               </div>
             ) : (
@@ -898,7 +915,7 @@ export default function NetProfitAnalysis() {
                       <TableHead className={cn(tableHeadClass, "text-right")}>Gross Sales</TableHead>
                       <TableHead
                         className={cn(tableHeadClass, "text-right text-orange-300")}
-                        title="Includes item discount, bill-level flat discount, and round-off adjustment"
+                        title="Item discount + bill-level flat discount (round-off is in Net Sales)"
                       >
                         Discounts
                       </TableHead>
@@ -911,35 +928,38 @@ export default function NetProfitAnalysis() {
                   <TableBody>
                     {filteredSupplierData.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={8} className="h-20 text-center text-sm text-muted-foreground">
+                        <TableCell colSpan={8} className="h-20 text-center text-base text-muted-foreground">
                           No data available for the selected period
                         </TableCell>
                       </TableRow>
                     ) : (
                       filteredSupplierData.map((supplier, idx) => (
                         <TableRow key={supplier.supplierId || idx} className={tableRowClass}>
-                          <TableCell className="text-sm font-medium">{supplier.supplierName}</TableCell>
-                          <TableCell className="text-right text-sm tabular-nums">{supplier.itemsSold}</TableCell>
-                          <TableCell className="text-right font-mono text-sm tabular-nums">{formatCurrency(supplier.grossSales)}</TableCell>
-                          <TableCell className="text-right font-mono text-sm tabular-nums text-orange-600 dark:text-orange-400">
+                          <TableCell className={cn(tableCellClass, "font-semibold")}>{supplier.supplierName}</TableCell>
+                          <TableCell className={cn(tableCellClass, "text-right")}>{supplier.itemsSold}</TableCell>
+                          <TableCell className={tableMoneyClass}>{formatCurrency(supplier.grossSales)}</TableCell>
+                          <TableCell className={cn(tableMoneyClass, "text-orange-600 dark:text-orange-400")}>
                             −{formatCurrency(supplier.totalDiscounts)}
                           </TableCell>
-                          <TableCell className="text-right font-mono text-sm tabular-nums">{formatCurrency(supplier.netSales)}</TableCell>
+                          <TableCell className={tableMoneyClass}>{formatCurrency(supplier.netSales)}</TableCell>
                           <TableCell
-                            className="text-right font-mono text-sm tabular-nums text-amber-600 dark:text-amber-400"
+                            className={cn(tableMoneyClass, "text-amber-600 dark:text-amber-400")}
                             title={supplier.zeroCostQty > 0 ? `${supplier.zeroCostQty} qty sold with no purchase rate (COGS treated as 0)` : undefined}
                           >
                             {formatCurrency(supplier.totalCOGS)}
                             {supplier.zeroCostQty > 0 && (
-                              <span className="ml-1 text-xs text-amber-700 dark:text-amber-300" aria-hidden>⚠</span>
+                              <span className="ml-1 text-sm text-amber-700 dark:text-amber-300" aria-hidden>⚠</span>
                             )}
                           </TableCell>
-                          <TableCell className="text-right font-mono text-sm font-semibold tabular-nums text-green-600 dark:text-green-400">
+                          <TableCell className={cn(tableMoneyClass, "text-green-600 dark:text-green-400")}>
                             {formatCurrency(supplier.grossProfit)}
                           </TableCell>
                           <TableCell className="text-right">
-                            <Badge variant={supplier.marginPercent >= 20 ? "default" : supplier.marginPercent >= 0 ? "secondary" : "destructive"}>
-                              <TrendingUp className="mr-1 h-3 w-3" />
+                            <Badge
+                              variant={supplier.marginPercent >= 20 ? "default" : supplier.marginPercent >= 0 ? "secondary" : "destructive"}
+                              className={marginBadgeClass}
+                            >
+                              <TrendingUp className="mr-1 h-3.5 w-3.5" />
                               {supplier.marginPercent.toFixed(1)}%
                             </Badge>
                           </TableCell>
@@ -949,23 +969,26 @@ export default function NetProfitAnalysis() {
                   </TableBody>
                   {filteredSupplierData.length > 0 && (
                     <TableFooter className="sticky bottom-0 z-10 border-t-2 bg-slate-100 font-bold">
-                      <TableRow className="h-11">
-                        <TableCell className="text-sm">TOTAL</TableCell>
-                        <TableCell className="text-right text-sm tabular-nums">{supplierTotals.items}</TableCell>
-                        <TableCell className="text-right font-mono text-sm tabular-nums">{formatCurrency(supplierTotals.grossSales)}</TableCell>
-                        <TableCell className="text-right font-mono text-sm tabular-nums text-orange-600 dark:text-orange-400">
+                      <TableRow className="h-12">
+                        <TableCell className="text-base font-bold">TOTAL</TableCell>
+                        <TableCell className={cn(tableCellClass, "text-right font-bold")}>{supplierTotals.items}</TableCell>
+                        <TableCell className={cn(tableMoneyClass, "font-bold")}>{formatCurrency(supplierTotals.grossSales)}</TableCell>
+                        <TableCell className={cn(tableMoneyClass, "font-bold text-orange-600 dark:text-orange-400")}>
                           −{formatCurrency(supplierTotals.discounts)}
                         </TableCell>
-                        <TableCell className="text-right font-mono text-sm tabular-nums">{formatCurrency(supplierTotals.netSales)}</TableCell>
-                        <TableCell className="text-right font-mono text-sm tabular-nums text-amber-600 dark:text-amber-400">
+                        <TableCell className={cn(tableMoneyClass, "font-bold")}>{formatCurrency(supplierTotals.netSales)}</TableCell>
+                        <TableCell className={cn(tableMoneyClass, "font-bold text-amber-600 dark:text-amber-400")}>
                           {formatCurrency(supplierTotals.cogs)}
                         </TableCell>
-                        <TableCell className="text-right font-mono text-sm tabular-nums text-green-600 dark:text-green-400">
+                        <TableCell className={cn(tableMoneyClass, "font-bold text-green-600 dark:text-green-400")}>
                           {formatCurrency(supplierTotals.profit)}
                         </TableCell>
                         <TableCell className="text-right">
-                          <Badge variant={supplierTotals.profit >= 0 ? "default" : "destructive"}>
-                            {supplierTotals.netSales > 0 ? ((supplierTotals.profit / supplierTotals.netSales) * 100).toFixed(1) : 0}%
+                          <Badge
+                            variant={supplierTotals.profit >= 0 ? "default" : "destructive"}
+                            className={marginBadgeClass}
+                          >
+                            {supplierTotals.netSales !== 0 ? ((supplierTotals.profit / supplierTotals.netSales) * 100).toFixed(1) : 0}%
                           </Badge>
                         </TableCell>
                       </TableRow>
@@ -978,22 +1001,22 @@ export default function NetProfitAnalysis() {
 
           {/* Product-wise Tab */}
           <TabsContent value="product-wise" className="mt-0 flex min-h-0 flex-1 flex-col data-[state=inactive]:hidden">
-            <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-slate-100 bg-white px-3 py-2 print:hidden">
+            <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-slate-100 bg-white px-3 py-2.5 print:hidden">
               <div className="relative min-w-[200px] max-w-md flex-1">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   placeholder="SEARCH PRODUCT, BRAND, CATEGORY..."
                   value={productSearch}
                   onChange={(e) => setProductSearch(e.target.value)}
-                  className="h-10 border-slate-200 bg-slate-50 pl-10 text-sm uppercase placeholder:normal-case"
+                  className="h-11 border-slate-200 bg-slate-50 pl-10 text-base uppercase placeholder:normal-case"
                 />
               </div>
-              <span className="ml-auto shrink-0 text-sm tabular-nums text-muted-foreground">
+              <span className="ml-auto shrink-0 text-base font-medium tabular-nums text-muted-foreground">
                 {filteredProductData.length.toLocaleString("en-IN")} products
               </span>
             </div>
-            <p className="shrink-0 px-3 py-1.5 text-xs text-muted-foreground print:hidden">
-              Discounts include item discount, bill-level flat discount, and round-off adjustment.
+            <p className="shrink-0 px-3 py-1.5 text-sm text-muted-foreground print:hidden">
+              Net sales include round-off. Refunds/returns in the period reduce sales &amp; COGS. Services are included (COGS 0). Discounts = item + bill flat.
             </p>
 
             {loading ? (
@@ -1001,7 +1024,7 @@ export default function NetProfitAnalysis() {
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
               </div>
             ) : !hasGenerated ? (
-              <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
+              <div className="flex flex-1 items-center justify-center text-base text-muted-foreground">
                 Click Generate to load product-wise profit data
               </div>
             ) : (
@@ -1015,7 +1038,7 @@ export default function NetProfitAnalysis() {
                       <TableHead className={cn(tableHeadClass, "text-right")}>Gross Sales</TableHead>
                       <TableHead
                         className={cn(tableHeadClass, "text-right text-orange-300")}
-                        title="Includes item discount, bill-level flat discount, and round-off adjustment"
+                        title="Item discount + bill-level flat discount (round-off is in Net Sales)"
                       >
                         Discounts
                       </TableHead>
@@ -1028,42 +1051,45 @@ export default function NetProfitAnalysis() {
                   <TableBody>
                     {filteredProductData.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={9} className="h-20 text-center text-sm text-muted-foreground">
+                        <TableCell colSpan={9} className="h-20 text-center text-base text-muted-foreground">
                           No data available for the selected period
                         </TableCell>
                       </TableRow>
                     ) : (
                       filteredProductData.map((product, idx) => (
                         <TableRow key={product.productId || idx} className={tableRowClass}>
-                          <TableCell className="max-w-[200px] truncate text-sm font-medium" title={product.productName}>
+                          <TableCell className={cn(tableCellClass, "max-w-[220px] truncate font-semibold")} title={product.productName}>
                             {product.productName}
                           </TableCell>
-                          <TableCell className="text-sm">
+                          <TableCell className="text-base">
                             {product.brand ? (
-                              <Badge variant="outline">{product.brand}</Badge>
+                              <Badge variant="outline" className="text-sm font-semibold">{product.brand}</Badge>
                             ) : "-"}
                           </TableCell>
-                          <TableCell className="text-right text-sm tabular-nums">{product.quantitySold}</TableCell>
-                          <TableCell className="text-right font-mono text-sm tabular-nums">{formatCurrency(product.grossSales)}</TableCell>
-                          <TableCell className="text-right font-mono text-sm tabular-nums text-orange-600 dark:text-orange-400">
+                          <TableCell className={cn(tableCellClass, "text-right")}>{product.quantitySold}</TableCell>
+                          <TableCell className={tableMoneyClass}>{formatCurrency(product.grossSales)}</TableCell>
+                          <TableCell className={cn(tableMoneyClass, "text-orange-600 dark:text-orange-400")}>
                             −{formatCurrency(product.totalDiscounts)}
                           </TableCell>
-                          <TableCell className="text-right font-mono text-sm tabular-nums">{formatCurrency(product.netSales)}</TableCell>
+                          <TableCell className={tableMoneyClass}>{formatCurrency(product.netSales)}</TableCell>
                           <TableCell
-                            className="text-right font-mono text-sm tabular-nums text-amber-600 dark:text-amber-400"
+                            className={cn(tableMoneyClass, "text-amber-600 dark:text-amber-400")}
                             title={product.zeroCostQty > 0 ? `${product.zeroCostQty} qty with no purchase rate (COGS treated as 0)` : undefined}
                           >
                             {formatCurrency(product.totalCOGS)}
                             {product.zeroCostQty > 0 && (
-                              <span className="ml-1 text-xs text-amber-700 dark:text-amber-300" aria-hidden>⚠</span>
+                              <span className="ml-1 text-sm text-amber-700 dark:text-amber-300" aria-hidden>⚠</span>
                             )}
                           </TableCell>
-                          <TableCell className="text-right font-mono text-sm font-semibold tabular-nums text-green-600 dark:text-green-400">
+                          <TableCell className={cn(tableMoneyClass, "text-green-600 dark:text-green-400")}>
                             {formatCurrency(product.grossProfit)}
                           </TableCell>
                           <TableCell className="text-right">
-                            <Badge variant={product.marginPercent >= 20 ? "default" : product.marginPercent >= 0 ? "secondary" : "destructive"}>
-                              <TrendingUp className="mr-1 h-3 w-3" />
+                            <Badge
+                              variant={product.marginPercent >= 20 ? "default" : product.marginPercent >= 0 ? "secondary" : "destructive"}
+                              className={marginBadgeClass}
+                            >
+                              <TrendingUp className="mr-1 h-3.5 w-3.5" />
                               {product.marginPercent.toFixed(1)}%
                             </Badge>
                           </TableCell>
@@ -1073,24 +1099,27 @@ export default function NetProfitAnalysis() {
                   </TableBody>
                   {filteredProductData.length > 0 && (
                     <TableFooter className="sticky bottom-0 z-10 border-t-2 bg-slate-100 font-bold">
-                      <TableRow className="h-11">
-                        <TableCell className="text-sm">TOTAL</TableCell>
-                        <TableCell className="text-sm">-</TableCell>
-                        <TableCell className="text-right text-sm tabular-nums">{productTotals.qty}</TableCell>
-                        <TableCell className="text-right font-mono text-sm tabular-nums">{formatCurrency(productTotals.grossSales)}</TableCell>
-                        <TableCell className="text-right font-mono text-sm tabular-nums text-orange-600 dark:text-orange-400">
+                      <TableRow className="h-12">
+                        <TableCell className="text-base font-bold">TOTAL</TableCell>
+                        <TableCell className="text-base font-bold">-</TableCell>
+                        <TableCell className={cn(tableCellClass, "text-right font-bold")}>{productTotals.qty}</TableCell>
+                        <TableCell className={cn(tableMoneyClass, "font-bold")}>{formatCurrency(productTotals.grossSales)}</TableCell>
+                        <TableCell className={cn(tableMoneyClass, "font-bold text-orange-600 dark:text-orange-400")}>
                           −{formatCurrency(productTotals.discounts)}
                         </TableCell>
-                        <TableCell className="text-right font-mono text-sm tabular-nums">{formatCurrency(productTotals.netSales)}</TableCell>
-                        <TableCell className="text-right font-mono text-sm tabular-nums text-amber-600 dark:text-amber-400">
+                        <TableCell className={cn(tableMoneyClass, "font-bold")}>{formatCurrency(productTotals.netSales)}</TableCell>
+                        <TableCell className={cn(tableMoneyClass, "font-bold text-amber-600 dark:text-amber-400")}>
                           {formatCurrency(productTotals.cogs)}
                         </TableCell>
-                        <TableCell className="text-right font-mono text-sm tabular-nums text-green-600 dark:text-green-400">
+                        <TableCell className={cn(tableMoneyClass, "font-bold text-green-600 dark:text-green-400")}>
                           {formatCurrency(productTotals.profit)}
                         </TableCell>
                         <TableCell className="text-right">
-                          <Badge variant={productTotals.profit >= 0 ? "default" : "destructive"}>
-                            {productTotals.netSales > 0 ? ((productTotals.profit / productTotals.netSales) * 100).toFixed(1) : 0}%
+                          <Badge
+                            variant={productTotals.profit >= 0 ? "default" : "destructive"}
+                            className={marginBadgeClass}
+                          >
+                            {productTotals.netSales !== 0 ? ((productTotals.profit / productTotals.netSales) * 100).toFixed(1) : 0}%
                           </Badge>
                         </TableCell>
                       </TableRow>

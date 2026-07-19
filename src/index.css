@@ -3590,9 +3590,18 @@ main:has(.net-profit-workspace) {
 }
 .net-profit-report table tbody td {
   vertical-align: middle;
+  font-size: 1rem;
+  line-height: 1.35;
+}
+.net-profit-report table thead th {
+  font-size: 0.875rem;
+  letter-spacing: 0.04em;
 }
 .net-profit-report table tbody tr {
-  height: 44px;
+  height: 52px;
+}
+.net-profit-report table tfoot td {
+  font-size: 1rem;
 }
 
 /* Item-wise Sales / Stock reports — sidebar-only full workspace (no header / tab strip) */
