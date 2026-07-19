@@ -1076,7 +1076,35 @@ All colors MUST be HSL.
     padding: 10px 10px 4px !important;
   }
 
-  .erp-desktop-sidebar [data-sidebar="menu-button"] {
+  /* Section headers used as collapsible triggers (Master / Sales / …) */
+  .erp-desktop-sidebar button[data-sidebar="group-label"] {
+    font-size: 0.9375rem !important;
+    letter-spacing: 0.06em !important;
+    color: var(--erp-ink-2) !important;
+    padding: 0.5rem 0.65rem !important;
+    height: auto !important;
+    min-height: 2.25rem !important;
+    cursor: pointer;
+    transition:
+      background-color 140ms ease,
+      color 140ms ease,
+      box-shadow 140ms ease !important;
+  }
+
+  .erp-desktop-sidebar button[data-sidebar="group-label"]:hover {
+    background: var(--erp-accent) !important;
+    color: #fff !important;
+    box-shadow: 0 2px 6px rgba(37, 99, 235, 0.28);
+  }
+
+  .erp-desktop-sidebar button[data-sidebar="group-label"]:hover svg,
+  .erp-desktop-sidebar button[data-sidebar="group-label"]:hover span {
+    color: #fff !important;
+    opacity: 1 !important;
+  }
+
+  .erp-desktop-sidebar [data-sidebar="menu-button"],
+  .erp-desktop-sidebar [data-sidebar="menu-sub-button"] {
     font-size: 0.9375rem !important;
     font-weight: 500 !important;
     color: var(--erp-ink-2) !important;
@@ -1085,17 +1113,46 @@ All colors MUST be HSL.
     gap: 0.625rem !important;
     min-height: auto !important;
     height: auto !important;
+    transition:
+      background-color 140ms ease,
+      color 140ms ease,
+      border-color 140ms ease,
+      box-shadow 140ms ease !important;
   }
 
-  .erp-desktop-sidebar [data-sidebar="menu-button"] svg {
+  .erp-desktop-sidebar [data-sidebar="menu-button"] svg,
+  .erp-desktop-sidebar [data-sidebar="menu-sub-button"] svg {
     width: 1.0625rem !important;
     height: 1.0625rem !important;
     opacity: 0.7;
+    transition: color 140ms ease, opacity 140ms ease !important;
   }
 
-  .erp-desktop-sidebar [data-sidebar="menu-button"]:hover {
-    background: var(--erp-panel-2) !important;
-    color: var(--erp-ink) !important;
+  /* Hover → blue fill + white text/icon (same as shortcut bar) */
+  .erp-desktop-sidebar [data-sidebar="menu-button"]:hover,
+  .erp-desktop-sidebar [data-sidebar="menu-sub-button"]:hover,
+  .erp-desktop-sidebar [data-sidebar="group"] > button.group:hover,
+  .erp-desktop-sidebar [data-sidebar="menu"] button.group:hover {
+    background: var(--erp-accent) !important;
+    color: #fff !important;
+    box-shadow: 0 2px 6px rgba(37, 99, 235, 0.28);
+  }
+
+  .erp-desktop-sidebar [data-sidebar="menu-button"]:hover svg,
+  .erp-desktop-sidebar [data-sidebar="menu-sub-button"]:hover svg,
+  .erp-desktop-sidebar [data-sidebar="group"] > button.group:hover svg,
+  .erp-desktop-sidebar [data-sidebar="menu"] button.group:hover svg,
+  .erp-desktop-sidebar [data-sidebar="menu-button"]:hover .sidebar-icon,
+  .erp-desktop-sidebar [data-sidebar="menu-sub-button"]:hover .sidebar-icon {
+    color: #fff !important;
+    opacity: 1 !important;
+  }
+
+  .erp-desktop-sidebar [data-sidebar="menu-button"]:hover span,
+  .erp-desktop-sidebar [data-sidebar="menu-sub-button"]:hover span,
+  .erp-desktop-sidebar [data-sidebar="group"] > button.group:hover span,
+  .erp-desktop-sidebar [data-sidebar="menu"] button.group:hover span {
+    color: #fff !important;
   }
 
   .erp-desktop-sidebar [data-sidebar="menu-button"][data-active="true"] {
@@ -1105,9 +1162,21 @@ All colors MUST be HSL.
     border-left: none !important;
   }
 
+  .erp-desktop-sidebar [data-sidebar="menu-button"][data-active="true"]:hover,
+  .erp-desktop-sidebar [data-sidebar="menu-sub-button"][data-active="true"]:hover {
+    background: var(--erp-accent) !important;
+    color: #fff !important;
+  }
+
   .erp-desktop-sidebar [data-sidebar="menu-button"][data-active="true"] svg {
     opacity: 1 !important;
     color: var(--erp-accent) !important;
+  }
+
+  .erp-desktop-sidebar [data-sidebar="menu-button"][data-active="true"]:hover svg,
+  .erp-desktop-sidebar [data-sidebar="menu-sub-button"][data-active="true"]:hover svg {
+    color: #fff !important;
+    opacity: 1 !important;
   }
 
   /* Nested items — tighter indent, show full page names (no ellipsis) */
