@@ -706,14 +706,19 @@ export default function NetProfitAnalysis() {
                   setSearch("");
                 }}
               >
-                <TabsList className="flex h-auto w-full max-w-full flex-wrap justify-start gap-1 bg-slate-100 p-1">
+                <TabsList className="flex h-auto w-full max-w-full flex-wrap justify-start gap-2 bg-transparent p-0">
                   {tabs.map((tab) => {
                     const Icon = tab.icon;
                     return (
                       <TabsTrigger
                         key={tab.value}
                         value={tab.value}
-                        className="flex h-10 items-center gap-1.5 px-3 text-base font-semibold data-[state=active]:bg-white"
+                        className={cn(
+                          "inline-flex h-10 items-center gap-1.5 rounded-[6px] border border-input bg-background px-3 text-base font-semibold text-foreground shadow-sm",
+                          "transition-[background-color,border-color,color,box-shadow] duration-150",
+                          "hover:!bg-primary hover:!border-primary hover:!text-primary-foreground hover:shadow-md hover:[&_svg]:!text-primary-foreground",
+                          "data-[state=active]:!bg-primary data-[state=active]:!border-primary data-[state=active]:!text-primary-foreground data-[state=active]:shadow-md data-[state=active]:[&_svg]:!text-primary-foreground",
+                        )}
                       >
                         <Icon className="h-4 w-4" />
                         {tab.label}
