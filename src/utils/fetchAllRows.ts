@@ -703,7 +703,7 @@ export async function fetchAllPurchaseItems(variantIds: string[]) {
     while (hasMore) {
       const { data, error } = await supabase
         .from("purchase_items")
-        .select("sku_id, bill_id")
+        .select("sku_id, bill_id, pur_price, qty")
         .in("sku_id", batchIds)
         .is("deleted_at", null)
         .order("id")

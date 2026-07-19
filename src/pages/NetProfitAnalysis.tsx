@@ -18,7 +18,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { getIndiaFinancialYear, getCurrentQuarter } from "@/utils/accountingReportUtils";
 import { useLocation } from "react-router-dom";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
-import { fetchAllSaleItems, fetchAllPurchaseItems } from "@/utils/fetchAllRows";
+import { fetchAllSaleItems, fetchAllPurchaseItems, fetchSaleReturnItemsByIds } from "@/utils/fetchAllRows";
 import { cn } from "@/lib/utils";
 
 interface SupplierProfitData {
@@ -49,7 +49,7 @@ interface ProductProfitData {
   zeroCostQty: number;
 }
 
-/** Per sale_item: gross before discounts, bill-level share, net value for margin (excludes round-off impact). */
+/** Per sale_item: gross, discounts, and net (includes round-off; matches net_after_discount on save). */
 function computeSaleLineRevenue(
   item: {
     quantity: number;
@@ -59,6 +59,7 @@ function computeSaleLineRevenue(
     discount_percent: number;
     discount_share?: number | null;
     round_off_share?: number | null;
+    net_after_discount?: number | null;
     sale_id: string;
   },
   saleMeta: { gross_amount: number; flat_discount_amount: number } | undefined
@@ -72,12 +73,13 @@ function computeSaleLineRevenue(
   let lineGross = qty * (mrp > 0 ? mrp : unitP);
   if (mrp <= 0 && dPct > 0 && dPct < 100) {
     const reconstructed = lineTotal / (1 - dPct / 100);
-    if (reconstructed > lineGross && Number.isFinite(reconstructed)) {
+    if (Math.abs(reconstructed) > Math.abs(lineGross) && Number.isFinite(reconstructed)) {
       lineGross = Math.round(reconstructed * 100) / 100;
     }
   }
 
-  const lineDiscount = Math.max(0, lineGross - lineTotal);
+  // Keep signed discount so return/refund lines reduce correctly.
+  const lineDiscount = lineGross - lineTotal;
 
   let flatShare: number;
   if (item.discount_share != null && Number.isFinite(Number(item.discount_share))) {
@@ -85,16 +87,131 @@ function computeSaleLineRevenue(
   } else {
     const g = saleMeta?.gross_amount ?? 0;
     const flat = saleMeta?.flat_discount_amount ?? 0;
-    flatShare = g > 0 && flat > 0 ? (lineTotal / g) * flat : 0;
+    flatShare = g > 0 && flat !== 0 ? (lineTotal / g) * flat : 0;
   }
 
   const roundOffShare = item.round_off_share != null && Number.isFinite(Number(item.round_off_share))
     ? Number(item.round_off_share)
     : 0;
 
-  // Remove round-off impact from sale value for profit analysis.
-  const netLine = lineTotal - flatShare - roundOffShare;
+  // Prefer stored net (line − flat + round-off). Never strip round-off from net sales.
+  let netLine: number;
+  if (item.net_after_discount != null && Number.isFinite(Number(item.net_after_discount))) {
+    netLine = Number(item.net_after_discount);
+  } else {
+    netLine = lineTotal - flatShare + roundOffShare;
+  }
+
   return { grossLine: lineGross, flatShare, roundOffShare, netLine, lineDiscount };
+}
+
+type VariantCostMaps = {
+  variantMap: Map<string, { id: string; pur_price: number | null; product_id: string }>;
+  variantPurchasePriceMap: Map<string, number>;
+  variantToSupplier: Map<string, { id: string | null; name: string }>;
+  productTypeById: Map<string, string>;
+};
+
+async function buildVariantCostMaps(
+  organizationId: string,
+  variantIds: string[],
+  productIds: string[],
+): Promise<VariantCostMaps> {
+  const allVariants: { id: string; pur_price: number | null; product_id: string }[] = [];
+  const variantBatchSize = 500;
+  for (let i = 0; i < variantIds.length; i += variantBatchSize) {
+    const batchIds = variantIds.slice(i, i + variantBatchSize);
+    const { data: batchVariants } = await supabase
+      .from("product_variants")
+      .select("id, pur_price, product_id")
+      .eq("organization_id", organizationId)
+      .in("id", batchIds);
+    if (batchVariants) allVariants.push(...batchVariants);
+  }
+  const variantMap = new Map(allVariants.map((v) => [v.id, v]));
+
+  const purchaseItems = await fetchAllPurchaseItems(variantIds);
+  const purPriceAccum: Record<string, { total: number; qty: number }> = {};
+  purchaseItems?.forEach((pi: any) => {
+    if (!pi.sku_id) return;
+    if (!purPriceAccum[pi.sku_id]) purPriceAccum[pi.sku_id] = { total: 0, qty: 0 };
+    const qty = Number(pi.qty) || 1;
+    purPriceAccum[pi.sku_id].total += (Number(pi.pur_price) || 0) * qty;
+    purPriceAccum[pi.sku_id].qty += qty;
+  });
+  const variantPurchasePriceMap = new Map<string, number>();
+  Object.entries(purPriceAccum).forEach(([skuId, acc]) => {
+    variantPurchasePriceMap.set(skuId, acc.qty > 0 ? acc.total / acc.qty : 0);
+  });
+
+  const billIds = [...new Set(purchaseItems?.map((pi) => pi.bill_id).filter(Boolean) || [])];
+  let purchaseBills: { id: string; supplier_id: string | null; supplier_name: string }[] | null = null;
+  if (billIds.length > 0) {
+    const { data } = await supabase
+      .from("purchase_bills")
+      .select("id, supplier_id, supplier_name")
+      .eq("organization_id", organizationId)
+      .in("id", billIds);
+    purchaseBills = data;
+  }
+
+  const variantToSupplier = new Map<string, { id: string | null; name: string }>();
+  purchaseItems?.forEach((pi) => {
+    if (!variantToSupplier.has(pi.sku_id)) {
+      const bill = purchaseBills?.find((pb) => pb.id === pi.bill_id);
+      if (bill) {
+        variantToSupplier.set(pi.sku_id, { id: bill.supplier_id, name: bill.supplier_name });
+      }
+    }
+  });
+
+  const productTypeById = new Map<string, string>();
+  const uniqueProductIds = [...new Set(productIds.filter(Boolean))];
+  for (let i = 0; i < uniqueProductIds.length; i += 500) {
+    const batchIds = uniqueProductIds.slice(i, i + 500);
+    const { data: products } = await supabase
+      .from("products")
+      .select("id, product_type")
+      .eq("organization_id", organizationId)
+      .in("id", batchIds);
+    products?.forEach((p) => productTypeById.set(p.id, p.product_type || "goods"));
+  }
+
+  return { variantMap, variantPurchasePriceMap, variantToSupplier, productTypeById };
+}
+
+async function fetchPeriodSaleReturnItems(organizationId: string, fromDate: string, toDate: string) {
+  const { data: returns, error } = await supabase
+    .from("sale_returns")
+    .select("id")
+    .eq("organization_id", organizationId)
+    .gte("return_date", fromDate)
+    .lte("return_date", `${toDate}T23:59:59`)
+    .is("deleted_at", null);
+
+  if (error) throw error;
+  if (!returns?.length) return [] as any[];
+
+  return fetchSaleReturnItemsByIds(
+    returns.map((r) => r.id),
+    "return_id, variant_id, product_id, product_name, quantity, line_total, unit_price",
+  );
+}
+
+function lineCogs(
+  qty: number,
+  variantId: string | null | undefined,
+  productId: string | null | undefined,
+  maps: Pick<VariantCostMaps, "variantMap" | "variantPurchasePriceMap" | "productTypeById">,
+): { cogs: number; purPrice: number; isService: boolean } {
+  const productType = productId ? maps.productTypeById.get(productId) : undefined;
+  const isService = productType === "service";
+  if (isService || !variantId) {
+    return { cogs: 0, purPrice: 0, isService };
+  }
+  const variant = maps.variantMap.get(variantId);
+  const purPrice = maps.variantPurchasePriceMap.get(variantId) || variant?.pur_price || 0;
+  return { cogs: qty * purPrice, purPrice, isService };
 }
 
 const formatCurrency = (amount: number) => {
@@ -208,10 +325,11 @@ export default function NetProfitAnalysis() {
     
     setLoading(true);
     try {
+      const orgId = currentOrganization.id;
       const { data: sales } = await supabase
         .from("sales")
         .select("id, gross_amount, flat_discount_amount")
-        .eq("organization_id", currentOrganization.id)
+        .eq("organization_id", orgId)
         .gte("sale_date", fromDate)
         .lte("sale_date", `${toDate}T23:59:59`)
         .is("deleted_at", null)
@@ -219,15 +337,17 @@ export default function NetProfitAnalysis() {
         .or("payment_status.is.null,payment_status.neq.cancelled")
         .or("sale_type.is.null,sale_type.neq.sale_return");
 
-      if (!sales || sales.length === 0) {
+      const saleItems = sales?.length ? await fetchAllSaleItems(sales.map((s) => s.id)) : [];
+      const returnItems = await fetchPeriodSaleReturnItems(orgId, fromDate, toDate);
+
+      if ((!saleItems || saleItems.length === 0) && returnItems.length === 0) {
         setSupplierData([]);
         setLoading(false);
         return;
       }
 
-      const saleIds = sales.map(s => s.id);
       const saleMetaById = new Map(
-        sales.map((s) => [
+        (sales || []).map((s) => [
           s.id,
           {
             gross_amount: Number(s.gross_amount) || 0,
@@ -236,82 +356,24 @@ export default function NetProfitAnalysis() {
         ])
       );
 
-      // Use paginated fetch to get ALL sale items (bypasses 1000 row limit)
-      const saleItems = await fetchAllSaleItems(saleIds);
+      const variantIds = [
+        ...new Set([
+          ...saleItems.map((si) => si.variant_id).filter(Boolean),
+          ...returnItems.map((ri: any) => ri.variant_id).filter(Boolean),
+        ]),
+      ] as string[];
+      const productIds = [
+        ...new Set([
+          ...saleItems.map((si) => si.product_id).filter(Boolean),
+          ...returnItems.map((ri: any) => ri.product_id).filter(Boolean),
+        ]),
+      ] as string[];
 
-      if (!saleItems || saleItems.length === 0) {
-        setSupplierData([]);
-        setLoading(false);
-        return;
-      }
-
-      const variantIds = [...new Set(saleItems.map(si => si.variant_id))];
-
-      // Batch fetch variants to handle more than 1000 IDs
-      const allVariants: { id: string; pur_price: number | null; product_id: string }[] = [];
-      const variantBatchSize = 500;
-      for (let i = 0; i < variantIds.length; i += variantBatchSize) {
-        const batchIds = variantIds.slice(i, i + variantBatchSize);
-        const { data: batchVariants } = await supabase
-          .from("product_variants")
-          .select("id, pur_price, product_id")
-          .in("id", batchIds);
-        if (batchVariants) allVariants.push(...batchVariants);
-      }
-
-      const variantMap = new Map(allVariants.map(v => [v.id, v]));
-
-      // Use paginated fetch for purchase items
-      const purchaseItems = await fetchAllPurchaseItems(variantIds);
-
-      // Build weighted average purchase price map from actual purchase_items
-      const purPriceAccum: Record<string, { total: number; qty: number }> = {};
-      purchaseItems?.forEach((pi: any) => {
-        if (!pi.sku_id) return;
-        if (!purPriceAccum[pi.sku_id]) purPriceAccum[pi.sku_id] = { total: 0, qty: 0 };
-        purPriceAccum[pi.sku_id].total += (pi.pur_price || 0) * (pi.qty || 1);
-        purPriceAccum[pi.sku_id].qty += (pi.qty || 1);
-      });
-      const variantPurchasePriceMap = new Map<string, number>();
-      Object.entries(purPriceAccum).forEach(([skuId, acc]) => {
-        variantPurchasePriceMap.set(skuId, acc.qty > 0 ? acc.total / acc.qty : 0);
-      });
-
-      const billIds = [...new Set(purchaseItems?.map(pi => pi.bill_id) || [])];
-
-      const { data: purchaseBills } = await supabase
-        .from("purchase_bills")
-        .select("id, supplier_id, supplier_name")
-        .in("id", billIds);
-
-      const variantToSupplier = new Map<string, { id: string | null; name: string }>();
-      purchaseItems?.forEach(pi => {
-        if (!variantToSupplier.has(pi.sku_id)) {
-          const bill = purchaseBills?.find(pb => pb.id === pi.bill_id);
-          if (bill) {
-            variantToSupplier.set(pi.sku_id, { id: bill.supplier_id, name: bill.supplier_name });
-          }
-        }
-      });
-
+      const maps = await buildVariantCostMaps(orgId, variantIds, productIds);
       const supplierProfitMap = new Map<string, SupplierProfitData>();
 
-      saleItems.forEach((item: any) => {
-        const variant = variantMap.get(item.variant_id);
-        const supplierInfo = variantToSupplier.get(item.variant_id) || { id: null, name: "Unknown Supplier" };
+      const ensureSupplier = (supplierInfo: { id: string | null; name: string }) => {
         const supplierKey = supplierInfo.id || supplierInfo.name;
-
-        const qty = item.quantity || 0;
-        const lineTotal = Number(item.line_total) || 0;
-        if (qty === 0 && lineTotal === 0) return;
-        if (lineTotal < 0) return;
-
-        const meta = saleMetaById.get(item.sale_id);
-        const { grossLine, flatShare, roundOffShare, netLine, lineDiscount } = computeSaleLineRevenue(item, meta);
-
-        const purPrice = variantPurchasePriceMap.get(item.variant_id) || variant?.pur_price || 0;
-        const cogs = qty * purPrice;
-
         if (!supplierProfitMap.has(supplierKey)) {
           supplierProfitMap.set(supplierKey, {
             supplierId: supplierInfo.id,
@@ -326,20 +388,65 @@ export default function NetProfitAnalysis() {
             zeroCostQty: 0,
           });
         }
+        return supplierProfitMap.get(supplierKey)!;
+      };
 
-        const data = supplierProfitMap.get(supplierKey)!;
+      saleItems.forEach((item: any) => {
+        const variant = maps.variantMap.get(item.variant_id);
+        const productId = item.product_id || variant?.product_id || "";
+        const isService = maps.productTypeById.get(productId) === "service";
+        const supplierInfo =
+          maps.variantToSupplier.get(item.variant_id) ||
+          (isService
+            ? { id: null, name: "Services" }
+            : { id: null, name: "Unknown Supplier" });
+
+        const qty = Number(item.quantity) || 0;
+        const lineTotal = Number(item.line_total) || 0;
+        if (qty === 0 && lineTotal === 0) return;
+
+        const meta = saleMetaById.get(item.sale_id);
+        const { grossLine, flatShare, netLine, lineDiscount } = computeSaleLineRevenue(item, meta);
+        const { cogs, purPrice } = lineCogs(qty, item.variant_id, productId, maps);
+
+        const data = ensureSupplier(supplierInfo);
         data.grossSales += grossLine;
-        data.totalDiscounts += lineDiscount + flatShare + roundOffShare;
+        // Discounts = item + bill flat only; round-off stays inside net sales.
+        data.totalDiscounts += lineDiscount + flatShare;
         data.netSales += netLine;
         data.totalCOGS += cogs;
         data.itemsSold += qty;
-        if (purPrice === 0 && qty > 0) data.zeroCostQty += qty;
+        if (!isService && purPrice === 0 && qty > 0) data.zeroCostQty += qty;
+      });
+
+      // Refunds / returns in period: reduce net sales + reverse COGS.
+      returnItems.forEach((item: any) => {
+        const variant = maps.variantMap.get(item.variant_id);
+        const productId = item.product_id || variant?.product_id || "";
+        const isService = maps.productTypeById.get(productId) === "service";
+        const supplierInfo =
+          maps.variantToSupplier.get(item.variant_id) ||
+          (isService
+            ? { id: null, name: "Services" }
+            : { id: null, name: "Unknown Supplier" });
+
+        const qty = Number(item.quantity) || 0;
+        const lineTotal = Number(item.line_total) || 0;
+        if (qty === 0 && lineTotal === 0) return;
+
+        const { cogs, purPrice } = lineCogs(qty, item.variant_id, productId, maps);
+        const data = ensureSupplier(supplierInfo);
+        data.grossSales -= lineTotal;
+        data.netSales -= lineTotal;
+        data.totalCOGS -= cogs;
+        data.itemsSold -= qty;
+        if (!isService && purPrice === 0 && qty > 0) data.zeroCostQty -= qty;
       });
 
       const result: SupplierProfitData[] = [];
-      supplierProfitMap.forEach(data => {
-        data.grossProfit = Math.max(0, data.netSales - data.totalCOGS);
-        data.marginPercent = data.netSales > 0 ? (data.grossProfit / data.netSales) * 100 : 0;
+      supplierProfitMap.forEach((data) => {
+        data.grossProfit = data.netSales - data.totalCOGS;
+        data.marginPercent = data.netSales !== 0 ? (data.grossProfit / data.netSales) * 100 : 0;
         result.push(data);
       });
 
