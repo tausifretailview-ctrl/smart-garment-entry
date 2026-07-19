@@ -72,12 +72,12 @@ export function WindowTabsBar({ className }: WindowTabsBarProps) {
         data-collapsed
         className={cn("erp-window-tabs px-2 flex items-center justify-between", className)}
       >
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <div className="erp-tab-actions flex items-center gap-2 text-sm">
           <span>{openWindows.length} window{openWindows.length > 1 ? 's' : ''} open</span>
           <span className="hidden md:inline">•</span>
           <span className="hidden md:inline">
-            <kbd className="px-1 py-0.5 bg-muted rounded text-[11px]">Ctrl</kbd>+
-            <kbd className="px-1 py-0.5 bg-muted rounded text-[11px]">Tab</kbd> to switch
+            <kbd className="erp-tab-kbd px-1 py-0.5 rounded text-[11px]">Ctrl</kbd>+
+            <kbd className="erp-tab-kbd px-1 py-0.5 rounded text-[11px]">Tab</kbd> to switch
           </span>
         </div>
         <Tooltip>
@@ -85,7 +85,7 @@ export function WindowTabsBar({ className }: WindowTabsBarProps) {
             <Button 
               variant="ghost" 
               size="sm" 
-              className="h-8 w-8 p-0" 
+              className="erp-tab-actions h-8 w-8 p-0 text-white hover:text-white" 
               onClick={toggleTabsBarVisibility}
             >
               <ChevronDown className="h-4 w-4" />
@@ -115,12 +115,12 @@ export function WindowTabsBar({ className }: WindowTabsBarProps) {
                   onClick={() => switchWindow(window.path)}
                 >
                   {index < 9 && (
-                    <kbd className="px-1 py-0.5 bg-muted rounded text-[10px] leading-none shrink-0 hidden md:inline">
+                    <kbd className="erp-tab-kbd px-1 py-0.5 rounded text-[10px] leading-none shrink-0 hidden md:inline">
                       {index + 1}
                     </kbd>
                   )}
                   <span className="erp-tab-dot" aria-hidden />
-                  <IconComponent className="h-4 w-4 shrink-0 opacity-70" />
+                  <IconComponent className="h-4 w-4 shrink-0" />
                   <span className="truncate max-w-[140px]">{window.label}</span>
                   {openWindows.length > 1 && (
                     <button
@@ -129,7 +129,7 @@ export function WindowTabsBar({ className }: WindowTabsBarProps) {
                         e.stopPropagation();
                         closeWindow(window.path);
                       }}
-                      className="erp-tab-close ml-0.5 rounded-sm hover:bg-destructive/20 hover:text-destructive p-0.5"
+                      className="erp-tab-close ml-0.5 rounded-sm hover:bg-white/20 p-0.5"
                       aria-label={`Close ${window.label}`}
                     >
                       <X className="h-3.5 w-3.5" />
@@ -142,60 +142,62 @@ export function WindowTabsBar({ className }: WindowTabsBarProps) {
           <ScrollBar orientation="horizontal" className="h-1" />
         </ScrollArea>
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="h-8 w-8 p-0 shrink-0">
-              <Plus className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56 max-h-80 overflow-y-auto">
-            {Object.entries(groupedPages).map(([category, pages], idx) => (
-              <React.Fragment key={category}>
-                {idx > 0 && <DropdownMenuSeparator />}
-                <DropdownMenuLabel className="text-xs text-muted-foreground">
-                  {category}
-                </DropdownMenuLabel>
-                {pages.map((page) => {
-                  const IconComponent = getTabIcon(page.icon);
-                  const isOpen = isWindowOpen(page.path);
-                  return (
-                    <DropdownMenuItem
-                      key={page.path}
-                      onClick={() => openWindow(page.path)}
-                      onMouseEnter={() => prefetchTabPage(page.path)}
-                      className={cn(isOpen && "bg-muted")}
-                    >
-                      <IconComponent className="h-4 w-4 mr-2" />
-                      {page.label}
-                      {isOpen && <span className="ml-auto text-xs text-muted-foreground">Open</span>}
-                    </DropdownMenuItem>
-                  );
-                })}
-              </React.Fragment>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <div className="erp-tab-actions flex items-center gap-1 shrink-0">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" className="h-8 w-8 p-0 shrink-0 text-white hover:text-white">
+                <Plus className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56 max-h-80 overflow-y-auto">
+              {Object.entries(groupedPages).map(([category, pages], idx) => (
+                <React.Fragment key={category}>
+                  {idx > 0 && <DropdownMenuSeparator />}
+                  <DropdownMenuLabel className="text-xs text-muted-foreground">
+                    {category}
+                  </DropdownMenuLabel>
+                  {pages.map((page) => {
+                    const IconComponent = getTabIcon(page.icon);
+                    const isOpen = isWindowOpen(page.path);
+                    return (
+                      <DropdownMenuItem
+                        key={page.path}
+                        onClick={() => openWindow(page.path)}
+                        onMouseEnter={() => prefetchTabPage(page.path)}
+                        className={cn(isOpen && "bg-muted")}
+                      >
+                        <IconComponent className="h-4 w-4 mr-2" />
+                        {page.label}
+                        {isOpen && <span className="ml-auto text-xs text-muted-foreground">Open</span>}
+                      </DropdownMenuItem>
+                    );
+                  })}
+                </React.Fragment>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
 
-        <div className="text-sm text-muted-foreground hidden md:block pl-2 border-l">
-          <kbd className="px-1 py-0.5 bg-muted rounded text-[11px]">Ctrl</kbd>+
-          <kbd className="px-1 py-0.5 bg-muted rounded text-[11px]">Tab</kbd>
+          <div className="erp-tab-hint text-sm hidden md:block pl-2 border-l">
+            <kbd className="erp-tab-kbd px-1 py-0.5 rounded text-[11px]">Ctrl</kbd>+
+            <kbd className="erp-tab-kbd px-1 py-0.5 rounded text-[11px]">Tab</kbd>
+          </div>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="h-8 w-8 p-0 shrink-0 text-white hover:text-white" 
+                onClick={toggleTabsBarVisibility}
+              >
+                <ChevronUp className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              <p>Collapse tabs bar</p>
+            </TooltipContent>
+          </Tooltip>
         </div>
-
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              className="h-8 w-8 p-0 shrink-0" 
-              onClick={toggleTabsBarVisibility}
-            >
-              <ChevronUp className="h-4 w-4" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="bottom">
-            <p>Collapse tabs bar</p>
-          </TooltipContent>
-        </Tooltip>
       </div>
     </div>
   );
