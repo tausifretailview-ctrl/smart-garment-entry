@@ -27,7 +27,7 @@ const Input = React.forwardRef<HTMLInputElement, React.ComponentProps<"input">>(
       <input
         type={type}
         className={cn(
-          "flex h-8 w-full rounded border border-input bg-background px-3 py-1.5 text-sm text-foreground ring-offset-background file:border-0 file:bg-transparent file:text-xs file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:border-primary disabled:cursor-not-allowed disabled:opacity-50 transition-colors",
+          "flex h-8 w-full rounded border border-input bg-background px-3 py-1.5 text-sm text-foreground ring-offset-background file:border-0 file:bg-transparent file:text-xs file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:border-primary disabled:cursor-not-allowed disabled:opacity-50 transition-[border-color,box-shadow] duration-150 ease-out hover:!border-primary",
           shouldUppercase && "uppercase",
           className,
         )}
