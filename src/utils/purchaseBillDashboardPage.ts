@@ -189,8 +189,11 @@ async function fetchPurchaseBillsDashboardPageClient(
     query = query.or("is_dc_purchase.is.null,is_dc_purchase.eq.false");
   }
 
+  // Newest/oldest by bill entry date & time (EzzyERP save time), not supplier bill_date
+  const sortAsc = params.sortOrder === "asc";
   query = query
-    .order("bill_date", { ascending: params.sortOrder === "asc" })
+    .order("bill_entry_at", { ascending: sortAsc, nullsFirst: false })
+    .order("created_at", { ascending: sortAsc, nullsFirst: false })
     .range(startIndex, endIndex);
 
   const { data, error, count } = await withAbortSignal(query, signal);

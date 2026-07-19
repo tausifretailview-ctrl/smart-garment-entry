@@ -25,7 +25,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Loader2, Receipt, Search, ChevronDown, ChevronRight, Printer, Plus, Home, Edit, Trash2, Database, ArrowUpDown, Wallet, Settings2, CheckCircle2, Clock, ShoppingCart, IndianRupee, FileText, X, RefreshCw, Barcode, Eye, CreditCard, Camera, Lock, LockOpen, ZoomIn, FileSpreadsheet, Ban } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { format, formatDistanceToNow } from "date-fns";
-import { formatPurchaseBillEntryAt } from "@/lib/purchaseBillEntryAt";
+import { formatPurchaseBillEntryAt, getPurchaseBillEntryAt } from "@/lib/purchaseBillEntryAt";
 import { ColumnDef } from "@tanstack/react-table";
 import * as XLSX from "xlsx";
 
@@ -1464,9 +1464,14 @@ const PurchaseBillDashboard = () => {
         };
       })
       .sort((a, b) => {
-        const dateA = new Date(a.bill_date).getTime();
-        const dateB = new Date(b.bill_date).getTime();
-        return sortOrder === "desc" ? dateB - dateA : dateA - dateB;
+        // Sort by bill entry date & time (when saved in EzzyERP), not supplier bill_date
+        const dateA = new Date(getPurchaseBillEntryAt(a) || 0).getTime();
+        const dateB = new Date(getPurchaseBillEntryAt(b) || 0).getTime();
+        if (dateA !== dateB) {
+          return sortOrder === "desc" ? dateB - dateA : dateA - dateB;
+        }
+        // Stable tie-break
+        return String(a.id).localeCompare(String(b.id));
       });
   }, [bills, sortOrder, purchaseReturnAdjustByBill]);
 
@@ -2061,7 +2066,9 @@ const PurchaseBillDashboard = () => {
       if (dcFilter === "dc") query = query.eq("is_dc_purchase", true);
       else if (dcFilter === "gst") query = query.or("is_dc_purchase.is.null,is_dc_purchase.eq.false");
 
-      query = query.order("bill_date", { ascending: false });
+      query = query
+        .order("bill_entry_at", { ascending: false, nullsFirst: false })
+        .order("created_at", { ascending: false, nullsFirst: false });
 
       const allBills: any[] = [];
       let from = 0;
@@ -2071,6 +2078,12 @@ const PurchaseBillDashboard = () => {
         if (data && data.length > 0) { allBills.push(...data); from += 1000; hasMore = data.length === 1000; }
         else hasMore = false;
       }
+
+      allBills.sort((a, b) => {
+        const dateA = new Date(getPurchaseBillEntryAt(a) || 0).getTime();
+        const dateB = new Date(getPurchaseBillEntryAt(b) || 0).getTime();
+        return dateB - dateA;
+      });
 
       const rows = allBills.map((b, i) => ({
         "Sr No": i + 1,
@@ -2559,8 +2572,8 @@ const PurchaseBillDashboard = () => {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="desc">Newest First (DESC)</SelectItem>
-                  <SelectItem value="asc">Oldest First (ASC)</SelectItem>
+                  <SelectItem value="desc">Newest Entry First</SelectItem>
+                  <SelectItem value="asc">Oldest Entry First</SelectItem>
                 </SelectContent>
               </Select>
               <Select value={paymentStatusFilter} onValueChange={setPaymentStatusFilter}>
