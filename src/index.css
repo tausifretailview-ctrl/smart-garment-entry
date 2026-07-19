@@ -890,20 +890,21 @@ All colors MUST be HSL.
       filter 140ms ease;
   }
 
-  /* Hover-lift — inactive pills only (active/primary must not lift) */
-  .erp-tbtn:hover:not(.erp-tbtn--primary) {
-    border-color: #c4ccd6;
-    background: var(--erp-panel-2);
+  /* Hover → same blue as active pill (140ms color crossfade) */
+  .erp-tbtn:hover {
+    background: var(--erp-accent);
+    border-color: var(--erp-accent);
+    color: #fff;
     transform: translateY(-1px) scale(1);
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+    box-shadow: 0 2px 6px rgba(37, 99, 235, 0.28);
   }
 
-  /* Press-scale — all pills including active (wins over hover-lift) */
-  .erp-tbtn:active {
-    transform: scale(0.97);
-    box-shadow: none;
+  .erp-tbtn:hover .erp-tbtn__icon {
+    opacity: 1;
+    color: #fff;
   }
 
+  /* Active route pill stays blue; slightly brighter on hover */
   .erp-tbtn--primary {
     background: var(--erp-accent);
     border-color: var(--erp-accent);
@@ -914,25 +915,34 @@ All colors MUST be HSL.
     filter: brightness(1.06);
     background: var(--erp-accent);
     border-color: var(--erp-accent);
+    color: #fff;
     transform: none;
+    box-shadow: 0 2px 6px rgba(37, 99, 235, 0.28);
+  }
+
+  /* Press-scale — all pills */
+  .erp-tbtn:active {
+    transform: scale(0.97);
     box-shadow: none;
+    filter: brightness(0.98);
   }
 
   .erp-tbtn--primary:active {
     transform: scale(0.97);
-    filter: brightness(1.06);
+    filter: brightness(0.98);
   }
 
   @media (prefers-reduced-motion: reduce) {
     .erp-tbtn {
       transition: none;
     }
-    .erp-tbtn:hover:not(.erp-tbtn--primary),
+    .erp-tbtn:hover,
     .erp-tbtn:active,
     .erp-tbtn--primary:hover,
     .erp-tbtn--primary:active {
       transform: none;
       box-shadow: none;
+      filter: none;
     }
   }
 
@@ -941,11 +951,12 @@ All colors MUST be HSL.
     height: 1.0625rem;
     opacity: 0.8;
     /* Motion on button container only — icons stay static relative to the pill */
-    transition: none;
+    transition: opacity 140ms ease, color 140ms ease;
   }
 
   .erp-tbtn--primary .erp-tbtn__icon {
     opacity: 1;
+    color: #fff;
   }
 
   .erp-toolbar-sep {
