@@ -9,6 +9,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useSettings } from "@/hooks/useSettings";
 import { useStockValidation } from "@/hooks/useStockValidation";
 import { computePosFlatDiscount } from "@/utils/posGstTotals";
+import { saleDateIsoIst, saleDateIsoIstForDay } from "@/lib/localDayBounds";
 
 export type PosDcLastBillHint = {
   invoiceNumber: string;
@@ -72,6 +73,37 @@ export interface PosDCItem {
   stockQty: number;
 }
 
+const DC_PRICE_MATCH_EPSILON = 0.005;
+
+function dcPricesMatch(a: number, b: number): boolean {
+  return Math.abs(a - b) < DC_PRICE_MATCH_EPSILON;
+}
+
+function resolveServiceVariantDefaultMrp(variant: {
+  sale_price?: number | string | null;
+  mrp?: number | string | null;
+}): number {
+  const salePrice = parseFloat(String(variant.sale_price || 0)) || 0;
+  const rawMrp = variant.mrp ? parseFloat(String(variant.mrp)) : 0;
+  return rawMrp > 0 ? rawMrp : salePrice;
+}
+
+function findDcServiceMergeIndex(
+  items: PosDCItem[],
+  params: { barcode: string; variantId: string; mrp: number; unitCost: number },
+): number {
+  const code = (params.barcode || "").trim();
+  if (!code || !params.variantId) return -1;
+  return items.findIndex(
+    (item) =>
+      item.productType === "service" &&
+      (item.barcode || "").trim() === code &&
+      item.variantId === params.variantId &&
+      dcPricesMatch(item.mrp, params.mrp) &&
+      dcPricesMatch(item.unitCost, params.unitCost),
+  );
+}
+
 export type PosDCPaymentMethod = "cash" | "upi" | "card" | "pay_later";
 
 export function usePosDeliveryChallan(options?: { enabled?: boolean }) {
@@ -110,6 +142,17 @@ export function usePosDeliveryChallan(options?: { enabled?: boolean }) {
   const selectedIndexRef = useRef(-1);
   const lastSavedPrintRef = useRef<any>(null);
   const [hasSavedForReprint, setHasSavedForReprint] = useState(false);
+  const [dcInvoiceDate, setDcInvoiceDate] = useState(() => new Date());
+  const [showQuickServiceDialog, setShowQuickServiceDialog] = useState(false);
+  const [quickServiceCode, setQuickServiceCode] = useState("");
+  const [quickServiceDialogDefaultMrp, setQuickServiceDialogDefaultMrp] = useState<number | undefined>();
+  const [quickServiceProductForAdd, setQuickServiceProductForAdd] = useState<{
+    product: any;
+    variant: any;
+  } | null>(null);
+
+  const posAllowDateChange =
+    (orgSettings as any)?.sale_settings?.pos_allow_date_change === true;
 
   useEffect(() => {
     searchResultsRef.current = searchResults;
@@ -172,6 +215,11 @@ export function usePosDeliveryChallan(options?: { enabled?: boolean }) {
     setNotes("");
     setSavedInvoiceData(null);
     setShowDropdown(false);
+    setDcInvoiceDate(new Date());
+    setShowQuickServiceDialog(false);
+    setQuickServiceCode("");
+    setQuickServiceProductForAdd(null);
+    setQuickServiceDialogDefaultMrp(undefined);
     setTimeout(() => barcodeRef.current?.focus(), 100);
   }, []);
 
@@ -283,15 +331,63 @@ export function usePosDeliveryChallan(options?: { enabled?: boolean }) {
   }, [barcodeInput, productsData, currentOrganization?.id]);
 
   const addVariantToItems = useCallback(
-    async (foundVariant: any, foundProduct: any) => {
-      const existingIdx = items.findIndex((i) => i.variantId === foundVariant.id);
-      const newQty = existingIdx >= 0 ? items[existingIdx].quantity + 1 : 1;
-      const stockCheck = await checkStock(foundVariant.id, newQty);
-      if (!stockCheck.isAvailable) {
-        toast.error(`Only ${stockCheck.availableStock} in stock`);
-        return;
+    async (
+      foundVariant: any,
+      foundProduct: any,
+      overridePrice?: { sale_price: number; mrp: number; quantity?: number },
+    ) => {
+      const isServiceProduct = foundProduct.product_type === "service";
+
+      // Service products: ask qty & MRP (same as POS), unless dialog disabled + master price set
+      if (isServiceProduct && !overridePrice) {
+        const serviceQuickEntryEnabled =
+          (orgSettings as any)?.product_settings?.service_quick_entry_dialog !== false;
+        const svcSalePrice = parseFloat(String(foundVariant.sale_price || 0)) || 0;
+        const svcMrp = resolveServiceVariantDefaultMrp(foundVariant);
+        const hasPredefinedPrice = svcMrp > 0 || svcSalePrice > 0;
+
+        if (serviceQuickEntryEnabled || !hasPredefinedPrice) {
+          setQuickServiceCode(foundVariant.barcode || foundProduct.product_name || "");
+          setQuickServiceProductForAdd({ product: foundProduct, variant: foundVariant });
+          setQuickServiceDialogDefaultMrp(svcMrp || svcSalePrice || undefined);
+          setShowQuickServiceDialog(true);
+          setBarcodeInput("");
+          setShowDropdown(false);
+          return;
+        }
+
+        overridePrice = {
+          sale_price: svcSalePrice || svcMrp,
+          mrp: svcMrp || svcSalePrice,
+        };
       }
-      const unitCost = foundVariant.sale_price || foundVariant.mrp || 0;
+
+      const unitCost =
+        overridePrice?.sale_price ?? (foundVariant.sale_price || foundVariant.mrp || 0);
+      const lineMrp = overridePrice?.mrp ?? (foundVariant.mrp || unitCost || 0);
+      const addQty = Math.max(1, overridePrice?.quantity ?? 1);
+
+      let existingIdx = -1;
+      if (isServiceProduct && overridePrice) {
+        existingIdx = findDcServiceMergeIndex(items, {
+          barcode: foundVariant.barcode || "",
+          variantId: foundVariant.id,
+          mrp: lineMrp,
+          unitCost,
+        });
+      } else {
+        existingIdx = items.findIndex((i) => i.variantId === foundVariant.id);
+      }
+
+      const newQty = existingIdx >= 0 ? items[existingIdx].quantity + addQty : addQty;
+      if (!isServiceProduct) {
+        const stockCheck = await checkStock(foundVariant.id, newQty);
+        if (!stockCheck.isAvailable) {
+          toast.error(`Only ${stockCheck.availableStock} in stock`);
+          return;
+        }
+      }
+
       if (existingIdx >= 0) {
         setItems((prev) =>
           prev.map((item, idx) =>
@@ -307,16 +403,18 @@ export function usePosDeliveryChallan(options?: { enabled?: boolean }) {
         );
       } else {
         const newItem: PosDCItem = {
-          id: `dc-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          id: isServiceProduct
+            ? `dc-service-${foundVariant.id}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
+            : `dc-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
           barcode: foundVariant.barcode || "",
           productName: foundProduct.product_name,
           size: foundVariant.size || "",
           color: foundVariant.color || "",
-          quantity: 1,
-          mrp: foundVariant.mrp || 0,
-          originalMrp: foundVariant.mrp || null,
+          quantity: addQty,
+          mrp: lineMrp,
+          originalMrp: isServiceProduct ? null : foundVariant.mrp || null,
           unitCost,
-          netAmount: unitCost,
+          netAmount: unitCost * addQty,
           productId: foundProduct.id,
           variantId: foundVariant.id,
           gstPer: foundProduct.gst_per || 0,
@@ -332,7 +430,38 @@ export function usePosDeliveryChallan(options?: { enabled?: boolean }) {
       setShowDropdown(false);
       setTimeout(() => barcodeRef.current?.focus(), 50);
     },
-    [items, checkStock],
+    [items, checkStock, orgSettings],
+  );
+
+  const closeQuickServiceDialog = useCallback(() => {
+    setShowQuickServiceDialog(false);
+    setQuickServiceCode("");
+    setQuickServiceProductForAdd(null);
+    setQuickServiceDialogDefaultMrp(undefined);
+    setTimeout(() => barcodeRef.current?.focus(), 50);
+  }, []);
+
+  const handleQuickServiceAdd = useCallback(
+    ({
+      quantity,
+      mrp,
+    }: {
+      code: string;
+      quantity: number;
+      mrp: number;
+      description?: string;
+    }) => {
+      if (!quickServiceProductForAdd) return;
+      const { product, variant } = quickServiceProductForAdd;
+      void addVariantToItems(variant, product, {
+        sale_price: mrp,
+        mrp,
+        quantity,
+      }).then(() => {
+        closeQuickServiceDialog();
+      });
+    },
+    [quickServiceProductForAdd, addVariantToItems, closeQuickServiceDialog],
   );
 
   const handleBarcodeEnter = useCallback(
@@ -486,7 +615,10 @@ export function usePosDeliveryChallan(options?: { enabled?: boolean }) {
     setPaymentMethod(method);
     setIsSavingDC(true);
     try {
-      const now = new Date().toISOString();
+      const saleDate = posAllowDateChange
+        ? saleDateIsoIstForDay(dcInvoiceDate)
+        : saleDateIsoIst();
+      const printDate = posAllowDateChange ? dcInvoiceDate : new Date();
       const gross = items.reduce((s, i) => s + lineMerchandiseGross(i), 0);
       const sub = items.reduce((s, i) => s + i.netAmount, 0);
       const sr = srAdjust || 0;
@@ -510,7 +642,7 @@ export function usePosDeliveryChallan(options?: { enabled?: boolean }) {
         .insert({
           sale_number: dcNumber,
           sale_type: "delivery_challan",
-          sale_date: now,
+          sale_date: saleDate,
           organization_id: currentOrganization.id,
           customer_id: customerId || null,
           customer_name: customerName || "Walk-in",
@@ -564,7 +696,7 @@ export function usePosDeliveryChallan(options?: { enabled?: boolean }) {
 
       const invoiceData = {
         billNo: dcNumber,
-        date: new Date(),
+        date: printDate,
         customerName: customerName || "Walk-in",
         customerAddress: "",
         customerMobile: customerPhone || "",
@@ -686,5 +818,14 @@ export function usePosDeliveryChallan(options?: { enabled?: boolean }) {
     resetChallan,
     currentDateLabel: format(new Date(), "dd/MM/yyyy  hh:mm a"),
     hasSavedForReprint,
+    posAllowDateChange,
+    dcInvoiceDate,
+    setDcInvoiceDate,
+    showQuickServiceDialog,
+    closeQuickServiceDialog,
+    quickServiceCode,
+    quickServiceProductName: quickServiceProductForAdd?.product?.product_name as string | undefined,
+    quickServiceDialogDefaultMrp,
+    handleQuickServiceAdd,
   };
 }

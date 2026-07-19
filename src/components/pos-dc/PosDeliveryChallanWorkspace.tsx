@@ -1,9 +1,14 @@
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
 import { Input } from "@/components/ui/input";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { InvoiceWrapper } from "@/components/InvoiceWrapper";
+import { QuickServiceProductDialog } from "@/components/QuickServiceProductDialog";
 import { PosDcFooter } from "@/components/pos-dc/PosDcFooter";
 import { cn } from "@/lib/utils";
-import { Minus, Plus, Search, Trash2, Truck } from "lucide-react";
+import { format } from "date-fns";
+import { CalendarIcon, Minus, Plus, Search, Trash2, Truck } from "lucide-react";
 import type { usePosDeliveryChallan } from "@/hooks/usePosDeliveryChallan";
 
 type PosDCState = ReturnType<typeof usePosDeliveryChallan>;
@@ -106,7 +111,7 @@ export function PosDeliveryChallanWorkspace({ dc, variant = "page" }: PosDeliver
 
         {isPage && (
           <div className="flex flex-wrap items-end gap-2 md:gap-3 border-b border-border/60 pb-2 shrink-0">
-            <div className="w-44 shrink-0">
+            <div className="w-40 sm:w-44 shrink-0">
               <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1 block">
                 Customer
               </label>
@@ -117,7 +122,7 @@ export function PosDeliveryChallanWorkspace({ dc, variant = "page" }: PosDeliver
                 className="h-10 text-sm uppercase"
               />
             </div>
-            <div className="w-36 shrink-0">
+            <div className="w-32 sm:w-36 shrink-0">
               <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1 block">
                 Phone
               </label>
@@ -128,7 +133,7 @@ export function PosDeliveryChallanWorkspace({ dc, variant = "page" }: PosDeliver
                 className="h-10 text-sm"
               />
             </div>
-            <div className="flex-1 min-w-[240px]">
+            <div className="w-full max-w-[16rem] sm:max-w-[18rem] min-w-[11rem] shrink">
               <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1 block">
                 Barcode / Search
               </label>
@@ -136,7 +141,7 @@ export function PosDeliveryChallanWorkspace({ dc, variant = "page" }: PosDeliver
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none z-10" />
                 <Input
                   ref={dc.barcodeRef}
-                  placeholder="Scan barcode or search product..."
+                  placeholder="Scan barcode or search..."
                   value={dc.barcodeInput}
                   onChange={(e) => dc.setBarcodeInput(e.target.value)}
                   onKeyDown={dc.handleBarcodeEnter}
@@ -151,7 +156,35 @@ export function PosDeliveryChallanWorkspace({ dc, variant = "page" }: PosDeliver
                 <SearchDropdown dc={dc} />
               </div>
             </div>
-            <div className="shrink-0 text-right pb-0.5">
+            {dc.posAllowDateChange && (
+              <div className="shrink-0">
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1 block">
+                  DC Date
+                </label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-10 px-2.5 flex items-center gap-1.5 text-xs font-semibold whitespace-nowrap"
+                      title="Delivery challan date"
+                    >
+                      <CalendarIcon className="h-3.5 w-3.5" />
+                      <span>{format(dc.dcInvoiceDate, "dd MMM yyyy")}</span>
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0 z-[80]" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={dc.dcInvoiceDate}
+                      onSelect={(d) => d && dc.setDcInvoiceDate(d)}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+            )}
+            <div className="shrink-0 text-right pb-0.5 ml-auto">
               <div className="text-xs text-muted-foreground uppercase">DC No</div>
               <div className="font-mono font-bold text-lg text-orange-700">{dc.dcNumber || "…"}</div>
             </div>
@@ -172,11 +205,11 @@ export function PosDeliveryChallanWorkspace({ dc, variant = "page" }: PosDeliver
               onChange={(e) => dc.setCustomerPhone(e.target.value)}
               className="w-36 h-9 text-sm"
             />
-            <div className="flex-1 relative min-w-[200px]">
+            <div className="relative w-full max-w-[16rem] min-w-[11rem]">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none z-10" />
               <Input
                 ref={dc.barcodeRef}
-                placeholder="Scan barcode or search product..."
+                placeholder="Scan barcode or search..."
                 value={dc.barcodeInput}
                 onChange={(e) => dc.setBarcodeInput(e.target.value)}
                 onKeyDown={dc.handleBarcodeEnter}
@@ -184,10 +217,33 @@ export function PosDeliveryChallanWorkspace({ dc, variant = "page" }: PosDeliver
                   if (dc.searchResults.length > 0) dc.setShowDropdown(true);
                 }}
                 onBlur={() => setTimeout(() => dc.setShowDropdown(false), 150)}
-                className="flex-1 h-9 text-sm pl-8"
+                className="h-9 text-sm pl-8"
               />
               <SearchDropdown dc={dc} />
             </div>
+            {dc.posAllowDateChange && (
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-9 px-2 flex items-center gap-1 text-xs font-semibold whitespace-nowrap"
+                    title="Delivery challan date"
+                  >
+                    <CalendarIcon className="h-3.5 w-3.5" />
+                    <span>{format(dc.dcInvoiceDate, "dd MMM yyyy")}</span>
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0 z-[80]" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={dc.dcInvoiceDate}
+                    onSelect={(d) => d && dc.setDcInvoiceDate(d)}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
+            )}
           </div>
         )}
 
@@ -316,6 +372,17 @@ export function PosDeliveryChallanWorkspace({ dc, variant = "page" }: PosDeliver
           </div>
         )}
       </div>
+
+      <QuickServiceProductDialog
+        open={dc.showQuickServiceDialog}
+        onOpenChange={(open) => {
+          if (!open) dc.closeQuickServiceDialog();
+        }}
+        serviceCode={dc.quickServiceCode}
+        productName={dc.quickServiceProductName}
+        defaultMrp={dc.quickServiceDialogDefaultMrp}
+        onAdd={dc.handleQuickServiceAdd}
+      />
     </>
   );
 }
