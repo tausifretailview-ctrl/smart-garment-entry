@@ -80,7 +80,22 @@ export interface ProfitDataset {
 
 const BLANK = "(Blank)";
 
-/** Per sale_item: gross, discounts, and net (includes round-off; matches net_after_discount on save). */
+export type SaleRevenueMeta = {
+  gross_amount: number;
+  /** Item-level discount total on sale header (POS `discount_amount`). */
+  discount_amount: number;
+  flat_discount_amount: number;
+  points_redeemed_amount: number;
+  /** Credit note / sale-return adjust — reduces net like POS "After disc/SR". */
+  sale_return_adjust: number;
+};
+
+/**
+ * Per sale_item revenue.
+ * Discounts match POS Disc: header discount_amount + flat + points only (never round-off / SR / negative).
+ * Gross follows MRP×qty (same basis as POS Sale Amount / sales.gross_amount).
+ * Net follows net_after_discount (incl. round-off), then caller subtracts SR share.
+ */
 export function computeSaleLineRevenue(
   item: {
     quantity: number;
@@ -93,32 +108,41 @@ export function computeSaleLineRevenue(
     net_after_discount?: number | null;
     sale_id: string;
   },
-  saleMeta: { gross_amount: number; flat_discount_amount: number } | undefined,
+  saleMeta: SaleRevenueMeta | undefined,
 ): { grossLine: number; flatShare: number; roundOffShare: number; netLine: number; lineDiscount: number } {
   const qty = Number(item.quantity) || 0;
   const lineTotal = Number(item.line_total) || 0;
   const unitP = Number(item.unit_price) || 0;
   const mrp = Number(item.mrp) || 0;
-  const dPct = Number(item.discount_percent) || 0;
 
+  // POS Sale Amount uses Σ(MRP×qty). Fall back to unit / line_total when MRP missing.
   let lineGross = qty * (mrp > 0 ? mrp : unitP);
-  if (mrp <= 0 && dPct > 0 && dPct < 100) {
-    const reconstructed = lineTotal / (1 - dPct / 100);
-    if (Math.abs(reconstructed) > Math.abs(lineGross) && Number.isFinite(reconstructed)) {
-      lineGross = Math.round(reconstructed * 100) / 100;
-    }
+  if (!(lineGross > 0) && lineTotal !== 0) {
+    lineGross = lineTotal;
   }
 
-  const lineDiscount = lineGross - lineTotal;
+  const saleGross = saleMeta?.gross_amount ?? 0;
+  const headerItemDisc = Math.max(0, Number(saleMeta?.discount_amount) || 0);
+  const headerFlat = Math.max(0, Number(saleMeta?.flat_discount_amount) || 0);
+  const headerPoints = Math.max(0, Number(saleMeta?.points_redeemed_amount) || 0);
+
+  // Allocate POS header Disc only — never invent MRP−rate gaps when discount_amount is 0.
+  const mrpWeight = saleGross > 0 && lineGross > 0 ? lineGross / saleGross : 0;
+  const lineDiscount = headerItemDisc > 0 && mrpWeight > 0 ? headerItemDisc * mrpWeight : 0;
 
   let flatShare: number;
-  if (item.discount_share != null && Number.isFinite(Number(item.discount_share))) {
+  if (
+    item.discount_share != null &&
+    Number.isFinite(Number(item.discount_share)) &&
+    Number(item.discount_share) >= 0
+  ) {
     flatShare = Number(item.discount_share);
   } else {
-    const g = saleMeta?.gross_amount ?? 0;
-    const flat = saleMeta?.flat_discount_amount ?? 0;
-    flatShare = g > 0 && flat !== 0 ? (lineTotal / g) * flat : 0;
+    const flatWeight = saleGross > 0 ? Math.max(0, lineTotal) / saleGross : 0;
+    flatShare = headerFlat > 0 && flatWeight > 0 ? headerFlat * flatWeight : 0;
   }
+  const pointsWeight = saleGross > 0 ? Math.max(0, lineTotal) / saleGross : 0;
+  const pointsShare = headerPoints > 0 && pointsWeight > 0 ? headerPoints * pointsWeight : 0;
 
   const roundOffShare =
     item.round_off_share != null && Number.isFinite(Number(item.round_off_share))
@@ -131,8 +155,16 @@ export function computeSaleLineRevenue(
   } else {
     netLine = lineTotal - flatShare + roundOffShare;
   }
+  // Points reduce collectible net (included in POS Disc).
+  netLine -= pointsShare;
 
-  return { grossLine: lineGross, flatShare, roundOffShare, netLine, lineDiscount };
+  return {
+    grossLine: lineGross,
+    flatShare: flatShare + pointsShare,
+    roundOffShare,
+    netLine,
+    lineDiscount,
+  };
 }
 
 type VariantCostMaps = {
@@ -232,7 +264,7 @@ export async function loadProfitDataset(
   const { data: sales, error: salesError } = await supabase
     .from("sales")
     .select(
-      "id, sale_number, sale_date, customer_id, customer_name, salesman, payment_method, gross_amount, flat_discount_amount",
+      "id, sale_number, sale_date, customer_id, customer_name, salesman, payment_method, gross_amount, discount_amount, flat_discount_amount, points_redeemed_amount, sale_return_adjust",
     )
     .eq("organization_id", organizationId)
     .gte("sale_date", fromDate)
@@ -253,12 +285,19 @@ export async function loadProfitDataset(
     salesman: string | null;
     payment_method: string;
     gross_amount: number;
+    discount_amount: number | null;
     flat_discount_amount: number;
+    points_redeemed_amount: number | null;
+    sale_return_adjust: number | null;
   };
 
   const saleRows = (sales || []) as SaleRow[];
   const saleById = new Map(saleRows.map((s) => [s.id, s]));
   const saleByNumber = new Map(saleRows.map((s) => [s.sale_number, s]));
+  /** Sales that already reduced net via sale_return_adjust — skip return revenue (avoid double count). */
+  const saleIdsWithSrAdjust = new Set(
+    saleRows.filter((s) => Number(s.sale_return_adjust) > 0).map((s) => s.id),
+  );
 
   const saleItems = saleRows.length ? await fetchAllSaleItems(saleRows.map((s) => s.id)) : [];
 
@@ -362,6 +401,13 @@ export async function loadProfitDataset(
     return { id: null as string | null, name: "Unknown Supplier" };
   };
 
+  // Pre-sum line_totals per sale for SR allocation weight
+  const lineTotalBySaleId = new Map<string, number>();
+  saleItems.forEach((item: any) => {
+    const sid = item.sale_id as string;
+    lineTotalBySaleId.set(sid, (lineTotalBySaleId.get(sid) || 0) + (Number(item.line_total) || 0));
+  });
+
   saleItems.forEach((item: any) => {
     const sale = saleById.get(item.sale_id);
     const variant = maps.variantMap.get(item.variant_id);
@@ -374,21 +420,30 @@ export async function loadProfitDataset(
     const lineTotal = Number(item.line_total) || 0;
     if (qty === 0 && lineTotal === 0) return;
 
-    const meta = sale
+    const meta: SaleRevenueMeta | undefined = sale
       ? {
           gross_amount: Number(sale.gross_amount) || 0,
+          discount_amount: Number(sale.discount_amount) || 0,
           flat_discount_amount: Number(sale.flat_discount_amount) || 0,
+          points_redeemed_amount: Number(sale.points_redeemed_amount) || 0,
+          sale_return_adjust: Number(sale.sale_return_adjust) || 0,
         }
       : undefined;
     const { grossLine, flatShare, netLine, lineDiscount } = computeSaleLineRevenue(item, meta);
     const { cogs, purPrice } = lineCogs(qty, item.variant_id, productType, maps);
     const supplier = resolveSupplier(item.variant_id, productType);
 
+    // POS Net Sale = after disc/SR — allocate sale_return_adjust onto lines.
+    const srAdjust = Math.max(0, Number(sale?.sale_return_adjust) || 0);
+    const saleLinesTotal = lineTotalBySaleId.get(item.sale_id) || 0;
+    const srShare =
+      srAdjust > 0 && saleLinesTotal > 0 ? (lineTotal / saleLinesTotal) * srAdjust : 0;
+
     lines.push({
       qty,
       grossSales: grossLine,
-      totalDiscounts: lineDiscount + flatShare,
-      netSales: netLine,
+      totalDiscounts: Math.max(0, lineDiscount + flatShare),
+      netSales: netLine - srShare,
       totalCOGS: cogs,
       zeroCostQty: !isService && purPrice === 0 && qty > 0 ? qty : 0,
       sign: 1,
@@ -434,11 +489,16 @@ export async function loadProfitDataset(
     const { cogs, purPrice } = lineCogs(qty, item.variant_id, productType, maps);
     const supplier = resolveSupplier(item.variant_id, productType);
 
+    // If linked sale already reduced net via sale_return_adjust, only reverse COGS/qty.
+    const revenueAlreadyInSr =
+      !!linkedSale && saleIdsWithSrAdjust.has(linkedSale.id);
+    const revenueSign = revenueAlreadyInSr ? 0 : -1;
+
     lines.push({
       qty: -qty,
-      grossSales: -lineTotal,
+      grossSales: revenueSign * lineTotal,
       totalDiscounts: 0,
-      netSales: -lineTotal,
+      netSales: revenueSign * lineTotal,
       totalCOGS: -cogs,
       zeroCostQty: !isService && purPrice === 0 && qty > 0 ? -qty : 0,
       sign: -1,

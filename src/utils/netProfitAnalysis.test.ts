@@ -36,8 +36,35 @@ function line(partial: Partial<ProfitLine> & Pick<ProfitLine, "netSales" | "tota
 }
 
 describe("computeSaleLineRevenue", () => {
-  it("includes round-off in net (matches save: line − flat + round-off)", () => {
-    const { netLine, lineDiscount, flatShare } = computeSaleLineRevenue(
+  it("does not invent discounts from MRP vs line_total when POS header Disc is 0", () => {
+    const { lineDiscount, flatShare, netLine, grossLine } = computeSaleLineRevenue(
+      {
+        quantity: 1,
+        line_total: 500,
+        unit_price: 500,
+        mrp: 600,
+        discount_percent: 0,
+        discount_share: 0,
+        round_off_share: 0,
+        net_after_discount: 500,
+        sale_id: "s1",
+      },
+      {
+        gross_amount: 600,
+        discount_amount: 0,
+        flat_discount_amount: 0,
+        points_redeemed_amount: 0,
+        sale_return_adjust: 0,
+      },
+    );
+    expect(grossLine).toBe(600);
+    expect(lineDiscount).toBe(0);
+    expect(flatShare).toBe(0);
+    expect(netLine).toBe(500);
+  });
+
+  it("allocates POS header discount_amount + flat like POS Disc", () => {
+    const { lineDiscount, flatShare, netLine } = computeSaleLineRevenue(
       {
         quantity: 1,
         line_total: 450,
@@ -49,15 +76,22 @@ describe("computeSaleLineRevenue", () => {
         net_after_discount: 402,
         sale_id: "s1",
       },
-      { gross_amount: 450, flat_discount_amount: 50 },
+      {
+        // POS gross_amount = Σ(MRP×qty)
+        gross_amount: 500,
+        discount_amount: 50,
+        flat_discount_amount: 50,
+        points_redeemed_amount: 0,
+        sale_return_adjust: 0,
+      },
     );
-    expect(netLine).toBe(402);
     expect(lineDiscount).toBe(50);
     expect(flatShare).toBe(50);
+    expect(netLine).toBe(402);
   });
 
-  it("falls back to line − flat + round-off when net_after_discount missing", () => {
-    const { netLine } = computeSaleLineRevenue(
+  it("includes round-off in net via net_after_discount; never as discount", () => {
+    const { netLine, lineDiscount, flatShare } = computeSaleLineRevenue(
       {
         quantity: 1,
         line_total: 400,
@@ -66,11 +100,44 @@ describe("computeSaleLineRevenue", () => {
         discount_percent: 0,
         discount_share: 0,
         round_off_share: 1.5,
+        net_after_discount: 401.5,
         sale_id: "s1",
       },
-      { gross_amount: 400, flat_discount_amount: 0 },
+      {
+        gross_amount: 400,
+        discount_amount: 0,
+        flat_discount_amount: 0,
+        points_redeemed_amount: 0,
+        sale_return_adjust: 0,
+      },
     );
     expect(netLine).toBe(401.5);
+    expect(lineDiscount + flatShare).toBe(0);
+  });
+
+  it("ignores negative discount_share so S/R cannot appear as negative Disc", () => {
+    const { flatShare, lineDiscount } = computeSaleLineRevenue(
+      {
+        quantity: 1,
+        line_total: 1000,
+        unit_price: 1000,
+        mrp: 1000,
+        discount_percent: 0,
+        discount_share: -9950,
+        round_off_share: 0,
+        net_after_discount: 1000,
+        sale_id: "s1",
+      },
+      {
+        gross_amount: 1000,
+        discount_amount: 0,
+        flat_discount_amount: 0,
+        points_redeemed_amount: 0,
+        sale_return_adjust: 9950,
+      },
+    );
+    expect(flatShare).toBe(0);
+    expect(lineDiscount).toBe(0);
   });
 });
 
