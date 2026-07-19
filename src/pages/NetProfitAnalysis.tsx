@@ -151,9 +151,11 @@ function ProfitBreakdownTable({
 
   const renderMoney = (value: number, accent?: ColumnDef["accent"]) => {
     if (accent === "orange") {
+      // Discounts are non-negative; never prepend minus onto an already-negative formatCurrency.
+      const disc = Math.max(0, Number(value) || 0);
       return (
         <span className={cn(tableMoneyClass, "text-orange-600 dark:text-orange-400")}>
-          −{formatCurrency(value)}
+          {disc > 0 ? `−${formatCurrency(disc)}` : formatCurrency(0)}
         </span>
       );
     }
@@ -758,9 +760,9 @@ export default function NetProfitAnalysis() {
                 </span>
               </div>
               <p className="shrink-0 px-3 py-1.5 text-sm text-muted-foreground print:hidden">
-                Net sales include round-off. Refunds/returns in the period reduce sales &amp; COGS.
-                Services are included (COGS 0). Discounts = item + bill flat. Generate once — tabs
-                re-group in memory.
+                Discounts match POS Disc (item + bill flat + points) — not round-off or S/R adjust.
+                Net sales include round-off and subtract sale-return adjust (same as POS Net after
+                disc/SR). Services included (COGS 0). Generate once — tabs re-group in memory.
               </p>
 
               <ProfitBreakdownTable
