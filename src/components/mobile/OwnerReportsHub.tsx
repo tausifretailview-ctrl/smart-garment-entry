@@ -55,7 +55,6 @@ const REPORT_IDS = new Set(REPORTS.map((r) => r.id));
 
 type QuickLink =
   | { label: string; icon: React.ElementType; color: string; report: ReportType }
-  | { label: string; icon: React.ElementType; color: string; path: string }
   | { label: string; icon: React.ElementType; color: string; desktopPath: string; desktopLabel: string };
 
 /** One-tap shortcuts — mobile-native reports first; desktop-only shows a prompt. */
@@ -65,12 +64,6 @@ const QUICK_LINKS: QuickLink[] = [
   { label: "Supplier Balance", icon: Building2, color: "text-orange-600 bg-orange-50 dark:bg-orange-950/40", report: "supplier-balance" },
   { label: "Stock Report", icon: Package, color: "text-violet-600 bg-violet-50 dark:bg-violet-950/40", report: "size-wise-stock" },
   { label: "Profit & Loss", icon: PieChart, color: "text-blue-600 bg-blue-50 dark:bg-blue-950/40", report: "profit-loss" },
-  {
-    label: "Net Profit",
-    icon: TrendingUp,
-    color: "text-emerald-700 bg-emerald-50 dark:bg-emerald-950/40",
-    path: "/net-profit-analysis",
-  },
   {
     label: "Daily Cashier",
     icon: Calculator,
@@ -114,10 +107,6 @@ export const OwnerReportsHub = () => {
       openReport(link.report);
       return;
     }
-    if ("path" in link) {
-      orgNavigate(link.path);
-      return;
-    }
     setDesktopPrompt({ path: link.desktopPath, label: link.desktopLabel });
   };
 
@@ -140,13 +129,13 @@ export const OwnerReportsHub = () => {
     >
       <PullToRefreshIndicator visible={isRefreshing} />
       {/* Header */}
-      <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-md border-b border-border px-2.5 py-3 sm:px-3">
+      <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-md border-b border-border px-4 py-3">
         <h1 className="text-lg font-bold text-foreground">📊 Reports</h1>
         <p className="text-xs text-muted-foreground">Tap a report to view details</p>
       </div>
 
       {/* Quick links */}
-      <div className="px-2 pt-3 pb-1 sm:px-2.5">
+      <div className="px-4 pt-4 pb-1">
         <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-2.5">
           Quick access
         </p>
@@ -177,30 +166,14 @@ export const OwnerReportsHub = () => {
       </div>
 
       {/* All reports */}
-      <div className="px-2 pt-3 pb-1 sm:px-2.5">
+      <div className="px-4 pt-3 pb-1">
         <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-2.5">
           All reports
         </p>
       </div>
 
       {/* Report Cards */}
-      <div className="px-2 pb-4 space-y-2.5 sm:px-2.5">
-        <button
-          type="button"
-          onClick={() => orgNavigate("/net-profit-analysis")}
-          className="w-full flex items-center gap-3 p-3.5 bg-card rounded-xl border border-border/50 shadow-sm active:scale-[0.98] transition-all touch-manipulation text-left"
-        >
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-emerald-700 bg-emerald-50 dark:bg-emerald-950/40">
-            <TrendingUp className="h-5 w-5" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold text-foreground">Net Profit Analysis</p>
-            <p className="truncate text-[11px] text-muted-foreground">
-              Supplier, product, bill, customer, salesman & field tabs
-            </p>
-          </div>
-          <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
-        </button>
+      <div className="px-4 pb-4 space-y-2.5">
         {REPORTS.map((r) => {
           const Icon = r.icon;
           return (
