@@ -9533,7 +9533,7 @@ export type Database = {
       }
       soft_delete_sale: {
         Args: { p_sale_id: string; p_user_id: string }
-        Returns: undefined
+        Returns: Json
       }
       soft_delete_sale_order: {
         Args: { p_order_id: string; p_user_id: string }

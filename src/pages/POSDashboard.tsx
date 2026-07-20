@@ -12,6 +12,7 @@ import {
   resolvePosDashboardQueryDates,
   type PosDashboardSummaryStats,
 } from "@/utils/posDashboardSales";
+import { invalidateStockReportQueries } from "@/utils/invalidateDashboardQueries";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { supabase } from "@/integrations/supabase/client";
 import { deleteLedgerEntries } from "@/lib/customerLedger";
@@ -978,8 +979,28 @@ const POSDashboard = () => {
 
     setIsDeleting(true);
     try {
-      const success = await softDelete("sales", saleToDelete.id);
+      let qtyRestored = 0;
+      const success = await softDelete("sales", saleToDelete.id, {
+        onSaleStockRestored: (info) => {
+          qtyRestored = info.qtyRestored;
+        },
+      });
       if (!success) throw new Error("Failed to delete sale");
+
+      // Confirm soft-delete stuck (stock only reverses when deleted_at is set)
+      if (currentOrganization?.id) {
+        const { data: checkRow } = await supabase
+          .from("sales")
+          .select("id, deleted_at")
+          .eq("id", saleToDelete.id)
+          .eq("organization_id", currentOrganization.id)
+          .maybeSingle();
+        if (checkRow && checkRow.deleted_at == null) {
+          throw new Error(
+            "Sale is still active — delete did not complete. Stock was not reversed. Try again or check permissions.",
+          );
+        }
+      }
 
       if (saleToDelete?.sale_number && currentOrganization?.id) {
         await deleteLedgerEntries({ organizationId: currentOrganization.id, voucherNo: saleToDelete.sale_number, voucherTypes: ['SALE', 'RECEIPT'] });
@@ -987,9 +1008,13 @@ const POSDashboard = () => {
 
       toast({
         title: "Success",
-        description: `Sale ${saleToDelete.sale_number} moved to recycle bin`,
+        description:
+          qtyRestored > 0
+            ? `Sale ${saleToDelete.sale_number} moved to recycle bin. Stock restored: ${qtyRestored} qty.`
+            : `Sale ${saleToDelete.sale_number} moved to recycle bin.`,
       });
 
+      invalidateStockReportQueries(queryClient, currentOrganization?.id);
       refreshPosDashboard();
     } catch (error: any) {
       console.error("Error deleting sale:", error);
@@ -1023,9 +1048,29 @@ const POSDashboard = () => {
     setIsDeleting(true);
     try {
       const salesToDelete = Array.from(selectedSales);
-      const count = await bulkSoftDelete("sales", salesToDelete);
+      let totalQtyRestored = 0;
+      let count = 0;
+      for (const sid of salesToDelete) {
+        const ok = await softDelete("sales", sid, {
+          onSaleStockRestored: (info) => {
+            totalQtyRestored += info.qtyRestored;
+          },
+        });
+        if (ok) count++;
+      }
 
       if (currentOrganization?.id) {
+        const { data: stillActive } = await supabase
+          .from("sales")
+          .select("id")
+          .in("id", salesToDelete)
+          .eq("organization_id", currentOrganization.id)
+          .is("deleted_at", null);
+        if (stillActive && stillActive.length > 0) {
+          throw new Error(
+            `${stillActive.length} sale(s) are still active — delete incomplete. Stock may be only partly restored. Refresh and retry failed bills.`,
+          );
+        }
         for (const sid of salesToDelete) {
           const s: any = sales.find((x: any) => x.id === sid);
           if (s?.sale_number) {
@@ -1036,9 +1081,13 @@ const POSDashboard = () => {
 
       toast({
         title: "Success",
-        description: `${count} sale(s) moved to recycle bin`,
+        description:
+          totalQtyRestored > 0
+            ? `${count} sale(s) moved to recycle bin. Stock restored: ${totalQtyRestored} qty.`
+            : `${count} sale(s) moved to recycle bin`,
       });
 
+      invalidateStockReportQueries(queryClient, currentOrganization?.id);
       setSelectedSales(new Set());
       setShowBulkDeleteDialog(false);
       refreshPosDashboard();
@@ -1049,6 +1098,8 @@ const POSDashboard = () => {
         description: error.message || "Failed to delete sales",
         variant: "destructive",
       });
+      invalidateStockReportQueries(queryClient, currentOrganization?.id);
+      refreshPosDashboard();
     } finally {
       setIsDeleting(false);
     }
@@ -1112,6 +1163,9 @@ const POSDashboard = () => {
       setSelectedSales(new Set());
       setShowBulkCancelDialog(false);
       setBulkCancelReason('');
+      if (successCount > 0) {
+        invalidateStockReportQueries(queryClient, currentOrganization?.id);
+      }
       refreshPosDashboard();
     } catch (error: any) {
       toast({ title: 'Error', description: error.message || 'Failed to cancel sales', variant: 'destructive' });

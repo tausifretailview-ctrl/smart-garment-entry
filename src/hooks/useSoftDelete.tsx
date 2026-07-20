@@ -43,6 +43,13 @@ export interface StockDependency {
 export type SoftDeleteOptions = {
   /** Called after purchase bill delete with zero-stock product count (review hint). */
   onPurchaseBillZeroStock?: (count: number) => void;
+  /** Called after sale soft-delete with stock qty restored to product_variants. */
+  onSaleStockRestored?: (info: {
+    qtyRestored: number;
+    lines: number;
+    saleNumber?: string;
+    alreadyDeleted?: boolean;
+  }) => void;
 };
 
 export interface BulkHardDeleteResult {
@@ -82,13 +89,37 @@ export function useSoftDelete() {
           break;
         }
 
-        case "sales":
-          const { error: saleError } = await supabase.rpc("soft_delete_sale", {
-            p_sale_id: id,
-            p_user_id: user.id,
-          });
+        case "sales": {
+          const { data: saleDeleteResult, error: saleError } = await supabase.rpc(
+            "soft_delete_sale",
+            {
+              p_sale_id: id,
+              p_user_id: user.id,
+            },
+          );
           if (saleError) throw saleError;
+          const result =
+            saleDeleteResult && typeof saleDeleteResult === "object"
+              ? (saleDeleteResult as {
+                  success?: boolean;
+                  error?: string;
+                  qty_restored?: number;
+                  lines?: number;
+                  sale_number?: string;
+                  already_deleted?: boolean;
+                })
+              : null;
+          if (result && result.success === false) {
+            throw new Error(result.error || "Failed to delete sale");
+          }
+          options?.onSaleStockRestored?.({
+            qtyRestored: Number(result?.qty_restored ?? 0),
+            lines: Number(result?.lines ?? 0),
+            saleNumber: result?.sale_number,
+            alreadyDeleted: Boolean(result?.already_deleted),
+          });
           break;
+        }
 
         case "sale_returns":
           const { error: srError } = await supabase.rpc("soft_delete_sale_return", {

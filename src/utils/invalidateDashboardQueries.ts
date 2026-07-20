@@ -19,6 +19,38 @@ export function invalidateStatusBarSummary(queryClient: QueryClient, organizatio
   });
 }
 
+/**
+ * Stock Report / Product-wise stock KPI cards are cached (5 min, no refetchOnMount)
+ * so tab-return stays snappy. After sale delete/cancel/purchase that changes stock_qty,
+ * invalidate so cards re-read SUM(product_variants.stock_qty).
+ */
+export function invalidateStockReportQueries(
+  queryClient: QueryClient,
+  organizationId?: string,
+) {
+  const opts = { refetchType: "all" as const };
+  void queryClient.invalidateQueries({
+    queryKey: organizationId
+      ? ["stock-report-global-totals", organizationId]
+      : ["stock-report-global-totals"],
+    ...opts,
+  });
+  void queryClient.invalidateQueries({ queryKey: ["stock-report-filtered-totals"], ...opts });
+  void queryClient.invalidateQueries({ queryKey: ["stock-report"], ...opts });
+  void queryClient.invalidateQueries({
+    queryKey: organizationId
+      ? ["stock-report-filter-options", organizationId]
+      : ["stock-report-filter-options"],
+    ...opts,
+  });
+  // Product Name Wise Closing Stock + related
+  void queryClient.invalidateQueries({ queryKey: ["item-wise-stock"], ...opts });
+  void queryClient.invalidateQueries({ queryKey: ["item-wise-stock-totals"], ...opts });
+  void queryClient.invalidateQueries({ queryKey: ["item-stock-filters"], ...opts });
+  void queryClient.invalidateQueries({ queryKey: ["product-wise-stock"], ...opts });
+  invalidateStatusBarSummary(queryClient, organizationId);
+}
+
 /** Purchase bill list + summary tiles + shared dashboard stats. */
 export function invalidatePurchaseDashboardQueries(
   queryClient: QueryClient,
@@ -66,7 +98,7 @@ export function invalidateAfterSaleSave(
   } else {
     invalidateSalesQueriesNow(queryClient, organizationId);
   }
-  invalidateStatusBarSummary(queryClient, organizationId);
+  invalidateStockReportQueries(queryClient, organizationId);
 }
 
 /** After customer receipt / advance / delete that affects invoice settlement. */

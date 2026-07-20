@@ -1,12 +1,13 @@
 import { useEffect, useState, useMemo, useCallback, useRef, type ReactNode } from "react";
-import { useQuery, keepPreviousData } from "@tanstack/react-query";
+import { useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { useSearchParams, useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Package, Search, Filter, ChevronDown, ChevronUp, Grid3X3, IndianRupee, ChevronLeft, ChevronRight, FileSpreadsheet, FileText, Loader2, Printer, ArrowLeft } from "lucide-react";
+import { Package, Search, Filter, ChevronDown, ChevronUp, Grid3X3, IndianRupee, ChevronLeft, ChevronRight, FileSpreadsheet, FileText, Loader2, Printer, ArrowLeft, RefreshCcw } from "lucide-react";
+import { invalidateStockReportQueries } from "@/utils/invalidateDashboardQueries";
 import { SkeletonGradientKpiStrip } from "@/components/skeletons/SkeletonKpiCards";
 import { SkeletonMobileListRows, SkeletonTableRows } from "@/components/skeletons/SkeletonTableRows";
 import { STOCK_REPORT_TABLE_SKELETON_COLUMNS } from "@/components/skeletons/dashboardSkeletonPresets";
@@ -342,6 +343,7 @@ function stockItemMatchesSearch(item: StockItem, query: string): boolean {
 export default function StockReport() {
   const { currentOrganization } = useOrganization();
   const { orgNavigate } = useOrgNavigation();
+  const queryClient = useQueryClient();
   const fieldLabels = useProductFieldLabels();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -349,6 +351,7 @@ export default function StockReport() {
   const [loading, setLoading] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
   const [excelExporting, setExcelExporting] = useState(false);
+  const [refreshingTotals, setRefreshingTotals] = useState(false);
   
   // Global totals for default cards (loaded on mount)
   const [globalTotals, setGlobalTotals] = useState({
@@ -1746,6 +1749,36 @@ export default function StockReport() {
             </div>
           </div>
           <div className="flex items-center gap-1.5 flex-wrap shrink-0">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9 text-sm border-slate-200 gap-1.5"
+              disabled={refreshingTotals || globalTotals.isLoading}
+              title="Reload Total Stock / value cards from live stock_qty"
+              onClick={async () => {
+                if (!currentOrganization?.id) return;
+                setRefreshingTotals(true);
+                try {
+                  invalidateStockReportQueries(queryClient, currentOrganization.id);
+                  await queryClient.refetchQueries({
+                    queryKey: ["stock-report-global-totals", currentOrganization.id],
+                    type: "all",
+                  });
+                  toast.success("Stock totals refreshed");
+                } catch (err: unknown) {
+                  toast.error(err instanceof Error ? err.message : "Failed to refresh totals");
+                } finally {
+                  setRefreshingTotals(false);
+                }
+              }}
+            >
+              {refreshingTotals ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCcw className="h-4 w-4" />
+              )}
+              Refresh
+            </Button>
             <Button
               variant="outline"
               size="sm"
