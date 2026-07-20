@@ -5538,6 +5538,17 @@ export default function BarcodePrinting() {
               <span className="mx-1.5 opacity-40">|</span>
               Labels: <span className="font-bold text-emerald-300">{totalLabelQty}</span>
             </p>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-8 shrink-0 gap-1.5 border-white/25 bg-white/10 text-xs font-semibold text-white hover:bg-destructive hover:text-white hover:border-destructive"
+              onClick={handleClearAll}
+              title="Remove all products from the print list"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              Clear All
+            </Button>
           </div>
           <div className="overflow-auto flex-1 min-h-0">
           <Table className="barcode-products-table">
