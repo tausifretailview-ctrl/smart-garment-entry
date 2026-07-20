@@ -185,8 +185,8 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
     notes && notes.trim() && !/^\d+$/.test(notes.trim()) ? notes.trim() : "";
   /** Default SN rows on preprinted — stretch to fill space above totals (no blank gap). */
   const PREPRINTED_DEFAULT_ROWS = isA4 ? 12 : 8;
-  /** A5 Retail ERP: fixed 10 SN lines so QR/footer stay on the page. */
-  const A5_RETAIL_SN_ROWS = 10;
+  /** A5 Retail ERP: fixed 13 SN lines per page. */
+  const A5_RETAIL_SN_ROWS = 13;
   const MAX_ITEMS_PER_PAGE = isA4 ? 20 : isPreprintedA5 ? 10 : isA5Retail ? A5_RETAIL_SN_ROWS : 12;
   const TARGET_ROWS = isPreprintedAny
     ? Math.max(items.length, PREPRINTED_DEFAULT_ROWS)
