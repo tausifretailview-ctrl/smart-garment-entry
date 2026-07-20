@@ -1324,6 +1324,9 @@ export type Database = {
           created_by: string | null
           customer_id: string
           id: string
+          materialized_at: string | null
+          materialized_by: string | null
+          materialized_voucher_ids: string[] | null
           new_advance: number
           new_outstanding: number
           organization_id: string
@@ -1339,6 +1342,9 @@ export type Database = {
           created_by?: string | null
           customer_id: string
           id?: string
+          materialized_at?: string | null
+          materialized_by?: string | null
+          materialized_voucher_ids?: string[] | null
           new_advance?: number
           new_outstanding?: number
           organization_id: string
@@ -1354,6 +1360,9 @@ export type Database = {
           created_by?: string | null
           customer_id?: string
           id?: string
+          materialized_at?: string | null
+          materialized_by?: string | null
+          materialized_voucher_ids?: string[] | null
           new_advance?: number
           new_outstanding?: number
           organization_id?: string
@@ -8471,6 +8480,18 @@ export type Database = {
         }
         Returns: string
       }
+      detect_balance_adjustment_drift: {
+        Args: { p_min_drift?: number; p_organization_id: string }
+        Returns: {
+          customer_id: string
+          customer_name: string
+          drift: number
+          floating_adjustment_pool: number
+          invoice_pending_sum: number
+          ledger_closing: number
+          opening_pending: number
+        }[]
+      }
       detect_settlement_drift: {
         Args: { p_organization_id?: string }
         Returns: {
@@ -9447,6 +9468,21 @@ export type Database = {
           p_success?: boolean
         }
         Returns: Json
+      }
+      repair_customer_floating_adjustments: {
+        Args: {
+          p_customer_id: string
+          p_dry_run?: boolean
+          p_organization_id: string
+        }
+        Returns: {
+          action: string
+          amount: number
+          reference_id: string
+          reference_label: string
+          reference_type: string
+          voucher_id: string
+        }[]
       }
       reset_stock_from_transactions: {
         Args: { p_organization_id: string }
