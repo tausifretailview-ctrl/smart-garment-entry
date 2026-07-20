@@ -185,8 +185,8 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
     notes && notes.trim() && !/^\d+$/.test(notes.trim()) ? notes.trim() : "";
   /** Default SN rows on preprinted — stretch to fill space above totals (no blank gap). */
   const PREPRINTED_DEFAULT_ROWS = isA4 ? 12 : 8;
-  /** A5 Retail ERP: fixed 13 SN lines per page. */
-  const A5_RETAIL_SN_ROWS = 13;
+  /** A5 Retail ERP: 12 SN lines — room for Round Off + QR/terms footer. */
+  const A5_RETAIL_SN_ROWS = 12;
   const MAX_ITEMS_PER_PAGE = isA4 ? 20 : isPreprintedA5 ? 10 : isA5Retail ? A5_RETAIL_SN_ROWS : 12;
   const TARGET_ROWS = isPreprintedAny
     ? Math.max(items.length, PREPRINTED_DEFAULT_ROWS)
@@ -234,16 +234,37 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
     return mrp > 0 && mrp > rate ? mrp : rate;
   };
   const displaySubTotal = items.reduce((sum, item) => sum + getDisplayBaseRate(item) * (Number(item.qty) || 0), 0);
-  const merchandiseNetBeforeAdjustments = Number(grandTotal || 0) + Number(saleReturnAdjust || 0) - Number(roundOff || 0);
-  const computedDiscountFromLines = Math.max(0, displaySubTotal - merchandiseNetBeforeAdjustments);
-  const displayDiscount = computedDiscountFromLines > 0 ? computedDiscountFromLines : Math.max(0, Number(discount || 0));
+  const propRoundOff = Number(roundOff ?? 0);
+  const propDiscount = Math.max(0, Number(discount || 0));
+  // Prefer bill discount prop so manual ROUND (M) is not swallowed into Discount.
+  const merchandiseNetExcludingRound =
+    Number(grandTotal || 0) + Number(saleReturnAdjust || 0) - propRoundOff;
+  const computedDiscountFromLines = Math.max(0, displaySubTotal - merchandiseNetExcludingRound);
+  const displayDiscount =
+    propDiscount > 0.005 ? propDiscount : computedDiscountFromLines > 0.005 ? computedDiscountFromLines : 0;
   const explicitOtherCharges = Math.max(0, Number(otherCharges || 0));
   const derivedOtherCharges = Math.max(
     0,
-    Number(grandTotal || 0) - displaySubTotal + Number(saleReturnAdjust || 0) - displayDiscount - Number(roundOff || 0)
+    Number(grandTotal || 0) - displaySubTotal + Number(saleReturnAdjust || 0) - displayDiscount - propRoundOff
   );
   const displayOtherCharges =
     explicitOtherCharges > 0.005 ? explicitOtherCharges : derivedOtherCharges > 0.005 ? derivedOtherCharges : 0;
+  // If round_off was omitted/zeroed in props but net already includes it, recover for print.
+  const impliedRoundOff =
+    Math.round(
+      (Number(grandTotal || 0) -
+        displaySubTotal +
+        displayDiscount +
+        Number(saleReturnAdjust || 0) -
+        displayOtherCharges) *
+        100,
+    ) / 100;
+  const printRoundOff =
+    Math.abs(propRoundOff) >= 0.005
+      ? propRoundOff
+      : Math.abs(impliedRoundOff) >= 0.005
+        ? impliedRoundOff
+        : 0;
   const totalsLabel = "Sub Total";
   const totalsValue = displaySubTotal;
 
@@ -629,11 +650,11 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                 </div>
               </div>
 
-              {/* ===== ITEMS TABLE — Full Grid (preprinted: grow so SN rows fill gap above totals) ===== */}
+              {/* ===== ITEMS TABLE — grow on A5/preprinted so Terms + QR stay at page bottom ===== */}
               <div
-                className={isPreprintedAny ? "retail-erp-items-grow" : undefined}
+                className={isPreprintedAny || isA5Retail ? "retail-erp-items-grow" : undefined}
                 style={
-                  isPreprintedAny
+                  isPreprintedAny || isA5Retail
                     ? {
                         flex: 1,
                         minHeight: 0,
@@ -646,18 +667,16 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
               <table
                 style={{
                   width: "100%",
-                  height: isPreprintedAny ? "100%" : undefined,
+                  height: isPreprintedAny || isA5Retail ? "100%" : undefined,
                   borderCollapse: "collapse",
                   tableLayout: "fixed",
-                  flex: isPreprintedAny
+                  flex: isPreprintedAny || isA5Retail
                     ? "1 1 auto"
                     : isRealTast
                       ? 1
-                      : isA5Retail
+                      : isLastPage
                         ? "0 0 auto"
-                        : isLastPage
-                          ? "0 0 auto"
-                          : "1 1 auto",
+                        : "1 1 auto",
                 }}
               >
                 <colgroup>
@@ -911,6 +930,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                   borderTop: B2,
                   fontSize: fsBody,
                   flexShrink: 0,
+                  marginTop: isA5Retail ? "auto" : undefined,
                 }}
               >
 
@@ -1060,10 +1080,13 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                           <span style={totalsAmountStyle}>+ ₹{fmt(displayOtherCharges)}</span>
                         </div>
                       )}
-                      {!isRealTast && roundOff !== 0 && (
+                      {!isRealTast && (
                         <div style={{ ...totalsRowBase, fontSize: isA4 ? "14px" : "11px", fontWeight: 800 }}>
                           <span style={totalsLabelStyle}>Round Off</span>
-                          <span style={totalsAmountStyle}>{roundOff > 0 ? "+" : ""}{fmt(roundOff)}</span>
+                          <span style={totalsAmountStyle}>
+                            {printRoundOff > 0 ? "+" : ""}
+                            {fmt(printRoundOff)}
+                          </span>
                         </div>
                       )}
                       <div

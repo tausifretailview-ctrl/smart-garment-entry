@@ -2117,7 +2117,7 @@ export default function SalesInvoiceDashboard() {
           salesman={invoiceToPrint.salesman || ""}
           notes={invoiceToPrint.notes || ""}
           otherCharges={invoiceToPrint.other_charges || 0}
-          roundOff={invoiceToPrint.round_off || 0}
+          roundOff={Number(invoiceToPrint.round_off ?? 0)}
           financerDetails={invoiceToPrint.financerDetails || null}
         />
       );
@@ -3581,7 +3581,7 @@ export default function SalesInvoiceDashboard() {
               salesman={invoiceToPrint.salesman || ''}
               notes={invoiceToPrint.notes || ''}
               otherCharges={invoiceToPrint.other_charges || 0}
-              roundOff={invoiceToPrint.round_off || 0}
+              roundOff={Number(invoiceToPrint.round_off ?? 0)}
               financerDetails={invoiceToPrint.financerDetails || null}
             />
           </div>
@@ -5149,7 +5149,7 @@ export default function SalesInvoiceDashboard() {
               salesman={invoiceToPrint.salesman || ''}
               notes={invoiceToPrint.notes || ''}
               otherCharges={invoiceToPrint.other_charges || 0}
-              roundOff={invoiceToPrint.round_off || 0}
+              roundOff={Number(invoiceToPrint.round_off ?? 0)}
               financerDetails={invoiceToPrint.financerDetails || null}
             />
           </div>
