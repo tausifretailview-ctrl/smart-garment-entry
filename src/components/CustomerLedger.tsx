@@ -3521,6 +3521,7 @@ Please clear your dues at the earliest. Thank you!`;
         : effectiveBalance < 0
           ? Math.abs(effectiveBalance)
           : 0;
+    const pdfCreditIsRefundable = refundableCreditBalance > 0;
     const balanceBoxW = 72;
     const balanceBoxH = 18;
     const balanceBoxX = pageWidth - margin - balanceBoxW;
@@ -3531,7 +3532,12 @@ Please clear your dues at the earliest. Thank you!`;
       doc.rect(balanceBoxX, balanceBoxY, balanceBoxW, balanceBoxH, "FD");
       pdfSetText(doc, LEDGER_PDF.muted);
       doc.setFontSize(7);
-      doc.text("Credit balance (Cr)", balanceBoxX + 3, balanceBoxY + 5);
+      // Party Cr ≠ unused advance bookings; only label "Credit balance" when refundable pool > 0.
+      doc.text(
+        pdfCreditIsRefundable ? "Credit balance (Cr)" : "Party balance (Cr)",
+        balanceBoxX + 3,
+        balanceBoxY + 5,
+      );
       pdfSetText(doc, LEDGER_PDF.tealBoxText);
       doc.setFontSize(11);
       doc.setFont("helvetica", "bold");
@@ -3717,7 +3723,7 @@ Please clear your dues at the earliest. Thank you!`;
       reconciliation.finalBalance > 0
         ? "Outstanding (Dr)"
         : reconciliation.finalBalance < 0
-          ? "Advance (Cr)"
+          ? "Party balance (Cr)"
           : "Settled";
     const reconBoxH = 8 + reconLines.length * 5 + 8;
     pdfSetFill(doc, LEDGER_PDF.reconBg);
@@ -4199,12 +4205,17 @@ Please clear your dues at the earliest. Thank you!`;
                     <Badge variant="destructive">Customer Owes</Badge>
                   ) : effectiveBalance < 0 ? (
                     <Badge variant="outline" className="border-emerald-400 text-emerald-800 dark:text-emerald-200">
-                      Credit Balance
+                      Party credit (not From Advance)
                     </Badge>
                   ) : (
                     <Badge variant="outline">Fully Settled</Badge>
                   )}
                 </div>
+                {effectiveBalance < -0.5 && (selectedCustomer.unusedAdvanceTotal || 0) <= 0.5 && (
+                  <p className="text-[10px] text-muted-foreground mt-1.5 text-left max-w-[220px] ml-auto">
+                    Unused advance bookings ₹0 — Record Payment → From Advance cannot use this party credit until advance is restored or a new booking is created.
+                  </p>
+                )}
                 {snapshotOutstandingDr != null &&
                   !isSchool &&
                   (() => {

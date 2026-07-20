@@ -485,6 +485,15 @@ export async function applyCreditNoteFifoToSale(
     } catch (recomputeErr) {
       console.warn("CN FIFO: sale payment recompute failed", params.saleId, recomputeErr);
     }
+    // SRA can over-settle an advance-paid invoice; restore unused advance bookings.
+    try {
+      const { releaseExcessAdvanceOnSale } = await import(
+        "@/utils/releaseExcessAdvanceSettlement"
+      );
+      await releaseExcessAdvanceOnSale(params.organizationId, params.saleId, supabase);
+    } catch (releaseErr) {
+      console.warn("CN FIFO: excess advance release failed", params.saleId, releaseErr);
+    }
   }
 
   return { applied, chunks };

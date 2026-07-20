@@ -14,6 +14,10 @@ import {
 } from "@/utils/accounting/journalService";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
 import { reverseCustomerAdvanceFifo } from "@/utils/reverseCustomerAdvanceFifo";
+import {
+  diagnoseExcessAdvanceForCustomer,
+  releaseExcessAdvanceForCustomer,
+} from "@/utils/releaseExcessAdvanceSettlement";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardHeader, CardContent, CardDescription } from "@/components/ui/card";
@@ -451,6 +455,8 @@ export default function SalesInvoiceDashboard() {
   const [isRecordingPayment, setIsRecordingPayment] = useState(false);
   const [advanceBalance, setAdvanceBalance] = useState<number>(0);
   const [advanceFromBookings, setAdvanceFromBookings] = useState<number>(0);
+  const [lockedAdvanceReleasable, setLockedAdvanceReleasable] = useState<number>(0);
+  const [isRepairingLockedAdvance, setIsRepairingLockedAdvance] = useState(false);
   const [isFetchingAdvance, setIsFetchingAdvance] = useState(false);
   const [availableCNBalance, setAvailableCNBalance] = useState<number>(0);
   const [isFetchingCN, setIsFetchingCN] = useState(false);
@@ -2357,6 +2363,8 @@ export default function SalesInvoiceDashboard() {
     setPaymentNarration("");
     setAdvanceBalance(0);
     setAdvanceFromBookings(0);
+    setLockedAdvanceReleasable(0);
+    setIsRepairingLockedAdvance(false);
     setIsFetchingAdvance(false);
     setAvailableCNBalance(0);
     setIsFetchingCN(false);
@@ -2370,6 +2378,7 @@ export default function SalesInvoiceDashboard() {
     }
     if (mode === "advance" && selectedInvoiceForPayment?.customer_id) {
       setIsFetchingAdvance(true);
+      setLockedAdvanceReleasable(0);
       try {
         const customerId = selectedInvoiceForPayment.customer_id;
         // Fetch advance booking balance
@@ -2390,10 +2399,20 @@ export default function SalesInvoiceDashboard() {
             ),
         );
         setPaidAmount(Math.min(bookingBalance, pendingAmount).toString());
+
+        // Party Cr after S/R on advance-paid invoices leaves used_amount locked — detect releasable.
+        if (bookingBalance <= 0.5 && currentOrganization?.id) {
+          const locked = await diagnoseExcessAdvanceForCustomer(
+            currentOrganization.id,
+            customerId,
+          );
+          setLockedAdvanceReleasable(locked.totalReleasable);
+        }
       } catch (error) {
         console.error("Failed to fetch advance balance:", error);
         setAdvanceBalance(0);
         setAdvanceFromBookings(0);
+        setLockedAdvanceReleasable(0);
       } finally {
         setIsFetchingAdvance(false);
       }
@@ -4949,7 +4968,7 @@ export default function SalesInvoiceDashboard() {
                   </SelectContent>
                 </Select>
                 {paymentMode === "advance" && (
-                  <div className="mt-2">
+                  <div className="mt-2 space-y-2">
                     {isFetchingAdvance ? (
                       <Badge variant="info" className="gap-1">
                         <Loader2 className="h-3 w-3 animate-spin" />
@@ -4960,9 +4979,70 @@ export default function SalesInvoiceDashboard() {
                         <IndianRupee className="h-3 w-3" />
                         Available Advance: ₹{Math.round(advanceBalance).toLocaleString('en-IN')}
                       </Badge>
+                    ) : lockedAdvanceReleasable > 0.5 ? (
+                      <div className="rounded-md border border-amber-300 bg-amber-50 dark:bg-amber-950/30 p-2 space-y-2">
+                        <p className="text-xs text-amber-900 dark:text-amber-100">
+                          Unused advance bookings are ₹0, but ₹
+                          {Math.round(lockedAdvanceReleasable).toLocaleString("en-IN")} advance is
+                          still locked on invoices that were later adjusted by sale return / CN.
+                          Ledger credit is not the same as From Advance until this is restored.
+                        </p>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="h-8 border-amber-400 text-amber-900"
+                          disabled={isRepairingLockedAdvance || !currentOrganization?.id || !selectedInvoiceForPayment?.customer_id}
+                          onClick={async () => {
+                            if (!currentOrganization?.id || !selectedInvoiceForPayment?.customer_id) return;
+                            setIsRepairingLockedAdvance(true);
+                            try {
+                              const result = await releaseExcessAdvanceForCustomer(
+                                currentOrganization.id,
+                                selectedInvoiceForPayment.customer_id,
+                              );
+                              const bookingBalance = await getAvailableAdvanceBalance(
+                                selectedInvoiceForPayment.customer_id,
+                              );
+                              setAdvanceFromBookings(bookingBalance);
+                              setAdvanceBalance(bookingBalance);
+                              setLockedAdvanceReleasable(0);
+                              const pendingAmount = Math.max(
+                                0,
+                                selectedInvoiceForPayment.net_amount -
+                                  (selectedInvoiceForPayment.paid_amount || 0) -
+                                  Math.max(
+                                    selectedInvoiceForPayment.sale_return_adjust || 0,
+                                    selectedInvoiceForPayment.credit_applied || 0,
+                                  ),
+                              );
+                              setPaidAmount(Math.min(bookingBalance, pendingAmount).toString());
+                              toast({
+                                title: "Advance restored",
+                                description: `Released ₹${Math.round(result.released).toLocaleString("en-IN")} from ${result.saleCount} invoice(s). Available: ₹${Math.round(bookingBalance).toLocaleString("en-IN")}.`,
+                              });
+                            } catch (err: any) {
+                              toast({
+                                title: "Could not restore advance",
+                                description: err?.message || "Try again or contact support.",
+                                variant: "destructive",
+                              });
+                            } finally {
+                              setIsRepairingLockedAdvance(false);
+                            }
+                          }}
+                        >
+                          {isRepairingLockedAdvance ? (
+                            <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                          ) : (
+                            <RefreshCw className="h-3.5 w-3.5 mr-1" />
+                          )}
+                          Restore ₹{Math.round(lockedAdvanceReleasable).toLocaleString("en-IN")} to From Advance
+                        </Button>
+                      </div>
                     ) : (
-                      <Badge variant="destructive" className="gap-1">
-                        No advance balance available
+                      <Badge variant="destructive" className="gap-1 max-w-full whitespace-normal h-auto py-1.5 text-left font-normal">
+                        No unused advance bookings. Ledger “Credit / Advance (Cr)” is not spendable here — use Refund, or book a new Advance if cash was overpaid.
                       </Badge>
                     )}
                   </div>
