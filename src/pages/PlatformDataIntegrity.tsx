@@ -12,6 +12,8 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { AlertTriangle, RefreshCw, ShieldCheck, Loader2 } from "lucide-react";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { AdjustmentDriftPanel } from "@/components/AdjustmentDriftPanel";
 
 type DriftRow = {
   id: string;
@@ -176,6 +178,12 @@ export default function PlatformDataIntegrity() {
           </Button>
         </div>
 
+        <Tabs defaultValue="settlement" className="space-y-4">
+          <TabsList>
+            <TabsTrigger value="settlement">Settlement drift</TabsTrigger>
+            <TabsTrigger value="adjustment">Adjustment drift</TabsTrigger>
+          </TabsList>
+          <TabsContent value="settlement" className="space-y-4">
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
           <Card><CardHeader className="pb-1"><CardTitle className="text-xs text-muted-foreground">Open drifts</CardTitle></CardHeader>
             <CardContent><div className="text-2xl font-bold tabular-nums">{summary.total}</div>
@@ -307,6 +315,11 @@ export default function PlatformDataIntegrity() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+          </TabsContent>
+          <TabsContent value="adjustment">
+            <AdjustmentDriftPanel organizations={orgs} />
+          </TabsContent>
+        </Tabs>
       </div>
     </Layout>
   );
