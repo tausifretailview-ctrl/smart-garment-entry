@@ -1915,6 +1915,7 @@ const PurchaseBillDashboard = () => {
     {
       id: "actions",
       header: "Actions",
+      meta: { stickyRight: true },
       cell: ({ row }) => {
         const bill = row.original;
         const ownership = canModifyEntry((bill as any).created_by);
@@ -2656,7 +2657,6 @@ const PurchaseBillDashboard = () => {
                 defaultColumnVisibility={PURCHASE_BILLS_DEFAULT_COLUMN_VISIBILITY}
                 defaultDensity="comfortable"
                 stickyFirstColumn={false}
-                fitToContainer
                 isLoading={loading}
                 skeletonColumns={PURCHASE_BILL_TABLE_SKELETON_COLUMNS}
                 skeletonRowCount={8}

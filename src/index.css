@@ -1007,11 +1007,17 @@ All colors MUST be HSL.
     border-right: 1px solid var(--erp-line) !important;
   }
 
-  /* Peer spacer + fixed panel share --sidebar-width from SidebarProvider */
+  /* Peer spacer + fixed panel share --sidebar-width from SidebarProvider.
+     When offcanvas-collapsed, width must go to 0 or main content stays squeezed
+     (mobile / Desktop View: empty ~18rem strip after Collapse). */
   .group.peer:has(.erp-desktop-sidebar) {
     width: var(--sidebar-width);
     min-width: var(--sidebar-width);
     flex-shrink: 0;
+  }
+  .group.peer[data-state="collapsed"][data-collapsible="offcanvas"]:has(.erp-desktop-sidebar) {
+    width: 0;
+    min-width: 0;
   }
 
   /* Hide shadcn rail resize strip — caused hover peek / gap beside content */

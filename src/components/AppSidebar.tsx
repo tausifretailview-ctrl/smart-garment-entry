@@ -77,11 +77,13 @@ import { readSidebarLockedOpen, writeSidebarLockedOpen, SIDEBAR_PREFERENCE_SYNC_
 import { BrandSocialIcons } from "@/components/sidebar/BrandSocialIcons";
 
 export function AppSidebar() {
-  const { open, setOpen } = useSidebar();
+  const { open, setOpen, useSheetSidebar, setOpenMobile } = useSidebar();
   const [isLocked, setIsLocked] = useState<boolean>(() => readSidebarLockedOpen());
 
   useEffect(() => {
-    setOpen(readSidebarLockedOpen());
+    if (!useSheetSidebar) {
+      setOpen(readSidebarLockedOpen());
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- init once from saved preference
   }, []);
 
@@ -92,6 +94,14 @@ export function AppSidebar() {
   }, []);
 
   const handleToggleLock = () => {
+    // Sheet (mobile / narrow Desktop View): Collapse must close the drawer, not only
+    // flip desktop `open` — otherwise menu content hides but the sheet width remains.
+    if (useSheetSidebar) {
+      setOpenMobile(false);
+      setIsLocked(false);
+      writeSidebarLockedOpen(false);
+      return;
+    }
     const newLocked = !isLocked;
     setIsLocked(newLocked);
     setOpen(newLocked);
@@ -1277,17 +1287,23 @@ export function AppSidebar() {
               <SidebarMenuButton
                 onClick={handleToggleLock}
                 className="text-sidebar-foreground hover:bg-sidebar-accent cursor-pointer opacity-60 hover:opacity-100 transition-opacity"
-                title={isLocked ? "Collapse sidebar" : "Lock sidebar open"}
+                title={
+                  useSheetSidebar
+                    ? "Close menu"
+                    : isLocked
+                      ? "Collapse sidebar"
+                      : "Lock sidebar open"
+                }
               >
-                <div className={cn("flex items-center gap-2", !open && "justify-center w-full")}>
-                  {isLocked ? (
+                <div className={cn("flex items-center gap-2", !open && !useSheetSidebar && "justify-center w-full")}>
+                  {useSheetSidebar || isLocked ? (
                     <ChevronsLeft className="h-4 w-4 sidebar-icon text-primary flex-shrink-0" />
                   ) : (
                     <ChevronsRight className="h-4 w-4 sidebar-icon text-primary flex-shrink-0" />
                   )}
-                  {open && (
+                  {(open || useSheetSidebar) && (
                     <span className="text-sm font-semibold text-sidebar-foreground">
-                      {isLocked ? "Collapse" : "Lock open"}
+                      {useSheetSidebar ? "Close menu" : isLocked ? "Collapse" : "Lock open"}
                     </span>
                   )}
                 </div>
