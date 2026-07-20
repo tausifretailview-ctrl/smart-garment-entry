@@ -286,6 +286,19 @@ export function AdjustCustomerCreditNoteDialog({
           console.warn("CN adjust: sale payment recompute failed", saleId, recomputeErr);
         }
 
+        try {
+          const { releaseExcessAdvanceOnSale } = await import(
+            "@/utils/releaseExcessAdvanceSettlement"
+          );
+          await releaseExcessAdvanceOnSale(
+            currentOrganization!.id,
+            saleId,
+            supabase,
+          );
+        } catch (releaseErr) {
+          console.warn("CN adjust: excess advance release failed", saleId, releaseErr);
+        }
+
         if (glOn) {
           let voucherEntryId = voucherIdFromRpcPayload(rpcData);
 

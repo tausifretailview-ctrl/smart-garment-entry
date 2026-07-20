@@ -105,7 +105,7 @@ export function ledgerPdfReconLineColor(label: string): Rgb | null {
   if (label.includes("Outstanding (Dr)")) {
     return LEDGER_PDF.balanceDr;
   }
-  if (label.includes("Advance (Cr)")) {
+  if (label.includes("Advance (Cr)") || label.includes("Party balance (Cr)")) {
     return LEDGER_PDF.balanceCr;
   }
   return null;

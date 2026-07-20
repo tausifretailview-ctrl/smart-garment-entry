@@ -65,14 +65,14 @@ export function useCustomerAdvances(organizationId: string | null) {
     return data as CustomerAdvance[];
   };
 
-  // Get available advance balance for a customer
+  // Get available advance balance for a customer.
+  // Use amount - used_amount for any row with residual (status can be stale as fully_used).
   const getAvailableAdvanceBalance = async (customerId: string): Promise<number> => {
     const { data, error } = await supabase
       .from("customer_advances")
-      .select("amount, used_amount")
+      .select("amount, used_amount, status")
       .eq("customer_id", customerId)
-      .eq("organization_id", organizationId!)
-      .in("status", ["active", "partially_used"]);
+      .eq("organization_id", organizationId!);
 
     if (error) throw error;
 
