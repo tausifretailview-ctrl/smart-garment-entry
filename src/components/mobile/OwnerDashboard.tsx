@@ -437,7 +437,7 @@ export const OwnerDashboard = () => {
       <PullToRefreshIndicator visible={isRefreshing} />
 
       {/* ── HEADER + TODAY HERO ── */}
-      <div className="relative bg-gradient-to-br from-[#0a0f1e] via-[#111827] to-[#1e2a4a] px-4 pt-5 pb-5 overflow-hidden">
+      <div className="relative bg-gradient-to-br from-[#0a0f1e] via-[#111827] to-[#1e2a4a] px-2.5 pt-4 pb-4 overflow-hidden sm:px-3">
         <div className="absolute top-0 right-0 w-40 h-40 bg-primary/10 rounded-full blur-3xl" />
         <div className="absolute bottom-0 left-0 w-32 h-32 bg-blue-500/5 rounded-full blur-2xl" />
         <div className="relative flex items-start justify-between mb-1">
@@ -502,8 +502,8 @@ export const OwnerDashboard = () => {
       </div>
 
       {/* ── STAT CARDS 2×3 ── */}
-      <div className="px-4 mt-3 relative z-10">
-        <div className="grid grid-cols-2 gap-2.5">
+      <div className="px-2 mt-3 relative z-10 sm:px-2.5">
+        <div className="grid grid-cols-2 gap-2">
           {statCards.map((card) => {
             const Icon = card.icon;
             return card.loading ? (
@@ -540,9 +540,9 @@ export const OwnerDashboard = () => {
       <MobileModuleNavStrip className="mt-4" />
 
       {/* ── SALES TREND — Last 7 Days ── */}
-      <div className="px-4 mt-5">
+      <div className="px-2 mt-5 sm:px-2.5">
         <Card className="border-border/40">
-          <CardHeader className="pb-2 px-4 pt-4">
+          <CardHeader className="pb-2 px-3 pt-3 sm:px-4 sm:pt-4">
             <CardTitle className="text-sm font-semibold flex items-center gap-2">
               <BarChart3 className="h-4 w-4 text-primary" />
               Sales Trend — Last 7 Days
@@ -583,7 +583,7 @@ export const OwnerDashboard = () => {
       </div>
 
       {/* ── RECENT ACTIVITY ── */}
-      <div className="px-4 mt-5">
+      <div className="px-2 mt-5 sm:px-2.5">
         <Card className="border-border/40">
           <CardHeader className="pb-2 px-4 pt-4">
             <CardTitle className="text-sm font-semibold flex items-center gap-2">
@@ -648,7 +648,7 @@ export const OwnerDashboard = () => {
 
       {/* ── CN DRIFT ALERTS ── */}
       {(cnDriftLoading || (cnDrift?.count ?? 0) > 0) && (
-        <div className="px-4 mt-5">
+        <div className="px-2 mt-5 sm:px-2.5">
           <Card className="border-destructive/30 bg-destructive/5">
             <CardHeader className="pb-2 px-4 pt-4">
               <CardTitle className="text-sm font-semibold flex items-center gap-2 text-destructive">
@@ -676,7 +676,7 @@ export const OwnerDashboard = () => {
       )}
 
       {/* ── LOW STOCK ALERTS ── */}
-      <div className="px-4 mt-5">
+      <div className="px-2 mt-5 sm:px-2.5">
         <Card className="border-border/40">
           <CardHeader className="pb-2 px-4 pt-4">
             <CardTitle className="text-sm font-semibold flex items-center gap-2">
@@ -736,7 +736,7 @@ export const OwnerDashboard = () => {
       </div>
 
       {/* ── TOP SELLING TODAY ── */}
-      <div className="px-4 mt-5 mb-6">
+      <div className="px-2 mt-5 mb-6 sm:px-2.5">
         <Card className="border-border/40">
           <CardHeader className="pb-2 px-4 pt-4">
             <CardTitle className="text-sm font-semibold flex items-center gap-2">
@@ -786,7 +786,7 @@ export const OwnerDashboard = () => {
 
       {/* Offline banner */}
       {!isOnline && (
-        <div className="mx-4 mb-6 bg-warning/10 border border-warning/30 rounded-2xl px-4 py-3 flex items-center gap-2">
+        <div className="mx-2 mb-6 sm:mx-2.5 bg-warning/10 border border-warning/30 rounded-2xl px-4 py-3 flex items-center gap-2">
           <WifiOff className="h-4 w-4 text-warning shrink-0" />
           <p className="text-xs text-warning">You're offline — showing cached data</p>
         </div>

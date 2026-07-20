@@ -37,6 +37,7 @@ import * as XLSX from "xlsx";
 import { getIndiaFinancialYear, getCurrentQuarter } from "@/utils/accountingReportUtils";
 import { useLocation } from "react-router-dom";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { useProductFieldLabels } from "@/hooks/useSettings";
 import { cn } from "@/lib/utils";
 import {
@@ -92,10 +93,10 @@ const FYPresets = ({
           key={key}
           variant={currentSelection === key ? "default" : "outline"}
           size="sm"
-          className="h-11 text-base font-semibold"
+          className="h-8 shrink-0 px-2.5 text-xs font-semibold sm:h-11 sm:px-3 sm:text-base"
           onClick={() => onSelect(from, to, key)}
         >
-          {key === "currentFY" && <Calendar className="mr-1 h-4 w-4" />}
+          {key === "currentFY" && <Calendar className="mr-1 h-3.5 w-3.5 sm:h-4 sm:w-4" />}
           {label}
         </Button>
       ))}
@@ -128,11 +129,13 @@ function ProfitBreakdownTable({
   loading: boolean;
   hasGenerated: boolean;
 }) {
-  const tableHeadClass = "h-12 px-4 text-sm font-bold uppercase tracking-wide text-white";
-  const tableRowClass = "h-12 hover:bg-teal-50/80 dark:hover:bg-teal-950/20";
-  const tableCellClass = "text-base font-medium tabular-nums";
-  const tableMoneyClass = "text-right font-mono text-base font-semibold tabular-nums";
-  const marginBadgeClass = "px-2.5 py-1 text-sm font-bold tabular-nums";
+  const tableHeadClass =
+    "h-10 px-2 text-[11px] font-bold uppercase tracking-wide text-white sm:h-12 sm:px-4 sm:text-sm";
+  const tableRowClass = "h-10 hover:bg-teal-50/80 dark:hover:bg-teal-950/20 sm:h-12";
+  const tableCellClass = "text-xs font-medium tabular-nums sm:text-base";
+  const tableMoneyClass =
+    "text-right font-mono text-xs font-semibold tabular-nums sm:text-base";
+  const marginBadgeClass = "px-1.5 py-0.5 text-[11px] font-bold tabular-nums sm:px-2.5 sm:py-1 sm:text-sm";
 
   if (loading) {
     return (
@@ -189,8 +192,8 @@ function ProfitBreakdownTable({
   );
 
   return (
-    <div className="net-profit-table-scroll min-h-0 flex-1 overflow-y-auto overflow-x-auto tab-scroll-stable bg-white">
-      <Table className="[&_td]:px-4 [&_th]:px-4">
+    <div className="net-profit-table-scroll min-h-0 flex-1 overflow-y-auto overflow-x-auto tab-scroll-stable overscroll-x-contain bg-white [-webkit-overflow-scrolling:touch]">
+      <Table className="min-w-max [&_td]:px-2 [&_th]:px-2 sm:[&_td]:px-4 sm:[&_th]:px-4">
         <TableHeader className="sticky top-0 z-10">
           <TableRow className="border-none bg-slate-800 hover:bg-slate-800">
             {columns.map((col) => (
@@ -329,6 +332,7 @@ export default function NetProfitAnalysis() {
   const { currentOrganization } = useOrganization();
   const location = useLocation();
   const { orgNavigate } = useOrgNavigation();
+  const isMobile = useIsMobile();
   const fieldLabels = useProductFieldLabels();
 
   const searchParams = new URLSearchParams(location.search);
@@ -559,35 +563,36 @@ export default function NetProfitAnalysis() {
     [activeTotals],
   );
 
-  const tabs: { value: NetProfitTab; label: string; icon: typeof Users }[] = [
-    { value: "supplier-wise", label: "Supplier-wise", icon: Users },
-    { value: "product-wise", label: "Product-wise", icon: Package },
-    { value: "bill-wise", label: "Bill-wise", icon: FileText },
-    { value: "customer-wise", label: "Customer-wise", icon: UserRound },
-    { value: "salesman-wise", label: "Salesman-wise", icon: UserCheck },
-    { value: "field-wise", label: "Field-wise", icon: Layers },
+  const tabs: { value: NetProfitTab; label: string; shortLabel: string; icon: typeof Users }[] = [
+    { value: "supplier-wise", label: "Supplier-wise", shortLabel: "Supplier", icon: Users },
+    { value: "product-wise", label: "Product-wise", shortLabel: "Product", icon: Package },
+    { value: "bill-wise", label: "Bill-wise", shortLabel: "Bill", icon: FileText },
+    { value: "customer-wise", label: "Customer-wise", shortLabel: "Customer", icon: UserRound },
+    { value: "salesman-wise", label: "Salesman-wise", shortLabel: "Salesman", icon: UserCheck },
+    { value: "field-wise", label: "Field-wise", shortLabel: "Field", icon: Layers },
   ];
 
   return (
-    <div className="net-profit-workspace net-profit-report flex h-full min-h-0 w-full flex-col overflow-hidden bg-slate-50 px-2 py-2 sm:px-3 print:min-h-screen print:h-auto print:overflow-visible print:bg-white print:p-4">
-      <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col gap-2">
-        <div className="print:hidden shrink-0 flex flex-wrap items-center justify-between gap-2">
-          <div className="flex min-w-0 items-center gap-2">
+    <div className="net-profit-workspace net-profit-report flex h-full min-h-0 w-full flex-col overflow-hidden bg-slate-50 px-1.5 py-1.5 sm:px-3 sm:py-2 print:min-h-screen print:h-auto print:overflow-visible print:bg-white print:p-4">
+      <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col gap-1.5 sm:gap-2">
+        <div className="print:hidden shrink-0 flex flex-wrap items-center justify-between gap-1.5 sm:gap-2">
+          <div className="flex min-w-0 items-center gap-1.5 sm:gap-2">
             <Button
               variant="outline"
               size="sm"
-              className="h-10 shrink-0 px-3 text-base"
-              onClick={() => orgNavigate("/reports")}
+              className="h-9 shrink-0 px-2.5 text-sm sm:h-10 sm:px-3 sm:text-base"
+              onClick={() => orgNavigate(isMobile ? "/owner-reports" : "/reports")}
             >
               <ArrowLeft className="mr-1 h-4 w-4" />
               Reports
             </Button>
             <div className="min-w-0">
-              <h1 className="flex items-center gap-2 text-2xl font-bold leading-none tracking-tight text-blue-700">
-                <TrendingUp className="h-6 w-6 shrink-0" />
-                Net Profit Analysis
+              <h1 className="flex items-center gap-1.5 text-lg font-bold leading-none tracking-tight text-blue-700 sm:gap-2 sm:text-2xl">
+                <TrendingUp className="h-5 w-5 shrink-0 sm:h-6 sm:w-6" />
+                <span className="truncate">Net Profit</span>
+                <span className="hidden sm:inline"> Analysis</span>
               </h1>
-              <p className="mt-1.5 truncate text-base text-muted-foreground">
+              <p className="mt-1 truncate text-xs text-muted-foreground sm:mt-1.5 sm:text-base">
                 {currentOrganization?.name || "Organization"} · Multi-dimension Profit Breakdown
               </p>
             </div>
@@ -596,20 +601,20 @@ export default function NetProfitAnalysis() {
             <Button
               variant="outline"
               size="sm"
-              className="h-10 gap-1.5 border-slate-300 text-base"
+              className="h-9 gap-1 border-slate-300 px-2 text-sm sm:h-10 sm:gap-1.5 sm:px-3 sm:text-base"
               onClick={() => window.print()}
             >
               <Printer className="h-4 w-4" />
-              Print
+              <span className="hidden sm:inline">Print</span>
             </Button>
             <Button
               variant="outline"
               size="sm"
-              className="h-10 gap-1.5 border-slate-300 text-base"
+              className="h-9 gap-1 border-slate-300 px-2 text-sm sm:h-10 sm:gap-1.5 sm:px-3 sm:text-base"
               onClick={handleExportExcel}
             >
               <Download className="h-4 w-4" />
-              Excel
+              <span className="hidden sm:inline">Excel</span>
             </Button>
           </div>
         </div>
@@ -633,42 +638,46 @@ export default function NetProfitAnalysis() {
         )}
 
         <Card className="shrink-0 rounded-lg border border-slate-200 shadow-sm print:hidden">
-          <CardContent className="space-y-2 p-2.5">
+          <CardContent className="space-y-2 p-2 sm:p-2.5">
             <div className="flex flex-wrap items-end gap-2">
-              <div className="space-y-1">
-                <Label className="text-sm font-semibold uppercase tracking-wide text-slate-600">
-                  From
-                </Label>
-                <Input
-                  type="date"
-                  value={fromDate}
-                  onChange={(e) => setFromDate(e.target.value)}
-                  className="h-11 w-40 border-slate-200 bg-slate-50 text-base"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-sm font-semibold uppercase tracking-wide text-slate-600">
-                  To
-                </Label>
-                <Input
-                  type="date"
-                  value={toDate}
-                  onChange={(e) => setToDate(e.target.value)}
-                  className="h-11 w-40 border-slate-200 bg-slate-50 text-base"
-                />
+              <div className="grid min-w-0 flex-1 grid-cols-2 gap-2 sm:flex sm:flex-none sm:gap-2">
+                <div className="min-w-0 space-y-1">
+                  <Label className="text-xs font-semibold uppercase tracking-wide text-slate-600 sm:text-sm">
+                    From
+                  </Label>
+                  <Input
+                    type="date"
+                    value={fromDate}
+                    onChange={(e) => setFromDate(e.target.value)}
+                    className="h-9 w-full min-w-0 border-slate-200 bg-slate-50 text-sm sm:h-11 sm:w-40 sm:text-base"
+                  />
+                </div>
+                <div className="min-w-0 space-y-1">
+                  <Label className="text-xs font-semibold uppercase tracking-wide text-slate-600 sm:text-sm">
+                    To
+                  </Label>
+                  <Input
+                    type="date"
+                    value={toDate}
+                    onChange={(e) => setToDate(e.target.value)}
+                    className="h-9 w-full min-w-0 border-slate-200 bg-slate-50 text-sm sm:h-11 sm:w-40 sm:text-base"
+                  />
+                </div>
               </div>
               <Button
                 onClick={handleGenerate}
                 disabled={loading}
                 size="sm"
-                className="h-11 px-5 text-base font-semibold"
+                className="h-9 w-full px-4 text-sm font-semibold sm:h-11 sm:w-auto sm:px-5 sm:text-base"
               >
                 {loading && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
                 Generate
               </Button>
-              <FYPresets onSelect={handleFYPresetSelect} currentSelection={fyPreset} />
+              <div className="w-full overflow-x-auto [-webkit-overflow-scrolling:touch] sm:w-auto">
+                <FYPresets onSelect={handleFYPresetSelect} currentSelection={fyPreset} />
+              </div>
             </div>
-            <p className="text-base text-muted-foreground">
+            <p className="text-xs text-muted-foreground sm:text-base">
               Period: {format(new Date(fromDate), "dd MMM yyyy")} –{" "}
               {format(new Date(toDate), "dd MMM yyyy")}
             </p>
@@ -698,15 +707,16 @@ export default function NetProfitAnalysis() {
 
         <Card className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-slate-200 p-0 shadow-sm">
           <div className="flex h-full min-h-0 flex-col">
-            <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-slate-100 bg-white px-3 py-2.5 print:hidden">
+            <div className="flex shrink-0 items-center border-b border-slate-100 bg-white px-1.5 py-2 sm:px-3 sm:py-2.5 print:hidden">
               <Tabs
                 value={activeTab}
                 onValueChange={(v) => {
                   setActiveTab(v as NetProfitTab);
                   setSearch("");
                 }}
+                className="min-w-0 w-full"
               >
-                <TabsList className="flex h-auto w-full max-w-full flex-wrap justify-start gap-2 bg-transparent p-0">
+                <TabsList className="flex h-auto w-full max-w-full flex-nowrap justify-start gap-1.5 overflow-x-auto bg-transparent p-0 [-webkit-overflow-scrolling:touch] sm:flex-wrap sm:gap-2">
                   {tabs.map((tab) => {
                     const Icon = tab.icon;
                     return (
@@ -714,14 +724,15 @@ export default function NetProfitAnalysis() {
                         key={tab.value}
                         value={tab.value}
                         className={cn(
-                          "inline-flex h-10 items-center gap-1.5 rounded-[6px] border border-input bg-background px-3 text-base font-semibold text-foreground shadow-sm",
+                          "inline-flex h-9 shrink-0 items-center gap-1 rounded-[6px] border border-input bg-background px-2.5 text-xs font-semibold text-foreground shadow-sm sm:h-10 sm:gap-1.5 sm:px-3 sm:text-base",
                           "transition-[background-color,border-color,color,box-shadow] duration-150",
                           "hover:!bg-primary hover:!border-primary hover:!text-primary-foreground hover:shadow-md hover:[&_svg]:!text-primary-foreground",
                           "data-[state=active]:!bg-primary data-[state=active]:!border-primary data-[state=active]:!text-primary-foreground data-[state=active]:shadow-md data-[state=active]:[&_svg]:!text-primary-foreground",
                         )}
                       >
-                        <Icon className="h-4 w-4" />
-                        {tab.label}
+                        <Icon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                        <span className="sm:hidden">{tab.shortLabel}</span>
+                        <span className="hidden sm:inline">{tab.label}</span>
                       </TabsTrigger>
                     );
                   })}
@@ -730,15 +741,15 @@ export default function NetProfitAnalysis() {
             </div>
 
             <div className="flex min-h-0 flex-1 flex-col">
-              <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-slate-100 bg-white px-3 py-2.5 print:hidden">
+              <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-slate-100 bg-white px-2 py-2 sm:px-3 sm:py-2.5 print:hidden">
                 {activeTab === "field-wise" && (
-                  <div className="flex items-center gap-2">
-                    <Label className="text-sm font-semibold text-slate-600">Group by</Label>
+                  <div className="flex w-full items-center gap-2 sm:w-auto">
+                    <Label className="shrink-0 text-xs font-semibold text-slate-600 sm:text-sm">Group by</Label>
                     <Select
                       value={fieldDimension}
                       onValueChange={(v) => setFieldDimension(v as NetProfitFieldDimension)}
                     >
-                      <SelectTrigger className="h-11 w-48 text-base">
+                      <SelectTrigger className="h-9 w-full text-sm sm:h-11 sm:w-48 sm:text-base">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -751,20 +762,20 @@ export default function NetProfitAnalysis() {
                     </Select>
                   </div>
                 )}
-                <div className="relative min-w-[200px] max-w-md flex-1">
+                <div className="relative min-w-0 w-full flex-1 sm:min-w-[200px] sm:max-w-md">
                   <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
                     placeholder={searchPlaceholder}
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
-                    className="h-11 border-slate-200 bg-slate-50 pl-10 text-base uppercase placeholder:normal-case"
+                    className="h-9 border-slate-200 bg-slate-50 pl-10 text-sm uppercase placeholder:normal-case sm:h-11 sm:text-base"
                   />
                 </div>
-                <span className="ml-auto shrink-0 text-base font-medium tabular-nums text-muted-foreground">
+                <span className="ml-auto shrink-0 text-xs font-medium tabular-nums text-muted-foreground sm:text-base">
                   {filteredRows.length.toLocaleString("en-IN")} {countLabel}
                 </span>
               </div>
-              <p className="shrink-0 px-3 py-1.5 text-sm text-muted-foreground print:hidden">
+              <p className="hidden shrink-0 px-3 py-1.5 text-sm text-muted-foreground print:hidden sm:block">
                 Discounts match POS Disc (item + bill flat + points) — not round-off or S/R adjust.
                 Net sales include round-off and subtract sale-return adjust (same as POS Net after
                 disc/SR). Services included (COGS 0). Generate once — tabs re-group in memory.

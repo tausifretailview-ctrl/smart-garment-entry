@@ -3632,6 +3632,24 @@ main:has(.net-profit-workspace) {
 .net-profit-report table tfoot td {
   font-size: 1rem;
 }
+/* Mobile APK / narrow view — denser Net Profit table + touch scroll */
+@media (max-width: 1023px) {
+  .net-profit-report table tbody td,
+  .net-profit-report table tfoot td {
+    font-size: 0.75rem;
+    line-height: 1.25;
+  }
+  .net-profit-report table thead th {
+    font-size: 0.6875rem;
+  }
+  .net-profit-report table tbody tr {
+    height: 40px;
+  }
+  .net-profit-table-scroll {
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+}
 
 /* Item-wise Sales / Stock reports — sidebar-only full workspace (no header / tab strip) */
 .item-wise-sales-workspace,

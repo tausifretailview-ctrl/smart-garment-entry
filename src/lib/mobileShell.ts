@@ -35,8 +35,9 @@ export const mobilePageScrollClass =
 
 export const mobilePageScrollWithNavClass = `${mobilePageScrollClass} pb-24`;
 
+/** Tighter horizontal inset so dashboard/report cards use more phone width. */
 export const mobileMainContentClass =
-  "flex flex-1 flex-col min-h-0 overflow-hidden relative z-[1] min-w-0 p-3 sm:p-4";
+  "flex flex-1 flex-col min-h-0 overflow-hidden relative z-[1] min-w-0 px-1.5 py-1 sm:px-2 sm:py-2";
 
 export const mobileFullscreenMainClass =
   "flex-1 overflow-hidden relative z-[1] min-h-0";
