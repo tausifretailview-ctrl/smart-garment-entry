@@ -159,7 +159,7 @@ export function PrecisionLabelDesigner({
     (key: FieldKey, updates: Partial<LabelFieldConfig>) => {
       onConfigChange({
         ...config,
-        [key]: { ...config[key], ...updates },
+        [key]: { ...(config[key] as LabelFieldConfig), ...updates },
         // Never drop boutique style when toggling fields in Label Designer.
         ...(isBoutiqueGridLabelStyle(config) ? { labelStyle: LABEL_STYLE_BOUTIQUE_GRID } : {}),
       });
