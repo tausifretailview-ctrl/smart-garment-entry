@@ -113,8 +113,8 @@ export function SaleInvoiceFormatBackupDialog({
       const text = await file.text();
       const parsed = JSON.parse(text) as unknown;
       const validated = validateSaleInvoiceFormatImportFile(parsed);
-      if (!validated.ok) {
-        toast({ title: "Invalid file", description: validated.error, variant: "destructive" });
+      if (validated.ok !== true) {
+        toast({ title: "Invalid file", description: (validated as { ok: false; error: string }).error, variant: "destructive" });
         return;
       }
       setPendingImport(validated.data);
