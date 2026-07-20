@@ -46,6 +46,19 @@ export interface CustomTextSlot {
   width: number;
 }
 
+/** Opt-in layout engines. Missing / "default" = legacy absolute-field renderer (unchanged). */
+export type LabelLayoutStyle = "default" | "boutique-grid";
+
+export const LABEL_STYLE_DEFAULT = "default" as const;
+export const LABEL_STYLE_BOUTIQUE_GRID = "boutique-grid" as const;
+
+/** True only when the design explicitly opted into Boutique Grid. */
+export function isBoutiqueGridLabelStyle(
+  config: { labelStyle?: LabelLayoutStyle | string | null } | null | undefined,
+): boolean {
+  return config?.labelStyle === LABEL_STYLE_BOUTIQUE_GRID;
+}
+
 export interface LabelDesignConfig {
   brand: LabelFieldConfig;
   businessName: LabelFieldConfig;
@@ -64,13 +77,18 @@ export interface LabelDesignConfig {
   supplierCode: LabelFieldConfig;
   purchaseCode: LabelFieldConfig;
   supplierInvoiceNo?: LabelFieldConfig;
-  fieldOrder: Array<keyof Omit<LabelDesignConfig, 'fieldOrder' | 'barcodeHeight' | 'barcodeWidth' | 'customTextValue' | 'customTextFields' | 'lines'>>;
+  fieldOrder: Array<keyof Omit<LabelDesignConfig, 'fieldOrder' | 'barcodeHeight' | 'barcodeWidth' | 'customTextValue' | 'customTextFields' | 'lines' | 'labelStyle'>>;
   barcodeHeight?: number;
   barcodeWidth?: number;
   /** @deprecated Use customTextFields — kept for legacy templates */
   customTextValue?: string;
   customTextFields?: CustomTextSlot[];
   lines?: LabelLineConfig[];
+  /**
+   * Layout engine. Omit or "default" keeps the existing absolute-position renderer
+   * so every saved org preset stays byte-identical. Only "boutique-grid" opts in.
+   */
+  labelStyle?: LabelLayoutStyle;
 }
 
 export interface LabelItem {

@@ -250,6 +250,8 @@ const ensureCompleteFieldOrder = (config: Partial<LabelDesignConfig>): LabelDesi
     customTextValue: config.customTextValue ?? base.customTextValue ?? '',
     customTextFields: migrateCustomTextFields(config),
     lines: config.lines ?? base.lines ?? [],
+    // Pass through only when already set — never invent a style for existing presets.
+    ...(config.labelStyle ? { labelStyle: config.labelStyle } : {}),
   };
 };
 
@@ -6843,6 +6845,9 @@ export default function BarcodePrinting() {
                         </SelectItem>
                         <SelectItem value="preset:jewellery" className="text-xs">
                           Jewellery Tag (100×15mm 1UP) — fixed layout
+                        </SelectItem>
+                        <SelectItem value="preset:boutique-grid" className="text-xs">
+                          Boutique Grid (50×38mm) — STYLE BOUTIQUE KEY:VALUE
                         </SelectItem>
                         <SelectItem value={`preset:${RANAWAT_BLING_TEMPLATE_NAME}`} className="text-xs">
                           BLING JEWELLERY LABEL (100×15mm 1UP)

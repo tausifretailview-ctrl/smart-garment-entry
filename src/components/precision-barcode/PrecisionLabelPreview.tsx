@@ -1,5 +1,10 @@
 import { useEffect, useMemo, useRef } from "react";
-import { LabelItem, LabelDesignConfig, FieldKey } from "@/types/labelTypes";
+import {
+  LabelItem,
+  LabelDesignConfig,
+  FieldKey,
+  isBoutiqueGridLabelStyle,
+} from "@/types/labelTypes";
 import { getUOMLabel } from "@/constants/uom";
 import { getCustomTextFields, usesCustomTextFields } from "@/utils/labelCustomText";
 import type { ProductFieldsConfig } from "@/utils/productFieldSettingsForLabels";
@@ -14,6 +19,7 @@ import {
   labelFieldAllowsMultiline,
   resolveBarcodeSlotMm,
 } from "@/utils/barcodeLabelLayout";
+import { BoutiqueGridLabelPreview } from "@/components/precision-barcode/BoutiqueGridLabelPreview";
 
 interface PrecisionLabelPreviewProps {
   item: LabelItem;
@@ -115,6 +121,22 @@ export function PrecisionLabelPreview({
   // In preview: fontSize * scaleFactor px, where 1mm = 3.7795 * scaleFactor px
   // In print: convert fontSize to mm using the same ratio so proportions match exactly
   const fs = (fontSize: number) => scaleFactor ? `${fontSize * scaleFactor}px` : `${fontSize / 3.7795}mm`;
+
+  // Opt-in Boutique Grid only — missing/default labelStyle keeps the legacy path below
+  // byte-identical for every existing org preset.
+  if (config && isBoutiqueGridLabelStyle(config)) {
+    return (
+      <BoutiqueGridLabelPreview
+        item={item}
+        width={width}
+        height={height}
+        showBorder={showBorder}
+        config={config}
+        scaleFactor={scaleFactor}
+        productFieldSettings={productFieldSettings}
+      />
+    );
+  }
 
   // If no config provided, render legacy hardcoded layout
   if (!config) {
