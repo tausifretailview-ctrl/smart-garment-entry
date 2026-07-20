@@ -70,10 +70,19 @@ async function fetchOpeningBalancePending(
     .is("deleted_at", null);
   if (vErr) throw vErr;
 
-  const paid = (vouchers || []).reduce((sum, ve) => {
-    // Exclude rows that actually point at a sale id (legacy mis-tags)
-    return sum + Math.max(0, Number(ve.total_amount || 0) + Number(ve.discount_amount || 0));
-  }, 0);
+  // Ignore legacy mis-tags where reference_id is actually a sale id
+  const { data: saleHit } = await client
+    .from("sales")
+    .select("id")
+    .eq("id", customerId)
+    .maybeSingle();
+  if (saleHit?.id) return Math.max(0, opening);
+
+  const paid = (vouchers || []).reduce(
+    (sum, ve) =>
+      sum + Math.max(0, Number(ve.total_amount || 0) + Number(ve.discount_amount || 0)),
+    0,
+  );
 
   return Math.max(0, Math.round((opening - paid) * 100) / 100);
 }
