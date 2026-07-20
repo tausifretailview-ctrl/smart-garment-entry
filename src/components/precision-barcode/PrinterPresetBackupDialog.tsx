@@ -134,12 +134,15 @@ export function PrinterPresetBackupDialog({
   const {
     data: backups = [],
     isLoading: backupsLoading,
+    isError: backupsError,
+    error: backupsQueryError,
     refetch: refetchBackups,
   } = useQuery({
     queryKey: ["printer-preset-backups", organizationId],
     queryFn: () => fetchPrinterPresetBackups(organizationId!),
     enabled: open && !!organizationId,
     staleTime: 30_000,
+    retry: 1,
   });
 
   const previewItem = sampleItem ?? PREVIEW_SAMPLE;
@@ -252,7 +255,7 @@ export function PrinterPresetBackupDialog({
               Backup &amp; Restore
             </DialogTitle>
             <DialogDescription>
-              Protect label designs with automatic backups on every change, manual snapshots, and JSON export.
+              Protect label designs with cloud snapshots, restore, and JSON export/import.
             </DialogDescription>
           </DialogHeader>
 
@@ -304,9 +307,13 @@ export function PrinterPresetBackupDialog({
                   <Loader2 className="h-4 w-4 animate-spin mr-2" />
                   Loading backups…
                 </div>
+              ) : backupsError ? (
+                <div className="rounded-md border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
+                  {getPrinterPresetBackupErrorMessage(backupsQueryError)}
+                </div>
               ) : backups.length === 0 ? (
                 <div className="rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground">
-                  No backups yet. Backups are created automatically whenever you change a design.
+                  No backups yet. Use Create Backup for a snapshot, or Export JSON for a file copy.
                 </div>
               ) : (
                 <ScrollArea className="h-[min(52vh,420px)] rounded-md border">

@@ -129,11 +129,32 @@ function mapBackupRow(row: Record<string, unknown>): PrinterPresetBackupRow {
 }
 
 export function getPrinterPresetBackupErrorMessage(err: unknown): string {
-  if (err && typeof err === "object" && "message" in err && typeof (err as { message: unknown }).message === "string") {
-    return (err as { message: string }).message;
+  const raw =
+    err && typeof err === "object" && "message" in err && typeof (err as { message: unknown }).message === "string"
+      ? (err as { message: string }).message
+      : err instanceof Error
+        ? err.message
+        : "";
+  const msg = raw.trim();
+  if (!msg) return "Unknown error";
+
+  const lower = msg.toLowerCase();
+  // Common after REVOKE ALL on printer_presets_backup (permission denied for table …)
+  if (
+    lower.includes("permission denied") ||
+    lower.includes("42501") ||
+    (lower.includes("printer_presets_backup") &&
+      (lower.includes("denied") || lower.includes("not authorized") || lower.includes("rls")))
+  ) {
+    return "No permission to use label design backups on this database. Ask an admin to apply the printer_presets_backup grants migration.";
   }
-  if (err instanceof Error) return err.message;
-  return "Unknown error";
+  if (
+    lower.includes("could not find the table") ||
+    (lower.includes("printer_presets_backup") && lower.includes("schema cache"))
+  ) {
+    return "Label design backup table is missing on the server. Apply the printer_presets_backup migration, then try again.";
+  }
+  return msg;
 }
 
 function snapshotToInsert(
