@@ -185,13 +185,15 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
     notes && notes.trim() && !/^\d+$/.test(notes.trim()) ? notes.trim() : "";
   /** Default SN rows on preprinted — stretch to fill space above totals (no blank gap). */
   const PREPRINTED_DEFAULT_ROWS = isA4 ? 12 : 8;
-  const MAX_ITEMS_PER_PAGE = isA4 ? 20 : isPreprintedA5 ? 10 : 12;
+  /** A5 Retail ERP: fixed 10 SN lines so QR/footer stay on the page. */
+  const A5_RETAIL_SN_ROWS = 10;
+  const MAX_ITEMS_PER_PAGE = isA4 ? 20 : isPreprintedA5 ? 10 : isA5Retail ? A5_RETAIL_SN_ROWS : 12;
   const TARGET_ROWS = isPreprintedAny
     ? Math.max(items.length, PREPRINTED_DEFAULT_ROWS)
     : isA4
       ? Math.max(14, minItemRows)
-      : Math.max(8, minItemRows);
-  const MIN_BLANK_ROWS = isPreprintedAny ? PREPRINTED_DEFAULT_ROWS : 2;
+      : A5_RETAIL_SN_ROWS;
+  const MIN_BLANK_ROWS = isPreprintedAny ? PREPRINTED_DEFAULT_ROWS : isA5Retail ? A5_RETAIL_SN_ROWS : 2;
 
   const fmt = (amount: number) => {
     const value = amountWithDecimal ? amount.toFixed(2) : Math.round(amount).toString();
@@ -389,16 +391,16 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   const showHSNCol = showHSN;
   const showBarcodeCol = !isRealTast;
 
-  // Retail ERP: wider SN / SR No column + larger digits (take width from DESCRIPTION).
+  // Retail ERP A5: narrow SN column; give space back to DESCRIPTION.
   const cols: { key: string; label: string; width: string; align: "center" | "left" | "right" }[] = [
-    { key: "sr", label: "SN", width: isRealTast ? "4%" : isA5Retail ? "10%" : "7%", align: "center" },
+    { key: "sr", label: "SN", width: isRealTast ? "4%" : isA5Retail ? "4%" : "7%", align: "center" },
     {
       key: "description",
       label: "DESCRIPTION",
       width: isRealTast
         ? (showHSNCol ? "47%" : "54%")
         : isA5Retail
-          ? (showHSNCol ? "19%" : "25%")
+          ? (showHSNCol ? "25%" : "31%")
           : showHSNCol
             ? "22%"
             : "28%",
@@ -434,17 +436,17 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
 
   const stampSizeMap: Record<string, string> = { small: "60px", medium: "90px", large: "120px" };
   const stampDim = stampSizeMap[stampSize] || "90px";
-  // A5 QR was ~85px in the older Retail ERP layout; bump from 20mm toward that scale.
-  const qrBoxMm = isA4 ? 26 : 28;
-  const qrPadMm = isA4 ? 2 : 1;
+  // A5: compact QR so the seal/QR block stays inside the page (was overflowing at ~28mm).
+  const qrBoxMm = isA4 ? 26 : 18;
+  const qrPadMm = isA4 ? 2 : 0.5;
   const showPaymentQr = Boolean(qrCodeUrl && !isRealTast);
-  const signColWidth = isA5Retail ? "38%" : "40%";
+  const signColWidth = isA5Retail ? "34%" : "40%";
   const showGstPanel = !isRealTast && showGSTBreakdown && hasGSTData;
   const fsGstLabel = isA4 ? "10px" : "9px";
   const fsGstTable = isA4 ? "10px" : "8px";
-  // SR No must read clearly on A5 laser prints — larger than body text.
-  const fsSrNo = isRealTast ? fsBody : isA5Retail ? "18px" : "16px";
-  const fsSrHeader = isRealTast ? fsHeading : isA5Retail ? "14px" : "14px";
+  // A5 SN: compact column + smaller type so 10 rows fit with QR on-page.
+  const fsSrNo = isRealTast ? fsBody : isA5Retail ? "10px" : "16px";
+  const fsSrHeader = isRealTast ? fsHeading : isA5Retail ? "9px" : "14px";
 
   return (
     <div className="retail-erp-all-pages">
@@ -462,15 +464,13 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
             }
             style={{
               width: pageW,
-              ...(isRealTast || isPreprintedAny
+              ...(isRealTast || isPreprintedAny || isA5Retail
                 ? { minHeight: pageH, height: pageH, maxHeight: pageH, overflow: "hidden" }
-                : isA5Retail
-                  ? { maxHeight: pageH, overflow: "hidden" }
-                  : {}),
+                : {}),
               // Preprinted: only top letterhead blank (2in); rest matches Retail ERP layout.
               paddingTop: isPreprinted ? letterheadGap : pad,
               paddingRight: isPreprinted ? preprintedPadRight : pad,
-              paddingBottom: isPreprinted ? preprintedPadBottom : pad,
+              paddingBottom: isPreprinted ? preprintedPadBottom : isA5Retail ? "3mm" : pad,
               paddingLeft: isPreprinted ? preprintedPadX : pad,
               fontFamily: "Arial, Helvetica, sans-serif",
               fontSize: fsBody,
@@ -478,7 +478,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
               display: "flex",
               flexDirection: "column",
               position: "relative",
-              overflow: isRealTast || isPreprintedAny ? "hidden" : "visible",
+              overflow: isRealTast || isPreprintedAny || isA5Retail ? "hidden" : "visible",
             }}
           >
             <div
@@ -488,8 +488,8 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                 minHeight: 0,
                 display: "flex",
                 flexDirection: "column",
-                overflow: isRealTast || isPreprintedAny ? "hidden" : "visible",
-                justifyContent: isRealTast || isPreprintedAny ? "flex-start" : "flex-start",
+                overflow: isRealTast || isPreprintedAny || isA5Retail ? "hidden" : "visible",
+                justifyContent: "flex-start",
               }}
             >
 
@@ -712,32 +712,31 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                             ...(c.key === "sr" && !isRealTast
                               ? {
                                   fontSize: fsSrNo,
-                                  fontWeight: 900,
-                                  // Allow larger SR digits to paint fully inside the row.
-                                  overflow: "visible",
-                                  lineHeight: 1.05,
-                                  padding: isA4 ? "2px 2px" : "1px 2px",
+                                  fontWeight: isA5Retail ? 700 : 900,
+                                  overflow: isA5Retail ? "hidden" : "visible",
+                                  lineHeight: isA5Retail ? 1.1 : 1.05,
+                                  padding: isA4 ? "2px 2px" : isA5Retail ? "0 1px" : "1px 2px",
                                 }
                               : {}),
                           };
                           let content: React.ReactNode = "\u00A0";
-                          if (item) {
+                          if (c.key === "sr") {
+                            content = (
+                              <span
+                                style={{
+                                  fontSize: fsSrNo,
+                                  fontWeight: isA5Retail ? 700 : 900,
+                                  lineHeight: isA5Retail ? 1.1 : 1.05,
+                                  display: "block",
+                                  fontVariantNumeric: "tabular-nums",
+                                  color: item ? "#000" : "#666",
+                                }}
+                              >
+                                {srNo}
+                              </span>
+                            );
+                          } else if (item) {
                             switch (c.key) {
-                              case "sr":
-                                content = (
-                                  <span
-                                    style={{
-                                      fontSize: fsSrNo,
-                                      fontWeight: 900,
-                                      lineHeight: 1.05,
-                                      display: "block",
-                                      fontVariantNumeric: "tabular-nums",
-                                    }}
-                                  >
-                                    {srNo}
-                                  </span>
-                                );
-                                break;
                               case "description":
                                 content = (
                                   <span
@@ -1134,8 +1133,8 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                       alignItems: "stretch",
                       minHeight: isA4
                         ? (showPaymentQr ? "36mm" : isRealTast ? "110px" : "80px")
-                        : (showPaymentQr ? "38mm" : "56px"),
-                      maxHeight: isA5Retail ? (showPaymentQr ? "42mm" : "60px") : undefined,
+                        : (showPaymentQr ? "26mm" : "48px"),
+                      maxHeight: isA5Retail ? (showPaymentQr ? "30mm" : "52px") : undefined,
                       overflow: isA5Retail ? "hidden" : "visible",
                       position: "relative",
                       flexShrink: 0,
@@ -1302,19 +1301,23 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
           .retail-erp-invoice-template {
             width: ${pageW} !important;
             max-width: ${pageW} !important;
-            min-height: ${isPreprintedAny ? pageH : "auto"} !important;
-            height: ${isPreprintedAny ? pageH : "auto"} !important;
-            max-height: ${isPreprintedAny || (isA5Retail && !isPreprinted) ? pageH : "none"} !important;
+            min-height: ${isPreprintedAny || isA5Retail ? pageH : "auto"} !important;
+            height: ${isPreprintedAny || isA5Retail ? pageH : "auto"} !important;
+            max-height: ${isPreprintedAny || isA5Retail ? pageH : "none"} !important;
             padding-top: ${isPreprinted ? letterheadGap : pad} !important;
             padding-right: ${isPreprinted ? preprintedPadRight : pad} !important;
-            padding-bottom: ${isPreprinted ? preprintedPadBottom : pad} !important;
+            padding-bottom: ${isPreprinted ? preprintedPadBottom : isA5Retail ? "3mm" : pad} !important;
             padding-left: ${isPreprinted ? preprintedPadX : pad} !important;
-            overflow: ${isPreprintedAny || (isA5Retail && !isPreprinted) ? "hidden" : "visible"} !important;
+            overflow: ${isPreprintedAny || isA5Retail ? "hidden" : "visible"} !important;
             margin: 0 auto !important;
             box-sizing: border-box !important;
             display: flex !important;
             flex-direction: column !important;
-            ${isPreprintedAny ? "page-break-inside: avoid !important; break-inside: avoid !important;" : ""}
+            ${isPreprintedAny || isA5Retail ? "page-break-inside: avoid !important; break-inside: avoid !important;" : ""}
+          }
+          .retail-erp-qr-box {
+            max-width: ${isA5Retail ? "18mm" : "26mm"} !important;
+            max-height: ${isA5Retail ? "18mm" : "26mm"} !important;
           }
           .retail-erp-invoice-template[data-invoice-variant="preprinted"] {
             height: ${pageH} !important;
