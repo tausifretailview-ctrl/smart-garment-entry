@@ -935,7 +935,7 @@ function SortableFieldItem({ fieldKey, labelConfig, setLabelConfig, fieldLabels 
           onChange={(e) => {
             setLabelConfig(prev => ({
               ...prev,
-              [fieldKey]: { ...prev[fieldKey], show: e.target.checked }
+              [fieldKey]: { ...(prev[fieldKey] as LabelFieldConfig), show: e.target.checked }
             }));
           }}
           className="h-4 w-4"
@@ -955,7 +955,7 @@ function SortableFieldItem({ fieldKey, labelConfig, setLabelConfig, fieldLabels 
             onChange={(e) => {
               setLabelConfig(prev => ({
                 ...prev,
-                [fieldKey]: { ...prev[fieldKey], fontSize: parseInt(e.target.value) || 9 }
+                [fieldKey]: { ...(prev[fieldKey] as LabelFieldConfig), fontSize: parseInt(e.target.value) || 9 }
               }));
             }}
             className="w-16 h-8 text-xs"
@@ -984,7 +984,7 @@ function SortableFieldItem({ fieldKey, labelConfig, setLabelConfig, fieldLabels 
               onValueChange={(value) => {
                 setLabelConfig(prev => ({
                   ...prev,
-                  [fieldKey]: { ...prev[fieldKey], fontFamily: value }
+                  [fieldKey]: { ...(prev[fieldKey] as LabelFieldConfig), fontFamily: value }
                 }));
               }}
             >
@@ -1009,7 +1009,7 @@ function SortableFieldItem({ fieldKey, labelConfig, setLabelConfig, fieldLabels 
             onValueChange={(value: 'left' | 'center' | 'right') => {
               setLabelConfig(prev => ({
                 ...prev,
-                [fieldKey]: { ...prev[fieldKey], textAlign: value }
+                [fieldKey]: { ...(prev[fieldKey] as LabelFieldConfig), textAlign: value }
               }));
             }}
           >
@@ -1044,7 +1044,7 @@ function SortableFieldItem({ fieldKey, labelConfig, setLabelConfig, fieldLabels 
                       onChange={(e) => {
                         setLabelConfig(prev => ({
                           ...prev,
-                          [fieldKey]: { ...prev[fieldKey], paddingTop: parseInt(e.target.value) || 0 }
+                          [fieldKey]: { ...(prev[fieldKey] as LabelFieldConfig), paddingTop: parseInt(e.target.value) || 0 }
                         }));
                       }}
                       className="h-7 text-xs"
@@ -1060,7 +1060,7 @@ function SortableFieldItem({ fieldKey, labelConfig, setLabelConfig, fieldLabels 
                       onChange={(e) => {
                         setLabelConfig(prev => ({
                           ...prev,
-                          [fieldKey]: { ...prev[fieldKey], paddingBottom: parseInt(e.target.value) || 0 }
+                          [fieldKey]: { ...(prev[fieldKey] as LabelFieldConfig), paddingBottom: parseInt(e.target.value) || 0 }
                         }));
                       }}
                       className="h-7 text-xs"
@@ -1076,7 +1076,7 @@ function SortableFieldItem({ fieldKey, labelConfig, setLabelConfig, fieldLabels 
                       onChange={(e) => {
                         setLabelConfig(prev => ({
                           ...prev,
-                          [fieldKey]: { ...prev[fieldKey], paddingLeft: parseInt(e.target.value) || 0 }
+                          [fieldKey]: { ...(prev[fieldKey] as LabelFieldConfig), paddingLeft: parseInt(e.target.value) || 0 }
                         }));
                       }}
                       className="h-7 text-xs"
@@ -1092,7 +1092,7 @@ function SortableFieldItem({ fieldKey, labelConfig, setLabelConfig, fieldLabels 
                       onChange={(e) => {
                         setLabelConfig(prev => ({
                           ...prev,
-                          [fieldKey]: { ...prev[fieldKey], paddingRight: parseInt(e.target.value) || 0 }
+                          [fieldKey]: { ...(prev[fieldKey] as LabelFieldConfig), paddingRight: parseInt(e.target.value) || 0 }
                         }));
                       }}
                       className="h-7 text-xs"

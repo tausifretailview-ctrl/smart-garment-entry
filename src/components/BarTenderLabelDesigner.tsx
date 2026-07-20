@@ -527,7 +527,7 @@ export function BarTenderLabelDesigner({
   const handleFieldToggle = (fieldKey: FieldKey, show: boolean) => {
     setLabelConfig(prev => ({
       ...prev,
-      [fieldKey]: { ...prev[fieldKey], show }
+      [fieldKey]: { ...(prev[fieldKey] as LabelFieldConfig), show }
     }));
   };
 
