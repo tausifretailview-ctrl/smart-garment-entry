@@ -4,7 +4,8 @@ import { lazyWithRetry } from "@/lib/chunkLoadRetry";
 import { logError } from "@/lib/errorLogger";
 import { UOM_OPTIONS } from "@/constants/uom";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
-import { ArrowLeft, Home, Save, Eye, EyeOff, Shield, Printer, Package, Paintbrush, Copy, RefreshCw, CheckCircle2, Loader2, Building2, ShoppingCart, Receipt, CreditCard, BarChart2, Users, MessageSquare, MessageCircle, Database, Palette, FileText, Smartphone } from "lucide-react";
+import { ArrowLeft, Home, Save, Eye, EyeOff, Shield, Printer, Package, Paintbrush, Copy, RefreshCw, CheckCircle2, Loader2, Building2, ShoppingCart, Receipt, CreditCard, BarChart2, Users, MessageSquare, MessageCircle, Database, Palette, FileText, Smartphone, History } from "lucide-react";
+import { SaleInvoiceFormatBackupDialog } from "@/components/settings/SaleInvoiceFormatBackupDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -536,6 +537,7 @@ export default function Settings() {
     orgName: string;
   }>>([]);
   const [importingPresetId, setImportingPresetId] = useState<string | null>(null);
+  const [invoiceFormatBackupOpen, setInvoiceFormatBackupOpen] = useState(false);
 
   const fetchDbPresets = async () => {
     if (!currentOrganization?.id) return;
@@ -2688,14 +2690,27 @@ export default function Settings() {
                 </div>
 
                 <div className="space-y-4 pt-4 border-t">
-                  <div className="flex items-center gap-2">
-                    <div className="h-8 w-8 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0">
-                      <Printer className="h-4 w-4 text-blue-600" />
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className="h-8 w-8 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0">
+                        <Printer className="h-4 w-4 text-blue-600" />
+                      </div>
+                      <div className="min-w-0">
+                        <h3 className="text-base font-semibold leading-none">Print Format</h3>
+                        <p className="text-xs text-muted-foreground mt-0.5">Paper size and printer settings for invoices</p>
+                      </div>
                     </div>
-                    <div>
-                      <h3 className="text-base font-semibold leading-none">Print Format</h3>
-                      <p className="text-xs text-muted-foreground mt-0.5">Paper size and printer settings for invoices</p>
-                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-9 gap-1.5 shrink-0"
+                      onClick={() => setInvoiceFormatBackupOpen(true)}
+                      disabled={!currentOrganization?.id}
+                    >
+                      <History className="h-4 w-4" />
+                      Backup &amp; Restore
+                    </Button>
                   </div>
 
                   {/* Enable preview toggle */}
@@ -5820,6 +5835,23 @@ export default function Settings() {
           </TabsContent>
         </Tabs>
       </div>
+
+      <SaleInvoiceFormatBackupDialog
+        open={invoiceFormatBackupOpen}
+        onOpenChange={setInvoiceFormatBackupOpen}
+        organizationId={currentOrganization?.id || ""}
+        organizationName={currentOrganization?.name || "Organization"}
+        saleSettings={(settings.sale_settings || {}) as Record<string, unknown>}
+        onApplyFormat={(nextSaleSettings) => {
+          setSettings({
+            ...settings,
+            sale_settings: {
+              ...settings.sale_settings,
+              ...nextSaleSettings,
+            } as Settings["sale_settings"],
+          });
+        }}
+      />
     </div>
   );
 }
