@@ -471,28 +471,28 @@ export function BarTenderLabelDesigner({
           e.preventDefault();
           setLabelConfig(prev => ({
             ...prev,
-            [selectedField]: { ...prev[selectedField], y: Math.max(0, field.y - step) }
+            [selectedField]: { ...(prev[selectedField] as LabelFieldConfig), y: Math.max(0, field.y - step) }
           }));
           break;
         case 'ArrowDown':
           e.preventDefault();
           setLabelConfig(prev => ({
             ...prev,
-            [selectedField]: { ...prev[selectedField], y: Math.min(labelHeight - 3, field.y + step) }
+            [selectedField]: { ...(prev[selectedField] as LabelFieldConfig), y: Math.min(labelHeight - 3, field.y + step) }
           }));
           break;
         case 'ArrowLeft':
           e.preventDefault();
           setLabelConfig(prev => ({
             ...prev,
-            [selectedField]: { ...prev[selectedField], x: Math.max(0, field.x - step) }
+            [selectedField]: { ...(prev[selectedField] as LabelFieldConfig), x: Math.max(0, field.x - step) }
           }));
           break;
         case 'ArrowRight':
           e.preventDefault();
           setLabelConfig(prev => ({
             ...prev,
-            [selectedField]: { ...prev[selectedField], x: Math.min(labelWidth - 5, field.x + step) }
+            [selectedField]: { ...(prev[selectedField] as LabelFieldConfig), x: Math.min(labelWidth - 5, field.x + step) }
           }));
           break;
         case 'Escape':
@@ -551,7 +551,7 @@ export function BarTenderLabelDesigner({
     if (!selectedField) return;
     setLabelConfig(prev => ({
       ...prev,
-      [selectedField]: { ...prev[selectedField], [property]: value }
+      [selectedField]: { ...(prev[selectedField] as LabelFieldConfig), [property]: value }
     }));
   };
 
