@@ -22,7 +22,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Loader2, Receipt, Search, ChevronDown, ChevronRight, Printer, Plus, Home, Edit, Trash2, Database, ArrowUpDown, Wallet, Settings2, CheckCircle2, Clock, ShoppingCart, IndianRupee, FileText, X, RefreshCw, Barcode, Eye, CreditCard, Camera, Lock, LockOpen, ZoomIn, FileSpreadsheet, Ban } from "lucide-react";
+import { Loader2, Receipt, Search, ChevronDown, ChevronRight, Printer, Plus, Home, Edit, Trash2, Database, ArrowUpDown, Wallet, Settings2, CheckCircle2, Clock, ShoppingCart, IndianRupee, FileText, X, RefreshCw, Barcode, Eye, CreditCard, Camera, Lock, LockOpen, ZoomIn, FileSpreadsheet, Ban, Building2 } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { format, formatDistanceToNow } from "date-fns";
 import { formatPurchaseBillEntryAt, getPurchaseBillEntryAt } from "@/lib/purchaseBillEntryAt";
@@ -772,9 +772,16 @@ const PurchaseBillDashboard = () => {
   }, [billItems, bills]);
 
   const { softDelete, bulkSoftDelete, checkPurchaseStockDependencies } = useSoftDelete();
-  const { hasSpecialPermission } = useUserPermissions();
+  const {
+    hasSpecialPermission,
+    hasMenuAccess,
+    permissions,
+    loading: permissionsLoading,
+  } = useUserPermissions();
   const canDelete = hasSpecialPermission('delete_records');
   const canCancel = hasSpecialPermission('cancel_invoice');
+  const canViewSupplierBalance =
+    !permissionsLoading && (permissions === null || hasMenuAccess("supplier_party_balances"));
   const { canModify: canModifyEntry } = useEntryOwnership();
 
   const handleDeleteClick = async (bill: PurchaseBill, event: React.MouseEvent) => {
@@ -2365,6 +2372,17 @@ const PurchaseBillDashboard = () => {
               )}
               Fix Missing MRP
             </Button>
+            {canViewSupplierBalance && (
+              <Button
+                onClick={() => navigate("/supplier-party-balances")}
+                variant="outline"
+                className="gap-1.5 h-9 text-sm border-slate-300 text-slate-600 hover:bg-slate-100 font-medium px-3"
+                title="Open Supplier Balance"
+              >
+                <Building2 className="h-4 w-4" />
+                Supplier Balance
+              </Button>
+            )}
             {import.meta.env.DEV && (
               <Button
                 onClick={handleVerifyMrpRpcEquivalence}
