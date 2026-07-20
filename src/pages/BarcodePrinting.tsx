@@ -70,7 +70,11 @@ import {
   syncBaselineLabelConfig,
 } from "@/utils/precisionDesignBaseline";
 import {
+  clearBarcodePurchaseItems,
+  consumeBarcodePurchaseItems,
+  hasPendingBarcodePurchaseItems,
   persistBarcodePurchaseBillContext,
+  queueBarcodePurchaseItems,
   readBarcodePurchaseBillContext,
   resolvePurchaseBillIdForBarcodeReturn,
 } from "@/utils/barcodePurchaseBillContext";
@@ -1223,8 +1227,11 @@ export default function BarcodePrinting() {
     () => new Map(),
   );
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  // Do not hydrate prior products when Print Barcode just navigated here —
+  // otherwise tab-cache/localStorage old rows merge with the new bill items.
   const [labelItems, setLabelItems] = useState<LabelItem[]>(() => {
     try {
+      if (hasPendingBarcodePurchaseItems()) return [];
       const saved = localStorage.getItem('barcode_label_items');
       if (saved) return JSON.parse(saved);
     } catch {}
@@ -1238,6 +1245,7 @@ export default function BarcodePrinting() {
   const [billNumber, setBillNumber] = useState("");
   const [sourcePurchaseBillId, setSourcePurchaseBillId] = useState<string | null>(null);
   const sourcePurchaseBillIdRef = useRef<string | null>(null);
+  const appliedPurchaseNavKeyRef = useRef<string | null>(null);
   useEffect(() => {
     sourcePurchaseBillIdRef.current = sourcePurchaseBillId;
   }, [sourcePurchaseBillId]);
@@ -2595,104 +2603,134 @@ export default function BarcodePrinting() {
     void fetchRecentBills();
   }, [currentOrganization?.id]);
 
-  // Pre-fill items from purchase entry if passed via navigation state
-  useEffect(() => {
-    if (isLoadingSettings) return; // Wait for label design settings to load first
-    if (location.state?.purchaseItems) {
-      const purchaseItems = location.state.purchaseItems;
-      let hasPurchasePrices = false;
-      let hasStyle = false;
-      let hasSupplierCode = false;
-      
-      const items: LabelItem[] = purchaseItems.map((item: any) => {
-        const purPrice = item.pur_price || 0;
-        const gstPer = item.gst_per || 0;
-        // Always calculate purchase code if pur_price exists
-        const billDateStr = item.bill_date || undefined;
-        const effectivePrice = getEffectivePurchasePrice(purPrice, gstPer, purchaseCodeIncludeGst);
-        const purchaseCode = purPrice > 0 
-          ? encodePurchasePrice(effectivePrice, purchaseCodeAlphabet, billDateStr) 
-          : undefined;
-        
-        if (purPrice > 0) {
-          hasPurchasePrices = true;
-        }
-        if (item.style && String(item.style).trim()) {
-          hasStyle = true;
-        }
-        if (item.supplier_code && String(item.supplier_code).trim()) {
-          hasSupplierCode = true;
-        }
-        
-        return {
-          sku_id: item.sku_id,
-          product_name: item.product_name,
-          brand: item.brand || "",
-          category: item.category || "",
-          color: item.color || "",
-          style: item.style || "",
-          size: item.size,
-          sale_price: item.sale_price,
-          mrp: item.mrp || 0,
-          pur_price: purPrice,
-          gst_per: gstPer,
-          purchase_code: purchaseCode,
-          bill_date: item.bill_date || undefined,
-          barcode: item.barcode,
-          qty: item.qty,
-          uom: item.uom || 'NOS',
-          bill_number: item.bill_number || "",
-          supplier_code: item.supplier_code || "",
-          supplier_invoice_no: item.supplier_invoice_no || "",
-        };
-      });
-      
-      // Apply size sorting based on user preference (note: sizeSortOrder from DB may not be loaded yet)
-      setLabelItems(items);
-      
-      // Auto-enable purchase code visibility when items have purchase prices
-      if (hasPurchasePrices) {
-        setShowPurchaseCode(true);
-        setLabelConfig(prev => ({
-          ...prev,
-          purchaseCode: { ...prev.purchaseCode, show: true }
-        }));
-      }
-      
-      // Auto-enable style visibility when items have style data
-      if (hasStyle) {
-        setLabelConfig(prev => ({
-          ...prev,
-          style: { ...prev.style, show: true }
-        }));
-      }
-      
-      // Auto-enable supplier code visibility when items have supplier code data
-      if (hasSupplierCode) {
-        setLabelConfig(prev => ({
-          ...prev,
-          supplierCode: { ...prev.supplierCode, show: true }
-        }));
-      }
-      
-      toast.success(`Loaded ${items.length} items from purchase bill`);
+  // Stash Print-Barcode payload immediately (before other effects can clear router state).
+  useLayoutEffect(() => {
+    const st = location.state as { purchaseItems?: unknown[]; billId?: string } | null;
+    if (!purchaseNavKey || !st?.purchaseItems?.length) return;
+    queueBarcodePurchaseItems({
+      navKey: purchaseNavKey,
+      billId: st.billId,
+      items: st.purchaseItems,
+    });
+  }, [purchaseNavKey, location.state]);
 
-      const navState = location.state as { billId?: string } | null;
-      const billId = navState?.billId;
-      const billNumber = items.find((item) => item.bill_number?.trim())?.bill_number;
-      if (currentOrganization?.id && billId) {
-        persistBarcodePurchaseBillContext(currentOrganization.id, {
-          billId,
-          billNumber,
-        });
-        sourcePurchaseBillIdRef.current = billId;
-        setSourcePurchaseBillId(billId);
-        setFromPurchaseBill(true);
-      } else if (currentOrganization?.id && billNumber) {
-        setFromPurchaseBill(true);
-      }
+  // Load purchase bill items into Product Description — always REPLACE, never merge with prior list.
+  // Tab-cache keeps this page mounted, so old products would otherwise stay beside the new bill.
+  useEffect(() => {
+    if (isLoadingSettings) return;
+
+    const st = location.state as { purchaseItems?: unknown[]; billId?: string } | null;
+    const fromState = st?.purchaseItems?.length
+      ? { navKey: purchaseNavKey, billId: st.billId, items: st.purchaseItems as unknown[] }
+      : null;
+    const pending = fromState?.navKey
+      ? fromState
+      : consumeBarcodePurchaseItems();
+    if (!pending?.items?.length || !pending.navKey) return;
+    if (appliedPurchaseNavKeyRef.current === pending.navKey) return;
+    appliedPurchaseNavKeyRef.current = pending.navKey;
+    clearBarcodePurchaseItems();
+
+    let hasPurchasePrices = false;
+    let hasStyle = false;
+    let hasSupplierCode = false;
+
+    const items: LabelItem[] = pending.items.map((item: any) => {
+      const purPrice = item.pur_price || 0;
+      const gstPer = item.gst_per || 0;
+      const billDateStr = item.bill_date || undefined;
+      const effectivePrice = getEffectivePurchasePrice(purPrice, gstPer, purchaseCodeIncludeGst);
+      const purchaseCode = purPrice > 0
+        ? encodePurchasePrice(effectivePrice, purchaseCodeAlphabet, billDateStr)
+        : undefined;
+
+      if (purPrice > 0) hasPurchasePrices = true;
+      if (item.style && String(item.style).trim()) hasStyle = true;
+      if (item.supplier_code && String(item.supplier_code).trim()) hasSupplierCode = true;
+
+      return {
+        sku_id: item.sku_id,
+        product_name: item.product_name,
+        brand: item.brand || "",
+        category: item.category || "",
+        color: item.color || "",
+        style: item.style || "",
+        size: item.size,
+        sale_price: item.sale_price,
+        mrp: item.mrp || 0,
+        pur_price: purPrice,
+        gst_per: gstPer,
+        purchase_code: purchaseCode,
+        bill_date: item.bill_date || undefined,
+        barcode: item.barcode,
+        qty: item.qty,
+        uom: item.uom || "NOS",
+        bill_number: item.bill_number || "",
+        supplier_code: item.supplier_code || "",
+        supplier_invoice_no: item.supplier_invoice_no || "",
+      };
+    });
+
+    // Replace entire print list (do not append to products already on the page)
+    setLabelItems(items);
+    try {
+      localStorage.setItem("barcode_label_items", JSON.stringify(items));
+    } catch {
+      /* ignore */
     }
-  }, [location.state, purchaseCodeAlphabet, isLoadingSettings, currentOrganization?.id]);
+
+    if (hasPurchasePrices) {
+      setShowPurchaseCode(true);
+      setLabelConfig((prev) => ({
+        ...prev,
+        purchaseCode: { ...prev.purchaseCode, show: true },
+      }));
+    }
+    if (hasStyle) {
+      setLabelConfig((prev) => ({
+        ...prev,
+        style: { ...prev.style, show: true },
+      }));
+    }
+    if (hasSupplierCode) {
+      setLabelConfig((prev) => ({
+        ...prev,
+        supplierCode: { ...prev.supplierCode, show: true },
+      }));
+    }
+
+    toast.success(`Loaded ${items.length} items from purchase bill`);
+
+    const billId = pending.billId;
+    const billNumber = items.find((item) => item.bill_number?.trim())?.bill_number;
+    if (currentOrganization?.id && billId) {
+      persistBarcodePurchaseBillContext(currentOrganization.id, {
+        billId,
+        billNumber,
+      });
+      sourcePurchaseBillIdRef.current = billId;
+      setSourcePurchaseBillId(billId);
+      setFromPurchaseBill(true);
+    } else if (currentOrganization?.id && billNumber) {
+      setFromPurchaseBill(true);
+    }
+
+    // Drop purchaseItems from router state so later setting loads cannot re-merge.
+    if (st?.purchaseItems?.length) {
+      orgNavigate("/barcode-printing", {
+        replace: true,
+        state: billId ? { billId } : {},
+      });
+    }
+  }, [
+    purchaseNavKey,
+    location.state,
+    purchaseCodeAlphabet,
+    purchaseCodeIncludeGst,
+    isLoadingSettings,
+    currentOrganization?.id,
+    orgNavigate,
+  ]);
 
   // Re-sort items when size sort order changes
   useEffect(() => {
@@ -3196,7 +3234,8 @@ export default function BarcodePrinting() {
 
   const handleClearAll = () => {
     setLabelItems([]);
-    localStorage.removeItem('barcode_label_items');
+    localStorage.removeItem("barcode_label_items");
+    clearBarcodePurchaseItems();
     setSearchQuery("");
     toast.success("Cleared all labels");
   };

@@ -1,12 +1,21 @@
 import { supabase } from "@/integrations/supabase/client";
 
 const STORAGE_KEY = "barcode_source_purchase_bill";
+/** Pending Print-Barcode payload — survives tab-cache + router state clears. */
+const PENDING_ITEMS_KEY = "barcode_pending_purchase_items";
 
 export type BarcodePurchaseBillContext = {
   organizationId: string;
   billId: string;
   billNumber?: string;
   updatedAt: number;
+};
+
+export type BarcodePendingPurchaseNav = {
+  navKey: string;
+  billId?: string;
+  items: unknown[];
+  ts: number;
 };
 
 function safeGet(key: string): string | null {
@@ -65,6 +74,61 @@ export function readBarcodePurchaseBillContext(
 
 export function clearBarcodePurchaseBillContext(): void {
   safeRemove(STORAGE_KEY);
+}
+
+/** Stash purchase→barcode items so Print Barcode can replace the list even if router state is cleared. */
+export function queueBarcodePurchaseItems(input: {
+  navKey: string;
+  billId?: string;
+  items: unknown[];
+}): void {
+  if (!input.navKey || !input.items?.length) return;
+  const payload: BarcodePendingPurchaseNav = {
+    navKey: input.navKey,
+    billId: input.billId,
+    items: input.items,
+    ts: Date.now(),
+  };
+  safeSet(PENDING_ITEMS_KEY, JSON.stringify(payload));
+}
+
+export function peekBarcodePurchaseItems(): BarcodePendingPurchaseNav | null {
+  const raw = safeGet(PENDING_ITEMS_KEY);
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as BarcodePendingPurchaseNav;
+    if (!parsed?.navKey || !parsed.items?.length) return null;
+    if (Date.now() - parsed.ts > 120_000) {
+      safeRemove(PENDING_ITEMS_KEY);
+      return null;
+    }
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+export function consumeBarcodePurchaseItems(navKey?: string | null): BarcodePendingPurchaseNav | null {
+  const pending = peekBarcodePurchaseItems();
+  if (!pending) return null;
+  if (navKey && pending.navKey !== navKey) return null;
+  safeRemove(PENDING_ITEMS_KEY);
+  return pending;
+}
+
+export function clearBarcodePurchaseItems(): void {
+  safeRemove(PENDING_ITEMS_KEY);
+}
+
+/** True when Print Barcode is in-flight (history state or session queue). */
+export function hasPendingBarcodePurchaseItems(): boolean {
+  try {
+    const hist = window.history.state as { purchaseItems?: unknown[] } | null;
+    if (hist?.purchaseItems?.length) return true;
+  } catch {
+    /* ignore */
+  }
+  return peekBarcodePurchaseItems() != null;
 }
 
 /** Latest saved purchase bill for the org (matches Purchase Entry "Last" navigation). */
