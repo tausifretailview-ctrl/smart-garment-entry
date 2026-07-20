@@ -797,7 +797,8 @@ export function CustomerLedger({
       const { data: allAdjustments, error: adjError } = await supabase
         .from('customer_balance_adjustments')
         .select('customer_id, outstanding_difference')
-        .eq('organization_id', organizationId);
+        .eq('organization_id', organizationId)
+        .is('materialized_at', null);
 
       if (adjError) console.error('Error fetching adjustments:', adjError);
 

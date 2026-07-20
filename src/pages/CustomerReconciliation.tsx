@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
@@ -11,15 +11,33 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { CheckCircle2, XCircle, Download, Search, Wrench, RefreshCw } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
+import { CheckCircle2, XCircle, Download, Search, Wrench, RefreshCw, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import * as XLSX from "xlsx";
+import { toast } from "sonner";
 import { useCustomerSearch } from "@/hooks/useCustomerSearch";
 import {
   computeCustomerOutstanding,
   type SaleReturnLedgerRow,
   type VoucherLedgerRow,
 } from "@/utils/customerBalanceUtils";
+
+type RepairPreviewRow = {
+  action: string;
+  reference_type: string | null;
+  reference_id: string | null;
+  reference_label: string | null;
+  amount: number;
+  voucher_id: string | null;
+};
 
 interface RawBalance {
   customer_id: string;
@@ -53,11 +71,14 @@ interface AuditTransactionRow {
 export default function CustomerReconciliation() {
   const { currentOrganization } = useOrganization();
   const { navigate } = useOrgNavigation();
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [mismatchOnly, setMismatchOnly] = useState(false);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>("");
   const [selectedCustomerName, setSelectedCustomerName] = useState<string>("");
   const [isCalculatingTrueBalance, setIsCalculatingTrueBalance] = useState(false);
+  const [repairPreview, setRepairPreview] = useState<RepairPreviewRow[] | null>(null);
+  const [repairApplying, setRepairApplying] = useState(false);
   const [auditTransactions, setAuditTransactions] = useState<AuditTransactionRow[]>([]);
   const [totalSales, setTotalSales] = useState(0);
   const [totalPayments, setTotalPayments] = useState(0);
@@ -161,11 +182,12 @@ export default function CustomerReconciliation() {
         .eq("reference_type", "customer")
         .is("deleted_at", null);
 
-      // Fetch adjustments
+      // Fetch unmaterialized adjustments only (materialized floaters are receipt vouchers)
       const { data: adjustments } = await supabase
         .from("customer_balance_adjustments")
         .select("customer_id, outstanding_difference")
-        .eq("organization_id", orgId);
+        .eq("organization_id", orgId)
+        .is("materialized_at", null);
 
       const result = new Map<string, LedgerBalance>();
 
@@ -287,6 +309,52 @@ export default function CustomerReconciliation() {
   const totalDrift = rows.reduce((s, r) => s + Math.abs(r.difference), 0);
 
   const fmt = (n: number) => `₹${Math.abs(n).toLocaleString("en-IN")}${n < 0 ? " Cr" : n > 0 ? " Dr" : ""}`;
+
+  const previewRepairMutation = useMutation({
+    mutationFn: async () => {
+      if (!currentOrganization?.id || !selectedCustomerId) {
+        throw new Error("Select a customer first");
+      }
+      const { data, error } = await supabase.rpc(
+        "repair_customer_floating_adjustments" as any,
+        {
+          p_organization_id: currentOrganization.id,
+          p_customer_id: selectedCustomerId,
+          p_dry_run: true,
+        },
+      );
+      if (error) throw error;
+      return ((data as unknown) || []) as RepairPreviewRow[];
+    },
+    onSuccess: (data) => setRepairPreview(data),
+    onError: (e: Error) => toast.error(e.message || "Preview failed"),
+  });
+
+  const applyRepairMutation = useMutation({
+    mutationFn: async () => {
+      if (!currentOrganization?.id || !selectedCustomerId) {
+        throw new Error("Select a customer first");
+      }
+      setRepairApplying(true);
+      const { error } = await supabase.rpc(
+        "repair_customer_floating_adjustments" as any,
+        {
+          p_organization_id: currentOrganization.id,
+          p_customer_id: selectedCustomerId,
+          p_dry_run: false,
+        },
+      );
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Floating adjustments materialized");
+      setRepairPreview(null);
+      void queryClient.invalidateQueries({ queryKey: ["reconcile-balances"] });
+      void refetch();
+    },
+    onError: (e: Error) => toast.error(e.message || "Repair failed"),
+    onSettled: () => setRepairApplying(false),
+  });
 
   const handleCalculateTrueBalance = useCallback(async () => {
     if (!currentOrganization?.id || !selectedCustomerId) return;
@@ -550,13 +618,98 @@ export default function CustomerReconciliation() {
         </Button>
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button size="sm" variant="outline" disabled>
-              <Wrench className="h-3.5 w-3.5 mr-1" /> Fix All
-            </Button>
+            <span>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={!selectedCustomerId || previewRepairMutation.isPending}
+                onClick={() => previewRepairMutation.mutate()}
+              >
+                {previewRepairMutation.isPending ? (
+                  <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                ) : (
+                  <Wrench className="h-3.5 w-3.5 mr-1" />
+                )}
+                Repair floating adjustments
+              </Button>
+            </span>
           </TooltipTrigger>
-          <TooltipContent>Coming soon</TooltipContent>
+          <TooltipContent>
+            {selectedCustomerId
+              ? "Dry-run FIFO materialize of floating balance adjustments for the selected customer"
+              : "Select a customer first"}
+          </TooltipContent>
         </Tooltip>
       </div>
+
+      <Dialog
+        open={!!repairPreview}
+        onOpenChange={(o) => {
+          if (!o) setRepairPreview(null);
+        }}
+      >
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Repair floating adjustments — {selectedCustomerName}</DialogTitle>
+          </DialogHeader>
+          <div className="rounded border max-h-[40vh] overflow-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Action</TableHead>
+                  <TableHead>Target</TableHead>
+                  <TableHead className="text-right">Amount</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {(repairPreview || []).length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={3} className="py-4 text-center text-muted-foreground">
+                      Nothing to allocate for this customer.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  (repairPreview || []).map((row, i) => (
+                    <TableRow key={i}>
+                      <TableCell>
+                        {row.action === "residual_unallocated" ? (
+                          <Badge variant="destructive">Residual</Badge>
+                        ) : (
+                          <Badge variant="secondary">Allocate</Badge>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-xs">{row.reference_label}</TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        ₹{Number(row.amount || 0).toLocaleString("en-IN")}
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Apply is blocked if any residual remains. Closing balance must stay within ₹1 after materialize.
+          </p>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setRepairPreview(null)}>
+              Cancel
+            </Button>
+            <Button
+              disabled={
+                repairApplying ||
+                !repairPreview?.length ||
+                repairPreview.some((r) => r.action === "residual_unallocated") ||
+                !repairPreview.some((r) => r.action === "allocate")
+              }
+              onClick={() => applyRepairMutation.mutate()}
+            >
+              {repairApplying ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Apply repair
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Table */}
       <div className="border rounded-md overflow-auto">

@@ -163,7 +163,7 @@ export function AdjustmentDriftPanel({
                     <Button
                       size="sm"
                       variant="outline"
-                      disabled={previewMutation.isPending || Number(r.floating_adjustment_pool || 0) >= 0}
+                      disabled={previewMutation.isPending || Number(r.floating_adjustment_pool || 0) >= -0.5}
                       onClick={() => previewMutation.mutate(r)}
                     >
                       {previewMutation.isPending && previewMutation.variables?.customer_id === r.customer_id ? (
@@ -220,16 +220,22 @@ export function AdjustmentDriftPanel({
                 </Table>
               </div>
               <div className="text-xs text-muted-foreground">
-                Applying creates receipt vouchers dated at the earliest adjustment date and marks the source
-                adjustments as materialized. Ledger closing balance is guarded — the repair aborts if it moves
-                by more than ₹1.
+                Applying creates <code>balance_adjustment</code> receipt vouchers (Opening Balance → oldest
+                invoices), zeroes the floating <code>outstanding_difference</code>, and marks adjustments
+                materialized. Apply is refused if any residual remains. Closing balance must stay within ₹1.
               </div>
             </div>
           )}
           <DialogFooter>
             <Button variant="ghost" onClick={() => { setTarget(null); setDryRun(null); }}>Cancel</Button>
             <Button
-              disabled={running || !dryRun || dryRun.length === 0 || dryRun.every((r) => r.action === "residual_unallocated")}
+              disabled={
+                running ||
+                !dryRun ||
+                dryRun.length === 0 ||
+                dryRun.some((r) => r.action === "residual_unallocated") ||
+                !dryRun.some((r) => r.action === "allocate")
+              }
               onClick={() => applyMutation.mutate()}
             >
               {running ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}

@@ -28,8 +28,9 @@ export interface AdjustmentAllocation {
 export interface AdjustmentResult {
   allocations: AdjustmentAllocation[];
   totalVouchersWritten: number;
-  /** Portion not allocated to open invoices (= adjustmentAmount − totalVouchersWritten). */
+  /** Portion not allocated to open invoices/OB (= adjustmentAmount − totalVouchersWritten). */
   uncoveredAmount: number;
+  voucherIds: string[];
 }
 
 export type ApplyAdjustmentToInvoicesParams = {
@@ -43,10 +44,44 @@ export type ApplyAdjustmentToInvoicesParams = {
   client?: SupabaseClient;
 };
 
+async function fetchOpeningBalancePending(
+  client: SupabaseClient,
+  organizationId: string,
+  customerId: string,
+): Promise<number> {
+  const { data: customer, error } = await client
+    .from("customers")
+    .select("id, opening_balance")
+    .eq("id", customerId)
+    .eq("organization_id", organizationId)
+    .is("deleted_at", null)
+    .maybeSingle();
+  if (error) throw error;
+  const opening = Number(customer?.opening_balance || 0);
+  if (opening <= 0.5) return 0;
+
+  const { data: vouchers, error: vErr } = await client
+    .from("voucher_entries")
+    .select("id, total_amount, discount_amount, reference_id")
+    .eq("organization_id", organizationId)
+    .eq("voucher_type", "receipt")
+    .eq("reference_type", "customer")
+    .eq("reference_id", customerId)
+    .is("deleted_at", null);
+  if (vErr) throw vErr;
+
+  const paid = (vouchers || []).reduce((sum, ve) => {
+    // Exclude rows that actually point at a sale id (legacy mis-tags)
+    return sum + Math.max(0, Number(ve.total_amount || 0) + Number(ve.discount_amount || 0));
+  }, 0);
+
+  return Math.max(0, Math.round((opening - paid) * 100) / 100);
+}
+
 /**
- * FIFO-settle open invoices via balance_adjustment receipt vouchers.
- * Vouchers count in reconcile receipt_payments; caller must store only
- * uncoveredAmount as customer_balance_adjustments.outstanding_difference.
+ * FIFO-settle Opening Balance then open invoices via balance_adjustment receipts.
+ * Caller must store only uncoveredAmount as customer_balance_adjustments.outstanding_difference
+ * and mark materialized when uncoveredAmount ≈ 0 and vouchers were written.
  */
 export async function applyAdjustmentToInvoices(
   params: ApplyAdjustmentToInvoicesParams,
@@ -65,10 +100,47 @@ export async function applyAdjustmentToInvoices(
     allocations: [],
     totalVouchersWritten: 0,
     uncoveredAmount: adjustmentAmount,
+    voucherIds: [],
   };
 
   if (adjustmentAmount <= 0.5) return empty;
 
+  const voucherDate = new Date().toISOString().split("T")[0];
+  const allocations: AdjustmentAllocation[] = [];
+  const voucherIds: string[] = [];
+  let remaining = adjustmentAmount;
+  let totalVouchersWritten = 0;
+
+  // Step 1 — Opening Balance
+  const obPending = await fetchOpeningBalancePending(client, organizationId, customerId);
+  if (obPending > 0.5 && remaining > 0.5) {
+    const applyAmount = Math.min(remaining, obPending);
+    const voucher = await createReceiptVoucher(client, {
+      organizationId,
+      referenceId: customerId,
+      referenceType: "customer",
+      amount: applyAmount,
+      paymentMethod: BALANCE_ADJUSTMENT_PAYMENT_METHOD,
+      description: balanceAdjustmentVoucherDescription(
+        "Opening Balance",
+        adjustmentRowId,
+        reason,
+      ),
+      voucherDate,
+      createdBy: createdBy ?? null,
+    });
+    if (voucher?.id) voucherIds.push(String(voucher.id));
+    allocations.push({
+      saleId: customerId,
+      saleNumber: "Opening Balance",
+      appliedAmount: applyAmount,
+      newStatus: "completed",
+    });
+    totalVouchersWritten = Math.round((totalVouchersWritten + applyAmount) * 100) / 100;
+    remaining = Math.round((remaining - applyAmount) * 100) / 100;
+  }
+
+  // Step 2 — oldest unpaid invoices
   const { data: invoices, error } = await client
     .from("sales")
     .select(
@@ -84,14 +156,8 @@ export async function applyAdjustmentToInvoices(
     .order("created_at", { ascending: true });
 
   if (error) throw error;
-  if (!invoices?.length) return empty;
 
-  const voucherDate = new Date().toISOString().split("T")[0];
-  const allocations: AdjustmentAllocation[] = [];
-  let remaining = adjustmentAmount;
-  let totalVouchersWritten = 0;
-
-  for (const invoice of invoices) {
+  for (const invoice of invoices || []) {
     if (remaining <= 0.5) break;
 
     const invoicePending = Math.max(
@@ -107,7 +173,7 @@ export async function applyAdjustmentToInvoices(
 
     const applyAmount = Math.min(remaining, invoicePending);
 
-    await createReceiptVoucher(client, {
+    const voucher = await createReceiptVoucher(client, {
       organizationId,
       referenceId: invoice.id,
       referenceType: "sale",
@@ -121,6 +187,7 @@ export async function applyAdjustmentToInvoices(
       voucherDate,
       createdBy: createdBy ?? null,
     });
+    if (voucher?.id) voucherIds.push(String(voucher.id));
 
     const recomputed = await applyRecomputedSalePaymentState(
       invoice.id,
@@ -143,6 +210,7 @@ export async function applyAdjustmentToInvoices(
     allocations,
     totalVouchersWritten,
     uncoveredAmount: Math.max(0, Math.round((adjustmentAmount - totalVouchersWritten) * 100) / 100),
+    voucherIds,
   };
 }
 
@@ -165,7 +233,7 @@ export async function reverseBalanceAdjustmentVouchers(
 
   const { data: vouchers, error } = await client
     .from("voucher_entries")
-    .select("id, reference_id, description")
+    .select("id, reference_id, reference_type, description")
     .eq("organization_id", organizationId)
     .eq("voucher_type", "receipt")
     .eq("payment_method", BALANCE_ADJUSTMENT_PAYMENT_METHOD)
@@ -191,7 +259,9 @@ export async function reverseBalanceAdjustmentVouchers(
       .eq("id", voucher.id);
     if (updErr) throw updErr;
 
-    if (voucher.reference_id) saleIds.add(String(voucher.reference_id));
+    if (voucher.reference_id && voucher.reference_type === "sale") {
+      saleIds.add(String(voucher.reference_id));
+    }
   }
 
   for (const saleId of saleIds) {

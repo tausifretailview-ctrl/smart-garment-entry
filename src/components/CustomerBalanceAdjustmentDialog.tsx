@@ -25,6 +25,7 @@ import {
   invalidateCustomerFinancialSnapshot,
 } from "@/utils/customerFinancialSnapshot";
 import {
+  applyAdjustmentToInvoices,
   reverseBalanceAdjustmentVouchers,
   type AdjustmentAllocation,
 } from "@/utils/applyAdjustmentToInvoices";
@@ -262,21 +263,48 @@ export function CustomerBalanceAdjustmentDialog({
         created_by: user?.id,
       };
 
-      const allocations: AdjustmentAllocation[] = [];
-      const uncoveredAmount = 0;
+      let allocations: AdjustmentAllocation[] = [];
+      let uncoveredAmount = 0;
+      const adjId = crypto.randomUUID();
 
-      // Ledger-level correction only — never touches invoices. Both increase and
-      // reduction branches write outstanding_difference directly on the
-      // customer_balance_adjustments row; adjustmentTotal is picked up by
-      // computeCustomerBalanceCore via fetchCustomerBalanceSnapshot.
+      // Reduce/settle: materialize as balance_adjustment receipts (OB → oldest invoices).
+      // Only the unallocated remainder stays as floating outstanding_difference.
+      // Increase: ledger-only debit (no invoice allocation).
+      let outstandingDifference = newOutstanding !== "" ? outDelta : 0;
+      let materializedAt: string | null = null;
+      let materializedVoucherIds: string[] | null = null;
+
+      if (isOutstandingReduction) {
+        const reduceAmount = Math.round(-outDelta * 100) / 100;
+        const result = await applyAdjustmentToInvoices({
+          organizationId,
+          customerId: selectedCustomerId,
+          adjustmentAmount: reduceAmount,
+          reason: reason.trim(),
+          adjustmentRowId: adjId,
+          createdBy: user?.id,
+        });
+        allocations = result.allocations;
+        uncoveredAmount = result.uncoveredAmount;
+        // Negative = still-floating credit; 0 when fully allocated to receipts
+        outstandingDifference = uncoveredAmount > 0.5 ? -uncoveredAmount : 0;
+        if (result.totalVouchersWritten > 0 && uncoveredAmount <= 0.5) {
+          materializedAt = new Date().toISOString();
+          materializedVoucherIds = result.voucherIds;
+        }
+      }
+
       const { error } = await (supabase as any)
         .from("customer_balance_adjustments")
         .insert({
+          id: adjId,
           ...baseInsert,
-          outstanding_difference: newOutstanding !== "" ? outDelta : 0,
+          outstanding_difference: outstandingDifference,
+          materialized_at: materializedAt,
+          materialized_by: materializedAt ? user?.id : null,
+          materialized_voucher_ids: materializedVoucherIds,
         });
       if (error) throw error;
-      void isOutstandingReduction; // retained for potential future UX messaging
 
       if (effectiveAdvDiff !== 0) {
         await applyAdjustmentEffects(selectedCustomerId, 0, effectiveAdvDiff, reason.trim());
