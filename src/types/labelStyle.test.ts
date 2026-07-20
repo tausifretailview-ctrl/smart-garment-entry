@@ -10,6 +10,8 @@ import { BOUTIQUE_GRID_LABEL_CONFIG } from "@/constants/boutiqueGridLabelTemplat
 import {
   isFixedBuiltinLabelPreset,
   resolveFixedBuiltinLabelConfig,
+  getFixedBuiltinLabelDimensions,
+  resolveBoutiqueBuiltinLabelConfig,
 } from "@/constants/fixedBuiltinLabelPresets";
 
 describe("labelStyle opt-in safety", () => {
@@ -33,13 +35,15 @@ describe("labelStyle opt-in safety", () => {
     expect(isBoutiqueGridLabelStyle(KIDSZONE_50X40_LABEL_CONFIG)).toBe(false);
   });
 
-  it("resolves boutique fixed builtin without changing kidszone resolution", () => {
-    expect(isFixedBuiltinLabelPreset("boutique-grid")).toBe(true);
+  it("does not lock Boutique Grid like kidszone (field toggles must persist)", () => {
+    expect(isFixedBuiltinLabelPreset("boutique-grid")).toBe(false);
+    expect(isFixedBuiltinLabelPreset("Boutique Grid")).toBe(false);
     expect(isFixedBuiltinLabelPreset("kidszone")).toBe(true);
-    const boutique = resolveFixedBuiltinLabelConfig("boutique-grid");
-    expect(boutique?.labelStyle).toBe(LABEL_STYLE_BOUTIQUE_GRID);
-    const kids = resolveFixedBuiltinLabelConfig("kidszone");
-    expect(kids?.labelStyle).toBeUndefined();
-    expect(isBoutiqueGridLabelStyle(kids)).toBe(false);
+    expect(resolveFixedBuiltinLabelConfig("boutique-grid")).toBeNull();
+    expect(resolveFixedBuiltinLabelConfig("kidszone")?.labelStyle).toBeUndefined();
+    expect(getFixedBuiltinLabelDimensions("Boutique Grid")).toEqual({ width: 50, height: 38 });
+    expect(resolveBoutiqueBuiltinLabelConfig("boutique-grid")?.labelStyle).toBe(
+      LABEL_STYLE_BOUTIQUE_GRID,
+    );
   });
 });

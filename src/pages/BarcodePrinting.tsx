@@ -127,6 +127,14 @@ import {
   resolveFixedBuiltinLabelConfig,
 } from "@/constants/fixedBuiltinLabelPresets";
 import {
+  isBoutiqueGridPresetName,
+  resolveBoutiqueGridLabelConfig,
+} from "@/constants/boutiqueGridLabelTemplate";
+import {
+  LABEL_STYLE_BOUTIQUE_GRID,
+  isBoutiqueGridLabelStyle,
+} from "@/types/labelTypes";
+import {
   RANAWAT_BLING_TEMPLATE_NAME,
   isRanawatBlingPresetName,
   resolveRanawatBlingLabelConfig,
@@ -160,6 +168,16 @@ const resolvePresetLabelConfig = (
 ): LabelDesignConfig => {
   const fixed = resolveFixedBuiltinLabelConfig(presetName);
   if (fixed) return fixed;
+  // Boutique Grid: opt-in style — merge saved field toggles, always keep labelStyle.
+  if (isBoutiqueGridPresetName(presetName) || isBoutiqueGridLabelStyle(stored)) {
+    if (stored && (stored.fieldOrder?.length || stored.businessName || stored.barcode)) {
+      return ensureCompleteFieldOrder({
+        ...stored,
+        labelStyle: LABEL_STYLE_BOUTIQUE_GRID,
+      });
+    }
+    return resolveBoutiqueGridLabelConfig();
+  }
   if (isRanawatBlingPresetName(presetName)) {
     if (stored && (stored.fieldOrder?.length || stored.businessName || stored.barcode)) {
       return ensureCompleteFieldOrder(stored);
@@ -1477,7 +1495,12 @@ export default function BarcodePrinting() {
   const effectivePrecisionLabelConfig = useMemo((): LabelDesignConfig => {
     const fixed = resolveFixedBuiltinLabelConfig(activePrecisionTemplateBaseName);
     if (fixed) return fixed;
-    return precisionSettings.labelConfig || DEFAULT_PRECISION_CONFIG;
+    const cfg = precisionSettings.labelConfig || DEFAULT_PRECISION_CONFIG;
+    // Boutique is editable (not locked), but keep KEY:VALUE renderer while that preset is active.
+    if (isBoutiqueGridPresetName(activePrecisionTemplateBaseName)) {
+      return { ...cfg, labelStyle: LABEL_STYLE_BOUTIQUE_GRID };
+    }
+    return cfg;
   }, [activePrecisionTemplateBaseName, precisionSettings.labelConfig]);
 
   const effectivePrecisionLabelWidth = useMemo(
@@ -6793,7 +6816,12 @@ export default function BarcodePrinting() {
                       const preset = dbPresets.find((p) => p.name === presetName);
                       const fixedDims = getFixedBuiltinLabelDimensions(presetName);
                       const labelConfig = resolvePresetLabelConfig(presetName, preset?.labelConfig);
-                      if (preset || isRanawatBlingPresetName(presetName)) {
+                      if (
+                        preset ||
+                        isRanawatBlingPresetName(presetName) ||
+                        isFixedBuiltinLabelPreset(presetName) ||
+                        isBoutiqueGridPresetName(presetName)
+                      ) {
                         handlePrecisionPresetLoad({
                           name: presetName,
                           xOffset: preset?.xOffset ?? precisionSettings.xOffset,

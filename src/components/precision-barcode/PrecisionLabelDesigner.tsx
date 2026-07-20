@@ -8,8 +8,19 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Save, RotateCcw, ZoomIn, ZoomOut, Move, Plus, Trash2, Minus, ArrowLeft, ArrowRight, ArrowUp, ArrowDown } from "lucide-react";
-import { LabelDesignConfig, LabelFieldConfig, LabelLineConfig, FieldKey, LabelItem, CustomTextSlot } from "@/types/labelTypes";
+import {
+  LabelDesignConfig,
+  LabelFieldConfig,
+  LabelLineConfig,
+  FieldKey,
+  LabelItem,
+  CustomTextSlot,
+  isBoutiqueGridLabelStyle,
+  LABEL_STYLE_BOUTIQUE_GRID,
+} from "@/types/labelTypes";
 import { DraggableLabelCanvas } from "./DraggableLabelCanvas";
+import { BoutiqueGridLabelPreview } from "./BoutiqueGridLabelPreview";
+import { resolveBoutiqueGridLabelConfig } from "@/constants/boutiqueGridLabelTemplate";
 import { getUOMLabel, getUOMFullLabel } from "@/constants/uom";
 import {
   createCustomTextSlot,
@@ -142,11 +153,15 @@ export function PrecisionLabelDesigner({
     [config, onConfigChange],
   );
 
+  const isBoutiqueGrid = isBoutiqueGridLabelStyle(config);
+
   const updateField = useCallback(
     (key: FieldKey, updates: Partial<LabelFieldConfig>) => {
       onConfigChange({
         ...config,
         [key]: { ...config[key], ...updates },
+        // Never drop boutique style when toggling fields in Label Designer.
+        ...(isBoutiqueGridLabelStyle(config) ? { labelStyle: LABEL_STYLE_BOUTIQUE_GRID } : {}),
       });
     },
     [config, onConfigChange]
@@ -227,6 +242,10 @@ export function PrecisionLabelDesigner({
   }, []);
 
   const resetToDefault = () => {
+    if (isBoutiqueGridLabelStyle(config)) {
+      onConfigChange(resolveBoutiqueGridLabelConfig());
+      return;
+    }
     onConfigChange({
       ...DEFAULT_PRECISION_CONFIG,
       brand: { ...DEFAULT_PRECISION_CONFIG.brand, width: labelWidth - 2 },
@@ -308,6 +327,12 @@ export function PrecisionLabelDesigner({
 
         <ScrollArea className="flex-1 min-h-0 h-0" showScrollbar>
           <div className="p-2 pb-4 space-y-2">
+        {isBoutiqueGrid && (
+          <div className="rounded-md border border-amber-300 bg-amber-50 dark:bg-amber-950/40 dark:border-amber-800 px-2.5 py-2 text-[11px] text-amber-900 dark:text-amber-100">
+            <strong>Boutique Grid</strong> ({labelWidth}×{labelHeight}mm) — fixed KEY:VALUE layout.
+            Toggle fields and font size below; drag position is disabled for this style.
+          </div>
+        )}
         <div className="space-y-1.5 rounded-md border border-border/60 p-2 bg-muted/20">
           <div className="flex items-center justify-between gap-2">
             <Label className="text-xs font-semibold">Custom Text Fields</Label>
@@ -808,31 +833,35 @@ export function PrecisionLabelDesigner({
         <div className="flex items-center justify-between px-2.5 py-1.5 border-b shrink-0 bg-muted/30">
           <h3 className="text-xs font-bold uppercase tracking-wide text-foreground">Live Preview</h3>
           <div className="flex items-center gap-1 flex-wrap justify-end">
-            <Button
-              variant={selectAllActive ? "default" : "outline"}
-              size="sm"
-              className="h-7 text-[10px] px-2"
-              onClick={toggleSelectAll}
-              title="Select all fields and drag together"
-            >
-              <Move className="h-3 w-3 mr-1" />
-              Select All
-            </Button>
-            {selectAllActive && (
-              <div className="flex items-center gap-0.5 border rounded-md p-0.5 bg-background">
-                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleNudge("left")} title="Move all left 0.5mm">
-                  <ArrowLeft className="h-3 w-3" />
+            {!isBoutiqueGrid && (
+              <>
+                <Button
+                  variant={selectAllActive ? "default" : "outline"}
+                  size="sm"
+                  className="h-7 text-[10px] px-2"
+                  onClick={toggleSelectAll}
+                  title="Select all fields and drag together"
+                >
+                  <Move className="h-3 w-3 mr-1" />
+                  Select All
                 </Button>
-                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleNudge("up")} title="Move all up 0.5mm">
-                  <ArrowUp className="h-3 w-3" />
-                </Button>
-                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleNudge("down")} title="Move all down 0.5mm">
-                  <ArrowDown className="h-3 w-3" />
-                </Button>
-                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleNudge("right")} title="Move all right 0.5mm">
-                  <ArrowRight className="h-3 w-3" />
-                </Button>
-              </div>
+                {selectAllActive && (
+                  <div className="flex items-center gap-0.5 border rounded-md p-0.5 bg-background">
+                    <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleNudge("left")} title="Move all left 0.5mm">
+                      <ArrowLeft className="h-3 w-3" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleNudge("up")} title="Move all up 0.5mm">
+                      <ArrowUp className="h-3 w-3" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleNudge("down")} title="Move all down 0.5mm">
+                      <ArrowDown className="h-3 w-3" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleNudge("right")} title="Move all right 0.5mm">
+                      <ArrowRight className="h-3 w-3" />
+                    </Button>
+                  </div>
+                )}
+              </>
             )}
             <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setZoom(z => Math.max(1, z - 0.5))}>
               <ZoomOut className="h-3.5 w-3.5" />
@@ -845,7 +874,19 @@ export function PrecisionLabelDesigner({
         </div>
 
         <div className="flex-1 min-h-0 overflow-y-auto flex flex-col p-2">
-        {isMultiUp ? (
+        {isBoutiqueGrid ? (
+          <div className="flex-1 min-h-[120px] min-w-0 overflow-auto flex items-start justify-center py-1">
+            <BoutiqueGridLabelPreview
+              item={previewItem}
+              width={labelWidth}
+              height={labelHeight}
+              showBorder
+              config={config}
+              scaleFactor={zoom}
+              productFieldSettings={productFieldSettings}
+            />
+          </div>
+        ) : isMultiUp ? (
           <div className="flex-1 min-h-[120px] min-w-0 overflow-x-auto overflow-y-auto">
             <div
               className="flex items-start justify-start w-max mx-auto py-1"
@@ -862,8 +903,10 @@ export function PrecisionLabelDesigner({
 
         <div className="text-[10px] text-muted-foreground text-center mt-1 shrink-0">
           {labelWidth}mm × {labelHeight}mm
-          {isMultiUp ? ` × ${multiUpCols} · gap ${horizontalGap}mm` : ""} · drag to move · Delete removes line
-          {selectAllActive ? " · Select All: drag any field or use arrows (0.5mm)" : ""}
+          {isBoutiqueGrid
+            ? " · KEY:VALUE layout · toggle fields on the left"
+            : `${isMultiUp ? ` × ${multiUpCols} · gap ${horizontalGap}mm` : ""} · drag to move · Delete removes line`}
+          {!isBoutiqueGrid && selectAllActive ? " · Select All: drag any field or use arrows (0.5mm)" : ""}
           <span className="block mt-0.5 text-[9px] text-muted-foreground/80">
             Empty fields show field name here only (not on print)
           </span>

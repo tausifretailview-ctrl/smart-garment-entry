@@ -18,23 +18,27 @@ import {
   resolveBoutiqueGridLabelConfig,
 } from "@/constants/boutiqueGridLabelTemplate";
 
+/**
+ * Truly locked layouts (kidszone / jewellery): designer edits are discarded
+ * and the hard-coded config is always used.
+ *
+ * Boutique Grid is NOT in this set — it is an opt-in labelStyle. Field
+ * show/hide + font size must persist to printer_presets for Chirag testing.
+ */
 export function isFixedBuiltinLabelPreset(name: string | null | undefined): boolean {
-  return (
-    isKidszonePresetName(name) ||
-    isJewelleryPresetName(name) ||
-    isBoutiqueGridPresetName(name)
-  );
+  return isKidszonePresetName(name) || isJewelleryPresetName(name);
 }
 
+/** Hard-coded config for locked builtins only. Boutique uses resolveBoutiqueGridLabelConfig via resolvePresetLabelConfig. */
 export function resolveFixedBuiltinLabelConfig(
   name: string | null | undefined,
 ): LabelDesignConfig | null {
   if (isKidszonePresetName(name)) return resolveKidszoneLabelConfig();
   if (isJewelleryPresetName(name)) return resolveJewelleryLabelConfig();
-  if (isBoutiqueGridPresetName(name)) return resolveBoutiqueGridLabelConfig();
   return null;
 }
 
+/** Soft default dimensions for built-ins (including Boutique Grid 50×38). */
 export function getFixedBuiltinLabelDimensions(
   name: string | null | undefined,
 ): { width: number; height: number } | null {
@@ -52,5 +56,13 @@ export function fixedBuiltinPresetLabel(name: string | null | undefined): string
     return "Boutique Grid (50×38mm) — STYLE BOUTIQUE / KEY:VALUE";
   }
   if (isRanawatBlingPresetName(name)) return "BLING JEWELLERY LABEL (100×15mm default, editable)";
+  return null;
+}
+
+/** Initial / Reset config for Boutique Grid built-in picker (editable after load). */
+export function resolveBoutiqueBuiltinLabelConfig(
+  name: string | null | undefined,
+): LabelDesignConfig | null {
+  if (isBoutiqueGridPresetName(name)) return resolveBoutiqueGridLabelConfig();
   return null;
 }
