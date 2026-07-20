@@ -1,5 +1,6 @@
 import { Suspense, lazy } from "react";
 import { Navigate } from "react-router-dom";
+import { Capacitor } from "@capacitor/core";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { MOBILE_DEFAULT_LANDING_PATH } from "@/lib/mobileShell";
 import { MenuPermissionRoute } from "@/components/MenuPermissionRoute";
@@ -14,12 +15,14 @@ const PageFallback = () => (
 );
 
 /**
- * Org home (`/:orgSlug`): desktop shows main dashboard; mobile opens business overview.
+ * Org home (`/:orgSlug`): desktop shows main dashboard; mobile / native APK opens business overview.
+ * Native always uses the mobile landing — force-desktop must not leave phones on the desktop Index gate.
  */
 export function MobileOrgIndexRedirect() {
   const isMobile = useIsMobile();
+  const isNative = Capacitor.isNativePlatform();
 
-  if (isMobile) {
+  if (isNative || isMobile) {
     return <Navigate to={MOBILE_DEFAULT_LANDING_PATH.replace(/^\//, "")} replace />;
   }
 

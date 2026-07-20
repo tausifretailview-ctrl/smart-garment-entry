@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { Navigate, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -17,6 +17,7 @@ import {
 import { Building2, Loader2, LogIn, Shield, WifiOff, RefreshCw, ArrowRight } from "lucide-react";
 import { toast } from "sonner";
 import { hideAppBootSplash } from "@/lib/appBootSplash";
+import { AppBootSplash } from "@/components/AppBootSplash";
 import { Capacitor } from "@capacitor/core";
 import { resolveStartupOrgSlug } from "@/lib/bundledOrg";
 import { OrgLoginShell, OrgLoginTrustBadges } from "@/components/orgLogin/OrgLoginShell";
@@ -136,21 +137,13 @@ export const OrganizationSetup = () => {
   };
 
   if (authLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
+    return <AppBootSplash message="Starting…" />;
   }
 
   // Unauthenticated: web users pick org URL; native app opens org login directly
   if (!user) {
     if (isNativeApp && startupOrgSlug) {
-      return (
-        <div className="min-h-screen flex items-center justify-center">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        </div>
-      );
+      return <Navigate to={`/${startupOrgSlug}`} replace />;
     }
 
     if (isNativeApp) {
@@ -241,11 +234,7 @@ export const OrganizationSetup = () => {
 
   // Still loading orgs
   if (orgLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
+    return <AppBootSplash message="Loading organization…" />;
   }
 
   // Fetch failed — show Connection Problem with retry + cached shortcuts
@@ -286,20 +275,12 @@ export const OrganizationSetup = () => {
 
   // Orgs haven't been confirmed yet
   if (!hasResolvedOrganizations) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
+    return <AppBootSplash message="Preparing workspace…" />;
   }
 
-  // If redirect will happen (cached/stored slug exists), show spinner while navigating
+  // If redirect will happen (cached/stored slug exists), navigate immediately
   if (redirectSlug && organizations.length === 0) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
+    return <Navigate to={`/${redirectSlug}`} replace />;
   }
 
   // Multi-org user: choose destination organization explicitly

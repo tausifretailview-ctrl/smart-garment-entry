@@ -1,3 +1,5 @@
+import { Capacitor } from "@capacitor/core";
+
 /** When true, the app uses desktop chrome (sidebar, header) even on narrow screens. */
 export const FORCE_DESKTOP_VIEW_KEY = "ezzyerp:force-desktop-view";
 
@@ -64,5 +66,10 @@ export function subscribeForceDesktopView(listener: () => void): () => void {
 
 /** Apply on first paint before React hydrates (import from main.tsx). */
 export function initForceDesktopViewPreference(): void {
+  // Native APK: clear force-desktop so phones open mobile home, not the desktop spinner gate.
+  if (Capacitor.isNativePlatform() && isForceDesktopViewEnabled()) {
+    setForceDesktopView(false);
+    return;
+  }
   applyForceDesktopViewAttribute();
 }
