@@ -1,50 +1,93 @@
+## Problem Recap (Madiha Nursumar pattern)
 
-## Diagnosis (confirmed via reconcile RPC)
+Root cause of the recurring mismatch:
 
-Ledger closing ₹5,000 is correct. Breakdown for Madiha Nursumar (id `0c57…9237`, org Ella Noor):
+- **Balance Adjustment dialog** writes a *net delta* into `customer_balance_adjustments` + a single `customer_ledger_entries` row.
+- It does **NOT** create `voucher_entries` of type `receipt` allocated to specific invoices / opening balance.
+- Result: ledger closing balance is correct, but:
+  - Sales Invoice Dashboard shows invoices as `Not Paid` / `Partial`.
+  - Customer Payment tab shows Opening Balance as unpaid.
+  - Any downstream FIFO / receipt-based logic ignores the adjustment.
 
-| Source | Amount |
-|---|---|
-| Opening balance | +₹42,000 |
-| Total invoiced (6 bills) | +₹27,950 |
-| Sale-return adjust on invoices | −₹14,950 |
-| Balance adjustments (2 entries) | −₹50,000 |
-| **Net outstanding** | **₹5,000** ✓ |
+Every time staff "fixes" a balance via the Adjustment dialog instead of the Customer Payment dialog, the same drift will reappear.
 
-Invoices today:
-- INV/25-26/30 — ₹3,000 **pending**
-- INV/25-26/65 — ₹5,800 **pending**
-- INV/25-26/389 — ₹6,500 completed (fully S/R adjusted)
-- INV/25-26/549 — ₹3,950 completed (S/R adjusted)
-- INV/25-26/522 — ₹4,500 completed (S/R adjusted)
-- INV/26-27/1859 — ₹4,200 **pending**
+---
 
-**Root cause of the display mismatch:** the ₹50,000 was entered via *Balance Adjustment* (writes `outstanding_difference` only). It reduces the net receivable but is **not linked to any invoice or to the opening balance**, so the sales dashboard keeps showing opening ₹42,000 unpaid and three invoices Not Paid.
+## Proposed Solution — 3 layers
 
-## Fix (data-only, one-off, no code change)
+### Layer 1 — Prevention (fix at source)
 
-Convert the two balance adjustments into proper Customer Receipt vouchers and allocate FIFO. Closing balance stays ₹5,000.
+Change `CustomerBalanceAdjustmentDialog` so a REDUCE / SETTLE adjustment cannot exist as a floating ledger row:
 
-Steps (single migration, wrapped in a transaction, Ella Noor + Madiha scoped only):
+- When user reduces outstanding, dialog auto-fetches unpaid invoices + opening balance.
+- Two modes:
+  - **Simple mode (default):** enter target new balance → engine auto-splits into `voucher_entries (type='receipt')` allocated FIFO (Opening Balance → oldest invoices).
+  - **Advanced mode:** manual per-invoice allocation grid (like Customer Payment tab).
+- Adjustment is stored ONLY as metadata / audit note; the actual money movement is a proper receipt voucher.
+- Reversal (Undo) reverses the linked vouchers atomically.
 
-1. **Soft-delete the two `customer_balance_adjustments` rows** (₹42,000 dated 03-Jun 05:46 PM and ₹8,000 dated 03-Jun 05:49 PM) so the ₹−50,000 line disappears from the ledger.
-2. **Create two `voucher_entries` receipts** (payment method carried from original adjustments — "Other/Cash" per notes), dated 03-Jun-2026 to preserve history, with allocations:
-   - Receipt A ₹42,000 → applied fully to **Opening Balance** (`reference_type='customer'`, no sale link).
-   - Receipt B ₹8,000 → FIFO across pending invoices:
-     - INV/25-26/30 ₹3,000 (full)
-     - INV/25-26/65 ₹5,000 (partial; ₹800 remains)
-3. **Run `applyRecomputedSalePaymentState`** (via `compute_sale_settlement`) for INV/25-26/30, /65, /1859 so `paid_amount` / `payment_status` re-derive from the new receipts.
-4. **Verify** — re-run `reconcile_customer_balance` and expect:
-   - Opening balance line drops to ₹0 (fully receipted)
-   - INV/25-26/30 → Paid, /65 → Partial ₹800 due, /1859 → Pending ₹4,200
-   - Net outstanding = ₹5,000 (unchanged) ✓
+Increase adjustments (customer owes more) continue as a single opening-balance debit voucher — no invoice allocation needed.
 
-## Question before I write the migration
+### Layer 2 — Detection (nightly drift scan)
 
-The ₹5,000 residual has to sit on **one or two invoices**. Two clean options:
+Extend the existing **Settlement Drift Detection** cron with a new check `customer_adjustment_drift`:
 
-- **Option A (FIFO, above):** /65 keeps ₹800 pending, /1859 keeps ₹4,200 pending. Two bills still show pending.
-- **Option B (latest-only):** Pay opening ₹42,000 + /30 ₹3,000 + /65 ₹5,000 partial → same as A.
-- **Option C (single pending bill):** Pay opening ₹42,000 + /30 ₹3,000 + /65 ₹5,800 (full) = ₹50,800. Requires bumping the adjustment total to ₹50,800 (₹800 extra) so only /1859 ₹4,200 remains pending. This **changes closing to ₹4,200** — violates your "don't touch ₹5,000" rule, so not recommended unless you want closing = ₹4,200.
+For every org, flag customers where:
+```
+authoritative_signed_outstanding(customer)
+  != Σ(invoice_pending) + opening_balance_pending − advances − credit_notes
+```
+Drift > ₹1 → insert into `settlement_drift_log` with `drift_type='balance_adjustment_floating'` and a JSON payload listing candidate invoices/opening balance to re-allocate.
 
-Confirm **Option A** (default) or tell me which invoice should carry the ₹5,000 residual, and I'll write the migration.
+Alert surfaces on the existing `/platform-admin/data-integrity` dashboard + WhatsApp owner alert.
+
+### Layer 3 — Auto-Repair (one-click FIFO)
+
+New RPC `repair_customer_floating_adjustments(org_id, customer_id)`:
+
+1. Read pool = sum of adjustments not yet materialized as receipts.
+2. Read pending queue = Opening Balance first, then invoices oldest-first.
+3. Allocate pool FIFO → create `voucher_entries` (`type='receipt'`, `payment_method='adjustment'`, dated to original adjustment date) with proper `reference_type` / `reference_id`.
+4. Mark the source `customer_balance_adjustments` row as `materialized_at=now()`.
+5. Verify net closing balance unchanged (guard rail — rollback if it moves > ₹1).
+
+Two entry points:
+- **Per-customer button** on Customer Reconciliation page ("Repair floating adjustments").
+- **Bulk repair** on Data Integrity dashboard for all flagged rows in an org.
+
+---
+
+## What we will build
+
+1. **DB migration**
+   - Add columns `materialized_at timestamptz`, `materialized_by uuid` to `customer_balance_adjustments`.
+   - Create RPC `repair_customer_floating_adjustments`.
+   - Create detection function `detect_balance_adjustment_drift` + wire into existing drift cron.
+
+2. **Frontend**
+   - Rewrite reduce-flow in `CustomerBalanceAdjustmentDialog.tsx` to require allocation (simple + advanced mode).
+   - Add "Repair floating adjustments" button on `CustomerReconciliation.tsx` (per customer).
+   - Add new "Adjustment Drift" tab on `/platform-admin/data-integrity`.
+
+3. **Backfill (one-time)**
+   - Manual insert-tool script that runs `repair_customer_floating_adjustments` for every org, per customer, in dry-run first (report only), then live after your approval.
+
+---
+
+## Guard rails
+
+- Repair RPC is **idempotent** and **balance-preserving** — if closing balance would change by more than ₹1 it aborts and logs to `balance_reconciliation_log`.
+- Adjustment dialog keeps the old free-form path behind a `platform_admin`-only toggle for edge cases.
+- All changes wrapped in the existing soft-delete + audit-log framework — nothing is destroyed, everything is auditable and reversible.
+
+---
+
+## Rollout order
+
+1. Migration + RPC (schema safe, no behaviour change yet).
+2. Nightly detection (read-only, produces a report).
+3. Dry-run backfill report → your approval → live backfill.
+4. Dialog rewrite (prevents new occurrences).
+5. Auto-repair button surfaces in UI.
+
+Ready to start with step 1 (migration + RPC) once you approve.
