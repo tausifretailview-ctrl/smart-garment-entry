@@ -693,18 +693,15 @@ const isSummaryOrEmptyRow = (row: Record<string, any>): boolean => {
     return true;
   }
   
-  // Skip rows where core product fields (product_name, qty) are empty.
-  // Size alone is not enough to keep a row (blank size is auto-filled to "None" later).
+  // No product name → not a product line (even if qty/price cells are filled).
+  // Blank names are skipped silently — not reported as "Missing required value".
   const productName = row['product_name'];
-  const qty = row['qty'];
-  
-  const hasProductName = productName !== undefined && productName !== null && String(productName).trim() !== '';
-  const hasQty = qty !== undefined && qty !== null && String(qty).trim() !== '' && Number(qty) > 0;
-  
-  if (!hasProductName && !hasQty) {
+  const hasProductName =
+    productName !== undefined && productName !== null && String(productName).trim() !== '';
+  if (!hasProductName) {
     return true;
   }
-  
+
   return false;
 };
 
@@ -746,14 +743,15 @@ export const validateMappedData = (
     const rowNumber = headerRowIndex + 2 + index;
     let rowHasError = false;
 
-    // Skip summary/total rows and empty rows
+    // Skip summary/total/empty/blank-product-name rows — not validation errors
     if (isSummaryOrEmptyRow(row)) {
       skippedSummaryRows++;
-      return; // Skip this row entirely
+      return;
     }
 
-    // Check required fields have values
+    // Check required fields have values (blank product_name already skipped above)
     requiredFields.forEach(field => {
+      if (field.key === "product_name") return;
       if (mappedFieldKeys.includes(field.key)) {
         const value = row[field.key];
         if (value === undefined || value === '' || value === null) {
@@ -804,7 +802,8 @@ export const validateMappedData = (
     valid: errors.length === 0 && rowErrors.length === 0,
     errors,
     rowErrors,
-    validRowCount: mappedData.length - invalidRowCount,
+    // Exclude skipped blank/summary rows from the importable count
+    validRowCount: mappedData.length - invalidRowCount - skippedSummaryRows,
     invalidRowCount,
   };
 };

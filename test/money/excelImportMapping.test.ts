@@ -3,6 +3,7 @@ import {
   autoMapFields,
   applyMappings,
   fillEmptyImportSizes,
+  validateMappedData,
   EMPTY_IMPORT_SIZE,
   type TargetField,
 } from "@/utils/excelImportUtils";
@@ -66,5 +67,32 @@ describe("purchase Excel import — PRate / SRate / MRP mapping", () => {
     expect(filled[1].size).toBe(EMPTY_IMPORT_SIZE);
     expect(filled[2].size).toBe("30ML");
     expect(filled[3].size).toBe("");
+  });
+
+  it("skips blank product name rows without validation errors", () => {
+    const fields: TargetField[] = [
+      { key: "product_name", label: "Product Name", required: true },
+      { key: "size", label: "Size", required: false },
+      { key: "qty", label: "Qty", required: true },
+      { key: "pur_price", label: "Purchase Price", required: true },
+      { key: "sale_price", label: "Sale Price", required: true },
+    ];
+    const mappings = {
+      Item: "product_name",
+      Size: "size",
+      Qty: "qty",
+      Rate: "pur_price",
+      MRP: "sale_price",
+    };
+    const rows = [
+      { product_name: "CREAM", size: "None", qty: 2, pur_price: 100, sale_price: 150 },
+      { product_name: "", size: "None", qty: 5, pur_price: 100, sale_price: 150 },
+      { product_name: "  ", size: "None", qty: 1, pur_price: 80, sale_price: 120 },
+    ];
+    const result = validateMappedData(rows, fields, mappings, { headerRowIndex: 0 });
+    expect(result.valid).toBe(true);
+    expect(result.rowErrors).toHaveLength(0);
+    expect(result.invalidRowCount).toBe(0);
+    expect(result.validRowCount).toBe(1);
   });
 });
