@@ -5622,7 +5622,7 @@ const PurchaseEntry = () => {
           parseLocalizedNumber(row.qty) > 0 &&
           !isSummaryOrEmptyRow(row),
       )
-      .map((row) => ({
+      .map((row): Record<string, any> => ({
         ...row,
         size: row.size?.toString().trim() || "None",
       }));
