@@ -621,9 +621,16 @@ export default function PlatformAdmin() {
       const isPos = userRole === "pos";
       const effectiveRole = isPos ? "user" : userRole;
 
-      // Create user via edge function to avoid replacing admin's session
+      // Create user via edge function — POS preset applied server-side (service role)
+      // because platform admins are not org admins and RLS blocks client upserts.
       const { data, error } = await supabase.functions.invoke("create-user", {
-        body: { email: userEmail, password: userPassword, orgId: userOrgId, role: effectiveRole },
+        body: {
+          email: userEmail,
+          password: userPassword,
+          orgId: userOrgId,
+          role: effectiveRole,
+          applyPosPreset: isPos,
+        },
       });
 
       if (error || data?.error) {
@@ -633,30 +640,20 @@ export default function PlatformAdmin() {
         );
       }
 
-      if (isPos) {
-        const { POS_USER_PERMISSIONS_PRESET } = await import(
-          "@/constants/posUserPermissionsPreset"
+      if (isPos && !(data as any)?.posPermissionsApplied) {
+        throw new Error(
+          "User created but POS-only permissions were not applied. Use Edit Role → POS, or redeploy create-user edge function.",
         );
-        const newUserId = (data as any)?.user?.id;
-        if (newUserId) {
-          const { error: permErr } = await (supabase as any)
-            .from("user_permissions")
-            .upsert(
-              {
-                user_id: newUserId,
-                organization_id: userOrgId,
-                permissions: POS_USER_PERMISSIONS_PRESET,
-              },
-              { onConflict: "user_id,organization_id" },
-            );
-          if (permErr) throw permErr;
-        }
       }
 
       return data;
     },
     onSuccess: () => {
-      toast.success("User created and assigned successfully!");
+      toast.success(
+        userRole === "pos"
+          ? "POS-only user created — Saleem-style menu rights applied"
+          : "User created and assigned successfully!",
+      );
       setCreateUserOpen(false);
       setUserEmail("");
       setUserPassword("");
@@ -697,7 +694,7 @@ export default function PlatformAdmin() {
     mutationFn: async () => {
       if (!selectedMember) throw new Error("No member selected");
 
-      // "pos" is UI-only — stored as "user" + POS permissions preset
+      // "pos" is UI-only — stored as "user" + POS permissions via service-role edge fn
       const isPos = newRole === "pos";
       const effectiveRole = isPos ? "user" : newRole;
 
@@ -717,24 +714,33 @@ export default function PlatformAdmin() {
       if (roleError) throw roleError;
 
       if (isPos) {
-        const { POS_USER_PERMISSIONS_PRESET } = await import(
-          "@/constants/posUserPermissionsPreset"
-        );
-        const { error: permErr } = await (supabase as any)
-          .from("user_permissions")
-          .upsert(
-            {
-              user_id: selectedMember.user_id,
-              organization_id: selectedMember.organization_id,
-              permissions: POS_USER_PERMISSIONS_PRESET,
+        const { data, error: posErr } = await supabase.functions.invoke(
+          "apply-pos-user-permissions",
+          {
+            body: {
+              userId: selectedMember.user_id,
+              organizationId: selectedMember.organization_id,
+              email: selectedMember.user_email,
             },
-            { onConflict: "user_id,organization_id" },
+          },
+        );
+        if (posErr || (data as any)?.error) {
+          const { getEdgeFunctionErrorMessage } = await import("@/utils/edgeFunctionError");
+          throw new Error(
+            await getEdgeFunctionErrorMessage(posErr, data, "Failed to apply POS permissions"),
           );
-        if (permErr) throw permErr;
+        }
+        if (!(data as any)?.posPermissionsApplied) {
+          throw new Error("POS permissions were not applied. Redeploy apply-pos-user-permissions.");
+        }
       }
     },
     onSuccess: () => {
-      toast.success("User role updated successfully!");
+      toast.success(
+        newRole === "pos"
+          ? "POS-only rights applied (Saleem-style menu)"
+          : "User role updated successfully!",
+      );
       setEditMemberOpen(false);
       setSelectedMember(null);
       queryClient.invalidateQueries({ queryKey: ["platform-members"] });
@@ -769,16 +775,16 @@ export default function PlatformAdmin() {
   // Assign existing user to organization mutation
   const assignUserMutation = useMutation({
     mutationFn: async () => {
-      // "pos" is UI-only — assign as "user" then apply POS-only permissions preset
+      // POS preset applied inside add-existing-user (service role) — client RLS cannot write it.
       const isPos = assignUserRole === "pos";
-      const effectiveRole = isPos ? "user" : assignUserRole;
       const email = assignUserEmail.trim();
 
       const { data, error } = await supabase.functions.invoke("add-existing-user", {
         body: {
           email,
           organizationId: assignOrgId,
-          role: effectiveRole,
+          role: isPos ? "pos" : assignUserRole,
+          applyPosPreset: isPos,
         },
       });
 
@@ -789,39 +795,20 @@ export default function PlatformAdmin() {
         );
       }
 
-      if (isPos) {
-        const userId =
-          (data as any)?.user?.id ||
-          (data as any)?.user_id ||
-          (data as any)?.userId ||
-          null;
-
-        if (!userId) {
-          throw new Error(
-            "User assigned, but POS permissions could not be applied (user id missing from server response). Use Edit User Role → POS.",
-          );
-        }
-
-        const { POS_USER_PERMISSIONS_PRESET } = await import(
-          "@/constants/posUserPermissionsPreset"
+      if (isPos && !(data as any)?.posPermissionsApplied) {
+        throw new Error(
+          "User assigned but POS-only permissions were not applied. Use Edit Role → POS, or redeploy add-existing-user.",
         );
-        const { error: permErr } = await (supabase as any)
-          .from("user_permissions")
-          .upsert(
-            {
-              user_id: userId,
-              organization_id: assignOrgId,
-              permissions: POS_USER_PERMISSIONS_PRESET,
-            },
-            { onConflict: "user_id,organization_id" },
-          );
-        if (permErr) throw permErr;
       }
 
       return data;
     },
     onSuccess: () => {
-      toast.success("User assigned to organization successfully!");
+      toast.success(
+        assignUserRole === "pos"
+          ? "POS-only user assigned — Saleem-style menu rights applied"
+          : "User assigned to organization successfully!",
+      );
       setAssignUserOpen(false);
       setAssignUserEmail("");
       setAssignUserRole("user");

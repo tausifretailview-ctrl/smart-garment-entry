@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.80.0"
+import { POS_USER_PERMISSIONS_PRESET } from "../_shared/posUserPermissionsPreset.ts"
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -32,7 +33,7 @@ Deno.serve(async (req) => {
       .eq("role", "platform_admin")
     if (!roles?.length) throw new Error("Not a platform admin")
 
-    const { email, password, orgId, role } = await req.json()
+    const { email, password, orgId, role, applyPosPreset } = await req.json()
 
     if (!email || !password || !orgId || !role) {
       return new Response(
@@ -49,16 +50,40 @@ Deno.serve(async (req) => {
     })
     if (createErr) throw createErr
 
-    // Assign to org
+    const userId = newUser.user?.id
+    if (!userId) throw new Error("User created but id missing from auth response")
+
+    // Assign to org (POS UI role is stored as "user")
+    const effectiveRole = role === "pos" ? "user" : role
     const { error: assignErr } = await supabaseAdmin.rpc("platform_assign_user_to_org", {
       p_user_email: email,
       p_org_id: orgId,
-      p_role: role,
+      p_role: effectiveRole,
     })
     if (assignErr) throw assignErr
 
+    let posPermissionsApplied = false
+    if (applyPosPreset === true || role === "pos") {
+      const { error: permErr } = await supabaseAdmin
+        .from("user_permissions")
+        .upsert(
+          {
+            user_id: userId,
+            organization_id: orgId,
+            permissions: POS_USER_PERMISSIONS_PRESET,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "organization_id,user_id" },
+        )
+      if (permErr) throw new Error(`POS permissions failed: ${permErr.message}`)
+      posPermissionsApplied = true
+    }
+
     return new Response(
-      JSON.stringify({ user: newUser.user }),
+      JSON.stringify({
+        user: newUser.user,
+        posPermissionsApplied,
+      }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     )
   } catch (e: any) {

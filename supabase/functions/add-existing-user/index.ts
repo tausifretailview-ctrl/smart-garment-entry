@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.80.0'
+import { POS_USER_PERMISSIONS_PRESET } from '../_shared/posUserPermissionsPreset.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -7,8 +8,9 @@ const corsHeaders = {
 
 interface AddExistingUserRequest {
   email: string
-  role: 'admin' | 'manager' | 'user'
+  role: 'admin' | 'manager' | 'user' | 'pos'
   organizationId: string
+  applyPosPreset?: boolean
 }
 
 Deno.serve(async (req) => {
@@ -57,12 +59,14 @@ Deno.serve(async (req) => {
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
-    const { email, role, organizationId }: AddExistingUserRequest = await req.json()
+    const { email, role, organizationId, applyPosPreset }: AddExistingUserRequest = await req.json()
 
     // Input validation
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    const validRoles = ['admin', 'manager', 'user']
+    const validRoles = ['admin', 'manager', 'user', 'pos']
+    const wantPosPreset = applyPosPreset === true || role === 'pos'
+    const effectiveRole = role === 'pos' ? 'user' : role
 
     if (!email || !emailRegex.test(email) || email.length > 255) {
       return new Response(
@@ -72,7 +76,7 @@ Deno.serve(async (req) => {
     }
     if (!role || !validRoles.includes(role)) {
       return new Response(
-        JSON.stringify({ error: 'Valid role is required (admin, manager, or user)' }),
+        JSON.stringify({ error: 'Valid role is required (admin, manager, user, or pos)' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
@@ -172,7 +176,7 @@ Deno.serve(async (req) => {
       .insert({
         organization_id: organizationId,
         user_id: existingUser.id,
-        role: role
+        role: effectiveRole
       })
 
     if (orgMemberError) {
@@ -187,7 +191,7 @@ Deno.serve(async (req) => {
       .from('user_roles')
       .select('*')
       .eq('user_id', existingUser.id)
-      .eq('role', role)
+      .eq('role', effectiveRole)
       .single()
 
     if (!existingRole) {
@@ -196,12 +200,29 @@ Deno.serve(async (req) => {
         .from('user_roles')
         .insert({
           user_id: existingUser.id,
-          role: role
+          role: effectiveRole
         })
       
       if (roleError) {
         console.error('Error adding role:', roleError)
       }
+    }
+
+    let posPermissionsApplied = false
+    if (wantPosPreset) {
+      const { error: permErr } = await supabaseAdmin
+        .from('user_permissions')
+        .upsert(
+          {
+            user_id: existingUser.id,
+            organization_id: organizationId,
+            permissions: POS_USER_PERMISSIONS_PRESET,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: 'organization_id,user_id' },
+        )
+      if (permErr) throw new Error(`POS permissions failed: ${permErr.message}`)
+      posPermissionsApplied = true
     }
 
     console.log('Logging audit trail')
@@ -212,8 +233,9 @@ Deno.serve(async (req) => {
       p_entity_id: existingUser.id,
       p_new_values: {
         email: email,
-        role: role,
-        organization_id: organizationId
+        role: effectiveRole,
+        organization_id: organizationId,
+        pos_preset: wantPosPreset,
       },
       p_metadata: {
         added_by: requestingUser.id
@@ -228,8 +250,9 @@ Deno.serve(async (req) => {
         user: {
           id: existingUser.id,
           email: email,
-          role: role
-        }
+          role: effectiveRole
+        },
+        posPermissionsApplied,
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
