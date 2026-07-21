@@ -2628,8 +2628,16 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
 
               {formData.product_type !== 'service' && !mobileERPMode?.locked_size_qty && !(rollWiseMtrEnabled && formData.uom === 'MTR') && (
                 <>
-                  {isPurchaseBillForm && isFieldEnabled("color") && !mobileERPMode?.locked_size_qty && (
-                    <div className="purchase-color-size-row grid grid-cols-1 md:grid-cols-2 gap-3 items-start">
+                  {/* Size Group must NOT depend on Color — orgs that disable Color (jewellery/cosmetics)
+                      were losing the Size Group select and qty grid entirely. */}
+                  {isPurchaseBillForm && !mobileERPMode?.locked_size_qty && (
+                    <div
+                      className={cn(
+                        "purchase-color-size-row grid gap-3 items-start",
+                        isFieldEnabled("color") ? "grid-cols-1 md:grid-cols-2" : "grid-cols-1 md:max-w-md",
+                      )}
+                    >
+                      {isFieldEnabled("color") && (
                       <div className="space-y-1.5 min-w-0">
                         <Label className={purchaseTypography.fieldLabel}>{getFieldLabel("color", "Colors")} (comma-separated)</Label>
                         <div className="flex gap-1.5 items-center">
@@ -2684,6 +2692,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                           ))}
                         </div>
                       </div>
+                      )}
                       <div className="space-y-1.5 min-w-0 self-start">
                         <Label className={purchaseTypography.fieldLabel}>Size Group</Label>
                         <div className="flex gap-1.5 items-center">
