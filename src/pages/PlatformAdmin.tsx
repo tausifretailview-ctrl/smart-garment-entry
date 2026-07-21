@@ -626,8 +626,12 @@ export default function PlatformAdmin() {
         body: { email: userEmail, password: userPassword, orgId: userOrgId, role: effectiveRole },
       });
 
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
+      if (error || data?.error) {
+        const { getEdgeFunctionErrorMessage } = await import("@/utils/edgeFunctionError");
+        throw new Error(
+          await getEdgeFunctionErrorMessage(error, data, "Failed to create user"),
+        );
+      }
 
       if (isPos) {
         const { POS_USER_PERMISSIONS_PRESET } = await import(
@@ -768,43 +772,33 @@ export default function PlatformAdmin() {
       // "pos" is UI-only — assign as "user" then apply POS-only permissions preset
       const isPos = assignUserRole === "pos";
       const effectiveRole = isPos ? "user" : assignUserRole;
+      const email = assignUserEmail.trim();
 
       const { data, error } = await supabase.functions.invoke("add-existing-user", {
         body: {
-          email: assignUserEmail,
+          email,
           organizationId: assignOrgId,
           role: effectiveRole,
         },
       });
 
-      if (error) throw error;
-      if ((data as any)?.error) throw new Error((data as any).error);
+      if (error || (data as any)?.error) {
+        const { getEdgeFunctionErrorMessage } = await import("@/utils/edgeFunctionError");
+        throw new Error(
+          await getEdgeFunctionErrorMessage(error, data, "Failed to assign user"),
+        );
+      }
 
       if (isPos) {
-        let userId =
+        const userId =
           (data as any)?.user?.id ||
           (data as any)?.user_id ||
           (data as any)?.userId ||
           null;
 
         if (!userId) {
-          const { data: orgMembers } = await supabase
-            .from("organization_members")
-            .select("user_id")
-            .eq("organization_id", assignOrgId);
-          const emailNorm = assignUserEmail.trim().toLowerCase();
-          for (const m of orgMembers ?? []) {
-            const { data: userData } = await supabase.auth.admin.getUserById(m.user_id);
-            if (userData.user?.email?.toLowerCase() === emailNorm) {
-              userId = m.user_id;
-              break;
-            }
-          }
-        }
-
-        if (!userId) {
           throw new Error(
-            "User assigned, but POS permissions could not be applied (user id not found). Set role to POS again from Edit User Role.",
+            "User assigned, but POS permissions could not be applied (user id missing from server response). Use Edit User Role → POS.",
           );
         }
 
