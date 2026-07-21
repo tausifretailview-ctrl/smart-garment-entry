@@ -17,6 +17,7 @@ import {
   autoMapFields,
   applyMappings,
   fillEmptyImportSizes,
+  forwardFillGroupedProductNames,
   validateMappedData,
   generateSampleExcel,
   ValidationResult,
