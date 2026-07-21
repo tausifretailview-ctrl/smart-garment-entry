@@ -69,7 +69,8 @@ export const QuickAddSupplierDialog = ({
     setIsLoading(true);
 
     try {
-      // Check for duplicate supplier name
+      // Same / similar names are allowed — purchase bills are distinguished by
+      // supplier invoice serial, not supplier name uniqueness.
       const { data: existing } = await supabase
         .from("suppliers")
         .select("id")
@@ -77,12 +78,7 @@ export const QuickAddSupplierDialog = ({
         .ilike("supplier_name", supplierName.trim())
         .is("deleted_at", null)
         .limit(1);
-      
-      if (existing && existing.length > 0) {
-        toast.error("Supplier Already Created");
-        setIsLoading(false);
-        return;
-      }
+      const sameNameExists = Boolean(existing && existing.length > 0);
 
       const { data, error } = await supabase
         .from("suppliers")
@@ -99,7 +95,11 @@ export const QuickAddSupplierDialog = ({
 
       if (error) throw error;
 
-      toast.success("Supplier added successfully");
+      toast.success(
+        sameNameExists
+          ? "Supplier added (same name already exists — OK; bills use invoice serial)"
+          : "Supplier added successfully",
+      );
       queryClient.invalidateQueries({ queryKey: ["suppliers"] });
       queryClient.invalidateQueries({ queryKey: ["suppliers-with-balance"] });
       

@@ -56,8 +56,9 @@ export const AddSupplierDialog = ({
   const createSupplier = useMutation({
     mutationFn: async (data: typeof formData) => {
       if (!currentOrganization?.id) throw new Error("No organization selected");
-      
-      // Check for duplicate supplier name
+
+      // Same / similar supplier names are allowed (purchase bills are distinguished
+      // by supplier invoice serial). Soft-notice only — do not block create.
       const { data: existing } = await supabase
         .from("suppliers")
         .select("id")
@@ -65,11 +66,8 @@ export const AddSupplierDialog = ({
         .ilike("supplier_name", data.supplier_name.trim())
         .is("deleted_at", null)
         .limit(1);
-      
-      if (existing && existing.length > 0) {
-        throw new Error("Supplier Already Created");
-      }
-      
+      const sameNameExists = Boolean(existing && existing.length > 0);
+
       const { data: newSupplier, error } = await supabase
         .from("suppliers")
         .insert([
@@ -90,11 +88,18 @@ export const AddSupplierDialog = ({
         .select()
         .single();
       if (error) throw error;
-      return newSupplier;
+      return { newSupplier, sameNameExists };
     },
-    onSuccess: (newSupplier) => {
+    onSuccess: ({ newSupplier, sameNameExists }) => {
       queryClient.invalidateQueries({ queryKey: ["suppliers"] });
-      toast({ title: "Supplier created successfully" });
+      toast({
+        title: sameNameExists
+          ? "Supplier created (same name already exists)"
+          : "Supplier created successfully",
+        description: sameNameExists
+          ? "OK — purchase bills are distinguished by supplier invoice serial."
+          : undefined,
+      });
       onSupplierCreated({
         id: newSupplier.id,
         supplier_name: newSupplier.supplier_name,

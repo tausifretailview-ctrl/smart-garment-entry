@@ -4468,18 +4468,27 @@ const PurchaseEntry = () => {
           const recent = minsAgo < 60;
 
           if ((matchedQty && matchedAmt) || (recent && (matchedQty || matchedAmt))) {
-            const reason = matchedQty && matchedAmt
-              ? `Same supplier, same date, same total qty (${filledQty}) and net amount (₹${Math.round(calcNet).toLocaleString("en-IN")}).`
-              : matchedQty
-                ? `Same supplier, same date, same total qty (${filledQty}) — saved ${Math.round(minsAgo)} min ago.`
-                : `Same supplier, same date, same net amount (₹${Math.round(calcNet).toLocaleString("en-IN")}) — saved ${Math.round(minsAgo)} min ago.`;
-            setDuplicateWarning({ bill: match as ExistingDuplicateBill, reason });
-            toast({
-              variant: "destructive",
-              title: "Possible duplicate bill",
-              description: "See warning dialog to open the existing bill or save anyway.",
-            });
-            return;
+            const currentInv = billData.supplier_invoice_no.trim();
+            const matchInv = String(match.supplier_invoice_no || "").trim();
+            // Different supplier invoice serial = intentional new bill (same
+            // supplier / similar products allowed). Only block when invoice # matches
+            // or is empty (true double-save risk).
+            if (currentInv && matchInv && currentInv !== matchInv) {
+              // allow save — serial already distinguishes the bill
+            } else {
+              const reason = matchedQty && matchedAmt
+                ? `Same supplier, same date, same total qty (${filledQty}) and net amount (₹${Math.round(calcNet).toLocaleString("en-IN")}).`
+                : matchedQty
+                  ? `Same supplier, same date, same total qty (${filledQty}) — saved ${Math.round(minsAgo)} min ago.`
+                  : `Same supplier, same date, same net amount (₹${Math.round(calcNet).toLocaleString("en-IN")}) — saved ${Math.round(minsAgo)} min ago.`;
+              setDuplicateWarning({ bill: match as ExistingDuplicateBill, reason });
+              toast({
+                variant: "destructive",
+                title: "Possible duplicate bill",
+                description: "See warning dialog to open the existing bill or save anyway.",
+              });
+              return;
+            }
           }
         }
       }
@@ -4922,24 +4931,34 @@ const PurchaseEntry = () => {
           return;
         }
 
-        // Duplicate bill detection: check if a bill with same supplier + date + amount already exists
+        // Duplicate bill detection: same supplier name + date + amount — only warn when
+        // supplier invoice serial also matches (same-name suppliers / products are allowed;
+        // serial is the unique bill key).
         if (!pendingSaveRef.current) {
           const formattedDate = format(billDate, "yyyy-MM-dd");
+          const currentInv = billData.supplier_invoice_no.trim();
           const { data: existingBills } = await supabase
             .from("purchase_bills")
-            .select("software_bill_no, bill_date")
+            .select("software_bill_no, bill_date, supplier_invoice_no")
             .eq("organization_id", currentOrganization.id)
             .eq("supplier_name", billData.supplier_name)
             .eq("bill_date", formattedDate)
             .gte("net_amount", calculatedNet - 1)
             .lte("net_amount", calculatedNet + 1)
             .is("deleted_at", null)
-            .limit(1);
+            .limit(5);
 
-          if (existingBills && existingBills.length > 0) {
+          const trueDup = (existingBills || []).find(
+            (b: any) =>
+              !currentInv ||
+              !String(b.supplier_invoice_no || "").trim() ||
+              String(b.supplier_invoice_no || "").trim() === currentInv,
+          );
+
+          if (trueDup) {
             setDuplicateBillInfo({
-              bill_no: existingBills[0].software_bill_no,
-              bill_date: existingBills[0].bill_date,
+              bill_no: trueDup.software_bill_no,
+              bill_date: trueDup.bill_date,
             });
             setShowDuplicateBillWarning(true);
             return;
