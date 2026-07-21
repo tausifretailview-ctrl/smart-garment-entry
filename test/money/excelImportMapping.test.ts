@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { autoMapFields, applyMappings, type TargetField } from "@/utils/excelImportUtils";
+import {
+  autoMapFields,
+  applyMappings,
+  fillEmptyImportSizes,
+  EMPTY_IMPORT_SIZE,
+  type TargetField,
+} from "@/utils/excelImportUtils";
 
 const PURCHASE_LINE_FIELDS: TargetField[] = [
   { key: "product_name", label: "Product Name", required: true },
@@ -47,5 +53,18 @@ describe("purchase Excel import — PRate / SRate / MRP mapping", () => {
     expect(mapped.sale_price).toBe(150);
     expect(mapped.mrp).toBe(199);
     expect(mapped.qty).toBe(5);
+  });
+
+  it("fills blank size with None for named product rows only", () => {
+    const filled = fillEmptyImportSizes([
+      { product_name: "REVITALIFT", size: "", qty: 2 },
+      { product_name: "CREAM", size: "  ", qty: 1 },
+      { product_name: "SERUM", size: "30ML", qty: 1 },
+      { product_name: "", size: "", qty: "" },
+    ]);
+    expect(filled[0].size).toBe(EMPTY_IMPORT_SIZE);
+    expect(filled[1].size).toBe(EMPTY_IMPORT_SIZE);
+    expect(filled[2].size).toBe("30ML");
+    expect(filled[3].size).toBe("");
   });
 });

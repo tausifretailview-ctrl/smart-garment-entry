@@ -5613,13 +5613,9 @@ const PurchaseEntry = () => {
     // Helper function to detect summary/total rows or empty rows
     const isSummaryOrEmptyRow = (row: Record<string, any>): boolean => {
       if (isPurchaseFreightOrChargeRow(row)) return true;
-      // Real product lines must never be dropped as "empty"
+      // Real product lines must never be dropped as "empty" (size may be blank → "None")
       const rowQty = parseLocalizedNumber(row.qty);
-      if (
-        row.product_name?.toString().trim() &&
-        row.size?.toString().trim() &&
-        rowQty > 0
-      ) {
+      if (row.product_name?.toString().trim() && rowQty > 0) {
         return false;
       }
       const summaryKeywords = ['total', 'subtotal', 'sub-total', 'grand total', 'sum', 'net', 'gross', 'amount', 'shipping', 'freight', 'transport', 'charges', 'discount', 'tax', 'gst'];
@@ -5640,19 +5636,25 @@ const PurchaseEntry = () => {
       return meaningfulValueCount <= 2;
     };
 
-    // Filter valid rows - skip empty rows and summary/total rows
-    const validRows = rowsWithoutFreight.filter(row => 
-      row.product_name?.toString().trim() && 
-      row.size?.toString().trim() && 
-      parseLocalizedNumber(row.qty) > 0 &&
-      !isSummaryOrEmptyRow(row)
-    );
+    // Filter valid rows - skip empty rows and summary/total rows.
+    // Blank size → "None" (same as Product Entry no-size products).
+    const validRows = rowsWithoutFreight
+      .filter(
+        (row) =>
+          row.product_name?.toString().trim() &&
+          parseLocalizedNumber(row.qty) > 0 &&
+          !isSummaryOrEmptyRow(row),
+      )
+      .map((row) => ({
+        ...row,
+        size: row.size?.toString().trim() || "None",
+      }));
 
     // Show clear error if no valid rows found after filtering
     if (validRows.length === 0) {
       toast({
         title: "No valid rows found",
-        description: "Please check that required columns (Product Name, Size, Quantity, Purchase Price) are mapped correctly.",
+        description: "Please check that required columns (Product Name, Quantity, Purchase Price) are mapped correctly.",
         variant: "destructive",
       });
       return;
@@ -5697,7 +5699,7 @@ const PurchaseEntry = () => {
       skuId: string,
       barcode: string,
     ): LineItem => {
-      const size = row.size?.toString().trim() || '';
+      const size = row.size?.toString().trim() || 'None';
       const qty = parseLocalizedNumber(row.qty) || 0;
       const purPrice = normalizePurchaseUnitPrice(parseLocalizedNumber(row.pur_price) || 0);
       const uom = row.uom?.toString().trim() || 'NOS';

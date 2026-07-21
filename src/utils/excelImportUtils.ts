@@ -267,7 +267,8 @@ export const purchaseBillFields: TargetField[] = [
   { key: 'hsn_code', label: 'HSN Code', type: 'text' },
   { key: 'gst_per', label: 'GST %', type: 'number' }, // Not required - defaults to 0%
   { key: 'uom', label: 'Unit (UOM)', type: 'text' },
-  { key: 'size', label: 'Size', type: 'text', required: true },
+  // Optional — empty cells are filled with EMPTY_IMPORT_SIZE ("None") before validate/import.
+  { key: 'size', label: 'Size', type: 'text', required: false },
   { key: 'barcode', label: 'Barcode', type: 'text' },
   { key: 'pur_price', label: 'Purchase Price', type: 'number', required: true },
   { key: 'sale_price', label: 'Sale Price', type: 'number', required: true },
@@ -285,7 +286,7 @@ export const productEntryFields: TargetField[] = [
   { key: 'hsn_code', label: 'HSN Code', type: 'text' },
   { key: 'gst_per', label: 'GST %', type: 'number' },
   { key: 'uom', label: 'Unit (UOM)', type: 'text' },
-  { key: 'size', label: 'Size', type: 'text', required: true },
+  { key: 'size', label: 'Size', type: 'text', required: false },
   { key: 'barcode', label: 'Barcode', type: 'text' },
   { key: 'default_pur_price', label: 'Purchase Price', type: 'number' },
   { key: 'default_sale_price', label: 'Sale Price', type: 'number' },
@@ -606,7 +607,7 @@ export const applyMappings = (
 ): Record<string, any>[] => {
   return rows.map(row => {
     const mappedRow: Record<string, any> = {};
-    
+
     Object.entries(mappings).forEach(([excelCol, systemField]) => {
       if (systemField) {
         mappedRow[systemField] =
@@ -615,8 +616,28 @@ export const applyMappings = (
             : row[excelCol];
       }
     });
-    
+
     return mappedRow;
+  });
+};
+
+/** Same sentinel as Product Entry "None (no sizes)" / service variants. */
+export const EMPTY_IMPORT_SIZE = 'None';
+
+/**
+ * For product rows with a name but blank/missing size, set size to "None"
+ * so jewellery/cosmetics sheets import without a Size column.
+ * Does not invent size on empty/summary rows (no product name).
+ */
+export const fillEmptyImportSizes = (
+  rows: Record<string, any>[],
+): Record<string, any>[] => {
+  return rows.map((row) => {
+    const productName = row.product_name?.toString().trim();
+    if (!productName) return row;
+    const size = row.size?.toString().trim();
+    if (size) return row;
+    return { ...row, size: EMPTY_IMPORT_SIZE };
   });
 };
 
@@ -672,16 +693,15 @@ const isSummaryOrEmptyRow = (row: Record<string, any>): boolean => {
     return true;
   }
   
-  // Skip rows where ALL core required fields (product_name, size, qty) are empty
+  // Skip rows where core product fields (product_name, qty) are empty.
+  // Size alone is not enough to keep a row (blank size is auto-filled to "None" later).
   const productName = row['product_name'];
-  const size = row['size'];
   const qty = row['qty'];
   
   const hasProductName = productName !== undefined && productName !== null && String(productName).trim() !== '';
-  const hasSize = size !== undefined && size !== null && String(size).trim() !== '';
   const hasQty = qty !== undefined && qty !== null && String(qty).trim() !== '' && Number(qty) > 0;
   
-  if (!hasProductName && !hasSize && !hasQty) {
+  if (!hasProductName && !hasQty) {
     return true;
   }
   

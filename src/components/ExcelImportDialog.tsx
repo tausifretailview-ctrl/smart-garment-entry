@@ -16,6 +16,7 @@ import {
   parseExcelFile,
   autoMapFields,
   applyMappings,
+  fillEmptyImportSizes,
   validateMappedData,
   generateSampleExcel,
   ValidationResult,
@@ -309,9 +310,14 @@ export const ExcelImportDialog = ({
     };
   };
 
+  const getMappedImportRows = () => {
+    if (!parsedData) return [];
+    return fillEmptyImportSizes(applyMappings(parsedData.rows, mappings));
+  };
+
   const getValidationResult = (): ValidationResult | null => {
     if (!parsedData) return null;
-    const mappedData = applyMappings(parsedData.rows, mappings);
+    const mappedData = getMappedImportRows();
     return validateMappedData(mappedData, targetFields, mappings, {
       headerRowIndex: parsedData.detectedHeaderRow ?? 0,
     });
@@ -320,7 +326,7 @@ export const ExcelImportDialog = ({
   const handleImport = async () => {
     if (!parsedData) return;
 
-    const mappedData = applyMappings(parsedData.rows, mappings);
+    const mappedData = getMappedImportRows();
     const validation = validateMappedData(mappedData, targetFields, mappings, {
       headerRowIndex: parsedData.detectedHeaderRow ?? 0,
     });
