@@ -17,6 +17,7 @@ import {
   autoMapFields,
   applyMappings,
   fillEmptyImportSizes,
+  forwardFillGroupedProductNames,
   validateMappedData,
   generateSampleExcel,
   ValidationResult,
@@ -312,7 +313,9 @@ export const ExcelImportDialog = ({
 
   const getMappedImportRows = () => {
     if (!parsedData) return [];
-    return fillEmptyImportSizes(applyMappings(parsedData.rows, mappings));
+    return fillEmptyImportSizes(
+      forwardFillGroupedProductNames(applyMappings(parsedData.rows, mappings)),
+    );
   };
 
   const getValidationResult = (): ValidationResult | null => {

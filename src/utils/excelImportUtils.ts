@@ -625,6 +625,57 @@ export const applyMappings = (
 export const EMPTY_IMPORT_SIZE = 'None';
 
 /**
+ * Forward-fill product_name (and brand/category/style if blank) from the previous
+ * non-blank row when the current row is a continuation line — i.e. it has real
+ * item data (barcode, qty, or price) but blank product_name. Common in Excel
+ * exports where the product name is written once per group and left blank on
+ * subsequent size/variant rows.
+ *
+ * Skips summary/footer rows (rows that also have no barcode/qty/price).
+ */
+export const forwardFillGroupedProductNames = (
+  rows: Record<string, any>[],
+): Record<string, any>[] => {
+  const carryFields = ['product_name', 'brand', 'category', 'style'] as const;
+  const anchorFields = ['barcode', 'qty', 'opening_qty', 'stock', 'pur_price', 'sale_price', 'mrp'];
+  const carry: Record<string, any> = {};
+
+  return rows.map((row) => {
+    const hasName =
+      row.product_name !== undefined &&
+      row.product_name !== null &&
+      String(row.product_name).trim() !== '';
+
+    if (hasName) {
+      // Update carry from this anchor row
+      carryFields.forEach((f) => {
+        const v = row[f];
+        if (v !== undefined && v !== null && String(v).trim() !== '') {
+          carry[f] = v;
+        }
+      });
+      return row;
+    }
+
+    // Only forward-fill when the row looks like a real continuation line
+    const isContinuation = anchorFields.some((f) => {
+      const v = row[f];
+      return v !== undefined && v !== null && String(v).trim() !== '';
+    });
+    if (!isContinuation || carry.product_name === undefined) return row;
+
+    const filled: Record<string, any> = { ...row };
+    carryFields.forEach((f) => {
+      const v = row[f];
+      if ((v === undefined || v === null || String(v).trim() === '') && carry[f] !== undefined) {
+        filled[f] = carry[f];
+      }
+    });
+    return filled;
+  });
+};
+
+/**
  * For product rows with a name but blank/missing size, set size to "None"
  * so jewellery/cosmetics sheets import without a Size column.
  * Does not invent size on empty/summary rows (no product name).
