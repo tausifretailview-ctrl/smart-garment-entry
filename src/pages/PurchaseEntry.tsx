@@ -319,8 +319,6 @@ type ExcelImportLoadingState = {
 };
 
 const BARCODE_VALIDATION_CHUNK = 500;
-/** Full-screen overlay only for large bills — routine adds validate silently in the background. */
-const BARCODE_VALIDATION_OVERLAY_MIN = 50;
 /** PostgREST `.in()` via GET — keep small to avoid URL length limits (barcodes + UUIDs). */
 const BARCODE_IN_QUERY_SIZE = 80;
 
@@ -808,13 +806,16 @@ const PurchaseEntry = () => {
   
   // Barcode duplicate warning state
   const [barcodeWarnings, setBarcodeWarnings] = useState<Map<string, string>>(new Map());
-  const [barcodeValidationProgress, setBarcodeValidationProgress] = useState<ExcelImportLoadingState | null>(null);
   const [showBarcodeConflictDialog, setShowBarcodeConflictDialog] = useState(false);
   const pendingBarcodeSaveRef = useRef(false);
   const barcodeCheckTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const barcodeCheckGenRef = useRef(0);
   const lineItemsForBarcodeCheckRef = useRef(lineItems);
   lineItemsForBarcodeCheckRef.current = lineItems;
+  const originalLineItemsForBarcodeCheckRef = useRef(originalLineItems);
+  originalLineItemsForBarcodeCheckRef.current = originalLineItems;
+  const isEditModeForBarcodeCheckRef = useRef(isEditMode);
+  isEditModeForBarcodeCheckRef.current = isEditMode;
   const lineItemsRef = useRef(lineItems);
   const syncDebounceRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
@@ -1809,12 +1810,12 @@ const PurchaseEntry = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Barcode duplicate warning check — debounced after lineItems change (batched lookup, not per-row RPC).
+  // Barcode duplicate warning check — quiet background scan (no blocking overlay on edit/scroll).
+  // Overlay was misleading: scroll only reveals rows; the scan is for row warnings / save safety.
   useEffect(() => {
     if (barcodeCheckTimerRef.current) clearTimeout(barcodeCheckTimerRef.current);
     if (!currentOrganization?.id || lineItems.length === 0) {
       setBarcodeWarnings(new Map());
-      setBarcodeValidationProgress(null);
       return;
     }
 
@@ -1827,37 +1828,13 @@ const PurchaseEntry = () => {
       let barcodeLookup = new Map<string, BarcodeDuplicateMatch[]>();
 
       if (uniqueBarcodes.length > 0) {
-        const totalChunks = Math.ceil(uniqueBarcodes.length / BARCODE_VALIDATION_CHUNK);
-        const showValidationOverlay =
-          uniqueBarcodes.length >= BARCODE_VALIDATION_OVERLAY_MIN || totalChunks > 1;
-        if (showValidationOverlay) {
-          setBarcodeValidationProgress({
-            current: 0,
-            total: totalChunks,
-            label: `Validating barcodes (0 of ${uniqueBarcodes.length})`,
-          });
-        }
         try {
           barcodeLookup = await fetchBarcodeDuplicateLookup(
             currentOrganization.id,
             uniqueBarcodes,
-            showValidationOverlay
-              ? (currentChunk, total, validatedCount, totalBarcodes) => {
-                  if (checkGen !== barcodeCheckGenRef.current) return;
-                  setBarcodeValidationProgress({
-                    current: currentChunk,
-                    total,
-                    label: `Validating barcodes (${validatedCount} of ${totalBarcodes})`,
-                  });
-                }
-              : undefined,
           );
         } catch (err) {
           console.error("[PurchaseEntry] Batched barcode validation failed:", err);
-        } finally {
-          if (showValidationOverlay && checkGen === barcodeCheckGenRef.current) {
-            setBarcodeValidationProgress(null);
-          }
         }
       }
 
@@ -1867,8 +1844,8 @@ const PurchaseEntry = () => {
         buildBarcodeDuplicateWarnings(
           items,
           barcodeLookup,
-          isEditMode,
-          originalLineItems,
+          isEditModeForBarcodeCheckRef.current,
+          originalLineItemsForBarcodeCheckRef.current,
         ),
       );
     }, debounceMs);
@@ -1876,7 +1853,7 @@ const PurchaseEntry = () => {
     return () => {
       if (barcodeCheckTimerRef.current) clearTimeout(barcodeCheckTimerRef.current);
     };
-  }, [lineItems.length, currentOrganization?.id, isEditMode, originalLineItems]);
+  }, [lineItems.length, currentOrganization?.id]);
 
   const { data: settings } = useSettings();
 
@@ -6142,14 +6119,6 @@ const PurchaseEntry = () => {
     return (
       <div className="flex flex-col min-h-screen bg-muted/30">
         {excelImportLoading && <ExcelImportLoadingOverlay progress={excelImportLoading} />}
-        {barcodeValidationProgress && (
-          <ExcelImportLoadingOverlay
-            progress={barcodeValidationProgress}
-            title="Checking barcode duplicates..."
-            progressLabel="Validation batches"
-            hint="Please wait — validating barcodes across the bill."
-          />
-        )}
         <MobilePageHeader
           title={isEditMode ? "Edit Purchase" : "Purchase Entry"}
           subtitle={softwareBillNo || "NEW"}
@@ -6443,14 +6412,6 @@ const PurchaseEntry = () => {
   return (
     <div className={cn(entryPageShellClass, "bg-slate-50 purchase-entry-page purchase-bill-readable")} data-entry-form>
       {excelImportLoading && <ExcelImportLoadingOverlay progress={excelImportLoading} />}
-      {barcodeValidationProgress && (
-        <ExcelImportLoadingOverlay
-          progress={barcodeValidationProgress}
-          title="Checking barcode duplicates..."
-          progressLabel="Validation batches"
-          hint="Please wait — validating barcodes across the bill."
-        />
-      )}
       {/* Draft loading overlay for large bills */}
       {draftLoading && (
         <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center">
