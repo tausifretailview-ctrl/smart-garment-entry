@@ -435,13 +435,13 @@ export default function PlatformAdmin() {
   
   const [editMemberOpen, setEditMemberOpen] = useState(false);
   const [selectedMember, setSelectedMember] = useState<OrgMember | null>(null);
-  const [newRole, setNewRole] = useState<"admin" | "manager" | "user">("user");
+  const [newRole, setNewRole] = useState<"admin" | "manager" | "user" | "pos">("user");
   const [removeUserId, setRemoveUserId] = useState<string | null>(null);
   const [removeOrgId, setRemoveOrgId] = useState<string | null>(null);
   const [assignUserOpen, setAssignUserOpen] = useState(false);
   const [assignOrgId, setAssignOrgId] = useState<string>("");
   const [assignUserEmail, setAssignUserEmail] = useState("");
-  const [assignUserRole, setAssignUserRole] = useState<"admin" | "manager" | "user">("user");
+  const [assignUserRole, setAssignUserRole] = useState<"admin" | "manager" | "user" | "pos">("user");
   
   const [orgName, setOrgName] = useState("");
   const [adminEmail, setAdminEmail] = useState("");
@@ -693,9 +693,13 @@ export default function PlatformAdmin() {
     mutationFn: async () => {
       if (!selectedMember) throw new Error("No member selected");
 
+      // "pos" is UI-only — stored as "user" + POS permissions preset
+      const isPos = newRole === "pos";
+      const effectiveRole = isPos ? "user" : newRole;
+
       const { error } = await supabase
         .from("organization_members")
-        .update({ role: newRole })
+        .update({ role: effectiveRole })
         .eq("user_id", selectedMember.user_id)
         .eq("organization_id", selectedMember.organization_id);
 
@@ -704,9 +708,26 @@ export default function PlatformAdmin() {
       // Also update user_roles table
       const { error: roleError } = await supabase
         .from("user_roles")
-        .upsert({ user_id: selectedMember.user_id, role: newRole }, { onConflict: "user_id,role" });
+        .upsert({ user_id: selectedMember.user_id, role: effectiveRole }, { onConflict: "user_id,role" });
 
       if (roleError) throw roleError;
+
+      if (isPos) {
+        const { POS_USER_PERMISSIONS_PRESET } = await import(
+          "@/constants/posUserPermissionsPreset"
+        );
+        const { error: permErr } = await (supabase as any)
+          .from("user_permissions")
+          .upsert(
+            {
+              user_id: selectedMember.user_id,
+              organization_id: selectedMember.organization_id,
+              permissions: POS_USER_PERMISSIONS_PRESET,
+            },
+            { onConflict: "user_id,organization_id" },
+          );
+        if (permErr) throw permErr;
+      }
     },
     onSuccess: () => {
       toast.success("User role updated successfully!");
@@ -744,15 +765,65 @@ export default function PlatformAdmin() {
   // Assign existing user to organization mutation
   const assignUserMutation = useMutation({
     mutationFn: async () => {
+      // "pos" is UI-only — assign as "user" then apply POS-only permissions preset
+      const isPos = assignUserRole === "pos";
+      const effectiveRole = isPos ? "user" : assignUserRole;
+
       const { data, error } = await supabase.functions.invoke("add-existing-user", {
         body: {
           email: assignUserEmail,
           organizationId: assignOrgId,
-          role: assignUserRole,
+          role: effectiveRole,
         },
       });
 
       if (error) throw error;
+      if ((data as any)?.error) throw new Error((data as any).error);
+
+      if (isPos) {
+        let userId =
+          (data as any)?.user?.id ||
+          (data as any)?.user_id ||
+          (data as any)?.userId ||
+          null;
+
+        if (!userId) {
+          const { data: orgMembers } = await supabase
+            .from("organization_members")
+            .select("user_id")
+            .eq("organization_id", assignOrgId);
+          const emailNorm = assignUserEmail.trim().toLowerCase();
+          for (const m of orgMembers ?? []) {
+            const { data: userData } = await supabase.auth.admin.getUserById(m.user_id);
+            if (userData.user?.email?.toLowerCase() === emailNorm) {
+              userId = m.user_id;
+              break;
+            }
+          }
+        }
+
+        if (!userId) {
+          throw new Error(
+            "User assigned, but POS permissions could not be applied (user id not found). Set role to POS again from Edit User Role.",
+          );
+        }
+
+        const { POS_USER_PERMISSIONS_PRESET } = await import(
+          "@/constants/posUserPermissionsPreset"
+        );
+        const { error: permErr } = await (supabase as any)
+          .from("user_permissions")
+          .upsert(
+            {
+              user_id: userId,
+              organization_id: assignOrgId,
+              permissions: POS_USER_PERMISSIONS_PRESET,
+            },
+            { onConflict: "user_id,organization_id" },
+          );
+        if (permErr) throw permErr;
+      }
+
       return data;
     },
     onSuccess: () => {
@@ -808,7 +879,7 @@ export default function PlatformAdmin() {
 
   const handleEditRole = (member: OrgMember) => {
     setSelectedMember(member);
-    setNewRole(member.role as "admin" | "manager" | "user");
+    setNewRole(member.role as "admin" | "manager" | "user" | "pos");
     setEditMemberOpen(true);
   };
 
@@ -1329,8 +1400,14 @@ export default function PlatformAdmin() {
                     <SelectItem value="admin">Admin</SelectItem>
                     <SelectItem value="manager">Manager</SelectItem>
                     <SelectItem value="user">User</SelectItem>
+                    <SelectItem value="pos">POS (POS-only access)</SelectItem>
                   </SelectContent>
                 </Select>
+                {assignUserRole === "pos" && (
+                  <p className="text-xs text-muted-foreground">
+                    Restricted to POS Sales / Sale Return. Same preset as Create User → POS.
+                  </p>
+                )}
               </div>
             </div>
             <DialogFooter>
@@ -1402,8 +1479,14 @@ export default function PlatformAdmin() {
                     <SelectItem value="admin">Admin</SelectItem>
                     <SelectItem value="manager">Manager</SelectItem>
                     <SelectItem value="user">User</SelectItem>
+                    <SelectItem value="pos">POS (POS-only access)</SelectItem>
                   </SelectContent>
                 </Select>
+                {newRole === "pos" && (
+                  <p className="text-xs text-muted-foreground">
+                    Applies POS-only menu permissions (stored as User role + preset).
+                  </p>
+                )}
               </div>
             </div>
             <DialogFooter>
