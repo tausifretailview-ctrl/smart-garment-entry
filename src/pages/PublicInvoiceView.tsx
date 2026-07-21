@@ -284,14 +284,18 @@ export default function PublicInvoiceView() {
         grandTotal: sale.net_amount,
         paymentMethod: sale.payment_method,
         documentType: 'pos' as const,
-        termsConditions: sale.terms_conditions || '',
+        termsConditions:
+          sale.terms_conditions ||
+          (Array.isArray(settings?.terms_list)
+            ? settings.terms_list.filter((t: string) => t && String(t).trim()).join("\n")
+            : ""),
         settingsOverride: {
           business_name: settings?.business_name,
           address: settings?.address,
           mobile_number: settings?.mobile_number,
           email_id: settings?.email_id,
           gst_number: settings?.gst_number,
-          sale_settings: settings,
+          sale_settings: { terms_list: settings?.terms_list || [] },
           bill_barcode_settings: settings?.bill_barcode_settings,
         },
       };

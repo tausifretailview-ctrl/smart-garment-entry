@@ -83,6 +83,8 @@ export const NewDesignThermalReceipt80mm = React.forwardRef<
     grandTotal,
     paymentMethod,
     documentType = 'invoice',
+    termsConditions,
+    notes,
     cashier,
     salesman,
     settingsOverride,
@@ -164,6 +166,15 @@ export const NewDesignThermalReceipt80mm = React.forwardRef<
   const regulatoryLine =
     settings?.bill_barcode_settings?.regulatory_text?.trim() ||
     (settings?.gst_number ? `GSTIN: ${settings.gst_number}` : '');
+
+  // Prop from InvoiceWrapper, or Sale settings → Terms list (up to 6 lines)
+  const termsFromSettings = Array.isArray(settings?.sale_settings?.terms_list)
+    ? (settings.sale_settings.terms_list as string[]).map((t) => String(t || '').trim()).filter(Boolean)
+    : [];
+  const termsText =
+    (termsConditions && termsConditions.trim()) ||
+    (termsFromSettings.length > 0 ? termsFromSettings.join('\n') : '');
+  const notesText = notes?.trim() && !/^\d+$/.test(notes.trim()) ? notes.trim() : '';
 
   return (
     <div
@@ -318,6 +329,30 @@ export const NewDesignThermalReceipt80mm = React.forwardRef<
         {regulatoryLine && <div>{regulatoryLine}</div>}
         <div style={{ marginTop: '3px', fontWeight: 600 }}>{footerText}</div>
       </div>
+
+      {termsText && (
+        <>
+          <div style={rule} />
+          <div style={{ fontSize: '10px', lineHeight: 1.35, marginTop: '2px' }}>
+            <div style={{ fontWeight: 700, textAlign: 'center', marginBottom: '2px', fontSize: '11px' }}>
+              Terms & Conditions
+            </div>
+            <div style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', textAlign: 'left' }}>
+              {termsText}
+            </div>
+          </div>
+        </>
+      )}
+
+      {notesText && (
+        <>
+          <div style={rule} />
+          <div style={{ fontSize: '10px', lineHeight: 1.3 }}>
+            <span style={{ fontWeight: 700 }}>Note: </span>
+            <span style={{ whiteSpace: 'pre-wrap' }}>{notesText}</span>
+          </div>
+        </>
+      )}
     </div>
   );
 });
