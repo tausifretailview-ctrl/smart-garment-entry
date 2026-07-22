@@ -6,7 +6,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Package, Search, Filter, ChevronDown, ChevronUp, Grid3X3, IndianRupee, ChevronLeft, ChevronRight, FileSpreadsheet, FileText, Loader2, Printer, ArrowLeft, RefreshCcw } from "lucide-react";
+import { Package, Search, Filter, ChevronDown, ChevronUp, Grid3X3, IndianRupee, ChevronLeft, ChevronRight, FileSpreadsheet, FileText, Loader2, Printer, ArrowLeft, RefreshCcw, Merge } from "lucide-react";
+import { MergeDuplicateBrandsDialog } from "@/components/MergeDuplicateBrandsDialog";
 import { invalidateStockReportQueries } from "@/utils/invalidateDashboardQueries";
 import { SkeletonGradientKpiStrip } from "@/components/skeletons/SkeletonKpiCards";
 import { SkeletonMobileListRows, SkeletonTableRows } from "@/components/skeletons/SkeletonTableRows";
@@ -131,6 +132,33 @@ function purchaseSourceSortTime(row: PurchaseSourceRow): number {
   return Number.isFinite(time) ? time : 0;
 }
 
+function normFilterText(value: string | null | undefined): string {
+  return (value || "").trim().replace(/\s+/g, " ");
+}
+
+function filterTextEquals(a: string | null | undefined, b: string | null | undefined): boolean {
+  return normFilterText(a).toLowerCase() === normFilterText(b).toLowerCase();
+}
+
+/** Prefer one display label per case/space-insensitive key. */
+function uniqueNormSorted(values: Array<string | null | undefined>): string[] {
+  const byKey = new Map<string, string>();
+  for (const raw of values) {
+    const cleaned = normFilterText(raw);
+    if (!cleaned) continue;
+    const key = cleaned.toLowerCase();
+    const prev = byKey.get(key);
+    if (
+      !prev ||
+      cleaned.length > prev.length ||
+      (cleaned === cleaned.toUpperCase() && prev !== prev.toUpperCase())
+    ) {
+      byKey.set(key, cleaned);
+    }
+  }
+  return [...byKey.values()].sort((a, b) => a.localeCompare(b));
+}
+
 async function fetchLatestPurchaseSourceByVariantId(
   organizationId: string,
   variantIds: string[],
@@ -139,8 +167,10 @@ async function fetchLatestPurchaseSourceByVariantId(
   const uniqueIds = [...new Set(variantIds.filter(Boolean))];
   if (uniqueIds.length === 0) return result;
 
-  for (let i = 0; i < uniqueIds.length; i += 100) {
-    const batch = uniqueIds.slice(i, i + 100);
+  // Smaller batches + no global row cap so every variant gets a supplier attach
+  // (old .limit(1000) dropped later variants when each had many purchase lines).
+  for (let i = 0; i < uniqueIds.length; i += 40) {
+    const batch = uniqueIds.slice(i, i + 40);
     const { data, error } = await supabase
       .from("purchase_items")
       .select(`
@@ -160,8 +190,7 @@ async function fetchLatestPurchaseSourceByVariantId(
       .is("deleted_at", null)
       .eq("purchase_bills.organization_id", organizationId)
       .is("purchase_bills.deleted_at", null)
-      .order("created_at", { ascending: false })
-      .limit(1000);
+      .order("created_at", { ascending: false });
 
     if (error) throw error;
 
@@ -176,8 +205,10 @@ async function fetchLatestPurchaseSourceByVariantId(
       if (!bill) continue;
 
       result.set(variantId, {
-        supplier_name: bill.supplier_name || "",
-        supplier_invoice_no: bill.supplier_invoice_no || bill.software_bill_no || "",
+        supplier_name: normFilterText(bill.supplier_name),
+        supplier_invoice_no: normFilterText(
+          bill.supplier_invoice_no || bill.software_bill_no || "",
+        ),
       });
     }
   }
@@ -251,18 +282,18 @@ function buildStockReportFilterOptions(payload: {
   });
 
   return {
-    brands: [...new Set(allProducts.map((p) => p.brand).filter(Boolean))].sort() as string[],
-    categories: [...new Set(allProducts.map((p) => p.category).filter(Boolean))].sort() as string[],
-    departments: [...new Set(allProducts.map((p) => p.style).filter(Boolean))].sort() as string[],
+    brands: uniqueNormSorted(allProducts.map((p) => p.brand)),
+    categories: uniqueNormSorted(allProducts.map((p) => p.category)),
+    departments: uniqueNormSorted(allProducts.map((p) => p.style)),
     sizes: [...new Set(allVariants.map((v) => v.size).filter(Boolean))].sort() as string[],
     colors: [...new Set(allVariants.map((v) => v.color).filter(Boolean))].sort() as string[],
-    suppliers: [...new Set(batchData.map((b) => b.supplier_name).filter(Boolean))].sort() as string[],
-    supplierInvoices: [...new Set(batchData.map((b) => b.supplier_invoice_no).filter(Boolean))].sort() as string[],
+    suppliers: uniqueNormSorted(batchData.map((b) => b.supplier_name)),
+    supplierInvoices: uniqueNormSorted(batchData.map((b) => b.supplier_invoice_no)),
     supplierPairs: batchData.map((b) => ({
-      supplier_name: b.supplier_name || null,
-      supplier_invoice_no: b.supplier_invoice_no || null,
+      supplier_name: normFilterText(b.supplier_name) || null,
+      supplier_invoice_no: normFilterText(b.supplier_invoice_no) || null,
     })),
-    productNames: [...new Set(allProducts.map((p) => p.product_name).filter(Boolean))].sort() as string[],
+    productNames: uniqueNormSorted(allProducts.map((p) => p.product_name)),
     rawProducts: allProducts,
     variantRows: allVariants,
     variantsByProductId,
@@ -378,6 +409,7 @@ export default function StockReport() {
   const [supplierFilter, setSupplierFilter] = useState<string>("all");
   const [supplierInvoiceFilter, setSupplierInvoiceFilter] = useState<string>("all");
   const [stockStatusFilter, setStockStatusFilter] = useState<string>("all");
+  const [mergeBrandsOpen, setMergeBrandsOpen] = useState(false);
   const location = useLocation();
 
   useEffect(() => {
@@ -650,20 +682,16 @@ export default function StockReport() {
     const candidateSupplierPairs = filterOptions.supplierPairs.filter((pair) => {
       const name = pair.supplier_name || "";
       const invoice = pair.supplier_invoice_no || "";
-      if (supplierFilter !== "all" && name !== supplierFilter) return false;
-      if (supplierInvoiceFilter !== "all" && invoice !== supplierInvoiceFilter) return false;
+      if (supplierFilter !== "all" && !filterTextEquals(name, supplierFilter)) return false;
+      if (supplierInvoiceFilter !== "all" && !filterTextEquals(invoice, supplierInvoiceFilter)) return false;
       return true;
     });
-    const supplierOptions = [...new Set(
-      candidateSupplierPairs
-        .map((p) => p.supplier_name)
-        .filter((v): v is string => !!v)
-    )].sort();
-    const supplierInvoiceOptions = [...new Set(
-      candidateSupplierPairs
-        .map((p) => p.supplier_invoice_no)
-        .filter((v): v is string => !!v)
-    )].sort();
+    const supplierOptions = uniqueNormSorted(
+      candidateSupplierPairs.map((p) => p.supplier_name),
+    );
+    const supplierInvoiceOptions = uniqueNormSorted(
+      candidateSupplierPairs.map((p) => p.supplier_invoice_no),
+    );
 
     return {
       productNames: [...new Set(productCandidates.map((p) => p.product_name).filter(Boolean))].sort(),
@@ -680,13 +708,26 @@ export default function StockReport() {
   // Keep selected values valid when another field narrows options
   useEffect(() => {
     if (productNameFilter && !derivedFilterOptions.productNames.includes(productNameFilter)) setProductNameFilter("");
-    if (brandFilter !== "all" && !derivedFilterOptions.brands.includes(brandFilter)) setBrandFilter("all");
-    if (categoryFilter !== "all" && !derivedFilterOptions.categories.includes(categoryFilter)) setCategoryFilter("all");
-    if (departmentFilter !== "all" && !derivedFilterOptions.departments.includes(departmentFilter)) setDepartmentFilter("all");
+    if (brandFilter !== "all" && !derivedFilterOptions.brands.some((b) => filterTextEquals(b, brandFilter))) {
+      setBrandFilter("all");
+    }
+    if (categoryFilter !== "all" && !derivedFilterOptions.categories.some((c) => filterTextEquals(c, categoryFilter))) {
+      setCategoryFilter("all");
+    }
+    if (departmentFilter !== "all" && !derivedFilterOptions.departments.some((d) => filterTextEquals(d, departmentFilter))) {
+      setDepartmentFilter("all");
+    }
     if (sizeFilter !== "all" && !derivedFilterOptions.sizes.includes(sizeFilter)) setSizeFilter("all");
     if (colorFilter !== "all" && !derivedFilterOptions.colors.includes(colorFilter)) setColorFilter("all");
-    if (supplierFilter !== "all" && !derivedFilterOptions.suppliers.includes(supplierFilter)) setSupplierFilter("all");
-    if (supplierInvoiceFilter !== "all" && !derivedFilterOptions.supplierInvoices.includes(supplierInvoiceFilter)) setSupplierInvoiceFilter("all");
+    if (supplierFilter !== "all" && !derivedFilterOptions.suppliers.some((s) => filterTextEquals(s, supplierFilter))) {
+      setSupplierFilter("all");
+    }
+    if (
+      supplierInvoiceFilter !== "all" &&
+      !derivedFilterOptions.supplierInvoices.some((inv) => filterTextEquals(inv, supplierInvoiceFilter))
+    ) {
+      setSupplierInvoiceFilter("all");
+    }
   }, [derivedFilterOptions, productNameFilter, brandFilter, categoryFilter, departmentFilter, sizeFilter, colorFilter, supplierFilter, supplierInvoiceFilter]);
 
   // Search for variant IDs by barcode in purchase_items and sale_items (for old/changed barcodes)
@@ -1055,49 +1096,31 @@ export default function StockReport() {
       });
     }
 
+    // Brand / category / size / color / style / supplier / invoice are already applied
+    // in get_stock_report. Re-filtering here wiped rows when supplier attach lagged or
+    // brand/supplier strings differed only by spaces/case.
     return stockItems.filter(item => {
-      // Pinned product filter
+      // Pinned product filter (client-only)
       if (pinnedProducts.length > 0) {
         const pinnedNames = new Set(pinnedProducts.map(p => p.product_name.toLowerCase()));
         if (!pinnedNames.has((item.product_name || '').toLowerCase())) return false;
       }
-      
-      // Product name filter
+
+      // Product name filter — RPC uses exact match when set; keep contains for typed search
       if (productNameFilter) {
         const nameSearch = productNameFilter.toLowerCase();
         if (!item.product_name.toLowerCase().includes(nameSearch)) return false;
       }
-      
+
       // General search filter — multi-token AND
       if (searchTerm) {
         const matchesOldBarcode = variantIdsFromOldBarcodes.has(item.id);
         if (!matchesOldBarcode && !multiTokenMatch(searchTerm, item.product_name, item.brand, item.color, item.size, item.barcode, item.supplier_name, item.supplier_invoice_no, item.category, item.department, (item as any).hsn_code)) return false;
       }
-      
-      // Brand filter
-      if (brandFilter !== "all" && item.brand !== brandFilter) return false;
-      
-      // Department filter
-      if (departmentFilter !== "all" && item.department !== departmentFilter) return false;
-      
-      // Size filter
-      if (sizeFilter !== "all" && item.size !== sizeFilter) return false;
-      
-      // Supplier filter
-      if (supplierFilter !== "all" && item.supplier_name !== supplierFilter) return false;
-      
-      // Supplier Invoice filter
-      if (supplierInvoiceFilter !== "all" && item.supplier_invoice_no !== supplierInvoiceFilter) return false;
-      
-      // Category filter
-      if (categoryFilter !== "all" && item.category !== categoryFilter) return false;
-      
-      // Color filter
-      if (colorFilter !== "all" && item.color !== colorFilter) return false;
-      
+
       return true;
     });
-  }, [stockItems, searchTerm, productNameFilter, brandFilter, departmentFilter, sizeFilter, colorFilter, supplierFilter, supplierInvoiceFilter, categoryFilter, oldBarcodeVariantMap, pinnedProducts]);
+  }, [stockItems, searchTerm, productNameFilter, oldBarcodeVariantMap, pinnedProducts]);
 
 
   // Size-wise stock report data
@@ -1717,6 +1740,17 @@ export default function StockReport() {
         </div>
 
         <MobileBottomNav />
+        {currentOrganization?.id && (
+          <MergeDuplicateBrandsDialog
+            open={mergeBrandsOpen}
+            onOpenChange={setMergeBrandsOpen}
+            organizationId={currentOrganization.id}
+            onMergeComplete={() => {
+              invalidateStockReportQueries(queryClient, currentOrganization.id);
+              handleSearch();
+            }}
+          />
+        )}
       </div>
     );
   }
@@ -1749,6 +1783,17 @@ export default function StockReport() {
             </div>
           </div>
           <div className="flex items-center gap-1.5 flex-wrap shrink-0">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9 text-sm border-slate-200 gap-1.5"
+              title="Merge brand names that differ only by spaces or letter case"
+              onClick={() => setMergeBrandsOpen(true)}
+              disabled={!currentOrganization?.id}
+            >
+              <Merge className="h-4 w-4" />
+              Merge brands
+            </Button>
             <Button
               variant="outline"
               size="sm"
@@ -2411,6 +2456,17 @@ export default function StockReport() {
         )}
       </Card>
       </div>
+      {currentOrganization?.id && (
+        <MergeDuplicateBrandsDialog
+          open={mergeBrandsOpen}
+          onOpenChange={setMergeBrandsOpen}
+          organizationId={currentOrganization.id}
+          onMergeComplete={() => {
+            invalidateStockReportQueries(queryClient, currentOrganization.id);
+            handleSearch();
+          }}
+        />
+      )}
     </div>
   );
 }

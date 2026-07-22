@@ -187,7 +187,6 @@ export function LabelCalibrationUI({
   onChange,
   presets = [],
   onSavePreset,
-  onDeletePreset,
   onLoadPreset,
   onSetDefault,
   onSetTemplateDefault,
@@ -376,18 +375,6 @@ export function LabelCalibrationUI({
       setNewPresetName("");
       setSavePresetOpen(false);
     }
-  };
-
-  const deletePreset = async (name: string) => {
-    const preset = presets.find((p) => p.name === name);
-    if (!preset) return;
-
-    if (onDeletePreset && preset.id) {
-      await onDeletePreset(preset.id);
-    } else if (onPresetsChange) {
-      onPresetsChange(presets.filter((p) => p.name !== name));
-    }
-    if (activePresetName === name) setActivePresetName(null);
   };
 
   const previewScale = compact ? 2 : 2.5;
@@ -640,21 +627,6 @@ export function LabelCalibrationUI({
           </Dialog>
         )}
 
-        {presets.length > 0 && (onDeletePreset || onPresetsChange) && (
-          <Select onValueChange={deletePreset}>
-            <SelectTrigger className="h-8 text-xs w-auto min-w-[100px]">
-              <SelectValue placeholder="Delete..." />
-            </SelectTrigger>
-            <SelectContent>
-              {presets.map((p) => (
-                <SelectItem key={p.name} value={p.name} className="text-xs text-destructive">
-                  🗑 {p.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
-
         {onOpenBackupRestore && (
           <Button
             type="button"
@@ -854,24 +826,6 @@ export function LabelCalibrationUI({
                   </Dialog>
                 )}
 
-                {a4UserPresets.length > 0 && (onDeletePreset || onPresetsChange) && (
-                  <Select onValueChange={(name) => {
-                    const preset = a4UserPresets.find(p => p.name === name);
-                    if (!preset) return;
-                    if (onDeletePreset && preset.id) { onDeletePreset(preset.id); }
-                    else if (onPresetsChange) { onPresetsChange(presets.filter(p => p.name !== name)); }
-                    if (activeA4PresetName === name) setActiveA4PresetName(null);
-                  }}>
-                    <SelectTrigger className="h-8 text-xs w-auto min-w-[100px]">
-                      <SelectValue placeholder="Delete..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {a4UserPresets.map((p) => (
-                        <SelectItem key={p.name} value={p.name} className="text-xs text-destructive">🗑 {p.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
               </div>
 
               <div className="grid grid-cols-2 gap-2">

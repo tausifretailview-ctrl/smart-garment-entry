@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useLocation } from "react-router-dom";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { supabase } from "@/integrations/supabase/client";
+import { canonicalizeProductBrand } from "@/utils/productBrandUtils";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useToast } from "@/hooks/use-toast";
 import { useProductProtection } from "@/hooks/useProductProtection";
@@ -1052,7 +1053,7 @@ const ProductEntry = () => {
       product_type: formData.product_type,
       product_name: formData.product_name,
       category: formData.category || undefined,
-      brand: formData.brand || undefined,
+      brand: canonicalizeProductBrand(formData.brand) || undefined,
       style: formData.style || undefined,
       color: formData.colors.join(", ") || undefined,
       size_group_id: formData.size_group_id || undefined,
@@ -1252,7 +1253,7 @@ const ProductEntry = () => {
           product_type: formData.product_type,
           product_name: formData.product_name,
           category: formData.category || null,
-          brand: formData.brand || null,
+          brand: canonicalizeProductBrand(formData.brand) || null,
           style: formData.style || null,
           color: productColor,
           hsn_code: formData.hsn_code || null,
@@ -1389,7 +1390,7 @@ const ProductEntry = () => {
           product_type: formData.product_type,
           product_name: formData.product_name,
           category: formData.category || null,
-          brand: formData.brand || null,
+          brand: canonicalizeProductBrand(formData.brand) || null,
           style: formData.style || null,
           color: productColor, // Store first color for backward compatibility
           hsn_code: formData.hsn_code || null,

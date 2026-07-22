@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { IMEIScanDialog } from "@/components/IMEIScanDialog";
 import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
+import { canonicalizeProductBrand } from "@/utils/productBrandUtils";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useToast } from "@/hooks/use-toast";
@@ -1620,7 +1621,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
         product_type: formData.product_type,
         product_name: formData.product_name,
         category: formData.category || null,
-        brand: formData.brand || null,
+        brand: canonicalizeProductBrand(formData.brand) || null,
         style: formData.style || null,
         color: productColor,
         hsn_code: formData.hsn_code || null,

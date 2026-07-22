@@ -103,13 +103,38 @@ export async function fetchItemWiseStockPage(
   }>;
 
   const totalCount = Number(rawRows[0]?.total_rows ?? 0);
-  const rows: ItemWiseStockRow[] = rawRows.map((row) => ({
+  let rows: ItemWiseStockRow[] = rawRows.map((row) => ({
     product_id: row.product_id ?? null,
     key: row.group_key ?? "Unknown",
     total_qty: Number(row.total_stock ?? 0),
     purchase_value: Number(row.purchase_value ?? 0),
     sale_value: Number(row.sale_value ?? 0),
   }));
+
+  // Collapse brand spellings that differ only by case/spaces (same page).
+  if (filters.groupBy === "brand") {
+    const { normalizeBrand, canonicalizeProductBrand } = await import(
+      "@/utils/productBrandUtils"
+    );
+    const merged = new Map<string, ItemWiseStockRow>();
+    for (const row of rows) {
+      const key = normalizeBrand(row.key) || row.key;
+      const existing = merged.get(key);
+      if (!existing) {
+        merged.set(key, {
+          ...row,
+          key: canonicalizeProductBrand(row.key) || row.key,
+        });
+      } else {
+        existing.total_qty += row.total_qty;
+        existing.purchase_value += row.purchase_value;
+        existing.sale_value += row.sale_value;
+      }
+    }
+    rows = [...merged.values()].sort(
+      (a, b) => b.total_qty - a.total_qty || a.key.localeCompare(b.key),
+    );
+  }
 
   return { rows, totalCount };
 }

@@ -8,7 +8,8 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { AlertTriangle, Search, RefreshCw, Check, ArrowRight, ChevronsUpDown, History, Clock } from "lucide-react";
+import { AlertTriangle, Search, RefreshCw, Check, ArrowRight, ChevronsUpDown, History, Clock, Merge } from "lucide-react";
+import { MergeDuplicateBrandsDialog } from "@/components/MergeDuplicateBrandsDialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -42,6 +43,7 @@ export default function BulkProductUpdate() {
   } = useBulkProductUpdate();
 
   const [updateHistory, setUpdateHistory] = useState<any[]>([]);
+  const [mergeBrandsOpen, setMergeBrandsOpen] = useState(false);
   // Filter state
   const [filters, setFilters] = useState<FilterCriteria>({});
   const [filterOptions, setFilterOptions] = useState<{ productNames: string[]; categories: string[]; brands: string[]; styles: string[] }>({ productNames: [], categories: [], brands: [], styles: [] });
@@ -146,13 +148,31 @@ export default function BulkProductUpdate() {
 
   return (
     <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
           <BackToDashboard />
           <h1 className="text-2xl font-bold mt-2">Bulk Product Update</h1>
           <p className="text-muted-foreground">Update multiple products or variants at once</p>
         </div>
+        <Button
+          type="button"
+          variant="outline"
+          className="gap-2"
+          onClick={() => setMergeBrandsOpen(true)}
+        >
+          <Merge className="h-4 w-4" />
+          Merge duplicate brands
+        </Button>
       </div>
+
+      <MergeDuplicateBrandsDialog
+        open={mergeBrandsOpen}
+        onOpenChange={setMergeBrandsOpen}
+        organizationId={currentOrganization.id}
+        onMergeComplete={() => {
+          loadFilterOptions();
+        }}
+      />
 
       <div className="grid lg:grid-cols-2 gap-6">
         {/* Left Column: Filters & Configuration */}
