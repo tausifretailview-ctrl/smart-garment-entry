@@ -1496,6 +1496,7 @@ const POSDashboard = () => {
               effectivePosBillFormat === "a5" || effectivePosBillFormat === "a5-horizontal"
                 ? "a5"
                 : "a4",
+            wappConnectPdf: whatsAppAPISettings?.send_provider === "wappconnect",
           })) ||
           null
         );
@@ -1503,7 +1504,7 @@ const POSDashboard = () => {
         setPrintData(null);
       }
     },
-    [buildPrintDataFromSale],
+    [buildPrintDataFromSale, effectivePosBillFormat, whatsAppAPISettings?.send_provider],
   );
 
   const sendPosSaleWhatsAppViaAPI = useCallback(

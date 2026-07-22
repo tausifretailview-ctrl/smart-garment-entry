@@ -59,6 +59,7 @@ import { captureElementToPdfBase64 } from "@/utils/captureInvoicePdf";
 import { resendSaleInvoiceWhatsApp } from "@/utils/resendSaleInvoiceWhatsApp";
 import { invokeSendWhatsAppMessage } from "@/utils/invokeSendWhatsAppMessage";
 import type { WhatsAppSettings } from "@/hooks/useWhatsAppAPI";
+import { isWappConnectSendProvider } from "@/constants/whatsappSendProvider";
 
 import { useReactToPrint } from "react-to-print";
 import { useDirectPrint } from "@/hooks/useDirectPrint";
@@ -3321,8 +3322,12 @@ Thank you for choosing us!`;
                 capturePdfBase64: async () => {
                   if (!printRef.current) return null;
                   return (
-                    (await captureElementToPdfBase64(printRef.current, { extraSettleMs: 500 })) ||
-                    null
+                    (await captureElementToPdfBase64(printRef.current, {
+                      extraSettleMs: 500,
+                      wappConnectPdf: isWappConnectSendProvider(
+                        whatsappSettings.send_provider,
+                      ),
+                    })) || null
                   );
                 },
               });

@@ -2166,9 +2166,14 @@ export default function SalesInvoiceDashboard() {
       await new Promise((resolve) => setTimeout(resolve, isMobile ? 600 : 200));
       const el = await waitForInvoicePrintDom();
       if (!el) return null;
-      return (await captureElementToPdfBase64(el, { extraSettleMs: 300 })) || null;
+      return (
+        (await captureElementToPdfBase64(el, {
+          extraSettleMs: 300,
+          wappConnectPdf: whatsAppAPISettings?.send_provider === "wappconnect",
+        })) || null
+      );
     },
-    [ensureSaleItems, isMobile, waitForInvoicePrintDom],
+    [ensureSaleItems, isMobile, waitForInvoicePrintDom, whatsAppAPISettings?.send_provider],
   );
 
   const handleDownloadPDF = async (invoice: any) => {

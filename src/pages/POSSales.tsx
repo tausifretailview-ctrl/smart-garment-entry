@@ -3224,6 +3224,7 @@ export default function POSSales() {
         const base64 = await captureElementToPdfBase64(whatsappPdfRef.current, {
           extraSettleMs: 700,
           pageFormat: waPageFormat,
+          wappConnectPdf: true,
         });
         if (cancelled) return;
         whatsappPdfResolverRef.current?.resolve(base64 || null);
@@ -5074,7 +5075,14 @@ export default function POSSales() {
 
         if (shouldAttachPdf && invoiceDom) {
           await new Promise(r => setTimeout(r, 500));
-          pdfBase64 = (await generateInvoiceBase64(invoiceDom)) || undefined;
+          const waPageFormat =
+            posBillFormat === "a5" || posBillFormat === "a5-horizontal" ? "a5" : "a4";
+          pdfBase64 =
+            (await captureElementToPdfBase64(invoiceDom, {
+              extraSettleMs: 200,
+              pageFormat: waPageFormat,
+              wappConnectPdf: true,
+            })) || undefined;
         }
 
         if (shouldAttachPdf && !pdfBase64) {
