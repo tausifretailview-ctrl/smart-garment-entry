@@ -38,7 +38,13 @@ SET bill_barcode_settings =
   || jsonb_build_object(
     'default_thermal_landing', r.landing,
     'default_precision_preset_id', r.preset_id::text,
-    'precision_print_mode', r.landing
+    'precision_print_mode', r.landing,
+    'barcode_default_print_tab',
+      CASE r.landing
+        WHEN 'thermal3up' THEN 'precision_3up'
+        WHEN 'thermal2up' THEN 'precision_2up'
+        ELSE 'precision_1up'
+      END
   )
 FROM ranked r
 WHERE s.organization_id = r.organization_id

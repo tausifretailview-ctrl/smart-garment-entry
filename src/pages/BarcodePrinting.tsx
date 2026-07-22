@@ -50,7 +50,12 @@ import {
   printBarcodeViaDesktop,
 } from '@/utils/barcodeDesktopPrint';
 import { isElectron } from "@/utils/appPrint";
-import { resolveBarcodePrintTab, type ResolveBarcodePrintTabInput } from "@/utils/resolveBarcodePrintTab";
+import {
+  resolveBarcodePrintTab,
+  thermalLandingFromDefaultPrintTab,
+  type BarcodeDefaultPrintTabSetting,
+  type ResolveBarcodePrintTabInput,
+} from "@/utils/resolveBarcodePrintTab";
 import { isStandardA4SheetType } from "@/utils/standardA4SheetType";
 import {
   findDefaultPresetForMode,
@@ -1474,7 +1479,8 @@ export default function BarcodePrinting() {
     return () => window.removeEventListener("afterprint", handleAfterPrint);
   }, []);
   const [activeBarTab, setActiveBarTab] = useState<string>("standard");
-  const [settingsDefaultBarTab, setSettingsDefaultBarTab] = useState<"standard" | "precision" | "auto">("auto");
+  const [settingsDefaultBarTab, setSettingsDefaultBarTab] =
+    useState<BarcodeDefaultPrintTabSetting>("auto");
   /** From bill_barcode_settings — not overwritten when user toggles tabs */
   const [precisionProEnabledFromSettings, setPrecisionProEnabledFromSettings] = useState(false);
   const [activePrecisionTemplateName, setActivePrecisionTemplateNameRaw] = useState<string | null>(null);
@@ -2003,15 +2009,20 @@ export default function BarcodePrinting() {
         // Load precision pro settings (use merge to avoid overwriting preset-loaded labelConfig)
         if (data?.bill_barcode_settings && typeof data.bill_barcode_settings === 'object') {
           const bbs = data.bill_barcode_settings as any;
-          const configuredDefaultTab: "standard" | "precision" | "auto" =
-            bbs.barcode_default_print_tab === "precision"
-              ? "precision"
-              : bbs.barcode_default_print_tab === "standard"
-              ? "standard"
+          const rawTab = String(bbs.barcode_default_print_tab || "auto");
+          const configuredDefaultTab: BarcodeDefaultPrintTabSetting =
+            rawTab === "precision_1up" ||
+            rawTab === "precision_2up" ||
+            rawTab === "precision_3up" ||
+            rawTab === "precision" ||
+            rawTab === "standard" ||
+            rawTab === "auto"
+              ? rawTab
               : "auto";
           setSettingsDefaultBarTab(configuredDefaultTab);
           setPrecisionProEnabledFromSettings(bbs.precision_pro_enabled === true);
-          const landing = bbs.default_thermal_landing || bbs.precision_print_mode;
+          const fromTab = thermalLandingFromDefaultPrintTab(configuredDefaultTab);
+          const landing = fromTab || bbs.default_thermal_landing || bbs.precision_print_mode;
           resolvedPrintMode =
             landing === "thermal2up" || landing === "thermal3up" || landing === "thermal"
               ? landing
@@ -2342,11 +2353,18 @@ export default function BarcodePrinting() {
             typeof settingsRow.bill_barcode_settings === "object"
               ? (settingsRow.bill_barcode_settings as Record<string, unknown>)
               : {};
+          const tabForMode =
+            printMode === "thermal3up"
+              ? "precision_3up"
+              : printMode === "thermal2up"
+                ? "precision_2up"
+                : "precision_1up";
           await supabase
             .from("settings")
             .update({
               bill_barcode_settings: {
                 ...prevBbs,
+                barcode_default_print_tab: tabForMode,
                 default_thermal_landing: printMode,
                 default_precision_preset_id: presetId,
                 precision_print_mode: printMode,

@@ -299,7 +299,17 @@ interface BillBarcodeSettings {
   precision_a4_rows?: number;
   precision_print_mode?: 'thermal' | 'a4' | 'thermal2up' | 'thermal3up';
   precision_label_config?: any; // LabelDesignConfig stored as JSON
-  barcode_default_print_tab?: 'standard' | 'precision' | 'auto';
+  /**
+   * Default Barcode Printing landing:
+   * auto | standard | precision | precision_1up | precision_2up | precision_3up
+   */
+  barcode_default_print_tab?:
+    | "standard"
+    | "precision"
+    | "auto"
+    | "precision_1up"
+    | "precision_2up"
+    | "precision_3up";
   /** Precision Pro landing mode when opening Barcode Printing */
   default_thermal_landing?: 'thermal' | 'thermal2up' | 'thermal3up';
   /** printer_presets.id used as default label design for the landing mode */
@@ -688,10 +698,23 @@ export default function Settings() {
     if (!currentDefault?.id) return;
     const mode = inferPrecisionPrintMode(currentDefault);
     if (mode !== "thermal" && mode !== "thermal2up" && mode !== "thermal3up") return;
+    const tab =
+      mode === "thermal3up"
+        ? "precision_3up"
+        : mode === "thermal2up"
+          ? "precision_2up"
+          : "precision_1up";
     setSettings((prev) => ({
       ...prev,
       bill_barcode_settings: {
         ...prev.bill_barcode_settings,
+        barcode_default_print_tab:
+          prev.bill_barcode_settings?.barcode_default_print_tab === "auto" ||
+          !prev.bill_barcode_settings?.barcode_default_print_tab
+            ? tab
+            : prev.bill_barcode_settings.barcode_default_print_tab === "precision"
+              ? tab
+              : prev.bill_barcode_settings.barcode_default_print_tab,
         default_thermal_landing: mode,
         default_precision_preset_id: currentDefault.id,
         precision_print_mode: mode,
@@ -4835,16 +4858,76 @@ export default function Settings() {
                 <div className="space-y-2">
                   <Label htmlFor="barcode_default_print_tab">Default Barcode Printing Tab</Label>
                   <Select
-                    value={settings.bill_barcode_settings?.barcode_default_print_tab || "auto"}
-                    onValueChange={(value: 'standard' | 'precision' | 'auto') =>
+                    value={(() => {
+                      const tab = settings.bill_barcode_settings?.barcode_default_print_tab || "auto";
+                      if (
+                        tab === "precision_1up" ||
+                        tab === "precision_2up" ||
+                        tab === "precision_3up" ||
+                        tab === "standard" ||
+                        tab === "precision" ||
+                        tab === "auto"
+                      ) {
+                        // Prefer explicit precision_* tab; if legacy "precision", derive from landing
+                        if (tab === "precision") {
+                          const landing =
+                            settings.bill_barcode_settings?.default_thermal_landing || "thermal";
+                          if (landing === "thermal2up") return "precision_2up";
+                          if (landing === "thermal3up") return "precision_3up";
+                          return "precision_1up";
+                        }
+                        return tab;
+                      }
+                      return "auto";
+                    })()}
+                    onValueChange={(value) => {
+                      const landing: "thermal" | "thermal2up" | "thermal3up" | undefined =
+                        value === "precision_1up"
+                          ? "thermal"
+                          : value === "precision_2up"
+                            ? "thermal2up"
+                            : value === "precision_3up"
+                              ? "thermal3up"
+                              : value === "precision"
+                                ? settings.bill_barcode_settings?.default_thermal_landing || "thermal"
+                                : undefined;
+
+                      let nextPresetId = settings.bill_barcode_settings?.default_precision_preset_id;
+                      if (landing) {
+                        const matchingDefault = settingsDbPresets.find(
+                          (p) => p.isDefault && inferPrecisionPrintMode(p) === landing,
+                        );
+                        const firstForMode = settingsDbPresets.find(
+                          (p) => inferPrecisionPrintMode(p) === landing,
+                        );
+                        const keepCurrent =
+                          nextPresetId &&
+                          settingsDbPresets.some(
+                            (p) =>
+                              p.id === nextPresetId && inferPrecisionPrintMode(p) === landing,
+                          );
+                        nextPresetId =
+                          matchingDefault?.id ||
+                          (keepCurrent ? nextPresetId : undefined) ||
+                          firstForMode?.id ||
+                          undefined;
+                      }
+
                       setSettings({
                         ...settings,
                         bill_barcode_settings: {
                           ...settings.bill_barcode_settings,
-                          barcode_default_print_tab: value,
+                          barcode_default_print_tab: value as BillBarcodeSettings["barcode_default_print_tab"],
+                          ...(landing
+                            ? {
+                                default_thermal_landing: landing,
+                                precision_print_mode: landing,
+                                default_precision_preset_id: nextPresetId,
+                              }
+                            : {}),
                         },
-                      })
-                    }
+                      });
+                    }}
                   >
                     <SelectTrigger id="barcode_default_print_tab">
                       <SelectValue />
@@ -4852,57 +4935,15 @@ export default function Settings() {
                     <SelectContent>
                       <SelectItem value="auto">Auto (recommended)</SelectItem>
                       <SelectItem value="standard">Standard Printing</SelectItem>
-                      <SelectItem value="precision">Precision Pro</SelectItem>
+                      <SelectItem value="precision_1up">Precision Pro — Thermal (1-Up)</SelectItem>
+                      <SelectItem value="precision_2up">Precision Pro — Thermal (2-Up)</SelectItem>
+                      <SelectItem value="precision_3up">Precision Pro — Thermal (3-Up)</SelectItem>
                     </SelectContent>
                   </Select>
                   <p className="text-xs text-muted-foreground">
-                    Auto opens <b>Standard Printing</b> when an A4 sheet label design is saved as default (Laser printer), otherwise opens <b>Precision Pro</b> (thermal/barcode printer). Purchase barcode print actions can still force a specific tab.
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="default_thermal_landing">Default Thermal Landing (Precision Pro)</Label>
-                  <Select
-                    value={settings.bill_barcode_settings?.default_thermal_landing || "thermal"}
-                    onValueChange={(value: "thermal" | "thermal2up" | "thermal3up") => {
-                      const matchingDefault = settingsDbPresets.find(
-                        (p) => p.isDefault && inferPrecisionPrintMode(p) === value,
-                      );
-                      const firstForMode = settingsDbPresets.find(
-                        (p) => inferPrecisionPrintMode(p) === value,
-                      );
-                      const nextPresetId =
-                        matchingDefault?.id ||
-                        (settings.bill_barcode_settings?.default_precision_preset_id &&
-                        settingsDbPresets.some(
-                          (p) =>
-                            p.id === settings.bill_barcode_settings?.default_precision_preset_id &&
-                            inferPrecisionPrintMode(p) === value,
-                        )
-                          ? settings.bill_barcode_settings.default_precision_preset_id
-                          : firstForMode?.id) ||
-                        "";
-                      setSettings({
-                        ...settings,
-                        bill_barcode_settings: {
-                          ...settings.bill_barcode_settings,
-                          default_thermal_landing: value,
-                          precision_print_mode: value,
-                          default_precision_preset_id: nextPresetId || undefined,
-                        },
-                      });
-                    }}
-                  >
-                    <SelectTrigger id="default_thermal_landing">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="thermal">Thermal (1-Up)</SelectItem>
-                      <SelectItem value="thermal2up">Thermal (2-Up)</SelectItem>
-                      <SelectItem value="thermal3up">Thermal (3-Up)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-muted-foreground">
-                    When you open Barcode Printing → Precision Pro, land on this print mode (1-Up / 2-Up / 3-Up).
+                    Auto opens <b>Standard</b> when an A4 sheet design is the default (laser), otherwise{" "}
+                    <b>Precision Pro</b>. Pick a Precision Pro Thermal option to always open that mode
+                    (1-Up / 2-Up / 3-Up).
                   </p>
                 </div>
                 <div className="space-y-2">

@@ -52,4 +52,19 @@ describe("resolveBarcodePrintTab", () => {
       }),
     ).toBe("precision");
   });
+
+  it("opens Precision for precision_1up / 2up / 3up settings", () => {
+    expect(
+      resolveBarcodePrintTab({
+        settingsDefaultBarTab: "precision_2up",
+        defaultFormat: { sheetType: "thermal_50x38_1up" },
+      }),
+    ).toBe("precision");
+    expect(
+      resolveBarcodePrintTab({
+        settingsDefaultBarTab: "precision_3up",
+        precisionProEnabled: true,
+      }),
+    ).toBe("precision");
+  });
 });
