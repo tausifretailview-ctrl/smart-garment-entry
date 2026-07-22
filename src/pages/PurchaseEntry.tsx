@@ -1878,13 +1878,16 @@ const PurchaseEntry = () => {
     return num >= rangeStart && num < rangeEnd;
   };
 
-  // Helper: create a new variant with a new barcode, copying fields from source
+  // Helper: create a NEW variant (+ barcode). Used when selecting an existing product
+  // as a template so purchase prices/barcode never mutate the old master SKU.
   const createNewVariantWithBarcode = async (source: {
     product_id: string; size: string; color?: string;
     pur_price?: number; sale_price?: number; mrp?: number;
+    barcode?: string;
   }): Promise<{ id: string; barcode: string } | null> => {
     try {
-      const newBarcode = await generateCentralizedBarcode();
+      const newBarcode =
+        (source.barcode && source.barcode.trim()) || (await generateCentralizedBarcode());
       const { data: newVariant, error } = await supabase
         .from("product_variants")
         .insert({
@@ -1906,11 +1909,32 @@ const PurchaseEntry = () => {
     } catch (error: any) {
       console.error("Failed to create new variant:", error);
       toast({
-        title: "Warning",
-        description: "Could not create new variant, reusing existing. " + (error.message || ""),
+        title: "Could not create new product line",
+        description: error.message || "Old product was left unchanged. Try again.",
+        variant: "destructive",
       });
       return null;
     }
+  };
+
+  /** When Same Barcode Series is OFF: always fork a new SKU so select≠update master. */
+  const forkVariantForPurchaseLine = async (source: {
+    product_id: string;
+    size: string;
+    color?: string;
+    pur_price?: number;
+    sale_price?: number;
+    mrp?: number;
+  }): Promise<{ id: string; barcode: string } | null> => {
+    const result = await createNewVariantWithBarcode(source);
+    if (result) {
+      toast({
+        title: "New barcode assigned",
+        description: `${result.barcode} — old product barcode/prices unchanged. Edit pur/sale on this line.`,
+        duration: 3500,
+      });
+    }
+    return result;
   };
   
   const autoFocusSearch = (settings?.purchase_settings as any)?.auto_focus_search || false;
@@ -3086,19 +3110,18 @@ const PurchaseEntry = () => {
           barcode = newBarcode;
         }
       } else {
-        if (barcode && isSystemGeneratedBarcode(barcode)) {
-          const result = await createNewVariantWithBarcode({
-            product_id: productId, size: v.size, color: v.color,
-            pur_price: product.default_pur_price, sale_price: product.default_sale_price, mrp: v.mrp,
-          });
-          if (result) { skuId = result.id; barcode = result.barcode; }
-        } else if (!barcode && isAutoBarcode) {
-          const result = await createNewVariantWithBarcode({
-            product_id: productId, size: v.size, color: v.color,
-            pur_price: product.default_pur_price, sale_price: product.default_sale_price, mrp: v.mrp,
-          });
-          if (result) { skuId = result.id; barcode = result.barcode; }
-        }
+        // Template select → always new SKU (do not overwrite old barcode/prices)
+        const result = await forkVariantForPurchaseLine({
+          product_id: productId,
+          size: v.size,
+          color: v.color,
+          pur_price: product.default_pur_price,
+          sale_price: product.default_sale_price,
+          mrp: v.mrp,
+        });
+        if (!result) return;
+        skuId = result.id;
+        barcode = result.barcode;
       }
 
       addItemRow({
@@ -3397,25 +3420,17 @@ const PurchaseEntry = () => {
             barcode = newBarcode;
           }
         } else {
-          if (barcode && isSystemGeneratedBarcode(barcode)) {
-            const result = await createNewVariantWithBarcode({
-              product_id: selectedProduct.id, size: variant.size,
-              color: newColor || variant.color || selectedProduct.color,
-              pur_price: variant.pur_price || selectedProduct.default_pur_price,
-              sale_price: variant.sale_price || selectedProduct.default_sale_price,
-              mrp: variant.mrp,
-            });
-            if (result) { skuId = result.id; barcode = result.barcode; }
-          } else if (!barcode && isAutoBarcode) {
-            const result = await createNewVariantWithBarcode({
-              product_id: selectedProduct.id, size: variant.size,
-              color: newColor || variant.color || selectedProduct.color,
-              pur_price: variant.pur_price || selectedProduct.default_pur_price,
-              sale_price: variant.sale_price || selectedProduct.default_sale_price,
-              mrp: variant.mrp,
-            });
-            if (result) { skuId = result.id; barcode = result.barcode; }
-          }
+          const result = await forkVariantForPurchaseLine({
+            product_id: selectedProduct.id,
+            size: variant.size,
+            color: newColor || variant.color || selectedProduct.color,
+            pur_price: variant.pur_price || selectedProduct.default_pur_price,
+            sale_price: variant.sale_price || selectedProduct.default_sale_price,
+            mrp: variant.mrp,
+          });
+          if (!result) continue;
+          skuId = result.id;
+          barcode = result.barcode;
         }
       }
 
@@ -3560,35 +3575,20 @@ const PurchaseEntry = () => {
         barcode = newBarcode;
       }
     } else {
-      if (barcode && isSystemGeneratedBarcode(barcode)) {
-        const result = await createNewVariantWithBarcode({
-          product_id: variant.product_id,
-          size: variant.size,
-          color: variant.color,
-          pur_price: variant.pur_price,
-          sale_price: variant.sale_price,
-          mrp: variant.mrp,
-        });
-        if (result) {
-          skuId = result.id;
-          barcode = result.barcode;
-        }
-      } else if (!barcode && isAutoBarcode) {
-        const result = await createNewVariantWithBarcode({
-          product_id: variant.product_id,
-          size: variant.size,
-          color: variant.color,
-          pur_price: variant.pur_price,
-          sale_price: variant.sale_price,
-          mrp: variant.mrp,
-        });
-        if (result) {
-          skuId = result.id;
-          barcode = result.barcode;
-        }
-      }
+      // Selecting an existing product = template only → new barcode + new SKU.
+      // Pur/sale edits on this line update the NEW SKU only; old master stays intact.
+      const result = await forkVariantForPurchaseLine({
+        product_id: variant.product_id,
+        size: variant.size,
+        color: variant.color,
+        pur_price: variant.pur_price,
+        sale_price: variant.sale_price,
+        mrp: variant.mrp,
+      });
+      if (!result) return;
+      skuId = result.id;
+      barcode = result.barcode;
     }
-    // Branded barcode or no barcode + scan mode → reuse as-is
 
     const resolvedUom = await ensureVariantUom(variant);
     const mtrMult = getMtrMultiplier({ uom: resolvedUom, size: variant.size || '', qty: 1 });
