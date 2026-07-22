@@ -43,7 +43,7 @@ function nextFrame(): Promise<void> {
  */
 export async function captureElementToPdfBase64(
   el: HTMLElement,
-  opts: { extraSettleMs?: number; pageFormat?: "a4" | "a5" } = {},
+  opts: { extraSettleMs?: number; pageFormat?: "a4" | "a5"; mobileOptimized?: boolean } = {},
 ): Promise<string> {
   // Let React commit + layout settle (settings/logo may still be loading).
   await nextFrame();
@@ -55,7 +55,11 @@ export async function captureElementToPdfBase64(
   await nextFrame();
 
   const pageFormat = opts.pageFormat ?? "a4";
-  const blob = await captureElementToPdfBlob(el, { pageFormat });
+  const blob = await captureElementToPdfBlob(el, {
+    pageFormat,
+    // Force JPEG + lower scale for smaller PDFs (WhatsApp / storage-bucket limits).
+    mobileOptimized: opts.mobileOptimized ?? true,
+  });
   const buffer = await blob.arrayBuffer();
   const bytes = new Uint8Array(buffer);
   let binary = "";
