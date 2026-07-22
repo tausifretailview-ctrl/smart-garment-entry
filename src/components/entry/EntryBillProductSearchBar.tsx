@@ -45,6 +45,9 @@ export interface EntryBillProductSearchBarProps {
   browsePlaceholder?: string;
   noStockRestriction?: boolean;
   barcodeInputRef?: RefObject<HTMLInputElement | null>;
+  productSearchInputRef?: RefObject<HTMLInputElement | null>;
+  /** When true (default), SCAN BARCODE gets browser autofocus. */
+  barcodeAutoFocus?: boolean;
 }
 
 export function EntryBillProductSearchBar({
@@ -70,6 +73,8 @@ export function EntryBillProductSearchBar({
   browsePlaceholder = "Browse products by name, brand, category, size...",
   noStockRestriction = false,
   barcodeInputRef,
+  productSearchInputRef,
+  barcodeAutoFocus = true,
 }: EntryBillProductSearchBarProps) {
   const visibleGroups = productSearchGroups.slice(0, displayLimit);
   const visibleResults = popoverSearchResults.slice(0, displayLimit);
@@ -96,7 +101,7 @@ export function EntryBillProductSearchBar({
         <div className="flex gap-1 min-w-[220px] shrink-0">
           <Input
             ref={barcodeInputRef}
-            autoFocus
+            autoFocus={barcodeAutoFocus}
             placeholder="SCAN BARCODE..."
             value={barcodeValue}
             onChange={(e) => onBarcodeValueChange(e.target.value)}
@@ -113,6 +118,7 @@ export function EntryBillProductSearchBar({
             <div className="relative flex-1 min-w-[240px] cursor-pointer">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-black/40" />
               <Input
+                ref={productSearchInputRef}
                 placeholder={noStockRestriction ? "Search Products (No Stock Restriction)" : browsePlaceholder}
                 className="pl-10 pr-4 h-10 bg-white border-black/20 cursor-pointer text-sm font-semibold"
                 readOnly

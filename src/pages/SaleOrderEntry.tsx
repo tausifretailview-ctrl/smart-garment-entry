@@ -138,6 +138,7 @@ export default function SaleOrderEntry() {
   const tableContainerRef = useRef<HTMLDivElement>(null);
   const tableEndRef = useRef<HTMLDivElement>(null);
   const barcodeInputRef = useRef<HTMLInputElement>(null);
+  const productSearchInputRef = useRef<HTMLInputElement>(null);
   const skipDraftSaveOnUnmountRef = useRef(false);
   const savingLockRef = useRef(false);
   const [showNotesSection, setShowNotesSection] = useState(false);
@@ -182,8 +183,9 @@ export default function SaleOrderEntry() {
   useEntryViewportSync();
 
   const focusProductSearchBar = useCallback(() => {
-    setTimeout(() => barcodeInputRef.current?.focus(), 50);
-  }, []);
+    // Open browse search so the CommandInput receives the cursor (not Customer / Scan Barcode).
+    setTimeout(() => setOpenProductSearch(true), 50);
+  }, [setOpenProductSearch]);
 
   useEffect(() => {
     focusProductSearchBar();
@@ -1532,6 +1534,8 @@ export default function SaleOrderEntry() {
         totalQty={totalOrderQty}
         noStockRestriction
         barcodeInputRef={barcodeInputRef}
+        productSearchInputRef={productSearchInputRef}
+        barcodeAutoFocus={false}
       />
 
       <section className={cn("flex-1 min-h-0 pb-2 overflow-hidden bg-neutral-100 relative w-full min-w-0", entryPageSectionX)}>
