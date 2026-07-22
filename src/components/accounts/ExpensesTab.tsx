@@ -67,14 +67,15 @@ function expenseVoucherCategoryLabel(v: { category?: string | null; description?
   return label || null;
 }
 
-function buildExpenseCategoryUsageMap(
+/** Plain record — PersistQueryClient JSON-revives Maps as `{}`, which breaks `.get()`. */
+function buildExpenseCategoryUsageCounts(
   vouchers: { category?: string | null; description?: string | null }[],
-): Map<string, number> {
-  const counts = new Map<string, number>();
+): Record<string, number> {
+  const counts: Record<string, number> = {};
   for (const v of vouchers) {
     const label = expenseVoucherCategoryLabel(v);
     if (!label) continue;
-    counts.set(label, (counts.get(label) || 0) + 1);
+    counts[label] = (counts[label] || 0) + 1;
   }
   return counts;
 }
@@ -246,8 +247,9 @@ export function ExpensesTab({
   });
 
   // Usage counts per category name (blocks delete when expense vouchers exist).
-  const { data: categoryUsageMap } = useQuery({
-    queryKey: ["expense-category-usage", organizationId],
+  const { data: categoryUsageCounts } = useQuery({
+    // v2: Record instead of Map (persisted Map dehydrates to `{}` → `.get is not a function`)
+    queryKey: ["expense-category-usage", organizationId, "v2"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("voucher_entries")
@@ -256,7 +258,7 @@ export function ExpensesTab({
         .eq("voucher_type", "expense")
         .is("deleted_at", null);
       if (error) throw error;
-      return buildExpenseCategoryUsageMap(data || []);
+      return buildExpenseCategoryUsageCounts(data || []);
     },
     enabled: !!organizationId && tabActive,
   });
@@ -946,7 +948,7 @@ export function ExpensesTab({
                   </TableRow>
                 ) : (
                   (categories || []).map((row) => {
-                    const usageCount = categoryUsageMap?.get(row.name) ?? 0;
+                    const usageCount = categoryUsageCounts?.[row.name] ?? 0;
                     const canDelete = usageCount === 0;
                     return (
                     <TableRow key={row.id}>
