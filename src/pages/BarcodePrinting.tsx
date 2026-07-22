@@ -1959,6 +1959,7 @@ export default function BarcodePrinting() {
     if (settingsOrgLoadedRef.current === orgId) return;
 
     let resolvedPrintMode: PrecisionPrintMode = "thermal";
+    let defaultPresetIdFromSettings: string | null = null;
 
     const fetchBusinessName = async () => {
       if (!currentOrganization?.id) return;
@@ -1998,7 +1999,6 @@ export default function BarcodePrinting() {
             setPurchaseCodeIncludeGst(purchaseSettings.purchase_code_include_gst);
           }
         }
-        }
 
         // Load precision pro settings (use merge to avoid overwriting preset-loaded labelConfig)
         if (data?.bill_barcode_settings && typeof data.bill_barcode_settings === 'object') {
@@ -2011,7 +2011,15 @@ export default function BarcodePrinting() {
               : "auto";
           setSettingsDefaultBarTab(configuredDefaultTab);
           setPrecisionProEnabledFromSettings(bbs.precision_pro_enabled === true);
-          resolvedPrintMode = (bbs.precision_print_mode as PrecisionPrintMode) || "thermal";
+          const landing = bbs.default_thermal_landing || bbs.precision_print_mode;
+          resolvedPrintMode =
+            landing === "thermal2up" || landing === "thermal3up" || landing === "thermal"
+              ? landing
+              : "thermal";
+          defaultPresetIdFromSettings =
+            typeof bbs.default_precision_preset_id === "string" && bbs.default_precision_preset_id
+              ? bbs.default_precision_preset_id
+              : null;
           setPrecisionSettings(prev => ({
             ...prev,
             enabled: bbs.precision_pro_enabled === true,
@@ -2045,11 +2053,14 @@ export default function BarcodePrinting() {
           const mapped = data.map((p: any) => mapPrinterPresetFromRow(p));
           setDbPresets(mapped);
 
-          // Auto-load preset: localStorage selection, else default for the active print mode
+          // Auto-load: localStorage → settings default design → is_default for landing mode
           const localStoragePresetName = activePrecisionTemplateName?.replace("preset:", "") || null;
+          const settingsPreset = defaultPresetIdFromSettings
+            ? mapped.find((p: { id?: string }) => p.id === defaultPresetIdFromSettings)
+            : undefined;
           const presetToLoad = localStoragePresetName
             ? mapped.find((p: any) => p.name === localStoragePresetName)
-            : findDefaultPresetForMode(mapped, resolvedPrintMode);
+            : settingsPreset || findDefaultPresetForMode(mapped, resolvedPrintMode);
 
           if (presetToLoad) {
             const fixedDims = getFixedBuiltinLabelDimensions(presetToLoad.name);
@@ -2312,6 +2323,43 @@ export default function BarcodePrinting() {
         return p;
       }),
     );
+
+    // Mirror into Settings → Bill & Barcode so landing + design stay in sync
+    if (
+      printMode === "thermal" ||
+      printMode === "thermal2up" ||
+      printMode === "thermal3up"
+    ) {
+      try {
+        const { data: settingsRow } = await supabase
+          .from("settings")
+          .select("id, bill_barcode_settings")
+          .eq("organization_id", currentOrganization.id)
+          .maybeSingle();
+        if (settingsRow?.id) {
+          const prevBbs =
+            settingsRow.bill_barcode_settings &&
+            typeof settingsRow.bill_barcode_settings === "object"
+              ? (settingsRow.bill_barcode_settings as Record<string, unknown>)
+              : {};
+          await supabase
+            .from("settings")
+            .update({
+              bill_barcode_settings: {
+                ...prevBbs,
+                default_thermal_landing: printMode,
+                default_precision_preset_id: presetId,
+                precision_print_mode: printMode,
+              },
+            })
+            .eq("id", settingsRow.id)
+            .eq("organization_id", currentOrganization.id);
+        }
+      } catch (syncErr) {
+        console.warn("Failed to sync default label design to settings:", syncErr);
+      }
+    }
+
     try {
       localStorage.removeItem("precision_active_preset");
       if (currentOrganization?.id) {
