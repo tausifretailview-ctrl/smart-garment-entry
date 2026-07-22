@@ -8411,6 +8411,7 @@ export type Database = {
         Args: { p_bill_id: string; p_reason?: string }
         Returns: Json
       }
+      canonicalize_product_brand: { Args: { p_brand: string }; Returns: string }
       check_barcode_duplicate: {
         Args: {
           p_barcode: string
@@ -8454,6 +8455,10 @@ export type Database = {
           new_paid: number
           new_status: string
         }[]
+      }
+      consolidate_duplicate_brands: {
+        Args: { p_org_id: string }
+        Returns: Json
       }
       create_organization: {
         Args: { p_name: string; p_user_id?: string }
@@ -9243,6 +9248,25 @@ export type Database = {
         Args: { p_org_id: string }
         Returns: Json
       }
+      get_stock_report_filtered_totals: {
+        Args: {
+          p_brand?: string
+          p_category?: string
+          p_color?: string
+          p_in_stock?: boolean
+          p_low_stock?: boolean
+          p_low_stock_band?: boolean
+          p_low_stock_threshold?: number
+          p_org_id: string
+          p_product_name?: string
+          p_search?: string
+          p_size?: string
+          p_style?: string
+          p_supplier?: string
+          p_supplier_invoice?: string
+        }
+        Returns: Json
+      }
       get_stock_report_totals: {
         Args: { p_organization_id: string }
         Returns: Json
@@ -9354,6 +9378,10 @@ export type Database = {
       merge_suppliers: {
         Args: { p_source_supplier_id: string; p_target_supplier_id: string }
         Returns: Json
+      }
+      normalize_product_brand_key: {
+        Args: { p_brand: string }
+        Returns: string
       }
       peek_fee_receipt_number: {
         Args: {

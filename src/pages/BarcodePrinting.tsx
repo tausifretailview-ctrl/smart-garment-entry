@@ -2005,6 +2005,7 @@ export default function BarcodePrinting() {
             setPurchaseCodeIncludeGst(purchaseSettings.purchase_code_include_gst);
           }
         }
+        }
 
         // Load precision pro settings (use merge to avoid overwriting preset-loaded labelConfig)
         if (data?.bill_barcode_settings && typeof data.bill_barcode_settings === 'object') {
