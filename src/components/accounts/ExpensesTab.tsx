@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { CalendarIcon, Plus, Pencil, Trash2, Printer, FileDown, Search, IndianRupee, Banknote, CreditCard, Wallet } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
 import { restoreDashboardFilters, WINDOW_FILTER_IDS } from "@/lib/dashboardFilterPersistence";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -45,6 +45,8 @@ interface ExpensesTabProps {
   embedded?: boolean;
   fullPage?: boolean;
   visitedTabs?: ReadonlySet<string>;
+  /** Called after a successful expense save (e.g. open page history). */
+  onExpenseRecorded?: (expenseId: string) => void;
 }
 
 const PAYMENT_METHODS = [
@@ -83,10 +85,12 @@ export function ExpensesTab({
   embedded = false,
   fullPage = false,
   visitedTabs,
+  onExpenseRecorded,
 }: ExpensesTabProps) {
   const shell = embedded || fullPage;
   const tabActive = shell || (visitedTabs?.has("expenses") ?? true);
   const queryClient = useQueryClient();
+  const historySectionRef = useRef<HTMLDivElement>(null);
   const formatEntryDateTime = (value: string | null | undefined) => {
     if (!value) return "-";
     const date = new Date(value);
@@ -102,6 +106,13 @@ export function ExpensesTab({
   const [narration, setNarration] = useState("");
   const [paidBy, setPaidBy] = useState("");
   const [billNo, setBillNo] = useState("");
+  const [highlightedExpenseId, setHighlightedExpenseId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!highlightedExpenseId) return;
+    const timer = window.setTimeout(() => setHighlightedExpenseId(null), 8000);
+    return () => window.clearTimeout(timer);
+  }, [highlightedExpenseId]);
 
   // Ledger filter state
   const [searchQuery, setSearchQuery] = useState("");
@@ -303,6 +314,7 @@ export function ExpensesTab({
         .eq("voucher_type", "expense")
         .is("deleted_at", null)
         .order("voucher_date", { ascending: false })
+        .order("created_at", { ascending: false })
         .range(0, limit - 1);
       if (error) throw error;
       return data ?? [];
@@ -391,15 +403,24 @@ export function ExpensesTab({
           toast.error(`Expense saved, but category could not be added: ${catErr.message}`);
         }
       }
+
+      return inserted?.id as string | undefined;
     },
-    onSuccess: () => {
+    onSuccess: (expenseId) => {
       toast.success("Expense recorded successfully");
+      if (expenseId) {
+        setHighlightedExpenseId(expenseId);
+        onExpenseRecorded?.(expenseId);
+      }
       queryClient.invalidateQueries({ queryKey: ["expense-vouchers"] });
       queryClient.invalidateQueries({ queryKey: ["voucher-entries"] });
       queryClient.invalidateQueries({ queryKey: ["expense-categories"] });
       queryClient.invalidateQueries({ queryKey: ["expense-category-usage", organizationId] });
       queryClient.invalidateQueries({ queryKey: ["journal-vouchers"] });
       resetForm();
+      requestAnimationFrame(() => {
+        historySectionRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      });
     },
     onError: (error: any) => toast.error(error.message),
   });
@@ -767,7 +788,133 @@ export function ExpensesTab({
         </CardContent>
       </Card>
 
-      {/* Category → ledger (GL) */}
+      {/* Expense history — shown before category ledger so last entries are easy to review */}
+      <div ref={historySectionRef}>
+      <AccountsHistoryPanel
+        title="Expense History"
+        searchPlaceholder="Search expenses…"
+        searchValue={searchQuery}
+        onSearchChange={setSearchQuery}
+        toolbar={
+          <Button variant="outline" size="sm" onClick={exportExcel} className="h-9 gap-1.5 text-sm border-slate-200 bg-slate-50 hover:bg-white">
+            <FileDown className="h-3.5 w-3.5" /> Export Excel
+          </Button>
+        }
+        filters={
+          <>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className="h-9 text-sm gap-1.5 border-slate-200 bg-slate-50 hover:bg-white">
+                  <CalendarIcon className="h-3.5 w-3.5" />
+                  {filterDateFrom ? format(filterDateFrom, "dd/MM") : "From"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={filterDateFrom} onSelect={setFilterDateFrom} className="pointer-events-auto" /></PopoverContent>
+            </Popover>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className="h-9 text-sm gap-1.5 border-slate-200 bg-slate-50 hover:bg-white">
+                  <CalendarIcon className="h-3.5 w-3.5" />
+                  {filterDateTo ? format(filterDateTo, "dd/MM") : "To"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={filterDateTo} onSelect={setFilterDateTo} className="pointer-events-auto" /></PopoverContent>
+            </Popover>
+            <Select value={filterCategory} onValueChange={setFilterCategory}>
+              <SelectTrigger className="h-9 w-[140px] text-sm border-slate-200 bg-slate-50 hover:bg-white"><SelectValue placeholder="Category" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Categories</SelectItem>
+                {uniqueCategories.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Select value={filterPayment} onValueChange={setFilterPayment}>
+              <SelectTrigger className="h-9 w-[120px] text-sm border-slate-200 bg-slate-50 hover:bg-white"><SelectValue placeholder="Payment" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Methods</SelectItem>
+                {PAYMENT_METHODS.map((m) => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            {(filterDateFrom || filterDateTo || filterCategory !== "all" || filterPayment !== "all" || searchQuery) && (
+              <Button variant="ghost" size="sm" className="h-9" onClick={() => { setSearchQuery(""); setFilterDateFrom(undefined); setFilterDateTo(undefined); setFilterCategory("all"); setFilterPayment("all"); }}>
+                Clear
+              </Button>
+            )}
+          </>
+        }
+      >
+            <Table className={accountsHistoryTableClass}>
+              <TableHeader className="!static">
+                <TableRow>
+                  <TableHead className={cn(accountsHistoryThClass, "w-[120px]")}>Voucher No</TableHead>
+                  <TableHead className={cn(accountsHistoryThClass, "w-[90px]")}>Date</TableHead>
+                  <TableHead className={cn(accountsHistoryThClass, "w-[150px]")}>Entry Dt/Time</TableHead>
+                  <TableHead className={accountsHistoryThClass}>Category</TableHead>
+                  <TableHead className={accountsHistoryThClass}>Narration</TableHead>
+                  <TableHead className={cn(accountsHistoryThClass, "w-[80px]")}>Payment</TableHead>
+                  <TableHead className={cn(accountsHistoryThClass, "text-right w-[100px]")}>Amount</TableHead>
+                  <TableHead className={cn(accountsHistoryThClass, "w-[100px] text-center")}>Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {isLoading ? (
+                  <TableRow><TableCell colSpan={8} className="text-center text-xs py-8 text-muted-foreground">Loading...</TableCell></TableRow>
+                ) : filteredExpenses.length === 0 ? (
+                  <TableRow><TableCell colSpan={8} className="text-center text-xs py-8 text-muted-foreground">No expenses found</TableCell></TableRow>
+                ) : (
+                  filteredExpenses.map((v) => (
+                    <TableRow
+                      key={v.id}
+                      data-expense-id={v.id}
+                      className={cn(
+                        "hover:bg-accent/50 transition-colors",
+                        highlightedExpenseId === v.id &&
+                          "bg-amber-100/90 dark:bg-amber-950/40 ring-2 ring-inset ring-amber-400/70",
+                      )}
+                    >
+                      <TableCell className={paymentPickerRefClass}>{v.voucher_number}</TableCell>
+                      <TableCell className="text-xs">{format(new Date(v.voucher_date), "dd/MM/yyyy")}</TableCell>
+                      <TableCell className="text-xs">{formatEntryDateTime(v.created_at)}</TableCell>
+                      <TableCell className="text-xs">{v.category || v.description || "—"}</TableCell>
+                      <TableCell className="text-xs max-w-[200px] truncate">{v.description || "—"}</TableCell>
+                      <TableCell className="text-xs capitalize">{(v.payment_method || "cash").replace("_", " ")}</TableCell>
+                      <TableCell className={cn("text-right", paymentPickerAmountClass)}>₹{Number(v.total_amount).toLocaleString("en-IN")}</TableCell>
+                      <TableCell className="text-center">
+                        <div className="flex items-center justify-center gap-0.5">
+                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(v)}><Pencil className="h-3.5 w-3.5" /></Button>
+                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => printVoucher(v)}><Printer className="h-3.5 w-3.5" /></Button>
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => setDeleteId(v.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+                {filteredExpenses.length > 0 && (
+                  <TableRow className="bg-muted/50 font-semibold">
+                    <TableCell colSpan={6} className="text-xs text-right">Total ({filteredExpenses.length} entries)</TableCell>
+                    <TableCell className={cn("text-right", paymentPickerAmountClass)}>₹{filteredExpenses.reduce((s, v) => s + Number(v.total_amount || 0), 0).toLocaleString("en-IN")}</TableCell>
+                    <TableCell />
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+            {hasMoreExpenses && (
+              <div className="flex justify-center pt-3 pb-1">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-8 text-xs"
+                  disabled={isFetchingExpenses}
+                  onClick={() => setExpensePageCount((c) => c + 1)}
+                >
+                  {isFetchingExpenses ? "Loading…" : "Load more"}
+                </Button>
+              </div>
+            )}
+      </AccountsHistoryPanel>
+      </div>
+
+      {/* Category → ledger (GL) — after history */}
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-base">Category ledger accounts</CardTitle>
@@ -871,123 +1018,6 @@ export function ExpensesTab({
           </div>
         </CardContent>
       </Card>
-
-      {!shell && (
-      <AccountsHistoryPanel
-        title="Expense Ledger"
-        searchPlaceholder="Search expenses…"
-        searchValue={searchQuery}
-        onSearchChange={setSearchQuery}
-        toolbar={
-          <Button variant="outline" size="sm" onClick={exportExcel} className="h-9 gap-1.5 text-sm border-slate-200 bg-slate-50 hover:bg-white">
-            <FileDown className="h-3.5 w-3.5" /> Export Excel
-          </Button>
-        }
-        filters={
-          <>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" className="h-9 text-sm gap-1.5 border-slate-200 bg-slate-50 hover:bg-white">
-                  <CalendarIcon className="h-3.5 w-3.5" />
-                  {filterDateFrom ? format(filterDateFrom, "dd/MM") : "From"}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={filterDateFrom} onSelect={setFilterDateFrom} className="pointer-events-auto" /></PopoverContent>
-            </Popover>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" className="h-9 text-sm gap-1.5 border-slate-200 bg-slate-50 hover:bg-white">
-                  <CalendarIcon className="h-3.5 w-3.5" />
-                  {filterDateTo ? format(filterDateTo, "dd/MM") : "To"}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={filterDateTo} onSelect={setFilterDateTo} className="pointer-events-auto" /></PopoverContent>
-            </Popover>
-            <Select value={filterCategory} onValueChange={setFilterCategory}>
-              <SelectTrigger className="h-9 w-[140px] text-sm border-slate-200 bg-slate-50 hover:bg-white"><SelectValue placeholder="Category" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Categories</SelectItem>
-                {uniqueCategories.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <Select value={filterPayment} onValueChange={setFilterPayment}>
-              <SelectTrigger className="h-9 w-[120px] text-sm border-slate-200 bg-slate-50 hover:bg-white"><SelectValue placeholder="Payment" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Methods</SelectItem>
-                {PAYMENT_METHODS.map((m) => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            {(filterDateFrom || filterDateTo || filterCategory !== "all" || filterPayment !== "all" || searchQuery) && (
-              <Button variant="ghost" size="sm" className="h-9" onClick={() => { setSearchQuery(""); setFilterDateFrom(undefined); setFilterDateTo(undefined); setFilterCategory("all"); setFilterPayment("all"); }}>
-                Clear
-              </Button>
-            )}
-          </>
-        }
-      >
-            <Table className={accountsHistoryTableClass}>
-              <TableHeader className="!static">
-                <TableRow>
-                  <TableHead className={cn(accountsHistoryThClass, "w-[120px]")}>Voucher No</TableHead>
-                  <TableHead className={cn(accountsHistoryThClass, "w-[90px]")}>Date</TableHead>
-                  <TableHead className={cn(accountsHistoryThClass, "w-[150px]")}>Entry Dt/Time</TableHead>
-                  <TableHead className={accountsHistoryThClass}>Category</TableHead>
-                  <TableHead className={accountsHistoryThClass}>Narration</TableHead>
-                  <TableHead className={cn(accountsHistoryThClass, "w-[80px]")}>Payment</TableHead>
-                  <TableHead className={cn(accountsHistoryThClass, "text-right w-[100px]")}>Amount</TableHead>
-                  <TableHead className={cn(accountsHistoryThClass, "w-[100px] text-center")}>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {isLoading ? (
-                  <TableRow><TableCell colSpan={8} className="text-center text-xs py-8 text-muted-foreground">Loading...</TableCell></TableRow>
-                ) : filteredExpenses.length === 0 ? (
-                  <TableRow><TableCell colSpan={8} className="text-center text-xs py-8 text-muted-foreground">No expenses found</TableCell></TableRow>
-                ) : (
-                  filteredExpenses.map((v) => (
-                    <TableRow key={v.id} className="hover:bg-accent/50">
-                      <TableCell className={paymentPickerRefClass}>{v.voucher_number}</TableCell>
-                      <TableCell className="text-xs">{format(new Date(v.voucher_date), "dd/MM/yyyy")}</TableCell>
-                      <TableCell className="text-xs">{formatEntryDateTime(v.created_at)}</TableCell>
-                      <TableCell className="text-xs">{v.category || v.description || "—"}</TableCell>
-                      <TableCell className="text-xs max-w-[200px] truncate">{v.description || "—"}</TableCell>
-                      <TableCell className="text-xs capitalize">{(v.payment_method || "cash").replace("_", " ")}</TableCell>
-                      <TableCell className={cn("text-right", paymentPickerAmountClass)}>₹{Number(v.total_amount).toLocaleString("en-IN")}</TableCell>
-                      <TableCell className="text-center">
-                        <div className="flex items-center justify-center gap-0.5">
-                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(v)}><Pencil className="h-3.5 w-3.5" /></Button>
-                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => printVoucher(v)}><Printer className="h-3.5 w-3.5" /></Button>
-                          <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => setDeleteId(v.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-                {filteredExpenses.length > 0 && (
-                  <TableRow className="bg-muted/50 font-semibold">
-                    <TableCell colSpan={6} className="text-xs text-right">Total ({filteredExpenses.length} entries)</TableCell>
-                    <TableCell className={cn("text-right", paymentPickerAmountClass)}>₹{filteredExpenses.reduce((s, v) => s + Number(v.total_amount || 0), 0).toLocaleString("en-IN")}</TableCell>
-                    <TableCell />
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-            {hasMoreExpenses && (
-              <div className="flex justify-center pt-3 pb-1">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="h-8 text-xs"
-                  disabled={isFetchingExpenses}
-                  onClick={() => setExpensePageCount((c) => c + 1)}
-                >
-                  {isFetchingExpenses ? "Loading…" : "Load more"}
-                </Button>
-              </div>
-            )}
-      </AccountsHistoryPanel>
-      )}
 
       {/* Edit Dialog */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>

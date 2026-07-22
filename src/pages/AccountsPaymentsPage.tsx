@@ -189,7 +189,15 @@ export default function AccountsPaymentsPage() {
                   />
                 </TabsContent>
                 <TabsContent value="expenses" className="mt-0 outline-none data-[state=inactive]:hidden">
-                  <ExpensesTab fullPage organizationId={orgId} vouchers={vouchers} />
+                  <ExpensesTab
+                    fullPage
+                    organizationId={orgId}
+                    vouchers={vouchers}
+                    onExpenseRecorded={() => {
+                      setHistoryOpen(true);
+                      setNavIndex(0);
+                    }}
+                  />
                 </TabsContent>
                 <TabsContent value="employee-salary" className="mt-0 outline-none data-[state=inactive]:hidden">
                   <EmployeeSalaryTab fullPage organizationId={orgId} vouchers={vouchers} />

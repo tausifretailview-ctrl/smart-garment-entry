@@ -294,8 +294,9 @@ export function PaymentTransactionHistoryPanel({
                 <TableRow
                   key={v.id}
                   className={cn(
-                    "cursor-pointer hover:bg-accent/50",
-                    navIndex === idx && "bg-primary/10 hover:bg-primary/10",
+                    "cursor-pointer hover:bg-accent/50 transition-colors",
+                    navIndex === idx &&
+                      "bg-amber-100/90 dark:bg-amber-950/40 ring-2 ring-inset ring-amber-400/70 hover:bg-amber-100/90",
                   )}
                   onClick={() => onNavIndexChange(idx)}
                 >
