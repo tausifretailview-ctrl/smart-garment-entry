@@ -48,6 +48,8 @@ export async function captureElementToPdfBase64(
     pageFormat?: "a4" | "a5";
     /** WappConnect WhatsApp invoice PDF — border/font clone fixes only. */
     wappConnectPdf?: boolean;
+    // Force JPEG + lower scale for smaller PDFs (WhatsApp / storage-bucket limits).
+    mobileOptimized?: boolean;
   } = {},
 ): Promise<string> {
   // Let React commit + layout settle (settings/logo may still be loading).
@@ -63,6 +65,8 @@ export async function captureElementToPdfBase64(
   const blob = await captureElementToPdfBlob(el, {
     pageFormat,
     wappConnectPdf: opts.wappConnectPdf === true,
+    // Force JPEG + lower scale for smaller PDFs (WhatsApp / storage-bucket limits).
+    mobileOptimized: opts.mobileOptimized ?? true,
   });
   const buffer = await blob.arrayBuffer();
   const bytes = new Uint8Array(buffer);
