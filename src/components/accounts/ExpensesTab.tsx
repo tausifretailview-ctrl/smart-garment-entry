@@ -418,9 +418,11 @@ export function ExpensesTab({
       queryClient.invalidateQueries({ queryKey: ["expense-category-usage", organizationId] });
       queryClient.invalidateQueries({ queryKey: ["journal-vouchers"] });
       resetForm();
-      requestAnimationFrame(() => {
-        historySectionRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-      });
+      if (!shell) {
+        requestAnimationFrame(() => {
+          historySectionRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        });
+      }
     },
     onError: (error: any) => toast.error(error.message),
   });
@@ -788,7 +790,8 @@ export function ExpensesTab({
         </CardContent>
       </Card>
 
-      {/* Expense history — shown before category ledger so last entries are easy to review */}
+      {/* Inline history only outside Payments shell (full page uses bottom history panel). */}
+      {!shell && (
       <div ref={historySectionRef}>
       <AccountsHistoryPanel
         title="Expense History"
@@ -913,8 +916,9 @@ export function ExpensesTab({
             )}
       </AccountsHistoryPanel>
       </div>
+      )}
 
-      {/* Category → ledger (GL) — after history */}
+      {/* Category → ledger (GL) */}
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-base">Category ledger accounts</CardTitle>
