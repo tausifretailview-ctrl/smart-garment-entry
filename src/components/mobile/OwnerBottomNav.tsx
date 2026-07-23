@@ -2,6 +2,7 @@ import { Home, IndianRupee, BarChart3, MoreHorizontal, ScanBarcode } from "lucid
 import { useLocation } from "react-router-dom";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useMobileScan } from "@/contexts/MobileScanContext";
+import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { cn } from "@/lib/utils";
 import {
   MOBILE_ACCOUNTS_PATH,
@@ -63,6 +64,12 @@ export const OwnerBottomNav = () => {
   const location = useLocation();
   const { orgNavigate, getOrgPath } = useOrgNavigation();
   const { openScan } = useMobileScan();
+  const { hasMenuAccess, permissions } = useUserPermissions();
+  const canAccessMainDashboard =
+    permissions === null || hasMenuAccess("main_dashboard");
+  const visibleTabs = canAccessMainDashboard
+    ? sideTabs
+    : sideTabs.filter((t) => t.label !== "Home");
 
   const isActive = (tab: NavTab) => {
     const current = location.pathname;
@@ -73,8 +80,9 @@ export const OwnerBottomNav = () => {
     });
   };
 
-  const leftTabs = sideTabs.slice(0, 2);
-  const rightTabs = sideTabs.slice(2);
+  const mid = Math.ceil(visibleTabs.length / 2);
+  const leftTabs = visibleTabs.slice(0, mid);
+  const rightTabs = visibleTabs.slice(mid);
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-[40] bg-background/95 backdrop-blur-md border-t border-border lg:hidden safe-area-pb">

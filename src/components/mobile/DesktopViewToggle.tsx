@@ -2,7 +2,9 @@ import { Monitor, Smartphone } from "lucide-react";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useDesktopViewActions, useForceDesktopView, useShowDesktopChrome } from "@/hooks/useDesktopViewPreference";
 import { useIsNarrowViewport } from "@/hooks/use-mobile";
-import { MOBILE_DEFAULT_LANDING_PATH } from "@/lib/mobileShell";
+import { useOrganization } from "@/contexts/OrganizationContext";
+import { useUserPermissions } from "@/hooks/useUserPermissions";
+import { resolveMobileLandingPath } from "@/lib/menuPermissions";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -20,13 +22,16 @@ export function DesktopViewEscapeHatch() {
   const isNarrow = useIsNarrowViewport();
   const { disableDesktopView } = useDesktopViewActions();
   const { orgNavigate } = useOrgNavigation();
+  const { organizationRole } = useOrganization();
+  const { hasMenuAccess, permissions } = useUserPermissions();
 
   if (!forced || !isNarrow) return null;
 
   const handleSwitch = () => {
     disableDesktopView();
     toast.success("Mobile view restored");
-    orgNavigate(MOBILE_DEFAULT_LANDING_PATH);
+    const landing = resolveMobileLandingPath(hasMenuAccess, permissions, organizationRole);
+    orgNavigate(`/${landing}`);
   };
 
   return (
@@ -57,6 +62,8 @@ export function DesktopViewToggle({ variant = "menu-row", className }: DesktopVi
   const { forced, enableDesktopView, disableDesktopView } = useDesktopViewActions();
   const showDesktopChrome = useShowDesktopChrome();
   const isNarrow = useIsNarrowViewport();
+  const { organizationRole } = useOrganization();
+  const { hasMenuAccess, permissions } = useUserPermissions();
 
   const handleEnable = () => {
     if (isNarrow) {
@@ -76,7 +83,8 @@ export function DesktopViewToggle({ variant = "menu-row", className }: DesktopVi
   const handleDisable = () => {
     disableDesktopView();
     toast.success("Mobile view restored");
-    orgNavigate(MOBILE_DEFAULT_LANDING_PATH);
+    const landing = resolveMobileLandingPath(hasMenuAccess, permissions, organizationRole);
+    orgNavigate(`/${landing}`);
   };
 
   if (variant === "banner" && showDesktopChrome && forced) {

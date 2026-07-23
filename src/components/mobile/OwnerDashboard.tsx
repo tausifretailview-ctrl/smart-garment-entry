@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import {
   TrendingUp, BarChart3, AlertTriangle, WifiOff, RefreshCw,
@@ -29,6 +30,7 @@ import {
   ORGANIZATION_SUPPLIER_PAYABLE_QUERY_KEY,
   fetchOrganizationSupplierPayableSummary,
 } from "@/utils/organizationReceivables";
+import { resolveFirstAllowedPath } from "@/lib/menuPermissions";
 
 /* ─── helpers ─── */
 const fmt = (v: number) =>
@@ -87,14 +89,19 @@ const TodayHeroSkeleton = () => (
 
 /* ─── Main Component ─── */
 export const OwnerDashboard = () => {
-  const { currentOrganization } = useOrganization();
+  const { currentOrganization, organizationRole } = useOrganization();
   const { orgNavigate } = useOrgNavigation();
   const { isOnline } = useNetworkStatus();
   const queryClient = useQueryClient();
+  const { hasMenuAccess, permissions, loading: permissionsLoading } = useUserPermissions();
+  // User Rights: Main Dashboard off → no KPI cards / values (same as desktop Index).
+  const canAccessMainDashboard =
+    permissions === null || hasMenuAccess("main_dashboard");
 
   const today = todayLocalYmd();
   const { startIso: todayStartIso, endIso: todayEndIso } = localDayBounds(today, today);
   const orgId = currentOrganization?.id;
+  const kpisEnabled = !!orgId && !permissionsLoading && canAccessMainDashboard;
 
   const { scrollRef, isRefreshing, pullHandlers, refresh: handleRefresh } = usePullToRefresh(
     () => invalidateOwnerDashboardQueries(queryClient)
@@ -119,7 +126,7 @@ export const OwnerDashboard = () => {
         return data as ErpDashboardStats;
       });
     },
-    enabled: !!orgId,
+    enabled: kpisEnabled,
     staleTime: BALANCE_STALE_MS,
     refetchInterval: false,
     retry: 1,
@@ -127,14 +134,17 @@ export const OwnerDashboard = () => {
 
   /* ── Primary KPI: org receivables (canonical RPC, shared with Accounts) ── */
   const { summary: receivablesSummary, isLoading: receivablesLoading } =
-    useOrganizationReceivablesSummary(orgId, { staleTime: BALANCE_STALE_MS });
+    useOrganizationReceivablesSummary(orgId, {
+      staleTime: BALANCE_STALE_MS,
+      enabled: kpisEnabled,
+    });
 
   /* ── Primary KPI: org supplier payables (canonical RPC) ── */
   const { data: supplierSummary, isLoading: supplierLoading } = useQuery({
     queryKey: [ORGANIZATION_SUPPLIER_PAYABLE_QUERY_KEY, "summary", orgId],
     queryFn: () =>
       withMobileQueryTimeout(() => fetchOrganizationSupplierPayableSummary(orgId!)),
-    enabled: !!orgId,
+    enabled: kpisEnabled,
     staleTime: BALANCE_STALE_MS,
     retry: 1,
   });
@@ -161,7 +171,7 @@ export const OwnerDashboard = () => {
     };
   }, [dashReady]);
 
-  const deferredEnabled = deferredReady && !!orgId;
+  const deferredEnabled = deferredReady && kpisEnabled;
 
   /* ── Deferred: Sales trend (7 days) ── */
   const { data: salesTrend } = useQuery({
@@ -427,6 +437,28 @@ export const OwnerDashboard = () => {
   const activityIcon = { sale: ArrowUpRight, purchase: ArrowDownRight, payment: Wallet };
   const activityColor = { sale: "text-success", purchase: "text-warning", payment: "text-primary" };
   const activityBg = { sale: "bg-success/10", purchase: "bg-warning/10", payment: "bg-primary/10" };
+
+  useEffect(() => {
+    if (permissionsLoading) return;
+    if (canAccessMainDashboard) return;
+    const fallback = resolveFirstAllowedPath(hasMenuAccess, permissions, organizationRole);
+    orgNavigate(fallback ? `/${fallback}` : "/pos-sales");
+  }, [
+    permissionsLoading,
+    canAccessMainDashboard,
+    hasMenuAccess,
+    permissions,
+    organizationRole,
+    orgNavigate,
+  ]);
+
+  if (permissionsLoading || !canAccessMainDashboard) {
+    return (
+      <div className="flex min-h-[50vh] items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+      </div>
+    );
+  }
 
   return (
     <div
