@@ -751,20 +751,13 @@ const PurchaseEntry = () => {
   const entryPersistenceBlockedRef = useRef(false);
   const [showExcelImport, setShowExcelImport] = useState(false);
   const [showProductDialog, setShowProductDialog] = useState(false);
-  const [addProductWarming, setAddProductWarming] = useState(false);
-  const openAddProductDialog = useCallback(async () => {
-    if (showProductDialog || addProductWarming) return;
-    setAddProductWarming(true);
-    try {
-      await warmProductEntryDialogForOpen();
-      setShowProductDialog(true);
-    } catch {
-      // Gate error boundary handles chunk failures; still open so user sees Retry.
-      setShowProductDialog(true);
-    } finally {
-      setAddProductWarming(false);
-    }
-  }, [showProductDialog, addProductWarming]);
+  const openAddProductDialog = useCallback(() => {
+    if (showProductDialog) return;
+    // Kick prefetch but don't block the click — the gate shows its own loading
+    // shell (and a 20s retry prompt) so the user never sees a frozen button.
+    prefetchProductEntryDialog();
+    setShowProductDialog(true);
+  }, [showProductDialog]);
   const [showAddSupplierDialog, setShowAddSupplierDialog] = useState(false);
   // Inline search state for table row
   const [inlineSearchQuery, setInlineSearchQuery] = useState("");
