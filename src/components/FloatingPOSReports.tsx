@@ -60,20 +60,30 @@ export function FloatingPOSReports({
   );
 }
 
+const YMD_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+function parseLocalYmd(ymd: string): Date | null {
+  if (!YMD_RE.test(ymd)) return null;
+  const d = new Date(`${ymd}T00:00:00`);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
 // Floating Daily Cashier Report Dialog
 function FloatingCashierReport({ open, onOpenChange }: { open: boolean; onOpenChange: () => void }) {
   const { currentOrganization } = useOrganization();
-  const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [selectedDate, setSelectedDate] = useState(() => format(new Date(), "yyyy-MM-dd"));
 
-  const reportDate = new Date(selectedDate + 'T00:00:00');
+  // Native <input type="date"> can emit "" while the user flips months — never crash format().
+  const reportDate = parseLocalYmd(selectedDate) ?? new Date();
+  const selectedDateSafe = format(reportDate, "yyyy-MM-dd");
 
   // Fetch sales for selected date
   const { data: salesData, isLoading } = useQuery({
-    queryKey: ["floating-cashier-report-sales", currentOrganization?.id, selectedDate],
+    queryKey: ["floating-cashier-report-sales", currentOrganization?.id, selectedDateSafe],
     queryFn: async () => {
       if (!currentOrganization?.id) return null;
 
-      const { startIso, endIso } = localDayBounds(selectedDate, selectedDate);
+      const { startIso, endIso } = localDayBounds(selectedDateSafe, selectedDateSafe);
 
       const { data, error } = await supabase
         .from("sales")
@@ -92,14 +102,14 @@ function FloatingCashierReport({ open, onOpenChange }: { open: boolean; onOpenCh
   });
 
   const { data: voucherData } = useQuery({
-    queryKey: ["cashier-report-vouchers", currentOrganization?.id, selectedDate],
+    queryKey: ["cashier-report-vouchers", currentOrganization?.id, selectedDateSafe],
     queryFn: async () => {
       if (!currentOrganization?.id) return [];
       const { data } = await supabase
         .from("voucher_entries")
         .select("id, voucher_type, total_amount, payment_method, reference_type, description, category")
         .eq("organization_id", currentOrganization.id)
-        .eq("voucher_date", selectedDate)
+        .eq("voucher_date", selectedDateSafe)
         .is("deleted_at", null);
       return data || [];
     },
@@ -107,28 +117,28 @@ function FloatingCashierReport({ open, onOpenChange }: { open: boolean; onOpenCh
   });
 
   const { data: advancesData } = useQuery({
-    queryKey: ["cashier-report-advances", currentOrganization?.id, selectedDate],
+    queryKey: ["cashier-report-advances", currentOrganization?.id, selectedDateSafe],
     queryFn: async () => {
       if (!currentOrganization?.id) return [];
       const { data } = await supabase
         .from("customer_advances")
         .select("id, amount, payment_method")
         .eq("organization_id", currentOrganization.id)
-        .eq("advance_date", selectedDate);
+        .eq("advance_date", selectedDateSafe);
       return data || [];
     },
     enabled: !!currentOrganization?.id && open,
   });
 
   const { data: advanceRefundsData } = useQuery({
-    queryKey: ["cashier-report-advance-refunds", currentOrganization?.id, selectedDate],
+    queryKey: ["cashier-report-advance-refunds", currentOrganization?.id, selectedDateSafe],
     queryFn: async () => {
       if (!currentOrganization?.id) return [];
       const { data } = await supabase
         .from("advance_refunds")
         .select("id, refund_amount, payment_method")
         .eq("organization_id", currentOrganization.id)
-        .eq("refund_date", selectedDate);
+        .eq("refund_date", selectedDateSafe);
       return data || [];
     },
     enabled: !!currentOrganization?.id && open,
@@ -310,8 +320,12 @@ function FloatingCashierReport({ open, onOpenChange }: { open: boolean; onOpenCh
             <div className="flex items-center gap-2 mr-8">
               <Input
                 type="date"
-                value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
+                value={selectedDateSafe}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  // Ignore empty/partial values fired while flipping months in the native picker.
+                  if (parseLocalYmd(next)) setSelectedDate(next);
+                }}
                 className="h-8 w-36 text-sm"
               />
               <Button variant="outline" size="sm" onClick={handlePrint}>
