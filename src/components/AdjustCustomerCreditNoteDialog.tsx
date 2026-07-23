@@ -26,6 +26,7 @@ import { invalidateCustomerFinancialSnapshot } from "@/utils/customerFinancialSn
 import {
   ensureCreditNoteHeadroom,
   formatCnApplyError,
+  isSaleReturnConsumedAtBilling,
   resolveSaleReturnCnAvailable,
 } from "@/utils/saleReturnCnBalance";
 import { applyRecomputedSalePaymentState } from "@/utils/recomputeSalePaymentState";
@@ -404,8 +405,7 @@ export function AdjustCustomerCreditNoteDialog({
     // (the credit is baked into that invoice's net). Applying / refunding its CN
     // again would hand the customer the same credit twice. Block it regardless of
     // the (possibly un-neutralised) CN header balance.
-    const consumedAtBilling = status === "adjusted" && !!linkedSaleId;
-    if (consumedAtBilling) {
+    if (isSaleReturnConsumedAtBilling({ credit_status: status, linked_sale_id: linkedSaleId })) {
       toast({
         title: "Already adjusted at billing",
         description:
