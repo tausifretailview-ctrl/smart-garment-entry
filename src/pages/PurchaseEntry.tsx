@@ -6886,14 +6886,10 @@ const PurchaseEntry = () => {
                   variant="outline"
                   size="sm"
                   className="h-10 gap-2 border-slate-300"
-                  disabled={isBillLocked || addProductWarming}
+                  disabled={isBillLocked}
                 >
-                  {addProductWarming ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Plus className="h-4 w-4" />
-                  )}
-                  {addProductWarming ? "Loading form…" : "Add New Product"}
+                  <Plus className="h-4 w-4" />
+                  Add New Product
                 </Button>
               </div>
 
