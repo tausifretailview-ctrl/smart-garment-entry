@@ -91,7 +91,7 @@ import {
   type RepurchaseVariantRow,
 } from "@/components/RepurchaseDialog";
 import { ProductEntryDialogGate } from "@/components/ProductEntryDialogGate";
-import { prefetchProductEntryDialog, warmProductEntryDialogForOpen } from "@/lib/productEntryDialogLoad";
+import { prefetchProductEntryDialog } from "@/lib/productEntryDialogLoad";
 import { scheduleIdleWork } from "@/lib/chunkLoadRetry";
 import ProductEditPanel from "@/components/ProductEditPanel";
 import QuickEditPopover from "@/components/QuickEditPopover";
@@ -751,20 +751,13 @@ const PurchaseEntry = () => {
   const entryPersistenceBlockedRef = useRef(false);
   const [showExcelImport, setShowExcelImport] = useState(false);
   const [showProductDialog, setShowProductDialog] = useState(false);
-  const [addProductWarming, setAddProductWarming] = useState(false);
-  const openAddProductDialog = useCallback(async () => {
-    if (showProductDialog || addProductWarming) return;
-    setAddProductWarming(true);
-    try {
-      await warmProductEntryDialogForOpen();
-      setShowProductDialog(true);
-    } catch {
-      // Gate error boundary handles chunk failures; still open so user sees Retry.
-      setShowProductDialog(true);
-    } finally {
-      setAddProductWarming(false);
-    }
-  }, [showProductDialog, addProductWarming]);
+  const openAddProductDialog = useCallback(() => {
+    if (showProductDialog) return;
+    // Kick prefetch but don't block the click — the gate shows its own loading
+    // shell (and a 20s retry prompt) so the user never sees a frozen button.
+    prefetchProductEntryDialog();
+    setShowProductDialog(true);
+  }, [showProductDialog]);
   const [showAddSupplierDialog, setShowAddSupplierDialog] = useState(false);
   // Inline search state for table row
   const [inlineSearchQuery, setInlineSearchQuery] = useState("");
@@ -6893,14 +6886,10 @@ const PurchaseEntry = () => {
                   variant="outline"
                   size="sm"
                   className="h-10 gap-2 border-slate-300"
-                  disabled={isBillLocked || addProductWarming}
+                  disabled={isBillLocked}
                 >
-                  {addProductWarming ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Plus className="h-4 w-4" />
-                  )}
-                  {addProductWarming ? "Loading form…" : "Add New Product"}
+                  <Plus className="h-4 w-4" />
+                  Add New Product
                 </Button>
               </div>
 

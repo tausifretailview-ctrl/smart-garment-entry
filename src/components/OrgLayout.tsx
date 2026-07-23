@@ -264,14 +264,17 @@ export const OrgLayout = () => {
     });
   }, [currentPath, renderViaTabCache, orgSlug, tabPaths, openWindows, isEntryPage]);
 
-  // Safety timeout: if org sync takes too long (8s), force render to prevent infinite spinner
+  // Safety timeout: if org sync takes too long, force render to prevent infinite spinner.
+  // Bumped from 4s → 12s so a normal cold-start org fetch (which itself takes
+  // several seconds) does not trip the fallback and dump the user into a
+  // half-initialised shell that only recovers on manual refresh.
   useEffect(() => {
     const timer = setTimeout(() => {
       if (!isOrgSynced) {
         console.warn("OrgLayout: Sync timeout reached, forcing render");
         setSyncTimeout(true);
       }
-    }, 4000);
+    }, 12000);
     return () => clearTimeout(timer);
   }, [isOrgSynced]);
 
