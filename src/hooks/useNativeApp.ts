@@ -51,6 +51,9 @@ export async function initNativeShell(): Promise<void> {
   }
 
   try {
+    // Hand off to HTML #splash-screen only after remote app JS has loaded.
+    // With launchAutoHide:false the native splash stays up during network wait —
+    // hiding here avoids a permanent blue splash once the web shell is alive.
     await SplashScreen.hide();
   } catch {
     // Splash may already be hidden

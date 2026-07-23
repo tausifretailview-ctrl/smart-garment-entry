@@ -167,7 +167,7 @@ Camera is enabled for barcode scanning (`html5-qrcode`). Internet is required fo
 
 | Issue | Fix |
 |--------|-----|
-| White screen on launch | Run `npm run build:android` first; check Logcat in Android Studio |
+| White screen on launch | APK uses remote shell (`server.url` → `https://app.inventoryshop.in`). Native splash must stay until the remote page loads (`launchAutoHide: false` in `capacitor.config.ts`). Rebuild APK with `npm run build:android` after changing Capacitor config — a Vercel web deploy alone does **not** update splash settings. Also check phone internet + Logcat. |
 | Gradle sync failed | Open SDK Manager; install API 34 + Build-Tools; confirm JDK 17 |
 | `gradlew` not found | Run `npx cap add android` once to generate `android/` |
 | Supabase auth errors | Rebuild with correct `.env`; no localhost URLs in production |
