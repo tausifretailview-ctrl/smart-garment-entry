@@ -20,6 +20,7 @@ import { isChunkLoadError } from "@/lib/chunkLoadRetry";
 import {
   PRODUCT_ENTRY_DIALOG_UI_TIMEOUT_MS,
   beginProductEntryDialogPriorityLoad,
+  cancelProductEntryDialogLoad,
   loadProductEntryDialog,
   resetProductEntryDialogChunk,
 } from "@/lib/productEntryDialogLoad";
@@ -205,9 +206,9 @@ export function ProductEntryDialogGate(props: ProductEntryDialogProps) {
 
     const timer = window.setTimeout(() => {
       if (!cancelled && !loadSettled) {
-        // Reset cached promise so Retry starts a fresh import instead of
-        // waiting on the same slow in-flight fetch for another 60s.
-        resetProductEntryDialogChunk();
+        // Cancel the stalled in-flight import so Retry starts a fresh fetch
+        // instead of waiting on the same slow module load for another 60s.
+        cancelProductEntryDialogLoad();
         setLoadTimedOut(true);
       }
     }, PRODUCT_ENTRY_DIALOG_UI_TIMEOUT_MS);

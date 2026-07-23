@@ -58,3 +58,14 @@ export async function warmProductEntryDialogForOpen(): Promise<void> {
 export function resetProductEntryDialogChunk(): void {
   loadPromise = null;
 }
+
+/**
+ * Alias for {@link resetProductEntryDialogChunk} — semantically "cancel the in-flight
+ * dialog load". The underlying dynamic import cannot be truly aborted (browsers do
+ * not expose an abort signal for module fetches), but nulling the cached promise
+ * guarantees the next `loadProductEntryDialog()` call kicks off a fresh import
+ * instead of awaiting the stalled one. Used by the gate on 20s UI timeout.
+ */
+export function cancelProductEntryDialogLoad(): void {
+  loadPromise = null;
+}
