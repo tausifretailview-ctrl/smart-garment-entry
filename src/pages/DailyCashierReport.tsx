@@ -23,8 +23,10 @@ import { cn } from "@/lib/utils";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { localDayBounds } from "@/lib/localDayBounds";
 import {
+  getSaleReportDiscountAmount,
   getSaleReportGrossAmount,
   getSaleReportNetAmount,
+  getSaleReportRoundOff,
 } from "@/utils/cashierReportUtils";
 import { allocateMixPaymentToBill } from "@/utils/mixPaymentAllocation";
 import {
@@ -217,6 +219,7 @@ const DailyCashierReport = () => {
       return {
         grossSale: 0,
         totalDiscount: 0,
+        totalRoundOff: 0,
         totalSRAdjusted: 0,
         totalSale: 0,
         netReceivable: 0,
@@ -248,6 +251,7 @@ const DailyCashierReport = () => {
 
     let grossSale = 0;
     let totalDiscount = 0;
+    let totalRoundOff = 0;
     let totalSRAdjusted = 0;
     let totalSale = 0;
     let cashSale = 0;
@@ -284,18 +288,17 @@ const DailyCashierReport = () => {
         // NEGATIVE on the sale row, so they naturally subtract from cashSale/upiSale/
         // cardSale below — no separate "Less: Refund" subtraction is needed.
         grossSale += getSaleReportGrossAmount(sale);
-        totalDiscount += (Number(sale.discount_amount) || 0) + (Number(sale.flat_discount_amount) || 0) + (Number((sale as any).points_redeemed_amount) || 0);
+        // Fold round-off into Discount so Gross − Discount matches Net / collections.
+        totalDiscount += getSaleReportDiscountAmount(sale);
+        totalRoundOff += getSaleReportRoundOff(sale);
         totalSRAdjusted += Number(sale.sale_return_adjust) || 0;
         const effectiveNet = getEffectiveNet(sale);
         totalSale += effectiveNet;
 
         const paidAmount = Number(sale.paid_amount) || 0;
         const refundAmt = Number(sale.refund_amount) || 0;
-        // Balance Pending uses authoritative net_amount (final billed amount after
-        // all discounts/SR/refund/roundoff already applied at save time). Recomputing
-        // from gross - discount columns drifts when bills carry implicit discounts
-        // not stored in discount_amount/flat_discount_amount columns.
-        const balance = (Number(sale.net_amount) || 0) - paidAmount;
+        // Balance Pending uses reported net (includes round-off; corrects inverted-sign rows).
+        const balance = effectiveNet - paidAmount;
         const netAmount = effectiveNet;
         
         totalPaid += paidAmount;
@@ -435,6 +438,7 @@ const DailyCashierReport = () => {
     return {
       grossSale,
       totalDiscount,
+      totalRoundOff,
       totalSRAdjusted,
       totalSale,
       netReceivable,
@@ -904,6 +908,11 @@ const DailyCashierReport = () => {
               </CardHeader>
               <CardContent>
                 <p className="text-2xl font-bold text-white">{formatCurrency(totals.totalDiscount)}</p>
+                {totals.totalRoundOff !== 0 && (
+                  <p className="text-xs text-white/70">
+                    Incl. round off {formatCurrency(Math.abs(totals.totalRoundOff))}
+                  </p>
+                )}
               </CardContent>
             </Card>
 

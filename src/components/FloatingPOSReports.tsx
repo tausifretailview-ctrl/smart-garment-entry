@@ -11,8 +11,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { format } from "date-fns";
 import { localDayBounds } from "@/lib/localDayBounds";
 import {
+  getSaleReportDiscountAmount,
   getSaleReportGrossAmount,
   getSaleReportNetAmount,
+  getSaleReportRoundOff,
 } from "@/utils/cashierReportUtils";
 import { allocateMixPaymentToBill } from "@/utils/mixPaymentAllocation";
 import { 
@@ -97,8 +99,8 @@ function FloatingCashierReport({ open, onOpenChange }: { open: boolean; onOpenCh
       return data;
     },
     enabled: !!currentOrganization?.id && open,
-    staleTime: 5 * 60 * 1000,
-    refetchInterval: open ? 10 * 60 * 1000 : false,
+    staleTime: 30_000,
+    refetchInterval: open ? 60_000 : false,
   });
 
   const { data: voucherData } = useQuery({
@@ -159,7 +161,7 @@ function FloatingCashierReport({ open, onOpenChange }: { open: boolean; onOpenCh
   };
 
   const calculateTotals = () => {
-    let grossSale = 0, totalDiscount = 0, totalSale = 0;
+    let grossSale = 0, totalDiscount = 0, totalSale = 0, totalRoundOff = 0;
     let cashSale = 0, cardSale = 0, upiSale = 0, creditSale = 0;
     let totalRefund = 0, totalSRAdjusted = 0;
     let advanceReceived = 0, advanceCash = 0, advanceUpi = 0, advanceCard = 0;
@@ -181,16 +183,15 @@ function FloatingCashierReport({ open, onOpenChange }: { open: boolean; onOpenCh
 
     eligibleSales.forEach((sale: any) => {
       grossSale += getSaleReportGrossAmount(sale);
-      totalDiscount +=
-        (Number(sale.discount_amount) || 0) +
-        (Number(sale.flat_discount_amount) || 0) +
-        (Number((sale as any).points_redeemed_amount) || 0);
-      totalSale += getSaleReportNetAmount(sale);
+      // Include round-off in Discount so Gross − Discount matches Net / collections.
+      totalDiscount += getSaleReportDiscountAmount(sale);
+      totalRoundOff += getSaleReportRoundOff(sale);
+      const net = getSaleReportNetAmount(sale);
+      totalSale += net;
       totalSRAdjusted += Number((sale as any).sale_return_adjust) || 0;
       totalRefund += Number(sale.refund_amount) || 0;
 
       if (sale.payment_method === "multiple") {
-        const net = Number(sale.net_amount) || 0;
         const applied = allocateMixPaymentToBill({
           billAmount: net,
           cashAmount: Number(sale.cash_amount) || 0,
@@ -201,7 +202,6 @@ function FloatingCashierReport({ open, onOpenChange }: { open: boolean; onOpenCh
         cardSale += applied.card;
         upiSale += applied.upi;
       } else {
-        const net = Number(sale.net_amount) || 0;
         switch (sale.payment_method) {
           case "cash": cashSale += Number(sale.cash_amount) || net; break;
           case "card": cardSale += Number(sale.card_amount) || net; break;
@@ -253,6 +253,7 @@ function FloatingCashierReport({ open, onOpenChange }: { open: boolean; onOpenCh
       grossSale: Math.round(grossSale),
       totalDiscount: Math.round(totalDiscount),
       totalSale: Math.round(totalSale),
+      totalRoundOff: Math.round(totalRoundOff),
       cashSale: Math.round(cashSale),
       cardSale: Math.round(cardSale),
       upiSale: Math.round(upiSale),
@@ -361,6 +362,11 @@ function FloatingCashierReport({ open, onOpenChange }: { open: boolean; onOpenCh
                       Discount
                     </div>
                     <p className="text-lg font-bold text-white">{formatCurrency(totals.totalDiscount)}</p>
+                    {totals.totalRoundOff !== 0 && (
+                      <p className="text-[10px] text-white/70">
+                        Incl. round off {formatCurrency(Math.abs(totals.totalRoundOff))}
+                      </p>
+                    )}
                   </CardContent>
                 </Card>
 
