@@ -656,7 +656,7 @@ const App = () => {
                   path="settings"
                   element={
                     <ProtectedRoute>
-                      <RoleProtectedRoute allowedRoles={["admin"]}>
+                      <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
                         <Layout>
                           <Settings />
                         </Layout>
@@ -1630,12 +1630,12 @@ const App = () => {
                   }
                 />
 
-                {/* User Rights */}
+                {/* User Rights — managers may configure subordinate rights */}
                 <Route
                   path="user-rights"
                   element={
                     <ProtectedRoute>
-                      <RoleProtectedRoute allowedRoles={["admin"]}>
+                      <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
                         <Layout>
                           <UserRights />
                         </Layout>

@@ -232,13 +232,21 @@ export const TAB_PAGE_REGISTRY: Record<string, TabPageDef> = {
   },
   "delivery-dashboard": { loader: () => import("@/pages/DeliveryDashboard"), layout: "layout" },
   "barcode-printing": { loader: () => import("@/pages/BarcodePrinting"), layout: "layout" },
-  settings: { loader: () => import("@/pages/Settings"), layout: "layout", roles: ["admin"] },
+  settings: {
+    loader: () => import("@/pages/Settings"),
+    layout: "layout",
+    roles: ["admin", "manager"],
+  },
   "audit-log": {
     loader: () => import("@/pages/AuditLog"),
     layout: "layout",
     roles: ["admin", "manager"],
   },
-  "user-rights": { loader: () => import("@/pages/UserRights"), layout: "layout", roles: ["admin"] },
+  "user-rights": {
+    loader: () => import("@/pages/UserRights"),
+    layout: "layout",
+    roles: ["admin", "manager"],
+  },
 };
 
 // URL-path aliases. App.tsx routes use shorter slugs (e.g. /products,
