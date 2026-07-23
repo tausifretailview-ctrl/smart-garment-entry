@@ -4,7 +4,7 @@ import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
-import { useProductFieldLabels } from "@/hooks/useSettings";
+import { useProductFieldSettings } from "@/hooks/useSettings";
 import { fetchAllSaleItems } from "@/utils/fetchAllRows";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -82,7 +82,17 @@ function highlightSearchText(text: string, query: string): ReactNode {
 export default function ItemWiseSalesReport() {
   const { currentOrganization } = useOrganization();
   const { orgNavigate } = useOrgNavigation();
-  const fieldLabels = useProductFieldLabels();
+  const productFieldSettings = useProductFieldSettings();
+  const fieldLabels = {
+    brand: productFieldSettings.brand?.label?.trim() || "Brand",
+    category: productFieldSettings.category?.label?.trim() || "Category",
+    style: productFieldSettings.style?.label?.trim() || "Style",
+    color: productFieldSettings.color?.label?.trim() || "Color",
+  };
+  const showBrand = productFieldSettings.brand?.enabled !== false;
+  const showCategory = productFieldSettings.category?.enabled !== false;
+  const showStyle = productFieldSettings.style?.enabled !== false;
+  const showColor = productFieldSettings.color?.enabled !== false;
   const [periodType, setPeriodType] = useState<PeriodType>("daily");
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [customDateRange, setCustomDateRange] = useState<{ from: Date; to: Date }>({
@@ -102,6 +112,22 @@ export default function ItemWiseSalesReport() {
   const [saleDetailsGroupBy, setSaleDetailsGroupBy] = useState<"product_name" | "brand" | "category" | "department" | "barcode">("product_name");
   const [saleDetailsSearch, setSaleDetailsSearch] = useState("");
   const [saleDetailsPage, setSaleDetailsPage] = useState(1);
+
+  useEffect(() => {
+    if (!showBrand) {
+      setSelectedBrand("all");
+      setSaleDetailsGroupBy((g) => (g === "brand" ? "product_name" : g));
+    }
+    if (!showCategory) {
+      setSelectedCategory("all");
+      setSaleDetailsGroupBy((g) => (g === "category" ? "product_name" : g));
+    }
+    if (!showStyle) {
+      setSelectedDepartment("all");
+      setSaleDetailsGroupBy((g) => (g === "department" ? "product_name" : g));
+    }
+    if (!showColor) setSelectedColor("all");
+  }, [showBrand, showCategory, showStyle, showColor]);
   const SALE_DETAILS_PAGE_SIZE = 200;
   const [filterOptions, setFilterOptions] = useState<FilterOptions>({
     brands: [],
@@ -860,22 +886,30 @@ export default function ItemWiseSalesReport() {
 
             {showFilters && (
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2 pt-1.5 border-t border-slate-100">
+                {showBrand && (
                 <div className="space-y-1">
                   <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">{fieldLabels.brand}</label>
                   <SearchableSelect value={selectedBrand} onValueChange={setSelectedBrand} options={filterOptions.brands} placeholder={`All ${fieldLabels.brand}`} allLabel={`All ${fieldLabels.brand}`} allValue="all" />
                 </div>
+                )}
+                {showCategory && (
                 <div className="space-y-1">
                   <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">{fieldLabels.category}</label>
                   <SearchableSelect value={selectedCategory} onValueChange={setSelectedCategory} options={filterOptions.categories} placeholder={`All ${fieldLabels.category}`} allLabel={`All ${fieldLabels.category}`} allValue="all" />
                 </div>
+                )}
+                {showStyle && (
                 <div className="space-y-0.5">
                   <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">{fieldLabels.style}</label>
                   <SearchableSelect value={selectedDepartment} onValueChange={setSelectedDepartment} options={filterOptions.departments} placeholder={`All ${fieldLabels.style}`} allLabel={`All ${fieldLabels.style}`} allValue="all" />
                 </div>
+                )}
+                {showColor && (
                 <div className="space-y-0.5">
                   <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">{fieldLabels.color}</label>
                   <SearchableSelect value={selectedColor} onValueChange={setSelectedColor} options={filterOptions.colors} placeholder={`All ${fieldLabels.color}`} allLabel={`All ${fieldLabels.color}`} allValue="all" />
                 </div>
+                )}
                 <div className="space-y-0.5">
                   <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Customer</label>
                   <SearchableSelect value={selectedCustomer} onValueChange={setSelectedCustomer} options={filterOptions.customers} placeholder="All Customers" allLabel="All Customers" allValue="all" />
@@ -913,9 +947,9 @@ export default function ItemWiseSalesReport() {
                     <TableRow className={SALES_VASY_HEAD_ROW}>
                       <TableHead className={cn("w-[110px]", SALES_VASY_TH)}>Barcode</TableHead>
                       <TableHead className={cn("min-w-[180px]", SALES_VASY_TH)}>Product Name</TableHead>
-                      <TableHead className={cn("w-[100px]", SALES_VASY_TH)}>{fieldLabels.brand}</TableHead>
-                      <TableHead className={cn("w-[100px]", SALES_VASY_TH)}>{fieldLabels.category}</TableHead>
-                      <TableHead className={cn("w-[90px]", SALES_VASY_TH)}>{fieldLabels.color}</TableHead>
+                      {showBrand && <TableHead className={cn("w-[100px]", SALES_VASY_TH)}>{fieldLabels.brand}</TableHead>}
+                      {showCategory && <TableHead className={cn("w-[100px]", SALES_VASY_TH)}>{fieldLabels.category}</TableHead>}
+                      {showColor && <TableHead className={cn("w-[90px]", SALES_VASY_TH)}>{fieldLabels.color}</TableHead>}
                       <TableHead className={cn("w-[70px] text-center", SALES_VASY_TH)}>Size</TableHead>
                       <TableHead className={cn("w-[90px] text-right", SALES_VASY_TH)}>Qty Sold</TableHead>
                       <TableHead className={cn("w-[90px] text-right", SALES_VASY_TH)}>Stock Qty</TableHead>
@@ -925,11 +959,11 @@ export default function ItemWiseSalesReport() {
                   <TableBody>
                     {isLoading ? (
                       <TableRow>
-                        <TableCell colSpan={9} className="text-center py-4 text-muted-foreground">Loading...</TableCell>
+                        <TableCell colSpan={6 + (showBrand ? 1 : 0) + (showCategory ? 1 : 0) + (showColor ? 1 : 0)} className="text-center py-4 text-muted-foreground">Loading...</TableCell>
                       </TableRow>
                     ) : filteredData.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={9} className="h-24 text-center text-sm text-muted-foreground">No sales data found for the selected period</TableCell>
+                        <TableCell colSpan={6 + (showBrand ? 1 : 0) + (showCategory ? 1 : 0) + (showColor ? 1 : 0)} className="h-24 text-center text-sm text-muted-foreground">No sales data found for the selected period</TableCell>
                       </TableRow>
                     ) : (() => {
                       const totalPages = Math.ceil(filteredData.length / ITEMS_PER_PAGE);
@@ -946,9 +980,15 @@ export default function ItemWiseSalesReport() {
                             >
                               <TableCell className="font-mono text-sm">{highlightSearchText(item.barcode || "-", searchQuery)}</TableCell>
                               <TableCell className={SALES_PRODUCT_CELL}>{highlightSearchText(item.product_name, searchQuery)}</TableCell>
-                              <TableCell className={SALES_DETAIL_CELL}>{highlightSearchText(item.brand || "-", searchQuery)}</TableCell>
-                              <TableCell className={SALES_DETAIL_CELL}>{highlightSearchText(item.category || "-", searchQuery)}</TableCell>
-                              <TableCell className={SALES_DETAIL_CELL}>{highlightSearchText(item.color || "-", searchQuery)}</TableCell>
+                              {showBrand && (
+                                <TableCell className={SALES_DETAIL_CELL}>{highlightSearchText(item.brand || "-", searchQuery)}</TableCell>
+                              )}
+                              {showCategory && (
+                                <TableCell className={SALES_DETAIL_CELL}>{highlightSearchText(item.category || "-", searchQuery)}</TableCell>
+                              )}
+                              {showColor && (
+                                <TableCell className={SALES_DETAIL_CELL}>{highlightSearchText(item.color || "-", searchQuery)}</TableCell>
+                              )}
                               <TableCell className={cn(SALES_DETAIL_CELL, "text-center")}>{highlightSearchText(item.size, searchQuery)}</TableCell>
                               <TableCell className={SALES_QTY_CELL}>{item.total_qty.toLocaleString("en-IN")}</TableCell>
                               <TableCell className={SALES_QTY_CELL}>{item.stock_qty.toLocaleString("en-IN")}</TableCell>
@@ -960,7 +1000,7 @@ export default function ItemWiseSalesReport() {
                   {filteredData.length > 0 && (
                     <TableFooter className={SALES_VASY_FOOTER}>
                       <TableRow className="hover:bg-slate-100">
-                        <TableCell colSpan={6} className="py-3 text-sm font-bold text-teal-700">Grand Total</TableCell>
+                        <TableCell colSpan={3 + (showBrand ? 1 : 0) + (showCategory ? 1 : 0) + (showColor ? 1 : 0)} className="py-3 text-sm font-bold text-teal-700">Grand Total</TableCell>
                         <TableCell className={cn(SALES_QTY_CELL, "py-3 text-base font-bold")}>{itemWiseTotals.total_qty.toLocaleString()}</TableCell>
                         <TableCell className={cn(SALES_QTY_CELL, "py-3 text-base font-bold")}>{itemWiseTotals.stock_qty.toLocaleString()}</TableCell>
                         <TableCell className={cn(SALES_AMOUNT_CELL, "py-3 text-base font-bold")}>₹{itemWiseTotals.total_amount.toLocaleString("en-IN")}</TableCell>
@@ -1210,9 +1250,9 @@ export default function ItemWiseSalesReport() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="product_name">Product Name</SelectItem>
-                    <SelectItem value="brand">{fieldLabels.brand}</SelectItem>
-                    <SelectItem value="category">{fieldLabels.category}</SelectItem>
-                    <SelectItem value="department">{fieldLabels.style}</SelectItem>
+                    {showBrand && <SelectItem value="brand">{fieldLabels.brand}</SelectItem>}
+                    {showCategory && <SelectItem value="category">{fieldLabels.category}</SelectItem>}
+                    {showStyle && <SelectItem value="department">{fieldLabels.style}</SelectItem>}
                     <SelectItem value="barcode">Barcode</SelectItem>
                   </SelectContent>
                 </Select>

@@ -12,6 +12,7 @@ import { LoadingButton } from "@/components/ui/loading-button";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useToast } from "@/hooks/use-toast";
+import { useProductFieldSettings, type ProductFieldKey } from "@/hooks/useSettings";
 import { UOM_OPTIONS } from "@/constants/uom";
 import {
   ChevronLeft, ChevronRight, ChevronDown, ChevronUp, X, RotateCcw,
@@ -84,6 +85,10 @@ const ProductEditPanel = ({
 }: ProductEditPanelProps) => {
   const { currentOrganization } = useOrganization();
   const { toast } = useToast();
+  const productFieldSettings = useProductFieldSettings();
+  const isFieldEnabled = (key: ProductFieldKey) => productFieldSettings[key]?.enabled !== false;
+  const fieldLabel = (key: ProductFieldKey, fallback: string) =>
+    productFieldSettings[key]?.label?.trim() || fallback;
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [original, setOriginal] = useState<ProductData | null>(null);
@@ -469,17 +474,23 @@ const ProductEditPanel = ({
               <SectionBlock title="Basic Info" color="border-l-primary" open={sections.basic} onToggle={() => toggleSection("basic")}>
                 <div className="grid grid-cols-2 gap-3">
                   {renderField("Product Name", "product_name", "text", { ref: focusField === "product_name" ? focusRef : undefined })}
-                  {renderField("HSN Code", "hsn_code")}
+                  {isFieldEnabled("hsn_code") && renderField(fieldLabel("hsn_code", "HSN Code"), "hsn_code")}
                 </div>
               </SectionBlock>
 
               {/* SECTION B: Classification */}
               <SectionBlock title="Classification" color="border-l-blue-500" open={sections.classification} onToggle={() => toggleSection("classification")}>
                 <div className="grid grid-cols-2 gap-3">
-                  {renderField("Brand", "brand", "text", { ref: focusField === "brand" ? focusRef : undefined })}
-                  {renderField("Category", "category")}
-                  {renderField("Style / Model", "style")}
-                  {renderField("Color", "color")}
+                  {isFieldEnabled("brand") &&
+                    renderField(fieldLabel("brand", "Brand"), "brand", "text", {
+                      ref: focusField === "brand" ? focusRef : undefined,
+                    })}
+                  {isFieldEnabled("category") &&
+                    renderField(fieldLabel("category", "Category"), "category")}
+                  {isFieldEnabled("style") &&
+                    renderField(fieldLabel("style", "Style / Model"), "style")}
+                  {isFieldEnabled("color") &&
+                    renderField(fieldLabel("color", "Color"), "color")}
                   <div className="space-y-1">
                     <Label className="text-xs">Unit (UOM)</Label>
                     <Select value={form.uom} onValueChange={(v) => updateField("uom", v)}>

@@ -2,7 +2,7 @@ import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } fr
 import { flushSync } from "react-dom";
 import { isDecimalUOM } from "@/constants/uom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useSettings } from "@/hooks/useSettings";
+import { useSettings, useProductFieldSettings } from "@/hooks/useSettings";
 import { resolveGarmentGstForLine } from "@/utils/gstRules";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -329,15 +329,22 @@ export default function SalesInvoice() {
   }, []);
   const shopName = useShopName();
   const { isColumnVisible } = useUserPermissions();
+  const productFieldSettings = useProductFieldSettings();
   const showCol = {
-    hsn: isColumnVisible('sales_invoice', 'hsn'),
-    box: isColumnVisible('sales_invoice', 'box'),
-    color: isColumnVisible('sales_invoice', 'color'),
-    mrp: isColumnVisible('sales_invoice', 'mrp'),
-    disc_percent: isColumnVisible('sales_invoice', 'disc_percent'),
-    disc_amount: isColumnVisible('sales_invoice', 'disc_amount'),
-    gst: isColumnVisible('sales_invoice', 'gst'),
+    hsn:
+      isColumnVisible("sales_invoice", "hsn") &&
+      productFieldSettings.hsn_code?.enabled !== false,
+    box: isColumnVisible("sales_invoice", "box"),
+    color:
+      isColumnVisible("sales_invoice", "color") &&
+      productFieldSettings.color?.enabled !== false,
+    mrp: isColumnVisible("sales_invoice", "mrp"),
+    disc_percent: isColumnVisible("sales_invoice", "disc_percent"),
+    disc_amount: isColumnVisible("sales_invoice", "disc_amount"),
+    gst: isColumnVisible("sales_invoice", "gst"),
   };
+  const hsnColLabel = (productFieldSettings.hsn_code?.label?.trim() || "HSN").toUpperCase();
+  const colorColLabel = (productFieldSettings.color?.label?.trim() || "Color").toUpperCase();
   /** Total-row colSpans must match visible header columns (table-layout: fixed breaks when wrong). */
   const saleLineLeadColSpan =
     3 + (showCol.color ? 1 : 0) + 1 + (showCol.hsn ? 1 : 0);
@@ -4437,9 +4444,9 @@ Thank you for choosing us!`;
                 <th className="text-center text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 w-10 rounded-tl-lg">#</th>
                 <th className="col-product text-left text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-3">PRODUCT</th>
                 <th className="text-center text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 w-20">SIZE</th>
-                {showCol.color && <th className="text-center text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 w-20">COLOR</th>}
+                {showCol.color && <th className="text-center text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 w-20">{colorColLabel}</th>}
                 <th className="text-center text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 w-24">BARCODE</th>
-                {showCol.hsn && <th className="text-center text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 w-20">HSN</th>}
+                {showCol.hsn && <th className="text-center text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 w-20">{hsnColLabel}</th>}
                 <th className="text-center text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-2 sale-col-qty">QTY</th>
                 {showCol.box && <th className="text-center text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-2 w-16">BOX</th>}
                 {showCol.mrp && <th className="text-right text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-2 sale-col-mrp">MRP</th>}

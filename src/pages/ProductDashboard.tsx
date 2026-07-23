@@ -49,7 +49,7 @@ import { ProductImageGallery, ProductImage } from "@/components/ProductImageGall
 import { ProductImageViewer } from "@/components/ProductImageViewer";
 import { ProductImageUploader } from "@/components/ProductImageUploader";
 import { MergeProductsDialog } from "@/components/MergeProductsDialog";
-import { useSettings } from "@/hooks/useSettings";
+import { useSettings, useProductFieldSettings } from "@/hooks/useSettings";
 import {
   fetchCatalogRowsForProductIds,
   fetchProductIdsByBarcodeSearch,
@@ -142,6 +142,19 @@ const ProductDashboard = () => {
   const { hasSpecialPermission } = useUserPermissions();
   const canDelete = hasSpecialPermission('delete_records');
   const { data: orgSettings } = useSettings();
+  const productFieldSettings = useProductFieldSettings();
+  const fieldLabels = {
+    brand: productFieldSettings.brand?.label?.trim() || "Brand",
+    category: productFieldSettings.category?.label?.trim() || "Category",
+    style: productFieldSettings.style?.label?.trim() || "Style",
+    color: productFieldSettings.color?.label?.trim() || "Color",
+    hsn_code: productFieldSettings.hsn_code?.label?.trim() || "HSN Code",
+  };
+  const showBrandField = productFieldSettings.brand?.enabled !== false;
+  const showCategoryField = productFieldSettings.category?.enabled !== false;
+  const showStyleField = productFieldSettings.style?.enabled !== false;
+  const showColorField = productFieldSettings.color?.enabled !== false;
+  const showHsnField = productFieldSettings.hsn_code?.enabled !== false;
   const lowStockThreshold = Number((orgSettings as any)?.product_settings?.low_stock_threshold) || 10;
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -1060,46 +1073,30 @@ const ProductDashboard = () => {
     try {
       // Prepare data for export - flatten products with variants
       const exportData = productRows.flatMap((product) => 
-        product.variants.map((variant) => ({
-          "Product Name": product.product_name,
-          "Category": product.category,
-          "Brand": product.brand,
-          "Style": product.style,
-          "Color": product.color,
-          "HSN Code": product.hsn_code,
-          "GST %": product.gst_per,
-          "Default Pur Price": product.default_pur_price,
-          "Default Sale Price": product.default_sale_price,
-          "Status": product.status,
-          "Size": variant.size,
-          "Barcode": variant.barcode,
-          "Purchase Price": variant.pur_price,
-          "Sale Price": variant.sale_price,
-          "Stock Qty": displayVariantDashboardStock(product.product_type, variant.stock_qty),
-        }))
+        product.variants.map((variant) => {
+          const row: Record<string, string | number> = {
+            "Product Name": product.product_name,
+          };
+          if (showCategoryField) row[fieldLabels.category] = product.category;
+          if (showBrandField) row[fieldLabels.brand] = product.brand;
+          if (showStyleField) row[fieldLabels.style] = product.style;
+          if (showColorField) row[fieldLabels.color] = product.color;
+          if (showHsnField) row[fieldLabels.hsn_code] = product.hsn_code;
+          row["GST %"] = product.gst_per;
+          row["Default Pur Price"] = product.default_pur_price;
+          row["Default Sale Price"] = product.default_sale_price;
+          row["Status"] = product.status;
+          row["Size"] = variant.size;
+          row["Barcode"] = variant.barcode;
+          row["Purchase Price"] = variant.pur_price;
+          row["Sale Price"] = variant.sale_price;
+          row["Stock Qty"] = displayVariantDashboardStock(product.product_type, variant.stock_qty);
+          return row;
+        })
       );
 
       // Create worksheet
       const ws = XLSX.utils.json_to_sheet(exportData);
-      
-      // Set column widths for better readability
-      ws['!cols'] = [
-        { wch: 30 }, // Product Name
-        { wch: 15 }, // Category
-        { wch: 15 }, // Brand
-        { wch: 12 }, // Style
-        { wch: 12 }, // Color
-        { wch: 12 }, // HSN Code
-        { wch: 8 },  // GST %
-        { wch: 15 }, // Default Pur Price
-        { wch: 15 }, // Default Sale Price
-        { wch: 10 }, // Status
-        { wch: 10 }, // Size
-        { wch: 15 }, // Barcode
-        { wch: 15 }, // Purchase Price
-        { wch: 12 }, // Sale Price
-        { wch: 10 }, // Stock Qty
-      ];
 
       // Create workbook
       const wb = XLSX.utils.book_new();
@@ -1341,11 +1338,11 @@ const ProductDashboard = () => {
       });
     }
 
-    if (columnVisibility.category) cols.push({ accessorKey: "category", header: "Category", cell: ({ getValue }) => <span className="text-slate-700">{getValue() || "—"}</span>, size: 130 });
-    if (columnVisibility.brand) cols.push({ accessorKey: "brand", header: "Brand", cell: ({ getValue }) => <span className="text-slate-700">{getValue() || "—"}</span>, size: 130 });
-    if (columnVisibility.style) cols.push({ accessorKey: "style", header: "Style", cell: ({ getValue }) => getValue() || "—", size: 110 });
-    if (columnVisibility.color) cols.push({ accessorKey: "color", header: "Color", cell: ({ getValue }) => getValue() || "—", size: 110 });
-    if (columnVisibility.hsn) cols.push({ accessorKey: "hsn_code", header: "HSN", cell: ({ getValue }) => <span>{getValue() || "—"}</span>, size: 100 });
+    if (columnVisibility.category && showCategoryField) cols.push({ accessorKey: "category", header: fieldLabels.category, cell: ({ getValue }) => <span className="text-slate-700">{getValue() || "—"}</span>, size: 130 });
+    if (columnVisibility.brand && showBrandField) cols.push({ accessorKey: "brand", header: fieldLabels.brand, cell: ({ getValue }) => <span className="text-slate-700">{getValue() || "—"}</span>, size: 130 });
+    if (columnVisibility.style && showStyleField) cols.push({ accessorKey: "style", header: fieldLabels.style, cell: ({ getValue }) => getValue() || "—", size: 110 });
+    if (columnVisibility.color && showColorField) cols.push({ accessorKey: "color", header: fieldLabels.color, cell: ({ getValue }) => getValue() || "—", size: 110 });
+    if (columnVisibility.hsn && showHsnField) cols.push({ accessorKey: "hsn_code", header: fieldLabels.hsn_code, cell: ({ getValue }) => <span>{getValue() || "—"}</span>, size: 100 });
     if (columnVisibility.gst) cols.push({ accessorKey: "gst_per", header: "GST%", cell: ({ getValue }) => <span className="text-right block tabular-nums">{getValue()}%</span>, size: 80 });
     if (columnVisibility.purPrice) cols.push({ accessorKey: "default_pur_price", header: "Pur Price", cell: ({ getValue }) => <span className="text-right block text-orange-700 dark:text-orange-400 font-semibold tabular-nums">₹{(getValue() as number).toFixed(2)}</span>, size: 120 });
     if (columnVisibility.salePrice) cols.push({ accessorKey: "default_sale_price", header: "Selling Price", cell: ({ getValue }) => <span className="text-right block text-emerald-700 dark:text-emerald-400 font-semibold tabular-nums">₹{(getValue() as number).toFixed(2)}</span>, size: 120 });
@@ -1390,7 +1387,24 @@ const ProductDashboard = () => {
     });
 
     return cols;
-  }, [columnVisibility, selectedProducts, paginatedRows, startIndex, galleryRefreshKey, showMrp]);
+  }, [
+    columnVisibility,
+    selectedProducts,
+    paginatedRows,
+    startIndex,
+    galleryRefreshKey,
+    showMrp,
+    showCategoryField,
+    showBrandField,
+    showStyleField,
+    showColorField,
+    showHsnField,
+    fieldLabels.category,
+    fieldLabels.brand,
+    fieldLabels.style,
+    fieldLabels.color,
+    fieldLabels.hsn_code,
+  ]);
 
   const renderProductSubRow = useCallback((row: ProductRow) => {
     const variantsLoaded = row.product_id in variantCache;
@@ -1448,7 +1462,9 @@ const ProductDashboard = () => {
               <TableRow className="bg-slate-800 hover:bg-slate-800">
                 <TableHead className="text-white text-sm font-semibold h-11">Size</TableHead>
                 <TableHead className="text-white text-sm font-semibold h-11">Barcode</TableHead>
-                <TableHead className="text-white text-sm font-semibold h-11">Color</TableHead>
+                {showColorField && (
+                  <TableHead className="text-white text-sm font-semibold h-11">{fieldLabels.color}</TableHead>
+                )}
                 <TableHead className="text-white text-sm font-semibold h-11 text-right">Purchase Price</TableHead>
                 <TableHead className="text-white text-sm font-semibold h-11 text-right">Selling Price</TableHead>
                 {showMrp && <TableHead className="text-white text-sm font-semibold h-11 text-right">MRP</TableHead>}
@@ -1483,7 +1499,9 @@ const ProductDashboard = () => {
                       </div>
                     )}
                   </TableCell>
-                  <TableCell className="text-base py-2.5">{variant.color || "—"}</TableCell>
+                  {showColorField && (
+                    <TableCell className="text-base py-2.5">{variant.color || "—"}</TableCell>
+                  )}
                   <TableCell className="text-right text-base tabular-nums py-2.5">₹{variant.pur_price.toFixed(2)}</TableCell>
                   <TableCell className="text-right text-base tabular-nums py-2.5">₹{variant.sale_price.toFixed(2)}</TableCell>
                   {showMrp && <TableCell className="text-right text-base tabular-nums py-2.5">₹{variant.mrp.toFixed(2)}</TableCell>}
@@ -1498,7 +1516,7 @@ const ProductDashboard = () => {
         </div>
       </div>
     );
-  }, [showMrp, filteredRows, variantCache, variantsLoading, debouncedSearch]);
+  }, [showMrp, showColorField, fieldLabels.color, filteredRows, variantCache, variantsLoading, debouncedSearch]);
 
   // Use server-side stats from RPC
   const totalStockQty = dashboardStats.total_stock_qty;
@@ -1671,20 +1689,22 @@ const ProductDashboard = () => {
                 </div>
 
                 {/* Category Filter */}
+                {showCategoryField && (
                 <div className="space-y-2">
-                  <Label htmlFor="category-filter" className="text-xs font-medium">Category</Label>
+                  <Label htmlFor="category-filter" className="text-xs font-medium">{fieldLabels.category}</Label>
                   <Select value={selectedCategory} onValueChange={setSelectedCategory}>
                     <SelectTrigger id="category-filter" className="h-9">
-                      <SelectValue placeholder="All Categories" />
+                      <SelectValue placeholder={`All ${fieldLabels.category}`} />
                     </SelectTrigger>
                     <SelectContent className="bg-popover z-50">
-                      <SelectItem value="all">All Categories</SelectItem>
+                      <SelectItem value="all">All {fieldLabels.category}</SelectItem>
                       {categories.map((cat) => (
                         <SelectItem key={cat} value={cat}>{cat}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
+                )}
 
                 {/* Size Group Filter */}
                 <div className="space-y-2">
@@ -1771,9 +1791,9 @@ const ProductDashboard = () => {
                         />
                       </Badge>
                     )}
-                    {selectedCategory !== "all" && (
+                    {showCategoryField && selectedCategory !== "all" && (
                       <Badge variant="secondary" className="gap-1">
-                        Category: {selectedCategory}
+                        {fieldLabels.category}: {selectedCategory}
                         <X 
                           className="h-3 w-3 cursor-pointer" 
                           onClick={() => setSelectedCategory("all")}

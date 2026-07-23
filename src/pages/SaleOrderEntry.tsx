@@ -1,6 +1,6 @@
 ﻿import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useSettings } from "@/hooks/useSettings";
+import { useSettings, useProductFieldSettings } from "@/hooks/useSettings";
 import { useCustomerSearch } from "@/hooks/useCustomerSearch";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -287,6 +287,11 @@ export default function SaleOrderEntry() {
 
   // Fetch settings for print (centralized, cached 5min)
   const { data: settings } = useSettings();
+  const productFieldSettings = useProductFieldSettings();
+  const showHsnCol = productFieldSettings.hsn_code?.enabled !== false;
+  const showColorCol = productFieldSettings.color?.enabled !== false;
+  const hsnColLabel = productFieldSettings.hsn_code?.label?.trim() || "HSN";
+  const colorColLabel = productFieldSettings.color?.label?.trim() || "Color";
 
   const handlePrint = useReactToPrint({
     contentRef: printRef,
@@ -1304,6 +1309,9 @@ export default function SaleOrderEntry() {
   const filledOrderItems = lineItems.filter((item) => item.productId !== "");
   const totalOrderQty = filledOrderItems.reduce((sum, item) => sum + item.orderQty, 0);
   const showMrpCol = (settings?.sale_settings as any)?.showMRP !== false;
+  // Empty/pad rows: Product..Total (+ optional delete col spacer) — base 14 without MRP; +1 MRP; −1 per hidden HSN/Color
+  const emptyPadExtraCols =
+    (showMrpCol ? 15 : 14) - (showHsnCol ? 0 : 1) - (showColorCol ? 0 : 1);
 
   return (
     <div className={cn(entryPageShellClass, "bg-white sale-order-readable min-h-0")} data-entry-form>
@@ -1550,8 +1558,12 @@ export default function SaleOrderEntry() {
                   <th className="text-center text-[13px] uppercase tracking-wide font-bold h-11 text-black px-2 w-10">#</th>
                   <th className="text-left text-[13px] uppercase tracking-wide font-bold h-11 text-black px-2 min-w-[160px]">Product</th>
                   <th className="text-center text-[13px] uppercase tracking-wide font-bold h-11 text-black px-2 w-24">Barcode</th>
-                  <th className="text-center text-[13px] uppercase tracking-wide font-bold h-11 text-black px-2 w-16">HSN</th>
-                  <th className="text-center text-[13px] uppercase tracking-wide font-bold h-11 text-black px-2 w-16">Color</th>
+                  {showHsnCol && (
+                    <th className="text-center text-[13px] uppercase tracking-wide font-bold h-11 text-black px-2 w-16">{hsnColLabel}</th>
+                  )}
+                  {showColorCol && (
+                    <th className="text-center text-[13px] uppercase tracking-wide font-bold h-11 text-black px-2 w-16">{colorColLabel}</th>
+                  )}
                   <th className="text-center text-[13px] uppercase tracking-wide font-bold h-11 text-black px-2 w-16">Size</th>
                   <th className="text-center text-[13px] uppercase tracking-wide font-bold h-11 text-black px-2 w-20">Order Qty</th>
                   <th className="text-center text-[13px] uppercase tracking-wide font-bold h-11 text-black px-2 w-14">Box</th>
@@ -1572,7 +1584,7 @@ export default function SaleOrderEntry() {
                     return Array.from({ length: 7 }, (_, i) => (
                       <tr key={`empty-${i}`} className="h-[38px] border-b border-black/10">
                         <td className="text-center text-[12px] text-black/30 px-2">{i + 1}</td>
-                        {Array.from({ length: showMrpCol ? 15 : 14 }).map((_, j) => (
+                        {Array.from({ length: emptyPadExtraCols }).map((_, j) => (
                           <td key={j} className="px-2" />
                         ))}
                       </tr>
@@ -1602,10 +1614,14 @@ export default function SaleOrderEntry() {
                             {item.productName}
                           </button>
                         </td>
-                        <td className="text-center font-mono text-[13px] px-2 py-2">{item.barcode || "â€”"}</td>
-                        <td className="text-center text-[13px] px-2 py-2">{item.hsnCode || "â€”"}</td>
-                        <td className="text-center text-[13px] font-semibold px-2 py-2">{item.color || "â€”"}</td>
-                        <td className="text-center text-[13px] font-bold px-2 py-2">{item.size || "â€”"}</td>
+                        <td className="text-center font-mono text-[13px] px-2 py-2">{item.barcode || "—"}</td>
+                        {showHsnCol && (
+                          <td className="text-center text-[13px] px-2 py-2">{item.hsnCode || "—"}</td>
+                        )}
+                        {showColorCol && (
+                          <td className="text-center text-[13px] font-semibold px-2 py-2">{item.color || "—"}</td>
+                        )}
+                        <td className="text-center text-[13px] font-bold px-2 py-2">{item.size || "—"}</td>
                         <td className="text-center px-1 py-1">
                           <Input
                             type="number"
@@ -1705,7 +1721,7 @@ export default function SaleOrderEntry() {
                   const padRows = Array.from({ length: padCount }, (_, i) => (
                     <tr key={`pad-${i}`} className="h-[38px] border-b border-black/10 bg-white">
                       <td className="text-center text-[12px] text-black/30 px-2">{displayItems.length + i + 1}</td>
-                      {Array.from({ length: showMrpCol ? 15 : 14 }).map((_, j) => (
+                      {Array.from({ length: emptyPadExtraCols }).map((_, j) => (
                         <td key={j} className="px-2" />
                       ))}
                     </tr>
@@ -1893,7 +1909,7 @@ export default function SaleOrderEntry() {
           taxType={taxType}
           salesman={salesman}
           showMRP={true}
-          showColor={true}
+          showColor={showColorCol}
           showHSN={false}
           invoiceFormat={invoiceFormat}
         />

@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useOrganization } from "@/contexts/OrganizationContext";
-import { useProductFieldLabels } from "@/hooks/useSettings";
+import { useProductFieldSettings, type ProductFieldKey } from "@/hooks/useSettings";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -74,7 +74,17 @@ export function ItemWiseClosingStockPanel({
   onCurrentPageChange,
 }: ItemWiseClosingStockPanelProps) {
   const { currentOrganization } = useOrganization();
-  const fieldLabels = useProductFieldLabels();
+  const productFieldSettings = useProductFieldSettings();
+  const fieldLabels = {
+    brand: productFieldSettings.brand?.label || "Brand",
+    category: productFieldSettings.category?.label || "Category",
+    style: productFieldSettings.style?.label || "Style",
+    color: productFieldSettings.color?.label || "Color",
+  };
+  const isProductFieldOn = (key: ProductFieldKey) => productFieldSettings[key]?.enabled !== false;
+  const showBrand = isProductFieldOn("brand");
+  const showCategory = isProductFieldOn("category");
+  const showStyle = isProductFieldOn("style");
 
   const GROUP_BY_LABELS: Record<ItemWiseStockGroupBy, string> = {
     product_name: "Product Name",
@@ -163,10 +173,34 @@ export function ItemWiseClosingStockPanel({
     }
   }, [currentPage, totalPages, setCurrentPage]);
 
+  // Reset group-by / filters when Settings → Product disables a field
+  useEffect(() => {
+    setListFilters((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      if (!showBrand && (next.groupBy === "brand" || next.brandFilter !== ALL_VALUE)) {
+        if (next.groupBy === "brand") next.groupBy = "product_name";
+        next.brandFilter = ALL_VALUE;
+        changed = true;
+      }
+      if (!showCategory && (next.groupBy === "category" || next.categoryFilter !== ALL_VALUE)) {
+        if (next.groupBy === "category") next.groupBy = "product_name";
+        next.categoryFilter = ALL_VALUE;
+        changed = true;
+      }
+      if (!showStyle && (next.groupBy === "department" || next.departmentFilter !== ALL_VALUE)) {
+        if (next.groupBy === "department") next.groupBy = "product_name";
+        next.departmentFilter = ALL_VALUE;
+        changed = true;
+      }
+      return changed ? next : prev;
+    });
+  }, [showBrand, showCategory, showStyle, setListFilters]);
+
   const hasActiveFilters =
-    listFilters.brandFilter !== ALL_VALUE ||
-    listFilters.categoryFilter !== ALL_VALUE ||
-    listFilters.departmentFilter !== ALL_VALUE ||
+    (showBrand && listFilters.brandFilter !== ALL_VALUE) ||
+    (showCategory && listFilters.categoryFilter !== ALL_VALUE) ||
+    (showStyle && listFilters.departmentFilter !== ALL_VALUE) ||
     listFilters.supplierFilter !== ALL_VALUE ||
     listFilters.closingStockFilter !== "all" ||
     !!listFilters.searchQuery.trim() ||
@@ -373,9 +407,9 @@ export function ItemWiseClosingStockPanel({
               <SelectItem value="product_name">Product Name</SelectItem>
               <SelectItem value="barcode">Barcode</SelectItem>
               <SelectItem value="supplier">Supplier</SelectItem>
-              <SelectItem value="brand">{fieldLabels.brand}</SelectItem>
-              <SelectItem value="category">{fieldLabels.category}</SelectItem>
-              <SelectItem value="department">{fieldLabels.style}</SelectItem>
+              {showBrand && <SelectItem value="brand">{fieldLabels.brand}</SelectItem>}
+              {showCategory && <SelectItem value="category">{fieldLabels.category}</SelectItem>}
+              {showStyle && <SelectItem value="department">{fieldLabels.style}</SelectItem>}
             </SelectContent>
           </Select>
 
@@ -456,6 +490,7 @@ export function ItemWiseClosingStockPanel({
                 className="h-10 border-slate-200 bg-white font-mono text-sm no-uppercase"
               />
             </div>
+            {showBrand && (
             <div className="space-y-1">
               <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">{fieldLabels.brand}</label>
               <Select value={listFilters.brandFilter} onValueChange={(v) => { setListFilters({ ...listFilters, brandFilter: v }); setCurrentPage(1); }}>
@@ -468,6 +503,8 @@ export function ItemWiseClosingStockPanel({
                 </SelectContent>
               </Select>
             </div>
+            )}
+            {showCategory && (
             <div className="space-y-1">
               <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">{fieldLabels.category}</label>
               <Select value={listFilters.categoryFilter} onValueChange={(v) => { setListFilters({ ...listFilters, categoryFilter: v }); setCurrentPage(1); }}>
@@ -480,6 +517,8 @@ export function ItemWiseClosingStockPanel({
                 </SelectContent>
               </Select>
             </div>
+            )}
+            {showStyle && (
             <div className="space-y-1">
               <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">{fieldLabels.style}</label>
               <Select value={listFilters.departmentFilter} onValueChange={(v) => { setListFilters({ ...listFilters, departmentFilter: v }); setCurrentPage(1); }}>
@@ -492,6 +531,7 @@ export function ItemWiseClosingStockPanel({
                 </SelectContent>
               </Select>
             </div>
+            )}
             <div className="space-y-1">
               <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Supplier</label>
               <Select value={listFilters.supplierFilter} onValueChange={(v) => { setListFilters({ ...listFilters, supplierFilter: v }); setCurrentPage(1); }}>

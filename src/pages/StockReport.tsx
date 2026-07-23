@@ -21,7 +21,7 @@ import { MobilePageHeader } from "@/components/mobile/MobilePageHeader";
 import { MobileStatStrip } from "@/components/mobile/MobileStatStrip";
 import { MobileBottomNav } from "@/components/mobile/MobileBottomNav";
 import { useOrganization } from "@/contexts/OrganizationContext";
-import { useProductFieldLabels } from "@/hooks/useSettings";
+import { useProductFieldSettings, type ProductFieldKey } from "@/hooks/useSettings";
 import { ProductSearchDropdown } from "@/components/ProductSearchDropdown";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -375,7 +375,23 @@ export default function StockReport() {
   const { currentOrganization } = useOrganization();
   const { orgNavigate } = useOrgNavigation();
   const queryClient = useQueryClient();
-  const fieldLabels = useProductFieldLabels();
+  const productFieldSettings = useProductFieldSettings();
+  const fieldLabels = {
+    brand: productFieldSettings.brand?.label || "Brand",
+    category: productFieldSettings.category?.label || "Category",
+    style: productFieldSettings.style?.label || "Style",
+    color: productFieldSettings.color?.label || "Color",
+    hsn_code: productFieldSettings.hsn_code?.label || "HSN Code",
+  };
+  const isProductFieldOn = (key: ProductFieldKey) => productFieldSettings[key]?.enabled !== false;
+  const showBrand = isProductFieldOn("brand");
+  const showCategory = isProductFieldOn("category");
+  const showStyle = isProductFieldOn("style");
+  const showColor = isProductFieldOn("color");
+  const productAttrColCount =
+    (showBrand ? 1 : 0) + (showColor ? 1 : 0) + (showStyle ? 1 : 0);
+  // Sr, Supplier, Invoice, Product, [Brand], Size, [Color], [Style], Barcode
+  const allStockLabelColSpan = 6 + productAttrColCount;
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [stockItems, setStockItems] = useState<StockItem[]>([]);
@@ -704,6 +720,14 @@ export default function StockReport() {
       supplierInvoices: supplierInvoiceOptions,
     };
   }, [productNameFilter, brandFilter, categoryFilter, departmentFilter, sizeFilter, colorFilter, supplierFilter, supplierInvoiceFilter, filterOptions]);
+
+  // Clear filters for product fields disabled in Settings → Product
+  useEffect(() => {
+    if (!showBrand && brandFilter !== "all") setBrandFilter("all");
+    if (!showCategory && categoryFilter !== "all") setCategoryFilter("all");
+    if (!showStyle && departmentFilter !== "all") setDepartmentFilter("all");
+    if (!showColor && colorFilter !== "all") setColorFilter("all");
+  }, [showBrand, showCategory, showStyle, showColor, brandFilter, categoryFilter, departmentFilter, colorFilter]);
 
   // Keep selected values valid when another field narrows options
   useEffect(() => {
@@ -1284,19 +1308,27 @@ export default function StockReport() {
 
   // Export Size-wise to Excel
   const exportSizeWiseToExcel = () => {
-    const headers = ["Product", "Brand", "Color", "Category", "Style", ...sizeWiseData.sizes, "Total Stock"];
+    const metaHeaders = [
+      "Product",
+      ...(showBrand ? [fieldLabels.brand] : []),
+      ...(showColor ? [fieldLabels.color] : []),
+      ...(showCategory ? [fieldLabels.category] : []),
+      ...(showStyle ? [fieldLabels.style] : []),
+    ];
+    const headers = [...metaHeaders, ...sizeWiseData.sizes, "Total Stock"];
     const data = sizeWiseData.rows.map(row => [
       row.productName,
-      row.brand,
-      row.color,
-      row.category,
-      row.department,
+      ...(showBrand ? [row.brand] : []),
+      ...(showColor ? [row.color] : []),
+      ...(showCategory ? [row.category] : []),
+      ...(showStyle ? [row.department] : []),
       ...sizeWiseData.sizes.map(size => row.sizeStocks[size] || 0),
       row.totalStock
     ]);
     
     data.push([
-      "TOTAL", "", "", "", "",
+      "TOTAL",
+      ...Array(metaHeaders.length - 1).fill(""),
       ...sizeWiseData.sizes.map(size => sizeWiseTotals.sizeTotals[size] || 0),
       sizeWiseTotals.grandTotal
     ]);
@@ -1386,16 +1418,36 @@ export default function StockReport() {
 
   // Export All Stock to Excel
   const exportAllStockToExcel = () => {
-    const headers = ["Sr No", "Supplier", "Supplier Invoice", "Product", "Brand", "Size", "Color", "Style", "Barcode", "Opening Qty", "Purchase Qty", "Pur Return", "Sales Qty", "Sale Return", "Current Stock", "Pur Price", "Stock Value", "Sale Price", "Status"];
+    const headers = [
+      "Sr No",
+      "Supplier",
+      "Supplier Invoice",
+      "Product",
+      ...(showBrand ? [fieldLabels.brand] : []),
+      "Size",
+      ...(showColor ? [fieldLabels.color] : []),
+      ...(showStyle ? [fieldLabels.style] : []),
+      "Barcode",
+      "Opening Qty",
+      "Purchase Qty",
+      "Pur Return",
+      "Sales Qty",
+      "Sale Return",
+      "Current Stock",
+      "Pur Price",
+      "Stock Value",
+      "Sale Price",
+      "Status",
+    ];
     const data = filteredStockItems.map((item, index) => [
       index + 1,
       item.supplier_name || "",
       item.supplier_invoice_no || "",
       item.product_name,
-      item.brand,
+      ...(showBrand ? [item.brand] : []),
       item.size,
-      item.color || "",
-      item.department || "",
+      ...(showColor ? [item.color || ""] : []),
+      ...(showStyle ? [item.department || ""] : []),
       item.barcode,
       item.opening_qty,
       item.purchase_qty,
@@ -1408,9 +1460,10 @@ export default function StockReport() {
       item.sale_price,
       item.stock_qty === 0 ? "Out of Stock" : item.stock_qty <= lowStockThreshold ? "Low Stock" : "In Stock",
     ]);
-    // Totals row
+    // Totals row — blanks cover [Brand], Size, [Color], [Style], Barcode after Product/TOTAL
     data.push([
-      "", "", "", "TOTAL", "", "", "", "", "",
+      "", "", "", "TOTAL",
+      ...Array(productAttrColCount + 2).fill(""),
       filteredStockItems.reduce((s, i) => s + i.opening_qty, 0),
       filteredStockItems.reduce((s, i) => s + i.purchase_qty, 0),
       filteredStockItems.reduce((s, i) => s + i.purchase_return_qty, 0),
@@ -1423,10 +1476,6 @@ export default function StockReport() {
       "",
     ]);
     const ws = XLSX.utils.aoa_to_sheet([headers, ...data]);
-    ws['!cols'] = [
-      { wch: 6 }, { wch: 18 }, { wch: 16 }, { wch: 30 }, { wch: 15 }, { wch: 8 }, { wch: 10 }, { wch: 12 }, { wch: 16 },
-      { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 12 }, { wch: 10 }, { wch: 12 }, { wch: 10 }, { wch: 12 },
-    ];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Stock Report");
     XLSX.writeFile(wb, `Stock_Report_${format(new Date(), "yyyy-MM-dd")}.xlsx`);
@@ -1481,15 +1530,31 @@ export default function StockReport() {
         sale_price: v.sale_price || 0,
       }));
 
-      const headers = ["Sr No", "Product", "Brand", "Size", "Color", "Style", "Category", "Barcode", "Opening Qty", "Current Stock", "Pur Price", "Stock Value", "Sale Price", "Sale Value", "Status"];
+      const headers = [
+        "Sr No",
+        "Product",
+        ...(showBrand ? [fieldLabels.brand] : []),
+        "Size",
+        ...(showColor ? [fieldLabels.color] : []),
+        ...(showStyle ? [fieldLabels.style] : []),
+        ...(showCategory ? [fieldLabels.category] : []),
+        "Barcode",
+        "Opening Qty",
+        "Current Stock",
+        "Pur Price",
+        "Stock Value",
+        "Sale Price",
+        "Sale Value",
+        "Status",
+      ];
       const data = items.map((item, index) => [
         index + 1,
         item.product_name,
-        item.brand,
+        ...(showBrand ? [item.brand] : []),
         item.size,
-        item.color,
-        item.department,
-        item.category,
+        ...(showColor ? [item.color] : []),
+        ...(showStyle ? [item.department] : []),
+        ...(showCategory ? [item.category] : []),
         item.barcode,
         item.opening_qty,
         item.stock_qty,
@@ -1505,9 +1570,11 @@ export default function StockReport() {
       const totalCurrentStock = items.reduce((s, i) => s + i.stock_qty, 0);
       const totalStockVal = Math.round(items.reduce((s, i) => s + i.pur_price * i.stock_qty, 0));
       const totalSaleVal = Math.round(items.reduce((s, i) => s + i.sale_price * i.stock_qty, 0));
+      const fullMetaBlankCount = productAttrColCount + (showCategory ? 1 : 0) + 2; // size + barcode + attrs
 
       data.push([
-        "", "GRAND TOTAL", "", "", "", "", "", "",
+        "", "GRAND TOTAL",
+        ...Array(fullMetaBlankCount).fill(""),
         totalOpeningQty,
         totalCurrentStock,
         "",
@@ -1518,10 +1585,6 @@ export default function StockReport() {
       ]);
 
       const ws = XLSX.utils.aoa_to_sheet([headers, ...data]);
-      ws['!cols'] = [
-        { wch: 6 }, { wch: 30 }, { wch: 15 }, { wch: 8 }, { wch: 10 }, { wch: 12 }, { wch: 12 }, { wch: 16 },
-        { wch: 10 }, { wch: 12 }, { wch: 10 }, { wch: 12 }, { wch: 10 }, { wch: 12 }, { wch: 12 },
-      ];
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "All Stock");
       XLSX.writeFile(wb, `Full_Stock_Report_${format(new Date(), "yyyy-MM-dd")}.xlsx`);
@@ -1539,13 +1602,15 @@ export default function StockReport() {
     const printWindow = window.open("", "_blank");
     if (!printWindow) return;
 
+    // Sr, Product, [Brand], Size, [Color], Barcode
+    const printLeadColSpan = 4 + (showBrand ? 1 : 0) + (showColor ? 1 : 0);
     const rows = filteredStockItems.map((item, i) => `
       <tr style="${i % 2 === 0 ? '' : 'background:#f9f9f9;'}">
         <td style="text-align:center">${i + 1}</td>
         <td>${item.product_name}</td>
-        <td>${item.brand}</td>
+        ${showBrand ? `<td>${item.brand}</td>` : ""}
         <td>${item.size}</td>
-        <td>${item.color || ''}</td>
+        ${showColor ? `<td>${item.color || ""}</td>` : ""}
         <td>${item.barcode}</td>
         <td style="text-align:right">${item.opening_qty}</td>
         <td style="text-align:right">${item.purchase_qty}</td>
@@ -1559,7 +1624,7 @@ export default function StockReport() {
 
     const totalRow = `
       <tr style="font-weight:bold;background:#eee;border-top:2px solid #333">
-        <td colspan="6" style="text-align:center">TOTAL</td>
+        <td colspan="${printLeadColSpan}" style="text-align:center">TOTAL</td>
         <td style="text-align:right">${filteredStockItems.reduce((s, i) => s + i.opening_qty, 0)}</td>
         <td style="text-align:right">${filteredStockItems.reduce((s, i) => s + i.purchase_qty, 0)}</td>
         <td style="text-align:right">${filteredStockItems.reduce((s, i) => s + i.purchase_return_qty, 0)}</td>
@@ -1585,7 +1650,7 @@ export default function StockReport() {
       <div class="sub">Generated: ${dateStr} | Items: ${filteredStockItems.length} | Total Stock: ${totalStock.toLocaleString('en-IN')}</div>
       <table>
         <thead><tr>
-          <th>Sr</th><th>Product</th><th>Brand</th><th>Size</th><th>Color</th><th>Barcode</th>
+          <th>Sr</th><th>Product</th>${showBrand ? `<th>${fieldLabels.brand}</th>` : ""}<th>Size</th>${showColor ? `<th>${fieldLabels.color}</th>` : ""}<th>Barcode</th>
           <th>Open</th><th>Pur</th><th>P.Ret</th><th>Sales</th><th>S.Ret</th><th>Stock</th><th>Pur ₹</th><th>Sale ₹</th>
         </tr></thead>
         <tbody>${rows}${totalRow}</tbody>
@@ -1940,26 +2005,34 @@ export default function StockReport() {
               placeholder="All Products"
             />
           </div>
+          {showBrand && (
           <div className="space-y-1">
-            <label className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Brand</label>
-            <SearchableSelect value={brandFilter} onValueChange={setBrandFilter} options={derivedFilterOptions.brands} allLabel="All Brands" placeholder="All Brands" />
+            <label className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{fieldLabels.brand}</label>
+            <SearchableSelect value={brandFilter} onValueChange={setBrandFilter} options={derivedFilterOptions.brands} allLabel={`All ${fieldLabels.brand}`} placeholder={`All ${fieldLabels.brand}`} />
           </div>
+          )}
+          {showCategory && (
           <div className="space-y-1">
             <label className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{fieldLabels.category}</label>
-            <SearchableSelect value={categoryFilter} onValueChange={setCategoryFilter} options={derivedFilterOptions.categories} allLabel="All Categories" placeholder="All Categories" />
+            <SearchableSelect value={categoryFilter} onValueChange={setCategoryFilter} options={derivedFilterOptions.categories} allLabel={`All ${fieldLabels.category}`} placeholder={`All ${fieldLabels.category}`} />
           </div>
+          )}
+          {showStyle && (
           <div className="space-y-1">
             <label className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{fieldLabels.style}</label>
             <SearchableSelect value={departmentFilter} onValueChange={setDepartmentFilter} options={derivedFilterOptions.departments} allLabel={`All ${fieldLabels.style}`} placeholder={`All ${fieldLabels.style}`} />
           </div>
+          )}
           <div className="space-y-1">
             <label className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Size</label>
             <SearchableSelect value={sizeFilter} onValueChange={setSizeFilter} options={derivedFilterOptions.sizes} allLabel="All Sizes" placeholder="All Sizes" />
           </div>
+          {showColor && (
           <div className="space-y-1">
             <label className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{fieldLabels.color}</label>
-            <SearchableSelect value={colorFilter} onValueChange={setColorFilter} options={derivedFilterOptions.colors} allLabel="All Colors" placeholder="All Colors" />
+            <SearchableSelect value={colorFilter} onValueChange={setColorFilter} options={derivedFilterOptions.colors} allLabel={`All ${fieldLabels.color}`} placeholder={`All ${fieldLabels.color}`} />
           </div>
+          )}
           <div className="space-y-1">
             <label className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Stock Status</label>
             <Select value={stockStatusFilter} onValueChange={setStockStatusFilter}>
@@ -2026,10 +2099,10 @@ export default function StockReport() {
                     <TableHead className={STOCK_NEUTRAL_TH}>Supplier</TableHead>
                     <TableHead className={STOCK_NEUTRAL_TH}>Supplier Invoice</TableHead>
                     <TableHead className={STOCK_NEUTRAL_TH}>Product</TableHead>
-                    <TableHead className={STOCK_NEUTRAL_TH}>{fieldLabels.brand}</TableHead>
+                    {showBrand && <TableHead className={STOCK_NEUTRAL_TH}>{fieldLabels.brand}</TableHead>}
                     <TableHead className={STOCK_NEUTRAL_TH}>Size</TableHead>
-                    <TableHead className={STOCK_NEUTRAL_TH}>{fieldLabels.color}</TableHead>
-                    <TableHead className={STOCK_NEUTRAL_TH}>{fieldLabels.style}</TableHead>
+                    {showColor && <TableHead className={STOCK_NEUTRAL_TH}>{fieldLabels.color}</TableHead>}
+                    {showStyle && <TableHead className={STOCK_NEUTRAL_TH}>{fieldLabels.style}</TableHead>}
                     <TableHead className={STOCK_NEUTRAL_TH}>Barcode</TableHead>
                     <TableHead className={cn("text-right", STOCK_NEUTRAL_TH, "bg-blue-50 dark:bg-blue-950 text-blue-800 dark:text-blue-100")}>Opening Qty</TableHead>
                     <TableHead className={cn("text-right", STOCK_NEUTRAL_TH, "bg-green-50 dark:bg-green-950 text-green-800 dark:text-green-100")}>Purchase Qty</TableHead>
@@ -2099,10 +2172,10 @@ export default function StockReport() {
                         <TableHead className={STOCK_NEUTRAL_TH}>Supplier</TableHead>
                         <TableHead className={STOCK_NEUTRAL_TH}>Supplier Invoice</TableHead>
                         <TableHead className={STOCK_NEUTRAL_TH}>Product</TableHead>
-                        <TableHead className={STOCK_NEUTRAL_TH}>{fieldLabels.brand}</TableHead>
+                        {showBrand && <TableHead className={STOCK_NEUTRAL_TH}>{fieldLabels.brand}</TableHead>}
                         <TableHead className={STOCK_NEUTRAL_TH}>Size</TableHead>
-                        <TableHead className={STOCK_NEUTRAL_TH}>{fieldLabels.color}</TableHead>
-                        <TableHead className={STOCK_NEUTRAL_TH}>{fieldLabels.style}</TableHead>
+                        {showColor && <TableHead className={STOCK_NEUTRAL_TH}>{fieldLabels.color}</TableHead>}
+                        {showStyle && <TableHead className={STOCK_NEUTRAL_TH}>{fieldLabels.style}</TableHead>}
                         <TableHead className={STOCK_NEUTRAL_TH}>Barcode</TableHead>
                         <TableHead className={cn("text-right", STOCK_NEUTRAL_TH, "bg-blue-50 dark:bg-blue-950 text-blue-800 dark:text-blue-100")}>Opening Qty</TableHead>
                         <TableHead className={cn("text-right", STOCK_NEUTRAL_TH, "bg-green-50 dark:bg-green-950 text-green-800 dark:text-green-100")}>Purchase Qty</TableHead>
@@ -2141,10 +2214,16 @@ export default function StockReport() {
                             <TableCell className={cn(STOCK_DATA_CELL, "text-muted-foreground text-xs")}>{item.supplier_name || '—'}</TableCell>
                             <TableCell className={cn(STOCK_DATA_CELL, "font-mono font-medium text-xs")}>{item.supplier_invoice_no || '—'}</TableCell>
                             <TableCell className={STOCK_PRODUCT_NAME_CELL}>{highlightSearchText(item.product_name, highlightQuery)}</TableCell>
-                            <TableCell className={STOCK_PRODUCT_DETAIL_CELL}>{highlightSearchText(item.brand, highlightQuery)}</TableCell>
+                            {showBrand && (
+                              <TableCell className={STOCK_PRODUCT_DETAIL_CELL}>{highlightSearchText(item.brand, highlightQuery)}</TableCell>
+                            )}
                             <TableCell className={STOCK_PRODUCT_DETAIL_CELL}>{highlightSearchText(item.size, highlightQuery)}</TableCell>
-                            <TableCell className={STOCK_PRODUCT_DETAIL_CELL}>{highlightSearchText(item.color || '—', highlightQuery)}</TableCell>
-                            <TableCell className={STOCK_PRODUCT_DETAIL_CELL}>{highlightSearchText(item.department || '—', highlightQuery)}</TableCell>
+                            {showColor && (
+                              <TableCell className={STOCK_PRODUCT_DETAIL_CELL}>{highlightSearchText(item.color || '—', highlightQuery)}</TableCell>
+                            )}
+                            {showStyle && (
+                              <TableCell className={STOCK_PRODUCT_DETAIL_CELL}>{highlightSearchText(item.department || '—', highlightQuery)}</TableCell>
+                            )}
                             <TableCell className={cn(STOCK_DATA_CELL, "font-mono font-semibold")}>
                               <div className="flex flex-wrap items-center gap-1.5">
                                 {highlightSearchText(item.barcode, highlightQuery)}
@@ -2207,7 +2286,7 @@ export default function StockReport() {
                     {filteredStockItems.length > 0 && (
                       <TableFooter className={STOCK_TABLE_FOOTER}>
                         <TableRow>
-                          <TableCell className={cn(STOCK_FOOTER_CELL, "text-center bg-slate-200 dark:bg-slate-700")} colSpan={9}>
+                          <TableCell className={cn(STOCK_FOOTER_CELL, "text-center bg-slate-200 dark:bg-slate-700")} colSpan={allStockLabelColSpan}>
                             {footerIsPageTotal ? "PAGE TOTAL" : "GRAND TOTAL"}
                           </TableCell>
                           <TableCell className={cn(STOCK_FOOTER_CELL, "text-right bg-blue-100 dark:bg-blue-900/60 text-blue-900 dark:text-blue-100")}>
@@ -2384,17 +2463,38 @@ export default function StockReport() {
                                     <span className="text-base font-bold text-foreground truncate max-w-[150px] md:max-w-none bg-blue-50/40 dark:bg-blue-950/20 px-1 rounded">
                                       {highlightSearchText(row.productName, swQuery)}
                                     </span>
-                                    {(row.brand || row.color) && (
+                                    {((showBrand && row.brand) || (showColor && row.color)) && (
                                       <span className="text-sm font-semibold text-foreground truncate max-w-[200px] md:max-w-none">
-                                        <span className="font-bold">Brand:</span> {highlightSearchText(row.brand || '-', swQuery)}
-                                        {row.color && <> · <span className="font-bold">Color:</span> {highlightSearchText(row.color, swQuery)}</>}
+                                        {showBrand && (
+                                          <>
+                                            <span className="font-bold">{fieldLabels.brand}:</span>{" "}
+                                            {highlightSearchText(row.brand || "-", swQuery)}
+                                          </>
+                                        )}
+                                        {showBrand && showColor && row.color && " · "}
+                                        {showColor && row.color && (
+                                          <>
+                                            <span className="font-bold">{fieldLabels.color}:</span>{" "}
+                                            {highlightSearchText(row.color, swQuery)}
+                                          </>
+                                        )}
                                       </span>
                                     )}
-                                    {(row.category || row.department) && (
+                                    {((showCategory && row.category) || (showStyle && row.department)) && (
                                       <span className="text-sm font-semibold text-foreground truncate max-w-[200px] md:max-w-none">
-                                        {row.category && <><span className="font-bold">Cat:</span> {highlightSearchText(row.category, swQuery)}</>}
-                                        {row.category && row.department && ' · '}
-                                        {row.department && <><span className="font-bold">Style:</span> {highlightSearchText(row.department, swQuery)}</>}
+                                        {showCategory && row.category && (
+                                          <>
+                                            <span className="font-bold">{fieldLabels.category}:</span>{" "}
+                                            {highlightSearchText(row.category, swQuery)}
+                                          </>
+                                        )}
+                                        {showCategory && row.category && showStyle && row.department && " · "}
+                                        {showStyle && row.department && (
+                                          <>
+                                            <span className="font-bold">{fieldLabels.style}:</span>{" "}
+                                            {highlightSearchText(row.department, swQuery)}
+                                          </>
+                                        )}
                                       </span>
                                     )}
                                   </div>
