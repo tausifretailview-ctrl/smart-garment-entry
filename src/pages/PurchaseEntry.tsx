@@ -91,7 +91,7 @@ import {
   type RepurchaseVariantRow,
 } from "@/components/RepurchaseDialog";
 import { ProductEntryDialogGate } from "@/components/ProductEntryDialogGate";
-import { prefetchProductEntryDialog, warmProductEntryDialogForOpen } from "@/lib/productEntryDialogLoad";
+import { prefetchProductEntryDialog } from "@/lib/productEntryDialogLoad";
 import { scheduleIdleWork } from "@/lib/chunkLoadRetry";
 import ProductEditPanel from "@/components/ProductEditPanel";
 import QuickEditPopover from "@/components/QuickEditPopover";
