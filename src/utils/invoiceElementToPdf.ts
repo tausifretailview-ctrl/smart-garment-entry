@@ -1,6 +1,7 @@
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 import { applyWappConnectInvoicePdfCloneFixes } from "@/utils/wappConnectInvoicePdfCapture";
+import { resolveInvoicePdfRasterOptions } from "@/utils/invoicePdfRaster";
 
 export type InvoicePdfPageFormat = "a4" | "a5" | "thermal";
 
@@ -21,8 +22,7 @@ async function rasterizeElement(
   mobileOptimized: boolean,
   wappConnectPdf = false,
 ): Promise<HTMLCanvasElement> {
-  // Prefer crisp type for WhatsApp attachments even on narrow Electron windows.
-  const scale = wappConnectPdf ? 2 : mobileOptimized ? 1.5 : 2;
+  const { scale } = resolveInvoicePdfRasterOptions({ mobileOptimized, wappConnectPdf });
   return html2canvas(element, {
     scale,
     useCORS: true,
@@ -64,18 +64,15 @@ async function capturePagedInvoiceTemplatesToPdfBlob(
   });
   const pdfWidth = pdf.internal.pageSize.getWidth();
   const pdfHeight = pdf.internal.pageSize.getHeight();
-  // WappConnect: always PNG for sharper invoice text on WhatsApp.
-  const useJpeg = mobileOptimized && !wappConnectPdf;
-  const imageType = useJpeg ? "JPEG" : "PNG";
-  const imageQuality = 0.92;
+  const { imageType, mimeType, imageQuality } = resolveInvoicePdfRasterOptions({
+    mobileOptimized,
+    wappConnectPdf,
+  });
 
   for (let i = 0; i < pageEls.length; i++) {
     if (i > 0) pdf.addPage();
     const canvas = await rasterizeElement(pageEls[i], mobileOptimized, wappConnectPdf);
-    const imgData = canvas.toDataURL(
-      useJpeg ? "image/jpeg" : "image/png",
-      imageQuality,
-    );
+    const imgData = canvas.toDataURL(mimeType, imageQuality);
     pdf.addImage(imgData, imageType, 0, 0, pdfWidth, pdfHeight);
   }
 
@@ -109,13 +106,11 @@ export async function captureElementToPdfBlob(
 
   const canvas = await rasterizeElement(element, mobileOptimized, wappConnectPdf);
 
-  const useJpeg = mobileOptimized && !wappConnectPdf;
-  const imageType = useJpeg ? "JPEG" : "PNG";
-  const imageQuality = 0.92;
-  const imgData = canvas.toDataURL(
-    useJpeg ? "image/jpeg" : "image/png",
-    imageQuality,
-  );
+  const { imageType, mimeType, imageQuality } = resolveInvoicePdfRasterOptions({
+    mobileOptimized,
+    wappConnectPdf,
+  });
+  const imgData = canvas.toDataURL(mimeType, imageQuality);
 
   if (pageFormat === "thermal") {
     const pdf = new jsPDF({
@@ -142,7 +137,7 @@ export async function captureElementToPdfBlob(
       const ctx = pageCanvas.getContext("2d");
       if (ctx) {
         ctx.drawImage(canvas, 0, sourceY, imgWidth, sourceH, 0, 0, imgWidth, Math.ceil(sourceH));
-        const pageImg = pageCanvas.toDataURL(mobileOptimized ? "image/jpeg" : "image/png", imageQuality);
+        const pageImg = pageCanvas.toDataURL(mimeType, imageQuality);
         pdf.addImage(pageImg, imageType, 0, 0, pdfWidth, sliceHeight);
       }
     }
@@ -186,10 +181,7 @@ export async function captureElementToPdfBlob(
 
     if (ctx) {
       ctx.drawImage(canvas, 0, sourceY, imgWidth, sourceH, 0, 0, imgWidth, Math.ceil(sourceH));
-      const pageImgData = pageCanvas.toDataURL(
-        mobileOptimized ? "image/jpeg" : "image/png",
-        imageQuality,
-      );
+      const pageImgData = pageCanvas.toDataURL(mimeType, imageQuality);
       pdf.addImage(pageImgData, imageType, 0, 0, pdfWidth, sliceScaledHeight);
     }
   }
