@@ -1,93 +1,74 @@
-## Problem Recap (Madiha Nursumar pattern)
+# Goal
+Eliminate two related loading stalls on the web app for Ranawat Bling:
+1. **Login / reload sometimes hangs** until a manual refresh (or shows a spinner) while the organization syncs.
+2. **Purchase → Add New Product button sometimes opens a stuck "Loading product form…" dialog** or takes too long to open.
 
-Root cause of the recurring mismatch:
+# Scope
+- Web build only (Ranawat Bling / `ranawat-s-bling` org slug).
+- Frontend-only fixes; no DB schema changes.
+- No new UI design; just loading reliability and timeout behavior.
 
-- **Balance Adjustment dialog** writes a *net delta* into `customer_balance_adjustments` + a single `customer_ledger_entries` row.
-- It does **NOT** create `voucher_entries` of type `receipt` allocated to specific invoices / opening balance.
-- Result: ledger closing balance is correct, but:
-  - Sales Invoice Dashboard shows invoices as `Not Paid` / `Partial`.
-  - Customer Payment tab shows Opening Balance as unpaid.
-  - Any downstream FIFO / receipt-based logic ignores the adjustment.
+# Root causes found
 
-Every time staff "fixes" a balance via the Adjustment dialog instead of the Customer Payment dialog, the same drift will reappear.
+## 1. Organization sync stalls
+The boot path has **stacked, independent timeouts** that can leave the shell in a spinner longer than needed:
+- `OrganizationContext.fetchOrganizations()` uses a 20s fetch timeout and a separate `ensureFreshSession()` session refresh before it even queries `organization_members`.
+- `OrganizationContext.switchOrganization()` does a **second** `organization_members` round-trip even though the original membership query already returned the role.
+- `OrgLayout` triggers `switchOrganization()` when the URL org slug changes, then waits for a separate 4s `syncTimeout` guard before forcing render. If the network round-trip to `switchOrganization` is slow, the 4s guard fires and renders the shell in a fallback state; the user then refreshes and it usually works because the session is now fresh.
+- `fetchOrganizations` also has no in-flight request de-duplication, so remounts/StrictMode can fire the same 20s-guarded query twice.
 
----
+## 2. Add Product chunk load hangs
+- `ProductEntryDialog` is a lazy chunk. The `ProductEntryDialogGate` shows a 20s UI timeout, but the underlying `importWithRetry()` promise keeps running for up to 60s per attempt (5 attempts). Pressing **Retry** nulls the promise and starts a fresh 60s attempt, so a slow connection can stay stuck in a loop.
+- `PurchaseEntry.tsx` blocks the button click with `await warmProductEntryDialogForOpen()` before opening the gate, so the user sees a second "Loading form…" state on the button *and* the dialog spinner.
+- Post-login background prefetch (`OrgLayout`) competes for the same bandwidth immediately after login, delaying the Add Product chunk on cold start.
 
-## Proposed Solution — 3 layers
+# Implementation plan
 
-### Layer 1 — Prevention (fix at source)
+## 1. Harden organization sync
+### `src/contexts/OrganizationContext.tsx`
+- Add an in-flight request guard (`fetchingRef`) so concurrent calls do not double the 20s timeout.
+- Derive the selected org and role from the already-fetched `memberships` array; avoid the second `organization_members` query.
+- Make `ensureFreshSession` non-blocking for the org query: use `getSession()` and only refresh if the token is near expiry, but wrap the refresh in a short timeout so a slow refresh does not hold up the whole org fetch.
+- Keep the existing cache fallback but shorten the "empty result retry" path to one quick retry with a small timeout.
 
-Change `CustomerBalanceAdjustmentDialog` so a REDUCE / SETTLE adjustment cannot exist as a floating ledger row:
+### `src/components/OrgLayout.tsx`
+- Remove the redundant `switchOrganization()` call when the URL org is already present in `organizations` and the role is already known; set `isOrgSynced` directly.
+- If `switchOrganization` is still needed (edge case), wrap it in a timeout and catch so it never leaves `isOrgSynced` unresolved.
+- Change the `syncTimeout` safety net from a hard 4s to a value that aligns with the org fetch budget (or derive it from the same state) so we do not force a fallback too early.
+- Add a single console warning that captures the exact stall path (`OrgLayout sync timeout / org mismatch / slug` ...) for future diagnosis.
 
-- When user reduces outstanding, dialog auto-fetches unpaid invoices + opening balance.
-- Two modes:
-  - **Simple mode (default):** enter target new balance → engine auto-splits into `voucher_entries (type='receipt')` allocated FIFO (Opening Balance → oldest invoices).
-  - **Advanced mode:** manual per-invoice allocation grid (like Customer Payment tab).
-- Adjustment is stored ONLY as metadata / audit note; the actual money movement is a proper receipt voucher.
-- Reversal (Undo) reverses the linked vouchers atomically.
+## 2. Make Add Product load abortable and remove double spinner
+### `src/lib/productEntryDialogLoad.ts`
+- Add an optional `AbortSignal` parameter to the load path so the UI can cancel the in-flight import and its retry loop.
+- Expose a `cancelProductEntryDialogLoad()` helper that aborts the current `loadPromise` and resets it.
+- Keep `prefetchProductEntryDialog()` for the mount/hover pre-warm, but make it pause background prefetch so it gets priority.
 
-Increase adjustments (customer owes more) continue as a single opening-balance debit voucher — no invoice allocation needed.
+### `src/components/ProductEntryDialogGate.tsx`
+- When the 20s UI timeout fires, call `cancelProductEntryDialogLoad()` and reset `loadPromise` so the retry starts clean.
+- After a retry, show the loading shell again (not the timeout shell) until the new timeout or success.
 
-### Layer 2 — Detection (nightly drift scan)
+### `src/pages/PurchaseEntry.tsx`
+- Remove the blocking `await warmProductEntryDialogForOpen()` call from the button click handler. Open the gate immediately; let the gate’s own loading shell handle the feedback.
+- Keep `onMouseEnter`/`onFocus` prefetch for the fast path, but remove the `addProductWarming` button spinner so the user does not see two loading states.
+- If `handleAddNewProductFromInline` uses the same path, make sure it also opens the gate without blocking.
 
-Extend the existing **Settlement Drift Detection** cron with a new check `customer_adjustment_drift`:
+## 3. Reduce post-login prefetch contention
+### `src/lib/tabPageRegistry.ts` and `src/components/OrgLayout.tsx`
+- Verify that the web already uses the smaller `POST_LOGIN_PREFETCH_TAB_PATHS_WEB` list. If not, switch the web path to it so fewer chunks compete with Add Product on cold start.
+- Keep the full desktop Electron list unchanged.
 
-For every org, flag customers where:
-```
-authoritative_signed_outstanding(customer)
-  != Σ(invoice_pending) + opening_balance_pending − advances − credit_notes
-```
-Drift > ₹1 → insert into `settlement_drift_log` with `drift_type='balance_adjustment_floating'` and a JSON payload listing candidate invoices/opening balance to re-allocate.
+## 4. Verify
+- Run `npm run build` and the Vitest suite (no test changes expected, just a regression check).
+- Test the web login flow for `/ranawat-s-bling` in a throttled browser profile: reload the page after login, confirm the workspace renders without a manual refresh.
+- Test Purchase Entry → Add New Product on a cold (or throttled) tab: click the button multiple times, confirm it opens the dialog within a few seconds or shows a clean retry prompt without looping.
+- Test that the existing dialog data (current purchase bill, line items) is preserved when the dialog is cancelled.
 
-Alert surfaces on the existing `/platform-admin/data-integrity` dashboard + WhatsApp owner alert.
+# Technical details
+- Files to touch: `src/contexts/OrganizationContext.tsx`, `src/components/OrgLayout.tsx`, `src/lib/productEntryDialogLoad.ts`, `src/components/ProductEntryDialogGate.tsx`, `src/pages/PurchaseEntry.tsx`, possibly `src/lib/tabPageRegistry.ts`.
+- No Supabase migrations or RLS changes.
+- No new dependencies.
 
-### Layer 3 — Auto-Repair (one-click FIFO)
-
-New RPC `repair_customer_floating_adjustments(org_id, customer_id)`:
-
-1. Read pool = sum of adjustments not yet materialized as receipts.
-2. Read pending queue = Opening Balance first, then invoices oldest-first.
-3. Allocate pool FIFO → create `voucher_entries` (`type='receipt'`, `payment_method='adjustment'`, dated to original adjustment date) with proper `reference_type` / `reference_id`.
-4. Mark the source `customer_balance_adjustments` row as `materialized_at=now()`.
-5. Verify net closing balance unchanged (guard rail — rollback if it moves > ₹1).
-
-Two entry points:
-- **Per-customer button** on Customer Reconciliation page ("Repair floating adjustments").
-- **Bulk repair** on Data Integrity dashboard for all flagged rows in an org.
-
----
-
-## What we will build
-
-1. **DB migration**
-   - Add columns `materialized_at timestamptz`, `materialized_by uuid` to `customer_balance_adjustments`.
-   - Create RPC `repair_customer_floating_adjustments`.
-   - Create detection function `detect_balance_adjustment_drift` + wire into existing drift cron.
-
-2. **Frontend**
-   - Rewrite reduce-flow in `CustomerBalanceAdjustmentDialog.tsx` to require allocation (simple + advanced mode).
-   - Add "Repair floating adjustments" button on `CustomerReconciliation.tsx` (per customer).
-   - Add new "Adjustment Drift" tab on `/platform-admin/data-integrity`.
-
-3. **Backfill (one-time)**
-   - Manual insert-tool script that runs `repair_customer_floating_adjustments` for every org, per customer, in dry-run first (report only), then live after your approval.
-
----
-
-## Guard rails
-
-- Repair RPC is **idempotent** and **balance-preserving** — if closing balance would change by more than ₹1 it aborts and logs to `balance_reconciliation_log`.
-- Adjustment dialog keeps the old free-form path behind a `platform_admin`-only toggle for edge cases.
-- All changes wrapped in the existing soft-delete + audit-log framework — nothing is destroyed, everything is auditable and reversible.
-
----
-
-## Rollout order
-
-1. Migration + RPC (schema safe, no behaviour change yet).
-2. Nightly detection (read-only, produces a report).
-3. Dry-run backfill report → your approval → live backfill.
-4. Dialog rewrite (prevents new occurrences).
-5. Auto-repair button surfaces in UI.
-
-Ready to start with step 1 (migration + RPC) once you approve.
+# Out of scope
+- Native/Electron/Android app changes unless the same root causes also appear there (the fixes will mostly help all platforms, but verification is web-only).
+- Redesigning the Add Product dialog UI or its fields.
+- Adding telemetry/logging to production (we will use existing console warnings).
