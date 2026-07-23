@@ -185,8 +185,8 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
     notes && notes.trim() && !/^\d+$/.test(notes.trim()) ? notes.trim() : "";
   /** Default SN rows on preprinted — stretch to fill space above totals (no blank gap). */
   const PREPRINTED_DEFAULT_ROWS = isA4 ? 12 : 8;
-  /** A5 Retail ERP: 12 SN lines — room for Round Off + QR/terms footer. */
-  const A5_RETAIL_SN_ROWS = 12;
+  /** A5 Retail ERP: 8 SN lines so Note/totals/terms stay below the grid (12 overflowed onto footer). */
+  const A5_RETAIL_SN_ROWS = 8;
   const MAX_ITEMS_PER_PAGE = isA4 ? 20 : isPreprintedA5 ? 10 : isA5Retail ? A5_RETAIL_SN_ROWS : 12;
   const TARGET_ROWS = isPreprintedAny
     ? Math.max(items.length, PREPRINTED_DEFAULT_ROWS)
@@ -404,53 +404,64 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   const fsInvoiceNo = isA4 ? "15px" : "13px";
   const fsDiscMedium = isA4 ? "11px" : "10px";
 
-  const ROW_H = isA4 ? "26px" : "20px";
-  const ROW_H_WITH_DISC = isA4 ? "36px" : "28px";
+  const ROW_H = isA4 ? "26px" : "22px";
+  const ROW_H_WITH_DISC = isA4 ? "36px" : "30px";
 
   // Real Tast: no size or barcode; HSN optional via show_hsn_code setting
   const showHSNCol = showHSN;
   const showBarcodeCol = !isRealTast;
 
-  // Retail ERP A5: narrow SN column; give space back to DESCRIPTION.
+  // Column % must sum to ~100% with table-layout:fixed (under-sum caused PDF column drift).
   const cols: { key: string; label: string; width: string; align: "center" | "left" | "right" }[] = [
-    { key: "sr", label: "SN", width: isRealTast ? "4%" : isA5Retail ? "3.5%" : "7%", align: "center" },
+    { key: "sr", label: "SN", width: isRealTast ? "4%" : isA5Retail ? "5%" : "7%", align: "center" },
     {
       key: "description",
       label: "DESCRIPTION",
       width: isRealTast
         ? (showHSNCol ? "47%" : "54%")
         : isA5Retail
-          ? (showHSNCol ? "25.5%" : "31.5%")
+          ? (showHSNCol ? "28%" : "35%")
           : showHSNCol
-            ? "22%"
-            : "28%",
+            ? "26%"
+            : "33%",
       align: "left",
     },
     ...(isRealTast
       ? []
       : [{ key: "size", label: "SIZE", width: "6%", align: "center" as const }]),
     ...(showBarcodeCol
-      ? [{ key: "barcode", label: "BARCODE", width: "14%", align: "center" as const }]
+      ? [{ key: "barcode", label: "BARCODE", width: "13%", align: "center" as const }]
       : []),
   ];
   if (showHSNCol) {
     cols.push({ key: "hsn", label: "HSN", width: isRealTast ? "10%" : "7%", align: "center" });
   }
   cols.push({ key: "qty", label: "QTY", width: isRealTast ? "6%" : "6%", align: "center" });
-  cols.push({ key: "rate", label: "RATE", width: isRealTast ? (showHSNCol ? "11%" : "12%") : "12%", align: "right" });
-  cols.push({ key: "amount", label: "AMOUNT", width: isRealTast ? (showHSNCol ? "12%" : "13%") : "14%", align: "right" });
+  cols.push({
+    key: "rate",
+    label: "RATE",
+    width: isRealTast ? (showHSNCol ? "11%" : "12%") : "12%",
+    align: "right",
+  });
+  cols.push({
+    key: "amount",
+    label: "AMOUNT",
+    // Absorb remaining width so col % ≈ 100 (was ~88% → PDF column drift).
+    width: isRealTast ? (showHSNCol ? "12%" : "13%") : "23%",
+    align: "right",
+  });
 
   const cellBase: React.CSSProperties = {
     borderRight: B,
     borderBottom: B,
-    padding: isA4 ? "2px 5px" : "1px 3px",
+    padding: isA4 ? "2px 5px" : "2px 3px",
     fontSize: fsBody,
     fontWeight: "bold",
     verticalAlign: "middle",
     lineHeight: "1.25",
+    // minHeight only — fixed maxHeight + table height:100% clipped text onto borders in PDF.
     height: ROW_H,
     minHeight: ROW_H,
-    maxHeight: ROW_H,
     overflow: "hidden",
   };
 
@@ -460,17 +471,17 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   const qrBoxMm = isA4 ? 28 : 22;
   const qrPadMm = isA4 ? 2 : 0.6;
   const showPaymentQr = Boolean(qrCodeUrl && !isRealTast);
-  const signColWidth = isA5Retail ? "36%" : "40%";
+  const signColWidth = isA5Retail ? "34%" : "40%";
   // GST summary lives in the Note column (not Add: CGST/SGST rows on the right).
   const showGstInNote = !isRealTast && showGSTBreakdown && hasGSTData;
   const fsGstSummaryLabel = isA4 ? "11px" : "9px";
   const fsGstSummaryBody = isA4 ? "11px" : "9px";
   const fsTermsTitle = isA4 ? (isRealTast ? "14px" : "13px") : "11px";
   const fsTermsBody = isA4 ? (isRealTast ? "13px" : "12px") : "10px";
-  // A5 SN: compact column + smaller type so 10 rows fit with QR on-page.
-  const fsSrNo = isRealTast ? fsBody : isA5Retail ? "9px" : "16px";
-  const fsSrHeader = isRealTast ? fsHeading : isA5Retail ? "8px" : "14px";
-  const totalsColWidth = isA4 ? "46%" : "48%";
+  // A5 SN: readable digits that still fit 8 rows + footer.
+  const fsSrNo = isRealTast ? fsBody : isA5Retail ? "11px" : "16px";
+  const fsSrHeader = isRealTast ? fsHeading : isA5Retail ? "9px" : "14px";
+  const totalsColWidth = isA4 ? "46%" : "46%";
   const totalsPad = isA4 ? "3px 8px" : "2px 5px";
   const totalsAmountStyle: React.CSSProperties = {
     flexShrink: 0,
@@ -660,6 +671,8 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                         minHeight: 0,
                         display: "flex",
                         flexDirection: "column",
+                        // Clip stretched grid so blank SN rows never paint over Note/totals.
+                        overflow: "hidden",
                       }
                     : undefined
                 }
@@ -719,7 +732,8 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                       <tr
                         key={idx}
                         style={
-                          isPreprintedAny && isBlankRow
+                          // Blank rows flex with table height:100% (fixed px heights overflowed onto footer).
+                          ((isPreprintedAny || isA5Retail) && isBlankRow)
                             ? { height: "auto" }
                             : { height: rowHasDisc ? ROW_H_WITH_DISC : ROW_H }
                         }
@@ -730,7 +744,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                             ...cellBase,
                             textAlign: c.align,
                             borderRight: isLast ? "none" : B,
-                            ...(isPreprintedAny && isBlankRow
+                            ...((isPreprintedAny || isA5Retail) && isBlankRow
                               ? {
                                   height: "auto",
                                   minHeight: ROW_H,
@@ -1351,11 +1365,13 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
             display: flex !important;
             flex-direction: column !important;
           }
-          .retail-erp-invoice-template[data-invoice-variant="preprinted"] .retail-erp-items-grow {
+          .retail-erp-invoice-template[data-invoice-variant="preprinted"] .retail-erp-items-grow,
+          .retail-erp-items-grow {
             flex: 1 1 auto !important;
             min-height: 0 !important;
             display: flex !important;
             flex-direction: column !important;
+            overflow: hidden !important;
           }
           .retail-erp-invoice-template[data-invoice-variant="preprinted"] .retail-erp-items-grow > table {
             flex: 1 1 auto !important;
