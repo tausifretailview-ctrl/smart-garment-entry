@@ -13,6 +13,8 @@ interface Organization {
   organization_number: number;
   is_suspended?: boolean;
   suspension_reason?: string | null;
+  /** Membership role attached from `organization_members` — avoids a second query in switchOrganization. */
+  member_role?: "admin" | "manager" | "user";
 }
 
 interface OrganizationContextType {
@@ -73,6 +75,8 @@ export const OrganizationProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState(false);
   const [hasResolvedOrganizations, setHasResolvedOrganizations] = useState(false);
+  // Prevent duplicate concurrent fetches (StrictMode double-invoke, rapid remounts).
+  const fetchingRef = useRef(false);
 
   useEffect(() => {
     if (!user) {
@@ -120,6 +124,8 @@ export const OrganizationProvider = ({ children }: { children: ReactNode }) => {
 
   const fetchOrganizations = useCallback(async () => {
     if (!user) return;
+    if (fetchingRef.current) return;
+    fetchingRef.current = true;
 
     setLoading(true);
     setFetchError(false);
@@ -210,6 +216,16 @@ export const OrganizationProvider = ({ children }: { children: ReactNode }) => {
         ?.map((m: any) => m.organizations)
         .filter(Boolean) as Organization[];
 
+      // Attach membership role to each org so switchOrganization can resolve
+      // synchronously from local state (no extra network round-trip).
+      if (orgs && memberships) {
+        const roleByOrg = new Map<string, "admin" | "manager" | "user">();
+        memberships.forEach((m: any) => {
+          if (m.organization_id && m.role) roleByOrg.set(m.organization_id, m.role);
+        });
+        orgs = orgs.map((o) => ({ ...o, member_role: roleByOrg.get(o.id) }));
+      }
+
       // Step 3: Suspicious empty check — if cache says user HAD orgs, retry once with forced refresh
       if ((!orgs || orgs.length === 0) && getCachedOrgs(user.id)?.length) {
         console.warn("Empty org result but cache exists — forcing session refresh and retrying…");
@@ -275,6 +291,7 @@ export const OrganizationProvider = ({ children }: { children: ReactNode }) => {
       if (!didTimeout) {
         setLoading(false);
       }
+      fetchingRef.current = false;
     }
   }, [user]);
 
@@ -296,22 +313,28 @@ export const OrganizationProvider = ({ children }: { children: ReactNode }) => {
     };
   }, [currentOrganization?.id, user?.id]);
 
-  const switchOrganization = async (orgId: string) => {
+  const switchOrganization = useCallback((orgId: string) => {
     if (!user) return;
     const org = organizations.find((o) => o.id === orgId);
     if (!org) return;
-    const { data: membership } = await supabase
-      .from("organization_members")
-      .select("role")
-      .eq("organization_id", orgId)
-      .eq("user_id", user.id)
-      .single();
-    if (membership) {
-      setCurrentOrganization(org);
-      setOrganizationRole(membership.role as any);
-      localStorage.setItem(`currentOrgId_${user.id}`, orgId);
+    setCurrentOrganization(org);
+    if (org.member_role) {
+      setOrganizationRole(org.member_role);
     }
-  };
+    localStorage.setItem(`currentOrgId_${user.id}`, orgId);
+    // Best-effort role refresh if role wasn't attached (legacy cache path).
+    if (!org.member_role) {
+      supabase
+        .from("organization_members")
+        .select("role")
+        .eq("organization_id", orgId)
+        .eq("user_id", user.id)
+        .maybeSingle()
+        .then(({ data }) => {
+          if (data?.role) setOrganizationRole(data.role as any);
+        });
+    }
+  }, [user, organizations]);
 
   const hasFeature = (featureName: string): boolean => {
     if (!currentOrganization) return false;
