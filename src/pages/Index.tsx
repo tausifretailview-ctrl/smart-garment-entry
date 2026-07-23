@@ -6,6 +6,7 @@ import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useOrganizationReceivablesSummary } from "@/hooks/useOrganizationReceivablesSummary";
 import { useFieldSalesAccess } from "@/hooks/useFieldSalesAccess";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
+import { resolveFirstAllowedPath } from "@/lib/menuPermissions";
 
 import { useContextMenu, useIsDesktop } from "@/hooks/useContextMenu";
 import {
@@ -260,6 +261,9 @@ const DesktopDashboard = () => {
   const { orgNavigate: navigate } = useOrgNavigation();
   const { hasAccess: hasFieldSalesAccess, employeeName } = useFieldSalesAccess();
   const { isAdmin, hasSpecialPermission, hasMenuAccess, permissions, loading: permissionsLoading } = useUserPermissions();
+  // Custom rights: Main Dashboard off → no page, no KPI values, no stats fetch.
+  const canAccessMainDashboard =
+    permissions === null || hasMenuAccess("main_dashboard");
   const [dateRange, setDateRange] = useState<DateRangeType>("monthly");
   const [selectedMonthKey, setSelectedMonthKey] = useState(() =>
     format(startOfMonth(new Date()), "yyyy-MM"),
@@ -368,16 +372,39 @@ const DesktopDashboard = () => {
     [currentOrganization?.id],
   );
 
-  const metricsQueryEnabled = isDashboardMetricsQueryEnabled(
-    currentOrganization?.id,
-    metricsLoadRequested,
-  );
+  const metricsQueryEnabled =
+    !permissionsLoading &&
+    canAccessMainDashboard &&
+    isDashboardMetricsQueryEnabled(
+      currentOrganization?.id,
+      metricsLoadRequested,
+    );
 
   useEffect(() => {
-    if (!currentOrganization?.id) return;
+    if (!currentOrganization?.id || permissionsLoading) return;
+    if (!canAccessMainDashboard) {
+      setMetricsLoadRequested(false);
+      setAuxiliaryMetricsEnabled(false);
+      return;
+    }
     setMetricsLoadRequested(true);
     setAuxiliaryMetricsEnabled(false);
-  }, [currentOrganization?.id]);
+  }, [currentOrganization?.id, permissionsLoading, canAccessMainDashboard]);
+
+  // Leave dashboard when Main Dashboard right is disabled
+  useEffect(() => {
+    if (permissionsLoading) return;
+    if (canAccessMainDashboard) return;
+    const fallback = resolveFirstAllowedPath(hasMenuAccess, permissions, organizationRole);
+    navigate(fallback ? `/${fallback}` : "/");
+  }, [
+    permissionsLoading,
+    canAccessMainDashboard,
+    hasMenuAccess,
+    permissions,
+    organizationRole,
+    navigate,
+  ]);
 
   useEffect(() => {
     const updatedAt = queryClient.getQueryState(dashStatsQueryKey)?.dataUpdatedAt;
@@ -408,6 +435,7 @@ const DesktopDashboard = () => {
 
   // Manual refresh — only time dashboard cards/charts hit Supabase
   const handleRefreshAll = async () => {
+    if (!canAccessMainDashboard) return;
     setIsRefreshing(true);
     try {
       flushSync(() => {
@@ -444,13 +472,22 @@ const DesktopDashboard = () => {
     ...DASHBOARD_MANUAL_REFRESH_OPTIONS,
   });
 
-  const displayedDashStats = useMemo(
-    () =>
+  const displayedDashStats = useMemo(() => {
+    // Never surface cached KPI numbers when Main Dashboard is disabled / rights loading.
+    if (permissionsLoading || !canAccessMainDashboard) return null;
+    return (
       liveDashStats ??
       queryClient.getQueryData<DashStats>(dashStatsQueryKey) ??
-      null,
-    [liveDashStats, queryClient, dashStatsQueryKey, cacheTick],
-  );
+      null
+    );
+  }, [
+    permissionsLoading,
+    canAccessMainDashboard,
+    liveDashStats,
+    queryClient,
+    dashStatsQueryKey,
+    cacheTick,
+  ]);
 
   // Defer charts + customer segments until main RPC tiles are ready (faster first paint).
   useEffect(() => {
@@ -803,7 +840,14 @@ const DesktopDashboard = () => {
   };
 
   const hasMetrics = Boolean(displayedDashStats);
-  const showPlaceholders = !hasMetrics && (!metricsLoadRequested || isLoading);
+  const showPlaceholders =
+    permissionsLoading ||
+    !canAccessMainDashboard ||
+    (!hasMetrics && (!metricsLoadRequested || isLoading));
+
+  if (!permissionsLoading && !canAccessMainDashboard) {
+    return <DashboardSkeleton />;
+  }
   const metricsLoading = metricsLoadRequested && isLoading && hasMetrics;
   const displayUpdatedAt =
     lastUpdated ?? (cachedStatsUpdatedAt ? new Date(cachedStatsUpdatedAt) : null);

@@ -44,6 +44,7 @@ import { prefetchPosDashboardQueries } from "@/utils/posDashboardPrefetch";
 import { DesktopAppShell } from "@/components/DesktopAppShell";
 import { SharedAppShellContext } from "@/contexts/SharedAppShellContext";
 import { useShowDesktopChrome } from "@/hooks/useDesktopViewPreference";
+import { useUserPermissions } from "@/hooks/useUserPermissions";
 
 /** Sentinel — no cached pane is active while a bill-entry screen uses <Outlet>. */
 const TAB_CACHE_INACTIVE = "__none__";
@@ -82,6 +83,7 @@ export const OrgLayout = () => {
   const location = useLocation();
   const { openWindows } = useWindowTabs();
   const showDesktopChrome = useShowDesktopChrome();
+  const { hasMenuAccess, permissions, loading: permissionsLoading } = useUserPermissions();
 
   const currentPath = useMemo(
     () => getOrgPathSegment(location.pathname, orgSlug),
@@ -162,10 +164,13 @@ export const OrgLayout = () => {
   // Warm Sales + Purchase dashboard first page after login — data ready before user opens tab.
   useEffect(() => {
     const orgId = currentOrganization?.id;
-    if (!isOrgSynced || !user || !orgId) return;
+    if (!isOrgSynced || !user || !orgId || permissionsLoading) return;
 
     const warm = () => {
-      prefetchMainDashboardQueries(queryClient, orgId);
+      // Do not prefetch Main Dashboard KPIs when User Rights disables main_dashboard.
+      if (permissions === null || hasMenuAccess("main_dashboard")) {
+        prefetchMainDashboardQueries(queryClient, orgId);
+      }
       prefetchPosDashboardQueries(queryClient, supabase, orgId);
       const salesOpts = invoiceDashboardPrefetchQueryOptions(supabase, orgId);
       void queryClient.prefetchQuery({
@@ -181,7 +186,15 @@ export const OrgLayout = () => {
     }
     const t = window.setTimeout(warm, 2_000);
     return () => window.clearTimeout(t);
-  }, [isOrgSynced, user, currentOrganization?.id, queryClient]);
+  }, [
+    isOrgSynced,
+    user,
+    currentOrganization?.id,
+    queryClient,
+    permissionsLoading,
+    permissions,
+    hasMenuAccess,
+  ]);
 
   // purchase-entry is tab-cached so in-app tab switch keeps the form mounted (other entry routes use Outlet).
   const wantsTabCache =
