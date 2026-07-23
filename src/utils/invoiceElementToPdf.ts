@@ -73,7 +73,21 @@ async function capturePagedInvoiceTemplatesToPdfBlob(
     if (i > 0) pdf.addPage();
     const canvas = await rasterizeElement(pageEls[i], mobileOptimized, wappConnectPdf);
     const imgData = canvas.toDataURL(mimeType, imageQuality);
-    pdf.addImage(imgData, imageType, 0, 0, pdfWidth, pdfHeight);
+    // Fit without stretching — full-bleed stretch warped WhatsApp (WappConnect) A5 Retail ERP PDFs.
+    const canvasAspect = canvas.width / Math.max(1, canvas.height);
+    const pageAspect = pdfWidth / Math.max(0.001, pdfHeight);
+    let drawW = pdfWidth;
+    let drawH = pdfHeight;
+    let offsetX = 0;
+    let offsetY = 0;
+    if (canvasAspect > pageAspect) {
+      drawH = pdfWidth / canvasAspect;
+      offsetY = (pdfHeight - drawH) / 2;
+    } else {
+      drawW = pdfHeight * canvasAspect;
+      offsetX = (pdfWidth - drawW) / 2;
+    }
+    pdf.addImage(imgData, imageType, offsetX, offsetY, drawW, drawH);
   }
 
   return pdf.output("blob");
