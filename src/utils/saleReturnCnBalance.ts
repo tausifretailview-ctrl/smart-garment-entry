@@ -25,6 +25,22 @@ export function creditNoteLiveRemaining(cn: CreditNoteLiveRow | null | undefined
 }
 
 /**
+ * Sale return was absorbed into an invoice at billing (`sales.sale_return_adjust`).
+ * Re-applying its CN via Sale Return → Adjust or Sales → From Credit Note would
+ * credit the customer twice for the same return (ELLA / SHAHIN pattern).
+ */
+export function isSaleReturnConsumedAtBilling(sr: {
+  credit_status?: string | null;
+  linked_sale_id?: string | null;
+}): boolean {
+  const status = String(sr.credit_status || "")
+    .toLowerCase()
+    .trim();
+  const linked = String(sr.linked_sale_id || "").trim();
+  return status === "adjusted" && linked.length > 0;
+}
+
+/**
  * Authoritative CN available for a sale return.
  * When a credit_notes row exists, its remaining balance wins over stale `credit_available_balance`.
  */

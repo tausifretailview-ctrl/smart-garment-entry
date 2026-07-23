@@ -1157,7 +1157,7 @@ export const FloatingSaleReturn = ({
                 );
                 const applyAmt = Math.min(grossAmount, outstanding);
                 if (applyAmt > 0) {
-                  const { data: applyRes } = await supabase.rpc(
+                  const { data: applyRes, error: applyErr } = await supabase.rpc(
                     'apply_credit_note_to_sale',
                     {
                       p_customer_id: effectiveCustomerId,
@@ -1166,7 +1166,12 @@ export const FloatingSaleReturn = ({
                       p_organization_id: organizationId,
                     }
                   );
+                  if (applyErr) throw applyErr;
                   const appliedNum = Number((applyRes as any)?.applied_amount) || 0;
+                  if (appliedNum <= 0.01) {
+                    // Do not mark return adjusted when nothing was applied — keeps CN spendable once.
+                    console.warn('Auto-apply CN to original sale applied ₹0; leaving return pending');
+                  } else {
                   const fullyConsumed = appliedNum >= grossAmount - 0.01;
                   await supabase
                     .from('sale_returns')
@@ -1187,6 +1192,7 @@ export const FloatingSaleReturn = ({
                       .from('sales')
                       .update({ payment_status: 'completed' } as any)
                       .eq('id', billSaleId);
+                  }
                   }
                 }
               }

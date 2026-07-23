@@ -19,6 +19,8 @@ import {
   preSaveInvariants,
   warnSettlementPathMismatch,
 } from "@/utils/saleSettlement";
+import { ensureCreditNoteForSaleReturn } from "@/utils/ensureCreditNoteForSaleReturn";
+import { isSaleReturnConsumedAtBilling } from "@/utils/saleReturnCnBalance";
 import { allocateMixPaymentToBill } from "@/utils/mixPaymentAllocation";
 import { generateOrgSaleNumber } from "@/utils/saleNumber";
 import {
@@ -237,7 +239,13 @@ export const useSaveSale = () => {
       currentOrganization.id,
       { includeUnlinkedAdjusted: true },
     );
-    if (!cnPool.length) return;
+    if (!cnPool.length) {
+      throw new Error(
+        `Cannot apply sale-return adjust of ₹${roundMoney(params.adjustmentAmount).toLocaleString("en-IN")}: no available credit notes for this customer. Remove the S/R adjust or create/apply a pending return first.`,
+      );
+    }
+
+    const availableById = new Map(cnPool.map((r) => [r.id, r.available]));
 
     const { data: pendingSRs } = await supabase
       .from('sale_returns')
@@ -251,12 +259,16 @@ export const useSaveSale = () => {
       .order('return_date', { ascending: true });
 
     const targetAmount = roundMoney(params.adjustmentAmount);
-    const availableSrAmt = (sr: any) =>
-      roundMoney(
+    const availableSrAmt = (sr: { id: string; credit_status?: string | null; credit_available_balance?: number | null; net_amount?: number | null; linked_sale_id?: string | null }) => {
+      if (isSaleReturnConsumedAtBilling(sr)) return 0;
+      const fromPool = availableById.get(sr.id);
+      if (fromPool != null) return roundMoney(fromPool);
+      return roundMoney(
         sr.credit_status === 'partially_adjusted' && sr.credit_available_balance != null
           ? Number(sr.credit_available_balance)
           : Number(sr.net_amount) || 0
       );
+    };
 
     const sortedSRs = [...(pendingSRs || [])].sort((a: any, b: any) => {
       const aAmt = availableSrAmt(a);
@@ -273,19 +285,28 @@ export const useSaveSale = () => {
       const srAmt = availableSrAmt(sr);
       if (srAmt <= 0) continue;
 
+      // Ensure a credit_notes row exists so later Sales/Sale-Return Adjust cannot
+      // re-spend this return (used_amount must move with billing absorption).
+      const ensuredCnId = await ensureCreditNoteForSaleReturn(supabase, {
+        organizationId: currentOrganization.id,
+        saleReturnId: sr.id,
+        creditNoteIdHint: String((sr as { credit_note_id?: string | null }).credit_note_id || "").trim() || null,
+        customerNameFallback: (sr as { customer_name?: string | null }).customer_name || undefined,
+        returnNumberFallback: (sr as { return_number?: string | null }).return_number || undefined,
+        creditAmountFallback: Number(sr.net_amount) || srAmt,
+      });
+
       // Full consume
       if (remaining >= srAmt - 0.01) {
         const updateRow: Record<string, unknown> = {
           credit_status: 'adjusted',
           linked_sale_id: params.saleId,
+          credit_available_balance: 0,
         };
-        if (sr.credit_status === 'partially_adjusted') {
-          updateRow.credit_available_balance = 0;
-        }
+        if (ensuredCnId) updateRow.credit_note_id = ensuredCnId;
         await supabase.from('sale_returns').update(updateRow).eq('id', sr.id);
-        const cnIdFull = String((sr as { credit_note_id?: string | null }).credit_note_id || "").trim();
-        if (cnIdFull) {
-          await markCreditNoteFullyUsedForSrAdjust(cnIdFull);
+        if (ensuredCnId) {
+          await markCreditNoteFullyUsedForSrAdjust(ensuredCnId);
         }
         remaining = roundMoney(remaining - srAmt);
         continue;
@@ -303,14 +324,14 @@ export const useSaveSale = () => {
             credit_available_balance: newAvail,
             credit_status: newAvail <= 0.01 ? 'adjusted' : 'partially_adjusted',
             linked_sale_id: newAvail <= 0.01 ? params.saleId : (sr as { linked_sale_id?: string | null }).linked_sale_id,
+            ...(ensuredCnId ? { credit_note_id: ensuredCnId } : {}),
           })
           .eq('id', sr.id);
-        const cnIdPartial = String((sr as { credit_note_id?: string | null }).credit_note_id || "").trim();
-        if (cnIdPartial) {
+        if (ensuredCnId) {
           if (newAvail <= 0.01) {
-            await markCreditNoteFullyUsedForSrAdjust(cnIdPartial);
+            await markCreditNoteFullyUsedForSrAdjust(ensuredCnId);
           } else {
-            await setLinkedCreditNoteAmount(cnIdPartial, newAvail);
+            await setLinkedCreditNoteAmount(ensuredCnId, newAvail);
           }
         }
         remaining = 0;
@@ -327,7 +348,7 @@ export const useSaveSale = () => {
       const leftoverGross = roundMoney(srGross - consumedGross);
       const leftoverGst = roundMoney(srGst - consumedGst);
 
-      const cnIdSplit = String((sr as { credit_note_id?: string | null }).credit_note_id || "").trim();
+      const cnIdSplit = ensuredCnId || String((sr as { credit_note_id?: string | null }).credit_note_id || "").trim();
       const clearCnFromConsumedRow = Boolean(cnIdSplit && leftoverAmt > 0.01);
 
       await supabase
@@ -338,8 +359,9 @@ export const useSaveSale = () => {
           gst_amount: consumedGst,
           credit_status: 'adjusted',
           linked_sale_id: params.saleId,
+          credit_available_balance: 0,
           notes: `${sr.notes || ''}${sr.notes ? ' | ' : ''}Partially adjusted in POS sale`,
-          ...(clearCnFromConsumedRow ? { credit_note_id: null } : {}),
+          ...(clearCnFromConsumedRow ? { credit_note_id: null } : cnIdSplit ? { credit_note_id: cnIdSplit } : {}),
         } as Record<string, unknown>)
         .eq('id', sr.id);
 
@@ -359,6 +381,7 @@ export const useSaveSale = () => {
           gross_amount: leftoverGross,
           gst_amount: leftoverGst,
           net_amount: leftoverAmt,
+          credit_available_balance: leftoverAmt,
           notes: `${sr.notes || ''}${sr.notes ? ' | ' : ''}Pending balance after partial POS adjustment`,
         } as any);
         if (cnIdSplit) {
@@ -370,6 +393,12 @@ export const useSaveSale = () => {
 
       remaining = 0;
       break;
+    }
+
+    if (remaining > 0.01) {
+      throw new Error(
+        `Could only absorb ₹${roundMoney(targetAmount - remaining).toLocaleString("en-IN")} of ₹${targetAmount.toLocaleString("en-IN")} sale-return adjust. Reduce S/R adjust or free credit-note balance first.`,
+      );
     }
   };
 
@@ -806,15 +835,11 @@ export const useSaveSale = () => {
             customerId: saleData.customerId!,
             saleId: sale.id,
             adjustmentAmount: saleData.saleReturnAdjust,
-          }).catch((srErr) => console.error('Failed to mark SR as adjusted:', srErr));
+          });
         if (runtimeOptions?.nonBlockingSaleReturnConsume) {
-          void runSrConsume();
+          void runSrConsume().catch((srErr) => console.error('Failed to mark SR as adjusted:', srErr));
         } else {
-          try {
-            await runSrConsume();
-          } catch (srErr) {
-            console.error('Failed to mark SR as adjusted:', srErr);
-          }
+          await runSrConsume();
         }
       }
 
@@ -1599,15 +1624,11 @@ export const useSaveSale = () => {
             customerId: saleData.customerId!,
             saleId: sale.id,
             adjustmentAmount: saleData.saleReturnAdjust,
-          }).catch((srErr) => console.error('Failed to mark SR as adjusted:', srErr));
+          });
         if (runtimeOptions?.nonBlockingSaleReturnConsume) {
-          void runSrConsume();
+          void runSrConsume().catch((srErr) => console.error('Failed to mark SR as adjusted:', srErr));
         } else {
-          try {
-            await runSrConsume();
-          } catch (srErr) {
-            console.error('Failed to mark SR as adjusted:', srErr);
-          }
+          await runSrConsume();
         }
       }
 
@@ -2008,15 +2029,11 @@ export const useSaveSale = () => {
             customerId: saleData.customerId!,
             saleId: sale.id,
             adjustmentAmount: saleData.saleReturnAdjust,
-          }).catch((srErr) => console.error('Failed to mark SR as adjusted:', srErr));
+          });
         if (runtimeOptions?.nonBlockingSaleReturnConsume) {
-          void runSrConsume();
+          void runSrConsume().catch((srErr) => console.error('Failed to mark SR as adjusted:', srErr));
         } else {
-          try {
-            await runSrConsume();
-          } catch (srErr) {
-            console.error('Failed to mark SR as adjusted:', srErr);
-          }
+          await runSrConsume();
         }
       }
 
