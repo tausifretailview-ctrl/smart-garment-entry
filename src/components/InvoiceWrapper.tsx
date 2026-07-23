@@ -23,6 +23,10 @@ import { ThermalPrint80mm } from './ThermalPrint80mm';
 import { ThermalReceiptCompact } from './ThermalReceiptCompact';
 import { ModernThermalReceipt80mm } from './ModernThermalReceipt80mm';
 import { TvsThermalReceipt80mm } from './TvsThermalReceipt80mm';
+import {
+  formatCnAdjustBillNote,
+  mergeInvoiceNotesWithCnAdjust,
+} from '@/utils/cnAdjustBillNote';
 import { NewDesignThermalReceipt80mm } from './NewDesignThermalReceipt80mm';
 import { KidsThermalReceipt80mm } from './KidsThermalReceipt80mm';
 import QRCode from 'qrcode';
@@ -148,6 +152,11 @@ interface InvoiceWrapperProps {
   notes?: string;
   /** Freight / alteration / other charges added on top of line items (sale invoice). */
   otherCharges?: number;
+  /**
+   * Date CN / S/R was adjusted onto this bill (yyyy-MM-dd). Used only for a print Note line
+   * when saleReturnAdjust > 0 — e.g. "CN Adjust: ₹1,474 (adj. 03/07/2026)".
+   */
+  cnAdjustDate?: string | Date | null;
   isDcInvoice?: boolean;
   documentType?: 'invoice' | 'quotation' | 'sale-order' | 'pos';
   financerDetails?: {
@@ -421,6 +430,15 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
         ? !!(receivingBankDetails || settings?.sale_settings?.bank_details)
         : showBankDetails;
 
+    // CN / S/R adjust from Sales dashboard → print as Note only (amount + adj. date when known).
+    const mergedNotes = mergeInvoiceNotesWithCnAdjust(
+      props.notes,
+      formatCnAdjustBillNote({
+        saleReturnAdjust: props.saleReturnAdjust,
+        cnAdjustDate: props.cnAdjustDate,
+      }),
+    );
+
     // Common props for all templates
     const commonProps = {
       businessName: settings?.business_name || '',
@@ -502,7 +520,7 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
       
       // Salesman and Notes
       salesman: props.salesman,
-      notes: props.notes,
+      notes: mergedNotes,
       otherCharges: props.otherCharges ?? 0,
       
       // Wholesale mode settings
@@ -629,7 +647,7 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
             refundCash={props.refundCash}
             documentType="invoice"
             termsConditions={filteredTerms.join('\n')}
-            notes={props.notes}
+            notes={mergedNotes}
             pointsRedeemed={props.pointsRedeemed}
             pointsRedemptionValue={props.pointsRedemptionValue}
             pointsBalance={props.pointsBalance}
