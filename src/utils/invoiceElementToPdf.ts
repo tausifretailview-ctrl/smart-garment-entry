@@ -73,7 +73,7 @@ async function capturePagedInvoiceTemplatesToPdfBlob(
     if (i > 0) pdf.addPage();
     const canvas = await rasterizeElement(pageEls[i], mobileOptimized, wappConnectPdf);
     const imgData = canvas.toDataURL(mimeType, imageQuality);
-    // Fit without stretching — full-bleed stretch warped A5 Retail ERP grids/footers.
+    // Fit without stretching — full-bleed stretch warped WhatsApp (WappConnect) A5 Retail ERP PDFs.
     const canvasAspect = canvas.width / Math.max(1, canvas.height);
     const pageAspect = pdfWidth / Math.max(0.001, pdfHeight);
     let drawW = pdfWidth;
