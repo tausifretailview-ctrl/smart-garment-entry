@@ -31,12 +31,14 @@ export function useOrgNavigation() {
     // Get fresh org slug at navigation time (in case context wasn't ready when hook mounted)
     const effectiveOrgSlug = getOrgSlug();
     
-    // Skip org-scoping for certain paths (public routes)
-    if (path.startsWith("/auth") || 
-        path.startsWith("/platform-admin") || 
+    // Skip org-scoping for certain paths (public routes).
+    // Use `/pay/` (or exact `/pay`) — NOT `/pay` prefix — so `/payments-dashboard` stays org-scoped.
+    if (path.startsWith("/auth") ||
+        path.startsWith("/platform-admin") ||
         path.startsWith("/invoice/view") ||
         path.startsWith("/organization-setup") ||
-        path.startsWith("/pay")) {
+        path === "/pay" ||
+        path.startsWith("/pay/")) {
       navigate(path, options);
       return;
     }
@@ -79,12 +81,14 @@ export function useOrgNavigation() {
   const getOrgPath = useCallback((path: string) => {
     const effectiveOrgSlug = getOrgSlug();
     
-    // Skip org-scoping for certain paths (public routes)
-    if (path.startsWith("/auth") || 
-        path.startsWith("/platform-admin") || 
+    // Skip org-scoping for certain paths (public routes).
+    // Use `/pay/` (or exact `/pay`) — NOT `/pay` prefix — so `/payments-dashboard` stays org-scoped.
+    if (path.startsWith("/auth") ||
+        path.startsWith("/platform-admin") ||
         path.startsWith("/invoice/view") ||
         path.startsWith("/organization-setup") ||
-        path.startsWith("/pay")) {
+        path === "/pay" ||
+        path.startsWith("/pay/")) {
       return path;
     }
     

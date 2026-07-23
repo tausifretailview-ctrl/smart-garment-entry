@@ -28,12 +28,14 @@ const NavLink = forwardRef<HTMLAnchorElement, NavLinkCompatProps>(
     const orgScopedTo = useMemo(() => {
       const path = typeof to === "string" ? to : to.pathname || "";
       
-      // Skip org-scoping for certain paths (public routes)
-      if (path.startsWith("/auth") || 
-          path.startsWith("/platform-admin") || 
+      // Skip org-scoping for public routes. Exact `/pay` or `/pay/...` only —
+      // `/payments-dashboard` must stay org-scoped.
+      if (path.startsWith("/auth") ||
+          path.startsWith("/platform-admin") ||
           path.startsWith("/invoice/view") ||
           path.startsWith("/organization-setup") ||
-          path.startsWith("/pay")) {
+          path === "/pay" ||
+          path.startsWith("/pay/")) {
         return to;
       }
       
@@ -68,7 +70,8 @@ const NavLink = forwardRef<HTMLAnchorElement, NavLinkCompatProps>(
         path.startsWith("/platform-admin") ||
         path.startsWith("/invoice/view") ||
         path.startsWith("/organization-setup") ||
-        path.startsWith("/pay")
+        path === "/pay" ||
+        path.startsWith("/pay/")
       ) {
         return;
       }
