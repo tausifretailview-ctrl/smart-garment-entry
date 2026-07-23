@@ -449,36 +449,17 @@ const UserRights = () => {
         columns: columnVisibility,
       };
 
-      // First check if permission record exists
-      const { data: existing } = await supabase
-        .from("user_permissions")
-        .select("id")
-        .eq("organization_id", currentOrganization.id)
-        .eq("user_id", selectedUserId)
-        .maybeSingle();
-
-      let error;
-      if (existing?.id) {
-        // Update existing record
-        const result = await supabase
-          .from("user_permissions")
-          .update({
-            permissions: permissionData,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", existing.id);
-        error = result.error;
-      } else {
-        // Insert new record
-        const result = await supabase
-          .from("user_permissions")
-          .insert({
-            organization_id: currentOrganization.id,
-            user_id: selectedUserId,
-            permissions: permissionData,
-          });
-        error = result.error;
-      }
+      // Upsert avoids insert-vs-update races when the SELECT for an existing row
+      // is blocked (e.g. manager loading another user's rights before RLS fix).
+      const { error } = await supabase.from("user_permissions").upsert(
+        {
+          organization_id: currentOrganization.id,
+          user_id: selectedUserId,
+          permissions: permissionData,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "organization_id,user_id" },
+      );
 
       if (error) throw error;
     },
@@ -489,7 +470,14 @@ const UserRights = () => {
     },
     onError: (error: any) => {
       console.error("Save error:", error);
-      toast.error(error.message || "Failed to save permissions");
+      const msg = String(error?.message || "");
+      if (/row-level security|rls/i.test(msg)) {
+        toast.error(
+          "Cannot save user rights: your account must be an organization Admin or Manager for this shop. Platform admins need the updated permissions policy applied.",
+        );
+        return;
+      }
+      toast.error(msg || "Failed to save permissions");
     },
   });
 
