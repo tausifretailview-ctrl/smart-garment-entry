@@ -1,7 +1,10 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { fetchAllOpenSettlementVariantIds } from "@/utils/stockSettlementScans";
+import { toLockedVariantIdSet } from "@/utils/settlementLockedVariantIds";
+
+export { getSettlementLockedCartItems, toLockedVariantIdSet } from "@/utils/settlementLockedVariantIds";
 
 const queryKey = (orgId: string | undefined) => ["open-settlement-variant-ids", orgId] as const;
 
@@ -13,6 +16,9 @@ const queryKey = (orgId: string | undefined) => ["open-settlement-variant-ids", 
  *
  * Fail-open: if the query errors, we return an empty set so business is not
  * blocked by transient network failures.
+ *
+ * Query data is a plain string[] (not Set) so React Query persistence cannot
+ * dehydrate locks into `{}` and break POS barcode `.has` checks.
  */
 export function useOpenSettlementVariantIds() {
   const { currentOrganization } = useOrganization();
@@ -21,13 +27,14 @@ export function useOpenSettlementVariantIds() {
 
   const { data } = useQuery({
     queryKey: queryKey(orgId),
-    queryFn: async () => {
-      if (!orgId) return new Set<string>();
+    queryFn: async (): Promise<string[]> => {
+      if (!orgId) return [];
       try {
-        return await fetchAllOpenSettlementVariantIds(orgId);
+        const ids = await fetchAllOpenSettlementVariantIds(orgId);
+        return [...ids];
       } catch (err) {
         console.error("useOpenSettlementVariantIds:", err);
-        return new Set<string>();
+        return [];
       }
     },
     enabled: !!orgId,
@@ -47,7 +54,7 @@ export function useOpenSettlementVariantIds() {
     return () => document.removeEventListener("visibilitychange", onVis);
   }, [orgId, queryClient]);
 
-  const lockedVariantIds = data ?? new Set<string>();
+  const lockedVariantIds = useMemo(() => toLockedVariantIdSet(data), [data]);
 
   const isLocked = useCallback(
     (variantId: string | null | undefined): boolean =>
@@ -76,12 +83,6 @@ export function settlementLockedAddToast(productName: string, barcode: string) {
     title: LOCKED_VARIANT_TOAST.title,
     description: `${productName} (${code}) is currently scanned into an open stock settlement session. Settle or remove it from the settlement session before selling.`,
   };
-}
-
-export function getSettlementLockedCartItems<
-  T extends { variantId?: string | null; productName?: string; barcode?: string | null },
->(items: T[], lockedVariantIds: Set<string>): T[] {
-  return items.filter((item) => !!item.variantId && lockedVariantIds.has(item.variantId));
 }
 
 export function settlementLockedSaveToast(
