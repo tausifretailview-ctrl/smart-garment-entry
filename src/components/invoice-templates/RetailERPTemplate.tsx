@@ -185,8 +185,8 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
     notes && notes.trim() && !/^\d+$/.test(notes.trim()) ? notes.trim() : "";
   /** Default SN rows on preprinted — stretch to fill space above totals (no blank gap). */
   const PREPRINTED_DEFAULT_ROWS = isA4 ? 12 : 8;
-  /** A5 Retail ERP: 8 SN lines so Note/totals/terms stay below the grid (12 overflowed onto footer). */
-  const A5_RETAIL_SN_ROWS = 8;
+  /** A5 Retail ERP: fixed 10 SN lines; Terms + QR stay pinned in the page footer. */
+  const A5_RETAIL_SN_ROWS = 10;
   const MAX_ITEMS_PER_PAGE = isA4 ? 20 : isPreprintedA5 ? 10 : isA5Retail ? A5_RETAIL_SN_ROWS : 12;
   const TARGET_ROWS = isPreprintedAny
     ? Math.max(items.length, PREPRINTED_DEFAULT_ROWS)
@@ -404,8 +404,9 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   const fsInvoiceNo = isA4 ? "15px" : "13px";
   const fsDiscMedium = isA4 ? "11px" : "10px";
 
-  const ROW_H = isA4 ? "26px" : "22px";
-  const ROW_H_WITH_DISC = isA4 ? "36px" : "30px";
+  // A5 + 10 SN rows + footer QR: keep row height compact so footer never clips.
+  const ROW_H = isA4 ? "26px" : isA5Retail ? "20px" : "22px";
+  const ROW_H_WITH_DISC = isA4 ? "36px" : isA5Retail ? "28px" : "30px";
 
   // Real Tast: no size or barcode; HSN optional via show_hsn_code setting
   const showHSNCol = showHSN;
@@ -467,19 +468,19 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
 
   const stampSizeMap: Record<string, string> = { small: "60px", medium: "90px", large: "120px" };
   const stampDim = stampSizeMap[stampSize] || "90px";
-  // A5: larger QR sized to the sign column (still inside page border).
-  const qrBoxMm = isA4 ? 28 : 22;
-  const qrPadMm = isA4 ? 2 : 0.6;
+  // A5: QR fits sign column inside page border without shifting Terms.
+  const qrBoxMm = isA4 ? 28 : 20;
+  const qrPadMm = isA4 ? 2 : 0.5;
   const showPaymentQr = Boolean(qrCodeUrl && !isRealTast);
-  const signColWidth = isA5Retail ? "34%" : "40%";
+  const signColWidth = isA5Retail ? (showPaymentQr ? "36%" : "34%") : "40%";
   // GST summary lives in the Note column (not Add: CGST/SGST rows on the right).
   const showGstInNote = !isRealTast && showGSTBreakdown && hasGSTData;
   const fsGstSummaryLabel = isA4 ? "11px" : "9px";
   const fsGstSummaryBody = isA4 ? "11px" : "9px";
   const fsTermsTitle = isA4 ? (isRealTast ? "14px" : "13px") : "11px";
   const fsTermsBody = isA4 ? (isRealTast ? "13px" : "12px") : "10px";
-  // A5 SN: readable digits that still fit 8 rows + footer.
-  const fsSrNo = isRealTast ? fsBody : isA5Retail ? "11px" : "16px";
+  // A5 SN: readable digits that still fit 10 rows + footer (Terms + QR).
+  const fsSrNo = isRealTast ? fsBody : isA5Retail ? "10px" : "16px";
   const fsSrHeader = isRealTast ? fsHeading : isA5Retail ? "9px" : "14px";
   const totalsColWidth = isA4 ? "46%" : "46%";
   const totalsPad = isA4 ? "3px 8px" : "2px 5px";
@@ -529,10 +530,11 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                 ? { minHeight: pageH, height: pageH, maxHeight: pageH, overflow: "hidden" }
                 : {}),
               // Preprinted: only top letterhead blank (2in); rest matches Retail ERP layout.
-              paddingTop: isPreprinted ? letterheadGap : pad,
-              paddingRight: isPreprinted ? preprintedPadRight : pad,
-              paddingBottom: isPreprinted ? preprintedPadBottom : isA5Retail ? "4mm" : pad,
-              paddingLeft: isPreprinted ? preprintedPadX : pad,
+              // A5: tight pad so the page border prints fully inside the sheet.
+              paddingTop: isPreprinted ? letterheadGap : isA5Retail ? "3mm" : pad,
+              paddingRight: isPreprinted ? preprintedPadRight : isA5Retail ? "3mm" : pad,
+              paddingBottom: isPreprinted ? preprintedPadBottom : isA5Retail ? "3mm" : pad,
+              paddingLeft: isPreprinted ? preprintedPadX : isA5Retail ? "3mm" : pad,
               fontFamily: "Arial, Helvetica, sans-serif",
               fontSize: fsBody,
               boxSizing: "border-box",
@@ -543,14 +545,18 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
             }}
           >
             <div
+              className="retail-erp-page-border"
               style={{
                 border: B2,
+                outline: isA5Retail ? B2 : undefined,
+                outlineOffset: isA5Retail ? "-2px" : undefined,
                 flex: 1,
                 minHeight: 0,
                 display: "flex",
                 flexDirection: "column",
                 overflow: isRealTast || isPreprintedAny || isA5Retail ? "hidden" : "visible",
                 justifyContent: "flex-start",
+                boxSizing: "border-box",
               }}
             >
 
@@ -944,7 +950,10 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                   borderTop: B2,
                   fontSize: fsBody,
                   flexShrink: 0,
-                  marginTop: isA5Retail ? "auto" : undefined,
+                  marginTop: "auto",
+                  display: "flex",
+                  flexDirection: "column",
+                  minHeight: 0,
                 }}
               >
 
@@ -1154,51 +1163,79 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                   </div>
                   )}
 
-                  {/* Terms + QR Code */}
+                  {/* Terms + QR — always pinned in A5 footer (last page); QR must not shift columns */}
                   <div
+                    className="retail-erp-terms-qr"
                     style={{
                       display: "flex",
                       alignItems: "stretch",
                       minHeight: isA4
                         ? (showPaymentQr ? "40mm" : isRealTast ? "110px" : "80px")
-                        : (showPaymentQr ? `${qrBoxMm + 8}mm` : "48px"),
-                      maxHeight: isA5Retail ? (showPaymentQr ? `${qrBoxMm + 10}mm` : "52px") : undefined,
+                        : (showPaymentQr ? `${qrBoxMm + 6}mm` : "44px"),
+                      maxHeight: isA5Retail
+                        ? (showPaymentQr ? `${qrBoxMm + 8}mm` : "48px")
+                        : undefined,
                       overflow: "hidden",
                       position: "relative",
                       flexShrink: 0,
                       boxSizing: "border-box",
+                      borderTop: isA5Retail ? B : undefined,
+                      marginTop: isA5Retail ? "auto" : undefined,
                     }}
                   >
-                    {/* Left — Terms */}
-                    <div style={{ flex: 1, borderRight: B, padding: isA4 ? "4px 8px" : "2px 4px", display: "flex", flexDirection: "column", justifyContent: "flex-start", minWidth: 0, overflow: "hidden", boxSizing: "border-box" }}>
-                      <div>
-                        {termsConditions.length > 0 && (
-                          <div>
-                            <strong
-                              style={{
-                                textDecoration: "underline",
-                                fontSize: fsTermsTitle,
-                                fontWeight: isRealTast ? 900 : 800,
-                                color: isRealTast ? "#000" : "#000",
-                              }}
-                            >
-                              Terms & Conditions:
-                            </strong>
-                            <ul
-                              style={{
-                                margin: isA5Retail ? "2px 0 0 12px" : "2px 0 0 14px",
-                                padding: 0,
-                                listStyleType: "disc",
-                                fontSize: fsTermsBody,
-                                lineHeight: isA5Retail ? 1.35 : 1.55,
-                                fontWeight: isRealTast ? 800 : 600,
-                                color: isRealTast ? "#000" : "#111",
-                              }}
-                            >
-                              {(isA5Retail ? termsConditions.slice(0, 4) : termsConditions).map((t, i) => (
+                    {/* Left — Terms (always reserved on A5) */}
+                    <div
+                      style={{
+                        flex: "1 1 auto",
+                        borderRight: B,
+                        padding: isA4 ? "4px 8px" : "2px 4px",
+                        display: "flex",
+                        flexDirection: "column",
+                        justifyContent: "flex-start",
+                        minWidth: 0,
+                        overflow: "hidden",
+                        boxSizing: "border-box",
+                      }}
+                    >
+                      <div style={{ minWidth: 0, overflow: "hidden" }}>
+                        <strong
+                          style={{
+                            textDecoration: "underline",
+                            fontSize: fsTermsTitle,
+                            fontWeight: isRealTast ? 900 : 800,
+                            color: "#000",
+                          }}
+                        >
+                          Terms & Conditions:
+                        </strong>
+                        {termsConditions.length > 0 ? (
+                          <ul
+                            style={{
+                              margin: isA5Retail ? "1px 0 0 12px" : "2px 0 0 14px",
+                              padding: 0,
+                              listStyleType: "disc",
+                              fontSize: fsTermsBody,
+                              lineHeight: isA5Retail ? 1.25 : 1.55,
+                              fontWeight: isRealTast ? 800 : 600,
+                              color: isRealTast ? "#000" : "#111",
+                            }}
+                          >
+                            {(isA5Retail ? termsConditions.slice(0, showPaymentQr ? 3 : 4) : termsConditions).map(
+                              (t, i) => (
                                 <li key={i}>{t}</li>
-                              ))}
-                            </ul>
+                              ),
+                            )}
+                          </ul>
+                        ) : (
+                          <div
+                            style={{
+                              fontSize: fsTermsBody,
+                              marginTop: "2px",
+                              color: "#444",
+                              lineHeight: 1.25,
+                            }}
+                          >
+                            —
                           </div>
                         )}
                         <div
@@ -1214,16 +1251,17 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                       </div>
                     </div>
 
-                    {/* Right — sign / seal (+ optional QR for standard retail-erp) */}
+                    {/* Right — sign / seal (+ optional QR); fixed width so QR never skews Terms */}
                     <div
                       style={{
                         width: signColWidth,
                         maxWidth: signColWidth,
-                        padding: isA4 ? "4px 8px" : "2px 3px 3px",
+                        flex: `0 0 ${signColWidth}`,
+                        padding: isA4 ? "4px 8px" : "2px 3px 2px",
                         display: "flex",
                         flexDirection: "column",
                         alignItems: "center",
-                        justifyContent: "space-between",
+                        justifyContent: showPaymentQr ? "flex-start" : "space-between",
                         position: "relative",
                         boxSizing: "border-box",
                         flexShrink: 0,
@@ -1246,6 +1284,8 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                                   top: "2px",
                                   ...(stampPosition === "bottom-left" ? { left: "4px" } : { right: "4px" }),
                                 }),
+                            opacity: 0.9,
+                            pointerEvents: "none",
                           }}
                         />
                       )}
@@ -1254,7 +1294,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                           textAlign: "center",
                           fontSize: isA4 ? (isRealTast ? "12px" : "10px") : "8px",
                           fontWeight: "bold",
-                          marginBottom: isA5Retail ? "2px" : isRealTast ? "2px" : "4px",
+                          marginBottom: isA5Retail ? "1px" : isRealTast ? "2px" : "4px",
                           width: "100%",
                           flexShrink: 0,
                           lineHeight: 1.15,
@@ -1279,6 +1319,8 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                             backgroundColor: "#fff",
                             flexShrink: 0,
                             marginTop: "auto",
+                            marginLeft: "auto",
+                            marginRight: "auto",
                             marginBottom: isA5Retail ? "1px" : 0,
                           }}
                         >
@@ -1350,9 +1392,18 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
             flex-direction: column !important;
             ${isPreprintedAny || isA5Retail ? "page-break-inside: avoid !important; break-inside: avoid !important;" : ""}
           }
+          .retail-erp-page-border {
+            border: 2px solid #000 !important;
+            box-sizing: border-box !important;
+          }
           .retail-erp-qr-box {
-            max-width: ${isA5Retail ? "22mm" : "28mm"} !important;
-            max-height: ${isA5Retail ? "22mm" : "28mm"} !important;
+            max-width: ${isA5Retail ? "20mm" : "28mm"} !important;
+            max-height: ${isA5Retail ? "20mm" : "28mm"} !important;
+          }
+          .retail-erp-terms-qr {
+            flex-shrink: 0 !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
           }
           .retail-erp-invoice-template[data-invoice-variant="preprinted"] {
             height: ${pageH} !important;
@@ -1396,6 +1447,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
             page-break-inside: avoid;
             break-inside: avoid;
             flex-shrink: 0 !important;
+            margin-top: auto !important;
             overflow: ${isA5Retail && !isPreprinted ? "hidden" : "visible"} !important;
           }
           .retail-erp-qr-box {

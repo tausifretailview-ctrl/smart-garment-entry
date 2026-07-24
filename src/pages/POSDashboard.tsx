@@ -1237,7 +1237,7 @@ const POSDashboard = () => {
       return `
       @page {
         size: A5 portrait;
-        margin: 4mm;
+        margin: 3mm;
       }
       @media print {
         html, body {
@@ -1252,9 +1252,22 @@ const POSDashboard = () => {
           /* Keep hidden so A5 SN grid cannot paint over Note/totals (PDF/print align). */
           overflow: hidden !important;
         }
+        .retail-erp-page-border {
+          border: 2px solid #000 !important;
+          box-sizing: border-box !important;
+        }
         .retail-erp-items-grow {
           overflow: hidden !important;
           min-height: 0 !important;
+        }
+        .retail-erp-footer,
+        .retail-erp-terms-qr {
+          flex-shrink: 0 !important;
+          page-break-inside: avoid !important;
+          break-inside: avoid !important;
+        }
+        .retail-erp-footer {
+          margin-top: auto !important;
         }
       }
       ${INVOICE_PRINT_VISIBILITY_OVERRIDE_CSS}
