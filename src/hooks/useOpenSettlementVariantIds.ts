@@ -1,9 +1,24 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { fetchAllOpenSettlementVariantIds } from "@/utils/stockSettlementScans";
 
 const queryKey = (orgId: string | undefined) => ["open-settlement-variant-ids", orgId] as const;
+
+/**
+ * PersistQueryClient JSON-encodes query data. `Set` becomes `{}`, so calling
+ * `.has` after restore throws ("… is not a function") and POS barcode add
+ * surfaces as "Lookup failed". Always persist/return a plain string[].
+ */
+export function toLockedVariantIdSet(data: unknown): Set<string> {
+  if (data instanceof Set) {
+    return data as Set<string>;
+  }
+  if (Array.isArray(data)) {
+    return new Set(data.filter((id): id is string => typeof id === "string" && id.length > 0));
+  }
+  return new Set<string>();
+}
 
 /**
  * Returns the set of variant IDs that currently have unsettled scans in an
@@ -21,13 +36,14 @@ export function useOpenSettlementVariantIds() {
 
   const { data } = useQuery({
     queryKey: queryKey(orgId),
-    queryFn: async () => {
-      if (!orgId) return new Set<string>();
+    queryFn: async (): Promise<string[]> => {
+      if (!orgId) return [];
       try {
-        return await fetchAllOpenSettlementVariantIds(orgId);
+        const ids = await fetchAllOpenSettlementVariantIds(orgId);
+        return [...ids];
       } catch (err) {
         console.error("useOpenSettlementVariantIds:", err);
-        return new Set<string>();
+        return [];
       }
     },
     enabled: !!orgId,
@@ -47,7 +63,7 @@ export function useOpenSettlementVariantIds() {
     return () => document.removeEventListener("visibilitychange", onVis);
   }, [orgId, queryClient]);
 
-  const lockedVariantIds = data ?? new Set<string>();
+  const lockedVariantIds = useMemo(() => toLockedVariantIdSet(data), [data]);
 
   const isLocked = useCallback(
     (variantId: string | null | undefined): boolean =>
@@ -80,8 +96,9 @@ export function settlementLockedAddToast(productName: string, barcode: string) {
 
 export function getSettlementLockedCartItems<
   T extends { variantId?: string | null; productName?: string; barcode?: string | null },
->(items: T[], lockedVariantIds: Set<string>): T[] {
-  return items.filter((item) => !!item.variantId && lockedVariantIds.has(item.variantId));
+>(items: T[], lockedVariantIds: Set<string> | unknown): T[] {
+  const locked = toLockedVariantIdSet(lockedVariantIds);
+  return items.filter((item) => !!item.variantId && locked.has(item.variantId));
 }
 
 export function settlementLockedSaveToast(

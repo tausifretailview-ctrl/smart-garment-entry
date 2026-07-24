@@ -27,6 +27,8 @@ const VOLATILE_PREFIXES = [
   "variant-lookup",
   "barcode-scan",
   "barcode-stock-scan",
+  // Set/array of locked variants — Set dehydrates to {} and broke POS scan (.has).
+  "open-settlement-variant-ids",
   "purchase-return-linked-bills",
   "purchase-return-cn-amounts",
   "purchase-returns",
