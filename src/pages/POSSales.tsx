@@ -6623,38 +6623,17 @@ export default function POSSales() {
                       <div className="flex items-center gap-2 bg-amber-500 text-white px-3 py-1.5 rounded-lg">
                         <Coins className="h-4 w-4" />
                         <span className="font-bold">{customerPointsData?.balance || 0} pts</span>
-                        {items.length > 0 && (
-                          <span className="text-amber-100 text-sm">+{calculatePoints(items.reduce((sum, item) => sum + item.netAmount, 0))}</span>
-                        )}
+                        {items.length > 0 && (() => {
+                          const pendingPts = calculatePoints(
+                            Math.max(0, totals.subtotal - saleReturnAdjust - flatDiscountAmount - pointsRedemptionValue),
+                          );
+                          return pendingPts > 0 ? (
+                            <span className="text-amber-100 text-sm" title="Earned after bill save — not redeemable on this bill">
+                              +{pendingPts} pending
+                            </span>
+                          ) : null;
+                        })()}
                       </div>
-                      {isRedemptionEnabled && (customerPointsData?.balance || 0) >= (pointsSettings?.min_points_for_redemption || 10) && (
-                        <div className="flex items-center bg-green-600 px-3 py-1.5 gap-2 rounded-lg">
-                          <span className="text-white text-sm font-medium">Redeem:</span>
-                          <Input
-                            type="number"
-                            className="w-16 h-8 bg-white text-green-700 text-center text-sm font-semibold rounded border-0"
-                            value={pointsToRedeem || ""}
-                            placeholder="0"
-                            onChange={(e) => {
-                              const value = parseInt(e.target.value) || 0;
-                              const maxPoints = calculateMaxRedeemablePoints(
-                                totals.subtotal - saleReturnAdjust - flatDiscountAmount,
-                                customerPointsData?.balance || 0,
-                              );
-                              setPointsToRedeem(Math.min(Math.max(0, value), maxPoints));
-                            }}
-                            min={0}
-                            max={calculateMaxRedeemablePoints(
-                              totals.subtotal - saleReturnAdjust - flatDiscountAmount,
-                              customerPointsData?.balance || 0,
-                            )}
-                            disabled={!customerId}
-                          />
-                          <span className="text-white text-sm font-medium whitespace-nowrap">
-                            pts = ₹{calculateRedemptionValue(pointsToRedeem).toFixed(0)}
-                          </span>
-                        </div>
-                      )}
                     </div>
                   )}
                 </div>
@@ -6905,6 +6884,61 @@ export default function POSSales() {
                   />
                 </div>
               </div>
+
+              {/* Redeem old CRM points only — current-bill earn stays pending until save */}
+              {customerId && isPointsEnabled && isRedemptionEnabled && (
+                <div className="text-center">
+                  <div className="text-sm text-white/90 uppercase font-bold mb-1 tracking-wide">
+                    Pts ({customerPointsData?.balance || 0})
+                  </div>
+                  <Input
+                    type="number"
+                    className="w-24 h-10 bg-amber-100 text-amber-800 text-center text-lg font-semibold border-0 rounded-md"
+                    value={pointsToRedeem || ""}
+                    placeholder="0"
+                    min={0}
+                    max={calculateMaxRedeemablePoints(
+                      Math.max(0, totals.subtotal - saleReturnAdjust - flatDiscountAmount),
+                      customerPointsData?.balance || 0,
+                    )}
+                    onChange={(e) => {
+                      const value = parseInt(e.target.value, 10) || 0;
+                      const maxPoints = calculateMaxRedeemablePoints(
+                        Math.max(0, totals.subtotal - saleReturnAdjust - flatDiscountAmount),
+                        customerPointsData?.balance || 0,
+                      );
+                      setPointsToRedeem(Math.min(Math.max(0, value), maxPoints));
+                    }}
+                    disabled={
+                      !customerId ||
+                      calculateMaxRedeemablePoints(
+                        Math.max(0, totals.subtotal - saleReturnAdjust - flatDiscountAmount),
+                        customerPointsData?.balance || 0,
+                      ) <= 0
+                    }
+                    title={
+                      (customerPointsData?.balance || 0) <= 0
+                        ? "No old points to redeem"
+                        : (customerPointsData?.balance || 0) < (pointsSettings?.min_points_for_redemption || 1)
+                          ? `Need at least ${pointsSettings?.min_points_for_redemption || 1} old pts (this bill’s +pts are pending)`
+                          : `Redeem old points only (max ${calculateMaxRedeemablePoints(
+                              Math.max(0, totals.subtotal - saleReturnAdjust - flatDiscountAmount),
+                              customerPointsData?.balance || 0,
+                            )})`
+                    }
+                  />
+                  {pointsToRedeem > 0 ? (
+                    <div className="text-[10px] text-amber-200 font-semibold mt-0.5 text-center">
+                      −₹{calculateRedemptionValue(pointsToRedeem).toFixed(0)}
+                    </div>
+                  ) : (customerPointsData?.balance || 0) > 0 &&
+                    (customerPointsData?.balance || 0) < (pointsSettings?.min_points_for_redemption || 1) ? (
+                    <div className="text-[10px] text-white/70 font-semibold mt-0.5 text-center">
+                      Min {pointsSettings?.min_points_for_redemption || 1} pts
+                    </div>
+                  ) : null}
+                </div>
+              )}
 
               {/* Credit Applied */}
               {(availableCreditBalance > 0 || creditApplied > 0) && (

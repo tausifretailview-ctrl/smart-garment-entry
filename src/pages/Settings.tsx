@@ -4489,20 +4489,20 @@ export default function Settings() {
                                 id="min_points_for_redemption"
                                 type="number"
                                 min="1"
-                                value={(settings.sale_settings as any)?.min_points_for_redemption || 10}
+                                value={(settings.sale_settings as any)?.min_points_for_redemption ?? 1}
                                 onChange={(e) =>
                                   setSettings({
                                     ...settings,
                                     sale_settings: {
                                       ...settings.sale_settings,
-                                      min_points_for_redemption: parseInt(e.target.value) || 10,
+                                      min_points_for_redemption: parseInt(e.target.value) || 1,
                                     } as any,
                                   })
                                 }
-                                placeholder="10"
+                                placeholder="1"
                               />
                               <p className="text-xs text-muted-foreground">
-                                Minimum points required to redeem
+                                Minimum old points balance required to redeem (current bill earn is pending)
                               </p>
                             </div>
 

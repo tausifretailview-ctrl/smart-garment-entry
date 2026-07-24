@@ -43,7 +43,7 @@ const defaultPointsSettings: PointsSettings = {
   enable_points_redemption: false,
   points_redemption_value: 1, // 1 point = ₹1
   max_redemption_percent: 50, // max 50% of invoice via points
-  min_points_for_redemption: 10,
+  min_points_for_redemption: 1,
   min_purchase_for_redemption: 0,
 };
 
@@ -66,7 +66,7 @@ export function useCustomerPoints() {
       enable_points_redemption: (saleSettings?.enable_points_redemption as boolean) ?? false,
       points_redemption_value: (saleSettings?.points_redemption_value as number) ?? 1,
       max_redemption_percent: (saleSettings?.max_redemption_percent as number) ?? 50,
-      min_points_for_redemption: (saleSettings?.min_points_for_redemption as number) ?? 10,
+      min_points_for_redemption: (saleSettings?.min_points_for_redemption as number) ?? 1,
       min_purchase_for_redemption: (saleSettings?.min_purchase_for_redemption as number) ?? 0,
     } as PointsSettings;
   }, [settingsRow]);
@@ -198,13 +198,16 @@ export function useCustomerPoints() {
     return points * settings.points_redemption_value;
   };
 
-  // Calculate max redeemable points for a given invoice amount and balance
+  // Calculate max redeemable points for a given invoice amount and OLD balance.
+  // Current-bill earn is never included in pointsBalance (awarded only after save).
   const calculateMaxRedeemablePoints = (invoiceAmount: number, pointsBalance: number): number => {
     const settings = pointsSettings || defaultPointsSettings;
     
     if (!settings.enable_points_redemption) return 0;
-    if (pointsBalance < settings.min_points_for_redemption) return 0;
+    if (pointsBalance <= 0) return 0;
     if (invoiceAmount < settings.min_purchase_for_redemption) return 0;
+    // Need at least min_points available (old balance only) before any redeem is allowed
+    if (pointsBalance < settings.min_points_for_redemption) return 0;
     
     // Max amount that can be redeemed based on percentage limit
     const maxRedeemableAmount = (invoiceAmount * settings.max_redemption_percent) / 100;
@@ -212,7 +215,7 @@ export function useCustomerPoints() {
     // Convert to points
     const maxPointsFromPercentage = Math.floor(maxRedeemableAmount / settings.points_redemption_value);
     
-    // Return the lesser of: max from percentage OR available balance
+    // Return the lesser of: max from percentage OR available old balance
     return Math.min(maxPointsFromPercentage, pointsBalance);
   };
 
