@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { IMEIScanDialog } from "@/components/IMEIScanDialog";
 import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
@@ -6,6 +7,7 @@ import { canonicalizeProductBrand } from "@/utils/productBrandUtils";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useToast } from "@/hooks/use-toast";
+import { invalidateStockReportQueries } from "@/utils/invalidateDashboardQueries";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CalculatorInput } from "@/components/ui/calculator-input";
@@ -411,6 +413,7 @@ function FreeTextFieldCombobox({
 
 export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideOpeningQty, isDcPurchase, isAutoBarcode = true, mobileERPMode }: ProductEntryDialogProps) => {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const { currentOrganization } = useOrganization();
   const { isColumnVisible } = useUserPermissions();
   const [loading, setLoading] = useState(false);
@@ -1699,6 +1702,8 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
         title: "Success",
         description: `Product "${formData.product_name}" created`,
       });
+
+      invalidateStockReportQueries(queryClient, currentOrganization.id);
 
       // Save last product details for quick entry next time
       saveLastProductDetails();

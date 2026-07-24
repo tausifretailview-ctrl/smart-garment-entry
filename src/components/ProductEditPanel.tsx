@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,6 +23,7 @@ import { cn } from "@/lib/utils";
 import { getUniversalCodeScanWarning } from "@/utils/imeiValidation";
 import { checkBarcodeExists } from "@/utils/barcodeValidation";
 import { validateIMEI } from "@/utils/imeiValidation";
+import { invalidateStockReportQueries } from "@/utils/invalidateDashboardQueries";
 
 interface LineItem {
   temp_id: string;
@@ -84,6 +86,7 @@ const ProductEditPanel = ({
   open, onClose, lineItems, currentIndex, onIndexChange, onProductUpdated, focusField, mobileErpMode,
 }: ProductEditPanelProps) => {
   const { currentOrganization } = useOrganization();
+  const queryClient = useQueryClient();
   const { toast } = useToast();
   const productFieldSettings = useProductFieldSettings();
   const isFieldEnabled = (key: ProductFieldKey) => productFieldSettings[key]?.enabled !== false;
@@ -318,6 +321,8 @@ const ProductEditPanel = ({
       setShowCriticalConfirm(false);
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
+
+      invalidateStockReportQueries(queryClient, currentOrganization?.id);
 
       toast({
         title: "Product Updated",

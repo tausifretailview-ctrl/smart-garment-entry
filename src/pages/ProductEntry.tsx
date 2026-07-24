@@ -1,11 +1,13 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useLocation } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { supabase } from "@/integrations/supabase/client";
 import { canonicalizeProductBrand } from "@/utils/productBrandUtils";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useToast } from "@/hooks/use-toast";
 import { useProductProtection } from "@/hooks/useProductProtection";
+import { invalidateStockReportQueries } from "@/utils/invalidateDashboardQueries";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CalculatorInput } from "@/components/ui/calculator-input";
@@ -99,6 +101,7 @@ interface ProductForm {
 
 const ProductEntry = () => {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const { orgNavigate } = useOrgNavigation();
   const location = useLocation();
   const { currentOrganization } = useOrganization();
@@ -1380,6 +1383,8 @@ const ProductEntry = () => {
           description: `Product "${formData.product_name}" updated successfully`,
         });
 
+        invalidateStockReportQueries(queryClient, currentOrganization?.id);
+
         // Navigate back to product dashboard after edit
         orgNavigate("/products");
         return;
@@ -1503,6 +1508,7 @@ const ProductEntry = () => {
         }
 
         // Silent operation - no toast for product save
+        invalidateStockReportQueries(queryClient, currentOrganization.id);
 
         // Check if we need to navigate back to purchase entry
         const state = location.state as { returnToPurchase?: boolean };
@@ -1760,6 +1766,8 @@ const ProductEntry = () => {
       title: "Import Completed",
       description,
     });
+
+    invalidateStockReportQueries(queryClient, currentOrganization.id);
     
     // Navigate to product dashboard to see imported products
     orgNavigate('/products');

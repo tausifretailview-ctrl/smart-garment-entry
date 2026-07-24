@@ -234,25 +234,47 @@ export default function ItemWiseSalesReport() {
     },
   );
 
-  // Fetch filter options with caching
+  // Fetch filter options with caching — product attrs via same RPC as Stock Report (no 1000-row cap)
   const { data: filterOptionsData } = useQuery({
     queryKey: ["item-wise-filter-options", currentOrganization?.id],
     queryFn: async () => {
       if (!currentOrganization?.id) return { brands: [], categories: [], departments: [], customers: [], colors: [], users: [] };
 
-      const [{ data: products }, { data: sales }, { data: variants }] = await Promise.all([
-        supabase.from("products").select("brand, category, style").eq("organization_id", currentOrganization.id).is("deleted_at", null),
-        supabase.from("sales").select("customer_name, salesman").eq("organization_id", currentOrganization.id).is("deleted_at", null),
-        supabase.from("product_variants").select("color, product_id, products!inner(organization_id)").eq("organization_id", currentOrganization.id).eq("products.organization_id", currentOrganization.id).is("deleted_at", null),
+      const [{ data: filterPayload, error: filterError }, { data: sales }] = await Promise.all([
+        (
+          supabase as unknown as {
+            rpc: (
+              fn: string,
+              args: Record<string, unknown>,
+            ) => ReturnType<typeof supabase.rpc>;
+          }
+        ).rpc("get_stock_report_filter_options", {
+          p_org_id: currentOrganization.id,
+        }),
+        supabase
+          .from("sales")
+          .select("customer_name, salesman")
+          .eq("organization_id", currentOrganization.id)
+          .is("deleted_at", null),
       ]);
 
+      if (filterError) throw filterError;
+
+      const payload = filterPayload as {
+        rawProducts?: Array<{ brand: string; category: string; style: string }>;
+        variantRows?: Array<{ color: string | null }>;
+      } | null;
+
+      const rawProducts = payload?.rawProducts ?? [];
+      const variantRows = payload?.variantRows ?? [];
+
       return {
-        brands: [...new Set((products || []).map(p => p.brand).filter(Boolean))].sort() as string[],
-        categories: [...new Set((products || []).map(p => p.category).filter(Boolean))].sort() as string[],
-        departments: [...new Set((products || []).map(p => p.style).filter(Boolean))].sort() as string[],
-        customers: [...new Set((sales || []).map(s => s.customer_name).filter(Boolean))].sort() as string[],
-        colors: [...new Set((variants || []).map((v: any) => v.color).filter(Boolean))].sort() as string[],
-        users: [...new Set((sales || []).map((s: any) => s.salesman).filter(Boolean))].sort() as string[],
+        brands: [...new Set(rawProducts.map((p) => p.brand).filter(Boolean))].sort() as string[],
+        categories: [...new Set(rawProducts.map((p) => p.category).filter(Boolean))].sort() as string[],
+        departments: [...new Set(rawProducts.map((p) => p.style).filter(Boolean))].sort() as string[],
+        customers: [...new Set((sales || []).map((s) => s.customer_name).filter(Boolean))].sort() as string[],
+        colors: [...new Set(variantRows.map((v) => v.color).filter(Boolean))].sort() as string[],
+        users: [...new Set((sales || []).map((s: { salesman?: string | null }) => s.salesman).filter(Boolean))].sort() as string[],
       };
     },
     enabled: !!currentOrganization?.id,

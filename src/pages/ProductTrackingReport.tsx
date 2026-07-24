@@ -212,18 +212,28 @@ const ProductTrackingReport = () => {
     return null;
   }, [startDate, endDate]);
 
-  // Fetch category/brand options from products (lightweight)
+  // Category/brand options via same RPC as Stock Report (no 1000-row products cap)
   const { data: filterOptions } = useQuery({
     queryKey: ["product-tracking-filters", currentOrganization?.id],
     queryFn: async () => {
       if (!currentOrganization?.id) return { categories: [], brands: [] };
-      const { data } = await supabase
-        .from("products")
-        .select("category, brand")
-        .eq("organization_id", currentOrganization.id)
-        .is("deleted_at", null);
-      const categories = [...new Set((data || []).map(p => p.category).filter(Boolean))].sort() as string[];
-      const brands = [...new Set((data || []).map(p => p.brand).filter(Boolean))].sort() as string[];
+      const { data, error } = await (
+        supabase as unknown as {
+          rpc: (
+            fn: string,
+            args: Record<string, unknown>,
+          ) => ReturnType<typeof supabase.rpc>;
+        }
+      ).rpc("get_stock_report_filter_options", {
+        p_org_id: currentOrganization.id,
+      });
+      if (error) throw error;
+      const payload = data as {
+        rawProducts?: Array<{ brand: string; category: string }>;
+      } | null;
+      const rawProducts = payload?.rawProducts ?? [];
+      const categories = [...new Set(rawProducts.map((p) => p.category).filter(Boolean))].sort() as string[];
+      const brands = [...new Set(rawProducts.map((p) => p.brand).filter(Boolean))].sort() as string[];
       return { categories, brands };
     },
     enabled: !!currentOrganization?.id,

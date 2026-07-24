@@ -48,6 +48,25 @@ export function invalidateStockReportQueries(
   void queryClient.invalidateQueries({ queryKey: ["item-wise-stock-totals"], ...opts });
   void queryClient.invalidateQueries({ queryKey: ["item-stock-filters"], ...opts });
   void queryClient.invalidateQueries({ queryKey: ["product-wise-stock"], ...opts });
+  // Report attribute / party filter dropdowns (product brand/category/style/color + price-history parties)
+  void queryClient.invalidateQueries({
+    queryKey: organizationId
+      ? ["item-wise-filter-options", organizationId]
+      : ["item-wise-filter-options"],
+    ...opts,
+  });
+  void queryClient.invalidateQueries({
+    queryKey: organizationId
+      ? ["product-tracking-filters", organizationId]
+      : ["product-tracking-filters"],
+    ...opts,
+  });
+  void queryClient.invalidateQueries({
+    queryKey: organizationId
+      ? ["price-history-filter-options", organizationId]
+      : ["price-history-filter-options"],
+    ...opts,
+  });
   invalidateStatusBarSummary(queryClient, organizationId);
 }
 

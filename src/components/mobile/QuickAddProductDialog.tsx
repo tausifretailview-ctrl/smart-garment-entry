@@ -11,6 +11,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Loader2, Package, ScanBarcode } from "lucide-react";
 import { checkBarcodeExists } from "@/utils/barcodeValidation";
+import { invalidateStockReportQueries } from "@/utils/invalidateDashboardQueries";
 
 interface QuickAddProductDialogProps {
   open: boolean;
@@ -144,7 +145,7 @@ export const QuickAddProductDialog = ({
       toast.success("Product added successfully");
       queryClient.invalidateQueries({ queryKey: ["products"] });
       queryClient.invalidateQueries({ queryKey: ["product-variants"] });
-      queryClient.invalidateQueries({ queryKey: ["stock-report"] });
+      invalidateStockReportQueries(queryClient, currentOrganization.id);
       
       resetForm();
       onOpenChange(false);

@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { Button } from "@/components/ui/button";
@@ -15,6 +16,7 @@ import { format } from "date-fns";
 import * as XLSX from "xlsx";
 import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
 import { restoreDashboardFilters, WINDOW_FILTER_IDS } from "@/lib/dashboardFilterPersistence";
+import { fetchAllCustomers, fetchAllSuppliers } from "@/utils/fetchAllRows";
 import {
   ArrowLeft,
   Search,
@@ -119,6 +121,14 @@ interface Customer {
   customer_name: string;
 }
 
+const REPORT_CACHE = {
+  staleTime: 5 * 60 * 1000,
+  gcTime: 30 * 60 * 1000,
+  refetchOnWindowFocus: false as const,
+  refetchOnMount: false as const,
+  refetchOnReconnect: false as const,
+};
+
 const PriceHistoryReport = () => {
   const navigate = useNavigate();
   const { currentOrganization } = useOrganization();
@@ -129,9 +139,32 @@ const PriceHistoryReport = () => {
   const [priceEdits, setPriceEdits] = useState<PriceEditItem[]>([]);
   const [stockMovements, setStockMovements] = useState<StockMovementItem[]>([]);
   const [productChanges, setProductChanges] = useState<ProductChangeItem[]>([]);
-  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
-  const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const { data: filterOptions } = useQuery({
+    queryKey: ["price-history-filter-options", currentOrganization?.id],
+    queryFn: async () => {
+      if (!currentOrganization?.id) return { suppliers: [] as Supplier[], customers: [] as Customer[] };
+      const [suppliers, customers] = await Promise.all([
+        fetchAllSuppliers(currentOrganization.id),
+        fetchAllCustomers(currentOrganization.id),
+      ]);
+      return {
+        suppliers: (suppliers || []).map((s: { id: string; supplier_name: string }) => ({
+          id: s.id,
+          supplier_name: s.supplier_name,
+        })),
+        customers: (customers || []).map((c: { id: string; customer_name: string }) => ({
+          id: c.id,
+          customer_name: c.customer_name,
+        })),
+      };
+    },
+    enabled: !!currentOrganization?.id,
+    ...REPORT_CACHE,
+  });
+  const suppliers = filterOptions?.suppliers ?? [];
+  const customers = filterOptions?.customers ?? [];
   
   // Filters
   const [searchTerm, setSearchTerm] = useState("");
@@ -260,8 +293,6 @@ const PriceHistoryReport = () => {
         salesResult,
         stockMovementsResult,
         auditLogsResult,
-        suppliersResult,
-        customersResult,
       ] = await Promise.all([
         // Fetch purchase items with bill info
         (focusBarcodes && focusBarcodes.length > 0
@@ -344,20 +375,6 @@ const PriceHistoryReport = () => {
           .order("created_at", { ascending: false })
           .limit(500)
         ),
-        
-        // Fetch suppliers
-        supabase
-          .from("suppliers")
-          .select("id, supplier_name")
-          .eq("organization_id", currentOrganization.id)
-          .order("supplier_name"),
-        
-        // Fetch customers
-        supabase
-          .from("customers")
-          .select("id, customer_name")
-          .eq("organization_id", currentOrganization.id)
-          .order("customer_name"),
       ]);
 
       // Process purchase data
@@ -493,9 +510,6 @@ const PriceHistoryReport = () => {
           new_values: log.new_values,
         }));
       setProductChanges(productChangeData);
-
-      setSuppliers(suppliersResult.data || []);
-      setCustomers(customersResult.data || []);
 
     } catch (error) {
       console.error("Error fetching price history:", error);
