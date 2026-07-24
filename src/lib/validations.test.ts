@@ -56,4 +56,30 @@ describe("validatePurchaseLineItem", () => {
     });
     expect(validResult.success).toBe(true);
   });
+
+  it("accepts 15-digit IMEI barcodes (and up to 32 chars)", () => {
+    const imei15 = validatePurchaseLineItem({
+      ...baseLineItem,
+      uom: "NOS",
+      qty: 1,
+      barcode: "860123456789012",
+    });
+    expect(imei15.success).toBe(true);
+
+    const imei25 = validatePurchaseLineItem({
+      ...baseLineItem,
+      uom: "NOS",
+      qty: 1,
+      barcode: "ABC1234567890123456789012",
+    });
+    expect(imei25.success).toBe(true);
+
+    const tooLong = validatePurchaseLineItem({
+      ...baseLineItem,
+      uom: "NOS",
+      qty: 1,
+      barcode: "X".repeat(33),
+    });
+    expect(tooLong.success).toBe(false);
+  });
 });

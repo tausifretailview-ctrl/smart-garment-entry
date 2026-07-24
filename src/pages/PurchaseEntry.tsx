@@ -3622,9 +3622,28 @@ const PurchaseEntry = () => {
     });
   };
 
+  const openImeiScanForLine = (item: LineItem, qty: number) => {
+    if (!item.product_id || qty < 1) return;
+    setImeiScanItem({ tempId: item.temp_id, qty, item });
+    setShowIMEIScanDialog(true);
+  };
+
   const updateLineItem = (temp_id: string, field: keyof LineItem, value: any) => {
-    // Mobile ERP mode: when qty changes to > 1, allow direct qty update
-    // (IMEI is already assigned to the row via barcode field, just update qty for stock)
+    // Mobile ERP: qty > 1 must become one row per IMEI (dialog was never opened before).
+    if (
+      field === "qty" &&
+      isMobileERPMode &&
+      mobileERPSettings?.imei_scan_enforcement
+    ) {
+      const qty = Number(value) || 0;
+      if (qty > 1) {
+        const item = lineItems.find((i) => i.temp_id === temp_id);
+        if (item?.product_id) {
+          openImeiScanForLine(item, qty);
+          return;
+        }
+      }
+    }
 
     setLineItems((items) =>
       items.map((item) => {
@@ -3660,18 +3679,23 @@ const PurchaseEntry = () => {
 
     try {
       const newRows: LineItem[] = [];
+      const sizeBase = (item.size || "").trim() || "None";
+      const colorVal = (item.color || "").trim() || null;
 
       for (let idx = 0; idx < imeiNumbers.length; idx++) {
-        const imei = imeiNumbers[idx];
+        const imei = String(imeiNumbers[idx] || "").replace(/\s/g, "").toUpperCase();
+        if (!imei) {
+          throw new Error(`IMEI #${idx + 1} is empty`);
+        }
 
-        // Create a NEW product_variant with this IMEI as barcode
+        // Create a NEW product_variant with this IMEI as barcode (unit-as-variant)
         const { data: newVariant, error: varError } = await supabase
           .from('product_variants')
           .insert({
             organization_id: currentOrganization.id,
             product_id: item.product_id,
-            size: item.size || 'None',
-            color: item.color || null,
+            size: sizeBase,
+            color: colorVal,
             barcode: imei,
             pur_price: item.pur_price,
             sale_price: item.sale_price,
@@ -3685,17 +3709,21 @@ const PurchaseEntry = () => {
         let variantId: string;
 
         if (varError) {
-          // If barcode already exists, find the existing variant
+          // If barcode already exists, reuse only when it belongs to the same product
           const { data: existing } = await supabase
             .from('product_variants')
-            .select('id')
+            .select('id, product_id')
             .eq('barcode', imei)
             .eq('organization_id', currentOrganization.id)
             .is('deleted_at', null)
             .maybeSingle();
 
-          if (existing) {
+          if (existing?.id && existing.product_id === item.product_id) {
             variantId = existing.id;
+          } else if (existing?.id) {
+            throw new Error(
+              `IMEI ${imei} is already used on another product. Scan a different IMEI.`,
+            );
           } else {
             throw varError;
           }
@@ -3707,8 +3735,13 @@ const PurchaseEntry = () => {
         const discountAmount = subTotal * (item.discount_percent / 100);
         newRows.push({
           ...item,
-          temp_id: Date.now().toString() + Math.random() + idx,
+          temp_id:
+            typeof crypto !== "undefined" && crypto.randomUUID
+              ? crypto.randomUUID()
+              : `${Date.now()}_${idx}_${Math.random().toString(36).slice(2)}`,
           qty: 1,
+          size: sizeBase,
+          color: colorVal || "",
           sku_id: variantId,
           barcode: imei,
           line_total: subTotal - discountAmount,
@@ -3727,10 +3760,12 @@ const PurchaseEntry = () => {
         description: `${imeiNumbers.length} items with individual IMEI barcodes created`,
       });
     } catch (error: any) {
+      const info = extractErrorInfo(error);
       toast({
-        title: "Error",
-        description: `Failed to create IMEI variants: ${error.message}`,
+        title: "IMEI scan failed",
+        description: info.message || "Failed to create IMEI variants",
         variant: "destructive",
+        duration: 10000,
       });
     }
 
@@ -4500,13 +4535,42 @@ const PurchaseEntry = () => {
     }
 
     const activeLines = lineItems.filter((item) => item.product_id || item.product_name?.trim());
+
+    // Mobile ERP: each physical unit needs its own IMEI row (qty must be 1 per barcode).
+    if (isMobileERPMode && mobileERPSettings?.imei_scan_enforcement) {
+      const multiQtyLine = activeLines.find((item) => Number(item.qty) > 1);
+      if (multiQtyLine) {
+        toast({
+          title: "Scan IMEI for each unit",
+          description: `"${multiQtyLine.product_name}" has qty ${multiQtyLine.qty}. Enter qty and scan one IMEI per unit before saving.`,
+          variant: "destructive",
+          duration: 10000,
+        });
+        openImeiScanForLine(multiQtyLine, Number(multiQtyLine.qty) || 1);
+        return;
+      }
+      const missingImei = activeLines.find(
+        (item) => Number(item.qty) > 0 && !String(item.barcode || "").trim(),
+      );
+      if (missingImei) {
+        toast({
+          title: "IMEI required",
+          description: `"${missingImei.product_name}" has no IMEI. Scan IMEI before saving the bill.`,
+          variant: "destructive",
+          duration: 10000,
+        });
+        openImeiScanForLine(missingImei, Math.max(1, Number(missingImei.qty) || 1));
+        return;
+      }
+    }
+
     for (let index = 0; index < activeLines.length; index++) {
       const item = activeLines[index];
       const lineValidation = validatePurchaseLineItem({
         product_id: item.product_id,
         sku_id: item.sku_id,
         product_name: item.product_name,
-        size: item.size,
+        size: item.size || "None",
         uom: item.uom,
         qty: Number(item.qty),
         pur_price: Number(item.pur_price),
@@ -5000,11 +5064,12 @@ const PurchaseEntry = () => {
           }
         }
 
-        const rpcItems = lineItems.map((item) => ({
+        const saveLines = activeLines.filter((item) => Number(item.qty) > 0);
+        const rpcItems = saveLines.map((item) => ({
           product_id: item.product_id,
           sku_id: item.sku_id,
           product_name: item.product_name,
-          size: item.size,
+          size: item.size || "None",
           qty: item.qty,
           pur_price: item.pur_price,
           sale_price: item.sale_price,
@@ -5102,12 +5167,12 @@ const PurchaseEntry = () => {
           if (billError) throw billError;
           createdBillIdForRollback = legacyBill.id;
 
-          const itemsToInsert = lineItems.map((item, index) => ({
+          const itemsToInsert = saveLines.map((item, index) => ({
             bill_id: legacyBill.id,
             product_id: item.product_id,
             sku_id: item.sku_id,
             product_name: item.product_name,
-            size: item.size,
+            size: item.size || "None",
             qty: item.qty,
             pur_price: item.pur_price,
             sale_price: item.sale_price,
@@ -7826,6 +7891,22 @@ const PurchaseEntry = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Desktop Mobile-ERP: IMEI multi-scan (was only mounted on the mobile layout before). */}
+      {isMobileERPMode && (
+        <IMEIScanDialog
+          open={showIMEIScanDialog}
+          onClose={() => {
+            setShowIMEIScanDialog(false);
+            setImeiScanItem(null);
+          }}
+          quantity={imeiScanItem?.qty || 2}
+          productName={imeiScanItem?.item ? formatProductDescription(imeiScanItem.item) : ""}
+          onConfirm={handleIMEIScanConfirm}
+          minLength={mobileERPSettings?.imei_min_length}
+          maxLength={mobileERPSettings?.imei_max_length}
+        />
+      )}
     </div>
   );
 };

@@ -74,7 +74,8 @@ export const productVariantSchema = z.object({
   pur_price: z.number().min(0, "Purchase price cannot be negative"),
   sale_price: z.number().min(0, "Sale price cannot be negative"),
   mrp: z.number().min(0, "MRP cannot be negative").nullable(),
-  barcode: z.string().max(20, "Barcode must be less than 20 characters").optional(),
+  // IMEI / serial barcodes can be up to ~25 chars (Mobile ERP settings).
+  barcode: z.string().max(32, "Barcode must be at most 32 characters").optional(),
   active: z.boolean(),
   opening_qty: z.number().min(0, "Opening quantity cannot be negative"),
 });
@@ -110,7 +111,8 @@ export const purchaseLineItemSchema = z
     sale_price: z.number().min(0, "Sale price cannot be negative"),
     gst_per: z.number().min(0).max(100, "GST must be between 0 and 100"),
     hsn_code: z.string().max(8, "HSN code must be less than 8 characters").optional(),
-    barcode: z.string().max(20, "Barcode must be less than 20 characters").optional(),
+    // Align with Mobile ERP IMEI max (default 25); was 20 and blocked valid IMEI saves.
+    barcode: z.string().max(32, "Barcode / IMEI must be at most 32 characters").optional(),
     discount_percent: z.number().min(0).max(100, "Discount must be between 0 and 100"),
   })
   .superRefine((data, ctx) => {
