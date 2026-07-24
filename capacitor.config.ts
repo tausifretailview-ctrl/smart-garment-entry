@@ -21,17 +21,21 @@ const config: CapacitorConfig = {
     androidScheme: "https",
     url: serverUrl,
     cleartext: false,
+    // Local asset shown if remote shell URL fails (no network / DNS).
+    errorPath: "native-load-error.html",
   },
   plugins: {
     SplashScreen: {
       // Remote-shell APK loads https://app.inventoryshop.in — keep native splash until
       // JS calls SplashScreen.hide(). Auto-hide at 2s caused a white blank WebView on
-      // slow/first install before the remote HTML arrived.
+      // slow/first install before the remote HTML arrived (EzzyERP 1.1.0 white screen).
       launchShowDuration: 0,
       launchAutoHide: false,
       backgroundColor: "#1e40af",
       androidSplashResourceName: "splash",
-      showSpinner: false,
+      showSpinner: true,
+      androidSpinnerStyle: "large",
+      spinnerColor: "#ffffff",
     },
     StatusBar: {
       style: "LIGHT",

@@ -1,7 +1,7 @@
 // Release: upload installers to private bucket "app-downloads" ->
 // add filenames to ALLOWED_FILES in download-apk / download-windows -> bump APP_VERSION.
 
-export const APP_VERSION = "1.1.0";
+export const APP_VERSION = "1.1.1";
 
 const DEFAULT_SUPABASE_FUNCTIONS_ORIGIN = "https://lkbbrqcsbhqjvsxiorvp.supabase.co";
 
