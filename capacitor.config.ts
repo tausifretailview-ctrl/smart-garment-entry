@@ -24,8 +24,11 @@ const config: CapacitorConfig = {
   },
   plugins: {
     SplashScreen: {
-      launchShowDuration: 2000,
-      launchAutoHide: true,
+      // Remote-shell APK loads https://app.inventoryshop.in — keep native splash until
+      // JS calls SplashScreen.hide(). Auto-hide at 2s caused a white blank WebView on
+      // slow/first install before the remote HTML arrived.
+      launchShowDuration: 0,
+      launchAutoHide: false,
       backgroundColor: "#1e40af",
       androidSplashResourceName: "splash",
       showSpinner: false,

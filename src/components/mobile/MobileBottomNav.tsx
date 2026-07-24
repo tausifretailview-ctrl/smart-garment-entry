@@ -1,6 +1,7 @@
 import { Home, Receipt, Wallet, MoreHorizontal } from "lucide-react";
 import { useLocation } from "react-router-dom";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
+import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { cn } from "@/lib/utils";
 import { MOBILE_ACCOUNTS_PATH, MOBILE_DEFAULT_LANDING_PATH, MOBILE_REPORTS_PATH, MOBILE_SALES_PATH } from "@/lib/mobileShell";
 
@@ -52,6 +53,12 @@ const navItems: NavItem[] = [
 export const MobileBottomNav = () => {
   const location = useLocation();
   const { orgNavigate, getOrgPath } = useOrgNavigation();
+  const { hasMenuAccess, permissions } = useUserPermissions();
+  const canAccessMainDashboard =
+    permissions === null || hasMenuAccess("main_dashboard");
+  const visibleItems = canAccessMainDashboard
+    ? navItems
+    : navItems.filter((item) => item.label !== "Home");
 
   const isActive = (item: NavItem) => {
     const currentPath = location.pathname;
@@ -72,7 +79,7 @@ export const MobileBottomNav = () => {
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-[40] bg-background/95 backdrop-blur-md border-t border-border lg:hidden safe-area-pb">
       <div className="flex items-center justify-around h-16">
-        {navItems.map((item) => {
+        {visibleItems.map((item) => {
           const Icon = item.icon;
           const active = isActive(item);
 

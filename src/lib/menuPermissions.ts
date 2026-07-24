@@ -8,6 +8,7 @@ export const LEGACY_MENU_ID_ALIASES: Record<string, string> = {
 const MENU_PERMISSION_BY_PATH: Record<string, string> = {
   "": "main_dashboard",
   dashboard: "main_dashboard",
+  "mobile-dashboard": "main_dashboard",
   products: "product_dashboard",
   "product-dashboard": "product_dashboard",
   "product-entry": "product_entry",
@@ -149,4 +150,19 @@ export function resolveFirstAllowedPath(
     return "settings";
   }
   return "pos-sales";
+}
+
+/**
+ * Mobile / native home path. When User Rights disables Main Dashboard,
+ * do not land on OwnerDashboard KPI cards — use the first allowed route instead.
+ */
+export function resolveMobileLandingPath(
+  hasMenuAccess: (menuId: string) => boolean,
+  permissions: { menu?: Record<string, boolean>; mainMenu?: Record<string, boolean> } | null,
+  organizationRole?: string | null
+): string {
+  if (permissions === null || hasMenuAccess("main_dashboard")) {
+    return "mobile-dashboard";
+  }
+  return resolveFirstAllowedPath(hasMenuAccess, permissions, organizationRole);
 }

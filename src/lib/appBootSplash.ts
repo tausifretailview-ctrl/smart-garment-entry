@@ -15,6 +15,13 @@ export function hideAppBootSplash(): void {
   window.setTimeout(() => {
     splash.remove();
   }, 280);
+
+  // Native: ensure Capacitor splash is gone even if initNativeShell hid earlier/failed.
+  if (Capacitor.isNativePlatform()) {
+    void import("@capacitor/splash-screen")
+      .then(({ SplashScreen }) => SplashScreen.hide())
+      .catch(() => undefined);
+  }
 }
 
 /**

@@ -18,6 +18,7 @@ import {
   diagnoseExcessAdvanceForCustomer,
   releaseExcessAdvanceForCustomer,
 } from "@/utils/releaseExcessAdvanceSettlement";
+import { resolveCnAdjustDateForSale } from "@/utils/customerAuditBundle";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardHeader, CardContent, CardDescription } from "@/components/ui/card";
@@ -1844,7 +1845,12 @@ export default function SalesInvoiceDashboard() {
         .retail-erp-invoice-template {
           width: 100% !important;
           max-width: none !important;
-          overflow: visible !important;
+          /* Keep hidden so A5 SN grid cannot paint over Note/totals (PDF/print align). */
+          overflow: hidden !important;
+        }
+        .retail-erp-items-grow {
+          overflow: hidden !important;
+          min-height: 0 !important;
         }
       }
     `;
@@ -1936,8 +1942,12 @@ export default function SalesInvoiceDashboard() {
   const ensureSaleItems = async (invoice: any) => {
     const needsItems = !invoice.sale_items || invoice.sale_items.length === 0;
     const needsCustomerGst = invoice.customer_id && !invoice.customers?.gst_number;
+    const needsCnAdjustDate =
+      Number(invoice.sale_return_adjust || 0) > 0.005 && !invoice.cn_adjust_date;
     
-    if (!needsItems && !needsCustomerGst) return invoice;
+    if (!needsItems && !needsCustomerGst && !needsCnAdjustDate && invoice.financerDetails) {
+      return invoice;
+    }
     
     try {
       let saleItems = invoice.sale_items || [];
@@ -2002,6 +2012,31 @@ export default function SalesInvoiceDashboard() {
             down_payment: financer.down_payment,
           };
         }
+      }
+
+      // Resolve CN adjust date for bill print Note when list row lacked cn_adjust_date.
+      if (
+        Number(updatedInvoice.sale_return_adjust || 0) > 0.005 &&
+        !updatedInvoice.cn_adjust_date
+      ) {
+        const [{ data: cnVouchers }, { data: linkedReturns }] = await Promise.all([
+          supabase
+            .from("voucher_entries")
+            .select("reference_id, voucher_date, voucher_type, payment_method, description")
+            .eq("reference_id", invoice.id)
+            .eq("voucher_type", "receipt")
+            .is("deleted_at", null),
+          supabase
+            .from("sale_returns")
+            .select("linked_sale_id, return_date")
+            .eq("linked_sale_id", invoice.id)
+            .is("deleted_at", null),
+        ]);
+        updatedInvoice.cn_adjust_date = resolveCnAdjustDateForSale(
+          invoice.id,
+          cnVouchers || [],
+          linkedReturns || [],
+        );
       }
       
       return updatedInvoice;
@@ -2122,6 +2157,7 @@ export default function SalesInvoiceDashboard() {
           paidAmount={invoiceToPrint.paid_amount || 0}
           salesman={invoiceToPrint.salesman || ""}
           notes={invoiceToPrint.notes || ""}
+          cnAdjustDate={invoiceToPrint.cn_adjust_date || null}
           otherCharges={invoiceToPrint.other_charges || 0}
           roundOff={Number(invoiceToPrint.round_off ?? 0)}
           financerDetails={invoiceToPrint.financerDetails || null}
@@ -3604,6 +3640,7 @@ export default function SalesInvoiceDashboard() {
               paidAmount={invoiceToPrint.paid_amount || 0}
               salesman={invoiceToPrint.salesman || ''}
               notes={invoiceToPrint.notes || ''}
+              cnAdjustDate={invoiceToPrint.cn_adjust_date || null}
               otherCharges={invoiceToPrint.other_charges || 0}
               roundOff={Number(invoiceToPrint.round_off ?? 0)}
               financerDetails={invoiceToPrint.financerDetails || null}
@@ -5233,6 +5270,7 @@ export default function SalesInvoiceDashboard() {
               paidAmount={invoiceToPrint.paid_amount || 0}
               salesman={invoiceToPrint.salesman || ''}
               notes={invoiceToPrint.notes || ''}
+              cnAdjustDate={invoiceToPrint.cn_adjust_date || null}
               otherCharges={invoiceToPrint.other_charges || 0}
               roundOff={Number(invoiceToPrint.round_off ?? 0)}
               financerDetails={invoiceToPrint.financerDetails || null}

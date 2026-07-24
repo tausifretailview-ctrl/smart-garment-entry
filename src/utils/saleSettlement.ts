@@ -9,6 +9,7 @@ import {
   creditNoteLiveRemaining,
   ensureCreditNoteHeadroom,
   formatCnApplyError,
+  isSaleReturnConsumedAtBilling,
   resolveCnAvailableFromRows,
   type CreditNoteLiveRow,
 } from "@/utils/saleReturnCnBalance";
@@ -312,7 +313,9 @@ export async function getAvailableCN(
     }
   }
 
-  const returns: AvailableCNReturn[] = rows.map((sr) => {
+  const returns: AvailableCNReturn[] = rows
+    .filter((sr) => !isSaleReturnConsumedAtBilling(sr))
+    .map((sr) => {
     const cnId = String((sr as { credit_note_id?: string }).credit_note_id || "").trim();
     const cn = cnId ? cnById.get(cnId) : null;
     const available = resolveCnAvailableFromRows(sr, cn);
@@ -327,7 +330,7 @@ export async function getAvailableCN(
       credit_available_balance: cn ? creditNoteLiveRemaining(cn) : sr.credit_available_balance,
       refund_type: sr.refund_type,
     };
-  });
+  }).filter((r) => r.available > 0.005);
 
   return {
     total: returns.reduce((sum, r) => sum + r.available, 0),
@@ -398,6 +401,16 @@ export async function applyCreditNoteFifoToSale(
 
   for (const sr of pool) {
     if (remaining <= 0.01) break;
+    // Re-read status: billing-absorbed returns must never be FIFO-applied again.
+    const { data: liveSr } = await supabase
+      .from("sale_returns")
+      .select("credit_status, linked_sale_id")
+      .eq("id", sr.id)
+      .eq("organization_id", params.organizationId)
+      .maybeSingle();
+    if (isSaleReturnConsumedAtBilling(liveSr || sr)) {
+      continue;
+    }
     const avail = sr.available;
     if (avail <= 0.01) continue;
 

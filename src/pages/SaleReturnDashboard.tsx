@@ -35,6 +35,7 @@ import { useSoftDelete } from "@/hooks/useSoftDelete";
 import { AdjustCustomerCreditNoteDialog } from "@/components/AdjustCustomerCreditNoteDialog";
 import { useOpenCustomerAccount } from "@/hooks/useOpenCustomerAccount";
 import { CreditNoteHistoryDialog } from "@/components/CreditNoteHistoryDialog";
+import { isSaleReturnConsumedAtBilling } from "@/utils/saleReturnCnBalance";
 import { format } from "date-fns";
 import * as XLSX from "xlsx";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -136,6 +137,8 @@ const DEFAULT_SALE_RETURN_COLUMNS = {
 };
 
 const getAvailableCN = (ret: SaleReturn): number => {
+  // Billing-absorbed returns must not appear spendable (CN header may still show remainder).
+  if (isSaleReturnConsumedAtBilling(ret)) return 0;
   if (ret.credit_note_id && ret.cn_live_remaining != null) {
     return Number(ret.cn_live_remaining);
   }
@@ -1599,10 +1602,8 @@ export default function SaleReturnDashboard() {
                               const status = ret.credit_status || "";
                               if (status === "refunded") return false;
                               if (!ret.customer_id) return false;
-                              if (status === "adjusted" && ret.linked_sale_id) {
-                                const remaining = ret.remaining_cn_amt ?? 0;
-                                if (remaining <= 0) return false;
-                              }
+                              // Never offer Adjust after billing absorption — even if CN used_amount drifted.
+                              if (isSaleReturnConsumedAtBilling(ret)) return false;
                               return getAvailableCN(ret) > 0;
                             })() && (
                               <Button

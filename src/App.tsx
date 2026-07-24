@@ -1535,14 +1535,16 @@ const App = () => {
                 {/* Legacy path → owner mobile reports */}
                 <Route path="mobile-reports" element={<Navigate to="owner-reports" replace />} />
 
-                {/* Mobile Business Dashboard (native app home) */}
+                {/* Mobile Business Dashboard (native app home) — same Main Dashboard right as desktop Index */}
                 <Route
                   path="mobile-dashboard"
                   element={
                     <ProtectedRoute>
-                      <Suspense fallback={<LazyFallback />}>
-                        <MobileDashboardPage />
-                      </Suspense>
+                      <MenuPermissionRoute permission="main_dashboard">
+                        <Suspense fallback={<LazyFallback />}>
+                          <MobileDashboardPage />
+                        </Suspense>
+                      </MenuPermissionRoute>
                     </ProtectedRoute>
                   }
                 />

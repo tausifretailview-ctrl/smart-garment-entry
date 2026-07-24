@@ -4249,7 +4249,12 @@ export default function POSSales() {
         .retail-erp-invoice-template {
           width: 100% !important;
           max-width: none !important;
-          overflow: visible !important;
+          /* Keep hidden so A5 SN grid cannot paint over Note/totals (PDF/print align). */
+          overflow: hidden !important;
+        }
+        .retail-erp-items-grow {
+          overflow: hidden !important;
+          min-height: 0 !important;
         }
         .invoice-print-source,
         .invoice-print-source-screen,
