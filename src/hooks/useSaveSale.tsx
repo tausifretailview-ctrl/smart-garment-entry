@@ -844,7 +844,14 @@ export const useSaveSale = () => {
       }
 
       let pointsAwarded = 0;
-      if (isPointsEnabled && saleData.customerId && paymentMethod !== "pay_later") {
+      // No points earn on bills that redeem points (pending stays 0).
+      const redeemedOnBill = (saleData.pointsRedeemedAmount || 0) > 0;
+      if (
+        isPointsEnabled &&
+        saleData.customerId &&
+        paymentMethod !== "pay_later" &&
+        !redeemedOnBill
+      ) {
         pointsAwarded = calculatePoints(saleData.netAmount);
         void awardPoints(saleData.customerId, sale.id, saleData.netAmount, saleNumber).catch((err) =>
           console.error("Award points failed (non-blocking):", err),

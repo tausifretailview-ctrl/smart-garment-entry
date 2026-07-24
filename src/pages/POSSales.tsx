@@ -6627,10 +6627,13 @@ export default function POSSales() {
                     <div className="flex items-center gap-3 ml-auto flex-wrap">
                       <div className="flex items-center gap-2 bg-amber-500 text-white px-3 py-1.5 rounded-lg">
                         <Coins className="h-4 w-4" />
-                        <span className="font-bold">{customerPointsData?.balance || 0} pts</span>
-                        {items.length > 0 && (() => {
+                        <span className="font-bold">
+                          {Math.max(0, (customerPointsData?.balance || 0) - pointsToRedeem)} pts
+                        </span>
+                        {items.length > 0 && pointsToRedeem <= 0 && (() => {
+                          // No earn preview while redeeming on this bill (pending = 0).
                           const pendingPts = calculatePoints(
-                            Math.max(0, totals.subtotal - saleReturnAdjust - flatDiscountAmount - pointsRedemptionValue),
+                            Math.max(0, totals.subtotal - saleReturnAdjust - flatDiscountAmount),
                           );
                           return pendingPts > 0 ? (
                             <span className="text-amber-100 text-sm" title="Earned after bill save — not redeemable on this bill">

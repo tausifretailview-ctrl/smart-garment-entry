@@ -3238,8 +3238,8 @@ Thank you for choosing us!`;
           });
         }
 
-        // CRM: Award points for this purchase
-        if (isPointsEnabled && selectedCustomerId) {
+        // CRM: Award points only when not redeeming on the same bill
+        if (isPointsEnabled && selectedCustomerId && pointsToRedeem <= 0) {
           awardPoints(
             selectedCustomerId,
             saleData.id,
