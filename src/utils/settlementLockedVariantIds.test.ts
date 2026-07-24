@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   getSettlementLockedCartItems,
   toLockedVariantIdSet,
-} from "@/hooks/useOpenSettlementVariantIds";
+} from "@/utils/settlementLockedVariantIds";
 
 describe("toLockedVariantIdSet", () => {
   it("rebuilds a Set from a string array (persist-safe query shape)", () => {
