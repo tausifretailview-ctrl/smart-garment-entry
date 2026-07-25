@@ -93,6 +93,28 @@ export function buildProductTextOrFilter(terms: string[]): string {
   return clauses.join(",");
 }
 
+/**
+ * Client-side mirror of `buildProductTokenBoundaryOrFilter` — true when the
+ * term appears on a word boundary (space/hyphen/start/end) in any of the four
+ * product text fields. Used to classify rows returned by the broader ILIKE
+ * filter without issuing a second products query.
+ */
+export function matchesProductTokenBoundary(
+  parts: { product_name?: string | null; brand?: string | null; style?: string | null; category?: string | null },
+  rawQuery: string,
+): boolean {
+  const safe = String(rawQuery ?? "").trim().toLowerCase().replace(/[%_]/g, "");
+  if (!safe) return false;
+  const escaped = safe.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const re = new RegExp(`(^|[\\s\\-])${escaped}([\\s\\-]|$)`, "i");
+  return (
+    re.test(parts.product_name ?? "") ||
+    re.test(parts.brand ?? "") ||
+    re.test(parts.style ?? "") ||
+    re.test(parts.category ?? "")
+  );
+}
+
 export function productHaystack(
   parts: { product_name?: string; brand?: string; style?: string; category?: string; barcode?: string; color?: string; size?: string },
 ): string {
