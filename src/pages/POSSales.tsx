@@ -88,6 +88,7 @@ import {
   computePosFlatDiscount,
   posLineDisplayTotal,
 } from "@/utils/posGstTotals";
+import { maxSaleReturnAdjustForPayable } from "@/utils/saleSettlement";
 import { clampQty, minQtyForUom } from "@/utils/qtyInput";
 import type { GstTaxType } from "@/utils/gstRegisterUtils";
 import { CreditNotePrint } from "@/components/CreditNotePrint";
@@ -3205,6 +3206,72 @@ export default function POSSales() {
   const finalAmount = amountBeforeRoundOff + roundOff - pointsRedemptionValue;
   const amountBeforeCredit = finalAmount + creditApplied;
 
+  /** Max S/R that keeps bill net ≥ 0 (gross/subtotal after other discounts/credits). */
+  const maxSrFromBill = maxSaleReturnAdjustForPayable(finalAmount, saleReturnAdjust);
+  const availableSrCredit = pendingSaleReturnCredits.reduce(
+    (s, sr) => s + (Number(sr.net_amount) || 0),
+    0,
+  );
+  const maxSrAllowed =
+    availableSrCredit > 0.005
+      ? Math.min(maxSrFromBill, Math.round(availableSrCredit * 100) / 100)
+      : maxSrFromBill;
+
+  const clampSaleReturnAdjust = (requested: number, opts?: { silent?: boolean }) => {
+    const raw = Math.max(0, Math.round((Number(requested) || 0) * 100) / 100);
+    const capped = Math.min(raw, maxSrAllowed);
+    if (!opts?.silent && raw > capped + 0.01) {
+      toast.warning(
+        `Only ₹${maxSrAllowed.toLocaleString("en-IN", { maximumFractionDigits: 2 })} of credit can be applied to this bill`,
+      );
+    }
+    setSaleReturnAdjust(capped);
+    return capped;
+  };
+
+  const handleSaleReturnSavedToBill = (
+    amount: number,
+    returnNumber: string,
+    refundType: string,
+  ) => {
+    const applyAmount = () => {
+      // Bill-only cap: newly created return may not be in pendingSaleReturnCredits yet.
+      const raw = Math.max(0, Math.round((Number(amount) || 0) * 100) / 100);
+      const capped = Math.min(raw, maxSrFromBill);
+      if (raw > capped + 0.01) {
+        toast.warning(
+          `Only ₹${maxSrFromBill.toLocaleString("en-IN", { maximumFractionDigits: 2 })} of credit can be applied to this bill`,
+        );
+      }
+      setSaleReturnAdjust(capped);
+      const leftover = Math.max(0, Math.round((raw - capped) * 100) / 100);
+      return { capped, leftover };
+    };
+    if (refundType === "exchange" || refundType === "credit_note") {
+      const { capped, leftover } = applyAmount();
+      toast.success(refundType === "exchange" ? "Exchange Applied" : "Credit Note Created", {
+        description:
+          leftover > 0.01
+            ? `${returnNumber} — ₹${Math.round(capped)} on this bill; ₹${Math.round(leftover)} credit remains for a future bill`
+            : `${returnNumber} — ₹${Math.round(amount)} ${refundType === "exchange" ? "deducted from new bill" : "credit note issued"}`,
+      });
+      return;
+    }
+    if (items.length > 0) {
+      const { capped, leftover } = applyAmount();
+      toast.success("Cash Refund Adjusted", {
+        description:
+          leftover > 0.01
+            ? `${returnNumber} — ₹${Math.round(capped)} on this bill; ₹${Math.round(leftover)} remains. Save to finalize.`
+            : `${returnNumber} — ₹${Math.round(amount)} adjusted in current bill. Save to finalize.`,
+      });
+      return;
+    }
+    toast.success("Cash Refund Processed", {
+      description: `${returnNumber} — ₹${Math.round(amount)} cash refunded to customer`,
+    });
+  };
+
   // ── WhatsApp invoice PDF capture wiring ──────────────────────────────────
   // When `whatsappPdfSnapshot` is set the off-screen <InvoiceWrapper> mounts
   // with the just-saved sale's props. Once React commits + the logo loads we
@@ -5372,19 +5439,7 @@ export default function POSSales() {
           customerId={customerId}
           customerName={customerName || undefined}
           posCurrentSaleId={currentSaleId}
-          onReturnSaved={(amount, returnNumber, refundType) => {
-            if (refundType === "exchange" || refundType === "credit_note") {
-              setSaleReturnAdjust(amount);
-              toast.success(refundType === "exchange" ? "Exchange Applied" : "Credit Note Created", { description: `${returnNumber} — ₹${Math.round(amount)} ${refundType === "exchange" ? "deducted from new bill" : "credit note issued"}` });
-            } else {
-              if (items.length > 0) {
-                setSaleReturnAdjust(amount);
-                toast.success("Cash Refund Adjusted", { description: `${returnNumber} — ₹${Math.round(amount)} adjusted in current bill. Save to finalize.` });
-                return;
-              }
-              toast.success("Cash Refund Processed", { description: `${returnNumber} — ₹${Math.round(amount)} cash refunded to customer` });
-            }
-          }}
+          onReturnSaved={handleSaleReturnSavedToBill}
         />
         <Dialog open={showAddCustomerDialog} onOpenChange={setShowAddCustomerDialog}>
           <DialogContent className="sm:max-w-md">
@@ -5507,19 +5562,7 @@ export default function POSSales() {
           customerId={customerId}
           customerName={customerName || undefined}
           posCurrentSaleId={currentSaleId}
-          onReturnSaved={(amount, returnNumber, refundType) => {
-            if (refundType === "exchange" || refundType === "credit_note") {
-              setSaleReturnAdjust(amount);
-              toast.success(refundType === "exchange" ? "Exchange Applied" : "Credit Note Created", { description: `${returnNumber} — ₹${Math.round(amount)} ${refundType === "exchange" ? "deducted from new bill" : "credit note issued"}` });
-            } else {
-              if (items.length > 0) {
-                setSaleReturnAdjust(amount);
-                toast.success("Cash Refund Adjusted", { description: `${returnNumber} — ₹${Math.round(amount)} adjusted in current bill. Save to finalize.` });
-                return;
-              }
-              toast.success("Cash Refund Processed", { description: `${returnNumber} — ₹${Math.round(amount)} cash refunded to customer` });
-            }
-          }}
+          onReturnSaved={handleSaleReturnSavedToBill}
         />
 
         {/* Advance Booking Dialog - Mobile */}
@@ -6764,7 +6807,7 @@ export default function POSSales() {
                 </div>
               </div>
               
-              {/* S/R Adj */}
+              {/* S/R Adj — capped to bill (net ≥ 0); excess credit stays for a future bill */}
               <div className="text-center">
                 <div className="text-sm text-white/90 uppercase font-bold mb-1 tracking-wide">
                   S/R Adj{customerId && pendingSaleReturnCredits.length > 0 ? ` (${pendingSaleReturnCredits.length})` : ''}
@@ -6775,23 +6818,32 @@ export default function POSSales() {
                     className="w-24 h-10 bg-white text-foreground text-center text-lg font-semibold border-0 rounded-md" 
                     value={saleReturnAdjust || ""}
                     placeholder="0"
-                    onChange={(e) => setSaleReturnAdjust(parseFloat(e.target.value) || 0)}
+                    max={maxSrAllowed}
+                    min={0}
+                    onChange={(e) => {
+                      const raw = e.target.value;
+                      if (raw === "" || raw === "-") {
+                        setSaleReturnAdjust(0);
+                        return;
+                      }
+                      const n = parseFloat(raw);
+                      if (!Number.isFinite(n)) return;
+                      // Allow typing above cap; clamp on blur so the field stays editable.
+                      setSaleReturnAdjust(Math.max(0, n));
+                    }}
                     step="0.01"
                     onBlur={(e) => {
                       const requested = parseFloat(e.target.value) || 0;
-                      if (!customerId || requested <= 0) return;
-                      const available = pendingSaleReturnCredits.reduce(
-                        (s, sr) => s + (Number(sr.net_amount) || 0),
-                        0
-                      );
-                      if (requested > available + 0.01) {
-                        toast.warning(
-                          available > 0
-                            ? `Maximum S/R credit available: ₹${available.toFixed(2)}`
-                            : "No pending Sale Return credit for this customer"
-                        );
-                        setSaleReturnAdjust(Math.max(0, Math.round(available * 100) / 100));
+                      if (requested <= 0) {
+                        setSaleReturnAdjust(0);
+                        return;
                       }
+                      if (customerId && availableSrCredit <= 0.01 && requested > 0.01) {
+                        toast.warning("No pending Sale Return credit for this customer");
+                        setSaleReturnAdjust(0);
+                        return;
+                      }
+                      clampSaleReturnAdjust(requested);
                     }}
                   />
                   {customerId && pendingSaleReturnCredits.length > 0 && (
@@ -6809,7 +6861,7 @@ export default function POSSales() {
                               key={sr.id}
                               className="w-full flex items-center justify-between px-2 py-1.5 rounded hover:bg-accent text-sm text-left"
                               onClick={() => {
-                                setSaleReturnAdjust(sr.net_amount);
+                                clampSaleReturnAdjust(Number(sr.net_amount) || 0);
                                 setShowSRCreditDropdown(false);
                               }}
                             >
@@ -6855,6 +6907,11 @@ export default function POSSales() {
                     </Popover>
                   )}
                 </div>
+                {(saleReturnAdjust > maxSrAllowed + 0.01 || (maxSrAllowed > 0 && availableSrCredit > maxSrFromBill + 0.01)) && (
+                  <div className="text-[10px] text-amber-200 mt-0.5 max-w-[9rem] leading-tight">
+                    Only ₹{maxSrAllowed.toLocaleString("en-IN", { maximumFractionDigits: 0 })} of credit can be applied to this bill
+                  </div>
+                )}
               </div>
               
               {/* Round */}
@@ -7513,19 +7570,7 @@ export default function POSSales() {
           customerId={customerId}
           customerName={customerName || undefined}
           posCurrentSaleId={currentSaleId}
-          onReturnSaved={(amount, returnNumber, refundType) => {
-            if (refundType === "exchange" || refundType === "credit_note") {
-              setSaleReturnAdjust(amount);
-              toast.success(refundType === "exchange" ? "Exchange Applied" : "Credit Note Created", { description: `${returnNumber} — ₹${Math.round(amount)} ${refundType === "exchange" ? "deducted from new bill" : "credit note issued"}` });
-            } else {
-              if (items.length > 0) {
-                setSaleReturnAdjust(amount);
-                toast.success("Cash Refund Adjusted", { description: `${returnNumber} — ₹${Math.round(amount)} adjusted in current bill. Save to finalize.` });
-                return;
-              }
-              toast.success("Cash Refund Processed", { description: `${returnNumber} — ₹${Math.round(amount)} cash refunded to customer` });
-            }
-          }}
+          onReturnSaved={handleSaleReturnSavedToBill}
         />
 
         {/* Advance Booking Dialog - Desktop */}

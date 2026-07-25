@@ -524,6 +524,50 @@ function sumMerchandiseGrossFromItems(items: unknown[]): number {
   }, 0);
 }
 
+const roundMoney2 = (value: number) => Math.round((Number(value) || 0) * 100) / 100;
+
+/**
+ * Max S/R adjust that keeps payable net ≥ 0.
+ * `payableAfterCurrentSr` is the current bill total (already net of `currentSr`).
+ */
+export function maxSaleReturnAdjustForPayable(
+  payableAfterCurrentSr: number,
+  currentSr: number,
+): number {
+  return Math.max(0, roundMoney2((Number(payableAfterCurrentSr) || 0) + (Number(currentSr) || 0)));
+}
+
+/**
+ * Cap S/R adjust so net_amount cannot go negative. Excess credit must stay on the
+ * customer's pending return/CN balance (not absorbed into a negative net).
+ * `netAmount` is payable AFTER the requested adjust (POS / useSaveSale convention).
+ */
+export function normalizeSaleReturnAdjustAgainstBill(params: {
+  netAmount: number;
+  saleReturnAdjust: number;
+}): {
+  netAmount: number;
+  saleReturnAdjust: number;
+  excess: number;
+  wasCapped: boolean;
+  maxApply: number;
+} {
+  const requested = Math.max(0, roundMoney2(params.saleReturnAdjust));
+  const net = roundMoney2(params.netAmount);
+  const billBeforeSr = roundMoney2(net + requested);
+  const maxApply = Math.max(0, billBeforeSr);
+  const capped = Math.min(requested, maxApply);
+  const excess = roundMoney2(requested - capped);
+  const adjustedNet = Math.max(0, roundMoney2(net + excess));
+  return {
+    netAmount: adjustedNet,
+    saleReturnAdjust: capped,
+    excess,
+    wasCapped: excess > 0.005 || adjustedNet > net + 0.005,
+    maxApply,
+  };
+}
+
 /**
  * Validate before any sale insert/update. Throws before DB writes.
  */
@@ -549,24 +593,28 @@ export function preSaveInvariants(params: {
   }
 
   const srAdjust = saleReturnAdjust || 0;
-  // POS / useSaveSale: net_amount is payable after S/R adjust; merchandise bill = net + S/R (see getExchangeAmounts).
-  const billAmount = netAmount + srAdjust;
+  // POS / useSaveSale: net_amount is payable after S/R adjust; merchandise bill = net + S/R.
+  const billAmount = roundMoney2(netAmount + srAdjust);
   const merchandiseGross = Math.max(
     Number(grossAmount) || 0,
     sumMerchandiseGrossFromItems(items),
   );
 
-  // Allow ₹0 payable when items have value (100% line discount / complimentary) or S/R exchange covers bill.
+  // Allow ₹0 payable when items have value (100% line discount / complimentary) or S/R covers bill.
   if (netAmount <= 0 && srAdjust <= 0 && merchandiseGross <= SETTLEMENT_TOLERANCE) {
     throw new Error("Net amount must be greater than zero.");
   }
 
-  // POS exchange: S/R credit can exceed merchandise; negative net is cash/UPI refund due (Mix Payment).
-  const refundDue = netAmount < -SETTLEMENT_TOLERANCE;
-
-  if (!refundDue && srAdjust > billAmount + SETTLEMENT_TOLERANCE) {
+  // Negative net from over-applied S/R is forbidden — excess credit must remain for a future bill.
+  if (netAmount < -SETTLEMENT_TOLERANCE) {
     throw new Error(
-      `Sale return adjustment (₹${srAdjust}) cannot exceed invoice amount (₹${billAmount}).`,
+      `Net amount cannot be negative (₹${roundMoney2(netAmount)}). Only ₹${Math.max(0, billAmount).toLocaleString("en-IN")} of S/R credit can be applied to this bill; leave the rest for a future bill.`,
+    );
+  }
+
+  if (srAdjust > billAmount + SETTLEMENT_TOLERANCE) {
+    throw new Error(
+      `Sale return adjustment (₹${srAdjust}) cannot exceed invoice amount (₹${billAmount}). Only ₹${Math.max(0, billAmount).toLocaleString("en-IN")} of credit can be applied to this bill.`,
     );
   }
 
@@ -575,13 +623,11 @@ export function preSaveInvariants(params: {
     throw new Error(`Paid amount (₹${paidAmount}) exceeds payable amount (₹${maxPayable}).`);
   }
 
-  if (!refundDue) {
-    const totalCredits = (paidAmount || 0) + srAdjust;
-    if (totalCredits > billAmount + SETTLEMENT_TOLERANCE) {
-      throw new Error(
-        `Total credits (₹${totalCredits}) exceed invoice amount (₹${billAmount}). This would over-credit the customer.`,
-      );
-    }
+  const totalCredits = (paidAmount || 0) + srAdjust;
+  if (totalCredits > billAmount + SETTLEMENT_TOLERANCE) {
+    throw new Error(
+      `Total credits (₹${totalCredits}) exceed invoice amount (₹${billAmount}). This would over-credit the customer.`,
+    );
   }
 }
 

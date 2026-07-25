@@ -16,6 +16,7 @@ import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngine
 import {
   derivePaidAndStatus,
   getAvailableCN,
+  normalizeSaleReturnAdjustAgainstBill,
   preSaveInvariants,
   warnSettlementPathMismatch,
 } from "@/utils/saleSettlement";
@@ -121,6 +122,24 @@ export const useSaveSale = () => {
   };
 
   const roundMoney = (value: number) => Math.round((Number(value) || 0) * 100) / 100;
+
+  /** Cap S/R so net cannot go negative; excess stays on customer credit for a future bill. */
+  const applySaleReturnBillCap = (saleData: SaleData): SaleData => {
+    const normalized = normalizeSaleReturnAdjustAgainstBill({
+      netAmount: saleData.netAmount,
+      saleReturnAdjust: saleData.saleReturnAdjust || 0,
+    });
+    if (!normalized.wasCapped) return saleData;
+    toast({
+      title: "S/R adjust capped to bill",
+      description: `Only ₹${normalized.maxApply.toLocaleString("en-IN")} of credit can be applied to this bill. ₹${normalized.excess.toLocaleString("en-IN")} remains for a future bill.`,
+    });
+    return {
+      ...saleData,
+      netAmount: normalized.netAmount,
+      saleReturnAdjust: normalized.saleReturnAdjust,
+    };
+  };
 
   const getExchangeAmounts = (saleData: SaleData, refundAmt: number) => {
     const saleReturnTotal = roundMoney(saleData.saleReturnAdjust || 0);
@@ -611,6 +630,8 @@ export const useSaveSale = () => {
         return null;
       }
     }
+
+    saleData = applySaleReturnBillCap(saleData);
 
     try {
       preSaveInvariants({
@@ -1287,6 +1308,8 @@ export const useSaveSale = () => {
       }
     }
 
+    saleData = applySaleReturnBillCap(saleData);
+
     try {
       preSaveInvariants({
         netAmount: saleData.netAmount,
@@ -1893,6 +1916,8 @@ export const useSaveSale = () => {
       });
       return null;
     }
+
+    saleData = applySaleReturnBillCap(saleData);
 
     try {
       preSaveInvariants({

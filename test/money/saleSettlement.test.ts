@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { derivePaidAndStatus } from "@/utils/saleSettlement";
+import {
+  derivePaidAndStatus,
+  maxSaleReturnAdjustForPayable,
+  normalizeSaleReturnAdjustAgainstBill,
+  preSaveInvariants,
+} from "@/utils/saleSettlement";
 
 describe("derivePaidAndStatus — POS / sales settlement", () => {
   it("full cash payment: completed, paid_amount equals net", () => {
@@ -99,5 +104,47 @@ describe("derivePaidAndStatus — outstanding balance", () => {
     });
     expect(paymentStatus).toBe("partial");
     expect(net - paidAmount).toBe(3610);
+  });
+});
+
+describe("normalizeSaleReturnAdjustAgainstBill", () => {
+  it("caps S/R that would drive net negative and restores net to 0", () => {
+    const result = normalizeSaleReturnAdjustAgainstBill({
+      netAmount: -5000,
+      saleReturnAdjust: 15000,
+    });
+    expect(result.saleReturnAdjust).toBe(10000);
+    expect(result.netAmount).toBe(0);
+    expect(result.excess).toBe(5000);
+    expect(result.wasCapped).toBe(true);
+  });
+
+  it("leaves under-bill S/R untouched", () => {
+    const result = normalizeSaleReturnAdjustAgainstBill({
+      netAmount: 2000,
+      saleReturnAdjust: 500,
+    });
+    expect(result.saleReturnAdjust).toBe(500);
+    expect(result.netAmount).toBe(2000);
+    expect(result.excess).toBe(0);
+    expect(result.wasCapped).toBe(false);
+  });
+
+  it("maxSaleReturnAdjustForPayable = current payable + current S/R", () => {
+    expect(maxSaleReturnAdjustForPayable(0, 4500)).toBe(4500);
+    expect(maxSaleReturnAdjustForPayable(1200, 800)).toBe(2000);
+  });
+});
+
+describe("preSaveInvariants — negative net rejected", () => {
+  it("throws when net_amount is negative", () => {
+    expect(() =>
+      preSaveInvariants({
+        netAmount: -100,
+        items: [{ quantity: 1, mrp: 500 }],
+        saleReturnAdjust: 600,
+        grossAmount: 500,
+      }),
+    ).toThrow(/cannot be negative/i);
   });
 });
