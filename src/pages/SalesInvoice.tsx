@@ -46,7 +46,6 @@ import { format } from "date-fns";
 import { cn, sortSearchResults, buildProductDisplayName } from "@/lib/utils";
 import {
   buildProductTextOrFilter,
-  buildProductTokenBoundaryOrFilter,
   expandProductSearchTerms,
   matchesProductSearchFields,
   matchesProductTokenBoundary,
