@@ -32,11 +32,21 @@ export default defineConfig(({ mode }) => ({
       includeAssets: ['favicon.ico', 'robots.txt'],
       workbox: {
         maximumFileSizeToCacheInBytes: 10 * 1024 * 1024, // 10 MiB
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        globPatterns: ['**/*.{js,css,ico,png,svg,woff2}'],
         cleanupOutdatedCaches: true,
         navigateFallback: '/index.html',
         navigateFallbackDenylist: [/^\/~oauth/, /^\/api/, /supabase\.co/],
         runtimeCaching: [
+          {
+            // HTML navigations: network-first so deploys aren't stuck behind a precached shell
+            urlPattern: ({ request }) => request.mode === 'navigate',
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'html-navigations',
+              networkTimeoutSeconds: 3,
+              expiration: { maxEntries: 5, maxAgeSeconds: 24 * 60 * 60 },
+            },
+          },
           {
             // Don't cache Supabase auth requests - always go to network
             urlPattern: /^https:\/\/.*\.supabase\.co\/auth\/.*/i,
