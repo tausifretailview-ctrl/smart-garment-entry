@@ -49,6 +49,7 @@ import {
   buildProductTokenBoundaryOrFilter,
   expandProductSearchTerms,
   matchesProductSearchFields,
+  matchesProductTokenBoundary,
   scoreProductSearchMatch,
 } from "@/utils/productSearch";
 import { entryPageMainClass, entryPageSectionX, entryPageShellClass } from "@/lib/entryPageLayout";
