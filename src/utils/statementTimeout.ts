@@ -43,15 +43,27 @@ export function isStatementTimeout(error: unknown): boolean {
 export type TimeoutPresentation = { title: string; message: string };
 
 /**
- * User-facing copy for a timed-out query. `context` optionally names what
- * was loading (e.g. "Purchase Bills"). The message never mentions the
- * word "timeout", the SQLSTATE, or the raw Postgres string.
+ * User-facing copy for a timed-out READ (query). The message never mentions
+ * the word "timeout", the SQLSTATE, or the raw Postgres string.
  */
-export function statementTimeoutMessage(context?: string): TimeoutPresentation {
-  const trimmed = context?.trim();
-  const lead = trimmed && trimmed.length > 0 ? `${trimmed} is` : "This is";
+export function statementTimeoutMessage(): TimeoutPresentation {
   return {
     title: "Taking too long to load",
-    message: `${lead} more data than we can load at once. Try a shorter date range or add a filter.`,
+    message:
+      "This is more data than we can load at once. Try a shorter date range or add a filter.",
+  };
+}
+
+/**
+ * User-facing copy for a timed-out WRITE (mutation). A 57014 came back from
+ * the server, which means Postgres cancelled the statement and rolled the
+ * transaction back — nothing was saved. Say so explicitly so a cashier
+ * doesn't re-enter a sale and create a duplicate.
+ */
+export function statementTimeoutMutationMessage(): TimeoutPresentation {
+  return {
+    title: "Couldn't complete that",
+    message:
+      "The server took too long and nothing was saved. Refresh the page and try again.",
   };
 }
