@@ -375,10 +375,6 @@ const App = () => {
         // background `isFetching` flips so the page doesn't visibly "blink".
         notifyOnChangeProps: ["data", "error"],
       },
-      mutations: {
-        retry: (failureCount, error) =>
-          !isStatementTimeout(error) && failureCount < 0, // preserve default (no retry) for mutations
-      },
     },
     });
   });
