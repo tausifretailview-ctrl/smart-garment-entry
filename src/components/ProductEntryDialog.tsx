@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { canonicalizeProductBrand } from "@/utils/productBrandUtils";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { invalidateStockReportQueries } from "@/utils/invalidateDashboardQueries";
 import { Button } from "@/components/ui/button";
@@ -415,9 +416,13 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { currentOrganization } = useOrganization();
+  const { loading: authLoading, session } = useAuth();
   const { isColumnVisible } = useUserPermissions();
   const [loading, setLoading] = useState(false);
   const [sizeGroups, setSizeGroups] = useState<SizeGroup[]>([]);
+  const [loadingSizeGroups, setLoadingSizeGroups] = useState(false);
+  const [sizeGroupsError, setSizeGroupsError] = useState<string | null>(null);
+  const [previousValuesError, setPreviousValuesError] = useState<string | null>(null);
   const [variants, setVariants] = useState<ProductVariant[]>([]);
   const [showVariants, setShowVariants] = useState(false);
   const productFieldSettings = useProductFieldSettings();
@@ -602,16 +607,13 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
       ? { id: NO_SIZE_GROUP, group_name: "None", sizes: ["None"] }
       : sizeGroups.find((g) => g.id === id);
 
-  // Reset form when dialog opens - pre-fill from last saved product
+  // Reset form when dialog opens - pre-fill from last saved product.
   useEffect(() => {
     if (open) {
       if (currentOrganization?.id) {
         applySuggestionCache(loadProductSuggestionCache(currentOrganization.id));
       }
       resetForm();
-      fetchSizeGroups();
-      fetchDefaultSizeGroup();
-      fetchPreviousValues();
       setCopySearch("");
       setCopyResults([]);
       setShowCopyDropdown(false);
@@ -620,6 +622,13 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
       setTimeout(() => productNameInputRef.current?.focus(), 150);
     }
   }, [open, currentOrganization?.id, applySuggestionCache]);
+
+  // Gate network fetches on AuthContext.loading=false so they don't race a cold-start getSession.
+  useEffect(() => {
+    if (!open || authLoading || !session || !currentOrganization?.id) return;
+    void retrySizeGroupSetup();
+    void fetchPreviousValues();
+  }, [open, currentOrganization?.id, authLoading, session]);
 
   // Re-apply garment GST rule when settings load or sale price changes
   useEffect(() => {
@@ -766,13 +775,17 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
   useEffect(() => {
     if (open && currentOrganization?.id) {
       (async () => {
-        const { data } = await supabase
+        const { data, error } = await supabase
           .from("products")
           .select("id, product_name, brand, category, default_sale_price, default_pur_price, size_group_id, size_groups(group_name)")
           .eq("organization_id", currentOrganization.id)
           .is("deleted_at", null)
           .order("created_at", { ascending: false })
           .limit(10);
+        if (error) {
+          console.error("Recent products fetch failed:", error);
+          return;
+        }
         setRecentProducts(data || []);
       })();
     }
@@ -783,59 +796,74 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
     if (!currentOrganization) return;
     const orgId = currentOrganization.id;
     const cached = loadProductSuggestionCache(orgId);
-    
-    const { data, error } = await supabase
-      .from("products")
-      .select("product_name, category, brand, hsn_code, style")
-      .eq("organization_id", orgId)
-      .is("deleted_at", null)
-      .limit(2000);
+    let anyFailed = false;
 
     let uniqueProductNames = cached.productNames;
     let uniqueCategories = cached.categories;
     let uniqueBrands = cached.brands;
     let uniqueHsnCodes = cached.hsnCodes;
     let uniqueStyles = cached.styles;
-
-    if (!error && data) {
-      uniqueProductNames = mergeSortedUnique(
-        cached.productNames,
-        data.map((p) => p.product_name).filter(Boolean) as string[],
-      );
-      uniqueCategories = mergeSortedUnique(
-        cached.categories,
-        data.map((p) => p.category).filter(Boolean) as string[],
-      );
-      uniqueBrands = mergeSortedUnique(
-        cached.brands,
-        data.map((p) => p.brand).filter(Boolean) as string[],
-      );
-      uniqueHsnCodes = mergeSortedUnique(
-        cached.hsnCodes,
-        data.map((p) => p.hsn_code).filter(Boolean) as string[],
-      );
-      uniqueStyles = mergeSortedUnique(
-        cached.styles,
-        data.map((p) => p.style).filter(Boolean) as string[],
-      );
-    }
-
-    // Fetch unique colors from product_variants
-    const { data: variantsData, error: variantsError } = await supabase
-      .from("product_variants")
-      .select("color")
-      .eq("organization_id", orgId)
-      .is("deleted_at", null)
-      .not("color", "is", null)
-      .limit(1000);
-
     let uniqueColors = cached.colors;
-    if (!variantsError && variantsData) {
-      uniqueColors = mergeSortedUnique(
-        cached.colors,
-        variantsData.map((v: { color: string | null }) => v.color).filter(Boolean) as string[],
-      );
+
+    try {
+      const { data, error } = await supabase
+        .from("products")
+        .select("product_name, category, brand, hsn_code, style")
+        .eq("organization_id", orgId)
+        .is("deleted_at", null)
+        .limit(2000);
+
+      if (error) {
+        anyFailed = true;
+      } else if (data) {
+        uniqueProductNames = mergeSortedUnique(
+          cached.productNames,
+          data.map((p) => p.product_name).filter(Boolean) as string[],
+        );
+        uniqueCategories = mergeSortedUnique(
+          cached.categories,
+          data.map((p) => p.category).filter(Boolean) as string[],
+        );
+        uniqueBrands = mergeSortedUnique(
+          cached.brands,
+          data.map((p) => p.brand).filter(Boolean) as string[],
+        );
+        uniqueHsnCodes = mergeSortedUnique(
+          cached.hsnCodes,
+          data.map((p) => p.hsn_code).filter(Boolean) as string[],
+        );
+        uniqueStyles = mergeSortedUnique(
+          cached.styles,
+          data.map((p) => p.style).filter(Boolean) as string[],
+        );
+      }
+    } catch {
+      anyFailed = true;
     }
+
+    // Fetch unique colors from product_variants (independent of products query)
+    try {
+      const { data: variantsData, error: variantsError } = await supabase
+        .from("product_variants")
+        .select("color")
+        .eq("organization_id", orgId)
+        .is("deleted_at", null)
+        .not("color", "is", null)
+        .limit(1000);
+
+      if (variantsError) {
+        anyFailed = true;
+      } else if (variantsData) {
+        uniqueColors = mergeSortedUnique(
+          cached.colors,
+          variantsData.map((v: { color: string | null }) => v.color).filter(Boolean) as string[],
+        );
+      }
+    } catch {
+      anyFailed = true;
+    }
+
+    setPreviousValuesError(anyFailed ? "Couldn't load suggestions" : null);
 
     const merged: ProductSuggestionCache = {
       productNames: uniqueProductNames,
@@ -948,13 +976,16 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
       setCopyLoading(true);
       try {
         const esc = copySearch.trim().replace(/[%_,]/g, "");
-        const { data } = await supabase
+        const { data, error } = await supabase
           .from("products")
           .select("id, product_name, brand, category, default_sale_price, size_group_id, size_groups(group_name)")
           .eq("organization_id", currentOrganization.id)
           .is("deleted_at", null)
           .or(`product_name.ilike.%${esc}%,brand.ilike.%${esc}%,category.ilike.%${esc}%,style.ilike.%${esc}%`)
           .limit(20);
+        if (error) {
+          console.error("Copy search error:", error);
+        }
         setCopyResults(data || []);
         setShowCopyDropdown((data || []).length > 0);
         setCopySelectedIndex(-1);
@@ -1116,57 +1147,74 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
 
   const fetchDefaultSizeGroup = async () => {
     if (!currentOrganization) return;
-    
-    const { data } = await supabase
-      .from("settings")
-      .select("product_settings, purchase_settings")
-      .eq("organization_id", currentOrganization.id)
-      .maybeSingle();
 
-    if (data) {
-      if (typeof data.product_settings === 'object' && data.product_settings !== null) {
-        const productSettings = data.product_settings as any;
-        if (productSettings.default_size_group) {
-          setFormData(prev => ({ ...prev, size_group_id: productSettings.default_size_group }));
+    try {
+      const { data, error } = await supabase
+        .from("settings")
+        .select("product_settings, purchase_settings")
+        .eq("organization_id", currentOrganization.id)
+        .maybeSingle();
+
+      if (error) {
+        console.error("Default size group / product settings fetch failed:", error);
+        setSizeGroupsError(error.message || "Couldn't load product settings");
+        return;
+      }
+
+      if (data) {
+        if (typeof data.product_settings === "object" && data.product_settings !== null) {
+          const productSettings = data.product_settings as any;
+          if (productSettings.default_size_group) {
+            setFormData((prev) => ({ ...prev, size_group_id: productSettings.default_size_group }));
+          }
+        }
+
+        if (typeof data.purchase_settings === "object" && data.purchase_settings !== null) {
+          const purchaseSettings = data.purchase_settings as any;
+          const loadedGarmentGstSettings: GarmentGstRuleSettings = {
+            garment_gst_rule_enabled: purchaseSettings.garment_gst_rule_enabled === true,
+            garment_gst_threshold: purchaseSettings.garment_gst_threshold,
+          };
+          setGarmentGstSettings(loadedGarmentGstSettings);
+          setFormData((prev) => {
+            const prevPurchaseGst = normalizeGstPercent(prev.purchase_gst_percent, 18);
+            const prevSaleGst = normalizeGstPercent(prev.sale_gst_percent, 18);
+            const purchaseGst = hasConfiguredDefaultTaxRate(purchaseSettings)
+              ? readConfiguredDefaultTaxRate(purchaseSettings, prevPurchaseGst)
+              : prevPurchaseGst;
+            const saleGst = resolveGarmentGstForLine(
+              prev.default_sale_price ?? 0,
+              purchaseGst,
+              hasConfiguredDefaultTaxRate(purchaseSettings)
+                ? readConfiguredDefaultTaxRate(purchaseSettings, prevSaleGst)
+                : prevSaleGst,
+              loadedGarmentGstSettings,
+            );
+            return {
+              ...prev,
+              ...(hasConfiguredDefaultTaxRate(purchaseSettings)
+                ? { gst_per: purchaseGst, purchase_gst_percent: purchaseGst }
+                : {}),
+              sale_gst_percent: saleGst,
+              ...(purchaseSettings.default_uom ? { uom: purchaseSettings.default_uom } : {}),
+            };
+          });
+          setShowMrp(purchaseSettings.show_mrp || false);
+          setShowDiscountFields(purchaseSettings.product_entry_discount_enabled || false);
+          setCursorAfterStyle(purchaseSettings.cursor_after_style || "pur_price");
+          setRollWiseMtrEnabled(purchaseSettings.roll_wise_mtr_entry || false);
         }
       }
-      
-      if (typeof data.purchase_settings === 'object' && data.purchase_settings !== null) {
-        const purchaseSettings = data.purchase_settings as any;
-        const loadedGarmentGstSettings: GarmentGstRuleSettings = {
-          garment_gst_rule_enabled: purchaseSettings.garment_gst_rule_enabled === true,
-          garment_gst_threshold: purchaseSettings.garment_gst_threshold,
-        };
-        setGarmentGstSettings(loadedGarmentGstSettings);
-        setFormData((prev) => {
-          const prevPurchaseGst = normalizeGstPercent(prev.purchase_gst_percent, 18);
-          const prevSaleGst = normalizeGstPercent(prev.sale_gst_percent, 18);
-          const purchaseGst = hasConfiguredDefaultTaxRate(purchaseSettings)
-            ? readConfiguredDefaultTaxRate(purchaseSettings, prevPurchaseGst)
-            : prevPurchaseGst;
-          const saleGst = resolveGarmentGstForLine(
-            prev.default_sale_price ?? 0,
-            purchaseGst,
-            hasConfiguredDefaultTaxRate(purchaseSettings)
-              ? readConfiguredDefaultTaxRate(purchaseSettings, prevSaleGst)
-              : prevSaleGst,
-            loadedGarmentGstSettings,
-          );
-          return {
-            ...prev,
-            ...(hasConfiguredDefaultTaxRate(purchaseSettings)
-              ? { gst_per: purchaseGst, purchase_gst_percent: purchaseGst }
-              : {}),
-            sale_gst_percent: saleGst,
-            ...(purchaseSettings.default_uom ? { uom: purchaseSettings.default_uom } : {}),
-          };
-        });
-        setShowMrp(purchaseSettings.show_mrp || false);
-        setShowDiscountFields(purchaseSettings.product_entry_discount_enabled || false);
-        setCursorAfterStyle(purchaseSettings.cursor_after_style || 'pur_price');
-        setRollWiseMtrEnabled(purchaseSettings.roll_wise_mtr_entry || false);
-      }
+    } catch (err: unknown) {
+      console.error("Default size group / product settings fetch failed:", err);
+      setSizeGroupsError(err instanceof Error ? err.message : "Couldn't load product settings");
     }
+  };
+
+  const retrySizeGroupSetup = async () => {
+    // Sequential so fetchSizeGroups success does not clear a later settings error.
+    await fetchSizeGroups();
+    await fetchDefaultSizeGroup();
   };
 
   // When DC Purchase mode is active, default purchase GST to 0% and sale GST to 5%
@@ -1183,22 +1231,33 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
 
   const fetchSizeGroups = async () => {
     if (!currentOrganization) return;
-    
-    const { data, error } = await supabase
-      .from("size_groups")
-      .select("*")
-      .eq("organization_id", currentOrganization.id)
-      .order("group_name");
 
-    if (!error && data) {
-      const typedData: SizeGroup[] = data.map((item) => ({
+    setLoadingSizeGroups(true);
+    try {
+      const { data, error } = await supabase
+        .from("size_groups")
+        .select("*")
+        .eq("organization_id", currentOrganization.id)
+        .order("group_name");
+
+      if (error) {
+        setSizeGroupsError(error.message || "Unknown error");
+        return;
+      }
+
+      const typedData: SizeGroup[] = (data || []).map((item) => ({
         id: item.id,
         group_name: item.group_name,
-        sizes: Array.isArray(item.sizes) 
-          ? item.sizes.filter((s): s is string => typeof s === 'string')
+        sizes: Array.isArray(item.sizes)
+          ? item.sizes.filter((s): s is string => typeof s === "string")
           : [],
       }));
       setSizeGroups(typedData);
+      setSizeGroupsError(null);
+    } catch (err: unknown) {
+      setSizeGroupsError(err instanceof Error ? err.message : "Unknown error");
+    } finally {
+      setLoadingSizeGroups(false);
     }
   };
 
@@ -2460,6 +2519,18 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                       Add
                     </Button>
                   </div>
+                  {existingColors.length === 0 && previousValuesError && (
+                    <p className="text-xs text-destructive">
+                      {previousValuesError} ·{" "}
+                      <button
+                        type="button"
+                        className="underline font-medium"
+                        onClick={() => void fetchPreviousValues()}
+                      >
+                        Retry
+                      </button>
+                    </p>
+                  )}
                   {formData.colors.length > 0 && (
                     <div className="space-y-2 mt-2">
                       {formData.colors.map((color, i) => (
@@ -2550,6 +2621,18 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                             <option key={color} value={color} />
                           ))}
                       </datalist>
+                      {existingColors.length === 0 && previousValuesError && (
+                        <p className="text-xs text-destructive">
+                          {previousValuesError} ·{" "}
+                          <button
+                            type="button"
+                            className="underline font-medium"
+                            onClick={() => void fetchPreviousValues()}
+                          >
+                            Retry
+                          </button>
+                        </p>
+                      )}
                       <div className="purchase-color-chips min-h-[1.75rem] flex flex-wrap gap-1 pt-0.5">
                         {formData.colors.map((color, i) => (
                           <span
@@ -2687,6 +2770,18 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                             Add
                           </Button>
                         </div>
+                        {existingColors.length === 0 && previousValuesError && (
+                          <p className="text-xs text-destructive">
+                            {previousValuesError} ·{" "}
+                            <button
+                              type="button"
+                              className="underline font-medium"
+                              onClick={() => void fetchPreviousValues()}
+                            >
+                              Retry
+                            </button>
+                          </p>
+                        )}
                         <div className="purchase-color-chips min-h-[1.75rem] flex flex-wrap gap-1 pt-0.5">
                           {formData.colors.map((color, i) => (
                             <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-primary/10 text-primary text-[13px] font-semibold border border-primary/20">
@@ -2730,6 +2825,18 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                             <Plus className="h-4 w-4" />
                           </Button>
                         </div>
+                        {!loadingSizeGroups && sizeGroupsError && (
+                          <p className="text-xs text-destructive">
+                            Couldn't load size groups ({sizeGroupsError}) ·{" "}
+                            <button
+                              type="button"
+                              className="underline font-medium"
+                              onClick={retrySizeGroupSetup}
+                            >
+                              Retry
+                            </button>
+                          </p>
+                        )}
                         <div className="min-h-[1.75rem]" aria-hidden />
                       </div>
                     </div>
@@ -2774,6 +2881,18 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                       <Plus className="h-4 w-4 mr-1" /> New
                     </Button>
                   </div>
+                  {!loadingSizeGroups && sizeGroupsError && (
+                    <p className="text-xs text-destructive">
+                      Couldn't load size groups ({sizeGroupsError}) ·{" "}
+                      <button
+                        type="button"
+                        className="underline font-medium"
+                        onClick={retrySizeGroupSetup}
+                      >
+                        Retry
+                      </button>
+                    </p>
+                  )}
                   </>
                   )}
 
