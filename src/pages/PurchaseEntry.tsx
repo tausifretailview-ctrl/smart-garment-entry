@@ -7019,7 +7019,7 @@ const PurchaseEntry = () => {
                       />
                     </TableHead>
                     <TableHead className="w-[60px]">SR.NO</TableHead>
-                    <TableHead className="col-product w-[10rem] max-w-[10rem]">ITEM NAME</TableHead>
+                    <TableHead className="col-product w-[20rem] max-w-[20rem]">ITEM NAME</TableHead>
                     {showPurCol.size && <TableHead className="pur-col-size w-[4.5rem] text-center">SIZE</TableHead>}
                     <TableHead className="pur-col-barcode w-[9rem]">{isMobileERPMode ? "IMEI NUMBER" : "BARCODE"}</TableHead>
                     <TableHead className="pur-col-num w-[5.5rem] text-right pur-qty-col">QTY</TableHead>
@@ -7050,9 +7050,9 @@ const PurchaseEntry = () => {
                           />
                         </TableCell>
                         <TableCell className="w-[60px] text-center font-medium">{index + 1}</TableCell>
-                        <TableCell className="col-product w-[10rem] max-w-[10rem] font-medium cursor-pointer" title={formatProductDescription(item)}
+                        <TableCell className="col-product w-[20rem] max-w-[20rem] font-medium cursor-pointer" title={formatProductDescription(item)}
                           onDoubleClick={() => openEditPanel(index, "product_name")}>
-                          <div className="text-[15px] leading-snug truncate font-semibold">{formatProductDescription(item)}</div>
+                          <div className="entry-line-product-desc text-[15px] leading-snug font-semibold">{formatProductDescription(item)}</div>
                         </TableCell>
                         {showPurCol.size && (
                           <TableCell className="pur-col-size w-[4.5rem] text-center text-[15px] font-bold">

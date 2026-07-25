@@ -3721,11 +3721,21 @@ body.entry-bill-screen [data-entry-form].sale-bill-workspace {
   padding-right: 0;
 }
 
-/* Purchase bill — compact product name, larger size/barcode/rate columns (base; purchase-bill-readable overrides on desktop) */
+/* Purchase bill — wider product name so shade/brand/category stay readable */
 .purchase-entry-page .erp-entry-lines-table .col-product {
-  width: 11rem;
-  max-width: 11rem;
-  min-width: 9rem;
+  width: 20rem;
+  max-width: 20rem;
+  min-width: 16rem;
+}
+
+.purchase-entry-page .erp-entry-lines-table .entry-line-product-desc {
+  max-height: 3.25rem;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  word-break: break-word;
+  white-space: normal;
+  line-height: 1.35;
 }
 
 .purchase-entry-page .erp-entry-lines-table .pur-col-size {
@@ -3756,9 +3766,9 @@ body.entry-bill-screen [data-entry-form].sale-bill-workspace {
 
 @media (min-width: 1024px) {
   .purchase-bill-readable.purchase-entry-page .erp-entry-lines-table .col-product {
-    width: 12rem;
-    max-width: 12rem;
-    min-width: 10rem;
+    width: 24rem;
+    max-width: 24rem;
+    min-width: 18rem;
   }
   .purchase-bill-readable.purchase-entry-page .erp-entry-lines-table thead .pur-col-size,
   .purchase-bill-readable.purchase-entry-page .erp-entry-lines-table thead .pur-col-barcode,
