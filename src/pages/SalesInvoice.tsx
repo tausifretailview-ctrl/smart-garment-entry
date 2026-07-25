@@ -46,9 +46,9 @@ import { format } from "date-fns";
 import { cn, sortSearchResults, buildProductDisplayName } from "@/lib/utils";
 import {
   buildProductTextOrFilter,
-  buildProductTokenBoundaryOrFilter,
   expandProductSearchTerms,
   matchesProductSearchFields,
+  matchesProductTokenBoundary,
   scoreProductSearchMatch,
 } from "@/utils/productSearch";
 import { entryPageMainClass, entryPageSectionX, entryPageShellClass } from "@/lib/entryPageLayout";
@@ -1371,20 +1371,11 @@ export default function SalesInvoice() {
         const allTokens = query.trim().split(/\s+/).filter(Boolean);
         const priceTokens = allTokens.filter(t => /^\d+(\.\d+)?$/.test(t) && Number(t) >= 10);
 
+        // Single products query — the broad `%term%` ILIKE is a strict superset
+        // of the token-boundary ILIKE (same fields, wider pattern), so we run
+        // one query and classify boundary matches client-side to preserve the
+        // strict-first ordering below.
         const strictProductIds: string[] = [];
-        const tokenBoundaryFilter = buildProductTokenBoundaryOrFilter(query);
-        if (tokenBoundaryFilter) {
-          const { data: boundaryProducts } = await supabase
-            .from("products")
-            .select("id, product_name, brand, style, category, size_group_id")
-            .eq("organization_id", currentOrganization.id)
-            .eq("status", "active")
-            .is("deleted_at", null)
-            .or(tokenBoundaryFilter)
-            .limit(80);
-          strictProductIds.push(...(boundaryProducts?.map((p) => p.id) || []));
-        }
-
         const productOrFilter = buildProductTextOrFilter(expandedTerms);
         let matchingProducts: { id: string; size_group_id: string | null; product_name: string; brand: string | null; style: string | null; category: string | null }[] = [];
         if (productOrFilter) {
@@ -1396,7 +1387,13 @@ export default function SalesInvoice() {
             .is("deleted_at", null)
             .or(productOrFilter)
             .limit(250);
-          matchingProducts = (data || []).filter((p) =>
+          const rows = data || [];
+          for (const p of rows) {
+            if (matchesProductTokenBoundary(p, query)) {
+              strictProductIds.push(p.id);
+            }
+          }
+          matchingProducts = rows.filter((p) =>
             matchesProductSearchFields(
               {
                 product_name: p.product_name,
