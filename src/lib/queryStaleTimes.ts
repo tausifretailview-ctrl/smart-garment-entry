@@ -1,6 +1,6 @@
 /**
  * React Query staleTime tiers — reduces Supabase reads on tab focus / navigation.
- * Global default in App.tsx is STALE_DEFAULT (30s). Override per-query when needed.
+ * Global default in App.tsx is 60_000 ms (60s). Override per-query when needed.
  *
  * CRITICAL EXCEPTIONS (never use long staleTime on these):
  * - queryKey includes live search/filter/barcode variables → STALE_LIVE (0)

@@ -6,7 +6,9 @@ import { ThemeProvider } from "next-themes";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, keepPreviousData } from "@tanstack/react-query";
+import { QueryClient, QueryCache, MutationCache, keepPreviousData } from "@tanstack/react-query";
+import { isStatementTimeout, statementTimeoutMessage } from "@/utils/statementTimeout";
+import { toast as showToast } from "@/hooks/use-toast";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { APP_BUILD_BUSTER, isVolatileOrSensitiveKey, persister } from "@/lib/queryPersister";
 import { BrowserRouter, Routes, Route, Navigate, useParams } from "react-router-dom";
@@ -330,7 +332,29 @@ const App = () => {
     }
   }, []);
 
-  const [queryClient] = useState(() => new QueryClient({
+  const [queryClient] = useState(() => {
+    const timeoutToastKey = { current: 0 as number };
+    const notifyTimeout = () => {
+      // Coalesce bursts (e.g. dashboard fires several queries at once) into
+      // a single toast; queries fail fast enough that a per-query toast
+      // would stack noisily.
+      const now = Date.now();
+      if (now - timeoutToastKey.current < 1500) return;
+      timeoutToastKey.current = now;
+      const { title, message } = statementTimeoutMessage();
+      showToast({ variant: "destructive", title, description: message });
+    };
+    return new QueryClient({
+    queryCache: new QueryCache({
+      onError: (error) => {
+        if (isStatementTimeout(error)) notifyTimeout();
+      },
+    }),
+    mutationCache: new MutationCache({
+      onError: (error) => {
+        if (isStatementTimeout(error)) notifyTimeout();
+      },
+    }),
     defaultOptions: {
       queries: {
         staleTime: 60_000, // 60s — cuts cloud reads on tab/component remount; live queries override via STALE_LIVE
@@ -338,7 +362,11 @@ const App = () => {
         refetchOnWindowFocus: false,
         refetchOnReconnect: false,
         // refetchOnMount: true (default) — first page visit always fetches; tab return within staleTime skips
-        retry: 1,
+        // Statement timeouts (57014) are deterministic — retrying just doubles
+        // the wait before the same failure. Short-circuit them; everything
+        // else keeps the previous single retry.
+        retry: (failureCount, error) =>
+          !isStatementTimeout(error) && failureCount < 1,
         // Tally/Vyapar feel: keep showing the previous data while a refetch runs
         // in the background. Combined with the always-mounted window tabs, this
         // makes switching dashboards instant — no skeleton flash, no scroll jump.
@@ -348,7 +376,8 @@ const App = () => {
         notifyOnChangeProps: ["data", "error"],
       },
     },
-  }));
+    });
+  });
 
   return (
     <RootErrorBoundary>
