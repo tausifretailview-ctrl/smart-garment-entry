@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   derivePaidAndStatus,
+  maxCombinedDiscountForGross,
   maxSaleReturnAdjustForPayable,
+  normalizeDiscountsAgainstGross,
   normalizeSaleReturnAdjustAgainstBill,
   preSaveInvariants,
 } from "@/utils/saleSettlement";
@@ -136,8 +138,43 @@ describe("normalizeSaleReturnAdjustAgainstBill", () => {
   });
 });
 
+describe("normalizeDiscountsAgainstGross", () => {
+  it("caps combined line+flat discount to gross and lifts net by excess", () => {
+    const result = normalizeDiscountsAgainstGross({
+      grossAmount: 1000,
+      discountAmount: 800,
+      flatDiscountAmount: 500,
+      netAmount: -300,
+    });
+    expect(result.discountAmount + result.flatDiscountAmount).toBe(1000);
+    expect(result.discountAmount).toBe(800); // line kept up to gross
+    expect(result.flatDiscountAmount).toBe(200); // flat reduced into remaining room
+    expect(result.netAmount).toBe(0);
+    expect(result.excess).toBe(300);
+    expect(result.wasCapped).toBe(true);
+  });
+
+  it("leaves under-gross discounts untouched", () => {
+    const result = normalizeDiscountsAgainstGross({
+      grossAmount: 1000,
+      discountAmount: 100,
+      flatDiscountAmount: 50,
+      netAmount: 850,
+    });
+    expect(result.wasCapped).toBe(false);
+    expect(result.discountAmount).toBe(100);
+    expect(result.flatDiscountAmount).toBe(50);
+    expect(result.netAmount).toBe(850);
+  });
+
+  it("maxCombinedDiscountForGross equals non-negative gross", () => {
+    expect(maxCombinedDiscountForGross(4500)).toBe(4500);
+    expect(maxCombinedDiscountForGross(-10)).toBe(0);
+  });
+});
+
 describe("preSaveInvariants — negative net rejected", () => {
-  it("throws when net_amount is negative", () => {
+  it("throws when net_amount is negative (path-agnostic)", () => {
     expect(() =>
       preSaveInvariants({
         netAmount: -100,
@@ -146,5 +183,18 @@ describe("preSaveInvariants — negative net rejected", () => {
         grossAmount: 500,
       }),
     ).toThrow(/cannot be negative/i);
+  });
+
+  it("throws when combined discount exceeds gross", () => {
+    expect(() =>
+      preSaveInvariants({
+        netAmount: 0,
+        items: [{ quantity: 1, mrp: 500 }],
+        saleReturnAdjust: 0,
+        grossAmount: 500,
+        discountAmount: 400,
+        flatDiscountAmount: 200,
+      }),
+    ).toThrow(/cannot exceed bill gross/i);
   });
 });

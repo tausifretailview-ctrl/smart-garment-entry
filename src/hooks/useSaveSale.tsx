@@ -16,6 +16,7 @@ import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngine
 import {
   derivePaidAndStatus,
   getAvailableCN,
+  normalizeDiscountsAgainstGross,
   normalizeSaleReturnAdjustAgainstBill,
   preSaveInvariants,
   warnSettlementPathMismatch,
@@ -123,6 +124,27 @@ export const useSaveSale = () => {
 
   const roundMoney = (value: number) => Math.round((Number(value) || 0) * 100) / 100;
 
+  /** Cap line+flat discount to gross (before S/R); toast excess instead of silent drop. */
+  const applyDiscountGrossCap = (saleData: SaleData): SaleData => {
+    const normalized = normalizeDiscountsAgainstGross({
+      grossAmount: saleData.grossAmount,
+      discountAmount: saleData.discountAmount || 0,
+      flatDiscountAmount: saleData.flatDiscountAmount || 0,
+      netAmount: saleData.netAmount,
+    });
+    if (!normalized.wasCapped) return saleData;
+    toast({
+      title: "Discount capped to bill",
+      description: `Only ₹${normalized.maxApply.toLocaleString("en-IN")} discount can be applied to this bill. ₹${normalized.excess.toLocaleString("en-IN")} was not applied.`,
+    });
+    return {
+      ...saleData,
+      discountAmount: normalized.discountAmount,
+      flatDiscountAmount: normalized.flatDiscountAmount,
+      netAmount: normalized.netAmount,
+    };
+  };
+
   /** Cap S/R so net cannot go negative; excess stays on customer credit for a future bill. */
   const applySaleReturnBillCap = (saleData: SaleData): SaleData => {
     const normalized = normalizeSaleReturnAdjustAgainstBill({
@@ -140,6 +162,9 @@ export const useSaveSale = () => {
       saleReturnAdjust: normalized.saleReturnAdjust,
     };
   };
+
+  const applyBillCaps = (saleData: SaleData): SaleData =>
+    applySaleReturnBillCap(applyDiscountGrossCap(saleData));
 
   const getExchangeAmounts = (saleData: SaleData, refundAmt: number) => {
     const saleReturnTotal = roundMoney(saleData.saleReturnAdjust || 0);
@@ -631,7 +656,7 @@ export const useSaveSale = () => {
       }
     }
 
-    saleData = applySaleReturnBillCap(saleData);
+    saleData = applyBillCaps(saleData);
 
     try {
       preSaveInvariants({
@@ -641,6 +666,8 @@ export const useSaveSale = () => {
         paymentMethod,
         saleReturnAdjust: saleData.saleReturnAdjust,
         grossAmount: saleData.grossAmount,
+        discountAmount: saleData.discountAmount,
+        flatDiscountAmount: saleData.flatDiscountAmount,
         paidAmount:
           paymentBreakdown?.totalPaid ??
           (paymentMethod === 'pay_later' ? 0 : saleData.netAmount),
@@ -1308,7 +1335,7 @@ export const useSaveSale = () => {
       }
     }
 
-    saleData = applySaleReturnBillCap(saleData);
+    saleData = applyBillCaps(saleData);
 
     try {
       preSaveInvariants({
@@ -1318,6 +1345,8 @@ export const useSaveSale = () => {
         paymentMethod,
         saleReturnAdjust: saleData.saleReturnAdjust,
         grossAmount: saleData.grossAmount,
+        discountAmount: saleData.discountAmount,
+        flatDiscountAmount: saleData.flatDiscountAmount,
       });
     } catch (invErr) {
       savingLockRef.current = false;
@@ -1917,7 +1946,7 @@ export const useSaveSale = () => {
       return null;
     }
 
-    saleData = applySaleReturnBillCap(saleData);
+    saleData = applyBillCaps(saleData);
 
     try {
       preSaveInvariants({
@@ -1927,6 +1956,8 @@ export const useSaveSale = () => {
         paymentMethod,
         saleReturnAdjust: saleData.saleReturnAdjust,
         grossAmount: saleData.grossAmount,
+        discountAmount: saleData.discountAmount,
+        flatDiscountAmount: saleData.flatDiscountAmount,
         paidAmount:
           paymentBreakdown?.totalPaid ??
           (paymentMethod === 'pay_later' ? 0 : saleData.netAmount),

@@ -88,7 +88,10 @@ import {
   computePosFlatDiscount,
   posLineDisplayTotal,
 } from "@/utils/posGstTotals";
-import { maxSaleReturnAdjustForPayable } from "@/utils/saleSettlement";
+import {
+  maxCombinedDiscountForGross,
+  maxSaleReturnAdjustForPayable,
+} from "@/utils/saleSettlement";
 import { clampQty, minQtyForUom } from "@/utils/qtyInput";
 import type { GstTaxType } from "@/utils/gstRegisterUtils";
 import { CreditNotePrint } from "@/components/CreditNotePrint";
@@ -703,9 +706,12 @@ export default function POSSales() {
     return Math.round(parsed);
   }, []);
 
-  const handleFlatDiscountValueChange = useCallback((value: number) => {
-    setFlatDiscountValue(normalizeFlatDiscountInput(value));
-  }, [normalizeFlatDiscountInput]);
+  const handleFlatDiscountValueChange = useCallback(
+    (value: number) => {
+      setFlatDiscountValue(normalizeFlatDiscountInput(value));
+    },
+    [normalizeFlatDiscountInput],
+  );
 
   const formatINR2 = useCallback((value: number) => {
     const parsed = Number(value);
@@ -3082,27 +3088,85 @@ export default function POSSales() {
     });
   };
 
+  const sumLineDiscount = (rows: CartItem[]) =>
+    rows.reduce((sum, item) => {
+      const baseAmount = (Number(item.mrp) || 0) * (Number(item.quantity) || 0);
+      const percentDiscount = (baseAmount * (Number(item.discountPercent) || 0)) / 100;
+      const implicitRateDiscount = Math.max(
+        0,
+        ((Number(item.mrp) || 0) - (Number(item.unitCost) || 0)) * (Number(item.quantity) || 0),
+      );
+      return sum + percentDiscount + (Number(item.discountAmount) || 0) + implicitRateDiscount;
+    }, 0);
+
+  const sumMrpTotal = (rows: CartItem[]) =>
+    rows.reduce((sum, item) => sum + (Number(item.mrp) || 0) * (Number(item.quantity) || 0), 0);
+
   const updateDiscountPercent = (index: number, discountPercent: number) => {
     if (discountPercent < 0 || discountPercent > 100) return;
-    setItems(prev => {
+    setItems((prev) => {
       const updatedItems = [...prev];
-      updatedItems[index].discountPercent = discountPercent;
-      updatedItems[index].discountAmount = 0;
+      updatedItems[index] = {
+        ...updatedItems[index],
+        discountPercent,
+        discountAmount: 0,
+      };
       updatedItems[index] = applyPosGarmentGstToItem(updatedItems[index], garmentGstSettings);
+
+      const mrpTotal = sumMrpTotal(updatedItems);
+      const maxLine = Math.max(0, Math.round((mrpTotal - flatDiscountAmount) * 100) / 100);
+      const lineDisc = sumLineDiscount(updatedItems);
+      if (lineDisc > maxLine + 0.01) {
+        const item = updatedItems[index];
+        const baseAmount = Math.max(0, (Number(item.mrp) || 0) * (Number(item.quantity) || 0));
+        const otherLine = lineDisc - ((baseAmount * discountPercent) / 100);
+        const room = Math.max(0, maxLine - otherLine);
+        updatedItems[index] = {
+          ...item,
+          discountPercent: baseAmount > 0 ? Number(((room / baseAmount) * 100).toFixed(4)) : 0,
+          discountAmount: 0,
+        };
+        updatedItems[index] = applyPosGarmentGstToItem(updatedItems[index], garmentGstSettings);
+        toast.warning(
+          `Only ₹${maxCombinedDiscountForGross(mrpTotal).toLocaleString("en-IN", { maximumFractionDigits: 0 })} discount can be applied to this bill`,
+        );
+      }
       return updatedItems;
     });
   };
 
   const updateDiscountAmount = (index: number, discountAmount: number) => {
     if (discountAmount < 0) return;
-    setItems(prev => {
+    setItems((prev) => {
       const updatedItems = [...prev];
       const item = updatedItems[index];
       const baseAmount = Math.max(0, (Number(item.mrp) || 0) * (Number(item.quantity) || 0));
       const mappedPercent = baseAmount > 0 ? Math.min(100, (discountAmount / baseAmount) * 100) : 0;
-      updatedItems[index].discountPercent = Number(mappedPercent.toFixed(4));
-      updatedItems[index].discountAmount = 0;
+      updatedItems[index] = {
+        ...item,
+        discountPercent: Number(mappedPercent.toFixed(4)),
+        discountAmount: 0,
+      };
       updatedItems[index] = applyPosGarmentGstToItem(updatedItems[index], garmentGstSettings);
+
+      const mrpTotal = sumMrpTotal(updatedItems);
+      const maxLine = Math.max(0, Math.round((mrpTotal - flatDiscountAmount) * 100) / 100);
+      const lineDisc = sumLineDiscount(updatedItems);
+      if (lineDisc > maxLine + 0.01) {
+        const cappedItem = updatedItems[index];
+        const base = Math.max(0, (Number(cappedItem.mrp) || 0) * (Number(cappedItem.quantity) || 0));
+        const otherLine = lineDisc - ((base * (Number(cappedItem.discountPercent) || 0)) / 100);
+        const room = Math.max(0, maxLine - otherLine);
+        updatedItems[index] = {
+          ...cappedItem,
+          discountPercent: base > 0 ? Number(((room / base) * 100).toFixed(4)) : 0,
+          discountAmount: 0,
+        };
+        updatedItems[index] = applyPosGarmentGstToItem(updatedItems[index], garmentGstSettings);
+        toast.warning(
+          `Only ₹${maxCombinedDiscountForGross(mrpTotal).toLocaleString("en-IN", { maximumFractionDigits: 0 })} discount can be applied to this bill`,
+        );
+      }
       return updatedItems;
     });
   };
@@ -3144,12 +3208,25 @@ export default function POSSales() {
     ),
   };
 
-  const { flatDiscountAmount, flatDiscountPercent } = computePosFlatDiscount({
+  const rawFlatDiscount = computePosFlatDiscount({
     mrpTotal: totals.mrp,
     saleReturnAdjust,
     flatDiscountValue,
     flatDiscountMode,
   });
+  /** Combined line + flat must not exceed gross (before S/R). */
+  const maxFlatDiscountForGross = Math.max(
+    0,
+    Math.round((maxCombinedDiscountForGross(totals.mrp) - totals.discount) * 100) / 100,
+  );
+  const flatDiscountAmount = Math.min(rawFlatDiscount.flatDiscountAmount, maxFlatDiscountForGross);
+  const flatDiscountPercent =
+    flatDiscountMode === "percent"
+      ? flatDiscountValue
+      : maxFlatDiscountForGross > 0.005 && totals.mrp > 0.005
+        ? (flatDiscountAmount / Math.max(0.01, totals.mrp - saleReturnAdjust)) * 100
+        : rawFlatDiscount.flatDiscountPercent;
+  const flatDiscountCapped = rawFlatDiscount.flatDiscountAmount > maxFlatDiscountForGross + 0.01;
 
   const posGst = computePosBillGst(items, taxType, flatDiscountAmount);
   
@@ -6773,7 +6850,7 @@ export default function POSSales() {
             
             {/* Middle Fields — Flat Disc, S/R Adj, Round */}
             <div className="flex items-end gap-3 flex-nowrap justify-end shrink-0 min-w-0">
-              {/* Flat Disc */}
+              {/* Flat Disc — combined with line disc capped to gross (before S/R) */}
               <div className="text-center">
                 <div className="text-sm text-white/90 uppercase font-bold mb-1 tracking-wide">Flat Disc</div>
                 <div className="flex items-center">
@@ -6792,6 +6869,7 @@ export default function POSSales() {
                     placeholder=""
                     step="1"
                     min={0}
+                    max={flatDiscountMode === "amount" ? maxFlatDiscountForGross : undefined}
                     onChange={(e) => {
                       const raw = e.target.value;
                       if (raw === "" || raw === "-") {
@@ -6802,9 +6880,32 @@ export default function POSSales() {
                       if (!Number.isFinite(n)) return;
                       setFlatDiscountValue(Math.round(n));
                     }}
-                    onBlur={() => handleFlatDiscountValueChange(flatDiscountValue)}
+                    onBlur={() => {
+                      let next = normalizeFlatDiscountInput(flatDiscountValue);
+                      if (flatDiscountMode === "amount" && next > maxFlatDiscountForGross + 0.01) {
+                        toast.warning(
+                          `Only ₹${maxFlatDiscountForGross.toLocaleString("en-IN", { maximumFractionDigits: 0 })} discount can be applied to this bill`,
+                        );
+                        next = Math.round(maxFlatDiscountForGross);
+                      } else if (flatDiscountMode === "percent" && flatDiscountCapped) {
+                        toast.warning(
+                          `Only ₹${maxCombinedDiscountForGross(totals.mrp).toLocaleString("en-IN", { maximumFractionDigits: 0 })} discount can be applied to this bill`,
+                        );
+                        const base = Math.max(0.01, totals.mrp - saleReturnAdjust);
+                        next = Math.min(
+                          100,
+                          Math.round((maxFlatDiscountForGross / base) * 100),
+                        );
+                      }
+                      handleFlatDiscountValueChange(next);
+                    }}
                   />
                 </div>
+                {flatDiscountCapped && (
+                  <div className="text-[10px] text-amber-200 mt-0.5 max-w-[9rem] leading-tight">
+                    Only ₹{maxCombinedDiscountForGross(totals.mrp).toLocaleString("en-IN", { maximumFractionDigits: 0 })} discount can be applied to this bill
+                  </div>
+                )}
               </div>
               
               {/* S/R Adj — capped to bill (net ≥ 0); excess credit stays for a future bill */}

@@ -568,6 +568,63 @@ export function normalizeSaleReturnAdjustAgainstBill(params: {
   };
 }
 
+/** Max combined line + flat discount allowed against merchandise gross (before S/R). */
+export function maxCombinedDiscountForGross(grossAmount: number): number {
+  return Math.max(0, roundMoney2(grossAmount));
+}
+
+/**
+ * Cap discount_amount + flat_discount_amount to gross_amount (S/R not considered).
+ * Prefer reducing flat (bill-level) first, then line. Lifts net by any excess removed
+ * so over-discount cannot silently create a negative payable.
+ */
+export function normalizeDiscountsAgainstGross(params: {
+  grossAmount: number;
+  discountAmount: number;
+  flatDiscountAmount: number;
+  netAmount: number;
+}): {
+  discountAmount: number;
+  flatDiscountAmount: number;
+  netAmount: number;
+  excess: number;
+  wasCapped: boolean;
+  maxApply: number;
+} {
+  const gross = Math.max(0, roundMoney2(params.grossAmount));
+  const line = Math.max(0, roundMoney2(params.discountAmount));
+  const flat = Math.max(0, roundMoney2(params.flatDiscountAmount));
+  const net = roundMoney2(params.netAmount);
+  const maxApply = gross;
+  const combined = roundMoney2(line + flat);
+
+  if (combined <= maxApply + 0.005) {
+    return {
+      discountAmount: line,
+      flatDiscountAmount: flat,
+      netAmount: net,
+      excess: 0,
+      wasCapped: false,
+      maxApply,
+    };
+  }
+
+  const cappedLine = Math.min(line, maxApply);
+  const cappedFlat = Math.min(flat, Math.max(0, roundMoney2(maxApply - cappedLine)));
+  const applied = roundMoney2(cappedLine + cappedFlat);
+  const excess = roundMoney2(combined - applied);
+  const adjustedNet = Math.max(0, roundMoney2(net + excess));
+
+  return {
+    discountAmount: cappedLine,
+    flatDiscountAmount: cappedFlat,
+    netAmount: adjustedNet,
+    excess,
+    wasCapped: true,
+    maxApply,
+  };
+}
+
 /**
  * Validate before any sale insert/update. Throws before DB writes.
  */
@@ -580,9 +637,20 @@ export function preSaveInvariants(params: {
   paidAmount?: number;
   /** Pre-discount bill total (POS grossAmount). Allows zero net when gross is positive (100% discount). */
   grossAmount?: number;
+  discountAmount?: number;
+  flatDiscountAmount?: number;
 }): void {
-  const { netAmount, items, customerId, paymentMethod, saleReturnAdjust, paidAmount, grossAmount } =
-    params;
+  const {
+    netAmount,
+    items,
+    customerId,
+    paymentMethod,
+    saleReturnAdjust,
+    paidAmount,
+    grossAmount,
+    discountAmount,
+    flatDiscountAmount,
+  } = params;
 
   if (paymentMethod === "pay_later" && !customerId) {
     throw new Error("Credit sale (Pay Later) requires a customer. Please select a customer.");
@@ -600,15 +668,24 @@ export function preSaveInvariants(params: {
     sumMerchandiseGrossFromItems(items),
   );
 
+  const lineDisc = Math.max(0, Number(discountAmount) || 0);
+  const flatDisc = Math.max(0, Number(flatDiscountAmount) || 0);
+  const combinedDisc = roundMoney2(lineDisc + flatDisc);
+  if (merchandiseGross > 0 && combinedDisc > merchandiseGross + SETTLEMENT_TOLERANCE) {
+    throw new Error(
+      `Combined discount (₹${combinedDisc.toLocaleString("en-IN")}) cannot exceed bill gross (₹${merchandiseGross.toLocaleString("en-IN")}). Only ₹${merchandiseGross.toLocaleString("en-IN")} discount can be applied to this bill.`,
+    );
+  }
+
   // Allow ₹0 payable when items have value (100% line discount / complimentary) or S/R covers bill.
   if (netAmount <= 0 && srAdjust <= 0 && merchandiseGross <= SETTLEMENT_TOLERANCE) {
     throw new Error("Net amount must be greater than zero.");
   }
 
-  // Negative net from over-applied S/R is forbidden — excess credit must remain for a future bill.
+  // Final net_amount guard (path-agnostic): over-discount or over-S/R must not save negative nets.
   if (netAmount < -SETTLEMENT_TOLERANCE) {
     throw new Error(
-      `Net amount cannot be negative (₹${roundMoney2(netAmount)}). Only ₹${Math.max(0, billAmount).toLocaleString("en-IN")} of S/R credit can be applied to this bill; leave the rest for a future bill.`,
+      `Net amount cannot be negative (₹${roundMoney2(netAmount)}). Reduce discount or S/R adjust so the bill does not go below zero.`,
     );
   }
 
