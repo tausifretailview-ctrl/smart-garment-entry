@@ -9,6 +9,7 @@ import { STALE_LIVE } from "@/lib/queryStaleTimes";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { useSettings } from "@/hooks/useSettings";
 import { useDashboardInvalidation } from "@/hooks/useDashboardInvalidation";
 import { Button } from "@/components/ui/button";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -93,6 +94,7 @@ interface Customer {
   gst_number: string | null;
   opening_balance: number | null;
   discount_percent: number | null;
+  points_balance?: number | null;
   created_at: string;
 }
 
@@ -101,13 +103,29 @@ const ITEMS_PER_PAGE = 200;
 // F4: Narrow SELECT list — was SELECT * (22 cols). List row + edit dialog only
 // read these fields. Cuts payload ~60% on Customer Master pagination.
 const CUSTOMER_LIST_COLUMNS =
-  "id, customer_name, phone, email, address, gst_number, opening_balance, discount_percent, transport_details, portal_enabled, created_at";
+  "id, customer_name, phone, email, address, gst_number, opening_balance, discount_percent, transport_details, portal_enabled, points_balance, created_at";
 
 /** Hidden by default; users can enable via Columns toolbar. */
 const CUSTOMER_MASTER_DEFAULT_COLUMN_VISIBILITY: Record<string, boolean> = {
   email: false,
   gst_number: false,
 };
+
+/** Resolve points column visibility using the same defaults+saved merge as ERPTable. */
+function isCustomerMasterPointsColumnVisible(enablePointsSystem: boolean): boolean {
+  if (!enablePointsSystem) return false;
+  try {
+    const raw = localStorage.getItem("erp-table-customer_master");
+    if (!raw) return true;
+    const saved = JSON.parse(raw) as { columnVisibility?: Record<string, boolean> };
+    if (saved.columnVisibility && Object.prototype.hasOwnProperty.call(saved.columnVisibility, "points_balance")) {
+      return !!saved.columnVisibility.points_balance;
+    }
+  } catch {
+    // ignore
+  }
+  return true;
+}
 
 type SegmentFilter = CustomerSegment | "all";
 
@@ -150,6 +168,16 @@ const CustomerMaster = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { currentOrganization } = useOrganization();
+  const { data: orgSettings, isLoading: settingsLoading } = useSettings();
+  const enablePointsSystem = !!(orgSettings as { sale_settings?: { enable_points_system?: boolean } } | null)
+    ?.sale_settings?.enable_points_system;
+  const defaultColumnVisibility = useMemo(
+    () => ({
+      ...CUSTOMER_MASTER_DEFAULT_COLUMN_VISIBILITY,
+      points_balance: enablePointsSystem,
+    }),
+    [enablePointsSystem],
+  );
   const { invalidateCustomers } = useDashboardInvalidation();
   const [showExcelImport, setShowExcelImport] = useState(false);
   const [showLegacyImport, setShowLegacyImport] = useState(false);
@@ -912,6 +940,7 @@ const CustomerMaster = () => {
         ? `Search: ${debouncedSearch.trim()}`
         : "Search: (none)";
 
+      const exportPoints = isCustomerMasterPointsColumnVisible(enablePointsSystem);
       const headers = [
         "Sr No",
         "Customer Name",
@@ -924,6 +953,7 @@ const CustomerMaster = () => {
         "Discount %",
         "Segment",
         "Lifetime Sales",
+        ...(exportPoints ? ["Points"] : []),
         "Orders",
         "Last Sale Date",
         "Created Date",
@@ -946,6 +976,7 @@ const CustomerMaster = () => {
           Number(customer.discount_percent || 0),
           CUSTOMER_SEGMENT_LABELS[seg],
           Math.round(stats?.revenue || 0),
+          ...(exportPoints ? [Number(customer.points_balance || 0)] : []),
           stats?.orders || 0,
           stats?.lastSaleDate || "",
           customer.created_at ? format(new Date(customer.created_at), "yyyy-MM-dd") : "",
@@ -1013,6 +1044,7 @@ const CustomerMaster = () => {
     segmentIndex,
     fetchAllCustomersForExport,
     fetchAdvanceBalancesForExport,
+    enablePointsSystem,
     toast,
   ]);
 
@@ -1154,6 +1186,18 @@ const CustomerMaster = () => {
           </span>
         );
       },
+    },
+    {
+      id: "points_balance",
+      accessorKey: "points_balance",
+      header: "POINTS",
+      size: 90,
+      sortingFn: "basic",
+      cell: ({ getValue }) => (
+        <span className="text-right font-medium tabular-nums block text-sm">
+          {Number(getValue() ?? 0)}
+        </span>
+      ),
     },
     {
       id: "orders",
@@ -1608,7 +1652,10 @@ const CustomerMaster = () => {
           </div>
 
           <div className="customer-master-table-panel min-h-0 flex-1 overflow-y-auto overflow-x-auto tab-scroll-stable">
+            {/* Wait for org-settings so points_balance default visibility is correct on first persistence write. */}
+            {!settingsLoading && (
             <ERPTable
+              key={`customer_master_pts_${enablePointsSystem ? "on" : "off"}`}
               tableId="customer_master"
               columns={tableColumns}
               data={customers}
@@ -1620,7 +1667,7 @@ const CustomerMaster = () => {
                   ? `No ${CUSTOMER_SEGMENT_LABELS[segmentFilter].toLowerCase()} customers match your search`
                   : "No customers found"
               }
-              defaultColumnVisibility={CUSTOMER_MASTER_DEFAULT_COLUMN_VISIBILITY}
+              defaultColumnVisibility={defaultColumnVisibility}
               defaultDensity="compact"
               className="customer-master-table [&_td]:!text-sm [&_th]:!text-xs [&_th]:!font-bold [&_th]:!uppercase [&_th]:!tracking-wide [&_tbody_tr:nth-child(even)]:bg-slate-50/80 [&_tbody_tr:hover]:bg-sky-50/70"
               onRowContextMenu={handleRowContextMenu}
@@ -1630,6 +1677,7 @@ const CustomerMaster = () => {
                 return el ? createPortal(toolbar, el) : toolbar;
               }}
             />
+            )}
           </div>
 
           {totalPages > 1 && (

@@ -106,6 +106,7 @@ export const Header = () => {
       "gst_register",
       "einvoice_report",
       "customer_audit_report",
+      "customer_points_report",
       "customer_ledger",
       "customer_account_statement",
       "sales_invoice_dashboard",

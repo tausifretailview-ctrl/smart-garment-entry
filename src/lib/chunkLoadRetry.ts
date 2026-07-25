@@ -89,6 +89,7 @@ export const POST_LOGIN_IDLE_PREFETCH_TAB_PATHS = [
   "net-profit-analysis",
   "einvoice-report",
   "customer-ledger-report",
+  "customer-points-report",
   "customer-account-statement",
   "customer-balance-activity",
   "customer-audit-report",

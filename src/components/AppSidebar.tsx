@@ -47,6 +47,7 @@ import {
   ShieldCheck,
   LayoutList,
   Scale,
+  Gift,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { UIScaleSelector } from "@/components/UIScaleSelector";
@@ -56,6 +57,7 @@ import { cn } from "@/lib/utils";
 import { useUserRoles } from "@/hooks/useUserRoles";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { useSettings } from "@/hooks/useSettings";
 import { useChat } from "@/contexts/ChatContext";
 import {
   Sidebar,
@@ -111,7 +113,10 @@ export function AppSidebar() {
   const { canAccessSettings, canAccessPurchases, isPlatformAdmin, isAdmin } = useUserRoles();
   const { hasMenuAccess, hasMainMenuAccess, hasSpecialPermission, isAdmin: isAdminPermissions, loading: permissionsLoading } = useUserPermissions();
   const { currentOrganization } = useOrganization();
-  
+  const { data: orgSettings } = useSettings();
+  const enablePointsSystem = !!(orgSettings as { sale_settings?: { enable_points_system?: boolean } } | null)
+    ?.sale_settings?.enable_points_system;
+
   const isSchool = currentOrganization?.organization_type === "school";
 
   // Check if path matches accounting for org-scoped URLs
@@ -145,7 +150,7 @@ export function AppSidebar() {
   const masterPaths = ["/customers", "/suppliers", "/employees", "/salesman-commission"];
   const inventoryPaths = ["/purchase-bills", "/purchase-returns", "/purchase-entry", "/purchase-orders", "/purchase-order-entry", "/product-entry", "/products", "/orphaned-products", "/bulk-product-update", "/stock-settlement"];
   const salesPaths = ["/quotation-entry", "/quotation-dashboard", "/sale-order-entry", "/sale-order-dashboard", "/pos-sales", "/pos-dashboard", "/sales-invoice", "/sales-invoice-dashboard", "/sale-return-entry", "/sale-returns", "/delivery-challan-entry", "/delivery-challan-dashboard", "/advance-booking-dashboard"];
-  const reportsPaths = ["/reports", "/insights", "/stock-report", "/stock-analysis", "/stock-ageing", "/sales-report", "/purchase-report", "/product-tracking", "/daily-cashier-report", "/daily-tally", "/item-wise-sales", "/item-wise-stock", "/price-history", "/gst-reports", "/gst-register", "/tally-export", "/sales-analytics", "/accounting-reports", "/expense-salary-report", "/customer-ledger-report", "/customer-party-balances", "/supplier-party-balances", "/customer-account-statement", "/customer-account-statement-audit", "/customer-balance-activity", "/customer-audit-report", "/daily-sale-analysis", "/einvoice-report"];
+  const reportsPaths = ["/reports", "/insights", "/stock-report", "/stock-analysis", "/stock-ageing", "/sales-report", "/purchase-report", "/product-tracking", "/daily-cashier-report", "/daily-tally", "/item-wise-sales", "/item-wise-stock", "/price-history", "/gst-reports", "/gst-register", "/tally-export", "/sales-analytics", "/accounting-reports", "/expense-salary-report", "/customer-ledger-report", "/customer-points-report", "/customer-party-balances", "/supplier-party-balances", "/customer-account-statement", "/customer-account-statement-audit", "/customer-balance-activity", "/customer-audit-report", "/daily-sale-analysis", "/einvoice-report"];
   const accountsPaths = [
     "/accounts",
     "/accounts-payments",
@@ -1005,6 +1010,19 @@ export function AppSidebar() {
                               <NavLink to="/customer-audit-report" className="flex items-center gap-2 group" title="Verified customer outstanding balance">
                                 <ShieldCheck className="h-4 w-4 sidebar-icon text-primary" />
                                 <span className="text-sidebar-foreground font-semibold group-hover:text-primary">Customer Audit Report</span>
+                              </NavLink>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                        )}
+                        {enablePointsSystem &&
+                          (isAdminPermissions ||
+                            hasMenuAccess("customer_points_report") ||
+                            hasMenuAccess("customer_ledger")) && (
+                          <SidebarMenuSubItem>
+                            <SidebarMenuSubButton asChild isActive={isActive("/customer-points-report")} className="text-sidebar-foreground hover:bg-sidebar-accent data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-bold">
+                              <NavLink to="/customer-points-report" className="flex items-center gap-2 group" title="Customer points earned, redeemed, and drift">
+                                <Gift className="h-4 w-4 sidebar-icon text-primary" />
+                                <span className="text-sidebar-foreground font-semibold group-hover:text-primary">Customer Points</span>
                               </NavLink>
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>

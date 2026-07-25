@@ -27,10 +27,12 @@ import {
   History,
   Activity,
   Home,
+  Gift,
   type LucideIcon,
 } from "lucide-react";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
+import { useSettings } from "@/hooks/useSettings";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -46,6 +48,8 @@ interface ReportItem {
   favourite?: boolean;
   permission?: string;
   permissionAlt?: string;
+  /** When true, hub entry is shown only if sale_settings.enable_points_system. */
+  requiresPointsSystem?: boolean;
 }
 
 interface ReportTabConfig {
@@ -314,6 +318,16 @@ const ALL_REPORTS: ReportItem[] = [
     permissionAlt: "customer_ledger",
   },
   {
+    icon: Gift,
+    label: "Customer Points",
+    path: "/customer-points-report",
+    desc: "Earned, redeemed, and balance drift",
+    tab: "accounts",
+    permission: "customer_points_report",
+    permissionAlt: "customer_ledger",
+    requiresPointsSystem: true,
+  },
+  {
     icon: ShieldCheck,
     label: "GST Reports",
     path: "/gst-reports",
@@ -398,10 +412,14 @@ function ReportRow({
 export default function ReportsHub() {
   const { orgNavigate } = useOrgNavigation();
   const { hasMenuAccess, permissions, loading: permissionsLoading } = useUserPermissions();
+  const { data: orgSettings } = useSettings();
+  const enablePointsSystem = !!(orgSettings as { sale_settings?: { enable_points_system?: boolean } } | null)
+    ?.sale_settings?.enable_points_system;
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState<ReportTabId>("favourite");
 
   const canSee = (item: ReportItem) => {
+    if (item.requiresPointsSystem && !enablePointsSystem) return false;
     if (permissionsLoading) return false;
     if (permissions === null) return true;
     if (!item.permission && !item.permissionAlt) return true;
@@ -422,7 +440,7 @@ export default function ReportsHub() {
         report.desc.toLowerCase().includes(q)
       );
     });
-  }, [search, permissions, permissionsLoading, hasMenuAccess, activeTab]);
+  }, [search, permissions, permissionsLoading, hasMenuAccess, activeTab, enablePointsSystem]);
 
   const tabsWithReports = useMemo(() => {
     return REPORT_TABS.filter((tab) => {
@@ -431,7 +449,7 @@ export default function ReportsHub() {
       }
       return ALL_REPORTS.some((r) => r.tab === tab.id && canSee(r));
     });
-  }, [permissions, permissionsLoading, hasMenuAccess]);
+  }, [permissions, permissionsLoading, hasMenuAccess, enablePointsSystem]);
 
   const activeTabConfig = REPORT_TABS.find((t) => t.id === activeTab) ?? REPORT_TABS[0];
 

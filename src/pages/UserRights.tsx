@@ -106,6 +106,7 @@ const menuStructure = [
       { id: "customer_account_statement", name: "Customer Account Statement" },
       { id: "customer_balance_activity", name: "Customer balance & activity" },
       { id: "customer_audit_report", name: "Customer Audit Report" },
+      { id: "customer_points_report", name: "Customer Points Report" },
     ],
   },
   {
@@ -274,6 +275,7 @@ const defaultManagerPermissions: Record<string, boolean> = {
   customer_account_statement: true,
   customer_balance_activity: true,
   customer_audit_report: true,
+  customer_points_report: true,
   delivery_dashboard: true,
   delivery_update: true,
   delivery_whatsapp: true,
@@ -400,6 +402,9 @@ const UserRights = () => {
       }
       if (menuPerms.customer_audit_report === undefined) {
         menuPerms.customer_audit_report = !!menuPerms.customer_ledger;
+      }
+      if (menuPerms.customer_points_report === undefined) {
+        menuPerms.customer_points_report = !!menuPerms.customer_ledger;
       }
       if (menuPerms.business_insights === undefined) {
         menuPerms.business_insights = true;

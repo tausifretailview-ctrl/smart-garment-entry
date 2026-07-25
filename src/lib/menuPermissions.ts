@@ -50,6 +50,7 @@ const MENU_PERMISSION_BY_PATH: Record<string, string> = {
   accounts: "accounts_dashboard",
   "customer-party-balances": "customer_party_balances",
   "supplier-party-balances": "supplier_party_balances",
+  "customer-points-report": "customer_points_report",
   reports: "reports_hub",
   insights: "business_insights",
   "delivery-dashboard": "delivery_dashboard",

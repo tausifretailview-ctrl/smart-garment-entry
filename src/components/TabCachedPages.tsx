@@ -77,6 +77,7 @@ const EXPLICIT_PROTECTED_TAB_PATHS = new Set([
   "settings",
   "customer-account-statement",
   "customer-ledger-report",
+  "customer-points-report",
   "customer-balance-activity",
 ]);
 
@@ -148,6 +149,7 @@ const ELECTRON_WORKFLOW_DASHBOARD_PATHS = new Set([
   "ledger-opening-balances",
   "customer-account-statement",
   "customer-ledger-report",
+  "customer-points-report",
   "customer-balance-activity",
   "settings",
 ]);

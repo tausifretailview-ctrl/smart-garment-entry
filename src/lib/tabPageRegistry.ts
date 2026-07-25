@@ -118,6 +118,7 @@ export const TAB_PAGE_REGISTRY: Record<string, TabPageDef> = {
   },
   "einvoice-report": { loader: () => import("@/pages/EInvoiceReport"), layout: "layout" },
   "customer-ledger-report": { loader: () => import("@/pages/CustomerLedgerReport"), layout: "layout" },
+  "customer-points-report": { loader: () => import("@/pages/CustomerPointsReport"), layout: "layout" },
   "customer-account-statement": { loader: () => import("@/pages/CustomerLedgerPage"), layout: "layout" },
   "customer-account-statement-audit": {
     loader: () => import("@/pages/CustomerAccountStatementAuditPage"),

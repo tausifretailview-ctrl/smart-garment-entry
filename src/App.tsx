@@ -116,6 +116,7 @@ const BusinessInsights = lazyWithRetry(() => import("./pages/BusinessInsights"))
 const CustomerLedgerPage = lazyWithRetry(() => import("./pages/CustomerLedgerPage"));
 const CustomerAuditReport = lazyWithRetry(() => import("./pages/CustomerAuditReport"));
 const CustomerLedgerReport = lazyWithRetry(() => import("./pages/CustomerLedgerReport"));
+const CustomerPointsReport = lazyWithRetry(() => import("./pages/CustomerPointsReport"));
 const CustomerAccountStatementAuditPage = lazyWithRetry(
   () => import("./pages/CustomerAccountStatementAuditPage"),
 );
@@ -1253,6 +1254,16 @@ const App = () => {
                     <ProtectedRoute>
                       <Layout>
                         <CustomerLedgerReport />
+                      </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="customer-points-report"
+                  element={
+                    <ProtectedRoute>
+                      <Layout>
+                        <CustomerPointsReport />
                       </Layout>
                     </ProtectedRoute>
                   }

@@ -43,6 +43,7 @@ const BACK_MAP: Record<string, string> = {
   "accounting-reports":       "/",
   "net-profit-analysis":      "/",
   "customer-ledger-report":   "accounts",
+  "customer-points-report":   "reports",
   "stock-analysis":           "/",
   "price-history":            "/",
   "product-tracking":         "/",
