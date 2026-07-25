@@ -7,7 +7,11 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryCache, MutationCache, keepPreviousData } from "@tanstack/react-query";
-import { isStatementTimeout, statementTimeoutMessage } from "@/utils/statementTimeout";
+import {
+  isStatementTimeout,
+  statementTimeoutMessage,
+  statementTimeoutMutationMessage,
+} from "@/utils/statementTimeout";
 import { toast as showToast } from "@/hooks/use-toast";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { APP_BUILD_BUSTER, isVolatileOrSensitiveKey, persister } from "@/lib/queryPersister";
@@ -333,26 +337,35 @@ const App = () => {
   }, []);
 
   const [queryClient] = useState(() => {
-    const timeoutToastKey = { current: 0 as number };
-    const notifyTimeout = () => {
-      // Coalesce bursts (e.g. dashboard fires several queries at once) into
-      // a single toast; queries fail fast enough that a per-query toast
-      // would stack noisily.
+    // Coalesce per kind — a read burst shouldn't swallow a write's own
+    // toast, and vice versa. Reads and writes need different copy: a
+    // failed save must tell the user nothing was saved so they don't
+    // duplicate the entry.
+    const lastReadToastAt = { current: 0 as number };
+    const lastWriteToastAt = { current: 0 as number };
+    const notifyReadTimeout = () => {
       const now = Date.now();
-      if (now - timeoutToastKey.current < 1500) return;
-      timeoutToastKey.current = now;
+      if (now - lastReadToastAt.current < 1500) return;
+      lastReadToastAt.current = now;
       const { title, message } = statementTimeoutMessage();
+      showToast({ variant: "destructive", title, description: message });
+    };
+    const notifyWriteTimeout = () => {
+      const now = Date.now();
+      if (now - lastWriteToastAt.current < 1500) return;
+      lastWriteToastAt.current = now;
+      const { title, message } = statementTimeoutMutationMessage();
       showToast({ variant: "destructive", title, description: message });
     };
     return new QueryClient({
     queryCache: new QueryCache({
       onError: (error) => {
-        if (isStatementTimeout(error)) notifyTimeout();
+        if (isStatementTimeout(error)) notifyReadTimeout();
       },
     }),
     mutationCache: new MutationCache({
       onError: (error) => {
-        if (isStatementTimeout(error)) notifyTimeout();
+        if (isStatementTimeout(error)) notifyWriteTimeout();
       },
     }),
     defaultOptions: {
