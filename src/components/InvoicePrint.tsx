@@ -297,7 +297,8 @@ export const InvoicePrint = React.forwardRef<HTMLDivElement, InvoicePrintProps>(
           <div className="payment-right">
             <p><strong>TOTAL:</strong> {subTotal.toFixed(2)}</p>
             <p><strong>Dis (Rs) :</strong> {discount.toFixed(2)}</p>
-            <p><strong>MRP TOTAL:</strong> {subTotal.toFixed(2)}</p>
+            {/* MRP TOTAL removed: props/items have no MRP sum (only subTotal/sp/rate).
+                Gating on sale_settings.show_mrp_column would still print a wrong number. */}
             <p><strong>TOTAL DIS:</strong> {discount.toFixed(2)}</p>
             <p className="grand-total"><strong>G.TOTAL:</strong> <span className="total-amount">{grandTotal.toFixed(2)}</span></p>
           </div>
