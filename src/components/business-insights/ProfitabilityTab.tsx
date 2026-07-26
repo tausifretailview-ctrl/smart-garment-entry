@@ -236,6 +236,8 @@ export function ProfitabilityTab({ startDate, endDate }: ProfitabilityTabProps) 
           <InsightsPanel
             className="flex-1 min-h-0"
             title="Top Products by Profit"
+            stickyFirstColumn
+            stickyColumnCount={2}
             toolbar={
               <div className="relative w-full sm:w-72">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -323,7 +325,12 @@ export function ProfitabilityTab({ startDate, endDate }: ProfitabilityTabProps) 
                         <TableCell className={cn(INSIGHTS_BODY_CELL, "tabular-nums text-muted-foreground")}>
                           {idx + 1}
                         </TableCell>
-                        <TableCell className={cn(INSIGHTS_BODY_CELL, "font-medium")}>{row.product_name}</TableCell>
+                        <TableCell
+                          className={cn(INSIGHTS_BODY_CELL, "font-medium")}
+                          title={row.product_name || undefined}
+                        >
+                          {row.product_name}
+                        </TableCell>
                         <TableCell className={INSIGHTS_BODY_CELL}>{row.brand || "—"}</TableCell>
                         <TableCell className={INSIGHTS_BODY_CELL_NUM}>{num(row.units_sold)}</TableCell>
                         <TableCell className={INSIGHTS_BODY_CELL_NUM}>{formatInsightsINR(num(row.revenue))}</TableCell>
@@ -346,6 +353,7 @@ export function ProfitabilityTab({ startDate, endDate }: ProfitabilityTabProps) 
             className="flex-1 min-h-0"
             title="Brand Performance"
             subtitle="By gross profit in period"
+            stickyFirstColumn
             footer={
               <p className="text-xs text-muted-foreground tabular-nums">
                 {sortedBrands.length.toLocaleString("en-IN")} brand
@@ -431,6 +439,7 @@ export function ProfitabilityTab({ startDate, endDate }: ProfitabilityTabProps) 
             className="flex-1 min-h-0"
             title="Category Breakdown"
             subtitle="Revenue and margin by category"
+            stickyFirstColumn
             footer={
               <p className="text-xs text-muted-foreground tabular-nums">
                 {sortedCategories.length.toLocaleString("en-IN")} categor

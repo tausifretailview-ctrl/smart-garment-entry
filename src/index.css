@@ -2300,6 +2300,78 @@ main:has(.dashboard-workspace) .dashboard-workspace,
   }
 }
 
+/* Business Insights — horizontal scroll affordance (InsightsPanel) */
+.insights-hscroll-fade {
+  background: linear-gradient(to right, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.96));
+  opacity: 1;
+  transition: opacity 0.18s ease;
+}
+.insights-hscroll-fade--hidden {
+  opacity: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  .insights-hscroll-fade {
+    transition: none;
+  }
+}
+
+/* Opt-in sticky first column(s) — opaque bg so zebra/hover don't bleed through */
+.insights-hscroll-sticky table th:first-child,
+.insights-hscroll-sticky table td:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  box-shadow: 1px 0 0 #e2e8f0;
+}
+.insights-hscroll-sticky table thead th:first-child {
+  z-index: 21; /* above sticky body cells + other header cells at the seam */
+  background-color: #1e293b; /* slate-800 — matches InsightsTableHeader */
+}
+.insights-hscroll-sticky table tbody tr:nth-child(odd) > td:first-child {
+  background-color: #ffffff;
+}
+.insights-hscroll-sticky table tbody tr:nth-child(even) > td:first-child {
+  background-color: #f8fafc; /* slate-50 solid (not /80) */
+}
+.insights-hscroll-sticky table tbody tr:hover > td:first-child {
+  background-color: #f0f9ff; /* sky-50 */
+}
+
+/* Two leading sticky columns (# + label) — label capped so numbers stay peekable on ~360px */
+.insights-hscroll-sticky--2 table th:first-child,
+.insights-hscroll-sticky--2 table td:first-child {
+  width: 2.5rem;
+  min-width: 2.5rem;
+  max-width: 2.5rem;
+  box-shadow: none;
+  padding-left: 0.5rem;
+  padding-right: 0.25rem;
+}
+.insights-hscroll-sticky--2 table th:nth-child(2),
+.insights-hscroll-sticky--2 table td:nth-child(2) {
+  position: sticky;
+  left: 2.5rem;
+  z-index: 2;
+  box-shadow: 1px 0 0 #e2e8f0;
+  max-width: min(9.5rem, 40vw);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.insights-hscroll-sticky--2 table thead th:nth-child(2) {
+  z-index: 21;
+  background-color: #1e293b;
+}
+.insights-hscroll-sticky--2 table tbody tr:nth-child(odd) > td:nth-child(2) {
+  background-color: #ffffff;
+}
+.insights-hscroll-sticky--2 table tbody tr:nth-child(even) > td:nth-child(2) {
+  background-color: #f8fafc;
+}
+.insights-hscroll-sticky--2 table tbody tr:hover > td:nth-child(2) {
+  background-color: #f0f9ff;
+}
+
 /* Business Insights — full workspace (same shell as Customer Balances) */
 .business-insights-workspace {
   height: 100%;
