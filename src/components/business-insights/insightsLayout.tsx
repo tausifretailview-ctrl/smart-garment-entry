@@ -1,7 +1,8 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import { ChevronRight } from "lucide-react";
 import { Card } from "@/components/ui/card";
-import { TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 
@@ -186,6 +187,63 @@ export function InsightsPanel({
 
 export function InsightsKpiStrip({ children }: { children: ReactNode }) {
   return <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 w-full shrink-0">{children}</div>;
+}
+
+/** Loading placeholder that matches KPI strip + table chrome (h-10 header / h-11 rows). */
+export function InsightsTableSkeleton({
+  columns,
+  rows = 8,
+  title = "Loading…",
+}: {
+  columns: number;
+  rows?: number;
+  title?: string;
+}) {
+  const colCount = Math.max(1, columns);
+  return (
+    <div className={INSIGHTS_TAB_SHELL} aria-busy="true" aria-label={title}>
+      <InsightsKpiStrip>
+        {Array.from({ length: 3 }, (_, i) => (
+          <div
+            key={i}
+            className="rounded-lg border border-slate-200 border-l-[3px] border-l-slate-300 bg-white px-3 py-2 min-w-0 shadow-sm"
+          >
+            <Skeleton className="h-3 w-24 motion-reduce:animate-none" />
+            <Skeleton className="mt-2 h-6 w-32 motion-reduce:animate-none" />
+            <Skeleton className="mt-1.5 h-3 w-28 motion-reduce:animate-none" />
+          </div>
+        ))}
+      </InsightsKpiStrip>
+
+      <InsightsPanel className="flex-1 min-h-0" title={title}>
+        <Table className="w-full min-w-max">
+          <InsightsTableHeader>
+            {Array.from({ length: colCount }, (_, i) => (
+              <TableHead key={i} className={INSIGHTS_NEUTRAL_TH}>
+                <Skeleton className="h-3 w-16 bg-white/25 motion-reduce:animate-none" />
+              </TableHead>
+            ))}
+          </InsightsTableHeader>
+          <TableBody>
+            {Array.from({ length: rows }, (_, r) => (
+              <TableRow key={r} className={INSIGHTS_BODY_ROW}>
+                {Array.from({ length: colCount }, (_, c) => (
+                  <TableCell key={c} className={INSIGHTS_BODY_CELL}>
+                    <Skeleton
+                      className={cn(
+                        "h-4 motion-reduce:animate-none",
+                        c === 0 ? "w-28" : c === colCount - 1 ? "ml-auto w-14" : "w-16",
+                      )}
+                    />
+                  </TableCell>
+                ))}
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </InsightsPanel>
+    </div>
+  );
 }
 
 export type InsightsKpiTone = "neutral" | "attention" | "positive" | "critical";

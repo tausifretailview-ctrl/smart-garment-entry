@@ -9,7 +9,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { AlertTriangle, Loader2, Star, TrendingDown } from "lucide-react";
+import { AlertTriangle, Star, TrendingDown } from "lucide-react";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import {
   formatInsightsINR,
@@ -31,6 +31,7 @@ import {
   InsightsSubTabPanel,
   InsightsSubTabs,
   InsightsTableHeader,
+  InsightsTableSkeleton,
 } from "@/components/business-insights/insightsLayout";
 
 type SortDir = "asc" | "desc";
@@ -188,12 +189,7 @@ export function SupplierAnalysisTab({ startDate, endDate }: SupplierAnalysisTabP
   }
 
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-16 text-muted-foreground">
-        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-        Loading supplier insights…
-      </div>
-    );
+    return <InsightsTableSkeleton columns={7} title="Loading suppliers…" />;
   }
 
   return (

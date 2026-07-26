@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { format, parseISO } from "date-fns";
-import { AlertTriangle, Loader2 } from "lucide-react";
+import { AlertTriangle } from "lucide-react";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import {
   formatInsightsINR,
@@ -27,6 +27,7 @@ import {
   InsightsSubTabPanel,
   InsightsSubTabs,
   InsightsTableHeader,
+  InsightsTableSkeleton,
 } from "@/components/business-insights/insightsLayout";
 
 const IDLE_DAY_OPTIONS = [30, 60, 90, 180] as const;
@@ -144,12 +145,7 @@ export function StockHealthTab() {
   }
 
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-16 text-muted-foreground">
-        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-        Loading stock health insights…
-      </div>
-    );
+    return <InsightsTableSkeleton columns={7} title="Loading stock health…" />;
   }
 
   return (

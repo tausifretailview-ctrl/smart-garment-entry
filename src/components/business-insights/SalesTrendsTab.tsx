@@ -9,7 +9,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { AlertTriangle, Loader2 } from "lucide-react";
+import { AlertTriangle } from "lucide-react";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import {
   formatInsightsINR,
@@ -31,6 +31,7 @@ import {
   InsightsSubTabPanel,
   InsightsSubTabs,
   InsightsTableHeader,
+  InsightsTableSkeleton,
 } from "@/components/business-insights/insightsLayout";
 
 type SalesSubTab = "top-products" | "slow-movers" | "category-chart";
@@ -121,12 +122,7 @@ export function SalesTrendsTab({ startDate, endDate }: SalesTrendsTabProps) {
   }
 
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-16 text-muted-foreground">
-        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-        Loading sales trends…
-      </div>
-    );
+    return <InsightsTableSkeleton columns={6} title="Loading sales trends…" />;
   }
 
   return (
