@@ -16,12 +16,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format, startOfDay, endOfDay, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear } from "date-fns";
-import { CalendarIcon, Search, ArrowLeft, Printer, FileSpreadsheet, Filter, X } from "lucide-react";
+import { CalendarIcon, Search, ArrowLeft, Printer, FileSpreadsheet, Filter, X, ChevronDown, ChevronUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 import * as XLSX from "xlsx";
 import { multiTokenMatch } from "@/utils/multiTokenSearch";
 import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
 import { parsePersistedDate, restoreDashboardFilters, WINDOW_FILTER_IDS } from "@/lib/dashboardFilterPersistence";
+import { useAuth } from "@/contexts/AuthContext";
 
 type PeriodType = "daily" | "monthly" | "quarterly" | "yearly" | "all" | "custom";
 
@@ -86,10 +87,30 @@ const SALES_DETAIL_CELL = "py-2.5 px-4 align-middle text-sm text-foreground whit
 const SALES_QTY_CELL = "py-2.5 px-4 align-middle text-sm font-semibold text-right tabular-nums text-foreground";
 const SALES_AMOUNT_CELL = "py-2.5 px-4 align-middle text-sm font-bold text-right tabular-nums text-primary";
 
+/** Empty for column-visibility + cell display: null/undefined/"" / whitespace / "-" / "None". */
+function isBlankSalesField(value: string | null | undefined): boolean {
+  const t = (value ?? "").trim();
+  if (!t) return true;
+  if (t === "-") return true;
+  if (t.toLowerCase() === "none") return true;
+  return false;
+}
+
+function emptySalesPlaceholder(): ReactNode {
+  return <span className="text-muted-foreground">—</span>;
+}
+
+function displaySalesField(value: string | null | undefined): ReactNode {
+  if (isBlankSalesField(value)) return emptySalesPlaceholder();
+  return (value ?? "").trim();
+}
+
 function highlightSearchText(text: string, query: string): ReactNode {
-  const raw = text || "";
+  if (isBlankSalesField(text)) return emptySalesPlaceholder();
+
+  const raw = (text ?? "").trim();
   const q = query.trim();
-  if (!q || !raw) return raw || "—";
+  if (!q) return raw;
 
   const lower = raw.toLowerCase();
   const needle = q.toLowerCase();
@@ -107,8 +128,11 @@ function highlightSearchText(text: string, query: string): ReactNode {
   );
 }
 
+const ITEM_WISE_KPI_EXPANDED_KEY = (userId: string) => `item-wise-sales-kpi-expanded:${userId}`;
+
 export default function ItemWiseSalesReport() {
   const { currentOrganization } = useOrganization();
+  const { user } = useAuth();
   const { orgNavigate } = useOrgNavigation();
   const productFieldSettings = useProductFieldSettings();
   const fieldLabels = {
@@ -121,6 +145,27 @@ export default function ItemWiseSalesReport() {
   const showCategory = productFieldSettings.category?.enabled !== false;
   const showStyle = productFieldSettings.style?.enabled !== false;
   const showColor = productFieldSettings.color?.enabled !== false;
+  // Size is not in ProductFieldKey today; same enabled≠false pattern so a future setting works.
+  const showSize =
+    (productFieldSettings as { size?: { enabled?: boolean } }).size?.enabled !== false;
+  const [kpiExpanded, setKpiExpanded] = useState(true);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    const stored = localStorage.getItem(ITEM_WISE_KPI_EXPANDED_KEY(user.id));
+    if (stored === "0") setKpiExpanded(false);
+    else if (stored === "1") setKpiExpanded(true);
+  }, [user?.id]);
+
+  const toggleKpiExpanded = () => {
+    setKpiExpanded((prev) => {
+      const next = !prev;
+      if (user?.id) {
+        localStorage.setItem(ITEM_WISE_KPI_EXPANDED_KEY(user.id), next ? "1" : "0");
+      }
+      return next;
+    });
+  };
   const [periodType, setPeriodType] = useState<PeriodType>("daily");
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [customDateRange, setCustomDateRange] = useState<{ from: Date; to: Date }>({
