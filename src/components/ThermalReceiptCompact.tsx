@@ -65,6 +65,8 @@ interface ThermalReceiptCompactProps {
   salesman?: string;
   isDcInvoice?: boolean;
   counter?: string;
+  /** When false, omit the "You Saved" banner (POS enable_mrp display gate). */
+  showYouSaved?: boolean;
 }
 
 const fmtAmt = (n: number): string => Math.round(n).toLocaleString('en-IN');
@@ -81,7 +83,7 @@ export const ThermalReceiptCompact = React.forwardRef<HTMLDivElement, ThermalRec
       cashAmount = 0, upiAmount = 0, cardAmount = 0,
       documentType = 'invoice', termsConditions, notes,
       pointsRedeemed = 0, pointsRedemptionValue = 0, pointsBalance = 0,
-      cashier, salesman, counter, isDcInvoice,
+      cashier, salesman, counter, isDcInvoice, showYouSaved = true,
     } = props;
 
     const { currentOrganization } = useOrganization();
@@ -274,7 +276,7 @@ export const ThermalReceiptCompact = React.forwardRef<HTMLDivElement, ThermalRec
         )}
 
         {/* YOU SAVED */}
-        {discount > 0 && (
+        {showYouSaved && discount > 0 && (
           <div style={{ ...center, fontSize: '13px', fontWeight: 900, margin: '2px 0' }}>
             *** You Saved ₹{fmtAmt(discount)}! ***
           </div>

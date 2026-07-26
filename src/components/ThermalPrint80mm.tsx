@@ -59,6 +59,8 @@ interface ThermalPrint80mmProps {
   salesman?: string;
   counter?: string;
   isDcInvoice?: boolean;
+  /** When false, omit the "You Saved" banner (POS enable_mrp display gate). */
+  showYouSaved?: boolean;
 }
 
 interface ThermalPrint80mmPropsExt extends ThermalPrint80mmProps {
@@ -76,7 +78,7 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
       roundOff = 0, grandTotal,
       gstBreakdown, gstRateBreakdown, paymentMethod,
       cashPaid = 0, upiPaid = 0, cardPaid = 0, creditPaid = 0, paidAmount = 0, refundCash = 0,
-      documentType = 'invoice', termsConditions, notes,
+      documentType = 'invoice', termsConditions, notes, showYouSaved = true,
       pointsRedeemed = 0, pointsRedemptionValue = 0, pointsBalance = 0,
       cashier, salesman, counter, isDcInvoice,
     } = props;
@@ -346,7 +348,7 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
         <div style={dblLine} />
 
         {/* ═══ YOU SAVED ═══ */}
-        {discount > 0 && (
+        {showYouSaved && discount > 0 && (
           <div style={{ ...center, fontSize: '12px', fontWeight: 900, margin: '3px 0' }}>
             *** You Saved ₹{fmtAmt(discount)}! ***
           </div>

@@ -58,6 +58,8 @@ interface TvsThermalReceipt80mmProps {
   counter?: string;
   isDcInvoice?: boolean;
   settingsOverride?: any;
+  /** When false, omit the "You Saved" banner (POS enable_mrp display gate). */
+  showYouSaved?: boolean;
 }
 
 const FONT = "'Arial Black', Arial, 'Helvetica Neue', Helvetica, sans-serif";
@@ -96,7 +98,7 @@ export const TvsThermalReceipt80mm = React.forwardRef<HTMLDivElement, TvsThermal
       cashPaid = 0, upiPaid = 0, cardPaid = 0, creditPaid = 0, paidAmount = 0, refundCash = 0,
       documentType = 'invoice', termsConditions, notes,
       pointsRedeemed = 0, pointsRedemptionValue = 0, pointsBalance = 0,
-      cashier, salesman, counter, isDcInvoice, settingsOverride,
+      cashier, salesman, counter, isDcInvoice, settingsOverride, showYouSaved = true,
     } = props;
 
     const [settings, setSettings] = useState<any>(null);
@@ -307,7 +309,7 @@ export const TvsThermalReceipt80mm = React.forwardRef<HTMLDivElement, TvsThermal
         </div>
         <div style={dblLine} />
 
-        {discount > 0 && (
+        {showYouSaved && discount > 0 && (
           <div style={{ ...center, fontSize: '12px', fontWeight: 900, margin: '3px 0' }}>
             You Saved ₹{fmtAmt(discount)}!
           </div>

@@ -656,6 +656,7 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
             pointsBalance={props.pointsBalance}
             salesman={props.salesman}
             isDcInvoice={props.isDcInvoice}
+            showYouSaved={showYouSaved}
           />
         );
       }
