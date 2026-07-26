@@ -593,6 +593,26 @@ export default function ItemWiseSalesReport() {
     return data;
   }, [aggregatedData, searchQuery, selectedBrand, selectedCategory, selectedDepartment, selectedColor]);
 
+  // Settings allow + at least one non-blank value in the current filtered set
+  const itemWiseCols = useMemo(() => {
+    const hasValue = (getter: (row: SaleItemData) => string | null | undefined) =>
+      filteredData.some((row) => !isBlankSalesField(getter(row)));
+    return {
+      brand: showBrand && hasValue((r) => r.brand),
+      category: showCategory && hasValue((r) => r.category),
+      color: showColor && hasValue((r) => r.color),
+      size: showSize && hasValue((r) => r.size),
+    };
+  }, [filteredData, showBrand, showCategory, showColor, showSize]);
+
+  const itemWiseLeadingColSpan =
+    2 +
+    (itemWiseCols.brand ? 1 : 0) +
+    (itemWiseCols.category ? 1 : 0) +
+    (itemWiseCols.color ? 1 : 0) +
+    (itemWiseCols.size ? 1 : 0);
+  const itemWiseTotalColSpan = itemWiseLeadingColSpan + 3;
+
   const itemWiseTotals = useMemo(() => ({
     total_qty: filteredData.reduce((s, r) => s + r.total_qty, 0),
     stock_qty: filteredData.reduce((s, r) => s + r.stock_qty, 0),
@@ -774,6 +794,25 @@ export default function ItemWiseSalesReport() {
     sale_value: saleDetailsData.reduce((s, r) => s + r.sale_value, 0),
   }), [saleDetailsData]);
 
+  const saleDetailsBarcodeCols = useMemo(() => {
+    const hasValue = (getter: (row: (typeof saleDetailsData)[number]) => string | null | undefined) =>
+      saleDetailsData.some((row) => !isBlankSalesField(getter(row)));
+    return {
+      brand: showBrand && hasValue((r) => r.brand),
+      size: showSize && hasValue((r) => r.size),
+      color: showColor && hasValue((r) => r.color),
+    };
+  }, [saleDetailsData, showBrand, showSize, showColor]);
+
+  const saleDetailsBarcodeLeadingColSpan =
+    3 +
+    (saleDetailsBarcodeCols.brand ? 1 : 0) +
+    (saleDetailsBarcodeCols.size ? 1 : 0) +
+    (saleDetailsBarcodeCols.color ? 1 : 0);
+  const saleDetailsColSpan =
+    saleDetailsGroupBy === "barcode" ? saleDetailsBarcodeLeadingColSpan + 3 : 5;
+  const saleDetailsFooterLeadingColSpan =
+    saleDetailsGroupBy === "barcode" ? saleDetailsBarcodeLeadingColSpan : 2;
 
   const hasClientFilters = selectedBrand !== "all" || selectedCategory !== "all" || selectedDepartment !== "all" || selectedColor !== "all" || searchQuery.trim() !== "";
 
@@ -930,13 +969,34 @@ export default function ItemWiseSalesReport() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 shrink-0 print:hidden">
-        {salesKpiItems.map((item) => (
-          <div key={item.label} className={cn("rounded-lg px-3 py-2 min-w-0 shadow-sm", item.gradient)}>
-            <p className="text-xs font-medium text-white/80 leading-none truncate">{item.label}</p>
-            <p className="mt-1 text-base font-black text-white tabular-nums leading-tight truncate sm:text-lg">{item.value}</p>
+      <div className="flex shrink-0 items-stretch gap-1 print:hidden">
+        {kpiExpanded && (
+          <div className="grid min-w-0 flex-1 grid-cols-2 gap-1.5 lg:grid-cols-4">
+            {salesKpiItems.map((item) => (
+              <div
+                key={item.label}
+                className={cn(
+                  "flex min-w-0 items-baseline justify-between gap-2 rounded-md px-2.5 py-1.5 shadow-sm",
+                  item.gradient,
+                )}
+              >
+                <p className="truncate text-[10px] font-medium leading-none text-white/80">{item.label}</p>
+                <p className="truncate text-sm font-black tabular-nums leading-none text-white">{item.value}</p>
+              </div>
+            ))}
           </div>
-        ))}
+        )}
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          className="h-8 w-8 shrink-0 border-slate-200 bg-white"
+          onClick={toggleKpiExpanded}
+          aria-label={kpiExpanded ? "Hide summary" : "Show summary"}
+          aria-expanded={kpiExpanded}
+        >
+          {kpiExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+        </Button>
       </div>
 
       <Card className="rounded-lg border border-slate-200 shadow-sm shrink-0 print:hidden">
@@ -1110,10 +1170,10 @@ export default function ItemWiseSalesReport() {
                     <TableRow className={SALES_VASY_HEAD_ROW}>
                       <TableHead className={cn("w-[110px]", SALES_VASY_TH)}>Barcode</TableHead>
                       <TableHead className={cn("min-w-[180px]", SALES_VASY_TH)}>Product Name</TableHead>
-                      {showBrand && <TableHead className={cn("w-[100px]", SALES_VASY_TH)}>{fieldLabels.brand}</TableHead>}
-                      {showCategory && <TableHead className={cn("w-[100px]", SALES_VASY_TH)}>{fieldLabels.category}</TableHead>}
-                      {showColor && <TableHead className={cn("w-[90px]", SALES_VASY_TH)}>{fieldLabels.color}</TableHead>}
-                      <TableHead className={cn("w-[70px] text-center", SALES_VASY_TH)}>Size</TableHead>
+                      {itemWiseCols.brand && <TableHead className={cn("w-[100px]", SALES_VASY_TH)}>{fieldLabels.brand}</TableHead>}
+                      {itemWiseCols.category && <TableHead className={cn("w-[100px]", SALES_VASY_TH)}>{fieldLabels.category}</TableHead>}
+                      {itemWiseCols.color && <TableHead className={cn("w-[90px]", SALES_VASY_TH)}>{fieldLabels.color}</TableHead>}
+                      {itemWiseCols.size && <TableHead className={cn("w-[70px] text-center", SALES_VASY_TH)}>Size</TableHead>}
                       <TableHead className={cn("w-[90px] text-right", SALES_VASY_TH)}>Qty Sold</TableHead>
                       <TableHead className={cn("w-[90px] text-right", SALES_VASY_TH)}>Stock Qty</TableHead>
                       <TableHead className={cn("w-[120px] text-right", SALES_VASY_TH)}>Total Amount</TableHead>
@@ -1122,14 +1182,13 @@ export default function ItemWiseSalesReport() {
                   <TableBody>
                     {isLoading ? (
                       <TableRow>
-                        <TableCell colSpan={6 + (showBrand ? 1 : 0) + (showCategory ? 1 : 0) + (showColor ? 1 : 0)} className="text-center py-4 text-muted-foreground">Loading...</TableCell>
+                        <TableCell colSpan={itemWiseTotalColSpan} className="text-center py-4 text-muted-foreground">Loading...</TableCell>
                       </TableRow>
                     ) : filteredData.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={6 + (showBrand ? 1 : 0) + (showCategory ? 1 : 0) + (showColor ? 1 : 0)} className="h-24 text-center text-sm text-muted-foreground">No sales data found for the selected period</TableCell>
+                        <TableCell colSpan={itemWiseTotalColSpan} className="h-24 text-center text-sm text-muted-foreground">No sales data found for the selected period</TableCell>
                       </TableRow>
                     ) : (() => {
-                      const totalPages = Math.ceil(filteredData.length / ITEMS_PER_PAGE);
                       const paginatedData = filteredData.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
                       const rowMatches = (item: SaleItemData) =>
                         searchQuery.trim() &&
@@ -1151,18 +1210,20 @@ export default function ItemWiseSalesReport() {
                                 rowMatches(item) && "bg-amber-50/80 dark:bg-amber-950/25 ring-1 ring-inset ring-amber-300/50",
                               )}
                             >
-                              <TableCell className="font-mono text-sm">{highlightSearchText(item.barcode || "-", searchQuery)}</TableCell>
+                              <TableCell className="font-mono text-sm">{highlightSearchText(item.barcode, searchQuery)}</TableCell>
                               <TableCell className={SALES_PRODUCT_CELL}>{highlightSearchText(item.product_name, searchQuery)}</TableCell>
-                              {showBrand && (
-                                <TableCell className={SALES_DETAIL_CELL}>{highlightSearchText(item.brand || "-", searchQuery)}</TableCell>
+                              {itemWiseCols.brand && (
+                                <TableCell className={SALES_DETAIL_CELL}>{highlightSearchText(item.brand, searchQuery)}</TableCell>
                               )}
-                              {showCategory && (
-                                <TableCell className={SALES_DETAIL_CELL}>{highlightSearchText(item.category || "-", searchQuery)}</TableCell>
+                              {itemWiseCols.category && (
+                                <TableCell className={SALES_DETAIL_CELL}>{highlightSearchText(item.category, searchQuery)}</TableCell>
                               )}
-                              {showColor && (
-                                <TableCell className={SALES_DETAIL_CELL}>{highlightSearchText(item.color || "-", searchQuery)}</TableCell>
+                              {itemWiseCols.color && (
+                                <TableCell className={SALES_DETAIL_CELL}>{highlightSearchText(item.color, searchQuery)}</TableCell>
                               )}
-                              <TableCell className={cn(SALES_DETAIL_CELL, "text-center")}>{highlightSearchText(item.size, searchQuery)}</TableCell>
+                              {itemWiseCols.size && (
+                                <TableCell className={cn(SALES_DETAIL_CELL, "text-center")}>{highlightSearchText(item.size, searchQuery)}</TableCell>
+                              )}
                               <TableCell className={SALES_QTY_CELL}>{item.total_qty.toLocaleString("en-IN")}</TableCell>
                               <TableCell className={SALES_QTY_CELL}>{item.stock_qty.toLocaleString("en-IN")}</TableCell>
                               <TableCell className={SALES_AMOUNT_CELL}>₹{item.total_amount.toLocaleString("en-IN")}</TableCell>
@@ -1173,9 +1234,9 @@ export default function ItemWiseSalesReport() {
                   {filteredData.length > 0 && (
                     <TableFooter className={SALES_VASY_FOOTER}>
                       <TableRow className="hover:bg-slate-100">
-                        <TableCell colSpan={3 + (showBrand ? 1 : 0) + (showCategory ? 1 : 0) + (showColor ? 1 : 0)} className="py-3 text-sm font-bold text-teal-700">Grand Total</TableCell>
+                        <TableCell colSpan={itemWiseLeadingColSpan} className="py-3 text-sm font-bold text-teal-700">Grand Total</TableCell>
                         <TableCell className={cn(SALES_QTY_CELL, "py-3 text-base font-bold")}>{itemWiseTotals.total_qty.toLocaleString()}</TableCell>
-                        <TableCell className={cn(SALES_QTY_CELL, "py-3 text-base font-bold")}>{itemWiseTotals.stock_qty.toLocaleString()}</TableCell>
+                        <TableCell className={cn(SALES_QTY_CELL, "py-3 text-base font-bold text-muted-foreground")}>{emptySalesPlaceholder()}</TableCell>
                         <TableCell className={cn(SALES_AMOUNT_CELL, "py-3 text-base font-bold")}>₹{itemWiseTotals.total_amount.toLocaleString("en-IN")}</TableCell>
                       </TableRow>
                     </TableFooter>
