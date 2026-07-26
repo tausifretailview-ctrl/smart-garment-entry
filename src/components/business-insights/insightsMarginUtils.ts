@@ -11,6 +11,15 @@ export function marginBorderClass(marginPct: number): string {
   return "border-l-4 border-l-red-500";
 }
 
+/** Same tiers as marginBorderClass / marginBarColor — for InsightsKpiCard tone. */
+export function marginTone(
+  marginPct: number,
+): "positive" | "attention" | "critical" {
+  if (marginPct > 30) return "positive";
+  if (marginPct >= 15) return "attention";
+  return "critical";
+}
+
 export const INSIGHTS_CHART_COLORS = [
   "hsl(var(--primary))",
   "hsl(210, 70%, 50%)",

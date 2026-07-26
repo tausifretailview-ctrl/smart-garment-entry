@@ -203,13 +203,13 @@ export function SupplierAnalysisTab({ startDate, endDate }: SupplierAnalysisTabP
           label="Suppliers Active"
           value={suppliers.length}
           sub="With purchases in period"
-          gradient="bg-gradient-to-br from-blue-500 to-blue-600"
+          tone="neutral"
         />
         <InsightsKpiCard
           label="Total Purchased"
           value={formatInsightsINR(totalPurchased)}
           sub={`Avg sell-through ${avgSellThrough.toFixed(1)}%`}
-          gradient="bg-gradient-to-br from-emerald-500 to-emerald-600"
+          tone="neutral"
         />
         <InsightsKpiCard
           label="Top Performer"
@@ -219,7 +219,7 @@ export function SupplierAnalysisTab({ startDate, endDate }: SupplierAnalysisTabP
               ? `${num(topPerformers[0].sell_through_rate_pct).toFixed(1)}% sell-through`
               : "No data"
           }
-          gradient="bg-gradient-to-br from-slate-600 to-slate-700"
+          tone="neutral"
         />
       </InsightsKpiStrip>
 

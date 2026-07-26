@@ -140,13 +140,13 @@ export function SalesTrendsTab({ startDate, endDate }: SalesTrendsTabProps) {
               ? `${num(topProducts[0].units_sold)} units · ${formatInsightsINR(num(topProducts[0].revenue))}`
               : "No sales in period"
           }
-          gradient="bg-gradient-to-br from-blue-500 to-blue-600"
+          tone="neutral"
         />
         <InsightsKpiCard
           label="Slow Movers"
           value={slowMovers.length}
           sub="Stock on hand, &lt; 5 units sold"
-          gradient="bg-gradient-to-br from-amber-500 to-amber-600"
+          tone={slowMovers.length > 0 ? "attention" : "neutral"}
         />
         <InsightsKpiCard
           label="Categories with Sales"
@@ -156,7 +156,7 @@ export function SalesTrendsTab({ startDate, endDate }: SalesTrendsTabProps) {
               ? `Top: ${categoryChart[0].fullName}`
               : "No category data"
           }
-          gradient="bg-gradient-to-br from-emerald-500 to-emerald-600"
+          tone="neutral"
         />
       </InsightsKpiStrip>
 

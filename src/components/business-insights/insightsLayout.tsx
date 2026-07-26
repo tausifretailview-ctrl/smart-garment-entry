@@ -188,24 +188,65 @@ export function InsightsKpiStrip({ children }: { children: ReactNode }) {
   return <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 w-full shrink-0">{children}</div>;
 }
 
+export type InsightsKpiTone = "neutral" | "attention" | "positive" | "critical";
+
+const KPI_TONE_CLASS: Record<
+  InsightsKpiTone,
+  { card: string; label: string; value: string; sub: string }
+> = {
+  neutral: {
+    card: "border border-slate-200 border-l-[3px] border-l-slate-300 bg-white",
+    label: "text-slate-500",
+    value: "text-slate-900",
+    sub: "text-slate-500",
+  },
+  attention: {
+    card: "border border-slate-200 border-l-[3px] border-l-amber-500 bg-amber-50",
+    label: "text-slate-500",
+    value: "text-slate-900",
+    sub: "text-amber-900 font-semibold",
+  },
+  critical: {
+    card: "border border-slate-200 border-l-[3px] border-l-red-500 bg-red-50",
+    label: "text-slate-500",
+    value: "text-slate-900",
+    sub: "text-red-800",
+  },
+  positive: {
+    card: "border border-slate-200 border-l-[3px] border-l-emerald-500 bg-white",
+    label: "text-slate-500",
+    value: "text-slate-900",
+    sub: "text-emerald-800",
+  },
+};
+
 export function InsightsKpiCard({
   label,
   value,
   sub,
-  gradient,
+  tone = "neutral",
 }: {
   label: string;
   value: ReactNode;
   sub?: ReactNode;
-  gradient: string;
+  /** Semantic status — default neutral. Colour means status, not decoration. */
+  tone?: InsightsKpiTone;
 }) {
+  const styles = KPI_TONE_CLASS[tone];
   return (
-    <div className={cn("rounded-lg px-3 py-2 min-w-0 shadow-sm", gradient)}>
-      <p className="text-xs font-medium text-white/85 leading-none">{label}</p>
-      <p className="text-base sm:text-lg font-black text-white tabular-nums leading-tight mt-1 truncate">
+    <div className={cn("rounded-lg px-3 py-2 min-w-0 shadow-sm", styles.card)}>
+      <p className={cn("text-xs font-semibold uppercase tracking-wide leading-none", styles.label)}>
+        {label}
+      </p>
+      <p
+        className={cn(
+          "text-base sm:text-lg font-black tabular-nums leading-tight mt-1 truncate",
+          styles.value,
+        )}
+      >
         {value}
       </p>
-      {sub && <p className="text-xs text-white/80 mt-0.5 truncate">{sub}</p>}
+      {sub && <p className={cn("text-xs mt-0.5 truncate", styles.sub)}>{sub}</p>}
     </div>
   );
 }

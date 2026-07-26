@@ -174,19 +174,19 @@ export function StockHealthTab() {
           label="Low Stock Variants"
           value={lowStockStats.total}
           sub={`Threshold: ${stockThreshold} units`}
-          gradient="bg-gradient-to-br from-red-500 to-red-600"
+          tone={lowStockStats.total > 0 ? "attention" : "neutral"}
         />
         <InsightsKpiCard
           label="Critically Low"
           value={lowStockStats.critical}
           sub={`${lowStockStats.warning} warning (3–7 days)`}
-          gradient="bg-gradient-to-br from-amber-500 to-amber-600"
+          tone={lowStockStats.critical > 0 ? "critical" : "neutral"}
         />
         <InsightsKpiCard
           label="Capital Tied Up (Idle)"
           value={formatInsightsINR(slowStockValue)}
           sub={`${slowStock.length} variants idle > ${idleDays} days`}
-          gradient="bg-gradient-to-br from-violet-500 to-violet-600"
+          tone={slowStock.length > 0 ? "attention" : "neutral"}
         />
       </InsightsKpiStrip>
 

@@ -31,7 +31,10 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { marginBarColor } from "@/components/business-insights/insightsMarginUtils";
+import {
+  marginBarColor,
+  marginTone,
+} from "@/components/business-insights/insightsMarginUtils";
 import {
   computePareto,
   pctChange,
@@ -338,19 +341,19 @@ export function ExecutiveSummaryTab({ startDate, endDate }: ExecutiveSummaryTabP
           label="Revenue"
           value={formatInsightsINR(cur.revenue)}
           sub={`${formatSignedPct(deltas.revenue)} vs prior period`}
-          gradient="bg-gradient-to-br from-blue-500 to-blue-600"
+          tone="neutral"
         />
         <InsightsKpiCard
           label="Gross Profit"
           value={formatInsightsINR(cur.grossProfit)}
           sub={`${formatSignedPct(deltas.grossProfit)} vs prior period`}
-          gradient="bg-gradient-to-br from-emerald-500 to-emerald-600"
+          tone="neutral"
         />
         <InsightsKpiCard
           label="Margin %"
           value={formatPct(cur.marginPct)}
           sub={`${formatSignedPct(deltas.marginPct)} vs prior period`}
-          gradient="bg-gradient-to-br from-amber-500 to-amber-600"
+          tone={cur.marginPct === null ? "neutral" : marginTone(cur.marginPct)}
         />
       </InsightsKpiStrip>
 

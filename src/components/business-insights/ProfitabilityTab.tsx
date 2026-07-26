@@ -207,7 +207,7 @@ export function ProfitabilityTab({ startDate, endDate }: ProfitabilityTabProps) 
           label="Total Gross Profit"
           value={formatInsightsINR(kpis.totalGrossProfit)}
           sub={`Margin: ${kpis.overallMargin.toFixed(1)}%`}
-          gradient="bg-gradient-to-br from-emerald-500 to-emerald-600"
+          tone="neutral"
         />
         <InsightsKpiCard
           label="Best Performing Brand"
@@ -217,7 +217,7 @@ export function ProfitabilityTab({ startDate, endDate }: ProfitabilityTabProps) 
               ? `${formatInsightsINR(num(kpis.bestBrand.gross_profit))} gross profit`
               : "No brand sales in period"
           }
-          gradient="bg-gradient-to-br from-blue-500 to-blue-600"
+          tone="neutral"
         />
         <InsightsKpiCard
           label="Lowest Margin Category"
@@ -227,7 +227,7 @@ export function ProfitabilityTab({ startDate, endDate }: ProfitabilityTabProps) 
               ? `${num(kpis.lowestCategory.profit_margin_pct).toFixed(1)}% margin — needs attention`
               : "No category sales in period"
           }
-          gradient="bg-gradient-to-br from-amber-500 to-amber-600"
+          tone={kpis.lowestCategory ? "attention" : "neutral"}
         />
       </InsightsKpiStrip>
 
