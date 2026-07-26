@@ -238,7 +238,7 @@ Secondary contributors (usually smaller):
 | # | Item | Status |
 |---|------|--------|
 | 1 | Salesman barcode status gate | **done** (2026-07-26) |
-| 2 | IMEI fallback gate (`products.status`) | Phase 2 next |
+| 2 | IMEI fallback gate (`products.status`) | **done** (2026-07-26) |
 | 3 | Tally master/voucher coverage (active ∪ referenced-in-window) | Phase 2 — **before** bulk deactivate |
 | 4 | Bulk Mark Inactive + Reactivate + Master status filter | Phase 2 |
 | 5 | KPI: bind `total_products`, rename to “Products” / “In catalog” (frontend-only; no RPC) | Phase 2 |
@@ -253,13 +253,31 @@ Proceed one item at a time; build + regression notes after each.
 
 ### Item 1 — Salesman barcode status gate (done)
 
-**Change:** `src/pages/salesman/SalesmanOrderEntry.tsx` — barcode/color variant search and the follow-up variants-by-product-ids query now require `products.status = 'active'`, `products.deleted_at IS NULL`, and `products.organization_id` match (aligned with the existing name search).
+**Change:** `src/pages/salesman/SalesmanOrderEntry.tsx` — barcode/color variant search (~300) and the follow-up **`.in("product_id", productIds)`** hydration (~315–332) now require `products.status = 'active'`, `products.deleted_at IS NULL`, and `products.organization_id` match (aligned with the existing name search). Confirmed: that follow-up is exactly the line-315 hydration, not a different path.
 
-**Build:** `tsc --noEmit` clean for this change.
+**Not touched (history / writes):**
+- `SalesmanOrderView.tsx:99–106` — hydrate brand/style for saved `sale_order_items` (Reporting; must include inactive).
+- `SalesmanOrderEntry.tsx:555` — `discount_percent` field on **insert** of new order items (write), not a product load.
 
-**Regression notes:**
-- Search an **active** product by barcode/color with stock → still appears; can add to salesman order.
-- Mark same product **inactive** (Product Entry status or row Mark Inactive) → barcode/color search must **not** return it; name/brand search already excluded it.
+**Build:** `tsc --noEmit` only at ship time (checklist prefers `npm run build` — done with item 2).
+
+**Regression notes (non-vacuous):**
+- Both search queries also have `.gt("stock_qty", 0)`. A zero-stock inactive SKU was already invisible — that test proves nothing.
+- **Required case:** product with `status='inactive'` and **`stock_qty > 0`** (units left, not selling). Barcode/color search must not return it; active + stock > 0 must still work.
 - Soft-deleted product must not appear on either path.
-- Name search path unchanged (already had status gate).
 - Does **not** gate on `product_variants.active` (held pending semantics).
+- Agent did not run a live UI session against production; confirm the stock-bearing case in-app.
+
+### Item 2 — IMEI / purchase_items fallback status gate (done)
+
+**Change:** `src/pages/POSSales.tsx` — after resolving `purchase_items.sku_id` for a scanned IMEI (mobile ERP path only), the variant reload now matches `posVariantBaseQuery`: org match, `products.status = 'active'`, `products.deleted_at IS NULL`. Does **not** filter `product_variants.active`.
+
+**Not touched:** `SalesmanOrderView`, `SalesmanOrderEntry` save/insert, primary `fetchPosVariantByBarcode` (already gated).
+
+**Build:** `npm run build` exit 0.
+
+**Regression notes (stock-bearing — the important case for mobile/electronics):**
+- Mobile ERP on. Active product, unit still on hand (`stock_qty > 0`), IMEI only on `purchase_items` (or legacy path that hits this fallback) → scan still adds to cart.
+- Same unit’s product set to `inactive` with stock still > 0 → fallback must **not** add; scan fails like a miss (same as primary barcode path).
+- Zero-stock inactive is a weaker test (stock dialog / miss already possible); prefer discontinued model with units left.
+- Garment tenants with `mobileERP` off never hit this branch — no behaviour change.

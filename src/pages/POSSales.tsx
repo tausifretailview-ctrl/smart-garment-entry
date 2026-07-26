@@ -2615,11 +2615,18 @@ export default function POSSales() {
         if (purchaseError) throw purchaseError;
 
         if (purchaseItem?.sku_id) {
+          // Same products.status gate as fetchPosVariantByBarcode — legacy IMEI→sku
+          // must not re-open deactivated masters that still have units on hand.
+          // Do not gate product_variants.active here (semantics held).
           const { data: variant, error: variantError } = await supabase
             .from('product_variants')
             .select(POS_VARIANT_LOOKUP_SELECT)
             .eq('id', purchaseItem.sku_id)
+            .eq('organization_id', orgId)
+            .eq('products.organization_id', orgId)
+            .eq('products.status', 'active')
             .is('deleted_at', null)
+            .is('products.deleted_at', null)
             .maybeSingle();
 
           if (variantError) throw variantError;

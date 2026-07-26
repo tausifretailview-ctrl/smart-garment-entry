@@ -57,6 +57,17 @@ function defaultReturnQty(_uom: string | undefined): number {
   return 1;
 }
 
+function formatReturnStockQty(n: number): string {
+  if (!Number.isFinite(n)) return "0";
+  return Number.isInteger(n) ? String(n) : String(n);
+}
+
+function purchaseReturnLineLabel(productName: string, size: string): string {
+  const name = (productName || "Item").trim() || "Item";
+  const sz = (size || "").trim();
+  return sz ? `${name} — ${sz}` : name;
+}
+
 function formatPurchaseReturnProductDescription(item: {
   product_name: string;
   brand?: string;
@@ -746,20 +757,26 @@ const PurchaseReturnEntry = () => {
     [currentOrganization?.id, fetchSearchVariants, toast],
   );
 
+  const openStockAlert = useCallback((message: string) => {
+    setStockAlertMessage(message);
+    setStockAlertOpen(true);
+  }, []);
+
   const addVariantToReturn = useCallback(
     async (variant: ProductVariant) => {
       const currentItems = lineItemsRef.current;
       const existingItem = currentItems.find((item) => item.sku_id === variant.id);
+      const available = Math.max(0, Number(variant.stock_qty) || 0);
+      const label = purchaseReturnLineLabel(variant.product_name, variant.size);
 
       if (existingItem) {
         const lineUom = existingItem.uom || variant.uom || "NOS";
         const nextQty = nextReturnQty(existingItem.qty, lineUom);
-        if (nextQty > (variant.stock_qty || 0)) {
-          toast({
-            title: "Stock Warning",
-            description: `${variant.product_name}: Qty ${nextQty} exceeds current stock ${variant.stock_qty || 0}. System will validate on save.`,
-            variant: "default",
-          });
+        if (nextQty > available) {
+          openStockAlert(
+            `${label}\nRequested ${formatReturnStockQty(nextQty)}, available ${formatReturnStockQty(available)}.`,
+          );
+          return;
         }
         setLineItems((prev) =>
           prev.map((item) => {
@@ -778,12 +795,9 @@ const PurchaseReturnEntry = () => {
         return;
       }
 
-      if ((variant.stock_qty || 0) <= 0) {
-        toast({
-          title: "Low Stock Warning",
-          description: `${variant.product_name} - ${variant.size} has 0 stock. Return will be blocked by system if insufficient.`,
-          variant: "default",
-        });
+      if (available <= 0) {
+        openStockAlert(`${label}\nAvailable: 0. This item cannot be returned.`);
+        return;
       }
 
       const fetchedPrice = await getPriceFromBill(variant.id, originalBillId || undefined);
@@ -815,7 +829,7 @@ const PurchaseReturnEntry = () => {
         description: `${variant.product_name} - ${variant.size}`,
       });
     },
-    [toast, originalBillId, defaultTaxRate],
+    [toast, originalBillId, defaultTaxRate, openStockAlert],
   );
 
   /** POS-style: scan / Enter adds line directly; dropdown only for slow manual typing. */
@@ -1175,6 +1189,51 @@ const PurchaseReturnEntry = () => {
 
     setLoading(true);
     try {
+      // Client UX pre-check (DB trigger remains the authority against concurrent stock moves)
+      const skuIds = [
+        ...new Set(lineItems.map((item) => item.sku_id).filter(Boolean)),
+      ] as string[];
+      if (skuIds.length > 0 && currentOrganization?.id) {
+        const { data: variantsData, error: stockErr } = await supabase
+          .from("product_variants")
+          .select("id, stock_qty, products(organization_id)")
+          .in("id", skuIds);
+        if (stockErr) throw stockErr;
+
+        const stockBySku = new Map<string, number>();
+        for (const v of variantsData || []) {
+          const row = v as {
+            id: string;
+            stock_qty?: number;
+            products?: { organization_id?: string } | null;
+          };
+          if (row.products?.organization_id === currentOrganization.id) {
+            stockBySku.set(row.id, Math.max(0, Number(row.stock_qty) || 0));
+          }
+        }
+
+        const failingLines = lineItems
+          .filter((item) => item.sku_id)
+          .map((item) => {
+            const available = stockBySku.has(item.sku_id)
+              ? (stockBySku.get(item.sku_id) as number)
+              : 0;
+            return { item, available };
+          })
+          .filter(({ item, available }) => item.qty > available);
+
+        if (failingLines.length > 0) {
+          const message = failingLines
+            .map(
+              ({ item, available }) =>
+                `${purchaseReturnLineLabel(item.product_name, item.size)}\nRequested ${formatReturnStockQty(item.qty)}, available ${formatReturnStockQty(available)}.`,
+            )
+            .join("\n\n");
+          openStockAlert(message);
+          return;
+        }
+      }
+
       const paymentMethodForReturnRow: string | null =
         refundSettlement === "immediate_refund" ? refundPaymentMethod : null;
 
@@ -1486,13 +1545,17 @@ const PurchaseReturnEntry = () => {
     } catch (error: any) {
       console.error("Error saving purchase return:", error);
       const msg = error?.message || String(error);
-      toast({
-        title: msg.includes("No Stock available For Return") ? "Stock Error" : "Error saving return",
-        description: msg.includes("No Stock available For Return")
-          ? msg.replace("No Stock available For Return.", "Cannot save return — insufficient stock.")
-          : msg,
-        variant: "destructive",
-      });
+      if (msg.includes("No Stock available For Return")) {
+        openStockAlert(
+          msg.replace("No Stock available For Return.", "Cannot save return — insufficient stock."),
+        );
+      } else {
+        toast({
+          title: "Error saving return",
+          description: msg,
+          variant: "destructive",
+        });
+      }
     } finally {
       setLoading(false);
     }
@@ -2128,7 +2191,9 @@ const PurchaseReturnEntry = () => {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Stock Not Available</AlertDialogTitle>
-            <AlertDialogDescription>{stockAlertMessage}</AlertDialogDescription>
+            <AlertDialogDescription className="whitespace-pre-line">
+              {stockAlertMessage}
+            </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogAction onClick={() => {
