@@ -584,6 +584,7 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
               documentType={props.documentType || 'pos'}
               salesman={props.salesman}
               thermalPaper={thermalPaper}
+              showMrp={props.showMRP ?? true}
             />
           );
         }

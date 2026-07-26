@@ -226,8 +226,10 @@ function posCartBarcodeColumnWidth(items: { barcode?: string | null }[]): number
   );
 }
 
-function posCartGridColumns(barcodeColPx: number): string {
-  return `40px ${barcodeColPx}px minmax(0, 1fr) 58px 72px 60px 100px 72px 86px 110px 85px 120px`;
+function posCartGridColumns(barcodeColPx: number, showMrpColumn: boolean): string {
+  // Sr | Barcode | Product | Size | Color | Qty | [MRP] | Tax% | Disc% | Disc Rs | Unit | Net
+  const mrpCol = showMrpColumn ? " 100px" : "";
+  return `40px ${barcodeColPx}px minmax(0, 1fr) 58px 72px 60px${mrpCol} 72px 86px 110px 85px 120px`;
 }
 
 /** Line net: MRP×qty minus Disc%, Disc Rs, and any gap when unit price is below MRP. */
@@ -593,10 +595,6 @@ export default function POSSales() {
       return next;
     });
   }, []);
-  const posCartGridCols = useMemo(
-    () => posCartGridColumns(posCartBarcodeColumnWidth(items)),
-    [items],
-  );
   const [flatDiscountValue, setFlatDiscountValue] = useState(0);
   const [flatDiscountMode, setFlatDiscountMode] = useState<'percent' | 'amount'>('percent');
   const [saleReturnAdjust, setSaleReturnAdjust] = useState(0);
@@ -1316,6 +1314,13 @@ export default function POSSales() {
   useEffect(() => {
     posRuntimeSettingsRef.current = posRuntimeSettings;
   }, [posRuntimeSettings]);
+
+  // Display gate only — computations (mrpTotal / savings / discount cap) stay unconditional.
+  const enableMrp = posRuntimeSettings?.enable_mrp === true;
+  const posCartGridCols = useMemo(
+    () => posCartGridColumns(posCartBarcodeColumnWidth(items), enableMrp),
+    [items, enableMrp],
+  );
 
   // Garment / Footwear GST auto-bump rule (from purchase_settings)
   const garmentGstSettings = {
@@ -3440,6 +3445,8 @@ export default function POSSales() {
           taxType: invoiceTaxType,
           financerDetails,
           notes: saleNotes,
+          showMRP: enableMrp,
+          showYouSaved: enableMrp ? undefined : false,
         };
         return new Promise<string | null>((resolve) => {
           whatsappPdfResolverRef.current = { resolve };
@@ -3477,6 +3484,7 @@ export default function POSSales() {
       selectedSalesman,
       financerDetails,
       saleNotes,
+      enableMrp,
     ],
   );
 
@@ -4596,6 +4604,8 @@ export default function POSSales() {
             template={posInvoiceTemplate}
             format={posInvoiceWrapperFormat}
             thermalPaper={posThermalPaper}
+            showMRP={enableMrp}
+            showYouSaved={enableMrp ? undefined : false}
             // Only show a real invoice number when we actually have a saved sale or are editing one.
             // Falling back to nextInvoicePreview here caused unsaved cart prints to carry a real-looking
             // sequential number (e.g. POS/26-27/1576) that the next saved sale then reused.
@@ -5513,6 +5523,7 @@ export default function POSSales() {
           onEstimatePrint={() => handleEstimatePrintRef.current?.()}
           onStockReport={() => setShowFloatingStockReport(true)}
           onAddNewCustomer={() => openAddCustomerDialog()}
+          enableMrp={enableMrp}
         />
 
         {/* Dialogs needed for tablet too */}
@@ -5634,6 +5645,7 @@ export default function POSSales() {
           filteredProducts={filteredProducts}
           onProductSelect={(product, variant) => addItemToCart(product, variant)}
           openProductSearch={openProductSearch}
+          enableMrp={enableMrp}
         />
 
         {/* Dialogs needed for mobile too */}
@@ -6116,7 +6128,7 @@ export default function POSSales() {
                                     <span className="font-mono text-xs">{formatPosCartBarcode(item.variant.barcode)}</span>
                                   )}
                                   <span className="font-semibold text-primary group-data-[selected=true]:text-white">₹{item.variant.sale_price}</span>
-                                  {item.variant.mrp && item.variant.mrp > item.variant.sale_price && (
+                                  {enableMrp && item.variant.mrp && item.variant.mrp > item.variant.sale_price && (
                                     <span className="text-[10px] line-through text-slate-500 dark:text-slate-400 group-data-[selected=true]:text-white/70">
                                       MRP ₹{item.variant.mrp}
                                     </span>
@@ -6490,7 +6502,7 @@ export default function POSSales() {
                 <div className="text-center">Size</div>
                 <div className="text-center">Color</div>
                 <div className="text-center">Qty</div>
-                <div className="text-right">MRP</div>
+                {enableMrp && <div className="text-right">MRP</div>}
                 <div className="text-center">Tax%</div>
                 <div className="text-center">Disc%</div>
                 <div className="text-right">Disc Rs</div>
@@ -6558,7 +6570,7 @@ export default function POSSales() {
                       <div className="flex items-center justify-center text-muted-foreground/20">—</div>
                       <div className="flex items-center justify-center text-muted-foreground/20">—</div>
                       <div className="flex items-center justify-center text-muted-foreground/20">—</div>
-                      <div className="flex items-center justify-end text-muted-foreground/20">—</div>
+                      {enableMrp && <div className="flex items-center justify-end text-muted-foreground/20">—</div>}
                       <div className="flex items-center justify-center text-muted-foreground/20">—</div>
                       <div className="flex items-center justify-center text-muted-foreground/20">—</div>
                       <div className="flex items-center justify-end text-muted-foreground/20">—</div>
@@ -6599,7 +6611,7 @@ export default function POSSales() {
                             {item.isDcProduct && (
                               <span className="px-1 py-0.5 text-[9px] font-bold bg-orange-100 text-orange-700 border border-orange-300 rounded flex-shrink-0">DC</span>
                             )}
-                            {(Number(item.mrp) || 0) > (Number(item.unitCost) || 0) + 0.001 && (
+                            {enableMrp && (Number(item.mrp) || 0) > (Number(item.unitCost) || 0) + 0.001 && (
                               <span className="px-1 py-0.5 text-[9px] font-semibold bg-sky-100 text-sky-800 border border-sky-300 rounded flex-shrink-0" title="Selling rate below MRP (manual rate / loaded invoice line)">
                                 Rate override
                               </span>
@@ -6619,6 +6631,7 @@ export default function POSSales() {
                               <span className="text-[10px] text-muted-foreground text-center block">{getUOMLabel(item.uom)}</span>
                             )}
                           </div>
+                          {enableMrp && (
                           <div>
                             <Input
                               type="number"
@@ -6630,6 +6643,7 @@ export default function POSSales() {
                               step="0.01"
                             />
                           </div>
+                          )}
                           <div>
                             <select
                               value={String(item.gstPer ?? 0)}
@@ -6797,24 +6811,26 @@ export default function POSSales() {
               <div className="text-[11px] text-white/70 uppercase tracking-wider font-semibold">Qty</div>
             </div>
             
-            <div className="w-px h-8 bg-white/20 shrink-0" />
-            
-            {/* MRP Total */}
-            <div className="text-center px-3">
-              <div className="text-lg font-bold leading-tight">₹{formatINR2(totals.mrp)}</div>
-              <div className="text-[11px] text-white/70 uppercase font-semibold">MRP Total</div>
-            </div>
-            
-            {/* Savings */}
-            {(totals.mrp > totals.subtotal || totals.savings > 0) && (
+            {enableMrp && (
               <>
                 <div className="w-px h-8 bg-white/20 shrink-0" />
-                <div className="text-center bg-green-500/90 rounded-md py-1.5 px-3 mx-2 shrink-0">
-                  <div className="text-lg font-bold leading-tight">
-                    ₹{formatINR2(totalDiscountDisplay)} · Saves {totals.mrp > 0 ? `${((totalDiscountDisplay / totals.mrp) * 100).toFixed(0)}%` : ''}
-                  </div>
-                  <div className="text-[11px] font-semibold uppercase">Savings</div>
+                {/* MRP Total */}
+                <div className="text-center px-3">
+                  <div className="text-lg font-bold leading-tight">₹{formatINR2(totals.mrp)}</div>
+                  <div className="text-[11px] text-white/70 uppercase font-semibold">MRP Total</div>
                 </div>
+                {/* Savings */}
+                {(totals.mrp > totals.subtotal || totals.savings > 0) && (
+                  <>
+                    <div className="w-px h-8 bg-white/20 shrink-0" />
+                    <div className="text-center bg-green-500/90 rounded-md py-1.5 px-3 mx-2 shrink-0">
+                      <div className="text-lg font-bold leading-tight">
+                        ₹{formatINR2(totalDiscountDisplay)} · Saves {totals.mrp > 0 ? `${((totalDiscountDisplay / totals.mrp) * 100).toFixed(0)}%` : ''}
+                      </div>
+                      <div className="text-[11px] font-semibold uppercase">Savings</div>
+                    </div>
+                  </>
+                )}
               </>
             )}
             
@@ -7181,7 +7197,7 @@ export default function POSSales() {
             
             {/* Right Summary — MRP (strikethrough), Net Amount, discount badge */}
             <div className="text-center shrink-0 min-w-[160px]">
-              {totals.mrp > 0 && totals.mrp !== finalAmount && (
+              {enableMrp && totals.mrp > 0 && totals.mrp !== finalAmount && (
                 <div className="text-xs text-white/90 line-through font-bold leading-tight">
                   MRP ₹{formatINR2(totals.mrp)}
                 </div>
@@ -7194,7 +7210,7 @@ export default function POSSales() {
                 onChange={(e) => handleFinalAmountChange(parseFloat(e.target.value) || 0)}
                 step="1"
               />
-              {effectiveDiscountPercent > 0 && (
+              {enableMrp && effectiveDiscountPercent > 0 && (
                 <div className="text-xs font-extrabold text-lime-200 mt-0.5">
                   ↓ {effectiveDiscountPercent.toFixed(1)}% off
                 </div>
@@ -7305,6 +7321,8 @@ export default function POSSales() {
                 format={posInvoiceWrapperFormat}
                 template={posInvoiceTemplate}
                 thermalPaper={posThermalPaper}
+                showMRP={enableMrp}
+                showYouSaved={enableMrp ? undefined : false}
                 billNo={currentInvoiceNumber || "DRAFT"}
                 date={new Date()}
                 customerName={customerName}
@@ -7508,6 +7526,8 @@ export default function POSSales() {
                 customerTransportDetails={savedInvoiceData.customerTransportDetails || ""}
                 template={posInvoiceTemplate}
                 thermalPaper={posThermalPaper}
+                showMRP={enableMrp}
+                showYouSaved={enableMrp ? undefined : false}
               items={savedInvoiceData.items.map((item: any, index: number) =>
                 mapPosPrintItem(item, index, invoiceTaxType),
               )}

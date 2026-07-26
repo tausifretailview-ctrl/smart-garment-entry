@@ -91,6 +91,8 @@ interface MobilePOSLayoutProps {
   filteredProducts?: any[];
   onProductSelect?: (product: any, variant: any) => void;
   openProductSearch?: boolean;
+  /** Display gate from POS `enable_mrp` — omit struck MRP when false. */
+  enableMrp?: boolean;
 }
 
 export const MobilePOSLayout = ({
@@ -133,6 +135,7 @@ export const MobilePOSLayout = ({
   filteredProducts,
   onProductSelect,
   openProductSearch,
+  enableMrp = true,
 }: MobilePOSLayoutProps) => {
   const { isOnline, isSyncing, pendingActions } = useOfflineSync();
   const scrollAreaRef = useRef<HTMLDivElement>(null);
@@ -202,6 +205,7 @@ export const MobilePOSLayout = ({
                   if (qty >= minQtyForUom(items[idx]?.uom)) updateQuantity(idx, qty);
                 }}
                 onRemove={removeItem}
+                enableMrp={enableMrp}
               />
             ))}
           </div>

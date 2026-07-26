@@ -32,13 +32,16 @@ interface MobilePOSCartItemProps {
   onQuantityChange: (index: number, qty: number) => void;
   onRemove: (index: number) => void;
   onPriceEdit?: (index: number, price: number) => void;
+  /** Display gate from POS `enable_mrp` — omit struck MRP when false. */
+  enableMrp?: boolean;
 }
 
 export const MobilePOSCartItem = ({ 
   item, 
   index, 
   onQuantityChange, 
-  onRemove 
+  onRemove,
+  enableMrp = true,
 }: MobilePOSCartItemProps) => {
   const minQty = minQtyForUom(item.uom);
 
@@ -101,7 +104,7 @@ export const MobilePOSCartItem = ({
         </div>
         
         <div className="text-right">
-          {item.originalMrp && item.originalMrp > item.mrp && (
+          {enableMrp && item.originalMrp && item.originalMrp > item.mrp && (
             <span className="text-xs text-muted-foreground line-through mr-2">
               ₹{Math.round(item.originalMrp * item.quantity).toLocaleString('en-IN')}
             </span>

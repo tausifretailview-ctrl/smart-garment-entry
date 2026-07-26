@@ -60,6 +60,8 @@ interface TabletPOSLayoutProps {
   onEstimatePrint?: () => void;
   onStockReport?: () => void;
   onAddNewCustomer?: () => void;
+  /** Display gate from POS `enable_mrp` — omit MRP chrome when false. */
+  enableMrp?: boolean;
 }
 
 export function TabletPOSLayout({
@@ -75,6 +77,7 @@ export function TabletPOSLayout({
   filteredProducts, onProductSelect, openProductSearch,
   selectedProductType, onProductTypeChange, hasMoreCustomers,
   onCashierReport, onEstimatePrint, onStockReport, onAddNewCustomer,
+  enableMrp = true,
 }: TabletPOSLayoutProps) {
   const [showCamera, setShowCamera] = useState(false);
   const [scanReady, setScanReady] = useState(true);
@@ -244,7 +247,9 @@ export function TabletPOSLayout({
                         <span className="text-muted-foreground ml-2">{variant.size}{variant.color ? ` · ${variant.color}` : ""}</span>
                       </div>
                       <div className="text-right" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
-                        <span className="font-semibold text-amber-600">₹{fmtINR(variant.mrp || 0)}</span>
+                        <span className="font-semibold text-amber-600">
+                          ₹{fmtINR(enableMrp ? (variant.mrp || 0) : (variant.sale_price || 0))}
+                        </span>
                         <span className="text-muted-foreground text-[11px] ml-2">Stk:{variant.stock_qty || 0}</span>
                       </div>
                     </button>
@@ -257,9 +262,9 @@ export function TabletPOSLayout({
           {/* Cart Items */}
           <div className="flex-1 flex flex-col overflow-hidden">
             {/* Cart Header */}
-            <div className="grid grid-cols-[1fr_80px_110px_85px_36px] gap-2 px-4 py-2 bg-muted/40 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider border-b border-border shrink-0">
+            <div className={`grid ${enableMrp ? "grid-cols-[1fr_80px_110px_85px_36px]" : "grid-cols-[1fr_110px_85px_36px]"} gap-2 px-4 py-2 bg-muted/40 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider border-b border-border shrink-0`}>
               <span>Product</span>
-              <span className="text-right">MRP</span>
+              {enableMrp && <span className="text-right">MRP</span>}
               <span className="text-center">Qty</span>
               <span className="text-right">Total</span>
               <span />
@@ -277,12 +282,12 @@ export function TabletPOSLayout({
                 items.map((item: any, idx: number) => (
                   <div
                     key={`${item.variantId}-${idx}`}
-                    className="grid grid-cols-[1fr_80px_110px_85px_36px] gap-2 px-4 py-3 border-b border-border/40 items-center hover:bg-muted/20 transition-colors group"
+                    className={`grid ${enableMrp ? "grid-cols-[1fr_80px_110px_85px_36px]" : "grid-cols-[1fr_110px_85px_36px]"} gap-2 px-4 py-3 border-b border-border/40 items-center hover:bg-muted/20 transition-colors group`}
                   >
                     <div className="min-w-0">
                       <div className="flex items-center gap-1 min-w-0">
                         <p className="font-medium text-[13px] truncate flex-1 min-w-0">{item.productName}</p>
-                        {(Number(item.mrp) || 0) > (Number(item.unitCost) || 0) + 0.001 && (
+                        {enableMrp && (Number(item.mrp) || 0) > (Number(item.unitCost) || 0) + 0.001 && (
                           <Badge
                             variant="outline"
                             className="shrink-0 h-4 px-1 text-[9px] font-semibold border-sky-300 bg-sky-50 text-sky-800"
@@ -297,9 +302,11 @@ export function TabletPOSLayout({
                       </p>
                     </div>
 
-                    <div className="text-right text-[13px] font-medium" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
-                      ₹{fmtINR(item.mrp || 0)}
-                    </div>
+                    {enableMrp && (
+                      <div className="text-right text-[13px] font-medium" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+                        ₹{fmtINR(item.mrp || 0)}
+                      </div>
+                    )}
 
                     {/* Qty stepper — 44×44 min touch targets */}
                     <div className="flex flex-col items-center justify-center gap-0.5">
@@ -357,7 +364,9 @@ export function TabletPOSLayout({
             {items.length > 0 && (
               <div className="px-4 py-2.5 bg-muted/50 border-t border-border flex justify-between items-center shrink-0">
                 <span className="text-[13px] font-medium text-muted-foreground">
-                  {totals.quantity} items · MRP ₹{fmtINR(totals.mrp)}
+                  {enableMrp
+                    ? `${totals.quantity} items · MRP ₹${fmtINR(totals.mrp)}`
+                    : `${totals.quantity} items`}
                 </span>
                 <span className="text-[20px] font-bold" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
                   ₹{fmtINR(finalAmount)}
@@ -455,10 +464,12 @@ export function TabletPOSLayout({
 
             {/* Amount summary */}
             <div className="bg-card rounded-xl p-4 space-y-2 border border-border shadow-sm">
-              <div className="flex justify-between text-[13px]">
-                <span className="text-muted-foreground">MRP Total</span>
-                <span style={{ fontFamily: "'JetBrains Mono', monospace" }}>₹{fmtINR(totals.mrp)}</span>
-              </div>
+              {enableMrp && (
+                <div className="flex justify-between text-[13px]">
+                  <span className="text-muted-foreground">MRP Total</span>
+                  <span style={{ fontFamily: "'JetBrains Mono', monospace" }}>₹{fmtINR(totals.mrp)}</span>
+                </div>
+              )}
               {totals.discount > 0 && (
                 <div className="flex justify-between text-[13px] text-green-600">
                   <span>Discount</span>

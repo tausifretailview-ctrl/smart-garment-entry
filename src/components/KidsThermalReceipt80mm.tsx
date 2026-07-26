@@ -36,6 +36,8 @@ interface KidsThermalReceipt80mmProps {
   settingsOverride?: Record<string, unknown>;
   /** Roll width — 58mm POS printers need narrower layout (Settings → Direct print POS paper). */
   thermalPaper?: PosThermalPaper;
+  /** When false, omit per-line MRP, T-MRP, and MRP-gap "Saved" (display gate only). */
+  showMrp?: boolean;
 }
 
 const KIDS_DEFAULT_TERMS = [
@@ -71,8 +73,8 @@ function kidsLayoutForPaper(paper: PosThermalPaper) {
   };
 }
 
-/** One-line: short name - size - MRP (no box, no wrap). */
-function formatKidsParticularsLine(item: KidsThermalItem, maxNameLen: number): string {
+/** One-line: short name - size - [MRP] (no box, no wrap). */
+function formatKidsParticularsLine(item: KidsThermalItem, maxNameLen: number, showMrp: boolean): string {
   let name = item.particulars.trim();
   if (name.length > maxNameLen) {
     name = `${name.slice(0, maxNameLen - 2)}..`;
@@ -81,7 +83,7 @@ function formatKidsParticularsLine(item: KidsThermalItem, maxNameLen: number): s
   const mrpVal = Number(item.mrp) || Number(item.rate) || 0;
   const parts = [name];
   if (size) parts.push(size);
-  if (mrpVal > 0) parts.push(fmtMrp(mrpVal));
+  if (showMrp && mrpVal > 0) parts.push(fmtMrp(mrpVal));
   return parts.join(' - ');
 }
 
@@ -108,6 +110,7 @@ export const KidsThermalReceipt80mm = React.forwardRef<HTMLDivElement, KidsTherm
       documentType = 'invoice',
       salesman,
       thermalPaper = '80mm',
+      showMrp = true,
     } = props;
     const settingsOverride = props.settingsOverride;
     const layout = useMemo(() => kidsLayoutForPaper(thermalPaper), [thermalPaper]);
@@ -125,8 +128,9 @@ export const KidsThermalReceipt80mm = React.forwardRef<HTMLDivElement, KidsTherm
 
     const totalQty = items.reduce((s, i) => s + i.qty, 0);
     const saleAmount = items.reduce((s, i) => s + i.total, 0);
+    // Still computed when showMrp is false so layout code can stay simple; never printed when gated.
     const totalMrp = items.reduce((s, i) => s + (Number(i.mrp) || Number(i.rate) || 0) * i.qty, 0);
-    const savedAmount = Math.max(0, totalMrp - saleAmount);
+    const savedAmount = showMrp ? Math.max(0, totalMrp - saleAmount) : 0;
 
     const breakdownPaid = cashPaid + upiPaid + cardPaid + creditPaid;
     const totalPaid = breakdownPaid > 0 ? breakdownPaid : paidAmount;
@@ -292,7 +296,7 @@ export const KidsThermalReceipt80mm = React.forwardRef<HTMLDivElement, KidsTherm
           </div>
           {items.map((item, i) => (
             <div key={i} style={itemRow}>
-              <span style={colParticulars}>{formatKidsParticularsLine(item, layout.maxNameLen)}</span>
+              <span style={colParticulars}>{formatKidsParticularsLine(item, layout.maxNameLen, showMrp)}</span>
               <span style={colQty}>{item.qty}</span>
               <span style={colAmt}>₹{fmtAmt(item.total)}</span>
             </div>
@@ -311,9 +315,9 @@ export const KidsThermalReceipt80mm = React.forwardRef<HTMLDivElement, KidsTherm
             <span>
               S-Qty: {fmtDec(totalQty)} S-Amt: ₹{fmtDec(saleAmount)}
             </span>
-            {!layout.stackTotals && <span>T-MRP: ₹{fmtAmt(totalMrp)}</span>}
+            {showMrp && !layout.stackTotals && <span>T-MRP: ₹{fmtAmt(totalMrp)}</span>}
           </div>
-          {layout.stackTotals && <div>T-MRP: ₹{fmtAmt(totalMrp)}</div>}
+          {showMrp && layout.stackTotals && <div>T-MRP: ₹{fmtAmt(totalMrp)}</div>}
           {layout.stackTotals ? (
             <>
               <div
