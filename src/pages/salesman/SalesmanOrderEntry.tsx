@@ -296,7 +296,8 @@ const SalesmanOrderEntry = () => {
 
       const productIds = matchingProducts?.map(p => p.id) || [];
 
-      // Also search by barcode
+      // Also search by barcode / color — same active+not-deleted gate as name search
+      // (previously omitted products.status, so inactive SKUs were still sellable here)
       const { data: barcodeVariants, error: barcodeError } = await supabase
         .from("product_variants")
         .select(`
@@ -304,7 +305,10 @@ const SalesmanOrderEntry = () => {
           products!inner(id, product_name, brand, category, gst_per, organization_id, size_group_id)
         `)
         .eq("organization_id", currentOrganization.id)
+        .eq("products.organization_id", currentOrganization.id)
+        .eq("products.status", "active")
         .is("deleted_at", null)
+        .is("products.deleted_at", null)
         .or(`barcode.ilike.%${term}%,color.ilike.%${term}%`)
         .gt("stock_qty", 0)
         .limit(50);
@@ -319,7 +323,10 @@ const SalesmanOrderEntry = () => {
             products!inner(id, product_name, brand, category, gst_per, organization_id, size_group_id)
           `)
           .eq("organization_id", currentOrganization.id)
+          .eq("products.organization_id", currentOrganization.id)
+          .eq("products.status", "active")
           .is("deleted_at", null)
+          .is("products.deleted_at", null)
           .in("product_id", productIds)
           .gt("stock_qty", 0)
           .limit(100);
