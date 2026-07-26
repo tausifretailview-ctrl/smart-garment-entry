@@ -976,12 +976,12 @@ export default function ItemWiseSalesReport() {
               <div
                 key={item.label}
                 className={cn(
-                  "flex min-w-0 items-baseline justify-between gap-2 rounded-md px-2.5 py-1.5 shadow-sm",
+                  "flex min-w-0 items-center justify-between gap-2 rounded-md px-2.5 py-1 shadow-sm",
                   item.gradient,
                 )}
               >
                 <p className="truncate text-[10px] font-medium leading-none text-white/80">{item.label}</p>
-                <p className="truncate text-sm font-black tabular-nums leading-none text-white">{item.value}</p>
+                <p className="truncate text-xs font-black tabular-nums leading-none text-white sm:text-sm">{item.value}</p>
               </div>
             ))}
           </div>
