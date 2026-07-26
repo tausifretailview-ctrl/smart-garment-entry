@@ -1,9 +1,12 @@
 import React from "react";
 import { numberToWords } from "@/lib/utils";
+import { retailErpWhatsAppProductLabel } from "@/utils/retailErpWhatsAppProductLabel";
 
 interface InvoiceItem {
   sr: number;
   particulars: string;
+  /** Short product name only — used by WhatsApp PDF clone (Retail ERP). */
+  productNameOnly?: string;
   size: string;
   barcode: string;
   hsn: string;
@@ -808,6 +811,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                               case "description":
                                 content = (
                                   <span
+                                    className="retail-erp-desc-cell"
                                     style={{
                                       overflow: isRealTast ? "visible" : "hidden",
                                       textOverflow: isRealTast ? "clip" : "ellipsis",
@@ -816,13 +820,39 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                                       lineHeight: 1.2,
                                     }}
                                   >
-                                    {item.particulars}
-                                    {item.color && <span style={{ fontSize: "9px", marginLeft: "3px" }}>({item.color})</span>}
-                                    {item.itemNotes ? (
-                                      <span style={{ display: "block", fontSize: "8px", color: "#666", fontStyle: "italic", whiteSpace: "normal" }}>
-                                        {item.itemNotes}
-                                      </span>
-                                    ) : null}
+                                    {/* Screen + browser print: full particulars */}
+                                    <span className="retail-erp-desc-full">
+                                      {item.particulars}
+                                      {item.color && (
+                                        <span style={{ fontSize: "9px", marginLeft: "3px" }}>
+                                          ({item.color})
+                                        </span>
+                                      )}
+                                      {item.itemNotes ? (
+                                        <span
+                                          style={{
+                                            display: "block",
+                                            fontSize: "8px",
+                                            color: "#666",
+                                            fontStyle: "italic",
+                                            whiteSpace: "normal",
+                                          }}
+                                        >
+                                          {item.itemNotes}
+                                        </span>
+                                      ) : null}
+                                    </span>
+                                    {/* WhatsApp PDF clone only (shown via wappConnectInvoicePdfCapture) */}
+                                    <span
+                                      className="retail-erp-desc-wapp-only"
+                                      style={{ display: "none" }}
+                                      aria-hidden
+                                    >
+                                      {retailErpWhatsAppProductLabel(
+                                        item.particulars,
+                                        item.productNameOnly,
+                                      )}
+                                    </span>
                                   </span>
                                 );
                                 break;

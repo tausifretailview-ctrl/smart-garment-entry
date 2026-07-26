@@ -1465,6 +1465,8 @@ const POSDashboard = () => {
         items: items.map((item, index) => ({
           sr: index + 1,
           particulars: item.product_name,
+          productNameOnly:
+            (item.product_name || "").split("-")[0]?.trim() || item.product_name || "",
           size: item.size,
           barcode: item.barcode || "",
           hsn: item.hsn_code || "",
@@ -3955,6 +3957,8 @@ const POSDashboard = () => {
               items={(saleItems[previewSale.id] || []).map((item, index) => ({
                 sr: index + 1,
                 particulars: item.product_name,
+                productNameOnly:
+                  (item.product_name || "").split("-")[0]?.trim() || item.product_name || "",
                 size: item.size,
                 barcode: item.barcode || '',
                 hsn: item.hsn_code || '',

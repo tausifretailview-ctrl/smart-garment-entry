@@ -46,6 +46,8 @@ import { organizationBankAccountsQueryKey } from '@/hooks/useOrganizationBankAcc
 interface InvoiceItem {
   sr: number;
   particulars: string;
+  /** Short product name — Retail ERP WhatsApp PDF only. */
+  productNameOnly?: string;
   size: string;
   barcode: string;
   hsn: string;

@@ -175,6 +175,8 @@ interface CartItem {
   id: string;
   barcode: string;
   productName: string;
+  /** DB products.product_name only (no brand/category/style join). */
+  baseProductName?: string;
   size: string;
   color: string;
   quantity: number;
@@ -2702,6 +2704,7 @@ export default function POSSales() {
         id: `service-${variant.id}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
         barcode: variant.barcode || code,
         productName: product.product_name,
+        baseProductName: product.product_name,
         size: variant.size || '-',
         color: variant.color || '',
         quantity,
@@ -2974,6 +2977,7 @@ export default function POSSales() {
         id: isServiceProduct ? `${variant.id}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}` : variant.id,
         barcode: variant.barcode || '',
         productName: description,
+        baseProductName: product.product_name || description.split("-")[0] || description,
         size: variant.size,
         color: variant.color || product.color || '',
         quantity: 1,
@@ -3401,6 +3405,8 @@ export default function POSSales() {
           items: items.map((item, index) => ({
             sr: index + 1,
             particulars: item.productName,
+            productNameOnly:
+              item.baseProductName || item.productName.split("-")[0] || item.productName,
             itemNotes: item.itemNotes || '',
             size: item.size,
             barcode: item.barcode,
@@ -4831,6 +4837,8 @@ export default function POSSales() {
       id: item.variant_id,
       barcode: item.barcode || '',
       productName: item.product_name,
+      baseProductName:
+        (item.product_name || "").split("-")[0]?.trim() || item.product_name || "",
       size: item.size,
       quantity: item.quantity,
       mrp: Number(item.mrp),

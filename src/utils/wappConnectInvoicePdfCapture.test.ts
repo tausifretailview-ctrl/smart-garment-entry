@@ -53,6 +53,8 @@ describe("applyWappConnectInvoicePdfCloneFixes", () => {
     const styleTag = doc.head.querySelector("style[data-wappconnect-pdf-fix]");
     expect(styleTag?.textContent || "").toContain("retail-erp-items-grow");
     expect(styleTag?.textContent || "").toContain("overflow: hidden");
+    expect(styleTag?.textContent || "").toContain("retail-erp-desc-wapp-only");
+    expect(styleTag?.textContent || "").toContain("retail-erp-desc-full");
     // Aggressive 6px cell padding must not be used for Retail ERP WhatsApp PDFs.
     expect(styleTag?.textContent || "").not.toMatch(/padding-top:\s*6px/);
   });

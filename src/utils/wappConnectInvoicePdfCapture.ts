@@ -143,6 +143,25 @@ export function applyWappConnectInvoicePdfCloneFixes(
       padding-bottom: 1px !important;
       font-size: 9px !important;
     }
+    /* Product column: name only + smaller type (print/screen unchanged). */
+    .retail-erp-desc-full {
+      display: none !important;
+    }
+    .retail-erp-desc-wapp-only {
+      display: block !important;
+      font-size: 9px !important;
+      font-weight: 600 !important;
+      line-height: 1.2 !important;
+      overflow: hidden !important;
+      text-overflow: ellipsis !important;
+      white-space: nowrap !important;
+      max-width: 100% !important;
+      color: #000 !important;
+    }
+    .retail-erp-desc-cell {
+      font-size: 9px !important;
+      font-weight: 600 !important;
+    }
   `
     : `
     .retail-invoice-template,
