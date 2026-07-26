@@ -31,6 +31,7 @@ interface SaleItemData {
   size: string;
   brand: string | null;
   category: string | null;
+  style: string | null;
   color: string | null;
   customer_name: string | null;
   total_qty: number;
@@ -45,6 +46,33 @@ interface FilterOptions {
   customers: string[];
   colors: string[];
   users: string[];
+}
+
+function normFilterText(value: string | null | undefined): string {
+  return (value || "").trim().replace(/\s+/g, " ");
+}
+
+function filterTextEquals(a: string | null | undefined, b: string | null | undefined): boolean {
+  return normFilterText(a).toLowerCase() === normFilterText(b).toLowerCase();
+}
+
+/** Prefer one display label per case/space-insensitive key. */
+function uniqueNormSorted(values: Array<string | null | undefined>): string[] {
+  const byKey = new Map<string, string>();
+  for (const raw of values) {
+    const cleaned = normFilterText(raw);
+    if (!cleaned) continue;
+    const key = cleaned.toLowerCase();
+    const prev = byKey.get(key);
+    if (
+      !prev ||
+      cleaned.length > prev.length ||
+      (cleaned === cleaned.toUpperCase() && prev !== prev.toUpperCase())
+    ) {
+      byKey.set(key, cleaned);
+    }
+  }
+  return [...byKey.values()].sort((a, b) => a.localeCompare(b));
 }
 
 const SALES_TABLE_SCROLL = "item-wise-sales-table-scroll tab-scroll-stable min-w-0";
@@ -234,56 +262,41 @@ export default function ItemWiseSalesReport() {
     },
   );
 
-  // Fetch filter options with caching — product attrs via same RPC as Stock Report (no 1000-row cap)
+  // Customer / user lists (org-wide). Brand/category/style/color are derived from period sale rows below.
   const { data: filterOptionsData } = useQuery({
     queryKey: ["item-wise-filter-options", currentOrganization?.id],
     queryFn: async () => {
-      if (!currentOrganization?.id) return { brands: [], categories: [], departments: [], customers: [], colors: [], users: [] };
+      if (!currentOrganization?.id) {
+        return { brands: [], categories: [], departments: [], customers: [], colors: [], users: [] };
+      }
 
-      const [{ data: filterPayload, error: filterError }, { data: sales }] = await Promise.all([
-        (
-          supabase as unknown as {
-            rpc: (
-              fn: string,
-              args: Record<string, unknown>,
-            ) => ReturnType<typeof supabase.rpc>;
-          }
-        ).rpc("get_stock_report_filter_options", {
-          p_org_id: currentOrganization.id,
-        }),
-        supabase
-          .from("sales")
-          .select("customer_name, salesman")
-          .eq("organization_id", currentOrganization.id)
-          .is("deleted_at", null),
-      ]);
-
-      if (filterError) throw filterError;
-
-      const payload = filterPayload as {
-        rawProducts?: Array<{ brand: string; category: string; style: string }>;
-        variantRows?: Array<{ color: string | null }>;
-      } | null;
-
-      const rawProducts = payload?.rawProducts ?? [];
-      const variantRows = payload?.variantRows ?? [];
+      const { data: sales } = await supabase
+        .from("sales")
+        .select("customer_name, salesman")
+        .eq("organization_id", currentOrganization.id)
+        .is("deleted_at", null);
 
       return {
-        brands: [...new Set(rawProducts.map((p) => p.brand).filter(Boolean))].sort() as string[],
-        categories: [...new Set(rawProducts.map((p) => p.category).filter(Boolean))].sort() as string[],
-        departments: [...new Set(rawProducts.map((p) => p.style).filter(Boolean))].sort() as string[],
-        customers: [...new Set((sales || []).map((s) => s.customer_name).filter(Boolean))].sort() as string[],
-        colors: [...new Set(variantRows.map((v) => v.color).filter(Boolean))].sort() as string[],
-        users: [...new Set((sales || []).map((s: { salesman?: string | null }) => s.salesman).filter(Boolean))].sort() as string[],
+        brands: [] as string[],
+        categories: [] as string[],
+        departments: [] as string[],
+        customers: uniqueNormSorted((sales || []).map((s) => s.customer_name)),
+        colors: [] as string[],
+        users: uniqueNormSorted((sales || []).map((s: { salesman?: string | null }) => s.salesman)),
       };
     },
     enabled: !!currentOrganization?.id,
     ...REPORT_CACHE,
   });
 
-  // Sync filter options from query
+  // Sync customer/user options from query
   useEffect(() => {
-    if (filterOptionsData) setFilterOptions(filterOptionsData);
+    if (!filterOptionsData) return;
+    setFilterOptions((prev) => ({
+      ...prev,
+      customers: filterOptionsData.customers,
+      users: filterOptionsData.users,
+    }));
   }, [filterOptionsData]);
 
   // Calculate date range based on period type
@@ -313,7 +326,7 @@ export default function ItemWiseSalesReport() {
   }, [periodType, selectedDate, customDateRange]);
 
   // Fetch sale items with product details
-  const { data: saleItems = [], isLoading, isError } = useQuery({
+  const { data: saleItems = [], isLoading, isFetching, isError } = useQuery({
     queryKey: ["item-wise-sales", currentOrganization?.id, dateRange.from, dateRange.to, selectedCustomer, selectedUser],
     queryFn: async () => {
       if (!currentOrganization?.id) return [];
@@ -432,7 +445,8 @@ export default function ItemWiseSalesReport() {
           size: item.size,
           brand: item.products?.brand || null,
           category: item.products?.category || null,
-          color: item.products?.color || null,
+          style: item.products?.style || null,
+          color: item.color || item.products?.color || null,
           customer_name: item.customer_name || null,
           total_qty: item.quantity,
           stock_qty: 0,
@@ -450,29 +464,84 @@ export default function ItemWiseSalesReport() {
     }).sort((a, b) => b.total_amount - a.total_amount);
   }, [saleItems]);
 
+  // Brand / category / style / color from rows actually in the selected period
+  // (catalog-wide options listed brands with no sales → empty table after select).
+  const periodFilterOptions = useMemo(
+    () => ({
+      brands: uniqueNormSorted(aggregatedData.map((item) => item.brand)),
+      categories: uniqueNormSorted(aggregatedData.map((item) => item.category)),
+      departments: uniqueNormSorted(aggregatedData.map((item) => item.style)),
+      colors: uniqueNormSorted(aggregatedData.map((item) => item.color)),
+    }),
+    [aggregatedData],
+  );
+
+  // Drop / normalize persisted selections against current period options
+  useEffect(() => {
+    // Avoid clearing filters while the period query is still loading (empty options).
+    if (isLoading || isFetching) return;
+
+    if (selectedBrand !== "all") {
+      const match = periodFilterOptions.brands.find((b) => filterTextEquals(b, selectedBrand));
+      if (!match) setSelectedBrand("all");
+      else if (match !== selectedBrand) setSelectedBrand(match);
+    }
+    if (selectedCategory !== "all") {
+      const match = periodFilterOptions.categories.find((c) => filterTextEquals(c, selectedCategory));
+      if (!match) setSelectedCategory("all");
+      else if (match !== selectedCategory) setSelectedCategory(match);
+    }
+    if (selectedDepartment !== "all") {
+      const match = periodFilterOptions.departments.find((d) => filterTextEquals(d, selectedDepartment));
+      if (!match) setSelectedDepartment("all");
+      else if (match !== selectedDepartment) setSelectedDepartment(match);
+    }
+    if (selectedColor !== "all") {
+      const match = periodFilterOptions.colors.find((c) => filterTextEquals(c, selectedColor));
+      if (!match) setSelectedColor("all");
+      else if (match !== selectedColor) setSelectedColor(match);
+    }
+  }, [periodFilterOptions, selectedBrand, selectedCategory, selectedDepartment, selectedColor, isLoading, isFetching]);
+
+  // Selecting a filter while on page 2+ can show an empty slice even when matches exist
+  useEffect(() => {
+    setCurrentPage(1);
+    setCustomerPage(1);
+    setBrandPage(1);
+    setSaleDetailsPage(1);
+  }, [selectedBrand, selectedCategory, selectedDepartment, selectedColor]);
+
   // Filter data based on search and dropdown filters
   const filteredData = useMemo(() => {
     let data = aggregatedData;
 
     // Apply dropdown filters
     if (selectedBrand !== "all") {
-      data = data.filter(item => item.brand === selectedBrand);
+      data = data.filter((item) => filterTextEquals(item.brand, selectedBrand));
     }
     if (selectedCategory !== "all") {
-      data = data.filter(item => item.category === selectedCategory);
+      data = data.filter((item) => filterTextEquals(item.category, selectedCategory));
     }
     if (selectedDepartment !== "all") {
-      // Department maps to style/color in this context
-      data = data.filter(item => item.color === selectedDepartment);
+      data = data.filter((item) => filterTextEquals(item.style, selectedDepartment));
     }
     if (selectedColor !== "all") {
-      data = data.filter(item => item.color === selectedColor);
+      data = data.filter((item) => filterTextEquals(item.color, selectedColor));
     }
 
     // Apply search query — multi-token AND logic
     if (searchQuery.trim()) {
-      data = data.filter(item =>
-        multiTokenMatch(searchQuery, item.product_name, item.barcode, item.brand, item.category, item.color, item.size)
+      data = data.filter((item) =>
+        multiTokenMatch(
+          searchQuery,
+          item.product_name,
+          item.barcode,
+          item.brand,
+          item.category,
+          item.style,
+          item.color,
+          item.size,
+        ),
       );
     }
 
@@ -492,14 +561,27 @@ export default function ItemWiseSalesReport() {
     saleItems.forEach((item: any) => {
       const customerName = item.customer_name || "Walk-in";
       const brand = item.products?.brand || "Unbranded";
+      const lineColor = item.color || item.products?.color || null;
 
       // Apply same client-side filters
-      if (selectedBrand !== "all" && brand !== selectedBrand) return;
-      if (selectedCategory !== "all" && item.products?.category !== selectedCategory) return;
-      if (selectedDepartment !== "all" && item.products?.color !== selectedDepartment) return;
-      if (selectedColor !== "all" && item.products?.color !== selectedColor) return;
+      if (selectedBrand !== "all" && !filterTextEquals(brand, selectedBrand)) return;
+      if (selectedCategory !== "all" && !filterTextEquals(item.products?.category, selectedCategory)) return;
+      if (selectedDepartment !== "all" && !filterTextEquals(item.products?.style, selectedDepartment)) return;
+      if (selectedColor !== "all" && !filterTextEquals(lineColor, selectedColor)) return;
       if (searchQuery.trim()) {
-        if (!multiTokenMatch(searchQuery, item.product_name, item.barcode, brand, item.products?.category, item.products?.color)) return;
+        if (
+          !multiTokenMatch(
+            searchQuery,
+            item.product_name,
+            item.barcode,
+            brand,
+            item.products?.category,
+            item.products?.style,
+            lineColor,
+          )
+        ) {
+          return;
+        }
       }
 
       const key = `${customerName}|||${brand}`;
@@ -522,12 +604,25 @@ export default function ItemWiseSalesReport() {
     const groups = new Map<string, { customer_name: string; total_qty: number; total_amount: number; item_count: number; products: Map<string, { product_name: string; qty: number; amount: number }> }>();
     saleItems.forEach((item: any) => {
       const customerName = item.customer_name || "Walk-in Customer";
-      if (selectedBrand !== "all" && item.products?.brand !== selectedBrand) return;
-      if (selectedCategory !== "all" && item.products?.category !== selectedCategory) return;
-      if (selectedDepartment !== "all" && item.products?.color !== selectedDepartment) return;
-      if (selectedColor !== "all" && item.products?.color !== selectedColor) return;
+      const lineColor = item.color || item.products?.color || null;
+      if (selectedBrand !== "all" && !filterTextEquals(item.products?.brand, selectedBrand)) return;
+      if (selectedCategory !== "all" && !filterTextEquals(item.products?.category, selectedCategory)) return;
+      if (selectedDepartment !== "all" && !filterTextEquals(item.products?.style, selectedDepartment)) return;
+      if (selectedColor !== "all" && !filterTextEquals(lineColor, selectedColor)) return;
       if (searchQuery.trim()) {
-        if (!multiTokenMatch(searchQuery, item.product_name, item.barcode, item.products?.brand, item.products?.category, item.products?.color)) return;
+        if (
+          !multiTokenMatch(
+            searchQuery,
+            item.product_name,
+            item.barcode,
+            item.products?.brand,
+            item.products?.category,
+            item.products?.style,
+            lineColor,
+          )
+        ) {
+          return;
+        }
       }
       const existing = groups.get(customerName);
       const productName = item.product_name || "Unknown";
@@ -573,11 +668,12 @@ export default function ItemWiseSalesReport() {
     const groups = new Map<string, { key: string; total_qty: number; purchase_value: number; sale_value: number; product_name?: string; brand?: string; size?: string; color?: string; category?: string }>();
 
     saleItems.forEach((item: any) => {
+      const lineColor = item.color || item.products?.color || null;
       // Apply same client-side filters
-      if (selectedBrand !== "all" && item.products?.brand !== selectedBrand) return;
-      if (selectedCategory !== "all" && item.products?.category !== selectedCategory) return;
-      if (selectedDepartment !== "all" && item.products?.color !== selectedDepartment) return;
-      if (selectedColor !== "all" && item.products?.color !== selectedColor) return;
+      if (selectedBrand !== "all" && !filterTextEquals(item.products?.brand, selectedBrand)) return;
+      if (selectedCategory !== "all" && !filterTextEquals(item.products?.category, selectedCategory)) return;
+      if (selectedDepartment !== "all" && !filterTextEquals(item.products?.style, selectedDepartment)) return;
+      if (selectedColor !== "all" && !filterTextEquals(lineColor, selectedColor)) return;
 
       let groupKey = "";
       switch (saleDetailsGroupBy) {
@@ -606,7 +702,7 @@ export default function ItemWiseSalesReport() {
           product_name: item.product_name || "",
           brand: item.products?.brand || "",
           size: item.size || "",
-          color: item.products?.color || "",
+          color: lineColor || "",
           category: item.products?.category || "",
         });
       }
@@ -911,25 +1007,25 @@ export default function ItemWiseSalesReport() {
                 {showBrand && (
                 <div className="space-y-1">
                   <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">{fieldLabels.brand}</label>
-                  <SearchableSelect value={selectedBrand} onValueChange={setSelectedBrand} options={filterOptions.brands} placeholder={`All ${fieldLabels.brand}`} allLabel={`All ${fieldLabels.brand}`} allValue="all" />
+                  <SearchableSelect value={selectedBrand} onValueChange={setSelectedBrand} options={periodFilterOptions.brands} placeholder={`All ${fieldLabels.brand}`} allLabel={`All ${fieldLabels.brand}`} allValue="all" />
                 </div>
                 )}
                 {showCategory && (
                 <div className="space-y-1">
                   <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">{fieldLabels.category}</label>
-                  <SearchableSelect value={selectedCategory} onValueChange={setSelectedCategory} options={filterOptions.categories} placeholder={`All ${fieldLabels.category}`} allLabel={`All ${fieldLabels.category}`} allValue="all" />
+                  <SearchableSelect value={selectedCategory} onValueChange={setSelectedCategory} options={periodFilterOptions.categories} placeholder={`All ${fieldLabels.category}`} allLabel={`All ${fieldLabels.category}`} allValue="all" />
                 </div>
                 )}
                 {showStyle && (
                 <div className="space-y-0.5">
                   <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">{fieldLabels.style}</label>
-                  <SearchableSelect value={selectedDepartment} onValueChange={setSelectedDepartment} options={filterOptions.departments} placeholder={`All ${fieldLabels.style}`} allLabel={`All ${fieldLabels.style}`} allValue="all" />
+                  <SearchableSelect value={selectedDepartment} onValueChange={setSelectedDepartment} options={periodFilterOptions.departments} placeholder={`All ${fieldLabels.style}`} allLabel={`All ${fieldLabels.style}`} allValue="all" />
                 </div>
                 )}
                 {showColor && (
                 <div className="space-y-0.5">
                   <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">{fieldLabels.color}</label>
-                  <SearchableSelect value={selectedColor} onValueChange={setSelectedColor} options={filterOptions.colors} placeholder={`All ${fieldLabels.color}`} allLabel={`All ${fieldLabels.color}`} allValue="all" />
+                  <SearchableSelect value={selectedColor} onValueChange={setSelectedColor} options={periodFilterOptions.colors} placeholder={`All ${fieldLabels.color}`} allLabel={`All ${fieldLabels.color}`} allValue="all" />
                 </div>
                 )}
                 <div className="space-y-0.5">
@@ -991,7 +1087,17 @@ export default function ItemWiseSalesReport() {
                       const totalPages = Math.ceil(filteredData.length / ITEMS_PER_PAGE);
                       const paginatedData = filteredData.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
                       const rowMatches = (item: SaleItemData) =>
-                        searchQuery.trim() && multiTokenMatch(searchQuery, item.product_name, item.barcode, item.brand, item.category, item.color, item.size);
+                        searchQuery.trim() &&
+                        multiTokenMatch(
+                          searchQuery,
+                          item.product_name,
+                          item.barcode,
+                          item.brand,
+                          item.category,
+                          item.style,
+                          item.color,
+                          item.size,
+                        );
                       return paginatedData.map((item, idx) => (
                             <TableRow
                               key={idx}
