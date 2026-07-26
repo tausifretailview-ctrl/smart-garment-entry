@@ -1403,6 +1403,53 @@ All colors MUST be HSL.
   }
 }
 
+/* Business Insights — Executive Summary one-pager */
+@media print {
+  .executive-summary-print {
+    display: block !important;
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+    background: white !important;
+    color: black !important;
+    gap: 0.75rem !important;
+  }
+
+  .executive-summary-print,
+  .executive-summary-print * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .business-insights-workspace:has(.executive-summary-print) {
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+    background: white !important;
+    padding: 0 !important;
+  }
+
+  .business-insights-workspace:has(.executive-summary-print) > div {
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+  }
+
+  .executive-summary-print .overflow-y-auto,
+  .executive-summary-print .overflow-x-auto,
+  .executive-summary-print .overflow-hidden,
+  .executive-summary-print .min-h-0 {
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+    min-height: 0 !important;
+  }
+
+  .executive-summary-print .recharts-responsive-container {
+    height: 220px !important;
+  }
+}
+
 /* Print-only class - show only during print */
 .print-only {
   display: none !important;

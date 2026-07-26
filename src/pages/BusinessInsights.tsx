@@ -8,18 +8,21 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { getIndiaFinancialYear } from "@/utils/accountingReportUtils";
+import { ExecutiveSummaryTab } from "@/components/business-insights/ExecutiveSummaryTab";
 import { ProfitabilityTab } from "@/components/business-insights/ProfitabilityTab";
 import { StockHealthTab } from "@/components/business-insights/StockHealthTab";
 import { SupplierAnalysisTab } from "@/components/business-insights/SupplierAnalysisTab";
 import { SalesTrendsTab } from "@/components/business-insights/SalesTrendsTab";
 
 type InsightsTabId =
+  | "executive-summary"
   | "profitability"
   | "stock-health"
   | "supplier-analysis"
   | "sales-trends";
 
 const TAB_ITEMS: { id: InsightsTabId; label: string }[] = [
+  { id: "executive-summary", label: "Executive Summary" },
   { id: "profitability", label: "Profitability" },
   { id: "stock-health", label: "Stock Health" },
   { id: "supplier-analysis", label: "Supplier Analysis" },
@@ -39,9 +42,9 @@ export default function BusinessInsights() {
   const initialRange = useMemo(() => defaultDateRange(), []);
   const [startDate, setStartDate] = useState(initialRange.startDate);
   const [endDate, setEndDate] = useState(initialRange.endDate);
-  const [selectedTab, setSelectedTab] = useState<InsightsTabId>("profitability");
+  const [selectedTab, setSelectedTab] = useState<InsightsTabId>("executive-summary");
   const [visitedTabs, setVisitedTabs] = useState<Set<InsightsTabId>>(
-    () => new Set(["profitability"]),
+    () => new Set(["executive-summary"]),
   );
 
   const shouldMountTab = useCallback(
@@ -59,7 +62,7 @@ export default function BusinessInsights() {
     <div className="business-insights-workspace flex flex-col bg-slate-50 px-2 sm:px-3 py-2 min-h-0 h-full overflow-hidden w-full">
       <div className="w-full min-w-0 flex flex-col flex-1 min-h-0 gap-2">
         {/* Toolbar — Vasy-style compact header */}
-        <div className="flex flex-wrap items-center justify-between gap-2 shrink-0">
+        <div className="no-print flex flex-wrap items-center justify-between gap-2 shrink-0">
           <div className="flex flex-wrap items-center gap-2 min-w-0">
             <Button
               variant="outline"
@@ -76,7 +79,7 @@ export default function BusinessInsights() {
                 Business Insights
               </h1>
               <p className="text-sm text-muted-foreground mt-1 truncate">
-                Profitability · Stock Health · Supplier · Sales Trends
+                Executive Summary · Profitability · Stock Health · Supplier · Sales Trends
               </p>
             </div>
           </div>
@@ -113,7 +116,7 @@ export default function BusinessInsights() {
           onValueChange={handleTabChange}
           className="flex flex-col flex-1 min-h-0 gap-2"
         >
-          <TabsList className="flex h-auto w-full flex-wrap justify-start gap-1 bg-transparent p-0 shrink-0">
+          <TabsList className="no-print flex h-auto w-full flex-wrap justify-start gap-1 bg-transparent p-0 shrink-0">
             {TAB_ITEMS.map(({ id, label }) => (
               <TabsTrigger
                 key={id}
@@ -127,6 +130,12 @@ export default function BusinessInsights() {
               </TabsTrigger>
             ))}
           </TabsList>
+
+          <TabsContent value="executive-summary" className="flex-1 min-h-0 flex flex-col mt-0 data-[state=inactive]:hidden">
+            {shouldMountTab("executive-summary") ? (
+              <ExecutiveSummaryTab startDate={startDate} endDate={endDate} />
+            ) : null}
+          </TabsContent>
 
           <TabsContent value="profitability" className="flex-1 min-h-0 flex flex-col mt-0 data-[state=inactive]:hidden">
             {shouldMountTab("profitability") ? (
