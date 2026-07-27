@@ -240,6 +240,26 @@ export default function SalesInvoiceDashboard() {
   const [loadedItems, setLoadedItems] = useState<Record<string, any[]>>({});
   const loadedItemsRef = useRef<Record<string, any[]>>({});
   const [deliveryFilter, setDeliveryFilter] = useState<string>("all");
+  /** KPI strip visibility — default expanded; persisted per browser. */
+  const [kpiStripExpanded, setKpiStripExpanded] = useState(() => {
+    try {
+      const v = localStorage.getItem("ezzy_sales_invoice_kpi_expanded");
+      return v === null ? true : v === "1";
+    } catch {
+      return true;
+    }
+  });
+  const toggleKpiStrip = useCallback(() => {
+    setKpiStripExpanded((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem("ezzy_sales_invoice_kpi_expanded", next ? "1" : "0");
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  }, []);
   const [periodFilter, setPeriodFilter] = useState<string>("weekly");
   const [paymentStatusFilter, setPaymentStatusFilter] = useState<string[]>([]);
   const [shopFilter, setShopFilter] = useState<string>("all");
@@ -3676,6 +3696,21 @@ export default function SalesInvoiceDashboard() {
               ) : (
                 `${totalCount.toLocaleString("en-IN")} invoices`
               )}
+              <button
+                type="button"
+                className="ml-1 inline-flex h-6 items-center gap-0.5 rounded px-1.5 text-xs text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                onClick={toggleKpiStrip}
+                aria-expanded={kpiStripExpanded}
+                aria-controls="sales-invoice-kpi-strip"
+                title={kpiStripExpanded ? "Hide summary" : "Show summary"}
+              >
+                {kpiStripExpanded ? (
+                  <ChevronUp className="h-3.5 w-3.5" />
+                ) : (
+                  <ChevronDown className="h-3.5 w-3.5" />
+                )}
+                KPI
+              </button>
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2 justify-end">
@@ -3779,45 +3814,104 @@ export default function SalesInvoiceDashboard() {
           </Card>
         )}
 
-        {/* Summary Statistics — compact ERP dashboard cards */}
-        {isDashboardInitialLoad ? (
-          <SkeletonKpiCards count={7} columnsClassName="grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7 lg:gap-3" />
-        ) : (
-        <div className="grid shrink-0 grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7 lg:gap-3">
-          <button type="button" onClick={() => setDeliveryFilter("all")} className="min-h-[72px] rounded-xl border border-sky-200/70 bg-sky-50 px-2.5 py-2.5 text-center shadow-sm transition-colors hover:bg-sky-100/80">
-            <p className="text-sm font-semibold leading-snug text-slate-600 truncate">Total Invoices</p>
-            <p className="mt-1.5 text-2xl font-bold text-sky-800 tabular-nums leading-none">{effectiveStats.totalInvoices}</p>
-          </button>
-          <button type="button" onClick={() => setDeliveryFilter("all")} className="min-h-[72px] rounded-xl border border-indigo-200/70 bg-indigo-50 px-2.5 py-2.5 text-center shadow-sm transition-colors hover:bg-indigo-100/80">
-            <p className="text-sm font-semibold leading-snug text-slate-600 truncate">Total Qty</p>
-            <p className="mt-1.5 text-2xl font-bold text-indigo-800 tabular-nums leading-none">{effectiveStats.totalQty}</p>
-          </button>
-          <button type="button" onClick={() => setDeliveryFilter("all")} className="min-h-[72px] rounded-xl border border-emerald-200/70 bg-emerald-50 px-2.5 py-2.5 text-center shadow-sm transition-colors hover:bg-emerald-100/80">
-            <p className="text-sm font-semibold leading-snug text-slate-600 truncate">Total Revenue</p>
-            <p className="mt-1.5 text-2xl font-bold text-emerald-800 tabular-nums leading-none truncate">₹{effectiveStats.totalAmount.toFixed(0)}</p>
-          </button>
-          <button type="button" onClick={() => setDeliveryFilter("all")} className="min-h-[72px] rounded-xl border border-fuchsia-200/70 bg-fuchsia-50 px-2.5 py-2.5 text-center shadow-sm transition-colors hover:bg-fuchsia-100/80">
-            <p className="text-sm font-semibold leading-snug text-slate-600 truncate">Total Discount</p>
-            <p className="mt-1.5 text-2xl font-bold text-fuchsia-800 tabular-nums leading-none truncate">₹{effectiveStats.totalDiscount.toFixed(0)}</p>
-          </button>
-          <button
-            type="button"
-            onClick={() => setDeliveryFilter("all")}
-            title={filteredCustomer ? "Matches invoice Balance after CN & advance. Unused advance is not included until applied per invoice." : undefined}
-            className="min-h-[72px] rounded-xl border border-amber-200/70 bg-amber-50 px-2.5 py-2.5 text-center shadow-sm transition-colors hover:bg-amber-100/80"
+        {/* Summary Statistics — compact ERP dashboard cards (collapsible; toggle in page subtitle) */}
+        {kpiStripExpanded && (
+          isDashboardInitialLoad ? (
+            <SkeletonKpiCards count={7} columnsClassName="grid-cols-2 gap-1.5 sm:grid-cols-4 lg:grid-cols-7 lg:gap-2" />
+          ) : (
+          <div
+            id="sales-invoice-kpi-strip"
+            className="grid shrink-0 grid-cols-2 gap-1.5 sm:grid-cols-4 lg:grid-cols-7 lg:gap-2"
           >
-            <p className="text-sm font-semibold leading-snug text-slate-600 truncate">Pending Amount</p>
-            <p className="mt-1.5 text-2xl font-bold text-amber-800 tabular-nums leading-none truncate">₹{effectiveStats.pendingAmount.toFixed(0)}</p>
-          </button>
-          <button type="button" onClick={() => setDeliveryFilter("delivered")} className="min-h-[72px] rounded-xl border border-teal-200/70 bg-teal-50 px-2.5 py-2.5 text-center shadow-sm transition-colors hover:bg-teal-100/80">
-            <p className="text-sm font-semibold leading-snug text-slate-600 truncate">Delivered</p>
-            <p className="mt-1.5 text-2xl font-bold text-teal-800 tabular-nums leading-none">{effectiveStats.deliveredCount}</p>
-          </button>
-          <button type="button" onClick={() => setDeliveryFilter("undelivered")} className="min-h-[72px] rounded-xl border border-rose-200/70 bg-rose-50 px-2.5 py-2.5 text-center shadow-sm transition-colors hover:bg-rose-100/80">
-            <p className="text-sm font-semibold leading-snug text-slate-600 truncate">Undelivered</p>
-            <p className="mt-1.5 text-2xl font-bold text-rose-800 tabular-nums leading-none">{effectiveStats.undeliveredCount}</p>
-          </button>
-        </div>
+            {(
+              [
+                {
+                  key: "total",
+                  label: "Total Invoices",
+                  value: String(effectiveStats.totalInvoices),
+                  onClick: () => setDeliveryFilter("all"),
+                  accent: false as boolean,
+                  title: undefined as string | undefined,
+                },
+                {
+                  key: "qty",
+                  label: "Total Qty",
+                  value: String(effectiveStats.totalQty),
+                  onClick: () => setDeliveryFilter("all"),
+                  accent: false,
+                  title: undefined,
+                },
+                {
+                  key: "revenue",
+                  label: "Total Revenue",
+                  value: `₹${effectiveStats.totalAmount.toFixed(0)}`,
+                  onClick: () => setDeliveryFilter("all"),
+                  accent: false,
+                  title: undefined,
+                },
+                {
+                  key: "discount",
+                  label: "Total Discount",
+                  value: `₹${effectiveStats.totalDiscount.toFixed(0)}`,
+                  onClick: () => setDeliveryFilter("all"),
+                  accent: false,
+                  title: undefined,
+                },
+                {
+                  key: "pending",
+                  label: "Pending Amount",
+                  value: `₹${effectiveStats.pendingAmount.toFixed(0)}`,
+                  onClick: () => setDeliveryFilter("all"),
+                  accent: effectiveStats.pendingAmount > 0,
+                  title: filteredCustomer
+                    ? "Matches invoice Balance after CN & advance. Unused advance is not included until applied per invoice."
+                    : undefined,
+                },
+                {
+                  key: "delivered",
+                  label: "Delivered",
+                  value: String(effectiveStats.deliveredCount),
+                  onClick: () => setDeliveryFilter("delivered"),
+                  accent: false,
+                  title: undefined,
+                },
+                {
+                  key: "undelivered",
+                  label: "Undelivered",
+                  value: String(effectiveStats.undeliveredCount),
+                  onClick: () => setDeliveryFilter("undelivered"),
+                  accent: false,
+                  title: undefined,
+                },
+              ]
+            ).map((card) => (
+              <button
+                key={card.key}
+                type="button"
+                title={card.title}
+                onClick={card.onClick}
+                className={cn(
+                  "flex min-h-[32px] items-center justify-between gap-2 rounded-md border px-2.5 py-1.5 text-left shadow-sm transition-colors",
+                  card.accent
+                    ? "border-l-4 border-l-amber-500 border-amber-200 bg-amber-50 hover:bg-amber-100/80"
+                    : "border-slate-200 bg-white hover:bg-slate-50",
+                )}
+              >
+                <span className="min-w-0 truncate text-[11px] font-medium leading-none text-slate-500">
+                  {card.label}
+                </span>
+                <span
+                  className={cn(
+                    "shrink-0 text-sm font-bold tabular-nums leading-none",
+                    card.accent ? "text-amber-900" : "text-slate-800",
+                  )}
+                >
+                  {card.value}
+                </span>
+              </button>
+            ))}
+          </div>
+          )
         )}
 
         <Card className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-slate-200 shadow-sm p-0">
@@ -4163,11 +4257,10 @@ export default function SalesInvoiceDashboard() {
                               )}
                             </TableCell>
                             <TableCell
-                              className="font-medium align-top"
+                              className="font-medium align-middle"
                               onClick={() => toggleExpanded(invoice.id, invoice.sale_number)}
                             >
-                              <div className="flex flex-col gap-0.5 min-w-0 max-w-full">
-                                <div className="flex items-center gap-1 flex-wrap">
+                              <div className="flex items-center gap-1 flex-wrap min-w-0 max-w-full">
                                   <span
                                     className="break-words font-mono text-base font-bold text-blue-700 cursor-pointer hover:underline"
                                     onClick={(e) => {
@@ -4188,10 +4281,6 @@ export default function SalesInvoiceDashboard() {
                                       <Lock className="h-3 w-3 shrink-0 text-green-600" />
                                     </span>
                                   )}
-                                </div>
-                                <span className="text-xs text-slate-500 tabular-nums leading-none">
-                                  {invoice.sale_date ? format(new Date(invoice.sale_date), 'hh:mm a') : ''}
-                                </span>
                               </div>
                             </TableCell>
                             <TableCell
@@ -4234,7 +4323,7 @@ export default function SalesInvoiceDashboard() {
                             {columnSettings.status && (
                               <TableCell className="text-center" onClick={() => toggleExpanded(invoice.id, invoice.sale_number)}>
                                 {isSaleInvoiceCancelled(invoice) ? (
-                                  <Badge className="min-w-0 max-w-full justify-center whitespace-normal text-center bg-red-500 hover:bg-red-600 text-white text-xs px-1.5 py-0.5 leading-tight">
+                                  <Badge className="min-w-0 max-w-full justify-center whitespace-normal text-center border border-red-200 bg-red-50 text-red-700 hover:bg-red-50 text-xs px-1.5 py-0.5 leading-tight">
                                     Cancelled
                                   </Badge>
                                 ) : (
@@ -4242,12 +4331,12 @@ export default function SalesInvoiceDashboard() {
                                     const displayStatus = getInvoiceDashboardDisplayStatus(invoice);
                                     return (
                                   <Badge
-                                    className={`min-w-0 max-w-full justify-center whitespace-normal text-center text-xs px-1.5 py-0.5 leading-tight ${
+                                    className={`min-w-0 max-w-full justify-center whitespace-normal text-center text-xs px-1.5 py-0.5 leading-tight border ${
                                       displayStatus === 'completed'
-                                        ? 'bg-green-500 hover:bg-green-600 text-white'
+                                        ? 'border-green-200 bg-green-50 text-green-700 hover:bg-green-50'
                                         : displayStatus === 'partial'
-                                          ? 'bg-orange-400 hover:bg-orange-500 text-white'
-                                          : 'bg-red-500 hover:bg-red-600 text-white'
+                                          ? 'border-orange-200 bg-orange-50 text-orange-700 hover:bg-orange-50'
+                                          : 'border-red-200 bg-red-50 text-red-700 hover:bg-red-50'
                                     }`}
                                   >
                                     {displayStatus === 'completed'
