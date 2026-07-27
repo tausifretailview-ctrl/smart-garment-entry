@@ -17,7 +17,7 @@ export const INVOICE_DASHBOARD_SALES_SELECT =
 
 /** Lighter select for paginated dashboard table (faster first paint). */
 export const INVOICE_DASHBOARD_LIST_SELECT =
-  "id, sale_number, sale_date, customer_id, customer_name, customer_phone, gross_amount, discount_amount, flat_discount_amount, net_amount, paid_amount, payment_method, payment_status, delivery_status, salesman, total_qty, sale_return_adjust, credit_applied, is_cancelled, shop_name, sale_type, created_by, customers:customer_id (gst_number)";
+  "id, sale_number, sale_date, customer_id, customer_name, customer_phone, gross_amount, discount_amount, flat_discount_amount, net_amount, paid_amount, payment_method, payment_status, delivery_status, salesman, total_qty, sale_return_adjust, credit_applied, is_cancelled, shop_name, sale_type, created_at, created_by, customers:customer_id (gst_number)";
 
 export type InvoiceDashboardSaleDateFilter = {
   start: string | null;

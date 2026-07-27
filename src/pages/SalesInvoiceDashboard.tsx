@@ -3891,18 +3891,18 @@ export default function SalesInvoiceDashboard() {
                 title={card.title}
                 onClick={card.onClick}
                 className={cn(
-                  "flex min-h-[32px] items-center justify-between gap-2 rounded-md border px-2.5 py-1.5 text-left shadow-sm transition-colors",
+                  "flex min-h-[48px] items-center justify-between gap-2 rounded-md border px-2.5 py-2 text-left shadow-sm transition-colors",
                   card.accent
                     ? "border-l-4 border-l-amber-500 border-amber-200 bg-amber-50 hover:bg-amber-100/80"
                     : "border-slate-200 bg-white hover:bg-slate-50",
                 )}
               >
-                <span className="min-w-0 truncate text-[11px] font-medium leading-none text-slate-500">
+                <span className="min-w-0 truncate text-xs font-medium leading-none text-slate-500">
                   {card.label}
                 </span>
                 <span
                   className={cn(
-                    "shrink-0 text-sm font-bold tabular-nums leading-none",
+                    "shrink-0 text-lg font-bold tabular-nums leading-none",
                     card.accent ? "text-amber-900" : "text-slate-800",
                   )}
                 >
@@ -4260,7 +4260,8 @@ export default function SalesInvoiceDashboard() {
                               className="font-medium align-middle"
                               onClick={() => toggleExpanded(invoice.id, invoice.sale_number)}
                             >
-                              <div className="flex items-center gap-1 flex-wrap min-w-0 max-w-full">
+                              <div className="flex flex-col gap-0.5 min-w-0 max-w-full">
+                                <div className="flex items-center gap-1 flex-wrap">
                                   <span
                                     className="break-words font-mono text-base font-bold text-blue-700 cursor-pointer hover:underline"
                                     onClick={(e) => {
@@ -4281,6 +4282,12 @@ export default function SalesInvoiceDashboard() {
                                       <Lock className="h-3 w-3 shrink-0 text-green-600" />
                                     </span>
                                   )}
+                                </div>
+                                {invoice.created_at && (
+                                  <span className="text-xs text-slate-500 tabular-nums leading-none">
+                                    {format(new Date(invoice.created_at), "hh:mm a")}
+                                  </span>
+                                )}
                               </div>
                             </TableCell>
                             <TableCell
