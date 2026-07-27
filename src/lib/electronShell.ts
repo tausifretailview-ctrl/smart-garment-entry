@@ -2,6 +2,8 @@ import { reloadAppWithUpdateCheck } from "@/lib/appReload";
 
 type ElectronWindowApi = {
   isElectron?: boolean;
+  /** Desktop installer version from Electron `app.getVersion()`. */
+  appVersion?: string;
   reloadApp?: () => Promise<{ success?: boolean }>;
   checkForUpdates?: () => Promise<{ success?: boolean }>;
   openExternal?: (url: string) => Promise<void>;
@@ -15,7 +17,7 @@ export function isElectronShell(): boolean {
   return !!getElectronAPI()?.isElectron;
 }
 
-function getElectronAPI(): ElectronWindowApi | undefined {
+export function getElectronAPI(): ElectronWindowApi | undefined {
   return (window as Window & { electronAPI?: ElectronWindowApi }).electronAPI;
 }
 

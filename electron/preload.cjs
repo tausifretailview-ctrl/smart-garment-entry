@@ -1,4 +1,4 @@
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, app } = require('electron');
 
 // Mark the document so Electron-only CSS can scope itself with `html.desktop-shell`.
 // Browser users never get this class, so the website is untouched.
@@ -42,6 +42,8 @@ if (typeof window !== 'undefined') {
 contextBridge.exposeInMainWorld('electronAPI', {
   isElectron: true,
   platform: process.platform,
+  /** Packaged app version (hint bar / About). Additive — existing callers unchanged. */
+  appVersion: app.getVersion(),
 
   // Printer APIs — silent/direct printing for the desktop app.
   getPrinters: () => ipcRenderer.invoke('get-printers'),

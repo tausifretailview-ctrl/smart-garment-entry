@@ -41,6 +41,7 @@ import { isEntryFullscreenPath } from "@/lib/entryPageLayout";
 import { AppUpdatePrompt } from "@/components/AppUpdatePrompt";
 import { NavigationPerfPanel } from "@/components/NavigationPerfPanel";
 import { ElectronOAuthRecovery } from "@/components/ElectronOAuthRecovery";
+import { DesktopHintBar } from "@/components/desktop/DesktopHintBar";
 import { initNavigationPerfDiagnostics } from "@/lib/navigationPerfDiagnostics";
 import { initCloudUsageDiagnostics } from "@/lib/cloudUsageDiagnostics";
 import { EntryBillLoadingFallback } from "@/components/EntryBillLoadingFallback";
@@ -415,6 +416,7 @@ const App = () => {
       <Sonner />
       <BrowserRouter>
         <ElectronOAuthRecovery />
+        <DesktopHintBar />
         <NativeAppBridge />
         <AuthProvider>
           <OrganizationProvider>

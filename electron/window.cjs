@@ -3,7 +3,7 @@ const path = require('path');
 const fs = require('fs');
 const windowStateKeeper = require('electron-window-state');
 const { closeSplash } = require('./splash.cjs');
-const { HEADER_CSS, buildHintBarJs } = require('./shell-ui.cjs');
+const { HEADER_CSS, buildViewportSyncJs } = require('./shell-ui.cjs');
 const {
   PROD_URL,
   DEV_URL,
@@ -320,12 +320,12 @@ function createWindow() {
     }
   });
 
-  // Electron-only stylesheet + hint bar (from shell-ui.cjs)
-  const HINT_BAR_JS = buildHintBarJs(app.getVersion());
+  // Electron-only stylesheet + SPA viewport sync (hint bar is React DesktopHintBar).
+  const VIEWPORT_SYNC_JS = buildViewportSyncJs();
 
   mainWindow.webContents.on('did-finish-load', () => {
     mainWindow.webContents.insertCSS(HEADER_CSS).catch(() => {});
-    mainWindow.webContents.executeJavaScript(HINT_BAR_JS).catch(() => {});
+    mainWindow.webContents.executeJavaScript(VIEWPORT_SYNC_JS).catch(() => {});
   });
 
   mainWindow.webContents.on('did-finish-load', () => {
