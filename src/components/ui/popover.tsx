@@ -3,7 +3,45 @@ import * as PopoverPrimitive from "@radix-ui/react-popover";
 
 import { cn } from "@/lib/utils";
 
-const Popover = PopoverPrimitive.Root;
+/** Close the nearest Popover — used by Calendar to dismiss after a day is picked. */
+const PopoverDismissContext = React.createContext<(() => void) | null>(null);
+
+function usePopoverDismiss() {
+  return React.useContext(PopoverDismissContext);
+}
+
+type PopoverProps = React.ComponentPropsWithoutRef<typeof PopoverPrimitive.Root>;
+
+/**
+ * Controlled-capable Popover that exposes dismiss() to descendants.
+ * Uncontrolled usage keeps working via internal open state.
+ */
+const Popover = ({
+  open: openProp,
+  defaultOpen = false,
+  onOpenChange,
+  ...props
+}: PopoverProps) => {
+  const [uncontrolledOpen, setUncontrolledOpen] = React.useState(defaultOpen);
+  const isControlled = openProp !== undefined;
+  const open = isControlled ? openProp! : uncontrolledOpen;
+
+  const setOpen = React.useCallback(
+    (next: boolean) => {
+      if (!isControlled) setUncontrolledOpen(next);
+      onOpenChange?.(next);
+    },
+    [isControlled, onOpenChange],
+  );
+
+  const dismiss = React.useCallback(() => setOpen(false), [setOpen]);
+
+  return (
+    <PopoverDismissContext.Provider value={dismiss}>
+      <PopoverPrimitive.Root open={open} onOpenChange={setOpen} {...props} />
+    </PopoverDismissContext.Provider>
+  );
+};
 
 const PopoverTrigger = PopoverPrimitive.Trigger;
 
@@ -28,4 +66,4 @@ const PopoverContent = React.forwardRef<
 ));
 PopoverContent.displayName = PopoverPrimitive.Content.displayName;
 
-export { Popover, PopoverTrigger, PopoverAnchor, PopoverContent };
+export { Popover, PopoverTrigger, PopoverAnchor, PopoverContent, usePopoverDismiss };

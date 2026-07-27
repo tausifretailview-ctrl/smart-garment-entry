@@ -1,13 +1,38 @@
 import * as React from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { DayPicker } from "react-day-picker";
+import { DayPicker, type DateRange } from "react-day-picker";
 
 import { cn } from "@/lib/utils";
 import { buttonVariants } from "@/components/ui/button";
+import { usePopoverDismiss } from "@/components/ui/popover";
 
 export type CalendarProps = React.ComponentProps<typeof DayPicker>;
 
-function Calendar({ className, classNames, showOutsideDays = true, ...props }: CalendarProps) {
+function Calendar({ className, classNames, showOutsideDays = true, onSelect, mode, ...props }: CalendarProps) {
+  const dismissPopover = usePopoverDismiss();
+
+  const handleSelect = React.useCallback(
+    (...args: Parameters<NonNullable<typeof onSelect>>) => {
+      onSelect?.(...args);
+
+      if (!dismissPopover) return;
+
+      // Single date: close as soon as a day is chosen (not on clear/deselect).
+      if (mode === "single") {
+        const date = args[0] as Date | undefined;
+        if (date) dismissPopover();
+        return;
+      }
+
+      // Range: close only once both ends are set.
+      if (mode === "range") {
+        const range = args[0] as DateRange | undefined;
+        if (range?.from && range?.to) dismissPopover();
+      }
+    },
+    [dismissPopover, mode, onSelect],
+  ) as typeof onSelect;
+
   return (
     <DayPicker
       showOutsideDays={showOutsideDays}
@@ -45,6 +70,8 @@ function Calendar({ className, classNames, showOutsideDays = true, ...props }: C
         IconLeft: ({ ..._props }) => <ChevronLeft className="h-4 w-4" />,
         IconRight: ({ ..._props }) => <ChevronRight className="h-4 w-4" />,
       }}
+      mode={mode}
+      onSelect={handleSelect}
       {...props}
     />
   );
