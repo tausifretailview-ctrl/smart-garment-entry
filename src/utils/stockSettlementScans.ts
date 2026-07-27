@@ -201,6 +201,123 @@ export async function settleStockSession(
   return data as { settled_count: number; session_id: string };
 }
 
+export interface StockSettlementZeroRun {
+  id: string;
+  organization_id: string;
+  settlement_session_id: string;
+  variant_count: number;
+  total_units: number;
+  cost_value: number;
+  excluded_variant_ids: string[] | null;
+  note: string | null;
+  created_by: string | null;
+  created_at: string;
+  reversed_at: string | null;
+  reversed_by: string | null;
+}
+
+export interface ZeroUnscannedResult {
+  already_applied: boolean;
+  run_id: string;
+  session_id: string;
+  variant_count: number;
+  total_units: number;
+  cost_value: number;
+}
+
+export interface ReverseUnscannedResult {
+  already_reversed: boolean;
+  run_id: string;
+  session_id: string;
+  restored_count: number;
+  total_units?: number;
+  cost_value?: number;
+}
+
+/** Variant IDs that have any scan row for the session (settled or open). */
+export function scannedVariantIdsForSession(
+  scans: StockSettlementScanRow[],
+  sessionId: string,
+): Set<string> {
+  const ids = new Set<string>();
+  for (const row of scans) {
+    if (row.settlement_session_id === sessionId) ids.add(row.variant_id);
+  }
+  return ids;
+}
+
+export async function fetchZeroRunForSession(
+  orgId: string,
+  sessionId: string,
+): Promise<StockSettlementZeroRun | null> {
+  const { data, error } = await (supabase as any)
+    .from("stock_settlement_zero_runs")
+    .select("*")
+    .eq("organization_id", orgId)
+    .eq("settlement_session_id", sessionId)
+    .is("reversed_at", null)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    console.error("fetchZeroRunForSession:", error);
+    return null;
+  }
+  return (data as StockSettlementZeroRun) ?? null;
+}
+
+export async function fetchLatestZeroRunForOrg(
+  orgId: string,
+): Promise<StockSettlementZeroRun | null> {
+  const { data, error } = await (supabase as any)
+    .from("stock_settlement_zero_runs")
+    .select("*")
+    .eq("organization_id", orgId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    console.error("fetchLatestZeroRunForOrg:", error);
+    return null;
+  }
+  return (data as StockSettlementZeroRun) ?? null;
+}
+
+export async function zeroUnscannedStockSettlement(params: {
+  organizationId: string;
+  sessionId: string;
+  excludeVariantIds?: string[];
+  expectedCount: number;
+  note?: string;
+}): Promise<ZeroUnscannedResult> {
+  const { data, error } = await (supabase as any).rpc("zero_unscanned_stock_settlement", {
+    p_organization_id: params.organizationId,
+    p_session_id: params.sessionId,
+    p_exclude_variant_ids: params.excludeVariantIds ?? [],
+    p_confirm_token: "ZERO",
+    p_expected_count: params.expectedCount,
+    p_note: params.note?.trim() || null,
+  });
+
+  if (error) throw error;
+  return data as ZeroUnscannedResult;
+}
+
+export async function reverseUnscannedStockSettlement(
+  organizationId: string,
+  runId: string,
+): Promise<ReverseUnscannedResult> {
+  const { data, error } = await (supabase as any).rpc("reverse_unscanned_stock_settlement", {
+    p_organization_id: organizationId,
+    p_run_id: runId,
+  });
+
+  if (error) throw error;
+  return data as ReverseUnscannedResult;
+}
+
 export function resolveScannerLabel(
   scannedBy: string | null,
   currentUserId: string | undefined,

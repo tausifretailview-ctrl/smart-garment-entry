@@ -9,11 +9,13 @@ import {
   Search, CheckCircle2, BarChart3, Clock, ScanBarcode,
   ArrowUpCircle, ArrowDownCircle, ChevronDown,
   Download, FileSpreadsheet, X, Check, Loader2, Box, Upload,
-  ChevronLeft, ChevronRight, IndianRupee, Package, Save, Trash2,
+  ChevronLeft, ChevronRight, IndianRupee, Package, Save, Trash2, AlertTriangle,
 } from "lucide-react";
 import StockImportTab from "@/components/StockImportTab";
+import StockSettlementWriteOffTab from "@/components/StockSettlementWriteOffTab";
 import BarcodeScanSection from "@/components/BarcodeScanSection";
 import { ErpDashboardKpiCard } from "@/components/dashboard/ErpDashboardKpiCard";
+import { useUserRoles } from "@/hooks/useUserRoles";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -160,6 +162,7 @@ function buildHistoryFromSettledScans(
       });
       return {
         id: sessionId.slice(0, 8).toUpperCase(),
+        sessionId,
         date: sessionDate,
         shop: "Main Store",
         totalItems: rows.length,
@@ -197,6 +200,7 @@ interface Product {
 
 interface SettlementHistory {
   id: string;
+  sessionId: string;
   date: string;
   shop: string;
   totalItems: number;
@@ -258,9 +262,11 @@ const StockSettlement = () => {
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const { currentOrganization } = useOrganization();
+  const { isAdmin, isManager } = useUserRoles(currentOrganization?.id);
+  const canWriteOffUnscanned = isAdmin || isManager;
   const inTabCache = useTabCacheLayout();
   const sharedShell = useSharedAppShell();
-  const [activeTab, setActiveTab] = useState<"scan" | "differences" | "settlement" | "history" | "import">("scan");
+  const [activeTab, setActiveTab] = useState<"scan" | "differences" | "settlement" | "history" | "import" | "writeoff">("scan");
   const [products, setProducts] = useState<Product[]>([]);
   const [history, setHistory] = useState<SettlementHistory[]>([]);
   const [expandedHistory, setExpandedHistory] = useState<string | null>(null);
@@ -331,98 +337,110 @@ const StockSettlement = () => {
   );
 
   // Load products from DB
-  useEffect(() => {
+  const reloadCatalogue = useCallback(async () => {
     if (!currentOrganization?.id) return;
-    const load = async () => {
-      setLoading(true);
-      try {
-        const allVariants: any[] = [];
-        const FETCH_PAGE = 1000;
-        let offset = 0;
-        let hasMore = true;
+    setLoading(true);
+    try {
+      const allVariants: any[] = [];
+      const FETCH_PAGE = 1000;
+      let offset = 0;
+      let hasMore = true;
 
-        while (hasMore) {
-          const { data, error } = await supabase
-            .from("product_variants")
-            .select(`
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from("product_variants")
+          .select(`
               id, barcode, size, stock_qty, opening_qty, pur_price, sale_price,
               products!inner(product_name, category, brand, hsn_code, uom, organization_id, default_pur_price, default_sale_price, product_type, deleted_at)
             `)
-            .eq("organization_id", currentOrganization.id)
-            .eq("active", true)
-            .is("deleted_at", null)
-            .is("products.deleted_at", null)
-            .neq("products.product_type", "service")
-            .range(offset, offset + FETCH_PAGE - 1);
+          .eq("organization_id", currentOrganization.id)
+          .eq("active", true)
+          .is("deleted_at", null)
+          .is("products.deleted_at", null)
+          .neq("products.product_type", "service")
+          .range(offset, offset + FETCH_PAGE - 1);
 
-          if (error) throw error;
-          allVariants.push(...(data || []));
-          offset += FETCH_PAGE;
-          hasMore = (data?.length || 0) === FETCH_PAGE;
-        }
-
-        const mapped: Product[] = allVariants.map((v: any, i: number) => ({
-          variantId: v.id,
-          id: `PRD-${String(i + 1).padStart(4, "0")}`,
-          name: `${v.products?.product_name || "Unknown"}${v.size ? ` - ${v.size}` : ""}`,
-          department: v.products?.category || "General",
-          brand: v.products?.brand || "—",
-          unit: v.products?.uom || "Pcs",
-          shop: "Main Store",
-          softwareStock: Number(v.stock_qty) || 0,
-          actualStock: null,
-          scanned: false,
-          barcode: v.barcode,
-          purPrice: Number(v.pur_price) || Number(v.products?.default_pur_price) || 0,
-          salePrice: Number(v.sale_price) || Number(v.products?.default_sale_price) || 0,
-        }));
-        variantLookupRef.current = new Map(mapped.map((p) => [p.variantId, p]));
-
-        let openSessionId =
-          (await fetchLatestOpenSessionId(currentOrganization.id)) ??
-          localStorage.getItem(settlementSessionStorageKey(currentOrganization.id));
-
-        if (openSessionId) {
-          settlementSessionIdRef.current = openSessionId;
-          localStorage.setItem(
-            settlementSessionStorageKey(currentOrganization.id),
-            openSessionId,
-          );
-          const dbScans = await fetchOpenScansForSession(currentOrganization.id, openSessionId);
-          const fromDb = applyDbScanSession(mapped, dbScans);
-          const { products: restored, hadSession, savedAt } = applySavedScanSession(
-            fromDb,
-            currentOrganization.id,
-          );
-          setProducts(restored);
-          setScanSessionSaved(hadSession || dbScans.length > 0);
-          setScanSessionSavedAt(
-            savedAt ??
-              (dbScans.length > 0
-                ? Math.max(...dbScans.map((s) => new Date(s.scanned_at).getTime()))
-                : null),
-          );
-        } else {
-          const { products: restored, hadSession, savedAt } = applySavedScanSession(
-            mapped,
-            currentOrganization.id,
-          );
-          setProducts(restored);
-          setScanSessionSaved(hadSession);
-          setScanSessionSavedAt(savedAt);
-        }
-
-        const allScans = await fetchSettlementScanLog(currentOrganization.id, 1000);
-        setScanLogRows(allScans);
-        setHistory(buildHistoryFromSettledScans(allScans, variantLookupRef.current));
-      } catch (e: any) {
-        toast({ title: "Error", description: e.message, variant: "destructive" });
-      } finally {
-        setLoading(false);
+        if (error) throw error;
+        allVariants.push(...(data || []));
+        offset += FETCH_PAGE;
+        hasMore = (data?.length || 0) === FETCH_PAGE;
       }
-    };
-    load();
-  }, [currentOrganization?.id]);
+
+      const mapped: Product[] = allVariants.map((v: any, i: number) => ({
+        variantId: v.id,
+        id: `PRD-${String(i + 1).padStart(4, "0")}`,
+        name: `${v.products?.product_name || "Unknown"}${v.size ? ` - ${v.size}` : ""}`,
+        department: v.products?.category || "General",
+        brand: v.products?.brand || "—",
+        unit: v.products?.uom || "Pcs",
+        shop: "Main Store",
+        softwareStock: Number(v.stock_qty) || 0,
+        actualStock: null,
+        scanned: false,
+        barcode: v.barcode,
+        purPrice: Number(v.pur_price) || Number(v.products?.default_pur_price) || 0,
+        salePrice: Number(v.sale_price) || Number(v.products?.default_sale_price) || 0,
+      }));
+      variantLookupRef.current = new Map(mapped.map((p) => [p.variantId, p]));
+
+      let openSessionId =
+        (await fetchLatestOpenSessionId(currentOrganization.id)) ??
+        localStorage.getItem(settlementSessionStorageKey(currentOrganization.id));
+
+      if (openSessionId) {
+        settlementSessionIdRef.current = openSessionId;
+        localStorage.setItem(
+          settlementSessionStorageKey(currentOrganization.id),
+          openSessionId,
+        );
+        const dbScans = await fetchOpenScansForSession(currentOrganization.id, openSessionId);
+        const fromDb = applyDbScanSession(mapped, dbScans);
+        const { products: restored, hadSession, savedAt } = applySavedScanSession(
+          fromDb,
+          currentOrganization.id,
+        );
+        setProducts(restored);
+        setScanSessionSaved(hadSession || dbScans.length > 0);
+        setScanSessionSavedAt(
+          savedAt ??
+            (dbScans.length > 0
+              ? Math.max(...dbScans.map((s) => new Date(s.scanned_at).getTime()))
+              : null),
+        );
+      } else {
+        const { products: restored, hadSession, savedAt } = applySavedScanSession(
+          mapped,
+          currentOrganization.id,
+        );
+        setProducts(restored);
+        setScanSessionSaved(hadSession);
+        setScanSessionSavedAt(savedAt);
+      }
+
+      const allScans = await fetchSettlementScanLog(currentOrganization.id, 1000);
+      setScanLogRows(allScans);
+      setHistory(buildHistoryFromSettledScans(allScans, variantLookupRef.current));
+    } catch (e: any) {
+      toast({ title: "Error", description: e.message, variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  }, [currentOrganization?.id, toast]);
+
+  useEffect(() => {
+    void reloadCatalogue();
+  }, [reloadCatalogue]);
+
+  const settledSessionOptions = useMemo(
+    () =>
+      history.map((h) => ({
+        sessionId: h.sessionId,
+        label: h.id,
+        date: h.date,
+        totalItems: h.totalItems,
+      })),
+    [history],
+  );
 
   // Derived filter options
   const shops = useMemo(() => [...new Set(products.map(p => p.shop))], [products]);
@@ -688,12 +706,11 @@ const StockSettlement = () => {
 
       setShowSettleModal(false);
       setSettleNote("");
-      setActiveTab("history");
-      setHistorySubTab("settlements");
+      setActiveTab("writeoff");
       queryClient.invalidateQueries({ queryKey: ["open-settlement-variant-ids", currentOrganization.id] });
       toast({
         title: "Settlement Complete",
-        description: `Settled ${result.settled_count} items successfully`,
+        description: `Settled ${result.settled_count} items. Review unscanned stock on the Write Off tab if needed.`,
       });
     } catch (e: any) {
       toast({ title: "Error", description: e.message, variant: "destructive" });
@@ -799,6 +816,7 @@ const StockSettlement = () => {
     { key: "import" as const, label: "Import File", icon: <Upload size={16} /> },
     { key: "differences" as const, label: "Differences", icon: <BarChart3 size={16} />, badge: differences.length || null },
     { key: "settlement" as const, label: "Settlement", icon: <CheckCircle2 size={16} /> },
+    { key: "writeoff" as const, label: "Write Off", icon: <AlertTriangle size={16} /> },
     { key: "history" as const, label: "History", icon: <Clock size={16} /> },
   ];
 
@@ -1427,8 +1445,25 @@ const StockSettlement = () => {
                   <CheckCircle2 className="h-5 w-5" />
                   Proceed to Settlement
                 </Button>
+                {scannedCount > 0 && (
+                  <p className="mt-3 text-xs text-slate-500">
+                    After settling, use the Write Off tab for variants never scanned that still show stock.
+                  </p>
+                )}
               </Card>
             </div>
+          )}
+
+          {/* ═══ WRITE OFF TAB ═══ */}
+          {activeTab === "writeoff" && currentOrganization?.id && (
+            <StockSettlementWriteOffTab
+              organizationId={currentOrganization.id}
+              products={products}
+              scanLogRows={scanLogRows}
+              settledSessions={settledSessionOptions}
+              canWriteOff={canWriteOffUnscanned}
+              onStockMutated={reloadCatalogue}
+            />
           )}
 
           {/* ═══ HISTORY TAB ═══ */}
