@@ -27,10 +27,6 @@ function getMainWindow() {
   return mainWindow;
 }
 
-function getAppUrl() {
-  return isDev ? DEV_URL : PROD_URL;
-}
-
 // ═══ ZOOM (unified) ═══
 // Single source of truth for zoom so the Window menu (Ctrl+= / - / 0) and the
 // Display Scale IPC ('set-zoom-factor') never drift. All paths use setZoomFactor.
