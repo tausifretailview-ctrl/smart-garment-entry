@@ -32,6 +32,11 @@ export interface GridCellFocus {
   colKey: SaleLineGridColKey;
 }
 
+/** setSelectionRange is only valid on text-like inputs; number inputs throw. */
+function supportsSelectionRange(input: HTMLInputElement): boolean {
+  return /^(text|search|url|tel|password)$/.test(input.type);
+}
+
 const EDITABLE_COLS: SaleLineGridColKey[] = [
   "qty",
   "box",
@@ -425,7 +430,10 @@ export function useSalesInvoiceLineGridKeyboard({
     if (editSeed !== null) {
       input.value = editSeed;
       const len = editSeed.length;
-      input.setSelectionRange(len, len);
+      // Assigning .value already leaves the caret at the end on number inputs.
+      if (supportsSelectionRange(input)) {
+        input.setSelectionRange(len, len);
+      }
     } else {
       input.select();
     }
