@@ -896,58 +896,6 @@ export function SupplierPaymentTab({
                     </Command>
                   </PopoverContent>
                 </Popover>
-                {referenceId && supplierSnapshot !== undefined && (() => {
-                  const lifetimeCr = lifetimePayable < -SUPPLIER_MIN_PENDING_RUPEE;
-                  const showAsNoPayable =
-                    lifetimePayable <= SUPPLIER_MIN_PENDING_RUPEE &&
-                    listedBillPendingTotal < SUPPLIER_MIN_PENDING_RUPEE;
-                  const displayPayable = Math.round(
-                    lifetimePayable >= SUPPLIER_MIN_PENDING_RUPEE
-                      ? lifetimePayable
-                      : listedBillPendingTotal,
-                  );
-                  return (
-                  <div className={cn(
-                    "mt-2 p-3 border rounded-md",
-                    lifetimeCr
-                      ? "bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950 dark:to-teal-950 border-emerald-300 dark:border-emerald-700"
-                      : showAsNoPayable
-                        ? "bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900 border-slate-200 dark:border-slate-700"
-                        : "bg-gradient-to-r from-amber-50 to-amber-100 dark:from-amber-950 dark:to-amber-900 border-amber-200 dark:border-amber-800",
-                  )}>
-                    {lifetimeCr ? (
-                      <p className="text-sm font-medium text-emerald-900 dark:text-emerald-100">
-                        Credit / Overpayment with Supplier:{" "}
-                        <span className="text-lg font-bold">
-                          ₹{Math.abs(Math.round(lifetimePayable)).toLocaleString("en-IN")}
-                        </span>
-                      </p>
-                    ) : showAsNoPayable ? (
-                      <p className="text-sm font-medium text-slate-800 dark:text-slate-200">
-                        No payable balance — supplier account is settled or in credit
-                      </p>
-                    ) : (
-                      <p className="text-sm font-medium text-amber-900 dark:text-amber-100">
-                        Payable Balance:{" "}
-                        <span className="text-lg font-bold">
-                          ₹{displayPayable.toLocaleString("en-IN")}
-                        </span>
-                        {lifetimePayable < SUPPLIER_MIN_PENDING_RUPEE && listedBillPendingTotal >= SUPPLIER_MIN_PENDING_RUPEE && (
-                          <span className="block text-xs font-normal mt-1 text-amber-800 dark:text-amber-200">
-                            Bill list includes amounts offset by purchase return / credit notes (₹
-                            {cnCreditPool.toLocaleString("en-IN", { minimumFractionDigits: 2 })} credit pool)
-                          </span>
-                        )}
-                      </p>
-                    )}
-                    {cnCreditPool > 0 && !lifetimeCr && listedBillPendingTotal >= SUPPLIER_MIN_PENDING_RUPEE && (
-                      <p className="text-xs text-emerald-700 dark:text-emerald-300 mt-1">
-                        Unapplied supplier credit available: ₹{cnCreditPool.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-                      </p>
-                    )}
-                  </div>
-                  );
-                })()}
               </div>
             </div>
 
