@@ -69,6 +69,7 @@ import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { useEntryOwnership } from "@/hooks/useEntryOwnership";
 import { useNavPerfPage, useNavPerfQueryWatch } from "@/hooks/useNavigationPerf";
 import { fetchPurchaseBillsDashboardPage } from "@/utils/purchaseBillDashboardPage";
+import { purchaseBillDisplaySupplierName } from "@/utils/purchaseBillDashboardSearch";
 import { buildPurchaseReturnAdjustByBillId } from "@/utils/purchaseBillReturnAdjust";
 import {
   resolvePurchaseDashboardInitialPeriod,
@@ -145,7 +146,9 @@ const formatProductDescription = (item: {
 interface PurchaseBill {
   id: string;
   supplier_id?: string;
+  /** Master name when resolved from list fetch; else snapshot. */
   supplier_name: string;
+  suppliers?: { supplier_name?: string | null } | null;
   supplier_invoice_no: string;
   software_bill_no: string;
   bill_date: string;
@@ -2058,7 +2061,7 @@ const PurchaseBillDashboard = () => {
       // Fetch ALL filtered bills (no pagination) for export
       let query = supabase
         .from("purchase_bills")
-        .select("supplier_name, supplier_invoice_no, software_bill_no, bill_date, bill_entry_at, created_at, gross_amount, discount_amount, gst_amount, net_amount, payment_status, paid_amount, total_qty, is_dc_purchase")
+        .select("supplier_name, supplier_invoice_no, software_bill_no, bill_date, bill_entry_at, created_at, gross_amount, discount_amount, gst_amount, net_amount, payment_status, paid_amount, total_qty, is_dc_purchase, suppliers(supplier_name)")
         .eq("organization_id", currentOrganization.id)
         .is("deleted_at", null);
 
@@ -2099,7 +2102,7 @@ const PurchaseBillDashboard = () => {
         "Supplier Bill Date": b.bill_date ? format(new Date(b.bill_date), "dd-MM-yyyy") : "",
         "Entry Date & Time": formatPurchaseBillEntryAt(b, "dd-MM-yyyy HH:mm"),
         "Supplier Inv No": b.supplier_invoice_no || "",
-        "Supplier": b.supplier_name || "",
+        "Supplier": purchaseBillDisplaySupplierName(b) || "",
         "Gross Amount": Math.round(b.gross_amount || 0),
         "Discount": Math.round(b.discount_amount || 0),
         "GST": Math.round(b.gst_amount || 0),

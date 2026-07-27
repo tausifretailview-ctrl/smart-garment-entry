@@ -8,6 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { ArrowLeft, Search, FileText, Filter } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { purchaseBillDisplaySupplierName } from "@/utils/purchaseBillDashboardSearch";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -53,7 +54,7 @@ export const OwnerPurchaseBillList = ({ period, customRange, onBack, onViewBill 
       if (!currentOrganization) return [];
       const { data } = await supabase
         .from("purchase_bills")
-        .select("id, software_bill_no, supplier_invoice_no, supplier_name, net_amount, bill_date, bill_entry_at, created_at")
+        .select("id, software_bill_no, supplier_invoice_no, supplier_name, net_amount, bill_date, bill_entry_at, created_at, suppliers(supplier_name)")
         .eq("organization_id", currentOrganization.id)
         .is("deleted_at", null)
         .gte("bill_date", start)
@@ -68,23 +69,33 @@ export const OwnerPurchaseBillList = ({ period, customRange, onBack, onViewBill 
 
   const suppliers = useMemo(() => {
     if (!bills?.length) return [];
-    return [...new Set(bills.map((b) => b.supplier_name).filter(Boolean))].sort();
+    return [
+      ...new Set(
+        bills
+          .map((b) => purchaseBillDisplaySupplierName(b))
+          .filter(Boolean),
+      ),
+    ].sort();
   }, [bills]);
 
   const filtered = useMemo(() => {
     let list = bills || [];
     if (supplierFilter !== "all") {
-      list = list.filter((b) => b.supplier_name === supplierFilter);
+      list = list.filter((b) => purchaseBillDisplaySupplierName(b) === supplierFilter);
     }
     if (search.trim()) {
       const q = search.toLowerCase();
-      list = list.filter(
-        (b) =>
+      list = list.filter((b) => {
+        const displayName = purchaseBillDisplaySupplierName(b);
+        const snapshot = b.supplier_name || "";
+        return (
           (b.software_bill_no || "").toLowerCase().includes(q) ||
-          (b.supplier_name || "").toLowerCase().includes(q) ||
+          displayName.toLowerCase().includes(q) ||
+          snapshot.toLowerCase().includes(q) ||
           (b.supplier_invoice_no || "").toLowerCase().includes(q) ||
           String(b.net_amount || 0).includes(q)
-      );
+        );
+      });
     }
     return list;
   }, [bills, search, supplierFilter]);
@@ -165,7 +176,7 @@ export const OwnerPurchaseBillList = ({ period, customRange, onBack, onViewBill 
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-bold text-foreground">{bill.software_bill_no}</p>
                     <p className="text-xs text-muted-foreground mt-0.5 truncate">
-                      {bill.supplier_name || "Unknown Supplier"}
+                      {purchaseBillDisplaySupplierName(bill) || "Unknown Supplier"}
                     </p>
                     {bill.supplier_invoice_no && (
                       <p className="text-[10px] text-muted-foreground mt-0.5">

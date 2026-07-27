@@ -3,13 +3,16 @@ import type { PurchaseDashboardSummary } from "@/utils/purchaseDashboardSummary"
 import { fetchPurchaseDashboardSummary } from "@/utils/purchaseDashboardSummary";
 import {
   fetchPurchaseBillIdsMatchingLineItems,
-  purchaseBillTextSearchFilter,
+  purchaseBillDisplaySupplierName,
+  purchaseBillTextSearchFilterForOrg,
 } from "@/utils/purchaseBillDashboardSearch";
 
 export type PurchaseBillDashboardRow = {
   id: string;
   supplier_id?: string | null;
+  /** Display name: master when resolved, else snapshot. */
   supplier_name?: string | null;
+  suppliers?: { supplier_name?: string | null } | null;
   supplier_invoice_no?: string | null;
   software_bill_no?: string | null;
   bill_date?: string | null;
@@ -34,6 +37,50 @@ export type PurchaseBillDashboardRow = {
   purchase_return_adjust?: number | null;
   pr_adjust_date?: string | null;
 };
+
+const BILL_LIST_SELECT =
+  "id, supplier_id, supplier_name, supplier_invoice_no, software_bill_no, bill_date, bill_entry_at, gross_amount, discount_amount, gst_amount, net_amount, notes, created_at, created_by, payment_status, paid_amount, total_qty, total_items, is_dc_purchase, bill_image_url, is_locked, is_cancelled, cancelled_at, cancelled_reason, suppliers(supplier_name)";
+
+/**
+ * Prefer embedded master name; for RPC rows (no embed) batch-resolve once.
+ * Overwrites `supplier_name` with master ?? snapshot so UI callers stay unchanged.
+ */
+async function withMasterSupplierNames(
+  bills: PurchaseBillDashboardRow[],
+  organizationId: string,
+  signal?: AbortSignal,
+): Promise<PurchaseBillDashboardRow[]> {
+  if (bills.length === 0) return bills;
+
+  const hasEmbed = bills.some((b) => Object.prototype.hasOwnProperty.call(b, "suppliers"));
+  if (hasEmbed) {
+    return bills.map((b) => ({
+      ...b,
+      supplier_name: purchaseBillDisplaySupplierName(b) || b.supplier_name,
+    }));
+  }
+
+  const ids = [
+    ...new Set(bills.map((b) => b.supplier_id).filter((id): id is string => Boolean(id))),
+  ];
+  if (ids.length === 0) return bills;
+
+  let q = supabase
+    .from("suppliers")
+    .select("id, supplier_name")
+    .eq("organization_id", organizationId)
+    .in("id", ids);
+  if (signal) q = q.abortSignal(signal);
+  const { data, error } = await q;
+  if (error) throw error;
+
+  const nameById = new Map((data || []).map((s) => [s.id, s.supplier_name]));
+  return bills.map((b) => ({
+    ...b,
+    supplier_name:
+      (b.supplier_id ? nameById.get(b.supplier_id) : undefined) ?? b.supplier_name,
+  }));
+}
 
 export type PurchaseBillsDashboardPageResult = {
   bills: PurchaseBillDashboardRow[];
@@ -117,10 +164,7 @@ async function fetchPurchaseBillsDashboardPageClient(
 
   let query = supabase
     .from("purchase_bills")
-    .select(
-      "id, supplier_id, supplier_name, supplier_invoice_no, software_bill_no, bill_date, bill_entry_at, gross_amount, discount_amount, gst_amount, net_amount, notes, created_at, created_by, payment_status, paid_amount, total_qty, total_items, is_dc_purchase, bill_image_url, is_locked, is_cancelled, cancelled_at, cancelled_reason",
-      { count: "planned" },
-    )
+    .select(BILL_LIST_SELECT, { count: "planned" })
     .eq("organization_id", organizationId)
     .is("deleted_at", null);
 
@@ -138,7 +182,7 @@ async function fetchPurchaseBillsDashboardPageClient(
         skipDate: Boolean(isBarcodeLikeSearch),
       },
     );
-    const billTextFilter = purchaseBillTextSearchFilter(searchStr);
+    const billTextFilter = await purchaseBillTextSearchFilterForOrg(organizationId, searchStr);
 
     if (matchingBillIds.length > 0) {
       const { data: textMatches, error } = await withAbortSignal(
@@ -199,7 +243,11 @@ async function fetchPurchaseBillsDashboardPageClient(
   const { data, error, count } = await withAbortSignal(query, signal);
   if (error) throw error;
 
-  const bills = (data || []) as PurchaseBillDashboardRow[];
+  const bills = await withMasterSupplierNames(
+    (data || []) as PurchaseBillDashboardRow[],
+    organizationId,
+    signal,
+  );
   const summary = await fetchPurchaseDashboardSummary({
     organizationId,
     startDate: params.startDate,
@@ -249,8 +297,14 @@ async function fetchPurchaseBillsDashboardPageViaRpc(
     summary?: Record<string, unknown>;
   };
 
+  const bills = await withMasterSupplierNames(
+    row.bills || [],
+    params.organizationId,
+    params.signal,
+  );
+
   return {
-    bills: row.bills || [],
+    bills,
     totalCount: Number(row.total_count ?? 0),
     summary: parseSummary(row.summary),
   };

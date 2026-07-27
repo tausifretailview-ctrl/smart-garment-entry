@@ -77,11 +77,66 @@ export async function fetchPurchaseBillIdsMatchingLineItems(
   return [...matched];
 }
 
-export function purchaseBillTextSearchFilter(searchStr: string): string {
+/**
+ * Supplier master IDs whose name matches the search term.
+ * Used so bill search finds master spellings (e.g. SARASWATI) even when
+ * purchase_bills.supplier_name still holds the typo snapshot (SARSWATI).
+ */
+export async function fetchSupplierIdsMatchingName(
+  organizationId: string,
+  searchStr: string,
+): Promise<string[]> {
   const t = searchStr.trim();
-  return (
-    `supplier_name.ilike.%${t}%,` +
-    `supplier_invoice_no.ilike.%${t}%,` +
-    `software_bill_no.ilike.%${t}%`
-  );
+  if (!t) return [];
+
+  const { data, error } = await supabase
+    .from("suppliers")
+    .select("id")
+    .eq("organization_id", organizationId)
+    .is("deleted_at", null)
+    .ilike("supplier_name", `%${t}%`);
+
+  if (error) throw error;
+  return (data || []).map((r) => r.id).filter(Boolean);
+}
+
+/**
+ * PostgREST `.or()` filter for bill header text search.
+ * Always matches snapshot supplier_name + invoice/bill nos.
+ * When `matchingSupplierIds` is provided, also matches those supplier_id values
+ * (master-name hits). Callers should pass IDs from fetchSupplierIdsMatchingName.
+ */
+export function purchaseBillTextSearchFilter(
+  searchStr: string,
+  matchingSupplierIds?: string[],
+): string {
+  const t = searchStr.trim();
+  const parts = [
+    `supplier_name.ilike.%${t}%`,
+    `supplier_invoice_no.ilike.%${t}%`,
+    `software_bill_no.ilike.%${t}%`,
+  ];
+  if (matchingSupplierIds && matchingSupplierIds.length > 0) {
+    parts.push(`supplier_id.in.(${matchingSupplierIds.join(",")})`);
+  }
+  return parts.join(",");
+}
+
+/** Snapshot + master-name text filter for a tenant (one suppliers lookup). */
+export async function purchaseBillTextSearchFilterForOrg(
+  organizationId: string,
+  searchStr: string,
+): Promise<string> {
+  const ids = await fetchSupplierIdsMatchingName(organizationId, searchStr);
+  return purchaseBillTextSearchFilter(searchStr, ids);
+}
+
+/** Display name: master when joined/available, else stored snapshot. Never blank if either exists. */
+export function purchaseBillDisplaySupplierName(bill: {
+  supplier_name?: string | null;
+  suppliers?: { supplier_name?: string | null } | { supplier_name?: string | null }[] | null;
+}): string {
+  const embed = bill.suppliers;
+  const master = Array.isArray(embed) ? embed[0]?.supplier_name : embed?.supplier_name;
+  return master ?? bill.supplier_name ?? "";
 }

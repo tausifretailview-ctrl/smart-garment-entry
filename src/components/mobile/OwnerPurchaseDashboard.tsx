@@ -12,6 +12,7 @@ import {
   IndianRupee, FileText, ShoppingCart, TrendingUp, Truck, Tag, CalendarIcon, ChevronRight, AlertTriangle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { purchaseBillDisplaySupplierName } from "@/utils/purchaseBillDashboardSearch";
 
 const fmt = (v: number) =>
   new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(v);
@@ -59,7 +60,7 @@ export const OwnerPurchaseDashboard = ({ period, setPeriod, customRange, setCust
       if (!currentOrganization) return [];
       const { data } = await supabase
         .from("purchase_bills")
-        .select("id, software_bill_no, supplier_invoice_no, supplier_name, supplier_id, net_amount, total_qty, bill_date, created_at")
+        .select("id, software_bill_no, supplier_invoice_no, supplier_name, supplier_id, net_amount, total_qty, bill_date, created_at, suppliers(supplier_name)")
         .eq("organization_id", currentOrganization.id)
         .is("deleted_at", null)
         .gte("bill_date", start)
@@ -137,7 +138,7 @@ export const OwnerPurchaseDashboard = ({ period, setPeriod, customRange, setCust
     if (!purchaseData?.length) return [];
     const map = new Map<string, { name: string; bills: number; total: number }>();
     purchaseData.forEach((p) => {
-      const key = p.supplier_name || "Unknown";
+      const key = purchaseBillDisplaySupplierName(p) || "Unknown";
       const ex = map.get(key) || { name: key, bills: 0, total: 0 };
       ex.bills++;
       ex.total += p.net_amount || 0;

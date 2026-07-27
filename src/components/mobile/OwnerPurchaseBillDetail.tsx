@@ -6,6 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, FileText, Truck, Calendar, Share2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { purchaseBillDisplaySupplierName } from "@/utils/purchaseBillDashboardSearch";
 
 const fmt = (v: number) =>
   new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 2 }).format(v);
@@ -21,7 +22,7 @@ export const OwnerPurchaseBillDetail = ({ billId, onBack }: Props) => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("purchase_bills")
-        .select("*")
+        .select("*, suppliers(supplier_name)")
         .eq("id", billId)
         .single();
       if (error) throw error;
@@ -45,12 +46,13 @@ export const OwnerPurchaseBillDetail = ({ billId, onBack }: Props) => {
 
   const handleShare = () => {
     if (!bill) return;
+    const supplierLabel = purchaseBillDisplaySupplierName(bill) || "Unknown";
     const text = [
       `📦 Purchase Bill: ${bill.software_bill_no}`,
       `📋 Supplier Inv: ${bill.supplier_invoice_no || "N/A"}`,
       `📅 Supplier bill: ${format(new Date(bill.bill_date), "dd MMM yyyy")}`,
       `🕐 Entry: ${formatPurchaseBillEntryAt(bill)}`,
-      `🏭 Supplier: ${bill.supplier_name || "Unknown"}`,
+      `🏭 Supplier: ${supplierLabel}`,
       `💰 Total: ${fmt(bill.net_amount || 0)}`,
     ].join("\n");
     if (navigator.share) {
@@ -130,7 +132,7 @@ export const OwnerPurchaseBillDetail = ({ billId, onBack }: Props) => {
               </div>
               <div className="flex items-center gap-2">
                 <Truck className="h-3.5 w-3.5 text-muted-foreground" />
-                <span className="text-xs text-foreground font-medium">{bill.supplier_name || "Unknown Supplier"}</span>
+                <span className="text-xs text-foreground font-medium">{purchaseBillDisplaySupplierName(bill) || "Unknown Supplier"}</span>
               </div>
               {bill.supplier_invoice_no && (
                 <div className="flex items-center gap-2">
