@@ -976,7 +976,7 @@ export default function ItemWiseSalesReport() {
               <div
                 key={item.label}
                 className={cn(
-                  "flex min-w-0 items-center justify-between gap-2 rounded-md px-2.5 py-1 shadow-sm",
+                  "flex min-w-0 items-center justify-between gap-2 rounded-md px-2.5 py-2 shadow-sm",
                   item.gradient,
                 )}
               >
@@ -990,7 +990,7 @@ export default function ItemWiseSalesReport() {
           type="button"
           variant="outline"
           size="icon"
-          className="h-8 w-8 shrink-0 border-slate-200 bg-white"
+          className="h-9 w-9 shrink-0 border-slate-200 bg-white"
           onClick={toggleKpiExpanded}
           aria-label={kpiExpanded ? "Hide summary" : "Show summary"}
           aria-expanded={kpiExpanded}
