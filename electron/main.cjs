@@ -23,6 +23,23 @@ const ALLOWED_NAV_HOSTS = [
 
 const SUPPORT_WHATSAPP_URL = 'https://wa.me/918424034844';
 
+/**
+ * Open http(s) URLs in the system browser only.
+ * Custom protocols / non-http schemes are dropped silently — never throw
+ * across IPC or navigation handlers.
+ */
+async function openExternalSafely(url) {
+  if (typeof url !== 'string' || !/^https?:\/\//i.test(url)) {
+    return false;
+  }
+  try {
+    await shell.openExternal(url);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 // ═══ PERF SWITCHES (must be set BEFORE app.whenReady) ═══
 // Keep timers/queries running normally when the window is hidden or in tray,
 // so reopening the app feels instant instead of "frozen for a few seconds".
@@ -844,7 +861,7 @@ function createWindow() {
 
   // Open external links (target=_blank / window.open) in the default browser
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    shell.openExternal(url);
+    void openExternalSafely(url);
     return { action: 'deny' };
   });
 
@@ -855,7 +872,7 @@ function createWindow() {
     // in the system browser. Preserved explicitly (subset of the allow-list rule).
     if (url.includes('supabase.co/auth/v1/authorize')) {
       event.preventDefault();
-      shell.openExternal(url);
+      void openExternalSafely(url);
       return;
     }
 
@@ -871,7 +888,7 @@ function createWindow() {
       ALLOWED_NAV_HOSTS.includes(host) && (host !== 'localhost' || isDev);
     if (!allowed) {
       event.preventDefault();
-      shell.openExternal(url);
+      void openExternalSafely(url);
     }
   });
 
@@ -894,7 +911,7 @@ function createWindow() {
       if (items.length) items.push({ type: 'separator' });
       items.push({
         label: 'Open Link in Browser',
-        click: () => shell.openExternal(params.linkURL),
+        click: () => { void openExternalSafely(params.linkURL); },
       });
       items.push({
         label: 'Copy Link',
@@ -1282,8 +1299,8 @@ function createMenu() {
         },
         { label: 'Check for Updates…', click: () => checkForUpdatesManually() },
         { type: 'separator' },
-        { label: 'WhatsApp Support', click: () => shell.openExternal(SUPPORT_WHATSAPP_URL) },
-        { label: 'Visit Website', click: () => shell.openExternal(PROD_URL) },
+        { label: 'WhatsApp Support', click: () => { void openExternalSafely(SUPPORT_WHATSAPP_URL); } },
+        { label: 'Visit Website', click: () => { void openExternalSafely(PROD_URL); } },
         { type: 'separator' },
         {
           label: 'About EzzyERP',
@@ -1341,9 +1358,7 @@ ipcMain.handle('check-for-updates', async (_event, interactive = true) => {
 });
 
 ipcMain.handle('open-external', async (_event, url) => {
-  if (typeof url === 'string' && /^https?:\/\//i.test(url)) {
-    await shell.openExternal(url);
-  }
+  await openExternalSafely(url);
 });
 
 // ═══ PRINTER IPC ═══
