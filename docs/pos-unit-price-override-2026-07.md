@@ -187,3 +187,19 @@ Do **not** invent a new column in Phase 1.
 ## Stop
 
 Phase 1 complete. Awaiting approval before Phase 2 implementation.
+
+---
+
+## Phase 2 status (2026-07-28)
+
+Built **without MRP Step 3** per product decision: unit-price edit on POS only; MRP persist/math unchanged (`grossAmount: totals.mrp` stays).
+
+| Item | Status |
+|------|--------|
+| Setting `allow_pos_edit_unit_price` (default off) | Done — Settings → Sale |
+| Confirm threshold `pos_unit_price_override_confirm_pct` (default 30) | Done |
+| Special right `pos_edit_unit_price` | Done — User Rights |
+| `rateAuthority` + `updateUnitPrice` + cap reject + confirm | Done — `POSSales.tsx` |
+| `updateMrp` preserves typed `unitCost` when `rateAuthority === 'unit'` | Done |
+| `sale_items.price_overridden` migration | SQL for approval only — `docs/pos-unit-price-price-overridden-migration.sql` (not applied; save does not write column yet) |
+| MRP Step 3 persist | Skipped by request |

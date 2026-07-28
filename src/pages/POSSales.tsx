@@ -13,6 +13,7 @@ import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { supabase } from "@/integrations/supabase/client";
 import { useVisibilityRefetch } from "@/hooks/useVisibilityRefetch";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { usePOS } from "@/contexts/POSContext";
 import { useCustomerBalance } from "@/hooks/useCustomerBalance";
 import { useCustomerSearch, useCustomerBalances } from "@/hooks/useCustomerSearch";
@@ -188,6 +189,11 @@ interface CartItem {
   discountPercent: number;
   discountAmount: number;
   unitCost: number;
+  /**
+   * Cart-only: who last set the rate on this line.
+   * 'unit' = typed unit price (Disc% cleared); 'discount' = Disc% / Disc Rs / scan default.
+   */
+  rateAuthority?: "unit" | "discount";
   netAmount: number;
   productId: string;
   variantId: string;
@@ -530,7 +536,8 @@ const PERF_PATH = "pos-sales";
 export default function POSSales() {
   useNavPerfPage(PERF_PATH);
   useEntryViewportSync();
-  const { currentOrganization } = useOrganization();
+  const { currentOrganization, organizationRole } = useOrganization();
+  const { hasSpecialPermission } = useUserPermissions();
   const { setOnNewSale, setOnClearCart, setOnOpenCashierReport, setOnOpenStockReport, setOnOpenSaleReturn, setOnSaveChanges, setOnEstimatePrint, setHasItems, setIsEditing, setIsSavingChanges } = usePOS();
   const { saveSale, updateSale, holdSale, resumeHeldSale, isSaving } = useSaveSale();
   const { flushScheduledSalesInvalidation } = useDashboardInvalidation();
@@ -754,6 +761,15 @@ export default function POSSales() {
   const [invoiceSearchInput, setInvoiceSearchInput] = useState("");
   const [showMixPaymentDialog, setShowMixPaymentDialog] = useState(false);
   const [showCreditCustomerRequiredDialog, setShowCreditCustomerRequiredDialog] = useState(false);
+  /** Local draft for Unit Price cell (commit on blur — avoids mid-keystroke cap reject). */
+  const [unitPriceDraft, setUnitPriceDraft] = useState<{ index: number; value: string } | null>(null);
+  const [unitPriceConfirm, setUnitPriceConfirm] = useState<{
+    index: number;
+    value: number;
+    mrp: number;
+    pctOff: number;
+    rupeesOff: number;
+  } | null>(null);
   const [refundAmount, setRefundAmount] = useState(0);
   const [creditNoteData, setCreditNoteData] = useState<any>(null);
   const [showCreditNoteDialog, setShowCreditNoteDialog] = useState(false);
@@ -1212,6 +1228,7 @@ export default function POSSales() {
           discountPercent: item.discount_percent,
           discountAmount: 0,
           unitCost: item.unit_price,
+          // rateAuthority stays unset until price_overridden column ships (migration pending approval)
           netAmount: item.line_total,
           productId: item.product_id,
           variantId: item.variant_id,
@@ -1330,6 +1347,20 @@ export default function POSSales() {
 
   // Optional POS invoice-date override (admin-gated). When OFF, POS silently uses today.
   const posAllowDateChange = (settingsData as any)?.sale_settings?.pos_allow_date_change === true;
+
+  /** Master switch — default off. Existing orgs unchanged until explicitly enabled. */
+  const allowPosEditUnitPrice =
+    (settingsData as any)?.sale_settings?.allow_pos_edit_unit_price === true;
+  const posUnitPriceOverrideConfirmPct = (() => {
+    const raw = Number((settingsData as any)?.sale_settings?.pos_unit_price_override_confirm_pct);
+    if (!Number.isFinite(raw)) return 30;
+    return Math.min(99, Math.max(1, Math.round(raw)));
+  })();
+  const canEditPosUnitPrice =
+    allowPosEditUnitPrice &&
+    (organizationRole === "admin" ||
+      organizationRole === "manager" ||
+      hasSpecialPermission("pos_edit_unit_price"));
 
   // sale_date to persist for the current bill: backdated ISO when the setting is
   // ON, otherwise undefined so useSaveSale falls back to today-in-IST (unchanged).
@@ -3122,8 +3153,13 @@ export default function POSSales() {
     if (discountPercent < 0 || discountPercent > 100) return;
     setItems((prev) => {
       const updatedItems = [...prev];
+      const prevItem = updatedItems[index];
+      const switchingFromUnit = prevItem.rateAuthority === "unit";
       updatedItems[index] = {
-        ...updatedItems[index],
+        ...prevItem,
+        rateAuthority: "discount",
+        // Clear typed rate gap only when leaving unit-authority mode.
+        unitCost: switchingFromUnit ? Number(prevItem.mrp) || 0 : prevItem.unitCost,
         discountPercent,
         discountAmount: 0,
       };
@@ -3139,6 +3175,8 @@ export default function POSSales() {
         const room = Math.max(0, maxLine - otherLine);
         updatedItems[index] = {
           ...item,
+          rateAuthority: "discount",
+          unitCost: switchingFromUnit ? Number(item.mrp) || 0 : item.unitCost,
           discountPercent: baseAmount > 0 ? Number(((room / baseAmount) * 100).toFixed(4)) : 0,
           discountAmount: 0,
         };
@@ -3156,10 +3194,13 @@ export default function POSSales() {
     setItems((prev) => {
       const updatedItems = [...prev];
       const item = updatedItems[index];
+      const switchingFromUnit = item.rateAuthority === "unit";
       const baseAmount = Math.max(0, (Number(item.mrp) || 0) * (Number(item.quantity) || 0));
       const mappedPercent = baseAmount > 0 ? Math.min(100, (discountAmount / baseAmount) * 100) : 0;
       updatedItems[index] = {
         ...item,
+        rateAuthority: "discount",
+        unitCost: switchingFromUnit ? Number(item.mrp) || 0 : item.unitCost,
         discountPercent: Number(mappedPercent.toFixed(4)),
         discountAmount: 0,
       };
@@ -3175,6 +3216,8 @@ export default function POSSales() {
         const room = Math.max(0, maxLine - otherLine);
         updatedItems[index] = {
           ...cappedItem,
+          rateAuthority: "discount",
+          unitCost: switchingFromUnit ? Number(cappedItem.mrp) || 0 : cappedItem.unitCost,
           discountPercent: base > 0 ? Number(((room / base) * 100).toFixed(4)) : 0,
           discountAmount: 0,
         };
@@ -3187,13 +3230,121 @@ export default function POSSales() {
     });
   };
 
+  /**
+   * Minimum unitCost on `index` so bill line+flat discount stays within cap,
+   * assuming Disc% / Disc Rs on that line are cleared (unit-authority path).
+   */
+  const minUnitPriceForDiscountCap = (rows: CartItem[], index: number): number => {
+    const item = rows[index];
+    if (!item) return 0;
+    const mrp = Number(item.mrp) || 0;
+    const qty = Math.max(0.0001, Number(item.quantity) || 0);
+    const withClearedDisc = rows.map((r, i) =>
+      i === index
+        ? { ...r, discountPercent: 0, discountAmount: 0, unitCost: mrp, rateAuthority: "unit" as const }
+        : r,
+    );
+    const mrpTotal = sumMrpTotal(withClearedDisc);
+    const maxLine = Math.max(0, Math.round((mrpTotal - flatDiscountAmount) * 100) / 100);
+    const otherDisc = sumLineDiscount(withClearedDisc);
+    const room = Math.max(0, maxLine - otherDisc);
+    return Math.max(0, Math.round((mrp - room / qty) * 100) / 100);
+  };
+
+  /** Apply typed unit price. Returns false if rejected (cap / invalid). */
+  const applyUnitPriceToCart = (index: number, rawValue: number): boolean => {
+    if (rawValue < 0 || !Number.isFinite(rawValue)) return false;
+    if (index < 0 || index >= items.length) return false;
+    const mrp = Number(items[index].mrp) || 0;
+    const unitCost = Math.min(mrp > 0 ? mrp : rawValue, Math.max(0, rawValue));
+    const minUnit = minUnitPriceForDiscountCap(items, index);
+    if (unitCost + 0.005 < minUnit) {
+      toast.warning(
+        `Minimum ₹${minUnit.toLocaleString("en-IN", { maximumFractionDigits: 2 })} on this line.`,
+      );
+      return false;
+    }
+    setItems((prev) => {
+      if (index < 0 || index >= prev.length) return prev;
+      const updatedItems = [...prev];
+      const lineMrp = Number(updatedItems[index].mrp) || 0;
+      const nextUnit = Math.min(lineMrp > 0 ? lineMrp : unitCost, Math.max(0, unitCost));
+      updatedItems[index] = {
+        ...updatedItems[index],
+        rateAuthority: "unit",
+        unitCost: nextUnit,
+        discountPercent: 0,
+        discountAmount: 0,
+      };
+      updatedItems[index] = applyPosGarmentGstToItem(updatedItems[index], garmentGstSettings);
+      return updatedItems;
+    });
+    return true;
+  };
+
+  const requestUnitPriceCommit = (index: number, rawValue: number) => {
+    if (!canEditPosUnitPrice) return;
+    if (index < 0 || index >= items.length) return;
+    if (!Number.isFinite(rawValue) || rawValue < 0) {
+      setUnitPriceDraft(null);
+      return;
+    }
+    const mrp = Number(items[index].mrp) || 0;
+    const unitCost = Math.min(mrp > 0 ? mrp : rawValue, Math.max(0, rawValue));
+    const minUnit = minUnitPriceForDiscountCap(items, index);
+    if (unitCost + 0.005 < minUnit) {
+      toast.warning(
+        `Minimum ₹${minUnit.toLocaleString("en-IN", { maximumFractionDigits: 2 })} on this line.`,
+      );
+      // Keep draft so cashier can correct; do not snap cart.
+      return;
+    }
+    const rupeesOff = Math.max(0, (mrp - unitCost) * (Number(items[index].quantity) || 0));
+    const pctOff = mrp > 0.005 ? ((mrp - unitCost) / mrp) * 100 : 0;
+    if (mrp > 0.005 && pctOff > posUnitPriceOverrideConfirmPct + 0.001) {
+      setUnitPriceConfirm({
+        index,
+        value: unitCost,
+        mrp,
+        pctOff,
+        rupeesOff,
+      });
+      return;
+    }
+    if (applyUnitPriceToCart(index, unitCost)) {
+      setUnitPriceDraft(null);
+    }
+  };
+
   const updateMrp = (index: number, newMrp: number) => {
     if (newMrp < 0) return;
-    setItems(prev => {
+    setItems((prev) => {
       const updatedItems = [...prev];
-      updatedItems[index].mrp = newMrp;
-      updatedItems[index].unitCost = newMrp;
+      const item = updatedItems[index];
+      updatedItems[index] = {
+        ...item,
+        mrp: newMrp,
+        // Typed unit override must survive MRP edit — do not wipe unitCost.
+        unitCost:
+          item.rateAuthority === "unit"
+            ? Math.min(Number(item.unitCost) || 0, newMrp)
+            : newMrp,
+      };
       updatedItems[index] = applyPosGarmentGstToItem(updatedItems[index], garmentGstSettings);
+
+      if (item.rateAuthority === "unit") {
+        const minUnit = minUnitPriceForDiscountCap(updatedItems, index);
+        if ((Number(updatedItems[index].unitCost) || 0) + 0.005 < minUnit) {
+          updatedItems[index] = {
+            ...updatedItems[index],
+            unitCost: minUnit,
+          };
+          updatedItems[index] = applyPosGarmentGstToItem(updatedItems[index], garmentGstSettings);
+          toast.warning(
+            `Unit price raised to ₹${minUnit.toLocaleString("en-IN", { maximumFractionDigits: 2 })} to stay within bill discount cap`,
+          );
+        }
+      }
       return updatedItems;
     });
   };
@@ -4863,6 +5014,7 @@ export default function POSSales() {
       discountPercent: Number(item.discount_percent),
       discountAmount: 0,
       unitCost: Number(item.unit_price),
+      // rateAuthority unset until price_overridden column (migration pending approval)
       netAmount: Number(item.line_total),
       productId: item.product_id,
       variantId: item.variant_id,
@@ -5445,6 +5597,59 @@ export default function POSSales() {
     </AlertDialog>
   );
 
+  const unitPriceConfirmDialog = (
+    <AlertDialog
+      open={!!unitPriceConfirm}
+      onOpenChange={(open) => {
+        if (!open) setUnitPriceConfirm(null);
+      }}
+    >
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Confirm low unit price</AlertDialogTitle>
+          <AlertDialogDescription asChild>
+            <div className="space-y-2 text-sm text-muted-foreground">
+              <p>
+                Typed unit price is more than {posUnitPriceOverrideConfirmPct}% below MRP.
+              </p>
+              {unitPriceConfirm && (
+                <ul className="list-disc pl-5 space-y-1">
+                  <li>
+                    MRP ₹
+                    {unitPriceConfirm.mrp.toLocaleString("en-IN", { maximumFractionDigits: 2 })} → unit ₹
+                    {unitPriceConfirm.value.toLocaleString("en-IN", { maximumFractionDigits: 2 })}
+                  </li>
+                  <li>
+                    Effective discount{" "}
+                    {unitPriceConfirm.pctOff.toLocaleString("en-IN", { maximumFractionDigits: 1 })}% (₹
+                    {unitPriceConfirm.rupeesOff.toLocaleString("en-IN", {
+                      maximumFractionDigits: 2,
+                    })}
+                    )
+                  </li>
+                </ul>
+              )}
+            </div>
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel onClick={() => setUnitPriceConfirm(null)}>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={() => {
+              if (!unitPriceConfirm) return;
+              if (applyUnitPriceToCart(unitPriceConfirm.index, unitPriceConfirm.value)) {
+                setUnitPriceDraft(null);
+              }
+              setUnitPriceConfirm(null);
+            }}
+          >
+            Apply price
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+
   // Tablet POS Layout (iPad)
   if (isTablet && !isMobile) {
     return (
@@ -5570,6 +5775,7 @@ export default function POSSales() {
         {posPrintPortal}
 
         {creditCustomerRequiredDialog}
+        {unitPriceConfirmDialog}
       </>
     );
   }
@@ -5729,6 +5935,7 @@ export default function POSSales() {
           </DialogContent>
         </Dialog>
         {creditCustomerRequiredDialog}
+        {unitPriceConfirmDialog}
 
         {/* Print Confirmation Dialog */}
         <AlertDialog open={showPrintConfirmDialog} onOpenChange={setShowPrintConfirmDialog}>
@@ -6691,15 +6898,63 @@ export default function POSSales() {
                               step="0.01"
                             />
                           </div>
-                          <div
-                            className="flex items-center justify-end text-base font-medium text-muted-foreground"
-                            title={
-                              taxType === "exclusive"
-                                ? "Taxable unit (GST added in line total)"
-                                : "Net unit after line Disc% / Disc Rs"
-                            }
-                          >
-                            ₹{formatINR2(posLineNetUnitPrice(item))}
+                          <div>
+                            {canEditPosUnitPrice ? (
+                              <Input
+                                type="number"
+                                inputMode="decimal"
+                                value={
+                                  unitPriceDraft?.index === index
+                                    ? unitPriceDraft.value
+                                    : item.unitCost || ""
+                                }
+                                onFocus={(e) => {
+                                  setUnitPriceDraft({
+                                    index,
+                                    value:
+                                      item.unitCost != null && item.unitCost !== 0
+                                        ? String(item.unitCost)
+                                        : "",
+                                  });
+                                  // select() is safe on number; setSelectionRange is not
+                                  e.currentTarget.select();
+                                }}
+                                onChange={(e) =>
+                                  setUnitPriceDraft({ index, value: e.target.value })
+                                }
+                                onBlur={() => {
+                                  if (unitPriceDraft?.index !== index) return;
+                                  const parsed = parseFloat(unitPriceDraft.value);
+                                  if (!Number.isFinite(parsed)) {
+                                    setUnitPriceDraft(null);
+                                    return;
+                                  }
+                                  requestUnitPriceCommit(index, parsed);
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") {
+                                    e.preventDefault();
+                                    (e.target as HTMLInputElement).blur();
+                                  }
+                                }}
+                                placeholder="0"
+                                className="h-8 text-sm w-full text-right bg-muted/30 border-border/60"
+                                min="0"
+                                step="0.01"
+                                title="Selling unit price (typed rate clears Disc% / Disc Rs)"
+                              />
+                            ) : (
+                              <div
+                                className="flex items-center justify-end text-base font-medium text-muted-foreground h-8"
+                                title={
+                                  taxType === "exclusive"
+                                    ? "Taxable unit (GST added in line total)"
+                                    : "Net unit after line Disc% / Disc Rs"
+                                }
+                              >
+                                ₹{formatINR2(posLineNetUnitPrice(item))}
+                              </div>
+                            )}
                           </div>
                           <div className="flex items-center justify-between">
                             <span className="font-extrabold text-base md:text-lg">
@@ -7447,6 +7702,7 @@ export default function POSSales() {
           </DialogContent>
         </Dialog>
         {creditCustomerRequiredDialog}
+        {unitPriceConfirmDialog}
 
         {/* Print Confirmation Dialog */}
         <AlertDialog open={showPrintConfirmDialog} onOpenChange={setShowPrintConfirmDialog}>

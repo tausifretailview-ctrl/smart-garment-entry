@@ -156,6 +156,7 @@ const specialRights = [
   { id: "delete_records", name: "Delete Records", description: "Allow deleting records" },
   { id: "cancel_invoice", name: "Cancel Invoice", description: "Allow cancelling sales/purchase invoices (reverses stock)" },
   { id: "edit_paid_invoices", name: "Edit Paid Invoices", description: "Allow editing and deleting fully paid invoices" },
+  { id: "pos_edit_unit_price", name: "Edit POS unit price", description: "Allow editing Unit Price on the POS cart (also requires Sale setting Allow POS edit unit price)" },
   { id: "whatsapp_send", name: "WhatsApp Messaging", description: "Send messages via WhatsApp" },
   { id: "detail_accounting", name: "Detail Accounting", description: "Access detailed accounting features" },
   { id: "export_data", name: "Export Data", description: "Export data to Excel/PDF" },

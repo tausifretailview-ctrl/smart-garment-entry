@@ -2570,6 +2570,63 @@ export default function Settings() {
 
                 <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/30">
                   <div className="space-y-0.5">
+                    <Label htmlFor="allow_pos_edit_unit_price" className="text-sm font-medium">
+                      Allow POS edit unit price
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Let permitted users type Unit Price on the POS cart. Off by default. Admins/managers always allowed when on; cashiers need the Edit POS unit price special right.
+                    </p>
+                  </div>
+                  <Switch
+                    id="allow_pos_edit_unit_price"
+                    checked={(settings.sale_settings as any)?.allow_pos_edit_unit_price === true}
+                    onCheckedChange={(checked) =>
+                      setSettings({
+                        ...settings,
+                        sale_settings: {
+                          ...settings.sale_settings,
+                          allow_pos_edit_unit_price: checked,
+                        } as any,
+                      })
+                    }
+                  />
+                </div>
+
+                {(settings.sale_settings as any)?.allow_pos_edit_unit_price === true && (
+                  <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/30">
+                    <div className="space-y-0.5">
+                      <Label htmlFor="pos_unit_price_override_confirm_pct" className="text-sm font-medium">
+                        Confirm when unit price is below MRP by (%)
+                      </Label>
+                      <p className="text-xs text-muted-foreground">
+                        Show a confirmation dialog when the typed unit price is more than this percent below MRP. Default 30.
+                      </p>
+                    </div>
+                    <Input
+                      id="pos_unit_price_override_confirm_pct"
+                      type="number"
+                      min={1}
+                      max={99}
+                      step={1}
+                      className="w-20 h-9 text-right"
+                      value={(settings.sale_settings as any)?.pos_unit_price_override_confirm_pct ?? 30}
+                      onChange={(e) => {
+                        const raw = parseFloat(e.target.value);
+                        const pct = Number.isFinite(raw) ? Math.min(99, Math.max(1, Math.round(raw))) : 30;
+                        setSettings({
+                          ...settings,
+                          sale_settings: {
+                            ...settings.sale_settings,
+                            pos_unit_price_override_confirm_pct: pct,
+                          } as any,
+                        });
+                      }}
+                    />
+                  </div>
+                )}
+
+                <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/30">
+                  <div className="space-y-0.5">
                     <Label htmlFor="auto_apply_advance" className="text-sm font-medium">
                       Auto-Apply Advance Balance
                     </Label>
