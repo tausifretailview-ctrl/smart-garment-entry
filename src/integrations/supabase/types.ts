@@ -3967,7 +3967,6 @@ export type Database = {
           purchase_discount_type: string | null
           purchase_discount_value: number | null
           purchase_gst_percent: number | null
-          requires_imei: boolean
           sale_discount_type: string | null
           sale_discount_value: number | null
           sale_gst_percent: number | null
@@ -3997,7 +3996,6 @@ export type Database = {
           purchase_discount_type?: string | null
           purchase_discount_value?: number | null
           purchase_gst_percent?: number | null
-          requires_imei?: boolean
           sale_discount_type?: string | null
           sale_discount_value?: number | null
           sale_gst_percent?: number | null
@@ -4027,7 +4025,6 @@ export type Database = {
           purchase_discount_type?: string | null
           purchase_discount_value?: number | null
           purchase_gst_percent?: number | null
-          requires_imei?: boolean
           sale_discount_type?: string | null
           sale_discount_value?: number | null
           sale_gst_percent?: number | null
@@ -8713,6 +8710,16 @@ export type Database = {
           opening_pending: number
         }[]
       }
+      detect_orphan_purchase_stock: {
+        Args: { p_organization_id?: string }
+        Returns: {
+          bill_number: string
+          movements: number
+          net_qty: number
+          organization_id: string
+          reference_id: string
+        }[]
+      }
       detect_settlement_drift: {
         Args: { p_organization_id?: string }
         Returns: {
@@ -9525,6 +9532,10 @@ export type Database = {
       get_wappconnect_instance_masked: {
         Args: { p_organization_id: string }
         Returns: string
+      }
+      hard_delete_purchase_bill: {
+        Args: { p_bill_id: string; p_user_id: string }
+        Returns: Json
       }
       has_org_role: {
         Args: {
