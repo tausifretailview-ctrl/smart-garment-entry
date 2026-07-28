@@ -17,6 +17,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
+import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useEffect as useEffectForSizeGroups } from "react";
@@ -392,6 +393,7 @@ export default function Settings() {
   const { orgNavigate: navigate } = useOrgNavigation();
   const location = useLocation();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const { currentOrganization, organizations } = useOrganization();
   const [visitedTabs, setVisitedTabs] = useState<Set<string>>(new Set(["company"]));
   const [currentTab, setCurrentTab] = useState("company");
@@ -844,6 +846,11 @@ export default function Settings() {
       }
 
       if (error) throw error;
+
+      // POS / other screens read via useSettings() — bump cache so toggles apply immediately.
+      await queryClient.invalidateQueries({
+        queryKey: ["org-settings", currentOrganization.id],
+      });
 
       // Sync Precision Pro default landing design onto printer_presets.is_default
       const landing =
