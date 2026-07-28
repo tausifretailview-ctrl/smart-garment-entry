@@ -3801,7 +3801,10 @@ const PurchaseEntry = () => {
       const cleaned = rawBarcode.replace(/\s/g, "").toUpperCase();
       if (!cleaned || cleaned === item.barcode) return;
 
-      if (!validateIMEI(cleaned, mobileERPSettings.imei_min_length, mobileERPSettings.imei_max_length)) {
+      if (
+        productRequiresImei({ requires_imei: item.requires_imei }, mobileERPSettings) &&
+        !validateIMEI(cleaned, mobileERPSettings.imei_min_length, mobileERPSettings.imei_max_length)
+      ) {
         toast({
           title: "Invalid IMEI",
           description: `IMEI must be ${mobileERPSettings.imei_min_length}-${mobileERPSettings.imei_max_length} characters.`,
@@ -7051,7 +7054,7 @@ const PurchaseEntry = () => {
                     <TableHead className="w-[60px]">SR.NO</TableHead>
                     <TableHead className="col-product w-[20rem] max-w-[20rem]">ITEM NAME</TableHead>
                     {showPurCol.size && <TableHead className="pur-col-size w-[4.5rem] text-center">SIZE</TableHead>}
-                    <TableHead className="pur-col-barcode w-[9rem]">{isMobileERPMode ? "IMEI NUMBER" : "BARCODE"}</TableHead>
+                    <TableHead className="pur-col-barcode w-[9rem]">{isMobileERPMode ? "IMEI / BARCODE" : "BARCODE"}</TableHead>
                     <TableHead className="pur-col-num w-[5.5rem] text-right pur-qty-col">QTY</TableHead>
                     <TableHead className="pur-col-num w-[6.5rem] text-right pur-rate-col">PUR.RATE</TableHead>
                     <TableHead className="pur-col-num w-[6.5rem] text-right sale-rate-col">SALE.RATE</TableHead>

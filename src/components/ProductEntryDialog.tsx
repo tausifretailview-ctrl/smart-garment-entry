@@ -658,6 +658,8 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
   useEffect(() => {
     if (mobileERPMode?.locked_size_qty && hideOpeningQty && !formData.size_group_id) {
       const colorsToUse = formData.colors.length > 0 ? formData.colors : [""];
+      const accessoryQty =
+        formData.requires_imei === false ? Math.max(1, mobileERPQty) : 1;
       const newVariants: ProductVariant[] = colorsToUse.map(color => ({
         color,
         size: "None",
@@ -667,13 +669,64 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
         barcode: "",
         active: true,
         opening_qty: 0,
-        purchase_qty: 1,
+        purchase_qty: accessoryQty,
       }));
       if (isAutoBarcode) autoBarcodePending.current = true;
       setVariants(newVariants);
       setShowVariants(true);
     }
-  }, [mobileERPMode?.locked_size_qty, hideOpeningQty, formData.colors, formData.size_group_id]);
+    // intentionally omit mobileERPQty — accessories qty is synced in a dedicated effect below
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mobileERPMode?.locked_size_qty, hideOpeningQty, formData.colors, formData.size_group_id, formData.requires_imei]);
+
+  // Accessories (requires_imei off): qty field drives purchase_qty on one shared-barcode variant per color.
+  // Serialized products keep qty=1 per row and build rows via IMEI scan instead.
+  useEffect(() => {
+    if (!mobileERPMode?.locked_size_qty || !hideOpeningQty) return;
+    if (formData.requires_imei !== false) return;
+    const qty = Math.max(1, mobileERPQty);
+    setVariants((prev) => {
+      const colorsToUse = formData.colors.length > 0 ? formData.colors : [""];
+      const byColor = new Map(prev.map((v) => [v.color || "", v]));
+      const next = colorsToUse.map((color) => {
+        const existing = byColor.get(color);
+        if (existing) {
+          return { ...existing, size: "None", purchase_qty: qty };
+        }
+        return {
+          color,
+          size: "None",
+          pur_price: formData.default_pur_price ?? 0,
+          sale_price: formData.default_sale_price ?? 0,
+          mrp: formData.default_mrp ?? null,
+          barcode: "",
+          active: true,
+          opening_qty: 0,
+          purchase_qty: qty,
+        } as ProductVariant;
+      });
+      const same =
+        next.length === prev.length &&
+        next.every(
+          (v, i) =>
+            v.color === prev[i]?.color &&
+            v.size === prev[i]?.size &&
+            v.purchase_qty === prev[i]?.purchase_qty &&
+            v.barcode === prev[i]?.barcode,
+        );
+      return same ? prev : next;
+    });
+    setShowVariants(true);
+  }, [
+    mobileERPMode?.locked_size_qty,
+    hideOpeningQty,
+    formData.requires_imei,
+    formData.colors,
+    mobileERPQty,
+    formData.default_pur_price,
+    formData.default_sale_price,
+    formData.default_mrp,
+  ]);
 
   // Sync selectedSizes and auto-generate variants when size_group_id or colors change
   useEffect(() => {
@@ -689,8 +742,11 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
         if (hideOpeningQty) {
           const colorsToUse = formData.colors.length > 0 ? formData.colors : [""];
           
-          // Mobile ERP / IMEI mode: single "None" size per color, qty=1
+          // Mobile ERP: one "None" size per color.
+          // Serialized → qty 1 (IMEI scan expands rows). Accessories → purchase_qty = mobileERPQty.
           if (mobileERPMode?.locked_size_qty) {
+            const accessoryQty =
+              formData.requires_imei === false ? Math.max(1, mobileERPQty) : 1;
             const newVariants: ProductVariant[] = colorsToUse.map(color => ({
               color,
               size: "None",
@@ -700,7 +756,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
               barcode: "",
               active: true,
               opening_qty: 0,
-              purchase_qty: 1,
+              purchase_qty: accessoryQty,
             }));
             if (isAutoBarcode) autoBarcodePending.current = true;
             setVariants(newVariants);
@@ -943,6 +999,8 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
     setVariants([]);
     setShowVariants(false);
     setProductImage(null);
+    setMobileERPQty(1);
+    setImeiScanOpen(false);
   };
 
   // Save current product details to localStorage for next time
@@ -2711,6 +2769,10 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                       onKeyDown={(e) => {
                         if (e.key === "Enter") {
                           e.preventDefault();
+                          if (formData.requires_imei === false) {
+                            document.getElementById("mobile-erp-shared-barcode")?.focus();
+                            return;
+                          }
                           if (mobileERPQty >= 1) {
                             openImeiScanDialog();
                           }
@@ -2719,7 +2781,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                       className="w-24 h-9 text-center font-bold text-lg"
                       placeholder="1"
                     />
-                    {mobileERPQty >= 1 && (
+                    {formData.requires_imei !== false && mobileERPQty >= 1 && (
                       <Button
                         type="button"
                         variant="default"
@@ -2732,12 +2794,40 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                       </Button>
                     )}
                     <span className="text-xs text-muted-foreground">
-                      {mobileERPQty === 1
-                        ? "Single unit — scan IMEI above or enter below"
-                        : `${mobileERPQty} units — click to scan IMEIs`}
+                      {formData.requires_imei === false
+                        ? mobileERPQty === 1
+                          ? "1 unit — enter shared barcode (EAN) below"
+                          : `${mobileERPQty} units on one shared barcode — enter EAN below`
+                        : mobileERPQty === 1
+                          ? "Single unit — scan IMEI above or enter below"
+                          : `${mobileERPQty} units — click to scan IMEIs`}
                     </span>
                   </div>
-                  {mobileERPQty === 1 && variants.length > 0 && (
+                  {formData.requires_imei === false && variants.length > 0 && (
+                    <div className="space-y-1.5 rounded-lg border border-emerald-200 bg-emerald-50/40 p-3">
+                      <Label htmlFor="mobile-erp-shared-barcode" className="text-sm font-semibold text-emerald-900">
+                        Barcode (EAN / shared)
+                      </Label>
+                      <Input
+                        id="mobile-erp-shared-barcode"
+                        value={variants[0]?.barcode || ""}
+                        onChange={(e) => {
+                          const cleaned = e.target.value.replace(/[^a-zA-Z0-9\-_.\/]/g, "").toUpperCase();
+                          // Keep one shared barcode on every accessory color row
+                          setVariants((prev) =>
+                            prev.map((v) => ({ ...v, barcode: cleaned, purchase_qty: Math.max(1, mobileERPQty) })),
+                          );
+                        }}
+                        placeholder="Scan or type shared barcode..."
+                        className="font-mono tracking-wider h-10 text-[15px]"
+                        autoComplete="off"
+                      />
+                      <p className="text-[11px] text-muted-foreground">
+                        Bill line qty will be {Math.max(1, mobileERPQty)} on this one SKU.
+                      </p>
+                    </div>
+                  )}
+                  {formData.requires_imei !== false && mobileERPQty === 1 && variants.length > 0 && (
                     <div className="space-y-1.5 rounded-lg border border-purple-200 bg-purple-50/40 p-3">
                       <Label htmlFor="mobile-erp-imei" className="text-sm font-semibold text-purple-900">
                         IMEI Number
@@ -3596,8 +3686,10 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                               Sale Price<span className="text-destructive ml-0.5">*</span>
                             </TableHead>
                             {showMrp && <TableHead className="text-[13px] py-3 font-bold text-blue-700 font-outfit bg-blue-50/50">MRP<span className="text-destructive ml-0.5">*</span></TableHead>}
-                            <TableHead className="text-[13px] py-3 font-bold text-violet-700 font-outfit">{mobileERPMode?.enabled ? 'IMEI Number' : 'Barcode'}<span className="text-destructive ml-0.5">*</span></TableHead>
-                            {!hideOpeningQty && <TableHead className="text-[13px] py-3 font-bold text-violet-700 font-outfit">Qty</TableHead>}
+                            <TableHead className="text-[13px] py-3 font-bold text-violet-700 font-outfit">{mobileERPMode?.enabled && formData.requires_imei !== false ? 'IMEI Number' : 'Barcode'}<span className="text-destructive ml-0.5">*</span></TableHead>
+                            {(!hideOpeningQty || (mobileERPMode?.locked_size_qty && formData.requires_imei === false)) && (
+                              <TableHead className="text-[13px] py-3 font-bold text-violet-700 font-outfit">Qty</TableHead>
+                            )}
                             <TableHead className="text-[13px] py-3 font-bold text-violet-700 font-outfit text-center">Active</TableHead>
                             <TableHead className="text-[13px] py-3 w-8"></TableHead>
                           </TableRow>
@@ -3666,9 +3758,13 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                                     "w-36 h-9 text-sm font-mono border-violet-200",
                                     mobileERPMode?.enabled && "tracking-wider"
                                   )}
-                                  placeholder={mobileERPMode?.enabled ? "Scan IMEI..." : "Barcode"}
+                                  placeholder={
+                                    mobileERPMode?.enabled && formData.requires_imei !== false
+                                      ? "Scan IMEI..."
+                                      : "Barcode"
+                                  }
                                 />
-                                {mobileERPMode?.enabled && variant.barcode && (() => {
+                                {mobileERPMode?.enabled && formData.requires_imei !== false && variant.barcode && (() => {
                                   const cleaned = variant.barcode.replace(/\s/g, '');
                                   const isValid = /^[a-zA-Z0-9\-_.\/]+$/.test(cleaned) && cleaned.length >= (mobileERPMode.imei_min_length || 4) && cleaned.length <= (mobileERPMode.imei_max_length || 25);
                                   if (!isValid && cleaned.length > 0) {
@@ -3677,8 +3773,13 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                                   return null;
                                 })()}
                               </TableCell>
-                              {!hideOpeningQty && (
+                              {(!hideOpeningQty || (mobileERPMode?.locked_size_qty && formData.requires_imei === false)) && (
                                 <TableCell className="py-2.5">
+                                  {hideOpeningQty ? (
+                                    <span className="inline-flex min-w-[2.5rem] justify-center font-mono font-bold tabular-nums text-[15px]">
+                                      {variant.purchase_qty || 0}
+                                    </span>
+                                  ) : (
                                   <Input
                                     type="number"
                                     value={variant.opening_qty || ""}
@@ -3686,6 +3787,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                                     className="w-20 h-9 text-sm"
                                     placeholder="0"
                                   />
+                                  )}
                                 </TableCell>
                               )}
                               <TableCell className="text-center py-2.5">
@@ -3773,7 +3875,14 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
               ) : (
                 <>
                   ➕ {hideOpeningQty
-                    ? `Add ${variants.filter(v => (v.purchase_qty || 0) > 0 && !disabledSizes.has(v.size) && (formData.colors.length === 0 || !v.color || formData.colors.includes(v.color))).length || ''} Sizes to Bill`
+                    ? (() => {
+                        const active = variants.filter(v => (v.purchase_qty || 0) > 0 && !disabledSizes.has(v.size) && (formData.colors.length === 0 || !v.color || formData.colors.includes(v.color)));
+                        const totalPcs = active.reduce((s, v) => s + (v.purchase_qty || 0), 0);
+                        if (mobileERPMode?.locked_size_qty && formData.requires_imei === false && totalPcs > 0) {
+                          return `Add ${totalPcs} pcs to Bill`;
+                        }
+                        return `Add ${active.length || ''} Sizes to Bill`;
+                      })()
                     : 'Add to Bill'
                   }
                 </>
