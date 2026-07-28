@@ -658,42 +658,25 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
   useEffect(() => {
     if (mobileERPMode?.locked_size_qty && hideOpeningQty && !formData.size_group_id) {
       const colorsToUse = formData.colors.length > 0 ? formData.colors : [""];
-      const accessoryQty =
-        formData.requires_imei === false ? Math.max(1, mobileERPQty) : 1;
-      const newVariants: ProductVariant[] = colorsToUse.map(color => ({
-        color,
-        size: "None",
-        pur_price: formData.default_pur_price ?? 0,
-        sale_price: formData.default_sale_price ?? 0,
-        mrp: formData.default_mrp ?? null,
-        barcode: "",
-        active: true,
-        opening_qty: 0,
-        purchase_qty: accessoryQty,
-      }));
-      if (isAutoBarcode) autoBarcodePending.current = true;
-      setVariants(newVariants);
-      setShowVariants(true);
-    }
-    // intentionally omit mobileERPQty — accessories qty is synced in a dedicated effect below
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mobileERPMode?.locked_size_qty, hideOpeningQty, formData.colors, formData.size_group_id, formData.requires_imei]);
-
-  // Accessories (requires_imei off): qty field drives purchase_qty on one shared-barcode variant per color.
-  // Serialized products keep qty=1 per row and build rows via IMEI scan instead.
-  useEffect(() => {
-    if (!mobileERPMode?.locked_size_qty || !hideOpeningQty) return;
-    if (formData.requires_imei !== false) return;
-    const qty = Math.max(1, mobileERPQty);
-    setVariants((prev) => {
-      const colorsToUse = formData.colors.length > 0 ? formData.colors : [""];
-      const byColor = new Map(prev.map((v) => [v.color || "", v]));
-      const next = colorsToUse.map((color) => {
-        const existing = byColor.get(color);
-        if (existing) {
-          return { ...existing, size: "None", purchase_qty: qty };
-        }
-        return {
+      const sharedBarcode = "";
+      let newVariants: ProductVariant[];
+      if (formData.requires_imei === false) {
+        const qty = Math.max(1, mobileERPQty);
+        newVariants = colorsToUse.flatMap((color) =>
+          Array.from({ length: qty }, (_, i) => ({
+            color,
+            size: qty === 1 ? "None" : `Unit-${i + 1}`,
+            pur_price: formData.default_pur_price ?? 0,
+            sale_price: formData.default_sale_price ?? 0,
+            mrp: formData.default_mrp ?? null,
+            barcode: sharedBarcode,
+            active: true,
+            opening_qty: 0,
+            purchase_qty: 1,
+          })),
+        );
+      } else {
+        newVariants = colorsToUse.map((color) => ({
           color,
           size: "None",
           pur_price: formData.default_pur_price ?? 0,
@@ -702,9 +685,42 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
           barcode: "",
           active: true,
           opening_qty: 0,
-          purchase_qty: qty,
-        } as ProductVariant;
-      });
+          purchase_qty: 1,
+        }));
+      }
+      if (isAutoBarcode) autoBarcodePending.current = true;
+      setVariants(newVariants);
+      setShowVariants(true);
+    }
+    // intentionally omit mobileERPQty — accessories qty is synced in a dedicated effect below
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mobileERPMode?.locked_size_qty, hideOpeningQty, formData.colors, formData.size_group_id, formData.requires_imei]);
+
+  // Accessories (requires_imei off): one UI row per unit for shared EAN scan; save collapses to 1 SKU.
+  useEffect(() => {
+    if (!mobileERPMode?.locked_size_qty || !hideOpeningQty) return;
+    if (formData.requires_imei !== false) return;
+    const qty = Math.max(1, mobileERPQty);
+    setVariants((prev) => {
+      const colorsToUse = formData.colors.length > 0 ? formData.colors : [""];
+      const barcodes = prev.map((v) => (v.barcode || "").trim()).filter(Boolean);
+      const allSame = barcodes.length === 0 || barcodes.every((b) => b === barcodes[0]);
+      // Keep shared EAN when resizing qty; clear when switching from unique IMEI rows
+      const sharedBarcode = allSame ? (barcodes[0] || "") : "";
+      const priceSrc = prev[0];
+      const next: ProductVariant[] = colorsToUse.flatMap((color) =>
+        Array.from({ length: qty }, (_, i) => ({
+          color,
+          size: qty === 1 ? "None" : `Unit-${i + 1}`,
+          pur_price: priceSrc?.pur_price ?? formData.default_pur_price ?? 0,
+          sale_price: priceSrc?.sale_price ?? formData.default_sale_price ?? 0,
+          mrp: priceSrc?.mrp ?? formData.default_mrp ?? null,
+          barcode: sharedBarcode,
+          active: true,
+          opening_qty: 0,
+          purchase_qty: 1,
+        })),
+      );
       const same =
         next.length === prev.length &&
         next.every(
@@ -712,7 +728,9 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
             v.color === prev[i]?.color &&
             v.size === prev[i]?.size &&
             v.purchase_qty === prev[i]?.purchase_qty &&
-            v.barcode === prev[i]?.barcode,
+            v.barcode === prev[i]?.barcode &&
+            v.pur_price === prev[i]?.pur_price &&
+            v.sale_price === prev[i]?.sale_price,
         );
       return same ? prev : next;
     });
@@ -742,22 +760,37 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
         if (hideOpeningQty) {
           const colorsToUse = formData.colors.length > 0 ? formData.colors : [""];
           
-          // Mobile ERP: one "None" size per color.
-          // Serialized → qty 1 (IMEI scan expands rows). Accessories → purchase_qty = mobileERPQty.
+          // Mobile ERP: one "None" size per color (serialized), or N unit rows (accessories).
           if (mobileERPMode?.locked_size_qty) {
-            const accessoryQty =
-              formData.requires_imei === false ? Math.max(1, mobileERPQty) : 1;
-            const newVariants: ProductVariant[] = colorsToUse.map(color => ({
-              color,
-              size: "None",
-              pur_price: formData.default_pur_price ?? 0,
-              sale_price: formData.default_sale_price ?? 0,
-              mrp: formData.default_mrp ?? null,
-              barcode: "",
-              active: true,
-              opening_qty: 0,
-              purchase_qty: accessoryQty,
-            }));
+            let newVariants: ProductVariant[];
+            if (formData.requires_imei === false) {
+              const qty = Math.max(1, mobileERPQty);
+              newVariants = colorsToUse.flatMap((color) =>
+                Array.from({ length: qty }, (_, i) => ({
+                  color,
+                  size: qty === 1 ? "None" : `Unit-${i + 1}`,
+                  pur_price: formData.default_pur_price ?? 0,
+                  sale_price: formData.default_sale_price ?? 0,
+                  mrp: formData.default_mrp ?? null,
+                  barcode: "",
+                  active: true,
+                  opening_qty: 0,
+                  purchase_qty: 1,
+                })),
+              );
+            } else {
+              newVariants = colorsToUse.map((color) => ({
+                color,
+                size: "None",
+                pur_price: formData.default_pur_price ?? 0,
+                sale_price: formData.default_sale_price ?? 0,
+                mrp: formData.default_mrp ?? null,
+                barcode: "",
+                active: true,
+                opening_qty: 0,
+                purchase_qty: 1,
+              }));
+            }
             if (isAutoBarcode) autoBarcodePending.current = true;
             setVariants(newVariants);
             setShowVariants(true);
@@ -1559,6 +1592,19 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
   };
 
   const handleVariantChange = (index: number, field: keyof ProductVariant, value: any) => {
+    // Accessories share one EAN + prices across unit rows (collapse to one SKU on save).
+    const syncAccessoryFields =
+      mobileERPMode?.locked_size_qty &&
+      formData.requires_imei === false &&
+      (field === "barcode" || field === "pur_price" || field === "sale_price" || field === "mrp");
+    if (syncAccessoryFields) {
+      const nextValue =
+        field === "barcode"
+          ? String(value ?? "").replace(/[^a-zA-Z0-9\-_.\/]/g, "").toUpperCase()
+          : value;
+      setVariants((prev) => prev.map((v) => ({ ...v, [field]: nextValue, purchase_qty: 1 })));
+      return;
+    }
     const updated = [...variants];
     updated[index] = { ...updated[index], [field]: value };
     setVariants(updated);
@@ -1664,7 +1710,10 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
       .filter(b => b && b.trim() !== "");
     
     const uniqueBarcodes = new Set(barcodesInForm);
-    if (barcodesInForm.length !== uniqueBarcodes.size) {
+    // Accessories intentionally share one EAN across unit rows — collapse on save.
+    const allowSharedAccessoryBarcode =
+      Boolean(mobileERPMode?.locked_size_qty) && formData.requires_imei === false;
+    if (barcodesInForm.length !== uniqueBarcodes.size && !allowSharedAccessoryBarcode) {
       toast({
         title: "Validation Error",
         description: "Duplicate barcodes found in variants",
@@ -1683,6 +1732,32 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
     let variantsToCreate = (hideOpeningQty && formData.product_type !== 'service')
       ? variants.filter((v) => (v.purchase_qty || 0) > 0 && !disabledSizes.has(v.size) && (formData.colors.length === 0 || !v.color || formData.colors.includes(v.color))).map(v => ({ ...v }))
       : [...variants];
+
+    // Accessories: N UI unit rows → one SKU per color with summed purchase_qty + shared EAN.
+    if (
+      mobileERPMode?.locked_size_qty &&
+      formData.requires_imei === false &&
+      variantsToCreate.length > 0
+    ) {
+      const collapsed = new Map<string, ProductVariant>();
+      for (const v of variantsToCreate) {
+        const key = v.color || "";
+        const existing = collapsed.get(key);
+        if (!existing) {
+          collapsed.set(key, {
+            ...v,
+            size: "None",
+            purchase_qty: v.purchase_qty || 1,
+          });
+        } else {
+          existing.purchase_qty = (existing.purchase_qty || 0) + (v.purchase_qty || 0);
+          if (!existing.barcode?.trim() && v.barcode?.trim()) {
+            existing.barcode = v.barcode;
+          }
+        }
+      }
+      variantsToCreate = [...collapsed.values()];
+    }
 
     if (variantsToCreate.length > 0) {
       if (hideOpeningQty && isAutoBarcode) {
@@ -2796,8 +2871,8 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                     <span className="text-xs text-muted-foreground">
                       {formData.requires_imei === false
                         ? mobileERPQty === 1
-                          ? "1 unit — enter shared barcode (EAN) below"
-                          : `${mobileERPQty} units on one shared barcode — enter EAN below`
+                          ? "1 unit — scan shared barcode (EAN) below"
+                          : `${mobileERPQty} unit rows — scan one shared barcode (EAN) for all`
                         : mobileERPQty === 1
                           ? "Single unit — scan IMEI above or enter below"
                           : `${mobileERPQty} units — click to scan IMEIs`}
@@ -2813,9 +2888,9 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                         value={variants[0]?.barcode || ""}
                         onChange={(e) => {
                           const cleaned = e.target.value.replace(/[^a-zA-Z0-9\-_.\/]/g, "").toUpperCase();
-                          // Keep one shared barcode on every accessory color row
+                          // Same universal barcode on every unit row
                           setVariants((prev) =>
-                            prev.map((v) => ({ ...v, barcode: cleaned, purchase_qty: Math.max(1, mobileERPQty) })),
+                            prev.map((v) => ({ ...v, barcode: cleaned, purchase_qty: 1 })),
                           );
                         }}
                         placeholder="Scan or type shared barcode..."
@@ -2823,7 +2898,8 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                         autoComplete="off"
                       />
                       <p className="text-[11px] text-muted-foreground">
-                        Bill line qty will be {Math.max(1, mobileERPQty)} on this one SKU.
+                        {Math.max(1, mobileERPQty)} rows shown · saves as one SKU with qty{" "}
+                        {Math.max(1, mobileERPQty)}.
                       </p>
                     </div>
                   )}
@@ -3844,9 +3920,11 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                     (v.purchase_qty || 0) > 0
                   );
                   const totalQty = activeVariants.reduce((s, v) => s + (v.purchase_qty || 0), 0);
-                  return totalQty > 0
-                    ? `${activeVariants.length} sizes · ${totalQty} pcs`
-                    : 'Enter qty per size above';
+                  if (totalQty <= 0) return "Enter qty per size above";
+                  if (mobileERPMode?.locked_size_qty && formData.requires_imei === false) {
+                    return `${activeVariants.length} units · ${totalQty} pcs`;
+                  }
+                  return `${activeVariants.length} sizes · ${totalQty} pcs`;
                 })()}
               </span>
             )}
