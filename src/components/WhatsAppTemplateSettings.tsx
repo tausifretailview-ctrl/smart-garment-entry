@@ -117,8 +117,6 @@ Customer: {customer_name}
 
 *Total: {amount}*
 
-Expected Delivery: {expected_delivery}
-
 Thank you for your order!`,
 
   school_fee_reminder: `Fees Reminder

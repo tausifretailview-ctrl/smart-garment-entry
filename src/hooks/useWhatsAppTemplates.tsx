@@ -301,8 +301,6 @@ ${items || ""}
 
 *Total: ₹${Number(order.net_amount).toLocaleString("en-IN")}*
 
-Expected Delivery: ${order.expected_delivery_date ? format(new Date(order.expected_delivery_date), "dd MMM yyyy") : "To be confirmed"}
-
 Thank you for your order!`;
   };
 

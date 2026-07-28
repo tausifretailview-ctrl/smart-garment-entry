@@ -1217,10 +1217,10 @@ export default function SaleOrderEntry() {
             // Build itemized list with color
             const itemLines = orderItems.map((item: any) => {
               const colorPart = item.color ? ` - ${item.color}` : '';
-              return `â€¢ ${item.product_name}${colorPart} (${item.size}) x ${item.order_qty} = â‚¹${Number(item.line_total).toLocaleString('en-IN')}`;
+              return `• ${item.product_name}${colorPart} (${item.size}) x ${item.order_qty} = ₹${Number(item.line_total).toLocaleString('en-IN')}`;
             }).join('\n');
 
-            const messageText = `ðŸ›’ *Sales Order Confirmation*\n\nOrder No: ${savedOrderNumber}\nCustomer: ${selectedCustomer.customer_name || 'Valued Customer'}\n\n*Items:*\n${itemLines}\n\n*Total: â‚¹${formattedAmount}*\nOrder Date: ${formattedDate}\nExpected Delivery: ${formattedDelivery}\n\nThank you for your order!\n${companyName}\n${contactNumber}`;
+            const messageText = `🛒 *Sales Order Confirmation*\n\nOrder No: ${savedOrderNumber}\nCustomer: ${selectedCustomer.customer_name || 'Valued Customer'}\n\n*Items:*\n${itemLines}\n\n*Total: ₹${formattedAmount}*\n\nThank you for your order!\n${companyName}\n${contactNumber}`;
 
             await supabase.functions.invoke('send-whatsapp', {
               body: {

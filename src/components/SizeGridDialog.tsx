@@ -106,6 +106,9 @@ export function SizeGridDialog({
   const firstInputRef = useRef<HTMLInputElement>(null);
   const customSizeInputRef = useRef<HTMLInputElement>(null);
   const colorInputRef = useRef<HTMLInputElement>(null);
+  const addCustomSizeBtnRef = useRef<HTMLButtonElement>(null);
+  const addColorBtnRef = useRef<HTMLButtonElement>(null);
+  const addMultiColorSizeBtnRef = useRef<HTMLButtonElement>(null);
 
   // Get unique colors from variants including newly added colors
   const uniqueColors = useMemo(() => {
@@ -419,11 +422,20 @@ export function SizeGridDialog({
       handleConfirm();
       return;
     }
-    if (e.key === "Enter" && !e.shiftKey && !showAddCustom && !showAddColor) {
+
+    const target = e.target as HTMLElement;
+    const isOnButton = target.tagName === "BUTTON" || !!target.closest("button");
+    const isAddingSizeOrColor = showAddCustom || showAddColor || !!activeCustomSizeColor;
+
+    // Let focused Add/Cancel/etc. buttons handle Enter/Space themselves
+    if (isOnButton && (e.key === "Enter" || e.key === " ")) {
+      return;
+    }
+
+    if (e.key === "Enter" && !e.shiftKey && !isAddingSizeOrColor) {
       // In review mode, if focus is on a qty/price input, Tab to next input instead of confirming
       if (reviewMode) {
-        const target = e.target as HTMLElement;
-        const isInput = target.tagName === 'INPUT';
+        const isInput = target.tagName === "INPUT";
         if (isInput) {
           // Find all tabbable inputs within the dialog
           const dialog = target.closest('[role="dialog"]');
@@ -442,11 +454,15 @@ export function SizeGridDialog({
       }
       e.preventDefault();
       handleConfirm();
+      return;
     }
-    // In review mode, Tab from last qty field should go to price fields
+
+    // In review mode, Tab between size qty fields — but never steal Tab from Add Size / Add Color forms
     if (reviewMode && e.key === "Tab" && !e.shiftKey) {
-      const target = e.target as HTMLElement;
-      const isInput = target.tagName === 'INPUT';
+      if (isAddingSizeOrColor || target.closest("[data-size-grid-add-form]")) {
+        return;
+      }
+      const isInput = target.tagName === "INPUT";
       if (isInput) {
         const dialog = target.closest('[role="dialog"]');
         if (dialog) {
@@ -697,12 +713,26 @@ export function SizeGridDialog({
                             Add Size
                           </Button>
                         ) : (
-                          <div className="flex flex-wrap gap-2 items-end mt-2 p-2 bg-background rounded border">
+                          <div
+                            className="flex flex-wrap gap-2 items-end mt-2 p-2 bg-background rounded border"
+                            data-size-grid-add-form="size"
+                          >
                             <Input
                               placeholder="Size"
                               value={newSize}
                               onChange={(e) => setNewSize(e.target.value)}
                               className="w-20"
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  const qtyEl = (e.currentTarget.parentElement?.querySelector(
+                                    'input[placeholder="Qty"]',
+                                  ) as HTMLInputElement | null);
+                                  qtyEl?.focus();
+                                  qtyEl?.select();
+                                }
+                              }}
                             />
                             <Input
                               type="number"
@@ -711,15 +741,42 @@ export function SizeGridDialog({
                               value={newQty}
                               onChange={(e) => setNewQty(e.target.value)}
                               className="w-20"
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  handleAddMultiColorCustomSize(color);
+                                  return;
+                                }
+                                if (e.key === "Tab" && !e.shiftKey) {
+                                  e.preventDefault();
+                                  addMultiColorSizeBtnRef.current?.focus();
+                                }
+                              }}
                             />
-                            <Button size="sm" onClick={() => handleAddMultiColorCustomSize(color)}>
+                            <Button
+                              ref={addMultiColorSizeBtnRef}
+                              type="button"
+                              size="sm"
+                              onClick={() => handleAddMultiColorCustomSize(color)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter" || e.key === " ") {
+                                  e.stopPropagation();
+                                }
+                              }}
+                            >
                               Add
                             </Button>
-                            <Button size="sm" variant="ghost" onClick={() => {
-                              setActiveCustomSizeColor(null);
-                              setNewSize("");
-                              setNewQty("");
-                            }}>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => {
+                                setActiveCustomSizeColor(null);
+                                setNewSize("");
+                                setNewQty("");
+                              }}
+                            >
                               Cancel
                             </Button>
                           </div>
@@ -747,7 +804,7 @@ export function SizeGridDialog({
             
             {/* Add New Color Input for multi-color mode */}
             {allowAddColor && showAddColor && (
-              <div className="mt-4 p-3 bg-muted/50 rounded-lg border flex flex-wrap gap-2 items-end">
+              <div className="mt-4 p-3 bg-muted/50 rounded-lg border flex flex-wrap gap-2 items-end" data-size-grid-add-form="color">
                 <div className="space-y-2">
                   <Label>Color Name *</Label>
                   <Input
@@ -759,15 +816,29 @@ export function SizeGridDialog({
                     onKeyDown={(e) => {
                       if (e.key === "Enter") {
                         e.preventDefault();
+                        e.stopPropagation();
                         handleAddColor();
+                        return;
+                      }
+                      if (e.key === "Tab" && !e.shiftKey) {
+                        e.preventDefault();
+                        addColorBtnRef.current?.focus();
                       }
                     }}
                   />
                 </div>
-                <Button size="sm" onClick={handleAddColor}>
+                <Button
+                  ref={addColorBtnRef}
+                  type="button"
+                  size="sm"
+                  onClick={handleAddColor}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") e.stopPropagation();
+                  }}
+                >
                   Add
                 </Button>
-                <Button size="sm" variant="ghost" onClick={() => {
+                <Button type="button" size="sm" variant="ghost" onClick={() => {
                   setShowAddColor(false);
                   setNewColorName("");
                 }}>
@@ -826,7 +897,7 @@ export function SizeGridDialog({
 
                 {/* Add New Color Input */}
                 {showAddColor && (
-                  <div className="mt-3 p-3 bg-muted/50 rounded-lg border flex flex-wrap gap-2 items-end">
+                  <div className="mt-3 p-3 bg-muted/50 rounded-lg border flex flex-wrap gap-2 items-end" data-size-grid-add-form="color">
                     <div className="space-y-2">
                       <Label>Color Name *</Label>
                       <Input
@@ -838,15 +909,29 @@ export function SizeGridDialog({
                         onKeyDown={(e) => {
                           if (e.key === "Enter") {
                             e.preventDefault();
+                            e.stopPropagation();
                             handleAddColor();
+                            return;
+                          }
+                          if (e.key === "Tab" && !e.shiftKey) {
+                            e.preventDefault();
+                            addColorBtnRef.current?.focus();
                           }
                         }}
                       />
                     </div>
-                    <Button size="sm" onClick={handleAddColor}>
+                    <Button
+                      ref={addColorBtnRef}
+                      type="button"
+                      size="sm"
+                      onClick={handleAddColor}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") e.stopPropagation();
+                      }}
+                    >
                       Add
                     </Button>
-                    <Button size="sm" variant="ghost" onClick={() => {
+                    <Button type="button" size="sm" variant="ghost" onClick={() => {
                       setShowAddColor(false);
                       setNewColorName("");
                     }}>
@@ -880,7 +965,7 @@ export function SizeGridDialog({
                 )}
                 {/* Add New Color Input for single/no color products */}
                 {allowAddColor && showAddColor && (
-                  <div className="w-full mt-2 p-3 bg-muted/50 rounded-lg border flex flex-wrap gap-2 items-end">
+                  <div className="w-full mt-2 p-3 bg-muted/50 rounded-lg border flex flex-wrap gap-2 items-end" data-size-grid-add-form="color">
                     <div className="space-y-2">
                       <Label>Color Name *</Label>
                       <Input
@@ -892,15 +977,29 @@ export function SizeGridDialog({
                         onKeyDown={(e) => {
                           if (e.key === "Enter") {
                             e.preventDefault();
+                            e.stopPropagation();
                             handleAddColor();
+                            return;
+                          }
+                          if (e.key === "Tab" && !e.shiftKey) {
+                            e.preventDefault();
+                            addColorBtnRef.current?.focus();
                           }
                         }}
                       />
                     </div>
-                    <Button size="sm" onClick={handleAddColor}>
+                    <Button
+                      ref={addColorBtnRef}
+                      type="button"
+                      size="sm"
+                      onClick={handleAddColor}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") e.stopPropagation();
+                      }}
+                    >
                       Add
                     </Button>
-                    <Button size="sm" variant="ghost" onClick={() => {
+                    <Button type="button" size="sm" variant="ghost" onClick={() => {
                       setShowAddColor(false);
                       setNewColorName("");
                     }}>
@@ -1041,7 +1140,7 @@ export function SizeGridDialog({
                         Add New Size
                       </Button>
                     ) : (
-                      <div className="mb-4 p-3 bg-muted/50 rounded-lg border">
+                      <div className="mb-4 p-3 bg-muted/50 rounded-lg border" data-size-grid-add-form="size">
                         <Label className="mb-2 block text-sm font-medium">Add New Size</Label>
                         <div className="flex flex-wrap gap-2 items-end">
                           <div className="space-y-1">
@@ -1052,6 +1151,17 @@ export function SizeGridDialog({
                               value={newSize}
                               onChange={(e) => setNewSize(e.target.value)}
                               className="w-24"
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  const qtyInput = e.currentTarget
+                                    .closest("[data-size-grid-add-form]")
+                                    ?.querySelector<HTMLInputElement>('input[placeholder="Qty"]');
+                                  qtyInput?.focus();
+                                  qtyInput?.select();
+                                }
+                              }}
                             />
                           </div>
                           <div className="space-y-1">
@@ -1063,6 +1173,29 @@ export function SizeGridDialog({
                               value={newQty}
                               onChange={(e) => setNewQty(e.target.value)}
                               className="w-20"
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  // Prefer next price field if present; else Add
+                                  const form = e.currentTarget.closest("[data-size-grid-add-form]");
+                                  const priceInput = form?.querySelector<HTMLInputElement>(
+                                    'input[placeholder^="₹"]',
+                                  );
+                                  if (priceInput) {
+                                    priceInput.focus();
+                                    priceInput.select();
+                                    return;
+                                  }
+                                  handleAddCustomSize();
+                                  return;
+                                }
+                                if (e.key === "Tab" && !e.shiftKey) {
+                                  // Skip price fields with Tab → land on Add (prices stay mouse/Shift editable)
+                                  e.preventDefault();
+                                  addCustomSizeBtnRef.current?.focus();
+                                }
+                              }}
                             />
                           </div>
                           <div className="space-y-1">
@@ -1097,12 +1230,20 @@ export function SizeGridDialog({
                               />
                             </div>
                           )}
-                          <Button size="sm" onClick={handleAddCustomSize}>
+                          <Button
+                            ref={addCustomSizeBtnRef}
+                            type="button"
+                            size="sm"
+                            onClick={handleAddCustomSize}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" || e.key === " ") e.stopPropagation();
+                            }}
+                          >
                             Add
                           </Button>
                           {/* Only show cancel if we have existing variants or custom sizes */}
                           {(filteredVariants.length > 0 || customSizes.length > 0 || !(selectedColor && addedColors.includes(selectedColor))) && (
-                            <Button size="sm" variant="ghost" onClick={() => {
+                            <Button type="button" size="sm" variant="ghost" onClick={() => {
                               setShowAddCustom(false);
                               setNewSize("");
                               setNewQty("");
