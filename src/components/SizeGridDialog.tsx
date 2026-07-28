@@ -457,10 +457,14 @@ export function SizeGridDialog({
       return;
     }
 
-    // In review mode, Tab between size qty fields — but never steal Tab from Add Size / Add Color forms
+    // In review mode, Tab between size qty fields — but never steal Tab from Add Size / Add Color
+    // forms, and never skip Add buttons in multi-color purchase grids (native tab order).
     if (reviewMode && e.key === "Tab" && !e.shiftKey) {
       if (isAddingSizeOrColor || target.closest("[data-size-grid-add-form]")) {
         return;
+      }
+      if (allowMultiColor && hasMultipleColors) {
+        return; // Size → Add Size → next color → Add Colour via normal Tab
       }
       const isInput = target.tagName === "INPUT";
       if (isInput) {
