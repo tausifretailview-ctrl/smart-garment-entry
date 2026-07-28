@@ -152,15 +152,19 @@ export function applyWappConnectInvoicePdfCloneFixes(
       font-size: 9px !important;
       font-weight: 600 !important;
       line-height: 1.2 !important;
-      overflow: hidden !important;
-      text-overflow: ellipsis !important;
-      white-space: nowrap !important;
+      overflow: visible !important;
+      text-overflow: clip !important;
+      white-space: normal !important;
+      word-break: break-word !important;
       max-width: 100% !important;
       color: #000 !important;
     }
     .retail-erp-desc-cell {
       font-size: 9px !important;
       font-weight: 600 !important;
+      white-space: normal !important;
+      overflow: visible !important;
+      text-overflow: clip !important;
     }
   `
     : `
