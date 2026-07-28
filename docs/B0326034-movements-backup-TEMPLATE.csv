@@ -1,0 +1,4 @@
+id,organization_id,variant_id,movement_type,quantity,reference_id,bill_number,notes,user_id,created_at,deleted_at
+# Export via docs/B0326034-phantom-repair-2026-07.md §2A SELECT before running repair.
+# Must include: 8× purchase for reference_id bd142466-6fd9-49ae-b8df-8a2febc6ee76
+# Plus: sale_delete on f0d0f752-… with bill_number B0326034 (do NOT delete that row)

@@ -503,10 +503,25 @@ export function useSoftDelete() {
 
       // For entities with child items, delete children first
       switch (entity) {
-        case "purchase_bills":
-          await supabase.from("purchase_items").delete().eq("bill_id", id);
-          await supabase.from("batch_stock").delete().eq("purchase_bill_id", id);
-          break;
+        case "purchase_bills": {
+          // Stock-safe permanent delete in one DB transaction (see hard_delete_purchase_bill).
+          const { data: hardDelResult, error: hardDelErr } = await (supabase as any).rpc(
+            "hard_delete_purchase_bill",
+            {
+              p_bill_id: id,
+              p_user_id: user.id,
+            },
+          );
+          if (hardDelErr) throw hardDelErr;
+          const ok =
+            hardDelResult &&
+            typeof hardDelResult === "object" &&
+            (hardDelResult as { success?: boolean }).success === true;
+          if (!ok) {
+            throw new Error("Permanent delete of purchase bill failed");
+          }
+          return true;
+        }
         case "sales": {
           const { error: commissionDelErr } = await (supabase.from("salesman_commissions" as any) as any)
             .delete()

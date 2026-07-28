@@ -42,6 +42,14 @@ interface FixResult {
   sale_returns?: number;
 }
 
+interface OrphanPurchaseRow {
+  organization_id: string;
+  reference_id: string;
+  bill_number: string | null;
+  movements: number;
+  net_qty: number;
+}
+
 interface HealthSummary {
   totalVariants: number;
   discrepancyCount: number;
@@ -66,6 +74,9 @@ export const StockReconciliation = () => {
   const [health, setHealth] = useState<HealthSummary>({
     totalVariants: 0, discrepancyCount: 0, lastReconciliation: null, isLoading: true,
   });
+  const [isScanningOrphans, setIsScanningOrphans] = useState(false);
+  const [orphanPurchases, setOrphanPurchases] = useState<OrphanPurchaseRow[]>([]);
+  const [orphanScanTime, setOrphanScanTime] = useState<Date | null>(null);
 
   useEffect(() => {
     if (!currentOrganization?.id) return;
@@ -213,6 +224,50 @@ export const StockReconciliation = () => {
     }
   };
 
+  const handleScanOrphanPurchases = async () => {
+    if (!currentOrganization?.id) {
+      toast({
+        title: "Error",
+        description: "No organization selected",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsScanningOrphans(true);
+    try {
+      const { data, error } = await (supabase as any).rpc("detect_orphan_purchase_stock", {
+        p_organization_id: currentOrganization.id,
+      });
+      if (error) throw error;
+
+      const rows = (data || []) as OrphanPurchaseRow[];
+      setOrphanPurchases(rows);
+      setOrphanScanTime(new Date());
+
+      if (rows.length === 0) {
+        toast({
+          title: "No orphan purchases",
+          description: "Every purchase-family movement with a reference_id still has a purchase bill (or nets to zero).",
+        });
+      } else {
+        toast({
+          title: "Orphan purchase stock found",
+          description: `${rows.length} missing bill(s) still hold unreversed purchase quantity.`,
+          variant: "destructive",
+        });
+      }
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to scan orphan purchases",
+        variant: "destructive",
+      });
+    } finally {
+      setIsScanningOrphans(false);
+    }
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -321,7 +376,71 @@ export const StockReconciliation = () => {
               </>
             )}
           </Button>
+
+          <Button
+            variant="outline"
+            onClick={() => void handleScanOrphanPurchases()}
+            disabled={isScanningOrphans || isScanning || isFixing}
+          >
+            {isScanningOrphans ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Scanning orphans...
+              </>
+            ) : (
+              <>
+                <AlertTriangle className="mr-2 h-4 w-4" />
+                Scan orphan purchases
+              </>
+            )}
+          </Button>
         </div>
+
+        {orphanScanTime && (
+          <div className="space-y-2 rounded-lg border border-slate-200 p-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-sm font-medium text-slate-800">Orphan purchase stock</p>
+              <p className="text-xs text-muted-foreground">
+                Last scanned: {orphanScanTime.toLocaleString()}
+              </p>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Purchase movements whose bill row is missing and net qty is still positive (unreversed).
+              Read-only — does not change stock.
+            </p>
+            {orphanPurchases.length === 0 ? (
+              <div className="flex items-center gap-2 rounded-md border border-green-500/20 bg-green-500/10 p-3 text-sm text-green-700 dark:text-green-400">
+                <CheckCircle className="h-4 w-4 shrink-0" />
+                No orphan purchase references for this organization.
+              </div>
+            ) : (
+              <div className="overflow-hidden rounded-md border border-destructive/20">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Bill no</TableHead>
+                      <TableHead>Reference</TableHead>
+                      <TableHead className="text-right">Movements</TableHead>
+                      <TableHead className="text-right">Net qty</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {orphanPurchases.map((row) => (
+                      <TableRow key={row.reference_id}>
+                        <TableCell className="font-mono text-xs">{row.bill_number || "—"}</TableCell>
+                        <TableCell className="font-mono text-[10px]">{row.reference_id.slice(0, 8)}…</TableCell>
+                        <TableCell className="text-right font-mono tabular-nums">{row.movements}</TableCell>
+                        <TableCell className="text-right font-mono tabular-nums text-destructive">
+                          +{Number(row.net_qty)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </div>
+        )}
 
         {lastScanTime && (
           <p className="text-sm text-muted-foreground">
