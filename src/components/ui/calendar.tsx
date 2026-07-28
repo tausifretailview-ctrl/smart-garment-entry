@@ -8,7 +8,8 @@ import { usePopoverDismiss } from "@/components/ui/popover";
 
 export type CalendarProps = React.ComponentProps<typeof DayPicker>;
 
-function Calendar({ className, classNames, showOutsideDays = true, onSelect, mode, ...props }: CalendarProps) {
+function Calendar({ className, classNames, showOutsideDays = true, ...props }: CalendarProps) {
+  const { onSelect, mode } = props as { onSelect?: (...args: unknown[]) => void; mode?: string };
   const dismissPopover = usePopoverDismiss();
 
   const handleSelect = React.useCallback(
@@ -70,9 +71,8 @@ function Calendar({ className, classNames, showOutsideDays = true, onSelect, mod
         IconLeft: ({ ..._props }) => <ChevronLeft className="h-4 w-4" />,
         IconRight: ({ ..._props }) => <ChevronRight className="h-4 w-4" />,
       }}
-      mode={mode}
-      onSelect={handleSelect}
-      {...props}
+      {...(props as CalendarProps)}
+      onSelect={handleSelect as never}
     />
   );
 }
