@@ -14,6 +14,24 @@ export type Database = {
   }
   public: {
     Tables: {
+      _backup_ranawat_products_20260726: {
+        Row: {
+          category: string | null
+          id: string | null
+          style: string | null
+        }
+        Insert: {
+          category?: string | null
+          id?: string | null
+          style?: string | null
+        }
+        Update: {
+          category?: string | null
+          id?: string | null
+          style?: string | null
+        }
+        Relationships: []
+      }
       academic_years: {
         Row: {
           created_at: string | null
@@ -6431,6 +6449,189 @@ export type Database = {
           },
         ]
       }
+      stock_settlement_scans: {
+        Row: {
+          barcode: string | null
+          counted_qty: number
+          created_at: string | null
+          id: string
+          organization_id: string
+          scanned_at: string
+          scanned_by: string | null
+          settled: boolean
+          settlement_session_id: string
+          system_qty: number
+          variant_id: string
+        }
+        Insert: {
+          barcode?: string | null
+          counted_qty?: number
+          created_at?: string | null
+          id?: string
+          organization_id: string
+          scanned_at?: string
+          scanned_by?: string | null
+          settled?: boolean
+          settlement_session_id: string
+          system_qty?: number
+          variant_id: string
+        }
+        Update: {
+          barcode?: string | null
+          counted_qty?: number
+          created_at?: string | null
+          id?: string
+          organization_id?: string
+          scanned_at?: string
+          scanned_by?: string | null
+          settled?: boolean
+          settlement_session_id?: string
+          system_qty?: number
+          variant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stock_settlement_scans_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_settlement_scans_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "stock_settlement_scans_variant_id_fkey"
+            columns: ["variant_id"]
+            isOneToOne: false
+            referencedRelation: "product_variants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      stock_settlement_zero_items: {
+        Row: {
+          created_at: string
+          id: string
+          organization_id: string
+          prior_qty: number
+          pur_price: number
+          run_id: string
+          variant_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          organization_id: string
+          prior_qty: number
+          pur_price?: number
+          run_id: string
+          variant_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          organization_id?: string
+          prior_qty?: number
+          pur_price?: number
+          run_id?: string
+          variant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stock_settlement_zero_items_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_settlement_zero_items_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "stock_settlement_zero_items_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "stock_settlement_zero_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_settlement_zero_items_variant_id_fkey"
+            columns: ["variant_id"]
+            isOneToOne: false
+            referencedRelation: "product_variants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      stock_settlement_zero_runs: {
+        Row: {
+          cost_value: number
+          created_at: string
+          created_by: string | null
+          excluded_variant_ids: string[]
+          id: string
+          note: string | null
+          organization_id: string
+          reversed_at: string | null
+          reversed_by: string | null
+          settlement_session_id: string
+          total_units: number
+          variant_count: number
+        }
+        Insert: {
+          cost_value?: number
+          created_at?: string
+          created_by?: string | null
+          excluded_variant_ids?: string[]
+          id?: string
+          note?: string | null
+          organization_id: string
+          reversed_at?: string | null
+          reversed_by?: string | null
+          settlement_session_id: string
+          total_units?: number
+          variant_count?: number
+        }
+        Update: {
+          cost_value?: number
+          created_at?: string
+          created_by?: string | null
+          excluded_variant_ids?: string[]
+          id?: string
+          note?: string | null
+          organization_id?: string
+          reversed_at?: string | null
+          reversed_by?: string | null
+          settlement_session_id?: string
+          total_units?: number
+          variant_count?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stock_settlement_zero_runs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_settlement_zero_runs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+        ]
+      }
       student_balance_audit: {
         Row: {
           academic_year_id: string | null
@@ -8328,6 +8529,18 @@ export type Database = {
         Args: { p_date: string }
         Returns: string
       }
+      _zero_unscanned_candidates: {
+        Args: {
+          p_exclude_variant_ids?: string[]
+          p_organization_id: string
+          p_session_id: string
+        }
+        Returns: {
+          prior_qty: number
+          pur_price: number
+          variant_id: string
+        }[]
+      }
       adjust_invoice_balance: {
         Args: {
           p_adjusted_by?: string
@@ -9532,6 +9745,10 @@ export type Database = {
       restore_sale_order: { Args: { p_order_id: string }; Returns: undefined }
       restore_sale_return: { Args: { p_return_id: string }; Returns: undefined }
       restore_voucher: { Args: { p_voucher_id: string }; Returns: undefined }
+      reverse_unscanned_stock_settlement: {
+        Args: { p_organization_id: string; p_run_id: string }
+        Returns: Json
+      }
       run_nightly_balance_reconciliation: {
         Args: { p_organization_id?: string }
         Returns: Json
@@ -9574,6 +9791,14 @@ export type Database = {
       set_whatsapp_send_provider: {
         Args: { p_organization_id: string; p_send_provider: string }
         Returns: undefined
+      }
+      settle_stock_session: {
+        Args: {
+          p_note?: string
+          p_organization_id: string
+          p_session_id: string
+        }
+        Returns: Json
       }
       soft_delete_delivery_challan: {
         Args: { p_challan_id: string; p_user_id: string }
@@ -9626,6 +9851,17 @@ export type Database = {
       user_belongs_to_org: {
         Args: { org_id: string; user_id: string }
         Returns: boolean
+      }
+      zero_unscanned_stock_settlement: {
+        Args: {
+          p_confirm_token?: string
+          p_exclude_variant_ids?: string[]
+          p_expected_count?: number
+          p_note?: string
+          p_organization_id: string
+          p_session_id: string
+        }
+        Returns: Json
       }
     }
     Enums: {
