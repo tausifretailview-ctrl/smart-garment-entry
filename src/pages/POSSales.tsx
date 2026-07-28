@@ -211,8 +211,8 @@ interface POSBarcodeRuntimeSettings {
   enable_mrp: boolean;
 }
 
-const POS_CART_BARCODE_COL_MIN = 110;
-const POS_CART_BARCODE_COL_MAX = 240;
+const POS_CART_BARCODE_COL_MIN = 128;
+const POS_CART_BARCODE_COL_MAX = 170;
 const POS_CART_MIN_DISPLAY_ROWS = 5;
 /** Approximate row height for viewport-fill blank rows (px). */
 const POS_CART_ROW_HEIGHT_PX = 44;
@@ -226,17 +226,18 @@ function posCartBarcodeColumnWidth(items: { barcode?: string | null }[]): number
     const len = formatPosCartBarcode(item.barcode).length;
     return len > max ? len : max;
   }, 0);
-  if (longest <= 10) return POS_CART_BARCODE_COL_MIN;
+  if (longest <= 0) return POS_CART_BARCODE_COL_MIN;
+  // Mono digits at text-sm/base ≈ 8–9px; pad for cell padding + gap.
   return Math.min(
     POS_CART_BARCODE_COL_MAX,
-    Math.max(POS_CART_BARCODE_COL_MIN, longest * 7 + 16),
+    Math.max(POS_CART_BARCODE_COL_MIN, Math.ceil(longest * 9 + 20)),
   );
 }
 
 function posCartGridColumns(barcodeColPx: number, showMrpColumn: boolean): string {
   // Sr | Barcode | Product | Size | Color | Qty | [MRP] | Tax% | Disc% | Disc Rs | Unit | Net
-  const mrpCol = showMrpColumn ? " 100px" : "";
-  return `40px ${barcodeColPx}px minmax(0, 1fr) 58px 72px 60px${mrpCol} 72px 86px 110px 85px 120px`;
+  const mrpCol = showMrpColumn ? " 96px" : "";
+  return `36px ${barcodeColPx}px minmax(120px, 1fr) 52px 64px 56px${mrpCol} 68px 72px 96px 110px 118px`;
 }
 
 /** Line net: MRP×qty minus Disc%, Disc Rs, and any gap when unit price is below MRP. */
@@ -6833,12 +6834,14 @@ export default function POSSales() {
                           <div className="flex items-center justify-center font-semibold text-foreground/80">{index + 1}</div>
                           <div
                             className={cn(
-                              "flex items-center font-mono text-foreground/80 min-w-0",
-                              formatPosCartBarcode(item.barcode).length > 10 ? "text-sm leading-tight" : "text-base",
+                              "flex items-center font-mono text-foreground/80 min-w-0 overflow-hidden",
+                              formatPosCartBarcode(item.barcode).length > 12 ? "text-xs leading-tight" : "text-sm",
                             )}
                             title={formatPosCartBarcode(item.barcode) || undefined}
                           >
-                            {formatPosCartBarcode(item.barcode)}
+                            <span className="truncate tabular-nums">
+                              {formatPosCartBarcode(item.barcode)}
+                            </span>
                           </div>
                           <div className="flex items-center font-semibold text-base min-w-0 gap-1">
                             <span className="truncate">{item.productName}</span>
@@ -6851,8 +6854,12 @@ export default function POSSales() {
                               </span>
                             )}
                           </div>
-                          <div className="flex items-center justify-center text-base font-medium">{item.size}</div>
-                          <div className="flex items-center justify-center text-base text-muted-foreground">{item.color || '-'}</div>
+                          <div className="flex items-center justify-center text-sm font-medium truncate min-w-0" title={item.size}>
+                            {item.size}
+                          </div>
+                          <div className="flex items-center justify-center text-sm text-muted-foreground truncate min-w-0" title={item.color || undefined}>
+                            {item.color || '-'}
+                          </div>
                           <div>
                             <QtyInput
                               uom={item.uom}
