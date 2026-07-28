@@ -139,6 +139,7 @@ interface ProductEntryDialogProps {
     uom?: string | null;
     purchase_discount_type?: string | null;
     purchase_discount_value?: number | null;
+    requires_imei?: boolean;
     variants: any[];
   }) => void;
   hideOpeningQty?: boolean;
@@ -1804,6 +1805,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
         uom: productData.uom || 'NOS',
         purchase_discount_type: productData.purchase_discount_type,
         purchase_discount_value: productData.purchase_discount_value,
+        requires_imei: (productData as any).requires_imei !== false,
         variants: variantsWithQty,
       });
 

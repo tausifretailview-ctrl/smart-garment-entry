@@ -2586,6 +2586,7 @@ const PurchaseEntry = () => {
     uom?: string | null;
     purchase_discount_type?: string | null;
     purchase_discount_value?: number | null;
+    requires_imei?: boolean;
     variants: any[];
   }) => {
     if (product.variants && product.variants.length > 0) {
@@ -2619,6 +2620,7 @@ const PurchaseEntry = () => {
             color: variant.color || product.color || "",
             style: product.style || "",
             uom: product.uom || 'NOS',
+            requires_imei: product.requires_imei !== false,
           }),
         );
 

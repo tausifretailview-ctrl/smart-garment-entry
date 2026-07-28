@@ -2235,12 +2235,20 @@ export default function POSSales() {
             if (!orgId) return;
 
             if (mobileERP.enabled && mobileERP.imei_scan_enforcement) {
-              if (!validateIMEI(term, mobileERP.imei_min_length, mobileERP.imei_max_length)) {
+              // Prefer lookup before IMEI length gate so shared EANs still resolve.
+              const { data: earlyData } = await posVariantBaseQuery(orgId).eq('barcode', term).limit(1);
+              const earlyMatch = mapPosVariantLookupRow(
+                earlyData?.[0] as (PosVariantRow & { products?: PosProductRow }) | undefined,
+              );
+              if (earlyMatch && !productRequiresImei(earlyMatch.product, mobileERP)) {
+                // fall through to add below without IMEI length rejection
+              } else if (!validateIMEI(term, mobileERP.imei_min_length, mobileERP.imei_max_length)) {
                 return;
-              }
-              const universalWarning = getUniversalCodeScanWarning(term);
-              if (universalWarning) {
-                toast.warning("Possible wrong barcode", { description: universalWarning });
+              } else {
+                const universalWarning = getUniversalCodeScanWarning(term);
+                if (universalWarning) {
+                  toast.warning("Possible wrong barcode", { description: universalWarning });
+                }
               }
             }
 

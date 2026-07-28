@@ -261,9 +261,30 @@ All gated on **`mobileERP.enabled && mobileERP.imei_scan_enforcement`** (org), n
 
 ---
 
-## Phase 2 gate
+## Phase 2 status (2026-07-28)
 
-Awaiting approval of **1A (`requires_imei`)** and operator **1B counts** before any schema or UI work.
+**1A approved:** `products.requires_imei boolean NOT NULL DEFAULT true`.
+
+Built (apply migration before use):
+
+| Item | Status |
+|------|--------|
+| Migration `20261028140000_products_requires_imei.sql` | Present — **operator must apply** |
+| Product Entry Dialog toggle (Mobile ERP only) + category/last memory | Done |
+| Bulk Product Update → Update Field → Requires IMEI + category filter | Done |
+| Purchase Entry: skip IMEI dialog / multi-qty guard when `requires_imei = false`; reuse shared barcode variant | Done |
+| POS: lookup barcode first; same barcode merges qty (+1); IMEI length gate only for serialized / misses | Done |
+| Org `imei_scan_enforcement` still master switch | Unchanged |
+
+### 1B counts
+
+**Not runnable from this agent session.** No Supabase SQL Editor / service-role access here (publishable key + RLS only). Paste the Phase 1 SQL into your SQL Editor and return counts. Until then: treat cleanup as optional; bulk-flip accessories via Bulk Product Update is the day-one path.
+
+### POS repeated-scan verification
+
+`addItemToCart` for non-service products already does `findIndex(item.barcode === variant.barcode)` and increments quantity. Shared-EAN accessories therefore get “add another unit,” not a duplicate line. Phase 2 only ensures the scan reaches that path when `requires_imei = false` (lookup before IMEI length reject).
+
+---
 
 ## Stop
 
