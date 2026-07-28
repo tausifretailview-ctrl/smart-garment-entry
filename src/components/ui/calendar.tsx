@@ -72,7 +72,7 @@ function Calendar({ className, classNames, showOutsideDays = true, ...props }: C
         IconRight: ({ ..._props }) => <ChevronRight className="h-4 w-4" />,
       }}
       {...(props as CalendarProps)}
-      onSelect={handleSelect as never}
+      {...({ onSelect: handleSelect } as object)}
     />
   );
 }
