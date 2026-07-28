@@ -135,6 +135,9 @@ export default function BulkProductUpdate() {
       case "find_replace":
         return `Replace "${frConfig.find}" with "${frConfig.replace}" in ${frConfig.field}`;
       case "update_field":
+        if (ufConfig.field === "requires_imei") {
+          return `Set requires IMEI to ${ufConfig.value === true || ufConfig.value === "true" ? "Yes" : "No"}`;
+        }
         return `Set ${ufConfig.field} to "${ufConfig.value}"`;
       case "apply_discount":
         return `Apply ${discConfig.value}${discConfig.discountType === "percentage" ? "%" : " ₹"} discount on ${discConfig.applyTo}`;
@@ -371,6 +374,7 @@ export default function BulkProductUpdate() {
                         <SelectItem value="color">Color</SelectItem>
                         <SelectItem value="hsn_code">HSN Code</SelectItem>
                         <SelectItem value="gst_per">GST %</SelectItem>
+                        <SelectItem value="requires_imei">Requires IMEI (Mobile ERP)</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -385,6 +389,19 @@ export default function BulkProductUpdate() {
                           {GST_OPTIONS.map(g => (
                             <SelectItem key={g} value={String(g)}>{g}%</SelectItem>
                           ))}
+                        </SelectContent>
+                      </Select>
+                    ) : ufConfig.field === "requires_imei" ? (
+                      <Select
+                        value={ufConfig.value === true || ufConfig.value === "true" ? "true" : "false"}
+                        onValueChange={(v) => setUfConfig({ ...ufConfig, value: v === "true" })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="true">Yes — unique IMEI per unit (handsets)</SelectItem>
+                          <SelectItem value="false">No — shared barcode + qty (accessories)</SelectItem>
                         </SelectContent>
                       </Select>
                     ) : (

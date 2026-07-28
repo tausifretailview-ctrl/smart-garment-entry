@@ -23,8 +23,8 @@ export interface FindReplaceConfig {
 }
 
 export interface UpdateFieldConfig {
-  field: "category" | "brand" | "style" | "color" | "hsn_code" | "gst_per";
-  value: string | number;
+  field: "category" | "brand" | "style" | "color" | "hsn_code" | "gst_per" | "requires_imei";
+  value: string | number | boolean;
 }
 
 export interface DiscountConfig {
@@ -89,7 +89,7 @@ export const useBulkProductUpdate = () => {
     while (hasMore) {
       let query = supabase
         .from("products")
-        .select("id, product_name, category, brand, style, color, hsn_code, gst_per")
+        .select("id, product_name, category, brand, style, color, hsn_code, gst_per, requires_imei")
         .eq("organization_id", currentOrganization.id)
         .is("deleted_at", null);
 

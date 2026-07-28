@@ -4,6 +4,10 @@ import { IMEIScanDialog } from "@/components/IMEIScanDialog";
 import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
 import { canonicalizeProductBrand } from "@/utils/productBrandUtils";
+import {
+  getRequiresImeiFormDefault,
+  rememberRequiresImeiFormChoice,
+} from "@/utils/productRequiresImei";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -106,6 +110,8 @@ interface ProductForm {
   default_pur_discount: number | undefined;
   default_sale_discount: number | undefined;
   status: string;
+  /** Mobile ERP only — unique IMEI/serial per unit. Column default true; form may remember last/category. */
+  requires_imei: boolean;
 }
 
 interface MobileERPModeConfig {
@@ -596,6 +602,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
     default_pur_discount: undefined,
     default_sale_discount: undefined,
     status: "active",
+    requires_imei: getRequiresImeiFormDefault(""),
   });
   const [colorInput, setColorInput] = useState("");
   const [markupPercent, setMarkupPercent] = useState("");
@@ -924,6 +931,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
       default_pur_discount: undefined,
       default_sale_discount: undefined,
       status: "active",
+      requires_imei: getRequiresImeiFormDefault(lastProduct.category || ""),
     });
     setColorInput("");
     setMarkupPercent("");
@@ -953,8 +961,12 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
         default_pur_price: formData.default_pur_price,
         default_sale_price: formData.default_sale_price,
         default_mrp: formData.default_mrp,
+        requires_imei: formData.requires_imei,
       };
       localStorage.setItem(LAST_PRODUCT_KEY, JSON.stringify(toStore));
+      if (mobileERPMode?.enabled) {
+        rememberRequiresImeiFormChoice(formData.requires_imei !== false, formData.category);
+      }
     } catch {}
   };
 
@@ -1625,10 +1637,10 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
       const missingBarcode = variantsToCreate.some(v => !v.barcode || !v.barcode.trim());
       if (missingBarcode) {
         toast({
-          title: mobileERPMode?.enabled ? "IMEI Required" : "Barcode Required",
+          title: mobileERPMode?.enabled && formData.requires_imei ? "IMEI Required" : "Barcode Required",
           description: isAutoBarcode
             ? "Failed to generate barcodes. Please try again."
-            : mobileERPMode?.enabled
+            : mobileERPMode?.enabled && formData.requires_imei
               ? "Please scan IMEI for all variants before adding to bill"
               : "Please scan or enter barcode for all variants before adding to bill",
           variant: "destructive",
@@ -1636,7 +1648,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
         return;
       }
 
-      if (mobileERPMode?.enabled) {
+      if (mobileERPMode?.enabled && formData.requires_imei) {
         const invalidIMEI = variantsToCreate.find(v => {
           const cleaned = (v.barcode || '').replace(/\s/g, '');
           return !/^[a-zA-Z0-9\-_.\/]+$/.test(cleaned) || cleaned.length < (mobileERPMode.imei_min_length || 4) || cleaned.length > (mobileERPMode.imei_max_length || 25);
@@ -1699,6 +1711,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
         sale_discount_value: formData.default_sale_discount || null,
         status: formData.status,
         organization_id: currentOrganization.id,
+        requires_imei: mobileERPMode?.enabled ? formData.requires_imei !== false : true,
         // In roll-wise MTR mode, no size group is used — force null to avoid stale FK
         size_group_id: (rollWiseMtrEnabled && formData.uom === 'MTR')
           ? null
@@ -1835,12 +1848,13 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
     });
   };
 
-  // Mobile ERP: open IMEI scan dialog
+  // Mobile ERP: open IMEI scan dialog (serialized products only)
   const openImeiScanDialog = useCallback(() => {
+    if (formData.requires_imei === false) return;
     const color = formData.colors.length > 0 ? formData.colors[0] : "";
     setImeiScanColor(color);
     setImeiScanOpen(true);
-  }, [formData.colors]);
+  }, [formData.colors, formData.requires_imei]);
 
   // Enter key moves to next field (like Tab), with configurable skip from style
   const handleEnterAsTab = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -2146,11 +2160,39 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                     <FreeTextFieldCombobox
                       id="category"
                       value={formData.category}
-                      onChange={(category) => setFormData({ ...formData, category })}
+                      onChange={(category) =>
+                        setFormData({
+                          ...formData,
+                          category,
+                          ...(mobileERPMode?.enabled
+                            ? { requires_imei: getRequiresImeiFormDefault(category) }
+                            : {}),
+                        })
+                      }
                       onValueCommitted={(category) => commitPreviousValue("categories", category)}
                       options={categories}
                       placeholder="Category"
                       onKeyDown={handleEnterAsTab}
+                    />
+                  </div>
+                )}
+
+                {mobileERPMode?.enabled && formData.product_type !== "service" && (
+                  <div className="flex items-center justify-between gap-3 p-3 border rounded-lg bg-muted/30 col-span-full">
+                    <div className="space-y-0.5 min-w-0">
+                      <Label htmlFor="requires_imei" className="text-sm font-medium">
+                        Unique IMEI / serial per unit
+                      </Label>
+                      <p className="text-xs text-muted-foreground">
+                        On for handsets. Off for accessories that share one EAN barcode (chargers, neckbands, covers).
+                      </p>
+                    </div>
+                    <Switch
+                      id="requires_imei"
+                      checked={formData.requires_imei !== false}
+                      onCheckedChange={(checked) =>
+                        setFormData({ ...formData, requires_imei: checked })
+                      }
                     />
                   </div>
                 )}
@@ -3777,8 +3819,8 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Mobile ERP: IMEI Multi-Scan Dialog */}
-      {mobileERPMode?.locked_size_qty && (
+      {/* Mobile ERP: IMEI Multi-Scan Dialog — serialized products only */}
+      {mobileERPMode?.locked_size_qty && formData.requires_imei !== false && (
         <IMEIScanDialog
           open={imeiScanOpen}
           onClose={() => setImeiScanOpen(false)}

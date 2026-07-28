@@ -3967,6 +3967,7 @@ export type Database = {
           purchase_discount_type: string | null
           purchase_discount_value: number | null
           purchase_gst_percent: number | null
+          requires_imei: boolean
           sale_discount_type: string | null
           sale_discount_value: number | null
           sale_gst_percent: number | null
@@ -3996,6 +3997,7 @@ export type Database = {
           purchase_discount_type?: string | null
           purchase_discount_value?: number | null
           purchase_gst_percent?: number | null
+          requires_imei?: boolean
           sale_discount_type?: string | null
           sale_discount_value?: number | null
           sale_gst_percent?: number | null
@@ -4025,6 +4027,7 @@ export type Database = {
           purchase_discount_type?: string | null
           purchase_discount_value?: number | null
           purchase_gst_percent?: number | null
+          requires_imei?: boolean
           sale_discount_type?: string | null
           sale_discount_value?: number | null
           sale_gst_percent?: number | null

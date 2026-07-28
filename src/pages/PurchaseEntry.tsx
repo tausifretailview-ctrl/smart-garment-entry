@@ -113,6 +113,7 @@ import {
 import { checkBarcodeExists } from "@/utils/barcodeValidation";
 import { getUniversalCodeScanWarning } from "@/utils/imeiValidation";
 import { validateIMEI } from "@/hooks/useMobileERP";
+import { productRequiresImei } from "@/utils/productRequiresImei";
 import { syncVariantPriceFromPurchase } from "@/utils/syncVariantPriceFromPurchase";
 import { IMEIScanDialog } from "@/components/IMEIScanDialog";
 import { RollEntryDialog } from "@/components/RollEntryDialog";
@@ -226,6 +227,7 @@ interface ProductVariant {
   hsn_code: string;
   size_range?: string | null;
   uom?: string;
+  requires_imei?: boolean;
 }
 
 interface LineItem {
@@ -248,6 +250,8 @@ interface LineItem {
   color?: string;
   style?: string;
   uom?: string;
+  /** From products.requires_imei — default true when missing. */
+  requires_imei?: boolean;
 }
 
 function normalizeItemCompareString(val: string | null | undefined): string | null {
@@ -2149,11 +2153,11 @@ const PurchaseEntry = () => {
       const itemsData = await fetchPurchaseItemsByBillId(billId);
 
       const productIds = [...new Set(itemsData.map((item: any) => item.product_id).filter(Boolean))];
-      const productDetailsMap = new Map<string, { brand: string; category: string; style: string; color: string; uom: string }>();
+      const productDetailsMap = new Map<string, { brand: string; category: string; style: string; color: string; uom: string; requires_imei: boolean }>();
       if (productIds.length > 0) {
         const productsData = await fetchProductsByIds(
           productIds,
-          'id, brand, category, style, color, uom',
+          'id, brand, category, style, color, uom, requires_imei',
         );
         productsData.forEach((p: any) => {
           productDetailsMap.set(p.id, {
@@ -2162,6 +2166,7 @@ const PurchaseEntry = () => {
             style: p.style || '',
             color: p.color || '',
             uom: p.uom || 'NOS',
+            requires_imei: p.requires_imei !== false,
           });
         });
       }
@@ -2189,6 +2194,7 @@ const PurchaseEntry = () => {
           discount_percent: 0,
           uom,
           line_total: Number(item.line_total),
+          requires_imei: productDetails?.requires_imei !== false,
         } as LineItem;
         const mult = getMtrMultiplier(base);
         const sub = mult * base.pur_price;
@@ -2442,7 +2448,8 @@ const PurchaseEntry = () => {
             size_group_id,
             purchase_discount_type,
             purchase_discount_value,
-            uom
+            uom,
+            requires_imei
           )
         `)
         .eq("organization_id", currentOrganization?.id)
@@ -2504,6 +2511,7 @@ const PurchaseEntry = () => {
           hsn_code: v.products?.hsn_code || "",
           size_range: sizeRange,
           uom: v.products?.uom || 'NOS',
+          requires_imei: v.products?.requires_imei !== false,
         };
       });
 
@@ -2854,7 +2862,8 @@ const PurchaseEntry = () => {
             size_group_id,
             purchase_discount_type,
             purchase_discount_value,
-            uom
+            uom,
+            requires_imei
           )
         `)
         .eq("organization_id", currentOrganization?.id)
@@ -2921,6 +2930,7 @@ const PurchaseEntry = () => {
           hsn_code: v.products?.hsn_code || "",
           size_range: sizeRange,
           uom: v.products?.uom || 'NOS',
+          requires_imei: v.products?.requires_imei !== false,
         };
       });
 
@@ -3558,10 +3568,16 @@ const PurchaseEntry = () => {
   const addInlineRow = async (variant: ProductVariant) => {
     let skuId = variant.id;
     let barcode = variant.barcode;
+    const reuseSharedBarcode =
+      sameBarcodeSeriesEnabled ||
+      !productRequiresImei(
+        { requires_imei: variant.requires_imei },
+        mobileERPSettings,
+      );
 
     // Smart barcode logic
-    if (sameBarcodeSeriesEnabled) {
-      // Same barcode series: reuse existing variant+barcode
+    if (reuseSharedBarcode) {
+      // Same barcode / non-serialized accessory: reuse existing variant+barcode
       if (!barcode && isAutoBarcode) {
         const newBarcode = await generateCentralizedBarcode();
         await supabase.from("product_variants").update({ barcode: newBarcode }).eq("id", skuId);
@@ -3608,6 +3624,7 @@ const PurchaseEntry = () => {
       color: variant.color || "",
       style: variant.style || "",
       uom: resolvedUom,
+      requires_imei: variant.requires_imei !== false,
     };
     setLineItems([...lineItems, newItem]);
   };
@@ -3629,7 +3646,7 @@ const PurchaseEntry = () => {
   };
 
   const updateLineItem = (temp_id: string, field: keyof LineItem, value: any) => {
-    // Mobile ERP: qty > 1 must become one row per IMEI (dialog was never opened before).
+    // Mobile ERP: qty > 1 must become one row per IMEI — serialized products only.
     if (
       field === "qty" &&
       isMobileERPMode &&
@@ -3638,7 +3655,10 @@ const PurchaseEntry = () => {
       const qty = Number(value) || 0;
       if (qty > 1) {
         const item = lineItems.find((i) => i.temp_id === temp_id);
-        if (item?.product_id) {
+        if (
+          item?.product_id &&
+          productRequiresImei({ requires_imei: item.requires_imei }, mobileERPSettings)
+        ) {
           openImeiScanForLine(item, qty);
           return;
         }
@@ -4537,8 +4557,13 @@ const PurchaseEntry = () => {
     const activeLines = lineItems.filter((item) => item.product_id || item.product_name?.trim());
 
     // Mobile ERP: each physical unit needs its own IMEI row (qty must be 1 per barcode).
+    // Non-serialized accessories (requires_imei = false) allow qty > 1 on a shared barcode.
     if (isMobileERPMode && mobileERPSettings?.imei_scan_enforcement) {
-      const multiQtyLine = activeLines.find((item) => Number(item.qty) > 1);
+      const multiQtyLine = activeLines.find(
+        (item) =>
+          Number(item.qty) > 1 &&
+          productRequiresImei({ requires_imei: item.requires_imei }, mobileERPSettings),
+      );
       if (multiQtyLine) {
         toast({
           title: "Scan IMEI for each unit",
@@ -4550,7 +4575,10 @@ const PurchaseEntry = () => {
         return;
       }
       const missingImei = activeLines.find(
-        (item) => Number(item.qty) > 0 && !String(item.barcode || "").trim(),
+        (item) =>
+          Number(item.qty) > 0 &&
+          !String(item.barcode || "").trim() &&
+          productRequiresImei({ requires_imei: item.requires_imei }, mobileERPSettings),
       );
       if (missingImei) {
         toast({
