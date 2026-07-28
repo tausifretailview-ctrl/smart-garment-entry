@@ -133,6 +133,40 @@ export function applyWappConnectInvoicePdfCloneFixes(
       font-family: Arial, Helvetica, sans-serif !important;
       box-sizing: border-box !important;
     }
+    /* Column headers: scale type to fixed % widths so labels are not clipped in PDF. */
+    .retail-erp-invoice-template thead th {
+      white-space: nowrap !important;
+      overflow: hidden !important;
+      text-overflow: clip !important;
+      letter-spacing: 0 !important;
+      font-weight: 700 !important;
+    }
+    .retail-erp-invoice-template thead th[data-col="sr"] {
+      font-size: 8px !important;
+    }
+    .retail-erp-invoice-template thead th[data-col="size"],
+    .retail-erp-invoice-template thead th[data-col="qty"],
+    .retail-erp-invoice-template thead th[data-col="hsn"] {
+      font-size: 7px !important;
+      padding-left: 1px !important;
+      padding-right: 1px !important;
+    }
+    .retail-erp-invoice-template thead th[data-col="barcode"] {
+      font-size: 7.5px !important;
+    }
+    .retail-erp-invoice-template thead th[data-col="description"] {
+      font-size: 8px !important;
+    }
+    .retail-erp-invoice-template thead th[data-col="rate"],
+    .retail-erp-invoice-template thead th[data-col="amount"] {
+      font-size: 8px !important;
+    }
+    .retail-erp-size-cell {
+      font-size: 9px !important;
+      font-weight: 700 !important;
+      white-space: nowrap !important;
+      overflow: hidden !important;
+    }
     .retail-erp-invoice-template tr {
       height: auto !important;
       max-height: none !important;

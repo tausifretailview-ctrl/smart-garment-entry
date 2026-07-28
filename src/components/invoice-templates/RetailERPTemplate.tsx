@@ -1,6 +1,6 @@
 import React from "react";
 import { numberToWords } from "@/lib/utils";
-import { retailErpWhatsAppProductLabel } from "@/utils/retailErpWhatsAppProductLabel";
+import { retailErpWhatsAppProductLabel, formatRetailErpInvoiceSize } from "@/utils/retailErpWhatsAppProductLabel";
 
 interface InvoiceItem {
   sr: number;
@@ -485,6 +485,21 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   // A5 SN: readable digits that still fit 10 rows + footer (Terms + QR).
   const fsSrNo = isRealTast ? fsBody : isA5Retail ? "10px" : "16px";
   const fsSrHeader = isRealTast ? fsHeading : isA5Retail ? "9px" : "14px";
+  /** Header type scaled to column width so labels fit fixed % cols (esp. WhatsApp PDF). */
+  const headerFontForCol = (key: string): string => {
+    if (key === "sr") return fsSrHeader;
+    if (key === "size" || key === "qty" || key === "hsn") {
+      return isA4 ? "10px" : isA5Retail ? "7.5px" : "9px";
+    }
+    if (key === "barcode") {
+      return isA4 ? "11px" : isA5Retail ? "8px" : "10px";
+    }
+    if (key === "rate" || key === "amount") {
+      return isA4 ? "12px" : isA5Retail ? "9px" : "11px";
+    }
+    // description
+    return isA4 ? "12px" : isA5Retail ? "8.5px" : fsHeading;
+  };
   const totalsColWidth = isA4 ? "46%" : "46%";
   const totalsPad = isA4 ? "3px 8px" : "2px 5px";
   const totalsAmountStyle: React.CSSProperties = {
@@ -711,13 +726,19 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                     {cols.map((c, ci) => (
                       <th
                         key={c.key}
+                        data-col={c.key}
                         style={{
                           ...cellBase,
                           textAlign: c.align,
                           borderTop: "none",
                           borderBottom: B2,
                           fontWeight: "bold",
-                          fontSize: c.key === "sr" ? fsSrHeader : fsHeading,
+                          fontSize: headerFontForCol(c.key),
+                          letterSpacing: c.key === "description" || c.key === "barcode" ? "0" : "0.02em",
+                          whiteSpace: "nowrap",
+                          overflow: "hidden",
+                          textOverflow: "clip",
+                          padding: isA4 ? "2px 3px" : "1px 2px",
                           backgroundColor: "#333",
                           color: "#fff",
                           borderRight: ci === cols.length - 1 ? "none" : B,
@@ -856,7 +877,28 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                                   </span>
                                 );
                                 break;
-                              case "size": content = item.size || ""; break;
+                              case "size": {
+                                const sizeText = formatRetailErpInvoiceSize(item.size);
+                                content = sizeText ? (
+                                  <span
+                                    className="retail-erp-size-cell"
+                                    style={{
+                                      display: "block",
+                                      fontSize: isA4 ? "11px" : isA5Retail ? "9px" : "10px",
+                                      fontWeight: 700,
+                                      whiteSpace: "nowrap",
+                                      overflow: "hidden",
+                                      textOverflow: "clip",
+                                      lineHeight: 1.15,
+                                    }}
+                                  >
+                                    {sizeText}
+                                  </span>
+                                ) : (
+                                  "\u00A0"
+                                );
+                                break;
+                              }
                               case "barcode":
                                 content = (
                                   <span

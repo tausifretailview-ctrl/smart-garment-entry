@@ -15,3 +15,25 @@ export function retailErpWhatsAppProductLabel(
   const first = full.split("-")[0]?.trim();
   return first || full;
 }
+
+/**
+ * Size cell for Retail ERP invoices (print + WhatsApp PDF).
+ * Hide placeholder sizes ("None", "Standard", etc.); print real sizes/IMEI labels only.
+ */
+export function formatRetailErpInvoiceSize(size?: string | null): string {
+  const s = (size || "").replace(/\u00a0/g, " ").trim();
+  if (!s) return "";
+  const lower = s.toLowerCase();
+  if (
+    lower === "none" ||
+    lower === "standard" ||
+    lower === "n/a" ||
+    lower === "na" ||
+    lower === "-" ||
+    lower === "--" ||
+    lower === "."
+  ) {
+    return "";
+  }
+  return s;
+}
