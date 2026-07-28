@@ -6,6 +6,7 @@ import { getUOMLabel } from "@/constants/uom";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { useMobileERP, validateIMEI } from "@/hooks/useMobileERP";
 import { getUniversalCodeScanWarning } from "@/utils/imeiValidation";
+import { productRequiresImei } from "@/utils/productRequiresImei";
 import { useSettings } from "@/hooks/useSettings";
 import { resolveGarmentGstForLine } from "@/utils/gstRules";
 import { useLocation, useSearchParams } from "react-router-dom";
@@ -374,6 +375,7 @@ interface PosProductRow {
   id: string;
   product_name: string;
   product_type?: string;
+  requires_imei?: boolean | null;
   [key: string]: unknown;
 }
 
@@ -2557,7 +2559,44 @@ export default function POSSales() {
         return;
       }
 
-      // Mobile ERP IMEI enforcement: validate IMEI format before allowing scan
+      // Lookup barcode first. Non-serialized accessories (shared EAN) must add/merge
+      // even when org IMEI min-length would reject a 13-digit retail code.
+      const barcodeMatch = await fetchPosVariantByBarcode(orgId, trimmedTerm);
+      if (barcodeMatch) {
+        const prod = barcodeMatch.product;
+        const dbVariant = barcodeMatch.variant;
+        const stockQty = dbVariant.stock_qty || 0;
+        const needsImei = productRequiresImei(prod, mobileERP);
+
+        if (needsImei) {
+          if (!validateIMEI(trimmedTerm, mobileERP.imei_min_length, mobileERP.imei_max_length)) {
+            toast.error("Invalid IMEI", { description: `Please scan a valid barcode (${mobileERP.imei_min_length}-${mobileERP.imei_max_length} characters)` });
+            setSearchInput("");
+            focusBarcodeScanInput();
+            return;
+          }
+          const universalWarning = getUniversalCodeScanWarning(trimmedTerm);
+          if (universalWarning) {
+            toast.warning("Possible wrong barcode", { description: universalWarning });
+          }
+        }
+
+        setSearchInput("");
+        if (stockQty > 0 || !isStockTrackedPosProduct(prod)) {
+          // Same barcode again → addItemToCart merges qty (+1), not a duplicate line.
+          await addItemToCart(prod, dbVariant, undefined, 'barcode');
+          recordPosBarcodeScanSuccess(trimmedTerm);
+          return;
+        }
+
+        openStockIssueDialog(
+          buildInsufficientStockIssue(prod.product_name, dbVariant.size, 1, stockQty),
+          { productId: prod.id, productName: prod.product_name },
+        );
+        return;
+      }
+
+      // No variant match — Mobile ERP IMEI format gate before name / legacy fallback
       if (mobileERP.enabled && mobileERP.imei_scan_enforcement) {
         if (!validateIMEI(trimmedTerm, mobileERP.imei_min_length, mobileERP.imei_max_length)) {
           toast.error("Invalid IMEI", { description: `Please scan a valid barcode (${mobileERP.imei_min_length}-${mobileERP.imei_max_length} characters)` });
@@ -2569,26 +2608,6 @@ export default function POSSales() {
         if (universalWarning) {
           toast.warning("Possible wrong barcode", { description: universalWarning });
         }
-      }
-
-      const barcodeMatch = await fetchPosVariantByBarcode(orgId, trimmedTerm);
-      if (barcodeMatch) {
-        const prod = barcodeMatch.product;
-        const dbVariant = barcodeMatch.variant;
-        const stockQty = dbVariant.stock_qty || 0;
-
-        setSearchInput("");
-        if (stockQty > 0 || !isStockTrackedPosProduct(prod)) {
-          await addItemToCart(prod, dbVariant, undefined, 'barcode');
-          recordPosBarcodeScanSuccess(trimmedTerm);
-          return;
-        }
-
-        openStockIssueDialog(
-          buildInsufficientStockIssue(prod.product_name, dbVariant.size, 1, stockQty),
-          { productId: prod.id, productName: prod.product_name },
-        );
-        return;
       }
 
       // Try product name search via DB if not IMEI mode
