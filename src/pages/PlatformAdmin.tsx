@@ -15,17 +15,29 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
-import { Building2, Users, Plus, Shield, Edit, UserX, Link2, Settings, Database, FileText, Activity, Download, Eye, EyeOff, CheckCircle2, XCircle, Loader2 } from "lucide-react";
+import { Building2, Users, Plus, Shield, Edit, UserX, Link2, Settings, Database, FileText, Activity, Download, Eye, EyeOff, CheckCircle2, XCircle, Loader2, Search } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
 import { StockReconciliation } from "@/components/StockReconciliation";
 import { PlatformWhatsAppSettings } from "@/components/PlatformWhatsAppSettings";
 import { PlatformWhatsAppLogs } from "@/components/PlatformWhatsAppLogs";
 import { PlatformLedgerHealth } from "@/components/PlatformLedgerHealth";
 import { CloudUsageWidget } from "@/components/dashboard/CloudUsageWidget";
 import { useAuth } from "@/contexts/AuthContext";
+import { cn } from "@/lib/utils";
+
+const ORG_PAGE_SIZE = 12;
 
 interface Organization {
   id: string;
@@ -246,6 +258,7 @@ const AllUsersTable = ({ organizations }: { organizations: Organization[] }) => 
   const [editPassword, setEditPassword] = useState("");
   const [showEditPassword, setShowEditPassword] = useState(false);
   const [savingEdit, setSavingEdit] = useState(false);
+  const [search, setSearch] = useState("");
 
   const openEdit = (userId: string, email: string) => {
     setEditTarget({ userId, email });
@@ -324,7 +337,28 @@ const AllUsersTable = ({ organizations }: { organizations: Organization[] }) => 
     return <div className="text-center py-8 text-muted-foreground">Loading users...</div>;
   }
 
+  const q = search.trim().toLowerCase();
+  const filteredRows = !q
+    ? data || []
+    : (data || []).filter(
+        (row) =>
+          row.email.toLowerCase().includes(q) ||
+          row.orgName.toLowerCase().includes(q) ||
+          row.role.toLowerCase().includes(q) ||
+          row.userId.toLowerCase().includes(q),
+      );
+
   return (
+    <div className="space-y-3">
+      <div className="relative max-w-sm">
+        <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search email, org, role…"
+          className="pl-9"
+        />
+      </div>
     <div className="border rounded-lg overflow-hidden">
       <Table>
         <TableHeader>
@@ -338,14 +372,14 @@ const AllUsersTable = ({ organizations }: { organizations: Organization[] }) => 
           </TableRow>
         </TableHeader>
         <TableBody>
-          {(!data || data.length === 0) ? (
+          {filteredRows.length === 0 ? (
             <TableRow>
               <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-                No users found
+                {q ? "No users match your search" : "No users found"}
               </TableCell>
             </TableRow>
           ) : (
-            data.map((row, index) => (
+            filteredRows.map((row, index) => (
               <TableRow key={`${row.userId}-${row.orgName}-${index}`}>
                 <TableCell className="font-mono text-muted-foreground">{index + 1}</TableCell>
                 <TableCell>
@@ -424,6 +458,7 @@ const AllUsersTable = ({ organizations }: { organizations: Organization[] }) => 
         </DialogContent>
       </Dialog>
     </div>
+    </div>
   );
 };
 
@@ -457,6 +492,9 @@ export default function PlatformAdmin() {
   const [userOrgId, setUserOrgId] = useState("");
   const [userRole, setUserRole] = useState<"admin" | "manager" | "user" | "pos">("user");
   const [allUsersOpen, setAllUsersOpen] = useState(false);
+  const [orgPage, setOrgPage] = useState(1);
+  const [orgSearch, setOrgSearch] = useState("");
+  const [userSearch, setUserSearch] = useState("");
 
   const createUserDraft = useMemo(
     () => ({ userEmail, userPassword, userOrgId, userRole }),
@@ -528,7 +566,7 @@ export default function PlatformAdmin() {
       const { data, error } = await supabase
         .from("organizations")
         .select("*")
-        .order("organization_number", { ascending: true });
+        .order("organization_number", { ascending: false });
       
       if (error) throw error;
       return data as Organization[];
@@ -601,6 +639,8 @@ export default function PlatformAdmin() {
       setSelectedFeatures([]);
       setCustomSlug("");
       setIsSlugAvailable(null);
+      // Newest orgs are first (descending organization_number) — stay on page 1
+      setOrgPage(1);
       queryClient.invalidateQueries({ queryKey: ["platform-organizations"] });
     },
     onError: (error: any) => {
@@ -885,6 +925,71 @@ export default function PlatformAdmin() {
   const orgCount = organizations.length;
   const userCount = members.length;
 
+  const filteredOrganizations = useMemo(() => {
+    const q = orgSearch.trim().toLowerCase();
+    if (!q) return organizations;
+    return organizations.filter((org) => {
+      const num = String(org.organization_number ?? "");
+      const name = (org.name || "").toLowerCase();
+      const slug = (org.slug || "").toLowerCase();
+      const tier = (org.subscription_tier || "").toLowerCase();
+      const type = (org.organization_type || "").toLowerCase();
+      return (
+        name.includes(q) ||
+        slug.includes(q) ||
+        num.includes(q) ||
+        tier.includes(q) ||
+        type.includes(q) ||
+        `#${num}`.includes(q)
+      );
+    });
+  }, [organizations, orgSearch]);
+
+  const filteredOrgCount = filteredOrganizations.length;
+  const orgTotalPages = Math.max(1, Math.ceil(filteredOrgCount / ORG_PAGE_SIZE));
+  const safeOrgPage = Math.min(Math.max(1, orgPage), orgTotalPages);
+
+  useEffect(() => {
+    if (orgPage !== safeOrgPage) setOrgPage(safeOrgPage);
+  }, [orgPage, safeOrgPage]);
+
+  useEffect(() => {
+    setOrgPage(1);
+  }, [orgSearch]);
+
+  const paginatedOrganizations = useMemo(() => {
+    const start = (safeOrgPage - 1) * ORG_PAGE_SIZE;
+    return filteredOrganizations.slice(start, start + ORG_PAGE_SIZE);
+  }, [filteredOrganizations, safeOrgPage]);
+
+  const filteredMembers = useMemo(() => {
+    const q = userSearch.trim().toLowerCase();
+    if (!q) return members;
+    return members.filter(
+      (m) =>
+        (m.user_email || "").toLowerCase().includes(q) ||
+        (m.org_name || "").toLowerCase().includes(q) ||
+        (m.role || "").toLowerCase().includes(q) ||
+        (m.user_id || "").toLowerCase().includes(q),
+    );
+  }, [members, userSearch]);
+
+  const orgPageNumbers = useMemo(() => {
+    const pages: (number | "ellipsis")[] = [];
+    if (orgTotalPages <= 7) {
+      for (let i = 1; i <= orgTotalPages; i++) pages.push(i);
+      return pages;
+    }
+    pages.push(1);
+    if (safeOrgPage > 3) pages.push("ellipsis");
+    const start = Math.max(2, safeOrgPage - 1);
+    const end = Math.min(orgTotalPages - 1, safeOrgPage + 1);
+    for (let i = start; i <= end; i++) pages.push(i);
+    if (safeOrgPage < orgTotalPages - 2) pages.push("ellipsis");
+    pages.push(orgTotalPages);
+    return pages;
+  }, [orgTotalPages, safeOrgPage]);
+
   return (
     <Layout>
       <div className="w-full px-6 py-6 space-y-6">
@@ -973,8 +1078,27 @@ export default function PlatformAdmin() {
 
           {/* Organizations Tab */}
           <TabsContent value="organizations" forceMount className={STICKY_TAB_CONTENT_CLASS}>
-            <div className="flex justify-between items-center">
-              <h2 className="text-xl font-semibold">Organizations</h2>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="text-xl font-semibold">Organizations</h2>
+                {filteredOrgCount > 0 && (
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Showing {(safeOrgPage - 1) * ORG_PAGE_SIZE + 1}–
+                    {Math.min(safeOrgPage * ORG_PAGE_SIZE, filteredOrgCount)} of {filteredOrgCount}
+                    {orgSearch.trim() ? ` (filtered from ${orgCount})` : ""}
+                  </p>
+                )}
+              </div>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <div className="relative w-full sm:w-64">
+                  <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    value={orgSearch}
+                    onChange={(e) => setOrgSearch(e.target.value)}
+                    placeholder="Search name, slug, #…"
+                    className="pl-9"
+                  />
+                </div>
               <Dialog open={createOrgOpen} onOpenChange={setCreateOrgOpen}>
                 <DialogTrigger asChild>
                   <Button disabled={orgCount >= 100}>
@@ -1079,10 +1203,16 @@ export default function PlatformAdmin() {
                   </DialogFooter>
                 </DialogContent>
               </Dialog>
+              </div>
             </div>
 
+            {filteredOrgCount === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-10 border rounded-lg">
+                {orgSearch.trim() ? "No organizations match your search" : "No organizations yet"}
+              </p>
+            ) : (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {organizations.map((org) => {
+              {paginatedOrganizations.map((org) => {
                 const orgMembers = members.filter(m => m.organization_id === org.id);
                 const features = Array.isArray(org.enabled_features) ? org.enabled_features : [];
                 
@@ -1174,12 +1304,80 @@ export default function PlatformAdmin() {
                 );
               })}
             </div>
+            )}
+
+            {filteredOrgCount > 0 && orgTotalPages > 1 && (
+              <Pagination className="pt-2">
+                <PaginationContent>
+                  <PaginationItem>
+                    <PaginationPrevious
+                      href="#"
+                      aria-disabled={safeOrgPage <= 1}
+                      className={cn(safeOrgPage <= 1 && "pointer-events-none opacity-50")}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        if (safeOrgPage > 1) setOrgPage(safeOrgPage - 1);
+                      }}
+                    />
+                  </PaginationItem>
+                  {orgPageNumbers.map((p, idx) =>
+                    p === "ellipsis" ? (
+                      <PaginationItem key={`e-${idx}`}>
+                        <PaginationEllipsis />
+                      </PaginationItem>
+                    ) : (
+                      <PaginationItem key={p}>
+                        <PaginationLink
+                          href="#"
+                          isActive={p === safeOrgPage}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            setOrgPage(p);
+                          }}
+                        >
+                          {p}
+                        </PaginationLink>
+                      </PaginationItem>
+                    ),
+                  )}
+                  <PaginationItem>
+                    <PaginationNext
+                      href="#"
+                      aria-disabled={safeOrgPage >= orgTotalPages}
+                      className={cn(safeOrgPage >= orgTotalPages && "pointer-events-none opacity-50")}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        if (safeOrgPage < orgTotalPages) setOrgPage(safeOrgPage + 1);
+                      }}
+                    />
+                  </PaginationItem>
+                </PaginationContent>
+              </Pagination>
+            )}
           </TabsContent>
 
           {/* Users Tab */}
           <TabsContent value="users" forceMount className={STICKY_TAB_CONTENT_CLASS}>
-            <div className="flex justify-between items-center">
-              <h2 className="text-xl font-semibold">Users</h2>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="text-xl font-semibold">Users</h2>
+                {filteredMembers.length > 0 && (
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {filteredMembers.length} of {userCount} memberships
+                    {userSearch.trim() ? " (filtered)" : ""}
+                  </p>
+                )}
+              </div>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <div className="relative w-full sm:w-64">
+                  <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    value={userSearch}
+                    onChange={(e) => setUserSearch(e.target.value)}
+                    placeholder="Search email, org, role…"
+                    className="pl-9"
+                  />
+                </div>
               <Dialog open={createUserOpen} onOpenChange={setCreateUserOpen}>
                 <DialogTrigger asChild>
                   <Button>
@@ -1266,12 +1464,18 @@ export default function PlatformAdmin() {
                   </DialogFooter>
                 </DialogContent>
               </Dialog>
+              </div>
             </div>
 
             <Card>
               <CardContent className="pt-6">
                 <div className="space-y-4">
-                  {members.map((member) => (
+                  {filteredMembers.length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-8">
+                      {userSearch.trim() ? "No users match your search" : "No users found"}
+                    </p>
+                  ) : (
+                  filteredMembers.map((member) => (
                     <div
                       key={`${member.user_id}-${member.organization_id}`}
                       className="flex items-center justify-between p-4 border rounded-lg"
@@ -1303,7 +1507,8 @@ export default function PlatformAdmin() {
                         </Button>
                       </div>
                     </div>
-                  ))}
+                  ))
+                  )}
                 </div>
               </CardContent>
             </Card>
