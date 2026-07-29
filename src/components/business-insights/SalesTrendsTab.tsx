@@ -3,6 +3,7 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  Cell,
   Legend,
   ResponsiveContainer,
   Tooltip,
@@ -16,9 +17,10 @@ import {
   useCategoryPerformance,
   useProductPerformance,
 } from "@/hooks/useBusinessInsights";
+import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
-import { marginBorderClass } from "@/components/business-insights/insightsMarginUtils";
+import { marginBarColor, marginBorderClass } from "@/components/business-insights/insightsMarginUtils";
 import {
   INSIGHTS_BODY_CELL,
   INSIGHTS_BODY_CELL_NUM,
@@ -61,6 +63,7 @@ export function SalesTrendsTab({ startDate, endDate }: SalesTrendsTabProps) {
   const { currentOrganization } = useOrganization();
   const orgId = currentOrganization?.id;
   const range = { startDate, endDate, enabled: true };
+  const reduceMotion = usePrefersReducedMotion();
 
   const [subTab, setSubTab] = useState<SalesSubTab>("top-products");
 
@@ -98,13 +101,19 @@ export function SalesTrendsTab({ startDate, endDate }: SalesTrendsTabProps) {
       [...categories]
         .filter((c) => num(c.revenue) > 0)
         .sort((a, b) => num(b.revenue) - num(a.revenue))
-        .map((c) => ({
-          name: truncateLabel(c.category || "—", 16),
-          fullName: c.category,
-          revenue: num(c.revenue),
-          cost: num(c.cost),
-          gross_profit: num(c.gross_profit),
-        })),
+        .map((c) => {
+          const revenue = num(c.revenue);
+          const cost = num(c.cost);
+          const gross_profit = num(c.gross_profit);
+          return {
+            name: truncateLabel(c.category || "—", 16),
+            fullName: c.category,
+            revenue,
+            cost,
+            gross_profit,
+            marginPct: revenue > 0 ? (gross_profit / revenue) * 100 : 0,
+          };
+        }),
     [categories],
   );
 
@@ -141,12 +150,14 @@ export function SalesTrendsTab({ startDate, endDate }: SalesTrendsTabProps) {
         <InsightsKpiCard
           label="Slow Movers"
           value={slowMovers.length}
+          valueFormat="int"
           sub="Stock on hand, &lt; 5 units sold"
           tone={slowMovers.length > 0 ? "attention" : "neutral"}
         />
         <InsightsKpiCard
           label="Categories with Sales"
           value={categoryChart.length}
+          valueFormat="int"
           sub={
             categoryChart[0]
               ? `Top: ${categoryChart[0].fullName}`
@@ -291,9 +302,36 @@ export function SalesTrendsTab({ startDate, endDate }: SalesTrendsTabProps) {
                       labelFormatter={(_, payload) => payload?.[0]?.payload?.fullName ?? ""}
                     />
                     <Legend />
-                    <Bar dataKey="revenue" name="Revenue" fill="hsl(210, 70%, 50%)" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="cost" name="Cost" fill="hsl(0, 65%, 55%)" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="gross_profit" name="Gross profit" fill="hsl(150, 60%, 45%)" radius={[4, 4, 0, 0]} />
+                    <Bar
+                      dataKey="revenue"
+                      name="Revenue"
+                      fill="hsl(210, 70%, 50%)"
+                      radius={[4, 4, 0, 0]}
+                      isAnimationActive={!reduceMotion}
+                      animationDuration={900}
+                      animationEasing="ease-out"
+                    />
+                    <Bar
+                      dataKey="cost"
+                      name="Cost"
+                      fill="hsl(0, 65%, 55%)"
+                      radius={[4, 4, 0, 0]}
+                      isAnimationActive={!reduceMotion}
+                      animationDuration={900}
+                      animationEasing="ease-out"
+                    />
+                    <Bar
+                      dataKey="gross_profit"
+                      name="Gross profit"
+                      radius={[4, 4, 0, 0]}
+                      isAnimationActive={!reduceMotion}
+                      animationDuration={900}
+                      animationEasing="ease-out"
+                    >
+                      {categoryChart.map((entry) => (
+                        <Cell key={entry.fullName} fill={marginBarColor(entry.marginPct)} />
+                      ))}
+                    </Bar>
                   </BarChart>
                 </ResponsiveContainer>
               </div>

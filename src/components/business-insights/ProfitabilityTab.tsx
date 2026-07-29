@@ -201,7 +201,8 @@ export function ProfitabilityTab({ startDate, endDate }: ProfitabilityTabProps) 
       <InsightsKpiStrip>
         <InsightsKpiCard
           label="Total Gross Profit"
-          value={formatInsightsINR(kpis.totalGrossProfit)}
+          value={kpis.totalGrossProfit}
+          valueFormat="inr"
           sub={`Margin: ${kpis.overallMargin.toFixed(1)}%`}
           tone="neutral"
         />

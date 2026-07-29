@@ -22,6 +22,7 @@ import {
   useSlowMovingStock,
   type ProductPerformanceRow,
 } from "@/hooks/useBusinessInsights";
+import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table";
 import {
@@ -137,6 +138,7 @@ interface ExecutiveSummaryTabProps {
 export function ExecutiveSummaryTab({ startDate, endDate }: ExecutiveSummaryTabProps) {
   const { currentOrganization } = useOrganization();
   const orgId = currentOrganization?.id;
+  const reduceMotion = usePrefersReducedMotion();
 
   const priorRange = useMemo(
     () => previousPeriod({ startDate, endDate }),
@@ -339,21 +341,31 @@ export function ExecutiveSummaryTab({ startDate, endDate }: ExecutiveSummaryTabP
       <InsightsKpiStrip>
         <InsightsKpiCard
           label="Revenue"
-          value={formatInsightsINR(cur.revenue)}
+          value={cur.revenue}
+          valueFormat="inr"
           sub={`${formatSignedPct(deltas.revenue)} vs prior period`}
           tone="neutral"
+          sparkline={[prv.revenue, cur.revenue]}
         />
         <InsightsKpiCard
           label="Gross Profit"
-          value={formatInsightsINR(cur.grossProfit)}
+          value={cur.grossProfit}
+          valueFormat="inr"
           sub={`${formatSignedPct(deltas.grossProfit)} vs prior period`}
           tone="neutral"
+          sparkline={[prv.grossProfit, cur.grossProfit]}
         />
         <InsightsKpiCard
           label="Margin %"
-          value={formatPct(cur.marginPct)}
+          value={cur.marginPct === null ? "—" : cur.marginPct}
+          valueFormat="pct"
           sub={`${formatSignedPct(deltas.marginPct)} vs prior period`}
           tone={cur.marginPct === null ? "neutral" : marginTone(cur.marginPct)}
+          sparkline={
+            prv.marginPct !== null && cur.marginPct !== null
+              ? [prv.marginPct, cur.marginPct]
+              : undefined
+          }
         />
       </InsightsKpiStrip>
 
@@ -418,7 +430,14 @@ export function ExecutiveSummaryTab({ startDate, endDate }: ExecutiveSummaryTabP
                   formatter={(v: number) => [formatInsightsINR(v), "Gross profit"]}
                   labelFormatter={(_, payload) => payload?.[0]?.payload?.fullName ?? ""}
                 />
-                <Bar dataKey="gross_profit" name="Gross profit" radius={[0, 4, 4, 0]}>
+                <Bar
+                  dataKey="gross_profit"
+                  name="Gross profit"
+                  radius={[0, 4, 4, 0]}
+                  isAnimationActive={!reduceMotion}
+                  animationDuration={900}
+                  animationEasing="ease-out"
+                >
                   {topSkus.map((entry) => (
                     <Cell key={entry.fullName} fill={marginBarColor(entry.marginPct)} />
                   ))}

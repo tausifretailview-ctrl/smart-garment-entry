@@ -169,18 +169,21 @@ export function StockHealthTab() {
         <InsightsKpiCard
           label="Low Stock Variants"
           value={lowStockStats.total}
+          valueFormat="int"
           sub={`Threshold: ${stockThreshold} units`}
           tone={lowStockStats.total > 0 ? "attention" : "neutral"}
         />
         <InsightsKpiCard
           label="Critically Low"
           value={lowStockStats.critical}
+          valueFormat="int"
           sub={`${lowStockStats.warning} warning (3–7 days)`}
           tone={lowStockStats.critical > 0 ? "critical" : "neutral"}
         />
         <InsightsKpiCard
           label="Capital Tied Up (Idle)"
-          value={formatInsightsINR(slowStockValue)}
+          value={slowStockValue}
+          valueFormat="inr"
           sub={`${slowStock.length} variants idle > ${idleDays} days`}
           tone={slowStock.length > 0 ? "attention" : "neutral"}
         />

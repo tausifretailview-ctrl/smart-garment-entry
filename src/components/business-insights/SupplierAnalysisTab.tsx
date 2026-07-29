@@ -16,6 +16,7 @@ import {
   useSupplierPerformance,
   type SupplierPerformanceRow,
 } from "@/hooks/useBusinessInsights";
+import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
@@ -97,6 +98,7 @@ interface SupplierAnalysisTabProps {
 export function SupplierAnalysisTab({ startDate, endDate }: SupplierAnalysisTabProps) {
   const { currentOrganization } = useOrganization();
   const orgId = currentOrganization?.id;
+  const reduceMotion = usePrefersReducedMotion();
 
   const {
     data: suppliers = [],
@@ -198,12 +200,14 @@ export function SupplierAnalysisTab({ startDate, endDate }: SupplierAnalysisTabP
         <InsightsKpiCard
           label="Suppliers Active"
           value={suppliers.length}
+          valueFormat="int"
           sub="With purchases in period"
           tone="neutral"
         />
         <InsightsKpiCard
           label="Total Purchased"
-          value={formatInsightsINR(totalPurchased)}
+          value={totalPurchased}
+          valueFormat="inr"
           sub={`Avg sell-through ${avgSellThrough.toFixed(1)}%`}
           tone="neutral"
         />
@@ -361,8 +365,24 @@ export function SupplierAnalysisTab({ startDate, endDate }: SupplierAnalysisTabP
                       labelFormatter={(_, payload) => payload?.[0]?.payload?.fullName ?? ""}
                     />
                     <Legend />
-                    <Bar dataKey="purchased" name="Total purchased" fill="hsl(210, 70%, 50%)" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="soldValue" name="Est. sold value" fill="hsl(150, 60%, 45%)" radius={[4, 4, 0, 0]} />
+                    <Bar
+                      dataKey="purchased"
+                      name="Total purchased"
+                      fill="hsl(210, 70%, 50%)"
+                      radius={[4, 4, 0, 0]}
+                      isAnimationActive={!reduceMotion}
+                      animationDuration={900}
+                      animationEasing="ease-out"
+                    />
+                    <Bar
+                      dataKey="soldValue"
+                      name="Est. sold value"
+                      fill="hsl(150, 60%, 45%)"
+                      radius={[4, 4, 0, 0]}
+                      isAnimationActive={!reduceMotion}
+                      animationDuration={900}
+                      animationEasing="ease-out"
+                    />
                   </BarChart>
                 </ResponsiveContainer>
               </div>

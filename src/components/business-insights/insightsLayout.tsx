@@ -1,10 +1,13 @@
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, type ReactNode } from "react";
 import { ChevronRight } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
+import { formatInsightsINR } from "@/hooks/useBusinessInsights";
+import { useCountUp } from "@/hooks/useCountUp";
+import { marginBarColor } from "@/components/business-insights/insightsMarginUtils";
 
 /** Full-height tab body inside business-insights-workspace */
 export const INSIGHTS_TAB_SHELL =
@@ -248,6 +251,9 @@ export function InsightsTableSkeleton({
 
 export type InsightsKpiTone = "neutral" | "attention" | "positive" | "critical";
 
+/** How to format a numeric KPI value during / after count-up. */
+export type InsightsKpiValueFormat = "inr" | "pct" | "int";
+
 const KPI_TONE_CLASS: Record<
   InsightsKpiTone,
   { card: string; label: string; value: string; sub: string }
@@ -278,19 +284,108 @@ const KPI_TONE_CLASS: Record<
   },
 };
 
+function formatKpiNumeric(value: number, format: InsightsKpiValueFormat): string {
+  if (format === "inr") return formatInsightsINR(value);
+  if (format === "pct") return `${value.toFixed(1)}%`;
+  return Math.round(value).toLocaleString("en-IN");
+}
+
+/** Inline SVG sparkline — no chart-library instance. Colours from marginBarColor tiers. */
+export function InsightsSparkline({
+  series,
+  invertTrend = false,
+  className,
+}: {
+  series: number[];
+  /** When true, down is good (green) and up is bad (red). */
+  invertTrend?: boolean;
+  className?: string;
+}) {
+  const path = useMemo(() => {
+    if (!series || series.length < 2) return null;
+    const w = 100;
+    const h = 26;
+    const padY = 2;
+    const min = Math.min(...series);
+    const max = Math.max(...series);
+    const span = max - min || 1;
+    const pts = series.map((v, i) => {
+      const x = (i / (series.length - 1)) * w;
+      const y = padY + (1 - (v - min) / span) * (h - padY * 2);
+      return { x, y };
+    });
+    const line = pts.map((p, i) => `${i === 0 ? "M" : "L"}${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(" ");
+    const area = `${line} L${w},${h} L0,${h} Z`;
+    const first = series[0];
+    const last = series[series.length - 1];
+    const up = last >= first;
+    const positive = invertTrend ? !up : up;
+    const stroke = positive ? marginBarColor(35) : marginBarColor(0);
+    return { line, area, stroke };
+  }, [series, invertTrend]);
+
+  if (!path) return null;
+
+  return (
+    <svg
+      className={cn("mt-1.5 block h-[26px] w-full", className)}
+      viewBox="0 0 100 26"
+      preserveAspectRatio="none"
+      aria-hidden
+    >
+      <path d={path.area} fill={path.stroke} opacity={0.13} stroke="none" />
+      <path
+        d={path.line}
+        fill="none"
+        stroke={path.stroke}
+        strokeWidth={2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        vectorEffect="non-scaling-stroke"
+      />
+    </svg>
+  );
+}
+
+function InsightsKpiAnimatedValue({
+  value,
+  format,
+}: {
+  value: number;
+  format: InsightsKpiValueFormat;
+}) {
+  const animated = useCountUp(value);
+  return <>{formatKpiNumeric(animated, format)}</>;
+}
+
 export function InsightsKpiCard({
   label,
   value,
   sub,
   tone = "neutral",
+  valueFormat = "int",
+  sparkline,
+  invertTrend = false,
 }: {
   label: string;
-  value: ReactNode;
+  /**
+   * Number → count-up (formatted via valueFormat).
+   * String / ReactNode → render immediately (e.g. brand names).
+   */
+  value: number | string | ReactNode;
   sub?: ReactNode;
   /** Semantic status — default neutral. Colour means status, not decoration. */
   tone?: InsightsKpiTone;
+  /** Used only when `value` is a number. */
+  valueFormat?: InsightsKpiValueFormat;
+  /** Optional trend series; omitted entirely when absent. */
+  sparkline?: number[];
+  /** Invert sparkline colours when down is good (e.g. return rate). */
+  invertTrend?: boolean;
 }) {
   const styles = KPI_TONE_CLASS[tone];
+  const isNumeric = typeof value === "number" && Number.isFinite(value);
+
   return (
     <div className={cn("rounded-lg px-3 py-2 min-w-0 shadow-sm", styles.card)}>
       <p className={cn("text-xs font-semibold uppercase tracking-wide leading-none", styles.label)}>
@@ -302,9 +397,16 @@ export function InsightsKpiCard({
           styles.value,
         )}
       >
-        {value}
+        {isNumeric ? (
+          <InsightsKpiAnimatedValue value={value} format={valueFormat} />
+        ) : (
+          value
+        )}
       </p>
       {sub && <p className={cn("text-xs mt-0.5 truncate", styles.sub)}>{sub}</p>}
+      {sparkline && sparkline.length >= 2 && (
+        <InsightsSparkline series={sparkline} invertTrend={invertTrend} />
+      )}
     </div>
   );
 }
