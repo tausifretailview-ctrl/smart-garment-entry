@@ -5628,6 +5628,7 @@ export type Database = {
           is_cancelled: boolean
           journal_error: string | null
           journal_status: string
+          legacy_paid_baseline: number
           net_amount: number
           notes: string | null
           organization_id: string
@@ -5693,6 +5694,7 @@ export type Database = {
           is_cancelled?: boolean
           journal_error?: string | null
           journal_status?: string
+          legacy_paid_baseline?: number
           net_amount?: number
           notes?: string | null
           organization_id: string
@@ -5758,6 +5760,7 @@ export type Database = {
           is_cancelled?: boolean
           journal_error?: string | null
           journal_status?: string
+          legacy_paid_baseline?: number
           net_amount?: number
           notes?: string | null
           organization_id?: string
