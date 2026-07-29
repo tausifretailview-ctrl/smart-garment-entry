@@ -287,6 +287,29 @@ LIMIT 50;
 */
 
 -- ---------------------------------------------------------------------------
+-- INV-09  Advance applied ≤ sales.net_amount (+1)
+-- Control (ELLA NOOR before repair): 4 invoices
+--   INV/26-27/362, INV/26-27/152, INV/25-26/534, INV/26-27/1746
+-- After repair: 0 rows
+-- ---------------------------------------------------------------------------
+SELECT
+  s.organization_id,
+  s.sale_number,
+  s.net_amount,
+  SUM(ve.total_amount) AS advance_applied,
+  ROUND((SUM(ve.total_amount) - s.net_amount)::numeric, 2) AS excess
+FROM sales s
+JOIN voucher_entries ve ON ve.reference_id = s.id
+  AND ve.organization_id = s.organization_id
+WHERE ve.voucher_type = 'receipt'
+  AND ve.payment_method = 'advance_adjustment'
+  AND ve.deleted_at IS NULL
+  AND s.deleted_at IS NULL
+GROUP BY s.organization_id, s.id, s.sale_number, s.net_amount
+HAVING SUM(ve.total_amount) > s.net_amount + 1
+ORDER BY excess DESC;
+
+-- ---------------------------------------------------------------------------
 -- Sentinel / service inventory (for exception validation — expect many rows)
 -- ---------------------------------------------------------------------------
 SELECT

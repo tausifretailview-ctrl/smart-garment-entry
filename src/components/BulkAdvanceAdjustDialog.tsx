@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -44,6 +44,7 @@ export function BulkAdvanceAdjustDialog({
   const [advanceBalance, setAdvanceBalance] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const processingRef = useRef(false);
   const queryClient = useQueryClient();
 
   useEffect(() => {
@@ -95,6 +96,8 @@ export function BulkAdvanceAdjustDialog({
 
   const handleConfirm = async () => {
     if (totalAllocated <= 0) return;
+    if (processingRef.current || isProcessing) return;
+    processingRef.current = true;
     setIsProcessing(true);
 
     try {
@@ -166,6 +169,7 @@ export function BulkAdvanceAdjustDialog({
     } catch (err: any) {
       toast.error(err.message || "Failed to adjust advance");
     } finally {
+      processingRef.current = false;
       setIsProcessing(false);
     }
   };

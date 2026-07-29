@@ -474,6 +474,7 @@ export default function SalesInvoiceDashboard() {
   const [receivingBankAccountId, setReceivingBankAccountId] = useState<string | null>(null);
   const [paymentNarration, setPaymentNarration] = useState("");
   const [isRecordingPayment, setIsRecordingPayment] = useState(false);
+  const recordingPaymentRef = useRef(false);
   const [advanceBalance, setAdvanceBalance] = useState<number>(0);
   const [advanceFromBookings, setAdvanceFromBookings] = useState<number>(0);
   const [lockedAdvanceReleasable, setLockedAdvanceReleasable] = useState<number>(0);
@@ -2512,7 +2513,13 @@ export default function SalesInvoiceDashboard() {
 
   const handleRecordPayment = async () => {
     if (!selectedInvoiceForPayment || !paidAmount) return;
+    // Ref lock BEFORE any await — React state alone cannot stop double-click races
+    // during confirmInvoiceOverpaymentIfNeeded / advance balance checks (INV/362 class).
+    if (recordingPaymentRef.current || isRecordingPayment) return;
+    recordingPaymentRef.current = true;
+    setIsRecordingPayment(true);
 
+    try {
     const amount = parseFloat(paidAmount);
     if (isNaN(amount) || amount <= 0) {
       toast({
@@ -2609,8 +2616,6 @@ export default function SalesInvoiceDashboard() {
       }
     }
 
-    setIsRecordingPayment(true);
-    try {
       const saleSnapshot = {
         paid_amount: Number(selectedInvoiceForPayment.paid_amount || 0),
         payment_status: selectedInvoiceForPayment.payment_status,
@@ -2975,6 +2980,7 @@ export default function SalesInvoiceDashboard() {
         variant: "destructive",
       });
     } finally {
+      recordingPaymentRef.current = false;
       setIsRecordingPayment(false);
       if (paymentMode === "credit_note" && selectedInvoiceForPayment?.customer_id) {
         queryClient.invalidateQueries({ queryKey: ["sale-returns"] });

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
@@ -85,6 +85,7 @@ export function SettleCustomerAccountDialog({
   const [discountReason, setDiscountReason] = useState("");
   const [narration, setNarration] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
+  const settleProcessingRef = useRef(false);
   const [settled, setSettled] = useState(false);
   const [settledSummary, setSettledSummary] = useState("");
 
@@ -272,7 +273,11 @@ export function SettleCustomerAccountDialog({
 
   const handleSettle = async () => {
     if (!customerId || selectedTotal <= 0 || isProcessing || selectedInvoices.size === 0) return;
+    if (settleProcessingRef.current) return;
+    settleProcessingRef.current = true;
+    setIsProcessing(true);
 
+    try {
     let liveCnPool = sortedCnReturns.map((r) => ({ ...r, available: r.available }));
     if (cnToApply > 0.01) {
       try {
@@ -320,9 +325,6 @@ export function SettleCustomerAccountDialog({
     }
 
     const isPartialSettlement = totalApplied < selectedTotal - 0.5;
-
-    setIsProcessing(true);
-    try {
       const {
         data: { user },
       } = await supabase.auth.getUser();
@@ -460,6 +462,7 @@ export function SettleCustomerAccountDialog({
       console.error("Settlement error:", err);
       toast({ title: "Settlement failed", description: formatCnApplyError(err), variant: "destructive" });
     } finally {
+      settleProcessingRef.current = false;
       setIsProcessing(false);
     }
   };

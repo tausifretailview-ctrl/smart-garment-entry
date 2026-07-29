@@ -39,6 +39,7 @@ Nightly detection would have surfaced each data defect within ~24h of first appe
 | 8 | **INV-07** *(proposed)* | Customer outstanding facets diverge | **High** | Stuck invoices / wrong receivable |
 | 9 | **INV-08** *(proposed)* | `paid_amount` vs qualifying receipts | **Med-High** | Status vs ledger drift |
 | 10 | Hold/cancelled edge cases | Med | Cosmetic if net≈0 |
+| 11 | **INV-09** | Advance applied ≤ invoice `net_amount` | **Critical** | Silent advance burn (Siya / INV/362 class; ₹50,250 / 4 invoices ELLA NOOR) |
 
 ### Approved design calls
 
@@ -98,8 +99,45 @@ Matches POS convention: `net_amount` is payable **after** S/R adjust; merchandis
 
 | Sub-check | Prior known (investigation) | Phase 1 live |
 |---|---|---|
+| 02c | 125 / 7 orgs / ₹25.6L | see §1D |
+
+---
+
+### INV-09 — Advance applied must not exceed invoice `net_amount`
+
+**Statement:** For every non-deleted sale, Σ live `voucher_entries` with `voucher_type = 'receipt'` and `payment_method = 'advance_adjustment'` must be ≤ `net_amount + 1`.
+
+**Why paid_amount cannot detect this:** `paid_amount` is cash-like tender and is capped at `net_amount`, so double advance application is invisible on screens.
+
+**SQL:** pack § INV-09.
+
+**Control (ELLA NOOR `3fdca631-…`):**
+- **Before repair:** exactly **4** invoices — INV/26-27/362, INV/26-27/152, INV/25-26/534, INV/26-27/1746 (Σ excess ≈ ₹50,250).
+- **After repair:** **0** rows (org-scoped and global).
+
+**Do not** conflate with INV/26-27/367 CN+advance settlement (`paid_amount` = cash-like only by design).
+
+---
 | 02c purchase_returns | ~125 headers, ~₹25.6L, 7 orgs | *pending SQL* |
 | 02a/b/d | not quantified | *pending SQL* |
+
+---
+
+### INV-09 — Advance applied must not exceed invoice `net_amount`
+
+**Statement:** For every non-deleted sale, Σ live `voucher_entries` with `voucher_type = 'receipt'` and `payment_method = 'advance_adjustment'` must be ≤ `net_amount + 1`.
+
+**Why `paid_amount` cannot detect this:** `paid_amount` is cash-like tender and is capped at `net_amount`, so double advance application is invisible on screens (Siya / INV/26-27/362).
+
+**SQL:** pack § INV-09.
+
+**Control (ELLA NOOR `3fdca631-1e0c-4417-9704-421f5129ff67`):**
+- **Before repair:** exactly **4** invoices — `INV/26-27/362`, `INV/26-27/152`, `INV/25-26/534`, `INV/26-27/1746` (Σ excess ≈ ₹50,250).
+- **After repair:** **0** rows.
+
+**Do not** conflate with INV/26-27/367 CN+advance settlement (`paid_amount` = cash-like only by design).
+
+**Repair runbook:** [`docs/advance-over-application-repair-2026-07.md`](./advance-over-application-repair-2026-07.md).
 
 ---
 

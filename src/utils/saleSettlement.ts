@@ -182,11 +182,45 @@ export type ConsumeAdvanceFIFOParams = {
 
 /**
  * FIFO-consume advance balance; updates customer_advances.used_amount with each receipt voucher.
+ * Caps requestedAmount so Σ live advance_adjustment on the sale cannot exceed net_amount (+1).
  */
 export async function consumeAdvanceFIFO(
   supabase: SupabaseClient,
   params: ConsumeAdvanceFIFOParams,
 ): Promise<{ consumed: number; vouchers: string[] }> {
+  const { data: saleRow, error: saleErr } = await supabase
+    .from("sales")
+    .select("id, net_amount, organization_id")
+    .eq("id", params.saleId)
+    .eq("organization_id", params.organizationId)
+    .is("deleted_at", null)
+    .maybeSingle();
+  if (saleErr) throw saleErr;
+  if (!saleRow) throw new Error("Sale not found for advance application");
+
+  const { data: existingAdvRows, error: existingErr } = await supabase
+    .from("voucher_entries")
+    .select("total_amount")
+    .eq("organization_id", params.organizationId)
+    .eq("reference_id", params.saleId)
+    .eq("voucher_type", "receipt")
+    .eq("payment_method", "advance_adjustment")
+    .is("deleted_at", null);
+  if (existingErr) throw existingErr;
+
+  const alreadyApplied = (existingAdvRows || []).reduce(
+    (s, r) => s + (Number(r.total_amount) || 0),
+    0,
+  );
+  const net = Number(saleRow.net_amount) || 0;
+  if (alreadyApplied + params.requestedAmount > net + 1) {
+    throw new Error(
+      `Advance over-application blocked. Invoice already has ₹${alreadyApplied.toLocaleString("en-IN")} advance against net ₹${net.toLocaleString("en-IN")}; requested ₹${params.requestedAmount.toLocaleString("en-IN")}.`,
+    );
+  }
+
+  let remaining = params.requestedAmount;
+
   const { data: advances, error: fetchErr } = await supabase
     .from("customer_advances")
     .select("id, amount, used_amount, advance_number, status")
@@ -199,7 +233,6 @@ export async function consumeAdvanceFIFO(
   if (fetchErr) throw fetchErr;
   if (!advances?.length) return { consumed: 0, vouchers: [] };
 
-  let remaining = params.requestedAmount;
   const voucherIds: string[] = [];
   const voucherDate = params.voucherDate || new Date().toISOString().split("T")[0];
 
