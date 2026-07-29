@@ -545,6 +545,33 @@ export function CustomerPaymentTab({
   const selectedInvoiceIdsKey = selectedInvoiceIds.join("|");
   const allocatedAmountsKey = JSON.stringify(allocatedAmounts);
 
+  /** Amount the Apply Advance button would allocate (OB + selected invoices, capped by unused advance). */
+  const selectedAdvanceApplyAmount = useMemo(() => {
+    if (!referenceId || selectedInvoiceIds.length === 0) return 0;
+    const obPart =
+      selectedInvoiceIds.includes(OPENING_BALANCE_ID) &&
+      Number(openingBalanceRemaining || 0) >= MIN_PENDING_RUPEE
+        ? Number(openingBalanceRemaining || 0)
+        : 0;
+    const invPart = (customerInvoices || [])
+      .filter((inv) => selectedInvoiceIds.includes(inv.id))
+      .reduce(
+        (sum, inv) => sum + getInvoiceOutstanding(inv, safeMapGet(invoiceVoucherSplits, inv.id)),
+        0,
+      );
+    return Math.min(advanceBalance, obPart + invPart);
+  }, [
+    referenceId,
+    selectedInvoiceIdsKey,
+    openingBalanceRemaining,
+    customerInvoicesKey,
+    invoiceVoucherSplitsKey,
+    advanceBalance,
+    customerInvoices,
+    invoiceVoucherSplits,
+    selectedInvoiceIds,
+  ]);
+
   const selectedPayableTotal = useMemo(
     () =>
       computeSelectedPayableTotal({
@@ -638,7 +665,7 @@ export function CustomerPaymentTab({
     queryClient.invalidateQueries({ queryKey: ["next-receipt-number"] });
   };
 
-  // Apply advance to selected invoices
+  // Apply advance to selected invoices and/or opening balance (OB first, then invoices by date).
   const applyAdvanceMutation = useMutation({
     mutationFn: async () => {
       if (savingRef.current) {
@@ -647,12 +674,27 @@ export function CustomerPaymentTab({
       savingRef.current = true;
       try {
       if (!referenceId || selectedInvoiceIds.length === 0) throw new Error("Select customer and invoices");
-      const invoicesToProcess = customerInvoices?.filter(inv => selectedInvoiceIds.includes(inv.id)) || [];
-      if (invoicesToProcess.length === 0) throw new Error("No invoices selected");
-      const totalOutstanding = invoicesToProcess.reduce(
+      const includesOpeningBalance =
+        selectedInvoiceIds.includes(OPENING_BALANCE_ID) &&
+        Number(openingBalanceRemaining || 0) >= MIN_PENDING_RUPEE;
+      const invoicesToProcess = (customerInvoices || [])
+        .filter((inv) => selectedInvoiceIds.includes(inv.id))
+        .slice()
+        .sort((a: any, b: any) => {
+          const da = String(a.sale_date || "");
+          const db = String(b.sale_date || "");
+          if (da !== db) return da < db ? -1 : 1;
+          return String(a.created_at || "").localeCompare(String(b.created_at || ""));
+        });
+      if (!includesOpeningBalance && invoicesToProcess.length === 0) {
+        throw new Error("No invoices or opening balance selected");
+      }
+      const invoiceOutstanding = invoicesToProcess.reduce(
         (sum, inv) => sum + getInvoiceOutstanding(inv, safeMapGet(invoiceVoucherSplits, inv.id)),
         0,
       );
+      const obOutstanding = includesOpeningBalance ? Number(openingBalanceRemaining || 0) : 0;
+      const totalOutstanding = invoiceOutstanding + obOutstanding;
       const amountToApply = Math.min(advanceBalance, totalOutstanding);
       if (amountToApply <= 0) throw new Error("No advance balance to apply");
       
@@ -687,6 +729,45 @@ export function CustomerPaymentTab({
       const advanceSyncedInvoiceIds: string[] = [];
 
       try {
+        // FIFO: opening balance first (predates every invoice), then invoices by sale_date ASC.
+        if (includesOpeningBalance && remaining > 0) {
+          const applyAmt = Math.min(remaining, obOutstanding);
+          if (applyAmt >= MIN_PENDING_RUPEE) {
+            const advDesc = "Adjusted from advance balance for Opening Balance";
+            const { vouchers } = await consumeAdvanceFIFO(supabase, {
+              customerId: referenceId,
+              organizationId,
+              targetOpeningBalance: true,
+              requestedAmount: applyAmt,
+              voucherDate: advYmd,
+            });
+            createdAdvanceVoucherIds.push(...vouchers);
+            const lastVoucherId = vouchers?.length ? vouchers[vouchers.length - 1] : null;
+            if (postLedgerAdv && lastVoucherId) {
+              await recordCustomerAdvanceApplicationJournalEntry(
+                lastVoucherId,
+                organizationId,
+                applyAmt,
+                advYmd,
+                advDesc,
+                supabase,
+              );
+            }
+            if (referenceId && lastVoucherId) {
+              insertLedgerCredit({
+                organizationId,
+                customerId: referenceId,
+                voucherType: "RECEIPT",
+                voucherNo: lastVoucherId,
+                particulars: "Advance adjusted for Opening Balance",
+                transactionDate: advYmd,
+                amount: applyAmt,
+              });
+            }
+            remaining -= applyAmt;
+          }
+        }
+
         for (const invoice of invoicesToProcess) {
           if (remaining <= 0) break;
           const outstanding = getInvoiceOutstanding(invoice, safeMapGet(invoiceVoucherSplits, invoice.id));
@@ -766,13 +847,14 @@ export function CustomerPaymentTab({
       }
     },
     onSuccess: (data) => {
-      toast.success(`₹${Math.round(data.applied).toLocaleString('en-IN')} advance applied to selected invoice(s)`);
+      toast.success(`₹${Math.round(data.applied).toLocaleString('en-IN')} advance applied`);
       queryClient.invalidateQueries({ queryKey: ["voucher-entries"] });
       queryClient.invalidateQueries({ queryKey: ["customer-receipt-vouchers", organizationId] });
       queryClient.invalidateQueries({ queryKey: ["customer-invoices"] });
       queryClient.invalidateQueries({ queryKey: ["customer-balance"] });
       queryClient.invalidateQueries({ queryKey: ["customer-advance-balance"] });
       queryClient.invalidateQueries({ queryKey: ["customer-advances"] });
+      queryClient.invalidateQueries({ queryKey: ["customer-opening-balance-remaining"] });
       queryClient.invalidateQueries({ queryKey: ["sales"] });
       invalidateAfterCustomerPaymentMutation(queryClient, organizationId);
       queryClient.invalidateQueries({ queryKey: ["customers-with-balance"] });
@@ -1653,16 +1735,21 @@ export function CustomerPaymentTab({
                           size="sm"
                           variant="default"
                           className="bg-emerald-600 hover:bg-emerald-700 text-white"
-                          disabled={applyAdvanceMutation.isPending}
+                          disabled={
+                            applyAdvanceMutation.isPending ||
+                            selectedAdvanceApplyAmount < MIN_PENDING_RUPEE
+                          }
                           onClick={() => applyAdvanceMutation.mutate()}
                         >
                           <Wallet className="h-3.5 w-3.5 mr-1.5" />
-                          {applyAdvanceMutation.isPending ? "Applying..." : `Apply ₹${Math.round(Math.min(advanceBalance, customerInvoices?.filter(inv => selectedInvoiceIds.includes(inv.id)).reduce((sum, inv) => sum + getInvoiceOutstanding(inv, safeMapGet(invoiceVoucherSplits, inv.id)), 0) || 0)).toLocaleString('en-IN')} to Invoice`}
+                          {applyAdvanceMutation.isPending
+                            ? "Applying..."
+                            : `Apply ₹${Math.round(selectedAdvanceApplyAmount).toLocaleString("en-IN")}`}
                         </Button>
                       )}
                     </div>
                     {selectedInvoiceIds.length === 0 && (
-                      <p className="text-xs text-emerald-700 dark:text-emerald-300 mt-1">Select invoice(s) below to apply advance balance</p>
+                      <p className="text-xs text-emerald-700 dark:text-emerald-300 mt-1">Select invoice(s) or Opening Balance below to apply advance</p>
                     )}
                   </div>
                 )}

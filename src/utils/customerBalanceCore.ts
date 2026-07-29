@@ -28,7 +28,9 @@ export const isAdvanceApplicationVoucher = (v: {
   description?: string | null;
 }): boolean => {
   if (String(v.voucher_type || "").toLowerCase() !== "receipt") return false;
-  if (String(v.reference_type || "").toLowerCase() !== "sale") return false;
+  const refT = String(v.reference_type || "").toLowerCase();
+  // Sale-linked invoice applications, or customer-scoped opening-balance applications.
+  if (refT !== "sale" && refT !== "customer") return false;
   const pm = String(v.payment_method || "").toLowerCase();
   if (pm === "advance_adjustment") return true;
   const desc = (v.description || "").toLowerCase().trim();

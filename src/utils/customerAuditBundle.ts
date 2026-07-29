@@ -218,12 +218,14 @@ export function buildAuditRows(
 
     const receiptMemoApplication = useLedgerAlignedApps
       ? isReceiptMemoApplicationLedgerAligned(v)
-      : refT === "sale" && isAdvanceApplicationVoucher(v);
+      : isAdvanceApplicationVoucher(v);
     if (vt === "receipt" && receiptMemoApplication) {
       const defPart =
         String(v.payment_method || "").toLowerCase() === "credit_note_adjustment"
           ? "Credit note applied to invoice"
-          : "Advance applied to invoice";
+          : refT === "customer"
+            ? "Advance applied to Opening Balance"
+            : "Advance applied to invoice";
       rows.push({
         id: `ve-adv-${v.id}`,
         at: d,

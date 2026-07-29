@@ -13,6 +13,7 @@ import {
   resolveCnAvailableFromRows,
   type CreditNoteLiveRow,
 } from "@/utils/saleReturnCnBalance";
+import { fetchCustomerOpeningBalanceRemaining } from "@/utils/customerOpeningBalanceRemaining";
 
 /**
  * DB is authoritative for payment_status on persisted sales:
@@ -173,7 +174,13 @@ export async function createReceiptVoucher(
 export type ConsumeAdvanceFIFOParams = {
   customerId: string;
   organizationId: string;
-  saleId: string;
+  /** Sale id for invoice application. Required unless `targetOpeningBalance` is true. */
+  saleId?: string;
+  /**
+   * Apply against customer opening balance (voucher reference_type=customer, reference_id=customerId).
+   * Mutually exclusive with saleId. Cap matches fetchCustomerOpeningBalanceRemaining.
+   */
+  targetOpeningBalance?: boolean;
   requestedAmount: number;
   voucherDate?: string;
   shopName?: string | null;
@@ -182,44 +189,78 @@ export type ConsumeAdvanceFIFOParams = {
 
 /**
  * FIFO-consume advance balance; updates customer_advances.used_amount with each receipt voucher.
- * Caps requestedAmount so Σ live advance_adjustment on the sale cannot exceed net_amount (+1).
+ * Sale target: caps so Σ live advance_adjustment on the sale cannot exceed net_amount (+1).
+ * Opening-balance target: caps so application cannot exceed remaining OB (floored at 0).
+ *
+ * OB voucher description must never include an invoice number — sync_sale_payment_status_from_receipts
+ * substring-matches sale numbers in the customer-branch description.
  */
 export async function consumeAdvanceFIFO(
   supabase: SupabaseClient,
   params: ConsumeAdvanceFIFOParams,
 ): Promise<{ consumed: number; vouchers: string[] }> {
-  const { data: saleRow, error: saleErr } = await supabase
-    .from("sales")
-    .select("id, net_amount, organization_id")
-    .eq("id", params.saleId)
-    .eq("organization_id", params.organizationId)
-    .is("deleted_at", null)
-    .maybeSingle();
-  if (saleErr) throw saleErr;
-  if (!saleRow) throw new Error("Sale not found for advance application");
-
-  const { data: existingAdvRows, error: existingErr } = await supabase
-    .from("voucher_entries")
-    .select("total_amount")
-    .eq("organization_id", params.organizationId)
-    .eq("reference_id", params.saleId)
-    .eq("voucher_type", "receipt")
-    .eq("payment_method", "advance_adjustment")
-    .is("deleted_at", null);
-  if (existingErr) throw existingErr;
-
-  const alreadyApplied = (existingAdvRows || []).reduce(
-    (s, r) => s + (Number(r.total_amount) || 0),
-    0,
-  );
-  const net = Number(saleRow.net_amount) || 0;
-  if (alreadyApplied + params.requestedAmount > net + 1) {
-    throw new Error(
-      `Advance over-application blocked. Invoice already has ₹${alreadyApplied.toLocaleString("en-IN")} advance against net ₹${net.toLocaleString("en-IN")}; requested ₹${params.requestedAmount.toLocaleString("en-IN")}.`,
-    );
+  const targetOb = params.targetOpeningBalance === true;
+  if (targetOb && params.saleId) {
+    throw new Error("consumeAdvanceFIFO: pass saleId or targetOpeningBalance, not both");
+  }
+  if (!targetOb && !params.saleId) {
+    throw new Error("consumeAdvanceFIFO: saleId is required unless targetOpeningBalance is set");
   }
 
-  let remaining = params.requestedAmount;
+  let room = params.requestedAmount;
+  if (room <= 0) return { consumed: 0, vouchers: [] };
+
+  if (targetOb) {
+    const obRemaining = await fetchCustomerOpeningBalanceRemaining(
+      supabase,
+      params.organizationId,
+      params.customerId,
+    );
+    const cappedRoom = Math.max(0, Math.min(room, obRemaining));
+    if (cappedRoom <= 0) {
+      throw new Error("No opening balance remaining to apply advance against");
+    }
+    if (params.requestedAmount > obRemaining + 1) {
+      throw new Error(
+        `Advance over-application blocked. Opening balance remaining ₹${obRemaining.toLocaleString("en-IN")}; requested ₹${params.requestedAmount.toLocaleString("en-IN")}.`,
+      );
+    }
+    room = cappedRoom;
+  } else {
+    const saleId = params.saleId!;
+    const { data: saleRow, error: saleErr } = await supabase
+      .from("sales")
+      .select("id, net_amount, organization_id")
+      .eq("id", saleId)
+      .eq("organization_id", params.organizationId)
+      .is("deleted_at", null)
+      .maybeSingle();
+    if (saleErr) throw saleErr;
+    if (!saleRow) throw new Error("Sale not found for advance application");
+
+    const { data: existingAdvRows, error: existingErr } = await supabase
+      .from("voucher_entries")
+      .select("total_amount")
+      .eq("organization_id", params.organizationId)
+      .eq("reference_id", saleId)
+      .eq("voucher_type", "receipt")
+      .eq("payment_method", "advance_adjustment")
+      .is("deleted_at", null);
+    if (existingErr) throw existingErr;
+
+    const alreadyApplied = (existingAdvRows || []).reduce(
+      (s, r) => s + (Number(r.total_amount) || 0),
+      0,
+    );
+    const net = Number(saleRow.net_amount) || 0;
+    if (alreadyApplied + params.requestedAmount > net + 1) {
+      throw new Error(
+        `Advance over-application blocked. Invoice already has ₹${alreadyApplied.toLocaleString("en-IN")} advance against net ₹${net.toLocaleString("en-IN")}; requested ₹${params.requestedAmount.toLocaleString("en-IN")}.`,
+      );
+    }
+  }
+
+  let remaining = room;
 
   const { data: advances, error: fetchErr } = await supabase
     .from("customer_advances")
@@ -255,12 +296,18 @@ export async function consumeAdvanceFIFO(
       .eq("id", adv.id);
     if (updErr) throw updErr;
 
+    // OB description: never embed an invoice number (sync_sale_payment_status_from_receipts).
+    const description = targetOb
+      ? `Adjusted from advance balance for Opening Balance (advance ${adv.advance_number || adv.id})`
+      : `Adjusted from advance balance for invoice (advance ${adv.advance_number || adv.id})`;
+
     const voucher = await createReceiptVoucher(supabase, {
       organizationId: params.organizationId,
-      referenceId: params.saleId,
+      referenceId: targetOb ? params.customerId : params.saleId!,
+      referenceType: targetOb ? "customer" : "sale",
       amount: consume,
       paymentMethod: "advance_adjustment",
-      description: `Adjusted from advance balance for invoice (advance ${adv.advance_number || adv.id})`,
+      description,
       voucherDate,
       shopName: params.shopName,
       createdBy: params.createdBy,
@@ -268,7 +315,7 @@ export async function consumeAdvanceFIFO(
     voucherIds.push(voucher.id);
   }
 
-  return { consumed: params.requestedAmount - remaining, vouchers: voucherIds };
+  return { consumed: room - remaining, vouchers: voucherIds };
 }
 
 export type AvailableCNReturn = {

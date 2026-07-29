@@ -15,11 +15,13 @@ import {
   type SaleReceiptVoucherSplit,
 } from "@/utils/customerBalanceUtils";
 import { fetchItemsGrossBySaleId } from "@/utils/fetchItemsGrossBySaleId";
+import { fetchCustomerOpeningBalanceRemaining } from "@/utils/customerOpeningBalanceRemaining";
 import { isSaleExcludedFromCustomerPaymentPicker } from "@/utils/paymentVoucherFilters";
 import { coerceToMap, safeMapGet } from "@/lib/coerceToMap";
 
 /** Same floor as CustomerPaymentTab — invoices with less than ₹1 due are not claimable. */
 const MIN_PENDING_RUPEE = 1;
+const OPENING_BALANCE_ID = "__opening_balance__";
 
 interface BulkAdvanceAdjustDialogProps {
   open: boolean;
@@ -40,6 +42,7 @@ interface OutstandingInvoice {
   sale_return_adjust: number;
   pending: number;
   allocate: number;
+  isOpeningBalance?: boolean;
 }
 
 export function BulkAdvanceAdjustDialog({
@@ -130,8 +133,33 @@ export function BulkAdvanceAdjustDialog({
 
       setAdvanceBalance(totalBalance);
 
+      // FIFO: opening balance first (when remaining > 0), then invoices by sale_date ASC.
       let remaining = totalBalance;
       const mapped: OutstandingInvoice[] = [];
+
+      const obRemaining = await fetchCustomerOpeningBalanceRemaining(
+        supabase,
+        organizationId,
+        customerId,
+        queryClient,
+      );
+      if (obRemaining >= MIN_PENDING_RUPEE) {
+        const pending = Math.max(0, Math.round(obRemaining));
+        const allocate = Math.min(pending, remaining);
+        remaining -= allocate;
+        mapped.push({
+          id: OPENING_BALANCE_ID,
+          sale_number: "Opening Balance",
+          sale_date: "",
+          net_amount: pending,
+          paid_amount: 0,
+          sale_return_adjust: 0,
+          pending,
+          allocate,
+          isOpeningBalance: true,
+        });
+      }
+
       for (const inv of salesRows as any[]) {
         const split = safeMapGet<SaleReceiptVoucherSplit>(splitBySale, inv.id) ?? {
           cash: 0,
@@ -184,9 +212,23 @@ export function BulkAdvanceAdjustDialog({
       }
 
       const advYmd = format(new Date(), "yyyy-MM-dd");
+      let appliedTargets = 0;
 
       for (const inv of invoices) {
         if (inv.allocate <= 0) continue;
+
+        if (inv.isOpeningBalance) {
+          await consumeAdvanceFIFO(supabase, {
+            customerId,
+            organizationId,
+            targetOpeningBalance: true,
+            requestedAmount: inv.allocate,
+            voucherDate: advYmd,
+            createdBy: userId ?? null,
+          });
+          appliedTargets += 1;
+          continue;
+        }
 
         const prevPaid = inv.paid_amount;
         const newPaid = Math.round((prevPaid + inv.allocate) * 100) / 100;
@@ -224,18 +266,23 @@ export function BulkAdvanceAdjustDialog({
             payment_method: "advance",
             payment_date: advYmd,
           })
-          .eq("id", inv.id);
+          .eq("id", inv.id)
+          .eq("organization_id", organizationId);
 
         if (updateErr) throw updateErr;
+        appliedTargets += 1;
       }
 
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
       queryClient.invalidateQueries({ queryKey: ["customer-advances"] });
       queryClient.invalidateQueries({ queryKey: ["customer-balance"] });
       queryClient.invalidateQueries({ queryKey: ["customer-ledger"] });
+      queryClient.invalidateQueries({ queryKey: ["customer-opening-balance-remaining"] });
       invalidateCustomerFinancialSnapshot(queryClient, organizationId, customerId);
 
-      toast.success(`₹${totalAllocated.toLocaleString("en-IN")} advance adjusted across ${invoices.filter((i) => i.allocate > 0).length} invoice(s)`);
+      toast.success(
+        `₹${totalAllocated.toLocaleString("en-IN")} advance adjusted across ${appliedTargets} target(s)`,
+      );
       onOpenChange(false);
       onComplete();
     } catch (err: any) {
@@ -255,7 +302,7 @@ export function BulkAdvanceAdjustDialog({
             Bulk Adjust Advance
           </DialogTitle>
           <DialogDescription>
-            Apply advance balance of <strong>{customerName}</strong> to outstanding invoices (FIFO)
+            Apply advance balance of <strong>{customerName}</strong> to opening balance then outstanding invoices (FIFO)
           </DialogDescription>
         </DialogHeader>
 
@@ -271,7 +318,7 @@ export function BulkAdvanceAdjustDialog({
             </div>
 
             {invoices.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-4">No outstanding invoices found for this customer.</p>
+              <p className="text-sm text-muted-foreground text-center py-4">No opening balance or outstanding invoices found for this customer.</p>
             ) : (
               <div className="border rounded-lg overflow-hidden">
                 <table className="w-full text-sm">
@@ -286,8 +333,20 @@ export function BulkAdvanceAdjustDialog({
                     {invoices.map((inv) => (
                       <tr key={inv.id} className="border-t">
                         <td className="px-3 py-2">
-                          <div className="font-mono text-xs font-semibold">{inv.sale_number}</div>
-                          <div className="text-[11px] text-muted-foreground">{format(new Date(inv.sale_date), "dd/MM/yyyy")}</div>
+                          <div
+                            className={
+                              inv.isOpeningBalance
+                                ? "text-xs font-semibold text-amber-700 dark:text-amber-400"
+                                : "font-mono text-xs font-semibold"
+                            }
+                          >
+                            {inv.sale_number}
+                          </div>
+                          {inv.sale_date ? (
+                            <div className="text-[11px] text-muted-foreground">
+                              {format(new Date(inv.sale_date), "dd/MM/yyyy")}
+                            </div>
+                          ) : null}
                         </td>
                         <td className="text-right px-3 py-2 text-amber-600 font-medium">₹{inv.pending.toLocaleString("en-IN")}</td>
                         <td className="text-right px-3 py-2">

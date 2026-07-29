@@ -105,6 +105,7 @@ function computeCustomerOutstandingLegacy(p: CustomerOutstandingParams): Custome
   const invoiceAdvPortions: Record<string, number> = {};
   const invoiceCnPortions: Record<string, number> = {};
   let openingBalanceVoucherPayments = 0;
+  let openingBalanceAdvanceApplied = 0;
 
   p.vouchers.forEach((v) => {
     if (!v.reference_id) return;
@@ -123,7 +124,10 @@ function computeCustomerOutstandingLegacy(p: CustomerOutstandingParams): Custome
           (invoiceVoucherPayments[v.reference_id] || 0) + voucherReceiptSettlementAmount(v);
       }
     } else if (v.reference_type === "customer" && v.reference_id === p.customerId) {
-      if (!isAdv && !isCn) {
+      if (isAdv) {
+        // Customer-scoped advance_adjustment against opening balance — same bucket as sale apps.
+        openingBalanceAdvanceApplied += Number(v.total_amount) || 0;
+      } else if (!isCn) {
         openingBalanceVoucherPayments += voucherReceiptSettlementAmount(v);
       }
     }
@@ -135,7 +139,7 @@ function computeCustomerOutstandingLegacy(p: CustomerOutstandingParams): Custome
     p.sales.reduce((sum, sale) => sum + Number(sale.sale_return_adjust || 0), 0) || 0;
 
   let totalPaidOnSales = 0;
-  let totalAdvanceApplied = 0;
+  let totalAdvanceApplied = openingBalanceAdvanceApplied;
   let totalCnApplied = 0;
   p.sales.forEach((sale) => {
     const salePaidAmount = Math.max(Number(sale.paid_amount || 0), salePaidAtSaleTender(sale));

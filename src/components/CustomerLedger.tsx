@@ -3083,35 +3083,51 @@ export function CustomerLedger({
         (salesRows || []).map((s: { id: string; sale_number: string | null }) => [s.id, String(s.sale_number || "").trim() || "—"]),
       );
       const sentinel = ["00000000-0000-0000-0000-000000000000"];
+      const refIds = [...saleIds, custId];
       let vq = supabase
         .from("voucher_entries")
-        .select("id, voucher_date, voucher_number, reference_id, total_amount, description, payment_method, created_at")
+        .select("id, voucher_date, voucher_number, reference_id, reference_type, total_amount, description, payment_method, created_at")
         .eq("organization_id", organizationId)
         .eq("voucher_type", "receipt")
-        // Phase 1.2: include mis-tagged customer rows pointing at this customer's sales.
+        // Phase 1.2: include mis-tagged customer rows pointing at this customer's sales,
+        // plus customer-scoped opening-balance advance applications (reference_id = customer id).
         .in("reference_type", ["sale", "customer"])
         .in("payment_method", ["advance_adjustment", "credit_note_adjustment"])
         .is("deleted_at", null)
-        .in("reference_id", saleIds.length > 0 ? saleIds : sentinel);
+        .in("reference_id", refIds.length > 0 ? refIds : sentinel);
       if (startDate) vq = vq.gte("voucher_date", format(startDate, "yyyy-MM-dd"));
       if (endDate) vq = vq.lte("voucher_date", format(endDate, "yyyy-MM-dd"));
       const { data: vouchers, error: vErr } = await vq.order("voucher_date", { ascending: true });
       if (vErr) throw vErr;
-      const mapRow = (v: any): LedgerAllocationRow => ({
-        id: String(v.id),
-        voucher_date: String(v.voucher_date || "").slice(0, 10),
-        voucher_number: String(v.voucher_number || "").trim() || "—",
-        reference_id: String(v.reference_id || ""),
-        sale_number: saleNumById.get(String(v.reference_id)) || "—",
-        amount: Math.round((Number(v.total_amount) || 0) * 100) / 100,
-        description: String(v.description || "").trim(),
-      });
+      const mapRow = (v: any): LedgerAllocationRow => {
+        const refId = String(v.reference_id || "");
+        const refType = String(v.reference_type || "").toLowerCase();
+        const isObAdvance =
+          refType === "customer" && refId === custId;
+        return {
+          id: String(v.id),
+          voucher_date: String(v.voucher_date || "").slice(0, 10),
+          voucher_number: String(v.voucher_number || "").trim() || "—",
+          reference_id: refId,
+          sale_number: isObAdvance
+            ? "Opening Balance"
+            : saleNumById.get(refId) || "—",
+          amount: Math.round((Number(v.total_amount) || 0) * 100) / 100,
+          description: String(v.description || "").trim(),
+        };
+      };
       const advanceRows: LedgerAllocationRow[] = [];
       const cnRows: LedgerAllocationRow[] = [];
       for (const v of vouchers || []) {
         const pm = String(v.payment_method || "").toLowerCase();
-        if (pm === "advance_adjustment") advanceRows.push(mapRow(v));
-        else if (pm === "credit_note_adjustment") cnRows.push(mapRow(v));
+        const refId = String(v.reference_id || "");
+        if (pm === "advance_adjustment") {
+          if (refId === custId || saleNumById.has(refId)) {
+            advanceRows.push(mapRow(v));
+          }
+        } else if (pm === "credit_note_adjustment" && saleNumById.has(refId)) {
+          cnRows.push(mapRow(v));
+        }
       }
       return { advanceRows, cnRows };
     },
