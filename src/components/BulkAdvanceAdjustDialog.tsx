@@ -9,6 +9,17 @@ import { format } from "date-fns";
 import { Loader2, IndianRupee, CheckCircle2 } from "lucide-react";
 import { consumeAdvanceFIFO, derivePaidAndStatus, warnSettlementPathMismatch } from "@/utils/saleSettlement";
 import { fetchCustomerFinancialSnapshot, invalidateCustomerFinancialSnapshot } from "@/utils/customerFinancialSnapshot";
+import {
+  fetchSaleReceiptSplitsForInvoices,
+  reconcileSaleInvoiceWithSplit,
+  type SaleReceiptVoucherSplit,
+} from "@/utils/customerBalanceUtils";
+import { fetchItemsGrossBySaleId } from "@/utils/fetchItemsGrossBySaleId";
+import { isSaleExcludedFromCustomerPaymentPicker } from "@/utils/paymentVoucherFilters";
+import { coerceToMap, safeMapGet } from "@/lib/coerceToMap";
+
+/** Same floor as CustomerPaymentTab — invoices with less than ₹1 due are not claimable. */
+const MIN_PENDING_RUPEE = 1;
 
 interface BulkAdvanceAdjustDialogProps {
   open: boolean;
@@ -62,27 +73,88 @@ export function BulkAdvanceAdjustDialog({
       const snap = await fetchCustomerFinancialSnapshot(supabase, organizationId, customerId);
       const totalBalance = snap.advanceAvailable;
 
-      // Fetch pending invoices
-      const { data: pendingInvoices } = await supabase
+      // Same outstanding definition as Payments → Collect & Pay (CustomerPaymentTab):
+      // active sales, exclude cancelled/hold, then keep rows with reconciled outstanding ≥ ₹1.
+      // Do NOT use `.is("is_cancelled", null)` — that drops normal rows where is_cancelled = false.
+      const { data: salesData, error: salesError } = await supabase
         .from("sales")
-        .select("id, sale_number, sale_date, net_amount, paid_amount, sale_return_adjust")
+        .select(
+          "id, sale_number, sale_date, net_amount, paid_amount, sale_return_adjust, payment_status, is_cancelled, cash_amount, card_amount, upi_amount, customer_id",
+        )
         .eq("organization_id", organizationId)
         .eq("customer_id", customerId)
-        .eq("sale_type", "invoice")
         .is("deleted_at", null)
-        .is("is_cancelled", null)
-        .in("payment_status", ["pending", "partial"])
+        .eq("is_cancelled", false)
+        .not("payment_status", "in", '("cancelled","hold")')
         .order("sale_date", { ascending: true });
+      if (salesError) throw salesError;
+
+      const salesRows = (salesData || []).filter(
+        (sale: { payment_status?: string | null; sale_number?: string | null; is_cancelled?: boolean | null }) =>
+          !isSaleExcludedFromCustomerPaymentPicker(sale),
+      );
+
+      let splitBySale = new Map<string, SaleReceiptVoucherSplit>();
+      try {
+        splitBySale = coerceToMap<string, SaleReceiptVoucherSplit>(
+          await fetchSaleReceiptSplitsForInvoices(
+            supabase,
+            organizationId,
+            salesRows.map((sale: any) => ({
+              id: sale.id,
+              sale_number: sale.sale_number,
+              customer_id: sale.customer_id,
+            })),
+          ),
+        );
+      } catch (e) {
+        console.error("BulkAdvanceAdjustDialog: invoice receipt splits failed", e);
+      }
+
+      let itemsGrossBySale = new Map<string, number>();
+      try {
+        const needingGross = salesRows
+          .filter((s: any) => Number(s.sale_return_adjust || 0) > 0.01)
+          .map((s: any) => s.id)
+          .filter(Boolean);
+        if (needingGross.length > 0) {
+          itemsGrossBySale = await fetchItemsGrossBySaleId(supabase, needingGross);
+        }
+      } catch (e) {
+        console.error("BulkAdvanceAdjustDialog: items_gross fetch failed", e);
+      }
+      for (const sale of salesRows as any[]) {
+        const g = itemsGrossBySale.get(sale.id);
+        if (g != null) sale.items_gross = g;
+      }
 
       setAdvanceBalance(totalBalance);
 
       let remaining = totalBalance;
-      const mapped: OutstandingInvoice[] = (pendingInvoices || []).map((inv: any) => {
-        const pending = Math.max(0, Math.round(inv.net_amount - (inv.paid_amount || 0) - (inv.sale_return_adjust || 0)));
+      const mapped: OutstandingInvoice[] = [];
+      for (const inv of salesRows as any[]) {
+        const split = safeMapGet<SaleReceiptVoucherSplit>(splitBySale, inv.id) ?? {
+          cash: 0,
+          cn: 0,
+          adv: 0,
+          discount: 0,
+        };
+        const rec = reconcileSaleInvoiceWithSplit(inv, split);
+        if (rec.outstanding < MIN_PENDING_RUPEE) continue;
+        const pending = Math.max(0, Math.round(rec.outstanding));
         const allocate = Math.min(pending, remaining);
         remaining -= allocate;
-        return { ...inv, pending, allocate, paid_amount: inv.paid_amount || 0, sale_return_adjust: inv.sale_return_adjust || 0 };
-      });
+        mapped.push({
+          id: inv.id,
+          sale_number: inv.sale_number,
+          sale_date: inv.sale_date,
+          net_amount: Number(inv.net_amount || 0),
+          paid_amount: Number(inv.paid_amount || 0),
+          sale_return_adjust: Number(inv.sale_return_adjust || 0),
+          pending,
+          allocate,
+        });
+      }
 
       setInvoices(mapped);
     } catch (err) {
