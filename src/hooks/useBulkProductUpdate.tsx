@@ -339,7 +339,7 @@ export const useBulkProductUpdate = () => {
 
   const cascadeToTransactionItems = async (
     field: string,
-    value: string | number | null,
+    value: string | number | boolean | null,
     productIds: string[]
   ) => {
     if (!currentOrganization || !productIds.length) return;
