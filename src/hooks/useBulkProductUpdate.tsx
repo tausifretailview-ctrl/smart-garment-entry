@@ -52,7 +52,7 @@ export interface PreviewItem {
   barcode?: string;
   size?: string;
   currentValue: string | number | null;
-  newValue: string | number | null;
+  newValue: string | number | boolean | null;
   type: "product" | "variant";
 }
 
@@ -339,7 +339,7 @@ export const useBulkProductUpdate = () => {
 
   const cascadeToTransactionItems = async (
     field: string,
-    value: string | number | null,
+    value: string | number | boolean | null,
     productIds: string[]
   ) => {
     if (!currentOrganization || !productIds.length) return;
@@ -413,7 +413,7 @@ export const useBulkProductUpdate = () => {
     }
   };
 
-  const batchCascade = async (field: string, value: string | number | null, ids: string[]) => {
+  const batchCascade = async (field: string, value: string | number | boolean | null, ids: string[]) => {
     const batchSize = 500;
     for (let i = 0; i < ids.length; i += batchSize) {
       const batch = ids.slice(i, i + batchSize);
