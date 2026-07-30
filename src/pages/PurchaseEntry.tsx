@@ -3230,6 +3230,7 @@ const PurchaseEntry = () => {
           style,
           hsn_code,
           gst_per,
+          requires_imei,
           purchase_gst_percent,
           purchase_discount_type,
           purchase_discount_value,
