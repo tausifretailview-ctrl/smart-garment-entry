@@ -1853,6 +1853,7 @@ export default function BarcodePrinting() {
   // Reset defaults ref when organization changes so defaults reload for new org
   useEffect(() => {
     hasLoadedDefaultsRef.current = false;
+*** MARKER ***
     hasLoadedPrecisionConfigRef.current = false;
     hasResolvedDefaultTabRef.current = false;
     hasAppliedSettingsSheetTypeRef.current = false;
