@@ -5643,8 +5643,18 @@ const PurchaseEntry = () => {
       const importedPaperInv = firstRow.bill_supplier_invoice_no?.toString().trim() || "";
       if (importedPaperInv) {
         setSupplierPaperInvoiceNo(importedPaperInv);
-        supplierInvManuallyEditedRef.current = false;
-        bumpSupplierInvAutoFill();
+        // Never override a number the user typed themselves — the Excel paper
+        // invoice is reference only. Re-arm the auto serial only when the field
+        // is empty or still holds the auto-filled value.
+        const typedInv = billData.supplier_invoice_no?.trim() || "";
+        const isUserTyped =
+          supplierInvManuallyEditedRef.current &&
+          typedInv.length > 0 &&
+          typedInv !== (supplierInvAutoValueRef.current ?? "");
+        if (!isUserTyped) {
+          supplierInvManuallyEditedRef.current = false;
+          bumpSupplierInvAutoFill();
+        }
       }
       // Set supplier if provided
       if (firstRow.bill_supplier_name) {
