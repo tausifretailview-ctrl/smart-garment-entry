@@ -3720,6 +3720,7 @@ const PurchaseEntry = () => {
             size: sizeBase,
             color: colorVal,
             barcode: imei,
+            barcode_source: 'external',
             pur_price: item.pur_price,
             sale_price: item.sale_price,
             mrp: item.mrp || 0,
