@@ -9,7 +9,8 @@ import { SaleInvoiceFormatBackupDialog } from "@/components/settings/SaleInvoice
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { STANDARD_SHEET_TYPE_OPTIONS } from "@/constants/standardSheetTypeOptions";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -313,6 +314,8 @@ interface BillBarcodeSettings {
     | "precision_3up";
   /** Precision Pro landing mode when opening Barcode Printing */
   default_thermal_landing?: 'thermal' | 'thermal2up' | 'thermal3up';
+  /** Sheet Type auto-selected when Standard Printing opens (sheetPresets key) */
+  default_standard_sheet_type?: string;
   /** printer_presets.id used as default label design for the landing mode */
   default_precision_preset_id?: string;
   // Stamp / Signature Settings
@@ -5008,6 +5011,42 @@ export default function Settings() {
                     Auto opens <b>Standard</b> when an A4 sheet design is the default (laser), otherwise{" "}
                     <b>Precision Pro</b>. Pick a Precision Pro Thermal option to always open that mode
                     (1-Up / 2-Up / 3-Up).
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="default_standard_sheet_type">Default Sheet Type (Standard Printing)</Label>
+                  <Select
+                    value={settings.bill_barcode_settings?.default_standard_sheet_type || "__none__"}
+                    onValueChange={(value) =>
+                      setSettings({
+                        ...settings,
+                        bill_barcode_settings: {
+                          ...settings.bill_barcode_settings,
+                          default_standard_sheet_type: value === "__none__" ? undefined : value,
+                        },
+                      })
+                    }
+                  >
+                    <SelectTrigger id="default_standard_sheet_type">
+                      <SelectValue placeholder="Select sheet type" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-[400px]">
+                      <SelectItem value="__none__">None (use last saved default on page)</SelectItem>
+                      {STANDARD_SHEET_TYPE_OPTIONS.map((group) => (
+                        <SelectGroup key={group.group}>
+                          <SelectLabel>{group.group}</SelectLabel>
+                          {group.options.map((opt) => (
+                            <SelectItem key={opt.value} value={opt.value}>
+                              {opt.label}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Auto-selects this Sheet Type &amp; layout when the Barcode Printing page opens on the{" "}
+                    <b>Standard Printing</b> tab.
                   </p>
                 </div>
                 <div className="space-y-2">

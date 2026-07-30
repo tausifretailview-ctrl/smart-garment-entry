@@ -57,6 +57,7 @@ import {
   type ResolveBarcodePrintTabInput,
 } from "@/utils/resolveBarcodePrintTab";
 import { isStandardA4SheetType } from "@/utils/standardA4SheetType";
+import { isValidStandardSheetType } from "@/constants/standardSheetTypeOptions";
 import {
   findDefaultPresetForMode,
   getPrecisionPrintModeDisplayName,
@@ -1533,6 +1534,10 @@ export default function BarcodePrinting() {
   // Resolution is "Auto": prefer Standard if a saved A4 sheet default exists,
   // otherwise prefer Precision Pro (thermal/barcode printer workflow).
   const hasResolvedDefaultTabRef = useRef(false);
+  // Settings → Bill & Barcode → Default Sheet Type (Standard Printing)
+  const settingsStandardSheetTypeRef = useRef<string | null>(null);
+  const hasAppliedSettingsSheetTypeRef = useRef(false);
+  const [settingsStandardSheetType, setSettingsStandardSheetType] = useState<string | null>(null);
   // Helper function to check if a template is the current default
   const getDefaultTemplateName = (): string | null => {
     return (dbDefaultFormat as any)?.defaultTemplate || null;
@@ -1798,7 +1803,7 @@ export default function BarcodePrinting() {
       }
       
       // Always load sheet settings - only load "custom" if valid customDimensions exist
-      if (defaultFormat.sheetType) {
+      if (defaultFormat.sheetType && !settingsStandardSheetTypeRef.current) {
         // Don't load "custom" without valid dimensions, fallback to default preset
         if (defaultFormat.sheetType === "custom" && !defaultFormat.customDimensions) {
           setSheetType("novajet48");
@@ -1845,11 +1850,26 @@ export default function BarcodePrinting() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoadingSettings, dbLabelTemplates, dbMarginPresets, dbCustomPresets, activePrecisionTemplateName, dbPresets]);
 
+  // Settings → Bill & Barcode → "Default Sheet Type (Standard Printing)":
+  // auto-select that sheet type + layout when the page opens.
+  useEffect(() => {
+    if (isLoadingSettings) return;
+    if (hasAppliedSettingsSheetTypeRef.current) return;
+    const configured = settingsStandardSheetType;
+    if (!isValidStandardSheetType(configured)) return;
+    hasAppliedSettingsSheetTypeRef.current = true;
+    setSheetType(configured as SheetType);
+    setSelectedPreset("");
+  }, [isLoadingSettings, settingsStandardSheetType]);
+
   // Reset defaults ref when organization changes so defaults reload for new org
   useEffect(() => {
     hasLoadedDefaultsRef.current = false;
     hasLoadedPrecisionConfigRef.current = false;
     hasResolvedDefaultTabRef.current = false;
+    hasAppliedSettingsSheetTypeRef.current = false;
+    settingsStandardSheetTypeRef.current = null;
+    setSettingsStandardSheetType(null);
     setPrecisionConfigReady(false);
     settingsFullyLoadedRef.current = false;
     settingsOrgLoadedRef.current = null;
@@ -2022,6 +2042,13 @@ export default function BarcodePrinting() {
               : "auto";
           setSettingsDefaultBarTab(configuredDefaultTab);
           setPrecisionProEnabledFromSettings(bbs.precision_pro_enabled === true);
+          if (isValidStandardSheetType(bbs.default_standard_sheet_type)) {
+            settingsStandardSheetTypeRef.current = bbs.default_standard_sheet_type;
+            setSettingsStandardSheetType(bbs.default_standard_sheet_type);
+          } else {
+            settingsStandardSheetTypeRef.current = null;
+            setSettingsStandardSheetType(null);
+          }
           const fromTab = thermalLandingFromDefaultPrintTab(configuredDefaultTab);
           const landing = fromTab || bbs.default_thermal_landing || bbs.precision_print_mode;
           resolvedPrintMode =
