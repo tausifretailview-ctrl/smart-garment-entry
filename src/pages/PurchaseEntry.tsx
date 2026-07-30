@@ -572,6 +572,7 @@ const normalizeSizeGridVariants = (variants: SizeGridVariant[]): SizeGridVariant
       sale_price: existing.sale_price || variant.sale_price,
       mrp: existing.mrp || variant.mrp,
       barcode: existing.barcode || variant.barcode,
+      barcode_source: existing.barcode_source || variant.barcode_source,
       id: existing.id || variant.id,
     });
   });
@@ -2632,7 +2633,8 @@ const PurchaseEntry = () => {
             color: variant.color || product.color || "",
             style: product.style || "",
             uom: product.uom || 'NOS',
-            requires_imei: product.requires_imei !== false,
+            // Do not default a missing flag to true (IMEI accessories must stay false).
+            requires_imei: product.requires_imei === true,
           }),
         );
 
@@ -2652,45 +2654,41 @@ const PurchaseEntry = () => {
         // Blur so "1" shortcut works immediately
         (document.activeElement as HTMLElement)?.blur();
       } else {
-        // No qty entered — fallback to size grid
-        const mappedVariants = normalizeSizeGridVariants(product.variants.map((v: any) => ({
-          id: v.id,
-          size: v.size,
-          sale_price: v.sale_price,
-          pur_price: v.pur_price,
-          mrp: v.mrp || v.sale_price || 0,
-          barcode: v.barcode,
-          color: v.color || product.color || "",
-          stock_qty: v.stock_qty || 0,
-        })));
-
-        // Check if MTR product with roll-wise entry enabled
+        // No qty on payload — re-fetch variants (includes barcode_source) rather than
+        // trusting the in-memory callback objects, which historically omitted it and
+        // caused handleSizeGridConfirm to fork a generated SKU for scanned EANs.
         if (rollWiseMtrEntry && (product as any).uom === 'MTR') {
+          const mappedVariants = normalizeSizeGridVariants(
+            product.variants.map((v: any) => ({
+              id: v.id,
+              size: v.size,
+              sale_price: v.sale_price,
+              pur_price: v.pur_price,
+              mrp: v.mrp || v.sale_price || 0,
+              barcode: v.barcode,
+              barcode_source: v.barcode_source || "generated",
+              color: v.color || product.color || "",
+              stock_qty: v.stock_qty || 0,
+              requires_imei: product.requires_imei === true,
+            })),
+          );
           const uniqueColors = [...new Set(mappedVariants.map((v: any) => v.color || '').filter(Boolean))];
           if (uniqueColors.length === 0) uniqueColors.push(product.color || 'DEFAULT');
           setRollEntryProduct(product);
           setRollEntryColors(uniqueColors);
           setRollEntryRate((product as any).default_pur_price || 0);
           setShowRollEntryDialog(true);
-        } else {
-          setSelectedProduct({
-            id: product.id,
-            product_name: product.product_name,
-            brand: product.brand,
-            category: product.category,
-            gst_per: product.gst_per,
-            hsn_code: product.hsn_code,
-            color: product.color,
+          toast({
+            title: "Product Created",
+            description: `${product.product_name} created. Enter quantities in the size grid.`,
           });
-          setSizeGridVariants(mappedVariants);
-          setSizeQty({});
-          setShowSizeGrid(true);
+        } else {
+          toast({
+            title: "Product Created",
+            description: `${product.product_name} created. Enter quantities in the size grid.`,
+          });
+          await openSizeGridModal(product.id);
         }
-
-        toast({
-          title: "Product Created",
-          description: `${product.product_name} created. Enter quantities in the size grid.`,
-        });
       }
     } else {
       toast({

@@ -1957,11 +1957,18 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
       commitProductFormSuggestions(formData);
 
       // Call the callback with product data — include purchase_qty from variants
+      // Prefer qty from the pre-insert payload so accessory Unit-N → collapsed "None"
+      // rows still carry the summed purchase_qty (UI rows won't match by size).
       const variantsWithQty = insertedVariants.map((iv: any) => {
-        const matchingVariant = variants.find(v => v.size === iv.size && (v.color || "") === (iv.color || ""));
+        const fromPrepared = variantsToCreate.find(
+          (v) => v.size === iv.size && (v.color || "") === (iv.color || ""),
+        );
+        const matchingVariant = variants.find(
+          (v) => v.size === iv.size && (v.color || "") === (iv.color || ""),
+        );
         return {
           ...iv,
-          purchase_qty: matchingVariant?.purchase_qty || 0,
+          purchase_qty: fromPrepared?.purchase_qty || matchingVariant?.purchase_qty || 0,
         };
       });
 
@@ -1979,7 +1986,8 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
         uom: productData.uom || 'NOS',
         purchase_discount_type: productData.purchase_discount_type,
         purchase_discount_value: productData.purchase_discount_value,
-        requires_imei: (productData as any).requires_imei !== false,
+        // Pass the real column value — do not coerce missing → true.
+        requires_imei: (productData as { requires_imei?: boolean | null }).requires_imei === true,
         variants: variantsWithQty,
       });
 
