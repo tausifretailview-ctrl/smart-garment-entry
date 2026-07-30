@@ -3168,6 +3168,7 @@ const PurchaseEntry = () => {
         color: v.color || product.color || "",
         style: product.style || "",
         uom: product.uom || 'NOS',
+        requires_imei: product.requires_imei !== false,
       });
       return;
     }
@@ -3182,6 +3183,7 @@ const PurchaseEntry = () => {
       barcode: v.barcode,
       barcode_source: v.barcode_source || "generated",
       color: v.color || v.products?.color || "",
+      requires_imei: v.products?.requires_imei !== false,
     })));
 
     // Check if this is a MTR product and roll-wise entry is enabled
