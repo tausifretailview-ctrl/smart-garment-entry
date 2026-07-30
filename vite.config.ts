@@ -32,10 +32,13 @@ export default defineConfig(({ mode }) => ({
       includeAssets: ['favicon.ico', 'robots.txt'],
       workbox: {
         maximumFileSizeToCacheInBytes: 10 * 1024 * 1024, // 10 MiB
+        // Intentionally omit html — index.html must come from network (see vercel.json
+        // no-cache + kill-sw.js). Do NOT set navigateFallback to /index.html while it is
+        // absent from precache: Workbox createHandlerBoundToURL throws
+        // `non-precached-url :: [{"url":"/index.html"}]` and navigation/fallback hangs.
         globPatterns: ['**/*.{js,css,ico,png,svg,woff2}'],
         cleanupOutdatedCaches: true,
-        navigateFallback: '/index.html',
-        navigateFallbackDenylist: [/^\/~oauth/, /^\/api/, /supabase\.co/],
+        navigateFallback: null,
         runtimeCaching: [
           {
             // HTML navigations: network-first so deploys aren't stuck behind a precached shell
@@ -43,7 +46,7 @@ export default defineConfig(({ mode }) => ({
             handler: 'NetworkFirst',
             options: {
               cacheName: 'html-navigations',
-              networkTimeoutSeconds: 3,
+              networkTimeoutSeconds: 8,
               expiration: { maxEntries: 5, maxAgeSeconds: 24 * 60 * 60 },
             },
           },
