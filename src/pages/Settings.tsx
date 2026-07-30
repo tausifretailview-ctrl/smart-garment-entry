@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { STANDARD_SHEET_TYPE_OPTIONS } from "@/constants/standardSheetTypeOptions";
+import { useBarcodeLabelSettings } from "@/hooks/useBarcodeLabelSettings";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -398,6 +399,7 @@ export default function Settings() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { currentOrganization, organizations } = useOrganization();
+  const { customPresets: savedSheetPresets } = useBarcodeLabelSettings();
   const [visitedTabs, setVisitedTabs] = useState<Set<string>>(new Set(["company"]));
   const [currentTab, setCurrentTab] = useState("company");
   const [loading, setLoading] = useState(false);
@@ -5042,6 +5044,16 @@ export default function Settings() {
                           ))}
                         </SelectGroup>
                       ))}
+                      {savedSheetPresets.length > 0 && (
+                        <SelectGroup>
+                          <SelectLabel>💾 My Saved Presets</SelectLabel>
+                          {savedSheetPresets.map((preset) => (
+                            <SelectItem key={preset.name} value={`preset_${preset.name}`}>
+                              {preset.name} ({preset.width}×{preset.height}mm, {preset.cols}×{preset.rows})
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                      )}
                     </SelectContent>
                   </Select>
                   <p className="text-xs text-muted-foreground">

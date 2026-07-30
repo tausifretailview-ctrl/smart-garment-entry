@@ -75,5 +75,8 @@ export const STANDARD_SHEET_TYPE_VALUES = new Set(
 );
 
 export function isValidStandardSheetType(value: unknown): value is string {
-  return typeof value === "string" && STANDARD_SHEET_TYPE_VALUES.has(value);
+  if (typeof value !== "string" || !value) return false;
+  // Saved custom sheet presets are stored as "preset_<name>"
+  if (value.startsWith("preset_")) return value.length > "preset_".length;
+  return STANDARD_SHEET_TYPE_VALUES.has(value);
 }

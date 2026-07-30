@@ -1858,9 +1858,27 @@ export default function BarcodePrinting() {
     const configured = settingsStandardSheetType;
     if (!isValidStandardSheetType(configured)) return;
     hasAppliedSettingsSheetTypeRef.current = true;
+    if (configured.startsWith("preset_")) {
+      const presetName = configured.slice("preset_".length);
+      const preset = savedPresets.find((p) => p.name === presetName);
+      if (!preset) {
+        // presets may not be loaded yet — retry on next change
+        hasAppliedSettingsSheetTypeRef.current = false;
+        return;
+      }
+      setCustomWidth(preset.width);
+      setCustomHeight(preset.height);
+      setCustomCols(preset.cols);
+      setCustomRows(preset.rows);
+      setCustomGap(preset.gap);
+      setPrintScale(preset.scale || 100);
+      setSelectedPreset(preset.name);
+      setSheetType("custom");
+      return;
+    }
     setSheetType(configured as SheetType);
     setSelectedPreset("");
-  }, [isLoadingSettings, settingsStandardSheetType]);
+  }, [isLoadingSettings, settingsStandardSheetType, savedPresets]);
 
   // Reset defaults ref when organization changes so defaults reload for new org
   useEffect(() => {
@@ -4621,29 +4639,6 @@ export default function BarcodePrinting() {
     // Barcodes are now pre-rendered as images in getLabelHTML, no setTimeout needed
   };
 
-  useLayoutEffect(() => {
-    if (activeBarTab !== "standard" || !isA4SheetType()) return;
-    generatePreview("standardInlinePreviewArea");
-  }, [
-    activeBarTab,
-    sheetType,
-    customWidth,
-    customHeight,
-    customCols,
-    customRows,
-    customGap,
-    topOffset,
-    leftOffset,
-    bottomOffset,
-    rightOffset,
-    startPosition,
-    designFormat,
-    labelItems,
-    labelConfig,
-    selectedPreset,
-    printScale,
-  ]);
-
   const getTotalBarcodeLabelQty = useCallback(
     () => labelItems.reduce((sum, item) => sum + (Number(item.qty) || 0), 0),
     [labelItems],
@@ -6759,17 +6754,6 @@ export default function BarcodePrinting() {
         </div>
       </Collapsible>
 
-      {isA4SheetType() && (
-        <div className="barcode-standard-a4-preview border rounded-md overflow-hidden bg-card flex flex-col shrink-0">
-          <div className="px-3 py-2 border-b bg-muted/40 flex items-center justify-between gap-2 shrink-0">
-            <span className="text-sm font-bold">A4 Sheet Preview</span>
-            <span className="text-xs text-muted-foreground truncate">{sheetLayoutSummary}</span>
-          </div>
-          <div className="barcode-standard-a4-preview-body p-3 bg-slate-100/80 dark:bg-muted/20">
-            <div id="standardInlinePreviewArea" className="barcode-standard-preview-canvas min-h-[200px]" />
-          </div>
-        </div>
-      )}
       </div>
         </TabsContent>
 
