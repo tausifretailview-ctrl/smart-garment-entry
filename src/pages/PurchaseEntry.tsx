@@ -3841,8 +3841,7 @@ const PurchaseEntry = () => {
       });
     }
 
-    setShowIMEIScanDialog(false);
-    setImeiScanItem(null);
+    advanceImeiScanQueue();
   };
 
   const handleImeiCorrection = useCallback(
