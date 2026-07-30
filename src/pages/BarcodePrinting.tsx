@@ -6676,6 +6676,14 @@ export default function BarcodePrinting() {
 
                 {selectedMarginPreset && (
                   <>
+                    <Button
+                      size="sm"
+                      variant={dbDefaultFormat?.defaultMarginPreset === selectedMarginPreset ? "default" : "outline"}
+                      onClick={handleSetDefaultMarginPreset}
+                      title="Set as default margins (auto-applied when printing from Purchase Bill / Dashboard)"
+                    >
+                      {dbDefaultFormat?.defaultMarginPreset === selectedMarginPreset ? "Default" : "Set Default"}
+                    </Button>
                     <Button 
                       size="sm" 
                       variant="outline" 
