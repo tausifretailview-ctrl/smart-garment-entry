@@ -218,6 +218,8 @@ interface ProductVariant {
   sale_price: number;
   mrp?: number;
   barcode: string;
+  /** 'external' = manufacturer/scanned code (never re-generate), 'generated' = our series */
+  barcode_source?: string;
   product_name: string;
   brand: string;
   category: string;
@@ -1925,6 +1927,8 @@ const PurchaseEntry = () => {
     pur_price?: number;
     sale_price?: number;
     mrp?: number;
+    /** Manufacturer/scanned code — reused verbatim instead of generating a new one. */
+    barcode?: string;
   }): Promise<{ id: string; barcode: string } | null> => {
     const result = await createNewVariantWithBarcode(source);
     if (result) {
@@ -2432,6 +2436,7 @@ const PurchaseEntry = () => {
           sale_price,
           mrp,
           barcode,
+          barcode_source,
           active,
           color,
           product_id,
@@ -2505,6 +2510,7 @@ const PurchaseEntry = () => {
           sale_price: v.sale_price,
           mrp: v.mrp || 0,
           barcode: v.barcode || "",
+          barcode_source: v.barcode_source || "generated",
           product_name: v.products?.product_name || "",
           brand: v.products?.brand || "",
           category: v.products?.category || "",
@@ -2848,6 +2854,7 @@ const PurchaseEntry = () => {
           sale_price,
           mrp,
           barcode,
+          barcode_source,
           active,
           color,
           product_id,
@@ -2926,6 +2933,7 @@ const PurchaseEntry = () => {
           sale_price: v.sale_price,
           mrp: v.mrp || 0,
           barcode: v.barcode || "",
+          barcode_source: v.barcode_source || "generated",
           product_name: v.products?.product_name || "",
           brand: v.products?.brand || "",
           category: v.products?.category || "",
@@ -3605,6 +3613,9 @@ const PurchaseEntry = () => {
     let barcode = variant.barcode;
     const reuseSharedBarcode =
       sameBarcodeSeriesEnabled ||
+      // Manufacturer EAN/UPC (barcode_source = 'external'): the code belongs to the
+      // brand, not to our series — keep the SKU so scanning it keeps working.
+      variant.barcode_source === "external" ||
       !productRequiresImei(
         { requires_imei: variant.requires_imei },
         mobileERPSettings,
