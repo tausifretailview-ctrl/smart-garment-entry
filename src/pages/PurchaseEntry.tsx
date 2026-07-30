@@ -901,6 +901,8 @@ const PurchaseEntry = () => {
   // IMEI Scan Dialog state (Mobile ERP mode)
   const [showIMEIScanDialog, setShowIMEIScanDialog] = useState(false);
   const [imeiScanItem, setImeiScanItem] = useState<{ tempId: string; qty: number; item: LineItem } | null>(null);
+  // Pending IMEI collections (re-purchase can queue several lines at once)
+  const [imeiScanQueue, setImeiScanQueue] = useState<{ tempId: string; qty: number; item: LineItem }[]>([]);
 
   // Roll Entry Dialog state (MTR products)
   const [showRollEntryDialog, setShowRollEntryDialog] = useState(false);
