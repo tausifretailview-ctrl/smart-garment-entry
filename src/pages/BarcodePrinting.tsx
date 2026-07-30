@@ -1823,6 +1823,19 @@ export default function BarcodePrinting() {
       if (defaultFormat.rightOffset !== undefined) {
         setRightOffset(defaultFormat.rightOffset);
       }
+      // Default Sheet Margin Preset (set from the Standard tab) wins over raw offsets
+      if (defaultFormat.defaultMarginPreset) {
+        const marginPreset = dbMarginPresets.find(
+          (p: MarginPreset) => p.name === defaultFormat.defaultMarginPreset,
+        );
+        if (marginPreset) {
+          setTopOffset(marginPreset.topOffset);
+          setLeftOffset(marginPreset.leftOffset);
+          setBottomOffset(marginPreset.bottomOffset);
+          setRightOffset(marginPreset.rightOffset);
+          setSelectedMarginPreset(marginPreset.name);
+        }
+      }
       if (defaultFormat.printScale !== undefined) {
         setPrintScale(defaultFormat.printScale);
       }
