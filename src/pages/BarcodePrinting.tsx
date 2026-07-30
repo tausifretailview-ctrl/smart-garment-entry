@@ -1803,7 +1803,7 @@ export default function BarcodePrinting() {
       }
       
       // Always load sheet settings - only load "custom" if valid customDimensions exist
-      if (defaultFormat.sheetType) {
+      if (defaultFormat.sheetType && !settingsStandardSheetTypeRef.current) {
         // Don't load "custom" without valid dimensions, fallback to default preset
         if (defaultFormat.sheetType === "custom" && !defaultFormat.customDimensions) {
           setSheetType("novajet48");
