@@ -1823,6 +1823,19 @@ export default function BarcodePrinting() {
       if (defaultFormat.rightOffset !== undefined) {
         setRightOffset(defaultFormat.rightOffset);
       }
+      // Default Sheet Margin Preset (set from the Standard tab) wins over raw offsets
+      if (defaultFormat.defaultMarginPreset) {
+        const marginPreset = dbMarginPresets.find(
+          (p: MarginPreset) => p.name === defaultFormat.defaultMarginPreset,
+        );
+        if (marginPreset) {
+          setTopOffset(marginPreset.topOffset);
+          setLeftOffset(marginPreset.leftOffset);
+          setBottomOffset(marginPreset.bottomOffset);
+          setRightOffset(marginPreset.rightOffset);
+          setSelectedMarginPreset(marginPreset.name);
+        }
+      }
       if (defaultFormat.printScale !== undefined) {
         setPrintScale(defaultFormat.printScale);
       }
@@ -3729,6 +3742,25 @@ export default function BarcodePrinting() {
     if (success) {
       setSelectedMarginPreset("");
       toast.success(`Margin preset "${selectedMarginPreset}" deleted`);
+    }
+  };
+
+  // Mark the selected margin preset as the organization default (auto-applies on load)
+  const handleSetDefaultMarginPreset = async () => {
+    if (!selectedMarginPreset) {
+      toast.error("Please select a margin preset first");
+      return;
+    }
+    const success = await saveDefaultToDb({
+      ...(dbDefaultFormat || {}),
+      defaultMarginPreset: selectedMarginPreset,
+      topOffset,
+      leftOffset,
+      bottomOffset,
+      rightOffset,
+    });
+    if (success) {
+      toast.success(`"${selectedMarginPreset}" set as default margins`);
     }
   };
 
@@ -6644,6 +6676,14 @@ export default function BarcodePrinting() {
 
                 {selectedMarginPreset && (
                   <>
+                    <Button
+                      size="sm"
+                      variant={dbDefaultFormat?.defaultMarginPreset === selectedMarginPreset ? "default" : "outline"}
+                      onClick={handleSetDefaultMarginPreset}
+                      title="Set as default margins (auto-applied when printing from Purchase Bill / Dashboard)"
+                    >
+                      {dbDefaultFormat?.defaultMarginPreset === selectedMarginPreset ? "Default" : "Set Default"}
+                    </Button>
                     <Button 
                       size="sm" 
                       variant="outline" 
