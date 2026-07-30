@@ -1855,6 +1855,9 @@ export default function BarcodePrinting() {
     hasLoadedDefaultsRef.current = false;
     hasLoadedPrecisionConfigRef.current = false;
     hasResolvedDefaultTabRef.current = false;
+    hasAppliedSettingsSheetTypeRef.current = false;
+    settingsStandardSheetTypeRef.current = null;
+    setSettingsStandardSheetType(null);
     setPrecisionConfigReady(false);
     settingsFullyLoadedRef.current = false;
     settingsOrgLoadedRef.current = null;
