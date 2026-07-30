@@ -3067,6 +3067,7 @@ const PurchaseEntry = () => {
         sale_price,
         mrp,
         barcode,
+        barcode_source,
         active,
         color,
         products (
@@ -3078,6 +3079,7 @@ const PurchaseEntry = () => {
           style,
           hsn_code,
           gst_per,
+          requires_imei,
           purchase_gst_percent,
           sale_gst_percent,
           default_pur_price,
