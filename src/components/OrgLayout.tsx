@@ -21,6 +21,7 @@ import {
 } from "@/lib/entryPageLayout";
 import {
   isTabCachePath,
+  isTabPageChunkLoaded,
   prefetchPostLoginCriticalPages,
   prefetchPostLoginIdlePages,
   prefetchTabPage,
