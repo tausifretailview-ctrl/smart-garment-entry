@@ -75,6 +75,9 @@ export const OrgLayout = () => {
   const isTabPaneReadyForPath = useCallback((path: string): boolean => {
     // Registry reflects actual mount state (cleared on idle eviction). Ref alone goes stale.
     if (isTabCachePaneMounted(path)) return true;
+    // Chunk already in memory — the cached pane mounts synchronously, so skip the
+    // <Outlet> fallback entirely (rendering both causes a one-frame flicker).
+    if (isTabPageChunkLoaded(path)) return true;
     if (tabPaneReadyPathsRef.current.has(path)) return true;
     for (const recorded of tabPaneReadyPathsRef.current) {
       if (resolveTabCachePath(recorded) === path) return true;
