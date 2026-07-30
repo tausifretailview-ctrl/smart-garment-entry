@@ -5042,6 +5042,16 @@ export default function Settings() {
                           ))}
                         </SelectGroup>
                       ))}
+                      {savedSheetPresets.length > 0 && (
+                        <SelectGroup>
+                          <SelectLabel>💾 My Saved Presets</SelectLabel>
+                          {savedSheetPresets.map((preset) => (
+                            <SelectItem key={preset.name} value={`preset_${preset.name}`}>
+                              {preset.name} ({preset.width}×{preset.height}mm, {preset.cols}×{preset.rows})
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                      )}
                     </SelectContent>
                   </Select>
                   <p className="text-xs text-muted-foreground">
