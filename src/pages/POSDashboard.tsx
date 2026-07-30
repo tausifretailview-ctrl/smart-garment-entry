@@ -8,6 +8,7 @@ import {
   fetchPosDashboardPage,
   fetchPosDashboardSummary,
   invalidatePosDashboardQueries,
+  POS_DASHBOARD_UNPAID_STATUS_FILTER,
   posDashboardSummaryLooksValid,
   resolvePosDashboardQueryDates,
   type PosDashboardSummaryStats,
@@ -665,12 +666,29 @@ const POSDashboard = () => {
     ...DASHBOARD_TAB_RETURN_QUERY_OPTIONS,
   });
 
+  // Summary KPIs ignore status/method table filters (see buildPosDashboardSummaryScopeFilters).
+  // Keep org id as 2nd key segment so invalidatePosDashboardQueries([key, orgId]) still matches.
+  const posDashboardSummaryQueryKey = [
+    "pos-dashboard-sales",
+    currentOrganization?.id,
+    "summary",
+    debouncedSearch,
+    periodFilter,
+    queryDateRange.startDate,
+    queryDateRange.endDate,
+    saleTypeFilter,
+    refundFilter,
+    creditNoteFilter,
+    userFilter && userFilter !== "__pending__" ? userFilter : "all",
+    cancelFilter,
+  ] as const;
+
   const {
     data: posSummaryStats,
     isLoading: summaryQueryLoading,
     error: summaryQueryError,
   } = useQuery({
-    queryKey: [...posDashboardQueryKey, "summary"],
+    queryKey: posDashboardSummaryQueryKey,
     queryFn: async () => {
       if (!currentOrganization?.id) {
         return {
@@ -2475,7 +2493,7 @@ const POSDashboard = () => {
                 onClick: () => setPaymentStatusFilter([]),
               },
               {
-                label: "Completed",
+                label: "Paid",
                 value: String(summaryStats.completedCount),
                 color: "text-emerald-600",
                 bg: "bg-emerald-50",
@@ -2486,7 +2504,8 @@ const POSDashboard = () => {
                 value: String(summaryStats.pendingCount),
                 color: "text-amber-600",
                 bg: "bg-amber-50",
-                onClick: () => setPaymentStatusFilter(["pending", "partial"]),
+                onClick: () =>
+                  setPaymentStatusFilter([...POS_DASHBOARD_UNPAID_STATUS_FILTER]),
               },
               {
                 label: "Amount",
@@ -2507,7 +2526,8 @@ const POSDashboard = () => {
                 value: summaryStats.totalBalance,
                 filter: null,
                 bg: "bg-rose-500",
-                onClick: () => setPaymentStatusFilter(["pending"]),
+                onClick: () =>
+                  setPaymentStatusFilter([...POS_DASHBOARD_UNPAID_STATUS_FILTER]),
               },
             ].map((p) => (
               <button
@@ -2552,7 +2572,13 @@ const POSDashboard = () => {
                 key={s.v}
                 type="button"
                 onClick={() =>
-                  setPaymentStatusFilter(s.v === "all" ? [] : s.v === "pending" ? ["pending", "partial"] : [s.v])
+                  setPaymentStatusFilter(
+                    s.v === "all"
+                      ? []
+                      : s.v === "pending"
+                        ? [...POS_DASHBOARD_UNPAID_STATUS_FILTER]
+                        : [s.v],
+                  )
                 }
                 className={cn(
                   "flex-shrink-0 px-3 py-1 rounded-full text-xs font-semibold border transition-all touch-manipulation",
@@ -2738,7 +2764,7 @@ const POSDashboard = () => {
             onClick={() => setPaymentStatusFilter([])}
           />
           <PosKpiCard
-            title="Completed"
+            title="Paid"
             subtitle={`₹${summaryStats.completedAmount.toFixed(0)}`}
             value={String(summaryStats.completedCount)}
             shellClass="bg-emerald-50 border-emerald-200/70 hover:bg-emerald-100/80"
@@ -2751,7 +2777,9 @@ const POSDashboard = () => {
             value={String(summaryStats.pendingCount)}
             shellClass="bg-orange-50 border-orange-200/70 hover:bg-orange-100/80"
             valueClass="text-orange-800"
-            onClick={() => setPaymentStatusFilter(["pending"])}
+            onClick={() =>
+              setPaymentStatusFilter([...POS_DASHBOARD_UNPAID_STATUS_FILTER])
+            }
           />
           <PosKpiCard
             title="Sale Amount"
@@ -2799,7 +2827,9 @@ const POSDashboard = () => {
             value={`₹${summaryStats.totalBalance.toFixed(0)}`}
             shellClass="bg-rose-50 border-rose-200/70 hover:bg-rose-100/80"
             valueClass="text-rose-800"
-            onClick={() => setPaymentStatusFilter(["pending"])}
+            onClick={() =>
+              setPaymentStatusFilter([...POS_DASHBOARD_UNPAID_STATUS_FILTER])
+            }
           />
         </div>
 
@@ -2915,13 +2945,24 @@ const POSDashboard = () => {
               <Popover>
                 <PopoverTrigger asChild>
                   <Button variant="outline" className="w-full h-9 text-sm border-slate-200 bg-slate-50 hover:bg-white justify-between px-2">
-                    {paymentStatusFilter.length === 0 ? 'All Status' : paymentStatusFilter.length === 1 ? paymentStatusFilter[0].charAt(0).toUpperCase() + paymentStatusFilter[0].slice(1) : `${paymentStatusFilter.length} Sel`}
+                    {paymentStatusFilter.length === 0
+                      ? "All Status"
+                      : paymentStatusFilter.length === 1
+                        ? paymentStatusFilter[0] === "completed"
+                          ? "Paid"
+                          : paymentStatusFilter[0].charAt(0).toUpperCase() +
+                            paymentStatusFilter[0].slice(1)
+                        : paymentStatusFilter.includes("pending") &&
+                            paymentStatusFilter.includes("partial") &&
+                            paymentStatusFilter.length === 2
+                          ? "Unpaid"
+                          : `${paymentStatusFilter.length} Sel`}
                     <ChevronDown className="h-3.5 w-3.5 opacity-50 shrink-0" />
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-[180px] p-2" align="start">
                   <div className="space-y-1">
-                    {[{v:"hold",l:"On Hold"},{v:"completed",l:"Completed"},{v:"partial",l:"Partial"},{v:"pending",l:"Pending"}].map((s) => (
+                    {[{v:"hold",l:"On Hold"},{v:"completed",l:"Paid"},{v:"partial",l:"Partial"},{v:"pending",l:"Pending"}].map((s) => (
                       <label key={s.v} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted cursor-pointer text-sm">
                         <Checkbox
                           checked={paymentStatusFilter.includes(s.v)}
