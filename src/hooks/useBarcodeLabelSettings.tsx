@@ -45,6 +45,8 @@ interface DefaultFormat {
   printScale?: number;
   customPresetName?: string;
   sizeSortOrder?: SizeSortOrder;
+  /** Name of the saved Sheet Margin Preset to auto-apply on page load */
+  defaultMarginPreset?: string;
   customDimensions?: {
     width: number;
     height: number;
