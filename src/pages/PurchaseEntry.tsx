@@ -3680,6 +3680,22 @@ const PurchaseEntry = () => {
     setShowIMEIScanDialog(true);
   };
 
+  /** Move to the next queued IMEI collection, or close the dialog when done. */
+  const advanceImeiScanQueue = () => {
+    setImeiScanQueue((queue) => {
+      const [next, ...rest] = queue;
+      if (next) {
+        setImeiScanItem(next);
+        setShowIMEIScanDialog(true);
+      } else {
+        setImeiScanItem(null);
+        setShowIMEIScanDialog(false);
+        focusSearchBar();
+      }
+      return rest;
+    });
+  };
+
   const updateLineItem = (temp_id: string, field: keyof LineItem, value: any) => {
     // Mobile ERP: qty > 1 must become one row per IMEI — serialized products only.
     if (
