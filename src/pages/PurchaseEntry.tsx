@@ -300,6 +300,8 @@ interface SizeGridVariant {
   barcode_source?: string;
   color?: string;
   stock_qty?: number;
+  /** From products.requires_imei — carried through so grid lines aren't treated as serialised. */
+  requires_imei?: boolean;
 }
 
 // Helper function to format product description
