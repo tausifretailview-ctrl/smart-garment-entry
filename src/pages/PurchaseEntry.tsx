@@ -266,6 +266,13 @@ function itemNumbersEqual(a: unknown, b: unknown): boolean {
   return Number(a) === Number(b);
 }
 
+/** Recompute stored line_total from qty/price/discount/size via UOM-aware subtotal. */
+function recalcLineTotal(item: LineItem): LineItem {
+  const subTotal = computePurchaseLineSubTotal(item);
+  const discountAmount = roundMoney(subTotal * (item.discount_percent / 100));
+  return { ...item, line_total: roundMoney(subTotal - discountAmount) };
+}
+
 function hasItemChanged(orig: LineItem, item: LineItem): boolean {
   if (orig.product_name !== item.product_name) return true;
   if (orig.sku_id !== item.sku_id) return true;
@@ -2933,11 +2940,9 @@ const PurchaseEntry = () => {
           didIncrement = true;
           return prev.map((item, i) => {
             if (i !== idx) return item;
-            const qty = (Number(item.qty) || 0) + 1;
-            const updated = { ...item, qty };
-            const subTotal = computePurchaseLineSubTotal(updated);
-            const discountAmount = roundMoney(subTotal * (updated.discount_percent / 100));
-            return { ...updated, line_total: roundMoney(subTotal - discountAmount) };
+            // Bump qty only — recalcLineTotal keeps stored line_total in sync for GST/save.
+            // Do not call updateLineItem (avoids IMEI prompt for accessories).
+            return recalcLineTotal({ ...item, qty: (Number(item.qty) || 0) + 1 });
           });
         }
 
@@ -3976,9 +3981,7 @@ const PurchaseEntry = () => {
         if (item.temp_id === temp_id) {
           const updated = { ...item, [field]: value };
           if (field === "qty" || field === "pur_price" || field === "discount_percent" || field === "size") {
-            const subTotal = computePurchaseLineSubTotal(updated);
-            const discountAmount = roundMoney(subTotal * (updated.discount_percent / 100));
-            updated.line_total = roundMoney(subTotal - discountAmount);
+            return recalcLineTotal(updated);
           }
           // Garment / Footwear GST auto-bump rule on sale price change
           if (field === "sale_price") {
