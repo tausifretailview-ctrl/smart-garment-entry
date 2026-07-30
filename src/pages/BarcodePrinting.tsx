@@ -1858,9 +1858,27 @@ export default function BarcodePrinting() {
     const configured = settingsStandardSheetType;
     if (!isValidStandardSheetType(configured)) return;
     hasAppliedSettingsSheetTypeRef.current = true;
+    if (configured.startsWith("preset_")) {
+      const presetName = configured.slice("preset_".length);
+      const preset = savedPresets.find((p) => p.name === presetName);
+      if (!preset) {
+        // presets may not be loaded yet — retry on next change
+        hasAppliedSettingsSheetTypeRef.current = false;
+        return;
+      }
+      setCustomWidth(preset.width);
+      setCustomHeight(preset.height);
+      setCustomCols(preset.cols);
+      setCustomRows(preset.rows);
+      setCustomGap(preset.gap);
+      setPrintScale(preset.scale || 100);
+      setSelectedPreset(preset.name);
+      setSheetType("custom");
+      return;
+    }
     setSheetType(configured as SheetType);
     setSelectedPreset("");
-  }, [isLoadingSettings, settingsStandardSheetType]);
+  }, [isLoadingSettings, settingsStandardSheetType, savedPresets]);
 
   // Reset defaults ref when organization changes so defaults reload for new org
   useEffect(() => {
