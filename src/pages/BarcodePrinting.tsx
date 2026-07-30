@@ -3745,6 +3745,25 @@ export default function BarcodePrinting() {
     }
   };
 
+  // Mark the selected margin preset as the organization default (auto-applies on load)
+  const handleSetDefaultMarginPreset = async () => {
+    if (!selectedMarginPreset) {
+      toast.error("Please select a margin preset first");
+      return;
+    }
+    const success = await saveDefaultToDb({
+      ...(dbDefaultFormat || {}),
+      defaultMarginPreset: selectedMarginPreset,
+      topOffset,
+      leftOffset,
+      bottomOffset,
+      rightOffset,
+    });
+    if (success) {
+      toast.success(`"${selectedMarginPreset}" set as default margins`);
+    }
+  };
+
   // Label template management functions
   const handleSaveLabelTemplate = async () => {
     const trimmedName = newLabelTemplateName.trim();
