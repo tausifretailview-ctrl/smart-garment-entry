@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { classifyBarcodeSource } from "@/utils/barcodeChecksum";
 import { useQueryClient } from "@tanstack/react-query";
 import { IMEIScanDialog } from "@/components/IMEIScanDialog";
 import { createPortal } from "react-dom";
@@ -84,9 +83,28 @@ interface ProductVariant {
   sale_price: number;
   mrp: number | null;
   barcode: string;
+  /** Set when barcode is assigned — user scan/type vs generateSequentialBarcode(). */
+  barcode_source?: "external" | "generated";
   active: boolean;
   opening_qty: number;
   purchase_qty?: number;
+}
+
+type VariantBarcodeSource = NonNullable<ProductVariant["barcode_source"]>;
+
+/** User scanned or typed into a barcode / shared-EAN / IMEI field. */
+function variantWithExternalBarcode<T extends ProductVariant>(variant: T, barcode: string): T {
+  const trimmed = barcode.trim();
+  if (!trimmed) {
+    const { barcode_source: _drop, ...rest } = variant;
+    return { ...rest, barcode: "" };
+  }
+  return { ...variant, barcode: trimmed, barcode_source: "external" };
+}
+
+/** Value returned by generateSequentialBarcode(). */
+function variantWithGeneratedBarcode<T extends ProductVariant>(variant: T, barcode: string): T {
+  return { ...variant, barcode, barcode_source: "generated" };
 }
 
 /** Sentinel size_group_id for "no sizes" products (single "None" variant). */
@@ -487,7 +505,10 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
           const updated = [...variants];
           for (let i = 0; i < updated.length; i++) {
             if (!updated[i].barcode) {
-              updated[i] = { ...updated[i], barcode: await generateSequentialBarcode() };
+              updated[i] = variantWithGeneratedBarcode(
+                updated[i],
+                await generateSequentialBarcode(),
+              );
             }
           }
           setVariants(updated);
@@ -708,6 +729,8 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
       const allSame = barcodes.length === 0 || barcodes.every((b) => b === barcodes[0]);
       // Keep shared EAN when resizing qty; clear when switching from unique IMEI rows
       const sharedBarcode = allSame ? (barcodes[0] || "") : "";
+      const sharedSource: VariantBarcodeSource | undefined =
+        sharedBarcode && allSame && prev[0]?.barcode_source ? prev[0].barcode_source : undefined;
       const priceSrc = prev[0];
       const next: ProductVariant[] = colorsToUse.flatMap((color) =>
         Array.from({ length: qty }, (_, i) => ({
@@ -717,6 +740,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
           sale_price: priceSrc?.sale_price ?? formData.default_sale_price ?? 0,
           mrp: priceSrc?.mrp ?? formData.default_mrp ?? null,
           barcode: sharedBarcode,
+          ...(sharedSource ? { barcode_source: sharedSource } : {}),
           active: true,
           opening_qty: 0,
           purchase_qty: 1,
@@ -1564,7 +1588,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
       }
       for (let i = 0; i < updatedVariants.length; i++) {
         if (updatedVariants[i].barcode && barcodeCounts.get(updatedVariants[i].barcode)! > 1) {
-          updatedVariants[i] = { ...updatedVariants[i], barcode: "" };
+          updatedVariants[i] = variantWithExternalBarcode(updatedVariants[i], "");
         }
       }
       
@@ -1573,10 +1597,10 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
         const v = updatedVariants[i];
         const shouldSkip = hideOpeningQty && formData.product_type !== 'service' && (v.purchase_qty || 0) <= 0;
         if (!v.barcode && !shouldSkip) {
-          updatedVariants[i] = {
-            ...updatedVariants[i],
-            barcode: await generateSequentialBarcode(),
-          };
+          updatedVariants[i] = variantWithGeneratedBarcode(
+            updatedVariants[i],
+            await generateSequentialBarcode(),
+          );
         }
       }
       setVariants(updatedVariants);
@@ -1603,11 +1627,22 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
         field === "barcode"
           ? String(value ?? "").replace(/[^a-zA-Z0-9\-_.\/]/g, "").toUpperCase()
           : value;
-      setVariants((prev) => prev.map((v) => ({ ...v, [field]: nextValue, purchase_qty: 1 })));
+      setVariants((prev) =>
+        prev.map((v) => {
+          if (field === "barcode") {
+            return { ...variantWithExternalBarcode(v, nextValue), purchase_qty: 1 };
+          }
+          return { ...v, [field]: nextValue, purchase_qty: 1 };
+        }),
+      );
       return;
     }
     const updated = [...variants];
-    updated[index] = { ...updated[index], [field]: value };
+    if (field === "barcode") {
+      updated[index] = variantWithExternalBarcode(updated[index], String(value ?? ""));
+    } else {
+      updated[index] = { ...updated[index], [field]: value };
+    }
     setVariants(updated);
   };
 
@@ -1754,6 +1789,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
           existing.purchase_qty = (existing.purchase_qty || 0) + (v.purchase_qty || 0);
           if (!existing.barcode?.trim() && v.barcode?.trim()) {
             existing.barcode = v.barcode;
+            existing.barcode_source = v.barcode_source;
           }
         }
       }
@@ -1764,7 +1800,10 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
       if (hideOpeningQty && isAutoBarcode) {
         for (let i = 0; i < variantsToCreate.length; i++) {
           if (!variantsToCreate[i].barcode) {
-            variantsToCreate[i] = { ...variantsToCreate[i], barcode: await generateSequentialBarcode() };
+            variantsToCreate[i] = variantWithGeneratedBarcode(
+              variantsToCreate[i],
+              await generateSequentialBarcode(),
+            );
           }
         }
       }
@@ -1873,10 +1912,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
           sale_price: v.sale_price,
           mrp: v.mrp,
           barcode: v.barcode.trim(),
-          // Scanned/typed here → provenance decided by real check digits, never length.
-          barcode_source: classifyBarcodeSource(v.barcode, {
-            organizationNumber: (currentOrganization as { organization_number?: number } | null)?.organization_number,
-          }).source,
+          barcode_source: v.barcode_source === "generated" ? "generated" : "external",
           active: v.active,
           opening_qty: formData.product_type === 'service' ? 0 : v.opening_qty,
           // Service products have unlimited/virtual stock — no physical stock tracking
@@ -2893,9 +2929,12 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                         value={variants[0]?.barcode || ""}
                         onChange={(e) => {
                           const cleaned = e.target.value.replace(/[^a-zA-Z0-9\-_.\/]/g, "").toUpperCase();
-                          // Same universal barcode on every unit row
+                          // Same universal barcode on every unit row — user origin
                           setVariants((prev) =>
-                            prev.map((v) => ({ ...v, barcode: cleaned, purchase_qty: 1 })),
+                            prev.map((v) => ({
+                              ...variantWithExternalBarcode(v, cleaned),
+                              purchase_qty: 1,
+                            })),
                           );
                         }}
                         placeholder="Scan or type shared barcode..."
@@ -4024,17 +4063,22 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
           maxLength={mobileERPMode.imei_max_length || 19}
           onConfirm={(imeiNumbers) => {
             // Create one variant per IMEI
-            const newVariants: ProductVariant[] = imeiNumbers.map((imei, idx) => ({
-              color: imeiScanColor,
-              size: mobileERPQty === 1 ? "None" : `IMEI-${idx + 1}`,
-              pur_price: formData.default_pur_price ?? 0,
-              sale_price: formData.default_sale_price ?? 0,
-              mrp: formData.default_mrp ?? null,
-              barcode: imei,
-              active: true,
-              opening_qty: 0,
-              purchase_qty: 1,
-            }));
+            const newVariants: ProductVariant[] = imeiNumbers.map((imei, idx) =>
+              variantWithExternalBarcode(
+                {
+                  color: imeiScanColor,
+                  size: mobileERPQty === 1 ? "None" : `IMEI-${idx + 1}`,
+                  pur_price: formData.default_pur_price ?? 0,
+                  sale_price: formData.default_sale_price ?? 0,
+                  mrp: formData.default_mrp ?? null,
+                  barcode: "",
+                  active: true,
+                  opening_qty: 0,
+                  purchase_qty: 1,
+                },
+                imei,
+              ),
+            );
             setVariants(newVariants);
             setShowVariants(true);
             setImeiScanOpen(false);
