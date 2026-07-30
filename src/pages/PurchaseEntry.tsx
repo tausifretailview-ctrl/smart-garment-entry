@@ -3303,6 +3303,11 @@ const PurchaseEntry = () => {
 
     setRepurchaseConfirming(true);
     try {
+      const requiresImei = productRequiresImei(
+        { requires_imei: repurchaseProduct.requires_imei },
+        mobileERPSettings,
+      );
+      const imeiQueue: { tempId: string; qty: number; item: LineItem }[] = [];
       let added = 0;
       for (const row of withQty) {
         let skuId = row.id;
@@ -3310,8 +3315,11 @@ const PurchaseEntry = () => {
         const newPur = row.newPurPrice;
         const newSale = row.newSalePrice;
         const newMrp = row.newMrp;
+        // Provenance decides the fork: our own generated barcode means a new sticker
+        // per price change, but a manufacturer EAN/UPC stays on the same SKU.
+        const isExternalBarcode = row.barcodeSource === "external";
 
-        if (!repurchasePricesUnchanged(row)) {
+        if (!requiresImei && !isExternalBarcode && !repurchasePricesUnchanged(row)) {
           const result = await createNewVariantWithBarcode({
             product_id: repurchaseProduct.id,
             size: row.size,
@@ -3325,9 +3333,11 @@ const PurchaseEntry = () => {
           barcode = result.barcode;
         }
 
-        addItemRow({
+        // Serialized (IMEI) products: never reuse or auto-generate — each unit gets its
+        // own scanned IMEI, collected right after the lines land on the bill.
+        const lineDraft = {
           product_id: repurchaseProduct.id,
-          sku_id: skuId,
+          sku_id: requiresImei ? "" : skuId,
           product_name: repurchaseProduct.product_name,
           size: row.size,
           qty: row.qty,
@@ -3336,7 +3346,7 @@ const PurchaseEntry = () => {
           mrp: newMrp,
           gst_per: repurchaseProduct.purchase_gst_percent || repurchaseProduct.gst_per || 0,
           hsn_code: repurchaseProduct.hsn_code || "",
-          barcode,
+          barcode: requiresImei ? "" : barcode,
           discount_percent: (() => {
             const pdt = repurchaseProduct.purchase_discount_type;
             const pdv = repurchaseProduct.purchase_discount_value || 0;
@@ -3348,14 +3358,23 @@ const PurchaseEntry = () => {
           color: row.color || repurchaseProduct.color || "",
           style: repurchaseProduct.style || "",
           uom: repurchaseProduct.uom || "NOS",
-        });
+          requires_imei: repurchaseProduct.requires_imei ?? undefined,
+        } as Omit<LineItem, "temp_id" | "line_total">;
+
+        const createdRow = createLineItemRow(lineDraft);
+        setLineItems((prev) => [...prev, createdRow]);
+        if (requiresImei) {
+          imeiQueue.push({ tempId: createdRow.temp_id, qty: Number(row.qty) || 1, item: createdRow });
+        }
         added++;
       }
 
       if (added > 0) {
         toast({
           title: "Added to bill",
-          description: `${added} line(s) added from re-purchase.`,
+          description: requiresImei
+            ? `${added} line(s) added — scan the IMEI for each unit.`
+            : `${added} line(s) added from re-purchase.`,
         });
       }
 
@@ -3363,7 +3382,14 @@ const PurchaseEntry = () => {
       setRepurchaseProduct(null);
       setRepurchaseRows([]);
       (document.activeElement as HTMLElement)?.blur();
-      focusSearchBar();
+      if (imeiQueue.length > 0) {
+        const [first, ...rest] = imeiQueue;
+        setImeiScanQueue(rest);
+        setImeiScanItem(first);
+        setShowIMEIScanDialog(true);
+      } else {
+        focusSearchBar();
+      }
     } finally {
       setRepurchaseConfirming(false);
     }
