@@ -57,6 +57,7 @@ import {
   type ResolveBarcodePrintTabInput,
 } from "@/utils/resolveBarcodePrintTab";
 import { isStandardA4SheetType } from "@/utils/standardA4SheetType";
+import { isValidStandardSheetType } from "@/constants/standardSheetTypeOptions";
 import {
   findDefaultPresetForMode,
   getPrecisionPrintModeDisplayName,
