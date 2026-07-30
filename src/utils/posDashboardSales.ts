@@ -310,6 +310,43 @@ function shouldApplyPosUserFilter(userFilter: string): boolean {
   return Boolean(userFilter) && userFilter !== "all" && userFilter !== "__pending__";
 }
 
+/**
+ * Mix + credit POS bills save as payment_status=partial (not completed).
+ * Pending / Balance KPI clicks must include both unpaid statuses.
+ */
+export const POS_DASHBOARD_UNPAID_STATUS_FILTER = ["pending", "partial"] as const;
+
+/**
+ * Cash / Card / UPI method chips must include mix (`payment_method=multiple`) rows
+ * that actually tendered in that mode — otherwise mix cash/UPI never appears under
+ * those filters (only under Mix Payment).
+ */
+export function buildPosDashboardPaymentMethodOrFilter(
+  method: string,
+): string | null {
+  if (method === "cash") {
+    return "payment_method.eq.cash,and(payment_method.eq.multiple,cash_amount.gt.0)";
+  }
+  if (method === "card") {
+    return "payment_method.eq.card,and(payment_method.eq.multiple,card_amount.gt.0)";
+  }
+  if (method === "upi") {
+    return "payment_method.eq.upi,and(payment_method.eq.multiple,upi_amount.gt.0)";
+  }
+  return null;
+}
+
+/** KPI strip: keep Paid/Pending/Cash totals for the date range while the table is filtered. */
+export function buildPosDashboardSummaryScopeFilters(
+  filters: PosDashboardFilters,
+): PosDashboardFilters {
+  return {
+    ...filters,
+    paymentMethodFilter: "all",
+    paymentStatusFilter: [],
+  };
+}
+
 function applyPosDashboardFilters(query: any, filters: PosDashboardFilters) {
   let q = query
     .eq("organization_id", filters.organizationId)
@@ -331,7 +368,12 @@ function applyPosDashboardFilters(query: any, filters: PosDashboardFilters) {
   }
 
   if (filters.paymentMethodFilter !== "all") {
-    q = q.eq("payment_method", filters.paymentMethodFilter);
+    const methodOr = buildPosDashboardPaymentMethodOrFilter(filters.paymentMethodFilter);
+    if (methodOr) {
+      q = q.or(methodOr);
+    } else {
+      q = q.eq("payment_method", filters.paymentMethodFilter);
+    }
   }
 
   if (filters.paymentStatusFilter.length > 0) {
@@ -829,10 +871,19 @@ export async function fetchPosDashboardSummary(
 ): Promise<PosDashboardSummaryStats> {
   if (!filters.organizationId) return { ...EMPTY_POS_SUMMARY };
 
+  // KPI strip ignores Paid/Pending/method table filters so mix+credit (partial) bills
+  // still move Total Bills / Pending / Cash totals while the list stays filtered.
+  const summaryFilters = buildPosDashboardSummaryScopeFilters(filters);
+
   if (!isPosDashboardStatsRpcUnavailable()) {
     try {
-      const rpcStats = await fetchPosDashboardSummaryViaRpc(client, filters);
-      return await correctPosDashboardModeTotalsIfNeeded(client, filters, rpcStats);
+      const rpcStats = await fetchPosDashboardSummaryViaRpc(client, summaryFilters);
+      const corrected = await correctPosDashboardModeTotalsIfNeeded(
+        client,
+        summaryFilters,
+        rpcStats,
+      );
+      return reconcilePosDashboardUnpaidCounts(corrected);
     } catch (err) {
       if (!isPosDashboardStatsRpcNotFoundError(err as { code?: string; message?: string; status?: number })) {
         console.warn("get_pos_dashboard_stats RPC threw, using client fallback:", err);
@@ -840,7 +891,7 @@ export async function fetchPosDashboardSummary(
     }
   }
 
-  const totalCount = await countFilteredPosSales(client, filters);
+  const totalCount = await countFilteredPosSales(client, summaryFilters);
   if (totalCount === 0) return { ...EMPTY_POS_SUMMARY };
 
   // "*" first — matches the working paginated table fetch; explicit lists can fail if a column is missing in prod.
@@ -853,9 +904,9 @@ export async function fetchPosDashboardSummary(
 
   for (const select of selectAttempts) {
     try {
-      const allRows = await scanPosDashboardSummaryRows(client, filters, select);
+      const allRows = await scanPosDashboardSummaryRows(client, summaryFilters, select);
       if (allRows.length > 0) {
-        return computePosDashboardSummaryStats(allRows);
+        return reconcilePosDashboardUnpaidCounts(computePosDashboardSummaryStats(allRows));
       }
     } catch (err) {
       lastError = err;
@@ -874,8 +925,9 @@ export function posDashboardSummaryLooksValid(
   stats: PosDashboardSummaryStats,
   totalCount: number,
 ): boolean {
-  if (totalCount === 0) return stats.totalBills === 0;
-  if (stats.totalBills <= 0) return false;
+  // Summary scope ignores status/method filters, so totalBills can exceed filtered list count.
+  if (stats.totalBills < 0) return false;
+  if (stats.totalBills === 0) return true;
   return (
     stats.totalBills === totalCount ||
     stats.netSale > 0 ||
@@ -887,6 +939,21 @@ export function posDashboardSummaryLooksValid(
     stats.pendingCount > 0 ||
     stats.holdCount > 0
   );
+}
+
+/**
+ * Some RPC builds count only payment_status=pending and omit partial (mix+credit).
+ * Derive unpaid bill count from the residual so Pending KPI stays truthful.
+ */
+export function reconcilePosDashboardUnpaidCounts(
+  stats: PosDashboardSummaryStats,
+): PosDashboardSummaryStats {
+  const unpaidBills = Math.max(
+    0,
+    stats.totalBills - stats.completedCount - stats.holdCount,
+  );
+  if (unpaidBills === stats.pendingCount) return stats;
+  return { ...stats, pendingCount: unpaidBills };
 }
 
 /** Full filtered fetch for export (not used by paginated table). */
