@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { classifyBarcodeSource } from "@/utils/barcodeChecksum";
 import { useLocation } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
@@ -1349,6 +1350,9 @@ const ProductEntry = () => {
                   sale_price: v.sale_price,
                   mrp: v.mrp,
                   barcode: v.barcode,
+                  barcode_source: classifyBarcodeSource(v.barcode, {
+                    organizationNumber: (currentOrganization as { organization_number?: number } | null)?.organization_number,
+                  }).source,
                   active: v.active,
                   opening_qty: v.opening_qty,
                 })
@@ -1368,6 +1372,9 @@ const ProductEntry = () => {
                   sale_price: v.sale_price,
                   mrp: v.mrp,
                   barcode: v.barcode,
+                  barcode_source: classifyBarcodeSource(v.barcode, {
+                    organizationNumber: (currentOrganization as { organization_number?: number } | null)?.organization_number,
+                  }).source,
                   active: v.active,
                   opening_qty: v.opening_qty,
                   stock_qty: v.opening_qty,

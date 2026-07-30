@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { classifyBarcodeSource } from "@/utils/barcodeChecksum";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -132,6 +133,9 @@ export const QuickAddProductDialog = ({
           size: "FREE",
           color: null,
           barcode: barcode.trim() || null,
+          barcode_source: classifyBarcodeSource(barcode, {
+            organizationNumber: (currentOrganization as { organization_number?: number } | null)?.organization_number,
+          }).source,
           purchase_price: parsedPurchasePrice,
           mrp: parsedSalePrice,
           stock_quantity: parsedStock,
