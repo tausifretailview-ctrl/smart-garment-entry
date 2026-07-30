@@ -25,6 +25,8 @@ export interface RepurchaseVariantRow {
   size: string;
   color: string;
   barcode: string;
+  /** 'external' = manufacturer EAN/UPC or scanned code, 'generated' = our own series */
+  barcodeSource?: string;
   oldPurPrice: number;
   oldSalePrice: number;
   oldMrp: number;
@@ -42,6 +44,7 @@ export interface RepurchaseProductInfo {
   style?: string | null;
   color?: string | null;
   hsn_code?: string | null;
+  requires_imei?: boolean | null;
   gst_per?: number;
   purchase_gst_percent?: number;
   purchase_discount_type?: string | null;

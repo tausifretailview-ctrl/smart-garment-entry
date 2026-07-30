@@ -1,0 +1,1 @@
+- [Barcode Provenance](mem://architecture/inventory/barcode-provenance) — barcode_source generated vs external, re-purchase fork rule, IMEI per-unit prompt

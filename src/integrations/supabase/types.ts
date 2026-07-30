@@ -3854,6 +3854,7 @@ export type Database = {
         Row: {
           active: boolean | null
           barcode: string | null
+          barcode_source: string
           color: string | null
           created_at: string | null
           current_stock: number | null
@@ -3878,6 +3879,7 @@ export type Database = {
         Insert: {
           active?: boolean | null
           barcode?: string | null
+          barcode_source?: string
           color?: string | null
           created_at?: string | null
           current_stock?: number | null
@@ -3902,6 +3904,7 @@ export type Database = {
         Update: {
           active?: boolean | null
           barcode?: string | null
+          barcode_source?: string
           color?: string | null
           created_at?: string | null
           current_stock?: number | null
@@ -9589,6 +9592,7 @@ export type Database = {
         Args: { _org_id: string; _user_id: string }
         Returns: boolean
       }
+      is_valid_gtin_or_imei: { Args: { p_code: string }; Returns: boolean }
       log_audit: {
         Args: {
           p_action: string

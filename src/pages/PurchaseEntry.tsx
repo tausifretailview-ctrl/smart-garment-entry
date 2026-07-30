@@ -901,6 +901,8 @@ const PurchaseEntry = () => {
   // IMEI Scan Dialog state (Mobile ERP mode)
   const [showIMEIScanDialog, setShowIMEIScanDialog] = useState(false);
   const [imeiScanItem, setImeiScanItem] = useState<{ tempId: string; qty: number; item: LineItem } | null>(null);
+  // Pending IMEI collections (re-purchase can queue several lines at once)
+  const [imeiScanQueue, setImeiScanQueue] = useState<{ tempId: string; qty: number; item: LineItem }[]>([]);
 
   // Roll Entry Dialog state (MTR products)
   const [showRollEntryDialog, setShowRollEntryDialog] = useState(false);
@@ -1883,8 +1885,8 @@ const PurchaseEntry = () => {
     barcode?: string;
   }): Promise<{ id: string; barcode: string } | null> => {
     try {
-      const newBarcode =
-        (source.barcode && source.barcode.trim()) || (await generateCentralizedBarcode());
+      const reusedBarcode = source.barcode?.trim() || "";
+      const newBarcode = reusedBarcode || (await generateCentralizedBarcode());
       const { data: newVariant, error } = await supabase
         .from("product_variants")
         .insert({
@@ -1893,6 +1895,7 @@ const PurchaseEntry = () => {
           size: source.size || "",
           color: source.color || "",
           barcode: newBarcode,
+          barcode_source: reusedBarcode ? "external" : "generated",
           pur_price: source.pur_price || 0,
           sale_price: source.sale_price || 0,
           mrp: source.mrp || 0,
@@ -3066,6 +3069,7 @@ const PurchaseEntry = () => {
         sale_price,
         mrp,
         barcode,
+        barcode_source,
         active,
         color,
         products (
@@ -3077,6 +3081,7 @@ const PurchaseEntry = () => {
           style,
           hsn_code,
           gst_per,
+          requires_imei,
           purchase_gst_percent,
           sale_gst_percent,
           default_pur_price,
@@ -3250,6 +3255,7 @@ const PurchaseEntry = () => {
         size: v.size || "",
         color: v.color || product?.color || "",
         barcode: v.barcode || "",
+        barcodeSource: v.barcode_source || "generated",
         oldPurPrice: v.pur_price || 0,
         oldSalePrice: v.sale_price || 0,
         oldMrp: v.mrp || 0,
@@ -3268,6 +3274,7 @@ const PurchaseEntry = () => {
       color: product.color,
       hsn_code: product.hsn_code,
       gst_per: product.gst_per,
+      requires_imei: product.requires_imei,
       purchase_gst_percent: product.purchase_gst_percent,
       purchase_discount_type: product.purchase_discount_type,
       purchase_discount_value: product.purchase_discount_value,
@@ -3298,6 +3305,11 @@ const PurchaseEntry = () => {
 
     setRepurchaseConfirming(true);
     try {
+      const requiresImei = productRequiresImei(
+        { requires_imei: repurchaseProduct.requires_imei },
+        mobileERPSettings,
+      );
+      const imeiQueue: { tempId: string; qty: number; item: LineItem }[] = [];
       let added = 0;
       for (const row of withQty) {
         let skuId = row.id;
@@ -3305,8 +3317,11 @@ const PurchaseEntry = () => {
         const newPur = row.newPurPrice;
         const newSale = row.newSalePrice;
         const newMrp = row.newMrp;
+        // Provenance decides the fork: our own generated barcode means a new sticker
+        // per price change, but a manufacturer EAN/UPC stays on the same SKU.
+        const isExternalBarcode = row.barcodeSource === "external";
 
-        if (!repurchasePricesUnchanged(row)) {
+        if (!requiresImei && !isExternalBarcode && !repurchasePricesUnchanged(row)) {
           const result = await createNewVariantWithBarcode({
             product_id: repurchaseProduct.id,
             size: row.size,
@@ -3320,9 +3335,11 @@ const PurchaseEntry = () => {
           barcode = result.barcode;
         }
 
-        addItemRow({
+        // Serialized (IMEI) products: never reuse or auto-generate — each unit gets its
+        // own scanned IMEI, collected right after the lines land on the bill.
+        const lineDraft = {
           product_id: repurchaseProduct.id,
-          sku_id: skuId,
+          sku_id: requiresImei ? "" : skuId,
           product_name: repurchaseProduct.product_name,
           size: row.size,
           qty: row.qty,
@@ -3331,7 +3348,7 @@ const PurchaseEntry = () => {
           mrp: newMrp,
           gst_per: repurchaseProduct.purchase_gst_percent || repurchaseProduct.gst_per || 0,
           hsn_code: repurchaseProduct.hsn_code || "",
-          barcode,
+          barcode: requiresImei ? "" : barcode,
           discount_percent: (() => {
             const pdt = repurchaseProduct.purchase_discount_type;
             const pdv = repurchaseProduct.purchase_discount_value || 0;
@@ -3343,14 +3360,23 @@ const PurchaseEntry = () => {
           color: row.color || repurchaseProduct.color || "",
           style: repurchaseProduct.style || "",
           uom: repurchaseProduct.uom || "NOS",
-        });
+          requires_imei: repurchaseProduct.requires_imei ?? undefined,
+        } as Omit<LineItem, "temp_id" | "line_total">;
+
+        const createdRow = createLineItemRow(lineDraft);
+        setLineItems((prev) => [...prev, createdRow]);
+        if (requiresImei) {
+          imeiQueue.push({ tempId: createdRow.temp_id, qty: Number(row.qty) || 1, item: createdRow });
+        }
         added++;
       }
 
       if (added > 0) {
         toast({
           title: "Added to bill",
-          description: `${added} line(s) added from re-purchase.`,
+          description: requiresImei
+            ? `${added} line(s) added — scan the IMEI for each unit.`
+            : `${added} line(s) added from re-purchase.`,
         });
       }
 
@@ -3358,7 +3384,14 @@ const PurchaseEntry = () => {
       setRepurchaseProduct(null);
       setRepurchaseRows([]);
       (document.activeElement as HTMLElement)?.blur();
-      focusSearchBar();
+      if (imeiQueue.length > 0) {
+        const [first, ...rest] = imeiQueue;
+        setImeiScanQueue(rest);
+        setImeiScanItem(first);
+        setShowIMEIScanDialog(true);
+      } else {
+        focusSearchBar();
+      }
     } finally {
       setRepurchaseConfirming(false);
     }
@@ -3647,6 +3680,22 @@ const PurchaseEntry = () => {
     setShowIMEIScanDialog(true);
   };
 
+  /** Move to the next queued IMEI collection, or close the dialog when done. */
+  const advanceImeiScanQueue = () => {
+    setImeiScanQueue((queue) => {
+      const [next, ...rest] = queue;
+      if (next) {
+        setImeiScanItem(next);
+        setShowIMEIScanDialog(true);
+      } else {
+        setImeiScanItem(null);
+        setShowIMEIScanDialog(false);
+        focusSearchBar();
+      }
+      return rest;
+    });
+  };
+
   const updateLineItem = (temp_id: string, field: keyof LineItem, value: any) => {
     // Mobile ERP: qty > 1 must become one row per IMEI — serialized products only.
     if (
@@ -3719,6 +3768,7 @@ const PurchaseEntry = () => {
             size: sizeBase,
             color: colorVal,
             barcode: imei,
+            barcode_source: 'external',
             pur_price: item.pur_price,
             sale_price: item.sale_price,
             mrp: item.mrp || 0,
@@ -3791,8 +3841,7 @@ const PurchaseEntry = () => {
       });
     }
 
-    setShowIMEIScanDialog(false);
-    setImeiScanItem(null);
+    advanceImeiScanQueue();
   };
 
   const handleImeiCorrection = useCallback(
@@ -6517,7 +6566,7 @@ const PurchaseEntry = () => {
         {isMobileERPMode && (
           <IMEIScanDialog
             open={showIMEIScanDialog}
-            onClose={() => { setShowIMEIScanDialog(false); setImeiScanItem(null); }}
+            onClose={() => { setImeiScanQueue([]); setShowIMEIScanDialog(false); setImeiScanItem(null); }}
             quantity={imeiScanItem?.qty || 2}
             productName={imeiScanItem?.item ? formatProductDescription(imeiScanItem.item) : ''}
             onConfirm={handleIMEIScanConfirm}
@@ -7940,6 +7989,7 @@ const PurchaseEntry = () => {
         <IMEIScanDialog
           open={showIMEIScanDialog}
           onClose={() => {
+            setImeiScanQueue([]);
             setShowIMEIScanDialog(false);
             setImeiScanItem(null);
           }}
