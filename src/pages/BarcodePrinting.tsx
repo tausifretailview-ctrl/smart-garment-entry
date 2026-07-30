@@ -1533,6 +1533,10 @@ export default function BarcodePrinting() {
   // Resolution is "Auto": prefer Standard if a saved A4 sheet default exists,
   // otherwise prefer Precision Pro (thermal/barcode printer workflow).
   const hasResolvedDefaultTabRef = useRef(false);
+  // Settings → Bill & Barcode → Default Sheet Type (Standard Printing)
+  const settingsStandardSheetTypeRef = useRef<string | null>(null);
+  const hasAppliedSettingsSheetTypeRef = useRef(false);
+  const [settingsStandardSheetType, setSettingsStandardSheetType] = useState<string | null>(null);
   // Helper function to check if a template is the current default
   const getDefaultTemplateName = (): string | null => {
     return (dbDefaultFormat as any)?.defaultTemplate || null;
