@@ -44,6 +44,7 @@ export interface RepurchaseProductInfo {
   style?: string | null;
   color?: string | null;
   hsn_code?: string | null;
+  requires_imei?: boolean | null;
   gst_per?: number;
   purchase_gst_percent?: number;
   purchase_discount_type?: string | null;
