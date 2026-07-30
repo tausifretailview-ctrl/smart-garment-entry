@@ -4622,8 +4622,7 @@ export default function BarcodePrinting() {
   };
 
   useLayoutEffect(() => {
-    if (activeBarTab !== "standard" || !isA4SheetType()) return;
-    generatePreview("standardInlinePreviewArea");
+    return;
   }, [
     activeBarTab,
     sheetType,
