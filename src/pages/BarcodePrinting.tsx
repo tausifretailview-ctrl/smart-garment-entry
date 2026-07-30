@@ -2027,6 +2027,13 @@ export default function BarcodePrinting() {
               : "auto";
           setSettingsDefaultBarTab(configuredDefaultTab);
           setPrecisionProEnabledFromSettings(bbs.precision_pro_enabled === true);
+          if (isValidStandardSheetType(bbs.default_standard_sheet_type)) {
+            settingsStandardSheetTypeRef.current = bbs.default_standard_sheet_type;
+            setSettingsStandardSheetType(bbs.default_standard_sheet_type);
+          } else {
+            settingsStandardSheetTypeRef.current = null;
+            setSettingsStandardSheetType(null);
+          }
           const fromTab = thermalLandingFromDefaultPrintTab(configuredDefaultTab);
           const landing = fromTab || bbs.default_thermal_landing || bbs.precision_print_mode;
           resolvedPrintMode =
