@@ -41,6 +41,7 @@ import { PwaInstallBanner } from "@/components/mobile/PwaInstallBanner";
 import { IdleMount } from "@/components/IdleMount";
 import { mobileMainPaddingClass } from "@/lib/mobileShell";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
+import { prefetchTabPage } from "@/lib/tabPageRegistry";
 import { cn } from "@/lib/utils";
 
 interface POSLayoutProps {
@@ -61,6 +62,20 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
   const { hasMenuAccess, permissions, loading: permissionsLoading } = useUserPermissions();
   const can = (id: string) => !permissionsLoading && (permissions === null || hasMenuAccess(id));
 
+  /**
+   * Warm the destination chunks as soon as the POS menu opens. Restricted users
+   * (POS + Settings only) never get these prefetched after login, so clicking
+   * Settings used to download the chunk on the spot and flash a blank screen.
+   */
+  const handleMenuOpenChange = (open: boolean) => {
+    if (!open) return;
+    if (can("main_dashboard")) prefetchTabPage("");
+    if (can("pos_dashboard")) prefetchTabPage("pos-dashboard");
+    if (can("product_dashboard")) prefetchTabPage("products");
+    if (can("sales_invoice_dashboard")) prefetchTabPage("sales-invoice-dashboard");
+    if (can("settings_view")) prefetchTabPage("settings");
+  };
+
   const handleSignOut = async () => {
     await signOut();
     navigate(resolveOrgLoginPath());
@@ -78,7 +93,7 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
   const posHeader = (
       <header className="h-12 shrink-0 bg-primary text-primary-foreground flex items-center justify-between px-4 shadow-md z-50">
         <div className="flex items-center gap-3">
-          <DropdownMenu>
+          <DropdownMenu onOpenChange={handleMenuOpenChange}>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" className="text-primary-foreground hover:bg-primary/80">
                 <Menu className="h-5 w-5" />
