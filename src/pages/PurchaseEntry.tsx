@@ -111,6 +111,7 @@ import {
   shouldReuseCommittedPurchaseCreate,
 } from "@/utils/purchaseSaveIdempotency";
 import { checkBarcodeExists } from "@/utils/barcodeValidation";
+import { normalizeProductSearchTerm } from "@/utils/productDashboardBarcodeSearch";
 import { getUniversalCodeScanWarning } from "@/utils/imeiValidation";
 import { validateIMEI } from "@/hooks/useMobileERP";
 import { productRequiresImei } from "@/utils/productRequiresImei";
@@ -761,13 +762,29 @@ const PurchaseEntry = () => {
   const entryPersistenceBlockedRef = useRef(false);
   const [showExcelImport, setShowExcelImport] = useState(false);
   const [showProductDialog, setShowProductDialog] = useState(false);
-  const openAddProductDialog = useCallback(() => {
+  /** Prefill for Add New Product when search-bar scan finds no master match. */
+  const [productDialogInitialBarcode, setProductDialogInitialBarcode] = useState("");
+  const barcodeScanResolveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  /** Barcode/IMEI-like (must include a digit) — product-name typing must not auto-open Add Product. */
+  const looksLikePurchaseBarcodeScan = useCallback((term: string) => {
+    const t = normalizeProductSearchTerm(term);
+    if (t.length < 5 || !/\d/.test(t)) return false;
+    return /^[A-Za-z0-9\-_.\/]+$/.test(t);
+  }, []);
+
+  const openAddProductDialog = useCallback((prefillBarcode?: string) => {
     if (showProductDialog) return;
-    // Kick prefetch but don't block the click — the gate shows its own loading
-    // shell (and a 20s retry prompt) so the user never sees a frozen button.
     prefetchProductEntryDialog();
+    setProductDialogInitialBarcode(prefillBarcode?.trim() || "");
     setShowProductDialog(true);
   }, [showProductDialog]);
+
+  const closeProductDialog = useCallback((open: boolean) => {
+    setShowProductDialog(open);
+    if (!open) setProductDialogInitialBarcode("");
+  }, []);
+
   const [showAddSupplierDialog, setShowAddSupplierDialog] = useState(false);
   // Inline search state for table row
   const [inlineSearchQuery, setInlineSearchQuery] = useState("");
@@ -2361,12 +2378,31 @@ const PurchaseEntry = () => {
   ]);
 
   useEffect(() => {
-    if (searchQuery.length >= 1) {
-      searchProducts(searchQuery);
-    } else {
+    if (barcodeScanResolveTimerRef.current) {
+      clearTimeout(barcodeScanResolveTimerRef.current);
+      barcodeScanResolveTimerRef.current = null;
+    }
+
+    if (searchQuery.length < 1) {
       setSearchResults([]);
       setShowSearch(false);
+      return;
     }
+
+    // Exact barcode/IMEI path — do not fuzzy-search or auto-open for product-name typing.
+    if (looksLikePurchaseBarcodeScan(searchQuery)) {
+      barcodeScanResolveTimerRef.current = setTimeout(() => {
+        void resolvePurchaseBarcodeScan(searchQuery);
+      }, 280);
+      return () => {
+        if (barcodeScanResolveTimerRef.current) {
+          clearTimeout(barcodeScanResolveTimerRef.current);
+          barcodeScanResolveTimerRef.current = null;
+        }
+      };
+    }
+
+    searchProducts(searchQuery);
   }, [searchQuery]);
 
   // Close product search dropdown when clicking outside (desktop + mobile toolbar search)
@@ -2797,6 +2833,205 @@ const PurchaseEntry = () => {
   // AbortController ref to cancel in-flight search requests
   const searchAbortControllerRef = useRef<AbortController | null>(null);
 
+  /**
+   * Exact barcode lookup for purchase search-bar scans.
+   * Key for "already on this bill": prefer sku_id (variant id); fall back to exact barcode
+   * so shared-EAN accessory lines still match.
+   */
+  const fetchExactBarcodeVariant = useCallback(
+    async (rawBarcode: string): Promise<ProductVariant | null> => {
+      if (!currentOrganization?.id) return null;
+      const barcode = normalizeProductSearchTerm(rawBarcode);
+      if (!barcode) return null;
+
+      const { data, error } = await supabase
+        .from("product_variants")
+        .select(
+          `
+          id,
+          size,
+          pur_price,
+          sale_price,
+          mrp,
+          barcode,
+          barcode_source,
+          active,
+          color,
+          product_id,
+          products (
+            id,
+            product_name,
+            brand,
+            category,
+            style,
+            color,
+            hsn_code,
+            gst_per,
+            purchase_gst_percent,
+            sale_gst_percent,
+            default_pur_price,
+            default_sale_price,
+            uom,
+            requires_imei
+          )
+        `,
+        )
+        .eq("organization_id", currentOrganization.id)
+        .eq("barcode", barcode)
+        .is("deleted_at", null)
+        .eq("active", true)
+        .limit(1)
+        .maybeSingle();
+
+      if (error || !data) return null;
+      const p = data.products as any;
+      return {
+        id: data.id,
+        product_id: p?.id || data.product_id || "",
+        size: data.size || "",
+        pur_price: data.pur_price || 0,
+        sale_price: data.sale_price || 0,
+        mrp: data.mrp || 0,
+        barcode: data.barcode || barcode,
+        barcode_source: data.barcode_source || "generated",
+        product_name: p?.product_name || "",
+        brand: p?.brand || "",
+        category: p?.category || "",
+        color: data.color || p?.color || "",
+        style: p?.style || "",
+        gst_per: p?.purchase_gst_percent || p?.gst_per || 0,
+        hsn_code: p?.hsn_code || "",
+        uom: p?.uom || "NOS",
+        requires_imei: p?.requires_imei === true,
+      };
+    },
+    [currentOrganization?.id],
+  );
+
+  const addOrIncrementScannedVariant = useCallback(
+    async (variant: ProductVariant) => {
+      // Resolve UOM before mutating lines so a second scan never races on stale lineItems.
+      let resolvedUom = variant.uom || "NOS";
+      if (!variant.uom && variant.product_id) {
+        const { data } = await supabase
+          .from("products")
+          .select("uom")
+          .eq("id", variant.product_id)
+          .maybeSingle();
+        resolvedUom = (data as { uom?: string } | null)?.uom || "NOS";
+      }
+
+      let didIncrement = false;
+      setLineItems((prev) => {
+        const idx = prev.findIndex(
+          (i) =>
+            i.sku_id === variant.id ||
+            (!!variant.barcode && i.barcode === variant.barcode),
+        );
+        if (idx >= 0) {
+          // Barcode re-scan: bump qty only. Do not call updateLineItem (avoids IMEI prompt).
+          didIncrement = true;
+          return prev.map((item, i) => {
+            if (i !== idx) return item;
+            const qty = (Number(item.qty) || 0) + 1;
+            const updated = { ...item, qty };
+            const subTotal = computePurchaseLineSubTotal(updated);
+            const discountAmount = roundMoney(subTotal * (updated.discount_percent / 100));
+            return { ...updated, line_total: roundMoney(subTotal - discountAmount) };
+          });
+        }
+
+        const newRow = createLineItemRow({
+          product_id: variant.product_id,
+          sku_id: variant.id,
+          product_name: variant.product_name,
+          size: variant.size || "",
+          qty: 1,
+          pur_price: variant.pur_price || 0,
+          sale_price: variant.sale_price || 0,
+          mrp: variant.mrp || 0,
+          gst_per: variant.gst_per || 0,
+          hsn_code: variant.hsn_code || "",
+          barcode: variant.barcode || "",
+          discount_percent: 0,
+          brand: variant.brand || "",
+          category: variant.category || "",
+          color: variant.color || "",
+          style: variant.style || "",
+          uom: resolvedUom,
+          requires_imei: variant.requires_imei === true,
+        });
+        const next = [...prev, newRow];
+        setVisibleItemCount((vc) =>
+          Math.max(vc, next.length <= 200 ? next.length : vc + 1),
+        );
+        return next;
+      });
+
+      if (didIncrement) {
+        toast({
+          title: "Qty updated",
+          description: `${variant.product_name} — quantity increased`,
+        });
+        return;
+      }
+
+      setTimeout(() => {
+        lastQtyInputRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+        lastQtyInputRef.current?.focus();
+        lastQtyInputRef.current?.select();
+      }, 120);
+    },
+    [toast, createLineItemRow],
+  );
+
+  const resolvePurchaseBarcodeScan = useCallback(
+    async (rawQuery: string) => {
+      const barcode = normalizeProductSearchTerm(rawQuery);
+      if (!barcode || !currentOrganization?.id) return;
+
+      setSearchResults([]);
+      setShowSearch(false);
+
+      const variant = await fetchExactBarcodeVariant(barcode);
+      if (variant) {
+        setSearchQuery("");
+        await addOrIncrementScannedVariant(variant);
+        focusSearchBar();
+        return;
+      }
+
+      // Not in master — open Add New Product with barcode pre-filled
+      setSearchQuery("");
+      openAddProductDialog(barcode);
+    },
+    [
+      currentOrganization?.id,
+      fetchExactBarcodeVariant,
+      addOrIncrementScannedVariant,
+      openAddProductDialog,
+      focusSearchBar,
+    ],
+  );
+
+  const handleUseExistingProductFromDialog = useCallback(
+    async (barcode: string) => {
+      closeProductDialog(false);
+      const variant = await fetchExactBarcodeVariant(barcode);
+      if (!variant) {
+        toast({
+          title: "Product not found",
+          description: `No active variant with barcode ${barcode}`,
+          variant: "destructive",
+        });
+        return;
+      }
+      await addOrIncrementScannedVariant(variant);
+      focusSearchBar();
+    },
+    [closeProductDialog, fetchExactBarcodeVariant, addOrIncrementScannedVariant, toast, focusSearchBar],
+  );
+
   const searchProducts = async (query: string) => {
     // Cancel any previous search request
     if (searchAbortControllerRef.current) {
@@ -3028,7 +3263,7 @@ const PurchaseEntry = () => {
       color: variant.color || "",
       style: variant.style || "",
       uom: resolvedUom,
-      requires_imei: variant.requires_imei !== false,
+      requires_imei: variant.requires_imei === true,
     };
     setLineItems(prev => [...prev, newItem]);
     setTimeout(() => {
@@ -6393,9 +6628,17 @@ const PurchaseEntry = () => {
                       searchInputRef.current?.blur();
                       return;
                     }
-                    if (searchResults.length === 0) return;
                     if (e.key === "Enter") {
                       e.preventDefault();
+                      if (looksLikePurchaseBarcodeScan(searchQuery)) {
+                        if (barcodeScanResolveTimerRef.current) {
+                          clearTimeout(barcodeScanResolveTimerRef.current);
+                          barcodeScanResolveTimerRef.current = null;
+                        }
+                        void resolvePurchaseBarcodeScan(searchQuery);
+                        return;
+                      }
+                      if (searchResults.length === 0) return;
                       handleProductSelect(searchResults[selectedSearchIndex] ?? searchResults[0]);
                     }
                   }}
@@ -6447,7 +6690,10 @@ const PurchaseEntry = () => {
                 ))}
               </div>
             )}
-            {!showSearch && searchResults.length === 0 && searchQuery.length >= 2 && (
+            {!showSearch &&
+              searchResults.length === 0 &&
+              searchQuery.length >= 2 &&
+              !looksLikePurchaseBarcodeScan(searchQuery) && (
               <p className="text-xs text-muted-foreground text-center py-2">No products found</p>
             )}
             </div>
@@ -6554,7 +6800,17 @@ const PurchaseEntry = () => {
           </DialogContent>
         </Dialog>
         <ExcelImportDialog open={showExcelImport} onClose={() => setShowExcelImport(false)} targetFields={purchaseBillFields} onImport={handleExcelImport} title="Import Purchase Bill" sampleData={purchaseBillSampleData} sampleFileName="Purchase_Bill_Sample.xlsx" />
-        <ProductEntryDialogGate open={showProductDialog} onOpenChange={setShowProductDialog} onProductCreated={handleProductCreated} hideOpeningQty isDcPurchase={isDcPurchase} isAutoBarcode={isAutoBarcode} mobileERPMode={mobileERPSettings || undefined} />
+        <ProductEntryDialogGate
+          open={showProductDialog}
+          onOpenChange={closeProductDialog}
+          onProductCreated={handleProductCreated}
+          hideOpeningQty
+          isDcPurchase={isDcPurchase}
+          isAutoBarcode={isAutoBarcode}
+          mobileERPMode={mobileERPSettings || undefined}
+          initialBarcode={productDialogInitialBarcode}
+          onUseExistingProduct={handleUseExistingProductFromDialog}
+        />
         <PriceUpdateConfirmDialog open={showPriceUpdateDialog} onOpenChange={setShowPriceUpdateDialog} priceChanges={detectedPriceChanges} onConfirm={handlePriceUpdateConfirm} onSkip={handlePriceUpdateSkip} />
         <AddSupplierDialog open={showAddSupplierDialog} onClose={() => setShowAddSupplierDialog(false)} onSupplierCreated={(supplier) => { refetchSuppliers(); setBillData((prev) => ({ ...prev, supplier_id: supplier.id, supplier_name: supplier.supplier_name })); setTimeout(() => { const invInput = document.querySelector<HTMLInputElement>('[data-field="supplier-invoice-no"]'); invInput?.focus(); invInput?.select(); }, 200); }} />
         <DuplicatePurchaseBillDialog
@@ -6962,21 +7218,31 @@ const PurchaseEntry = () => {
                         searchInputRef.current?.blur();
                         return;
                       }
-                      if (searchResults.length === 0) return;
-                      
-                      if (e.key === 'ArrowDown') {
+                      if (e.key === "Enter") {
                         e.preventDefault();
-                        setSelectedSearchIndex(prev => 
-                          prev < searchResults.length - 1 ? prev + 1 : 0
-                        );
-                      } else if (e.key === 'ArrowUp') {
-                        e.preventDefault();
-                        setSelectedSearchIndex(prev => 
-                          prev > 0 ? prev - 1 : searchResults.length - 1
-                        );
-                      } else if (e.key === 'Enter') {
-                        e.preventDefault();
+                        if (looksLikePurchaseBarcodeScan(searchQuery)) {
+                          if (barcodeScanResolveTimerRef.current) {
+                            clearTimeout(barcodeScanResolveTimerRef.current);
+                            barcodeScanResolveTimerRef.current = null;
+                          }
+                          void resolvePurchaseBarcodeScan(searchQuery);
+                          return;
+                        }
+                        if (searchResults.length === 0) return;
                         handleProductSelect(searchResults[selectedSearchIndex]);
+                        return;
+                      }
+                      if (searchResults.length === 0) return;
+                      if (e.key === "ArrowDown") {
+                        e.preventDefault();
+                        setSelectedSearchIndex((prev) =>
+                          prev < searchResults.length - 1 ? prev + 1 : 0,
+                        );
+                      } else if (e.key === "ArrowUp") {
+                        e.preventDefault();
+                        setSelectedSearchIndex((prev) =>
+                          prev > 0 ? prev - 1 : searchResults.length - 1,
+                        );
                       }
                     }}
                     placeholder="SEARCH BY NAME, BRAND, CATEGORY, STYLE OR BARCODE..."
@@ -7858,12 +8124,14 @@ const PurchaseEntry = () => {
         {/* Product Entry Dialog */}
         <ProductEntryDialogGate
           open={showProductDialog}
-          onOpenChange={setShowProductDialog}
+          onOpenChange={closeProductDialog}
           onProductCreated={handleProductCreated}
           hideOpeningQty
           isDcPurchase={isDcPurchase}
           isAutoBarcode={isAutoBarcode}
           mobileERPMode={mobileERPSettings || undefined}
+          initialBarcode={productDialogInitialBarcode}
+          onUseExistingProduct={handleUseExistingProductFromDialog}
         />
 
         {/* Price Update Confirmation Dialog */}

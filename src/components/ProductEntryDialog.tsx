@@ -12,6 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
+import { ToastAction } from "@/components/ui/toast";
 import { invalidateStockReportQueries } from "@/utils/invalidateDashboardQueries";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -63,6 +64,7 @@ import { UOM_OPTIONS, DEFAULT_UOM, isDecimalUOM } from "@/constants/uom";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { useProductFieldSettings, type ProductFieldKey } from "@/hooks/useSettings";
 import {
+  checkBarcodeExists,
   findBarcodeConflictsInOrg,
   formatBarcodeConflictMessage,
 } from "@/utils/barcodeValidation";
@@ -165,6 +167,10 @@ interface ProductEntryDialogProps {
   isDcPurchase?: boolean;
   isAutoBarcode?: boolean;
   mobileERPMode?: MobileERPModeConfig;
+  /** Prefill barcode / shared EAN when opened from a purchase search-bar miss. */
+  initialBarcode?: string;
+  /** Close dialog and add the existing master product to the bill (PurchaseEntry). */
+  onUseExistingProduct?: (barcode: string) => void;
 }
 
 /** Move focus to the next visible field in the product entry form (Enter-as-Tab). */
@@ -438,7 +444,17 @@ function FreeTextFieldCombobox({
   );
 }
 
-export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideOpeningQty, isDcPurchase, isAutoBarcode = true, mobileERPMode }: ProductEntryDialogProps) => {
+export const ProductEntryDialog = ({
+  open,
+  onOpenChange,
+  onProductCreated,
+  hideOpeningQty,
+  isDcPurchase,
+  isAutoBarcode = true,
+  mobileERPMode,
+  initialBarcode = "",
+  onUseExistingProduct,
+}: ProductEntryDialogProps) => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { currentOrganization } = useOrganization();
@@ -451,6 +467,13 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
   const [previousValuesError, setPreviousValuesError] = useState<string | null>(null);
   const [variants, setVariants] = useState<ProductVariant[]>([]);
   const [showVariants, setShowVariants] = useState(false);
+  /** Live duplicate check against product master (debounced). */
+  const [barcodeConflict, setBarcodeConflict] = useState<{
+    barcode: string;
+    productName: string;
+  } | null>(null);
+  const barcodeConflictTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const initialBarcodeAppliedRef = useRef(false);
   const productFieldSettings = useProductFieldSettings();
   const [showMrp, setShowMrp] = useState(false);
   const [showDiscountFields, setShowDiscountFields] = useState(false);
@@ -723,14 +746,23 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
     if (!mobileERPMode?.locked_size_qty || !hideOpeningQty) return;
     if (formData.requires_imei !== false) return;
     const qty = Math.max(1, mobileERPQty);
+    const prefill =
+      !initialBarcodeAppliedRef.current && (initialBarcode || "").trim()
+        ? (initialBarcode || "").trim().replace(/[^a-zA-Z0-9\-_.\/]/g, "").toUpperCase()
+        : "";
     setVariants((prev) => {
       const colorsToUse = formData.colors.length > 0 ? formData.colors : [""];
       const barcodes = prev.map((v) => (v.barcode || "").trim()).filter(Boolean);
       const allSame = barcodes.length === 0 || barcodes.every((b) => b === barcodes[0]);
       // Keep shared EAN when resizing qty; clear when switching from unique IMEI rows
-      const sharedBarcode = allSame ? (barcodes[0] || "") : "";
-      const sharedSource: VariantBarcodeSource | undefined =
-        sharedBarcode && allSame && prev[0]?.barcode_source ? prev[0].barcode_source : undefined;
+      const sharedBarcode = allSame ? barcodes[0] || prefill || "" : "";
+      const sharedSource: VariantBarcodeSource | undefined = sharedBarcode
+        ? allSame && prev[0]?.barcode_source
+          ? prev[0].barcode_source
+          : prefill
+            ? "external"
+            : undefined
+        : undefined;
       const priceSrc = prev[0];
       const next: ProductVariant[] = colorsToUse.flatMap((color) =>
         Array.from({ length: qty }, (_, i) => ({
@@ -759,6 +791,10 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
         );
       return same ? prev : next;
     });
+    if (prefill) {
+      // Applied via row rebuild — don't re-apply in the dedicated prefill effect.
+      initialBarcodeAppliedRef.current = true;
+    }
     setShowVariants(true);
   }, [
     mobileERPMode?.locked_size_qty,
@@ -769,7 +805,77 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
     formData.default_pur_price,
     formData.default_sale_price,
     formData.default_mrp,
+    initialBarcode,
   ]);
+
+  // Prefill barcode from purchase search-bar "not found" path once rows exist.
+  useEffect(() => {
+    if (!open) {
+      initialBarcodeAppliedRef.current = false;
+      setBarcodeConflict(null);
+      return;
+    }
+    const code = (initialBarcode || "").trim();
+    if (!code || initialBarcodeAppliedRef.current) return;
+    if (variants.length === 0) return;
+    initialBarcodeAppliedRef.current = true;
+    const cleaned = code.replace(/[^a-zA-Z0-9\-_.\/]/g, "").toUpperCase();
+    setVariants((prev) =>
+      prev.map((v) => ({
+        ...variantWithExternalBarcode(v, cleaned),
+        purchase_qty: v.purchase_qty || 1,
+      })),
+    );
+    setShowVariants(true);
+  }, [open, initialBarcode, variants.length]);
+
+  // Debounced master lookup while typing / scanning into barcode fields.
+  useEffect(() => {
+    if (barcodeConflictTimerRef.current) {
+      clearTimeout(barcodeConflictTimerRef.current);
+      barcodeConflictTimerRef.current = null;
+    }
+    if (!open || !currentOrganization?.id) {
+      setBarcodeConflict(null);
+      return;
+    }
+    const codes = [
+      ...new Set(
+        variants
+          .map((v) => (v.barcode || "").trim())
+          .filter((b) => b.length >= 4),
+      ),
+    ];
+    if (codes.length === 0) {
+      setBarcodeConflict(null);
+      return;
+    }
+    barcodeConflictTimerRef.current = setTimeout(() => {
+      void (async () => {
+        try {
+          for (const code of codes) {
+            const result = await checkBarcodeExists(code, currentOrganization.id);
+            if (result.exists) {
+              setBarcodeConflict({
+                barcode: code,
+                productName: result.productName || "Unknown Product",
+              });
+              return;
+            }
+          }
+          setBarcodeConflict(null);
+        } catch (err) {
+          console.error("Barcode conflict check failed:", err);
+        }
+      })();
+    }, 400);
+    return () => {
+      if (barcodeConflictTimerRef.current) {
+        clearTimeout(barcodeConflictTimerRef.current);
+        barcodeConflictTimerRef.current = null;
+      }
+    };
+  }, [open, variants, currentOrganization?.id]);
 
   // Sync selectedSizes and auto-generate variants when size_group_id or colors change
   useEffect(() => {
@@ -1843,10 +1949,23 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
           currentOrganization.id,
         );
         if (conflicts.length > 0) {
+          const first = conflicts[0];
+          setBarcodeConflict({
+            barcode: first.barcode,
+            productName: first.productName,
+          });
           toast({
             title: "Duplicate Barcode Error",
-            description: `Barcode(s) already exist: ${formatBarcodeConflictMessage(conflicts)}. Please use unique barcodes.`,
+            description: `Barcode(s) already exist: ${formatBarcodeConflictMessage(conflicts)}.`,
             variant: "destructive",
+            action: onUseExistingProduct ? (
+              <ToastAction
+                altText="Use existing product"
+                onClick={() => onUseExistingProduct(first.barcode)}
+              >
+                Use existing product
+              </ToastAction>
+            ) : undefined,
           });
           return;
         }
@@ -2949,6 +3068,26 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                         className="font-mono tracking-wider h-10 text-[15px]"
                         autoComplete="off"
                       />
+                      {barcodeConflict &&
+                        barcodeConflict.barcode === (variants[0]?.barcode || "").trim() && (
+                        <div className="rounded-md border border-amber-300 bg-amber-50 px-2.5 py-2 text-xs text-amber-950 space-y-1.5">
+                          <p>
+                            Barcode <span className="font-mono font-semibold">{barcodeConflict.barcode}</span> already
+                            exists on <span className="font-semibold">{barcodeConflict.productName}</span>.
+                          </p>
+                          {onUseExistingProduct && (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              className="h-7 text-xs border-amber-400 bg-white"
+                              onClick={() => onUseExistingProduct(barcodeConflict.barcode)}
+                            >
+                              Use existing product
+                            </Button>
+                          )}
+                        </div>
+                      )}
                       <p className="text-[11px] text-muted-foreground">
                         {Math.max(1, mobileERPQty)} rows shown · saves as one SKU with qty{" "}
                         {Math.max(1, mobileERPQty)}.
@@ -3798,6 +3937,25 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                         </Button>
                       )}
                     </div>
+                    {barcodeConflict && !(mobileERPMode?.locked_size_qty && formData.requires_imei === false) && (
+                      <div className="rounded-md border border-amber-300 bg-amber-50 px-2.5 py-2 text-xs text-amber-950 space-y-1.5">
+                        <p>
+                          Barcode <span className="font-mono font-semibold">{barcodeConflict.barcode}</span> already
+                          exists on <span className="font-semibold">{barcodeConflict.productName}</span>.
+                        </p>
+                        {onUseExistingProduct && (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs border-amber-400 bg-white"
+                            onClick={() => onUseExistingProduct(barcodeConflict.barcode)}
+                          >
+                            Use existing product
+                          </Button>
+                        )}
+                      </div>
+                    )}
                     <div className={cn(
                       "border border-violet-200/60 rounded-lg overflow-x-auto bg-white shadow-sm overflow-y-auto",
                       isPurchaseBillForm ? "max-h-[min(36vh,320px)]" : "max-h-[360px]",
