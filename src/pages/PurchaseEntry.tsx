@@ -1883,8 +1883,8 @@ const PurchaseEntry = () => {
     barcode?: string;
   }): Promise<{ id: string; barcode: string } | null> => {
     try {
-      const newBarcode =
-        (source.barcode && source.barcode.trim()) || (await generateCentralizedBarcode());
+      const reusedBarcode = source.barcode?.trim() || "";
+      const newBarcode = reusedBarcode || (await generateCentralizedBarcode());
       const { data: newVariant, error } = await supabase
         .from("product_variants")
         .insert({
@@ -1893,6 +1893,7 @@ const PurchaseEntry = () => {
           size: source.size || "",
           color: source.color || "",
           barcode: newBarcode,
+          barcode_source: reusedBarcode ? "external" : "generated",
           pur_price: source.pur_price || 0,
           sale_price: source.sale_price || 0,
           mrp: source.mrp || 0,
