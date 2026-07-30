@@ -6566,7 +6566,7 @@ const PurchaseEntry = () => {
         {isMobileERPMode && (
           <IMEIScanDialog
             open={showIMEIScanDialog}
-            onClose={() => { setShowIMEIScanDialog(false); setImeiScanItem(null); }}
+            onClose={() => { setImeiScanQueue([]); setShowIMEIScanDialog(false); setImeiScanItem(null); }}
             quantity={imeiScanItem?.qty || 2}
             productName={imeiScanItem?.item ? formatProductDescription(imeiScanItem.item) : ''}
             onConfirm={handleIMEIScanConfirm}
