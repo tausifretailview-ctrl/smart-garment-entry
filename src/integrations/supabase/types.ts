@@ -8223,6 +8223,16 @@ export type Database = {
           },
         ]
       }
+      v_accounting_invariants: {
+        Row: {
+          check_name: string | null
+          detail: number | null
+          entity_id: string | null
+          entity_ref: string | null
+          organization_id: string | null
+        }
+        Relationships: []
+      }
       v_dashboard_counts: {
         Row: {
           customer_count: number | null
