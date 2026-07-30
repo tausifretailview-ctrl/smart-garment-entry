@@ -297,6 +297,7 @@ interface SizeGridVariant {
   pur_price?: number;
   mrp?: number;
   barcode?: string;
+  barcode_source?: string;
   color?: string;
   stock_qty?: number;
 }
@@ -3119,8 +3120,8 @@ const PurchaseEntry = () => {
       let barcode = v.barcode || "";
       let skuId = v.id;
       
-      // Smart barcode handling
-      if (sameBarcodeSeriesEnabled) {
+      // Smart barcode handling — an external (manufacturer) barcode is never re-generated.
+      if (sameBarcodeSeriesEnabled || v.barcode_source === "external") {
         // Same barcode series: reuse existing variant+barcode
         if (!barcode && isAutoBarcode) {
           const newBarcode = await generateCentralizedBarcode();
@@ -3177,6 +3178,7 @@ const PurchaseEntry = () => {
       pur_price: v.pur_price || v.products?.default_pur_price,
       mrp: v.mrp || 0,
       barcode: v.barcode,
+      barcode_source: v.barcode_source || "generated",
       color: v.color || v.products?.color || "",
     })));
 
@@ -3458,8 +3460,8 @@ const PurchaseEntry = () => {
           continue;
         }
       } else {
-        // Existing variant - smart barcode handling
-        if (sameBarcodeSeriesEnabled) {
+        // Existing variant - smart barcode handling (external codes stay on their SKU)
+        if (sameBarcodeSeriesEnabled || variant.barcode_source === "external") {
           if (!barcode && isAutoBarcode) {
             const newBarcode = await generateCentralizedBarcode();
             await supabase.from("product_variants").update({ barcode: newBarcode }).eq("id", skuId);
