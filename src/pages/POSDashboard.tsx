@@ -1237,7 +1237,7 @@ const POSDashboard = () => {
       return `
       @page {
         size: A5 portrait;
-        margin: 3mm;
+        margin: 0;
       }
       @media print {
         html, body {

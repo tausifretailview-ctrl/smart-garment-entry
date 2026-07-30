@@ -384,7 +384,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
 
   const pageW = isA4 ? "210mm" : "148mm";
   const pageH = isA4 ? "297mm" : "210mm";
-  const pad = isA4 ? "10mm" : "4mm";
+  const pad = isA4 ? "10mm" : "5mm";
   const letterheadGap = isPreprinted ? "2in" : pad;
   // Preprinted: extra right/bottom inset so border lines stay inside printer safe area
   const preprintedPadX = isPreprintedA5 ? "5.5mm" : isPreprinted ? "8mm" : pad;
