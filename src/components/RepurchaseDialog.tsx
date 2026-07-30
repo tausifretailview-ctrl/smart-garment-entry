@@ -25,6 +25,8 @@ export interface RepurchaseVariantRow {
   size: string;
   color: string;
   barcode: string;
+  /** 'external' = manufacturer EAN/UPC or scanned code, 'generated' = our own series */
+  barcodeSource?: string;
   oldPurPrice: number;
   oldSalePrice: number;
   oldMrp: number;
