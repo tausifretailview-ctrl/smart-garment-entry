@@ -4621,28 +4621,6 @@ export default function BarcodePrinting() {
     // Barcodes are now pre-rendered as images in getLabelHTML, no setTimeout needed
   };
 
-  useLayoutEffect(() => {
-    return;
-  }, [
-    activeBarTab,
-    sheetType,
-    customWidth,
-    customHeight,
-    customCols,
-    customRows,
-    customGap,
-    topOffset,
-    leftOffset,
-    bottomOffset,
-    rightOffset,
-    startPosition,
-    designFormat,
-    labelItems,
-    labelConfig,
-    selectedPreset,
-    printScale,
-  ]);
-
   const getTotalBarcodeLabelQty = useCallback(
     () => labelItems.reduce((sum, item) => sum + (Number(item.qty) || 0), 0),
     [labelItems],
