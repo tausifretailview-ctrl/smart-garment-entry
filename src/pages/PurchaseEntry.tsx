@@ -1,4 +1,4 @@
-import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from "react";
+import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, type ChangeEvent } from "react";
 import { isDecimalUOM, getUOMLabel } from "@/constants/uom";
 import { createPortal } from "react-dom";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -773,11 +773,76 @@ const PurchaseEntry = () => {
   const [productDialogInitialBarcode, setProductDialogInitialBarcode] = useState("");
   const barcodeScanResolveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  /** Barcode/IMEI-like (must include a digit) — product-name typing must not auto-open Add Product. */
+  /** Shape heuristic — barcode/IMEI-like (digit required). Not sufficient alone for auto-open. */
   const looksLikePurchaseBarcodeScan = useCallback((term: string) => {
     const t = normalizeProductSearchTerm(term);
     if (t.length < 5 || !/\d/.test(t)) return false;
     return /^[A-Za-z0-9\-_.\/]+$/.test(t);
+  }, []);
+
+  /**
+   * Scanner vs human: hardware scanners emit chars with ~<50ms gaps, then Enter.
+   * Paste has no keystroke gaps — treated as typed (no auto-open on miss).
+   */
+  const searchInputScanRef = useRef<{
+    lastInputAt: number;
+    gaps: number[];
+    charCount: number;
+    sawPaste: boolean;
+  }>({ lastInputAt: 0, gaps: [], charCount: 0, sawPaste: false });
+
+  const resetSearchInputScanTiming = useCallback(() => {
+    searchInputScanRef.current = { lastInputAt: 0, gaps: [], charCount: 0, sawPaste: false };
+  }, []);
+
+  const recordSearchInputTiming = useCallback((nextValue: string, prevValue: string, fromPaste: boolean) => {
+    const now = performance.now();
+    const ref = searchInputScanRef.current;
+    if (fromPaste) {
+      ref.sawPaste = true;
+      ref.lastInputAt = now;
+      ref.gaps = [];
+      ref.charCount = nextValue.length;
+      return;
+    }
+    if (nextValue.length < prevValue.length) {
+      // Backspace / clear — start fresh
+      ref.lastInputAt = now;
+      ref.gaps = [];
+      ref.charCount = nextValue.length;
+      ref.sawPaste = false;
+      return;
+    }
+    if (ref.lastInputAt > 0 && nextValue.length > prevValue.length) {
+      ref.gaps.push(now - ref.lastInputAt);
+    }
+    ref.lastInputAt = now;
+    ref.charCount = nextValue.length;
+  }, []);
+
+  /** Confirmed hardware scan: shape + fast keystroke gaps (paste excluded). Enter is checked by caller. */
+  const isConfirmedHardwareScan = useCallback(() => {
+    const { gaps, sawPaste, charCount } = searchInputScanRef.current;
+    if (sawPaste) return false;
+    if (charCount < 5) return false;
+    if (gaps.length < 2) return false;
+    return gaps.every((g) => g < 50);
+  }, []);
+
+  const handlePurchaseSearchChange = useCallback(
+    (e: ChangeEvent<HTMLInputElement>) => {
+      const next = e.target.value;
+      const inputType = (e.nativeEvent as InputEvent | undefined)?.inputType;
+      const fromPaste =
+        inputType === "insertFromPaste" || inputType === "insertFromDrop";
+      recordSearchInputTiming(next, searchQuery, fromPaste);
+      setSearchQuery(next);
+    },
+    [searchQuery, recordSearchInputTiming],
+  );
+
+  const handlePurchaseSearchPaste = useCallback(() => {
+    searchInputScanRef.current.sawPaste = true;
   }, []);
 
   const openAddProductDialog = useCallback((prefillBarcode?: string) => {
@@ -2396,10 +2461,10 @@ const PurchaseEntry = () => {
       return;
     }
 
-    // Exact barcode/IMEI path — do not fuzzy-search or auto-open for product-name typing.
+    // Exact barcode/IMEI path — lookup only; auto-open gated on confirmed scan + Enter.
     if (looksLikePurchaseBarcodeScan(searchQuery)) {
       barcodeScanResolveTimerRef.current = setTimeout(() => {
-        void resolvePurchaseBarcodeScan(searchQuery);
+        void resolvePurchaseBarcodeScan(searchQuery, { autoOpenIfMissing: false });
       }, 280);
       return () => {
         if (barcodeScanResolveTimerRef.current) {
@@ -2928,7 +2993,9 @@ const PurchaseEntry = () => {
         resolvedUom = (data as { uom?: string } | null)?.uom || "NOS";
       }
 
-      let didIncrement = false;
+      let outcome: "added" | "incremented" | "duplicate_imei" | "missing_requires_imei" = "added";
+      let conflictCode = "";
+
       setLineItems((prev) => {
         const idx = prev.findIndex(
           (i) =>
@@ -2936,13 +3003,26 @@ const PurchaseEntry = () => {
             (!!variant.barcode && i.barcode === variant.barcode),
         );
         if (idx >= 0) {
-          // Barcode re-scan: bump qty only. Do not call updateLineItem (avoids IMEI prompt).
-          didIncrement = true;
-          return prev.map((item, i) => {
-            if (i !== idx) return item;
-            // Bump qty only — recalcLineTotal keeps stored line_total in sync for GST/save.
-            // Do not call updateLineItem (avoids IMEI prompt for accessories).
-            return recalcLineTotal({ ...item, qty: (Number(item.qty) || 0) + 1 });
+          const item = prev[idx];
+          conflictCode = (item.barcode || variant.barcode || "").trim();
+
+          // Data-plumbing: do not default a missing flag (same class of bug as !== false).
+          if (item.requires_imei === undefined || item.requires_imei === null) {
+            outcome = "missing_requires_imei";
+            return prev;
+          }
+
+          // Serialised (IMEI): re-scan of the same unit is a duplicate, not qty+1.
+          if (productRequiresImei({ requires_imei: item.requires_imei }, mobileERPSettings)) {
+            outcome = "duplicate_imei";
+            return prev;
+          }
+
+          // Accessories: bump qty only. Do not call updateLineItem (avoids IMEI prompt).
+          outcome = "incremented";
+          return prev.map((row, i) => {
+            if (i !== idx) return row;
+            return recalcLineTotal({ ...row, qty: (Number(row.qty) || 0) + 1 });
           });
         }
 
@@ -2973,7 +3053,29 @@ const PurchaseEntry = () => {
         return next;
       });
 
-      if (didIncrement) {
+      if (outcome === "duplicate_imei") {
+        toast({
+          title: "Already on bill",
+          description: `IMEI ${conflictCode} is already on this bill.`,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (outcome === "missing_requires_imei") {
+        console.warn(
+          "[PurchaseEntry] barcode re-scan: line item missing requires_imei — refusing to default",
+          { sku_id: variant.id, barcode: conflictCode },
+        );
+        toast({
+          title: "Cannot update line",
+          description: `Product flag requires_imei is missing on this bill line (${conflictCode || "no barcode"}). Re-add the product instead of scanning again.`,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (outcome === "incremented") {
         toast({
           title: "Qty updated",
           description: `${variant.product_name} — quantity increased`,
@@ -2987,11 +3089,14 @@ const PurchaseEntry = () => {
         lastQtyInputRef.current?.select();
       }, 120);
     },
-    [toast, createLineItemRow],
+    [toast, createLineItemRow, mobileERPSettings],
   );
 
   const resolvePurchaseBarcodeScan = useCallback(
-    async (rawQuery: string) => {
+    async (
+      rawQuery: string,
+      options?: { autoOpenIfMissing?: boolean },
+    ) => {
       const barcode = normalizeProductSearchTerm(rawQuery);
       if (!barcode || !currentOrganization?.id) return;
 
@@ -3001,14 +3106,23 @@ const PurchaseEntry = () => {
       const variant = await fetchExactBarcodeVariant(barcode);
       if (variant) {
         setSearchQuery("");
+        resetSearchInputScanTiming();
         await addOrIncrementScannedVariant(variant);
         focusSearchBar();
         return;
       }
 
-      // Not in master — open Add New Product with barcode pre-filled
-      setSearchQuery("");
-      openAddProductDialog(barcode);
+      // Not in master — auto-open only for a confirmed hardware scan (or camera).
+      if (options?.autoOpenIfMissing) {
+        setSearchQuery("");
+        resetSearchInputScanTiming();
+        openAddProductDialog(barcode);
+        return;
+      }
+
+      // Hand-typed / paste miss: leave query, show empty results + manual Add affordance.
+      setSearchResults([]);
+      setShowSearch(false);
     },
     [
       currentOrganization?.id,
@@ -3016,6 +3130,7 @@ const PurchaseEntry = () => {
       addOrIncrementScannedVariant,
       openAddProductDialog,
       focusSearchBar,
+      resetSearchInputScanTiming,
     ],
   );
 
@@ -6615,7 +6730,8 @@ const PurchaseEntry = () => {
                   ref={searchInputRef}
                   placeholder="Scan barcode or search…"
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onChange={handlePurchaseSearchChange}
+                  onPaste={handlePurchaseSearchPaste}
                   onFocus={() => {
                     if (searchQuery.length >= 1 && searchResults.length > 0) {
                       setShowSearch(true);
@@ -6638,7 +6754,9 @@ const PurchaseEntry = () => {
                           clearTimeout(barcodeScanResolveTimerRef.current);
                           barcodeScanResolveTimerRef.current = null;
                         }
-                        void resolvePurchaseBarcodeScan(searchQuery);
+                        void resolvePurchaseBarcodeScan(searchQuery, {
+                          autoOpenIfMissing: isConfirmedHardwareScan(),
+                        });
                         return;
                       }
                       if (searchResults.length === 0) return;
@@ -6652,7 +6770,9 @@ const PurchaseEntry = () => {
               </div>
               <CameraScanButton
                 onBarcodeScanned={(barcode) => {
+                  resetSearchInputScanTiming();
                   setSearchQuery(barcode);
+                  void resolvePurchaseBarcodeScan(barcode, { autoOpenIfMissing: true });
                 }}
                 className="h-11 w-11 rounded-xl shrink-0"
               />
@@ -6695,8 +6815,7 @@ const PurchaseEntry = () => {
             )}
             {!showSearch &&
               searchResults.length === 0 &&
-              searchQuery.length >= 2 &&
-              !looksLikePurchaseBarcodeScan(searchQuery) && (
+              searchQuery.length >= 2 && (
               <p className="text-xs text-muted-foreground text-center py-2">No products found</p>
             )}
             </div>
@@ -7203,7 +7322,8 @@ const PurchaseEntry = () => {
                   <Input
                     ref={searchInputRef}
                     value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onChange={handlePurchaseSearchChange}
+                    onPaste={handlePurchaseSearchPaste}
                     disabled={isBillLocked}
                     className="pl-10 h-10 text-sm bg-card border-border uppercase"
                     onFocus={() => {
@@ -7228,7 +7348,9 @@ const PurchaseEntry = () => {
                             clearTimeout(barcodeScanResolveTimerRef.current);
                             barcodeScanResolveTimerRef.current = null;
                           }
-                          void resolvePurchaseBarcodeScan(searchQuery);
+                          void resolvePurchaseBarcodeScan(searchQuery, {
+                            autoOpenIfMissing: isConfirmedHardwareScan(),
+                          });
                           return;
                         }
                         if (searchResults.length === 0) return;
