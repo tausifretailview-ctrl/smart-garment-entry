@@ -3030,6 +3030,7 @@ const PurchaseEntry = () => {
       color: variant.color || "",
       style: variant.style || "",
       uom: resolvedUom,
+      requires_imei: variant.requires_imei !== false,
     };
     setLineItems(prev => [...prev, newItem]);
     setTimeout(() => {
