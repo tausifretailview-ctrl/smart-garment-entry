@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { classifyBarcodeSource } from "@/utils/barcodeChecksum";
 import { useQueryClient } from "@tanstack/react-query";
 import { IMEIScanDialog } from "@/components/IMEIScanDialog";
 import { createPortal } from "react-dom";
@@ -1872,6 +1873,10 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
           sale_price: v.sale_price,
           mrp: v.mrp,
           barcode: v.barcode.trim(),
+          // Scanned/typed here → provenance decided by real check digits, never length.
+          barcode_source: classifyBarcodeSource(v.barcode, {
+            organizationNumber: (currentOrganization as { organization_number?: number } | null)?.organization_number,
+          }).source,
           active: v.active,
           opening_qty: formData.product_type === 'service' ? 0 : v.opening_qty,
           // Service products have unlimited/virtual stock — no physical stock tracking
