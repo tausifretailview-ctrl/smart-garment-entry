@@ -313,6 +313,8 @@ interface BillBarcodeSettings {
     | "precision_3up";
   /** Precision Pro landing mode when opening Barcode Printing */
   default_thermal_landing?: 'thermal' | 'thermal2up' | 'thermal3up';
+  /** Sheet Type auto-selected when Standard Printing opens (sheetPresets key) */
+  default_standard_sheet_type?: string;
   /** printer_presets.id used as default label design for the landing mode */
   default_precision_preset_id?: string;
   // Stamp / Signature Settings
