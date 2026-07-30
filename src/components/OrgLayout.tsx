@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Outlet, useParams, useLocation } from "react-router-dom";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -224,8 +224,9 @@ export const OrgLayout = () => {
     // later signals ready — otherwise both render and the page appears duplicated.
     forceOutletFallback;
 
-  // Reset on navigation — restore immediately when this path was already mounted in tab cache.
-  useEffect(() => {
+  // Reset on navigation — restore before paint so going back from an entry screen
+  // (e.g. POS) does not flash the <Outlet> copy for one frame before the cached pane shows.
+  useLayoutEffect(() => {
     setForceOutletFallback(false);
     if (
       isCacheableTabPath(resolvedCurrentPath) &&
