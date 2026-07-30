@@ -1850,10 +1850,21 @@ export default function BarcodePrinting() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoadingSettings, dbLabelTemplates, dbMarginPresets, dbCustomPresets, activePrecisionTemplateName, dbPresets]);
 
+  // Settings → Bill & Barcode → "Default Sheet Type (Standard Printing)":
+  // auto-select that sheet type + layout when the page opens.
+  useEffect(() => {
+    if (isLoadingSettings) return;
+    if (hasAppliedSettingsSheetTypeRef.current) return;
+    const configured = settingsStandardSheetType;
+    if (!isValidStandardSheetType(configured)) return;
+    hasAppliedSettingsSheetTypeRef.current = true;
+    setSheetType(configured as SheetType);
+    setSelectedPreset("");
+  }, [isLoadingSettings, settingsStandardSheetType]);
+
   // Reset defaults ref when organization changes so defaults reload for new org
   useEffect(() => {
     hasLoadedDefaultsRef.current = false;
-    // placeholder
     hasLoadedPrecisionConfigRef.current = false;
     hasResolvedDefaultTabRef.current = false;
     hasAppliedSettingsSheetTypeRef.current = false;
