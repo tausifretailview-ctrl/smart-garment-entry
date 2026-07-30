@@ -3509,6 +3509,8 @@ const PurchaseEntry = () => {
         category: selectedProduct.category || "",
         color: newColor || variant.color || selectedProduct.color || "",
         style: selectedProduct.style || "",
+        requires_imei:
+          (variant.requires_imei ?? (selectedProduct as any).requires_imei) !== false,
       });
     }
 
@@ -3539,7 +3541,7 @@ const PurchaseEntry = () => {
         id, size, color, barcode, pur_price, sale_price, mrp, active,
         products (
           id, product_name, brand, category, color, style,
-          hsn_code, gst_per, purchase_gst_percent, sale_gst_percent,
+          hsn_code, gst_per, requires_imei, purchase_gst_percent, sale_gst_percent,
           default_pur_price, default_sale_price,
           purchase_discount_type, purchase_discount_value, uom
         )
@@ -3601,6 +3603,7 @@ const PurchaseEntry = () => {
         color: v.color || product?.color || "",
         style: product?.style || "",
         uom,
+        requires_imei: product?.requires_imei !== false,
       });
     });
 
