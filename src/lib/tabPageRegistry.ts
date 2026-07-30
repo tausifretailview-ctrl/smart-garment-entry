@@ -288,6 +288,13 @@ export function resolveTabCachePath(path: string): string {
 }
 
 const prefetchCache = new Map<string, Promise<unknown>>();
+/** Tab paths whose lazy chunk module is already resolved in memory. */
+const loadedChunkPaths = new Set<string>();
+
+/** True when the page chunk is already downloaded — it can mount synchronously. */
+export function isTabPageChunkLoaded(path: string): boolean {
+  return loadedChunkPaths.has(resolveTabCachePath(path));
+}
 
 export function isTabCachePath(path: string): boolean {
   return Boolean(TAB_PAGE_REGISTRY[path]) || Boolean(TAB_PAGE_REGISTRY[resolveTabCachePath(path)]);
@@ -297,10 +304,15 @@ export function prefetchTabPage(path: string): void {
   const resolved = resolveTabCachePath(path);
   const def = TAB_PAGE_REGISTRY[resolved];
   if (!def || prefetchCache.has(resolved)) return;
-  const promise = importWithRetry(def.loader).catch((err) => {
-    prefetchCache.delete(resolved);
-    console.warn(`[prefetch] Failed to load tab chunk: ${resolved}`, err);
-  });
+  const promise = importWithRetry(def.loader)
+    .then((mod) => {
+      loadedChunkPaths.add(resolved);
+      return mod;
+    })
+    .catch((err) => {
+      prefetchCache.delete(resolved);
+      console.warn(`[prefetch] Failed to load tab chunk: ${resolved}`, err);
+    });
   prefetchCache.set(resolved, promise);
 }
 
@@ -309,6 +321,7 @@ export function resetTabPageChunk(path: string): void {
   const resolved = resolveTabCachePath(path);
   prefetchCache.delete(resolved);
   lazyCache.delete(resolved);
+  loadedChunkPaths.delete(resolved);
 }
 
 /** Warm bill-entry chunks after login (reduces first-open failures in desktop WebView). */
@@ -378,7 +391,11 @@ export function getLazyTabPage(path: string): LazyExoticComponent<ComponentType<
   if (!def) return null;
   let cached = lazyCache.get(resolved);
   if (!cached) {
-    cached = lazyWithRetry(def.loader);
+    cached = lazyWithRetry(async () => {
+      const mod = await def.loader();
+      loadedChunkPaths.add(resolved);
+      return mod;
+    });
     lazyCache.set(resolved, cached);
   }
   return cached;
