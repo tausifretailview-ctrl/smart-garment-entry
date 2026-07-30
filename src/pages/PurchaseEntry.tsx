@@ -300,6 +300,8 @@ interface SizeGridVariant {
   barcode_source?: string;
   color?: string;
   stock_qty?: number;
+  /** From products.requires_imei — carried through so grid lines aren't treated as serialised. */
+  requires_imei?: boolean;
 }
 
 // Helper function to format product description
@@ -3028,6 +3030,7 @@ const PurchaseEntry = () => {
       color: variant.color || "",
       style: variant.style || "",
       uom: resolvedUom,
+      requires_imei: variant.requires_imei !== false,
     };
     setLineItems(prev => [...prev, newItem]);
     setTimeout(() => {
@@ -3166,6 +3169,7 @@ const PurchaseEntry = () => {
         color: v.color || product.color || "",
         style: product.style || "",
         uom: product.uom || 'NOS',
+        requires_imei: product.requires_imei !== false,
       });
       return;
     }
@@ -3180,6 +3184,7 @@ const PurchaseEntry = () => {
       barcode: v.barcode,
       barcode_source: v.barcode_source || "generated",
       color: v.color || v.products?.color || "",
+      requires_imei: v.products?.requires_imei !== false,
     })));
 
     // Check if this is a MTR product and roll-wise entry is enabled
@@ -3226,6 +3231,7 @@ const PurchaseEntry = () => {
           style,
           hsn_code,
           gst_per,
+          requires_imei,
           purchase_gst_percent,
           purchase_discount_type,
           purchase_discount_value,
@@ -3504,6 +3510,8 @@ const PurchaseEntry = () => {
         category: selectedProduct.category || "",
         color: newColor || variant.color || selectedProduct.color || "",
         style: selectedProduct.style || "",
+        requires_imei:
+          (variant.requires_imei ?? (selectedProduct as any).requires_imei) !== false,
       });
     }
 
@@ -3534,7 +3542,7 @@ const PurchaseEntry = () => {
         id, size, color, barcode, pur_price, sale_price, mrp, active,
         products (
           id, product_name, brand, category, color, style,
-          hsn_code, gst_per, purchase_gst_percent, sale_gst_percent,
+          hsn_code, gst_per, requires_imei, purchase_gst_percent, sale_gst_percent,
           default_pur_price, default_sale_price,
           purchase_discount_type, purchase_discount_value, uom
         )
@@ -3596,6 +3604,7 @@ const PurchaseEntry = () => {
         color: v.color || product?.color || "",
         style: product?.style || "",
         uom,
+        requires_imei: product?.requires_imei !== false,
       });
     });
 
