@@ -7989,6 +7989,7 @@ const PurchaseEntry = () => {
         <IMEIScanDialog
           open={showIMEIScanDialog}
           onClose={() => {
+            setImeiScanQueue([]);
             setShowIMEIScanDialog(false);
             setImeiScanItem(null);
           }}
