@@ -6736,17 +6736,6 @@ export default function BarcodePrinting() {
         </div>
       </Collapsible>
 
-      {isA4SheetType() && (
-        <div className="barcode-standard-a4-preview border rounded-md overflow-hidden bg-card flex flex-col shrink-0">
-          <div className="px-3 py-2 border-b bg-muted/40 flex items-center justify-between gap-2 shrink-0">
-            <span className="text-sm font-bold">A4 Sheet Preview</span>
-            <span className="text-xs text-muted-foreground truncate">{sheetLayoutSummary}</span>
-          </div>
-          <div className="barcode-standard-a4-preview-body p-3 bg-slate-100/80 dark:bg-muted/20">
-            <div id="standardInlinePreviewArea" className="barcode-standard-preview-canvas min-h-[200px]" />
-          </div>
-        </div>
-      )}
       </div>
         </TabsContent>
 
