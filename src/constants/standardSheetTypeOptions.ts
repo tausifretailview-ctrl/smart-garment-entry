@@ -21,7 +21,7 @@ export const STANDARD_SHEET_TYPE_OPTIONS: StandardSheetTypeOptionGroup[] = [
   {
     group: "A4 - Medium Labels",
     options: [
-      { value: "a4_12x4", label: "A4 48-Sheet (48×24mm, 4×12)" },
+      { value: "a4_12x4", label: "NovaJet MPL 48L (48×24mm, 4×12)" },
       { value: "a4_36sheet", label: "A4 36-Sheet (48×30mm, 4×9)" },
       { value: "a4_32sheet", label: "A4 32-Sheet (52×30mm, retail)" },
       { value: "a4_35square", label: "A4 35-Square (35×35mm)" },

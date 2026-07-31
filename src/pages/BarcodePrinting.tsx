@@ -375,6 +375,7 @@ const sheetPresets = {
   a4_40sheet: { cols: 5, rows: 8, width: "38mm", height: "35mm", gap: "1mm", category: "a4" },
   a4_39x35_40sheet: { cols: 5, rows: 8, width: "39mm", height: "35mm", gap: "0.6mm", category: "a4" },
   a4_35x37: { cols: 5, rows: 8, width: "35mm", height: "37mm", gap: "1.2mm", category: "a4" },
+  // TechNova NovaJet MPL 48L (NJMPL 48L / 48×24WR) — top margin baked into computeA4SheetMargins
   a4_12x4: {
     cols: 4,
     rows: 12,
@@ -447,7 +448,7 @@ const sheetPresetLabels: Record<string, { label: string; description: string; gr
   a4_40sheet: { label: "A4 40-Sheet", description: "38×35mm, 5×8 (40 labels) ✓ Exact", group: "A4 - Medium Labels" },
   a4_39x35_40sheet: { label: "A4 40-Sheet (39×35mm)", description: "39×35mm, 5×8 (40 labels) — Al Nisa", group: "A4 - Medium Labels" },
   a4_35x37: { label: "A4 35×37mm", description: "35×37mm, 5×8 (40 labels)", group: "A4 - Medium Labels" },
-  a4_12x4: { label: "A4 48-Sheet", description: "48×24mm, 4×12 (standard)", group: "A4 - Medium Labels" },
+  a4_12x4: { label: "NovaJet MPL 48L", description: "48×24mm, 4×12 (NJMPL)", group: "A4 - Medium Labels" },
   a4_36sheet: { label: "A4 36-Sheet", description: "48×30mm, 4×9", group: "A4 - Medium Labels" },
   a4_32sheet: { label: "A4 32-Sheet", description: "52×30mm, 4×8 (retail)", group: "A4 - Medium Labels" },
   a4_35square: { label: "A4 35-Square", description: "35×35mm, 5×7 (square)", group: "A4 - Medium Labels" },
@@ -5534,7 +5535,6 @@ export default function BarcodePrinting() {
         // Calculate actual rows on this page for height calculation
         const labelsOnThisPage = endIdx - startIdx;
         const rowsOnThisPage = Math.ceil(labelsOnThisPage / dimensions.cols);
-        const actualContentHeight = topOffset + (rowsOnThisPage * (dimensions.height + dimensions.gap)) + bottomOffset + 5;
 
         // Create grid for this page
         const gridDiv = document.createElement("div");
@@ -5551,17 +5551,19 @@ export default function BarcodePrinting() {
             box-sizing: border-box;
           `;
         } else {
+          // Use the same A4 die-cut margins as browser print (NovaJet 48L top = 7.5mm).
+          // Raw topOffset-only padding previously pinned the first rows to the page edge.
+          const pageMargins = getSheetPageMargins();
           gridDiv.style.cssText = `
             display: grid;
             grid-template-columns: repeat(${dimensions.cols}, ${dimensions.width}mm);
             grid-template-rows: repeat(${rowsOnThisPage}, ${dimensions.height}mm);
             gap: ${dimensions.gap}mm;
-            padding-top: ${topOffset}mm;
-            padding-left: ${leftOffset}mm;
-            padding-bottom: ${bottomOffset}mm;
-            padding-right: ${rightOffset}mm;
-            width: 210mm;
-            height: ${Math.min(actualContentHeight, 297)}mm;
+            margin: ${pageMargins.marginTop}mm ${pageMargins.marginRight}mm ${pageMargins.marginBottom}mm ${pageMargins.marginLeft}mm;
+            padding: 0;
+            width: ${dimensions.cols * dimensions.width + (dimensions.cols - 1) * dimensions.gap}mm;
+            height: ${rowsOnThisPage * dimensions.height + (rowsOnThisPage - 1) * dimensions.gap}mm;
+            box-sizing: content-box;
             overflow: hidden;
           `;
         }
@@ -6162,7 +6164,7 @@ export default function BarcodePrinting() {
                   
                   {/* A4 Sheet Presets - Medium */}
                   <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50 mt-1">📄 A4 - Medium Labels</div>
-                  <SelectItem value="a4_12x4">A4 48-Sheet (48×24mm, 4×12)</SelectItem>
+                  <SelectItem value="a4_12x4">NovaJet MPL 48L (48×24mm, 4×12)</SelectItem>
                   <SelectItem value="a4_36sheet">A4 36-Sheet (48×30mm, 4×9)</SelectItem>
                   <SelectItem value="a4_32sheet">A4 32-Sheet (52×30mm, retail)</SelectItem>
                   <SelectItem value="a4_35square">A4 35-Square (35×35mm, square)</SelectItem>
@@ -7912,7 +7914,9 @@ export default function BarcodePrinting() {
           size: ${isThermal1Up() 
             ? `${sheetType === "custom" ? customWidth : parseFloat(sheetPresets[sheetType].width)}mm ${sheetType === "custom" ? customHeight : parseFloat(sheetPresets[sheetType].height)}mm` 
             : 'A4 portrait'}; 
-          margin: ${isThermal1Up() ? '0mm' : `${topOffset}mm ${rightOffset}mm ${bottomOffset}mm ${leftOffset}mm`} !important;
+          /* A4 die-cut grids position via label-grid margins (computeA4SheetMargins).
+             Do NOT also put topOffset into @page — that double-shifted the sheet. */
+          margin: 0mm !important;
         }
         
         @media print {

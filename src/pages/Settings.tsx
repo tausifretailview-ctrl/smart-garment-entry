@@ -4909,7 +4909,7 @@ export default function Settings() {
                       <SelectItem value="novajet48">Novajet 48 (8 cols, 33x19mm)</SelectItem>
                       <SelectItem value="novajet40">Novajet 40 (5 cols × 8 rows, 39x35mm)</SelectItem>
                       <SelectItem value="novajet65">Novajet 65 (5 cols, 38x21mm)</SelectItem>
-                      <SelectItem value="a4_12x4">A4 48-Sheet (48×24mm, 4×12)</SelectItem>
+                      <SelectItem value="a4_12x4">NovaJet MPL 48L (48×24mm, 4×12)</SelectItem>
                     </SelectContent>
                   </Select>
                    <p className="text-xs text-muted-foreground">Used when printing barcodes directly from Purchase Bills</p>
@@ -5798,7 +5798,7 @@ export default function Settings() {
                               <option value="novajet48">Novajet 48 (8 cols, 33x19mm)</option>
                               <option value="novajet40">Novajet 40 (5 cols × 8 rows, 39x35mm)</option>
                               <option value="novajet65">Novajet 65 (5 cols, 38x21mm)</option>
-                              <option value="a4_12x4">A4 48-Sheet (48×24mm, 4×12)</option>
+                              <option value="a4_12x4">NovaJet MPL 48L (48×24mm, 4×12)</option>
                             </select>
                           </div>
                         </div>
@@ -5830,7 +5830,7 @@ export default function Settings() {
                               {template.sheetType === 'novajet48' && 'Novajet 48 (8 cols, 33x19mm)'}
                               {template.sheetType === 'novajet40' && 'Novajet 40 (5 cols × 8 rows, 39x35mm)'}
                               {template.sheetType === 'novajet65' && 'Novajet 65 (5 cols, 38x21mm)'}
-                              {template.sheetType === 'a4_12x4' && 'A4 48-Sheet (48×24mm, 4×12)'}
+                              {template.sheetType === 'a4_12x4' && 'NovaJet MPL 48L (48×24mm, 4×12)'}
                             </p>
                           </div>
                           <div className="flex gap-2">
