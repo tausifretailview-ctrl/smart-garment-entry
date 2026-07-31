@@ -112,6 +112,7 @@ import {
 } from "@/utils/purchaseSaveIdempotency";
 import { checkBarcodeExists } from "@/utils/barcodeValidation";
 import { normalizeProductSearchTerm } from "@/utils/productDashboardBarcodeSearch";
+import { restrictProductsToExactNameMatches } from "@/utils/productSearch";
 import { getUniversalCodeScanWarning } from "@/utils/imeiValidation";
 import { validateIMEI } from "@/hooks/useMobileERP";
 import { productRequiresImei } from "@/utils/productRequiresImei";
@@ -2462,10 +2463,21 @@ const PurchaseEntry = () => {
       return;
     }
 
-    // Exact barcode/IMEI path — lookup only; auto-open gated on confirmed scan + Enter.
+    // Barcode-shaped queries: try exact barcode first. Product codes like PUG193
+    // also match this heuristic — on miss, fall through to name search so the
+    // dropdown can show exact product-name matches (and abort stale prefix searches).
     if (looksLikePurchaseBarcodeScan(searchQuery)) {
+      searchAbortControllerRef.current?.abort();
       barcodeScanResolveTimerRef.current = setTimeout(() => {
-        void resolvePurchaseBarcodeScan(searchQuery, { autoOpenIfMissing: false });
+        void (async () => {
+          const barcode = normalizeProductSearchTerm(searchQuery);
+          const variant = await fetchExactBarcodeVariant(barcode);
+          if (variant) {
+            await resolvePurchaseBarcodeScan(searchQuery, { autoOpenIfMissing: false });
+            return;
+          }
+          await searchProducts(searchQuery);
+        })();
       }, 280);
       return () => {
         if (barcodeScanResolveTimerRef.current) {
@@ -2516,13 +2528,22 @@ const PurchaseEntry = () => {
       // First, search products by name, brand, and style - include size_group_id
       const { data: matchingProducts } = await supabase
         .from("products")
-        .select("id, size_group_id")
+        .select("id, size_group_id, product_name")
         .eq("organization_id", currentOrganization?.id)
         .is("deleted_at", null)
         .or(`product_name.ilike.%${query}%,brand.ilike.%${query}%,style.ilike.%${query}%`);
 
-      const productIds = matchingProducts?.map(p => p.id) || [];
-      const sizeGroupIds = [...new Set(matchingProducts?.map(p => p.size_group_id).filter(Boolean) || [])];
+      const exactNameProducts = restrictProductsToExactNameMatches(
+        matchingProducts || [],
+        query,
+      );
+      const scopedProducts = exactNameProducts ?? matchingProducts ?? [];
+      const productIds = scopedProducts.map((p) => p.id);
+      const sizeGroupIds = [
+        ...new Set(
+          scopedProducts.map((p) => p.size_group_id).filter(Boolean) as string[],
+        ),
+      ];
 
       // Fetch size groups for these products
       let sizeGroupsMap: Record<string, { group_name: string; sizes: string[] }> = {};
@@ -2577,8 +2598,9 @@ const PurchaseEntry = () => {
         .eq("active", true)
         .is("deleted_at", null);
 
-      // Add barcode or product_id filters
-      if (productIds.length > 0) {
+      if (exactNameProducts && productIds.length > 0) {
+        variantsQuery = variantsQuery.in("product_id", productIds);
+      } else if (productIds.length > 0) {
         variantsQuery = variantsQuery.or(`barcode.ilike.%${query}%,product_id.in.(${productIds.join(",")})`);
       } else {
         variantsQuery = variantsQuery.ilike("barcode", `%${query}%`);
@@ -3173,7 +3195,7 @@ const PurchaseEntry = () => {
       // First, search products by name, brand, and style - include size_group_id
       const { data: matchingProducts } = await supabase
         .from("products")
-        .select("id, size_group_id")
+        .select("id, size_group_id, product_name")
         .eq("organization_id", currentOrganization?.id)
         .is("deleted_at", null)
         .or(`product_name.ilike.%${query}%,brand.ilike.%${query}%,style.ilike.%${query}%,category.ilike.%${query}%`);
@@ -3181,8 +3203,18 @@ const PurchaseEntry = () => {
       // Check if aborted before continuing
       if (currentController.signal.aborted) return;
 
-      const productIds = matchingProducts?.map(p => p.id) || [];
-      const sizeGroupIds = [...new Set(matchingProducts?.map(p => p.size_group_id).filter(Boolean) || [])];
+      // Whole product name/code typed (e.g. PUG193) → only those products, not PUG165/…
+      const exactNameProducts = restrictProductsToExactNameMatches(
+        matchingProducts || [],
+        query,
+      );
+      const scopedProducts = exactNameProducts ?? matchingProducts ?? [];
+      const productIds = scopedProducts.map((p) => p.id);
+      const sizeGroupIds = [
+        ...new Set(
+          scopedProducts.map((p) => p.size_group_id).filter(Boolean) as string[],
+        ),
+      ];
 
       // Fetch size groups for these products
       let sizeGroupsMap: Record<string, { group_name: string; sizes: string[] }> = {};
@@ -3239,8 +3271,10 @@ const PurchaseEntry = () => {
         .eq("active", true)
         .is("deleted_at", null);
 
-      // Add barcode or product_id filters
-      if (productIds.length > 0) {
+      // Exact name hit: only those products' variants. Otherwise name hits + barcode contains.
+      if (exactNameProducts && productIds.length > 0) {
+        variantsQuery = variantsQuery.in("product_id", productIds);
+      } else if (productIds.length > 0) {
         variantsQuery = variantsQuery.or(`barcode.ilike.%${query}%,product_id.in.(${productIds.join(",")})`);
       } else {
         variantsQuery = variantsQuery.ilike("barcode", `%${query}%`);

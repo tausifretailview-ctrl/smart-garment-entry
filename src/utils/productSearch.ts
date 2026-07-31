@@ -153,6 +153,45 @@ export function matchesProductSearchFields(
   return tokenMatch || matchesCompactProductSearch(parts, rawQuery);
 }
 
+/**
+ * True when the typed query is the whole product name / leading product code
+ * (case-insensitive; "PUG 193" ≡ "PUG193"; "PUG193" matches "PUG193 - RLX - …").
+ */
+export function isExactProductNameQueryMatch(
+  productName: string | null | undefined,
+  rawQuery: string,
+): boolean {
+  const query = String(rawQuery ?? "").trim().toLowerCase();
+  if (!query) return false;
+  const name = String(productName ?? "").trim().toLowerCase();
+  if (!name) return false;
+
+  if (name === query) return true;
+
+  const compactQuery = compactProductToken(query);
+  if (!compactQuery) return false;
+  if (compactProductToken(name) === compactQuery) return true;
+
+  const leading = leadingProductToken(productName ?? "");
+  if (!leading) return false;
+  return leading === query || compactProductToken(leading) === compactQuery;
+}
+
+/**
+ * When the user has typed a complete product name/code that matches one or more
+ * products exactly, return only those rows. Otherwise return null so the caller
+ * keeps the broader contains/prefix result set.
+ */
+export function restrictProductsToExactNameMatches<
+  T extends { id: string; product_name?: string | null },
+>(products: T[], rawQuery: string): T[] | null {
+  if (!products.length) return null;
+  const exact = products.filter((product) =>
+    isExactProductNameQueryMatch(product.product_name, rawQuery),
+  );
+  return exact.length > 0 ? exact : null;
+}
+
 export function scoreProductSearchMatch(
   parts: { product_name?: string; brand?: string; style?: string; category?: string; barcode?: string },
   rawQuery: string,
