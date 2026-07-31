@@ -23,6 +23,7 @@ import { cn } from "@/lib/utils";
 import { getUniversalCodeScanWarning } from "@/utils/imeiValidation";
 import { checkBarcodeExists } from "@/utils/barcodeValidation";
 import { validateIMEI } from "@/utils/imeiValidation";
+import { getNetSoldQtyForVariant } from "@/utils/variantNetSoldQty";
 import { invalidateStockReportQueries } from "@/utils/invalidateDashboardQueries";
 
 interface LineItem {
@@ -112,6 +113,8 @@ const ProductEditPanel = ({
   const [variantBarcode, setVariantBarcode] = useState("");
   const [barcodeModified, setBarcodeModified] = useState(false);
   const [barcodeSaving, setBarcodeSaving] = useState(false);
+  /** Net sold qty for the current variant — identity freeze when > 0. */
+  const [soldUnits, setSoldUnits] = useState(0);
 
   const allowImeiEdit =
     !!mobileErpMode?.enabled &&
@@ -192,6 +195,14 @@ const ProductEditPanel = ({
           setVariantBarcode(variantData.barcode || "");
           setBarcodeModified(false);
         }
+        try {
+          setSoldUnits(await getNetSoldQtyForVariant(item.sku_id));
+        } catch (e) {
+          console.warn("[ProductEditPanel] sold qty lookup failed", e);
+          setSoldUnits(0);
+        }
+      } else {
+        setSoldUnits(0);
       }
     } catch (err) {
       console.error("Failed to load product", err);
@@ -237,6 +248,16 @@ const ProductEditPanel = ({
 
     setSaving(true);
     try {
+      if (soldUnits > 0 && modifiedFields.has("color")) {
+        toast({
+          title: "Cannot change color",
+          description: `${soldUnits} units already sold — color is locked because past sales reference this identity.`,
+          variant: "destructive",
+        });
+        setSaving(false);
+        return;
+      }
+
       // Update product master
       const { error } = await supabase
         .from("products")
@@ -261,6 +282,12 @@ const ProductEditPanel = ({
 
       // Update variant MRP if changed
       if (modifiedFields.has("default_mrp") || modifiedFields.has("default_pur_price") || modifiedFields.has("default_sale_price")) {
+        if (soldUnits > 0) {
+          toast({
+            title: "Price update note",
+            description: `${soldUnits} units already sold at the old price — this change affects future stock only; past sales are unaffected.`,
+          });
+        }
         // Pricing changes apply ONLY to the currently selected variant (size-specific)
         await supabase
           .from("product_variants")
@@ -692,6 +719,14 @@ const ProductEditPanel = ({
                           className="h-7 text-xs gap-1 bg-amber-600 hover:bg-amber-700 text-white"
                           onClick={async () => {
                             if (!currentVariant?.id || !variantSize.trim()) return;
+                            if (soldUnits > 0) {
+                              toast({
+                                title: "Cannot change size",
+                                description: `${soldUnits} units already sold — size is locked because past sales reference this identity.`,
+                                variant: "destructive",
+                              });
+                              return;
+                            }
                             try {
                               const { error } = await supabase
                                 .from("product_variants")
@@ -723,6 +758,14 @@ const ProductEditPanel = ({
                           disabled={barcodeSaving}
                           onClick={async () => {
                             if (!currentVariant?.id || !variantBarcode.trim() || !currentOrganization?.id) return;
+                            if (soldUnits > 0) {
+                              toast({
+                                title: "Cannot change barcode",
+                                description: `${soldUnits} units already sold — barcode is locked because past sales reference this identity.`,
+                                variant: "destructive",
+                              });
+                              return;
+                            }
                             const cleaned = variantBarcode.trim();
                             if (!validateIMEI(cleaned, imeiMin, imeiMax)) {
                               toast({

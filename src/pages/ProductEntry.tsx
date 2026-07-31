@@ -8,6 +8,7 @@ import { canonicalizeProductBrand } from "@/utils/productBrandUtils";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useToast } from "@/hooks/use-toast";
 import { useProductProtection } from "@/hooks/useProductProtection";
+import { getNetSoldQtyByVariantIds } from "@/utils/variantNetSoldQty";
 import { invalidateStockReportQueries } from "@/utils/invalidateDashboardQueries";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -133,9 +134,18 @@ const ProductEntry = () => {
   const [deletingSizeGroup, setDeletingSizeGroup] = useState<SizeGroup | null>(null);
   const [deletingSizeGroupLoading, setDeletingSizeGroupLoading] = useState(false);
   
-  // Protection for variants with transactions
+  // Identity freeze when units are already sold (not any transaction — sales only)
   const { checkVariantHasTransactions } = useProductProtection();
   const [originalBarcodes, setOriginalBarcodes] = useState<Map<string, string>>(new Map());
+  const [originalSizes, setOriginalSizes] = useState<Map<string, string>>(new Map());
+  const [originalColors, setOriginalColors] = useState<Map<string, string>>(new Map());
+  const [originalPrices, setOriginalPrices] = useState<
+    Map<string, { pur_price: number; sale_price: number; mrp: number | null }>
+  >(new Map());
+  /** Variant ids with net sold qty > 0 — barcode/size/color locked. */
+  const [soldLockedVariants, setSoldLockedVariants] = useState<Set<string>>(new Set());
+  const [soldQtyByVariant, setSoldQtyByVariant] = useState<Map<string, number>>(new Map());
+  /** Legacy: any-transaction protection (kept for delete/other UX, not identity freeze). */
   const [protectedVariants, setProtectedVariants] = useState<Set<string>>(new Set());
   
   // Previous values for dropdowns
@@ -775,16 +785,38 @@ const ProductEntry = () => {
           setVariants(loadedVariants);
           setShowVariants(true);
           
-          // Store original barcodes for protection check
+          // Store original identity for sold-lock checks
           const barcodeMap = new Map<string, string>();
+          const sizeMap = new Map<string, string>();
+          const colorMap = new Map<string, string>();
+          const priceMap = new Map<string, { pur_price: number; sale_price: number; mrp: number | null }>();
           for (const v of product.product_variants) {
-            if (v.id && v.barcode) {
-              barcodeMap.set(v.id, v.barcode);
+            if (v.id && v.barcode) barcodeMap.set(v.id, v.barcode);
+            if (v.id) {
+              sizeMap.set(v.id, v.size || "");
+              colorMap.set(v.id, v.color || "");
+              priceMap.set(v.id, {
+                pur_price: Number(v.pur_price) || 0,
+                sale_price: Number(v.sale_price) || 0,
+                mrp: v.mrp ?? null,
+              });
             }
           }
           setOriginalBarcodes(barcodeMap);
-          
-          // Check which variants have transactions (protect them)
+          setOriginalSizes(sizeMap);
+          setOriginalColors(colorMap);
+          setOriginalPrices(priceMap);
+
+          const variantIds = product.product_variants.map((v: { id?: string }) => v.id).filter(Boolean) as string[];
+          const soldMap = await getNetSoldQtyByVariantIds(variantIds);
+          setSoldQtyByVariant(soldMap);
+          const soldLocked = new Set<string>();
+          for (const [id, qty] of soldMap) {
+            if (qty > 0) soldLocked.add(id);
+          }
+          setSoldLockedVariants(soldLocked);
+
+          // Any-transaction set (purchases/returns/etc.) — not used for identity freeze
           const protectedIds = new Set<string>();
           for (const v of product.product_variants) {
             if (v.id) {
@@ -1291,20 +1323,59 @@ const ProductEntry = () => {
           const existingVariants = variants.filter(v => v.id);
           const newVariants = variants.filter(v => !v.id);
 
-          // Check for barcode changes on protected variants
+          // Check for identity changes on variants with sold units
           for (const v of existingVariants) {
-            if (v.id && protectedVariants.has(v.id)) {
+            if (v.id && soldLockedVariants.has(v.id)) {
+              const sold = soldQtyByVariant.get(v.id) || 0;
               const originalBarcode = originalBarcodes.get(v.id);
+              const originalSize = originalSizes.get(v.id);
+              const originalColor = originalColors.get(v.id);
               if (originalBarcode && originalBarcode !== v.barcode) {
                 toast({
                   title: "Cannot Change Barcode",
-                  description: `Barcode "${originalBarcode}" is used in transactions and cannot be modified.`,
+                  description: `${sold} units already sold — barcode is locked because past sales reference this identity.`,
+                  variant: "destructive",
+                });
+                setLoading(false);
+                return;
+              }
+              if (originalSize != null && originalSize !== (v.size || "")) {
+                toast({
+                  title: "Cannot Change Size",
+                  description: `${sold} units already sold — size is locked because past sales reference this identity.`,
+                  variant: "destructive",
+                });
+                setLoading(false);
+                return;
+              }
+              if (originalColor != null && originalColor !== (v.color || "")) {
+                toast({
+                  title: "Cannot Change Color",
+                  description: `${sold} units already sold — color is locked because past sales reference this identity.`,
                   variant: "destructive",
                 });
                 setLoading(false);
                 return;
               }
             }
+          }
+
+          // Non-blocking price warning when sold units exist and prices changed
+          for (const v of existingVariants) {
+            if (!v.id || !soldLockedVariants.has(v.id)) continue;
+            const orig = originalPrices.get(v.id);
+            if (!orig) continue;
+            const priceChanged =
+              orig.pur_price !== (Number(v.pur_price) || 0) ||
+              orig.sale_price !== (Number(v.sale_price) || 0) ||
+              (orig.mrp ?? null) !== (v.mrp ?? null);
+            if (!priceChanged) continue;
+            const sold = soldQtyByVariant.get(v.id) || 0;
+            toast({
+              title: "Price update note",
+              description: `${sold} of this variant already sold at the old price — this change affects future stock only; past sales are unaffected.`,
+            });
+            break;
           }
 
           // Update existing variants by ID (don't overwrite stock_qty with opening_qty)
@@ -2721,6 +2792,14 @@ const ProductEntry = () => {
                             <TableRow key={index} className="text-xs hover:bg-violet-50/30 transition-colors">
                               {formData.product_type !== 'service' && (
                                 <TableCell className="py-1.5 px-1.5">
+                                  {variant.id && soldLockedVariants.has(variant.id) ? (
+                                    <div className="flex items-center gap-1">
+                                      <Lock className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                                      <span className="text-xs text-muted-foreground truncate uppercase" title="Color locked — units already sold">
+                                        {variant.color || "-"}
+                                      </span>
+                                    </div>
+                                  ) : (
                                   <Input
                                     list="color-suggestions"
                                     value={variant.color || ''}
@@ -2738,6 +2817,7 @@ const ProductEntry = () => {
                                       }
                                     }}
                                   />
+                                  )}
                                 </TableCell>
                               )}
                               <TableCell className="py-1.5">
@@ -2802,10 +2882,10 @@ const ProductEntry = () => {
                                 </TableCell>
                               )}
                               <TableCell className="py-1.5">
-                                {variant.id && protectedVariants.has(variant.id) ? (
+                                {variant.id && soldLockedVariants.has(variant.id) ? (
                                   <div className="flex items-center gap-1 w-28">
                                     <Lock className="h-3 w-3 text-muted-foreground flex-shrink-0" />
-                                    <span className="text-xs text-muted-foreground truncate font-mono" title={variant.barcode}>
+                                    <span className="text-xs text-muted-foreground truncate font-mono" title="Barcode locked — units already sold">
                                       {variant.barcode || '-'}
                                     </span>
                                   </div>

@@ -116,6 +116,7 @@ import { getUniversalCodeScanWarning } from "@/utils/imeiValidation";
 import { validateIMEI } from "@/hooks/useMobileERP";
 import { productRequiresImei } from "@/utils/productRequiresImei";
 import { syncVariantPriceFromPurchase } from "@/utils/syncVariantPriceFromPurchase";
+import { getNetSoldQtyByVariantIds } from "@/utils/variantNetSoldQty";
 import { IMEIScanDialog } from "@/components/IMEIScanDialog";
 import { RollEntryDialog } from "@/components/RollEntryDialog";
 import { compareSizes } from "@/utils/sizeSort";
@@ -5138,6 +5139,109 @@ const PurchaseEntry = () => {
           .filter(item => !currentItemsMap.has(item.temp_id))
           .map(item => item.temp_id);
 
+        // Client floor + identity freeze (DB trigger is the backstop for stock)
+        {
+          const itemsToUpdatePreview = lineItems.filter((item) => originalItemsMap.has(item.temp_id));
+          const deletedOriginals = originalLineItems.filter((item) => !currentItemsMap.has(item.temp_id));
+          const skuIds = [
+            ...new Set(
+              [
+                ...deletedOriginals.map((i) => i.sku_id),
+                ...itemsToUpdatePreview.map((i) => i.sku_id),
+                ...itemsToUpdatePreview.map((i) => originalItemsMap.get(i.temp_id)?.sku_id),
+              ].filter(Boolean) as string[],
+            ),
+          ];
+
+          if (skuIds.length > 0) {
+            const soldMap = await getNetSoldQtyByVariantIds(skuIds);
+            const { data: stockRows, error: stockErr } = await supabase
+              .from("product_variants")
+              .select("id, stock_qty, barcode, size, color")
+              .in("id", skuIds)
+              .eq("organization_id", orgId)
+              .is("deleted_at", null);
+            if (stockErr) throw stockErr;
+            const stockMap = new Map(
+              (stockRows ?? []).map((r) => [r.id, Number(r.stock_qty) || 0]),
+            );
+
+            // Aggregate planned stock decreases per sku (multiple lines can share a SKU)
+            const decreaseBySku = new Map<string, number>();
+            for (const orig of deletedOriginals) {
+              if (!orig.sku_id) continue;
+              decreaseBySku.set(
+                orig.sku_id,
+                (decreaseBySku.get(orig.sku_id) || 0) + (Number(orig.qty) || 0),
+              );
+            }
+            for (const item of itemsToUpdatePreview) {
+              const orig = originalItemsMap.get(item.temp_id);
+              if (!orig?.sku_id) continue;
+              // sku change-out reverses full OLD qty on the old sku
+              if (orig.sku_id !== item.sku_id) {
+                decreaseBySku.set(
+                  orig.sku_id,
+                  (decreaseBySku.get(orig.sku_id) || 0) + (Number(orig.qty) || 0),
+                );
+              } else {
+                const delta = (Number(item.qty) || 0) - (Number(orig.qty) || 0);
+                if (delta < 0) {
+                  decreaseBySku.set(
+                    orig.sku_id,
+                    (decreaseBySku.get(orig.sku_id) || 0) + Math.abs(delta),
+                  );
+                }
+              }
+            }
+
+            for (const [skuId, decrease] of decreaseBySku) {
+              if (decrease <= 0) continue;
+              const stock = stockMap.get(skuId) ?? 0;
+              if (stock - decrease < 0) {
+                const sold = soldMap.get(skuId) || 0;
+                toast({
+                  title: "Cannot reduce quantity",
+                  description:
+                    sold > 0
+                      ? `${sold} units already sold — only ${stock} remain in stock; cannot reduce purchase quantity by ${decrease}.`
+                      : `Only ${stock} remain in stock; cannot reduce purchase quantity by ${decrease}.`,
+                  variant: "destructive",
+                });
+                setLoading(false);
+                return;
+              }
+            }
+
+            // Identity freeze: barcode / size / color once any units are sold
+            for (const item of itemsToUpdatePreview) {
+              const orig = originalItemsMap.get(item.temp_id);
+              if (!orig?.sku_id) continue;
+              const sold = soldMap.get(orig.sku_id) || 0;
+              if (sold <= 0) continue;
+              const barcodeChanged =
+                normalizeItemCompareString(orig.barcode) !==
+                normalizeItemCompareString(item.barcode);
+              const sizeChanged =
+                normalizeItemCompareString(orig.size) !==
+                normalizeItemCompareString(item.size);
+              const colorChanged =
+                normalizeItemCompareString(orig.color) !==
+                normalizeItemCompareString(item.color);
+              if (barcodeChanged || sizeChanged || colorChanged) {
+                const field = barcodeChanged ? "barcode" : sizeChanged ? "size" : "color";
+                toast({
+                  title: "Cannot change identity",
+                  description: `${sold} units already sold — ${field} is locked because past sales reference this variant's identity.`,
+                  variant: "destructive",
+                });
+                setLoading(false);
+                return;
+              }
+            }
+          }
+        }
+
         if (itemsToDelete.length > 0) {
           const { error: deleteError } = await supabase
             .from("purchase_items")
@@ -5902,9 +6006,15 @@ const PurchaseEntry = () => {
         isEdit: isEditMode,
       });
       const info = extractErrorInfo(error);
+      const rawMsg = String(error?.message || info.message || "");
+      const floorMsg = rawMsg.includes("PURCHASE_STOCK_FLOOR:")
+        ? rawMsg.replace(/^.*PURCHASE_STOCK_FLOOR:\s*/i, "").replace(/^Error in purchase_item_\w+ trigger:\s*/i, "")
+        : null;
       toast({
-        title: "Bill Save Failed — Draft Preserved",
-        description: `${info.message}${info.code ? ` (code: ${info.code})` : ''}. Your data is safe in draft. Please try again.`,
+        title: floorMsg ? "Cannot reduce quantity" : "Bill Save Failed — Draft Preserved",
+        description: floorMsg
+          ? floorMsg
+          : `${info.message}${info.code ? ` (code: ${info.code})` : ''}. Your data is safe in draft. Please try again.`,
         variant: "destructive",
         duration: 12000,
       });
