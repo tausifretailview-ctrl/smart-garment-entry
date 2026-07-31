@@ -3,7 +3,11 @@ import { useRegisterSW } from "virtual:pwa-register/react";
 import { Button } from "@/components/ui/button";
 import { RefreshCw, X } from "lucide-react";
 import { useOrganization } from "@/contexts/OrganizationContext";
-import { confirmReloadIfPosCartBusy, reloadAppWithUpdateCheck } from "@/lib/appReload";
+import {
+  confirmReloadIfPosCartBusy,
+  reloadAppWithUpdateCheck,
+  startSilentUpdateWhenSafe,
+} from "@/lib/appReload";
 import { isElectronShell } from "@/lib/electronShell";
 
 const SNOOZE_KEY = "ezzy_pwa_update_snooze_until";
@@ -31,13 +35,17 @@ function snoozeUpdatePrompt(): void {
 }
 
 /**
- * Prompt-mode PWA update — unobtrusive top-right chip; Reload uses hard refresh fallback.
+ * Prompt-mode PWA update — silent reload when idle/hidden; banner only after 2h fallback.
  */
 export function UpdatePrompt() {
   const { currentOrganization } = useOrganization();
   const [snoozed, setSnoozed] = useState(isUpdateSnoozed);
   const [reloading, setReloading] = useState(false);
+  const [allowBanner, setAllowBanner] = useState(false);
+  const [updateToken, setUpdateToken] = useState(0);
   const prevNeedRefresh = useRef(false);
+  const orgIdRef = useRef(currentOrganization?.id);
+  orgIdRef.current = currentOrganization?.id;
 
   const {
     needRefresh: [needRefresh],
@@ -50,10 +58,36 @@ export function UpdatePrompt() {
 
   useEffect(() => {
     if (needRefresh && !prevNeedRefresh.current) {
+      setUpdateToken((token) => token + 1);
+      setAllowBanner(false);
       setSnoozed(isUpdateSnoozed());
+    }
+    if (!needRefresh) {
+      setAllowBanner(false);
     }
     prevNeedRefresh.current = needRefresh;
   }, [needRefresh]);
+
+  useEffect(() => {
+    if (!needRefresh || updateToken === 0) return;
+
+    const session = startSilentUpdateWhenSafe({
+      getOrganizationId: () => orgIdRef.current,
+      onFallbackBanner: () => {
+        setSnoozed(isUpdateSnoozed());
+        setAllowBanner(true);
+      },
+      beforeReload: async () => {
+        try {
+          await updateServiceWorker(true);
+        } catch (error) {
+          console.warn("Service worker activate failed:", error);
+        }
+      },
+    });
+
+    return () => session.stop();
+  }, [needRefresh, updateToken, updateServiceWorker]);
 
   const handleReload = useCallback(async () => {
     if (reloading) return;
@@ -76,7 +110,7 @@ export function UpdatePrompt() {
     setSnoozed(true);
   }, []);
 
-  if (!needRefresh || snoozed) return null;
+  if (!needRefresh || !allowBanner || snoozed) return null;
 
   const versionHint = isElectronShell()
     ? "Reload to load the latest features from the server."

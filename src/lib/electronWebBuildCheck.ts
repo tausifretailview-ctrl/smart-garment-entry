@@ -26,13 +26,32 @@ async function fetchLatestMainAsset(): Promise<string | null> {
 
 /** True when the server has a newer web build than the JS bundle currently running. */
 export async function isElectronWebBuildStale(): Promise<boolean> {
-  if (!isElectronShell()) return false;
+  const info = await getElectronWebBuildStaleInfo();
+  return info.stale;
+}
+
+/**
+ * Stale-build details for silent auto-update. `latest` changes when a newer
+ * deploy ships while an older update is still pending — callers use it as a
+ * restart token for the 2h banner ceiling.
+ */
+export async function getElectronWebBuildStaleInfo(): Promise<{
+  stale: boolean;
+  current: string | null;
+  latest: string | null;
+}> {
+  if (!isElectronShell()) {
+    return { stale: false, current: null, latest: null };
+  }
   const current = getLoadedMainAsset();
-  if (!current) return false;
+  if (!current) {
+    return { stale: false, current: null, latest: null };
+  }
   try {
     const latest = await fetchLatestMainAsset();
-    return !!latest && latest !== current;
+    const stale = !!latest && latest !== current;
+    return { stale, current, latest: latest ?? null };
   } catch {
-    return false;
+    return { stale: false, current, latest: null };
   }
 }

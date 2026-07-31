@@ -2,8 +2,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { RefreshCw, X } from "lucide-react";
 import { useOrganization } from "@/contexts/OrganizationContext";
-import { confirmReloadIfPosCartBusy, reloadAppWithUpdateCheck } from "@/lib/appReload";
-import { isElectronWebBuildStale } from "@/lib/electronWebBuildCheck";
+import {
+  confirmReloadIfPosCartBusy,
+  reloadAppWithUpdateCheck,
+  startSilentUpdateWhenSafe,
+} from "@/lib/appReload";
+import { getElectronWebBuildStaleInfo } from "@/lib/electronWebBuildCheck";
 
 const SNOOZE_KEY = "ezzy_electron_web_update_snooze_until";
 const SNOOZE_MS = 4 * 60 * 60 * 1000;
@@ -31,23 +35,36 @@ function snoozeUpdatePrompt(): void {
 
 /**
  * Desktop shell loads the live web app from the server. When a new deploy ships,
- * Electron's HTTP cache can keep an old JS bundle — this prompts a hard refresh.
+ * silent-reload when idle/hidden; banner only after the 2h fallback ceiling.
  */
 export function ElectronWebUpdatePrompt() {
   const { currentOrganization } = useOrganization();
   const [needRefresh, setNeedRefresh] = useState(false);
   const [snoozed, setSnoozed] = useState(isUpdateSnoozed);
   const [reloading, setReloading] = useState(false);
+  const [allowBanner, setAllowBanner] = useState(false);
+  const [updateToken, setUpdateToken] = useState(0);
   const checkingRef = useRef(false);
+  const lastStaleKeyRef = useRef<string | null>(null);
+  const orgIdRef = useRef(currentOrganization?.id);
+  orgIdRef.current = currentOrganization?.id;
 
   const runCheck = useCallback(async () => {
     if (checkingRef.current) return;
     checkingRef.current = true;
     try {
-      if (await isElectronWebBuildStale()) {
-        setNeedRefresh(true);
-        setSnoozed(isUpdateSnoozed());
+      const info = await getElectronWebBuildStaleInfo();
+      if (!info.stale || !info.latest) return;
+
+      // Key off the server's latest asset so a newer deploy while waiting
+      // restarts the silent-update / 2h banner ceiling (no stacked timers).
+      if (lastStaleKeyRef.current !== info.latest) {
+        lastStaleKeyRef.current = info.latest;
+        setUpdateToken((token) => token + 1);
+        setAllowBanner(false);
       }
+      setNeedRefresh(true);
+      setSnoozed(isUpdateSnoozed());
     } finally {
       checkingRef.current = false;
     }
@@ -66,6 +83,20 @@ export function ElectronWebUpdatePrompt() {
     };
   }, [runCheck]);
 
+  useEffect(() => {
+    if (!needRefresh || updateToken === 0) return;
+
+    const session = startSilentUpdateWhenSafe({
+      getOrganizationId: () => orgIdRef.current,
+      onFallbackBanner: () => {
+        setSnoozed(isUpdateSnoozed());
+        setAllowBanner(true);
+      },
+    });
+
+    return () => session.stop();
+  }, [needRefresh, updateToken]);
+
   const handleReload = useCallback(async () => {
     if (reloading) return;
     if (!confirmReloadIfPosCartBusy(currentOrganization?.id)) return;
@@ -78,7 +109,7 @@ export function ElectronWebUpdatePrompt() {
     setSnoozed(true);
   }, []);
 
-  if (!needRefresh || snoozed) return null;
+  if (!needRefresh || !allowBanner || snoozed) return null;
 
   return (
     <div
