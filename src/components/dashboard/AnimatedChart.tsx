@@ -1,6 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ResponsiveContainer, LineChart, Line, BarChart, Bar, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from "recharts";
 import { TrendingUp } from "lucide-react";
+import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 
 interface ChartData {
   name: string;
@@ -22,6 +23,8 @@ export const AnimatedChart = ({
   dataKeys,
   height = 300 
 }: AnimatedChartProps) => {
+  const reduceMotion = usePrefersReducedMotion();
+
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
       return (
@@ -83,13 +86,16 @@ export const AnimatedChart = ({
         return (
           <BarChart {...commonProps}>
             {chartConfig}
-            {dataKeys.map((item) => (
+            {dataKeys.map((item, index) => (
               <Bar
                 key={item.key}
                 dataKey={item.key}
                 fill={item.color}
                 radius={[4, 4, 0, 0]}
-                animationDuration={800}
+                isAnimationActive={!reduceMotion}
+                animationDuration={700}
+                animationEasing="ease-out"
+                animationBegin={index * 120}
                 name={item.name}
               />
             ))}
@@ -107,7 +113,10 @@ export const AnimatedChart = ({
                 stroke={item.color}
                 fill={`url(#gradient-${index})`}
                 strokeWidth={2}
-                animationDuration={1000}
+                isAnimationActive={!reduceMotion}
+                animationDuration={700}
+                animationEasing="ease-out"
+                animationBegin={index * 120}
                 name={item.name}
               />
             ))}
@@ -117,7 +126,7 @@ export const AnimatedChart = ({
         return (
           <LineChart {...commonProps}>
             {chartConfig}
-            {dataKeys.map((item) => (
+            {dataKeys.map((item, index) => (
               <Line
                 key={item.key}
                 type="monotone"
@@ -126,7 +135,10 @@ export const AnimatedChart = ({
                 strokeWidth={2}
                 dot={{ fill: item.color, r: 3, strokeWidth: 0 }}
                 activeDot={{ r: 5, stroke: item.color, strokeWidth: 2, fill: "hsl(var(--card))" }}
-                animationDuration={1000}
+                isAnimationActive={!reduceMotion}
+                animationDuration={700}
+                animationEasing="ease-out"
+                animationBegin={index * 120}
                 name={item.name}
               />
             ))}
