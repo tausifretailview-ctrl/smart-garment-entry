@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { 
   Eye, ZoomIn, ZoomOut, AlignLeft, AlignCenter, AlignRight, 
   Bold, Type, Maximize2, Move, Save, Trash2, FolderOpen,
-  LayoutGrid, Printer, Rows, PanelLeftClose, PanelRightClose, Minimize2
+  LayoutGrid, Printer, Rows, PanelLeftClose, PanelRightClose, Minimize2, RefreshCw
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import JsBarcode from "jsbarcode";
@@ -40,6 +40,8 @@ interface BarTenderLabelDesignerProps {
   savedTemplates?: LabelTemplate[];
   selectedTemplateName?: string | null;
   onSaveTemplate?: (template: LabelTemplate) => Promise<boolean>;
+  /** Update the currently selected template with live designer config (field toggles, positions). */
+  onUpdateTemplate?: () => Promise<boolean>;
   onDeleteTemplate?: (templateName: string) => Promise<boolean>;
   customFieldLabels?: Partial<Record<FieldKey, string>>;
   productFieldSettings?: ProductFieldsConfig | null;
@@ -288,6 +290,7 @@ export function BarTenderLabelDesigner({
   savedTemplates = [],
   selectedTemplateName,
   onSaveTemplate,
+  onUpdateTemplate,
   onDeleteTemplate,
   customFieldLabels,
   productFieldSettings = null,
@@ -525,10 +528,62 @@ export function BarTenderLabelDesigner({
   const selectedFieldConfig = selectedField ? (labelConfig[selectedField] as LabelFieldConfig) : null;
 
   const handleFieldToggle = (fieldKey: FieldKey, show: boolean) => {
-    setLabelConfig(prev => ({
-      ...prev,
-      [fieldKey]: { ...(prev[fieldKey] as LabelFieldConfig), show }
-    }));
+    setLabelConfig((prev) => {
+      const current = prev[fieldKey] as LabelFieldConfig;
+      if (!show) {
+        return {
+          ...prev,
+          [fieldKey]: { ...current, show: false },
+        };
+      }
+
+      // When turning a field on, ensure it has a usable position that isn't stacked
+      // on top of another enabled field (same Y and overlapping X). Side-by-side
+      // rows that share Y but different X ranges are left alone.
+      let nextField: LabelFieldConfig = { ...current, show: true };
+      if (nextField.x === undefined || nextField.y === undefined || nextField.width === undefined) {
+        nextField = {
+          ...nextField,
+          x: nextField.x ?? 0,
+          y: nextField.y ?? 0,
+          width: nextField.width ?? 100,
+        };
+      }
+
+      const x = Number(nextField.x) || 0;
+      const y = Number(nextField.y) || 0;
+      const w = Number(nextField.width) || 100;
+      const stackedOnOther = prev.fieldOrder.some((k) => {
+        if (k === fieldKey) return false;
+        const f = prev[k] as LabelFieldConfig;
+        if (!f?.show) return false;
+        const fx = Number(f.x) || 0;
+        const fy = Number(f.y) || 0;
+        const fw = Number(f.width) || 100;
+        if (Math.abs(fy - y) >= 2.5) return false;
+        const a1 = x;
+        const a2 = x + w;
+        const b1 = fx;
+        const b2 = fx + fw;
+        return a1 < b2 && b1 < a2;
+      });
+
+      if (stackedOnOther || current.y === undefined) {
+        const occupiedYs = prev.fieldOrder
+          .filter((k) => k !== fieldKey && (prev[k] as LabelFieldConfig)?.show)
+          .map((k) => Number((prev[k] as LabelFieldConfig).y) || 0);
+        const maxY = occupiedYs.length ? Math.max(...occupiedYs) : 0;
+        nextField = {
+          ...nextField,
+          y: Math.min(labelHeight - 3, maxY + 3.5),
+        };
+      }
+
+      return {
+        ...prev,
+        [fieldKey]: nextField,
+      };
+    });
   };
 
   const handleFieldDrag = (fieldKey: FieldKey, deltaXPx: number, deltaYPx: number) => {
@@ -742,10 +797,31 @@ export function BarTenderLabelDesigner({
           Properties
         </Button>
 
+        {onUpdateTemplate && selectedTemplateName && (
+          <Button
+            size="sm"
+            variant="default"
+            className="h-8"
+            disabled={isSaving}
+            onClick={async () => {
+              setIsSaving(true);
+              try {
+                await onUpdateTemplate();
+              } finally {
+                setIsSaving(false);
+              }
+            }}
+            title={`Save field toggles and layout to "${selectedTemplateName}"`}
+          >
+            <RefreshCw className="h-4 w-4 mr-1.5" />
+            {isSaving ? "Updating…" : `Update "${selectedTemplateName}"`}
+          </Button>
+        )}
+
         {onSaveTemplate && (
           <Button size="sm" variant="outline" className="h-8" onClick={() => setSaveDialogOpen(true)}>
             <Save className="h-4 w-4 mr-1.5" />
-            Save
+            Save as New
           </Button>
         )}
 

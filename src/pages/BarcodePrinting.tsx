@@ -1395,6 +1395,8 @@ export default function BarcodePrinting() {
   // Label template state
   const [savedLabelTemplates, setSavedLabelTemplates] = useState<LabelTemplate[]>([]);
   const [selectedLabelTemplate, setSelectedLabelTemplate] = useState<string>("");
+  const selectedLabelTemplateRef = useRef(selectedLabelTemplate);
+  selectedLabelTemplateRef.current = selectedLabelTemplate;
   const [isLabelTemplateSaveDialogOpen, setIsLabelTemplateSaveDialogOpen] = useState(false);
   const [newLabelTemplateName, setNewLabelTemplateName] = useState("");
   const [isEditingLabelTemplate, setIsEditingLabelTemplate] = useState(false);
@@ -1497,6 +1499,41 @@ export default function BarcodePrinting() {
   }, [currentOrganization?.id]);
 
   const activePrecisionTemplateBaseName = activePrecisionTemplateName?.replace(/^preset:/, "") ?? null;
+  const activePrecisionTemplateBaseNameRef = useRef(activePrecisionTemplateBaseName);
+  activePrecisionTemplateBaseNameRef.current = activePrecisionTemplateBaseName;
+
+  /** Latest Standard-tab design — auto-save must read this, not a stale Precision copy. */
+  const labelConfigRef = useRef(labelConfig);
+  labelConfigRef.current = labelConfig;
+
+  /**
+   * Standard-tab designer writes `labelConfig`. Loading a template also mirrors it into
+   * Precision (`precisionSettings.labelConfig`) and enables Precision auto-save.
+   * Keep both copies in sync so field toggles / Update aren't overwritten by a stale
+   * Precision auto-save of the old show/hide flags.
+   */
+  const setStandardLabelConfig = useCallback<React.Dispatch<React.SetStateAction<LabelDesignConfig>>>(
+    (update) => {
+      setLabelConfig((prev) => {
+        const next = typeof update === "function" ? (update as (p: LabelDesignConfig) => LabelDesignConfig)(prev) : update;
+        labelConfigRef.current = next;
+        const selected = selectedLabelTemplateRef.current;
+        const precisionBase = activePrecisionTemplateBaseNameRef.current;
+        // Mirror into Precision when targets share a name. Microtask avoids setState-during-render.
+        // Safe on Standard tab because Precision auto-save is disabled there.
+        if (selected && precisionBase && selected === precisionBase) {
+          queueMicrotask(() => {
+            setPrecisionSettings((p) => {
+              if (p.labelConfig === next) return p;
+              return { ...p, labelConfig: next };
+            });
+          });
+        }
+        return next;
+      });
+    },
+    [],
+  );
 
   /** Kids Zone / Jewellery use a hard-coded layout; other presets use saved DB config. */
   const effectivePrecisionLabelConfig = useMemo((): LabelDesignConfig => {
@@ -1745,7 +1782,21 @@ export default function BarcodePrinting() {
             barcodeText: { ...migratedConfig.barcodeText, show: true },
           };
           setLabelConfig(configWithBarcode);
+          labelConfigRef.current = configWithBarcode;
           setSelectedLabelTemplate(template.name);
+          // Keep Precision mirror on the same template so toggles/Update stay in sync.
+          setActivePrecisionTemplateName(template.name);
+          const defaultTemplateDims = resolveTemplateLabelDimensions(template);
+          setPrecisionSettings((prev) => ({
+            ...prev,
+            labelConfig: configWithBarcode,
+            ...(defaultTemplateDims
+              ? {
+                  labelWidth: defaultTemplateDims.width,
+                  labelHeight: defaultTemplateDims.height,
+                }
+              : {}),
+          }));
           const templateDims = resolveTemplateLabelDimensions(template);
           if (templateDims) {
             const savedDims = defaultFormat.sheetType
@@ -1981,8 +2032,11 @@ export default function BarcodePrinting() {
     );
   }, [activePrecisionTemplateName, activePrecisionTemplateBaseName, currentOrganization?.id, autoSavePrecisionConfig]);
 
-  // Debounced auto-save for precision designer changes
+  // Debounced auto-save for precision designer changes.
+  // On Standard tab the explicit "Update" button owns persistence — auto-save here
+  // was racing and writing a stale Precision copy over field toggles.
   useEffect(() => {
+    if (activeBarTab === "standard") return;
     if (!activePrecisionTemplateName || !precisionSettings.labelConfig || !currentOrganization?.id) return;
     if (isFixedBuiltinLabelPreset(activePrecisionTemplateBaseName)) return;
 
@@ -1990,7 +2044,15 @@ export default function BarcodePrinting() {
     
     autoSaveTimerRef.current = setTimeout(() => {
       void (async () => {
-        const cfg = precisionSettings.labelConfig;
+        const selected = selectedLabelTemplateRef.current;
+        const precisionBase = activePrecisionTemplateName.replace(/^preset:/, "");
+        // If Standard template and Precision target share a name, prefer Standard's
+        // latest in-memory config (toggles / drag) over a possibly stale mirror.
+        const cfg =
+          selected && selected === precisionBase
+            ? labelConfigRef.current
+            : precisionSettings.labelConfig;
+        if (!cfg) return;
         const ok = await autoSavePrecisionConfig(
           activePrecisionTemplateName,
           cfg,
@@ -2007,7 +2069,7 @@ export default function BarcodePrinting() {
     return () => {
       if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
     };
-  }, [precisionSettings.labelConfig, precisionSettings.labelWidth, precisionSettings.labelHeight, activePrecisionTemplateName, currentOrganization?.id, autoSavePrecisionConfig, markLabelDesignBaselineSaved]);
+  }, [precisionSettings.labelConfig, precisionSettings.labelWidth, precisionSettings.labelHeight, activePrecisionTemplateName, currentOrganization?.id, autoSavePrecisionConfig, markLabelDesignBaselineSaved, activeBarTab]);
 
   // Fetch business name from settings (organization-scoped) — once per org.
   useEffect(() => {
@@ -2044,18 +2106,12 @@ export default function BarcodePrinting() {
             setDefaultUom(purchaseSettings.default_uom);
           }
           if (purchaseSettings.show_purchase_code !== undefined) {
+            // Flag for encoding only — never mutate label design field toggles here.
             setShowPurchaseCode(purchaseSettings.show_purchase_code);
-            // Update labelConfig to show purchase code if enabled
-            if (purchaseSettings.show_purchase_code) {
-              setLabelConfig(prev => ({
-                ...prev,
-                purchaseCode: { ...prev.purchaseCode, show: true }
-              }));
           }
           if (purchaseSettings.purchase_code_include_gst !== undefined) {
             setPurchaseCodeIncludeGst(purchaseSettings.purchase_code_include_gst);
           }
-        }
         }
 
         // Load precision pro settings (use merge to avoid overwriting preset-loaded labelConfig)
@@ -2920,23 +2976,9 @@ export default function BarcodePrinting() {
       }
 
       if (hasPurchasePrices) {
+        // Encode purchase codes on label items — do NOT force the Purchase Code field
+        // visible in the designer (that overwrote user add/remove / template edits).
         setShowPurchaseCode(true);
-        setLabelConfig((prev) => ({
-          ...prev,
-          purchaseCode: { ...prev.purchaseCode, show: true },
-        }));
-      }
-      if (hasStyle) {
-        setLabelConfig((prev) => ({
-          ...prev,
-          style: { ...prev.style, show: true },
-        }));
-      }
-      if (hasSupplierCode) {
-        setLabelConfig((prev) => ({
-          ...prev,
-          supplierCode: { ...prev.supplierCode, show: true },
-        }));
       }
 
       toast.success(`Loaded ${items.length} items from purchase bill`);
@@ -3766,9 +3808,20 @@ export default function BarcodePrinting() {
       return;
     }
 
-    const existingIndex = savedMarginPresets.findIndex(p => p.name === trimmedName);
+    const existingIndex = savedMarginPresets.findIndex(
+      (p) => p.name.toLowerCase() === trimmedName.toLowerCase(),
+    );
     
     if (!isEditingMarginPreset && existingIndex !== -1) {
+      toast.error("A margin preset with this name already exists");
+      return;
+    }
+
+    if (
+      isEditingMarginPreset &&
+      trimmedName !== selectedMarginPreset &&
+      savedMarginPresets.some((p) => p.name.toLowerCase() === trimmedName.toLowerCase())
+    ) {
       toast.error("A margin preset with this name already exists");
       return;
     }
@@ -3784,6 +3837,14 @@ export default function BarcodePrinting() {
 
     const success = await saveMarginToDb(newPreset);
     if (success) {
+      // Renamed while editing — drop the old row so we don't leave a duplicate.
+      if (
+        isEditingMarginPreset &&
+        selectedMarginPreset &&
+        selectedMarginPreset !== trimmedName
+      ) {
+        await deleteMarginFromDb(selectedMarginPreset);
+      }
       if (isEditingMarginPreset) {
         toast.success(`Margin preset "${trimmedName}" updated`);
       } else {
@@ -3797,6 +3858,32 @@ export default function BarcodePrinting() {
     }
   };
 
+  /** One-click update: write current margin inputs onto the selected preset. */
+  const handleUpdateSelectedMarginPreset = async () => {
+    if (!selectedMarginPreset) {
+      toast.error("Please select a margin preset to update");
+      return;
+    }
+
+    const existing = savedMarginPresets.find((p) => p.name === selectedMarginPreset);
+    if (!existing) {
+      toast.error("Selected margin preset not found");
+      return;
+    }
+
+    const success = await saveMarginToDb({
+      name: selectedMarginPreset,
+      topOffset,
+      leftOffset,
+      bottomOffset,
+      rightOffset,
+      description: existing.description,
+    });
+    if (success) {
+      toast.success(`Margin preset "${selectedMarginPreset}" updated`);
+    }
+  };
+
   const handleEditMarginPreset = () => {
     if (!selectedMarginPreset) {
       toast.error("Please select a margin preset to edit");
@@ -3805,10 +3892,8 @@ export default function BarcodePrinting() {
 
     const preset = savedMarginPresets.find(p => p.name === selectedMarginPreset);
     if (preset) {
-      setTopOffset(preset.topOffset);
-      setLeftOffset(preset.leftOffset);
-      setBottomOffset(preset.bottomOffset);
-      setRightOffset(preset.rightOffset);
+      // Keep current Top/Left/Bottom/Right inputs — those are what the user wants to save.
+      // Only prefill name/description for the update dialog.
       setNewMarginPresetName(preset.name);
       setNewMarginPresetDescription(preset.description || "");
       setIsEditingMarginPreset(true);
@@ -3886,13 +3971,26 @@ export default function BarcodePrinting() {
     }
 
     const { width: currentLabelWidth, height: currentLabelHeight } = getLabelDimensions();
+    const configToPersist = ensureCompleteFieldOrder(
+      JSON.parse(JSON.stringify(labelConfig)) as LabelDesignConfig,
+    );
 
     const newTemplate: LabelTemplate = {
       name: trimmedName,
-      config: { ...labelConfig },
+      config: configToPersist,
       labelWidth: currentLabelWidth,
       labelHeight: currentLabelHeight,
     };
+
+    // Keep Precision mirror in sync before DB write (prevents stale auto-save race)
+    setLabelConfig(configToPersist);
+    if (
+      activePrecisionTemplateBaseName &&
+      (activePrecisionTemplateBaseName === trimmedName ||
+        activePrecisionTemplateBaseName === selectedLabelTemplate)
+    ) {
+      setPrecisionSettings((prev) => ({ ...prev, labelConfig: configToPersist }));
+    }
 
     // Save to database
     const success = await saveTemplateToDb(newTemplate);
@@ -3931,6 +4029,11 @@ export default function BarcodePrinting() {
     const template = savedLabelTemplates.find((t) => t.name === templateName);
     if (template) {
       const templateDims = resolveTemplateLabelDimensions(template);
+      const mergedConfig = resolvePresetLabelConfig(template.name, template.config);
+      // Standard tab source of truth first — then mirror into Precision so auto-save
+      // cannot later clobber field toggles with a stale precision copy.
+      setLabelConfig(mergedConfig);
+      setSelectedLabelTemplate(template.name);
       handlePrecisionPresetLoad({
         name: template.name,
         xOffset: precisionSettings.xOffset,
@@ -3939,7 +4042,7 @@ export default function BarcodePrinting() {
         hGap: precisionSettings.hGap,
         width: templateDims?.width ?? template.labelWidth ?? precisionSettings.labelWidth,
         height: templateDims?.height ?? template.labelHeight ?? precisionSettings.labelHeight,
-        labelConfig: template.config,
+        labelConfig: mergedConfig,
         printMode: precisionSettings.printMode,
         thermalCols: precisionSettings.thermalCols,
         a4Cols: precisionSettings.a4Cols,
@@ -4058,6 +4161,67 @@ export default function BarcodePrinting() {
       height: parseInt(preset.height)
     };
   };
+
+  /** Persist the selected Standard template from current designer state (explicit Update). */
+  const persistSelectedLabelTemplate = useCallback(async (): Promise<boolean> => {
+    const name = selectedLabelTemplateRef.current;
+    if (!name) {
+      toast.error("Please select a template to update");
+      return false;
+    }
+
+    if (autoSaveTimerRef.current) {
+      clearTimeout(autoSaveTimerRef.current);
+      autoSaveTimerRef.current = null;
+    }
+
+    const existing = savedLabelTemplates.find((t) => t.name === name);
+    const { width: sheetW, height: sheetH } = getLabelDimensions();
+    // Prefer template sticker size over sheet cell size (avoids saving 48×24 as 33×19).
+    const templateDims = existing ? resolveTemplateLabelDimensions(existing) : null;
+    const saveWidth = templateDims?.width ?? existing?.labelWidth ?? sheetW;
+    const saveHeight = templateDims?.height ?? existing?.labelHeight ?? sheetH;
+
+    const configToPersist = ensureCompleteFieldOrder(
+      JSON.parse(JSON.stringify(labelConfigRef.current)) as LabelDesignConfig,
+    );
+
+    setLabelConfig(configToPersist);
+    labelConfigRef.current = configToPersist;
+    setPrecisionSettings((prev) => ({ ...prev, labelConfig: configToPersist }));
+    if (activePrecisionTemplateBaseNameRef.current !== name) {
+      setActivePrecisionTemplateName(name);
+    }
+
+    const success = await saveTemplateToDb({
+      name,
+      config: configToPersist,
+      labelWidth: saveWidth,
+      labelHeight: saveHeight,
+    });
+
+    if (success) {
+      const orgId = currentOrganization?.id ?? "";
+      try {
+        lastPersistedSignatureRef.current =
+          `${orgId}|${name}|${saveWidth}|${saveHeight}|${JSON.stringify(configToPersist)}`;
+      } catch {
+        lastPersistedSignatureRef.current = `${orgId}|${name}|${saveWidth}|${saveHeight}`;
+      }
+      markLabelDesignBaselineSaved(configToPersist, name);
+      toast.success(`Template "${name}" updated`);
+    }
+    return success;
+  }, [
+    savedLabelTemplates,
+    saveTemplateToDb,
+    currentOrganization?.id,
+    setActivePrecisionTemplateName,
+    markLabelDesignBaselineSaved,
+    sheetType,
+    customWidth,
+    customHeight,
+  ]);
 
   const getLabelHTML = (item: LabelItem, format: DesignFormat) => {
     const barcode = item.barcode || genEAN8();
@@ -6602,19 +6766,7 @@ export default function BarcodePrinting() {
                     <Button 
                       size="sm" 
                       variant="default"
-                      onClick={async () => {
-                        const { width: currentLabelWidth, height: currentLabelHeight } = getLabelDimensions();
-                        const newTemplate: LabelTemplate = {
-                          name: selectedLabelTemplate,
-                          config: { ...labelConfig },
-                          labelWidth: currentLabelWidth,
-                          labelHeight: currentLabelHeight,
-                        };
-                        const success = await saveTemplateToDb(newTemplate);
-                        if (success) {
-                          toast.success(`Template "${selectedLabelTemplate}" updated`);
-                        }
-                      }}
+                      onClick={() => void persistSelectedLabelTemplate()}
                     >
                       <RefreshCw className="h-4 w-4 mr-1" />
                       Update "{selectedLabelTemplate}"
@@ -6624,7 +6776,7 @@ export default function BarcodePrinting() {
                 
                 <BarTenderLabelDesigner
                   labelConfig={labelConfig}
-                  setLabelConfig={setLabelConfig}
+                  setLabelConfig={setStandardLabelConfig}
                   businessName={businessName}
                   sampleItem={labelItems.length > 0 ? labelItems[0] : null}
                   labelWidth={sheetType === 'custom' ? customWidth : parseFloat(sheetPresets[sheetType].width)}
@@ -6633,6 +6785,7 @@ export default function BarcodePrinting() {
                   savedTemplates={dbLabelTemplates}
                   selectedTemplateName={selectedLabelTemplate}
                   onSaveTemplate={saveTemplateToDb}
+                  onUpdateTemplate={persistSelectedLabelTemplate}
                   onDeleteTemplate={deleteTemplateFromDb}
                   productFieldSettings={productFieldSettings}
                 />
@@ -6659,15 +6812,17 @@ export default function BarcodePrinting() {
             </CollapsibleTrigger>
             <CollapsibleContent>
           <div className="px-4 pb-4 pt-0 space-y-4 border-t">
-            <div className="flex items-center justify-between">
+            <div className="space-y-3">
               <div>
                 <h3 className="font-semibold">Sheet Margin Presets</h3>
                 <p className="text-sm text-muted-foreground">
-                  Save margin configurations for different label sheet brands (Avery, Brother, etc.)
+                  Save margin configurations for different label sheet brands (Avery, Brother, etc.).
+                  Select a preset, change Top/Left/Bottom/Right, then click Update.
                 </p>
               </div>
-              
-              <div className="flex gap-2 items-center">
+
+              {/* Wrapped toolbar — parent card uses overflow-hidden; a single-row flex was clipping Update */}
+              <div className="flex flex-wrap gap-2 items-center">
                 <Select 
                   value={selectedMarginPreset || "none"} 
                   onValueChange={(v) => {
@@ -6678,7 +6833,7 @@ export default function BarcodePrinting() {
                     }
                   }}
                 >
-                  <SelectTrigger className="w-[240px]">
+                  <SelectTrigger className="w-[220px]">
                     <SelectValue placeholder="Select margin preset..." />
                   </SelectTrigger>
                   <SelectContent className="bg-background z-50">
@@ -6703,6 +6858,18 @@ export default function BarcodePrinting() {
                   </SelectContent>
                 </Select>
 
+                {selectedMarginPreset && (
+                  <Button
+                    size="sm"
+                    variant="default"
+                    onClick={handleUpdateSelectedMarginPreset}
+                    title={`Save current Top/Left/Bottom/Right into "${selectedMarginPreset}"`}
+                  >
+                    <RefreshCw className="h-4 w-4 mr-1" />
+                    Update &quot;{selectedMarginPreset}&quot;
+                  </Button>
+                )}
+
                 <Dialog open={isMarginSaveDialogOpen} onOpenChange={setIsMarginSaveDialogOpen}>
                   <DialogTrigger asChild>
                     <Button 
@@ -6715,14 +6882,16 @@ export default function BarcodePrinting() {
                       }}
                     >
                       <Save className="h-4 w-4 mr-1" />
-                      Save Margins
+                      Save as New
                     </Button>
                   </DialogTrigger>
                   <DialogContent>
                     <DialogHeader>
                       <DialogTitle>{isEditingMarginPreset ? "Update" : "Save"} Margin Preset</DialogTitle>
                       <DialogDescription>
-                        {isEditingMarginPreset ? "Update the margin preset" : "Save current margin settings for a specific label sheet brand"}
+                        {isEditingMarginPreset
+                          ? "Rename or edit description, then save current margin values"
+                          : "Save current margin settings as a new preset"}
                       </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-4">
@@ -6778,15 +6947,16 @@ export default function BarcodePrinting() {
                       onClick={handleSetDefaultMarginPreset}
                       title="Set as default margins (auto-applied when printing from Purchase Bill / Dashboard)"
                     >
-                      {dbDefaultFormat?.defaultMarginPreset === selectedMarginPreset ? "Default" : "Set Default"}
+                      {dbDefaultFormat?.defaultMarginPreset === selectedMarginPreset ? "Default ✓" : "Set Default"}
                     </Button>
                     <Button 
                       size="sm" 
                       variant="outline" 
                       onClick={handleEditMarginPreset}
-                      title="Edit this margin preset"
+                      title="Rename / edit description"
                     >
-                      <Save className="h-4 w-4" />
+                      <Edit className="h-4 w-4 mr-1" />
+                      Rename
                     </Button>
                     <Button 
                       size="sm" 
