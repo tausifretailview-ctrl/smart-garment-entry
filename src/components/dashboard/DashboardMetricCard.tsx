@@ -1,4 +1,3 @@
-import { Loader2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Tooltip,
@@ -62,6 +61,7 @@ export const DashboardMetricCard = ({
       : value.toLocaleString("en-IN");
 
   const pastel = METRIC_PASTEL[accentColor] ?? METRIC_PASTEL["bg-blue-500"];
+  const refreshing = loading && !placeholder;
 
   return (
     <Tooltip>
@@ -80,15 +80,12 @@ export const DashboardMetricCard = ({
               <p className="text-sm font-semibold leading-snug text-slate-600 line-clamp-2">{title}</p>
               <p
                 className={cn(
-                  "mt-2 text-2xl font-bold tabular-nums leading-none sm:text-[1.65rem]",
+                  "mt-2 text-2xl font-bold tabular-nums leading-none sm:text-[1.65rem] transition-opacity duration-150",
                   placeholder ? "text-slate-400" : pastel.value,
+                  refreshing && "opacity-60",
                 )}
               >
-                {loading && !placeholder ? (
-                  <Loader2 className="mx-auto h-6 w-6 animate-spin opacity-70" />
-                ) : (
-                  displayValue
-                )}
+                {displayValue}
               </p>
               <Icon
                 className={cn(
