@@ -11,7 +11,16 @@ function getElectronAPI(): ElectronReloadApi | undefined {
   return (window as Window & { electronAPI?: ElectronReloadApi }).electronAPI;
 }
 
-function hasAnyPosCartItemsInSession(): boolean {
+/** Idle with no pointer/keyboard activity before a silent reload may fire. */
+export const SILENT_UPDATE_IDLE_MS = 45_000;
+/** If no safe moment arrives, show the existing update banner. */
+export const SILENT_UPDATE_BANNER_FALLBACK_MS = 2 * 60 * 60 * 1000;
+
+const ACTIVITY_EVENTS = ["mousemove", "keydown", "click", "touchstart"] as const;
+/** How often to re-check idle + cart + dialog gates. */
+const SILENT_UPDATE_POLL_MS = 5_000;
+
+export function hasAnyPosCartItemsInSession(): boolean {
   try {
     for (let i = 0; i < sessionStorage.length; i++) {
       const key = sessionStorage.key(i);
@@ -35,6 +44,26 @@ export function confirmReloadIfPosCartBusy(orgId?: string | null): boolean {
   return window.confirm(
     "You have an unsaved bill — reload anyway? Your cart is saved in this browser session and should restore after reload.",
   );
+}
+
+/** True when POS cart session data would be disrupted by a reload. */
+export function isSilentReloadCartBusy(organizationId?: string | null): boolean {
+  if (hasAnyPosCartItemsInSession()) return true;
+  if (organizationId && readPosCartSnapshot(organizationId)) return true;
+  return false;
+}
+
+/**
+ * Radix dialog / sheet / alertdialog open — do not silent-reload mid-interaction
+ * (barcode scan, product entry, etc.).
+ */
+export function isBlockingUiOverlayOpen(): boolean {
+  if (typeof document === "undefined") return false;
+  return !!document.querySelector('[role="dialog"], [role="alertdialog"]');
+}
+
+export function isSilentReloadSafe(organizationId?: string | null): boolean {
+  return !isSilentReloadCartBusy(organizationId) && !isBlockingUiOverlayOpen();
 }
 
 async function clearServiceWorkerAndCaches(): Promise<void> {
@@ -84,4 +113,136 @@ export async function reloadAppWithUpdateCheck(): Promise<void> {
 
   await clearServiceWorkerAndCaches();
   window.location.reload();
+}
+
+export type SilentUpdateWhenSafeOptions = {
+  /** Resolved on each safety check so org switches do not restart the 2h ceiling. */
+  getOrganizationId?: () => string | null | undefined;
+  /** Called once when the 2h ceiling elapses without a silent reload. */
+  onFallbackBanner: () => void;
+  /** Optional pre-reload hook (e.g. activate waiting service worker). */
+  beforeReload?: () => void | Promise<void>;
+  /** Overrides for tests. */
+  idleMs?: number;
+  bannerFallbackMs?: number;
+  pollMs?: number;
+  now?: () => number;
+};
+
+export type SilentUpdateWhenSafeHandle = {
+  stop: () => void;
+};
+
+type ActiveSilentSession = {
+  generation: number;
+  stop: () => void;
+};
+
+let activeSilentSession: ActiveSilentSession | null = null;
+let silentReloadInFlight = false;
+
+/**
+ * When an update is available: wait for a safe moment, then reload silently.
+ * Does not show UI — callers show the existing banner only via onFallbackBanner
+ * after {@link SILENT_UPDATE_BANNER_FALLBACK_MS}.
+ *
+ * Safe moment = no POS cart + no open dialog/sheet, and either:
+ * - no user input for {@link SILENT_UPDATE_IDLE_MS}, or
+ * - document.visibilityState === "hidden"
+ *
+ * Calling again while a prior session is active stops the old timers and
+ * restarts the 2-hour banner ceiling (no stacking).
+ */
+export function startSilentUpdateWhenSafe(
+  options: SilentUpdateWhenSafeOptions,
+): SilentUpdateWhenSafeHandle {
+  activeSilentSession?.stop();
+
+  const idleMs = options.idleMs ?? SILENT_UPDATE_IDLE_MS;
+  const bannerFallbackMs = options.bannerFallbackMs ?? SILENT_UPDATE_BANNER_FALLBACK_MS;
+  const pollMs = options.pollMs ?? SILENT_UPDATE_POLL_MS;
+  const now = options.now ?? Date.now;
+
+  let stopped = false;
+  let lastActivityAt = now();
+  let bannerFired = false;
+  let pollTimer: ReturnType<typeof setInterval> | undefined;
+  let bannerTimer: ReturnType<typeof setTimeout> | undefined;
+  const generation = (activeSilentSession?.generation ?? 0) + 1;
+
+  const stop = () => {
+    if (stopped) return;
+    stopped = true;
+    if (pollTimer !== undefined) clearInterval(pollTimer);
+    if (bannerTimer !== undefined) clearTimeout(bannerTimer);
+    for (const eventName of ACTIVITY_EVENTS) {
+      window.removeEventListener(eventName, onActivity, true);
+    }
+    document.removeEventListener("visibilitychange", onVisibility);
+    if (activeSilentSession?.generation === generation) {
+      activeSilentSession = null;
+    }
+  };
+
+  const onActivity = () => {
+    lastActivityAt = now();
+  };
+
+  const trySilentReload = async () => {
+    if (stopped || silentReloadInFlight) return;
+    const organizationId = options.getOrganizationId?.() ?? null;
+    if (!isSilentReloadSafe(organizationId)) return;
+
+    const idleLongEnough = now() - lastActivityAt >= idleMs;
+    const tabHidden =
+      typeof document !== "undefined" && document.visibilityState === "hidden";
+    if (!idleLongEnough && !tabHidden) return;
+
+    silentReloadInFlight = true;
+    stop();
+    try {
+      try {
+        await options.beforeReload?.();
+      } catch (error) {
+        console.warn("Silent update beforeReload failed:", error);
+      }
+      await reloadAppWithUpdateCheck();
+    } catch (error) {
+      console.warn("Silent update reload failed:", error);
+    } finally {
+      // Normal browsers unload on reload; reset so mocked/failed reloads can retry.
+      silentReloadInFlight = false;
+    }
+  };
+
+  const onVisibility = () => {
+    if (document.visibilityState === "hidden") {
+      void trySilentReload();
+    }
+  };
+
+  for (const eventName of ACTIVITY_EVENTS) {
+    window.addEventListener(eventName, onActivity, { passive: true, capture: true });
+  }
+  document.addEventListener("visibilitychange", onVisibility);
+
+  pollTimer = setInterval(() => {
+    void trySilentReload();
+  }, pollMs);
+
+  bannerTimer = setTimeout(() => {
+    if (stopped || bannerFired) return;
+    bannerFired = true;
+    try {
+      options.onFallbackBanner();
+    } catch (error) {
+      console.warn("Silent update fallback banner callback failed:", error);
+    }
+  }, bannerFallbackMs);
+
+  activeSilentSession = { generation, stop };
+
+  void trySilentReload();
+
+  return { stop };
 }
