@@ -9,9 +9,9 @@ import {
   shouldUnionSaleItemsForPosSearch,
 } from "@/utils/posDashboardSearch";
 import {
-  fetchSaleReceiptSplitsForInvoices,
   fetchSaleReceiptVoucherRowsForInvoices,
   buildSaleReceiptModeAmountMap,
+  buildSaleReceiptSplitMap,
   reconcileSaleInvoiceWithSplit,
 } from "@/utils/customerBalanceUtils";
 import {
@@ -630,6 +630,7 @@ async function enrichPosSalesWithReceiptSettlement(
   client: SupabaseClient,
   organizationId: string,
   sales: any[],
+  options?: { voucherDateFrom?: string | null; voucherDateTo?: string | null },
 ): Promise<any[]> {
   if (!organizationId || sales.length === 0) return sales;
 
@@ -641,10 +642,18 @@ async function enrichPosSalesWithReceiptSettlement(
     sale_return_adjust: sale.sale_return_adjust,
   }));
 
-  const [splitBySale, voucherRows] = await Promise.all([
-    fetchSaleReceiptSplitsForInvoices(client, organizationId, invoiceRefs),
-    fetchSaleReceiptVoucherRowsForInvoices(client, organizationId, invoiceRefs),
-  ]);
+  // One voucher crawl → both settlement split and Cash/Card/UPI mode maps.
+  // Previously these ran in parallel and each re-fetched the same receipt rows (~2× latency).
+  const voucherRows = await fetchSaleReceiptVoucherRowsForInvoices(
+    client,
+    organizationId,
+    invoiceRefs,
+    {
+      voucherDateFrom: options?.voucherDateFrom,
+      voucherDateTo: options?.voucherDateTo,
+    },
+  );
+  const splitBySale = buildSaleReceiptSplitMap(invoiceRefs, voucherRows);
   const modeBySale = buildSaleReceiptModeAmountMap(invoiceRefs, voucherRows);
 
   return sales.map((sale) => {
@@ -785,10 +794,20 @@ export async function fetchPosDashboardPage(
   if (error) throw error;
 
   const enriched = await enrichPosSalesWithCreditNotes(data || []);
+  // Bound customer-level receipt fan-out (sale-id receipts stay unbounded).
+  // Look back 12 months from the filter start so advance/CN applications still settle.
+  const bounded = resolvePosDashboardDateRange(filters.startDate, filters.endDate);
+  const voucherDateFrom = bounded.startDate
+    ? format(subMonths(new Date(`${bounded.startDate}T12:00:00`), 12), "yyyy-MM-dd")
+    : null;
   const settled = await enrichPosSalesWithReceiptSettlement(
     client,
     filters.organizationId,
     enriched.sales,
+    {
+      voucherDateFrom,
+      voucherDateTo: bounded.endDate || null,
+    },
   );
   const rankedSales = filters.search.trim()
     ? rankPosDashboardSearchResults(settled, filters.search)
@@ -796,6 +815,12 @@ export async function fetchPosDashboardPage(
   return { sales: rankedSales, creditNoteUsage: enriched.creditNoteUsage, totalCount };
 }
 
+/**
+ * Lightweight summary scan — sale columns only.
+ * Do NOT receipt-enrich here: mode correction / KPI fallback only need at-sale
+ * cash/card/upi capping via getPosPaymentModeDisplayAmounts(sale). Receipt enrich
+ * on every summary row was starving the table fetch and leaving the skeleton up.
+ */
 async function scanPosDashboardSummaryRows(
   client: SupabaseClient,
   filters: PosDashboardFilters,
@@ -819,12 +844,7 @@ async function scanPosDashboardSummaryRows(
     offset += PAGE_SIZE;
   }
 
-  const settled = await enrichPosSalesWithReceiptSettlement(
-    client,
-    filters.organizationId,
-    allRows,
-  );
-  return settled;
+  return allRows;
 }
 
 const POS_DASHBOARD_MODE_CORRECT_SELECT =
