@@ -169,6 +169,25 @@
             }
             node = next;
           }
+          // The leak can also land inside #root (or its first wrapper) after an
+          // in-app navigation, where the body-level sweep above never sees it.
+          var scopes = [document.getElementById("root")];
+          var rootEl = scopes[0];
+          if (rootEl && rootEl.firstElementChild) scopes.push(rootEl.firstElementChild);
+          for (var s = 0; s < scopes.length; s++) {
+            var scope = scopes[s];
+            if (!scope) continue;
+            for (var n = scope.firstChild; n; ) {
+              var nx = n.nextSibling;
+              var txt = n.nodeType === 3 && n.nodeValue ? n.nodeValue.trim() : "";
+              // Only strip text that is clearly leaked script source, never
+              // legitimate app text rendered by React.
+              if (txt && /^[!(]?function\s*\(|^\(function|documentElement/.test(txt)) {
+                scope.removeChild(n);
+              }
+              n = nx;
+            }
+          }
         }
         stripStrayBodyText();
         document.addEventListener("DOMContentLoaded", stripStrayBodyText);
@@ -181,6 +200,7 @@
         try {
           var observer = new MutationObserver(stripStrayBodyText);
           observer.observe(document.body, { childList: true });
+          observer.observe(document.documentElement, { childList: true, subtree: true });
         } catch (e) {}
       })();
     </script>
