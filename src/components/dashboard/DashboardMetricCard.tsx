@@ -5,6 +5,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { useCountUp } from "@/hooks/useCountUp";
 
 const formatCurrency = (value: number) => {
   return new Intl.NumberFormat("en-IN", {
@@ -54,11 +55,17 @@ export const DashboardMetricCard = ({
   placeholder?: boolean;
   loading?: boolean;
 }) => {
+  const animated = useCountUp(value, {
+    durationMs: 450,
+    fromPrevious: true,
+    enabled: !placeholder,
+  });
+
   const displayValue = placeholder
     ? "—"
     : isCurrency
-      ? formatCurrency(value)
-      : value.toLocaleString("en-IN");
+      ? formatCurrency(animated)
+      : Math.round(animated).toLocaleString("en-IN");
 
   const pastel = METRIC_PASTEL[accentColor] ?? METRIC_PASTEL["bg-blue-500"];
   const refreshing = loading && !placeholder;
