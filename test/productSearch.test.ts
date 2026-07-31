@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 import {
   compactProductToken,
   expandProductSearchTerms,
+  isExactProductNameQueryMatch,
   leadingProductToken,
   matchesCompactProductSearch,
   matchesProductSearchFields,
+  restrictProductsToExactNameMatches,
   scoreProductSearchMatch,
 } from "../src/utils/productSearch";
 import { buildSaleOrderProductGroupKey } from "../src/utils/saleOrderProductSearch";
@@ -75,5 +77,30 @@ describe("matchesProductSearchFields", () => {
     expect(
       matchesProductSearchFields({ product_name: "FL2067-FL-RLX-LD 3-8" }, "FL20"),
     ).toBe(true);
+  });
+});
+
+describe("restrictProductsToExactNameMatches", () => {
+  const catalog = [
+    { id: "a", product_name: "PUG193" },
+    { id: "b", product_name: "PUG165" },
+    { id: "c", product_name: "PUG179" },
+    { id: "d", product_name: "PUG190" },
+    { id: "e", product_name: "PUG193 - RLX - MN" },
+  ];
+
+  it("keeps only whole-name matches when user types PUG193", () => {
+    const exact = restrictProductsToExactNameMatches(catalog, "PUG193");
+    expect(exact?.map((p) => p.id).sort()).toEqual(["a", "e"]);
+    expect(exact?.some((p) => p.product_name === "PUG165")).toBe(false);
+  });
+
+  it("does not restrict on partial prefix PUG1", () => {
+    expect(restrictProductsToExactNameMatches(catalog, "PUG1")).toBeNull();
+  });
+
+  it("matches spaced whole codes via compact equality", () => {
+    expect(isExactProductNameQueryMatch("PUG 193", "PUG193")).toBe(true);
+    expect(isExactProductNameQueryMatch("PUG165", "PUG193")).toBe(false);
   });
 });
