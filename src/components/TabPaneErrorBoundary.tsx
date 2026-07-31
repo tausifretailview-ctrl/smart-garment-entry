@@ -2,6 +2,7 @@ import { Component, type ErrorInfo, type ReactNode } from "react";
 import { AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { isChunkLoadError, attemptSkewRecoveryReload } from "@/lib/chunkLoadRetry";
+import { reloadAppWithUpdateCheck } from "@/lib/appReload";
 
 type Props = {
   children: ReactNode;
@@ -85,7 +86,13 @@ export class TabPaneErrorBoundary extends Component<Props, State> {
             <Button size="sm" onClick={this.handleRetry}>
               Retry tab
             </Button>
-            <Button size="sm" variant="outline" onClick={() => window.location.reload()}>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                void reloadAppWithUpdateCheck();
+              }}
+            >
               Refresh app
             </Button>
           </div>
