@@ -3016,7 +3016,8 @@ const PurchaseEntry = () => {
         resolvedUom = (data as { uom?: string } | null)?.uom || "NOS";
       }
 
-      let outcome: "added" | "incremented" | "duplicate_imei" | "missing_requires_imei" = "added";
+      type ScanOutcome = "added" | "incremented" | "duplicate_imei" | "missing_requires_imei";
+      const scan: { outcome: ScanOutcome } = { outcome: "added" };
       let conflictCode = "";
 
       setLineItems((prev) => {
@@ -3031,18 +3032,18 @@ const PurchaseEntry = () => {
 
           // Data-plumbing: do not default a missing flag (same class of bug as !== false).
           if (item.requires_imei === undefined || item.requires_imei === null) {
-            outcome = "missing_requires_imei";
+            scan.outcome = "missing_requires_imei";
             return prev;
           }
 
           // Serialised (IMEI): re-scan of the same unit is a duplicate, not qty+1.
           if (productRequiresImei({ requires_imei: item.requires_imei }, mobileERPSettings)) {
-            outcome = "duplicate_imei";
+            scan.outcome = "duplicate_imei";
             return prev;
           }
 
           // Accessories: bump qty only. Do not call updateLineItem (avoids IMEI prompt).
-          outcome = "incremented";
+          scan.outcome = "incremented";
           return prev.map((row, i) => {
             if (i !== idx) return row;
             return recalcLineTotal({ ...row, qty: (Number(row.qty) || 0) + 1 });
@@ -3076,7 +3077,7 @@ const PurchaseEntry = () => {
         return next;
       });
 
-      if (outcome === "duplicate_imei") {
+      if (scan.outcome === "duplicate_imei") {
         toast({
           title: "Already on bill",
           description: `IMEI ${conflictCode} is already on this bill.`,
@@ -3085,7 +3086,7 @@ const PurchaseEntry = () => {
         return;
       }
 
-      if (outcome === "missing_requires_imei") {
+      if (scan.outcome === "missing_requires_imei") {
         console.warn(
           "[PurchaseEntry] barcode re-scan: line item missing requires_imei — refusing to default",
           { sku_id: variant.id, barcode: conflictCode },
@@ -3098,7 +3099,7 @@ const PurchaseEntry = () => {
         return;
       }
 
-      if (outcome === "incremented") {
+      if (scan.outcome === "incremented") {
         toast({
           title: "Qty updated",
           description: `${variant.product_name} — quantity increased`,
