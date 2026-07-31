@@ -200,7 +200,8 @@
         try {
           var observer = new MutationObserver(stripStrayBodyText);
           observer.observe(document.body, { childList: true });
-          observer.observe(document.documentElement, { childList: true, subtree: true });
+          var rootNode = document.getElementById("root");
+          if (rootNode) observer.observe(rootNode, { childList: true });
         } catch (e) {}
       })();
     </script>
