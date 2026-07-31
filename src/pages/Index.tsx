@@ -47,6 +47,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { StatsChartsSection } from "@/components/dashboard/StatsChartsSection";
+import { DashboardMetricCard as AnimatedMetricCard } from "@/components/dashboard/DashboardMetricCard";
 import {
   Select,
   SelectContent,
@@ -55,10 +56,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  Tooltip,
-  TooltipContent,
   TooltipProvider,
-  TooltipTrigger,
 } from "@/components/ui/tooltip";
 import {
   format,
@@ -76,108 +74,6 @@ import { cn } from "@/lib/utils";
 import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
 import { restoreDashboardFilters } from "@/lib/dashboardFilterPersistence";
 import { SizeStockDialog } from "@/components/SizeStockDialog";
-// Currency formatter helper
-const formatCurrency = (value: number) => {
-  return new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: "INR",
-    maximumFractionDigits: 0,
-  }).format(value);
-};
-
-// Vasy-style pastel KPI card — centered value, soft background, large readable type
-const METRIC_PASTEL: Record<string, { shell: string; value: string }> = {
-  "bg-blue-500": { shell: "bg-sky-50 border-sky-200/70 hover:bg-sky-100/80", value: "text-sky-800" },
-  "bg-blue-600": { shell: "bg-sky-50 border-sky-200/70 hover:bg-sky-100/80", value: "text-sky-800" },
-  "bg-green-500": { shell: "bg-emerald-50 border-emerald-200/70 hover:bg-emerald-100/80", value: "text-emerald-800" },
-  "bg-green-600": { shell: "bg-emerald-50 border-emerald-200/70 hover:bg-emerald-100/80", value: "text-emerald-800" },
-  "bg-emerald-500": { shell: "bg-emerald-50 border-emerald-200/70 hover:bg-emerald-100/80", value: "text-emerald-800" },
-  "bg-orange-500": { shell: "bg-orange-50 border-orange-200/70 hover:bg-orange-100/80", value: "text-orange-800" },
-  "bg-amber-500": { shell: "bg-amber-50 border-amber-200/70 hover:bg-amber-100/80", value: "text-amber-900" },
-  "bg-red-500": { shell: "bg-rose-50 border-rose-200/70 hover:bg-rose-100/80", value: "text-rose-800" },
-  "bg-pink-500": { shell: "bg-pink-50 border-pink-200/70 hover:bg-pink-100/80", value: "text-pink-800" },
-  "bg-purple-500": { shell: "bg-violet-50 border-violet-200/70 hover:bg-violet-100/80", value: "text-violet-800" },
-  "bg-violet-500": { shell: "bg-violet-50 border-violet-200/70 hover:bg-violet-100/80", value: "text-violet-800" },
-  "bg-indigo-500": { shell: "bg-indigo-50 border-indigo-200/70 hover:bg-indigo-100/80", value: "text-indigo-800" },
-  "bg-cyan-500": { shell: "bg-cyan-50 border-cyan-200/70 hover:bg-cyan-100/80", value: "text-cyan-800" },
-  "bg-teal-500": { shell: "bg-teal-50 border-teal-200/70 hover:bg-teal-100/80", value: "text-teal-800" },
-  "bg-slate-500": { shell: "bg-slate-50 border-slate-200/70 hover:bg-slate-100/80", value: "text-slate-800" },
-};
-
-const AnimatedMetricCard = ({
-  title,
-  value,
-  icon: Icon,
-  accentColor,
-  onClick,
-  tooltip,
-  isCurrency = false,
-  placeholder = false,
-  loading = false,
-}: {
-  title: string;
-  value: number;
-  icon: any;
-  accentColor: string;
-  onClick?: () => void;
-  tooltip?: string;
-  isCurrency?: boolean;
-  placeholder?: boolean;
-  loading?: boolean;
-}) => {
-  const displayValue = placeholder
-    ? "—"
-    : isCurrency
-      ? formatCurrency(value)
-      : value.toLocaleString("en-IN");
-
-  const pastel = METRIC_PASTEL[accentColor] ?? METRIC_PASTEL["bg-blue-500"];
-
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <div className="group dashboard-metric-card" onClick={placeholder ? undefined : onClick}>
-          <Card
-            className={cn(
-              "dashboard-metric-card-inner relative overflow-hidden rounded-xl border shadow-sm transition-colors duration-150",
-              pastel.shell,
-              placeholder
-                ? "cursor-default opacity-90"
-                : "cursor-pointer hover:shadow-md",
-            )}
-          >
-            <CardContent className="flex h-full min-h-[100px] flex-col items-center justify-center px-3 py-4 text-center">
-              <p className="text-sm font-semibold leading-snug text-slate-600 line-clamp-2">{title}</p>
-              <p
-                className={cn(
-                  "mt-2 text-2xl font-bold tabular-nums leading-none sm:text-[1.65rem]",
-                  placeholder ? "text-slate-400" : pastel.value,
-                )}
-              >
-                {loading && !placeholder ? (
-                  <Loader2 className="mx-auto h-6 w-6 animate-spin opacity-70" />
-                ) : (
-                  displayValue
-                )}
-              </p>
-              <Icon
-                className={cn(
-                  "absolute right-2.5 top-2.5 h-4 w-4 opacity-25",
-                  placeholder ? "text-slate-400" : "text-slate-500",
-                )}
-              />
-            </CardContent>
-          </Card>
-        </div>
-      </TooltipTrigger>
-      {tooltip && (
-        <TooltipContent side="bottom" className="max-w-[220px] border-border bg-popover text-popover-foreground">
-          <p className="text-sm">{tooltip}</p>
-        </TooltipContent>
-      )}
-    </Tooltip>
-  );
-};
 
 type DateRangeType = "monthly" | "quarterly" | "yearly" | "all";
 
