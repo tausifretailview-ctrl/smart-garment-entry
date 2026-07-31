@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { DashboardSkeleton } from "@/components/ui/skeletons";
 import { AppBootSplash } from "@/components/AppBootSplash";
+import { reloadAppWithUpdateCheck } from "@/lib/appReload";
 import { isElectronShell, shouldElectronMountOnlyActiveTab } from "@/lib/electronShell";
 import {
   markTabCachePaneMounted,
@@ -307,7 +308,13 @@ function TabPageFallback({
             <Button size="sm" onClick={onRetry}>
               Retry tab
             </Button>
-            <Button size="sm" variant="outline" onClick={() => window.location.reload()}>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                void reloadAppWithUpdateCheck();
+              }}
+            >
               Refresh app
             </Button>
           </div>
