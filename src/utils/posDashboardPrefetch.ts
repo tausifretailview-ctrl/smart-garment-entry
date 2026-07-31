@@ -52,6 +52,26 @@ export function posDashboardDefaultQueryKey(organizationId: string) {
   ] as const;
 }
 
+/** Matches POSDashboard summary key (status/method omitted from key — scoped in fetch). */
+export function posDashboardDefaultSummaryQueryKey(organizationId: string) {
+  const today = format(new Date(), "yyyy-MM-dd");
+  const { startDate, endDate } = resolvePosDashboardQueryDates("daily", today, today);
+  return [
+    "pos-dashboard-sales",
+    organizationId,
+    "summary",
+    "",
+    "daily",
+    startDate,
+    endDate,
+    "all",
+    "all",
+    "all",
+    "all",
+    "active",
+  ] as const;
+}
+
 /** Warm POS dashboard list + summary after login (mirrors sales/purchase prefetch). */
 export function prefetchPosDashboardQueries(
   queryClient: QueryClient,
@@ -73,7 +93,7 @@ export function prefetchPosDashboardQueries(
   });
 
   void queryClient.prefetchQuery({
-    queryKey: [...queryKey, "summary"],
+    queryKey: posDashboardDefaultSummaryQueryKey(organizationId),
     queryFn: () => fetchPosDashboardSummary(client, filters),
     staleTime: 30_000,
     retry: false,
