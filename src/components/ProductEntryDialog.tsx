@@ -99,7 +99,7 @@ function variantWithExternalBarcode<T extends ProductVariant>(variant: T, barcod
   const trimmed = barcode.trim();
   if (!trimmed) {
     const { barcode_source: _drop, ...rest } = variant;
-    return { ...rest, barcode: "" };
+    return { ...(rest as object), barcode: "" } as T;
   }
   return { ...variant, barcode: trimmed, barcode_source: "external" };
 }

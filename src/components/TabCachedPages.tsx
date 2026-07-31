@@ -262,6 +262,7 @@ function TabPageFallback({
 }) {
   const [timedOut, setTimedOut] = useState(false);
   const [showSoftHint, setShowSoftHint] = useState(false);
+  const autoRetriedRef = useRef(false);
   useEffect(() => {
     if (!active) {
       setTimedOut(false);
@@ -271,16 +272,46 @@ function TabPageFallback({
     if (isNavigationPerfEnabled()) {
       recordChunkLoadStart(path);
     }
-    const hintTimer = window.setTimeout(() => setShowSoftHint(true), SOFT_LOADING_HINT_MS);
-    const timer = window.setTimeout(() => {
+    // Count only foreground time: background tabs get their chunk fetches
+    // throttled/paused by the browser, which used to fire a false timeout that
+    // the user then saw as "Taking longer than expected" right after a refresh.
+    const budgetMs = getTabLoadTimeoutMs(path);
+    let elapsed = 0;
+    let lastTick = Date.now();
+    const TICK_MS = 1_000;
+
+    const interval = window.setInterval(() => {
+      const now = Date.now();
+      const delta = now - lastTick;
+      lastTick = now;
+      if (document.hidden) return;
+      elapsed += delta;
+      if (elapsed >= SOFT_LOADING_HINT_MS) setShowSoftHint(true);
+      if (elapsed < budgetMs) return;
+
+      // One silent auto-retry (re-imports the chunk) before showing the error.
+      if (!autoRetriedRef.current) {
+        autoRetriedRef.current = true;
+        elapsed = 0;
+        setShowSoftHint(false);
+        console.warn(`[TabCachedPages] Slow chunk, auto-retrying tab: ${path || "dashboard"}`);
+        onRetry();
+        return;
+      }
       console.warn(`[TabCachedPages] Load timeout for tab: ${path || "dashboard"}`);
       setTimedOut(true);
-    }, getTabLoadTimeoutMs(path));
-    return () => {
-      window.clearTimeout(timer);
-      window.clearTimeout(hintTimer);
+      window.clearInterval(interval);
+    }, TICK_MS);
+
+    const onVisible = () => {
+      lastTick = Date.now();
     };
-  }, [active, path]);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [active, path, onRetry]);
 
   if (!active) return null;
 
