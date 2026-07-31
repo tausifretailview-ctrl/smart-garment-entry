@@ -407,6 +407,29 @@ const DeliveryDashboard = () => {
         itemsBySaleId.get(item.sale_id)!.push(item);
       });
 
+      // Live Customer Master address — sales.customer_address is a bill-time snapshot
+      // and does not update when the master address is edited after the invoice.
+      const customerIds = [
+        ...new Set(
+          invoicesToExport
+            .map((inv) => inv.customer_id)
+            .filter((id): id is string => typeof id === "string" && id.length > 0),
+        ),
+      ];
+      const liveAddressByCustomerId = new Map<string, string>();
+      if (customerIds.length > 0 && currentOrganization?.id) {
+        const { data: customerRows } = await supabase
+          .from("customers")
+          .select("id, address")
+          .eq("organization_id", currentOrganization.id)
+          .in("id", customerIds);
+        (customerRows || []).forEach((row) => {
+          if (row.id && row.address) {
+            liveAddressByCustomerId.set(row.id, row.address);
+          }
+        });
+      }
+
       // Get organization settings for header info
       const settings = currentOrganization?.settings as any;
       const businessName = settings?.business_name || currentOrganization?.name || "";
@@ -433,11 +456,24 @@ const DeliveryDashboard = () => {
         }).join(", ");
         const totalQty = items.reduce((sum: number, item: any) => sum + Number(item.quantity || 0), 0);
 
+        const shippingAddress =
+          typeof (invoice as { shipping_address?: string | null }).shipping_address === "string"
+            ? (invoice as { shipping_address?: string | null }).shipping_address?.trim()
+            : "";
+        const liveAddress = invoice.customer_id
+          ? liveAddressByCustomerId.get(invoice.customer_id)?.trim()
+          : "";
+        const deliveryAddress =
+          shippingAddress ||
+          liveAddress ||
+          (invoice.customer_address || "").trim() ||
+          "";
+
         return [
           index + 1,
           invoice.customer_name || "",
           invoice.customer_phone || "",
-          invoice.customer_address || "",
+          deliveryAddress,
           invoice.sale_number || "",
           productDetails,
           totalQty,
