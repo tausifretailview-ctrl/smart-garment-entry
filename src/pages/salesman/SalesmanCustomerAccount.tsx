@@ -27,6 +27,10 @@ import {
 import { format } from "date-fns";
 import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
 import { cn } from "@/lib/utils";
+import {
+  fetchSaleReceiptSplitsForInvoices,
+  reconcileSaleInvoiceWithSplit,
+} from "@/utils/customerBalanceUtils";
 
 interface CustomerDetails {
   id: string;
@@ -114,7 +118,9 @@ const SalesmanCustomerAccount = () => {
       // Fetch sales
       const { data: salesData, error: salesError } = await supabase
         .from("sales")
-        .select("id, sale_number, sale_date, net_amount, paid_amount, payment_status, created_at, discount_amount, flat_discount_amount, gross_amount, sale_return_adjust")
+        .select(
+          "id, sale_number, sale_date, net_amount, paid_amount, payment_status, created_at, discount_amount, flat_discount_amount, gross_amount, sale_return_adjust, cash_amount, card_amount, upi_amount, customer_id",
+        )
         .eq("customer_id", customerId!)
         .eq("organization_id", currentOrganization!.id)
         .is("deleted_at", null)
@@ -301,34 +307,62 @@ const SalesmanCustomerAccount = () => {
       // Total paid includes both invoice payments AND opening balance payments
       const totalPaid = totalPaidOnSales + openingBalanceVoucherPayments;
       
-      const pendingInvoices = (salesData || []).filter(s => s.payment_status !== "completed").length;
+      // Per-invoice outstanding must match Sales Dashboard (reconcileSaleInvoiceWithSplit).
+      // Do NOT do net − max(paid, vouchers) − sale_return_adjust: Adjust-CN writes both
+      // sale_return_adjust and a credit_note_adjustment voucher for the same ₹, which
+      // double-subtracts (e.g. INV/119 dashboard ₹3,262 vs WhatsApp ₹1,173 = S/R ₹2,089).
+      const receiptSplitMap = await fetchSaleReceiptSplitsForInvoices(
+        supabase,
+        currentOrganization!.id,
+        (salesData || []).map((s) => ({
+          id: s.id,
+          sale_number: s.sale_number,
+          customer_id: s.customer_id ?? customerId,
+        })),
+      );
 
-      // Build pending invoices list with per-invoice balance
       const pendingList = (salesData || [])
-        // Don't trust stored payment_status — compute balance from receipts +
-        // paid_amount + sale_return_adjust. `credit_applied` is legacy (no longer
-        // written by adjust_invoice_balance); CN apply now lives in sale_return_adjust.
-        .filter(sale => sale.payment_status !== 'cancelled' && sale.payment_status !== 'hold')
-        .map(sale => {
-          const voucherPaid = voucherPaymentsBySaleId[sale.id] || 0;
-          const effectivePaid =
-            Math.max(Number(sale.paid_amount) || 0, voucherPaid) +
-            (Number((sale as any).sale_return_adjust) || 0);
-          const balance = Math.max(0, Math.round(sale.net_amount - effectivePaid));
+        .filter(
+          (sale) =>
+            sale.payment_status !== "cancelled" &&
+            sale.payment_status !== "hold",
+        )
+        .map((sale) => {
+          const split = receiptSplitMap.get(sale.id) ?? {
+            cash: 0,
+            cn: 0,
+            adv: 0,
+            discount: 0,
+          };
+          const rec = reconcileSaleInvoiceWithSplit(
+            {
+              net_amount: sale.net_amount,
+              sale_return_adjust: sale.sale_return_adjust,
+              paid_amount: sale.paid_amount,
+              cash_amount: sale.cash_amount,
+              card_amount: sale.card_amount,
+              upi_amount: sale.upi_amount,
+            },
+            split,
+          );
+          const balance = Math.max(0, Math.round(rec.outstanding));
           const saleDate = new Date(sale.sale_date);
-          const daysOverdue = Math.floor((Date.now() - saleDate.getTime()) / (1000 * 60 * 60 * 24));
+          const daysOverdue = Math.floor(
+            (Date.now() - saleDate.getTime()) / (1000 * 60 * 60 * 24),
+          );
           return {
             id: sale.id,
             sale_number: sale.sale_number,
             sale_date: sale.sale_date,
             net_amount: sale.net_amount,
-            paid_amount: effectivePaid,
+            paid_amount: rec.paid_amount,
             balance,
             days_overdue: daysOverdue,
-            discount_amount: (sale.discount_amount || 0) + (sale.flat_discount_amount || 0),
+            discount_amount:
+              (sale.discount_amount || 0) + (sale.flat_discount_amount || 0),
           };
         })
-        .filter(inv => inv.balance >= 1)
+        .filter((inv) => inv.balance >= 1)
         .sort((a, b) => a.days_overdue - b.days_overdue);
 
       setPendingInvoices(pendingList);
