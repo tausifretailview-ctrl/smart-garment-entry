@@ -51,7 +51,7 @@ const LIVE_QUERY_KEY_PREFIXES = [
   "customers-search",
   "filtered-invoices",
   "student-search-fee",
-  "floating-stock-fallback",
+  "floating-stock-search",
 ] as const;
 
 /** Substrings that indicate pagination (use STALE_PAGINATED unless live markers win). */

@@ -35,7 +35,7 @@ const VOLATILE_PREFIXES = [
   "product-stock-movements",
   "stock-movements",
   "stock-adjustment-variants",
-  "floating-stock-fallback",
+  "floating-stock-search",
   "owner-low-stock",
   "todays-sales",
   "today-sales",

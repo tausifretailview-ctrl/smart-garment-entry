@@ -17,6 +17,12 @@ import {
   getSaleReportRoundOff,
 } from "@/utils/cashierReportUtils";
 import { allocateMixPaymentToBill } from "@/utils/mixPaymentAllocation";
+import {
+  buildProductTextOrFilter,
+  expandProductSearchTerms,
+  matchesProductSearchFields,
+  restrictProductsToExactNameMatches,
+} from "@/utils/productSearch";
 import { 
   Receipt, 
   IndianRupee, 
@@ -546,16 +552,178 @@ function FloatingCashierReport({ open, onOpenChange }: { open: boolean; onOpenCh
   );
 }
 
+const QUICK_STOCK_VARIANT_SELECT = `
+  id, barcode, size, color, stock_qty, sale_price, mrp, pur_price, product_id,
+  product:products!inner(id, product_name, brand, category, style, deleted_at, organization_id)
+`;
+
+async function fetchVariantsForProductIds(orgId: string, productIds: string[]) {
+  if (productIds.length === 0) return [] as any[];
+
+  const PAGE = 1000;
+  const CHUNK = 50;
+  const all: any[] = [];
+
+  for (let i = 0; i < productIds.length; i += CHUNK) {
+    const chunk = productIds.slice(i, i + CHUNK);
+    let offset = 0;
+    while (true) {
+      const { data, error } = await supabase
+        .from("product_variants")
+        .select(QUICK_STOCK_VARIANT_SELECT)
+        .eq("organization_id", orgId)
+        .eq("products.organization_id", orgId)
+        .is("products.deleted_at", null)
+        .is("deleted_at", null)
+        .eq("active", true)
+        .in("product_id", chunk)
+        .order("stock_qty", { ascending: false })
+        .range(offset, offset + PAGE - 1);
+      if (error) throw error;
+      if (!data?.length) break;
+      all.push(...data);
+      if (data.length < PAGE) break;
+      offset += PAGE;
+    }
+  }
+
+  return all;
+}
+
+/** Server search for Quick Stock — full variant set (not the truncated local cache). */
+async function searchQuickStockVariants(orgId: string, rawQuery: string) {
+  const term = rawQuery.trim();
+  if (!term) return [] as any[];
+  const safeTerm = term.replace(/[%_,()]/g, " ").trim();
+  if (!safeTerm) return [] as any[];
+
+  // 1) Exact barcode (scanner / numeric paste)
+  const exact = await supabase
+    .from("product_variants")
+    .select(QUICK_STOCK_VARIANT_SELECT)
+    .eq("organization_id", orgId)
+    .eq("products.organization_id", orgId)
+    .is("products.deleted_at", null)
+    .is("deleted_at", null)
+    .eq("active", true)
+    .eq("barcode", term)
+    .limit(50);
+  if (exact.data && exact.data.length > 0) return exact.data;
+
+  // 2) Numeric partial barcode
+  if (/^\d{4,}$/.test(term)) {
+    const barcodeQ = await supabase
+      .from("product_variants")
+      .select(QUICK_STOCK_VARIANT_SELECT)
+      .eq("organization_id", orgId)
+      .eq("products.organization_id", orgId)
+      .is("products.deleted_at", null)
+      .is("deleted_at", null)
+      .eq("active", true)
+      .ilike("barcode", `%${safeTerm}%`)
+      .limit(200);
+    if (barcodeQ.data && barcodeQ.data.length > 0) return barcodeQ.data;
+  }
+
+  // 3) Product-level match → all variants (paginated). Prefer this over size/color
+  //    so a product code like FLK53 is never truncated by a 100-row variant OR.
+  const tokens = safeTerm
+    .toLowerCase()
+    .split(/[\s-]+/)
+    .map((t) => t.replace(/[%_,()]/g, ""))
+    .filter(Boolean);
+  const primary = tokens[0] || safeTerm.toLowerCase();
+  const expanded = expandProductSearchTerms(primary);
+  const productOr = buildProductTextOrFilter(expanded);
+
+  let products: Array<{
+    id: string;
+    product_name?: string | null;
+    brand?: string | null;
+    category?: string | null;
+    style?: string | null;
+  }> = [];
+
+  if (productOr) {
+    const prodQ = await supabase
+      .from("products")
+      .select("id, product_name, brand, category, style")
+      .eq("organization_id", orgId)
+      .is("deleted_at", null)
+      .or(productOr)
+      .limit(100);
+    products = prodQ.data || [];
+  }
+
+  if (tokens.length > 1) {
+    products = products.filter((p) =>
+      matchesProductSearchFields(
+        {
+          product_name: p.product_name ?? undefined,
+          brand: p.brand ?? undefined,
+          category: p.category ?? undefined,
+          style: p.style ?? undefined,
+        },
+        safeTerm,
+      ),
+    );
+  }
+
+  const exactOnly = restrictProductsToExactNameMatches(products, primary);
+  if (exactOnly) products = exactOnly;
+
+  if (products.length > 0) {
+    const variants = await fetchVariantsForProductIds(
+      orgId,
+      products.map((p) => p.id),
+    );
+    if (tokens.length <= 1) return variants;
+    return variants.filter((item: any) =>
+      matchesProductSearchFields(
+        {
+          product_name: item.product?.product_name,
+          brand: item.product?.brand,
+          category: item.product?.category,
+          style: item.product?.style,
+          barcode: item.barcode,
+          color: item.color,
+          size: item.size,
+        },
+        safeTerm,
+      ),
+    );
+  }
+
+  // 4) Variant-level size / color / barcode when no product matched
+  const esc = safeTerm.replace(/[%_]/g, "");
+  const variantQ = await supabase
+    .from("product_variants")
+    .select(QUICK_STOCK_VARIANT_SELECT)
+    .eq("organization_id", orgId)
+    .eq("products.organization_id", orgId)
+    .is("products.deleted_at", null)
+    .is("deleted_at", null)
+    .eq("active", true)
+    .or(`barcode.ilike.%${esc}%,size.ilike.%${esc}%,color.ilike.%${esc}%`)
+    .limit(200);
+  return variantQ.data || [];
+}
+
 // Floating Stock Report Dialog
 export function FloatingStockReport({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const { currentOrganization } = useOrganization();
   const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Default cursor in the barcode/search field whenever the dialog opens,
   // so a scanner can fire immediately without an extra click.
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      setSearchQuery("");
+      setDebouncedQuery("");
+      return;
+    }
     const t = setTimeout(() => {
       inputRef.current?.focus();
       inputRef.current?.select();
@@ -563,8 +731,15 @@ export function FloatingStockReport({ open, onOpenChange }: { open: boolean; onO
     return () => clearTimeout(t);
   }, [open]);
 
-  // Fetch all products for dropdown suggestions (limit for performance)
-  const { data: allProducts, isLoading: isLoadingProducts } = useQuery({
+  useEffect(() => {
+    if (!open) return;
+    const t = setTimeout(() => setDebouncedQuery(searchQuery.trim()), 300);
+    return () => clearTimeout(t);
+  }, [searchQuery, open]);
+
+  // Small local cache for instant preview while the authoritative server search runs.
+  // Never use this alone for totals — orgs with >1000 variants under-count (e.g. FLK53 101 vs 131).
+  const { data: allProducts } = useQuery({
     queryKey: ["floating-stock-products", currentOrganization?.id],
     queryFn: async () => {
       if (!currentOrganization?.id) return [];
@@ -601,95 +776,53 @@ export function FloatingStockReport({ open, onOpenChange }: { open: boolean; onO
       return data || [];
     },
     enabled: !!currentOrganization?.id && open,
+    staleTime: STALE_LIVE,
   });
 
-  // Client-side filtering for search (memoized to avoid effect loops)
-  const stockData = useMemo(() => {
-    if (searchQuery.length < 1) return [];
-
-    return (allProducts || []).filter((item: any) => {
-      const searchTerms = searchQuery.toLowerCase().split(/[\s-]+/).filter(Boolean);
-      const productName = (item.product?.product_name || '').toLowerCase();
-      const brand = (item.product?.brand || '').toLowerCase();
-      const style = (item.product?.style || '').toLowerCase();
-      const variantColor = (item.color || '').toLowerCase();
-      const category = (item.product?.category || '').toLowerCase();
-      const barcode = (item.barcode || '').toLowerCase();
-      const size = (item.size || '').toLowerCase();
-
-      const combinedText = `${productName} ${brand} ${style} ${variantColor} ${category} ${barcode} ${size}`;
-      return searchTerms.every(term => combinedText.includes(term));
-    }).slice(0, 100);
+  const localPreview = useMemo(() => {
+    const q = searchQuery.trim();
+    if (q.length < 1) return [];
+    return (allProducts || [])
+      .filter((item: any) =>
+        matchesProductSearchFields(
+          {
+            product_name: item.product?.product_name,
+            brand: item.product?.brand,
+            category: item.product?.category,
+            style: item.product?.style,
+            barcode: item.barcode,
+            color: item.color,
+            size: item.size,
+          },
+          q,
+        ),
+      )
+      .slice(0, 100);
   }, [allProducts, searchQuery]);
 
-  // Server-side fallback: if local cache misses (e.g. zero-stock items truncated by the 1000-row limit),
-  // hit the DB directly so the user always sees a result — including 0 qty items, like the Stock Report.
-  const { data: fallbackData } = useQuery({
-    queryKey: ["floating-stock-fallback", currentOrganization?.id, searchQuery],
+  // Authoritative search — always runs (do not skip when localPreview has partial hits).
+  const {
+    data: serverData,
+    isFetching: isSearching,
+    isFetched: serverFetched,
+  } = useQuery({
+    queryKey: ["floating-stock-search", currentOrganization?.id, debouncedQuery],
     queryFn: async () => {
-      if (!currentOrganization?.id || searchQuery.trim().length < 1) return [];
-      const term = searchQuery.trim();
-      const orgId = currentOrganization.id;
-      const select = `id, barcode, size, color, stock_qty, sale_price, mrp, pur_price, product_id,
-          product:products!inner(id, product_name, brand, category, style, deleted_at, organization_id)`;
-
-      // 1) Exact barcode match (fast path for scanner / numeric search)
-      const exact = await supabase
-        .from("product_variants")
-        .select(select)
-        .eq("organization_id", orgId)
-        .eq("products.organization_id", orgId)
-        .is("products.deleted_at", null)
-        .is("deleted_at", null)
-        .eq("active", true)
-        .eq("barcode", term)
-        .limit(50);
-      if (exact.data && exact.data.length > 0) return exact.data;
-
-      // 2) Variant-level partial match (barcode/size/color)
-      const variantQ = await supabase
-        .from("product_variants")
-        .select(select)
-        .eq("organization_id", orgId)
-        .eq("products.organization_id", orgId)
-        .is("products.deleted_at", null)
-        .is("deleted_at", null)
-        .eq("active", true)
-        .or(`barcode.ilike.%${term}%,size.ilike.%${term}%,color.ilike.%${term}%`)
-        .limit(100);
-      if (variantQ.data && variantQ.data.length > 0) return variantQ.data;
-
-      // 3) Product-level partial match (name/brand/category) → fetch their variants
-      const prodQ = await supabase
-        .from("products")
-        .select("id")
-        .eq("organization_id", orgId)
-        .is("deleted_at", null)
-        .or(`product_name.ilike.%${term}%,brand.ilike.%${term}%,category.ilike.%${term}%,style.ilike.%${term}%,hsn_code.ilike.%${term}%`)
-        .limit(50);
-      const prodIds = (prodQ.data || []).map((p: any) => p.id);
-      if (prodIds.length === 0) return [];
-      const { data: vData } = await supabase
-        .from("product_variants")
-        .select(select)
-        .eq("organization_id", orgId)
-        .eq("products.organization_id", orgId)
-        .is("products.deleted_at", null)
-        .is("deleted_at", null)
-        .eq("active", true)
-        .in("product_id", prodIds)
-        .limit(200);
-      return vData || [];
+      if (!currentOrganization?.id || debouncedQuery.length < 1) return [];
+      return searchQuickStockVariants(currentOrganization.id, debouncedQuery);
     },
-    enabled: !!currentOrganization?.id && open && searchQuery.trim().length >= 1 && stockData.length === 0,
+    enabled: !!currentOrganization?.id && open && debouncedQuery.length >= 1,
     staleTime: STALE_LIVE,
     refetchOnWindowFocus: false,
   });
 
-  const displayData = stockData.length > 0 ? stockData : (fallbackData || []);
+  const querySettled = debouncedQuery.length >= 1 && debouncedQuery === searchQuery.trim() && serverFetched;
+  const displayData = querySettled ? (serverData || []) : localPreview;
+  const showSearching = searchQuery.trim().length >= 1 && !querySettled;
 
   // Fetch supplier names for filtered variants
   const [supplierMap, setSupplierMap] = useState<Record<string, string>>({});
+  const displayIdsKey = displayData.map((item: any) => item.id).join(",");
   useEffect(() => {
     if (!displayData.length || !currentOrganization?.id) {
       setSupplierMap({});
@@ -697,7 +830,6 @@ export function FloatingStockReport({ open, onOpenChange }: { open: boolean; onO
     }
 
     const variantIds = displayData.map((item: any) => item.id);
-    const variantKey = variantIds.join(',');
 
     (async () => {
       try {
@@ -719,7 +851,7 @@ export function FloatingStockReport({ open, onOpenChange }: { open: boolean; onO
         /* ignore */
       }
     })();
-  }, [currentOrganization?.id, displayData.map((item: any) => item.id).join(',')]);
+  }, [currentOrganization?.id, displayIdsKey]);
 
   // Total stock value
   const totalStockValue = displayData?.reduce((sum, item) => {
@@ -761,16 +893,14 @@ export function FloatingStockReport({ open, onOpenChange }: { open: boolean; onO
           )}
         </div>
 
-        {isLoadingProducts ? (
-          <div className="text-center py-8">Loading products...</div>
-        ) : searchQuery.length < 1 ? (
+        {searchQuery.trim().length < 1 ? (
           <div className="text-center py-8 text-muted-foreground">
             Start typing to search products...
           </div>
         ) : displayData && displayData.length > 0 ? (
           <>
             {/* Summary */}
-            <div className="flex gap-4 mb-3">
+            <div className="flex gap-4 mb-3 items-end">
               <div className="bg-blue-50 dark:bg-blue-950 px-4 py-2 rounded-lg">
                 <span className="text-xs text-muted-foreground">Items Found</span>
                 <p className="font-bold text-lg">{displayData.length}</p>
@@ -783,6 +913,11 @@ export function FloatingStockReport({ open, onOpenChange }: { open: boolean; onO
                 <span className="text-xs text-muted-foreground">Stock Value</span>
                 <p className="font-bold text-lg">₹{Math.round(totalStockValue).toLocaleString('en-IN')}</p>
               </div>
+              {showSearching && (
+                <span className="text-xs text-muted-foreground pb-2">
+                  {isSearching ? "Updating full stock…" : "Searching…"}
+                </span>
+              )}
             </div>
 
             {/* Stock Table */}
@@ -831,6 +966,8 @@ export function FloatingStockReport({ open, onOpenChange }: { open: boolean; onO
               </Table>
             </div>
           </>
+        ) : showSearching ? (
+          <div className="text-center py-8 text-muted-foreground">Searching…</div>
         ) : (
           <div className="text-center py-8 text-muted-foreground">
             No products found matching "{searchQuery}"
