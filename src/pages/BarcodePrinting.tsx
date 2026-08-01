@@ -1891,19 +1891,35 @@ export default function BarcodePrinting() {
       if (defaultFormat.printScale !== undefined) {
         setPrintScale(defaultFormat.printScale);
       }
-      if (defaultFormat.customDimensions && defaultFormat.sheetType === "custom") {
-        setCustomWidth(defaultFormat.customDimensions.width);
-        setCustomHeight(defaultFormat.customDimensions.height);
-        setCustomCols(defaultFormat.customDimensions.cols);
-        setCustomRows(defaultFormat.customDimensions.rows || 10);
-        setCustomGap(defaultFormat.customDimensions.gap);
-        if (defaultFormat.customDimensions.scale) {
-          setPrintScale(defaultFormat.customDimensions.scale);
+      // Prefer the live sheet_preset row over a stale default_format.customDimensions
+      // snapshot — Update writes the named preset; reload must not revert those edits.
+      if (defaultFormat.sheetType === "custom") {
+        const livePreset = defaultFormat.customPresetName
+          ? dbCustomPresets.find((p: CustomPreset) => p.name === defaultFormat.customPresetName)
+          : undefined;
+        if (livePreset) {
+          setCustomWidth(livePreset.width);
+          setCustomHeight(livePreset.height);
+          setCustomCols(livePreset.cols);
+          setCustomRows(livePreset.rows || 10);
+          setCustomGap(livePreset.gap);
+          setPrintScale(livePreset.scale || defaultFormat.printScale || 100);
+          setSelectedPreset(livePreset.name);
+        } else if (defaultFormat.customDimensions) {
+          setCustomWidth(defaultFormat.customDimensions.width);
+          setCustomHeight(defaultFormat.customDimensions.height);
+          setCustomCols(defaultFormat.customDimensions.cols);
+          setCustomRows(defaultFormat.customDimensions.rows || 10);
+          setCustomGap(defaultFormat.customDimensions.gap);
+          if (defaultFormat.customDimensions.scale) {
+            setPrintScale(defaultFormat.customDimensions.scale);
+          }
+          if (defaultFormat.customPresetName) {
+            setSelectedPreset(defaultFormat.customPresetName);
+          }
+        } else if (defaultFormat.customPresetName) {
+          setSelectedPreset(defaultFormat.customPresetName);
         }
-      }
-      // Load custom preset name if saved
-      if (defaultFormat.customPresetName && defaultFormat.sheetType === "custom") {
-        setSelectedPreset(defaultFormat.customPresetName);
       }
       // Load size sort order preference
       if (defaultFormat.sizeSortOrder) {
@@ -3567,6 +3583,44 @@ export default function BarcodePrinting() {
 
     const success = await saveCustomToDb(newPreset);
     if (success) {
+      // Renamed while editing — drop the old row so Update doesn't leave a duplicate.
+      if (
+        isEditingPreset &&
+        selectedPreset &&
+        selectedPreset !== trimmedName
+      ) {
+        await deleteCustomFromDb(selectedPreset);
+      }
+      setSavedPresets((prev) => {
+        const withoutOld = prev.filter(
+          (p) =>
+            p.name !== trimmedName &&
+            !(isEditingPreset && selectedPreset && p.name === selectedPreset),
+        );
+        return [...withoutOld, newPreset];
+      });
+      // Only rewrite default_format when this preset is already the saved default
+      // (or we're renaming that default) — don't hijack default on "Save Current".
+      if (
+        dbDefaultFormat &&
+        (dbDefaultFormat.customPresetName === selectedPreset ||
+          dbDefaultFormat.customPresetName === trimmedName)
+      ) {
+        await saveDefaultToDb({
+          ...dbDefaultFormat,
+          sheetType: "custom",
+          customPresetName: trimmedName,
+          printScale,
+          customDimensions: {
+            width: customWidth,
+            height: customHeight,
+            cols: customCols,
+            rows: customRows,
+            gap: customGap,
+            scale: printScale,
+          },
+        });
+      }
       if (isEditingPreset) {
         toast.success(`Preset "${trimmedName}" updated successfully`);
       } else {
@@ -3576,6 +3630,7 @@ export default function BarcodePrinting() {
       setIsSaveDialogOpen(false);
       setIsEditingPreset(false);
       setSelectedPreset(trimmedName);
+      setSheetType("custom");
     }
   };
 
@@ -3597,6 +3652,12 @@ export default function BarcodePrinting() {
       return;
     }
 
+    const existing = savedPresets.find((p) => p.name === selectedPreset);
+    if (!existing) {
+      toast.error("Selected sheet preset not found — pick it from Sheet Type again");
+      return;
+    }
+
     const updatedPreset: CustomPreset = {
       name: selectedPreset,
       width: customWidth,
@@ -3609,6 +3670,31 @@ export default function BarcodePrinting() {
 
     const success = await saveCustomToDb(updatedPreset);
     if (success) {
+      setSavedPresets((prev) =>
+        prev.map((p) => (p.name === selectedPreset ? updatedPreset : p)),
+      );
+      // Sync default_format when this named preset is the org default (or none set yet
+      // while we're on custom) so reload doesn't restore a stale dimensions snapshot.
+      if (
+        dbDefaultFormat &&
+        (!dbDefaultFormat.customPresetName ||
+          dbDefaultFormat.customPresetName === selectedPreset)
+      ) {
+        await saveDefaultToDb({
+          ...dbDefaultFormat,
+          sheetType: "custom",
+          customPresetName: selectedPreset,
+          printScale,
+          customDimensions: {
+            width: customWidth,
+            height: customHeight,
+            cols: customCols,
+            rows: customRows,
+            gap: customGap,
+            scale: printScale,
+          },
+        });
+      }
       toast.success(`Preset "${selectedPreset}" updated`);
     }
   };
@@ -3846,6 +3932,32 @@ export default function BarcodePrinting() {
       ) {
         await deleteMarginFromDb(selectedMarginPreset);
       }
+      setSavedMarginPresets((prev) => {
+        const withoutOld = prev.filter(
+          (p) =>
+            p.name !== trimmedName &&
+            !(
+              isEditingMarginPreset &&
+              selectedMarginPreset &&
+              p.name === selectedMarginPreset
+            ),
+        );
+        return [...withoutOld, newPreset];
+      });
+      if (
+        dbDefaultFormat &&
+        (dbDefaultFormat.defaultMarginPreset === selectedMarginPreset ||
+          dbDefaultFormat.defaultMarginPreset === trimmedName)
+      ) {
+        await saveDefaultToDb({
+          ...dbDefaultFormat,
+          defaultMarginPreset: trimmedName,
+          topOffset,
+          leftOffset,
+          bottomOffset,
+          rightOffset,
+        });
+      }
       if (isEditingMarginPreset) {
         toast.success(`Margin preset "${trimmedName}" updated`);
       } else {
@@ -3872,15 +3984,34 @@ export default function BarcodePrinting() {
       return;
     }
 
-    const success = await saveMarginToDb({
+    const updatedPreset: MarginPreset = {
       name: selectedMarginPreset,
       topOffset,
       leftOffset,
       bottomOffset,
       rightOffset,
       description: existing.description,
-    });
+    };
+
+    const success = await saveMarginToDb(updatedPreset);
     if (success) {
+      setSavedMarginPresets((prev) =>
+        prev.map((p) => (p.name === selectedMarginPreset ? updatedPreset : p)),
+      );
+      // Keep default_format offsets aligned when this preset is the org default.
+      if (
+        dbDefaultFormat &&
+        dbDefaultFormat.defaultMarginPreset === selectedMarginPreset
+      ) {
+        await saveDefaultToDb({
+          ...dbDefaultFormat,
+          defaultMarginPreset: selectedMarginPreset,
+          topOffset,
+          leftOffset,
+          bottomOffset,
+          rightOffset,
+        });
+      }
       toast.success(`Margin preset "${selectedMarginPreset}" updated`);
     }
   };
@@ -6446,11 +6577,12 @@ export default function BarcodePrinting() {
                   </Dialog>
                   {selectedPreset && (
                     <>
-                      <Button 
+                      <Button
+                        type="button"
                         size="sm" 
                         variant="default"
-                        onClick={handleQuickUpdatePreset}
-                        title="Update preset with current values"
+                        onClick={() => void handleQuickUpdatePreset()}
+                        title={`Save width/height/gap/scale into "${selectedPreset}"`}
                         className="gap-2"
                       >
                         <Save className="h-4 w-4" />
@@ -6862,9 +6994,10 @@ export default function BarcodePrinting() {
 
                 {selectedMarginPreset && (
                   <Button
+                    type="button"
                     size="sm"
                     variant="default"
-                    onClick={handleUpdateSelectedMarginPreset}
+                    onClick={() => void handleUpdateSelectedMarginPreset()}
                     title={`Save current Top/Left/Bottom/Right into "${selectedMarginPreset}"`}
                   >
                     <RefreshCw className="h-4 w-4 mr-1" />

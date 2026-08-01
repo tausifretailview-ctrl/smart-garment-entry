@@ -217,6 +217,46 @@ export function useBarcodeLabelSettings() {
     }
   };
 
+  /** Update existing row by name, or insert if missing — avoids silent duplicate inserts. */
+  const upsertNamedSetting = async (
+    settingType: string,
+    settingName: string,
+    settingData: Record<string, unknown>,
+  ): Promise<void> => {
+    if (!currentOrganization?.id) {
+      throw new Error("No organization selected");
+    }
+
+    const orgId = currentOrganization.id;
+    const { data: existing, error: lookupError } = await supabase
+      .from("barcode_label_settings")
+      .select("id")
+      .eq("organization_id", orgId)
+      .eq("setting_type", settingType)
+      .eq("setting_name", settingName)
+      .maybeSingle();
+
+    if (lookupError) throw lookupError;
+
+    if (existing?.id) {
+      const { error } = await supabase
+        .from("barcode_label_settings")
+        .update({ setting_data: settingData as any })
+        .eq("id", existing.id)
+        .eq("organization_id", orgId);
+      if (error) throw error;
+      return;
+    }
+
+    const { error } = await supabase.from("barcode_label_settings").insert({
+      organization_id: orgId,
+      setting_type: settingType,
+      setting_name: settingName,
+      setting_data: settingData as any,
+    } as any);
+    if (error) throw error;
+  };
+
   // Save margin preset
   const saveMarginPreset = async (preset: MarginPreset): Promise<boolean> => {
     if (!currentOrganization?.id) {
@@ -226,19 +266,7 @@ export function useBarcodeLabelSettings() {
 
     try {
       const { name, ...presetData } = preset;
-      const { error } = await supabase
-        .from("barcode_label_settings")
-        .upsert({
-          organization_id: currentOrganization.id,
-          setting_type: "margin_preset",
-          setting_name: name,
-          setting_data: presetData as any,
-        } as any, {
-          onConflict: "organization_id,setting_type,setting_name",
-        });
-
-      if (error) throw error;
-
+      await upsertNamedSetting("margin_preset", name, presetData as Record<string, unknown>);
       await fetchSettings();
       return true;
     } catch (error) {
@@ -280,19 +308,7 @@ export function useBarcodeLabelSettings() {
 
     try {
       const { name, ...presetData } = preset;
-      const { error } = await supabase
-        .from("barcode_label_settings")
-        .upsert({
-          organization_id: currentOrganization.id,
-          setting_type: "sheet_preset",
-          setting_name: name,
-          setting_data: presetData as any,
-        } as any, {
-          onConflict: "organization_id,setting_type,setting_name",
-        });
-
-      if (error) throw error;
-
+      await upsertNamedSetting("sheet_preset", name, presetData as Record<string, unknown>);
       await fetchSettings();
       return true;
     } catch (error) {
