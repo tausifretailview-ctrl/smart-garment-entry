@@ -2,28 +2,17 @@ import { useState } from "react";
 import { Capacitor } from "@capacitor/core";
 import { Download, Share, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useInstallPrompt } from "@/hooks/useInstallPrompt";
+import {
+  useInstallPrompt,
+  isStandaloneDisplay,
+  isIOSDevice,
+  isAndroidDevice,
+} from "@/hooks/useInstallPrompt";
 import { useHideMobileBottomNav } from "@/hooks/useMobileChrome";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { cn } from "@/lib/utils";
 
 const DISMISS_KEY = "pwa-install-banner-dismissed";
-
-function isStandaloneDisplay(): boolean {
-  return (
-    window.matchMedia("(display-mode: standalone)").matches ||
-    (window.navigator as Navigator & { standalone?: boolean }).standalone === true
-  );
-}
-
-function isIOSDevice(): boolean {
-  const ua = navigator.userAgent;
-  return /iPhone|iPod|iPad/.test(ua) || (/Macintosh/.test(ua) && "ontouchend" in document);
-}
-
-function isAndroidDevice(): boolean {
-  return /Android/i.test(navigator.userAgent);
-}
 
 /**
  * Prompt install on Android (beforeinstallprompt) and iOS (Add to Home Screen hint).

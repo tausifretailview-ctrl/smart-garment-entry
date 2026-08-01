@@ -4,7 +4,7 @@ import { Menu, ShoppingCart, Package, Download, LayoutGrid, BoxIcon, Plus, FileT
 import { UIScaleSelector } from "@/components/UIScaleSelector";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { useInstallPrompt } from "@/hooks/useInstallPrompt";
+import { useInstallPrompt, isIOSDevice } from "@/hooks/useInstallPrompt";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -57,8 +57,30 @@ export const Header = () => {
     new RegExp(`/${segment}(/|$)`).test(location.pathname);
   const [supportOpen, setSupportOpen] = useState(false);
   const [helpShortcutsOpen, setHelpShortcutsOpen] = useState(false);
-  const { isInstallable, isInstalled, promptInstall } = useInstallPrompt();
+  const { isInstallable, canOfferInstall, promptInstall } = useInstallPrompt();
   const isDesktopApp = isElectronShell();
+
+  const handleInstallApp = async () => {
+    if (isInstallable) {
+      const ok = await promptInstall();
+      if (ok) {
+        toast.success("EzzyERP installed — open it from your home screen or Start menu.");
+      }
+      return;
+    }
+    if (isIOSDevice()) {
+      toast("Install on iPhone / iPad", {
+        description: 'Tap Share, then "Add to Home Screen".',
+        duration: 8000,
+      });
+      return;
+    }
+    toast("Install EzzyERP", {
+      description:
+        "Use your browser menu → Install app / Add to Home screen. On Chrome/Edge (Windows & Android), the Install prompt appears when the app is ready.",
+      duration: 8000,
+    });
+  };
   const { hasMenuAccess, hasMainMenuAccess, hasSpecialPermission, permissions, loading: permissionsLoading } = useUserPermissions();
   const can = (menuId: string) =>
     !permissionsLoading && (permissions === null || hasMenuAccess(menuId));
@@ -311,25 +333,22 @@ export const Header = () => {
         </span>
 
         <div className="erp-no-drag flex items-center gap-0.5">
-          {!isInstalled && (isInstallable || /iPad|iPhone|iPod/.test(navigator.userAgent)) && (
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={async () => {
-                if (isInstallable) {
-                  const ok = await promptInstall();
-                  if (ok) toast.success("App installed");
-                } else {
-                  toast("Install on iOS", {
-                    description: 'Tap the Share icon, then "Add to Home Screen".',
-                  });
-                }
-              }}
-              className="h-8 w-8 text-[var(--erp-chrome-ink-dim)] hover:text-white hover:bg-white/10 hidden sm:flex"
-              title="Install EzzyERP App"
+          {canOfferInstall && (
+            <button
+              type="button"
+              onClick={() => void handleInstallApp()}
+              className={cn(
+                "inline-flex items-center gap-1.5 h-8 px-2.5 sm:px-3 rounded-md border border-emerald-300/80 bg-emerald-50",
+                "text-xs sm:text-sm font-semibold text-emerald-800 shadow-sm",
+                "hover:bg-emerald-100 hover:border-emerald-400 transition-colors",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500",
+                "mr-0.5",
+              )}
+              title="Install EzzyERP as an app on Windows or mobile"
             >
-              <Download className="h-4 w-4" />
-            </Button>
+              <Download className="h-4 w-4 shrink-0" />
+              <span className="whitespace-nowrap">Install App</span>
+            </button>
           )}
           <Button
             variant="ghost"
