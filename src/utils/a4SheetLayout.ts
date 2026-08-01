@@ -26,26 +26,59 @@ export const A4_48_LABEL_48X24 = {
   defaultOffsets: { top: 0, left: 0, bottom: 0, right: 0 } as A4SheetMarginOffsets,
 } as const;
 
-export function isNovaJetMpl48LLayout(
+/** True when the grid matches NovaJet MPL 48L sticker size (gap ignored). */
+export function isNovaJetMpl48LGrid(
   cols: number,
   rows: number,
   labelWidthMm: number,
   labelHeightMm: number,
-  gapMm: number,
 ): boolean {
   return (
     cols === A4_48_LABEL_48X24.cols &&
     rows === A4_48_LABEL_48X24.rows &&
     Math.abs(labelWidthMm - A4_48_LABEL_48X24.labelWidthMm) < 0.05 &&
-    Math.abs(labelHeightMm - A4_48_LABEL_48X24.labelHeightMm) < 0.05 &&
-    Math.abs(gapMm - A4_48_LABEL_48X24.gapMm) < 0.05
+    Math.abs(labelHeightMm - A4_48_LABEL_48X24.labelHeightMm) < 0.05
   );
+}
+
+/**
+ * @deprecated Prefer {@link isNovaJetMpl48LGrid} + {@link resolveA4LayoutGap}.
+ * Kept for call sites that still pass gap; gap is ignored for the match.
+ */
+export function isNovaJetMpl48LLayout(
+  cols: number,
+  rows: number,
+  labelWidthMm: number,
+  labelHeightMm: number,
+  _gapMm?: number,
+): boolean {
+  return isNovaJetMpl48LGrid(cols, rows, labelWidthMm, labelHeightMm);
+}
+
+/**
+ * NovaJet MPL 48L die-cuts have **zero** inter-label gap. Custom presets often
+ * save Gap=1 by mistake; that disables manufacturer margins (contentH > A4) and
+ * makes row pitch 25mm instead of 24mm → content drifts down the sheet.
+ */
+export function resolveA4LayoutGap(
+  cols: number,
+  rows: number,
+  labelWidthMm: number,
+  labelHeightMm: number,
+  gapMm: number,
+): number {
+  if (isNovaJetMpl48LGrid(cols, rows, labelWidthMm, labelHeightMm)) {
+    return A4_48_LABEL_48X24.gapMm;
+  }
+  return gapMm;
 }
 
 /**
  * Center a label grid on A4, then apply user nudges (positive top = move down, positive left = move right).
  * NovaJet MPL 48L uses the manufacturer top/left margins instead of vertical centering —
  * centering left the first rows printing above the die-cut.
+ *
+ * For 4×12 × 48×24mm, gap is forced to 0 regardless of the caller's gap (see resolveA4LayoutGap).
  */
 export function computeA4SheetMargins(
   cols: number,
@@ -55,10 +88,11 @@ export function computeA4SheetMargins(
   gapMm: number,
   offsets: A4SheetMarginOffsets = {},
 ): { marginTop: number; marginLeft: number; marginBottom: number; marginRight: number } {
-  const contentW = cols * labelWidthMm + Math.max(0, cols - 1) * gapMm;
-  const contentH = rows * labelHeightMm + Math.max(0, rows - 1) * gapMm;
+  const effectiveGap = resolveA4LayoutGap(cols, rows, labelWidthMm, labelHeightMm, gapMm);
+  const contentW = cols * labelWidthMm + Math.max(0, cols - 1) * effectiveGap;
+  const contentH = rows * labelHeightMm + Math.max(0, rows - 1) * effectiveGap;
 
-  const novaJet48L = isNovaJetMpl48LLayout(cols, rows, labelWidthMm, labelHeightMm, gapMm);
+  const novaJet48L = isNovaJetMpl48LGrid(cols, rows, labelWidthMm, labelHeightMm);
   const baseTop = novaJet48L
     ? A4_48_LABEL_48X24.sheetTopMarginMm
     : Math.max(0, (A4_PAGE_HEIGHT_MM - contentH) / 2);

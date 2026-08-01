@@ -2,21 +2,29 @@ import { describe, expect, it } from "vitest";
 import {
   A4_48_LABEL_48X24,
   computeA4SheetMargins,
+  isNovaJetMpl48LGrid,
   isNovaJetMpl48LLayout,
+  resolveA4LayoutGap,
 } from "./a4SheetLayout";
 
 describe("NovaJet MPL 48L A4 margins", () => {
-  it("detects the 48×24 4×12 zero-gap layout", () => {
+  it("detects the 48×24 4×12 grid even when gap is wrong", () => {
     expect(
-      isNovaJetMpl48LLayout(
+      isNovaJetMpl48LGrid(
         A4_48_LABEL_48X24.cols,
         A4_48_LABEL_48X24.rows,
         A4_48_LABEL_48X24.labelWidthMm,
         A4_48_LABEL_48X24.labelHeightMm,
-        A4_48_LABEL_48X24.gapMm,
       ),
     ).toBe(true);
+    expect(isNovaJetMpl48LLayout(4, 12, 48, 24, 1)).toBe(true);
     expect(isNovaJetMpl48LLayout(8, 6, 33, 19, 1)).toBe(false);
+  });
+
+  it("forces layout gap to 0 for 48×24 4×12 custom presets", () => {
+    expect(resolveA4LayoutGap(4, 12, 48, 24, 1)).toBe(0);
+    expect(resolveA4LayoutGap(4, 12, 48, 24, 0)).toBe(0);
+    expect(resolveA4LayoutGap(5, 8, 38, 35, 1)).toBe(1);
   });
 
   it("uses TechNova 7.5mm top / 9mm left — not vertical centering", () => {
@@ -26,6 +34,14 @@ describe("NovaJet MPL 48L A4 margins", () => {
     // 297 − 7.5 − 12×24 = 1.5mm bottom
     expect(margins.marginBottom).toBeCloseTo(1.5, 5);
     expect(margins.marginRight).toBe(9);
+  });
+
+  it("keeps TechNova margins when custom preset Gap is 1 (common mistake)", () => {
+    // Without coercion, contentH=299 > A4 and baseTop collapses to 0.
+    const margins = computeA4SheetMargins(4, 12, 48, 24, 1);
+    expect(margins.marginTop).toBe(7.5);
+    expect(margins.marginLeft).toBe(9);
+    expect(margins.marginBottom).toBeCloseTo(1.5, 5);
   });
 
   it("applies positive top nudge downward from the TechNova base", () => {

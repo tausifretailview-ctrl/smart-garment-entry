@@ -38,7 +38,11 @@ import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import { encodePurchasePrice, getEffectivePurchasePrice } from "@/utils/purchaseCodeEncoder";
 import { generateA4LabelPdf } from '@/utils/a4LabelPdf';
-import { computeA4SheetMargins } from '@/utils/a4SheetLayout';
+import {
+  computeA4SheetMargins,
+  isNovaJetMpl48LGrid,
+  resolveA4LayoutGap,
+} from '@/utils/a4SheetLayout';
 import {
   resolveStandardSheetTypeForLabelDimensions,
   resolveTemplateLabelDimensions,
@@ -4658,14 +4662,33 @@ export default function BarcodePrinting() {
     return Math.min(scaleX, scaleY);
   };
 
-  const getSheetPageMargins = () => {
-    const w = sheetType === 'custom' ? customWidth : parseFloat(sheetPresets[sheetType].width);
-    const h = sheetType === 'custom' ? customHeight : parseFloat(sheetPresets[sheetType].height);
-    const cols = sheetType === 'custom' ? customCols : sheetPresets[sheetType].cols;
-    const rows = sheetType === 'custom' ? (customRows || 8) : ((sheetPresets[sheetType] as any).rows || 8);
-    const gap = sheetType === 'custom' ? customGap : parseFloat(sheetPresets[sheetType].gap);
+  /** A4 cell size for Standard print/preview — coerces NovaJet 48×24 gap to 0. */
+  const getA4SheetDimensions = () => {
+    const cols = sheetType === "custom" ? customCols : sheetPresets[sheetType].cols;
+    const rows =
+      sheetType === "custom"
+        ? customRows || 8
+        : ((sheetPresets[sheetType] as { rows?: number }).rows || 8);
+    const width =
+      sheetType === "custom" ? customWidth : parseFloat(sheetPresets[sheetType].width);
+    const height =
+      sheetType === "custom" ? customHeight : parseFloat(sheetPresets[sheetType].height);
+    const rawGap =
+      sheetType === "custom" ? customGap : parseFloat(sheetPresets[sheetType].gap);
+    return {
+      cols,
+      rows,
+      width,
+      height,
+      gap: resolveA4LayoutGap(cols, rows, width, height, rawGap),
+      rawGap,
+    };
+  };
 
-    return computeA4SheetMargins(cols, rows, w, h, gap, {
+  const getSheetPageMargins = () => {
+    const { cols, rows, width, height, gap } = getA4SheetDimensions();
+
+    return computeA4SheetMargins(cols, rows, width, height, gap, {
       top: topOffset,
       left: leftOffset,
       bottom: bottomOffset,
@@ -4686,20 +4709,14 @@ export default function BarcodePrinting() {
       printArea.className = "";
     }
 
-    // Use custom dimensions if custom sheet type, otherwise use preset
-    const dimensions = sheetType === "custom"
-      ? { 
-          cols: customCols, 
-          width: customWidth, 
-          height: customHeight, 
-          gap: customGap 
-        }
-      : {
-          cols: sheetPresets[sheetType].cols,
-          width: parseFloat(sheetPresets[sheetType].width),
-          height: parseFloat(sheetPresets[sheetType].height),
-          gap: parseFloat(sheetPresets[sheetType].gap)
-        };
+    // getA4SheetDimensions coerces NovaJet 48×24 gap to 0 (Gap=1 breaks pitch).
+    const a4Dims = getA4SheetDimensions();
+    const dimensions = {
+      cols: a4Dims.cols,
+      width: a4Dims.width,
+      height: a4Dims.height,
+      gap: a4Dims.gap,
+    };
     
     printArea.innerHTML = "";
 
@@ -5250,15 +5267,7 @@ export default function BarcodePrinting() {
     }
     toast.info('Preparing label sheet…');
     try {
-      const dimensions = sheetType === 'custom'
-        ? { cols: customCols, rows: customRows, width: customWidth, height: customHeight, gap: customGap }
-        : {
-            cols: sheetPresets[sheetType].cols,
-            rows: (sheetPresets[sheetType] as any).rows || 10,
-            width: parseFloat(sheetPresets[sheetType].width),
-            height: parseFloat(sheetPresets[sheetType].height),
-            gap: parseFloat(sheetPresets[sheetType].gap),
-          };
+      const dimensions = getA4SheetDimensions();
 
       const pdfBytes = await generateA4LabelPdf(labelItems, {
         labelWidthMm: dimensions.width,
@@ -5364,15 +5373,7 @@ export default function BarcodePrinting() {
     }
     toast.info('Generating Perfect PDF...');
     try {
-      const dimensions = sheetType === 'custom'
-        ? { cols: customCols, rows: customRows, width: customWidth, height: customHeight, gap: customGap }
-        : {
-            cols: sheetPresets[sheetType].cols,
-            rows: (sheetPresets[sheetType] as any).rows || 10,
-            width: parseFloat(sheetPresets[sheetType].width),
-            height: parseFloat(sheetPresets[sheetType].height),
-            gap: parseFloat(sheetPresets[sheetType].gap),
-          };
+      const dimensions = getA4SheetDimensions();
 
       const pdfBytes = await generateA4LabelPdf(labelItems, {
         labelWidthMm: dimensions.width,
@@ -6499,6 +6500,14 @@ export default function BarcodePrinting() {
                     onChange={(e) => setCustomGap(Math.max(0, Math.min(50, parseFloat(e.target.value) || 0)))}
                     placeholder="e.g., 2"
                   />
+                  {isNovaJetMpl48LGrid(customCols, customRows, customWidth, customHeight) &&
+                    Math.abs(customGap) > 0.05 && (
+                    <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1.5">
+                      NovaJet / A4 48×24 (4×12) sheets use <strong>Gap 0</strong>. Gap {customGap}mm
+                      breaks row pitch and margins — print will use 0mm. Click Update to save Gap 0
+                      on this preset, or pick Sheet Type → NovaJet MPL 48L.
+                    </p>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="printScaleCustom">PDF Export Scale (%)</Label>

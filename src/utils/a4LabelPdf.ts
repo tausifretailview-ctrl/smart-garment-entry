@@ -1,7 +1,12 @@
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import JsBarcode from 'jsbarcode';
 import { LabelDesignConfig, LabelFieldConfig, LabelItem, FieldKey } from '@/types/labelTypes';
-import { computeA4SheetMargins, A4_PAGE_WIDTH_MM, A4_PAGE_HEIGHT_MM } from '@/utils/a4SheetLayout';
+import {
+  computeA4SheetMargins,
+  resolveA4LayoutGap,
+  A4_PAGE_WIDTH_MM,
+  A4_PAGE_HEIGHT_MM,
+} from '@/utils/a4SheetLayout';
 import { barcodeHeightPxFromMm, resolveBarcodeSlotMm } from '@/utils/barcodeLabelLayout';
 import type { LabelData, TSPLTemplateConfig } from '@/utils/tsplGenerator';
 
@@ -102,17 +107,21 @@ export const generateA4LabelPdf = async (
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
 
+  // NovaJet MPL 48L (4×12 × 48×24): force gap 0 so pitch matches die-cut even if a
+  // custom preset saved Gap=1 (that alone caused cumulative vertical drift).
+  const layoutGapMm = resolveA4LayoutGap(cols, rows, labelWidthMm, labelHeightMm, gapMm);
+
   const PAGE_W = mmToPt(A4_PAGE_WIDTH_MM);
   const PAGE_H = mmToPt(A4_PAGE_HEIGHT_MM);
   const labelW = mmToPt(labelWidthMm);
   const labelH = mmToPt(labelHeightMm);
-  const gap = mmToPt(gapMm);
+  const gap = mmToPt(layoutGapMm);
   const { marginLeft: marginLeftMm, marginTop: marginTopMm } = computeA4SheetMargins(
     cols,
     rows,
     labelWidthMm,
     labelHeightMm,
-    gapMm,
+    layoutGapMm,
     { top: topOffsetMm, left: leftOffsetMm, bottom: bottomOffsetMm, right: rightOffsetMm },
   );
   const marginLeft = mmToPt(marginLeftMm);
