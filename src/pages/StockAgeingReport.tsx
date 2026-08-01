@@ -5,18 +5,37 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganizationData } from "@/hooks/useOrganizationData";
 import { BackToDashboard } from "@/components/BackToDashboard";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Download, Package, Clock, AlertTriangle, Search } from "lucide-react";
-import { ReportKpiCards, type ReportKpiItem } from "@/components/reports/ReportKpiCards";
+import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table";
+import { Download, Search, Clock } from "lucide-react";
 import { toast } from "sonner";
-import { differenceInDays, format } from "date-fns";
+import { differenceInDays, format, startOfDay } from "date-fns";
 import * as XLSX from "xlsx";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
+import {
+  INSIGHTS_BODY_CELL,
+  INSIGHTS_BODY_CELL_NUM,
+  INSIGHTS_BODY_ROW,
+  INSIGHTS_TAB_SHELL,
+  InsightsKpiCard,
+  InsightsPanel,
+  InsightsStaticTh,
+  InsightsTableHeader,
+  InsightsTableSkeleton,
+} from "@/components/business-insights/insightsLayout";
 
 interface BatchRow {
   id: string;
@@ -60,9 +79,16 @@ function getBucketVariant(bucket: string) {
 }
 
 const PAGE_SIZE = 200;
+const BUCKET_BAR_COLORS: Record<string, string> = {
+  "0-30d": "#10b981",
+  "31-60d": "#0ea5e9",
+  "61-90d": "#f59e0b",
+  "90d+": "#ef4444",
+};
 
 export default function StockAgeingReport() {
   const { organizationId, isReady } = useOrganizationData();
+  const reduceMotion = usePrefersReducedMotion();
   const [search, setSearch] = useState("");
   const [supplierFilter, setSupplierFilter] = useState("all");
   const [ageFilter, setAgeFilter] = useState("30");
@@ -125,10 +151,11 @@ export default function StockAgeingReport() {
     refetchOnReconnect: false as const,
   });
 
-  const today = new Date();
+  const todayKey = format(startOfDay(new Date()), "yyyy-MM-dd");
 
   const enrichedData = useMemo(() => {
     if (!rawData) return [];
+    const today = startOfDay(new Date(`${todayKey}T00:00:00`));
     return rawData.map((row) => {
       const ageDays = differenceInDays(today, new Date(row.purchase_date));
       return {
@@ -144,9 +171,8 @@ export default function StockAgeingReport() {
         supplier: row.purchase_bills?.supplier_name || "N/A",
       };
     });
-  }, [rawData]);
+  }, [rawData, todayKey]);
 
-  // Extract unique suppliers and brands for filters
   const suppliers = useMemo(() => {
     const set = new Set(enrichedData.map((r) => r.supplier));
     return Array.from(set).sort();
@@ -157,17 +183,12 @@ export default function StockAgeingReport() {
     return Array.from(set).sort();
   }, [enrichedData]);
 
-  // Filter
   const filtered = useMemo(() => {
     let rows = enrichedData;
-    // Age threshold
-    const minAge = ageFilter === "all" ? 0 : parseInt(ageFilter);
+    const minAge = ageFilter === "all" ? 0 : parseInt(ageFilter, 10);
     rows = rows.filter((r) => r.ageDays >= minAge);
-    // Supplier
     if (supplierFilter !== "all") rows = rows.filter((r) => r.supplier === supplierFilter);
-    // Brand
     if (brandFilter !== "all") rows = rows.filter((r) => r.brand === brandFilter);
-    // Search
     if (search.trim()) {
       const q = search.toLowerCase();
       rows = rows.filter(
@@ -175,13 +196,12 @@ export default function StockAgeingReport() {
           r.productName.toLowerCase().includes(q) ||
           r.barcode.toLowerCase().includes(q) ||
           r.brand.toLowerCase().includes(q) ||
-          r.size.toLowerCase().includes(q)
+          r.size.toLowerCase().includes(q),
       );
     }
     return rows;
   }, [enrichedData, ageFilter, supplierFilter, brandFilter, search]);
 
-  // Summary
   const summary = useMemo(() => {
     const totalValue = filtered.reduce((s, r) => s + r.purchasePrice * r.quantity, 0);
     const over30 = filtered.filter((r) => r.ageDays > 30).reduce((s, r) => s + r.purchasePrice * r.quantity, 0);
@@ -191,11 +211,20 @@ export default function StockAgeingReport() {
     return { totalValue, over30, over60, over90, totalQty, count: filtered.length };
   }, [filtered]);
 
-  // Pagination
-  const paginatedRows = useMemo(() => {
-    return filtered.slice(0, (page + 1) * PAGE_SIZE);
-  }, [filtered, page]);
+  const bucketChart = useMemo(() => {
+    const buckets = ["0-30d", "31-60d", "61-90d", "90d+"] as const;
+    return buckets.map((bucket) => {
+      const rows = filtered.filter((r) => r.bucket === bucket);
+      return {
+        name: bucket,
+        value: Math.round(rows.reduce((s, r) => s + r.purchasePrice * r.quantity, 0)),
+        qty: rows.reduce((s, r) => s + r.quantity, 0),
+        fill: BUCKET_BAR_COLORS[bucket],
+      };
+    });
+  }, [filtered]);
 
+  const paginatedRows = useMemo(() => filtered.slice(0, (page + 1) * PAGE_SIZE), [filtered, page]);
   const hasMore = paginatedRows.length < filtered.length;
 
   const exportToExcel = () => {
@@ -223,135 +252,213 @@ export default function StockAgeingReport() {
 
   const fmt = (n: number) => "₹" + n.toLocaleString("en-IN", { maximumFractionDigits: 0 });
 
-  const ageingKpiItems = useMemo((): ReportKpiItem[] => [
-    {
-      label: "Total Aged Stock",
-      value: fmt(summary.totalValue),
-      sub: `${summary.totalQty} pcs · ${summary.count} batches`,
-      gradient: "bg-gradient-to-br from-blue-500 to-blue-600",
-      icon: Package,
-    },
-    {
-      label: "> 30 Days",
-      value: fmt(summary.over30),
-      gradient: "bg-gradient-to-br from-amber-500 to-amber-600",
-      icon: Clock,
-    },
-    {
-      label: "> 60 Days",
-      value: fmt(summary.over60),
-      gradient: "bg-gradient-to-br from-orange-500 to-orange-600",
-      icon: AlertTriangle,
-    },
-    {
-      label: "> 90 Days",
-      value: fmt(summary.over90),
-      sub: "Critical ageing",
-      gradient: "bg-gradient-to-br from-red-500 to-red-600",
-      icon: AlertTriangle,
-    },
-  ], [summary]);
+  if (isLoading && !rawData) {
+    return (
+      <div className="business-insights-workspace flex flex-col bg-slate-50 px-2 sm:px-3 py-2 min-h-0 h-full overflow-hidden w-full">
+        <InsightsTableSkeleton columns={12} title="Loading stock ageing…" />
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-slate-50 px-2 sm:px-4 lg:px-5 py-6 space-y-5">
-      <BackToDashboard />
-      <div>
-        <h1 className="text-3xl font-extrabold text-blue-600 tracking-tight">Stock Ageing Report</h1>
-        <p className="text-slate-400 text-base mt-0.5">Slow-moving inventory by purchase batch age</p>
-      </div>
-
-      <ReportKpiCards items={ageingKpiItems} />
-
-      <Card className="rounded-xl border border-slate-200 shadow-sm p-4 space-y-3">
-      {/* Filters */}
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="relative max-w-xs">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Search name, barcode, brand..." value={search} onChange={(e) => { setSearch(e.target.value); setPage(0); }} className="pl-9 h-9 text-sm" />
+    <div className="business-insights-workspace flex flex-col bg-slate-50 px-2 sm:px-3 py-2 min-h-0 h-full overflow-hidden w-full">
+      <div className={`${INSIGHTS_TAB_SHELL}`}>
+        <div className="no-print flex flex-wrap items-center justify-between gap-2 shrink-0">
+          <div className="flex flex-wrap items-center gap-2 min-w-0">
+            <BackToDashboard />
+            <div className="min-w-0">
+              <h1 className="text-xl font-bold text-teal-700 tracking-tight leading-none flex items-center gap-2">
+                <Clock className="h-5 w-5 shrink-0" />
+                Stock Ageing Report
+              </h1>
+              <p className="text-sm text-muted-foreground mt-1 truncate">
+                Slow-moving inventory by purchase batch age
+              </p>
+            </div>
+          </div>
+          <Button variant="outline" size="sm" onClick={exportToExcel} className="h-9 gap-1.5 shrink-0">
+            <Download className="h-4 w-4" /> Export
+          </Button>
         </div>
-        <Select value={ageFilter} onValueChange={(v) => { setAgeFilter(v); setPage(0); }}>
-          <SelectTrigger className="w-[140px] h-9 text-sm"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Ages</SelectItem>
-            <SelectItem value="30">&gt; 30 Days</SelectItem>
-            <SelectItem value="60">&gt; 60 Days</SelectItem>
-            <SelectItem value="90">&gt; 90 Days</SelectItem>
-          </SelectContent>
-        </Select>
-        <Select value={supplierFilter} onValueChange={(v) => { setSupplierFilter(v); setPage(0); }}>
-          <SelectTrigger className="w-[180px] h-9 text-sm"><SelectValue placeholder="All Suppliers" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Suppliers</SelectItem>
-            {suppliers.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-          </SelectContent>
-        </Select>
-        <Select value={brandFilter} onValueChange={(v) => { setBrandFilter(v); setPage(0); }}>
-          <SelectTrigger className="w-[150px] h-9 text-sm"><SelectValue placeholder="All Brands" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Brands</SelectItem>
-            {brands.map((b) => <SelectItem key={b} value={b}>{b}</SelectItem>)}
-          </SelectContent>
-        </Select>
-        <Button variant="outline" size="sm" onClick={exportToExcel} className="h-9 gap-1.5">
-          <Download className="h-4 w-4" /> Export
-        </Button>
-        <span className="text-xs text-muted-foreground ml-auto">Showing {paginatedRows.length} of {filtered.length}</span>
-      </div>
 
-      {/* Table */}
-      {isLoading ? (
-        <div className="space-y-2">{Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}</div>
-      ) : (
-        <div className="rounded-lg border overflow-auto max-h-[60vh]">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Product</TableHead>
-                <TableHead>Brand</TableHead>
-                <TableHead>Size</TableHead>
-                <TableHead>Barcode</TableHead>
-                <TableHead>Supplier</TableHead>
-                <TableHead>Bill No.</TableHead>
-                <TableHead>Purchase Date</TableHead>
-                <TableHead className="text-right">Age</TableHead>
-                <TableHead className="text-right">Qty</TableHead>
-                <TableHead className="text-right">Purchase Val.</TableHead>
-                <TableHead className="text-right">MRP Val.</TableHead>
-                <TableHead>Bucket</TableHead>
-              </TableRow>
-            </TableHeader>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 w-full shrink-0">
+          <InsightsKpiCard
+            label="Total Aged Stock"
+            value={summary.totalValue}
+            valueFormat="inr"
+            tone="neutral"
+            sub={`${summary.totalQty.toLocaleString("en-IN")} pcs · ${summary.count} batches`}
+          />
+          <InsightsKpiCard
+            label="> 30 Days"
+            value={summary.over30}
+            valueFormat="inr"
+            tone="attention"
+            sub="Purchase value at risk"
+          />
+          <InsightsKpiCard
+            label="> 60 Days"
+            value={summary.over60}
+            valueFormat="inr"
+            tone="attention"
+          />
+          <InsightsKpiCard
+            label="> 90 Days"
+            value={summary.over90}
+            valueFormat="inr"
+            tone="critical"
+            sub="Critical ageing"
+          />
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-2 shrink-0 min-h-0">
+          <InsightsPanel title="Value by age bucket" subtitle="Purchase value in each ageing band" className="lg:col-span-1 h-[220px]">
+            <div className="h-[170px] px-2 py-2">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={bucketChart} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                  <XAxis dataKey="name" tick={{ fontSize: 11, fill: "#64748b" }} axisLine={false} tickLine={false} />
+                  <YAxis
+                    tick={{ fontSize: 11, fill: "#64748b" }}
+                    axisLine={false}
+                    tickLine={false}
+                    tickFormatter={(v) => `₹${(Number(v) / 1000).toFixed(0)}k`}
+                    width={48}
+                  />
+                  <Tooltip
+                    formatter={(value: number, _n, item) => [
+                      fmt(Number(value)),
+                      `${item?.payload?.qty ?? 0} pcs`,
+                    ]}
+                    contentStyle={{ borderRadius: 8, border: "1px solid #e2e8f0", fontSize: 12 }}
+                  />
+                  <Bar
+                    dataKey="value"
+                    name="Purchase value"
+                    radius={[4, 4, 0, 0]}
+                    isAnimationActive={!reduceMotion}
+                    animationDuration={900}
+                    animationEasing="ease-out"
+                  >
+                    {bucketChart.map((entry) => (
+                      <Cell key={entry.name} fill={entry.fill} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </InsightsPanel>
+
+          <div className="lg:col-span-2 rounded-lg border border-slate-200 bg-white shadow-sm px-3 py-2 flex flex-wrap items-center gap-2 min-h-[220px] content-start">
+            <div className="relative min-w-[200px] flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search name, barcode, brand..."
+                value={search}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setPage(0);
+                }}
+                className="pl-9 h-9 text-sm"
+              />
+            </div>
+            <Select value={ageFilter} onValueChange={(v) => { setAgeFilter(v); setPage(0); }}>
+              <SelectTrigger className="w-[140px] h-9 text-sm"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Ages</SelectItem>
+                <SelectItem value="30">&gt; 30 Days</SelectItem>
+                <SelectItem value="60">&gt; 60 Days</SelectItem>
+                <SelectItem value="90">&gt; 90 Days</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={supplierFilter} onValueChange={(v) => { setSupplierFilter(v); setPage(0); }}>
+              <SelectTrigger className="w-[180px] h-9 text-sm"><SelectValue placeholder="All Suppliers" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Suppliers</SelectItem>
+                {suppliers.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Select value={brandFilter} onValueChange={(v) => { setBrandFilter(v); setPage(0); }}>
+              <SelectTrigger className="w-[150px] h-9 text-sm"><SelectValue placeholder="All Brands" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Brands</SelectItem>
+                {brands.map((b) => <SelectItem key={b} value={b}>{b}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <span className="text-xs text-muted-foreground ml-auto">
+              Showing {paginatedRows.length.toLocaleString("en-IN")} of {filtered.length.toLocaleString("en-IN")}
+            </span>
+            <p className="w-full text-xs text-slate-500">
+              Values use current variant purchase price × batch qty (batch cost snapshot not stored separately).
+            </p>
+          </div>
+        </div>
+
+        <InsightsPanel
+          className="flex-1 min-h-0"
+          title="Aged batches"
+          subtitle="Oldest purchase batches first"
+          stickyFirstColumn
+          footer={
+            hasMore ? (
+              <div className="flex justify-center">
+                <Button variant="outline" size="sm" onClick={() => setPage((p) => p + 1)}>
+                  Load More ({(filtered.length - paginatedRows.length).toLocaleString("en-IN")} remaining)
+                </Button>
+              </div>
+            ) : null
+          }
+        >
+          <Table className="w-full min-w-max">
+            <InsightsTableHeader>
+              <InsightsStaticTh label="Product" />
+              <InsightsStaticTh label="Brand" />
+              <InsightsStaticTh label="Size" />
+              <InsightsStaticTh label="Barcode" />
+              <InsightsStaticTh label="Supplier" />
+              <InsightsStaticTh label="Bill No." />
+              <InsightsStaticTh label="Purchase Date" />
+              <InsightsStaticTh label="Age" className="text-right" />
+              <InsightsStaticTh label="Qty" className="text-right" />
+              <InsightsStaticTh label="Purchase Val." className="text-right" />
+              <InsightsStaticTh label="MRP Val." className="text-right" />
+              <InsightsStaticTh label="Bucket" />
+            </InsightsTableHeader>
             <TableBody>
               {paginatedRows.length === 0 ? (
-                <TableRow><TableCell colSpan={12} className="text-center py-8 text-muted-foreground">No aged stock found</TableCell></TableRow>
+                <TableRow>
+                  <TableCell colSpan={12} className={`${INSIGHTS_BODY_CELL} text-center py-8 text-muted-foreground`}>
+                    No aged stock found
+                  </TableCell>
+                </TableRow>
               ) : (
                 paginatedRows.map((r) => (
-                  <TableRow key={r.id}>
-                    <TableCell className="font-medium max-w-[200px] truncate">{r.productName}</TableCell>
-                    <TableCell>{r.brand || "-"}</TableCell>
-                    <TableCell>{r.size}</TableCell>
-                    <TableCell className="font-mono text-xs">{r.barcode || "-"}</TableCell>
-                    <TableCell>{r.supplier}</TableCell>
-                    <TableCell>{r.bill_number}</TableCell>
-                    <TableCell>{format(new Date(r.purchase_date), "dd-MM-yyyy")}</TableCell>
-                    <TableCell className="text-right tabular-nums font-semibold">{r.ageDays}d</TableCell>
-                    <TableCell className="text-right tabular-nums">{r.quantity}</TableCell>
-                    <TableCell className="text-right tabular-nums">{fmt(r.purchasePrice * r.quantity)}</TableCell>
-                    <TableCell className="text-right tabular-nums">{fmt(r.mrp * r.quantity)}</TableCell>
-                    <TableCell><Badge variant={getBucketVariant(r.bucket)}>{r.bucket}</Badge></TableCell>
+                  <TableRow key={r.id} className={INSIGHTS_BODY_ROW}>
+                    <TableCell className={`${INSIGHTS_BODY_CELL} font-medium max-w-[200px] truncate`}>
+                      {r.productName}
+                    </TableCell>
+                    <TableCell className={INSIGHTS_BODY_CELL}>{r.brand || "-"}</TableCell>
+                    <TableCell className={INSIGHTS_BODY_CELL}>{r.size}</TableCell>
+                    <TableCell className={`${INSIGHTS_BODY_CELL} font-mono text-xs`}>{r.barcode || "-"}</TableCell>
+                    <TableCell className={INSIGHTS_BODY_CELL}>{r.supplier}</TableCell>
+                    <TableCell className={INSIGHTS_BODY_CELL}>{r.bill_number}</TableCell>
+                    <TableCell className={INSIGHTS_BODY_CELL}>
+                      {format(new Date(r.purchase_date), "dd-MM-yyyy")}
+                    </TableCell>
+                    <TableCell className={`${INSIGHTS_BODY_CELL_NUM} font-semibold`}>{r.ageDays}d</TableCell>
+                    <TableCell className={INSIGHTS_BODY_CELL_NUM}>{r.quantity}</TableCell>
+                    <TableCell className={INSIGHTS_BODY_CELL_NUM}>{fmt(r.purchasePrice * r.quantity)}</TableCell>
+                    <TableCell className={INSIGHTS_BODY_CELL_NUM}>{fmt(r.mrp * r.quantity)}</TableCell>
+                    <TableCell className={INSIGHTS_BODY_CELL}>
+                      <Badge variant={getBucketVariant(r.bucket)}>{r.bucket}</Badge>
+                    </TableCell>
                   </TableRow>
                 ))
               )}
             </TableBody>
           </Table>
-        </div>
-      )}
-
-      {hasMore && (
-        <div className="flex justify-center">
-          <Button variant="outline" onClick={() => setPage((p) => p + 1)}>Load More ({filtered.length - paginatedRows.length} remaining)</Button>
-        </div>
-      )}
-      </Card>
+        </InsightsPanel>
+      </div>
     </div>
   );
 }

@@ -15,13 +15,27 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Search, Barcode, AlertTriangle, TrendingUp, TrendingDown } from "lucide-react";
-import { toast } from "sonner";
+import { Search, AlertTriangle, Activity } from "lucide-react";
 import { BackToDashboard } from "@/components/BackToDashboard";
-import { ReportKpiCards, type ReportKpiItem } from "@/components/reports/ReportKpiCards";
 import { format, subDays } from "date-fns";
 import { ColumnDef } from "@tanstack/react-table";
 import { ERPTable } from "@/components/erp-table";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
+import {
+  INSIGHTS_TAB_SHELL,
+  InsightsKpiCard,
+  InsightsPanel,
+} from "@/components/business-insights/insightsLayout";
 
 // Tab-return stable: keep cached data, never auto-refetch on focus/mount/reconnect.
 const STABLE_TAB_OPTIONS = {
@@ -123,22 +137,28 @@ const columns: ColumnDef<MovementRecord, any>[] = [
   },
   {
     id: "credit",
-    accessorFn: (row) => (row.movement_type === "purchase" ? row.quantity : null),
+    accessorFn: (row) =>
+      row.movement_type === "purchase" || row.movement_type === "sale_return"
+        ? Math.abs(row.quantity)
+        : null,
     header: "Credit (In)",
     size: 100,
     cell: ({ getValue }) => (
-      <span className="text-right font-semibold text-green-600 block">
+      <span className="text-right font-semibold text-green-600 block tabular-nums">
         {getValue() != null ? getValue() : "-"}
       </span>
     ),
   },
   {
     id: "debit",
-    accessorFn: (row) => (row.movement_type === "sale" ? Math.abs(row.quantity) : null),
+    accessorFn: (row) =>
+      row.movement_type === "sale" || row.movement_type === "purchase_return"
+        ? Math.abs(row.quantity)
+        : null,
     header: "Debit (Out)",
     size: 100,
     cell: ({ getValue }) => (
-      <span className="text-right font-semibold text-red-600 block">
+      <span className="text-right font-semibold text-red-600 block tabular-nums">
         {getValue() != null ? getValue() : "-"}
       </span>
     ),
@@ -161,6 +181,7 @@ const MAX_DATE_RANGE_DAYS = 365;
 
 const ProductTrackingReport = () => {
   const { currentOrganization } = useOrganization();
+  const reduceMotion = usePrefersReducedMotion();
   const [searchBarcode, setSearchBarcode] = useState("");
   const [startDate, setStartDate] = useState(format(subDays(new Date(), 90), "yyyy-MM-dd"));
   const [endDate, setEndDate] = useState(format(new Date(), "yyyy-MM-dd"));
@@ -352,6 +373,78 @@ const ProductTrackingReport = () => {
   const totalCount = queryResult?.totalCount || 0;
   const totalPages = Math.ceil(totalCount / PAGE_SIZE);
 
+  // Full filtered qty totals (not page-only) — light columns, paginated.
+  const { data: qtyTotals } = useQuery({
+    queryKey: [
+      "product-tracking-qty-totals",
+      currentOrganization?.id,
+      startDate,
+      endDate,
+      searchBarcode,
+      movementTypeFilter,
+      categoryFilter,
+      brandFilter,
+    ],
+    queryFn: async () => {
+      if (!currentOrganization?.id || dateRangeError) return { inQty: 0, outQty: 0 };
+      let inQty = 0;
+      let outQty = 0;
+      let from = 0;
+      while (true) {
+        let query = supabase
+          .from("stock_movements")
+          .select(`
+            movement_type,
+            quantity,
+            product_variants!inner (
+              barcode,
+              products!inner (product_name, category, brand)
+            )
+          `)
+          .eq("organization_id", currentOrganization.id)
+          .gte("created_at", startDate + "T00:00:00")
+          .lte("created_at", endDate + "T23:59:59")
+          .range(from, from + 999);
+
+        if (movementTypeFilter !== "all") {
+          query = query.eq("movement_type", movementTypeFilter);
+        }
+        if (searchBarcode) {
+          const trimmed = searchBarcode.trim();
+          const looksLikeBarcode = /\d/.test(trimmed) && trimmed.length >= 5;
+          if (looksLikeBarcode) {
+            query = query.or(
+              `barcode.eq.${trimmed},barcode.ilike.${trimmed}%`,
+              { referencedTable: "product_variants" },
+            );
+          } else {
+            query = query.ilike("product_variants.products.product_name", `%${trimmed}%`);
+          }
+        }
+        if (categoryFilter !== "all") {
+          query = query.eq("product_variants.products.category", categoryFilter);
+        }
+        if (brandFilter !== "all") {
+          query = query.eq("product_variants.products.brand", brandFilter);
+        }
+
+        const { data, error } = await query;
+        if (error) throw error;
+        const rows = data || [];
+        for (const row of rows as Array<{ movement_type: string; quantity: number }>) {
+          const qty = Math.abs(Number(row.quantity) || 0);
+          if (row.movement_type === "purchase" || row.movement_type === "sale_return") inQty += qty;
+          else if (row.movement_type === "sale" || row.movement_type === "purchase_return") outQty += qty;
+        }
+        if (rows.length < 1000) break;
+        from += 1000;
+      }
+      return { inQty, outQty };
+    },
+    enabled: !!currentOrganization?.id && !dateRangeError,
+    ...STABLE_TAB_OPTIONS,
+  });
+
   // Reset page when filters change
   const handleFilterChange = useCallback((setter: (v: string) => void) => {
     return (value: string) => {
@@ -360,79 +453,111 @@ const ProductTrackingReport = () => {
     };
   }, []);
 
-  const movementKpiItems = useMemo((): ReportKpiItem[] => {
-    if (totalCount === 0 || movements.length === 0) return [];
-    const inQty = movements
-      .filter((m) => m.movement_type === "purchase" || m.movement_type === "sale_return")
-      .reduce((s, m) => s + Math.abs(m.quantity), 0);
-    const outQty = movements
-      .filter((m) => m.movement_type === "sale" || m.movement_type === "purchase_return")
-      .reduce((s, m) => s + Math.abs(m.quantity), 0);
-    return [
-      {
-        label: "Stock In",
-        value: inQty.toLocaleString("en-IN"),
-        sub: "Purchase + sale return",
-        gradient: "bg-gradient-to-br from-emerald-500 to-emerald-600",
-        icon: TrendingUp,
-      },
-      {
-        label: "Stock Out",
-        value: outQty.toLocaleString("en-IN"),
-        sub: "Sale + purchase return",
-        gradient: "bg-gradient-to-br from-red-500 to-red-600",
-        icon: TrendingDown,
-      },
-      {
-        label: "Total Records",
-        value: totalCount.toLocaleString("en-IN"),
-        sub: `Page ${currentPage} of ${totalPages}`,
-        gradient: "bg-gradient-to-br from-blue-500 to-blue-600",
-        icon: Barcode,
-      },
-    ];
-  }, [movements, totalCount, currentPage, totalPages]);
+  const inQty = qtyTotals?.inQty ?? 0;
+  const outQty = qtyTotals?.outQty ?? 0;
+  const flowChart = useMemo(
+    () => [
+      { name: "Stock In", value: inQty, fill: "#10b981" },
+      { name: "Stock Out", value: outQty, fill: "#ef4444" },
+    ],
+    [inQty, outQty],
+  );
 
   if (isLoading && !movements.length) {
     return (
-      <div className="p-8 space-y-6">
-        <Skeleton className="h-10 w-64" />
-        <Skeleton className="h-[400px]" />
+      <div className="business-insights-workspace flex flex-col bg-slate-50 px-2 sm:px-3 py-2 min-h-0 h-full overflow-hidden w-full">
+        <div className="p-6 space-y-4">
+          <Skeleton className="h-10 w-64" />
+          <Skeleton className="h-[400px]" />
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 p-4 md:p-8 space-y-5">
-        <BackToDashboard />
-        <div>
-          <h1 className="text-3xl font-extrabold text-blue-600 tracking-tight">Product Tracking Report</h1>
-          <p className="text-slate-400 text-base mt-0.5">
-            Track product movements · purchases · sales · returns · adjustments
-          </p>
+    <div className="business-insights-workspace flex flex-col bg-slate-50 px-2 sm:px-3 py-2 min-h-0 h-full overflow-hidden w-full">
+      <div className={`${INSIGHTS_TAB_SHELL} overflow-y-auto`}>
+        <div className="no-print flex flex-wrap items-center gap-2 shrink-0">
+          <BackToDashboard />
+          <div className="min-w-0">
+            <h1 className="text-xl font-bold text-teal-700 tracking-tight leading-none flex items-center gap-2">
+              <Activity className="h-5 w-5 shrink-0" />
+              Product Tracking Report
+            </h1>
+            <p className="text-sm text-muted-foreground mt-1 truncate">
+              Track product movements · purchases · sales · returns · adjustments
+            </p>
+          </div>
         </div>
 
-        <ReportKpiCards items={movementKpiItems} />
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 w-full shrink-0">
+          <InsightsKpiCard
+            label="Stock In"
+            value={inQty}
+            valueFormat="int"
+            tone="positive"
+            sub="Purchase + sale return (all filtered rows)"
+          />
+          <InsightsKpiCard
+            label="Stock Out"
+            value={outQty}
+            valueFormat="int"
+            tone="critical"
+            sub="Sale + purchase return (all filtered rows)"
+          />
+          <InsightsKpiCard
+            label="Total Records"
+            value={totalCount}
+            valueFormat="int"
+            tone="neutral"
+            sub={totalCount > 0 ? `Page ${currentPage} of ${totalPages}` : "No matches"}
+          />
+        </div>
 
-        <Card className="rounded-xl border border-slate-200 p-4 space-y-4 shadow-sm">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Search by Barcode / Product</label>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-2 shrink-0">
+          <InsightsPanel title="In vs Out" subtitle="Filtered quantity flow" className="h-[200px]">
+            <div className="h-[150px] px-2 py-2">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={flowChart} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                  <XAxis dataKey="name" tick={{ fontSize: 11, fill: "#64748b" }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 11, fill: "#64748b" }} axisLine={false} tickLine={false} width={40} />
+                  <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid #e2e8f0", fontSize: 12 }} />
+                  <Bar
+                    dataKey="value"
+                    name="Qty"
+                    radius={[4, 4, 0, 0]}
+                    isAnimationActive={!reduceMotion}
+                    animationDuration={900}
+                  >
+                    {flowChart.map((entry) => (
+                      <Cell key={entry.name} fill={entry.fill} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </InsightsPanel>
+
+          <Card className="rounded-lg border border-slate-200 shadow-sm p-3 space-y-3 lg:col-span-2">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Search by Barcode / Product</label>
               <div className="relative">
-                <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   placeholder="Enter barcode or product name..."
                   value={searchBarcode}
                   onChange={(e) => { setSearchBarcode(e.target.value); setCurrentPage(1); }}
-                  className="pl-10"
+                  className="pl-10 h-9"
                 />
               </div>
             </div>
 
-            <div className="space-y-2">
-              <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Movement Type</label>
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Movement Type</label>
               <Select value={movementTypeFilter} onValueChange={handleFilterChange(setMovementTypeFilter)}>
-                <SelectTrigger>
+                <SelectTrigger className="h-9">
                   <SelectValue placeholder="All Types" />
                 </SelectTrigger>
                 <SelectContent>
@@ -446,10 +571,10 @@ const ProductTrackingReport = () => {
               </Select>
             </div>
 
-            <div className="space-y-2">
-              <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Category</label>
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Category</label>
               <Select value={categoryFilter} onValueChange={handleFilterChange(setCategoryFilter)}>
-                <SelectTrigger>
+                <SelectTrigger className="h-9">
                   <SelectValue placeholder="All Categories" />
                 </SelectTrigger>
                 <SelectContent>
@@ -463,10 +588,10 @@ const ProductTrackingReport = () => {
               </Select>
             </div>
 
-            <div className="space-y-2">
-              <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Brand</label>
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Brand</label>
               <Select value={brandFilter} onValueChange={handleFilterChange(setBrandFilter)}>
-                <SelectTrigger>
+                <SelectTrigger className="h-9">
                   <SelectValue placeholder="All Brands" />
                 </SelectTrigger>
                 <SelectContent>
@@ -480,21 +605,23 @@ const ProductTrackingReport = () => {
               </Select>
             </div>
 
-            <div className="space-y-2">
-              <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Start Date</label>
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Start Date</label>
               <Input
                 type="date"
                 value={startDate}
                 onChange={(e) => { setStartDate(e.target.value); setCurrentPage(1); }}
+                className="h-9"
               />
             </div>
 
-            <div className="space-y-2">
-              <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">End Date</label>
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">End Date</label>
               <Input
                 type="date"
                 value={endDate}
                 onChange={(e) => { setEndDate(e.target.value); setCurrentPage(1); }}
+                className="h-9"
               />
             </div>
           </div>
@@ -506,7 +633,7 @@ const ProductTrackingReport = () => {
             </div>
           )}
 
-          <div className="flex justify-between items-center pt-2">
+          <div className="flex justify-between items-center pt-1">
             <p className="text-sm text-muted-foreground">
               {totalCount > 0
                 ? <span>Found <span className="font-semibold text-foreground">{totalCount}</span> movements — showing page {currentPage} of {totalPages}</span>
@@ -515,6 +642,7 @@ const ProductTrackingReport = () => {
             </p>
             <Button
               variant="outline"
+              size="sm"
               onClick={() => {
                 setSearchBarcode("");
                 setStartDate(format(subDays(new Date(), 90), "yyyy-MM-dd"));
@@ -528,9 +656,10 @@ const ProductTrackingReport = () => {
               Clear Filters
             </Button>
           </div>
-        </Card>
+          </Card>
+        </div>
 
-        <Card className="rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <Card className="rounded-lg border border-slate-200 shadow-sm overflow-hidden flex-1 min-h-0">
           <ERPTable
             tableId="product_tracking"
             columns={columns}
@@ -569,6 +698,7 @@ const ProductTrackingReport = () => {
             </div>
           )}
         </Card>
+      </div>
     </div>
   );
 };
