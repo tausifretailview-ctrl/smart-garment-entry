@@ -109,7 +109,6 @@ export const OrganizationProvider = ({ children }: { children: ReactNode }) => {
       const expiresAt = session.expires_at ?? 0;
       const nowSec = Math.floor(Date.now() / 1000);
       if (expiresAt - nowSec < SESSION_REFRESH_IF_EXPIRES_WITHIN_SEC) {
-        console.log("Session token near-expiry, refreshing…");
         const { error } = await supabase.auth.refreshSession();
         if (error) {
           console.warn("Session refresh failed:", error.message);
