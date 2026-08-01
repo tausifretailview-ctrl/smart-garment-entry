@@ -199,9 +199,17 @@ export const OrgLayout = () => {
   ]);
 
   // Warm Sales + Purchase dashboard first page after login — data ready before user opens tab.
+  // Gate on pane-ready so these RPCs do not compete with the visible page's own chunk download.
   useEffect(() => {
     const orgId = currentOrganization?.id;
     if (!isOrgSynced || !user || !orgId || permissionsLoading) return;
+    if (
+      wantsTabCache &&
+      !effectiveTabPaneReady &&
+      !forceOutletFallback
+    ) {
+      return;
+    }
 
     const warm = () => {
       // Do not prefetch Main Dashboard KPIs when User Rights disables main_dashboard.
@@ -231,6 +239,9 @@ export const OrgLayout = () => {
     permissionsLoading,
     permissions,
     hasMenuAccess,
+    wantsTabCache,
+    effectiveTabPaneReady,
+    forceOutletFallback,
   ]);
 
   // Cacheable entry (purchase-entry): always render via tab cache when window tabs are open.
@@ -273,7 +284,7 @@ export const OrgLayout = () => {
   // Safety net: if the cached pane never signals ready (slow network / chunk failure), keep Outlet visible.
   useEffect(() => {
     if (!wantsTabCache || effectiveTabPaneReady) return;
-    const timeoutMs = isElectronShell() ? 12_000 : 18_000;
+    const timeoutMs = isElectronShell() ? 12_000 : 8_000;
     const timer = window.setTimeout(() => {
       console.warn("[OrgLayout] Tab pane not ready — falling back to Outlet for", currentPath);
       setForceOutletFallback(true);
