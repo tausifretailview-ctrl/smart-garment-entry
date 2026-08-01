@@ -39,6 +39,7 @@ import {
   nudgeLabelDesignerConfig,
   type LabelDesignerPositionSnapshot,
 } from "@/utils/labelDesignerGroupMove";
+import { DEFAULT_PRECISION_CONFIG } from "@/components/precision-barcode/defaultPrecisionConfig";
 
 interface PrecisionLabelDesignerProps {
   labelWidth: number;
@@ -73,32 +74,6 @@ const FIELD_LABELS: Record<FieldKey, string> = {
   supplierCode: "Supplier Code",
   purchaseCode: "Purchase Code",
   supplierInvoiceNo: "Supplier Invoice No",
-};
-
-const DEFAULT_PRECISION_CONFIG: LabelDesignConfig = {
-  brand: { show: true, fontSize: 8, bold: true, x: 1, y: 0.5, width: 48, textAlign: "center" },
-  businessName: { show: false, fontSize: 7, bold: true, x: 1, y: 0, width: 48, textAlign: "center" },
-  productName: { show: true, fontSize: 9, bold: true, x: 1, y: 3.5, width: 48, textAlign: "center" },
-  category: { show: false, fontSize: 7, bold: false, x: 1, y: 6, width: 20 },
-  color: { show: false, fontSize: 7, bold: false, x: 1, y: 6, width: 20 },
-  style: { show: false, fontSize: 7, bold: false, x: 25, y: 6, width: 20 },
-  size: { show: true, fontSize: 8, bold: true, x: 1, y: 7, width: 15 },
-  price: { show: true, fontSize: 9, bold: true, x: 30, y: 7, width: 18, textAlign: "right" },
-  mrp: { show: false, fontSize: 7, bold: false, x: 30, y: 9, width: 18, textAlign: "right" },
-  qty: { show: false, fontSize: 7, bold: false, x: 1, y: 9, width: 20 },
-  customText: { show: false, fontSize: 7, bold: false, x: 1, y: 22, width: 48, textAlign: "center" },
-  barcode: { show: true, fontSize: 9, bold: false, x: 3, y: 10, width: 44, height: 8 },
-  barcodeText: { show: true, fontSize: 7, bold: false, x: 1, y: 19, width: 48, textAlign: "center" },
-  billNumber: { show: false, fontSize: 6, bold: false, x: 1, y: 22, width: 20 },
-  supplierCode: { show: false, fontSize: 6, bold: false, x: 25, y: 22, width: 24 },
-  purchaseCode: { show: false, fontSize: 6, bold: false, x: 1, y: 23, width: 20 },
-  supplierInvoiceNo: { show: false, fontSize: 6, bold: false, x: 25, y: 23, width: 24 },
-  fieldOrder: ["businessName", "brand", "productName", "category", "color", "style", "size", "price", "mrp", "qty", "barcode", "barcodeText", "customText", "billNumber", "supplierCode", "purchaseCode", "supplierInvoiceNo"],
-  barcodeHeight: 30,
-  barcodeWidth: 1.5,
-  customTextValue: "",
-  customTextFields: [],
-  lines: [],
 };
 
 const SAMPLE_ITEM = {
@@ -917,4 +892,4 @@ export function PrecisionLabelDesigner({
   );
 }
 
-export { DEFAULT_PRECISION_CONFIG };
+export { DEFAULT_PRECISION_CONFIG } from "@/components/precision-barcode/defaultPrecisionConfig";

@@ -1,4 +1,4 @@
-import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from "react";
+import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, lazy, Suspense } from "react";
 
 import { useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -34,10 +34,7 @@ import type { LabelData, TSPLTemplateConfig } from "@/utils/tsplGenerator";
 import { Check, Save, Trash2, GripVertical, Eye, Download, RefreshCw, Edit, Printer, AlertTriangle, Plus, Loader2, ChevronDown, ChevronLeft, Search, Package, History } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Badge } from "@/components/ui/badge";
-import jsPDF from "jspdf";
-import html2canvas from "html2canvas";
 import { encodePurchasePrice, getEffectivePurchasePrice } from "@/utils/purchaseCodeEncoder";
-import { generateA4LabelPdf } from '@/utils/a4LabelPdf';
 import {
   computeA4SheetMargins,
   isNovaJetMpl48LGrid,
@@ -107,7 +104,6 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { cn } from "@/lib/utils";
 import { useBarcodeLabelSettings, SizeSortOrder } from "@/hooks/useBarcodeLabelSettings";
-import { BarTenderLabelDesigner } from "@/components/BarTenderLabelDesigner";
 import { DirectPrintDialog } from "@/components/DirectPrintDialog";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -123,14 +119,25 @@ import { LabelFieldConfig, LabelDesignConfig, LabelItem, LabelTemplate, FieldKey
 import { PrecisionThermalPrint } from "@/components/precision-barcode/PrecisionThermalPrint";
 import { PrecisionThermalRowPreview } from "@/components/precision-barcode/PrecisionThermalRowPreview";
 import { PrecisionA4SheetPrint } from "@/components/precision-barcode/PrecisionA4SheetPrint";
-import { PrecisionLabelPreview } from "@/components/precision-barcode/PrecisionLabelPreview";
 import { PrecisionProTSCPreview } from "@/components/labels/PrecisionProTSCPreview";
 import { migrateCustomTextFields } from "@/utils/labelCustomText";
 import { LabelCalibrationUI, type CalibrationPreset } from "@/components/precision-barcode/LabelCalibrationUI";
 import { TestLabelPrint } from "@/components/precision-barcode/TestLabelPrint";
 import { PrecisionPrintCSS } from "@/components/precision-barcode/PrecisionPrintCSS";
-import { PrecisionLabelDesigner, DEFAULT_PRECISION_CONFIG } from "@/components/precision-barcode/PrecisionLabelDesigner";
+import { DEFAULT_PRECISION_CONFIG } from "@/components/precision-barcode/defaultPrecisionConfig";
 import { PrinterPresetBackupDialog } from "@/components/precision-barcode/PrinterPresetBackupDialog";
+
+/** Designer / PDF panels — loaded only when opened (keeps first paint lean). */
+const BarTenderLabelDesigner = lazy(() =>
+  import("@/components/BarTenderLabelDesigner").then((m) => ({
+    default: m.BarTenderLabelDesigner,
+  })),
+);
+const PrecisionLabelDesigner = lazy(() =>
+  import("@/components/precision-barcode/PrecisionLabelDesigner").then((m) => ({
+    default: m.PrecisionLabelDesigner,
+  })),
+);
 import {
   getFixedBuiltinLabelDimensions,
   isFixedBuiltinLabelPreset,
@@ -1406,7 +1413,8 @@ export default function BarcodePrinting() {
   const [isLabelTemplateSaveDialogOpen, setIsLabelTemplateSaveDialogOpen] = useState(false);
   const [newLabelTemplateName, setNewLabelTemplateName] = useState("");
   const [isEditingLabelTemplate, setIsEditingLabelTemplate] = useState(false);
-  const [showCustomizeFields, setShowCustomizeFields] = useState(true);
+  // Default off so Standard tab first paint does not fetch the designer chunk.
+  const [showCustomizeFields, setShowCustomizeFields] = useState(false);
   const [isPreviewDialogOpen, setIsPreviewDialogOpen] = useState(false);
   const [precisionPrintConfirmOpen, setPrecisionPrintConfirmOpen] = useState(false);
   const [precisionPrintConfirmQty, setPrecisionPrintConfirmQty] = useState(0);
@@ -5276,6 +5284,7 @@ export default function BarcodePrinting() {
     toast.info('Preparing label sheet…');
     try {
       const dimensions = getA4SheetDimensions();
+      const { generateA4LabelPdf } = await import("@/utils/a4LabelPdf");
 
       const pdfBytes = await generateA4LabelPdf(labelItems, {
         labelWidthMm: dimensions.width,
@@ -5382,6 +5391,7 @@ export default function BarcodePrinting() {
     toast.info('Generating Perfect PDF...');
     try {
       const dimensions = getA4SheetDimensions();
+      const { generateA4LabelPdf } = await import("@/utils/a4LabelPdf");
 
       const pdfBytes = await generateA4LabelPdf(labelItems, {
         labelWidthMm: dimensions.width,
@@ -5420,6 +5430,11 @@ export default function BarcodePrinting() {
       toast.error("Please add at least one label with quantity > 0");
       return;
     }
+
+    const [{ default: jsPDF }, { default: html2canvas }] = await Promise.all([
+      import("jspdf"),
+      import("html2canvas"),
+    ]);
 
     // Validate custom dimensions if custom sheet type is selected
     if (sheetType === "custom") {
@@ -6932,21 +6947,30 @@ export default function BarcodePrinting() {
                   )}
                 </div>
                 
-                <BarTenderLabelDesigner
-                  labelConfig={labelConfig}
-                  setLabelConfig={setStandardLabelConfig}
-                  businessName={businessName}
-                  sampleItem={labelItems.length > 0 ? labelItems[0] : null}
-                  labelWidth={sheetType === 'custom' ? customWidth : parseFloat(sheetPresets[sheetType].width)}
-                  labelHeight={sheetType === 'custom' ? customHeight : parseFloat(sheetPresets[sheetType].height)}
-                  columns={sheetType === 'custom' ? customCols : sheetPresets[sheetType].cols}
-                  savedTemplates={dbLabelTemplates}
-                  selectedTemplateName={selectedLabelTemplate}
-                  onSaveTemplate={saveTemplateToDb}
-                  onUpdateTemplate={persistSelectedLabelTemplate}
-                  onDeleteTemplate={deleteTemplateFromDb}
-                  productFieldSettings={productFieldSettings}
-                />
+                <Suspense
+                  fallback={
+                    <div className="flex items-center justify-center py-8 text-sm text-muted-foreground gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Loading designer…
+                    </div>
+                  }
+                >
+                  <BarTenderLabelDesigner
+                    labelConfig={labelConfig}
+                    setLabelConfig={setStandardLabelConfig}
+                    businessName={businessName}
+                    sampleItem={labelItems.length > 0 ? labelItems[0] : null}
+                    labelWidth={sheetType === 'custom' ? customWidth : parseFloat(sheetPresets[sheetType].width)}
+                    labelHeight={sheetType === 'custom' ? customHeight : parseFloat(sheetPresets[sheetType].height)}
+                    columns={sheetType === 'custom' ? customCols : sheetPresets[sheetType].cols}
+                    savedTemplates={dbLabelTemplates}
+                    selectedTemplateName={selectedLabelTemplate}
+                    onSaveTemplate={saveTemplateToDb}
+                    onUpdateTemplate={persistSelectedLabelTemplate}
+                    onDeleteTemplate={deleteTemplateFromDb}
+                    productFieldSettings={productFieldSettings}
+                  />
+                </Suspense>
               </div>
             )}
           </div>
@@ -7484,6 +7508,14 @@ export default function BarcodePrinting() {
               </div>
             ) : (
             <>
+            <Suspense
+              fallback={
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-5 w-5 animate-spin text-muted-foreground mr-2" />
+                  <span className="text-sm text-muted-foreground">Loading label designer…</span>
+                </div>
+              }
+            >
             <PrecisionLabelDesigner
               labelWidth={effectivePrecisionLabelWidth}
               labelHeight={effectivePrecisionLabelHeight}
@@ -7542,6 +7574,7 @@ export default function BarcodePrinting() {
                 }
               }}
             />
+            </Suspense>
             </>
             )}
             </div>

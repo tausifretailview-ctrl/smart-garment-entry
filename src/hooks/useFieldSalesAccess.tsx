@@ -11,11 +11,8 @@ export function useFieldSalesAccess() {
     queryKey: ["field-sales-access", user?.id, currentOrganization?.id],
     queryFn: async () => {
       if (!user?.id || !currentOrganization?.id) {
-        console.log("Field sales access check: Missing user or org", { userId: user?.id, orgId: currentOrganization?.id });
         return null;
       }
-
-      console.log("Checking field sales access for user:", user.id, "org:", currentOrganization.id);
 
       // Check if user has an employee record with field_sales_access enabled
       const { data: employee, error } = await supabase
@@ -32,10 +29,11 @@ export function useFieldSalesAccess() {
         return null;
       }
 
-      console.log("Field sales access result:", employee);
       return employee;
     },
     enabled: !!user?.id && !!currentOrganization?.id,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
   });
 
   return {
