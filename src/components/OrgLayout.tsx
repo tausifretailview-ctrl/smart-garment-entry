@@ -130,14 +130,34 @@ export const OrgLayout = () => {
     return [...set];
   }, [openWindows, resolvedCurrentPath, pinnedCacheableEntryPaths]);
 
+  // Derived before post-login warm effects (plain consts — not hooks). Inputs are all above.
+  // purchase-entry is tab-cached so in-app tab switch keeps the form mounted (other entry routes use Outlet).
+  const wantsTabCache =
+    isCacheableTabPath(resolvedCurrentPath) && tabPaths.length > 0;
+  const tabPaneWasReady = isTabPaneReadyForPath(resolvedCurrentPath);
+  const paneMounted = isTabCachePaneMounted(resolvedCurrentPath);
+  const effectiveTabPaneReady = tabPaneReady || (tabPaneWasReady && paneMounted);
+
   useEffect(() => {
     const prefetchActive = isEntryPage && !isCacheableEntryActive ? "" : currentPath;
     return prefetchTabPagesIdle(tabPaths, prefetchActive);
   }, [tabPaths, currentPath, isEntryPage, isCacheableEntryActive]);
 
   // Warm bill-entry chunks after login. Electron: defer prefetch so login paint is not blocked.
+  // Web: wait for the active tab pane (or Outlet fallback) so warm list never races the visible chunk.
   useEffect(() => {
-    if (!isOrgSynced || !user) return;
+    const orgId = currentOrganization?.id;
+    if (!isOrgSynced || !user || !orgId) return;
+    // Non-cacheable routes render via Outlet immediately — no pane-ready wait.
+    // Cacheable routes: wait until pane ready OR Outlet fallback so warm isn't stuck forever.
+    if (
+      !isElectronShell() &&
+      wantsTabCache &&
+      !effectiveTabPaneReady &&
+      !forceOutletFallback
+    ) {
+      return;
+    }
 
     const run = () => {
       if (shouldElectronMountOnlyActiveTab()) {
@@ -152,18 +172,31 @@ export const OrgLayout = () => {
       prefetchPostLoginIdlePages();
     };
 
-    if (!isElectronShell()) {
-      run();
-      return;
+    if (isElectronShell()) {
+      if (typeof requestIdleCallback !== "undefined") {
+        const id = requestIdleCallback(run, { timeout: 4_000 });
+        return () => cancelIdleCallback(id);
+      }
+      const t = window.setTimeout(run, 1_500);
+      return () => window.clearTimeout(t);
     }
 
+    // Web: idle-gate once pane-ready (chunks are network-fetched, unlike Electron).
     if (typeof requestIdleCallback !== "undefined") {
-      const id = requestIdleCallback(run, { timeout: 4_000 });
+      const id = requestIdleCallback(run, { timeout: 6_000 });
       return () => cancelIdleCallback(id);
     }
-    const t = window.setTimeout(run, 1_500);
+    const t = window.setTimeout(run, 2_000);
     return () => window.clearTimeout(t);
-  }, [isOrgSynced, user, tabPaths]);
+  }, [
+    isOrgSynced,
+    user,
+    currentOrganization?.id,
+    effectiveTabPaneReady,
+    forceOutletFallback,
+    wantsTabCache,
+    tabPaths,
+  ]);
 
   // Warm Sales + Purchase dashboard first page after login — data ready before user opens tab.
   useEffect(() => {
@@ -200,12 +233,6 @@ export const OrgLayout = () => {
     hasMenuAccess,
   ]);
 
-  // purchase-entry is tab-cached so in-app tab switch keeps the form mounted (other entry routes use Outlet).
-  const wantsTabCache =
-    isCacheableTabPath(resolvedCurrentPath) && tabPaths.length > 0;
-  const tabPaneWasReady = isTabPaneReadyForPath(resolvedCurrentPath);
-  const paneMounted = isTabCachePaneMounted(resolvedCurrentPath);
-  const effectiveTabPaneReady = tabPaneReady || (tabPaneWasReady && paneMounted);
   // Cacheable entry (purchase-entry): always render via tab cache when window tabs are open.
   // Dashboards: keep <Outlet> visible until the cached pane has mounted (chunk still loading).
   const renderViaTabCache =

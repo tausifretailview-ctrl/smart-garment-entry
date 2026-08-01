@@ -4,6 +4,7 @@ import {
   getLazyTabPage,
   TAB_PAGE_REGISTRY,
   isTabCachePath,
+  enqueueSerialPrefetchTabPage,
   prefetchTabPage,
   prefetchTabPagesIdle,
   resetTabPageChunk,
@@ -615,6 +616,8 @@ export function TabCachedPages({ paths, activePath, onActivePaneReady, onTabEvic
   }, [evictIdleMountedTabs, electronSingleTab]);
 
   // Prefetch dashboard + POS dashboard chunks while POS is open; pre-mount hidden pane only in browser (not Electron).
+  // Web: serial queue (shared with post-login warm) so opening inventory tabs mid-drain does not storm.
+  // Electron: enqueueSerialPrefetchTabPage fires immediately (local files) — unchanged parallelism.
   useEffect(() => {
     const shouldWarmDashboard =
       uniquePaths.includes("") ||
@@ -622,8 +625,8 @@ export function TabCachedPages({ paths, activePath, onActivePaneReady, onTabEvic
       activePath === "pos-sales";
     if (!shouldWarmDashboard) return;
 
-    prefetchTabPage("");
-    prefetchTabPage("pos-dashboard");
+    void enqueueSerialPrefetchTabPage("");
+    void enqueueSerialPrefetchTabPage("pos-dashboard");
     // Note: previously also pre-mounted the dashboard pane in browser. Removed
     // to avoid a hidden React tree + chunk waterfall on cold load.
   }, [uniquePaths, activePath]);
@@ -643,14 +646,14 @@ export function TabCachedPages({ paths, activePath, onActivePaneReady, onTabEvic
     );
     if (!shouldWarmInventory) return;
 
-    prefetchTabPage("product-dashboard");
-    prefetchTabPage("purchase-bill-dashboard");
-    prefetchTabPage("purchase-bills");
-    prefetchTabPage("purchase-return-dashboard");
-    prefetchTabPage("purchase-returns");
-    prefetchTabPage("purchase-entry");
-    prefetchTabPage("product-entry");
-    prefetchTabPage("barcode-printing");
+    void enqueueSerialPrefetchTabPage("product-dashboard");
+    void enqueueSerialPrefetchTabPage("purchase-bill-dashboard");
+    void enqueueSerialPrefetchTabPage("purchase-bills");
+    void enqueueSerialPrefetchTabPage("purchase-return-dashboard");
+    void enqueueSerialPrefetchTabPage("purchase-returns");
+    void enqueueSerialPrefetchTabPage("purchase-entry");
+    void enqueueSerialPrefetchTabPage("product-entry");
+    void enqueueSerialPrefetchTabPage("barcode-printing");
     // Note: previously also pre-mounted product-dashboard. Removed to avoid
     // hidden chunk waterfall on cold load.
   }, [uniquePaths, activePath]);

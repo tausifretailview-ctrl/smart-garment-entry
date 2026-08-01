@@ -300,10 +300,14 @@ export function isTabCachePath(path: string): boolean {
   return Boolean(TAB_PAGE_REGISTRY[path]) || Boolean(TAB_PAGE_REGISTRY[resolveTabCachePath(path)]);
 }
 
-export function prefetchTabPage(path: string): void {
+export function prefetchTabPage(path: string): Promise<void> {
   const resolved = resolveTabCachePath(path);
   const def = TAB_PAGE_REGISTRY[resolved];
-  if (!def || prefetchCache.has(resolved)) return;
+  if (!def) return Promise.resolve();
+  const existing = prefetchCache.get(resolved);
+  if (existing) {
+    return existing.then(() => undefined, () => undefined);
+  }
   const promise = importWithRetry(def.loader)
     .then((mod) => {
       loadedChunkPaths.add(resolved);
@@ -314,6 +318,33 @@ export function prefetchTabPage(path: string): void {
       console.warn(`[prefetch] Failed to load tab chunk: ${resolved}`, err);
     });
   prefetchCache.set(resolved, promise);
+  return promise.then(() => undefined, () => undefined);
+}
+
+/** Shared web warm-list queue — one chunk at a time so opens never contend for bandwidth. */
+let serialPrefetchChain: Promise<void> = Promise.resolve();
+
+/**
+ * Enqueue a tab-chunk prefetch. Electron fires immediately (local files); web
+ * serialises behind any in-flight warm work (critical list, idle list, TabCachedPages).
+ */
+export function enqueueSerialPrefetchTabPage(path: string): Promise<void> {
+  if (isElectronShell()) {
+    void prefetchTabPage(path);
+    return Promise.resolve();
+  }
+  const next = serialPrefetchChain.then(() => prefetchTabPage(path));
+  serialPrefetchChain = next.catch(() => undefined);
+  return next;
+}
+
+/** Web critical warm list — await each path so they never overlap each other. */
+export async function prefetchPostLoginCriticalPagesSerial(
+  list: readonly string[],
+): Promise<void> {
+  for (const path of list) {
+    await enqueueSerialPrefetchTabPage(path).catch(() => undefined);
+  }
 }
 
 /** Drop cached lazy/prefetch state so the next mount re-fetches the chunk. */
@@ -328,21 +359,29 @@ export function resetTabPageChunk(path: string): void {
 export function prefetchPostLoginCriticalPages(): void {
   // Web/PWA: slim list to avoid cold-start chunk waterfall.
   // Desktop (Electron): keep the full warm list — chunks are local files.
-  const list = isElectronShell()
-    ? POST_LOGIN_PREFETCH_TAB_PATHS
-    : POST_LOGIN_PREFETCH_TAB_PATHS_WEB;
-  list.forEach(prefetchTabPage);
+  if (isElectronShell()) {
+    POST_LOGIN_PREFETCH_TAB_PATHS.forEach((path) => {
+      void prefetchTabPage(path);
+    });
+    return;
+  }
+  void prefetchPostLoginCriticalPagesSerial(POST_LOGIN_PREFETCH_TAB_PATHS_WEB);
 }
 
 /** Warm heavy admin chunks when the browser is idle (Settings first-open timeout). */
 export function prefetchPostLoginIdlePages(): void {
   const run = () => {
     if (isElectronShell()) {
-      POST_LOGIN_IDLE_PREFETCH_TAB_PATHS.forEach(prefetchTabPage);
+      POST_LOGIN_IDLE_PREFETCH_TAB_PATHS.forEach((path) => {
+        void prefetchTabPage(path);
+      });
       return;
     }
-    // Web/PWA: only warm inventory dashboards on idle — avoids 30+ chunk waterfall.
-    POST_LOGIN_WEB_IDLE_INVENTORY_PREFETCH_TAB_PATHS.forEach(prefetchTabPage);
+    // Web/PWA: only warm inventory dashboards on idle — serial so they queue
+    // behind the critical list instead of opening a second parallel storm.
+    for (const path of POST_LOGIN_WEB_IDLE_INVENTORY_PREFETCH_TAB_PATHS) {
+      void enqueueSerialPrefetchTabPage(path);
+    }
   };
   if (typeof requestIdleCallback !== "undefined") {
     requestIdleCallback(run, { timeout: 12_000 });
