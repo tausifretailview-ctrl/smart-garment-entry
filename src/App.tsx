@@ -31,6 +31,7 @@ import { PosDeliveryChallanLayout } from "@/components/PosDeliveryChallanLayout"
 import { SchoolFeatureGate } from "./components/school/SchoolFeatureGate";
 import { getStoredOrgSlug } from "@/lib/orgSlug";
 import { resolveStartupOrgSlug } from "@/lib/bundledOrg";
+import { applyOrgPwaManifest } from "@/lib/orgPwaManifest";
 import InstallApp from "./pages/InstallApp";
 const OAuthConsent = lazyWithRetry(() => import("./pages/OAuthConsent"));
 import { MobileOrgIndexRedirect } from "@/components/mobile/MobileOrgIndexRedirect";
@@ -303,6 +304,12 @@ const App = () => {
       resetSkewReloadCount();
     }, 1000);
     return () => window.clearTimeout(timer);
+  }, []);
+
+  // Remembered shop → PWA manifest start_url = /{orgSlug} (not Platform Admin /auth).
+  useEffect(() => {
+    const slug = resolveStartupOrgSlug();
+    if (slug) applyOrgPwaManifest(slug);
   }, []);
 
   // Recover from transient chunk load failures (common on first navigation after login in desktop WebView).
