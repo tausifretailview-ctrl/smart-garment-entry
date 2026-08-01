@@ -4,6 +4,7 @@ import { isDecimalUOM } from "@/constants/uom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSettings, useProductFieldSettings } from "@/hooks/useSettings";
 import { resolveGarmentGstForLine } from "@/utils/gstRules";
+import { GST_SLABS } from "@/utils/gstRegisterUtils";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useCustomerBalance } from "@/hooks/useCustomerBalance";
@@ -2476,17 +2477,23 @@ export default function SalesInvoice() {
   };
 
   const updateDiscountPercent = (id: string, discountPercent: number) => {
-    const updatedItems = lineItems.map(item => 
-      item.id === id ? calculateLineTotal({ ...item, discountPercent, discountAmount: 0 }) : item
+    setLineItems((prev) =>
+      prev.map((item) =>
+        item.id === id
+          ? calculateLineTotal({ ...item, discountPercent, discountAmount: 0 })
+          : item,
+      ),
     );
-    setLineItems(updatedItems);
   };
 
   const updateDiscountAmount = (id: string, discountAmount: number) => {
-    const updatedItems = lineItems.map(item => 
-      item.id === id ? calculateLineTotal({ ...item, discountAmount, discountPercent: 0 }) : item
+    setLineItems((prev) =>
+      prev.map((item) =>
+        item.id === id
+          ? calculateLineTotal({ ...item, discountAmount, discountPercent: 0 })
+          : item,
+      ),
     );
-    setLineItems(updatedItems);
   };
 
   const customerHasMasterFlatDiscount =
@@ -2532,10 +2539,24 @@ export default function SalesInvoice() {
   }, [getCurrentBrandDiscountForLineItem, toast]);
 
   const updateGSTPercent = (id: string, gstPercent: number) => {
-    const updatedItems = lineItems.map(item => 
-      item.id === id ? calculateLineTotal({ ...item, gstPercent }) : item
+    setLineItems((prev) =>
+      prev.map((item) =>
+        item.id === id
+          ? calculateLineTotal({
+              ...item,
+              gstPercent,
+              // Keep purchase base aligned so garment-rule restore uses the user's pick.
+              purchaseGstPercent: gstPercent,
+            })
+          : item,
+      ),
     );
-    setLineItems(updatedItems);
+  };
+
+  const gstSelectOptionsFor = (current: number): number[] => {
+    const rate = Number(current) || 0;
+    if ((GST_SLABS as readonly number[]).includes(rate)) return [...GST_SLABS];
+    return [...GST_SLABS, rate].sort((a, b) => a - b);
   };
 
   const updateMRP = (id: string, mrp: number) => {
@@ -2546,10 +2567,11 @@ export default function SalesInvoice() {
   };
 
   const updateSalePrice = (id: string, salePrice: number) => {
-    const updatedItems = lineItems.map(item => 
-      item.id === id ? calculateLineTotal({ ...item, salePrice }) : item
+    setLineItems((prev) =>
+      prev.map((item) =>
+        item.id === id ? calculateLineTotal({ ...item, salePrice }) : item,
+      ),
     );
-    setLineItems(updatedItems);
   };
 
   const removeItem = (id: string) => {
@@ -4450,7 +4472,7 @@ Thank you for choosing us!`;
                 <th className="text-right text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-2 sale-col-price">PRICE</th>
                 {showCol.disc_percent && <th className="text-right text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-2 w-20">DISC%</th>}
                 {showCol.disc_amount && <th className="text-right text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-2 w-24">DISC ₹</th>}
-                {showCol.gst && <th className="text-center text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-2 w-16">GST%</th>}
+                {showCol.gst && <th className="text-center text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-2 w-[4.5rem]">GST%</th>}
                 <th className="text-right text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-2 sale-col-total bg-blue-700 rounded-tr-lg">TOTAL</th>
                 <th className="col-action h-10 bg-slate-800" aria-hidden="true" />
               </tr>
@@ -4546,23 +4568,21 @@ Thank you for choosing us!`;
                         })}
                       >
                         <div className="flex flex-col items-center justify-center w-full min-w-0 mx-auto">
-                          {qtyEditing ? (
-                            <Input
-                              ref={lineGrid.editInputRef}
-                              type="number"
-                              min={isDecimalUOM(item.uom) ? "0.001" : "1"}
-                              step={isDecimalUOM(item.uom) ? "0.001" : "1"}
-                              value={item.quantity || ""}
-                              placeholder="1"
-                              onChange={(e) => handleQtyInputChange(item.id, e.target.value)}
-                              onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                              className="sale-qty-box w-full max-w-full h-9 text-center font-bold text-[17px] bg-white border border-amber-200 shadow-none focus-visible:ring-1 focus-visible:ring-amber-400 tabular-nums rounded-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                            />
-                          ) : (
-                            <span className="sale-qty-box block w-full max-w-full h-9 leading-9 text-center font-bold text-[17px] tabular-nums bg-warning/10 rounded-sm">
-                              {item.quantity || "—"}
-                            </span>
-                          )}
+                          <Input
+                            ref={qtyEditing ? lineGrid.editInputRef : undefined}
+                            type="number"
+                            min={isDecimalUOM(item.uom) ? "0.001" : "1"}
+                            step={isDecimalUOM(item.uom) ? "0.001" : "1"}
+                            value={item.quantity || ""}
+                            placeholder="1"
+                            onChange={(e) => handleQtyInputChange(item.id, e.target.value)}
+                            onFocus={() => {
+                              if (!qtyEditing) lineGrid.beginEditWithSnapshot(item.quantity);
+                            }}
+                            onBlur={() => handleQtyInputBlur(item.id)}
+                            onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                            className="sale-qty-box w-full max-w-full h-9 text-center font-bold text-[17px] bg-white border border-amber-200 shadow-none focus-visible:ring-1 focus-visible:ring-amber-400 tabular-nums rounded-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                          />
                           {item.uom && item.uom !== 'NOS' && item.uom !== 'PCS' && (
                             <span className="text-[10px] text-muted-foreground text-center w-full truncate leading-tight mt-0.5">{item.uom}</span>
                           )}
@@ -4621,22 +4641,19 @@ Thank you for choosing us!`;
                           onActivateEdit: () => lineGrid.beginEditWithSnapshot(item.salePrice),
                         })}
                       >
-                        {priceEditing ? (
-                          <Input
-                            ref={lineGrid.editInputRef}
-                            type="number"
-                            min="0"
-                            value={item.salePrice || ""}
-                            placeholder="0"
-                            onChange={(e) => updateSalePrice(item.id, parseFloat(e.target.value) || 0)}
-                            onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                            className="sale-num-box w-full max-w-full h-9 text-right text-[15px] font-semibold bg-white border border-slate-200 shadow-none focus-visible:ring-1 tabular-nums rounded-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                          />
-                        ) : (
-                          <span className="sale-num-box block w-full max-w-full h-9 leading-9 text-right text-[15px] font-semibold tabular-nums">
-                            {item.salePrice || "—"}
-                          </span>
-                        )}
+                        <Input
+                          ref={priceEditing ? lineGrid.editInputRef : undefined}
+                          type="number"
+                          min="0"
+                          value={item.salePrice || ""}
+                          placeholder="0"
+                          onChange={(e) => updateSalePrice(item.id, parseFloat(e.target.value) || 0)}
+                          onFocus={() => {
+                            if (!priceEditing) lineGrid.beginEditWithSnapshot(item.salePrice);
+                          }}
+                          onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                          className="sale-num-box w-full max-w-full h-9 text-right text-[15px] font-semibold bg-white border border-slate-200 shadow-none focus-visible:ring-1 tabular-nums rounded-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        />
                       </td>
                       {showCol.disc_percent && (
                         <td
@@ -4646,23 +4663,20 @@ Thank you for choosing us!`;
                           })}
                         >
                           <div className="flex items-center justify-end gap-0.5">
-                            {discPctEditing ? (
-                              <Input
-                                ref={lineGrid.editInputRef}
-                                type="number"
-                                min="0"
-                                max="100"
-                                value={item.discountPercent || ""}
-                                placeholder="0"
-                                onChange={(e) => updateDiscountPercent(item.id, parseFloat(e.target.value) || 0)}
-                                onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                                className="w-16 h-9 text-right text-[17px] bg-white border-0 shadow-none focus-visible:ring-0 ml-auto tabular-nums rounded-none"
-                              />
-                            ) : (
-                              <span className="block w-16 ml-auto h-10 leading-10 text-right text-[17px] tabular-nums">
-                                {item.discountPercent || "0"}
-                              </span>
-                            )}
+                            <Input
+                              ref={discPctEditing ? lineGrid.editInputRef : undefined}
+                              type="number"
+                              min="0"
+                              max="100"
+                              value={item.discountPercent || ""}
+                              placeholder="0"
+                              onChange={(e) => updateDiscountPercent(item.id, parseFloat(e.target.value) || 0)}
+                              onFocus={() => {
+                                if (!discPctEditing) lineGrid.beginEditWithSnapshot(item.discountPercent);
+                              }}
+                              onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                              className="w-16 h-9 text-right text-[15px] bg-white border border-slate-200 shadow-none focus-visible:ring-1 ml-auto tabular-nums rounded-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            />
                             {editingInvoiceId &&
                               item.productId &&
                               !customerHasMasterFlatDiscount &&
@@ -4700,27 +4714,43 @@ Thank you for choosing us!`;
                             onActivateEdit: () => lineGrid.beginEditWithSnapshot(item.discountAmount),
                           })}
                         >
-                          {discAmtEditing ? (
-                            <Input
-                              ref={lineGrid.editInputRef}
-                              type="number"
-                              min="0"
-                              value={item.discountAmount || ""}
-                              placeholder="-"
-                              onChange={(e) => updateDiscountAmount(item.id, parseFloat(e.target.value) || 0)}
-                              onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                              className="w-full h-9 text-right text-[17px] bg-white border-0 shadow-none focus-visible:ring-0 ml-auto tabular-nums text-destructive rounded-none"
-                            />
-                          ) : (
-                            <span className="block w-20 ml-auto h-10 leading-10 text-right text-[17px] tabular-nums text-destructive">
-                              {item.discountAmount || "—"}
-                            </span>
-                          )}
+                          <Input
+                            ref={discAmtEditing ? lineGrid.editInputRef : undefined}
+                            type="number"
+                            min="0"
+                            value={item.discountAmount || ""}
+                            placeholder="0"
+                            onChange={(e) => updateDiscountAmount(item.id, parseFloat(e.target.value) || 0)}
+                            onFocus={() => {
+                              if (!discAmtEditing) lineGrid.beginEditWithSnapshot(item.discountAmount);
+                            }}
+                            onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                            className="w-full h-9 text-right text-[15px] bg-white border border-slate-200 shadow-none focus-visible:ring-1 ml-auto tabular-nums text-destructive rounded-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                          />
                         </td>
                       )}
                       {showCol.gst && (
-                        <td {...lineGrid.getCellProps(displayIndex, "gst", { baseClassName: "text-center px-3 py-2" })}>
-                          <span className="text-[15px] font-semibold text-muted-foreground">{item.gstPercent}%</span>
+                        <td {...lineGrid.getCellProps(displayIndex, "gst", { baseClassName: "text-center px-1 py-1 align-middle" })}>
+                          <Select
+                            value={String(Number(item.gstPercent) || 0)}
+                            onValueChange={(v) => updateGSTPercent(item.id, parseFloat(v) || 0)}
+                          >
+                            <SelectTrigger
+                              className="h-9 w-full min-w-[3.5rem] max-w-[4.5rem] mx-auto text-[13px] font-semibold tabular-nums bg-white border border-slate-200 shadow-none focus:ring-1"
+                              onPointerDown={(e) => e.stopPropagation()}
+                              onClick={(e) => e.stopPropagation()}
+                              onKeyDown={(e) => e.stopPropagation()}
+                            >
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent className="bg-background z-[9999]">
+                              {gstSelectOptionsFor(item.gstPercent).map((rate) => (
+                                <SelectItem key={rate} value={String(rate)}>
+                                  {rate}%
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                         </td>
                       )}
                       <td {...lineGrid.getCellProps(displayIndex, "total", { baseClassName: "sale-col-total text-right px-2 py-2 bg-blue-50/40 align-middle overflow-hidden" })}>
