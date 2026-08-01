@@ -1331,7 +1331,8 @@ export default function BarcodePrinting() {
   const [customHeight, setCustomHeight] = useState(25);
   const [customCols, setCustomCols] = useState(4);
   const [customRows, setCustomRows] = useState(12);
-  const [customGap, setCustomGap] = useState(2);
+  // Die-cut A4 sheets are usually gap 0; default 2 made 48×24 presets look misaligned.
+  const [customGap, setCustomGap] = useState(0);
   
   // Preset management state
   const [savedPresets, setSavedPresets] = useState<CustomPreset[]>([]);
@@ -4631,7 +4632,14 @@ export default function BarcodePrinting() {
 
   const getA4ColumnGap = (): number => {
     if (precisionSettings.printMode !== "a4" || precisionSettings.a4Cols <= 1) return 0;
-    return Math.max(0, precisionSettings.hGap || 0);
+    const raw = Math.max(0, precisionSettings.hGap || 0);
+    return resolveA4LayoutGap(
+      precisionSettings.a4Cols,
+      precisionSettings.a4Rows,
+      precisionSettings.labelWidth,
+      precisionSettings.labelHeight,
+      raw,
+    );
   };
 
   // Auto-fit scale: shrink content to fit within A4 default-margin printable area
@@ -6490,7 +6498,7 @@ export default function BarcodePrinting() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="customGap">Gap (mm)</Label>
+                  <Label htmlFor="customGap">Gap between labels (mm)</Label>
                   <Input
                     id="customGap"
                     type="number"
@@ -6498,14 +6506,21 @@ export default function BarcodePrinting() {
                     max="50"
                     value={customGap}
                     onChange={(e) => setCustomGap(Math.max(0, Math.min(50, parseFloat(e.target.value) || 0)))}
-                    placeholder="e.g., 2"
+                    placeholder="e.g., 0"
                   />
-                  {isNovaJetMpl48LGrid(customCols, customRows, customWidth, customHeight) &&
-                    Math.abs(customGap) > 0.05 && (
-                    <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1.5">
-                      NovaJet / A4 48×24 (4×12) sheets use <strong>Gap 0</strong>. Gap {customGap}mm
-                      breaks row pitch and margins — print will use 0mm. Click Update to save Gap 0
-                      on this preset, or pick Sheet Type → NovaJet MPL 48L.
+                  {isNovaJetMpl48LGrid(customCols, customRows, customWidth, customHeight) && (
+                    <p className="text-xs text-muted-foreground bg-muted/40 border rounded px-2 py-1.5 space-y-0.5">
+                      <span className="block">
+                        NovaJet MPL 48L sheet margins (edge → first label):{" "}
+                        <strong>Top 7.5mm</strong>, <strong>Left/Right 9mm</strong>, Bottom 1.5mm.
+                        Inter-label gap is <strong>0</strong> (die-cuts touch) — not 1–2mm.
+                      </span>
+                      {Math.abs(customGap) > 0.05 && (
+                        <span className="block text-amber-700">
+                          Gap {customGap}mm is ignored for print (forced to 0). Click Update to save Gap 0,
+                          or pick Sheet Type → NovaJet MPL 48L.
+                        </span>
+                      )}
                     </p>
                   )}
                 </div>

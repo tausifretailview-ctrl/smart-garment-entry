@@ -3,7 +3,12 @@ import { PrecisionLabelPreview } from "./PrecisionLabelPreview";
 import { PrecisionPrintCSS } from "./PrecisionPrintCSS";
 import { LabelItem, LabelDesignConfig } from "@/types/labelTypes";
 import type { ProductFieldsConfig } from "@/utils/productFieldSettingsForLabels";
-import { computeA4SheetMargins, A4_PAGE_WIDTH_MM, A4_PAGE_HEIGHT_MM } from "@/utils/a4SheetLayout";
+import {
+  computeA4SheetMargins,
+  resolveA4LayoutGap,
+  A4_PAGE_WIDTH_MM,
+  A4_PAGE_HEIGHT_MM,
+} from "@/utils/a4SheetLayout";
 
 interface PrecisionA4SheetPrintProps {
   items: LabelItem[];
@@ -61,14 +66,17 @@ export const PrecisionA4SheetPrint = forwardRef<HTMLDivElement, PrecisionA4Sheet
       pages.push(expandedItems.slice(i, i + labelsPerPage));
     }
 
-    const rowGap = Math.max(0, vGap);
-    const colGap = Math.max(0, columnGap);
+    // Prefer sheet column gap; fall back to vGap when only one is set. NovaJet 48L → 0.
+    const requestedGap = Math.max(0, columnGap || vGap || 0);
+    const layoutGap = resolveA4LayoutGap(cols, rows, labelWidth, labelHeight, requestedGap);
+    const rowGap = layoutGap;
+    const colGap = layoutGap;
     const { marginTop, marginLeft, marginRight, marginBottom } = computeA4SheetMargins(
       cols,
       rows,
       labelWidth,
       labelHeight,
-      colGap,
+      layoutGap,
       { top: yOffset, left: xOffset },
     );
 
@@ -104,7 +112,7 @@ export const PrecisionA4SheetPrint = forwardRef<HTMLDivElement, PrecisionA4Sheet
                       item={item}
                       width={labelWidth}
                       height={labelHeight}
-                      showBorder
+                      showBorder={false}
                       config={config}
                       productFieldSettings={productFieldSettings}
                     />

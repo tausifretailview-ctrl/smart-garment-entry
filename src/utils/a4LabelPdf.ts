@@ -150,9 +150,9 @@ export const generateA4LabelPdf = async (
       const x = marginLeft + col * (labelW + gap);
       const y = PAGE_H - marginTop - (row + 1) * labelH - row * gap;
 
-      // Draw label border
-      page.drawRectangle({ x, y, width: labelW, height: labelH,
-        borderColor: rgb(0.85, 0.85, 0.85), borderWidth: 0.5, opacity: 1 });
+      // No cell borders on the print PDF — grey grid lines look like inter-label
+      // "columns"/gaps and confuse alignment against the physical die-cut sheet.
+      // On-screen preview keeps dashed borders separately.
 
       // Helper: convert mm position within label to PDF coordinates
       const toX = (fieldXmm: number) => x + mmToPt(fieldXmm);
