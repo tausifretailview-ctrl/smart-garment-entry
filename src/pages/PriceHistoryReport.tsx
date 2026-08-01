@@ -5,8 +5,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Card, CardContent } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -27,7 +27,6 @@ import {
   TrendingDown,
   Minus,
   FileText,
-  Calendar,
   RefreshCw,
   X,
   ShoppingCart,
@@ -39,6 +38,27 @@ import {
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { multiTokenMatch } from "@/utils/multiTokenSearch";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  ResponsiveContainer,
+  Tooltip as RechartsTooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
+import { cn } from "@/lib/utils";
+import {
+  INSIGHTS_BODY_ROW,
+  INSIGHTS_SUB_TAB_LIST,
+  INSIGHTS_SUB_TAB_TRIGGER,
+  InsightsKpiCard,
+  InsightsPanel,
+  InsightsStaticTh,
+  InsightsTableHeader,
+} from "@/components/business-insights/insightsLayout";
 
 interface PurchaseHistoryItem {
   id: string;
@@ -129,9 +149,13 @@ const REPORT_CACHE = {
   refetchOnReconnect: false as const,
 };
 
+const KPI_CLICKABLE =
+  "text-left w-full rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 cursor-pointer transition-shadow hover:shadow-md";
+
 const PriceHistoryReport = () => {
   const navigate = useNavigate();
   const { currentOrganization } = useOrganization();
+  const reduceMotion = usePrefersReducedMotion();
   
   const [activeTab, setActiveTab] = useState("all");
   const [purchaseHistory, setPurchaseHistory] = useState<PurchaseHistoryItem[]>([]);
@@ -735,6 +759,14 @@ const PriceHistoryReport = () => {
     };
   }, [filteredPurchaseData, filteredSalesData, filteredPriceEdits, filteredStockMovements, filteredProductChanges]);
 
+  const stockFlowChart = useMemo(
+    () => [
+      { name: "Stock In", value: stats.stockIn, fill: "#10b981" },
+      { name: "Stock Out", value: stats.stockOut, fill: "#ef4444" },
+    ],
+    [stats.stockIn, stats.stockOut],
+  );
+
   const clearFilters = () => {
     setSearchTerm("");
     setSelectedSupplier("all");
@@ -874,7 +906,7 @@ const PriceHistoryReport = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 p-4 md:p-6 print:p-2 print:bg-white">
+    <div className="business-insights-workspace min-h-screen bg-slate-50 p-4 md:p-6 print:p-2 print:bg-white">
       {/* Header */}
       <div className="flex items-center justify-between mb-6 print:hidden">
         <div className="flex items-center gap-4">
@@ -882,8 +914,11 @@ const PriceHistoryReport = () => {
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <div>
-            <h1 className="text-3xl font-extrabold text-blue-600 tracking-tight">Price & Stock History</h1>
-            <p className="text-slate-400 text-base mt-0.5">
+            <h1 className="text-xl font-bold text-teal-700 tracking-tight leading-none flex items-center gap-2">
+              <History className="h-5 w-5 shrink-0" />
+              Price & Stock History
+            </h1>
+            <p className="text-sm text-muted-foreground mt-1">
               Track prices, stock movements & product changes
             </p>
           </div>
@@ -905,24 +940,18 @@ const PriceHistoryReport = () => {
       </div>
 
       {/* Summary Cards - Clickable with Tooltips */}
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4 mb-6 print:hidden">
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-2 mb-4 print:hidden">
         <Tooltip>
           <TooltipTrigger asChild>
-            <Card 
-              className="cursor-pointer hover:bg-muted/50 transition-colors border-2 hover:border-blue-500/50"
-              onClick={() => setActiveTab("purchases")}
-            >
-              <CardContent className="p-3">
-                <div className="flex items-center gap-2">
-                  <Package className="h-4 w-4 text-blue-500" />
-                  <div>
-                    <p className="text-xs text-muted-foreground">Purchases</p>
-                    <p className="text-lg font-bold">{stats.totalPurchases}</p>
-                    <p className="text-xs text-muted-foreground">Qty: {stats.totalPurchaseQty} | ₹{stats.totalPurchaseAmount.toLocaleString()}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            <button type="button" className={KPI_CLICKABLE} onClick={() => setActiveTab("purchases")}>
+              <InsightsKpiCard
+                label="Purchases"
+                value={stats.totalPurchases}
+                valueFormat="int"
+                tone="neutral"
+                sub={`Qty: ${stats.totalPurchaseQty.toLocaleString("en-IN")} · ₹${stats.totalPurchaseAmount.toLocaleString("en-IN")}`}
+              />
+            </button>
           </TooltipTrigger>
           <TooltipContent>
             <p>View all purchase entries with prices and quantities</p>
@@ -931,21 +960,15 @@ const PriceHistoryReport = () => {
 
         <Tooltip>
           <TooltipTrigger asChild>
-            <Card 
-              className="cursor-pointer hover:bg-muted/50 transition-colors border-2 hover:border-green-500/50"
-              onClick={() => setActiveTab("sales")}
-            >
-              <CardContent className="p-3">
-                <div className="flex items-center gap-2">
-                  <ShoppingCart className="h-4 w-4 text-green-500" />
-                  <div>
-                    <p className="text-xs text-muted-foreground">Sales</p>
-                    <p className="text-lg font-bold">{stats.totalSales}</p>
-                    <p className="text-xs text-muted-foreground">Qty: {stats.totalSalesQty} | ₹{stats.totalSalesAmount.toLocaleString()}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            <button type="button" className={KPI_CLICKABLE} onClick={() => setActiveTab("sales")}>
+              <InsightsKpiCard
+                label="Sales"
+                value={stats.totalSales}
+                valueFormat="int"
+                tone="neutral"
+                sub={`Qty: ${stats.totalSalesQty.toLocaleString("en-IN")} · ₹${stats.totalSalesAmount.toLocaleString("en-IN")}`}
+              />
+            </button>
           </TooltipTrigger>
           <TooltipContent>
             <p>View all sales transactions with customer details</p>
@@ -954,20 +977,14 @@ const PriceHistoryReport = () => {
 
         <Tooltip>
           <TooltipTrigger asChild>
-            <Card 
-              className="cursor-pointer hover:bg-muted/50 transition-colors border-2 hover:border-orange-500/50"
-              onClick={() => setActiveTab("edits")}
-            >
-              <CardContent className="p-3">
-                <div className="flex items-center gap-2">
-                  <Edit className="h-4 w-4 text-orange-500" />
-                  <div>
-                    <p className="text-xs text-muted-foreground">Price Edits</p>
-                    <p className="text-lg font-bold">{stats.totalEdits}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            <button type="button" className={KPI_CLICKABLE} onClick={() => setActiveTab("edits")}>
+              <InsightsKpiCard
+                label="Price Edits"
+                value={stats.totalEdits}
+                valueFormat="int"
+                tone="neutral"
+              />
+            </button>
           </TooltipTrigger>
           <TooltipContent>
             <p>View price change history (old → new prices)</p>
@@ -976,20 +993,14 @@ const PriceHistoryReport = () => {
 
         <Tooltip>
           <TooltipTrigger asChild>
-            <Card 
-              className="cursor-pointer hover:bg-muted/50 transition-colors border-2 hover:border-purple-500/50"
-              onClick={() => setActiveTab("movements")}
-            >
-              <CardContent className="p-3">
-                <div className="flex items-center gap-2">
-                  <ArrowUpDown className="h-4 w-4 text-purple-500" />
-                  <div>
-                    <p className="text-xs text-muted-foreground">Movements</p>
-                    <p className="text-lg font-bold">{stats.totalMovements}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            <button type="button" className={KPI_CLICKABLE} onClick={() => setActiveTab("movements")}>
+              <InsightsKpiCard
+                label="Movements"
+                value={stats.totalMovements}
+                valueFormat="int"
+                tone="neutral"
+              />
+            </button>
           </TooltipTrigger>
           <TooltipContent>
             <p>View all stock movements (purchases, sales, returns)</p>
@@ -998,20 +1009,14 @@ const PriceHistoryReport = () => {
 
         <Tooltip>
           <TooltipTrigger asChild>
-            <Card 
-              className="cursor-pointer hover:bg-muted/50 transition-colors border-2 hover:border-cyan-500/50"
-              onClick={() => setActiveTab("products")}
-            >
-              <CardContent className="p-3">
-                <div className="flex items-center gap-2">
-                  <FileText className="h-4 w-4 text-cyan-500" />
-                  <div>
-                    <p className="text-xs text-muted-foreground">Prod Changes</p>
-                    <p className="text-lg font-bold">{stats.totalProductChanges}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            <button type="button" className={KPI_CLICKABLE} onClick={() => setActiveTab("products")}>
+              <InsightsKpiCard
+                label="Prod Changes"
+                value={stats.totalProductChanges}
+                valueFormat="int"
+                tone="neutral"
+              />
+            </button>
           </TooltipTrigger>
           <TooltipContent>
             <p>View product create/update/delete history</p>
@@ -1020,23 +1025,21 @@ const PriceHistoryReport = () => {
 
         <Tooltip>
           <TooltipTrigger asChild>
-            <Card 
-              className="cursor-pointer hover:bg-muted/50 transition-colors border-2 hover:border-green-600/50"
+            <button
+              type="button"
+              className={KPI_CLICKABLE}
               onClick={() => {
                 setActiveTab("movements");
                 setMovementTypeFilter("purchase");
               }}
             >
-              <CardContent className="p-3">
-                <div className="flex items-center gap-2">
-                  <TrendingUp className="h-4 w-4 text-green-600" />
-                  <div>
-                    <p className="text-xs text-muted-foreground">Stock In</p>
-                    <p className="text-lg font-bold text-green-600">+{stats.stockIn}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+              <InsightsKpiCard
+                label="Stock In"
+                value={stats.stockIn}
+                valueFormat="int"
+                tone="positive"
+              />
+            </button>
           </TooltipTrigger>
           <TooltipContent>
             <p>View stock additions (purchases, returns received)</p>
@@ -1045,23 +1048,21 @@ const PriceHistoryReport = () => {
 
         <Tooltip>
           <TooltipTrigger asChild>
-            <Card 
-              className="cursor-pointer hover:bg-muted/50 transition-colors border-2 hover:border-red-500/50"
+            <button
+              type="button"
+              className={KPI_CLICKABLE}
               onClick={() => {
                 setActiveTab("movements");
                 setMovementTypeFilter("sale");
               }}
             >
-              <CardContent className="p-3">
-                <div className="flex items-center gap-2">
-                  <TrendingDown className="h-4 w-4 text-red-500" />
-                  <div>
-                    <p className="text-xs text-muted-foreground">Stock Out</p>
-                    <p className="text-lg font-bold text-red-500">-{stats.stockOut}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+              <InsightsKpiCard
+                label="Stock Out"
+                value={stats.stockOut}
+                valueFormat="int"
+                tone="critical"
+              />
+            </button>
           </TooltipTrigger>
           <TooltipContent>
             <p>View stock deductions (sales, returns sent)</p>
@@ -1070,28 +1071,53 @@ const PriceHistoryReport = () => {
 
         <Tooltip>
           <TooltipTrigger asChild>
-            <Card 
-              className="cursor-pointer hover:bg-muted/50 transition-colors border-2 hover:border-amber-500/50"
+            <button
+              type="button"
+              className={KPI_CLICKABLE}
               onClick={() => {
                 setActiveTab("purchases");
                 setShowPriceChangesOnly(true);
               }}
             >
-              <CardContent className="p-3">
-                <div className="flex items-center gap-2">
-                  <TrendingUp className="h-4 w-4 text-amber-500" />
-                  <div>
-                    <p className="text-xs text-muted-foreground">Price Changed</p>
-                    <p className="text-lg font-bold text-amber-600">{stats.productsWithPriceChange}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+              <InsightsKpiCard
+                label="Price Changed"
+                value={stats.productsWithPriceChange}
+                valueFormat="int"
+                tone="attention"
+              />
+            </button>
           </TooltipTrigger>
           <TooltipContent>
             <p>View products where purchase price changed over time</p>
           </TooltipContent>
         </Tooltip>
+      </div>
+
+      {/* Stock flow mini chart */}
+      <div className="mb-6 print:hidden max-w-xs">
+        <InsightsPanel title="Stock In vs Out" subtitle="Filtered movement quantities" className="h-[180px]">
+          <div className="h-[130px] px-2 py-2">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={stockFlowChart} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                <XAxis dataKey="name" tick={{ fontSize: 11, fill: "#64748b" }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 11, fill: "#64748b" }} axisLine={false} tickLine={false} width={40} />
+                <RechartsTooltip contentStyle={{ borderRadius: 8, border: "1px solid #e2e8f0", fontSize: 12 }} />
+                <Bar
+                  dataKey="value"
+                  name="Qty"
+                  radius={[4, 4, 0, 0]}
+                  isAnimationActive={!reduceMotion}
+                  animationDuration={900}
+                >
+                  {stockFlowChart.map((entry) => (
+                    <Cell key={entry.name} fill={entry.fill} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </InsightsPanel>
       </div>
 
       {/* Filters */}
@@ -1209,28 +1235,28 @@ const PriceHistoryReport = () => {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="print:hidden flex-wrap h-auto gap-1">
-          <TabsTrigger value="all" className="gap-2">
+        <TabsList className={cn(INSIGHTS_SUB_TAB_LIST, "print:hidden flex-wrap h-auto gap-1 w-full sm:w-fit")}>
+          <TabsTrigger value="all" className={cn(INSIGHTS_SUB_TAB_TRIGGER, "gap-2")}>
             <History className="h-4 w-4" />
             All
           </TabsTrigger>
-          <TabsTrigger value="purchases" className="gap-2">
+          <TabsTrigger value="purchases" className={cn(INSIGHTS_SUB_TAB_TRIGGER, "gap-2")}>
             <Package className="h-4 w-4" />
             Purchases
           </TabsTrigger>
-          <TabsTrigger value="sales" className="gap-2">
+          <TabsTrigger value="sales" className={cn(INSIGHTS_SUB_TAB_TRIGGER, "gap-2")}>
             <ShoppingCart className="h-4 w-4" />
             Sales
           </TabsTrigger>
-          <TabsTrigger value="edits" className="gap-2">
+          <TabsTrigger value="edits" className={cn(INSIGHTS_SUB_TAB_TRIGGER, "gap-2")}>
             <Edit className="h-4 w-4" />
             Price Edits
           </TabsTrigger>
-          <TabsTrigger value="movements" className="gap-2">
+          <TabsTrigger value="movements" className={cn(INSIGHTS_SUB_TAB_TRIGGER, "gap-2")}>
             <ArrowUpDown className="h-4 w-4" />
             Stock Movements
           </TabsTrigger>
-          <TabsTrigger value="products" className="gap-2">
+          <TabsTrigger value="products" className={cn(INSIGHTS_SUB_TAB_TRIGGER, "gap-2")}>
             <FileText className="h-4 w-4" />
             Product Changes
           </TabsTrigger>
@@ -1242,19 +1268,17 @@ const PriceHistoryReport = () => {
             <CardContent className="p-0">
               <div className="overflow-x-auto">
                 <Table>
-                  <TableHeader>
-                    <TableRow className="bg-muted/50">
-                      <TableHead>Type</TableHead>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Reference</TableHead>
-                      <TableHead>Barcode</TableHead>
-                      <TableHead>Product</TableHead>
-                      <TableHead>Size</TableHead>
-                      <TableHead className="text-right">Qty</TableHead>
-                      <TableHead>Price/Info</TableHead>
-                      <TableHead>Party/User</TableHead>
-                    </TableRow>
-                  </TableHeader>
+                  <InsightsTableHeader>
+                    <InsightsStaticTh label="Type" />
+                    <InsightsStaticTh label="Date" />
+                    <InsightsStaticTh label="Reference" />
+                    <InsightsStaticTh label="Barcode" />
+                    <InsightsStaticTh label="Product" />
+                    <InsightsStaticTh label="Size" />
+                    <InsightsStaticTh label="Qty" className="text-right" />
+                    <InsightsStaticTh label="Price/Info" />
+                    <InsightsStaticTh label="Party/User" />
+                  </InsightsTableHeader>
                   <TableBody>
                     {loading ? (
                       <TableRow>
@@ -1270,7 +1294,7 @@ const PriceHistoryReport = () => {
                       </TableRow>
                     ) : (
                       combinedHistory.slice(0, 300).map((item, idx) => (
-                        <TableRow key={idx}>
+                        <TableRow key={idx} className={INSIGHTS_BODY_ROW}>
                           <TableCell>
                             <span className={`px-2 py-1 rounded text-xs font-medium ${
                               item.type === "purchase" ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300" :
@@ -1316,21 +1340,19 @@ const PriceHistoryReport = () => {
             <CardContent className="p-0">
               <div className="overflow-x-auto">
                 <Table>
-                  <TableHeader>
-                    <TableRow className="bg-muted/50">
-                      <TableHead className="w-[90px]">Date</TableHead>
-                      <TableHead className="w-[100px]">Bill No</TableHead>
-                      <TableHead className="w-[100px]">Barcode</TableHead>
-                      <TableHead>Product</TableHead>
-                      <TableHead className="w-[80px]">Size</TableHead>
-                      <TableHead>Supplier</TableHead>
-                      <TableHead className="w-[60px] text-right">Qty</TableHead>
-                      <TableHead className="w-[90px] text-right">Pur ₹</TableHead>
-                      <TableHead className="w-[90px] text-right">Batch ₹</TableHead>
-                      <TableHead className="w-[90px] text-right">Current ₹</TableHead>
-                      <TableHead className="w-[60px] text-center">Chg</TableHead>
-                    </TableRow>
-                  </TableHeader>
+                  <InsightsTableHeader>
+                    <InsightsStaticTh label="Date" className="w-[90px]" />
+                    <InsightsStaticTh label="Bill No" className="w-[100px]" />
+                    <InsightsStaticTh label="Barcode" className="w-[100px]" />
+                    <InsightsStaticTh label="Product" />
+                    <InsightsStaticTh label="Size" className="w-[80px]" />
+                    <InsightsStaticTh label="Supplier" />
+                    <InsightsStaticTh label="Qty" className="w-[60px] text-right" />
+                    <InsightsStaticTh label="Pur ₹" className="w-[90px] text-right" />
+                    <InsightsStaticTh label="Batch ₹" className="w-[90px] text-right" />
+                    <InsightsStaticTh label="Current ₹" className="w-[90px] text-right" />
+                    <InsightsStaticTh label="Chg" className="w-[60px] text-center" />
+                  </InsightsTableHeader>
                   <TableBody>
                     {loading ? (
                       <TableRow>
@@ -1348,7 +1370,7 @@ const PriceHistoryReport = () => {
                       filteredPurchaseData.map((item) => {
                         const change = getPriceChangeIndicator(item.sale_price, item.current_sale_price);
                         return (
-                          <TableRow key={item.id} className="hover:bg-muted/30">
+                          <TableRow key={item.id} className={INSIGHTS_BODY_ROW}>
                             <TableCell className="font-mono text-sm">
                               {item.bill_date ? format(new Date(item.bill_date), "dd/MM/yy") : "-"}
                             </TableCell>
@@ -1394,22 +1416,20 @@ const PriceHistoryReport = () => {
             <CardContent className="p-0">
               <div className="overflow-x-auto">
                 <Table>
-                  <TableHeader>
-                    <TableRow className="bg-muted/50">
-                      <TableHead>Date</TableHead>
-                      <TableHead>Sale No</TableHead>
-                      <TableHead>Barcode</TableHead>
-                      <TableHead>Product</TableHead>
-                      <TableHead>Size</TableHead>
-                      <TableHead>Customer</TableHead>
-                      <TableHead className="text-right">Qty</TableHead>
-                      <TableHead className="text-right">Unit ₹</TableHead>
-                      <TableHead className="text-right">MRP</TableHead>
-                      <TableHead className="text-right">Disc %</TableHead>
-                      <TableHead className="text-right">Total</TableHead>
-                      <TableHead className="text-right">Savings</TableHead>
-                    </TableRow>
-                  </TableHeader>
+                  <InsightsTableHeader>
+                    <InsightsStaticTh label="Date" />
+                    <InsightsStaticTh label="Sale No" />
+                    <InsightsStaticTh label="Barcode" />
+                    <InsightsStaticTh label="Product" />
+                    <InsightsStaticTh label="Size" />
+                    <InsightsStaticTh label="Customer" />
+                    <InsightsStaticTh label="Qty" className="text-right" />
+                    <InsightsStaticTh label="Unit ₹" className="text-right" />
+                    <InsightsStaticTh label="MRP" className="text-right" />
+                    <InsightsStaticTh label="Disc %" className="text-right" />
+                    <InsightsStaticTh label="Total" className="text-right" />
+                    <InsightsStaticTh label="Savings" className="text-right" />
+                  </InsightsTableHeader>
                   <TableBody>
                     {loading ? (
                       <TableRow>
@@ -1429,7 +1449,7 @@ const PriceHistoryReport = () => {
                           ? (item.mrp - item.unit_price) * item.quantity 
                           : 0;
                         return (
-                          <TableRow key={item.id} className="hover:bg-muted/30">
+                          <TableRow key={item.id} className={INSIGHTS_BODY_ROW}>
                             <TableCell className="font-mono text-sm">
                               {item.sale_date ? format(new Date(item.sale_date), "dd/MM/yy") : "-"}
                             </TableCell>
@@ -1478,18 +1498,16 @@ const PriceHistoryReport = () => {
             <CardContent className="p-0">
               <div className="overflow-x-auto">
                 <Table>
-                  <TableHeader>
-                    <TableRow className="bg-muted/50">
-                      <TableHead>Date & Time</TableHead>
-                      <TableHead>Barcode</TableHead>
-                      <TableHead>Size</TableHead>
-                      <TableHead className="text-right">Old Pur ₹</TableHead>
-                      <TableHead className="text-right">New Pur ₹</TableHead>
-                      <TableHead className="text-right">Old Sale ₹</TableHead>
-                      <TableHead className="text-right">New Sale ₹</TableHead>
-                      <TableHead>Changed By</TableHead>
-                    </TableRow>
-                  </TableHeader>
+                  <InsightsTableHeader>
+                    <InsightsStaticTh label="Date & Time" />
+                    <InsightsStaticTh label="Barcode" />
+                    <InsightsStaticTh label="Size" />
+                    <InsightsStaticTh label="Old Pur ₹" className="text-right" />
+                    <InsightsStaticTh label="New Pur ₹" className="text-right" />
+                    <InsightsStaticTh label="Old Sale ₹" className="text-right" />
+                    <InsightsStaticTh label="New Sale ₹" className="text-right" />
+                    <InsightsStaticTh label="Changed By" />
+                  </InsightsTableHeader>
                   <TableBody>
                     {loading ? (
                       <TableRow>
@@ -1505,7 +1523,7 @@ const PriceHistoryReport = () => {
                       </TableRow>
                     ) : (
                       filteredPriceEdits.map((item) => (
-                        <TableRow key={item.id} className="hover:bg-muted/30">
+                        <TableRow key={item.id} className={INSIGHTS_BODY_ROW}>
                           <TableCell className="font-mono text-sm">
                             {item.created_at ? format(new Date(item.created_at), "dd/MM/yy HH:mm") : "-"}
                           </TableCell>
@@ -1540,18 +1558,16 @@ const PriceHistoryReport = () => {
             <CardContent className="p-0">
               <div className="overflow-x-auto">
                 <Table>
-                  <TableHeader>
-                    <TableRow className="bg-muted/50">
-                      <TableHead>Date & Time</TableHead>
-                      <TableHead>Type</TableHead>
-                      <TableHead>Bill No</TableHead>
-                      <TableHead>Barcode</TableHead>
-                      <TableHead>Product</TableHead>
-                      <TableHead>Size</TableHead>
-                      <TableHead className="text-right">Qty Change</TableHead>
-                      <TableHead>Notes</TableHead>
-                    </TableRow>
-                  </TableHeader>
+                  <InsightsTableHeader>
+                    <InsightsStaticTh label="Date & Time" />
+                    <InsightsStaticTh label="Type" />
+                    <InsightsStaticTh label="Bill No" />
+                    <InsightsStaticTh label="Barcode" />
+                    <InsightsStaticTh label="Product" />
+                    <InsightsStaticTh label="Size" />
+                    <InsightsStaticTh label="Qty Change" className="text-right" />
+                    <InsightsStaticTh label="Notes" />
+                  </InsightsTableHeader>
                   <TableBody>
                     {loading ? (
                       <TableRow>
@@ -1567,7 +1583,7 @@ const PriceHistoryReport = () => {
                       </TableRow>
                     ) : (
                       filteredStockMovements.map((item) => (
-                        <TableRow key={item.id} className="hover:bg-muted/30">
+                        <TableRow key={item.id} className={INSIGHTS_BODY_ROW}>
                           <TableCell className="font-mono text-sm">
                             {item.created_at ? format(new Date(item.created_at), "dd/MM/yy HH:mm") : "-"}
                           </TableCell>
@@ -1611,16 +1627,14 @@ const PriceHistoryReport = () => {
             <CardContent className="p-0">
               <div className="overflow-x-auto">
                 <Table>
-                  <TableHeader>
-                    <TableRow className="bg-muted/50">
-                      <TableHead>Date & Time</TableHead>
-                      <TableHead>Action</TableHead>
-                      <TableHead>Product Name</TableHead>
-                      <TableHead>Brand</TableHead>
-                      <TableHead>Category</TableHead>
-                      <TableHead>Changed By</TableHead>
-                    </TableRow>
-                  </TableHeader>
+                  <InsightsTableHeader>
+                    <InsightsStaticTh label="Date & Time" />
+                    <InsightsStaticTh label="Action" />
+                    <InsightsStaticTh label="Product Name" />
+                    <InsightsStaticTh label="Brand" />
+                    <InsightsStaticTh label="Category" />
+                    <InsightsStaticTh label="Changed By" />
+                  </InsightsTableHeader>
                   <TableBody>
                     {loading ? (
                       <TableRow>
@@ -1636,7 +1650,7 @@ const PriceHistoryReport = () => {
                       </TableRow>
                     ) : (
                       filteredProductChanges.map((item) => (
-                        <TableRow key={item.id} className="hover:bg-muted/30">
+                        <TableRow key={item.id} className={INSIGHTS_BODY_ROW}>
                           <TableCell className="font-mono text-sm">
                             {item.created_at ? format(new Date(item.created_at), "dd/MM/yy HH:mm") : "-"}
                           </TableCell>

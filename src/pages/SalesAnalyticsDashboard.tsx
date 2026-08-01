@@ -6,14 +6,19 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 import { fetchAllSaleItems } from "@/utils/fetchAllRows";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  InsightsKpiCard,
+  InsightsPanel,
+} from "@/components/business-insights/insightsLayout";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { format, subDays, startOfMonth, endOfMonth, startOfYear, subMonths, parseISO, startOfWeek, endOfWeek } from "date-fns";
-import { CalendarIcon, TrendingUp, TrendingDown, IndianRupee, ShoppingCart, Users, Package, ArrowUpRight, ArrowDownRight, Loader2 } from "lucide-react";
+import { CalendarIcon, TrendingUp, IndianRupee, ShoppingCart, ArrowUpRight, ArrowDownRight, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
 import { restoreDashboardFilters } from "@/lib/dashboardFilterPersistence";
 import {
@@ -34,8 +39,16 @@ const CHART_COLORS = [
   "#ef4444",
 ];
 
+const CHART_ANIM = {
+  isAnimationActive: true,
+  animationDuration: 900,
+  animationEasing: "ease-out" as const,
+};
+
 export default function SalesAnalyticsDashboard() {
   const { currentOrganization } = useOrganization();
+  const reduceMotion = usePrefersReducedMotion();
+  const chartAnim = { ...CHART_ANIM, isAnimationActive: !reduceMotion };
   const [searchParams] = useSearchParams();
   const tabFromUrl = searchParams.get("tab");
   const [activeTab, setActiveTab] = useState(tabFromUrl || "overview");
@@ -401,153 +414,131 @@ export default function SalesAnalyticsDashboard() {
 
   if (salesLoading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      <div className="business-insights-workspace flex flex-col bg-slate-50 px-2 sm:px-3 py-2 min-h-0 h-full overflow-hidden">
+        <div className="flex flex-1 items-center justify-center min-h-[400px]">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Sales Analytics</h1>
-          <p className="text-muted-foreground">Comprehensive sales performance insights</p>
+    <div className="business-insights-workspace flex flex-col bg-slate-50 px-2 sm:px-3 py-2 min-h-0 h-full overflow-hidden">
+      <div className="w-full min-w-0 flex flex-col flex-1 min-h-0 gap-2">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 shrink-0">
+          <div className="min-w-0">
+            <h1 className="text-xl font-bold text-teal-700 tracking-tight leading-none flex items-center gap-2">
+              <TrendingUp className="h-5 w-5 shrink-0" />
+              Sales Analytics
+            </h1>
+            <p className="text-sm text-muted-foreground mt-1">Comprehensive sales performance insights</p>
+          </div>
+
+          {/* Period Filter */}
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            <Select value={periodType} onValueChange={(v) => setPeriodType(v as PeriodType)}>
+              <SelectTrigger className="w-[160px] h-9 text-sm border-slate-200 bg-white">
+                <SelectValue placeholder="Select period" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="today">Today</SelectItem>
+                <SelectItem value="yesterday">Yesterday</SelectItem>
+                <SelectItem value="this-week">This Week</SelectItem>
+                <SelectItem value="last-week">Last Week</SelectItem>
+                <SelectItem value="this-month">This Month</SelectItem>
+                <SelectItem value="last-month">Last Month</SelectItem>
+                <SelectItem value="this-year">This Year</SelectItem>
+                <SelectItem value="custom">Custom Range</SelectItem>
+              </SelectContent>
+            </Select>
+
+            {periodType === "custom" && (
+              <div className="flex items-center gap-2">
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="sm" className="h-9">
+                      <CalendarIcon className="h-4 w-4 mr-2" />
+                      {format(startDate, "MMM dd")}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar mode="single" selected={startDate} onSelect={(d) => d && setStartDate(d)} />
+                  </PopoverContent>
+                </Popover>
+                <span className="text-muted-foreground text-sm">to</span>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="sm" className="h-9">
+                      <CalendarIcon className="h-4 w-4 mr-2" />
+                      {format(endDate, "MMM dd")}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar mode="single" selected={endDate} onSelect={(d) => d && setEndDate(d)} />
+                  </PopoverContent>
+                </Popover>
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* Period Filter */}
-        <div className="flex flex-wrap items-center gap-2">
-          <Select value={periodType} onValueChange={(v) => setPeriodType(v as PeriodType)}>
-            <SelectTrigger className="w-[160px]">
-              <SelectValue placeholder="Select period" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="today">Today</SelectItem>
-              <SelectItem value="yesterday">Yesterday</SelectItem>
-              <SelectItem value="this-week">This Week</SelectItem>
-              <SelectItem value="last-week">Last Week</SelectItem>
-              <SelectItem value="this-month">This Month</SelectItem>
-              <SelectItem value="last-month">Last Month</SelectItem>
-              <SelectItem value="this-year">This Year</SelectItem>
-              <SelectItem value="custom">Custom Range</SelectItem>
-            </SelectContent>
-          </Select>
-
-          {periodType === "custom" && (
-            <div className="flex items-center gap-2">
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" size="sm">
-                    <CalendarIcon className="h-4 w-4 mr-2" />
-                    {format(startDate, "MMM dd")}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar mode="single" selected={startDate} onSelect={(d) => d && setStartDate(d)} />
-                </PopoverContent>
-              </Popover>
-              <span className="text-muted-foreground">to</span>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" size="sm">
-                    <CalendarIcon className="h-4 w-4 mr-2" />
-                    {format(endDate, "MMM dd")}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar mode="single" selected={endDate} onSelect={(d) => d && setEndDate(d)} />
-                </PopoverContent>
-              </Popover>
-            </div>
-          )}
+        {/* Summary KPIs */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 w-full shrink-0">
+          <InsightsKpiCard
+            label="Total Revenue"
+            value={summaryStats.totalRevenue}
+            valueFormat="inr"
+            sub={<GrowthIndicator value={summaryStats.revenueGrowth} />}
+          />
+          <InsightsKpiCard
+            label="Total Orders"
+            value={summaryStats.totalOrders}
+            valueFormat="int"
+            sub={<GrowthIndicator value={summaryStats.ordersGrowth} />}
+          />
+          <InsightsKpiCard
+            label="Avg Order Value"
+            value={summaryStats.avgOrderValue}
+            valueFormat="inr"
+            sub={<GrowthIndicator value={summaryStats.aovGrowth} />}
+          />
+          <InsightsKpiCard
+            label="Unique Customers"
+            value={summaryStats.uniqueCustomers}
+            valueFormat="int"
+            sub="Active buyers"
+          />
         </div>
-      </div>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="bg-gradient-to-br from-blue-500 to-blue-600 border-0 shadow-lg">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-white/80">Total Revenue</p>
-                <p className="text-2xl font-bold text-white">{formatCurrency(summaryStats.totalRevenue)}</p>
-                <GrowthIndicator value={summaryStats.revenueGrowth} />
-              </div>
-              <div className="h-12 w-12 rounded-full bg-white/20 flex items-center justify-center">
-                <IndianRupee className="h-6 w-6 text-white" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        {/* Charts Section */}
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-1 min-h-0 gap-2">
+          <TabsList className="flex h-auto w-full flex-wrap justify-start gap-1 bg-transparent p-0 shrink-0">
+            {(
+              [
+                { value: "overview", label: "Overview" },
+                { value: "products", label: "Products" },
+                { value: "customers", label: "Customers" },
+                { value: "payments", label: "Payments" },
+                { value: "trends", label: "Trends" },
+              ] as const
+            ).map(({ value, label }) => (
+              <TabsTrigger
+                key={value}
+                value={value}
+                className={cn(
+                  "h-9 px-4 text-sm font-semibold rounded-md border border-slate-200 bg-white text-slate-600 shadow-sm",
+                  "data-[state=active]:bg-slate-700 data-[state=active]:text-white data-[state=active]:border-slate-700",
+                )}
+              >
+                {label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
 
-        <Card className="bg-gradient-to-br from-cyan-500 to-cyan-600 border-0 shadow-lg">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-white/80">Total Orders</p>
-                <p className="text-2xl font-bold text-white">{summaryStats.totalOrders}</p>
-                <GrowthIndicator value={summaryStats.ordersGrowth} />
-              </div>
-              <div className="h-12 w-12 rounded-full bg-white/20 flex items-center justify-center">
-                <ShoppingCart className="h-6 w-6 text-white" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-emerald-500 to-emerald-600 border-0 shadow-lg">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-white/80">Avg Order Value</p>
-                <p className="text-2xl font-bold text-white">{formatCurrency(summaryStats.avgOrderValue)}</p>
-                <GrowthIndicator value={summaryStats.aovGrowth} />
-              </div>
-              <div className="h-12 w-12 rounded-full bg-white/20 flex items-center justify-center">
-                <TrendingUp className="h-6 w-6 text-white" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-pink-500 to-pink-600 border-0 shadow-lg">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-white/80">Unique Customers</p>
-                <p className="text-2xl font-bold text-white">{summaryStats.uniqueCustomers}</p>
-                <p className="text-xs text-white/60 mt-1">Active buyers</p>
-              </div>
-              <div className="h-12 w-12 rounded-full bg-white/20 flex items-center justify-center">
-                <Users className="h-6 w-6 text-white" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Charts Section */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="grid w-full grid-cols-5 lg:w-[500px]">
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="products">Products</TabsTrigger>
-          <TabsTrigger value="customers">Customers</TabsTrigger>
-          <TabsTrigger value="payments">Payments</TabsTrigger>
-          <TabsTrigger value="trends">Trends</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="overview" className="space-y-4">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {/* Revenue Trend */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <TrendingUp className="h-5 w-5 text-primary" />
-                  Revenue Trend
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="h-[300px]">
+          <TabsContent value="overview" className="flex-1 min-h-0 overflow-y-auto mt-0 space-y-2 data-[state=inactive]:hidden">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
+              <InsightsPanel title="Revenue Trend" subtitle="Daily net revenue">
+                <div className="h-[300px] p-3">
                   <ResponsiveContainer width="100%" height="100%">
                     <AreaChart data={dailySalesTrend}>
                       <defs>
@@ -560,90 +551,88 @@ export default function SalesAnalyticsDashboard() {
                       <XAxis dataKey="date" className="text-xs" tick={{ fill: "hsl(var(--muted-foreground))" }} />
                       <YAxis className="text-xs" tick={{ fill: "hsl(var(--muted-foreground))" }} tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} />
                       <Tooltip content={<CustomTooltip />} />
-                      <Area type="monotone" dataKey="revenue" name="Revenue" stroke="hsl(var(--primary))" fill="url(#revenueGradient)" strokeWidth={2} />
+                      <Area
+                        type="monotone"
+                        dataKey="revenue"
+                        name="Revenue"
+                        stroke="hsl(var(--primary))"
+                        fill="url(#revenueGradient)"
+                        strokeWidth={2}
+                        {...chartAnim}
+                      />
                     </AreaChart>
                   </ResponsiveContainer>
                 </div>
-              </CardContent>
-            </Card>
+              </InsightsPanel>
 
-            {/* Orders Trend */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <ShoppingCart className="h-5 w-5 text-chart-2" />
-                  Orders Trend
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="h-[300px]">
+              <InsightsPanel title="Orders Trend" subtitle="Daily order count">
+                <div className="h-[300px] p-3">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={dailySalesTrend}>
                       <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                       <XAxis dataKey="date" className="text-xs" tick={{ fill: "hsl(var(--muted-foreground))" }} />
                       <YAxis className="text-xs" tick={{ fill: "hsl(var(--muted-foreground))" }} />
                       <Tooltip content={<CustomTooltip />} />
-                      <Bar dataKey="orders" name="Orders" fill="hsl(var(--chart-2))" radius={[4, 4, 0, 0]} />
+                      <Bar
+                        dataKey="orders"
+                        name="Orders"
+                        fill="hsl(var(--chart-2))"
+                        radius={[4, 4, 0, 0]}
+                        {...chartAnim}
+                      />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
+              </InsightsPanel>
+            </div>
+          </TabsContent>
 
-        <TabsContent value="products" className="space-y-4">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {/* Top Products by Quantity */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <Package className="h-5 w-5 text-chart-3" />
-                  Top Products by Quantity
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="h-[350px]">
+          <TabsContent value="products" className="flex-1 min-h-0 overflow-y-auto mt-0 space-y-2 data-[state=inactive]:hidden">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
+              <InsightsPanel title="Top Products by Quantity" subtitle="Top 10 by units sold">
+                <div className="h-[350px] p-3">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={topProducts} layout="vertical">
                       <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                       <XAxis type="number" className="text-xs" tick={{ fill: "hsl(var(--muted-foreground))" }} />
                       <YAxis type="category" dataKey="name" className="text-xs" width={120} tick={{ fill: "hsl(var(--muted-foreground))" }} />
                       <Tooltip content={<CustomTooltip />} />
-                      <Bar dataKey="quantity" name="Quantity" fill="hsl(var(--chart-3))" radius={[0, 4, 4, 0]} />
+                      <Bar
+                        dataKey="quantity"
+                        name="Quantity"
+                        fill="hsl(var(--chart-3))"
+                        radius={[0, 4, 4, 0]}
+                        {...chartAnim}
+                      />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
-              </CardContent>
-            </Card>
+              </InsightsPanel>
 
-            {/* Top Products by Revenue */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <IndianRupee className="h-5 w-5 text-chart-4" />
-                  Top Products by Revenue
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="h-[350px]">
+              <InsightsPanel title="Top Products by Revenue" subtitle="Top 10 by line revenue">
+                <div className="h-[350px] p-3">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={topProducts} layout="vertical">
                       <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                       <XAxis type="number" className="text-xs" tick={{ fill: "hsl(var(--muted-foreground))" }} tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} />
                       <YAxis type="category" dataKey="name" className="text-xs" width={120} tick={{ fill: "hsl(var(--muted-foreground))" }} />
                       <Tooltip content={<CustomTooltip />} />
-                      <Bar dataKey="revenue" name="Revenue" fill="hsl(var(--chart-4))" radius={[0, 4, 4, 0]} />
+                      <Bar
+                        dataKey="revenue"
+                        name="Revenue"
+                        fill="hsl(var(--chart-4))"
+                        radius={[0, 4, 4, 0]}
+                        {...chartAnim}
+                      />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
+              </InsightsPanel>
+            </div>
+          </TabsContent>
 
-        <TabsContent value="customers" className="space-y-4">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <TabsContent value="customers" className="flex-1 min-h-0 overflow-y-auto mt-0 space-y-2 data-[state=inactive]:hidden">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-2">
             {/* Top Customers by Revenue */}
             <Card>
               <CardHeader>
@@ -739,46 +728,38 @@ export default function SalesAnalyticsDashboard() {
                 </div>
               </CardContent>
             </Card>
-          </div>
+            </div>
 
-          {/* Customer Revenue Chart */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Users className="h-5 w-5 text-chart-4" />
-                Customer Revenue Distribution
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="h-[300px]">
+            <InsightsPanel title="Customer Revenue Distribution" subtitle="Top 8 customers by revenue">
+              <div className="h-[300px] p-3">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={customerSegmentation.topByRevenue.slice(0, 8)}>
                     <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                    <XAxis 
-                      dataKey="name" 
-                      className="text-xs" 
-                      tick={{ fill: "hsl(var(--muted-foreground))" }} 
+                    <XAxis
+                      dataKey="name"
+                      className="text-xs"
+                      tick={{ fill: "hsl(var(--muted-foreground))" }}
                       tickFormatter={(v) => v.substring(0, 10) + (v.length > 10 ? "..." : "")}
                     />
                     <YAxis className="text-xs" tick={{ fill: "hsl(var(--muted-foreground))" }} tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} />
                     <Tooltip content={<CustomTooltip />} />
-                    <Bar dataKey="revenue" name="Revenue" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                    <Bar
+                      dataKey="revenue"
+                      name="Revenue"
+                      fill="hsl(var(--primary))"
+                      radius={[4, 4, 0, 0]}
+                      {...chartAnim}
+                    />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
+            </InsightsPanel>
+          </TabsContent>
 
-        <TabsContent value="payments" className="space-y-4">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {/* Payment Method Distribution */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Payment Method Distribution</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="h-[300px]">
+          <TabsContent value="payments" className="flex-1 min-h-0 overflow-y-auto mt-0 space-y-2 data-[state=inactive]:hidden">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
+              <InsightsPanel title="Payment Method Distribution" subtitle="Revenue by payment method">
+                <div className="h-[300px] p-3">
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                       <Pie
@@ -790,6 +771,7 @@ export default function SalesAnalyticsDashboard() {
                         paddingAngle={2}
                         dataKey="value"
                         label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
+                        {...chartAnim}
                       >
                         {paymentMethodData.map((_, index) => (
                           <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
@@ -799,16 +781,10 @@ export default function SalesAnalyticsDashboard() {
                     </PieChart>
                   </ResponsiveContainer>
                 </div>
-              </CardContent>
-            </Card>
+              </InsightsPanel>
 
-            {/* Payment Status */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Payment Status</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="h-[300px]">
+              <InsightsPanel title="Payment Status" subtitle="Order count by status">
+                <div className="h-[300px] p-3">
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                       <Pie
@@ -820,6 +796,7 @@ export default function SalesAnalyticsDashboard() {
                         paddingAngle={2}
                         dataKey="value"
                         label={({ name, value }) => `${name}: ${value}`}
+                        {...chartAnim}
                       >
                         {paymentStatusData.map((entry, index) => (
                           <Cell
@@ -837,19 +814,13 @@ export default function SalesAnalyticsDashboard() {
                     </PieChart>
                   </ResponsiveContainer>
                 </div>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
+              </InsightsPanel>
+            </div>
+          </TabsContent>
 
-        <TabsContent value="trends" className="space-y-4">
-          {/* Hourly Sales Distribution */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Hourly Sales Distribution</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="h-[300px]">
+          <TabsContent value="trends" className="flex-1 min-h-0 overflow-y-auto mt-0 space-y-2 data-[state=inactive]:hidden">
+            <InsightsPanel title="Hourly Sales Distribution" subtitle="Revenue and orders by hour of day">
+              <div className="h-[300px] p-3">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={hourlySalesData}>
                     <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
@@ -858,36 +829,45 @@ export default function SalesAnalyticsDashboard() {
                     <YAxis yAxisId="right" orientation="right" className="text-xs" tick={{ fill: "hsl(var(--muted-foreground))" }} />
                     <Tooltip content={<CustomTooltip />} />
                     <Legend />
-                    <Line yAxisId="left" type="monotone" dataKey="revenue" name="Revenue" stroke="hsl(var(--primary))" strokeWidth={2} dot={false} />
-                    <Line yAxisId="right" type="monotone" dataKey="orders" name="Orders" stroke="hsl(var(--chart-2))" strokeWidth={2} dot={false} />
+                    <Line
+                      yAxisId="left"
+                      type="monotone"
+                      dataKey="revenue"
+                      name="Revenue"
+                      stroke="hsl(var(--primary))"
+                      strokeWidth={2}
+                      dot={false}
+                      {...chartAnim}
+                    />
+                    <Line
+                      yAxisId="right"
+                      type="monotone"
+                      dataKey="orders"
+                      name="Orders"
+                      stroke="hsl(var(--chart-2))"
+                      strokeWidth={2}
+                      dot={false}
+                      {...chartAnim}
+                    />
                   </LineChart>
                 </ResponsiveContainer>
               </div>
-            </CardContent>
-          </Card>
+            </InsightsPanel>
 
-          {/* Discount Summary */}
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">Total Discounts Given</p>
-                  <p className="text-2xl font-bold text-foreground">{formatCurrency(summaryStats.totalDiscount)}</p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {summaryStats.totalRevenue > 0 
-                      ? `${((summaryStats.totalDiscount / (summaryStats.totalRevenue + summaryStats.totalDiscount)) * 100).toFixed(1)}% of gross`
-                      : "0% of gross"
-                    }
-                  </p>
-                </div>
-                <div className="h-12 w-12 rounded-full bg-destructive/20 flex items-center justify-center">
-                  <TrendingDown className="h-6 w-6 text-destructive" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+            <InsightsKpiCard
+              label="Total Discounts Given"
+              value={summaryStats.totalDiscount}
+              valueFormat="inr"
+              sub={
+                summaryStats.totalRevenue > 0
+                  ? `${((summaryStats.totalDiscount / (summaryStats.totalRevenue + summaryStats.totalDiscount)) * 100).toFixed(1)}% of gross`
+                  : "0% of gross"
+              }
+              tone="attention"
+            />
+          </TabsContent>
+        </Tabs>
+      </div>
     </div>
   );
 }
