@@ -9,6 +9,7 @@ import { getUniversalCodeScanWarning } from "@/utils/imeiValidation";
 import { productRequiresImei } from "@/utils/productRequiresImei";
 import { useSettings } from "@/hooks/useSettings";
 import { resolveGarmentGstForLine } from "@/utils/gstRules";
+import { displaySaleStockQty } from "@/utils/productStockDisplay";
 import { useLocation, useSearchParams } from "react-router-dom";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { supabase } from "@/integrations/supabase/client";
@@ -6367,9 +6368,14 @@ export default function POSSales() {
                                       MRP ₹{item.variant.mrp}
                                     </span>
                                   )}
-                                  <span className={(item.variant.stock_qty > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-destructive") + " group-data-[selected=true]:text-white"}>
-                                    Stock: {item.variant.stock_qty}
+                                  {(() => {
+                                    const stockDisp = displaySaleStockQty(product.product_type, item.variant.stock_qty);
+                                    return (
+                                  <span className={(stockDisp > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-destructive") + " group-data-[selected=true]:text-white"}>
+                                    Stock: {stockDisp}
                                   </span>
+                                    );
+                                  })()}
                                 </div>
                                 {item.variant.batch_stock && item.variant.batch_stock.length > 0 && (
                                   <span className="text-xs text-foreground/60 group-data-[selected=true]:text-accent-foreground/70">

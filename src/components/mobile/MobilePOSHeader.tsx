@@ -22,6 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { displaySaleStockQty } from "@/utils/productStockDisplay";
 
 interface MobilePOSHeaderProps {
   invoiceNumber: string;
@@ -195,9 +196,14 @@ export const MobilePOSHeader = ({
                   </div>
                   <div className="text-right shrink-0">
                     <p className="text-sm font-bold text-primary">₹{variant.sale_price}</p>
-                    <p className={`text-[11px] font-medium ${(variant.stock_qty || 0) > 0 ? 'text-emerald-600' : 'text-destructive'}`}>
-                      Qty: {variant.stock_qty || 0}
+                    {(() => {
+                      const stockDisp = displaySaleStockQty(product.product_type, variant.stock_qty);
+                      return (
+                    <p className={`text-[11px] font-medium ${stockDisp > 0 ? 'text-emerald-600' : 'text-destructive'}`}>
+                      Qty: {stockDisp}
                     </p>
+                      );
+                    })()}
                   </div>
                 </div>
               </button>

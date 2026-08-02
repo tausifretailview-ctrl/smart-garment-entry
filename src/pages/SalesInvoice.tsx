@@ -43,6 +43,7 @@ import { useMobileERP } from "@/hooks/useMobileERP";
 import { FinancerDetailsForm, FinancerDetails } from "@/components/FinancerDetailsForm";
 
 import { SizeGridDialog } from "@/components/SizeGridDialog";
+import { displaySaleStockQty } from "@/utils/productStockDisplay";
 import { format } from "date-fns";
 import { cn, sortSearchResults, buildProductDisplayName } from "@/lib/utils";
 import {
@@ -3670,9 +3671,14 @@ Thank you for choosing us!`;
                       </div>
                       <div className="text-right shrink-0">
                         <p className="text-sm font-bold text-primary">₹{variant.sale_price}</p>
-                        <p className={cn("text-[11px] font-medium", (variant.stock_qty || 0) > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-destructive")}>
-                          Stock: {variant.stock_qty || 0}
+                        {(() => {
+                          const stockDisp = displaySaleStockQty(product.product_type, variant.stock_qty);
+                          return (
+                        <p className={cn("text-[11px] font-medium", stockDisp > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-destructive")}>
+                          Stock: {stockDisp}
                         </p>
+                          );
+                        })()}
                       </div>
                     </div>
                   </button>
@@ -4419,9 +4425,14 @@ Thank you for choosing us!`;
                                   {variant.mrp && variant.mrp !== variant.sale_price && (
                                     <span className="line-through group-data-[selected=true]:text-white/70">MRP: ₹{variant.mrp}</span>
                                   )}
-                                  <span className={`${variant.stock_qty > 5 ? 'text-green-600' : 'text-orange-500'} group-data-[selected=true]:text-white/90`}>
-                                    Stock: {variant.stock_qty}
+                                  {(() => {
+                                    const stockDisp = displaySaleStockQty(product.product_type, variant.stock_qty);
+                                    return (
+                                  <span className={`${stockDisp > 5 ? 'text-green-600' : 'text-orange-500'} group-data-[selected=true]:text-white/90`}>
+                                    Stock: {stockDisp}
                                   </span>
+                                    );
+                                  })()}
                                 </div>
                               </div>
                             </div>
