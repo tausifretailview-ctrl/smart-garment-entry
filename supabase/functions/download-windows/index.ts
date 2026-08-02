@@ -7,7 +7,7 @@ const corsHeaders = {
 };
 
 /** Keep in sync with APP_VERSION in src/config/downloads.ts */
-const CURRENT_VERSION = "1.1.0";
+const CURRENT_VERSION = "1.2.0";
 const DEFAULT_FILE = `EzzyERP-Setup-${CURRENT_VERSION}.exe`;
 const BUCKET_ID = "app-downloads";
 const SIGNED_URL_TTL_SEC = 3600;
@@ -15,7 +15,9 @@ const SIGNED_URL_TTL_SEC = 3600;
 const ALLOWED_FILES = new Set([
   DEFAULT_FILE,
   `EzzyERP-Portable-${CURRENT_VERSION}.exe`,
-  // add new installer filenames here each release
+  // prior releases (old share links)
+  "EzzyERP-Setup-1.1.0.exe",
+  "EzzyERP-Portable-1.1.0.exe",
 ]);
 
 function jsonResponse(body: Record<string, string>, status: number): Response {
