@@ -1,4 +1,13 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type Dispatch,
+  type MutableRefObject,
+  type SetStateAction,
+} from "react";
 import type { GstTaxType } from "@/utils/gstRegisterUtils";
 import { normalizeGstTaxType } from "@/utils/gstRegisterUtils";
 import type { GarmentGstRuleSettings } from "@/utils/gstRules";
@@ -48,12 +57,12 @@ export type UsePosBillingParams = {
 
 export type UsePosBillingResult = {
   items: PosCartItem[];
-  itemsRef: React.MutableRefObject<PosCartItem[]>;
-  setItems: React.Dispatch<React.SetStateAction<PosCartItem[]>>;
+  itemsRef: MutableRefObject<PosCartItem[]>;
+  setItems: Dispatch<SetStateAction<PosCartItem[]>>;
 
   flatDiscountValue: number;
   flatDiscountMode: PosFlatDiscountMode;
-  setFlatDiscountMode: React.Dispatch<React.SetStateAction<PosFlatDiscountMode>>;
+  setFlatDiscountMode: Dispatch<SetStateAction<PosFlatDiscountMode>>;
   setFlatDiscountValue: (value: number) => void;
   handleFlatDiscountValueChange: (value: number) => void;
 
@@ -61,20 +70,20 @@ export type UsePosBillingResult = {
   setTaxType: (value: GstTaxType | string) => void;
 
   saleReturnAdjust: number;
-  setSaleReturnAdjust: React.Dispatch<React.SetStateAction<number>>;
+  setSaleReturnAdjust: Dispatch<SetStateAction<number>>;
   creditApplied: number;
-  setCreditApplied: React.Dispatch<React.SetStateAction<number>>;
+  setCreditApplied: Dispatch<SetStateAction<number>>;
 
   roundOff: number;
-  setRoundOff: React.Dispatch<React.SetStateAction<number>>;
+  setRoundOff: Dispatch<SetStateAction<number>>;
   isManualRoundOff: boolean;
-  setIsManualRoundOff: React.Dispatch<React.SetStateAction<boolean>>;
+  setIsManualRoundOff: Dispatch<SetStateAction<boolean>>;
   handleRoundOffChange: (value: number) => void;
   handleFinalAmountChange: (enteredAmount: number) => void;
   handleResetRoundOff: () => void;
 
   pointsToRedeem: number;
-  setPointsToRedeem: React.Dispatch<React.SetStateAction<number>>;
+  setPointsToRedeem: Dispatch<SetStateAction<number>>;
 
   totals: ReturnType<typeof computePosBillTotals>;
   lastError: PosBillingError | null;
@@ -149,11 +158,20 @@ export type UsePosBillingResult = {
 export function usePosBilling(params: UsePosBillingParams): UsePosBillingResult {
   const { grossBasis, garmentGstSettings, calculateRedemptionValue } = params;
 
-  const [items, setItems] = useState<PosCartItem[]>(() =>
+  const [items, setItemsState] = useState<PosCartItem[]>(() =>
     Array.isArray(params.initialItems) ? params.initialItems : [],
   );
   const itemsRef = useRef<PosCartItem[]>(items);
   itemsRef.current = items;
+
+  /** Keep itemsRef in sync inside the updater (same tick as setState) — matches prior POSSales. */
+  const setItems = useCallback((updater: SetStateAction<PosCartItem[]>) => {
+    setItemsState((prev) => {
+      const next = typeof updater === "function" ? (updater as (p: PosCartItem[]) => PosCartItem[])(prev) : updater;
+      itemsRef.current = next;
+      return next;
+    });
+  }, []);
 
   const [flatDiscountValue, setFlatDiscountValueRaw] = useState(0);
   const [flatDiscountMode, setFlatDiscountMode] = useState<PosFlatDiscountMode>("percent");
@@ -236,12 +254,16 @@ export function usePosBilling(params: UsePosBillingParams): UsePosBillingResult 
     setRoundOff(parseFloat(totals.calculatedRoundOff.toFixed(2)));
   }, [totals.calculatedRoundOff]);
 
-  const applyMutator = useCallback((result: CartMutatorResult) => {
-    setItems(result.items);
-    if (result.error) setLastError(result.error);
-    else setLastError(null);
-    return result;
-  }, []);
+  const applyMutator = useCallback(
+    (result: CartMutatorResult) => {
+      itemsRef.current = result.items;
+      setItemsState(result.items);
+      if (result.error) setLastError(result.error);
+      else setLastError(null);
+      return result;
+    },
+    [],
+  );
 
   const addLine = useCallback(
     (input: {
