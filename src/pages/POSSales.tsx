@@ -6887,9 +6887,11 @@ export default function POSSales() {
                           )}
                           <div>
                             <select
-                              value={String(item.gstPer ?? 0)}
+                              value={taxType === "no_gst" ? "0" : String(item.gstPer ?? 0)}
                               onChange={(e) => updateGstPer(index, parseInt(e.target.value, 10))}
-                              className="h-8 w-full rounded-md text-sm border border-border/60 bg-muted/30 px-1.5 text-center focus:outline-none focus:ring-2 focus:ring-ring"
+                              disabled={taxType === "no_gst"}
+                              title={taxType === "no_gst" ? "Without GST — tax rate not applied" : undefined}
+                              className="h-8 w-full rounded-md text-sm border border-border/60 bg-muted/30 px-1.5 text-center focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-60 disabled:cursor-not-allowed"
                             >
                               <option value="0">0%</option>
                               <option value="5">5%</option>

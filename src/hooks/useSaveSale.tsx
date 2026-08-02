@@ -810,7 +810,7 @@ export const useSaveSale = () => {
           quantity: item.quantity,
           unit_price: item.unitCost,
           mrp: item.mrp,
-          gst_percent: item.gstPer,
+          gst_percent: saleData.taxType === "no_gst" ? 0 : item.gstPer,
           discount_percent: item.discountPercent,
           line_total: item.netAmount,
           hsn_code: item.hsnCode || null,
@@ -1232,10 +1232,16 @@ export const useSaveSale = () => {
       console.error('Error saving sale:', error);
       const isDuplicate = error?.code === '23505' || 
                           error?.message?.includes('duplicate key');
+      const isTaxTypeCheck =
+        error?.code === "23514" &&
+        (error?.message?.includes("sales_tax_type_check") ||
+          error?.message?.includes("tax_type"));
       toast({
         title: isDuplicate ? "Bill number conflict" : "Error saving sale",
         description: isDuplicate
           ? "Another user saved a bill at the same time. Please try again."
+          : isTaxTypeCheck
+            ? "Without GST is not enabled on the database yet. Apply migration sales_tax_type_allow_no_gst, then retry."
           : isJwtExpiredError(error)
             ? "Session expired — refreshing. Please click Save again."
             : isStatementTimeoutError(error)
@@ -1547,7 +1553,7 @@ export const useSaveSale = () => {
           quantity: item.quantity,
           unit_price: item.unitCost,
           mrp: item.mrp,
-          gst_percent: item.gstPer,
+          gst_percent: saleData.taxType === "no_gst" ? 0 : item.gstPer,
           discount_percent: item.discountPercent,
           line_total: item.netAmount,
           hsn_code: item.hsnCode || null,
@@ -2022,7 +2028,7 @@ export const useSaveSale = () => {
           quantity: item.quantity,
           unit_price: item.unitCost,
           mrp: item.mrp,
-          gst_percent: item.gstPer,
+          gst_percent: saleData.taxType === "no_gst" ? 0 : item.gstPer,
           discount_percent: item.discountPercent,
           line_total: item.netAmount,
           hsn_code: item.hsnCode || null,
