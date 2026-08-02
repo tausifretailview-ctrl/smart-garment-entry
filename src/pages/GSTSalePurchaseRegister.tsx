@@ -20,6 +20,7 @@ import {
   isInterState,
   generateGSTRegisterExcel,
   downloadGSTRegisterExcel,
+  normalizeGstTaxType,
   SalesRegisterRow,
   SaleReturnRegisterRow,
   PurchaseRegisterRow,
@@ -248,9 +249,7 @@ const GSTSalePurchaseRegister = () => {
         );
         const customerGSTIN = (sale.customers as any)?.gst_number || "";
         const isInterStateTx = isInterState(businessGSTIN, customerGSTIN);
-        const taxType = ((sale as any).tax_type === "exclusive" || (sale as any).tax_type === "gst_exclusive")
-          ? "exclusive"
-          : "inclusive";
+        const taxType = normalizeGstTaxType((sale as any).tax_type);
         const breakup = calculateGSTBreakup(items, taxType, isInterStateTx);
         calculateInvoiceValue(breakup);
 
@@ -293,9 +292,7 @@ const GSTSalePurchaseRegister = () => {
         );
         const customerGSTIN = (sale.customers as any)?.gst_number || "";
         const isInterStateTx = isInterState(businessGSTIN, customerGSTIN);
-        const taxType = ((sale as any).tax_type === "exclusive" || (sale as any).tax_type === "gst_exclusive")
-          ? "exclusive"
-          : "inclusive";
+        const taxType = normalizeGstTaxType((sale as any).tax_type);
         const breakup = calculateGSTBreakup(items, taxType, isInterStateTx);
         calculateInvoiceValue(breakup);
 

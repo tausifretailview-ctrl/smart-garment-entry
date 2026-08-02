@@ -48,6 +48,7 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useReactToPrint } from "react-to-print";
 import { InvoiceWrapper } from "@/components/InvoiceWrapper";
+import { normalizeGstTaxType } from "@/utils/gstRegisterUtils";
 import { SettleCustomerAccountDialog } from "@/components/SettleCustomerAccountDialog";
 import { PrintPreviewDialog } from "@/components/PrintPreviewDialog";
 import { EInvoicePrint } from "@/components/EInvoicePrint";
@@ -166,6 +167,7 @@ interface Sale {
   sale_return_adjust?: number | null;
   salesman?: string | null;
   notes?: string | null;
+  tax_type?: string | null;
   created_at: string;
   created_by?: string | null;
   sale_type?: string;
@@ -1512,6 +1514,7 @@ const POSDashboard = () => {
         previousBalance: previousBalance || 0,
         salesman: sale.salesman || "",
         notes: sale.notes || "",
+        taxType: normalizeGstTaxType(sale.tax_type),
         financerDetails,
       };
     },
@@ -4026,7 +4029,7 @@ const POSDashboard = () => {
               paidAmount={getEffectivePaidAmountForDashboard(previewSale)}
               salesman={previewSale.salesman || ''}
               notes={previewSale.notes || ''}
-              taxType={saleSettings?.default_tax_type || 'inclusive'}
+              taxType={normalizeGstTaxType(previewSale.tax_type ?? saleSettings?.default_tax_type)}
               financerDetails={previewFinancerDetails}
             />
           )}
@@ -4179,7 +4182,7 @@ const POSDashboard = () => {
             previousBalance={printData.previousBalance}
             salesman={printData.salesman || ''}
             notes={printData.notes || ''}
-            taxType={saleSettings?.default_tax_type || 'inclusive'}
+            taxType={normalizeGstTaxType(printData.taxType ?? saleSettings?.default_tax_type)}
             financerDetails={printData.financerDetails || null}
                   format={posInvoiceWrapperFormat}
                   template={posInvoiceTemplate}

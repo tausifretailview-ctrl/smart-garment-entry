@@ -122,7 +122,7 @@ export const calculateTaxableFromInclusive = (total: number, gstPercent: number)
   return total / (1 + gstPercent / 100);
 };
 
-export type GstTaxType = 'inclusive' | 'exclusive';
+export type GstTaxType = 'inclusive' | 'exclusive' | 'no_gst';
 
 /** Split final line total into taxable base + GST (works for both stored pricing modes). */
 export const splitLineGstFromTotal = (
@@ -142,8 +142,18 @@ export const computeTallyLineDisplay = (
   qty: number,
   taxType: GstTaxType = 'inclusive'
 ): { taxable: number; gst: number; displayRate: number; displayAmount: number } => {
-  const { taxable, gst } = splitLineGstFromTotal(lineTotal, gstPercent);
   const safeQty = qty > 0 ? qty : 1;
+  // Without GST: price is final — do not extract or add tax.
+  if (taxType === 'no_gst') {
+    const amount = lineTotal || 0;
+    return {
+      taxable: amount,
+      gst: 0,
+      displayRate: amount / safeQty,
+      displayAmount: amount,
+    };
+  }
+  const { taxable, gst } = splitLineGstFromTotal(lineTotal, gstPercent);
   if (taxType === 'inclusive') {
     return {
       taxable,
@@ -160,8 +170,11 @@ export const computeTallyLineDisplay = (
   };
 };
 
-export const normalizeGstTaxType = (value?: string | null): GstTaxType =>
-  value === 'exclusive' || value === 'gst_exclusive' ? 'exclusive' : 'inclusive';
+export const normalizeGstTaxType = (value?: string | null): GstTaxType => {
+  if (value === 'exclusive' || value === 'gst_exclusive') return 'exclusive';
+  if (value === 'no_gst' || value === 'without_gst') return 'no_gst';
+  return 'inclusive';
+};
 
 /** Invoice print line shape for gross vs net discount detection. */
 export type InvoiceLineForGst = {
@@ -199,7 +212,7 @@ export const getGstInclusiveNetBase = (
 // FIX G10: Calculate GST breakup — accumulate exact values, round only at the end
 export const calculateGSTBreakup = (
   items: Array<{ gst_percent: number; line_total: number; unit_price?: number; quantity?: number }>,
-  taxType: 'inclusive' | 'exclusive' = 'inclusive',
+  taxType: GstTaxType = 'inclusive',
   isInterStateTransaction: boolean = false
 ): GSTBreakup => {
   const breakup: GSTBreakup = {
@@ -209,6 +222,17 @@ export const calculateGSTBreakup = (
     taxable_18: 0, cgst_9: 0, sgst_9: 0, igst_18: 0,
     taxable_28: 0, cgst_14: 0, sgst_14: 0, igst_28: 0,
   };
+
+  // Bill of Supply / Without GST: taxable = line totals, all tax components zero.
+  if (taxType === 'no_gst') {
+    items.forEach((item) => {
+      breakup.taxable_0 += item.line_total || 0;
+    });
+    Object.keys(breakup).forEach((key) => {
+      breakup[key as keyof GSTBreakup] = Math.round(breakup[key as keyof GSTBreakup] * 100) / 100;
+    });
+    return breakup;
+  }
 
   items.forEach(item => {
     const gstPercent = item.gst_percent || 0;

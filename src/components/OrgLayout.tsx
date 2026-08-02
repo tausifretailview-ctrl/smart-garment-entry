@@ -6,6 +6,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { AppBootSplash } from "@/components/AppBootSplash";
 import OrgAuth from "@/pages/OrgAuth";
 import { storeOrgSlug } from "@/lib/orgSlug";
+import { applyOrgPwaManifest } from "@/lib/orgPwaManifest";
 import { hideAppBootSplash } from "@/lib/appBootSplash";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -338,6 +339,12 @@ export const OrgLayout = () => {
     if (user && orgLoading) return;
     hideAppBootSplash();
   }, [authLoading, user, orgLoading]);
+
+  // Installed PWA / Add to Home Screen should open this shop's login URL, not /auth.
+  useEffect(() => {
+    if (!orgSlug) return;
+    applyOrgPwaManifest(orgSlug, currentOrganization?.name);
+  }, [orgSlug, currentOrganization?.name]);
 
   // Re-sync shell height when landing on POS / bill entry (Electron + web PWA).
   useEffect(() => {

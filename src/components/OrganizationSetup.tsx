@@ -20,6 +20,7 @@ import { hideAppBootSplash } from "@/lib/appBootSplash";
 import { AppBootSplash } from "@/components/AppBootSplash";
 import { Capacitor } from "@capacitor/core";
 import { resolveStartupOrgSlug } from "@/lib/bundledOrg";
+import { applyOrgPwaManifest } from "@/lib/orgPwaManifest";
 import { OrgLoginShell, OrgLoginTrustBadges } from "@/components/orgLogin/OrgLoginShell";
 
 const getCachedOrgSlugs = (userId: string): { id: string; slug: string; name: string }[] | null => {
@@ -53,9 +54,10 @@ export const OrganizationSetup = () => {
   const isNativeApp = Capacitor.isNativePlatform();
   const startupOrgSlug = resolveStartupOrgSlug();
 
-  // Native APK: skip org URL entry — go straight to org login when slug is known
+  // Known shop slug (native APK, remembered PWA, or prior visit) → org login directly
   useEffect(() => {
     if (!user && startupOrgSlug) {
+      applyOrgPwaManifest(startupOrgSlug);
       navigate(`/${startupOrgSlug}`, { replace: true });
     }
   }, [user, startupOrgSlug, navigate]);
@@ -91,6 +93,7 @@ export const OrganizationSetup = () => {
       return;
     }
     storeOrgSlug(slug);
+    applyOrgPwaManifest(slug);
     navigate(`/${slug}`, { replace: true });
   };
 

@@ -169,19 +169,22 @@ export default function PublicInvoiceView() {
     (sale as { tax_type?: string }).tax_type ||
     (settings?.default_tax_type as string) ||
     'inclusive';
+  const isNoGstBill = invoiceTaxType === 'no_gst' || invoiceTaxType === 'without_gst';
 
-  saleItems.forEach((item: any) => {
-    const gstPercent = item.gst_percent || 0;
-    if (gstPercent > 0) {
-      const totalTaxOnItem = (item.line_total * gstPercent) / (100 + gstPercent);
-      if (isInterState) {
-        totalIGST += totalTaxOnItem;
-      } else {
-        totalCGST += totalTaxOnItem / 2;
-        totalSGST += totalTaxOnItem / 2;
+  if (!isNoGstBill) {
+    saleItems.forEach((item: any) => {
+      const gstPercent = item.gst_percent || 0;
+      if (gstPercent > 0) {
+        const totalTaxOnItem = (item.line_total * gstPercent) / (100 + gstPercent);
+        if (isInterState) {
+          totalIGST += totalTaxOnItem;
+        } else {
+          totalCGST += totalTaxOnItem / 2;
+          totalSGST += totalTaxOnItem / 2;
+        }
       }
-    }
-  });
+    });
+  }
 
   const templateProps = {
     businessName: settings?.business_name || "Business",

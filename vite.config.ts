@@ -105,7 +105,9 @@ export default defineConfig(({ mode }) => ({
         display: 'standalone',
         orientation: 'portrait',
         scope: '/',
-        start_url: '/',
+        // Cold install without a remembered shop → org URL entry (not Platform Admin /auth).
+        // When a shop slug is known, OrgLayout swaps in a dynamic manifest with start_url /{slug}.
+        start_url: '/organization-setup',
         categories: ['business', 'finance', 'productivity'],
         icons: [
           {

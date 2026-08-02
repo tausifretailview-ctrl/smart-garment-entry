@@ -12,6 +12,7 @@ import ezzyerpLogo from "@/assets/ezzyerp-logo.jpg";
 import { hideAppBootSplash } from "@/lib/appBootSplash";
 import { resolveStartupOrgSlug } from "@/lib/bundledOrg";
 import { isPlatformAdminLoginIntent, resolveOrgLoginPath } from "@/lib/orgLoginRedirect";
+import { isStandalonePwa } from "@/lib/orgPwaManifest";
 import { useLocation } from "react-router-dom";
 
 const MAX_LOGIN_ATTEMPTS = 5;
@@ -31,13 +32,19 @@ const Auth = () => {
     hideAppBootSplash();
   }, []);
 
-  // Org users sometimes land here after password reset, sign-out, or old bookmarks.
-  // Send them to their shop login unless they explicitly opened platform-admin login.
+  // Org users / installed PWAs sometimes land here after password reset, sign-out,
+  // home-screen launch, or old bookmarks. Send them to shop login unless they
+  // explicitly opened platform-admin login (?platform=1).
   useEffect(() => {
     if (isPlatformAdminLoginIntent(location.search)) return;
     const slug = resolveStartupOrgSlug();
     if (slug) {
       navigate(`/${slug}`, { replace: true });
+      return;
+    }
+    // Installed PWA: never stay on Platform Admin — open org URL picker / login.
+    if (isStandalonePwa()) {
+      navigate(resolveOrgLoginPath(), { replace: true });
     }
   }, [location.search, navigate]);
 
