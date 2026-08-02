@@ -137,6 +137,13 @@ export const OrgLayout = () => {
     return [...set];
   }, [openWindows, resolvedCurrentPath, pinnedCacheableEntryPaths]);
 
+  // Decide the route owner before starting background work so the active pane gets
+  // network priority on a cold load.
+  const wantsTabCache = isCacheableTabPath(resolvedCurrentPath) && tabPaths.length > 0;
+  const tabPaneWasReady = isTabPaneReadyForPath(resolvedCurrentPath);
+  const paneMounted = isTabCachePaneMounted(resolvedCurrentPath);
+  const effectiveTabPaneReady = tabPaneReady || (tabPaneWasReady && paneMounted);
+
   // Warm bill-entry chunks after login. Electron: defer prefetch so login paint is not blocked.
   useEffect(() => {
     if (!isOrgSynced || !user || (wantsTabCache && !effectiveTabPaneReady)) return;
@@ -210,12 +217,6 @@ export const OrgLayout = () => {
     effectiveTabPaneReady,
   ]);
 
-  // purchase-entry is tab-cached so in-app tab switch keeps the form mounted (other entry routes use Outlet).
-  const wantsTabCache =
-    isCacheableTabPath(resolvedCurrentPath) && tabPaths.length > 0;
-  const tabPaneWasReady = isTabPaneReadyForPath(resolvedCurrentPath);
-  const paneMounted = isTabCachePaneMounted(resolvedCurrentPath);
-  const effectiveTabPaneReady = tabPaneReady || (tabPaneWasReady && paneMounted);
   // A cacheable route has one owner from the first render. Its Suspense fallback remains
   // visible until the chunk resolves, avoiding a second copy mounted through <Outlet>.
   const renderViaTabCache = wantsTabCache;
