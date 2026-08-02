@@ -252,12 +252,29 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   const displayDiscount =
     propDiscount > 0.005 ? propDiscount : computedDiscountFromLines > 0.005 ? computedDiscountFromLines : 0;
   const explicitOtherCharges = Math.max(0, Number(otherCharges || 0));
+  // Exclusive GST is added on top of line totals — never treat that gap as "Other Charges".
+  const billLevelTax = Math.max(
+    0,
+    Number(totalTax || 0) ||
+      Number(cgstAmount || 0) + Number(sgstAmount || 0) + Number(igstAmount || 0),
+  );
+  const exclusiveTaxInGrand =
+    taxType === "exclusive" ? billLevelTax : 0;
   const derivedOtherCharges = Math.max(
     0,
-    Number(grandTotal || 0) - displaySubTotal + Number(saleReturnAdjust || 0) - displayDiscount - propRoundOff
+    Number(grandTotal || 0) -
+      displaySubTotal +
+      Number(saleReturnAdjust || 0) -
+      displayDiscount -
+      propRoundOff -
+      exclusiveTaxInGrand,
   );
   const displayOtherCharges =
-    explicitOtherCharges > 0.005 ? explicitOtherCharges : derivedOtherCharges > 0.005 ? derivedOtherCharges : 0;
+    explicitOtherCharges > 0.005
+      ? explicitOtherCharges
+      : derivedOtherCharges > 0.005
+        ? derivedOtherCharges
+        : 0;
   // If round_off was omitted/zeroed in props but net already includes it, recover for print.
   const impliedRoundOff =
     Math.round(
@@ -265,7 +282,8 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
         displaySubTotal +
         displayDiscount +
         Number(saleReturnAdjust || 0) -
-        displayOtherCharges) *
+        displayOtherCharges -
+        exclusiveTaxInGrand) *
         100,
     ) / 100;
   const printRoundOff =
@@ -323,8 +341,12 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
     items.forEach((item) => {
       const gstPct = item.gstPercent || 0;
       if (gstPct > 0) {
-        const taxOnItem = (item.total * gstPct) / (100 + gstPct);
-        const taxableVal = item.total - taxOnItem;
+        // Exclusive: line total is taxable; Inclusive: tax is embedded in line total.
+        const taxOnItem =
+          taxType === "exclusive"
+            ? (item.total * gstPct) / 100
+            : (item.total * gstPct) / (100 + gstPct);
+        const taxableVal = taxType === "exclusive" ? item.total : item.total - taxOnItem;
         if (!gstBreakup[gstPct]) {
           gstBreakup[gstPct] = { hsn: item.hsn || "", taxableValue: 0, cgst: 0, sgst: 0, igst: 0 };
         }
@@ -562,7 +584,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
               // A5: tight pad so the page border prints fully inside the sheet.
               paddingTop: isPreprinted ? letterheadGap : isA5Retail ? "3mm" : pad,
               paddingRight: isPreprinted ? preprintedPadRight : isA5Retail ? "3mm" : pad,
-              paddingBottom: isPreprinted ? preprintedPadBottom : isA5Retail ? "3mm" : pad,
+              paddingBottom: isPreprinted ? preprintedPadBottom : isA5Retail ? "5mm" : pad,
               paddingLeft: isPreprinted ? preprintedPadX : isA5Retail ? "3mm" : pad,
               fontFamily: "Arial, Helvetica, sans-serif",
               fontSize: fsBody,
@@ -1265,6 +1287,8 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                       flexShrink: 0,
                       boxSizing: "border-box",
                       borderTop: isA5Retail ? B : undefined,
+                      // Close the footer box on A5 — outer page border can clip at printer edge.
+                      borderBottom: isA5Retail ? B : undefined,
                       marginTop: isA5Retail ? "auto" : undefined,
                     }}
                   >
@@ -1468,7 +1492,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
             max-height: ${isPreprintedAny || isA5Retail ? pageH : "none"} !important;
             padding-top: ${isPreprinted ? letterheadGap : pad} !important;
             padding-right: ${isPreprinted ? preprintedPadRight : pad} !important;
-            padding-bottom: ${isPreprinted ? preprintedPadBottom : isA5Retail ? "4mm" : pad} !important;
+            padding-bottom: ${isPreprinted ? preprintedPadBottom : isA5Retail ? "5mm" : pad} !important;
             padding-left: ${isPreprinted ? preprintedPadX : pad} !important;
             overflow: ${isPreprintedAny || isA5Retail ? "hidden" : "visible"} !important;
             margin: 0 auto !important;
@@ -1480,6 +1504,8 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
           .retail-erp-page-border {
             border: 2px solid #000 !important;
             box-sizing: border-box !important;
+            /* Keep bottom edge inside printable area (A5 content is dense). */
+            margin-bottom: ${isA5Retail && !isPreprinted ? "0.5mm" : "0"} !important;
           }
           .retail-erp-qr-box {
             max-width: ${isA5Retail ? "20mm" : "28mm"} !important;
@@ -1489,6 +1515,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
             flex-shrink: 0 !important;
             page-break-inside: avoid !important;
             break-inside: avoid !important;
+            border-bottom: ${isA5Retail ? "1px solid #000" : "none"} !important;
           }
           .retail-erp-invoice-template[data-invoice-variant="preprinted"] {
             height: ${pageH} !important;
