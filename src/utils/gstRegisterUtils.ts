@@ -124,6 +124,13 @@ export const calculateTaxableFromInclusive = (total: number, gstPercent: number)
 
 export type GstTaxType = 'inclusive' | 'exclusive' | 'no_gst';
 
+/** UI options for taxType selectors — always derive from this, never hardcode a subset. */
+export const GST_TAX_TYPE_OPTIONS: ReadonlyArray<{ value: GstTaxType; label: string }> = [
+  { value: 'inclusive', label: 'Inclusive' },
+  { value: 'exclusive', label: 'Exclusive' },
+  { value: 'no_gst', label: 'Without GST' },
+];
+
 /** Split final line total into taxable base + GST (works for both stored pricing modes). */
 export const splitLineGstFromTotal = (
   lineTotal: number,

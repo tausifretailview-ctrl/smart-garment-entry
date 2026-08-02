@@ -11,6 +11,7 @@ import {
   Wallet,
   IndianRupee,
   ShoppingBag,
+  ShoppingCart,
   BookOpen,
   ShieldCheck,
   Users,
@@ -27,6 +28,7 @@ import { cn } from "@/lib/utils";
 import { DesktopViewToggle } from "@/components/mobile/DesktopViewToggle";
 import {
   MOBILE_ACCOUNTS_PATH,
+  MOBILE_POS_PATH,
   MOBILE_REPORTS_PATH,
   MOBILE_SALES_PATH,
 } from "@/lib/mobileShell";
@@ -58,9 +60,15 @@ export default function MobileMoreMenu() {
 
   const menuSections: MenuSection[] = [
     {
+      title: "Billing",
+      items: [
+        { icon: ShoppingCart, label: "POS Bill", path: MOBILE_POS_PATH, color: "text-primary" },
+        { icon: IndianRupee, label: "Sales list", path: MOBILE_SALES_PATH, color: "text-emerald-500" },
+      ],
+    },
+    {
       title: "Transaction Summaries",
       items: [
-        { icon: IndianRupee, label: "Sales", path: MOBILE_SALES_PATH, color: "text-emerald-500" },
         { icon: ShoppingBag, label: "Purchases", path: "/owner-purchases", color: "text-blue-500" },
         { icon: Package, label: "Stock", path: "/owner-stock", color: "text-amber-500" },
         { icon: Wallet, label: "Accounts", path: MOBILE_ACCOUNTS_PATH, color: "text-indigo-500" },
@@ -110,7 +118,7 @@ export default function MobileMoreMenu() {
       <PullToRefreshIndicator visible={isRefreshing} />
       <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-md border-b border-border px-4 py-4">
         <h1 className="text-xl font-semibold text-foreground">Reports & More</h1>
-        <p className="text-xs text-muted-foreground mt-0.5">View transaction summaries — use desktop for data entry</p>
+        <p className="text-xs text-muted-foreground mt-0.5">POS billing on phone · reports &amp; summaries</p>
       </div>
 
       <div className="px-4 py-4 space-y-6">

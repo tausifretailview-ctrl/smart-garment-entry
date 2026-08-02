@@ -8,8 +8,10 @@ import {
   MOBILE_ACCOUNTS_PATH,
   MOBILE_DEFAULT_LANDING_PATH,
   MOBILE_OWNER_SALES_PATH,
+  MOBILE_POS_PATH,
   MOBILE_REPORTS_PATH,
   MOBILE_SALES_PATH,
+  mobilePosPathWithScan,
 } from "@/lib/mobileShell";
 
 interface NavTab {
@@ -31,7 +33,7 @@ const sideTabs: NavTab[] = [
     icon: IndianRupee,
     label: "Sales",
     path: MOBILE_SALES_PATH,
-    matchPaths: [MOBILE_SALES_PATH, MOBILE_OWNER_SALES_PATH],
+    matchPaths: [MOBILE_SALES_PATH, MOBILE_OWNER_SALES_PATH, MOBILE_POS_PATH],
   },
   {
     icon: BarChart3,
@@ -63,7 +65,7 @@ const sideTabs: NavTab[] = [
 export const OwnerBottomNav = () => {
   const location = useLocation();
   const { orgNavigate, getOrgPath } = useOrgNavigation();
-  const { openScan } = useMobileScan();
+  const { openScan, hasBillingScanHandler } = useMobileScan();
   const { hasMenuAccess, permissions } = useUserPermissions();
   const canAccessMainDashboard =
     permissions === null || hasMenuAccess("main_dashboard");
@@ -127,9 +129,19 @@ export const OwnerBottomNav = () => {
 
         <button
           type="button"
-          onClick={openScan}
+          onClick={() => {
+            const onPos =
+              location.pathname === getOrgPath(MOBILE_POS_PATH) ||
+              location.pathname.startsWith(getOrgPath(MOBILE_POS_PATH) + "/");
+            if (onPos || hasBillingScanHandler) {
+              openScan();
+              return;
+            }
+            // Context-aware: from other hubs, open mobile POS billing + camera (not a second scanner).
+            orgNavigate(mobilePosPathWithScan());
+          }}
           className="relative flex flex-col items-center justify-end flex-1 min-w-0 -mt-5 touch-manipulation active:scale-95"
-          aria-label="Scan barcode and check stock"
+          aria-label="Scan barcode for POS or stock"
         >
           <div className="w-[3.25rem] h-[3.25rem] rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30 flex items-center justify-center ring-4 ring-background">
             <ScanBarcode className="h-7 w-7" />

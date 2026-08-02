@@ -9,6 +9,14 @@ export const MOBILE_DEFAULT_LANDING_PATH = "/mobile-dashboard";
 /** Mobile sales invoice hub. */
 export const MOBILE_SALES_PATH = "/mobile-sales";
 
+/** Mobile POS billing (create bill via usePosBilling). */
+export const MOBILE_POS_PATH = "/mobile-pos";
+
+/** Open mobile POS and auto-start camera scan (bottom-nav Scan from other hubs). */
+export function mobilePosPathWithScan(): string {
+  return `${MOBILE_POS_PATH}?scan=1`;
+}
+
 /** Owner-style sales screen (FullScreenLayout + OwnerBottomNav). */
 export const MOBILE_OWNER_SALES_PATH = "/owner-sales";
 

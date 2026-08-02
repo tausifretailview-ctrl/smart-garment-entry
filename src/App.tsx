@@ -152,6 +152,7 @@ const WhatsAppInbox = lazyWithRetry(() => import("./pages/WhatsAppInbox"));
 const MobileMoreMenu = lazyWithRetry(() => import("./pages/mobile/MobileMoreMenu"));
 const MobileReportsHub = lazyWithRetry(() => import("./pages/mobile/MobileReportsHub"));
 const MobileSalesHub = lazyWithRetry(() => import("./pages/mobile/MobileSalesHub"));
+const MobilePosBilling = lazyWithRetry(() => import("./pages/mobile/MobilePosBilling"));
 const MobileDashboardPage = lazyWithRetry(() => import("./pages/mobile/MobileDashboardPage"));
 const MobileAccountsPage = lazyWithRetry(() => import("./pages/mobile/MobileAccountsPage"));
 import { OwnerPlaceholderScreen } from "@/components/mobile/OwnerPlaceholderScreen";
@@ -1621,6 +1622,22 @@ const App = () => {
                           <MobileSalesHub />
                         </Suspense>
                       </FullScreenLayout>
+                    </ProtectedRoute>
+                  }
+                />
+
+                {/* Mobile POS billing — usePosBilling UI (Phase 2) */}
+                <Route
+                  path="mobile-pos"
+                  element={
+                    <ProtectedRoute>
+                      <MenuPermissionRoute permission="pos_sales">
+                        <FullScreenLayout>
+                          <Suspense fallback={<LazyFallback />}>
+                            <MobilePosBilling />
+                          </Suspense>
+                        </FullScreenLayout>
+                      </MenuPermissionRoute>
                     </ProtectedRoute>
                   }
                 />

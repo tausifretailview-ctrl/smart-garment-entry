@@ -18,12 +18,16 @@ import { useOpenCustomerAccount } from "@/hooks/useOpenCustomerAccount";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
-import { Search, TrendingUp, FileText, Eye, MessageCircle, Download } from "lucide-react";
+import { Search, TrendingUp, FileText, Eye, MessageCircle, Download, ShoppingCart } from "lucide-react";
 import { format, subDays } from "date-fns";
 import { cn } from "@/lib/utils";
+import { useOrgNavigation } from "@/hooks/useOrgNavigation";
+import { MOBILE_POS_PATH } from "@/lib/mobileShell";
+import { Button } from "@/components/ui/button";
 
 export default function MobileSalesHub() {
   const { currentOrganization } = useOrganization();
+  const { orgNavigate } = useOrgNavigation();
   const queryClient = useQueryClient();
   const { scrollRef, isRefreshing, pullHandlers } = usePullToRefresh(
     useCallback(() => invalidateMobileSalesHubQueries(queryClient), [queryClient])
@@ -163,9 +167,20 @@ export default function MobileSalesHub() {
       <PullToRefreshIndicator visible={isRefreshing} />
       {/* Header */}
       <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-md border-b border-border px-4 py-3 space-y-3">
-        <div className="flex items-center justify-between">
-          <h1 className="text-xl font-semibold text-foreground">Sales Summary</h1>
-          <p className="text-xs text-muted-foreground">View bills & share PDF — read only</p>
+        <div className="flex items-center justify-between gap-2">
+          <div className="min-w-0">
+            <h1 className="text-xl font-semibold text-foreground">Sales Summary</h1>
+            <p className="text-xs text-muted-foreground">Bill list · create via POS</p>
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            className="h-9 shrink-0 gap-1.5"
+            onClick={() => orgNavigate(MOBILE_POS_PATH)}
+          >
+            <ShoppingCart className="h-4 w-4" />
+            New Bill
+          </Button>
         </div>
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />

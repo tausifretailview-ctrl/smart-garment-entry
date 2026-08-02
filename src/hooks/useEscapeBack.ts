@@ -113,6 +113,7 @@ const BACK_MAP: Record<string, string> = {
   // Mobile / Owner screens → Home
   "mobile-dashboard":         "/",
   "mobile-sales":             "/",
+  "mobile-pos":               "mobile-sales",
   "mobile-accounts":          "/",
   "mobile-more":              "/",
   "owner-sales":              "/",

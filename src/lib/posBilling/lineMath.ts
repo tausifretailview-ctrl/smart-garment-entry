@@ -1,0 +1,79 @@
+import { resolveGarmentGstForLine, type GarmentGstRuleSettings } from "@/utils/gstRules";
+import type { PosCartItem } from "./types";
+
+/** Line net: MRP×qty minus Disc%, Disc Rs, and any gap when unit price is below MRP. */
+export function calculatePosCartLineNet(item: PosCartItem): number {
+  const baseAmount = item.mrp * item.quantity;
+  const percentDiscount = (baseAmount * item.discountPercent) / 100;
+  const implicitRateDiscount = Math.max(0, (item.mrp - item.unitCost) * item.quantity);
+  return baseAmount - percentDiscount - item.discountAmount - implicitRateDiscount;
+}
+
+/** Net amount per unit after line-level discounts (for display / receipt rate). */
+export function posLineNetUnitPrice(item: PosCartItem): number {
+  return item.quantity > 0 ? item.netAmount / item.quantity : item.unitCost;
+}
+
+/** Recompute line net, then Sale GST % from post-discount unit price vs threshold. */
+export function applyPosGarmentGstToItem(
+  item: PosCartItem,
+  garmentGstSettings: GarmentGstRuleSettings | null | undefined,
+): PosCartItem {
+  const netAmount = calculatePosCartLineNet(item);
+  const withNet = { ...item, netAmount };
+  const effectiveUnit = posLineNetUnitPrice(withNet);
+  const purchaseGst = item.purchaseGstPer ?? item.gstPer;
+  const gstPer = resolveGarmentGstForLine(
+    effectiveUnit,
+    purchaseGst,
+    item.gstPer,
+    garmentGstSettings,
+  );
+  return { ...withNet, gstPer };
+}
+
+export function sumLineDiscount(rows: PosCartItem[]): number {
+  return rows.reduce((sum, item) => {
+    const baseAmount = (Number(item.mrp) || 0) * (Number(item.quantity) || 0);
+    const percentDiscount = (baseAmount * (Number(item.discountPercent) || 0)) / 100;
+    const implicitRateDiscount = Math.max(
+      0,
+      ((Number(item.mrp) || 0) - (Number(item.unitCost) || 0)) * (Number(item.quantity) || 0),
+    );
+    return sum + percentDiscount + (Number(item.discountAmount) || 0) + implicitRateDiscount;
+  }, 0);
+}
+
+export function sumMrpTotal(rows: PosCartItem[]): number {
+  return rows.reduce((sum, item) => sum + (Number(item.mrp) || 0) * (Number(item.quantity) || 0), 0);
+}
+
+/** Whole numbers only — matches POSSales flat-discount controlled input. */
+export function normalizeFlatDiscountInput(value: number): number {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return 0;
+  return Math.round(parsed);
+}
+
+const POS_PRICE_MATCH_EPSILON = 0.01;
+
+export function posPricesMatch(a: number, b: number): boolean {
+  return Math.abs(a - b) < POS_PRICE_MATCH_EPSILON;
+}
+
+/** Same service barcode + variant + price → one cart line (qty sums, same sr no). */
+export function findPosServiceMergeIndex(
+  items: PosCartItem[],
+  params: { barcode: string; variantId: string; mrp: number; unitCost: number },
+): number {
+  const code = (params.barcode || "").trim();
+  if (!code || !params.variantId) return -1;
+  return items.findIndex(
+    (item) =>
+      item.productType === "service" &&
+      (item.barcode || "").trim() === code &&
+      item.variantId === params.variantId &&
+      posPricesMatch(item.mrp, params.mrp) &&
+      posPricesMatch(item.unitCost, params.unitCost),
+  );
+}
