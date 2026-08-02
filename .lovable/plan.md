@@ -1,48 +1,32 @@
-## GOPI ETHNIC — Stock Reconciliation (direct SQL)
+## Blank-page reliability fix
 
-Confirmed: 45 POS bills (27-Jul → today) are dummy scan bills, not real sales. Execute in one migration.
+The recording and current logs confirm two related cold-start races:
+- `OrgLayout` force-renders after the organization sync timeout even when tenant setup is incomplete.
+- For a cacheable dashboard such as Purchase Bills, the route `<Outlet>` and hidden tab-cache pane can load/mount the same page concurrently; the shell later swaps between them when the pane reports ready. This can leave skeletons visible, duplicate page queries, or require repeated refreshes.
 
-### Step 1 — Zero 197 variants (phantom 207 units)
-For every `product_variants` row in the org where `stock_qty > 0`:
-- Insert an audit row into `stock_movements`:
-  - `movement_type = 'adjustment'`
-  - `quantity = -stock_qty` (current)
-  - `reason = 'Physical count reconciliation 27-Jul-2026 — zero phantom stock'`
-- `UPDATE product_variants SET stock_qty = 0` for those rows.
+### Changes
+1. **Make the visible route the single owner during cold reload**
+   - Update `OrgLayout` so the current dashboard is rendered by one path only.
+   - Keep the route Outlet visible while its lazy page loads, without simultaneously mounting a hidden copy of that same active page.
+   - Hand over to tab cache only after a confirmed pane mount, preserving existing in-app tab persistence.
 
-### Step 2 — Soft-delete 45 dummy POS bills
-```sql
-UPDATE sales
-SET deleted_at = now(), deleted_by = <caller>, is_cancelled = true
-WHERE organization_id = 'c2bd3701-8f43-467e-a9c5-e21a608c5f3b'
-  AND sale_date >= '2026-07-27'
-  AND deleted_at IS NULL;
+2. **Prevent half-initialized organization rendering**
+   - Replace the current 12-second “force render” behavior with a guarded organization-sync recovery attempt.
+   - Continue showing the boot state until the URL organization and active organization match.
+   - If recovery genuinely fails, show an actionable retry state rather than an empty workspace.
 
-UPDATE sale_items
-SET deleted_at = now()
-WHERE sale_id IN (<those 45 ids>) AND deleted_at IS NULL;
-```
-The existing soft-delete stock-reversal trigger will add +1499 back to `product_variants.stock_qty`.
+3. **Reduce competing cold-start work**
+   - Defer background tab/page prefetch until the visible page has mounted.
+   - Avoid duplicate prefetch calls for the active dashboard.
+   - Keep existing slow-network protections and only warm inactive pages when the browser is idle.
 
-### Step 3 — Post-run verification (returned in migration output)
-```sql
-SELECT
-  SUM(pv.stock_qty) AS total_stock_after,             -- expect 1499
-  COUNT(*) FILTER (WHERE pv.stock_qty > 0) AS variants_with_stock,
-  (SELECT COUNT(*) FROM sales
-    WHERE organization_id = '<org>' AND sale_date >= '2026-07-27'
-      AND deleted_at IS NULL) AS active_bills_left   -- expect 0
-FROM product_variants pv
-JOIN products p ON p.id = pv.product_id
-WHERE p.organization_id = '<org>';
-```
+4. **Cache the repeated field-sales access check**
+   - Add an appropriate `staleTime`/cache policy to `useFieldSalesAccess` so ordinary dashboard mounts do not repeat the same backend lookup.
+   - Preserve organization/user-specific query keys and behavior.
 
-### Safety
-- Wrapped in a single transaction — either everything succeeds or nothing changes.
-- No hard delete: bills remain in Recycle Bin, recoverable if needed.
-- All stock changes go through `stock_movements` for full audit.
-- No customer payments touched (dummy bills).
+5. **Verify the affected flows**
+   - Test direct cold reload on Purchase Bills, main dashboard, POS Dashboard, Accounts, and Barcode Printing.
+   - Test navigation back from POS and repeated refreshes under throttled network conditions.
+   - Confirm there is one page mount/query sequence, no `Sync timeout reached` or `Tab pane not ready` warning, and no blank workspace or permanently stuck skeleton.
 
-If total after step 3 ≠ 1499, migration aborts (RAISE EXCEPTION) so state stays consistent.
-
-Approve to switch to build and run the migration.
+No database or business-data changes are required.
