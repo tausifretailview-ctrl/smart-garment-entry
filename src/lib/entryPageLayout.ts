@@ -34,8 +34,20 @@ export function isFillHeightDashboardPath(pathname: string): boolean {
   return FILL_HEIGHT_DASHBOARD_PATH.test(pathname);
 }
 
+/** Mobile owner hubs — edge-to-edge (no FullScreenLayout main padding gutters). */
+export const FILL_HEIGHT_MOBILE_SHELL_PATH =
+  /\/(mobile-dashboard|mobile-pos|mobile-sales|mobile-more|mobile-accounts|owner-sales|owner-reports)(\/|$)/;
+
+export function isFillHeightMobileShellPath(pathname: string): boolean {
+  return FILL_HEIGHT_MOBILE_SHELL_PATH.test(pathname);
+}
+
 export function isFillHeightShellPath(pathname: string): boolean {
-  return isFillHeightWorkspacePath(pathname) || isFillHeightDashboardPath(pathname);
+  return (
+    isFillHeightWorkspacePath(pathname) ||
+    isFillHeightDashboardPath(pathname) ||
+    isFillHeightMobileShellPath(pathname)
+  );
 }
 
 /** Org home dashboard (`/:slug` or `/:slug/dashboard`) — fill shell, no outer main padding. */

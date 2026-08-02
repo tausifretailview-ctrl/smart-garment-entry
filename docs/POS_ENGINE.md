@@ -68,7 +68,9 @@ Phase 1 extraction of the desktop POS money pipeline for reuse (e.g. mobile). **
 
 ## Share / PDF (Phase 3)
 
-Success screen **Share / PDF** opens `MobileSalePrintPreviewDialog` with `preferPosFormat` (uses `sale_settings.pos_bill_format`, fallback sale `bill_format`). PDF delivery is `captureElementToPdfBlob` → `deliverPdfBlob` (Web Share / open / download). Native `@capacitor/filesystem` / `@capacitor/share` remain out of scope. Auto WhatsApp API PDF on save is not wired from mobile POS.
+After save, mobile POS opens `MobileSalePrintPreviewDialog` with `preferPosFormat` + `autoDeliverPdf` (format from `sale_settings.pos_bill_format`, template from POS/sale invoice template). PDF delivery is `captureElementToPdfBlob` → `deliverPdfBlob` (Web Share / open / download). Manual **Share / PDF** reopens the same preview. Native `@capacitor/filesystem` / `@capacitor/share` remain out of scope. Auto WhatsApp API PDF on save is not wired from mobile POS.
+
+Product search uses `searchSaleOrderVariants` (same as desktop POS) — nested `products.product_name` inside variant `.or()` is unreliable in PostgREST.
 
 ## Out of scope (Phase 1 / still)
 

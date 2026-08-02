@@ -6,6 +6,12 @@ import { useSettings } from "@/hooks/useSettings";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { fetchSaleForInvoicePreview } from "@/utils/mobileInvoicePreviewData";
 import { withMobileQueryTimeout } from "@/lib/mobileQueryTimeout";
+import {
+  resolvePosBillFormat,
+  resolvePosThermalPaper,
+  toInvoiceWrapperFormat,
+  type PosBillFormat,
+} from "@/utils/invoicePrintFormat";
 import { Loader2 } from "lucide-react";
 
 type Props = {
@@ -14,6 +20,8 @@ type Props = {
   onOpenChange: (open: boolean) => void;
   /** When true (mobile POS), prefer sale_settings.pos_bill_format over sale bill_format. */
   preferPosFormat?: boolean;
+  /** After preview loads, auto Save/Share PDF once (post-save flow). */
+  autoDeliverPdf?: boolean;
 };
 
 export function MobileSalePrintPreviewDialog({
@@ -21,6 +29,7 @@ export function MobileSalePrintPreviewDialog({
   open,
   onOpenChange,
   preferPosFormat = false,
+  autoDeliverPdf = false,
 }: Props) {
   const { currentOrganization } = useOrganization();
   const { data: settings } = useSettings();
@@ -32,11 +41,18 @@ export function MobileSalePrintPreviewDialog({
     const saleSettings = settings?.sale_settings as {
       bill_format?: string;
       pos_bill_format?: string;
+      invoice_template?: string;
+      invoice_paper_format?: string;
     } | undefined;
-    const fmt = preferPosFormat
-      ? saleSettings?.pos_bill_format || saleSettings?.bill_format || "thermal"
-      : saleSettings?.bill_format || "a4";
-    setBillFormat(fmt as typeof billFormat);
+    if (preferPosFormat) {
+      const template = saleSettings?.invoice_template || "professional";
+      const raw = (saleSettings?.pos_bill_format || "thermal") as PosBillFormat;
+      const resolved = resolvePosBillFormat(template, raw, saleSettings?.invoice_paper_format);
+      setBillFormat(resolved);
+    } else {
+      const fmt = saleSettings?.bill_format || "a4";
+      setBillFormat(fmt as typeof billFormat);
+    }
   }, [settings, preferPosFormat]);
 
   const { data: sale, isLoading, isError } = useQuery({
@@ -55,10 +71,21 @@ export function MobileSalePrintPreviewDialog({
     show_mrp_column?: boolean;
     show_hsn_column?: boolean;
     bill_format?: string;
+    pos_bill_format?: string;
+    invoice_paper_format?: string;
   } | undefined;
 
+  const billBarcodeSettings = (
+    settings as { bill_barcode_settings?: { direct_print_pos_paper?: string } } | null
+  )?.bill_barcode_settings;
+
   const invoiceTemplate = saleSettings?.invoice_template || "professional";
-  const wrapperFormat = billFormat === "a5" ? "a5-vertical" : billFormat;
+  const wrapperFormat = preferPosFormat
+    ? toInvoiceWrapperFormat(billFormat)
+    : billFormat === "a5"
+      ? "a5-vertical"
+      : billFormat;
+  const thermalPaper = resolvePosThermalPaper(billBarcodeSettings?.direct_print_pos_paper);
 
   const invoiceProps = useMemo(() => {
     if (!sale) return null;
@@ -136,6 +163,8 @@ export function MobileSalePrintPreviewDialog({
       open={open}
       onOpenChange={onOpenChange}
       defaultFormat={billFormat}
+      thermalPaper={thermalPaper}
+      autoDeliverPdf={autoDeliverPdf}
       renderInvoice={(format) => (
         <InvoiceWrapper {...invoiceProps} format={format as typeof invoiceProps.format} />
       )}

@@ -38,6 +38,7 @@ import { MixPaymentDialog } from "@/components/MixPaymentDialog";
 import { MobileSalePrintPreviewDialog } from "@/components/mobile/MobileSalePrintPreviewDialog";
 import { cn } from "@/lib/utils";
 import { adjustQtyByStep, minQtyForUom } from "@/utils/qtyInput";
+import { searchSaleOrderVariants } from "@/utils/saleOrderProductSearch";
 import type { PosCartItem } from "@/lib/posBilling";
 
 /** Display-only — no arithmetic on money. */
@@ -155,7 +156,11 @@ export default function MobilePosBilling() {
     queryKey: ["mobile-pos-product-search", currentOrganization?.id, debouncedSearch],
     queryFn: async (): Promise<SearchHit[]> => {
       if (!currentOrganization?.id || debouncedSearch.length < 1) return [];
-      const term = debouncedSearch;
+      // Same product/name/brand search path as desktop POS (nested products.* in .or() is unreliable).
+      const matches = await searchSaleOrderVariants(currentOrganization.id, debouncedSearch);
+      const ids = matches.map((m) => m.id).filter(Boolean).slice(0, 20);
+      if (ids.length === 0) return [];
+
       const { data, error } = await supabase
         .from("product_variants")
         .select(VARIANT_SEARCH_SELECT)
@@ -165,16 +170,20 @@ export default function MobilePosBilling() {
         .eq("active", true)
         .is("deleted_at", null)
         .is("products.deleted_at", null)
-        .or(`barcode.ilike.%${term}%,products.product_name.ilike.%${term}%`)
-        .order("stock_qty", { ascending: false })
-        .limit(20);
+        .in("id", ids)
+        .order("stock_qty", { ascending: false });
       if (error) throw error;
-      return ((data || []) as unknown as Array<SearchHit["variant"] & { products: SearchHit["product"] }>)
-        .filter((row) => row.products)
-        .map((row) => ({
-          variant: row,
-          product: row.products,
-        }));
+
+      const byId = new Map(
+        ((data || []) as unknown as Array<SearchHit["variant"] & { products: SearchHit["product"] }>).map(
+          (row) => [row.id, row],
+        ),
+      );
+      // Preserve search ranking from searchSaleOrderVariants.
+      return ids
+        .map((id) => byId.get(id))
+        .filter((row): row is SearchHit["variant"] & { products: SearchHit["product"] } => !!row?.products)
+        .map((row) => ({ variant: row, product: row.products }));
     },
     enabled: !!currentOrganization?.id && debouncedSearch.length >= 1,
     staleTime: STALE_LIVE,
@@ -310,6 +319,8 @@ export default function MobilePosBilling() {
         saleId: result.id,
         netAmount: Number(result.net_amount) || totals.finalAmount,
       });
+      // Open preview + auto-generate PDF in POS bill format from settings.
+      setSharePreviewOpen(true);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Network or server error";
       setSaveError(`${message}. No automatic retry — you decide when to try again.`);
@@ -358,6 +369,7 @@ export default function MobilePosBilling() {
           saleId={success.saleId}
           open={sharePreviewOpen}
           preferPosFormat
+          autoDeliverPdf
           onOpenChange={setSharePreviewOpen}
         />
       </div>
@@ -365,7 +377,7 @@ export default function MobilePosBilling() {
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-background">
+    <div className="flex h-full min-h-0 w-full flex-col bg-background">
       {/* Saving overlay — blocks interaction + swipe-back UX */}
       {saving && (
         <div className="fixed inset-0 z-[80] flex flex-col items-center justify-center gap-3 bg-background/80 backdrop-blur-sm">
@@ -376,7 +388,7 @@ export default function MobilePosBilling() {
       )}
 
       {/* Top — sticky search */}
-      <div className="shrink-0 border-b border-border bg-background px-3 pt-2 pb-2">
+      <div className="shrink-0 border-b border-border bg-background px-2 pt-2 pb-2 safe-area-pt">
         <div className="flex items-center gap-2">
           <div className="relative min-w-0 flex-1">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -442,7 +454,7 @@ export default function MobilePosBilling() {
       </div>
 
       {/* Middle — scroll cart */}
-      <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-3 py-2">
+      <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-2 py-2">
         {items.length === 0 ? (
           <div className="flex h-full min-h-[12rem] flex-col items-center justify-center gap-2 text-center text-muted-foreground">
             <p className="text-sm font-medium">Cart is empty</p>
@@ -477,7 +489,7 @@ export default function MobilePosBilling() {
       {/* Bottom — sticky footer above OwnerBottomNav + gesture bar */}
       <div
         className={cn(
-          "shrink-0 border-t border-border bg-background px-3 pt-2",
+          "shrink-0 border-t border-border bg-background px-2 pt-2",
           "pb-[calc(4.25rem+env(safe-area-inset-bottom,0px)+0.5rem)]",
         )}
       >

@@ -30,6 +30,8 @@ interface PrintPreviewDialogProps {
   /** 58mm vs 80mm when format is thermal (POS-58 vs standard roll). */
   thermalPaper?: '58mm' | '80mm';
   onPrint?: () => void;
+  /** After invoice content is ready, auto-run Save/Share PDF once (mobile POS post-save). */
+  autoDeliverPdf?: boolean;
 }
 
 export const PrintPreviewDialog: React.FC<PrintPreviewDialogProps> = ({
@@ -39,11 +41,13 @@ export const PrintPreviewDialog: React.FC<PrintPreviewDialogProps> = ({
   defaultFormat = 'a4',
   thermalPaper = '80mm',
   onPrint,
+  autoDeliverPdf = false,
 }) => {
   const [selectedFormat, setSelectedFormat] = useState<string>(defaultFormat);
   const [isLoading, setIsLoading] = useState(true);
   const [isSavingPdf, setIsSavingPdf] = useState(false);
   const printRef = useRef<HTMLDivElement>(null);
+  const autoDeliverOnceRef = useRef(false);
   const isNative = useIsNativeApp();
 
   // Sync selectedFormat with defaultFormat when it changes (async settings load)
@@ -306,6 +310,17 @@ export const PrintPreviewDialog: React.FC<PrintPreviewDialogProps> = ({
       setIsSavingPdf(false);
     }
   };
+
+  useEffect(() => {
+    if (!open) {
+      autoDeliverOnceRef.current = false;
+      return;
+    }
+    if (!autoDeliverPdf || isLoading || isSavingPdf || autoDeliverOnceRef.current) return;
+    autoDeliverOnceRef.current = true;
+    void handleSaveOrSharePdf();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once when preview content becomes ready
+  }, [open, autoDeliverPdf, isLoading]);
 
   const getPreviewStyles = () => {
     switch (selectedFormat) {

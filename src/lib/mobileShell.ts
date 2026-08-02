@@ -43,8 +43,9 @@ export const mobilePageScrollClass =
 
 export const mobilePageScrollWithNavClass = `${mobilePageScrollClass} pb-24`;
 
+/** Default mobile main — no horizontal padding (pages own their gutters for edge-to-edge). */
 export const mobileMainContentClass =
-  "flex flex-1 flex-col min-h-0 overflow-hidden relative z-[1] min-w-0 p-3 sm:p-4";
+  "flex flex-1 flex-col min-h-0 overflow-hidden relative z-[1] min-w-0 w-full";
 
 export const mobileFullscreenMainClass =
   "flex-1 overflow-hidden relative z-[1] min-h-0";
