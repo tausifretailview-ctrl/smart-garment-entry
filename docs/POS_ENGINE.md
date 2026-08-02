@@ -57,9 +57,22 @@ Phase 1 extraction of the desktop POS money pipeline for reuse (e.g. mobile). **
 
 `src/lib/posBilling/posBilling.characterisation.test.ts` — must stay green across refactors. Covers all three `taxType`s, line/flat caps, both gross bases, round-off / points order, mixed GST, qty/price after discount, hold resume totals, edit restore.
 
-## Out of scope (Phase 1)
+## Mobile UI (Phase 2)
+
+| Piece | Location |
+|--------|----------|
+| Route | `/:orgSlug/mobile-pos` (`App.tsx`) — permission `pos_sales` |
+| Screen | `src/pages/mobile/MobilePosBilling.tsx` — UI only; totals from `usePosBilling` |
+| Nav | More → **POS Bill**; Sales hub **New Bill**; bottom **Scan** opens POS+camera when not already on POS |
+| Scan | `MobileScanContext` — billing handler registered on POS page; else stock sheet |
+
+## Share / PDF (Phase 3)
+
+Success screen **Share / PDF** opens `MobileSalePrintPreviewDialog` with `preferPosFormat` (uses `sale_settings.pos_bill_format`, fallback sale `bill_format`). PDF delivery is `captureElementToPdfBlob` → `deliverPdfBlob` (Web Share / open / download). Native `@capacitor/filesystem` / `@capacitor/share` remain out of scope. Auto WhatsApp API PDF on save is not wired from mobile POS.
+
+## Out of scope (Phase 1 / still)
 
 - `SalesInvoice.tsx` / Sale settlement reconciliation
 - Hardening `useSaveSale` transactionality
-- Mobile UI screens
 - Changing MRP or GST product rules
+- Capacitor Filesystem/Share plugins + APK rebuild for native PDF share

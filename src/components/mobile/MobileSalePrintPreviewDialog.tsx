@@ -12,18 +12,32 @@ type Props = {
   saleId: string | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** When true (mobile POS), prefer sale_settings.pos_bill_format over sale bill_format. */
+  preferPosFormat?: boolean;
 };
 
-export function MobileSalePrintPreviewDialog({ saleId, open, onOpenChange }: Props) {
+export function MobileSalePrintPreviewDialog({
+  saleId,
+  open,
+  onOpenChange,
+  preferPosFormat = false,
+}: Props) {
   const { currentOrganization } = useOrganization();
   const { data: settings } = useSettings();
-  const [billFormat, setBillFormat] = useState<"a4" | "a5" | "a5-horizontal" | "thermal">("a4");
+  const [billFormat, setBillFormat] = useState<"a4" | "a5" | "a5-horizontal" | "thermal">(
+    preferPosFormat ? "thermal" : "a4",
+  );
 
   useEffect(() => {
-    const saleSettings = settings?.sale_settings as { bill_format?: string } | undefined;
-    const fmt = saleSettings?.bill_format || "a4";
+    const saleSettings = settings?.sale_settings as {
+      bill_format?: string;
+      pos_bill_format?: string;
+    } | undefined;
+    const fmt = preferPosFormat
+      ? saleSettings?.pos_bill_format || saleSettings?.bill_format || "thermal"
+      : saleSettings?.bill_format || "a4";
     setBillFormat(fmt as typeof billFormat);
-  }, [settings]);
+  }, [settings, preferPosFormat]);
 
   const { data: sale, isLoading, isError } = useQuery({
     queryKey: ["mobile-invoice-preview", currentOrganization?.id, saleId],

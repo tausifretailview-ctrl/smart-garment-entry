@@ -35,6 +35,7 @@ import {
   DrawerTitle,
 } from "@/components/ui/drawer";
 import { MixPaymentDialog } from "@/components/MixPaymentDialog";
+import { MobileSalePrintPreviewDialog } from "@/components/mobile/MobileSalePrintPreviewDialog";
 import { cn } from "@/lib/utils";
 import { adjustQtyByStep, minQtyForUom } from "@/utils/qtyInput";
 import type { PosCartItem } from "@/lib/posBilling";
@@ -139,6 +140,7 @@ export default function MobilePosBilling() {
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [mixOpen, setMixOpen] = useState(false);
   const [success, setSuccess] = useState<SaveSuccess | null>(null);
+  const [sharePreviewOpen, setSharePreviewOpen] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [uiSaving, setUiSaving] = useState(false);
   const saveLockRef = useRef(false);
@@ -335,6 +337,7 @@ export default function MobilePosBilling() {
           <Button
             className="h-12 w-full max-w-sm text-base font-semibold"
             onClick={() => {
+              setSharePreviewOpen(false);
               setSuccess(null);
               setSaveError(null);
               searchInputRef.current?.focus();
@@ -345,13 +348,18 @@ export default function MobilePosBilling() {
           <Button
             variant="outline"
             className="h-11 w-full max-w-sm"
-            disabled
-            title="Coming soon"
+            onClick={() => setSharePreviewOpen(true)}
           >
             <Share2 className="mr-2 h-4 w-4" />
-            Share — coming soon
+            Share / PDF
           </Button>
         </div>
+        <MobileSalePrintPreviewDialog
+          saleId={success.saleId}
+          open={sharePreviewOpen}
+          preferPosFormat
+          onOpenChange={setSharePreviewOpen}
+        />
       </div>
     );
   }
