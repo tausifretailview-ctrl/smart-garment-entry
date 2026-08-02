@@ -1,7 +1,11 @@
 // Release: upload installers to private bucket "app-downloads" ->
-// add filenames to ALLOWED_FILES in download-apk / download-windows -> bump APP_VERSION.
+// add filenames to ALLOWED_FILES in download-apk / download-windows -> bump versions below.
 
-export const APP_VERSION = "1.1.1";
+/** Windows installer / install-page version label (Setup + Portable). */
+export const APP_VERSION = "1.2.0";
+
+/** Android APK version — keep until a matching EzzyERP-{ver}.apk is uploaded + allowlisted. */
+export const ANDROID_APK_VERSION = "1.1.0";
 
 const DEFAULT_SUPABASE_FUNCTIONS_ORIGIN = "https://lkbbrqcsbhqjvsxiorvp.supabase.co";
 
@@ -44,13 +48,13 @@ export const WINDOWS_PORTABLE_URL =
   import.meta.env.VITE_WINDOWS_PORTABLE_URL?.trim() ||
   `${FUNCTIONS_ORIGIN}/functions/v1/download-windows?file=${encodeURIComponent(WINDOWS_PORTABLE_FILE)}`;
 
-export const ANDROID_APK_DOWNLOAD_NAME = `EzzyERP-${APP_VERSION}.apk`;
+export const ANDROID_APK_DOWNLOAD_NAME = `EzzyERP-${ANDROID_APK_VERSION}.apk`;
 
 /** Fresh download URL — always use install page + this helper, never a cached storage redirect. */
 export function buildAndroidApkDownloadUrl(baseUrl: string = ANDROID_APK_URL): string {
   const trimmed = baseUrl.trim();
   const sep = trimmed.includes("?") ? "&" : "?";
-  return `${trimmed}${sep}v=${encodeURIComponent(APP_VERSION)}`;
+  return `${trimmed}${sep}v=${encodeURIComponent(ANDROID_APK_VERSION)}`;
 }
 
 function isHostedUrl(url: string): boolean {

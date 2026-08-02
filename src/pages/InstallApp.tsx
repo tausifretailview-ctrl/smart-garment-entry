@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { isValidOrgSlug, storeOrgSlug } from "@/lib/orgSlug";
 import {
   APP_VERSION,
+  ANDROID_APK_VERSION,
   ANDROID_APK_DOWNLOAD_NAME,
   WINDOWS_PORTABLE_FILE,
   WINDOWS_PORTABLE_URL,
@@ -396,7 +397,7 @@ export default function InstallApp() {
                         when you open it.
                       </p>
                       <p>
-                        <strong>Reinstall APK</strong> only for a new native release (version {APP_VERSION}) — tap
+                        <strong>Reinstall APK</strong> only for a new native release (version {ANDROID_APK_VERSION}) — tap
                         Download above; Android updates over the old app if the signing key matches.
                       </p>
                     </div>
@@ -422,7 +423,7 @@ export default function InstallApp() {
             )}
             <p className="text-xs text-center text-muted-foreground">
               {platform === "desktop" ? (
-                <>Version {APP_VERSION} · Open the APK link on an Android phone, then tap <strong>Install</strong> (not Open in browser).</>
+                <>Version {ANDROID_APK_VERSION} · Open the APK link on an Android phone, then tap <strong>Install</strong> (not Open in browser).</>
               ) : (
                 <>
                   1. Tap Download above · 2. Open notification or Files app · 3. Tap the APK · 4. Choose{" "}
