@@ -1,0 +1,463 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { GstTaxType } from "@/utils/gstRegisterUtils";
+import { normalizeGstTaxType } from "@/utils/gstRegisterUtils";
+import type { GarmentGstRuleSettings } from "@/utils/gstRules";
+import { maxSaleReturnAdjustForPayable } from "@/utils/saleSettlement";
+import {
+  addLine as addLinePure,
+  type AddLineProduct,
+  type AddLineVariant,
+  buildPosSalePersistPayload,
+  type CartMutatorResult,
+  clearCart as clearCartPure,
+  computePosBillTotals,
+  mapSaleItemsToPosCart,
+  normalizeFlatDiscountInput,
+  type PosBillingError,
+  type PosCartItem,
+  type PosFlatDiscountMode,
+  type PosGrossBasis,
+  type PosSalePersistPayload,
+  removeLine as removeLinePure,
+  resolveBillFlatForPosEdit,
+  type SaleItemRowForFlatResolve,
+  type SaleRowForFlatResolve,
+  updateDiscountAmount as updateDiscountAmountPure,
+  updateDiscountPercent as updateDiscountPercentPure,
+  updateGstPer as updateGstPerPure,
+  updateMrp as updateMrpPure,
+  updatePrice as updatePricePure,
+  updateQty as updateQtyPure,
+} from "@/lib/posBilling";
+
+export type UsePosBillingParams = {
+  /**
+   * Explicit gross / add-price basis. Call site must pass today's equivalent of
+   * `(enable_mrp && pos_barcode_price_mode === 'mrp') ? 'mrp' : 'sale_price'`.
+   * The hook never reads settings context.
+   */
+  grossBasis: PosGrossBasis;
+  garmentGstSettings: GarmentGstRuleSettings | null | undefined;
+  /** Injected — typically useCustomerPoints().calculateRedemptionValue */
+  calculateRedemptionValue: (points: number) => number;
+  /** Initial tax type (local bill state; not an org settings lookup inside the hook). */
+  initialTaxType?: GstTaxType | string;
+  /** Optional cart hydrate (e.g. session snapshot). Read once on mount. */
+  initialItems?: PosCartItem[];
+};
+
+export type UsePosBillingResult = {
+  items: PosCartItem[];
+  itemsRef: React.MutableRefObject<PosCartItem[]>;
+  setItems: React.Dispatch<React.SetStateAction<PosCartItem[]>>;
+
+  flatDiscountValue: number;
+  flatDiscountMode: PosFlatDiscountMode;
+  setFlatDiscountMode: React.Dispatch<React.SetStateAction<PosFlatDiscountMode>>;
+  setFlatDiscountValue: (value: number) => void;
+  handleFlatDiscountValueChange: (value: number) => void;
+
+  taxType: GstTaxType;
+  setTaxType: (value: GstTaxType | string) => void;
+
+  saleReturnAdjust: number;
+  setSaleReturnAdjust: React.Dispatch<React.SetStateAction<number>>;
+  creditApplied: number;
+  setCreditApplied: React.Dispatch<React.SetStateAction<number>>;
+
+  roundOff: number;
+  setRoundOff: React.Dispatch<React.SetStateAction<number>>;
+  isManualRoundOff: boolean;
+  setIsManualRoundOff: React.Dispatch<React.SetStateAction<boolean>>;
+  handleRoundOffChange: (value: number) => void;
+  handleFinalAmountChange: (enteredAmount: number) => void;
+  handleResetRoundOff: () => void;
+
+  pointsToRedeem: number;
+  setPointsToRedeem: React.Dispatch<React.SetStateAction<number>>;
+
+  totals: ReturnType<typeof computePosBillTotals>;
+  lastError: PosBillingError | null;
+  clearLastError: () => void;
+
+  addLine: (input: {
+    product: AddLineProduct;
+    variant: AddLineVariant;
+    overridePrice?: { sale_price: number; mrp: number };
+    brandDiscountPercent?: number;
+    customerHasMasterDiscount?: boolean;
+    makeLineId?: () => string;
+  }) => CartMutatorResult;
+  updateQty: (index: number, newQty: number) => CartMutatorResult;
+  updatePrice: (index: number, rawValue: number) => CartMutatorResult;
+  updateDiscountPercent: (index: number, discountPercent: number) => CartMutatorResult;
+  updateDiscountAmount: (index: number, discountAmount: number) => CartMutatorResult;
+  updateMrp: (index: number, newMrp: number) => CartMutatorResult;
+  updateGstPer: (index: number, newGstPer: number) => CartMutatorResult;
+  removeLine: (index: number) => void;
+  clearCart: () => void;
+
+  /** Edit-existing-bill: restore flat + map sale_items → cart. */
+  loadFromSaleEdit: (
+    sale: SaleRowForFlatResolve & { tax_type?: string | null; sale_return_adjust?: number | null },
+    saleItems: Array<
+      SaleItemRowForFlatResolve & {
+        id: string;
+        barcode?: string | null;
+        product_name: string;
+        size?: string | null;
+        color?: string | null;
+        quantity: number;
+        mrp: number;
+        unit_price: number;
+        gst_percent?: number | null;
+        discount_percent?: number | null;
+        line_total: number;
+        product_id: string;
+        variant_id: string;
+        hsn_code?: string | null;
+        item_notes?: string | null;
+      }
+    >,
+  ) => { flat: ReturnType<typeof resolveBillFlatForPosEdit>; items: PosCartItem[] };
+
+  /** Resume held bill cart blob into engine state. */
+  loadHeldCart: (holdData: {
+    items?: PosCartItem[];
+    flatDiscountPercent?: number;
+    saleReturnAdjust?: number;
+    roundOff?: number;
+    taxType?: string;
+  }) => void;
+
+  buildSaleData: (meta: {
+    customerId?: string | null;
+    customerName: string;
+    customerPhone?: string | null;
+    salesman?: string | null;
+    notes?: string | null;
+    saleDate?: string;
+  }) => PosSalePersistPayload;
+
+  maxSrFromBill: number;
+};
+
+/**
+ * Headless POS billing engine — cart, discounts, totals, edit/hold restore, sale payload.
+ * No toast / DOM / navigation / settings context. Side effects stay in the caller.
+ */
+export function usePosBilling(params: UsePosBillingParams): UsePosBillingResult {
+  const { grossBasis, garmentGstSettings, calculateRedemptionValue } = params;
+
+  const [items, setItems] = useState<PosCartItem[]>(() =>
+    Array.isArray(params.initialItems) ? params.initialItems : [],
+  );
+  const itemsRef = useRef<PosCartItem[]>(items);
+  itemsRef.current = items;
+
+  const [flatDiscountValue, setFlatDiscountValueRaw] = useState(0);
+  const [flatDiscountMode, setFlatDiscountMode] = useState<PosFlatDiscountMode>("percent");
+  const [taxType, setTaxTypeState] = useState<GstTaxType>(() =>
+    normalizeGstTaxType(params.initialTaxType),
+  );
+  const [saleReturnAdjust, setSaleReturnAdjust] = useState(0);
+  const [creditApplied, setCreditApplied] = useState(0);
+  const [roundOff, setRoundOff] = useState(0);
+  const [isManualRoundOff, setIsManualRoundOff] = useState(false);
+  const [pointsToRedeem, setPointsToRedeem] = useState(0);
+  const [lastError, setLastError] = useState<PosBillingError | null>(null);
+
+  const setFlatDiscountValue = useCallback((value: number) => {
+    setFlatDiscountValueRaw(normalizeFlatDiscountInput(value));
+  }, []);
+
+  const handleFlatDiscountValueChange = setFlatDiscountValue;
+
+  const setTaxType = useCallback((value: GstTaxType | string) => {
+    setTaxTypeState(normalizeGstTaxType(value));
+  }, []);
+
+  const totals = useMemo(
+    () =>
+      computePosBillTotals({
+        items,
+        taxType,
+        flatDiscountValue,
+        flatDiscountMode,
+        saleReturnAdjust,
+        creditApplied,
+        roundOff,
+        pointsToRedeem,
+        calculateRedemptionValue,
+      }),
+    [
+      items,
+      taxType,
+      flatDiscountValue,
+      flatDiscountMode,
+      saleReturnAdjust,
+      creditApplied,
+      roundOff,
+      pointsToRedeem,
+      calculateRedemptionValue,
+    ],
+  );
+
+  // Auto-update roundOff when calculation changes (only if not manual) — same as POSSales.
+  useEffect(() => {
+    if (!isManualRoundOff) {
+      if (items.length > 0) {
+        const newRoundOff = parseFloat(totals.calculatedRoundOff.toFixed(2));
+        if (Math.abs(newRoundOff - roundOff) > 0.001) {
+          setRoundOff(newRoundOff);
+        }
+      } else if (roundOff !== 0) {
+        setRoundOff(0);
+      }
+    }
+  }, [totals.amountBeforeRoundOff, totals.calculatedRoundOff, items.length, isManualRoundOff, roundOff]);
+
+  const handleRoundOffChange = useCallback((value: number) => {
+    setRoundOff(parseFloat(value.toFixed(2)));
+    setIsManualRoundOff(true);
+  }, []);
+
+  const handleFinalAmountChange = useCallback(
+    (enteredAmount: number) => {
+      const newRoundOff = enteredAmount - totals.amountBeforeRoundOff;
+      setRoundOff(parseFloat(newRoundOff.toFixed(2)));
+      setIsManualRoundOff(true);
+    },
+    [totals.amountBeforeRoundOff],
+  );
+
+  const handleResetRoundOff = useCallback(() => {
+    setIsManualRoundOff(false);
+    setRoundOff(parseFloat(totals.calculatedRoundOff.toFixed(2)));
+  }, [totals.calculatedRoundOff]);
+
+  const applyMutator = useCallback((result: CartMutatorResult) => {
+    setItems(result.items);
+    if (result.error) setLastError(result.error);
+    else setLastError(null);
+    return result;
+  }, []);
+
+  const addLine = useCallback(
+    (input: {
+      product: AddLineProduct;
+      variant: AddLineVariant;
+      overridePrice?: { sale_price: number; mrp: number };
+      brandDiscountPercent?: number;
+      customerHasMasterDiscount?: boolean;
+      makeLineId?: () => string;
+    }) =>
+      applyMutator(
+        addLinePure({
+          items: itemsRef.current,
+          product: input.product,
+          variant: input.variant,
+          grossBasis,
+          garmentGstSettings,
+          overridePrice: input.overridePrice,
+          brandDiscountPercent: input.brandDiscountPercent,
+          customerHasMasterDiscount: input.customerHasMasterDiscount,
+          makeLineId: input.makeLineId,
+        }),
+      ),
+    [applyMutator, garmentGstSettings, grossBasis],
+  );
+
+  const updateQty = useCallback(
+    (index: number, newQty: number) => applyMutator(updateQtyPure(itemsRef.current, index, newQty)),
+    [applyMutator],
+  );
+
+  const updatePrice = useCallback(
+    (index: number, rawValue: number) =>
+      applyMutator(
+        updatePricePure(
+          itemsRef.current,
+          index,
+          rawValue,
+          totals.flatDiscountAmount,
+          garmentGstSettings,
+        ),
+      ),
+    [applyMutator, garmentGstSettings, totals.flatDiscountAmount],
+  );
+
+  const updateDiscountPercent = useCallback(
+    (index: number, discountPercent: number) =>
+      applyMutator(
+        updateDiscountPercentPure(
+          itemsRef.current,
+          index,
+          discountPercent,
+          totals.flatDiscountAmount,
+          garmentGstSettings,
+        ),
+      ),
+    [applyMutator, garmentGstSettings, totals.flatDiscountAmount],
+  );
+
+  const updateDiscountAmount = useCallback(
+    (index: number, discountAmount: number) =>
+      applyMutator(
+        updateDiscountAmountPure(
+          itemsRef.current,
+          index,
+          discountAmount,
+          totals.flatDiscountAmount,
+          garmentGstSettings,
+        ),
+      ),
+    [applyMutator, garmentGstSettings, totals.flatDiscountAmount],
+  );
+
+  const updateMrp = useCallback(
+    (index: number, newMrp: number) =>
+      applyMutator(
+        updateMrpPure(
+          itemsRef.current,
+          index,
+          newMrp,
+          totals.flatDiscountAmount,
+          garmentGstSettings,
+        ),
+      ),
+    [applyMutator, garmentGstSettings, totals.flatDiscountAmount],
+  );
+
+  const updateGstPer = useCallback(
+    (index: number, newGstPer: number) =>
+      applyMutator(updateGstPerPure(itemsRef.current, index, newGstPer)),
+    [applyMutator],
+  );
+
+  const removeLine = useCallback(
+    (index: number) => {
+      applyMutator(removeLinePure(itemsRef.current, index));
+    },
+    [applyMutator],
+  );
+
+  const clearCart = useCallback(() => {
+    applyMutator(clearCartPure());
+    setFlatDiscountValueRaw(0);
+    setFlatDiscountMode("percent");
+    setSaleReturnAdjust(0);
+    setCreditApplied(0);
+    setRoundOff(0);
+    setIsManualRoundOff(false);
+    setPointsToRedeem(0);
+  }, [applyMutator]);
+
+  const loadFromSaleEdit: UsePosBillingResult["loadFromSaleEdit"] = useCallback(
+    (sale, saleItems) => {
+      const flat = resolveBillFlatForPosEdit(sale, saleItems);
+      if (flat.percentLooksClean) {
+        setFlatDiscountValue(flat.value);
+        setFlatDiscountMode("percent");
+      } else if (flat.value > 0.005) {
+        setFlatDiscountValue(flat.value);
+        setFlatDiscountMode(flat.mode);
+      } else {
+        setFlatDiscountValueRaw(0);
+        setFlatDiscountMode("percent");
+      }
+      const cartItems = mapSaleItemsToPosCart(saleItems);
+      setItems(cartItems);
+      if (sale.tax_type != null && sale.tax_type !== "") {
+        setTaxTypeState(normalizeGstTaxType(String(sale.tax_type)));
+      }
+      if (sale.sale_return_adjust != null) {
+        setSaleReturnAdjust(Number(sale.sale_return_adjust) || 0);
+      }
+      return { flat, items: cartItems };
+    },
+    [setFlatDiscountValue],
+  );
+
+  const loadHeldCart: UsePosBillingResult["loadHeldCart"] = useCallback((holdData) => {
+    if (holdData.items && Array.isArray(holdData.items)) {
+      setItems(holdData.items);
+    }
+    if (holdData.flatDiscountPercent !== undefined) {
+      setFlatDiscountValueRaw(normalizeFlatDiscountInput(holdData.flatDiscountPercent));
+      setFlatDiscountMode("percent");
+    }
+    if (holdData.saleReturnAdjust !== undefined) {
+      setSaleReturnAdjust(holdData.saleReturnAdjust);
+    }
+    if (holdData.roundOff !== undefined) {
+      setRoundOff(holdData.roundOff);
+    }
+    if (holdData.taxType != null && holdData.taxType !== "") {
+      setTaxTypeState(normalizeGstTaxType(String(holdData.taxType)));
+    }
+  }, []);
+
+  const buildSaleData: UsePosBillingResult["buildSaleData"] = useCallback(
+    (meta) =>
+      buildPosSalePersistPayload({
+        customerId: meta.customerId,
+        customerName: meta.customerName,
+        customerPhone: meta.customerPhone,
+        items,
+        totals,
+        saleReturnAdjust,
+        roundOff,
+        creditApplied,
+        salesman: meta.salesman,
+        notes: meta.notes,
+        taxType,
+        saleDate: meta.saleDate,
+      }),
+    [items, totals, saleReturnAdjust, roundOff, creditApplied, taxType],
+  );
+
+  const maxSrFromBill = maxSaleReturnAdjustForPayable(totals.finalAmount, saleReturnAdjust);
+
+  return {
+    items,
+    itemsRef,
+    setItems,
+    flatDiscountValue,
+    flatDiscountMode,
+    setFlatDiscountMode,
+    setFlatDiscountValue,
+    handleFlatDiscountValueChange,
+    taxType,
+    setTaxType,
+    saleReturnAdjust,
+    setSaleReturnAdjust,
+    creditApplied,
+    setCreditApplied,
+    roundOff,
+    setRoundOff,
+    isManualRoundOff,
+    setIsManualRoundOff,
+    handleRoundOffChange,
+    handleFinalAmountChange,
+    handleResetRoundOff,
+    pointsToRedeem,
+    setPointsToRedeem,
+    totals,
+    lastError,
+    clearLastError: () => setLastError(null),
+    addLine,
+    updateQty,
+    updatePrice,
+    updateDiscountPercent,
+    updateDiscountAmount,
+    updateMrp,
+    updateGstPer,
+    removeLine,
+    clearCart,
+    loadFromSaleEdit,
+    loadHeldCart,
+    buildSaleData,
+    maxSrFromBill,
+  };
+}

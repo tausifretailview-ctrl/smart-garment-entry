@@ -8,7 +8,18 @@ import { useMobileERP, validateIMEI } from "@/hooks/useMobileERP";
 import { getUniversalCodeScanWarning } from "@/utils/imeiValidation";
 import { productRequiresImei } from "@/utils/productRequiresImei";
 import { useSettings } from "@/hooks/useSettings";
-import { resolveGarmentGstForLine } from "@/utils/gstRules";
+import { usePosBilling } from "@/hooks/usePosBilling";
+import type { CartItem, PosGrossBasis } from "@/lib/posBilling";
+import {
+  applyPosGarmentGstToItem,
+  calculatePosCartLineNet,
+  findPosServiceMergeIndex,
+  mapSaleItemsToPosCart,
+  minUnitPriceForDiscountCap,
+  normalizeFlatDiscountInput,
+  posLineNetUnitPrice,
+  resolveBillFlatForPosEdit,
+} from "@/lib/posBilling";
 import { useLocation, useSearchParams } from "react-router-dom";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { supabase } from "@/integrations/supabase/client";
@@ -173,39 +184,6 @@ interface PendingPriceSelection {
   lastPurchasePrice: { sale_price: number; mrp: number; date?: Date };
 }
 
-interface CartItem {
-  id: string;
-  barcode: string;
-  productName: string;
-  /** DB products.product_name only (no brand/category/style join). */
-  baseProductName?: string;
-  size: string;
-  color: string;
-  quantity: number;
-  mrp: number;
-  originalMrp: number | null; // MRP from product_variants for savings calculation
-  gstPer: number;
-  /** Purchase GST % — sub-threshold base for garment/footwear auto rule. */
-  purchaseGstPer?: number;
-  discountPercent: number;
-  discountAmount: number;
-  unitCost: number;
-  /**
-   * Cart-only: who last set the rate on this line.
-   * 'unit' = typed unit price (Disc% cleared); 'discount' = Disc% / Disc Rs / scan default.
-   */
-  rateAuthority?: "unit" | "discount";
-  netAmount: number;
-  productId: string;
-  variantId: string;
-  hsnCode?: string;
-  productType?: string; // Track product type to handle service items differently
-  isDcProduct?: boolean; // DC (Direct Cash) product flag
-  uom?: string;
-  showDiscount?: boolean;
-  itemNotes?: string | null;
-}
-
 interface POSBarcodeRuntimeSettings {
   pos_barcode_price_mode: 'mrp' | 'sale_price';
   enable_mrp: boolean;
@@ -238,105 +216,6 @@ function posCartGridColumns(barcodeColPx: number, showMrpColumn: boolean): strin
   // Sr | Barcode | Product | Size | Color | Qty | [MRP] | Tax% | Disc% | Disc Rs | Unit | Net
   const mrpCol = showMrpColumn ? " 96px" : "";
   return `36px ${barcodeColPx}px minmax(120px, 1fr) 52px 64px 56px${mrpCol} 68px 72px 96px 110px 118px`;
-}
-
-/** Line net: MRP×qty minus Disc%, Disc Rs, and any gap when unit price is below MRP. */
-function calculatePosCartLineNet(item: CartItem): number {
-  const baseAmount = item.mrp * item.quantity;
-  const percentDiscount = (baseAmount * item.discountPercent) / 100;
-  const implicitRateDiscount = Math.max(0, (item.mrp - item.unitCost) * item.quantity);
-  return baseAmount - percentDiscount - item.discountAmount - implicitRateDiscount;
-}
-
-const POS_PRICE_MATCH_EPSILON = 0.01;
-
-function posPricesMatch(a: number, b: number): boolean {
-  return Math.abs(a - b) < POS_PRICE_MATCH_EPSILON;
-}
-
-/** Same service barcode + variant + price → one cart line (qty sums, same sr no). */
-function findPosServiceMergeIndex(
-  items: CartItem[],
-  params: { barcode: string; variantId: string; mrp: number; unitCost: number },
-): number {
-  const code = (params.barcode || "").trim();
-  if (!code || !params.variantId) return -1;
-  return items.findIndex(
-    (item) =>
-      item.productType === "service" &&
-      (item.barcode || "").trim() === code &&
-      item.variantId === params.variantId &&
-      posPricesMatch(item.mrp, params.mrp) &&
-      posPricesMatch(item.unitCost, params.unitCost),
-  );
-}
-
-type SaleRowForFlatResolve = {
-  gross_amount?: number | null;
-  discount_amount?: number | null;
-  flat_discount_amount?: number | null;
-  flat_discount_percent?: number | null;
-};
-
-type SaleItemRowForFlatResolve = {
-  line_total?: number | null;
-  per_qty_net_amount?: number | null;
-  quantity?: number | null;
-  mrp?: number | null;
-  unit_price?: number | null;
-  discount_percent?: number | null;
-};
-
-/**
- * Restore bill-level flat discount for POS edit when `sales.flat_*` is missing but
- * `sale_items` still carry post-flat `per_qty_net_amount`, or legacy rows put the
- * whole bill discount in `sales.discount_amount` while line totals stayed at gross.
- */
-function resolveBillFlatForPosEdit(
-  sale: SaleRowForFlatResolve,
-  saleItems: SaleItemRowForFlatResolve[],
-): { value: number; mode: "percent" | "amount"; percentLooksClean: boolean } {
-  const savedFlatPercent = Number(sale.flat_discount_percent) || 0;
-  const savedFlatAmount = Number(sale.flat_discount_amount) || 0;
-  const percentLooksClean =
-    savedFlatPercent > 0 &&
-    Math.abs(savedFlatPercent * 100 - Math.round(savedFlatPercent * 100)) < 0.0001;
-
-  if (percentLooksClean) return { value: savedFlatPercent, mode: "percent", percentLooksClean: true };
-  if (savedFlatAmount > 0.005) return { value: savedFlatAmount, mode: "amount", percentLooksClean: false };
-
-  let fromLines = 0;
-  for (const row of saleItems || []) {
-    const lt = Number(row.line_total) || 0;
-    const pq = Number(row.per_qty_net_amount) || 0;
-    const q = Number(row.quantity) || 0;
-    if (pq > 0.005 && q > 0) fromLines += Math.max(0, lt - pq * q);
-  }
-  fromLines = Math.round(fromLines * 100) / 100;
-  if (fromLines > 0.02) return { value: fromLines, mode: "amount", percentLooksClean: false };
-
-  const gross = Number(sale.gross_amount) || 0;
-  const discAgg = Number(sale.discount_amount) || 0;
-  if (discAgg > 0.02 && gross > 0.02) {
-    const lineSum = (saleItems || []).reduce((s, r) => s + (Number(r.line_total) || 0), 0);
-    if (Math.abs(lineSum - gross) < 0.05) {
-      const hasLineDisc = (saleItems || []).some((row) => {
-        const m = Number(row.mrp) || 0;
-        const u = Number(row.unit_price) || 0;
-        const q = Number(row.quantity) || 0;
-        if ((Number(row.discount_percent) || 0) > 0.005) return true;
-        return m > u + 0.01 && q > 0;
-      });
-      if (!hasLineDisc) return { value: discAgg, mode: "amount", percentLooksClean: false };
-    }
-  }
-
-  return { value: 0, mode: "percent", percentLooksClean: false };
-}
-
-/** Net amount per unit after line-level discounts (for display / receipt rate). */
-function posLineNetUnitPrice(item: CartItem): number {
-  return item.quantity > 0 ? item.netAmount / item.quantity : item.unitCost;
 }
 
 /** Default POS service price from variant master (MRP, else sale price from product entry). */
@@ -489,24 +368,6 @@ async function fetchUnavailablePosVariantByProductName(
   return { product: row.products, variant: row };
 }
 
-/** Recompute line net, then Sale GST % from post-discount unit price vs threshold. */
-function applyPosGarmentGstToItem(
-  item: CartItem,
-  garmentGstSettings: { garment_gst_rule_enabled?: boolean; garment_gst_threshold?: number },
-): CartItem {
-  const netAmount = calculatePosCartLineNet(item);
-  const withNet = { ...item, netAmount };
-  const effectiveUnit = posLineNetUnitPrice(withNet);
-  const purchaseGst = item.purchaseGstPer ?? item.gstPer;
-  const gstPer = resolveGarmentGstForLine(
-    effectiveUnit,
-    purchaseGst,
-    item.gstPer,
-    garmentGstSettings,
-  );
-  return { ...withNet, gstPer };
-}
-
 function mapPosPrintItem(item: any, index: number, taxType: GstTaxType = "inclusive") {
   const taxableUnit = posLineNetUnitPrice(item as CartItem);
   const taxableTotal = Number(item.netAmount) || 0;
@@ -554,7 +415,6 @@ export default function POSSales() {
   const { settings: waSettings, sendMessageAsync } = useWhatsAppAPI();
   const [isHeldSale, setIsHeldSale] = useState(false);
   const [availableCreditBalance, setAvailableCreditBalance] = useState(0);
-  const [creditApplied, setCreditApplied] = useState(0);
   const [pendingSaleReturnCredits, setPendingSaleReturnCredits] = useState<Array<{ id: string; return_number: string; net_amount: number; credit_note_id: string | null }>>([]);
   const [recentAdjustedSaleReturnCredits, setRecentAdjustedSaleReturnCredits] = useState<Array<{ id: string; return_number: string; net_amount: number; linked_sale_id: string | null; linked_sale_number?: string }>>([]);
   const [showSRCreditDropdown, setShowSRCreditDropdown] = useState(false);
@@ -592,24 +452,93 @@ export default function POSSales() {
   const { calculatePoints, isPointsEnabled, isRedemptionEnabled, calculateMaxRedeemablePoints, calculateRedemptionValue, redeemPoints, pointsSettings } = useCustomerPoints();
   const { data: customerPointsData } = useCustomerPointsBalance(customerId || null);
   const { getBrandDiscountForProduct, hasBrandDiscounts, brandDiscounts } = useCustomerBrandDiscounts(customerId || null);
-  const [pointsToRedeem, setPointsToRedeem] = useState(0);
-  const [items, setItemsRaw] = useState<CartItem[]>(() => {
-    const saved = readPosCartSnapshot(currentOrganization?.id || "default");
-    return saved?.items?.length ? (saved.items as CartItem[]) : [];
+
+  // Settings first so grossBasis / garment GST are explicit params into the billing engine.
+  const { data: settingsData } = useSettings();
+  const [posRuntimeSettings, setPosRuntimeSettings] = useState<POSBarcodeRuntimeSettings | null>(null);
+  const posRuntimeSettingsRef = useRef<POSBarcodeRuntimeSettings | null>(null);
+
+  useEffect(() => {
+    if (!settingsData) return;
+    const saleSettings = (settingsData as any)?.sale_settings || {};
+    const purchaseSettings = (settingsData as any)?.purchase_settings || {};
+    const next: POSBarcodeRuntimeSettings = {
+      pos_barcode_price_mode: saleSettings.pos_barcode_price_mode === 'mrp' ? 'mrp' : 'sale_price',
+      enable_mrp: purchaseSettings.show_mrp === true,
+    };
+    setPosRuntimeSettings(next);
+    posRuntimeSettingsRef.current = next;
+  }, [settingsData]);
+
+  useEffect(() => {
+    posRuntimeSettingsRef.current = posRuntimeSettings;
+  }, [posRuntimeSettings]);
+
+  const garmentGstSettings = useMemo(
+    () => ({
+      garment_gst_rule_enabled: ((settingsData as any)?.purchase_settings?.garment_gst_rule_enabled === true),
+      garment_gst_threshold: (settingsData as any)?.purchase_settings?.garment_gst_threshold,
+    }),
+    [settingsData],
+  );
+
+  /** Call-site settings lookup — engine must not read settings context. */
+  const grossBasis: PosGrossBasis =
+    posRuntimeSettings?.enable_mrp === true && posRuntimeSettings?.pos_barcode_price_mode === "mrp"
+      ? "mrp"
+      : "sale_price";
+
+  const defaultPosTaxTypeEarly = normalizeGstTaxType(
+    ((settingsData as any)?.sale_settings || {}).default_tax_type,
+  );
+
+  const billing = usePosBilling({
+    grossBasis,
+    garmentGstSettings,
+    calculateRedemptionValue,
+    initialTaxType: defaultPosTaxTypeEarly,
+    initialItems: _savedCart?.items?.length ? (_savedCart.items as CartItem[]) : [],
   });
-  const itemsRef = useRef<CartItem[]>([]);
-  const setItems = useCallback((updater: CartItem[] | ((prev: CartItem[]) => CartItem[])) => {
-    setItemsRaw(prev => {
-      const next = typeof updater === 'function' ? updater(prev) : updater;
-      itemsRef.current = next;
-      return next;
-    });
-  }, []);
-  const [flatDiscountValue, setFlatDiscountValue] = useState(0);
-  const [flatDiscountMode, setFlatDiscountMode] = useState<'percent' | 'amount'>('percent');
-  const [saleReturnAdjust, setSaleReturnAdjust] = useState(0);
-  const [roundOff, setRoundOff] = useState(0);
-  const [isManualRoundOff, setIsManualRoundOff] = useState(false);
+
+  const {
+    items,
+    itemsRef,
+    setItems,
+    flatDiscountValue,
+    flatDiscountMode,
+    setFlatDiscountMode,
+    setFlatDiscountValue,
+    handleFlatDiscountValueChange,
+    taxType,
+    setTaxType,
+    saleReturnAdjust,
+    setSaleReturnAdjust,
+    creditApplied,
+    setCreditApplied,
+    roundOff,
+    setRoundOff,
+    isManualRoundOff,
+    setIsManualRoundOff,
+    handleRoundOffChange,
+    handleFinalAmountChange,
+    handleResetRoundOff,
+    pointsToRedeem,
+    setPointsToRedeem,
+    totals: billingTotals,
+    addLine: billingAddLine,
+    updateQty: billingUpdateQty,
+    updatePrice: billingUpdatePrice,
+    updateDiscountPercent: billingUpdateDiscountPercent,
+    updateDiscountAmount: billingUpdateDiscountAmount,
+    updateMrp: billingUpdateMrp,
+    updateGstPer: billingUpdateGstPer,
+    removeLine: billingRemoveLine,
+    clearCart: billingClearCart,
+    loadFromSaleEdit,
+    loadHeldCart,
+    buildSaleData,
+    maxSrFromBill: billingMaxSrFromBill,
+  } = billing;
   const [currentInvoiceIndex, setCurrentInvoiceIndex] = useState(0);
   const [openProductSearch, setOpenProductSearch] = useState(false);
   const [selectedProductIndex, setSelectedProductIndex] = useState(0);
@@ -708,20 +637,6 @@ export default function POSSales() {
   const highlightClearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const barcodeBlurRecoveryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const posCartRowRefs = useRef<Map<string, HTMLDivElement>>(new Map());
-
-  /** Whole numbers only — avoids controlled-input bugs (e.g. typing "10" stuck as "1.00" with toFixed(2)). */
-  const normalizeFlatDiscountInput = useCallback((value: number) => {
-    const parsed = Number(value);
-    if (!Number.isFinite(parsed)) return 0;
-    return Math.round(parsed);
-  }, []);
-
-  const handleFlatDiscountValueChange = useCallback(
-    (value: number) => {
-      setFlatDiscountValue(normalizeFlatDiscountInput(value));
-    },
-    [normalizeFlatDiscountInput],
-  );
 
   const formatINR2 = useCallback((value: number) => {
     const parsed = Number(value);
@@ -1312,40 +1227,12 @@ export default function POSSales() {
     }
   };
 
-  // Fetch settings (centralized, cached 5min)
-  const { data: settingsData } = useSettings();
-  const [posRuntimeSettings, setPosRuntimeSettings] = useState<POSBarcodeRuntimeSettings | null>(null);
-  const posRuntimeSettingsRef = useRef<POSBarcodeRuntimeSettings | null>(null);
-
-  // Derive barcode/MRP runtime flags from cached useSettings() — no duplicate DB fetch.
-  useEffect(() => {
-    if (!settingsData) return;
-    const saleSettings = (settingsData as any)?.sale_settings || {};
-    const purchaseSettings = (settingsData as any)?.purchase_settings || {};
-    const next: POSBarcodeRuntimeSettings = {
-      pos_barcode_price_mode: saleSettings.pos_barcode_price_mode === 'mrp' ? 'mrp' : 'sale_price',
-      enable_mrp: purchaseSettings.show_mrp === true,
-    };
-    setPosRuntimeSettings(next);
-    posRuntimeSettingsRef.current = next;
-  }, [settingsData]);
-
-  useEffect(() => {
-    posRuntimeSettingsRef.current = posRuntimeSettings;
-  }, [posRuntimeSettings]);
-
   // Display gate only — computations (mrpTotal / savings / discount cap) stay unconditional.
   const enableMrp = posRuntimeSettings?.enable_mrp === true;
   const posCartGridCols = useMemo(
     () => posCartGridColumns(posCartBarcodeColumnWidth(items), enableMrp),
     [items, enableMrp],
   );
-
-  // Garment / Footwear GST auto-bump rule (from purchase_settings)
-  const garmentGstSettings = {
-    garment_gst_rule_enabled: ((settingsData as any)?.purchase_settings?.garment_gst_rule_enabled === true),
-    garment_gst_threshold: (settingsData as any)?.purchase_settings?.garment_gst_threshold,
-  };
 
   // Optional POS invoice-date override (admin-gated). When OFF, POS silently uses today.
   const posAllowDateChange = (settingsData as any)?.sale_settings?.pos_allow_date_change === true;
@@ -1423,11 +1310,10 @@ export default function POSSales() {
   }, [posBillFormat, posThermalPaper]);
   const showInvoicePreviewSetting: boolean = _posSaleSettings.show_invoice_preview ?? true;
   const defaultPosTaxType = normalizeGstTaxType(_posSaleSettings.default_tax_type);
-  const [taxType, setTaxType] = useState<GstTaxType>(defaultPosTaxType);
 
   useEffect(() => {
     setTaxType(defaultPosTaxType);
-  }, [defaultPosTaxType]);
+  }, [defaultPosTaxType, setTaxType]);
 
   const invoiceTaxType: GstTaxType = savedInvoiceData?.taxType
     ? normalizeGstTaxType(savedInvoiceData.taxType)
@@ -3135,7 +3021,7 @@ export default function POSSales() {
   };
 
   const removeItem = (index: number) => {
-    setItems(prev => prev.filter((_, i) => i !== index));
+    billingRemoveLine(index);
     // Keep focus on barcode search bar
     setTimeout(() => barcodeInputRef.current?.focus(), 50);
   };
@@ -3155,158 +3041,30 @@ export default function POSSales() {
       return;
     }
     
-    setItems(prev => {
-      const updatedItems = [...prev];
-      updatedItems[index].quantity = clampedQty;
-      updatedItems[index].netAmount = calculatePosCartLineNet(updatedItems[index]);
-      return updatedItems;
-    });
+    billingUpdateQty(index, clampedQty);
   };
 
-  const sumLineDiscount = (rows: CartItem[]) =>
-    rows.reduce((sum, item) => {
-      const baseAmount = (Number(item.mrp) || 0) * (Number(item.quantity) || 0);
-      const percentDiscount = (baseAmount * (Number(item.discountPercent) || 0)) / 100;
-      const implicitRateDiscount = Math.max(
-        0,
-        ((Number(item.mrp) || 0) - (Number(item.unitCost) || 0)) * (Number(item.quantity) || 0),
-      );
-      return sum + percentDiscount + (Number(item.discountAmount) || 0) + implicitRateDiscount;
-    }, 0);
-
-  const sumMrpTotal = (rows: CartItem[]) =>
-    rows.reduce((sum, item) => sum + (Number(item.mrp) || 0) * (Number(item.quantity) || 0), 0);
-
   const updateDiscountPercent = (index: number, discountPercent: number) => {
-    if (discountPercent < 0 || discountPercent > 100) return;
-    setItems((prev) => {
-      const updatedItems = [...prev];
-      const prevItem = updatedItems[index];
-      const switchingFromUnit = prevItem.rateAuthority === "unit";
-      updatedItems[index] = {
-        ...prevItem,
-        rateAuthority: "discount",
-        // Clear typed rate gap only when leaving unit-authority mode.
-        unitCost: switchingFromUnit ? Number(prevItem.mrp) || 0 : prevItem.unitCost,
-        discountPercent,
-        discountAmount: 0,
-      };
-      updatedItems[index] = applyPosGarmentGstToItem(updatedItems[index], garmentGstSettings);
-
-      const mrpTotal = sumMrpTotal(updatedItems);
-      const maxLine = Math.max(0, Math.round((mrpTotal - flatDiscountAmount) * 100) / 100);
-      const lineDisc = sumLineDiscount(updatedItems);
-      if (lineDisc > maxLine + 0.01) {
-        const item = updatedItems[index];
-        const baseAmount = Math.max(0, (Number(item.mrp) || 0) * (Number(item.quantity) || 0));
-        const otherLine = lineDisc - ((baseAmount * discountPercent) / 100);
-        const room = Math.max(0, maxLine - otherLine);
-        updatedItems[index] = {
-          ...item,
-          rateAuthority: "discount",
-          unitCost: switchingFromUnit ? Number(item.mrp) || 0 : item.unitCost,
-          discountPercent: baseAmount > 0 ? Number(((room / baseAmount) * 100).toFixed(4)) : 0,
-          discountAmount: 0,
-        };
-        updatedItems[index] = applyPosGarmentGstToItem(updatedItems[index], garmentGstSettings);
-        toast.warning(
-          `Only ₹${maxCombinedDiscountForGross(mrpTotal).toLocaleString("en-IN", { maximumFractionDigits: 0 })} discount can be applied to this bill`,
-        );
-      }
-      return updatedItems;
-    });
+    const result = billingUpdateDiscountPercent(index, discountPercent);
+    if (result.error?.code === "DISCOUNT_CAP") {
+      toast.warning(result.error.message);
+    }
   };
 
   const updateDiscountAmount = (index: number, discountAmount: number) => {
-    if (discountAmount < 0) return;
-    setItems((prev) => {
-      const updatedItems = [...prev];
-      const item = updatedItems[index];
-      const switchingFromUnit = item.rateAuthority === "unit";
-      const baseAmount = Math.max(0, (Number(item.mrp) || 0) * (Number(item.quantity) || 0));
-      const mappedPercent = baseAmount > 0 ? Math.min(100, (discountAmount / baseAmount) * 100) : 0;
-      updatedItems[index] = {
-        ...item,
-        rateAuthority: "discount",
-        unitCost: switchingFromUnit ? Number(item.mrp) || 0 : item.unitCost,
-        discountPercent: Number(mappedPercent.toFixed(4)),
-        discountAmount: 0,
-      };
-      updatedItems[index] = applyPosGarmentGstToItem(updatedItems[index], garmentGstSettings);
-
-      const mrpTotal = sumMrpTotal(updatedItems);
-      const maxLine = Math.max(0, Math.round((mrpTotal - flatDiscountAmount) * 100) / 100);
-      const lineDisc = sumLineDiscount(updatedItems);
-      if (lineDisc > maxLine + 0.01) {
-        const cappedItem = updatedItems[index];
-        const base = Math.max(0, (Number(cappedItem.mrp) || 0) * (Number(cappedItem.quantity) || 0));
-        const otherLine = lineDisc - ((base * (Number(cappedItem.discountPercent) || 0)) / 100);
-        const room = Math.max(0, maxLine - otherLine);
-        updatedItems[index] = {
-          ...cappedItem,
-          rateAuthority: "discount",
-          unitCost: switchingFromUnit ? Number(cappedItem.mrp) || 0 : cappedItem.unitCost,
-          discountPercent: base > 0 ? Number(((room / base) * 100).toFixed(4)) : 0,
-          discountAmount: 0,
-        };
-        updatedItems[index] = applyPosGarmentGstToItem(updatedItems[index], garmentGstSettings);
-        toast.warning(
-          `Only ₹${maxCombinedDiscountForGross(mrpTotal).toLocaleString("en-IN", { maximumFractionDigits: 0 })} discount can be applied to this bill`,
-        );
-      }
-      return updatedItems;
-    });
-  };
-
-  /**
-   * Minimum unitCost on `index` so bill line+flat discount stays within cap,
-   * assuming Disc% / Disc Rs on that line are cleared (unit-authority path).
-   */
-  const minUnitPriceForDiscountCap = (rows: CartItem[], index: number): number => {
-    const item = rows[index];
-    if (!item) return 0;
-    const mrp = Number(item.mrp) || 0;
-    const qty = Math.max(0.0001, Number(item.quantity) || 0);
-    const withClearedDisc = rows.map((r, i) =>
-      i === index
-        ? { ...r, discountPercent: 0, discountAmount: 0, unitCost: mrp, rateAuthority: "unit" as const }
-        : r,
-    );
-    const mrpTotal = sumMrpTotal(withClearedDisc);
-    const maxLine = Math.max(0, Math.round((mrpTotal - flatDiscountAmount) * 100) / 100);
-    const otherDisc = sumLineDiscount(withClearedDisc);
-    const room = Math.max(0, maxLine - otherDisc);
-    return Math.max(0, Math.round((mrp - room / qty) * 100) / 100);
+    const result = billingUpdateDiscountAmount(index, discountAmount);
+    if (result.error?.code === "DISCOUNT_CAP") {
+      toast.warning(result.error.message);
+    }
   };
 
   /** Apply typed unit price. Returns false if rejected (cap / invalid). */
   const applyUnitPriceToCart = (index: number, rawValue: number): boolean => {
-    if (rawValue < 0 || !Number.isFinite(rawValue)) return false;
-    if (index < 0 || index >= items.length) return false;
-    const mrp = Number(items[index].mrp) || 0;
-    const unitCost = Math.min(mrp > 0 ? mrp : rawValue, Math.max(0, rawValue));
-    const minUnit = minUnitPriceForDiscountCap(items, index);
-    if (unitCost + 0.005 < minUnit) {
-      toast.warning(
-        `Minimum ₹${minUnit.toLocaleString("en-IN", { maximumFractionDigits: 2 })} on this line.`,
-      );
+    const result = billingUpdatePrice(index, rawValue);
+    if (result.error) {
+      toast.warning(result.error.message);
       return false;
     }
-    setItems((prev) => {
-      if (index < 0 || index >= prev.length) return prev;
-      const updatedItems = [...prev];
-      const lineMrp = Number(updatedItems[index].mrp) || 0;
-      const nextUnit = Math.min(lineMrp > 0 ? lineMrp : unitCost, Math.max(0, unitCost));
-      updatedItems[index] = {
-        ...updatedItems[index],
-        rateAuthority: "unit",
-        unitCost: nextUnit,
-        discountPercent: 0,
-        discountAmount: 0,
-      };
-      updatedItems[index] = applyPosGarmentGstToItem(updatedItems[index], garmentGstSettings);
-      return updatedItems;
-    });
     return true;
   };
 
@@ -3319,7 +3077,7 @@ export default function POSSales() {
     }
     const mrp = Number(items[index].mrp) || 0;
     const unitCost = Math.min(mrp > 0 ? mrp : rawValue, Math.max(0, rawValue));
-    const minUnit = minUnitPriceForDiscountCap(items, index);
+    const minUnit = minUnitPriceForDiscountCap(items, index, flatDiscountAmount);
     if (unitCost + 0.005 < minUnit) {
       toast.warning(
         `Minimum ₹${minUnit.toLocaleString("en-IN", { maximumFractionDigits: 2 })} on this line.`,
@@ -3345,141 +3103,39 @@ export default function POSSales() {
   };
 
   const updateMrp = (index: number, newMrp: number) => {
-    if (newMrp < 0) return;
-    setItems((prev) => {
-      const updatedItems = [...prev];
-      const item = updatedItems[index];
-      updatedItems[index] = {
-        ...item,
-        mrp: newMrp,
-        // Typed unit override must survive MRP edit — do not wipe unitCost.
-        unitCost:
-          item.rateAuthority === "unit"
-            ? Math.min(Number(item.unitCost) || 0, newMrp)
-            : newMrp,
-      };
-      updatedItems[index] = applyPosGarmentGstToItem(updatedItems[index], garmentGstSettings);
-
-      if (item.rateAuthority === "unit") {
-        const minUnit = minUnitPriceForDiscountCap(updatedItems, index);
-        if ((Number(updatedItems[index].unitCost) || 0) + 0.005 < minUnit) {
-          updatedItems[index] = {
-            ...updatedItems[index],
-            unitCost: minUnit,
-          };
-          updatedItems[index] = applyPosGarmentGstToItem(updatedItems[index], garmentGstSettings);
-          toast.warning(
-            `Unit price raised to ₹${minUnit.toLocaleString("en-IN", { maximumFractionDigits: 2 })} to stay within bill discount cap`,
-          );
-        }
-      }
-      return updatedItems;
-    });
+    const result = billingUpdateMrp(index, newMrp);
+    if (result.error) {
+      toast.warning(result.error.message);
+    }
   };
 
   const updateGstPer = (index: number, newGstPer: number) => {
-    setItems(prev => {
-      const updatedItems = [...prev];
-      updatedItems[index] = { ...updatedItems[index], gstPer: newGstPer };
-      return updatedItems;
-    });
+    billingUpdateGstPer(index, newGstPer);
   };
 
-  // Calculate totals
+  // Totals from headless engine (aliases preserve existing POSSales call sites).
   const totals = {
-    quantity: items.reduce((sum, item) => sum + item.quantity, 0),
-    mrp: items.reduce((sum, item) => sum + (item.mrp * item.quantity), 0),
-    discount: items.reduce((sum, item) => {
-      const baseAmount = item.mrp * item.quantity;
-      const percentDiscount = (baseAmount * item.discountPercent) / 100;
-      const implicitRateDiscount = Math.max(0, (item.mrp - item.unitCost) * item.quantity);
-      return sum + percentDiscount + item.discountAmount + implicitRateDiscount;
-    }, 0),
-    subtotal: items.reduce((sum, item) => sum + item.netAmount, 0),
-    // Savings vs line MRP after Disc% / Disc Rs (POS bills from MRP; sale invoices use sale price in SalesInvoice).
-    savings: items.reduce(
-      (sum, item) => sum + Math.max(0, item.mrp * item.quantity - item.netAmount),
-      0
-    ),
+    quantity: billingTotals.quantity,
+    mrp: billingTotals.mrp,
+    discount: billingTotals.discount,
+    subtotal: billingTotals.subtotal,
+    savings: billingTotals.savings,
   };
-
-  const rawFlatDiscount = computePosFlatDiscount({
-    mrpTotal: totals.mrp,
-    saleReturnAdjust,
-    flatDiscountValue,
-    flatDiscountMode,
-  });
-  /** Combined line + flat must not exceed gross (before S/R). */
-  const maxFlatDiscountForGross = Math.max(
-    0,
-    Math.round((maxCombinedDiscountForGross(totals.mrp) - totals.discount) * 100) / 100,
-  );
-  const flatDiscountAmount = Math.min(rawFlatDiscount.flatDiscountAmount, maxFlatDiscountForGross);
-  const flatDiscountPercent =
-    flatDiscountMode === "percent"
-      ? flatDiscountValue
-      : maxFlatDiscountForGross > 0.005 && totals.mrp > 0.005
-        ? (flatDiscountAmount / Math.max(0.01, totals.mrp - saleReturnAdjust)) * 100
-        : rawFlatDiscount.flatDiscountPercent;
-  const flatDiscountCapped = rawFlatDiscount.flatDiscountAmount > maxFlatDiscountForGross + 0.01;
-
-  const posGst = computePosBillGst(items, taxType, flatDiscountAmount);
-  
-  // Calculate amount before round-off (without roundOff in calculation)
-  const amountBeforeRoundOff =
-    taxType === "exclusive"
-      ? posGst.taxableSubtotal -
-        flatDiscountAmount -
-        saleReturnAdjust -
-        creditApplied +
-        posGst.totalGst
-      : totals.subtotal - flatDiscountAmount - saleReturnAdjust - creditApplied;
-  
-  // Auto-calculate round-off to make final amount a whole number
-  const calculatedRoundOff = Math.round(amountBeforeRoundOff) - amountBeforeRoundOff;
-  
-  // Auto-update roundOff state when calculation changes (only if not manual)
-  useEffect(() => {
-    if (!isManualRoundOff) {
-      if (items.length > 0) {
-        const newRoundOff = parseFloat(calculatedRoundOff.toFixed(2));
-        if (Math.abs(newRoundOff - roundOff) > 0.001) {
-          setRoundOff(newRoundOff);
-        }
-      } else if (roundOff !== 0) {
-        setRoundOff(0);
-      }
-    }
-  }, [amountBeforeRoundOff, items.length, isManualRoundOff]);
-  
-  // Handle manual round-off change - no limit for full flexibility
-  const handleRoundOffChange = (value: number) => {
-    setRoundOff(parseFloat(value.toFixed(2)));
-    setIsManualRoundOff(true);
+  const flatDiscountAmount = billingTotals.flatDiscountAmount;
+  const flatDiscountPercent = billingTotals.flatDiscountPercent;
+  const flatDiscountCapped = billingTotals.flatDiscountCapped;
+  const amountBeforeRoundOff = billingTotals.amountBeforeRoundOff;
+  const calculatedRoundOff = billingTotals.calculatedRoundOff;
+  const pointsRedemptionValue = billingTotals.pointsRedemptionValue;
+  const finalAmount = billingTotals.finalAmount;
+  const amountBeforeCredit = billingTotals.amountBeforeCredit;
+  const posGst = {
+    taxableSubtotal: billingTotals.taxableSubtotal,
+    totalGst: billingTotals.totalGst,
   };
-  
-  // Handle final amount change - reverse calculate round-off (no limit)
-  const handleFinalAmountChange = (enteredAmount: number) => {
-    const newRoundOff = enteredAmount - amountBeforeRoundOff;
-    setRoundOff(parseFloat(newRoundOff.toFixed(2)));
-    setIsManualRoundOff(true);
-  };
-  
-  // Reset to auto-calculated round-off
-  const handleResetRoundOff = () => {
-    setIsManualRoundOff(false);
-    setRoundOff(parseFloat(calculatedRoundOff.toFixed(2)));
-  };
-  
-  // Calculate points redemption value
-  const pointsRedemptionValue = calculateRedemptionValue(pointsToRedeem);
-  
-  // Align with amountBeforeRoundOff (includes exclusive GST + credit); avoids footer/print showing taxable-only total.
-  const finalAmount = amountBeforeRoundOff + roundOff - pointsRedemptionValue;
-  const amountBeforeCredit = finalAmount + creditApplied;
 
   /** Max S/R that keeps bill net ≥ 0 (gross/subtotal after other discounts/credits). */
-  const maxSrFromBill = maxSaleReturnAdjustForPayable(finalAmount, saleReturnAdjust);
+  const maxSrFromBill = billingMaxSrFromBill;
   const availableSrCredit = pendingSaleReturnCredits.reduce(
     (s, sr) => s + (Number(sr.net_amount) || 0),
     0,
