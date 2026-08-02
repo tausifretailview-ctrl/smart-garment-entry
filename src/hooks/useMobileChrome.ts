@@ -21,6 +21,7 @@ const OWN_HEADER_PATHS = [
   /\/payments-dashboard$/,
   /\/sale-return-dashboard$/,
   /\/mobile-sales$/,
+  /\/mobile-pos$/,
   /\/mobile-dashboard$/,
   /\/mobile-more$/,
   /\/mobile-accounts$/,
