@@ -26,7 +26,6 @@ import {
   prefetchPostLoginCriticalPages,
   prefetchPostLoginIdlePages,
   prefetchTabPage,
-  prefetchTabPagesIdle,
   resolveTabCachePath,
 } from "@/lib/tabPageRegistry";
 import { isElectronShell, shouldElectronMountOnlyActiveTab } from "@/lib/electronShell";
@@ -47,6 +46,8 @@ import { DesktopAppShell } from "@/components/DesktopAppShell";
 import { SharedAppShellContext } from "@/contexts/SharedAppShellContext";
 import { useShowDesktopChrome } from "@/hooks/useDesktopViewPreference";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
+import { Button } from "@/components/ui/button";
+import { AlertCircle, RefreshCw } from "lucide-react";
 
 /** Sentinel — no cached pane is active while a bill-entry screen uses <Outlet>. */
 const TAB_CACHE_INACTIVE = "__none__";
@@ -61,15 +62,20 @@ function getOrgPathSegment(pathname: string, orgSlug?: string): string {
 export const OrgLayout = () => {
   const { orgSlug } = useParams<{ orgSlug: string }>();
   const { user, loading: authLoading } = useAuth();
-  const { currentOrganization, organizations, loading: orgLoading, switchOrganization } = useOrganization();
+  const {
+    currentOrganization,
+    organizations,
+    loading: orgLoading,
+    fetchError: orgFetchError,
+    hasResolvedOrganizations,
+    switchOrganization,
+    refetchOrganizations,
+  } = useOrganization();
   const queryClient = useQueryClient();
   const [isOrgSynced, setIsOrgSynced] = useState(false);
-  const [syncTimeout, setSyncTimeout] = useState(false);
   const [accessDeniedForSlug, setAccessDeniedForSlug] = useState<string | null>(null);
   /** Tab-cache pane has mounted for the current path — keep Outlet as fallback until then. */
   const [tabPaneReady, setTabPaneReady] = useState(false);
-  /** If tab cache never becomes ready, fall back to <Outlet> so the screen is not blank. */
-  const [forceOutletFallback, setForceOutletFallback] = useState(false);
   /** Paths whose lazy chunk already mounted — skip Outlet flash when switching back. */
   const tabPaneReadyPathsRef = useRef<Set<string>>(new Set());
 
@@ -131,14 +137,9 @@ export const OrgLayout = () => {
     return [...set];
   }, [openWindows, resolvedCurrentPath, pinnedCacheableEntryPaths]);
 
-  useEffect(() => {
-    const prefetchActive = isEntryPage && !isCacheableEntryActive ? "" : currentPath;
-    return prefetchTabPagesIdle(tabPaths, prefetchActive);
-  }, [tabPaths, currentPath, isEntryPage, isCacheableEntryActive]);
-
   // Warm bill-entry chunks after login. Electron: defer prefetch so login paint is not blocked.
   useEffect(() => {
-    if (!isOrgSynced || !user) return;
+    if (!isOrgSynced || !user || (wantsTabCache && !effectiveTabPaneReady)) return;
 
     const run = () => {
       if (shouldElectronMountOnlyActiveTab()) {
@@ -164,12 +165,18 @@ export const OrgLayout = () => {
     }
     const t = window.setTimeout(run, 1_500);
     return () => window.clearTimeout(t);
-  }, [isOrgSynced, user, tabPaths]);
+  }, [isOrgSynced, user, tabPaths, wantsTabCache, effectiveTabPaneReady]);
 
   // Warm Sales + Purchase dashboard first page after login — data ready before user opens tab.
   useEffect(() => {
     const orgId = currentOrganization?.id;
-    if (!isOrgSynced || !user || !orgId || permissionsLoading) return;
+    if (
+      !isOrgSynced ||
+      !user ||
+      !orgId ||
+      permissionsLoading ||
+      (wantsTabCache && !effectiveTabPaneReady)
+    ) return;
 
     const warm = () => {
       // Do not prefetch Main Dashboard KPIs when User Rights disables main_dashboard.
@@ -199,6 +206,8 @@ export const OrgLayout = () => {
     permissionsLoading,
     permissions,
     hasMenuAccess,
+    wantsTabCache,
+    effectiveTabPaneReady,
   ]);
 
   // purchase-entry is tab-cached so in-app tab switch keeps the form mounted (other entry routes use Outlet).
@@ -207,10 +216,9 @@ export const OrgLayout = () => {
   const tabPaneWasReady = isTabPaneReadyForPath(resolvedCurrentPath);
   const paneMounted = isTabCachePaneMounted(resolvedCurrentPath);
   const effectiveTabPaneReady = tabPaneReady || (tabPaneWasReady && paneMounted);
-  // Cacheable entry (purchase-entry): always render via tab cache when window tabs are open.
-  // Dashboards: keep <Outlet> visible until the cached pane has mounted (chunk still loading).
-  const renderViaTabCache =
-    wantsTabCache && (isCacheableEntryActive || effectiveTabPaneReady) && !forceOutletFallback;
+  // A cacheable route has one owner from the first render. Its Suspense fallback remains
+  // visible until the chunk resolves, avoiding a second copy mounted through <Outlet>.
+  const renderViaTabCache = wantsTabCache;
   /**
    * Which cached pane is visible. Non-cacheable entry routes use INACTIVE so dashboard
    * panes stay mounted (hidden). Cacheable entry must use currentPath — otherwise
@@ -220,19 +228,14 @@ export const OrgLayout = () => {
     !wantsTabCache || (isEntryPage && !isCacheableEntryActive)
       ? TAB_CACHE_INACTIVE
       : resolvedCurrentPath;
-  /** Hide tab-cache container while Outlet shows the first-load fallback (dashboards only). */
+  /** Non-cacheable entry routes render through Outlet; cacheable routes use the pane. */
   const hideTabCacheContainer =
     (isEntryPage && !isCacheableEntryActive) ||
-    (wantsTabCache && !effectiveTabPaneReady && !isCacheableEntryActive) ||
-    !isCacheableTabPath(resolvedCurrentPath) ||
-    // Once we fell back to <Outlet>, keep the cached pane hidden even if it
-    // later signals ready — otherwise both render and the page appears duplicated.
-    forceOutletFallback;
+    !isCacheableTabPath(resolvedCurrentPath);
 
   // Reset on navigation — restore before paint so going back from an entry screen
   // (e.g. POS) does not flash the <Outlet> copy for one frame before the cached pane shows.
   useLayoutEffect(() => {
-    setForceOutletFallback(false);
     if (
       isCacheableTabPath(resolvedCurrentPath) &&
       tabPaths.length > 0 &&
@@ -243,17 +246,6 @@ export const OrgLayout = () => {
       setTabPaneReady(false);
     }
   }, [resolvedCurrentPath, tabPaths.length, isTabPaneReadyForPath]);
-
-  // Safety net: if the cached pane never signals ready (slow network / chunk failure), keep Outlet visible.
-  useEffect(() => {
-    if (!wantsTabCache || effectiveTabPaneReady) return;
-    const timeoutMs = isElectronShell() ? 12_000 : 18_000;
-    const timer = window.setTimeout(() => {
-      console.warn("[OrgLayout] Tab pane not ready — falling back to Outlet for", currentPath);
-      setForceOutletFallback(true);
-    }, timeoutMs);
-    return () => window.clearTimeout(timer);
-  }, [wantsTabCache, effectiveTabPaneReady, currentPath]);
 
   useEffect(() => {
     if (!isNavigationPerfEnabled()) return;
@@ -269,20 +261,6 @@ export const OrgLayout = () => {
       openTabPaths: openWindows.map((w) => w.path),
     });
   }, [currentPath, renderViaTabCache, orgSlug, tabPaths, openWindows, isEntryPage]);
-
-  // Safety timeout: if org sync takes too long, force render to prevent infinite spinner.
-  // Bumped from 4s → 12s so a normal cold-start org fetch (which itself takes
-  // several seconds) does not trip the fallback and dump the user into a
-  // half-initialised shell that only recovers on manual refresh.
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (!isOrgSynced) {
-        console.warn("OrgLayout: Sync timeout reached, forcing render");
-        setSyncTimeout(true);
-      }
-    }, 12000);
-    return () => clearTimeout(timer);
-  }, [isOrgSynced]);
 
   // Check if this is a public route (no auth required)
   const isPublicInvoiceRoute = location.pathname.includes('/invoice/view/');
@@ -392,8 +370,29 @@ export const OrgLayout = () => {
     return <OrgAuth />;
   }
 
-  // Wait for organization to be synced before rendering children (with timeout fallback)
-  if (!isOrgSynced && !syncTimeout) {
+  // Never render a half-initialized tenant shell. Offer an explicit retry when the
+  // authoritative organization request fails instead of exposing a blank workspace.
+  if (!isOrgSynced && (orgFetchError || (hasResolvedOrganizations && organizations.length === 0))) {
+    return (
+      <div className="fixed inset-0 z-[99998] flex items-center justify-center bg-background p-6">
+        <div className="flex max-w-sm flex-col items-center gap-4 text-center">
+          <AlertCircle className="h-9 w-9 text-destructive" />
+          <div className="space-y-1">
+            <h1 className="text-lg font-semibold text-foreground">Workspace could not be prepared</h1>
+            <p className="text-sm text-muted-foreground">
+              Check the connection and retry. Your saved work has not been changed.
+            </p>
+          </div>
+          <Button onClick={refetchOrganizations} className="gap-2">
+            <RefreshCw className="h-4 w-4" />
+            Retry
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isOrgSynced) {
     return <AppBootSplash message="Preparing workspace…" />;
   }
 
@@ -423,7 +422,6 @@ export const OrgLayout = () => {
               tabPaneReadyPathsRef.current.add(canonical);
               if (resolveTabCachePath(currentPath) === canonical) {
                 setTabPaneReady(true);
-                setForceOutletFallback(false);
               }
             }}
             onTabEvicted={(path) => {
@@ -431,7 +429,6 @@ export const OrgLayout = () => {
               tabPaneReadyPathsRef.current.delete(canonical);
               if (resolveTabCachePath(currentPath) === canonical) {
                 setTabPaneReady(false);
-                setForceOutletFallback(true);
               }
             }}
           />
