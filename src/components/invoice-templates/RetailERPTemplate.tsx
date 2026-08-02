@@ -1,6 +1,7 @@
 import React from "react";
 import { numberToWords } from "@/lib/utils";
 import { retailErpWhatsAppProductLabel, formatRetailErpInvoiceSize } from "@/utils/retailErpWhatsAppProductLabel";
+import { normalizeGstTaxType, type GstTaxType } from "@/utils/gstRegisterUtils";
 
 interface InvoiceItem {
   sr: number;
@@ -102,6 +103,8 @@ interface RetailERPTemplateProps {
   fontFamily?: string;
   /** Sale settings — e.g. BILL OF SUPPLY, CATERING SERVICE (Real Tast A4). */
   documentTitle?: string;
+  /** Inclusive / exclusive / Without GST (Bill of Supply). */
+  taxType?: GstTaxType | string;
 
   salesman?: string;
 
@@ -171,12 +174,15 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   salesman,
   customHeaderText,
   documentTitle,
+  taxType: taxTypeProp,
   stampImageBase64,
   stampPosition = "bottom-right",
   stampSize = "medium",
   instagramLink,
   variant = "standard",
 }) => {
+  const taxType = normalizeGstTaxType(taxTypeProp);
+  const isNoGst = taxType === "no_gst";
   const isRealTast = variant === "real-tast";
   const isPreprinted = variant === "preprinted";
   const isA4 = format === "a4" || isRealTast;
@@ -307,28 +313,32 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
     Math.round((getLineGross(item) - lineBillDiscounts[i]) * 100) / 100,
   );
 
-  // GST breakup calculation — group by rate
+  // GST breakup calculation — group by rate.
+  // Independent of cgst/sgst/igst props: extracts from item.gstPercent on line totals.
+  // Must stay empty under Without GST so product tax rates never invent a summary.
   const gstBreakup: Record<number, { hsn: string; taxableValue: number; cgst: number; sgst: number; igst: number }> = {};
   const isInterState = igstAmount > 0;
 
-  items.forEach((item) => {
-    const gstPct = item.gstPercent || 0;
-    if (gstPct > 0) {
-      const taxOnItem = (item.total * gstPct) / (100 + gstPct);
-      const taxableVal = item.total - taxOnItem;
-      if (!gstBreakup[gstPct]) {
-        gstBreakup[gstPct] = { hsn: item.hsn || "", taxableValue: 0, cgst: 0, sgst: 0, igst: 0 };
+  if (!isNoGst) {
+    items.forEach((item) => {
+      const gstPct = item.gstPercent || 0;
+      if (gstPct > 0) {
+        const taxOnItem = (item.total * gstPct) / (100 + gstPct);
+        const taxableVal = item.total - taxOnItem;
+        if (!gstBreakup[gstPct]) {
+          gstBreakup[gstPct] = { hsn: item.hsn || "", taxableValue: 0, cgst: 0, sgst: 0, igst: 0 };
+        }
+        gstBreakup[gstPct].taxableValue += taxableVal;
+        if (isInterState) {
+          gstBreakup[gstPct].igst += taxOnItem;
+        } else {
+          gstBreakup[gstPct].cgst += taxOnItem / 2;
+          gstBreakup[gstPct].sgst += taxOnItem / 2;
+        }
+        if (!gstBreakup[gstPct].hsn && item.hsn) gstBreakup[gstPct].hsn = item.hsn;
       }
-      gstBreakup[gstPct].taxableValue += taxableVal;
-      if (isInterState) {
-        gstBreakup[gstPct].igst += taxOnItem;
-      } else {
-        gstBreakup[gstPct].cgst += taxOnItem / 2;
-        gstBreakup[gstPct].sgst += taxOnItem / 2;
-      }
-      if (!gstBreakup[gstPct].hsn && item.hsn) gstBreakup[gstPct].hsn = item.hsn;
-    }
-  });
+    });
+  }
 
   const hasGSTData = Object.keys(gstBreakup).length > 0;
 
@@ -477,7 +487,8 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   const showPaymentQr = Boolean(qrCodeUrl && !isRealTast);
   const signColWidth = isA5Retail ? (showPaymentQr ? "36%" : "34%") : "40%";
   // GST summary lives in the Note column (not Add: CGST/SGST rows on the right).
-  const showGstInNote = !isRealTast && showGSTBreakdown && hasGSTData;
+  // taxType gate is independent of hasGSTData — product rates must not resurrect a summary under no_gst.
+  const showGstInNote = !isRealTast && showGSTBreakdown && hasGSTData && !isNoGst;
   const fsGstSummaryLabel = isA4 ? "11px" : "9px";
   const fsGstSummaryBody = isA4 ? "11px" : "9px";
   const fsTermsTitle = isA4 ? (isRealTast ? "14px" : "13px") : "11px";
@@ -631,9 +642,11 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                   const docTitle =
                     grandTotal < 0
                       ? "CREDIT NOTE"
-                      : isRealTast
+                      : isNoGst
                         ? (documentTitle?.trim() || "BILL OF SUPPLY")
-                        : "TAX INVOICE";
+                        : isRealTast
+                          ? (documentTitle?.trim() || "BILL OF SUPPLY")
+                          : "TAX INVOICE";
                   return itemPages.length > 1
                     ? `${docTitle}${pageIndex > 0 ? ` (Page ${pageIndex + 1} of ${itemPages.length})` : ""}`
                     : docTitle;

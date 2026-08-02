@@ -249,7 +249,8 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
   stampSize = "medium",
 }) => {
   const taxType = normalizeGstTaxType(taxTypeProp);
-  const isGstInclusive = taxType === "inclusive";
+  const isNoGst = taxType === "no_gst";
+  const isGstInclusive = taxType === "inclusive" || isNoGst;
   const sellerState = getStateFromGSTIN(gstNumber);
   const buyerState = getStateFromGSTIN(customerGSTIN);
   const isInterState = gstNumber && customerGSTIN && gstNumber.substring(0, 2) !== customerGSTIN.substring(0, 2);
@@ -269,26 +270,30 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
     string,
     { hsn: string; taxableValue: number; rate: number; cgst: number; sgst: number; igst: number; total: number }
   > = {};
-  items.forEach((item) => {
-    const gstPct = item.gstPercent || 0;
-    const { taxable, gst: gstAmt } = splitLineGstFromTotal(item.total, gstPct);
-    const hsn = item.hsn || "N/A";
-    const key = `${hsn}-${gstPct}`;
-    if (!hsnBreakup[key]) hsnBreakup[key] = { hsn, taxableValue: 0, rate: gstPct, cgst: 0, sgst: 0, igst: 0, total: 0 };
-    hsnBreakup[key].taxableValue += taxable;
-    if (isInterState) {
-      hsnBreakup[key].igst += gstAmt;
-    } else {
-      hsnBreakup[key].cgst += gstAmt / 2;
-      hsnBreakup[key].sgst += gstAmt / 2;
-    }
-    hsnBreakup[key].total += gstAmt;
-  });
+  if (!isNoGst) {
+    items.forEach((item) => {
+      const gstPct = item.gstPercent || 0;
+      const { taxable, gst: gstAmt } = splitLineGstFromTotal(item.total, gstPct);
+      const hsn = item.hsn || "N/A";
+      const key = `${hsn}-${gstPct}`;
+      if (!hsnBreakup[key]) hsnBreakup[key] = { hsn, taxableValue: 0, rate: gstPct, cgst: 0, sgst: 0, igst: 0, total: 0 };
+      hsnBreakup[key].taxableValue += taxable;
+      if (isInterState) {
+        hsnBreakup[key].igst += gstAmt;
+      } else {
+        hsnBreakup[key].cgst += gstAmt / 2;
+        hsnBreakup[key].sgst += gstAmt / 2;
+      }
+      hsnBreakup[key].total += gstAmt;
+    });
+  }
 
-  const computedTaxableAmount = Object.values(hsnBreakup).reduce((s, r) => s + r.taxableValue, 0);
-  const computedTotalTax = Object.values(hsnBreakup).reduce((s, r) => s + r.total, 0);
+  const computedTaxableAmount = isNoGst
+    ? items.reduce((s, i) => s + (i.total || 0), 0)
+    : Object.values(hsnBreakup).reduce((s, r) => s + r.taxableValue, 0);
+  const computedTotalTax = isNoGst ? 0 : Object.values(hsnBreakup).reduce((s, r) => s + r.total, 0);
   const taxableAmount = computedTaxableAmount > 0 ? computedTaxableAmount : _taxableAmountProp;
-  const totalTax = computedTotalTax > 0 ? computedTotalTax : totalTaxProp;
+  const totalTax = isNoGst ? 0 : computedTotalTax > 0 ? computedTotalTax : totalTaxProp;
 
   const totalQty = items.reduce((s, i) => s + i.qty, 0);
   const defaultDeclaration = `We declare that this invoice shows the actual price of the goods described and that all particulars are true and correct.\nWARRANTY TO CUSTOMER IS DIRECTLY FROM MANUFACTURER.\nDEALER IS NOT RESPONSIBLE. GOODS ONCE SOLD WILL NOT BE TAKEN BACK OR EXCHANGED.`;
@@ -299,21 +304,23 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
     totalIgst = 0;
   let summaryGstRate = 0;
 
-  items.forEach((item) => {
-    const gstPct = item.gstPercent || 0;
-    if (gstPct > 0) {
-      const { gst: gstAmt } = splitLineGstFromTotal(item.total, gstPct);
-      if (isInterState) {
-        totalIgst += gstAmt;
-      } else {
-        totalCgst += gstAmt / 2;
-        totalSgst += gstAmt / 2;
+  if (!isNoGst) {
+    items.forEach((item) => {
+      const gstPct = item.gstPercent || 0;
+      if (gstPct > 0) {
+        const { gst: gstAmt } = splitLineGstFromTotal(item.total, gstPct);
+        if (isInterState) {
+          totalIgst += gstAmt;
+        } else {
+          totalCgst += gstAmt / 2;
+          totalSgst += gstAmt / 2;
+        }
+        summaryGstRate = gstPct;
       }
-      summaryGstRate = gstPct;
-    }
-  });
+    });
+  }
 
-  if (showGSTBreakdown && (totalCgst > 0 || totalSgst > 0 || totalIgst > 0)) contentRows += 1;
+  if (showGSTBreakdown && !isNoGst && (totalCgst > 0 || totalSgst > 0 || totalIgst > 0)) contentRows += 1;
   if (roundOff !== 0) contentRows++;
   const blankRowsNeeded = Math.max(0, MIN_ITEM_ROWS - contentRows);
 
@@ -632,7 +639,7 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
               ))}
 
               {/* GST Summary Row within the main table to keep columns perfectly aligned */}
-              {showGSTBreakdown && (totalCgst > 0 || totalSgst > 0 || totalIgst > 0) && (
+              {showGSTBreakdown && !isNoGst && (totalCgst > 0 || totalSgst > 0 || totalIgst > 0) && (
                 <tr>
                   <td style={cellNoRowBorder}></td>
                   <td style={{ ...cellNoRowBorder, textAlign: "right", fontSize: "10px", fontStyle: "italic" }}>
@@ -719,7 +726,7 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
         )}
 
         {/* HSN Tax Breakup Table */}
-        {showGSTBreakdown && Object.keys(hsnBreakup).length > 0 && (
+        {showGSTBreakdown && !isNoGst && Object.keys(hsnBreakup).length > 0 && (
           <div style={{ borderTop: b, flexShrink: 0 }}>
             <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
               <thead>

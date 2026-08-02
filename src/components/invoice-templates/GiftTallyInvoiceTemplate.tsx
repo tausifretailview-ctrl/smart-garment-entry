@@ -1,5 +1,6 @@
 import React from "react";
 import {
+  normalizeGstTaxType,
   splitLineGstFromTotal,
   type GstTaxType,
 } from "@/utils/gstRegisterUtils";
@@ -215,6 +216,8 @@ export const GiftTallyInvoiceTemplate: React.FC<GiftTallyInvoiceTemplateProps> =
     : null;
 
   const panFromGst = gstNumber && gstNumber.length >= 12 ? gstNumber.substring(2, 12) : "";
+  const taxType = normalizeGstTaxType(taxTypeProp);
+  const isNoGst = taxType === "no_gst";
 
   let totalCgst = 0;
   let totalSgst = 0;
@@ -222,16 +225,20 @@ export const GiftTallyInvoiceTemplate: React.FC<GiftTallyInvoiceTemplateProps> =
   let totalQty = 0;
 
   const lineRows = items.map((item, index) => {
-    const gstPct = item.gstPercent || 0;
-    const { taxable, gst: gstAmt } = splitLineGstFromTotal(item.total, gstPct);
+    const gstPct = isNoGst ? 0 : item.gstPercent || 0;
+    const { taxable, gst: gstAmt } = isNoGst
+      ? { taxable: item.total || 0, gst: 0 }
+      : splitLineGstFromTotal(item.total, gstPct);
     const safeQty = item.qty > 0 ? item.qty : 1;
     const taxableRate = taxable / safeQty;
     totalQty += item.qty;
-    if (isInterState) {
-      totalIgst += gstAmt;
-    } else {
-      totalCgst += gstAmt / 2;
-      totalSgst += gstAmt / 2;
+    if (!isNoGst) {
+      if (isInterState) {
+        totalIgst += gstAmt;
+      } else {
+        totalCgst += gstAmt / 2;
+        totalSgst += gstAmt / 2;
+      }
     }
     return {
       index: index + 1,
@@ -243,9 +250,9 @@ export const GiftTallyInvoiceTemplate: React.FC<GiftTallyInvoiceTemplateProps> =
     };
   });
 
-  const totalCgstFinal = totalCgst > 0 ? totalCgst : cgstAmountProp;
-  const totalSgstFinal = totalSgst > 0 ? totalSgst : sgstAmountProp;
-  const totalIgstFinal = totalIgst > 0 ? totalIgst : igstAmountProp;
+  const totalCgstFinal = isNoGst ? 0 : totalCgst > 0 ? totalCgst : cgstAmountProp;
+  const totalSgstFinal = isNoGst ? 0 : totalSgst > 0 ? totalSgst : sgstAmountProp;
+  const totalIgstFinal = isNoGst ? 0 : totalIgst > 0 ? totalIgst : igstAmountProp;
   const lineTaxableTotal = lineRows.reduce((s, r) => s + r.taxable, 0);
 
   const firstGstPct = lineRows.find((r) => r.gstPct > 0)?.gstPct ?? 0;
@@ -284,7 +291,12 @@ export const GiftTallyInvoiceTemplate: React.FC<GiftTallyInvoiceTemplateProps> =
   const modeOfTransport = customerTransportDetails?.trim() || "";
 
   const blankRows = Math.max(0, MIN_ITEM_ROWS - lineRows.length);
-  const titleText = grandTotal < 0 ? "CREDIT NOTE" : "TAX INVOICE";
+  const titleText =
+    grandTotal < 0
+      ? "CREDIT NOTE"
+      : isNoGst
+        ? (documentTitle?.trim() || "BILL OF SUPPLY")
+        : "TAX INVOICE";
   const logoSizePx = 88;
   const stampWidthPx =
     stampSize === "small" ? "115px" : stampSize === "large" ? "175px" : "145px";

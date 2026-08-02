@@ -95,7 +95,7 @@ import {
   maxSaleReturnAdjustForPayable,
 } from "@/utils/saleSettlement";
 import { clampQty, minQtyForUom } from "@/utils/qtyInput";
-import type { GstTaxType } from "@/utils/gstRegisterUtils";
+import { normalizeGstTaxType, type GstTaxType } from "@/utils/gstRegisterUtils";
 import { CreditNotePrint } from "@/components/CreditNotePrint";
 import { StockIssueAlertDialog } from "@/components/StockIssueAlertDialog";
 import {
@@ -1186,8 +1186,8 @@ export default function POSSales() {
             if (holdData.roundOff !== undefined) {
               setRoundOff(holdData.roundOff);
             }
-            if (holdData.taxType === "exclusive" || holdData.taxType === "inclusive") {
-              setTaxType(holdData.taxType);
+            if (holdData.taxType != null && holdData.taxType !== "") {
+              setTaxType(normalizeGstTaxType(String(holdData.taxType)));
             }
           }
         } catch (parseError) {
@@ -1254,8 +1254,7 @@ export default function POSSales() {
 
         toast.success(`Invoice ${sale.sale_number} loaded for editing`);
 
-        const loadedTaxType =
-          (sale as { tax_type?: string }).tax_type === "exclusive" ? "exclusive" : "inclusive";
+        const loadedTaxType = normalizeGstTaxType((sale as { tax_type?: string }).tax_type);
         setTaxType(loadedTaxType);
 
         const effectiveFlat =
@@ -1423,15 +1422,16 @@ export default function POSSales() {
     return { width, minHeight, maxHeight, overflow: 'visible' as const };
   }, [posBillFormat, posThermalPaper]);
   const showInvoicePreviewSetting: boolean = _posSaleSettings.show_invoice_preview ?? true;
-  const defaultPosTaxType =
-    (_posSaleSettings.default_tax_type === 'exclusive' ? 'exclusive' : 'inclusive') as 'inclusive' | 'exclusive';
-  const [taxType, setTaxType] = useState<'inclusive' | 'exclusive'>(defaultPosTaxType);
+  const defaultPosTaxType = normalizeGstTaxType(_posSaleSettings.default_tax_type);
+  const [taxType, setTaxType] = useState<GstTaxType>(defaultPosTaxType);
 
   useEffect(() => {
     setTaxType(defaultPosTaxType);
   }, [defaultPosTaxType]);
 
-  const invoiceTaxType = (savedInvoiceData?.taxType as 'inclusive' | 'exclusive' | undefined) || taxType;
+  const invoiceTaxType: GstTaxType = savedInvoiceData?.taxType
+    ? normalizeGstTaxType(savedInvoiceData.taxType)
+    : taxType;
 
   // Direct print hook
   const { isDirectPrintEnabled, isAutoPrintEnabled, directPrint } = useDirectPrint(
@@ -5083,8 +5083,7 @@ export default function POSSales() {
       rawInvoiceTs ? format(new Date(rawInvoiceTs), "dd/MM/yyyy HH:mm:ss") : null,
     );
 
-    const navTaxType =
-      (sale as { tax_type?: string }).tax_type === "exclusive" ? "exclusive" : "inclusive";
+    const navTaxType = normalizeGstTaxType((sale as { tax_type?: string }).tax_type);
     setTaxType(navTaxType);
     setCurrentSaleId(sale.id);
     setCurrentInvoiceNumber(sale.sale_number);
@@ -6535,15 +6534,16 @@ export default function POSSales() {
           {/* Customer Discount & Points moved to bottom after Note section */}
 
           {/* GST Type — Tally tax invoice / billing */}
-          <div className="w-32 shrink-0">
+          <div className="w-36 shrink-0">
             <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1 block">GST Type</Label>
-            <Select value={taxType} onValueChange={(v: "inclusive" | "exclusive") => setTaxType(v)}>
+            <Select value={taxType} onValueChange={(v) => setTaxType(normalizeGstTaxType(v))}>
               <SelectTrigger className="h-10 text-xs border-border/80">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="inclusive">Inclusive</SelectItem>
                 <SelectItem value="exclusive">Exclusive</SelectItem>
+                <SelectItem value="no_gst">Without GST</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -6983,7 +6983,9 @@ export default function POSSales() {
                                 title={
                                   taxType === "exclusive"
                                     ? "Taxable unit (GST added in line total)"
-                                    : "Net unit after line Disc% / Disc Rs"
+                                    : taxType === "no_gst"
+                                      ? "Sale price (no GST applied)"
+                                      : "Net unit after line Disc% / Disc Rs"
                                 }
                               >
                                 ₹{formatINR2(posLineNetUnitPrice(item))}

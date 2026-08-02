@@ -11,7 +11,7 @@ export function posLineGstFromTaxable(taxable: number, gstPer: number): number {
   return Math.round((taxable * gstPer) / 100 * 100) / 100;
 }
 
-/** Line total shown on screen / print — inclusive keeps taxable+GST embedded; exclusive adds GST on top. */
+/** Line total shown on screen / print — exclusive adds GST; inclusive / no_gst keep typed price as final. */
 export function posLineDisplayTotal(
   taxable: number,
   gstPer: number,
@@ -20,6 +20,7 @@ export function posLineDisplayTotal(
   if (taxType === "exclusive") {
     return Math.round((taxable + posLineGstFromTaxable(taxable, gstPer)) * 100) / 100;
   }
+  // inclusive + no_gst: sale price is final (no GST added)
   return taxable;
 }
 
@@ -54,6 +55,7 @@ export function computePosBillGst(
   flatDiscountAmount: number,
 ): { taxableSubtotal: number; totalGst: number } {
   const taxableSubtotal = items.reduce((s, i) => s + (i.netAmount || 0), 0);
+  // no_gst and inclusive: never add bill-level GST (price is final / already embedded).
   if (taxType !== "exclusive" || taxableSubtotal <= 0.005) {
     return { taxableSubtotal, totalGst: 0 };
   }

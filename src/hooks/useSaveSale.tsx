@@ -71,7 +71,7 @@ interface SaleData {
   salesman?: string | null;
   notes?: string | null;
   pointsRedeemedAmount?: number;
-  taxType?: "inclusive" | "exclusive";
+  taxType?: "inclusive" | "exclusive" | "no_gst";
   /**
    * Optional caller-supplied sale_date (timestamptz ISO, +05:30 shape).
    * When provided (e.g. POS "allow date change" is ON and the cashier picked a
