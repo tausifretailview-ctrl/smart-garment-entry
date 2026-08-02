@@ -287,7 +287,8 @@ export function resolveTabCachePath(path: string): string {
   return TAB_CACHE_CANONICAL_PATH[path] ?? path;
 }
 
-const prefetchCache = new Map<string, Promise<unknown>>();
+type TabPageModule = { default: ComponentType<unknown> };
+const prefetchCache = new Map<string, Promise<TabPageModule>>();
 /** Tab paths whose lazy chunk module is already resolved in memory. */
 const loadedChunkPaths = new Set<string>();
 
@@ -300,10 +301,13 @@ export function isTabCachePath(path: string): boolean {
   return Boolean(TAB_PAGE_REGISTRY[path]) || Boolean(TAB_PAGE_REGISTRY[resolveTabCachePath(path)]);
 }
 
-export function prefetchTabPage(path: string): void {
+function loadTabPageModule(path: string): Promise<TabPageModule> | null {
   const resolved = resolveTabCachePath(path);
   const def = TAB_PAGE_REGISTRY[resolved];
-  if (!def || prefetchCache.has(resolved)) return;
+  if (!def) return null;
+  const existing = prefetchCache.get(resolved);
+  if (existing) return existing;
+
   const promise = importWithRetry(def.loader)
     .then((mod) => {
       loadedChunkPaths.add(resolved);
@@ -311,9 +315,19 @@ export function prefetchTabPage(path: string): void {
     })
     .catch((err) => {
       prefetchCache.delete(resolved);
-      console.warn(`[prefetch] Failed to load tab chunk: ${resolved}`, err);
+      throw err;
     });
   prefetchCache.set(resolved, promise);
+  return promise;
+}
+
+export function prefetchTabPage(path: string): void {
+  const resolved = resolveTabCachePath(path);
+  const promise = loadTabPageModule(resolved);
+  if (!promise) return;
+  void promise.catch((err) => {
+    console.warn(`[prefetch] Failed to load tab chunk: ${resolved}`, err);
+  });
 }
 
 /** Drop cached lazy/prefetch state so the next mount re-fetches the chunk. */
@@ -392,8 +406,9 @@ export function getLazyTabPage(path: string): LazyExoticComponent<ComponentType<
   let cached = lazyCache.get(resolved);
   if (!cached) {
     cached = lazyWithRetry(async () => {
-      const mod = await def.loader();
-      loadedChunkPaths.add(resolved);
+      const pending = loadTabPageModule(resolved);
+      if (!pending) throw new Error(`Unknown tab page: ${resolved}`);
+      const mod = await pending;
       return mod;
     });
     lazyCache.set(resolved, cached);

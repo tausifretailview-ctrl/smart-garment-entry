@@ -5,8 +5,26 @@ export function isServiceProduct(productType?: string | null): boolean {
   return productType === "service";
 }
 
+/** Service/combo do not track physical stock for sale UI / validation. */
+export function isNonStockTrackedProduct(productType?: string | null): boolean {
+  return productType === "service" || productType === "combo";
+}
+
 export function isVirtualServiceStockQty(qty: number): boolean {
   return qty >= SERVICE_VIRTUAL_STOCK_QTY;
+}
+
+/**
+ * Sale / POS / size-grid stock label.
+ * Service (and combo) variants are stored with virtual 999999 (may drift after
+ * movements); UI always shows 1 — matching Product Master.
+ */
+export function displaySaleStockQty(
+  productType: string | undefined | null,
+  rawStock: number | null | undefined,
+): number {
+  if (isNonStockTrackedProduct(productType)) return 1;
+  return Number(rawStock) || 0;
 }
 
 /** Product Master grid — service rows show 1 (no physical stock tracking). */

@@ -1,63 +1,148 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from "react";
+import { Capacitor } from "@capacitor/core";
+import { isElectronShell } from "@/lib/electronShell";
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
-  userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
+  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
+}
+
+declare global {
+  interface Window {
+    __pwaInstallPrompt?: Event;
+  }
+}
+
+/** Shared across Header / banner / salesman layout — event fires once, early. */
+let sharedDeferredPrompt: BeforeInstallPromptEvent | null = null;
+const promptListeners = new Set<() => void>();
+
+function notifyPromptListeners() {
+  promptListeners.forEach((fn) => fn());
+}
+
+function capturePrompt(e: Event) {
+  e.preventDefault();
+  sharedDeferredPrompt = e as BeforeInstallPromptEvent;
+  window.__pwaInstallPrompt = e;
+  notifyPromptListeners();
+}
+
+function clearPrompt() {
+  sharedDeferredPrompt = null;
+  window.__pwaInstallPrompt = undefined;
+  notifyPromptListeners();
+}
+
+let globalListenersBound = false;
+function ensureGlobalPromptCapture() {
+  if (globalListenersBound || typeof window === "undefined") return;
+  globalListenersBound = true;
+
+  if (window.__pwaInstallPrompt) {
+    sharedDeferredPrompt = window.__pwaInstallPrompt as BeforeInstallPromptEvent;
+  }
+
+  window.addEventListener("beforeinstallprompt", capturePrompt);
+  window.addEventListener("appinstalled", () => {
+    clearPrompt();
+  });
+}
+
+export function isStandaloneDisplay(): boolean {
+  if (typeof window === "undefined") return false;
+  return (
+    window.matchMedia("(display-mode: standalone)").matches ||
+    (window.navigator as Navigator & { standalone?: boolean }).standalone === true
+  );
+}
+
+export function isIOSDevice(): boolean {
+  if (typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent;
+  return /iPhone|iPod|iPad/.test(ua) || (/Macintosh/.test(ua) && "ontouchend" in document);
+}
+
+export function isAndroidDevice(): boolean {
+  if (typeof navigator === "undefined") return false;
+  return /Android/i.test(navigator.userAgent);
+}
+
+/** Native APK / Electron already installed — no browser PWA prompt. */
+export function isNativeShell(): boolean {
+  try {
+    if (isElectronShell()) return true;
+    if (Capacitor.isNativePlatform()) return true;
+  } catch {
+    /* ignore */
+  }
+  return false;
 }
 
 export function useInstallPrompt() {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
-  const [isInstallable, setIsInstallable] = useState(false);
   const [isInstalled, setIsInstalled] = useState(false);
 
   useEffect(() => {
-    // Check if already installed
-    if (window.matchMedia('(display-mode: standalone)').matches) {
+    ensureGlobalPromptCapture();
+
+    if (isStandaloneDisplay() || isNativeShell()) {
       setIsInstalled(true);
       return;
     }
 
-    // Check if event was already captured globally (fired before hook mounted)
-    if (window.__pwaInstallPrompt) {
-      setDeferredPrompt(window.__pwaInstallPrompt as BeforeInstallPromptEvent);
-      setIsInstallable(true);
-      window.__pwaInstallPrompt = undefined;
-    }
-
-    const handleBeforeInstallPrompt = (e: Event) => {
-      e.preventDefault();
-      setDeferredPrompt(e as BeforeInstallPromptEvent);
-      setIsInstallable(true);
+    const sync = () => {
+      const next =
+        sharedDeferredPrompt ||
+        (window.__pwaInstallPrompt as BeforeInstallPromptEvent | undefined) ||
+        null;
+      if (next && !sharedDeferredPrompt) {
+        sharedDeferredPrompt = next;
+      }
+      setDeferredPrompt(sharedDeferredPrompt);
     };
+
+    sync();
+    promptListeners.add(sync);
 
     const handleAppInstalled = () => {
       setIsInstalled(true);
-      setIsInstallable(false);
-      setDeferredPrompt(null);
+      clearPrompt();
     };
-
-    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-    window.addEventListener('appinstalled', handleAppInstalled);
+    window.addEventListener("appinstalled", handleAppInstalled);
 
     return () => {
-      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-      window.removeEventListener('appinstalled', handleAppInstalled);
+      promptListeners.delete(sync);
+      window.removeEventListener("appinstalled", handleAppInstalled);
     };
   }, []);
 
-  const promptInstall = async () => {
-    if (!deferredPrompt) return false;
+  const promptInstall = useCallback(async () => {
+    const promptEvent = sharedDeferredPrompt || deferredPrompt;
+    if (!promptEvent) return false;
 
-    await deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
-    
-    if (outcome === 'accepted') {
+    await promptEvent.prompt();
+    const { outcome } = await promptEvent.userChoice;
+
+    if (outcome === "accepted") {
+      clearPrompt();
       setDeferredPrompt(null);
-      setIsInstallable(false);
+      setIsInstalled(true);
     }
-    
-    return outcome === 'accepted';
-  };
 
-  return { isInstallable, isInstalled, promptInstall };
+    return outcome === "accepted";
+  }, [deferredPrompt]);
+
+  const isInstallable = !!deferredPrompt && !isInstalled;
+  /** Show Install App in browser chrome when not already a standalone/native app. */
+  const canOfferInstall = !isInstalled && !isNativeShell();
+
+  return {
+    isInstallable,
+    isInstalled,
+    canOfferInstall,
+    isIOS: isIOSDevice(),
+    isAndroid: isAndroidDevice(),
+    promptInstall,
+  };
 }

@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, X } from "lucide-react";
 import { compareSizes } from "@/utils/sizeSort";
+import { displaySaleStockQty, isNonStockTrackedProduct } from "@/utils/productStockDisplay";
 
 interface Variant {
   id: string;
@@ -143,6 +144,9 @@ export function SizeGridDialog({
   const effectivePurPrice = defaultPurPrice || product?.default_pur_price || filteredVariants[0]?.pur_price || 0;
   const effectiveSalePrice = defaultSalePrice || product?.default_sale_price || filteredVariants[0]?.sale_price || 0;
   const effectiveMrp = defaultMrp || effectiveSalePrice;
+  /** Service/combo virtual stock (999999…) → show 1 in size grid. */
+  const stockForDisplay = (raw: number | null | undefined) =>
+    displaySaleStockQty(product?.product_type, raw);
 
   // Reset quantities and color selection when dialog opens with new product
   useEffect(() => {
@@ -351,8 +355,8 @@ export function SizeGridDialog({
       return;
     }
 
-    // Validate stock if required
-    if (validateStock) {
+    // Validate stock if required (skip service/combo — virtual unlimited stock)
+    if (validateStock && !isNonStockTrackedProduct(product?.product_type)) {
       for (const [sizeKey, qtyStr] of entries) {
         const qty = Number(qtyStr);
         if (qty > 0) {
@@ -657,8 +661,8 @@ export function SizeGridDialog({
                               placeholder="0"
                             />
                             {showStock && (
-                              <span className={`text-xs ${(v.stock_qty || 0) > 0 ? 'text-green-600' : 'text-red-500'}`}>
-                                Stock: {v.stock_qty || 0}
+                              <span className={`text-xs ${stockForDisplay(v.stock_qty) > 0 ? 'text-green-600' : 'text-red-500'}`}>
+                                Stock: {stockForDisplay(v.stock_qty)}
                               </span>
                             )}
                             {showSizePrices && (
@@ -1063,8 +1067,8 @@ export function SizeGridDialog({
                           placeholder="0"
                         />
                         {showStock && (
-                          <span className={`text-xs ${(v.stock_qty || 0) > 0 ? 'text-green-600' : 'text-red-500'}`}>
-                            Stock: {v.stock_qty || 0}
+                          <span className={`text-xs ${stockForDisplay(v.stock_qty) > 0 ? 'text-green-600' : 'text-red-500'}`}>
+                            Stock: {stockForDisplay(v.stock_qty)}
                           </span>
                         )}
                         {showSizePrices && (
