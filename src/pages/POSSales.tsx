@@ -14,7 +14,6 @@ import {
   applyPosGarmentGstToItem,
   calculatePosCartLineNet,
   findPosServiceMergeIndex,
-  mapSaleItemsToPosCart,
   minUnitPriceForDiscountCap,
   normalizeFlatDiscountInput,
   posLineNetUnitPrice,
@@ -96,15 +95,8 @@ import { useDashboardInvalidation } from "@/hooks/useDashboardInvalidation";
 import { POS_DEFERRED_INVALIDATION_OPTS } from "@/utils/saveSaleRuntimeOptions";
 import { invalidatePosDashboardQueries } from "@/utils/posDashboardSales";
 import { autoCorrectFY, generateOrgEstimateNumber, minSequenceFromSeriesStart, saleFormatToLikePattern } from "@/utils/saleNumber";
-import {
-  computePosBillGst,
-  computePosFlatDiscount,
-  posLineDisplayTotal,
-} from "@/utils/posGstTotals";
-import {
-  maxCombinedDiscountForGross,
-  maxSaleReturnAdjustForPayable,
-} from "@/utils/saleSettlement";
+import { posLineDisplayTotal } from "@/utils/posGstTotals";
+import { maxCombinedDiscountForGross } from "@/utils/saleSettlement";
 import { clampQty, minQtyForUom } from "@/utils/qtyInput";
 import { normalizeGstTaxType, type GstTaxType } from "@/utils/gstRegisterUtils";
 import { CreditNotePrint } from "@/components/CreditNotePrint";
@@ -2868,6 +2860,29 @@ export default function POSSales() {
     }
   };
 
+  // Totals from headless engine (aliases preserve existing POSSales call sites).
+  const totals = {
+    quantity: billingTotals.quantity,
+    mrp: billingTotals.mrp,
+    discount: billingTotals.discount,
+    subtotal: billingTotals.subtotal,
+    savings: billingTotals.savings,
+  };
+  const flatDiscountAmount = billingTotals.flatDiscountAmount;
+  const flatDiscountPercent = billingTotals.flatDiscountPercent;
+  const flatDiscountCapped = billingTotals.flatDiscountCapped;
+  const amountBeforeRoundOff = billingTotals.amountBeforeRoundOff;
+  const calculatedRoundOff = billingTotals.calculatedRoundOff;
+  const pointsRedemptionValue = billingTotals.pointsRedemptionValue;
+  const finalAmount = billingTotals.finalAmount;
+  const amountBeforeCredit = billingTotals.amountBeforeCredit;
+  const posGst = {
+    taxableSubtotal: billingTotals.taxableSubtotal,
+    totalGst: billingTotals.totalGst,
+  };
+  /** Max S/R that keeps bill net ≥ 0 (gross/subtotal after other discounts/credits). */
+  const maxSrFromBill = billingMaxSrFromBill;
+
   const removeItem = (index: number) => {
     billingRemoveLine(index);
     // Keep focus on barcode search bar
@@ -2961,29 +2976,6 @@ export default function POSSales() {
     billingUpdateGstPer(index, newGstPer);
   };
 
-  // Totals from headless engine (aliases preserve existing POSSales call sites).
-  const totals = {
-    quantity: billingTotals.quantity,
-    mrp: billingTotals.mrp,
-    discount: billingTotals.discount,
-    subtotal: billingTotals.subtotal,
-    savings: billingTotals.savings,
-  };
-  const flatDiscountAmount = billingTotals.flatDiscountAmount;
-  const flatDiscountPercent = billingTotals.flatDiscountPercent;
-  const flatDiscountCapped = billingTotals.flatDiscountCapped;
-  const amountBeforeRoundOff = billingTotals.amountBeforeRoundOff;
-  const calculatedRoundOff = billingTotals.calculatedRoundOff;
-  const pointsRedemptionValue = billingTotals.pointsRedemptionValue;
-  const finalAmount = billingTotals.finalAmount;
-  const amountBeforeCredit = billingTotals.amountBeforeCredit;
-  const posGst = {
-    taxableSubtotal: billingTotals.taxableSubtotal,
-    totalGst: billingTotals.totalGst,
-  };
-
-  /** Max S/R that keeps bill net ≥ 0 (gross/subtotal after other discounts/credits). */
-  const maxSrFromBill = billingMaxSrFromBill;
   const availableSrCredit = pendingSaleReturnCredits.reduce(
     (s, sr) => s + (Number(sr.net_amount) || 0),
     0,
@@ -3580,25 +3572,14 @@ export default function POSSales() {
     }
 
     // Save the sale with the selected payment method
-    const saleData = {
-      customerId: customerId || null,
+    const saleData = buildSaleData({
+      customerId,
       customerName,
-      customerPhone: customerPhone || null,
-      items,
-      grossAmount: totals.mrp,
-      discountAmount: totals.discount,
-      flatDiscountPercent,
-      flatDiscountAmount,
-      saleReturnAdjust,
-      roundOff,
-      netAmount: finalAmount,
-      creditApplied,
+      customerPhone,
       salesman: selectedSalesman || null,
       notes: saleNotes || null,
-      pointsRedeemedAmount: pointsRedemptionValue,
-      taxType,
       saleDate: buildPosSaleDate(),
-    };
+    });
 
     // Use resumeHeldSale if this is a held sale, updateSale if editing, otherwise create new
     let result;
@@ -3776,24 +3757,16 @@ export default function POSSales() {
 
     // Save the sale with mix payment, refund, or credit note
     const saleData = {
-      customerId: customerId || null,
-      customerName,
-      customerPhone: customerPhone || null,
-      items,
-      grossAmount: totals.mrp,
-      discountAmount: totals.discount,
-      flatDiscountPercent,
-      flatDiscountAmount,
-      saleReturnAdjust,
-      roundOff,
+      ...buildSaleData({
+        customerId,
+        customerName,
+        customerPhone,
+        salesman: selectedSalesman || null,
+        notes: saleNotes || null,
+        saleDate: buildPosSaleDate(),
+      }),
       netAmount: paymentData.issueCreditNote ? Math.max(0, finalAmount) : finalAmount,
       refundAmount: paymentData.issueCreditNote ? 0 : paymentData.refundAmount,
-      creditApplied,
-      salesman: selectedSalesman || null,
-      notes: saleNotes || null,
-      pointsRedeemedAmount: pointsRedemptionValue,
-      taxType,
-      saleDate: buildPosSaleDate(),
     };
 
     const paymentMethodType: 'multiple' = 'multiple';
@@ -4830,21 +4803,12 @@ export default function POSSales() {
       return;
     }
 
-    const saleData = {
-      customerId: customerId || null,
+    const saleData = buildSaleData({
+      customerId,
       customerName: customerName || "Walk in Customer",
-      customerPhone: customerPhone || null,
-      items,
-      grossAmount: totals.mrp,
-      discountAmount: totals.discount,
-      flatDiscountPercent,
-      flatDiscountAmount,
-      saleReturnAdjust,
-      roundOff,
-      netAmount: finalAmount,
+      customerPhone,
       notes: saleNotes || null,
-      taxType,
-    };
+    });
 
     const result = await holdSale(saleData);
     
