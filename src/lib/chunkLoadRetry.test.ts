@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { isChunkLoadError } from "./chunkLoadRetry";
+import {
+  CRITICAL_ENTRY_CHUNK_PATHS,
+  isChunkLoadError,
+  POST_LOGIN_WEB_IDLE_INVENTORY_PREFETCH_TAB_PATHS,
+} from "./chunkLoadRetry";
 
 describe("isChunkLoadError", () => {
   it("matches real dynamic-import / chunk failures", () => {
@@ -18,5 +22,24 @@ describe("isChunkLoadError", () => {
     expect(isChunkLoadError(new Error("maxFlatDiscountForGross is not defined"))).toBe(false);
     expect(isChunkLoadError(new ReferenceError("foo is not defined"))).toBe(false);
     expect(isChunkLoadError(new TypeError("Cannot read properties of undefined"))).toBe(false);
+  });
+});
+
+describe("idle / wake entry-chunk prefetch lists", () => {
+  it("warms purchase-entry and product-entry on web idle after login", () => {
+    expect(POST_LOGIN_WEB_IDLE_INVENTORY_PREFETCH_TAB_PATHS).toEqual(
+      expect.arrayContaining(["purchase-entry", "product-entry"]),
+    );
+  });
+
+  it("re-warms critical bill-entry chunks after tab becomes visible", () => {
+    expect(CRITICAL_ENTRY_CHUNK_PATHS).toEqual(
+      expect.arrayContaining([
+        "purchase-entry",
+        "product-entry",
+        "pos-sales",
+        "sales-invoice",
+      ]),
+    );
   });
 });

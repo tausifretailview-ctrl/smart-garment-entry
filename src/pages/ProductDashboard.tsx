@@ -29,6 +29,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Loader2, Package, Search, Download, Upload, Filter, Plus, MoreHorizontal, Home, ChevronDown, ChevronRight, X, Trash2, Settings2, Barcode, RefreshCw, Eye, Edit, ShoppingCart, History, Ban, Merge, Boxes, Tags, TrendingDown, TrendingUp, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { prefetchTabPage } from "@/lib/tabPageRegistry";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -1555,6 +1556,8 @@ const ProductDashboard = () => {
               Refresh
             </Button>
             <Button
+              onPointerEnter={() => void prefetchTabPage("product-entry")}
+              onFocus={() => void prefetchTabPage("product-entry")}
               onClick={() => navigate("/product-entry")}
               className="h-9 px-4 text-sm font-semibold bg-blue-600 hover:bg-blue-700 text-white shadow-sm gap-1.5"
             >
