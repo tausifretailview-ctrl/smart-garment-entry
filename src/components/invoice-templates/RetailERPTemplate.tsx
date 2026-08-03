@@ -508,9 +508,18 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   const qrPadMm = isA4 ? 2 : 0.5;
   const showPaymentQr = Boolean(qrCodeUrl && !isRealTast);
   const signColWidth = isA5Retail ? (showPaymentQr ? "36%" : "34%") : "40%";
-  // GST summary lives in the Note column (not Add: CGST/SGST rows on the right).
   // taxType gate is independent of hasGSTData — product rates must not resurrect a summary under no_gst.
-  const showGstInNote = !isRealTast && showGSTBreakdown && hasGSTData && !isNoGst;
+  // A5 Retail ERP: GST amounts sit in the right totals column after Round Off (before Bill Total).
+  // A4 / other variants: keep the Note-column GST Summary.
+  const showGstBreakdown =
+    !isRealTast && showGSTBreakdown && hasGSTData && !isNoGst;
+  const showGstInTotals = showGstBreakdown && isA5Retail;
+  const showGstInNote = showGstBreakdown && !showGstInTotals;
+  const gstTotalsAmount = Math.max(
+    0,
+    Number(totalTax || 0) ||
+      Number(cgstAmount || 0) + Number(sgstAmount || 0) + Number(igstAmount || 0),
+  );
   const fsGstSummaryLabel = isA4 ? "11px" : "9px";
   const fsGstSummaryBody = isA4 ? "11px" : "9px";
   const fsTermsTitle = isA4 ? (isRealTast ? "14px" : "13px") : "11px";
@@ -1217,6 +1226,22 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                             {printRoundOff > 0 ? "+" : ""}
                             {fmt(printRoundOff)}
                           </span>
+                        </div>
+                      )}
+                      {showGstInTotals && gstTotalsAmount > 0 && (
+                        <div style={{ ...totalsRowBase, fontSize: "11px", fontWeight: 800 }}>
+                          <span style={totalsLabelStyle}>
+                            {isInterState
+                              ? "IGST"
+                              : cgstAmount > 0 && sgstAmount > 0
+                                ? "GST Amount"
+                                : cgstAmount > 0
+                                  ? "CGST"
+                                  : sgstAmount > 0
+                                    ? "SGST"
+                                    : "GST Amount"}
+                          </span>
+                          <span style={totalsAmountStyle}>₹{fmt(gstTotalsAmount)}</span>
                         </div>
                       )}
                       <div
