@@ -322,12 +322,41 @@ function loadTabPageModule(path: string): Promise<TabPageModule> | null {
   return promise;
 }
 
-export function prefetchTabPage(path: string): void {
+export type PrefetchTabPageOptions = {
+  /**
+   * User is about to navigate (pointerdown / touch). Always warm the chunk.
+   * Speculative (hover / idle) respects Save-Data / 2g.
+   */
+  intent?: boolean;
+};
+
+type NetInfo = { effectiveType?: string; saveData?: boolean };
+
+/** Speculative hover/idle warm — skip on Save-Data or 2g so the visible tab keeps bandwidth. */
+export function shouldAllowSpeculativeChunkPrefetch(): boolean {
+  if (isElectronShell()) return true;
+  try {
+    const conn = (navigator as Navigator & { connection?: NetInfo }).connection;
+    if (!conn) return true;
+    if (conn.saveData) return false;
+    if (conn.effectiveType === "slow-2g" || conn.effectiveType === "2g") return false;
+    return true;
+  } catch {
+    return true;
+  }
+}
+
+/**
+ * Warm a tab chunk via the shared promise cache (deduped).
+ * Failures are silent — never toast and never enter the skew-reload path.
+ */
+export function prefetchTabPage(path: string, options?: PrefetchTabPageOptions): void {
+  if (!options?.intent && !shouldAllowSpeculativeChunkPrefetch()) return;
   const resolved = resolveTabCachePath(path);
   const promise = loadTabPageModule(resolved);
   if (!promise) return;
-  void promise.catch((err) => {
-    console.warn(`[prefetch] Failed to load tab chunk: ${resolved}`, err);
+  void promise.catch(() => {
+    // Silent: real navigation retries via importWithRetry / Suspense.
   });
 }
 
@@ -384,14 +413,9 @@ export function prefetchTabPagesIdle(paths: string[], activePath: string): () =>
   const rest = paths.map(resolveTabCachePath).filter((p) => isTabCachePath(p) && p !== resolvedActive);
   if (rest.length === 0) return () => {};
 
-  // Web/PWA: skip background prefetch entirely on slow links (2g / slow-2g)
-  // so the visible tab gets all the bandwidth.
-  if (!isElectronShell()) {
-    type NetInfo = { effectiveType?: string; saveData?: boolean };
-    const conn = (navigator as Navigator & { connection?: NetInfo }).connection;
-    if (conn && (conn.saveData || conn.effectiveType === "slow-2g" || conn.effectiveType === "2g")) {
-      return () => {};
-    }
+  // Web/PWA: skip background prefetch on Save-Data / 2g so the visible tab keeps bandwidth.
+  if (!shouldAllowSpeculativeChunkPrefetch()) {
+    return () => {};
   }
 
   const run = () => rest.forEach(prefetchTabPage);

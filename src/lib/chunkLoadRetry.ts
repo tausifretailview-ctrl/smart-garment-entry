@@ -73,6 +73,7 @@ export const CRITICAL_ENTRY_CHUNK_PATHS = [
   "product-entry",
   "pos-sales",
   "sales-invoice",
+  // Later: add mobile-pos when it uses the tab-cache registry (billing must not cold-load).
 ] as const;
 
 /** Heavy admin modules — warmed on browser idle after login (not blocking bill entry). */

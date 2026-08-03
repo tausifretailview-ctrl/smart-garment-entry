@@ -112,6 +112,8 @@ export function WindowTabsBar({ className }: WindowTabsBarProps) {
                 <div
                   key={window.path}
                   className={cn("erp-tab group", isActive && "erp-tab--active")}
+                  onMouseEnter={() => prefetchTabPage(window.path)}
+                  onPointerDown={() => prefetchTabPage(window.path, { intent: true })}
                   onClick={() => switchWindow(window.path)}
                 >
                   {index < 9 && (
@@ -164,6 +166,7 @@ export function WindowTabsBar({ className }: WindowTabsBarProps) {
                         key={page.path}
                         onClick={() => openWindow(page.path)}
                         onMouseEnter={() => prefetchTabPage(page.path)}
+                        onPointerDown={() => prefetchTabPage(page.path, { intent: true })}
                         className={cn(isOpen && "bg-muted")}
                       >
                         <IconComponent className="h-4 w-4 mr-2" />

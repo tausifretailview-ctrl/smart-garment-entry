@@ -4,6 +4,7 @@ import {
   getLazyTabPage,
   TAB_PAGE_REGISTRY,
   isTabCachePath,
+  isTabPageChunkLoaded,
   prefetchCriticalEntryChunks,
   prefetchTabPage,
   prefetchTabPagesIdle,
@@ -179,28 +180,49 @@ function getMinKeepTabs(): number {
 }
 
 const DASHBOARD_TAB_PATHS = new Set(["", "dashboard"]);
-/** Inventory list dashboards — static shell while chunk loads (no center spinner). */
-const LIST_DASHBOARD_SHELL_PATHS = new Set([
-  ...DASHBOARD_TAB_PATHS,
-  "product-dashboard",
-  "products",
-  "purchase-bill-dashboard",
-  "purchase-bills",
-  "purchase-return-dashboard",
-  "purchase-returns",
-  "stock-adjustment",
-  "pos-dashboard",
-  "sales-invoice-dashboard",
-]);
 /** Time before showing the "Retry tab / Refresh app" card. Generous on web/PWA
  *  so slow shop Wi-Fi does not false-alarm while the chunk is still downloading. */
 const TAB_LOAD_TIMEOUT_MS = 20_000;
 /** Large admin chunks (Settings ~5k lines) need more time on first cold load. */
 const HEAVY_TAB_LOAD_TIMEOUT_MS = 45_000;
-/** When to swap the bare spinner for a friendlier "Still loading…" hint. */
+/** When to swap the bare spinner for a friendlier "Still loading…" hint (second-stage only). */
 const SOFT_LOADING_HINT_MS = 8_000;
-/** Bill-entry tabs — show branded splash while the chunk loads. */
-const ENTRY_TAB_SHELL_PATHS = new Set(["purchase-entry", "product-entry", "sales-invoice"]);
+
+type TabLoadShell = "entry" | "dashboard" | "page";
+
+/**
+ * Map every tab-cache route to an existing shell (no new skeleton system).
+ * - entry → AppBootSplash "Loading bill screen…"
+ * - dashboard → DashboardSkeleton (web) / splash (Electron)
+ * - page → AppBootSplash "Loading page…" (immediate — never bare spinner for 8s)
+ */
+function resolveTabLoadShell(path: string): TabLoadShell {
+  const resolved = resolveTabCachePath(path);
+  const def = TAB_PAGE_REGISTRY[resolved];
+  if (DASHBOARD_TAB_PATHS.has(resolved)) return "dashboard";
+  if (!def) return "page";
+  if (def.layout === "pos") return "entry";
+  if (resolved === "sales-invoice" || resolved.endsWith("-entry")) return "entry";
+  if (
+    def.layout === "layout" ||
+    resolved.includes("dashboard") ||
+    resolved.endsWith("-report") ||
+    resolved.endsWith("-reports") ||
+    resolved === "reports" ||
+    resolved === "accounts" ||
+    resolved === "settings" ||
+    resolved === "barcode-printing" ||
+    resolved === "stock-report" ||
+    resolved === "stock-adjustment" ||
+    resolved === "stock-settlement" ||
+    resolved === "stock-analysis" ||
+    resolved === "stock-ageing"
+  ) {
+    return "dashboard";
+  }
+  // Remaining fullscreen modules (masters, commission, etc.)
+  return "dashboard";
+}
 
 const HEAVY_TAB_PATHS = new Set([
   "settings",
@@ -227,8 +249,18 @@ function getTabLoadTimeoutMs(path: string): number {
   return HEAVY_TAB_PATHS.has(path) ? HEAVY_TAB_LOAD_TIMEOUT_MS : TAB_LOAD_TIMEOUT_MS;
 }
 
-function EntryTabShellFallback() {
-  return <AppBootSplash message="Loading bill screen…" />;
+function TabLoadShellView({ path }: { path: string }) {
+  const shell = resolveTabLoadShell(path);
+  if (shell === "entry") {
+    return <AppBootSplash message="Loading bill screen…" />;
+  }
+  if (shell === "dashboard") {
+    if (isElectronShell()) {
+      return <AppBootSplash message="Loading dashboard…" />;
+    }
+    return <DashboardSkeleton />;
+  }
+  return <AppBootSplash message="Loading page…" />;
 }
 
 function TabPageWithPerf({
@@ -310,17 +342,6 @@ function TabPageFallback({
 
   if (!active) return null;
 
-  if (ENTRY_TAB_SHELL_PATHS.has(path) && !timedOut) {
-    return <EntryTabShellFallback />;
-  }
-
-  if (LIST_DASHBOARD_SHELL_PATHS.has(path) && !timedOut) {
-    if (isElectronShell()) {
-      return <AppBootSplash message="Loading dashboard…" />;
-    }
-    return <DashboardSkeleton />;
-  }
-
   if (timedOut) {
     return (
       <div className="flex flex-1 h-full min-h-[40vh] w-full items-center justify-center p-6">
@@ -349,15 +370,14 @@ function TabPageFallback({
     );
   }
 
-  if (isElectronShell()) {
-    return <AppBootSplash message="Loading page…" />;
-  }
-
+  // Immediate route-shaped shell (<150ms target). Soft hint is second-stage only.
   return (
-    <div className="flex flex-1 h-full min-h-[40vh] w-full flex-col items-center justify-center gap-3">
-      <div className="h-7 w-7 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+    <div className="relative flex flex-1 h-full min-h-0 w-full flex-col">
+      <TabLoadShellView path={path} />
       {showSoftHint && (
-        <p className="text-xs text-muted-foreground">Still loading… slow network</p>
+        <p className="pointer-events-none absolute bottom-6 left-0 right-0 text-center text-xs text-muted-foreground">
+          Still loading… slow network
+        </p>
       )}
     </div>
   );
@@ -380,12 +400,15 @@ function CachedTabPane({
   roles,
   layout,
   onActivePaneReady,
+  /** Destination chunk still loading — keep outgoing pane mounted but visibly dimmed (never unmount). */
+  dimOutgoing = false,
 }: {
   path: string;
   active: boolean;
   roles?: TabPageRole[];
   layout: TabPageLayout;
   onActivePaneReady?: (path: string) => void;
+  dimOutgoing?: boolean;
 }) {
   const paneRef = useRef<HTMLDivElement>(null);
   const wasActiveRef = useRef(active);
@@ -472,7 +495,11 @@ function CachedTabPane({
       ref={paneRef}
       className={cn(
         "flex flex-col min-h-0",
-        active ? "flex-1 h-full w-full" : "hidden",
+        active
+          ? "relative z-10 flex-1 h-full w-full"
+          : dimOutgoing
+            ? "absolute inset-0 z-0 opacity-40 pointer-events-none saturate-50"
+            : "hidden",
       )}
       aria-hidden={!active}
       data-tab-cache-path={path}
@@ -672,19 +699,32 @@ export function TabCachedPages({ paths, activePath, onActivePaneReady, onTabEvic
     }
   }, [activePath, uniquePaths]);
 
+  // Include active path on the same render as navigation (do not wait for useEffect)
+  // so we never paint a frame where every pane is hidden.
+  const pathsToRender = useMemo(() => {
+    const mounted = new Set(mountedPaths);
+    if (isTabCachePath(resolvedActivePath)) mounted.add(resolvedActivePath);
+    return uniquePaths.filter((path) => mounted.has(path));
+  }, [mountedPaths, resolvedActivePath, uniquePaths]);
+
+  const activeChunkReady =
+    !isTabCachePath(resolvedActivePath) || isTabPageChunkLoaded(resolvedActivePath);
+  const dimOutgoingDuringLoad = !activeChunkReady;
+
   if (uniquePaths.length === 0) return null;
 
   return (
-    <div className="flex flex-1 flex-col min-h-0 min-w-0 h-full w-full overflow-hidden">
-      {uniquePaths.map((path) => {
-        if (!mountedPaths.has(path)) return null;
+    <div className="relative flex flex-1 flex-col min-h-0 min-w-0 h-full w-full overflow-hidden">
+      {pathsToRender.map((path) => {
         const meta = TAB_PAGE_REGISTRY[path];
         if (!meta || !getLazyTabPage(path)) return null;
+        const isActive = path === resolvedActivePath;
         return (
           <CachedTabPane
             key={path === "" ? "__dashboard__" : path}
             path={path}
-            active={path === resolvedActivePath}
+            active={isActive}
+            dimOutgoing={!isActive && dimOutgoingDuringLoad}
             layout={meta.layout}
             roles={meta.roles}
             onActivePaneReady={onActivePaneReady}

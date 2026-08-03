@@ -13,9 +13,26 @@ describe("isChunkLoadError", () => {
     expect(isChunkLoadError(new Error("Loading chunk 42 failed"))).toBe(true);
     expect(isChunkLoadError(new Error("Unexpected token '<'"))).toBe(true);
     expect(isChunkLoadError(new Error("Module load timed out"))).toBe(true);
+    expect(
+      isChunkLoadError(new Error("error loading dynamically imported module")),
+    ).toBe(true);
+    expect(
+      isChunkLoadError(new Error("Importing a module script failed.")),
+    ).toBe(true);
+    expect(isChunkLoadError(new Error("Loading CSS chunk 12 failed"))).toBe(true);
     const named = new Error("boom");
     named.name = "ChunkLoadError";
     expect(isChunkLoadError(named)).toBe(true);
+  });
+
+  it("still classifies post-deploy HTML-for-JS skew (for one bounded reload)", () => {
+    // CDN/index.html served for a renamed hashed chunk often surfaces as parse errors.
+    expect(isChunkLoadError(new Error("Unexpected token '<'"))).toBe(true);
+    expect(
+      isChunkLoadError(
+        new Error("Failed to fetch dynamically imported module: https://app.example/assets/Index-oldhash.js"),
+      ),
+    ).toBe(true);
   });
 
   it("does not treat app ReferenceErrors as chunk skew (no Updating… reload)", () => {
