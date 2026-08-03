@@ -130,7 +130,9 @@ export function isChunkLoadError(error: unknown): boolean {
     /importing a module script failed/i.test(msg) ||
     /error loading dynamically imported module/i.test(msg) ||
     /loading css chunk .* failed/i.test(msg) ||
-    /\bis not defined\b/.test(msg) ||
+    // Deploy skew often serves index.html for a missing .js chunk ("Unexpected token '<'").
+    // Do NOT match bare ReferenceError "X is not defined" — that is app code, not a chunk miss,
+    // and treating it as skew caused "Updating…" + auto-reload (e.g. POS Flat Disc % click).
     /unexpected token '<'/i.test(msg) ||
     msg.includes("Module load timed out")
   );
