@@ -1,32 +1,35 @@
-## Blank-page reliability fix
+# Dashboard animation slowdown — audit and fix
 
-The recording and current logs confirm two related cold-start races:
-- `OrgLayout` force-renders after the organization sync timeout even when tenant setup is incomplete.
-- For a cacheable dashboard such as Purchase Bills, the route `<Outlet>` and hidden tab-cache pane can load/mount the same page concurrently; the shell later swaps between them when the pane reports ready. This can leave skeletons visible, duplicate page queries, or require repeated refreshes.
+## What I found (verified in code)
 
-### Changes
-1. **Make the visible route the single owner during cold reload**
-   - Update `OrgLayout` so the current dashboard is rendered by one path only.
-   - Keep the route Outlet visible while its lazy page loads, without simultaneously mounting a hidden copy of that same active page.
-   - Hand over to tab cache only after a confirmed pane mount, preserving existing in-app tab persistence.
+The slowdown lines up with the KPI count-up + chart animation work (commits "Extract dashboard KPI card into DashboardMetricCard", "Add fromPrevious option to useCountUp", "Keep dashboard KPI values visible while refreshing").
 
-2. **Prevent half-initialized organization rendering**
-   - Replace the current 12-second “force render” behavior with a guarded organization-sync recovery attempt.
-   - Continue showing the boot state until the URL organization and active organization match.
-   - If recovery genuinely fails, show an actionable retry state rather than an empty workspace.
+1. **19 independent animation loops.** `src/pages/Index.tsx` renders 19 `DashboardMetricCard`s. Each runs its own `requestAnimationFrame` loop in `useCountUp` and calls `setState` every frame — roughly 19 React state updates per frame for 450 ms, restarted for every card on each data refresh.
+2. **Every animated frame re-renders a Radix Tooltip.** Each card wraps its value in `Tooltip`/`TooltipTrigger`, and no dashboard component is memoized, so the whole tooltip subtree re-renders on each of those frames.
+3. **Charts mount even when there is no data.** `StatsChartsSection` always renders 4 `AnimatedChart`s (recharts + `ResponsiveContainer` + `ResizeObserver`) even when `loadEnabled` is false and the data arrays are empty — full recharts mount cost on every dashboard open, then 700 ms staggered animations once data lands.
+4. **`AnimatedChart` rebuilds its internals each render.** `CustomTooltip` is declared inside the component body (new component identity → tooltip subtree remounts) and the axis/grid/legend fragment is recreated on every render.
+5. **23+ matchMedia listeners.** `usePrefersReducedMotion` is called once per card and per chart; each instance registers its own listener and fires an extra `setState` on mount.
 
-3. **Reduce competing cold-start work**
-   - Defer background tab/page prefetch until the visible page has mounted.
-   - Avoid duplicate prefetch calls for the active dashboard.
-   - Keep existing slow-network protections and only warm inactive pages when the browser is idle.
+Net effect: opening or refreshing the dashboard produces a burst of hundreds of React renders plus a recharts mount, which is what users feel as "slow" — and it also makes concurrent chunk/data loading feel stalled.
 
-4. **Cache the repeated field-sales access check**
-   - Add an appropriate `staleTime`/cache policy to `useFieldSalesAccess` so ordinary dashboard mounts do not repeat the same backend lookup.
-   - Preserve organization/user-specific query keys and behavior.
+## Fix plan (frontend only, no data or query changes)
 
-5. **Verify the affected flows**
-   - Test direct cold reload on Purchase Bills, main dashboard, POS Dashboard, Accounts, and Barcode Printing.
-   - Test navigation back from POS and repeated refreshes under throttled network conditions.
-   - Confirm there is one page mount/query sequence, no `Sync timeout reached` or `Tab pane not ready` warning, and no blank workspace or permanently stuck skeleton.
+1. **Single shared animation driver.** Replace the per-card rAF in `useCountUp` with one module-level ticker that advances all active counters and flushes them in a single batched update per frame.
+2. **Memoize the KPI card.** Wrap `DashboardMetricCard` in `React.memo` and extract the animated number into a small child, so the tooltip/card shell stays stable during animation.
+3. **Skip pointless animation.** No animation when the target equals the displayed value, when the card is a placeholder, or when the page is hidden (`document.hidden`).
+4. **Defer chart mounting.** In `StatsChartsSection`, render lightweight placeholders until `loadEnabled` is true and the dataset is non-empty, so recharts is not mounted or animated on a cold dashboard open.
+5. **Stabilise `AnimatedChart`.** Hoist `CustomTooltip` to module scope, memoize the shared axis/grid/legend elements, and shorten the stagger so all charts settle quickly.
+6. **Share the reduced-motion state.** Convert `usePrefersReducedMotion` to a single shared `matchMedia` subscription (`useSyncExternalStore`) instead of one listener per consumer.
 
-No database or business-data changes are required.
+## Verification
+
+- Measure dashboard mount and refresh in a Playwright run: long-task count and total render time before/after.
+- Confirm KPI values still count up smoothly, still show previous values while refreshing, and charts render identically once data arrives.
+
+## Files
+
+- `src/hooks/useCountUp.ts`
+- `src/hooks/usePrefersReducedMotion.ts`
+- `src/components/dashboard/DashboardMetricCard.tsx`
+- `src/components/dashboard/AnimatedChart.tsx`
+- `src/components/dashboard/StatsChartsSection.tsx`
