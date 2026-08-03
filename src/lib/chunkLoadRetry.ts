@@ -52,8 +52,9 @@ export const POST_LOGIN_PREFETCH_TAB_PATHS_WEB = [
 ] as const;
 
 /**
- * Inventory dashboards — warmed on browser idle after login (web/PWA only).
- * Small list so first Purchase/Products open is faster without a chunk waterfall.
+ * Inventory dashboards + bill-entry screens — warmed on browser idle after login
+ * (web/PWA only). Entry chunks are large; without this, first open after idle shows
+ * "Loading bill screen…" until the cold download finishes.
  */
 export const POST_LOGIN_WEB_IDLE_INVENTORY_PREFETCH_TAB_PATHS = [
   "product-dashboard",
@@ -62,6 +63,16 @@ export const POST_LOGIN_WEB_IDLE_INVENTORY_PREFETCH_TAB_PATHS = [
   "purchase-bills",
   "purchase-return-dashboard",
   "purchase-returns",
+  "purchase-entry",
+  "product-entry",
+] as const;
+
+/** Re-warm after the browser tab was hidden/idle (module cache may have been discarded). */
+export const CRITICAL_ENTRY_CHUNK_PATHS = [
+  "purchase-entry",
+  "product-entry",
+  "pos-sales",
+  "sales-invoice",
 ] as const;
 
 /** Heavy admin modules — warmed on browser idle after login (not blocking bill entry). */

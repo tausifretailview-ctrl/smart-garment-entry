@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { prefetchCriticalEntryChunks, prefetchTabPage } from "@/lib/tabPageRegistry";
 
 export type HeaderMenubarProps = {
   can: (menuId: string) => boolean;
@@ -95,24 +96,38 @@ export function HeaderMenubar({
     <Menubar className={cn("erp-menubar h-auto border-0 bg-transparent p-0 shadow-none", className)}>
       {showFile && (
         <MenubarMenu>
-          <MenubarTrigger className="erp-menubar-trigger">File</MenubarTrigger>
+          <MenubarTrigger
+            className="erp-menubar-trigger"
+            onPointerEnter={() => void prefetchCriticalEntryChunks()}
+          >
+            File
+          </MenubarTrigger>
           <MenubarContent className="min-w-[12rem]">
             {can("pos_sales") && (
-              <MenubarItem onClick={openPosSales}>
+              <MenubarItem
+                onPointerEnter={() => void prefetchTabPage("pos-sales")}
+                onClick={openPosSales}
+              >
                 <ShoppingCart className="h-3.5 w-3.5 mr-2 opacity-60" />
                 New POS Sale
                 <MenubarShortcut>Alt+P</MenubarShortcut>
               </MenubarItem>
             )}
             {can("sales_invoice") && (
-              <MenubarItem onClick={() => orgNavigate("/sales-invoice")}>
+              <MenubarItem
+                onPointerEnter={() => void prefetchTabPage("sales-invoice")}
+                onClick={() => orgNavigate("/sales-invoice")}
+              >
                 <Plus className="h-3.5 w-3.5 mr-2 opacity-60" />
                 New Invoice
                 <MenubarShortcut>Alt+N</MenubarShortcut>
               </MenubarItem>
             )}
             {can("purchase_bill") && (
-              <MenubarItem onClick={() => orgNavigate("/purchase-entry", { state: { newBill: true } })}>
+              <MenubarItem
+                onPointerEnter={() => void prefetchTabPage("purchase-entry")}
+                onClick={() => orgNavigate("/purchase-entry", { state: { newBill: true } })}
+              >
                 <Package className="h-3.5 w-3.5 mr-2 opacity-60" />
                 New Purchase
                 <MenubarShortcut>Alt+B</MenubarShortcut>
@@ -125,7 +140,10 @@ export function HeaderMenubar({
               </MenubarItem>
             )}
             {can("product_entry") && (
-              <MenubarItem onClick={() => orgNavigate("/product-entry")}>
+              <MenubarItem
+                onPointerEnter={() => void prefetchTabPage("product-entry")}
+                onClick={() => orgNavigate("/product-entry")}
+              >
                 <BoxIcon className="h-3.5 w-3.5 mr-2 opacity-60" />
                 New Product
               </MenubarItem>
@@ -234,10 +252,18 @@ export function HeaderMenubar({
 
       {showPurchase && (
         <MenubarMenu>
-          <MenubarTrigger className="erp-menubar-trigger">Purchase</MenubarTrigger>
+          <MenubarTrigger
+            className="erp-menubar-trigger"
+            onPointerEnter={() => void prefetchTabPage("purchase-entry")}
+          >
+            Purchase
+          </MenubarTrigger>
           <MenubarContent>
             {can("purchase_bill") && (
-              <MenubarItem onClick={() => orgNavigate("/purchase-entry", { state: { newBill: true } })}>
+              <MenubarItem
+                onPointerEnter={() => void prefetchTabPage("purchase-entry")}
+                onClick={() => orgNavigate("/purchase-entry", { state: { newBill: true } })}
+              >
                 New Purchase Bill
               </MenubarItem>
             )}

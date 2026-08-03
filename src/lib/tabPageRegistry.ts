@@ -2,6 +2,7 @@ import type { ComponentType, LazyExoticComponent } from "react";
 import {
   importWithRetry,
   lazyWithRetry,
+  CRITICAL_ENTRY_CHUNK_PATHS,
   POST_LOGIN_IDLE_PREFETCH_TAB_PATHS,
   POST_LOGIN_PREFETCH_TAB_PATHS,
   POST_LOGIN_PREFETCH_TAB_PATHS_WEB,
@@ -9,7 +10,7 @@ import {
 } from "@/lib/chunkLoadRetry";
 import { isElectronShell, shouldElectronMountOnlyActiveTab } from "@/lib/electronShell";
 
-export { POST_LOGIN_PREFETCH_TAB_PATHS };
+export { CRITICAL_ENTRY_CHUNK_PATHS, POST_LOGIN_PREFETCH_TAB_PATHS };
 
 export type TabPageLayout = "layout" | "fullscreen" | "pos";
 export type TabPageRole = "admin" | "manager" | "user" | "platform_admin";
@@ -328,6 +329,11 @@ export function prefetchTabPage(path: string): void {
   void promise.catch((err) => {
     console.warn(`[prefetch] Failed to load tab chunk: ${resolved}`, err);
   });
+}
+
+/** Warm purchase/product/POS entry chunks (login idle + after tab wake from idle). */
+export function prefetchCriticalEntryChunks(): void {
+  CRITICAL_ENTRY_CHUNK_PATHS.forEach(prefetchTabPage);
 }
 
 /** Drop cached lazy/prefetch state so the next mount re-fetches the chunk. */

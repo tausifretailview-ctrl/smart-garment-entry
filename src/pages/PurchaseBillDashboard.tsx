@@ -56,6 +56,7 @@ import { DesktopContextMenu, PageContextMenu, ContextMenuItem } from "@/componen
 import { ERPTable } from "@/components/erp-table";
 import { cn } from "@/lib/utils";
 import { useTabCacheLayout } from "@/contexts/TabCacheLayoutContext";
+import { prefetchTabPage } from "@/lib/tabPageRegistry";
 import { useSharedAppShell } from "@/contexts/SharedAppShellContext";
 import { onWheelScrollContainer } from "@/lib/scrollWheel";
 import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
@@ -2454,6 +2455,8 @@ const PurchaseBillDashboard = () => {
               </Button>
             )}
             <Button
+              onPointerEnter={() => void prefetchTabPage("purchase-entry")}
+              onFocus={() => void prefetchTabPage("purchase-entry")}
               onClick={() => navigate("/purchase-entry", { state: { newBill: true } })}
               className="h-9 px-4 text-sm font-semibold bg-blue-600 hover:bg-blue-700 text-white shadow-sm gap-1.5"
             >

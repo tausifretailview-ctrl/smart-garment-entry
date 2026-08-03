@@ -39,6 +39,7 @@ import {
 import { KeyboardShortcutsModal } from "@/components/KeyboardShortcutsModal";
 import { storeOrgSlug, getStoredOrgSlug } from "@/lib/orgSlug";
 import { resolveOrgLoginPath } from "@/lib/orgLoginRedirect";
+import { prefetchTabPage } from "@/lib/tabPageRegistry";
 
 export const Header = () => {
   const { user, signOut } = useAuth();
@@ -414,6 +415,12 @@ export const Header = () => {
                   ? isShortcutPath("pos-sales")
                   : isShortcutPath("sales-invoice")) && "erp-tbtn--primary",
               )}
+              onPointerEnter={() =>
+                void prefetchTabPage(can("pos_sales") ? "pos-sales" : "sales-invoice")
+              }
+              onFocus={() =>
+                void prefetchTabPage(can("pos_sales") ? "pos-sales" : "sales-invoice")
+              }
               onClick={openPrimarySale}
             >
               {can("pos_sales") ? (
@@ -433,6 +440,8 @@ export const Header = () => {
             <button
               type="button"
               className={cn("erp-tbtn", isShortcutPath("purchase-entry") && "erp-tbtn--primary")}
+              onPointerEnter={() => void prefetchTabPage("purchase-entry")}
+              onFocus={() => void prefetchTabPage("purchase-entry")}
               onClick={() => orgNavigate("/purchase-entry", { state: { newBill: true } })}
             >
               <Package className="erp-tbtn__icon" />

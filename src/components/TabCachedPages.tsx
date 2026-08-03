@@ -4,6 +4,7 @@ import {
   getLazyTabPage,
   TAB_PAGE_REGISTRY,
   isTabCachePath,
+  prefetchCriticalEntryChunks,
   prefetchTabPage,
   prefetchTabPagesIdle,
   resetTabPageChunk,
@@ -198,8 +199,8 @@ const TAB_LOAD_TIMEOUT_MS = 20_000;
 const HEAVY_TAB_LOAD_TIMEOUT_MS = 45_000;
 /** When to swap the bare spinner for a friendlier "Still loading…" hint. */
 const SOFT_LOADING_HINT_MS = 8_000;
-/** Bill-entry tabs — show a static header/table shell while the chunk loads. */
-const ENTRY_TAB_SHELL_PATHS = new Set(["purchase-entry"]);
+/** Bill-entry tabs — show branded splash while the chunk loads. */
+const ENTRY_TAB_SHELL_PATHS = new Set(["purchase-entry", "product-entry", "sales-invoice"]);
 
 const HEAVY_TAB_PATHS = new Set([
   "settings",
@@ -262,7 +263,6 @@ function TabPageFallback({
 }) {
   const [timedOut, setTimedOut] = useState(false);
   const [showSoftHint, setShowSoftHint] = useState(false);
-  const autoRetriedRef = useRef(false);
   useEffect(() => {
     if (!active) {
       setTimedOut(false);
@@ -289,16 +289,11 @@ function TabPageFallback({
       if (elapsed >= SOFT_LOADING_HINT_MS) setShowSoftHint(true);
       if (elapsed < budgetMs) return;
 
-      // One silent auto-retry (re-imports the chunk) before showing the error.
-      if (!autoRetriedRef.current) {
-        autoRetriedRef.current = true;
-        elapsed = 0;
-        setShowSoftHint(false);
-        console.warn(`[TabCachedPages] Slow chunk, auto-retrying tab: ${path || "dashboard"}`);
-        onRetry();
-        return;
-      }
-      console.warn(`[TabCachedPages] Load timeout for tab: ${path || "dashboard"}`);
+      // Do NOT wipe/restart an in-flight chunk download (that made idle wake-ups slower).
+      // User can still hit Retry tab / Refresh app after full timeout.
+      console.warn(
+        `[TabCachedPages] Slow chunk still loading: ${path || "dashboard"} (${Math.round(elapsed / 1000)}s)`,
+      );
       setTimedOut(true);
       window.clearInterval(interval);
     }, TICK_MS);
@@ -311,7 +306,7 @@ function TabPageFallback({
       window.clearInterval(interval);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [active, path, onRetry]);
+  }, [active, path]);
 
   if (!active) return null;
 
@@ -658,6 +653,17 @@ export function TabCachedPages({ paths, activePath, onActivePaneReady, onTabEvic
   useEffect(() => {
     return prefetchTabPagesIdle(uniquePaths, activePath);
   }, [uniquePaths, activePath]);
+
+  // After the browser tab was hidden/idle, re-warm entry chunks so Purchase /
+  // Product Entry open without a cold "Loading bill screen…" wait.
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState !== "visible") return;
+      prefetchCriticalEntryChunks();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, []);
 
   // Warm Settings chunk as soon as the tab is opened or listed in the tab bar.
   useEffect(() => {
