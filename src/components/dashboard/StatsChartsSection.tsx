@@ -127,6 +127,12 @@ export const StatsChartsSection = ({ loadEnabled = false }: StatsChartsSectionPr
     purchases: purchaseData?.[index]?.purchases || 0,
   })) || [];
 
+  // Defer recharts mounting until the data for that chart exists; placeholders
+  // reserve the exact final height so nothing shifts when the chart appears.
+  const combinedPending = combinedData.length === 0;
+  const salesPending = !salesData || salesData.length === 0;
+  const topProductsPending = !topProductsData || topProductsData.length === 0;
+
   // Use semantic primary color for consistent theming
   const primaryColor = "hsl(var(--primary))";
   const successColor = "hsl(var(--success))";
@@ -145,6 +151,7 @@ export const StatsChartsSection = ({ loadEnabled = false }: StatsChartsSectionPr
             { key: "purchases", color: successColor, name: "Purchases" },
           ]}
           height={260}
+          pending={combinedPending}
         />
 
         {/* Sales Trend */}
@@ -156,6 +163,7 @@ export const StatsChartsSection = ({ loadEnabled = false }: StatsChartsSectionPr
             { key: "sales", color: primaryColor, name: "Sales Amount" },
           ]}
           height={260}
+          pending={salesPending}
         />
 
         {/* Top Products by Stock */}
@@ -167,6 +175,7 @@ export const StatsChartsSection = ({ loadEnabled = false }: StatsChartsSectionPr
             { key: "stock", color: accentColor, name: "Stock Qty" },
           ]}
           height={260}
+          pending={topProductsPending}
         />
 
         {/* Top Products by Value */}
@@ -178,6 +187,7 @@ export const StatsChartsSection = ({ loadEnabled = false }: StatsChartsSectionPr
             { key: "value", color: primaryColor, name: "Stock Value (₹)" },
           ]}
           height={260}
+          pending={topProductsPending}
         />
       </div>
     </div>

@@ -49,11 +49,19 @@ export function useCountUp(
       return;
     }
 
+    // Nothing to show while the page is hidden — jump straight to the value so
+    // background tabs do not queue throttled rAF work.
+    if (typeof document !== "undefined" && document.hidden) {
+      commit(target);
+      hasRunRef.current = true;
+      return;
+    }
+
     const from = fromPrevious && hasRunRef.current ? displayRef.current : 0;
     hasRunRef.current = true;
 
     if (from === target) {
-      commit(target);
+      if (displayRef.current !== target) commit(target);
       return;
     }
 
