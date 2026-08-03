@@ -1,5 +1,9 @@
 # Dashboard animation & load slowness — Phase 0 read-only audit (2026-08)
 
+> **CLEARED (2026-08-03) — do not re-suspect KPI count-up.**  
+> Section 1 shows the stuck mid-screen spinner is `"Still loading… slow network"` from `TabPageFallback` (`TabCachedPages.tsx:360`) — a **React.lazy / Suspense chunk fallback** after 8s, not `useCountUp`. Count-up rAF is finite (~450 ms), scoped to each `DashboardMetricCard`, and **cancelled on cleanup** (`useCountUp.ts:76`). Do **not** “fix” the animation as the nav-slowness root cause.  
+> **Next fix class (when implementing):** (1) prefetch destination chunks on nav-item hover/`touchstart`, (2) cut the 8s soft-hint / blank-pane delay, (3) reconsider keeping the old pane mounted-but-`hidden` while the new chunk loads (that is what makes the UI look frozen rather than loading).
+
 Read-only. No `src/` changes. Prior art already established (do not re-derive):
 
 | Doc | What it already settled |
