@@ -2,17 +2,21 @@ import type { QueryClient } from "@tanstack/react-query";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { DASHBOARD_TAB_RETURN_QUERY_OPTIONS } from "@/lib/dashboardQueryOptions";
 import { fetchPurchaseBillsDashboardPage } from "@/utils/purchaseBillDashboardPage";
+import { resolvePurchaseDashboardQueryDates } from "@/utils/purchaseDashboardDates";
 
-const DEFAULT_PAGE_SIZE = 50;
+/** Must match PurchaseBillDashboard default `itemsPerPage` (100) or login warm-up never hits. */
+const DEFAULT_PAGE_SIZE = 100;
 
 export function purchaseBillsDefaultQueryKey(organizationId: string) {
+  // Matches first paint: monthly period, page 1, pageSize 100, no search.
+  const { startDate, endDate } = resolvePurchaseDashboardQueryDates("monthly", "", "");
   return [
     "purchase-bills",
     organizationId,
     "",
-    "all",
-    "",
-    "",
+    "monthly",
+    startDate,
+    endDate,
     "desc",
     1,
     DEFAULT_PAGE_SIZE,
@@ -27,13 +31,14 @@ export function prefetchPurchaseDashboardQueries(
   _supabase: SupabaseClient,
   organizationId: string,
 ): void {
+  const { startDate, endDate } = resolvePurchaseDashboardQueryDates("monthly", "", "");
   void queryClient.prefetchQuery({
     queryKey: purchaseBillsDefaultQueryKey(organizationId),
     queryFn: () =>
       fetchPurchaseBillsDashboardPage({
         organizationId,
-        startDate: "",
-        endDate: "",
+        startDate,
+        endDate,
         paymentStatusFilter: "all",
         dcFilter: "all",
         debouncedSearch: "",
