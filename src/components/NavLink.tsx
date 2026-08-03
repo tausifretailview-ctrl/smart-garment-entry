@@ -11,7 +11,20 @@ interface NavLinkCompatProps extends Omit<NavLinkProps, "className"> {
 }
 
 const NavLink = forwardRef<HTMLAnchorElement, NavLinkCompatProps>(
-  ({ className, activeClassName, pendingClassName, to, onMouseEnter, onFocus, ...props }, ref) => {
+  (
+    {
+      className,
+      activeClassName,
+      pendingClassName,
+      to,
+      onMouseEnter,
+      onFocus,
+      onPointerDown,
+      onTouchStart,
+      ...props
+    },
+    ref,
+  ) => {
     const { orgSlug: urlOrgSlug } = useParams<{ orgSlug: string }>();
     const { currentOrganization } = useOrganization();
     
@@ -63,7 +76,7 @@ const NavLink = forwardRef<HTMLAnchorElement, NavLinkCompatProps>(
       return `/${effectiveOrgSlug}/${cleanPath}`;
     }, [to, orgSlug]);
 
-    const prefetchRouteChunk = useCallback(() => {
+    const tabPathFromTo = useCallback(() => {
       const path = typeof to === "string" ? to : to.pathname || "";
       if (
         path.startsWith("/auth") ||
@@ -73,23 +86,47 @@ const NavLink = forwardRef<HTMLAnchorElement, NavLinkCompatProps>(
         path === "/pay" ||
         path.startsWith("/pay/")
       ) {
-        return;
+        return null;
       }
-      const cleanPath = path === "/" || path === "" ? "" : path.replace(/^\/+/, "");
-      prefetchTabPage(cleanPath);
+      return path === "/" || path === "" ? "" : path.replace(/^\/+/, "");
     }, [to]);
+
+    /** Hover / keyboard focus — speculative; skipped on Save-Data / 2g. */
+    const prefetchSpeculative = useCallback(() => {
+      const cleanPath = tabPathFromTo();
+      if (cleanPath === null) return;
+      prefetchTabPage(cleanPath);
+    }, [tabPathFromTo]);
+
+    /**
+     * Touch / click-imminent — intent. Sidebar is mostly NavLinks; without this,
+     * touch devices never warm the chunk before navigate (no hover).
+     */
+    const prefetchIntent = useCallback(() => {
+      const cleanPath = tabPathFromTo();
+      if (cleanPath === null) return;
+      prefetchTabPage(cleanPath, { intent: true });
+    }, [tabPathFromTo]);
 
     return (
       <RouterNavLink
         ref={ref}
         to={orgScopedTo}
         onMouseEnter={(e) => {
-          prefetchRouteChunk();
+          prefetchSpeculative();
           onMouseEnter?.(e);
         }}
         onFocus={(e) => {
-          prefetchRouteChunk();
+          prefetchSpeculative();
           onFocus?.(e);
+        }}
+        onPointerDown={(e) => {
+          prefetchIntent();
+          onPointerDown?.(e);
+        }}
+        onTouchStart={(e) => {
+          prefetchIntent();
+          onTouchStart?.(e);
         }}
         className={({ isActive, isPending }) =>
           cn(className, isActive && activeClassName, isPending && pendingClassName)
