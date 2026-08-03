@@ -2869,6 +2869,7 @@ export default function POSSales() {
   const flatDiscountAmount = billingTotals.flatDiscountAmount;
   const flatDiscountPercent = billingTotals.flatDiscountPercent;
   const flatDiscountCapped = billingTotals.flatDiscountCapped;
+  const maxFlatDiscountForGross = billingTotals.maxFlatDiscountForGross;
   const amountBeforeRoundOff = billingTotals.amountBeforeRoundOff;
   const calculatedRoundOff = billingTotals.calculatedRoundOff;
   const pointsRedemptionValue = billingTotals.pointsRedemptionValue;
