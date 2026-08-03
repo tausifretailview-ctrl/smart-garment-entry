@@ -311,16 +311,18 @@ Secondary (main-thread) contributors when still on / returning to the dashboard:
 
 ### Candidate fixes (ranked by impact ÷ regression risk) — **do not implement here**
 
+**Do not rank count-up changes as the nav fix.** Animation polish is optional polish only after chunk UX is fixed.
+
 | Rank | Candidate | Touches | Impact ÷ risk |
 |------|-----------|---------|----------------|
-| 1 | Ensure web idle / post-login prefetch covers the **actual** post-dashboard destinations users open (or hover-prefetch from Index metric `onClick` targets / command palette) so Suspense rarely hits 8s | `chunkLoadRetry.ts`, `tabPageRegistry.ts`, optionally `Index.tsx` / `Header.tsx` | High ÷ Low — same pattern as purchase-entry idle prefetch |
-| 2 | Extend list-dashboard / friendlier shells to more high-traffic tabs that still use the bare spinner (e.g. payments, customers, accounts) so cold load never shows “slow network” mid-screen | `TabCachedPages.tsx` `LIST_DASHBOARD_SHELL_PATHS` + skeletons | High ÷ Low–Med |
-| 3 | Disable or shorten recharts animation on main dashboard (`isAnimationActive={false}` or ≤200ms) and/or gate charts behind `requestIdleCallback` until count-up finishes | `AnimatedChart.tsx`, `StatsChartsSection.tsx` | Med ÷ Low |
-| 4 | Stabilize chart props: `memo(AnimatedChart)`, hoist `dataKeys`, move `CustomTooltip` out of render, `useMemo` for `combinedData` | `AnimatedChart.tsx`, `StatsChartsSection.tsx` | Med ÷ Low |
-| 5 | Soften count-up: fewer concurrent animations (stagger), shorter duration, or `enabled={false}` when `document.hidden` / pane inactive | `useCountUp.ts`, `DashboardMetricCard.tsx`, `CachedTabPane` active flag | Med ÷ Low |
-| 6 | Sales Analytics shell-first (replace full-page `Loader2` gate) | `SalesAnalyticsDashboard.tsx:415–422` | Med ÷ Low |
-| 7 | Quotation / Delivery Challan / Purchase Order table blockers → skeleton rows | respective `*Dashboard.tsx` | Med ÷ Low |
-| 8 | Measure Index + top destination chunk kB via production build + `__ezzyNavPerf` `classification: chunk` on demo org; only then consider further route splits | build pipeline / `navigationPerfDiagnostics.ts` (measure only) | Info ÷ None |
+| 1 | Prefetch destination chunks on nav-item **hover / `touchstart`** (sidebar, header, Index metric cards, command palette) so click rarely cold-loads | `tabPageRegistry.ts` (`prefetchTabPage`), nav chrome / `Index.tsx` | High ÷ Low |
+| 2 | Cut the **8s** blank Suspense wait: lower `SOFT_LOADING_HINT_MS` and/or show an immediate named shell (“Opening Customers…”) instead of a bare spinner that only later admits “slow network” | `TabCachedPages.tsx:200–201,356–362` | High ÷ Low — this *is* the felt symptom |
+| 3 | Reconsider **mounted-but-`hidden` old pane** during first chunk load of the destination — overlap looks frozen; prefer showing destination shell/fallback as the only visible surface (keep cache *after* first paint) | `TabCachedPages.tsx:470–476`, `OrgLayout.tsx` tab-cache/Outlet handoff | High ÷ Med |
+| 4 | Broaden idle / post-login web prefetch to real post-dashboard destinations (customers, accounts, payments, …) | `chunkLoadRetry.ts` web idle lists | High ÷ Low |
+| 5 | Extend `LIST_DASHBOARD_SHELL_PATHS` / skeletons to high-traffic non-shell tabs | `TabCachedPages.tsx:183–194` | Med–High ÷ Low |
+| 6 | *(Optional, not root cause)* stabilize recharts props / shorten chart animation on dashboard refresh | `AnimatedChart.tsx`, `StatsChartsSection.tsx` | Low–Med ÷ Low |
+| 7 | Sales Analytics / Quotation / DC / PO shell-first table loaders | respective dashboards | Med ÷ Low |
+| 8 | Measure chunk kB + `__ezzyNavPerf` `classification: chunk` on demo org before further splits | build / `navigationPerfDiagnostics.ts` | Info ÷ None |
 
 ### Suggested measurement (no code)
 
