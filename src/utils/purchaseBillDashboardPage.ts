@@ -1,6 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { PurchaseDashboardSummary } from "@/utils/purchaseDashboardSummary";
-import { fetchPurchaseDashboardSummary } from "@/utils/purchaseDashboardSummary";
 import {
   fetchPurchaseBillIdsMatchingLineItems,
   purchaseBillDisplaySupplierName,
@@ -248,19 +247,21 @@ async function fetchPurchaseBillsDashboardPageClient(
     organizationId,
     signal,
   );
-  const summary = await fetchPurchaseDashboardSummary({
-    organizationId,
-    startDate: params.startDate,
-    endDate: params.endDate,
-    paymentStatusFilter: params.paymentStatusFilter,
-    dcFilter: params.dcFilter,
-    debouncedSearch: params.debouncedSearch,
-  });
 
+  // Do NOT await fetchPurchaseDashboardSummary here — client summary can paginate
+  // every bill for period "all" and kept the table skeleton up (same class as the
+  // POS Dashboard receipt-crawl hang). KPIs load via a separate summary query.
+  // total_count: 0 marks summary invalid so the UI uses billTotalCount until KPIs arrive.
   return {
     bills,
     totalCount: count || 0,
-    summary,
+    summary: {
+      total_count: 0,
+      total_amount: 0,
+      paid_amount: 0,
+      unpaid_amount: 0,
+      partial_amount: 0,
+    },
   };
 }
 

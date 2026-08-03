@@ -71,6 +71,7 @@ import { useNavPerfPage, useNavPerfQueryWatch } from "@/hooks/useNavigationPerf"
 import { fetchPurchaseBillsDashboardPage } from "@/utils/purchaseBillDashboardPage";
 import { purchaseBillDisplaySupplierName } from "@/utils/purchaseBillDashboardSearch";
 import { buildPurchaseReturnAdjustByBillId } from "@/utils/purchaseBillReturnAdjust";
+import { fetchPurchaseDashboardSummary } from "@/utils/purchaseDashboardSummary";
 import {
   resolvePurchaseDashboardInitialPeriod,
   type PurchaseDashboardPeriodFilter,
@@ -639,12 +640,61 @@ const PurchaseBillDashboard = () => {
       });
     },
     enabled: purchaseQueriesEnabled,
+    // Keep tab-return cache; Entry save already invalidates purchase-bills (stale → refetch).
+    // Forcing refetchOnMount:true re-fetched on every visit and starved the UI with Syncing…
     ...DASHBOARD_TAB_RETURN_QUERY_OPTIONS,
-    // After Entry save, list must refresh when user opens this dashboard (invalidation marks stale).
-    refetchOnMount: true,
   });
 
   const bills = billsQueryData?.bills ?? [];
+
+  // KPI summary — separate from list so a client full-scan never blocks the table.
+  // When the page RPC returns a real summary, this query is skipped (enabled=false).
+  const pageSummary = billsQueryData?.summary ?? null;
+  const pageSummaryLooksValid =
+    pageSummary != null &&
+    (pageSummary.total_count > 0 || (billsQueryData?.totalCount ?? 0) === 0);
+
+  const purchaseSummaryQueryKey = [
+    "purchase-bills-summary",
+    currentOrganization?.id,
+    debouncedSearch,
+    periodFilter,
+    queryDateRange.startDate,
+    queryDateRange.endDate,
+    paymentStatusFilter,
+    dcFilter,
+  ] as const;
+
+  const {
+    data: deferredSummaryData,
+    isLoading: deferredSummaryLoading,
+    isFetching: deferredSummaryFetching,
+  } = useQuery({
+    queryKey: purchaseSummaryQueryKey,
+    queryFn: async ({ signal }) => {
+      if (!currentOrganization?.id) {
+        return {
+          total_count: 0,
+          total_amount: 0,
+          paid_amount: 0,
+          unpaid_amount: 0,
+          partial_amount: 0,
+        };
+      }
+      // Abort if the list query's signal aborted (tab change / remount).
+      if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
+      return fetchPurchaseDashboardSummary({
+        organizationId: currentOrganization.id,
+        startDate: queryDateRange.startDate,
+        endDate: queryDateRange.endDate,
+        paymentStatusFilter,
+        dcFilter,
+        debouncedSearch,
+      });
+    },
+    enabled: purchaseQueriesEnabled && !!billsQueryData && !pageSummaryLooksValid,
+    ...DASHBOARD_TAB_RETURN_QUERY_OPTIONS,
+  });
 
   const { data: purchaseReturnAdjustByBill = {} } = useOrgQuery<
     Record<string, { purchase_return_adjust: number; pr_adjust_date: string | null }>
@@ -666,6 +716,11 @@ const PurchaseBillDashboard = () => {
 
   const fetchBills = () => {
     refetchBills();
+    if (currentOrganization?.id) {
+      void queryClient.invalidateQueries({
+        queryKey: ["purchase-bills-summary", currentOrganization.id],
+      });
+    }
   };
 
   const syncAfterPurchaseDraftCommitted = useCallback(() => {
@@ -690,24 +745,14 @@ const PurchaseBillDashboard = () => {
     );
   }, [currentOrganization?.id, user?.id, syncAfterPurchaseDraftCommitted]);
 
-  // When user switches to this dashboard tab, re-read browser draft meta and refresh list.
+  // When user switches to this dashboard tab, re-read browser draft meta only.
+  // Do NOT force-refetch the bill list — that kept Syncing… busy across many open tabs.
+  // Stale data after Entry save is handled by invalidatePurchaseDashboardQueries.
   useEffect(() => {
     if (!location.pathname.includes("purchase-bill")) return;
     refreshBrowserDraftMeta();
     void checkDraft();
-    if (!purchaseQueriesEnabled || !currentOrganization?.id) return;
-    void queryClient.refetchQueries({
-      queryKey: ["purchase-bills", currentOrganization.id],
-      type: "active",
-    });
-  }, [
-    location.pathname,
-    refreshBrowserDraftMeta,
-    checkDraft,
-    purchaseQueriesEnabled,
-    currentOrganization?.id,
-    queryClient,
-  ]);
+  }, [location.pathname, refreshBrowserDraftMeta, checkDraft]);
 
   const fetchBillItems = async (billId: string, isCancelled?: boolean) => {
     if (billItems[billId]) {
@@ -1485,11 +1530,16 @@ const PurchaseBillDashboard = () => {
       });
   }, [bills, sortOrder, purchaseReturnAdjustByBill]);
 
-  // Summary stats bundled with list RPC (single round-trip when migration applied)
-  const purchaseSummaryData = billsQueryData?.summary ?? null;
-  const purchaseSummaryLoading = billsQueryLoading;
-  const purchaseSummaryFetching = billsQueryFetching;
+  // Summary: prefer RPC-bundled page summary; else deferred KPI query (client fallback path).
+  const purchaseSummaryData = pageSummaryLooksValid
+    ? pageSummary
+    : (deferredSummaryData ?? pageSummary);
+  const purchaseSummaryLoading =
+    billsQueryLoading || (!pageSummaryLooksValid && deferredSummaryLoading);
+  const purchaseSummaryFetching =
+    billsQueryFetching || (!pageSummaryLooksValid && deferredSummaryFetching);
 
+  // Table skeleton only waits on the LIST — never on KPI summary (Chirag hang fix).
   const isDashboardInitialLoad =
     purchaseQueriesEnabled && billsQueryLoading && bills.length === 0;
   const isDashboardBackgroundRefresh =

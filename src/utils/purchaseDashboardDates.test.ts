@@ -46,22 +46,22 @@ describe("resolvePurchaseDashboardInitialPeriod", () => {
     vi.useRealTimers();
   });
 
-  it("defaults to all time when nothing is saved", () => {
+  it("defaults to monthly when nothing is saved", () => {
     expect(resolvePurchaseDashboardInitialPeriod(null)).toEqual({
-      periodFilter: "all",
+      periodFilter: "monthly",
       startDate: "",
       endDate: "",
     });
   });
 
-  it("migrates legacy today-only saved range to all time", () => {
+  it("migrates legacy today-only saved range to monthly", () => {
     expect(
       resolvePurchaseDashboardInitialPeriod({
         startDate: "2026-06-16",
         endDate: "2026-06-16",
       }),
     ).toEqual({
-      periodFilter: "all",
+      periodFilter: "monthly",
       startDate: "",
       endDate: "",
     });

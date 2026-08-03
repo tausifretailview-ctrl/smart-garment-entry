@@ -83,6 +83,10 @@ export function invalidatePurchaseDashboardQueries(
     refetchType: "all",
   });
   queryClient.invalidateQueries({
+    queryKey: organizationId ? ["purchase-bills-summary", organizationId] : ["purchase-bills-summary"],
+    refetchType: "all",
+  });
+  queryClient.invalidateQueries({
     queryKey: organizationId ? ["purchase-summary", organizationId] : ["purchase-summary"],
     refetchType: "all",
   });

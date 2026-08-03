@@ -49,12 +49,14 @@ export function resolvePurchaseDashboardInitialPeriod(
   }
 
   if (isLegacyTodayOnly) {
-    return { periodFilter: "all", startDate: "", endDate: "" };
+    // Legacy today-only → current month (not unbounded "all", which hung mid-size orgs).
+    return { periodFilter: "monthly", startDate: "", endDate: "" };
   }
 
   if (savedStart || savedEnd) {
     return { periodFilter: "custom", startDate: savedStart, endDate: savedEnd };
   }
 
-  return { periodFilter: "all", startDate: "", endDate: "" };
+  // Default: current month — unbounded "all" scanned every bill and left Syncing… forever.
+  return { periodFilter: "monthly", startDate: "", endDate: "" };
 }
