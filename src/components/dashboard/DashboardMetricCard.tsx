@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Tooltip,
@@ -34,7 +35,40 @@ const METRIC_PASTEL: Record<string, { shell: string; value: string }> = {
   "bg-slate-500": { shell: "bg-slate-50 border-slate-200/70 hover:bg-slate-100/80", value: "text-slate-800" },
 };
 
-export const DashboardMetricCard = ({
+/**
+ * Only this leaf re-renders while the count-up animation runs — the card shell
+ * and its Radix tooltip stay mounted and untouched.
+ */
+const AnimatedMetricValue = memo(
+  ({
+    value,
+    isCurrency,
+    placeholder,
+    className,
+  }: {
+    value: number;
+    isCurrency: boolean;
+    placeholder: boolean;
+    className: string;
+  }) => {
+    const animated = useCountUp(value, {
+      durationMs: 450,
+      fromPrevious: true,
+      enabled: !placeholder,
+    });
+
+    const displayValue = placeholder
+      ? "—"
+      : isCurrency
+        ? formatCurrency(animated)
+        : Math.round(animated).toLocaleString("en-IN");
+
+    return <p className={className}>{displayValue}</p>;
+  },
+);
+AnimatedMetricValue.displayName = "AnimatedMetricValue";
+
+const DashboardMetricCardBase = ({
   title,
   value,
   icon: Icon,
@@ -55,18 +89,6 @@ export const DashboardMetricCard = ({
   placeholder?: boolean;
   loading?: boolean;
 }) => {
-  const animated = useCountUp(value, {
-    durationMs: 450,
-    fromPrevious: true,
-    enabled: !placeholder,
-  });
-
-  const displayValue = placeholder
-    ? "—"
-    : isCurrency
-      ? formatCurrency(animated)
-      : Math.round(animated).toLocaleString("en-IN");
-
   const pastel = METRIC_PASTEL[accentColor] ?? METRIC_PASTEL["bg-blue-500"];
   const refreshing = loading && !placeholder;
 
@@ -85,15 +107,16 @@ export const DashboardMetricCard = ({
           >
             <CardContent className="flex h-full min-h-[100px] flex-col items-center justify-center px-3 py-4 text-center">
               <p className="text-sm font-semibold leading-snug text-slate-600 line-clamp-2">{title}</p>
-              <p
+              <AnimatedMetricValue
+                value={value}
+                isCurrency={isCurrency}
+                placeholder={placeholder}
                 className={cn(
                   "mt-2 text-2xl font-bold tabular-nums leading-none sm:text-[1.65rem] transition-opacity duration-150",
                   placeholder ? "text-slate-400" : pastel.value,
                   refreshing && "opacity-60",
                 )}
-              >
-                {displayValue}
-              </p>
+              />
               <Icon
                 className={cn(
                   "absolute right-2.5 top-2.5 h-4 w-4 opacity-25",
@@ -112,3 +135,5 @@ export const DashboardMetricCard = ({
     </Tooltip>
   );
 };
+
+export const DashboardMetricCard = memo(DashboardMetricCardBase);

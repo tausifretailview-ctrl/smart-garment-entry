@@ -1,3 +1,4 @@
+import { memo, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ResponsiveContainer, LineChart, Line, BarChart, Bar, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from "recharts";
 import { TrendingUp } from "lucide-react";
@@ -14,40 +15,41 @@ interface AnimatedChartProps {
   type?: "line" | "bar" | "area";
   dataKeys: { key: string; color: string; name: string }[];
   height?: number;
+  /** Reserve the exact chart area without mounting recharts yet. */
+  pending?: boolean;
 }
 
-export const AnimatedChart = ({ 
-  title, 
-  data, 
-  type = "line", 
+/** Module-scope so recharts keeps a stable tooltip component identity. */
+const CustomTooltip = ({ active, payload, label }: any) => {
+  if (active && payload && payload.length) {
+    return (
+      <div className="bg-popover/95 backdrop-blur-sm border border-border rounded-lg p-3 shadow-elevated">
+        <p className="font-semibold text-popover-foreground mb-2">{label}</p>
+        {payload.map((entry: any, index: number) => (
+          <p key={index} className="text-sm" style={{ color: entry.color }}>
+            {entry.name}: <span className="font-bold">{entry.value.toLocaleString()}</span>
+          </p>
+        ))}
+      </div>
+    );
+  }
+  return null;
+};
+
+const tooltipElement = <Tooltip content={<CustomTooltip />} />;
+
+const AnimatedChartBase = ({
+  title,
+  data,
+  type = "line",
   dataKeys,
-  height = 300 
+  height = 300,
+  pending = false,
 }: AnimatedChartProps) => {
   const reduceMotion = usePrefersReducedMotion();
 
-  const CustomTooltip = ({ active, payload, label }: any) => {
-    if (active && payload && payload.length) {
-      return (
-        <div className="bg-popover/95 backdrop-blur-sm border border-border rounded-lg p-3 shadow-elevated">
-          <p className="font-semibold text-popover-foreground mb-2">{label}</p>
-          {payload.map((entry: any, index: number) => (
-            <p key={index} className="text-sm" style={{ color: entry.color }}>
-              {entry.name}: <span className="font-bold">{entry.value.toLocaleString()}</span>
-            </p>
-          ))}
-        </div>
-      );
-    }
-    return null;
-  };
-
-  const renderChart = () => {
-    const commonProps = {
-      data,
-      margin: { top: 10, right: 30, left: 0, bottom: 0 },
-    };
-
-    const chartConfig = (
+  const chartConfig = useMemo(
+    () => (
       <>
         <defs>
           {dataKeys.map((item, index) => (
@@ -58,28 +60,36 @@ export const AnimatedChart = ({
           ))}
         </defs>
         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} />
-        <XAxis 
-          dataKey="name" 
+        <XAxis
+          dataKey="name"
           stroke="hsl(var(--muted-foreground))"
           fontSize={11}
           tickLine={false}
           axisLine={false}
         />
-        <YAxis 
+        <YAxis
           stroke="hsl(var(--muted-foreground))"
           fontSize={11}
           tickLine={false}
           axisLine={false}
           tickFormatter={(value) => `${value.toLocaleString()}`}
         />
-        <Tooltip content={<CustomTooltip />} />
-        <Legend 
+        {tooltipElement}
+        <Legend
           wrapperStyle={{ paddingTop: "16px", fontSize: "12px" }}
           iconType="circle"
           iconSize={8}
         />
       </>
-    );
+    ),
+    [dataKeys],
+  );
+
+  const renderChart = () => {
+    const commonProps = {
+      data,
+      margin: { top: 10, right: 30, left: 0, bottom: 0 },
+    };
 
     switch (type) {
       case "bar":
@@ -95,7 +105,7 @@ export const AnimatedChart = ({
                 isAnimationActive={!reduceMotion}
                 animationDuration={700}
                 animationEasing="ease-out"
-                animationBegin={index * 120}
+                animationBegin={index * 60}
                 name={item.name}
               />
             ))}
@@ -116,7 +126,7 @@ export const AnimatedChart = ({
                 isAnimationActive={!reduceMotion}
                 animationDuration={700}
                 animationEasing="ease-out"
-                animationBegin={index * 120}
+                animationBegin={index * 60}
                 name={item.name}
               />
             ))}
@@ -138,7 +148,7 @@ export const AnimatedChart = ({
                 isAnimationActive={!reduceMotion}
                 animationDuration={700}
                 animationEasing="ease-out"
-                animationBegin={index * 120}
+                animationBegin={index * 60}
                 name={item.name}
               />
             ))}
@@ -159,10 +169,21 @@ export const AnimatedChart = ({
       </CardHeader>
       
       <CardContent className="pt-0 pb-4">
-        <ResponsiveContainer width="100%" height={height}>
-          {renderChart()}
-        </ResponsiveContainer>
+        {pending ? (
+          // Reserve the exact final chart area so deferred mounting causes no layout shift.
+          <div
+            style={{ height }}
+            className="w-full rounded-md bg-slate-50"
+            aria-hidden="true"
+          />
+        ) : (
+          <ResponsiveContainer width="100%" height={height}>
+            {renderChart()}
+          </ResponsiveContainer>
+        )}
       </CardContent>
     </Card>
   );
 };
+
+export const AnimatedChart = memo(AnimatedChartBase);
