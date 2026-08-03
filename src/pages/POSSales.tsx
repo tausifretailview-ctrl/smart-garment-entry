@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo } from "react";
-import { createPortal } from "react-dom";
+import { createPortal, flushSync } from "react-dom";
 import { logError } from "@/lib/errorLogger";
 import { cn } from "@/lib/utils";
 import { getUOMLabel } from "@/constants/uom";
@@ -3222,7 +3222,8 @@ export default function POSSales() {
       taxType,
     };
     
-    setSavedInvoiceData(estimateData);
+    // flushSync: print portal must commit snapshot before waitForPrintReady polls DOM
+    flushSync(() => setSavedInvoiceData(estimateData));
     
     // Wait for invoice to render, then directly open print dialog (no preview)
     const waitForContent = () => {
@@ -3664,8 +3665,9 @@ export default function POSSales() {
 
       // WhatsApp invoice auto-send is handled by useSaveSale hook — do NOT send here to avoid duplicates
       const willAutoPrint = isDirectPrintEnabled && isAutoPrintEnabled;
-      // Set print snapshot first so hidden invoice re-renders with salesman before cart clears
-      setSavedInvoiceData(invoiceDataForPrint);
+      // Set print snapshot first so hidden invoice re-renders with salesman before cart clears.
+      // flushSync: commit portal DOM before cart clear + auto-print (avoids blank clone).
+      flushSync(() => setSavedInvoiceData(invoiceDataForPrint));
       applyLastCompletedPosHint(result.sale_number, finalAmount, totals.quantity);
 
       // Clear the form immediately after successful save (reset to new blank invoice)
@@ -3952,7 +3954,8 @@ export default function POSSales() {
       setPointsToRedeem(0);
       
       if (invoiceDataForPrint) {
-        setSavedInvoiceData(invoiceDataForPrint);
+        // flushSync: commit portal DOM before cart clear + auto-print (avoids blank clone).
+        flushSync(() => setSavedInvoiceData(invoiceDataForPrint));
         applyLastCompletedPosHint(
           result.sale_number,
           isRefund ? 0 : finalAmount,

@@ -21,6 +21,15 @@ import { useIsNativeApp } from '@/hooks/useNativeApp';
 import { captureElementToPdfBlob } from '@/utils/invoiceElementToPdf';
 import { deliverPdfBlob } from '@/utils/mobileDocumentDelivery';
 import { toast } from 'sonner';
+import { waitForPrintReady } from '@/utils/printReady';
+
+/** Map InvoiceWrapper format props to preview dialog radio values. */
+function normalizePreviewFormat(format: string): 'a4' | 'a5' | 'a5-horizontal' | 'thermal' {
+  if (format === 'a5-vertical' || format === 'a5') return 'a5';
+  if (format === 'a5-horizontal') return 'a5-horizontal';
+  if (format === 'thermal') return 'thermal';
+  return 'a4';
+}
 
 interface PrintPreviewDialogProps {
   open: boolean;
@@ -40,7 +49,9 @@ export const PrintPreviewDialog: React.FC<PrintPreviewDialogProps> = ({
   thermalPaper = '80mm',
   onPrint,
 }) => {
-  const [selectedFormat, setSelectedFormat] = useState<string>(defaultFormat);
+  const [selectedFormat, setSelectedFormat] = useState<string>(
+    normalizePreviewFormat(defaultFormat),
+  );
   const [isLoading, setIsLoading] = useState(true);
   const [isSavingPdf, setIsSavingPdf] = useState(false);
   const printRef = useRef<HTMLDivElement>(null);
@@ -48,7 +59,7 @@ export const PrintPreviewDialog: React.FC<PrintPreviewDialogProps> = ({
 
   // Sync selectedFormat with defaultFormat when it changes (async settings load)
   useEffect(() => {
-    setSelectedFormat(defaultFormat);
+    setSelectedFormat(normalizePreviewFormat(defaultFormat));
   }, [defaultFormat]);
 
   // Reset loading state when dialog opens or format changes.
@@ -64,7 +75,8 @@ export const PrintPreviewDialog: React.FC<PrintPreviewDialogProps> = ({
     const MAX_WAIT_MS = 6000;
     const POLL_MS = 150;
     let cancelled = false;
-    let timerId: ReturnType<typeof setTimeout> | undefined;
+    // Browser setTimeout returns number; Node DOM typings use Timeout — keep number for Vite/DOM.
+    let timerId: number | undefined;
     let observer: MutationObserver | undefined;
 
     const isContentReady = () => {
@@ -195,6 +207,10 @@ export const PrintPreviewDialog: React.FC<PrintPreviewDialogProps> = ({
   const handlePrint = useReactToPrint({
     contentRef: printRef,
     documentTitle: 'Invoice',
+    onBeforePrint: () =>
+      new Promise<void>((resolve) => {
+        waitForPrintReady(printRef, resolve, { maxWait: 8000 });
+      }),
     pageStyle: `
       @page {
         size: ${getPageSize()};
@@ -258,9 +274,15 @@ export const PrintPreviewDialog: React.FC<PrintPreviewDialogProps> = ({
           overflow: visible !important;
         }
 
-        .professional-invoice-template {
+        .professional-invoice-template,
+        .invoice-print-root,
+        .print-invoice-container {
           max-height: none !important;
           overflow: visible !important;
+          visibility: visible !important;
+          opacity: 1 !important;
+          display: block !important;
+          transform: none !important;
         }
       }
       ${INVOICE_PRINT_VISIBILITY_OVERRIDE_CSS}
