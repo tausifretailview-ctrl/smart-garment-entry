@@ -1400,23 +1400,20 @@ export default function POSSales() {
     return () => window.removeEventListener('keydown', handleKeyPress);
   }, [items, customerName, flatDiscountValue, roundOff, paymentMethod, savedInvoiceData, isSaving, location.pathname]);
 
-  // Apply defaults when settings are loaded (do not override active cart / loaded invoice)
+  // Apply defaults when settings load — only for empty new bills (never stomp an active cart
+  // or force Flat Disc mode back to % after the cashier toggles %/₹).
   useEffect(() => {
-    if (settingsData && (settingsData as any).sale_settings) {
-      const saleSettings = (settingsData as any).sale_settings;
-      if (saleSettings.default_discount) {
-        handleFlatDiscountValueChange(saleSettings.default_discount);
-        setFlatDiscountMode('percent');
-      }
-      if (
-        saleSettings.default_payment_method &&
-        !currentSaleId &&
-        items.length === 0
-      ) {
-        setPaymentMethod(saleSettings.default_payment_method.toLowerCase() as any);
-      }
+    if (!settingsData || currentSaleId || items.length > 0) return;
+    const saleSettings = (settingsData as any).sale_settings;
+    if (!saleSettings) return;
+    if (saleSettings.default_discount) {
+      handleFlatDiscountValueChange(saleSettings.default_discount);
+      setFlatDiscountMode('percent');
     }
-  }, [settingsData, currentSaleId, items.length]);
+    if (saleSettings.default_payment_method) {
+      setPaymentMethod(saleSettings.default_payment_method.toLowerCase() as any);
+    }
+  }, [settingsData, currentSaleId, items.length, handleFlatDiscountValueChange]);
 
   // Update date and time every second
   useEffect(() => {
@@ -6642,10 +6639,14 @@ export default function POSSales() {
                 <div className="text-sm text-white/90 uppercase font-bold mb-1 tracking-wide">Flat Disc</div>
                 <div className="flex items-center">
                   <Button
+                    type="button"
                     size="sm"
                     variant="ghost"
                     className="bg-white/20 text-white px-2 py-1 text-base rounded-l-md h-10 hover:bg-white/30 border-0 font-bold min-w-[30px]"
-                    onClick={() => setFlatDiscountMode(flatDiscountMode === 'percent' ? 'amount' : 'percent')}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setFlatDiscountMode(flatDiscountMode === 'percent' ? 'amount' : 'percent');
+                    }}
                   >
                     {flatDiscountMode === 'percent' ? '%' : '₹'}
                   </Button>

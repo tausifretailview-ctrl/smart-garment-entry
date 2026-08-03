@@ -420,18 +420,26 @@ export function TabletPOSLayout({
               <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Flat Discount</label>
               <div className="flex gap-1 mt-1.5 mb-2">
                 <Button
+                  type="button"
                   size="sm"
                   variant={flatDiscountMode === "percent" ? "default" : "outline"}
                   className="h-9 px-4 rounded-lg"
-                  onClick={() => onFlatDiscountModeChange("percent")}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    onFlatDiscountModeChange("percent");
+                  }}
                 >
                   %
                 </Button>
                 <Button
+                  type="button"
                   size="sm"
                   variant={flatDiscountMode === "amount" ? "default" : "outline"}
                   className="h-9 px-4 rounded-lg"
-                  onClick={() => onFlatDiscountModeChange("amount")}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    onFlatDiscountModeChange("amount");
+                  }}
                 >
                   ₹
                 </Button>

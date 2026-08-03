@@ -86,18 +86,26 @@ export const MobilePOSBottomBar = ({
             className="h-8 w-32 bg-primary-foreground/20 border-primary-foreground/30 text-primary-foreground placeholder:text-primary-foreground/50 text-sm"
           />
           <Button
+            type="button"
             variant="ghost"
             size="sm"
             className={`h-8 px-2 text-primary-foreground ${flatDiscountMode === 'percent' ? 'bg-primary-foreground/30' : 'bg-primary-foreground/10'}`}
-            onClick={() => onFlatDiscountModeChange('percent')}
+            onClick={(e) => {
+              e.preventDefault();
+              onFlatDiscountModeChange('percent');
+            }}
           >
             <Percent className="h-3.5 w-3.5" />
           </Button>
           <Button
+            type="button"
             variant="ghost"
             size="sm"
             className={`h-8 px-2 text-primary-foreground ${flatDiscountMode === 'amount' ? 'bg-primary-foreground/30' : 'bg-primary-foreground/10'}`}
-            onClick={() => onFlatDiscountModeChange('amount')}
+            onClick={(e) => {
+              e.preventDefault();
+              onFlatDiscountModeChange('amount');
+            }}
           >
             <IndianRupee className="h-3.5 w-3.5" />
           </Button>
