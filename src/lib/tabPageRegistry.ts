@@ -362,7 +362,7 @@ export function prefetchTabPage(path: string, options?: PrefetchTabPageOptions):
 
 /** Warm purchase/product/POS entry chunks (login idle + after tab wake from idle). */
 export function prefetchCriticalEntryChunks(): void {
-  CRITICAL_ENTRY_CHUNK_PATHS.forEach(prefetchTabPage);
+  CRITICAL_ENTRY_CHUNK_PATHS.forEach((p) => prefetchTabPage(p));
 }
 
 /** Drop cached lazy/prefetch state so the next mount re-fetches the chunk. */
@@ -380,18 +380,18 @@ export function prefetchPostLoginCriticalPages(): void {
   const list = isElectronShell()
     ? POST_LOGIN_PREFETCH_TAB_PATHS
     : POST_LOGIN_PREFETCH_TAB_PATHS_WEB;
-  list.forEach(prefetchTabPage);
+  list.forEach((p) => prefetchTabPage(p));
 }
 
 /** Warm heavy admin chunks when the browser is idle (Settings first-open timeout). */
 export function prefetchPostLoginIdlePages(): void {
   const run = () => {
     if (isElectronShell()) {
-      POST_LOGIN_IDLE_PREFETCH_TAB_PATHS.forEach(prefetchTabPage);
+      POST_LOGIN_IDLE_PREFETCH_TAB_PATHS.forEach((p) => prefetchTabPage(p));
       return;
     }
     // Web/PWA: only warm inventory dashboards on idle — avoids 30+ chunk waterfall.
-    POST_LOGIN_WEB_IDLE_INVENTORY_PREFETCH_TAB_PATHS.forEach(prefetchTabPage);
+    POST_LOGIN_WEB_IDLE_INVENTORY_PREFETCH_TAB_PATHS.forEach((p) => prefetchTabPage(p));
   };
   if (typeof requestIdleCallback !== "undefined") {
     requestIdleCallback(run, { timeout: 12_000 });
@@ -401,7 +401,7 @@ export function prefetchPostLoginIdlePages(): void {
 }
 
 export function prefetchTabPages(paths: string[]): void {
-  paths.forEach(prefetchTabPage);
+  paths.forEach((p) => prefetchTabPage(p));
 }
 
 /** Prefetch the active tab immediately; load other open tabs when the browser is idle. */
@@ -418,7 +418,7 @@ export function prefetchTabPagesIdle(paths: string[], activePath: string): () =>
     return () => {};
   }
 
-  const run = () => rest.forEach(prefetchTabPage);
+  const run = () => rest.forEach((p) => prefetchTabPage(p));
   if (typeof requestIdleCallback !== "undefined") {
     const id = requestIdleCallback(run, { timeout: 12_000 });
     return () => cancelIdleCallback(id);

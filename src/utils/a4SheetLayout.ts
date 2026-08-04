@@ -71,12 +71,10 @@ export function isNovaJetMpl40LGrid(
   labelHeightMm: number,
 ): boolean {
   if (cols !== A4_40_LABEL_39X35.cols || rows !== A4_40_LABEL_39X35.rows) return false;
-  if (Math.abs(labelHeightMm - A4_40_LABEL_39X35.labelHeightMm) >= 0.05) return false;
-  // Official 39×35, or legacy 38×35 presets that were shipping with Gap=1.
-  return (
-    Math.abs(labelWidthMm - A4_40_LABEL_39X35.labelWidthMm) < 0.05 ||
-    Math.abs(labelWidthMm - 38) < 0.05
-  );
+  // Official 39×35, plus the 38×35 / 40×35 presets users saved by hand
+  // (all describe the same 5×8 die-cut; only the pitch was wrong).
+  if (Math.abs(labelHeightMm - A4_40_LABEL_39X35.labelHeightMm) > 1.05) return false;
+  return labelWidthMm >= 37.95 && labelWidthMm <= 40.05;
 }
 
 /**
@@ -121,10 +119,7 @@ export function resolveA4LabelWidthMm(
   labelWidthMm: number,
   labelHeightMm: number,
 ): number {
-  if (
-    isNovaJetMpl40LGrid(cols, rows, labelWidthMm, labelHeightMm) &&
-    Math.abs(labelWidthMm - 38) < 0.05
-  ) {
+  if (isNovaJetMpl40LGrid(cols, rows, labelWidthMm, labelHeightMm)) {
     return A4_40_LABEL_39X35.labelWidthMm;
   }
   return labelWidthMm;

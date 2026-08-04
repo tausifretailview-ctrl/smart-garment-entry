@@ -54,10 +54,11 @@ describe("NovaJet MPL 48L A4 margins", () => {
 });
 
 describe("NovaJet MPL 40L A4 margins (39×35, 5×8)", () => {
-  it("detects official 39×35 and legacy 38×35 5×8 grids", () => {
+  it("detects official 39×35 and hand-saved 38/40×35 5×8 grids", () => {
     expect(isNovaJetMpl40LGrid(5, 8, 39, 35)).toBe(true);
     expect(isNovaJetMpl40LGrid(5, 8, 38, 35)).toBe(true);
-    expect(isNovaJetMpl40LGrid(5, 8, 40, 35)).toBe(false);
+    expect(isNovaJetMpl40LGrid(5, 8, 40, 35)).toBe(true);
+    expect(isNovaJetMpl40LGrid(5, 8, 45, 35)).toBe(false);
     expect(isNovaJetMpl40LGrid(4, 12, 48, 24)).toBe(false);
   });
 
@@ -66,6 +67,14 @@ describe("NovaJet MPL 40L A4 margins (39×35, 5×8)", () => {
     expect(resolveA4LayoutGap(5, 8, 38, 35, 1)).toBe(0);
     expect(resolveA4LabelWidthMm(5, 8, 38, 35)).toBe(39);
     expect(resolveA4LabelWidthMm(5, 8, 39, 35)).toBe(39);
+  });
+
+  it("coerces the 40×35 gap 2 preset back to the die-cut pitch", () => {
+    expect(resolveA4LayoutGap(5, 8, 40, 35, 2)).toBe(0);
+    expect(resolveA4LabelWidthMm(5, 8, 40, 35)).toBe(39);
+    const margins = computeA4SheetMargins(5, 8, 40, 35, 2);
+    expect(margins.marginTop).toBe(8.5);
+    expect(margins.marginLeft).toBe(7.5);
   });
 
   it("uses manufacturer 8.5mm top / 7.5mm left", () => {
