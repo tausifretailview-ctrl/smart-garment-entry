@@ -3114,7 +3114,8 @@ export default function BarcodePrinting() {
           )
           .eq("organization_id", currentOrganization.id)
           .eq("active", true)
-          .is("deleted_at", null);
+          .is("deleted_at", null)
+          .gt("stock_qty", 0);
 
         const isBarcode = /^[A-Z]{2,4}[0-9]{5,}$|^[0-9]{6,}$/.test(searchQuery.trim());
 
