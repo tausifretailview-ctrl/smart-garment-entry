@@ -198,7 +198,7 @@ interface SaleSettings {
   defaultEntryMode?: 'grid' | 'inline';  // Default entry mode for Sale Order
   enable_size_grid_sales?: boolean; // Enable/disable size grid in Sales Invoice
   sales_tax_rate?: number;
-  invoice_template?: 'professional' | 'modern' | 'modern-wholesale' | 'classic' | 'minimal' | 'compact' | 'detailed' | 'tax-invoice' | 'tally-tax-invoice' | 'gift_tally' | 'a4-electronic' | 'retail' | 'retail-erp' | 'retail-erp-preprinted' | 'retail-tax-ezzy' | 'wholesale-a5' | 'kids-80mm' | 'real-tast';
+  invoice_template?: 'professional' | 'modern' | 'modern-wholesale' | 'classic' | 'minimal' | 'compact' | 'detailed' | 'tax-invoice' | 'tally-tax-invoice' | 'gift_tally' | 'a4-electronic' | 'retail' | 'retail-erp' | 'retail-erp-dc' | 'retail-erp-preprinted' | 'retail-tax-ezzy' | 'wholesale-a5' | 'kids-80mm' | 'real-tast';
   invoice_color_scheme?: string;
   declaration_text?: string;
   terms_list?: string[];
@@ -3307,7 +3307,7 @@ export default function Settings() {
                           ...settings,
                           sale_settings: {
                             ...settings.sale_settings,
-                            invoice_template: value as 'professional' | 'modern' | 'modern-wholesale' | 'classic' | 'minimal' | 'compact' | 'detailed' | 'tax-invoice' | 'tally-tax-invoice' | 'gift_tally' | 'a4-electronic' | 'retail' | 'retail-erp' | 'retail-erp-preprinted' | 'retail-tax-ezzy' | 'wholesale-a5' | 'kids-80mm' | 'real-tast',
+                            invoice_template: value as 'professional' | 'modern' | 'modern-wholesale' | 'classic' | 'minimal' | 'compact' | 'detailed' | 'tax-invoice' | 'tally-tax-invoice' | 'gift_tally' | 'a4-electronic' | 'retail' | 'retail-erp' | 'retail-erp-dc' | 'retail-erp-preprinted' | 'retail-tax-ezzy' | 'wholesale-a5' | 'kids-80mm' | 'real-tast',
                             ...(value === 'kids-80mm'
                               ? {
                                   invoice_paper_format: 'thermal' as const,
@@ -3401,6 +3401,12 @@ export default function Settings() {
                             Retail ERP — Tax Invoice ERP style
                           </span>
                         </SelectItem>
+                        <SelectItem value="retail-erp-dc">
+                          <span className="flex items-center gap-2">
+                            <span className="text-sky-700 font-bold text-xs w-5">DC</span>
+                            Retail ERP style DC — no HSN / GST details
+                          </span>
+                        </SelectItem>
                         <SelectItem value="retail-erp-preprinted">
                           <span className="flex items-center gap-2">
                             <span className="text-violet-700 font-bold text-xs w-5">PRE</span>
@@ -3436,6 +3442,8 @@ export default function Settings() {
                     <p className="text-xs text-muted-foreground">
                       {settings.sale_settings?.invoice_template === 'kids-80mm'
                         ? 'Kids 80mm prints on 80mm thermal roll — product name, size, qty, sale price, MRP total, fixed footer & terms.'
+                        : settings.sale_settings?.invoice_template === 'retail-erp-dc'
+                          ? 'Retail ERP style DC matches Retail ERP layout without HSN, organization GSTIN, customer GSTIN, or GST tax lines. Title prints as Delivery Challan (A5).'
                         : settings.sale_settings?.invoice_template === 'retail-erp-preprinted'
                           ? 'Preprinted Invoice matches Retail ERP tax layout with a 2-inch top letterhead gap. Paper size follows POS Bill Format / Sale Invoice Format (A4 or A5).'
                         : settings.sale_settings?.invoice_template === 'real-tast'
