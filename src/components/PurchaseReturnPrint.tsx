@@ -1,5 +1,10 @@
 import React, { forwardRef } from "react";
 import { format } from "date-fns";
+import {
+  formatGstStateLabel,
+  getStateFromGSTIN,
+  isInterState,
+} from "@/utils/gstRegisterUtils";
 
 interface PurchaseReturnItem {
   id: string;
@@ -121,6 +126,19 @@ function amountInWords(amount: number): string {
   return result.toUpperCase();
 }
 
+/** Best-effort city from a free-text address (last meaningful word, e.g. SURAT). */
+function extractCityFromAddress(addr?: string): string {
+  if (!addr?.trim()) return "";
+  const words = addr.toUpperCase().match(/[A-Z]{3,}/g) || [];
+  const noise = new Set([
+    "ROAD", "ROSD", "GATE", "MAIN", "IND", "PLOT", "SHOP", "FLOOR", "NEAR", "OPP",
+    "AREA", "ZONE", "PHASE", "BLOCK", "SECTOR", "STREET", "LANE", "CROSS", "COMPLEX",
+    "BUILDING", "HOUSE", "LIMITED", "PRIVATE", "INDIA", "GATED", "INDUSTRIAL", "ESTATE",
+  ]);
+  const candidates = words.filter((w) => !noise.has(w));
+  return candidates.length ? candidates[candidates.length - 1] : "";
+}
+
 export const PurchaseReturnPrint = forwardRef<HTMLDivElement, PurchaseReturnPrintProps>(
   ({ returnData, items, businessDetails, saleSettings, logoUrl }, ref) => {
     const isDC = !!returnData.is_dc;
@@ -138,9 +156,32 @@ export const PurchaseReturnPrint = forwardRef<HTMLDivElement, PurchaseReturnPrin
     const totalAfterTax = Number(returnData.net_amount) || 0;
     const gstAmount = Number(returnData.gst_amount) || 0;
     const amountBeforeTax = totalAfterTax - gstAmount;
-    
-    
-    
+
+    const orgGstin = businessDetails?.gst_number || null;
+    const supplierGstin = returnData.supplier_gst || null;
+    // Org (settings GSTIN) vs supplier GSTIN → IGST when states differ (GST rules).
+    const interState = !isDC && isInterState(orgGstin, supplierGstin);
+    const cgstAmount = interState ? 0 : gstAmount / 2;
+    const sgstAmount = interState ? 0 : gstAmount / 2;
+    const igstAmount = interState ? gstAmount : 0;
+
+    const gstRates = items.map((i) => Number(i.gst_per) || 0).filter((r) => r > 0);
+    const uniformGstRate =
+      gstRates.length > 0 && gstRates.every((r) => r === gstRates[0]) ? gstRates[0] : 0;
+    const halfRate = uniformGstRate > 0 ? uniformGstRate / 2 : 0;
+
+    const supplierStateLabel = formatGstStateLabel(supplierGstin);
+    const orgState = getStateFromGSTIN(orgGstin);
+    const orgStateLabel =
+      formatGstStateLabel(orgGstin) ||
+      (businessDetails?.state
+        ? `${String(businessDetails.state).toUpperCase()}${orgState.code ? ` - ${orgState.code}` : ""}`
+        : "");
+    const supplierCity =
+      extractCityFromAddress(returnData.supplier_address) || "";
+    const orgCity =
+      businessDetails?.city || extractCityFromAddress(businessDetails?.address) || "";
+
     // Get bank details from settings
     const bankDetails = saleSettings?.bank_details;
     const showBankDetails = saleSettings?.show_bank_details !== false && bankDetails;
@@ -236,8 +277,8 @@ export const PurchaseReturnPrint = forwardRef<HTMLDivElement, PurchaseReturnPrin
               <div className="pr-cell">
                 <p><span className="pr-label">Name</span>: {returnData.supplier_name}</p>
                 <p><span className="pr-label">Address</span>: {returnData.supplier_address || ""}</p>
-                <p><span className="pr-label">City</span>: </p>
-                <p><span className="pr-label">State</span>: MAHARASHTRA - 27</p>
+                <p><span className="pr-label">City</span>: {supplierCity}</p>
+                <p><span className="pr-label">State</span>: {supplierStateLabel}</p>
                 <p><span className="pr-label">GSTIN No</span>: {returnData.supplier_gst || ""}</p>
               </div>
             </div>
@@ -246,8 +287,8 @@ export const PurchaseReturnPrint = forwardRef<HTMLDivElement, PurchaseReturnPrin
               <div className="pr-cell">
                 <p><span className="pr-label">Name</span>: {businessDetails?.business_name || ""}</p>
                 <p><span className="pr-label">Address</span>: {businessDetails?.address || ""}</p>
-                <p><span className="pr-label">City</span>: {businessDetails?.city || ""}</p>
-                <p><span className="pr-label">State</span>: {businessDetails?.state || "MAHARASHTRA - 27"}</p>
+                <p><span className="pr-label">City</span>: {orgCity}</p>
+                <p><span className="pr-label">State</span>: {orgStateLabel}</p>
                 <p><span className="pr-label">Broker</span>: Direct Party</p>
               </div>
             </div>
@@ -383,10 +424,29 @@ export const PurchaseReturnPrint = forwardRef<HTMLDivElement, PurchaseReturnPrin
               )}
               {!isDC && (
                 <>
-                  <div className="flex pr-border-b">
-                    <div className="w-2/3 pr-border-r p-1 text-sm font-bold">Add : GST</div>
-                    <div className="w-1/3 p-1 text-right text-sm">{returnData.gst_amount.toFixed(2)}</div>
-                  </div>
+                  {interState ? (
+                    <div className="flex pr-border-b">
+                      <div className="w-2/3 pr-border-r p-1 text-sm font-bold">
+                        Add : IGST{uniformGstRate > 0 ? ` @ ${uniformGstRate}%` : ""}
+                      </div>
+                      <div className="w-1/3 p-1 text-right text-sm">{igstAmount.toFixed(2)}</div>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex pr-border-b">
+                        <div className="w-2/3 pr-border-r p-1 text-sm font-bold">
+                          Add : CGST{halfRate > 0 ? ` @ ${halfRate}%` : ""}
+                        </div>
+                        <div className="w-1/3 p-1 text-right text-sm">{cgstAmount.toFixed(2)}</div>
+                      </div>
+                      <div className="flex pr-border-b">
+                        <div className="w-2/3 pr-border-r p-1 text-sm font-bold">
+                          Add : SGST{halfRate > 0 ? ` @ ${halfRate}%` : ""}
+                        </div>
+                        <div className="w-1/3 p-1 text-right text-sm">{sgstAmount.toFixed(2)}</div>
+                      </div>
+                    </>
+                  )}
                   <div className="flex pr-border-b">
                     <div className="w-2/3 pr-border-r p-1 text-sm font-bold">Total Amount After Tax</div>
                     <div className="w-1/3 p-1 text-right text-sm font-bold">{totalAfterTax.toFixed(2)}</div>

@@ -13,6 +13,7 @@ import { DetailedTemplate } from './invoice-templates/DetailedTemplate';
 import { TaxInvoiceTemplate } from './invoice-templates/TaxInvoiceTemplate';
 import { TallyTaxInvoiceTemplate } from './invoice-templates/TallyTaxInvoiceTemplate';
 import { GiftTallyInvoiceTemplate } from './invoice-templates/GiftTallyInvoiceTemplate';
+import { A4GstClassicInvoiceTemplate } from './invoice-templates/A4GstClassicInvoiceTemplate';
 import { RetailTemplate } from './invoice-templates/RetailTemplate';
 import { RetailERPTemplate } from './invoice-templates/RetailERPTemplate';
 import { RetailTaxEzzyTemplate } from './invoice-templates/RetailTaxEzzyTemplate';
@@ -307,8 +308,11 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
         format = 'a4';
       }
     }
-    // Gift Tally is A4 GST tax invoice only.
-    if (!isThermalFormat && templateForFormat === 'gift_tally') {
+    // Gift Tally / classic A4 GST textile invoice — A4 only.
+    if (
+      !isThermalFormat &&
+      (templateForFormat === 'gift_tally' || templateForFormat === 'a4-gst-classic')
+    ) {
       format = 'a4';
     }
     
@@ -727,6 +731,8 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
           return <TallyTaxInvoiceTemplate {...commonProps} />;
         case 'gift_tally':
           return <GiftTallyInvoiceTemplate {...commonProps} />;
+        case 'a4-gst-classic':
+          return <A4GstClassicInvoiceTemplate {...commonProps} />;
         case 'a4-electronic':
           return <A4ElectronicTemplate {...commonProps} />;
         case 'retail':

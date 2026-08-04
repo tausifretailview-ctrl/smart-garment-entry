@@ -1,5 +1,5 @@
 /** A4-only invoice templates — always print on A4 portrait. */
-export const A4_ONLY_INVOICE_TEMPLATES = new Set(['real-tast', 'gift_tally']);
+export const A4_ONLY_INVOICE_TEMPLATES = new Set(['real-tast', 'gift_tally', 'a4-gst-classic']);
 
 /** Templates that must print on A5 — not thermal 80mm. */
 export const A5_ONLY_INVOICE_TEMPLATES = new Set([
@@ -31,6 +31,7 @@ export const FULL_PAGE_INVOICE_TEMPLATES = new Set([
   'detailed',
   'tax-invoice',
   'tally-tax-invoice',
+  'a4-gst-classic',
   'a4-electronic',
   'retail',
   'retail-erp',

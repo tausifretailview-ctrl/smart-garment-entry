@@ -54,7 +54,12 @@ interface PurchaseReturn {
   return_date: string;
   supplier_name: string;
   supplier_id?: string;
+  /** Populated at print time from suppliers master. */
+  supplier_address?: string;
+  supplier_gst?: string;
+  supplier_phone?: string;
   original_bill_number?: string;
+  original_bill_date?: string;
   gross_amount: number;
   is_dc?: boolean;
   gst_amount: number;
@@ -67,6 +72,8 @@ interface PurchaseReturn {
   credit_status?: string; // 'pending', 'adjusted', 'refunded'
   linked_bill_id?: string;
   credit_available_balance?: number | null;
+  discount_amount?: number;
+  discount_percent?: number;
 }
 
 const PERF_PATH = "purchase-returns";
@@ -407,6 +414,33 @@ const PurchaseReturnDashboard = () => {
     }
   };
 
+  /** Attach supplier address / GSTIN from master (needed for IGST vs CGST print). */
+  const enrichReturnForPrint = async (returnRecord: PurchaseReturn): Promise<PurchaseReturn> => {
+    if (!returnRecord.supplier_id || !currentOrganization?.id) {
+      return returnRecord;
+    }
+    try {
+      const { data, error } = await supabase
+        .from("suppliers")
+        .select("address, gst_number, phone")
+        .eq("id", returnRecord.supplier_id)
+        .eq("organization_id", currentOrganization.id)
+        .is("deleted_at", null)
+        .maybeSingle();
+      if (error) throw error;
+      if (!data) return returnRecord;
+      return {
+        ...returnRecord,
+        supplier_address: data.address || "",
+        supplier_gst: data.gst_number || "",
+        supplier_phone: data.phone || "",
+      };
+    } catch (err) {
+      console.error("Error loading supplier for purchase return print:", err);
+      return returnRecord;
+    }
+  };
+
   const fetchReturnItems = async (returnId: string): Promise<PurchaseReturnItem[]> => {
     try {
       // First fetch return items
@@ -566,7 +600,8 @@ const PurchaseReturnDashboard = () => {
       }
       
       if (items && items.length > 0) {
-        setReturnToPrint({ ...returnRecord, items });
+        const enriched = await enrichReturnForPrint({ ...returnRecord, items });
+        setReturnToPrint(enriched);
         setTimeout(() => handlePrint(), 100);
       } else {
         toast({
@@ -593,7 +628,8 @@ const PurchaseReturnDashboard = () => {
       }
       
       if (items && items.length > 0) {
-        setReturnToPrint({ ...returnRecord, items });
+        const enriched = await enrichReturnForPrint({ ...returnRecord, items });
+        setReturnToPrint(enriched);
         setShowPrintPreview(true);
       } else {
         toast({
@@ -624,7 +660,8 @@ const PurchaseReturnDashboard = () => {
       }
 
       // Set the print data so the hidden PurchaseReturnPrint renders
-      setReturnToPrint({ ...returnRecord, items });
+      const enriched = await enrichReturnForPrint({ ...returnRecord, items });
+      setReturnToPrint(enriched);
 
       // Wait for render
       await new Promise(resolve => setTimeout(resolve, 300));

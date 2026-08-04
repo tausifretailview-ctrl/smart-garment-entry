@@ -199,7 +199,7 @@ interface SaleSettings {
   defaultEntryMode?: 'grid' | 'inline';  // Default entry mode for Sale Order
   enable_size_grid_sales?: boolean; // Enable/disable size grid in Sales Invoice
   sales_tax_rate?: number;
-  invoice_template?: 'professional' | 'modern' | 'modern-wholesale' | 'classic' | 'minimal' | 'compact' | 'detailed' | 'tax-invoice' | 'tally-tax-invoice' | 'gift_tally' | 'a4-electronic' | 'retail' | 'retail-erp' | 'retail-erp-dc' | 'retail-erp-preprinted' | 'retail-tax-ezzy' | 'wholesale-a5' | 'kids-80mm' | 'real-tast';
+  invoice_template?: 'professional' | 'modern' | 'modern-wholesale' | 'classic' | 'minimal' | 'compact' | 'detailed' | 'tax-invoice' | 'tally-tax-invoice' | 'gift_tally' | 'a4-gst-classic' | 'a4-electronic' | 'retail' | 'retail-erp' | 'retail-erp-dc' | 'retail-erp-preprinted' | 'retail-tax-ezzy' | 'wholesale-a5' | 'kids-80mm' | 'real-tast';
   invoice_color_scheme?: string;
   declaration_text?: string;
   terms_list?: string[];
@@ -3308,14 +3308,14 @@ export default function Settings() {
                           ...settings,
                           sale_settings: {
                             ...settings.sale_settings,
-                            invoice_template: value as 'professional' | 'modern' | 'modern-wholesale' | 'classic' | 'minimal' | 'compact' | 'detailed' | 'tax-invoice' | 'tally-tax-invoice' | 'gift_tally' | 'a4-electronic' | 'retail' | 'retail-erp' | 'retail-erp-dc' | 'retail-erp-preprinted' | 'retail-tax-ezzy' | 'wholesale-a5' | 'kids-80mm' | 'real-tast',
+                            invoice_template: value as 'professional' | 'modern' | 'modern-wholesale' | 'classic' | 'minimal' | 'compact' | 'detailed' | 'tax-invoice' | 'tally-tax-invoice' | 'gift_tally' | 'a4-gst-classic' | 'a4-electronic' | 'retail' | 'retail-erp' | 'retail-erp-dc' | 'retail-erp-preprinted' | 'retail-tax-ezzy' | 'wholesale-a5' | 'kids-80mm' | 'real-tast',
                             ...(value === 'kids-80mm'
                               ? {
                                   invoice_paper_format: 'thermal' as const,
                                   sales_bill_format: 'thermal' as const,
                                   pos_bill_format: 'thermal' as const,
                                 }
-                              : value === 'real-tast' || value === 'gift_tally'
+                              : value === 'real-tast' || value === 'gift_tally' || value === 'a4-gst-classic'
                                 ? {
                                     invoice_paper_format: 'a4' as const,
                                     sales_bill_format: 'a4' as const,
@@ -3389,6 +3389,12 @@ export default function Settings() {
                             Gift Tally (A4 Tax Invoice)
                           </span>
                         </SelectItem>
+                        <SelectItem value="a4-gst-classic">
+                          <span className="flex items-center gap-2">
+                            <span className="text-rose-700 font-bold text-xs w-5">A4G</span>
+                            A4 GST Tax Invoice — Classic (with QR)
+                          </span>
+                        </SelectItem>
                         <SelectItem value="a4-electronic">A4 Electronic</SelectItem>
                         <SelectItem value="retail">
                           <span className="flex items-center gap-2">
@@ -3451,6 +3457,8 @@ export default function Settings() {
                           ? 'Real Tast prints on A4 — SN, Description, HSN, Qty, Rate, Amount. Set document title and terms in Sale settings below.'
                         : settings.sale_settings?.invoice_template === 'gift_tally'
                           ? 'Gift Tally prints on A4 — GST tax invoice with billed/shipped blocks, per-line CGST/SGST/IGST, bank details and terms.'
+                        : settings.sale_settings?.invoice_template === 'a4-gst-classic'
+                          ? 'A4 GST Classic matches textile/wholesale Tax Invoice layout — logo, UPI QR, Billed/Shipped, transport, GST summary table, bank bar and signature.'
                         : 'Modern Wholesale is optimized for bulk orders with size grouping (e.g., 38/2, 40/3, 42/1)'}
                     </p>
                   </div>
@@ -4718,7 +4726,8 @@ export default function Settings() {
                           settings.sale_settings?.invoice_template === 'kids-80mm'
                             ? 'thermal'
                             : settings.sale_settings?.invoice_template === 'real-tast' ||
-                              settings.sale_settings?.invoice_template === 'gift_tally'
+                              settings.sale_settings?.invoice_template === 'gift_tally' ||
+                              settings.sale_settings?.invoice_template === 'a4-gst-classic'
                               ? 'a4'
                             : (settings.sale_settings?.invoice_paper_format
                                || (settings.sale_settings?.sales_bill_format === 'a5' ? 'a5-vertical' : undefined)

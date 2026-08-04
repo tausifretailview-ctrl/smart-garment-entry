@@ -95,7 +95,67 @@ export interface PurchaseReturnRegisterRow {
 // Extract state code from GSTIN (first 2 digits)
 export const extractStateCode = (gstin: string | null): string => {
   if (!gstin || gstin.length < 2) return '';
-  return gstin.substring(0, 2);
+  return gstin.substring(0, 2).toUpperCase();
+};
+
+/** GSTIN state code → state name (India). */
+export const GSTIN_STATE_NAMES: Record<string, string> = {
+  "01": "Jammu & Kashmir",
+  "02": "Himachal Pradesh",
+  "03": "Punjab",
+  "04": "Chandigarh",
+  "05": "Uttarakhand",
+  "06": "Haryana",
+  "07": "Delhi",
+  "08": "Rajasthan",
+  "09": "Uttar Pradesh",
+  "10": "Bihar",
+  "11": "Sikkim",
+  "12": "Arunachal Pradesh",
+  "13": "Nagaland",
+  "14": "Manipur",
+  "15": "Mizoram",
+  "16": "Tripura",
+  "17": "Meghalaya",
+  "18": "Assam",
+  "19": "West Bengal",
+  "20": "Jharkhand",
+  "21": "Odisha",
+  "22": "Chhattisgarh",
+  "23": "Madhya Pradesh",
+  "24": "Gujarat",
+  "26": "Dadra & Nagar Haveli",
+  "27": "Maharashtra",
+  "29": "Karnataka",
+  "30": "Goa",
+  "31": "Lakshadweep",
+  "32": "Kerala",
+  "33": "Tamil Nadu",
+  "34": "Puducherry",
+  "35": "Andaman & Nicobar",
+  "36": "Telangana",
+  "37": "Andhra Pradesh",
+};
+
+export const getStateNameFromCode = (code?: string | null): string => {
+  if (!code) return "";
+  return GSTIN_STATE_NAMES[code] || "";
+};
+
+/** Resolve `{ name, code }` from a GSTIN (company / supplier / customer). */
+export const getStateFromGSTIN = (
+  gstin?: string | null,
+): { name: string; code: string } => {
+  const code = extractStateCode(gstin ?? null);
+  return { name: getStateNameFromCode(code), code };
+};
+
+/** Display as `GUJARAT - 24` (or code-only / empty). */
+export const formatGstStateLabel = (gstin?: string | null): string => {
+  const { name, code } = getStateFromGSTIN(gstin);
+  if (name && code) return `${name.toUpperCase()} - ${code}`;
+  if (code) return code;
+  return "";
 };
 
 // Validate GSTIN format (basic validation)
@@ -112,6 +172,8 @@ export const isInterState = (businessGSTIN: string | null, partyGSTIN: string | 
   
   // If party doesn't have GSTIN (B2C), assume intra-state
   if (!partyState) return false;
+  // Org GSTIN missing — cannot classify as inter-state
+  if (!businessState) return false;
   
   return businessState !== partyState;
 };
