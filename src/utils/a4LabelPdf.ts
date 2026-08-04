@@ -1,16 +1,18 @@
-import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
+import { PDFDocument, PDFName, rgb, StandardFonts } from 'pdf-lib';
 import JsBarcode from 'jsbarcode';
 import { LabelDesignConfig, LabelFieldConfig, LabelItem, FieldKey } from '@/types/labelTypes';
 import {
   computeA4SheetMargins,
   resolveA4LayoutGap,
+  resolveA4LabelWidthMm,
   A4_PAGE_WIDTH_MM,
   A4_PAGE_HEIGHT_MM,
 } from '@/utils/a4SheetLayout';
 import { barcodeHeightPxFromMm, resolveBarcodeSlotMm } from '@/utils/barcodeLabelLayout';
 import type { LabelData, TSPLTemplateConfig } from '@/utils/tsplGenerator';
 
-const mmToPt = (mm: number): number => mm * 2.8346;
+/** Exact PDF point conversion (72 pt / inch ÷ 25.4 mm/inch). */
+const mmToPt = (mm: number): number => (mm * 72) / 25.4;
 
 const barcodeToDataURL = (barcode: string, targetWidthMm: number, heightPx: number): string | null => {
   try {
@@ -95,37 +97,47 @@ export const generateA4LabelPdf = async (
   const rightOffsetMm = Math.max(0, rawRightOffsetMm);
 
   // Informational warning if layout exceeds A4 dimensions
-  const totalWidthMm = leftOffsetMm + rightOffsetMm + cols * labelWidthMm + (cols - 1) * gapMm;
-  const totalHeightMm = topOffsetMm + bottomOffsetMm + rows * labelHeightMm + (rows - 1) * gapMm;
-  if (totalWidthMm > 210 || totalHeightMm > 297) {
-    console.warn(
-      `[a4LabelPdf] Layout may exceed A4 page bounds: ${totalWidthMm.toFixed(1)}mm x ${totalHeightMm.toFixed(1)}mm (A4 = 210x297mm)`
-    );
-  }
-
   const pdfDoc = await PDFDocument.create();
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
 
-  // NovaJet MPL 48L (4×12 × 48×24): force gap 0 so pitch matches die-cut even if a
-  // custom preset saved Gap=1 (that alone caused cumulative vertical drift).
+  // NovaJet MPL 48L / 40L: force gap 0 (+ official 39mm width for 40L) so pitch
+  // matches die-cut even if a custom preset saved Gap=1 / 38mm (cumulative drift).
   const layoutGapMm = resolveA4LayoutGap(cols, rows, labelWidthMm, labelHeightMm, gapMm);
+  const layoutWidthMm = resolveA4LabelWidthMm(cols, rows, labelWidthMm, labelHeightMm);
+
+  const totalWidthMm =
+    leftOffsetMm + rightOffsetMm + cols * layoutWidthMm + (cols - 1) * layoutGapMm;
+  const totalHeightMm =
+    topOffsetMm + bottomOffsetMm + rows * labelHeightMm + (rows - 1) * layoutGapMm;
+  if (totalWidthMm > 210 || totalHeightMm > 297) {
+    console.warn(
+      `[a4LabelPdf] Layout may exceed A4 page bounds: ${totalWidthMm.toFixed(1)}mm x ${totalHeightMm.toFixed(1)}mm (A4 = 210x297mm)`,
+    );
+  }
 
   const PAGE_W = mmToPt(A4_PAGE_WIDTH_MM);
   const PAGE_H = mmToPt(A4_PAGE_HEIGHT_MM);
-  const labelW = mmToPt(labelWidthMm);
+  const labelW = mmToPt(layoutWidthMm);
   const labelH = mmToPt(labelHeightMm);
   const gap = mmToPt(layoutGapMm);
   const { marginLeft: marginLeftMm, marginTop: marginTopMm } = computeA4SheetMargins(
     cols,
     rows,
-    labelWidthMm,
+    layoutWidthMm,
     labelHeightMm,
     layoutGapMm,
     { top: topOffsetMm, left: leftOffsetMm, bottom: bottomOffsetMm, right: rightOffsetMm },
   );
   const marginLeft = mmToPt(marginLeftMm);
   const marginTop = mmToPt(marginTopMm);
+
+  // Discourage browser/Acrobat "Fit" / "Shrink oversized pages" — that skews
+  // A4 label sheets (top row drifts one way, bottom the other).
+  const viewerPrefs = pdfDoc.context.obj({
+    PrintScaling: PDFName.of('None'),
+  });
+  pdfDoc.catalog.set(PDFName.of('ViewerPreferences'), viewerPrefs);
 
   const allLabels: (LabelItem | null)[] = [];
   for (let s = 0; s < skipSlots; s++) allLabels.push(null);
@@ -184,8 +196,8 @@ export const generateA4LabelPdf = async (
         // Field width is stored by the label designer as a percentage of the
         // label width (20-100), not as millimetres. Match the Standard Printing
         // HTML renderer so left/right-half fields do not print on the wrong side.
-        const availableWidthMm = Math.max(1, labelWidthMm - fieldX);
-        const requestedWidthMm = ((field.width ?? 100) / 100) * labelWidthMm;
+        const availableWidthMm = Math.max(1, layoutWidthMm - fieldX);
+        const requestedWidthMm = ((field.width ?? 100) / 100) * layoutWidthMm;
         const maxWidthMm = Math.min(requestedWidthMm, availableWidthMm);
         const maxWidthPt = mmToPt(maxWidthMm);
         
@@ -250,7 +262,7 @@ export const generateA4LabelPdf = async (
           businessName,
         };
         const barcodeSlot = resolveBarcodeSlotMm(
-          { width: labelWidthMm, height: labelHeightMm },
+          { width: layoutWidthMm, height: labelHeightMm },
           labelConfig as unknown as TSPLTemplateConfig,
           labelData,
         );

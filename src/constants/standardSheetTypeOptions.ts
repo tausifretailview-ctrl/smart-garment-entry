@@ -25,8 +25,8 @@ export const STANDARD_SHEET_TYPE_OPTIONS: StandardSheetTypeOptionGroup[] = [
       { value: "a4_36sheet", label: "A4 36-Sheet (48×30mm, 4×9)" },
       { value: "a4_32sheet", label: "A4 32-Sheet (52×30mm, retail)" },
       { value: "a4_35square", label: "A4 35-Square (35×35mm)" },
-      { value: "a4_40sheet", label: "A4 40-Sheet (38×35mm, 5×8)" },
-      { value: "novajet40", label: "Novajet 40 (38×35mm, 5×8)" },
+      { value: "a4_40sheet", label: "A4 40-Sheet (39×35mm, 5×8) MPL 40L" },
+      { value: "novajet40", label: "Novajet 40 (39×35mm, 5×8) MPL 40L" },
     ],
   },
   {

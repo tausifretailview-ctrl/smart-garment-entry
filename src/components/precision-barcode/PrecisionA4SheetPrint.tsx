@@ -6,6 +6,7 @@ import type { ProductFieldsConfig } from "@/utils/productFieldSettingsForLabels"
 import {
   computeA4SheetMargins,
   resolveA4LayoutGap,
+  resolveA4LabelWidthMm,
   A4_PAGE_WIDTH_MM,
   A4_PAGE_HEIGHT_MM,
 } from "@/utils/a4SheetLayout";
@@ -66,15 +67,17 @@ export const PrecisionA4SheetPrint = forwardRef<HTMLDivElement, PrecisionA4Sheet
       pages.push(expandedItems.slice(i, i + labelsPerPage));
     }
 
-    // Prefer sheet column gap; fall back to vGap when only one is set. NovaJet 48L → 0.
+    // Prefer sheet column gap; fall back to vGap when only one is set.
+    // NovaJet MPL 48L/40L → gap 0; MPL 40L legacy 38mm → 39mm width.
     const requestedGap = Math.max(0, columnGap || vGap || 0);
     const layoutGap = resolveA4LayoutGap(cols, rows, labelWidth, labelHeight, requestedGap);
+    const layoutWidth = resolveA4LabelWidthMm(cols, rows, labelWidth, labelHeight);
     const rowGap = layoutGap;
     const colGap = layoutGap;
     const { marginTop, marginLeft, marginRight, marginBottom } = computeA4SheetMargins(
       cols,
       rows,
-      labelWidth,
+      layoutWidth,
       labelHeight,
       layoutGap,
       { top: yOffset, left: xOffset },
@@ -82,7 +85,7 @@ export const PrecisionA4SheetPrint = forwardRef<HTMLDivElement, PrecisionA4Sheet
 
     return (
       <>
-        <PrecisionPrintCSS labelWidth={labelWidth} labelHeight={labelHeight} mode="a4" active={active} />
+        <PrecisionPrintCSS labelWidth={layoutWidth} labelHeight={labelHeight} mode="a4" active={active} />
         <div ref={ref} className="precision-print-area">
           {pages.map((pageItems, pageIdx) => (
             <div
@@ -98,11 +101,11 @@ export const PrecisionA4SheetPrint = forwardRef<HTMLDivElement, PrecisionA4Sheet
               <div
                 style={{
                   display: "grid",
-                  gridTemplateColumns: `repeat(${cols}, ${labelWidth}mm)`,
+                  gridTemplateColumns: `repeat(${cols}, ${layoutWidth}mm)`,
                   gridTemplateRows: `repeat(${rows}, ${labelHeight}mm)`,
                   columnGap: `${colGap}mm`,
                   rowGap: `${rowGap}mm`,
-                  width: `${cols * labelWidth + Math.max(0, cols - 1) * colGap}mm`,
+                  width: `${cols * layoutWidth + Math.max(0, cols - 1) * colGap}mm`,
                 }}
               >
                 {pageItems.map((item, idx) =>
@@ -110,7 +113,7 @@ export const PrecisionA4SheetPrint = forwardRef<HTMLDivElement, PrecisionA4Sheet
                     <PrecisionLabelPreview
                       key={idx}
                       item={item}
-                      width={labelWidth}
+                      width={layoutWidth}
                       height={labelHeight}
                       showBorder={false}
                       config={config}
@@ -119,7 +122,7 @@ export const PrecisionA4SheetPrint = forwardRef<HTMLDivElement, PrecisionA4Sheet
                   ) : (
                     <div
                       key={idx}
-                      style={{ width: `${labelWidth}mm`, height: `${labelHeight}mm` }}
+                      style={{ width: `${layoutWidth}mm`, height: `${labelHeight}mm` }}
                     />
                   ),
                 )}

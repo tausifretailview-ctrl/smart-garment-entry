@@ -42,6 +42,7 @@ import {
   computeA4SheetMargins,
   isNovaJetMpl48LGrid,
   resolveA4LayoutGap,
+  resolveA4LabelWidthMm,
 } from '@/utils/a4SheetLayout';
 import {
   resolveStandardSheetTypeForLabelDimensions,
@@ -375,9 +376,11 @@ const sheetPresets = {
   a4_65sheet: { cols: 5, rows: 12, width: "38mm", height: "22mm", gap: "1mm", category: "a4" },
   
   // Medium Labels
-  novajet40: { cols: 5, rows: 8, width: "38mm", height: "35mm", gap: "1mm", category: "a4" },
-  a4_40sheet: { cols: 5, rows: 8, width: "38mm", height: "35mm", gap: "1mm", category: "a4" },
-  a4_39x35_40sheet: { cols: 5, rows: 8, width: "39mm", height: "35mm", gap: "0.6mm", category: "a4" },
+  // TechNova NovaJet MPL 40L — official 39×35mm, 5×8, gap 0 (die-cut).
+  // Gap>0 / 38mm width caused cumulative skew (top-right / bottom-left drift).
+  novajet40: { cols: 5, rows: 8, width: "39mm", height: "35mm", gap: "0mm", category: "a4" },
+  a4_40sheet: { cols: 5, rows: 8, width: "39mm", height: "35mm", gap: "0mm", category: "a4" },
+  a4_39x35_40sheet: { cols: 5, rows: 8, width: "39mm", height: "35mm", gap: "0mm", category: "a4" },
   a4_35x37: { cols: 5, rows: 8, width: "35mm", height: "37mm", gap: "1.2mm", category: "a4" },
   // TechNova NovaJet MPL 48L (NJMPL 48L / 48×24WR) — top margin baked into computeA4SheetMargins
   a4_12x4: {
@@ -448,9 +451,9 @@ const sheetPresetLabels: Record<string, { label: string; description: string; gr
   a4_65sheet: { label: "A4 65-Sheet", description: "38×22mm, 5 cols (shelf)", group: "A4 - Small Labels" },
   
   // A4 Sheets - Medium
-  novajet40: { label: "Novajet 40", description: "38×35mm, 5×8 (40 labels)", group: "A4 - Medium Labels" },
-  a4_40sheet: { label: "A4 40-Sheet", description: "38×35mm, 5×8 (40 labels) ✓ Exact", group: "A4 - Medium Labels" },
-  a4_39x35_40sheet: { label: "A4 40-Sheet (39×35mm)", description: "39×35mm, 5×8 (40 labels) — Al Nisa", group: "A4 - Medium Labels" },
+  novajet40: { label: "Novajet 40", description: "39×35mm, 5×8 (40 labels) MPL 40L", group: "A4 - Medium Labels" },
+  a4_40sheet: { label: "A4 40-Sheet", description: "39×35mm, 5×8 (40 labels) MPL 40L ✓ Exact", group: "A4 - Medium Labels" },
+  a4_39x35_40sheet: { label: "A4 40-Sheet (39×35mm)", description: "39×35mm, 5×8 (40 labels) — Al Nisa / MPL 40L", group: "A4 - Medium Labels" },
   a4_35x37: { label: "A4 35×37mm", description: "35×37mm, 5×8 (40 labels)", group: "A4 - Medium Labels" },
   a4_12x4: { label: "NovaJet MPL 48L", description: "48×24mm, 4×12 (NJMPL)", group: "A4 - Medium Labels" },
   a4_36sheet: { label: "A4 36-Sheet", description: "48×30mm, 4×9", group: "A4 - Medium Labels" },
@@ -3758,11 +3761,8 @@ export default function BarcodePrinting() {
     };
     setCustomRows(rowsMap[sheetType] || 12);
     
-    // Set scale based on preset type
-    const scaleMap: Record<string, number> = {
-      novajet40: 150,
-    };
-    setPrintScale(scaleMap[sheetType] || 100);
+    // A4 die-cut sheets must stay at 100% — scaling causes corner-to-corner skew.
+    setPrintScale(100);
     
     setSheetType("custom");
     toast.success("Preset copied to custom. You can now edit and save it.");
@@ -4670,26 +4670,28 @@ export default function BarcodePrinting() {
     return Math.min(scaleX, scaleY);
   };
 
-  /** A4 cell size for Standard print/preview — coerces NovaJet 48×24 gap to 0. */
+  /** A4 cell size for Standard print/preview — coerces MPL 48L/40L gap & 40L width. */
   const getA4SheetDimensions = () => {
     const cols = sheetType === "custom" ? customCols : sheetPresets[sheetType].cols;
     const rows =
       sheetType === "custom"
         ? customRows || 8
         : ((sheetPresets[sheetType] as { rows?: number }).rows || 8);
-    const width =
+    const rawWidth =
       sheetType === "custom" ? customWidth : parseFloat(sheetPresets[sheetType].width);
     const height =
       sheetType === "custom" ? customHeight : parseFloat(sheetPresets[sheetType].height);
     const rawGap =
       sheetType === "custom" ? customGap : parseFloat(sheetPresets[sheetType].gap);
+    const width = resolveA4LabelWidthMm(cols, rows, rawWidth, height);
     return {
       cols,
       rows,
       width,
       height,
-      gap: resolveA4LayoutGap(cols, rows, width, height, rawGap),
+      gap: resolveA4LayoutGap(cols, rows, rawWidth, height, rawGap),
       rawGap,
+      rawWidth,
     };
   };
 
@@ -5151,7 +5153,7 @@ export default function BarcodePrinting() {
     printWindow.document.write(htmlDoc);
     printWindow.document.close();
     printWindow.focus();
-    toast.info(`Print at 100% scale (Actual Size). Label: ${labelW}×${labelH}mm`);
+    toast.info(`Print Actual Size 100% (no Fit/Shrink). Label: ${labelW}×${labelH}mm`);
     setTimeout(() => {
       printWindow.print();
       printWindow.close();
@@ -5304,7 +5306,7 @@ export default function BarcodePrinting() {
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
-        toast.error('Pop-up blocked — PDF downloaded. Open it and print at Actual Size (100%).');
+        toast.error('Pop-up blocked — PDF downloaded. Open it and print Actual Size 100% (turn off Fit / Shrink).');
         setTimeout(() => URL.revokeObjectURL(pdfUrl), 60000);
         return;
       }
@@ -5315,7 +5317,7 @@ export default function BarcodePrinting() {
           setTimeout(() => URL.revokeObjectURL(pdfUrl), 60000);
         }, 500);
       });
-      toast.success('Print at Actual Size (100%) for accurate labels');
+      toast.success('Print Actual Size 100% — turn off Fit to page / Shrink oversized pages');
     } catch (err) {
       console.error('Label PDF generation error:', err);
       toast.error('Failed to generate label sheet');
@@ -5407,7 +5409,7 @@ export default function BarcodePrinting() {
       a.click();
       document.body.removeChild(a);
       setTimeout(() => URL.revokeObjectURL(url), 5000);
-      toast.success('PDF opened — print at Actual Size (100%) for accurate labels');
+      toast.success('PDF ready — print Actual Size 100% (no Fit / Shrink) for die-cut sheets');
     } catch (err) {
       console.error('PDF generation error:', err);
       toast.error('Failed to generate PDF');
@@ -6308,8 +6310,8 @@ export default function BarcodePrinting() {
                   <SelectItem value="a4_36sheet">A4 36-Sheet (48×30mm, 4×9)</SelectItem>
                   <SelectItem value="a4_32sheet">A4 32-Sheet (52×30mm, retail)</SelectItem>
                   <SelectItem value="a4_35square">A4 35-Square (35×35mm, square)</SelectItem>
-                  <SelectItem value="a4_40sheet">A4 40-Sheet (38×35mm, 5×8) ✓ Exact fit</SelectItem>
-                  <SelectItem value="novajet40">Novajet 40 (38×35mm, 5×8)</SelectItem>
+                  <SelectItem value="a4_40sheet">A4 40-Sheet (39×35mm, 5×8) MPL 40L ✓ Exact</SelectItem>
+                  <SelectItem value="novajet40">Novajet 40 (39×35mm, 5×8) MPL 40L</SelectItem>
                   
                   {/* A4 Sheet Presets - Large */}
                   <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50 mt-1">📄 A4 - Large Labels</div>
@@ -6382,10 +6384,10 @@ export default function BarcodePrinting() {
                 </Button>
               )}
             </div>
-            {sheetType === "novajet40" && (
+            {(sheetType === "novajet40" || sheetType === "a4_40sheet" || sheetType === "a4_39x35_40sheet") && (
               <p className="text-xs text-muted-foreground mt-2 p-2 bg-muted/30 rounded border">
-                <strong>Recommended Print Settings:</strong> Scale 150% (auto-applied), Margins: None, Headers/Footers: Off<br />
-                <strong>Starting Offsets:</strong> Top 2mm, Left 1mm (auto-loaded, adjust as needed)
+                <strong>MPL 40L (39×35mm, 5×8, gap 0):</strong> Print Actual Size 100% — turn off Fit to page / Shrink.
+                Margins: None. Headers/Footers: Off. Offsets start at 0 (nudge only if your tray feeds inconsistently).
               </p>
             )}
             {isA4SheetType() && sheetType !== "custom" && (
