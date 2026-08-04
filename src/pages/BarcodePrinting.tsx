@@ -6384,7 +6384,7 @@ export default function BarcodePrinting() {
                 </Button>
               )}
             </div>
-            {(sheetType === "novajet40" || sheetType === "a4_40sheet" || sheetType === "a4_39x35_40sheet") && (
+            {(sheetType === "novajet40" || sheetType === "a4_40sheet") && (
               <p className="text-xs text-muted-foreground mt-2 p-2 bg-muted/30 rounded border">
                 <strong>MPL 40L (39×35mm, 5×8, gap 0):</strong> Print Actual Size 100% — turn off Fit to page / Shrink.
                 Margins: None. Headers/Footers: Off. Offsets start at 0 (nudge only if your tray feeds inconsistently).
