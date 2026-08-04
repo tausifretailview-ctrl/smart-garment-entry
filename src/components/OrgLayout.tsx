@@ -148,6 +148,8 @@ export const OrgLayout = () => {
   useEffect(() => {
     if (!isOrgSynced || !user || (wantsTabCache && !effectiveTabPaneReady)) return;
 
+    let cancelIdlePrefetch: (() => void) | undefined;
+
     const run = () => {
       if (shouldElectronMountOnlyActiveTab()) {
         prefetchTabPage("pos-sales");
@@ -158,20 +160,26 @@ export const OrgLayout = () => {
         return;
       }
       prefetchPostLoginCriticalPages();
-      prefetchPostLoginIdlePages();
+      cancelIdlePrefetch = prefetchPostLoginIdlePages();
     };
 
     if (!isElectronShell()) {
       run();
-      return;
+      return () => cancelIdlePrefetch?.();
     }
 
     if (typeof requestIdleCallback !== "undefined") {
       const id = requestIdleCallback(run, { timeout: 4_000 });
-      return () => cancelIdleCallback(id);
+      return () => {
+        cancelIdleCallback(id);
+        cancelIdlePrefetch?.();
+      };
     }
     const t = window.setTimeout(run, 1_500);
-    return () => window.clearTimeout(t);
+    return () => {
+      window.clearTimeout(t);
+      cancelIdlePrefetch?.();
+    };
   }, [isOrgSynced, user, tabPaths, wantsTabCache, effectiveTabPaneReady]);
 
   // Warm Sales + Purchase dashboard first page after login — data ready before user opens tab.

@@ -2,6 +2,7 @@ import type { ComponentType, LazyExoticComponent } from "react";
 import {
   importWithRetry,
   lazyWithRetry,
+  scheduleSequentialIdlePrefetch,
   CRITICAL_ENTRY_CHUNK_PATHS,
   POST_LOGIN_IDLE_PREFETCH_TAB_PATHS,
   POST_LOGIN_PREFETCH_TAB_PATHS,
@@ -383,6 +384,21 @@ export function prefetchPostLoginCriticalPages(): void {
   list.forEach((p) => prefetchTabPage(p));
 }
 
+cursor/web-nav-loading-intent-prefetch-b281
+/**
+ * Warm heavy / inventory chunks when idle — one-at-a-time, gated by
+ * `isBackgroundPrefetchAllowed` so a user click can pause the queue.
+ * (Web critical warm stays parallel via `prefetchPostLoginCriticalPages`.)
+ */
+export function prefetchPostLoginIdlePages(): () => void {
+  const paths = isElectronShell()
+    ? POST_LOGIN_IDLE_PREFETCH_TAB_PATHS
+    : POST_LOGIN_WEB_IDLE_INVENTORY_PREFETCH_TAB_PATHS;
+  return scheduleSequentialIdlePrefetch(paths, (path) => prefetchTabPage(path), {
+    minDelay: isElectronShell() ? 0 : 4_000,
+    timeout: 12_000,
+  });
+=======
 /** Warm heavy admin chunks when the browser is idle (Settings first-open timeout). */
 export function prefetchPostLoginIdlePages(): void {
   const run = () => {
@@ -398,6 +414,7 @@ export function prefetchPostLoginIdlePages(): void {
   } else {
     window.setTimeout(run, 4000);
   }
+main
 }
 
 export function prefetchTabPages(paths: string[]): void {

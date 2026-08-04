@@ -307,6 +307,7 @@ export const Header = () => {
                 <Button
                   variant="ghost"
                   className="justify-start"
+                  onPointerDown={() => prefetchTabPage("settings", { intent: true })}
                   onClick={() => {
                     orgNavigate("/settings");
                     setMobileMenuOpen(false);
@@ -385,7 +386,11 @@ export const Header = () => {
                 <p className="text-xs text-muted-foreground">{user?.email}</p>
               </div>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => orgNavigate("/settings")} className="cursor-pointer text-sm">
+              <DropdownMenuItem
+                onPointerDown={() => prefetchTabPage("settings", { intent: true })}
+                onClick={() => orgNavigate("/settings")}
+                className="cursor-pointer text-sm"
+              >
                 App Settings
               </DropdownMenuItem>
               <DropdownMenuItem onClick={handleManualReload} className="cursor-pointer text-sm">
@@ -421,6 +426,9 @@ export const Header = () => {
               onFocus={() =>
                 void prefetchTabPage(can("pos_sales") ? "pos-sales" : "sales-invoice")
               }
+              onPointerDown={() =>
+                prefetchTabPage(can("pos_sales") ? "pos-sales" : "sales-invoice", { intent: true })
+              }
               onClick={openPrimarySale}
             >
               {can("pos_sales") ? (
@@ -442,6 +450,7 @@ export const Header = () => {
               className={cn("erp-tbtn", isShortcutPath("purchase-entry") && "erp-tbtn--primary")}
               onPointerEnter={() => void prefetchTabPage("purchase-entry")}
               onFocus={() => void prefetchTabPage("purchase-entry")}
+              onPointerDown={() => prefetchTabPage("purchase-entry", { intent: true })}
               onClick={() => orgNavigate("/purchase-entry", { state: { newBill: true } })}
             >
               <Package className="erp-tbtn__icon" />
@@ -452,6 +461,8 @@ export const Header = () => {
             <button
               type="button"
               className={cn("erp-tbtn", isShortcutPath("stock-report") && "erp-tbtn--primary")}
+              onPointerEnter={() => void prefetchTabPage("stock-report")}
+              onPointerDown={() => prefetchTabPage("stock-report", { intent: true })}
               onClick={() => orgNavigate("/stock-report")}
             >
               <LayoutGrid className="erp-tbtn__icon" />
