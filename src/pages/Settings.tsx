@@ -1,6 +1,7 @@
 import { useState, useEffect, Suspense, type ReactNode } from "react";
 import { useLocation } from "react-router-dom";
 import { lazyWithRetry } from "@/lib/chunkLoadRetry";
+import { prefetchTabPage } from "@/lib/tabPageRegistry";
 import { logError } from "@/lib/errorLogger";
 import { UOM_OPTIONS } from "@/constants/uom";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
@@ -6123,7 +6124,10 @@ export default function Settings() {
                   <p className="text-sm text-muted-foreground mb-4">
                     Set granular permissions for each user including menu access, special rights like modify, delete, WhatsApp, accounting, delivery module, and dashboard customization.
                   </p>
-                  <Button onClick={() => navigate("/user-rights")}>
+                  <Button
+                    onPointerDown={() => prefetchTabPage("user-rights", { intent: true })}
+                    onClick={() => navigate("/user-rights")}
+                  >
                     <Shield className="h-4 w-4 mr-2" />
                     Manage User Rights
                   </Button>

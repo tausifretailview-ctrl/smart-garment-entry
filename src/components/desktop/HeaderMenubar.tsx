@@ -35,6 +35,14 @@ export type HeaderMenubarProps = {
   className?: string;
 };
 
+/** Same cache as NavLink / WindowTabsBar — hover speculative, pointerdown intent. */
+function tabPrefetchProps(path: string) {
+  return {
+    onPointerEnter: () => prefetchTabPage(path),
+    onPointerDown: () => prefetchTabPage(path, { intent: true }),
+  };
+}
+
 export function HeaderMenubar({
   can,
   canAccessReportsHub,
@@ -104,10 +112,7 @@ export function HeaderMenubar({
           </MenubarTrigger>
           <MenubarContent className="min-w-[12rem]">
             {can("pos_sales") && (
-              <MenubarItem
-                onPointerEnter={() => void prefetchTabPage("pos-sales")}
-                onClick={openPosSales}
-              >
+              <MenubarItem {...tabPrefetchProps("pos-sales")} onClick={openPosSales}>
                 <ShoppingCart className="h-3.5 w-3.5 mr-2 opacity-60" />
                 New POS Sale
                 <MenubarShortcut>Alt+P</MenubarShortcut>
@@ -115,7 +120,7 @@ export function HeaderMenubar({
             )}
             {can("sales_invoice") && (
               <MenubarItem
-                onPointerEnter={() => void prefetchTabPage("sales-invoice")}
+                {...tabPrefetchProps("sales-invoice")}
                 onClick={() => orgNavigate("/sales-invoice")}
               >
                 <Plus className="h-3.5 w-3.5 mr-2 opacity-60" />
@@ -125,7 +130,7 @@ export function HeaderMenubar({
             )}
             {can("purchase_bill") && (
               <MenubarItem
-                onPointerEnter={() => void prefetchTabPage("purchase-entry")}
+                {...tabPrefetchProps("purchase-entry")}
                 onClick={() => orgNavigate("/purchase-entry", { state: { newBill: true } })}
               >
                 <Package className="h-3.5 w-3.5 mr-2 opacity-60" />
@@ -134,14 +139,17 @@ export function HeaderMenubar({
               </MenubarItem>
             )}
             {can("quotation_entry") && (
-              <MenubarItem onClick={() => orgNavigate("/quotation-entry")}>
+              <MenubarItem
+                {...tabPrefetchProps("quotation-entry")}
+                onClick={() => orgNavigate("/quotation-entry")}
+              >
                 <TrendingUp className="h-3.5 w-3.5 mr-2 opacity-60" />
                 New Quotation
               </MenubarItem>
             )}
             {can("product_entry") && (
               <MenubarItem
-                onPointerEnter={() => void prefetchTabPage("product-entry")}
+                {...tabPrefetchProps("product-entry")}
                 onClick={() => orgNavigate("/product-entry")}
               >
                 <BoxIcon className="h-3.5 w-3.5 mr-2 opacity-60" />
@@ -160,12 +168,19 @@ export function HeaderMenubar({
               </>
             )}
             {can("tally_export") && (
-              <MenubarItem onClick={() => orgNavigate("/tally-export")}>Export (Tally)…</MenubarItem>
+              <MenubarItem
+                {...tabPrefetchProps("tally-export")}
+                onClick={() => orgNavigate("/tally-export")}
+              >
+                Export (Tally)…
+              </MenubarItem>
             )}
             {can("settings_view") && (
               <>
                 <MenubarSeparator />
-                <MenubarItem onClick={() => orgNavigate("/settings")}>Settings</MenubarItem>
+                <MenubarItem {...tabPrefetchProps("settings")} onClick={() => orgNavigate("/settings")}>
+                  Settings
+                </MenubarItem>
               </>
             )}
           </MenubarContent>
@@ -187,41 +202,67 @@ export function HeaderMenubar({
           <MenubarTrigger className="erp-menubar-trigger">View</MenubarTrigger>
           <MenubarContent className="min-w-[12rem]">
             {can("main_dashboard") && (
-              <MenubarItem onClick={() => orgNavigate("/")}>
+              <MenubarItem {...tabPrefetchProps("")} onClick={() => orgNavigate("/")}>
                 <LayoutGrid className="h-3.5 w-3.5 mr-2 opacity-60" />
                 Dashboard
                 <MenubarShortcut>Alt+D</MenubarShortcut>
               </MenubarItem>
             )}
             {can("pos_dashboard") && (
-              <MenubarItem onClick={() => orgNavigate("/pos-dashboard")}>
+              <MenubarItem
+                {...tabPrefetchProps("pos-dashboard")}
+                onClick={() => orgNavigate("/pos-dashboard")}
+              >
                 <ShoppingCart className="h-3.5 w-3.5 mr-2 opacity-60" />
                 POS Dashboard
               </MenubarItem>
             )}
             {can("sales_invoice_dashboard") && (
-              <MenubarItem onClick={() => orgNavigate("/sales-invoice-dashboard")}>
+              <MenubarItem
+                {...tabPrefetchProps("sales-invoice-dashboard")}
+                onClick={() => orgNavigate("/sales-invoice-dashboard")}
+              >
                 <TrendingUp className="h-3.5 w-3.5 mr-2 opacity-60" />
                 Invoice Dashboard
               </MenubarItem>
             )}
             {can("purchase_dashboard") && (
-              <MenubarItem onClick={() => orgNavigate("/purchase-bills")}>
+              <MenubarItem
+                {...tabPrefetchProps("purchase-bills")}
+                onClick={() => orgNavigate("/purchase-bills")}
+              >
                 <Package className="h-3.5 w-3.5 mr-2 opacity-60" />
                 Purchase Dashboard
               </MenubarItem>
             )}
             {can("delivery_dashboard") && (
-              <MenubarItem onClick={() => orgNavigate("/delivery-dashboard")}>Delivery Dashboard</MenubarItem>
+              <MenubarItem
+                {...tabPrefetchProps("delivery-dashboard")}
+                onClick={() => orgNavigate("/delivery-dashboard")}
+              >
+                Delivery Dashboard
+              </MenubarItem>
             )}
             {can("payments_dashboard") && (
-              <MenubarItem onClick={() => orgNavigate("/payments-dashboard")}>Payments Dashboard</MenubarItem>
+              <MenubarItem
+                {...tabPrefetchProps("payments-dashboard")}
+                onClick={() => orgNavigate("/payments-dashboard")}
+              >
+                Payments Dashboard
+              </MenubarItem>
             )}
             {can("accounts_dashboard") && (
-              <MenubarItem onClick={() => orgNavigate("/accounts")}>Accounts & Ledger</MenubarItem>
+              <MenubarItem {...tabPrefetchProps("accounts")} onClick={() => orgNavigate("/accounts")}>
+                Accounts & Ledger
+              </MenubarItem>
             )}
             {can("customer_ledger") && (
-              <MenubarItem onClick={() => orgNavigate("/customer-ledger-report")}>Customer Ledger</MenubarItem>
+              <MenubarItem
+                {...tabPrefetchProps("customer-ledger-report")}
+                onClick={() => orgNavigate("/customer-ledger-report")}
+              >
+                Customer Ledger
+              </MenubarItem>
             )}
           </MenubarContent>
         </MenubarMenu>
@@ -232,19 +273,41 @@ export function HeaderMenubar({
           <MenubarTrigger className="erp-menubar-trigger">Sales</MenubarTrigger>
           <MenubarContent>
             {can("sales_invoice") && (
-              <MenubarItem onClick={() => orgNavigate("/sales-invoice")}>New Invoice</MenubarItem>
+              <MenubarItem
+                {...tabPrefetchProps("sales-invoice")}
+                onClick={() => orgNavigate("/sales-invoice")}
+              >
+                New Invoice
+              </MenubarItem>
             )}
             {can("pos_sales") && (
-              <MenubarItem onClick={openPosSales}>POS / Counter</MenubarItem>
+              <MenubarItem {...tabPrefetchProps("pos-sales")} onClick={openPosSales}>
+                POS / Counter
+              </MenubarItem>
             )}
             {can("sale_return_entry") && (
-              <MenubarItem onClick={() => orgNavigate("/sale-return-entry")}>Sale Return</MenubarItem>
+              <MenubarItem
+                {...tabPrefetchProps("sale-return-entry")}
+                onClick={() => orgNavigate("/sale-return-entry")}
+              >
+                Sale Return
+              </MenubarItem>
             )}
             {can("sales_invoice_dashboard") && (
-              <MenubarItem onClick={() => orgNavigate("/sales-invoice-dashboard")}>Sales Dashboard</MenubarItem>
+              <MenubarItem
+                {...tabPrefetchProps("sales-invoice-dashboard")}
+                onClick={() => orgNavigate("/sales-invoice-dashboard")}
+              >
+                Sales Dashboard
+              </MenubarItem>
             )}
             {canQuickSaleLookup && (
-              <MenubarItem onClick={() => orgNavigate("/sales-report")}>Sales Report</MenubarItem>
+              <MenubarItem
+                {...tabPrefetchProps("sales-report")}
+                onClick={() => orgNavigate("/sales-report")}
+              >
+                Sales Report
+              </MenubarItem>
             )}
           </MenubarContent>
         </MenubarMenu>
@@ -261,17 +324,27 @@ export function HeaderMenubar({
           <MenubarContent>
             {can("purchase_bill") && (
               <MenubarItem
-                onPointerEnter={() => void prefetchTabPage("purchase-entry")}
+                {...tabPrefetchProps("purchase-entry")}
                 onClick={() => orgNavigate("/purchase-entry", { state: { newBill: true } })}
               >
                 New Purchase Bill
               </MenubarItem>
             )}
             {can("purchase_dashboard") && (
-              <MenubarItem onClick={() => orgNavigate("/purchase-bills")}>Purchase Dashboard</MenubarItem>
+              <MenubarItem
+                {...tabPrefetchProps("purchase-bills")}
+                onClick={() => orgNavigate("/purchase-bills")}
+              >
+                Purchase Dashboard
+              </MenubarItem>
             )}
             {can("purchase_return") && (
-              <MenubarItem onClick={() => orgNavigate("/purchase-returns")}>Purchase Returns</MenubarItem>
+              <MenubarItem
+                {...tabPrefetchProps("purchase-returns")}
+                onClick={() => orgNavigate("/purchase-returns")}
+              >
+                Purchase Returns
+              </MenubarItem>
             )}
           </MenubarContent>
         </MenubarMenu>
@@ -281,12 +354,15 @@ export function HeaderMenubar({
         <MenubarMenu>
           <MenubarTrigger className="erp-menubar-trigger">Reports</MenubarTrigger>
           <MenubarContent className="min-w-[12rem]">
-            <MenubarItem onClick={() => orgNavigate("/reports")}>
+            <MenubarItem {...tabPrefetchProps("reports")} onClick={() => orgNavigate("/reports")}>
               <BarChart3 className="h-3.5 w-3.5 mr-2 opacity-60" />
               Reports Hub
             </MenubarItem>
             {can("accounting_reports_view") && (
-              <MenubarItem onClick={() => orgNavigate("/accounting-reports")}>
+              <MenubarItem
+                {...tabPrefetchProps("accounting-reports")}
+                onClick={() => orgNavigate("/accounting-reports")}
+              >
                 <FileSpreadsheet className="h-3.5 w-3.5 mr-2 opacity-60" />
                 Accounting Reports
               </MenubarItem>
@@ -294,31 +370,48 @@ export function HeaderMenubar({
             {can("customer_ledger") && (
               <>
                 <MenubarSeparator />
-                <MenubarItem onClick={() => orgNavigate("/customer-party-balances")}>
+                <MenubarItem
+                  {...tabPrefetchProps("customer-party-balances")}
+                  onClick={() => orgNavigate("/customer-party-balances")}
+                >
                   <Scale className="h-3.5 w-3.5 mr-2 opacity-60" />
                   Customer Balances
                 </MenubarItem>
-                <MenubarItem onClick={() => orgNavigate("/customer-ledger-report")}>
+                <MenubarItem
+                  {...tabPrefetchProps("customer-ledger-report")}
+                  onClick={() => orgNavigate("/customer-ledger-report")}
+                >
                   <FileText className="h-3.5 w-3.5 mr-2 opacity-60" />
                   Customer Ledger
                 </MenubarItem>
               </>
             )}
             {(can("accounts_dashboard") || can("purchase_dashboard")) && (
-              <MenubarItem onClick={() => orgNavigate("/supplier-party-balances")}>
+              <MenubarItem
+                {...tabPrefetchProps("supplier-party-balances")}
+                onClick={() => orgNavigate("/supplier-party-balances")}
+              >
                 <Truck className="h-3.5 w-3.5 mr-2 opacity-60" />
                 Supplier Balances
               </MenubarItem>
             )}
             {can("stock_report") && (
-              <MenubarItem onClick={() => orgNavigate("/stock-report")}>
+              <MenubarItem
+                {...tabPrefetchProps("stock-report")}
+                onClick={() => orgNavigate("/stock-report")}
+              >
                 <Package className="h-3.5 w-3.5 mr-2 opacity-60" />
                 Stock Report
                 <MenubarShortcut>Alt+S</MenubarShortcut>
               </MenubarItem>
             )}
             {can("sales_invoice_dashboard") && (
-              <MenubarItem onClick={() => orgNavigate("/sales-invoice-dashboard")}>Sales Dashboard</MenubarItem>
+              <MenubarItem
+                {...tabPrefetchProps("sales-invoice-dashboard")}
+                onClick={() => orgNavigate("/sales-invoice-dashboard")}
+              >
+                Sales Dashboard
+              </MenubarItem>
             )}
           </MenubarContent>
         </MenubarMenu>
@@ -329,31 +422,71 @@ export function HeaderMenubar({
           <MenubarTrigger className="erp-menubar-trigger">Tools</MenubarTrigger>
           <MenubarContent className="min-w-[12rem]">
             {can("barcode_printing") && (
-              <MenubarItem onClick={() => orgNavigate("/barcode-printing")}>Barcode Printing</MenubarItem>
+              <MenubarItem
+                {...tabPrefetchProps("barcode-printing")}
+                onClick={() => orgNavigate("/barcode-printing")}
+              >
+                Barcode Printing
+              </MenubarItem>
             )}
             {can("stock_adjustment") && (
-              <MenubarItem onClick={() => orgNavigate("/stock-adjustment")}>Stock Adjustment</MenubarItem>
+              <MenubarItem
+                {...tabPrefetchProps("stock-adjustment")}
+                onClick={() => orgNavigate("/stock-adjustment")}
+              >
+                Stock Adjustment
+              </MenubarItem>
             )}
             {can("stock_settlement") && (
-              <MenubarItem onClick={() => orgNavigate("/stock-settlement")}>Stock Settlement</MenubarItem>
+              <MenubarItem
+                {...tabPrefetchProps("stock-settlement")}
+                onClick={() => orgNavigate("/stock-settlement")}
+              >
+                Stock Settlement
+              </MenubarItem>
             )}
             {can("bulk_product_update") && (
-              <MenubarItem onClick={() => orgNavigate("/bulk-product-update")}>Bulk Product Update</MenubarItem>
+              <MenubarItem
+                {...tabPrefetchProps("bulk-product-update")}
+                onClick={() => orgNavigate("/bulk-product-update")}
+              >
+                Bulk Product Update
+              </MenubarItem>
             )}
             {can("tally_export") && (
-              <MenubarItem onClick={() => orgNavigate("/tally-export")}>Tally Export</MenubarItem>
+              <MenubarItem
+                {...tabPrefetchProps("tally-export")}
+                onClick={() => orgNavigate("/tally-export")}
+              >
+                Tally Export
+              </MenubarItem>
             )}
             {can("recycle_bin") && (
-              <MenubarItem onClick={() => orgNavigate("/recycle-bin")}>Recycle Bin</MenubarItem>
+              <MenubarItem
+                {...tabPrefetchProps("recycle-bin")}
+                onClick={() => orgNavigate("/recycle-bin")}
+              >
+                Recycle Bin
+              </MenubarItem>
             )}
             {can("user_rights") && (
-              <MenubarItem onClick={() => orgNavigate("/user-rights")}>User Rights</MenubarItem>
+              <MenubarItem
+                {...tabPrefetchProps("user-rights")}
+                onClick={() => orgNavigate("/user-rights")}
+              >
+                User Rights
+              </MenubarItem>
             )}
             {hasSpecialPermission("audit_logs") && (
-              <MenubarItem onClick={() => orgNavigate("/audit-log")}>Audit Log</MenubarItem>
+              <MenubarItem {...tabPrefetchProps("audit-log")} onClick={() => orgNavigate("/audit-log")}>
+                Audit Log
+              </MenubarItem>
             )}
             {can("whatsapp_inbox") && (
-              <MenubarItem onClick={() => orgNavigate("/whatsapp-inbox", { state: { openUnread: true } })}>
+              <MenubarItem
+                {...tabPrefetchProps("whatsapp-inbox")}
+                onClick={() => orgNavigate("/whatsapp-inbox", { state: { openUnread: true } })}
+              >
                 WhatsApp Inbox
               </MenubarItem>
             )}
@@ -365,7 +498,9 @@ export function HeaderMenubar({
         <MenubarMenu>
           <MenubarTrigger className="erp-menubar-trigger">Help</MenubarTrigger>
           <MenubarContent>
-            <MenubarItem onClick={() => orgNavigate("/settings")}>App Settings</MenubarItem>
+            <MenubarItem {...tabPrefetchProps("settings")} onClick={() => orgNavigate("/settings")}>
+              App Settings
+            </MenubarItem>
             <MenubarSeparator />
             <MenubarItem onClick={() => window.open("https://wa.me/917021432520", "_blank")}>
               WhatsApp Support

@@ -320,7 +320,8 @@ export function WindowTabsProvider({ children }: { children: React.ReactNode }) 
     const config = PAGE_CONFIG[cleanPath];
     if (!config || !canAccessPath(cleanPath)) return;
 
-    prefetchTabPage(cleanPath);
+    // Explicit user open — intent (must not be skipped on Save-Data / 2g).
+    prefetchTabPage(cleanPath, { intent: true });
     const existing = Array.isArray(openWindows)
       ? openWindows.find((w) => w.path === cleanPath)
       : undefined;
@@ -353,7 +354,7 @@ export function WindowTabsProvider({ children }: { children: React.ReactNode }) 
   const switchWindow = useCallback((path: string) => {
     const cleanPath = resolveTabCachePath(path);
     if (!canAccessPath(cleanPath)) return;
-    prefetchTabPage(cleanPath);
+    prefetchTabPage(cleanPath, { intent: true });
     navigateToWindowPath(cleanPath);
   }, [navigateToWindowPath, canAccessPath]);
 

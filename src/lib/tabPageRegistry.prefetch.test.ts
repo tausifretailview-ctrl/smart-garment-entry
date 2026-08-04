@@ -1,5 +1,10 @@
-import { describe, expect, it } from "vitest";
-import { TAB_PAGE_REGISTRY, resolveTabCachePath } from "./tabPageRegistry";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  TAB_PAGE_REGISTRY,
+  prefetchTabPage,
+  resolveTabCachePath,
+  shouldAllowSpeculativeChunkPrefetch,
+} from "./tabPageRegistry";
 
 /** Mirrors TabCachedPages.resolveTabLoadShell — every registry route must map. */
 function resolveTabLoadShell(path: string): "entry" | "dashboard" | "page" {
@@ -27,5 +32,44 @@ describe("tab load shell coverage", () => {
     expect(resolveTabLoadShell("purchase-entry")).toBe("entry");
     expect(resolveTabLoadShell("product-entry")).toBe("entry");
     expect(resolveTabLoadShell("sales-invoice")).toBe("entry");
+  });
+
+  it("maps settings and user-rights to dashboard shell", () => {
+    expect(resolveTabLoadShell("settings")).toBe("dashboard");
+    expect(resolveTabLoadShell("user-rights")).toBe("dashboard");
+  });
+});
+
+describe("speculative vs intent prefetch", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  function stubWebNavigator(connection: { saveData?: boolean; effectiveType?: string }) {
+    vi.stubGlobal("window", { electronAPI: undefined });
+    vi.stubGlobal("navigator", { connection });
+  }
+
+  it("skips speculative prefetch on Save-Data", () => {
+    stubWebNavigator({ saveData: true, effectiveType: "4g" });
+    expect(shouldAllowSpeculativeChunkPrefetch()).toBe(false);
+  });
+
+  it("skips speculative prefetch on 2g", () => {
+    stubWebNavigator({ saveData: false, effectiveType: "2g" });
+    expect(shouldAllowSpeculativeChunkPrefetch()).toBe(false);
+  });
+
+  it("allows speculative prefetch on typical broadband", () => {
+    stubWebNavigator({ saveData: false, effectiveType: "4g" });
+    expect(shouldAllowSpeculativeChunkPrefetch()).toBe(true);
+  });
+
+  it("intent prefetch still runs when Save-Data would block speculative", () => {
+    stubWebNavigator({ saveData: true, effectiveType: "2g" });
+    expect(shouldAllowSpeculativeChunkPrefetch()).toBe(false);
+    // Must not throw; silent catch on failure.
+    expect(() => prefetchTabPage("user-rights", { intent: true })).not.toThrow();
+    expect(() => prefetchTabPage("settings")).not.toThrow();
   });
 });

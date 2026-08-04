@@ -25,6 +25,7 @@ import { DashboardSkeleton } from "@/components/ui/skeletons";
 import { AppBootSplash } from "@/components/AppBootSplash";
 import { reloadAppWithUpdateCheck } from "@/lib/appReload";
 import { isElectronShell, shouldElectronMountOnlyActiveTab } from "@/lib/electronShell";
+import { beginUserPriorityLoad } from "@/lib/chunkLoadRetry";
 import {
   markTabCachePaneMounted,
   markTabCachePaneUnmounted,
@@ -622,6 +623,12 @@ export function TabCachedPages({ paths, activePath, onActivePaneReady, onTabEvic
       return next;
     });
     evictIdleMountedTabs();
+
+    // Pause sequential idle prefetch while the destination chunk is still cold.
+    // Does NOT abort in-flight web-critical parallel imports (see Step 1 report).
+    if (!isTabPageChunkLoaded(resolvedActivePath)) {
+      return beginUserPriorityLoad();
+    }
   }, [resolvedActivePath, electronSingleTab, touchTabActiveAt, evictIdleMountedTabs]);
 
   // Browser/PWA: mount tabs lazily — only when the user activates them.
