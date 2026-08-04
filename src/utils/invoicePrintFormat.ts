@@ -6,6 +6,7 @@ export const A5_ONLY_INVOICE_TEMPLATES = new Set([
   'retail-tax-ezzy',
   'wholesale-a5',
   'retail-erp',
+  'retail-erp-dc',
 ]);
 
 /**
@@ -33,6 +34,7 @@ export const FULL_PAGE_INVOICE_TEMPLATES = new Set([
   'a4-electronic',
   'retail',
   'retail-erp',
+  'retail-erp-dc',
   'retail-erp-preprinted',
   'real-tast',
 ]);
