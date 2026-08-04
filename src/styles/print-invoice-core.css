@@ -455,7 +455,7 @@
 .gift-tally-invoice-root table th {
   color: #000000 !important;
   font-weight: 700 !important;
-  font-size: 12px !important;
+  font-size: 13px !important;
   letter-spacing: normal !important;
   text-transform: none !important;
 }
@@ -657,7 +657,7 @@
   .gift-tally-invoice-root table th {
     color: #000000 !important;
     font-weight: 700 !important;
-    font-size: 12px !important;
+    font-size: 13px !important;
     background-color: #e0e0e0 !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;

@@ -306,9 +306,9 @@ export const GiftTallyInvoiceTemplate: React.FC<GiftTallyInvoiceTemplateProps> =
   const b = "1px solid #000";
   const cell: React.CSSProperties = {
     border: b,
-    padding: "3px 4px",
-    fontSize: "10px",
-    lineHeight: "1.3",
+    padding: "4px 5px",
+    fontSize: "12px",
+    lineHeight: "1.35",
     verticalAlign: "top",
   };
   const hCell: React.CSSProperties = {
@@ -317,9 +317,9 @@ export const GiftTallyInvoiceTemplate: React.FC<GiftTallyInvoiceTemplateProps> =
     textAlign: "center",
     backgroundColor: "#e0e0e0",
     color: "#000000",
-    fontSize: "12px",
-    padding: "5px 4px",
-    lineHeight: "1.25",
+    fontSize: "13px",
+    padding: "6px 5px",
+    lineHeight: "1.3",
     WebkitPrintColorAdjust: "exact",
     printColorAdjust: "exact",
   };
@@ -327,7 +327,7 @@ export const GiftTallyInvoiceTemplate: React.FC<GiftTallyInvoiceTemplateProps> =
     ...cell,
     fontWeight: "bold",
     backgroundColor: "#fafafa",
-    fontSize: "11px",
+    fontSize: "12px",
     whiteSpace: "nowrap",
   };
 
@@ -340,7 +340,7 @@ export const GiftTallyInvoiceTemplate: React.FC<GiftTallyInvoiceTemplateProps> =
         height: "auto",
         padding: "5mm",
         fontFamily: "Arial, Helvetica, sans-serif",
-        fontSize: "12px",
+        fontSize: "13px",
         color: "#000",
         background: "#fff",
         boxSizing: "border-box",
@@ -380,7 +380,7 @@ export const GiftTallyInvoiceTemplate: React.FC<GiftTallyInvoiceTemplateProps> =
           <div
             style={{
               fontWeight: "bold",
-              fontSize: "18px",
+              fontSize: "20px",
               letterSpacing: "1px",
               textAlign: "center",
               textTransform: "uppercase",
@@ -388,7 +388,7 @@ export const GiftTallyInvoiceTemplate: React.FC<GiftTallyInvoiceTemplateProps> =
           >
             {titleText}
           </div>
-          <div style={{ textAlign: "right", fontWeight: "bold", fontSize: "12px" }}>ORIGINAL</div>
+          <div style={{ textAlign: "right", fontWeight: "bold", fontSize: "13px" }}>ORIGINAL</div>
         </div>
 
         {/* Seller — logo left, company details centered */}
@@ -408,25 +408,25 @@ export const GiftTallyInvoiceTemplate: React.FC<GiftTallyInvoiceTemplateProps> =
             </div>
           ) : null}
           <div style={{ flex: 1, textAlign: "center", minWidth: 0 }}>
-            <div style={{ fontSize: "20px", fontWeight: "bold", textTransform: "uppercase", lineHeight: 1.2 }}>
+            <div style={{ fontSize: "22px", fontWeight: "bold", textTransform: "uppercase", lineHeight: 1.2 }}>
               {businessName}
             </div>
             {tagline && (
-              <div style={{ fontSize: "12px", fontStyle: "italic", marginTop: "2px" }}>{tagline}</div>
+              <div style={{ fontSize: "13px", fontStyle: "italic", marginTop: "2px" }}>{tagline}</div>
             )}
-            <div style={{ fontSize: "12px", whiteSpace: "pre-line", marginTop: "4px", lineHeight: 1.3 }}>
+            <div style={{ fontSize: "13px", whiteSpace: "pre-line", marginTop: "4px", lineHeight: 1.35 }}>
               {address}
             </div>
-            <div style={{ fontSize: "12px", marginTop: "3px" }}>
+            <div style={{ fontSize: "13px", marginTop: "3px" }}>
               {mobile && <span>Tel: {mobile}</span>}
               {mobile && email && <span> &nbsp;|&nbsp; </span>}
               {email && <span>E-Mail: {email}</span>}
             </div>
-            <div style={{ fontSize: "12px", marginTop: "3px", fontWeight: "bold" }}>
+            <div style={{ fontSize: "13px", marginTop: "3px", fontWeight: "bold" }}>
               GSTIN/Unique ID: {dash(gstNumber)}
             </div>
             {sellerState.code && (
-              <div style={{ fontSize: "12px", marginTop: "2px" }}>
+              <div style={{ fontSize: "13px", marginTop: "2px" }}>
                 State: {sellerState.name} &nbsp;|&nbsp; State Code: {sellerState.code}
               </div>
             )}
@@ -437,35 +437,35 @@ export const GiftTallyInvoiceTemplate: React.FC<GiftTallyInvoiceTemplateProps> =
         {/* Billed / Shipped */}
         <div style={{ display: "flex", borderBottom: b }}>
           <div style={{ flex: 1, borderRight: b, padding: "8px 10px" }}>
-            <div style={{ fontWeight: "bold", fontSize: "12px", marginBottom: "5px", textDecoration: "underline" }}>
+            <div style={{ fontWeight: "bold", fontSize: "13px", marginBottom: "5px", textDecoration: "underline" }}>
               Name &amp; Address of Receiver (Billed To)
             </div>
-            <div style={{ fontWeight: "bold", fontSize: "13px" }}>{customerName || "Walk-in Customer"}</div>
+            <div style={{ fontWeight: "bold", fontSize: "14px" }}>{customerName || "Walk-in Customer"}</div>
             {customerAddress && (
-              <div style={{ fontSize: "12px", whiteSpace: "pre-line", marginTop: "3px", lineHeight: 1.35 }}>
+              <div style={{ fontSize: "13px", whiteSpace: "pre-line", marginTop: "3px", lineHeight: 1.4 }}>
                 {customerAddress}
               </div>
             )}
-            <div style={{ fontSize: "12px", marginTop: "4px" }}>GSTIN/Unique ID: {dash(customerGSTIN)}</div>
+            <div style={{ fontSize: "13px", marginTop: "4px" }}>GSTIN/Unique ID: {dash(customerGSTIN)}</div>
             {buyerState.code && (
-              <div style={{ fontSize: "12px" }}>State Code: {buyerState.code}</div>
+              <div style={{ fontSize: "13px" }}>State Code: {buyerState.code}</div>
             )}
           </div>
           <div style={{ flex: 1, padding: "8px 10px" }}>
-            <div style={{ fontWeight: "bold", fontSize: "12px", marginBottom: "5px", textDecoration: "underline" }}>
+            <div style={{ fontWeight: "bold", fontSize: "13px", marginBottom: "5px", textDecoration: "underline" }}>
               Name &amp; Address of Consignee (Shipped To)
             </div>
-            <div style={{ fontWeight: "bold", fontSize: "13px" }}>{customerName || "Walk-in Customer"}</div>
+            <div style={{ fontWeight: "bold", fontSize: "14px" }}>{customerName || "Walk-in Customer"}</div>
             {shippingAddress ? (
-              <div style={{ fontSize: "12px", whiteSpace: "pre-line", marginTop: "3px", lineHeight: 1.35 }}>
+              <div style={{ fontSize: "13px", whiteSpace: "pre-line", marginTop: "3px", lineHeight: 1.4 }}>
                 {shippingAddress}
               </div>
             ) : (
-              <div style={{ fontSize: "12px", marginTop: "3px" }}>—</div>
+              <div style={{ fontSize: "13px", marginTop: "3px" }}>—</div>
             )}
-            <div style={{ fontSize: "12px", marginTop: "4px" }}>GSTIN/Unique ID: {dash(customerGSTIN)}</div>
+            <div style={{ fontSize: "13px", marginTop: "4px" }}>GSTIN/Unique ID: {dash(customerGSTIN)}</div>
             {buyerState.code && (
-              <div style={{ fontSize: "12px" }}>State Code: {buyerState.code}</div>
+              <div style={{ fontSize: "13px" }}>State Code: {buyerState.code}</div>
             )}
           </div>
         </div>
@@ -524,7 +524,7 @@ export const GiftTallyInvoiceTemplate: React.FC<GiftTallyInvoiceTemplateProps> =
                 <tr key={row.index}>
                   <td style={{ ...cell, textAlign: "center", fontWeight: "bold", padding: "3px 2px" }}>{row.index}</td>
                   <td style={cell}>
-                    <div style={{ fontWeight: "bold", fontSize: "11px" }}>{row.item.particulars}</div>
+                    <div style={{ fontWeight: "bold", fontSize: "13px" }}>{row.item.particulars}</div>
                   </td>
                   {showHSN && <td style={{ ...cell, textAlign: "center" }}>{row.item.hsn || "—"}</td>}
                   <td style={{ ...cell, textAlign: "center", fontWeight: "bold" }}>{row.item.qty}</td>
@@ -557,13 +557,13 @@ export const GiftTallyInvoiceTemplate: React.FC<GiftTallyInvoiceTemplateProps> =
         <div className={`gift-tally-footer-block${items.length > 20 ? " gift-tally-page-break" : ""}`}>
           {/* Amount in words | totals */}
           <div style={{ display: "flex", borderTop: b }}>
-            <div style={{ flex: 1, borderRight: b, padding: "8px 10px", fontSize: "12px" }}>
+            <div style={{ flex: 1, borderRight: b, padding: "8px 10px", fontSize: "13px" }}>
               <div style={{ fontWeight: "bold", marginBottom: "3px" }}>Invoice Total (In Words):</div>
               <div style={{ textTransform: "capitalize", lineHeight: 1.4 }}>
                 INR {numberToIndianWords(grandTotal)}
               </div>
             </div>
-            <div style={{ width: "44%", fontSize: "12px" }}>
+            <div style={{ width: "44%", fontSize: "13px" }}>
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <tbody>
                   {discount > 0 && (
@@ -605,8 +605,8 @@ export const GiftTallyInvoiceTemplate: React.FC<GiftTallyInvoiceTemplateProps> =
                     </tr>
                   )}
                   <tr style={{ backgroundColor: "#f0f0f0" }}>
-                    <td style={{ ...labelCell, fontSize: "13px" }}>Grand Total:</td>
-                    <td style={{ ...cell, textAlign: "right", fontWeight: "bold", fontSize: "14px" }}>
+                    <td style={{ ...labelCell, fontSize: "14px" }}>Grand Total:</td>
+                    <td style={{ ...cell, textAlign: "right", fontWeight: "bold", fontSize: "15px" }}>
                       ₹{fmt(grandTotal)}
                     </td>
                   </tr>
@@ -616,13 +616,22 @@ export const GiftTallyInvoiceTemplate: React.FC<GiftTallyInvoiceTemplateProps> =
           </div>
 
           {/* GST declaration */}
-          <div style={{ borderTop: b, padding: "6px 8px", fontSize: "10px", lineHeight: 1.35 }}>
+          <div style={{ borderTop: b, padding: "6px 8px", fontSize: "12px", lineHeight: 1.4 }}>
             {gstDeclaration}
           </div>
 
           {/* Bank + Terms */}
           <div style={{ display: "flex", borderTop: b }}>
-            <div style={{ flex: 1, borderRight: b, padding: "6px 8px", fontSize: "10px" }}>
+            <div
+              style={{
+                flex: 1,
+                borderRight: b,
+                padding: "6px 8px",
+                fontSize: "12px",
+                fontWeight: "bold",
+                lineHeight: 1.45,
+              }}
+            >
               <div style={{ fontWeight: "bold", marginBottom: "5px", textDecoration: "underline" }}>
                 Bank Details
               </div>
@@ -644,35 +653,54 @@ export const GiftTallyInvoiceTemplate: React.FC<GiftTallyInvoiceTemplateProps> =
                 </>
               )}
             </div>
-            <div style={{ flex: 1, padding: "6px 8px", fontSize: "10px" }}>
+            <div
+              style={{
+                flex: 1,
+                padding: "6px 8px",
+                fontSize: "12px",
+                fontWeight: "bold",
+                lineHeight: 1.45,
+              }}
+            >
               <div style={{ fontWeight: "bold", marginBottom: "4px", textDecoration: "underline" }}>
                 TERMS OF SALE
               </div>
               {terms.map((term, idx) => (
-                <div key={idx} style={{ lineHeight: 1.3, marginBottom: "1px" }}>
+                <div key={idx} style={{ lineHeight: 1.4, marginBottom: "2px" }}>
                   {idx + 1}) {term}
                 </div>
               ))}
             </div>
           </div>
 
-          {/* Signatures */}
-          <div style={{ display: "flex", borderTop: b, minHeight: "58px" }}>
+          {/* Signatures — space between For / Authorised for handwritten sign */}
+          <div style={{ display: "flex", borderTop: b, minHeight: "95px" }}>
             <div
               style={{
                 flex: 1,
                 borderRight: b,
                 padding: "8px",
-                fontSize: "10px",
+                fontSize: "12px",
+                fontWeight: "bold",
                 display: "flex",
                 alignItems: "flex-end",
               }}
             >
               Receiver&apos;s Stamp/Sign.
             </div>
-            <div style={{ flex: 1, padding: "8px", textAlign: "center", fontSize: "10px" }}>
+            <div
+              style={{
+                flex: 1,
+                padding: "8px",
+                textAlign: "center",
+                fontSize: "12px",
+                display: "flex",
+                flexDirection: "column",
+                minHeight: "95px",
+              }}
+            >
               <div style={{ fontWeight: "bold" }}>For {businessName}</div>
-              {stampImageBase64 && (
+              {stampImageBase64 ? (
                 <img
                   src={stampImageBase64}
                   alt=""
@@ -680,12 +708,16 @@ export const GiftTallyInvoiceTemplate: React.FC<GiftTallyInvoiceTemplateProps> =
                     width: stampWidthPx,
                     maxHeight: stampMaxHeightPx,
                     objectFit: "contain",
-                    margin: "6px auto",
+                    margin: "10px auto",
                     display: "block",
                   }}
                 />
+              ) : (
+                <div style={{ flex: 1, minHeight: "48px" }} aria-hidden="true" />
               )}
-              <div style={{ fontWeight: "bold", marginTop: "10px" }}>Prop./Authorised Signatory</div>
+              <div style={{ fontWeight: "bold", marginTop: stampImageBase64 ? "12px" : "auto" }}>
+                Prop./Authorised Signatory
+              </div>
             </div>
           </div>
 
@@ -695,7 +727,7 @@ export const GiftTallyInvoiceTemplate: React.FC<GiftTallyInvoiceTemplateProps> =
               display: "flex",
               justifyContent: "space-between",
               padding: "4px 8px",
-              fontSize: "10px",
+              fontSize: "12px",
               fontWeight: "bold",
             }}
           >
