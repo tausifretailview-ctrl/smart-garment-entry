@@ -284,7 +284,8 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
       !isThermalFormat &&
       (templateForFormat === 'retail-tax-ezzy' ||
         templateForFormat === 'wholesale-a5' ||
-        templateForFormat === 'retail-erp')
+        templateForFormat === 'retail-erp' ||
+        templateForFormat === 'retail-erp-dc')
     ) {
       format = 'a5-vertical';
     }
@@ -732,6 +733,17 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
           return <RetailTemplate {...commonProps} />;
         case 'retail-erp':
           return <RetailERPTemplate {...commonProps} />;
+        case 'retail-erp-dc':
+          return (
+            <RetailERPTemplate
+              {...commonProps}
+              variant="dc"
+              showHSN={false}
+              showGSTBreakdown={false}
+              showTaxDetails={false}
+              documentTitle={commonProps.documentTitle || 'DELIVERY CHALLAN'}
+            />
+          );
         case 'retail-erp-preprinted':
           return (
             <RetailERPTemplate

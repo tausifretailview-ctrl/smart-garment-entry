@@ -1253,7 +1253,7 @@ const POSDashboard = () => {
     `;
     }
 
-    if (posInvoiceTemplate === "retail-tax-ezzy" || posInvoiceTemplate === "wholesale-a5" || posInvoiceTemplate === "retail-erp") {
+    if (posInvoiceTemplate === "retail-tax-ezzy" || posInvoiceTemplate === "wholesale-a5" || posInvoiceTemplate === "retail-erp" || posInvoiceTemplate === "retail-erp-dc") {
       return `
       @page {
         size: A5 portrait;

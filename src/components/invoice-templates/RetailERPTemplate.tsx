@@ -120,8 +120,9 @@ interface RetailERPTemplateProps {
   financerDetails?: any;
   instagramLink?: string;
   /** Real Tast — Bill of Supply A4 (no size, payment, balance, state code).
-   *  Preprinted — same tax layout as standard, but 2in top gap for letterhead (no shop name/logo). */
-  variant?: "standard" | "real-tast" | "preprinted";
+   *  Preprinted — same tax layout as standard, but 2in top gap for letterhead (no shop name/logo).
+   *  DC — Retail ERP layout without HSN, org/customer GSTIN, or GST tax lines (Delivery Challan). */
+  variant?: "standard" | "real-tast" | "preprinted" | "dc";
 }
 
 const B = "1px solid #000";
@@ -185,6 +186,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   const isNoGst = taxType === "no_gst";
   const isRealTast = variant === "real-tast";
   const isPreprinted = variant === "preprinted";
+  const isDc = variant === "dc";
   const isA4 = format === "a4" || isRealTast;
   const isA5Retail = !isA4 && !isRealTast;
   /** A5 letterhead leaf: 2in top gap — keep footer at bottom, 6 default item rows. */
@@ -337,7 +339,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   const gstBreakup: Record<number, { hsn: string; taxableValue: number; cgst: number; sgst: number; igst: number }> = {};
   const isInterState = igstAmount > 0;
 
-  if (!isNoGst) {
+  if (!isNoGst && !isDc) {
     items.forEach((item) => {
       const gstPct = item.gstPercent || 0;
       if (gstPct > 0) {
@@ -443,8 +445,9 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   const ROW_H = isA4 ? "26px" : isA5Retail ? "20px" : "22px";
   const ROW_H_WITH_DISC = isA4 ? "36px" : isA5Retail ? "28px" : "30px";
 
-  // Real Tast: no size or barcode; HSN optional via show_hsn_code setting
-  const showHSNCol = showHSN;
+  // Real Tast: no size or barcode; HSN optional via show_hsn_code setting.
+  // DC: never show HSN (Delivery Challan style).
+  const showHSNCol = showHSN && !isDc;
   const showBarcodeCol = !isRealTast;
 
   // Column % must sum to ~100% with table-layout:fixed (under-sum caused PDF column drift).
@@ -512,7 +515,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   // A5 Retail ERP: GST amounts sit in the right totals column after Round Off (before Bill Total).
   // A4 / other variants: keep the Note-column GST Summary.
   const showGstBreakdown =
-    !isRealTast && showGSTBreakdown && hasGSTData && !isNoGst;
+    !isRealTast && !isDc && showGSTBreakdown && hasGSTData && !isNoGst;
   const showGstInTotals = showGstBreakdown && isA5Retail;
   const showGstInNote = showGstBreakdown && !showGstInTotals;
   const gstTotalsAmount = Math.max(
@@ -582,7 +585,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
             key={pageIndex}
             className="retail-erp-invoice-template bg-white text-black"
             data-invoice-variant={
-              isRealTast ? "real-tast" : isPreprinted ? "preprinted" : undefined
+              isRealTast ? "real-tast" : isPreprinted ? "preprinted" : isDc ? "dc" : undefined
             }
             style={{
               width: pageW,
@@ -648,7 +651,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                   {mobile && `Mob: ${mobile}`}
                   {email && ` | ${email}`}
                 </div>
-                {gstNumber && (
+                {gstNumber && !isDc && (
                   <div style={{ fontSize: isA4 ? "12px" : "9px", fontWeight: "bold", color: "#000", marginTop: "1px" }}>GSTIN: {gstNumber}</div>
                 )}
                 {instagramLink && (
@@ -673,11 +676,13 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                   const docTitle =
                     grandTotal < 0
                       ? "CREDIT NOTE"
-                      : isNoGst
-                        ? (documentTitle?.trim() || "BILL OF SUPPLY")
-                        : isRealTast
+                      : isDc
+                        ? (documentTitle?.trim() || "DELIVERY CHALLAN")
+                        : isNoGst
                           ? (documentTitle?.trim() || "BILL OF SUPPLY")
-                          : "TAX INVOICE";
+                          : isRealTast
+                            ? (documentTitle?.trim() || "BILL OF SUPPLY")
+                            : "TAX INVOICE";
                   return itemPages.length > 1
                     ? `${docTitle}${pageIndex > 0 ? ` (Page ${pageIndex + 1} of ${itemPages.length})` : ""}`
                     : docTitle;
@@ -691,14 +696,14 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                   <div style={{ fontWeight: "bold", fontSize: fsCustName }}>{customerName || "Walk-in Customer"}</div>
                   {customerAddress && <div style={{ fontSize: fsCustDetail }}>{customerAddress}</div>}
                   {customerMobile && <div style={{ fontSize: fsCustDetail }}>Ph: {customerMobile}</div>}
-                  {!isRealTast && customerGSTIN && (
+                  {!isRealTast && !isDc && customerGSTIN && (
                     <div style={{ fontSize: fsCustDetail }}>GSTIN: {customerGSTIN}</div>
                   )}
                 </div>
                 <div style={{ width: "40%", padding: "0" }}>
                   <div style={{ display: "flex", borderBottom: B }}>
                     <div style={{ flex: 1, padding: isA4 ? "2px 8px" : "2px 6px", fontWeight: "bold", fontSize: fsInvoiceNo }}>
-                      {isRealTast ? "Supply No" : "Invoice No"}: {invoiceNumber}
+                      {isRealTast ? "Supply No" : isDc ? "DC No" : "Invoice No"}: {invoiceNumber}
                     </div>
                   </div>
                   <div style={{ display: "flex", borderBottom: B }}>
@@ -712,7 +717,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                       {!isRealTast && invoiceTime ? ` ${invoiceTime}` : ""}
                     </div>
                   </div>
-                  {gstNumber && !isRealTast && (
+                  {gstNumber && !isRealTast && !isDc && (
                     <div style={{ display: "flex", borderBottom: B }}>
                       <div style={{ flex: 1, padding: isA4 ? "2px 8px" : "2px 6px", fontSize: fsCustDetail }}>
                         <strong>State Code:</strong> {gstNumber.substring(0, 2)}

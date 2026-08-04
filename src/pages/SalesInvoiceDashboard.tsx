@@ -1850,7 +1850,7 @@ export default function SalesInvoiceDashboard() {
     `;
     }
 
-    if (invoiceTemplate === 'retail-tax-ezzy' || invoiceTemplate === 'wholesale-a5' || invoiceTemplate === 'retail-erp') {
+    if (invoiceTemplate === 'retail-tax-ezzy' || invoiceTemplate === 'wholesale-a5' || invoiceTemplate === 'retail-erp' || invoiceTemplate === 'retail-erp-dc') {
       return `
       @page {
         size: A5 portrait;
