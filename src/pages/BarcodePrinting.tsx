@@ -5565,9 +5565,22 @@ export default function BarcodePrinting() {
       // Calculate total labels needed
       const totalLabels = labelItems.reduce((sum, item) => sum + (Number(item.qty) || 0), 0);
       
-      // Get dimensions based on sheet type and apply scale
-      const scaleFactor = (printScale / 100) * getAutoFitScale();
-      const baseDimensions = sheetType === "custom"
+      // A4 die-cut sheets (NovaJet MPL 48L/40L) must keep the exact die-cut pitch:
+      // use the coerced dimensions and never auto-fit shrink them.
+      const isDieCutA4 = isA4SheetType();
+      const scaleFactor = isDieCutA4
+        ? printScale / 100
+        : (printScale / 100) * getAutoFitScale();
+      const a4Dims = isDieCutA4 ? getA4SheetDimensions() : null;
+      const baseDimensions = a4Dims
+        ? {
+            cols: a4Dims.cols,
+            rows: a4Dims.rows,
+            width: a4Dims.width,
+            height: a4Dims.height,
+            gap: a4Dims.gap,
+          }
+        : sheetType === "custom"
         ? { cols: customCols, rows: customRows, width: customWidth, height: customHeight, gap: customGap }
         : {
             cols: sheetPresets[sheetType].cols,
@@ -5592,7 +5605,9 @@ export default function BarcodePrinting() {
         : isThermalMultiUp()
         ? getThermalMultiUpCols()
         : (() => {
-            const explicitRows = sheetType === 'custom' ? customRows : ((sheetPresets[sheetType] as any)?.rows || 0);
+            const explicitRows = a4Dims
+              ? a4Dims.rows
+              : sheetType === 'custom' ? customRows : ((sheetPresets[sheetType] as any)?.rows || 0);
             if (explicitRows > 0) return baseDimensions.cols * explicitRows;
             const availableHeight = 297 - 10;
             const rowsPerPage = Math.floor(availableHeight / (baseDimensions.height + baseDimensions.gap));
