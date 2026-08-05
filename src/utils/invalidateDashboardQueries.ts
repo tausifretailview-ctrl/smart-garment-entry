@@ -3,7 +3,11 @@ import {
   invalidateSalesQueriesNow,
   scheduleDeferredSalesInvalidation,
 } from "@/utils/deferredSalesInvalidation";
-import { invalidatePosDashboardQueries } from "@/utils/posDashboardSales";
+import {
+  invalidatePosDashboardQueries,
+  seedPosDashboardCacheWithSale,
+  type PosDashboardSaleSeed,
+} from "@/utils/posDashboardSales";
 import { notifyPosSalesChanged } from "@/utils/posSalesRefresh";
 
 /** Sales invoice list + unified dashboard table pages. */
@@ -101,6 +105,8 @@ export type AfterSaleSaveOptions = {
   deferDashboardInvalidation?: boolean;
   saleDate?: string;
   saleNumber?: string;
+  /** Just-saved sale — seeded into POS dashboard cache for instant last-bill display. */
+  saleSnapshot?: PosDashboardSaleSeed | null;
 };
 
 /** After POS / sale save — invoice list pages refresh immediately; stats defer optional. */
@@ -109,16 +115,28 @@ export function invalidateAfterSaleSave(
   organizationId?: string,
   options?: AfterSaleSaveOptions,
 ) {
+  if (organizationId && options?.saleSnapshot?.id) {
+    seedPosDashboardCacheWithSale(queryClient, organizationId, options.saleSnapshot);
+  }
   notifyPosSalesChanged({
     organizationId,
     saleDate: options?.saleDate,
     saleNumber: options?.saleNumber,
   });
   invalidateInvoiceDashboardQueries(queryClient);
-  invalidatePosDashboardQueries(queryClient, organizationId);
   if (options?.deferDashboardInvalidation) {
+    // Soft-mark POS dashboard stale without forcing a heavy background refetch while
+    // the user is still on POS print. Seeded cache shows the new bill immediately;
+    // activation (pending marker) refetches with the tighter voucher lookback.
+    void queryClient.invalidateQueries({
+      queryKey: organizationId
+        ? ["pos-dashboard-sales", organizationId]
+        : ["pos-dashboard-sales"],
+      refetchType: "none",
+    });
     scheduleDeferredSalesInvalidation(queryClient, organizationId, { skipPosNotify: true });
   } else {
+    invalidatePosDashboardQueries(queryClient, organizationId);
     invalidateSalesQueriesNow(queryClient, organizationId);
   }
   invalidateStockReportQueries(queryClient, organizationId);

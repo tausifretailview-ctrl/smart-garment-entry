@@ -31,6 +31,7 @@ import {
   saleSaveTimeoutMessage,
 } from "@/utils/insertSaleItemsInChunks";
 import { invalidateAfterSaleSave } from "@/utils/invalidateDashboardQueries";
+import type { PosDashboardSaleSeed } from "@/utils/posDashboardSales";
 import { istCalendarYmd, saleDateIsoIst } from "@/lib/localDayBounds";
 import { buildSalesInvoiceWhatsAppCaption } from "@/utils/whatsappInvoiceCaption";
 import { ensureFreshSupabaseSession, isJwtExpiredError } from "@/lib/jwtRetry";
@@ -93,14 +94,56 @@ export const useSaveSale = () => {
   const applyPostSaleInvalidation = (
     organizationId: string | undefined,
     runtimeOptions?: SaveSaleRuntimeOptions,
-    saleMeta?: { saleDate?: string; saleNumber?: string },
+    saleMeta?: {
+      saleDate?: string;
+      saleNumber?: string;
+      saleSnapshot?: PosDashboardSaleSeed | null;
+    },
   ) => {
     invalidateAfterSaleSave(queryClient, organizationId, {
       deferDashboardInvalidation: runtimeOptions?.deferDashboardInvalidation,
       saleDate: saleMeta?.saleDate,
       saleNumber: saleMeta?.saleNumber,
+      saleSnapshot: saleMeta?.saleSnapshot ?? null,
     });
   };
+
+  const toPosDashboardSaleSeed = (
+    sale: Record<string, unknown>,
+    totalQty?: number,
+  ): PosDashboardSaleSeed => ({
+    id: String(sale.id),
+    sale_number: (sale.sale_number as string) || null,
+    sale_date: (sale.sale_date as string) || null,
+    sale_type: (sale.sale_type as string) || null,
+    customer_id: (sale.customer_id as string) || null,
+    customer_name: (sale.customer_name as string) || null,
+    customer_phone: (sale.customer_phone as string) || null,
+    gross_amount: Number(sale.gross_amount || 0),
+    discount_amount: Number(sale.discount_amount || 0),
+    flat_discount_amount: Number(sale.flat_discount_amount || 0),
+    flat_discount_percent: Number(sale.flat_discount_percent || 0),
+    sale_return_adjust: Number(sale.sale_return_adjust || 0),
+    round_off: Number(sale.round_off || 0),
+    net_amount: Number(sale.net_amount || 0),
+    payment_method: (sale.payment_method as string) || null,
+    payment_status: (sale.payment_status as string) || null,
+    paid_amount: Number(sale.paid_amount || 0),
+    cash_amount: Number(sale.cash_amount || 0),
+    card_amount: Number(sale.card_amount || 0),
+    upi_amount: Number(sale.upi_amount || 0),
+    refund_amount: Number(sale.refund_amount || 0),
+    points_redeemed_amount: Number(sale.points_redeemed_amount || 0),
+    salesman: (sale.salesman as string) || null,
+    notes: (sale.notes as string) || null,
+    tax_type: (sale.tax_type as string) || null,
+    created_at: (sale.created_at as string) || null,
+    created_by: (sale.created_by as string) || null,
+    organization_id: (sale.organization_id as string) || null,
+    total_qty: totalQty ?? Number(sale.total_qty || 0),
+    is_cancelled: Boolean(sale.is_cancelled),
+    status: (sale.status as string) || null,
+  });
   const shopName = useShopName();
   // Centralized cached org settings (5 min) — used by save handlers below
   const { data: orgSettings } = useSettings();
@@ -1179,9 +1222,11 @@ export const useSaveSale = () => {
         // Fire and forget - don't await
       }
 
+      const totalQty = saleData.items.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
       applyPostSaleInvalidation(currentOrganization.id, runtimeOptions, {
         saleDate: sale.sale_date,
         saleNumber: sale.sale_number,
+        saleSnapshot: toPosDashboardSaleSeed(sale as Record<string, unknown>, totalQty),
       });
 
       // Auto-generate E-Invoice for B2B sales (fire and forget)
@@ -1702,9 +1747,11 @@ export const useSaveSale = () => {
         description: `Sale ${sale.sale_number} has been updated`,
       });
 
+      const totalQty = saleData.items.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
       applyPostSaleInvalidation(currentOrganization.id, runtimeOptions, {
         saleDate: sale.sale_date,
         saleNumber: sale.sale_number,
+        saleSnapshot: toPosDashboardSaleSeed(sale as Record<string, unknown>, totalQty),
       });
 
       return sale;
@@ -2111,9 +2158,11 @@ export const useSaveSale = () => {
         description: `Sale ${sale.sale_number} has been completed`,
       });
 
+      const totalQty = saleData.items.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
       applyPostSaleInvalidation(currentOrganization.id, runtimeOptions, {
         saleDate: sale.sale_date,
         saleNumber: sale.sale_number,
+        saleSnapshot: toPosDashboardSaleSeed(sale as Record<string, unknown>, totalQty),
       });
 
       return sale;

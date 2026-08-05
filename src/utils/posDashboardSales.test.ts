@@ -5,6 +5,7 @@ import {
   buildPosDashboardSummaryScopeFilters,
   posDashboardSummaryLooksValid,
   reconcilePosDashboardUnpaidCounts,
+  resolvePosDashboardVoucherLookbackFrom,
   type PosDashboardFilters,
   type PosDashboardSummaryStats,
 } from "./posDashboardSales";
@@ -107,5 +108,25 @@ describe("POS dashboard mix / unpaid filters", () => {
       upiBillCount: 1,
     });
     expect(reconciled.pendingCount).toBe(1);
+  });
+});
+
+describe("POS dashboard voucher lookback", () => {
+  it("uses 45-day lookback for a single-day (daily) range", () => {
+    expect(resolvePosDashboardVoucherLookbackFrom("2026-08-05", "2026-08-05")).toBe(
+      "2026-06-21",
+    );
+  });
+
+  it("uses 3-month lookback for ranges up to 31 days", () => {
+    expect(resolvePosDashboardVoucherLookbackFrom("2026-08-01", "2026-08-31")).toBe(
+      "2026-05-01",
+    );
+  });
+
+  it("keeps 12-month lookback for wide ranges", () => {
+    expect(resolvePosDashboardVoucherLookbackFrom("2026-01-01", "2026-08-05")).toBe(
+      "2025-01-01",
+    );
   });
 });

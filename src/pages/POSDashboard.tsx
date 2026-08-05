@@ -795,7 +795,12 @@ const POSDashboard = () => {
     }
 
     if (pending) {
+      // Seeded cache already shows the new bill; background refetch settles KPIs/payments.
       void refetchSales();
+      void queryClient.invalidateQueries({
+        queryKey: ["pos-dashboard-sales", currentOrganization.id, "summary"],
+        refetchType: "active",
+      });
       return;
     }
 
@@ -804,6 +809,10 @@ const POSDashboard = () => {
     });
     if (cachedQueries.some((q) => q.state.isInvalidated)) {
       void refetchSales();
+      void queryClient.invalidateQueries({
+        queryKey: ["pos-dashboard-sales", currentOrganization.id, "summary"],
+        refetchType: "active",
+      });
     }
   }, [posQueryEnabled, currentOrganization?.id, periodFilter, startDate, endDate, queryClient, refetchSales]);
 

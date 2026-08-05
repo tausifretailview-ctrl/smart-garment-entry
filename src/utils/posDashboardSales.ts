@@ -74,6 +74,223 @@ function resolvePosDashboardDateRange(startDate: string, endDate: string) {
   };
 }
 
+/**
+ * Receipt voucher crawl window for settlement enrich.
+ * Daily / short ranges use a shorter lookback so opening the dashboard after a
+ * POS save does not wait on a 12‑month voucher scan.
+ */
+export function resolvePosDashboardVoucherLookbackFrom(
+  startDate: string,
+  endDate: string,
+): string | null {
+  if (!startDate) return null;
+  const start = new Date(`${startDate}T12:00:00`);
+  if (Number.isNaN(start.getTime())) return null;
+  const end = endDate ? new Date(`${endDate}T12:00:00`) : start;
+  const spanDays = Math.max(
+    0,
+    Math.round((end.getTime() - start.getTime()) / (24 * 60 * 60 * 1000)),
+  );
+  // Daily: 45 days (advances/CN in the same month still settle).
+  // ≤31 days: 90 days. Wider ranges keep the historical 12‑month window.
+  const lookbackMonths = spanDays <= 1 ? 0 : spanDays <= 31 ? 3 : 12;
+  const lookbackDays = spanDays <= 1 ? 45 : 0;
+  if (lookbackDays > 0) {
+    const from = new Date(start);
+    from.setDate(from.getDate() - lookbackDays);
+    return format(from, "yyyy-MM-dd");
+  }
+  return format(subMonths(start, lookbackMonths), "yyyy-MM-dd");
+}
+
+/** Minimal sale row used to show a just-saved POS bill before the heavy refetch finishes. */
+export type PosDashboardSaleSeed = {
+  id: string;
+  sale_number?: string | null;
+  sale_date?: string | null;
+  sale_type?: string | null;
+  customer_id?: string | null;
+  customer_name?: string | null;
+  customer_phone?: string | null;
+  gross_amount?: number | null;
+  discount_amount?: number | null;
+  flat_discount_amount?: number | null;
+  flat_discount_percent?: number | null;
+  sale_return_adjust?: number | null;
+  round_off?: number | null;
+  net_amount?: number | null;
+  payment_method?: string | null;
+  payment_status?: string | null;
+  paid_amount?: number | null;
+  cash_amount?: number | null;
+  card_amount?: number | null;
+  upi_amount?: number | null;
+  refund_amount?: number | null;
+  points_redeemed_amount?: number | null;
+  salesman?: string | null;
+  notes?: string | null;
+  tax_type?: string | null;
+  created_at?: string | null;
+  created_by?: string | null;
+  organization_id?: string | null;
+  total_qty?: number | null;
+  is_cancelled?: boolean | null;
+  status?: string | null;
+};
+
+function saleDayInFilterRange(
+  saleDay: string,
+  startDate: string,
+  endDate: string,
+): boolean {
+  if (!saleDay) return false;
+  if (startDate && saleDay < startDate) return false;
+  if (endDate && saleDay > endDate) return false;
+  return true;
+}
+
+/**
+ * Prepend a just-saved POS sale into cached dashboard page-1 queries so the
+ * last bill is visible immediately when the user opens POS Dashboard.
+ */
+export function seedPosDashboardCacheWithSale(
+  queryClient: QueryClient,
+  organizationId: string,
+  sale: PosDashboardSaleSeed,
+): void {
+  if (!organizationId || !sale?.id) return;
+
+  const saleDay = sale.sale_date
+    ? format(new Date(sale.sale_date), "yyyy-MM-dd")
+    : format(new Date(), "yyyy-MM-dd");
+  // Prefer calendar date from ISO / date-only strings without TZ shift.
+  const saleDayLocal = /^\d{4}-\d{2}-\d{2}/.test(String(sale.sale_date || ""))
+    ? String(sale.sale_date).slice(0, 10)
+    : saleDay;
+
+  const seedRow = {
+    ...sale,
+    sale_date: sale.sale_date || saleDayLocal,
+    is_cancelled: sale.is_cancelled ?? false,
+    customers: null,
+  };
+
+  const queries = queryClient.getQueryCache().findAll({
+    queryKey: ["pos-dashboard-sales", organizationId],
+  });
+
+  let seededList = false;
+  for (const query of queries) {
+    const key = query.queryKey as unknown[];
+    if (!Array.isArray(key) || key.length < 3) continue;
+
+    // Summary tile cache — bump counters lightly when date range matches.
+    if (key[2] === "summary") {
+      const startDate = String(key[5] ?? "");
+      const endDate = String(key[6] ?? "");
+      if (!saleDayInFilterRange(saleDayLocal, startDate, endDate)) continue;
+      const stats = query.state.data as
+        | {
+            totalBills: number;
+            totalQty: number;
+            totalAmount: number;
+            netSale: number;
+            completedCount: number;
+            completedAmount: number;
+            pendingCount: number;
+            pendingAmount: number;
+            totalCash: number;
+            totalCard: number;
+            totalUpi: number;
+            cashBillCount: number;
+            cardBillCount: number;
+            upiBillCount: number;
+          }
+        | undefined;
+      if (!stats) continue;
+      const net = Number(sale.net_amount || 0);
+      const paid = Number(sale.paid_amount || 0);
+      const cash = Number(sale.cash_amount || 0);
+      const card = Number(sale.card_amount || 0);
+      const upi = Number(sale.upi_amount || 0);
+      const completed = String(sale.payment_status || "") === "completed";
+      queryClient.setQueryData(key, {
+        ...stats,
+        totalBills: stats.totalBills + 1,
+        totalQty: stats.totalQty + Number(sale.total_qty || 0),
+        totalAmount: stats.totalAmount + Number(sale.gross_amount || 0),
+        netSale: stats.netSale + net,
+        completedCount: stats.completedCount + (completed ? 1 : 0),
+        completedAmount: stats.completedAmount + (completed ? net : 0),
+        pendingCount: stats.pendingCount + (completed ? 0 : 1),
+        pendingAmount: stats.pendingAmount + (completed ? 0 : Math.max(0, net - paid)),
+        totalCash: stats.totalCash + cash,
+        totalCard: stats.totalCard + card,
+        totalUpi: stats.totalUpi + upi,
+        cashBillCount: stats.cashBillCount + (cash > 0 ? 1 : 0),
+        cardBillCount: stats.cardBillCount + (card > 0 ? 1 : 0),
+        upiBillCount: stats.upiBillCount + (upi > 0 ? 1 : 0),
+      });
+      continue;
+    }
+
+    // List page key: [key, org, search, period, start, end, ..., page, pageSize]
+    const search = String(key[2] ?? "");
+    const startDate = String(key[4] ?? "");
+    const endDate = String(key[5] ?? "");
+    const page = Number(key[13] ?? 1);
+    if (search.trim()) continue;
+    if (page !== 1) continue;
+    if (!saleDayInFilterRange(saleDayLocal, startDate, endDate)) continue;
+
+    const payload = query.state.data as
+      | (PosDashboardSalesPayload & { totalCount: number })
+      | undefined;
+    if (!payload?.sales) continue;
+    if (payload.sales.some((row) => row?.id === sale.id)) {
+      seededList = true;
+      continue;
+    }
+
+    queryClient.setQueryData(key, {
+      ...payload,
+      sales: [seedRow, ...payload.sales],
+      totalCount: (payload.totalCount || 0) + 1,
+    });
+    seededList = true;
+  }
+
+  // First visit after save — seed today's default daily page so open isn't empty.
+  if (!seededList) {
+    const today = format(new Date(), "yyyy-MM-dd");
+    if (saleDayLocal === today) {
+      const { startDate, endDate } = resolvePosDashboardQueryDates("daily", today, today);
+      const defaultKey = [
+        "pos-dashboard-sales",
+        organizationId,
+        "",
+        "daily",
+        startDate,
+        endDate,
+        "all",
+        [] as string[],
+        "all",
+        "all",
+        "all",
+        "all",
+        "active",
+        1,
+        50,
+      ] as const;
+      queryClient.setQueryData(defaultKey, {
+        sales: [seedRow],
+        creditNoteUsage: {},
+        totalCount: 1,
+      });
+    }
+  }
+}
+
 export type PosDashboardCreditNoteUsage = Record<
   string,
   { credit_amount: number; used_amount: number; status: string }
@@ -795,11 +1012,12 @@ export async function fetchPosDashboardPage(
 
   const enriched = await enrichPosSalesWithCreditNotes(data || []);
   // Bound customer-level receipt fan-out (sale-id receipts stay unbounded).
-  // Look back 12 months from the filter start so advance/CN applications still settle.
+  // Short ranges (daily) use a tighter lookback so post-save dashboard open stays snappy.
   const bounded = resolvePosDashboardDateRange(filters.startDate, filters.endDate);
-  const voucherDateFrom = bounded.startDate
-    ? format(subMonths(new Date(`${bounded.startDate}T12:00:00`), 12), "yyyy-MM-dd")
-    : null;
+  const voucherDateFrom = resolvePosDashboardVoucherLookbackFrom(
+    bounded.startDate,
+    bounded.endDate,
+  );
   const settled = await enrichPosSalesWithReceiptSettlement(
     client,
     filters.organizationId,
