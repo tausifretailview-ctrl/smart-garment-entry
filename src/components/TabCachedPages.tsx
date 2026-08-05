@@ -8,6 +8,7 @@ import {
   prefetchCriticalEntryChunks,
   prefetchTabPage,
   prefetchTabPagesIdle,
+  POST_LOGIN_WEB_IDLE_ADMIN_PREFETCH_TAB_PATHS,
   resetTabPageChunk,
   resolveTabCachePath,
   type TabPageLayout,
@@ -207,7 +208,16 @@ function resolveTabLoadShell(path: string): TabLoadShell {
   if (DASHBOARD_TAB_PATHS.has(resolved)) return "dashboard";
   if (!def) return "page";
   if (def.layout === "pos") return "entry";
-  if (resolved === "sales-invoice" || resolved.endsWith("-entry")) return "entry";
+  // Bill/product entry screens — not voucher pages that merely end in "-entry"
+  // (e.g. third-party-entry is an accounts form, not a bill screen).
+  if (
+    resolved === "sales-invoice" ||
+    (resolved.endsWith("-entry") &&
+      resolved !== "third-party-entry" &&
+      !resolved.startsWith("third-party"))
+  ) {
+    return "entry";
+  }
   if (
     def.layout === "layout" ||
     resolved.includes("dashboard") ||
@@ -234,6 +244,8 @@ const HEAVY_TAB_PATHS = new Set([
   "user-rights",
   "barcode-printing",
   "accounts",
+  "third-party-entry",
+  "third-party-balances",
   "pos-dashboard",
   "sales-invoice-dashboard",
   // Canonical URL slug + legacy registry key (resolveTabCachePath → purchase-bills)
@@ -709,10 +721,15 @@ export function TabCachedPages({ paths, activePath, onActivePaneReady, onTabEvic
     return () => document.removeEventListener("visibilitychange", onVisible);
   }, []);
 
-  // Warm Settings chunk as soon as the tab is opened or listed in the tab bar.
+  // Warm admin chunks that cold-load on web (Settings blank / slow-network shell).
+  // Active path uses intent so Save-Data/2g cannot skip a real navigation.
   useEffect(() => {
-    if (activePath === "settings" || uniquePaths.includes("settings")) {
-      prefetchTabPage("settings");
+    for (const path of POST_LOGIN_WEB_IDLE_ADMIN_PREFETCH_TAB_PATHS) {
+      if (activePath === path) {
+        prefetchTabPage(path, { intent: true });
+      } else if (uniquePaths.includes(path)) {
+        prefetchTabPage(path);
+      }
     }
   }, [activePath, uniquePaths]);
 

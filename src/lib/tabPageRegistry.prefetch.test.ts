@@ -13,7 +13,14 @@ function resolveTabLoadShell(path: string): "entry" | "dashboard" | "page" {
   if (resolved === "" || resolved === "dashboard") return "dashboard";
   if (!def) return "page";
   if (def.layout === "pos") return "entry";
-  if (resolved === "sales-invoice" || resolved.endsWith("-entry")) return "entry";
+  if (
+    resolved === "sales-invoice" ||
+    (resolved.endsWith("-entry") &&
+      resolved !== "third-party-entry" &&
+      !resolved.startsWith("third-party"))
+  ) {
+    return "entry";
+  }
   return "dashboard";
 }
 
@@ -34,9 +41,12 @@ describe("tab load shell coverage", () => {
     expect(resolveTabLoadShell("sales-invoice")).toBe("entry");
   });
 
-  it("maps settings and user-rights to dashboard shell", () => {
+  it("maps settings, user-rights, and third-party routes to dashboard shell", () => {
     expect(resolveTabLoadShell("settings")).toBe("dashboard");
     expect(resolveTabLoadShell("user-rights")).toBe("dashboard");
+    expect(resolveTabLoadShell("third-party-entry")).toBe("dashboard");
+    expect(resolveTabLoadShell("third-party-balances")).toBe("dashboard");
+    expect(resolveTabLoadShell("accounts")).toBe("dashboard");
   });
 });
 

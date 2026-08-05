@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   CRITICAL_ENTRY_CHUNK_PATHS,
   isChunkLoadError,
+  POST_LOGIN_PREFETCH_TAB_PATHS_WEB,
+  POST_LOGIN_WEB_IDLE_ADMIN_PREFETCH_TAB_PATHS,
   POST_LOGIN_WEB_IDLE_INVENTORY_PREFETCH_TAB_PATHS,
 } from "./chunkLoadRetry";
 
@@ -47,6 +49,21 @@ describe("idle / wake entry-chunk prefetch lists", () => {
     expect(POST_LOGIN_WEB_IDLE_INVENTORY_PREFETCH_TAB_PATHS).toEqual(
       expect.arrayContaining(["purchase-entry", "product-entry"]),
     );
+  });
+
+  it("warms settings and other cold admin routes on web idle (not parallel critical)", () => {
+    expect(POST_LOGIN_WEB_IDLE_ADMIN_PREFETCH_TAB_PATHS).toEqual(
+      expect.arrayContaining([
+        "settings",
+        "user-rights",
+        "accounts",
+        "barcode-printing",
+        "third-party-entry",
+        "third-party-balances",
+      ]),
+    );
+    // Must not be in the slim parallel critical set (contention).
+    expect(POST_LOGIN_PREFETCH_TAB_PATHS_WEB).not.toContain("settings");
   });
 
   it("re-warms critical bill-entry chunks after tab becomes visible", () => {
