@@ -179,7 +179,7 @@ export const A4GstClassicInvoiceTemplate: React.FC<A4GstClassicInvoiceTemplatePr
   documentTitle,
   stampImageBase64,
   stampSize = "medium",
-  minItemRows = 6,
+  minItemRows = 4,
 }) => {
   const taxType = normalizeGstTaxType(taxTypeProp);
   const isNoGst = taxType === "no_gst";
@@ -207,7 +207,10 @@ export const A4GstClassicInvoiceTemplate: React.FC<A4GstClassicInvoiceTemplatePr
 
   const totalQty = lineRows.reduce((s, r) => s + (Number(r.item.qty) || 0), 0);
   const lineTaxableTotal = lineRows.reduce((s, r) => s + r.taxable, 0);
-  const blankRows = Math.max(0, (minItemRows || 6) - lineRows.length);
+  // Cap blanks — Settings `min_item_rows` (often 12) + height:100% rows was pushing
+  // totals/terms onto a 2nd A4 sheet and hiding the footer.
+  const targetRows = Math.min(4, Math.max(lineRows.length, minItemRows || 4));
+  const blankRows = Math.max(0, targetRows - lineRows.length);
 
   const rateMap = new Map<number, { taxable: number; cgst: number; sgst: number; igst: number }>();
   lineRows.forEach((row) => {
@@ -328,10 +331,28 @@ export const A4GstClassicInvoiceTemplate: React.FC<A4GstClassicInvoiceTemplatePr
           @page { size: A4 portrait; margin: 4mm; }
           .a4-gst-classic-invoice-root {
             width: 202mm !important;
-            min-height: 289mm !important;
+            min-height: auto !important;
+            height: auto !important;
             padding: 0 !important;
+            page-break-inside: avoid;
+            break-inside: avoid;
           }
-          .a4-gst-classic-footer { page-break-inside: avoid; margin-top: auto !important; }
+          .a4-gst-classic-shell {
+            min-height: auto !important;
+            height: auto !important;
+          }
+          /* Spacer only fills screen preview — hide in print so footer stays on page 1 */
+          .a4-gst-classic-items-spacer {
+            display: none !important;
+            flex: none !important;
+            height: 0 !important;
+            min-height: 0 !important;
+          }
+          .a4-gst-classic-footer {
+            page-break-inside: avoid;
+            break-inside: avoid;
+            margin-top: 0 !important;
+          }
           .a4-gst-classic-invoice-root,
           .a4-gst-classic-invoice-root * {
             color: #000 !important;
@@ -342,13 +363,13 @@ export const A4GstClassicInvoiceTemplate: React.FC<A4GstClassicInvoiceTemplatePr
       `}</style>
 
       <div
+        className="a4-gst-classic-shell"
         style={{
           border: b,
           flex: 1,
           display: "flex",
           flexDirection: "column",
-          minHeight: 0,
-          overflow: "hidden",
+          minHeight: "100%",
         }}
       >
         {/* Title row */}
@@ -544,70 +565,75 @@ export const A4GstClassicInvoiceTemplate: React.FC<A4GstClassicInvoiceTemplatePr
           <div style={{ width: "22%" }}><b>L.R Date:</b> —</div>
         </div>
 
-        {/* Items — grows to push footer down */}
-        <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed", height: "100%" }}>
-            <colgroup>
-              <col style={{ width: "30px" }} />
-              <col />
-              {showHSN ? <col style={{ width: "78px" }} /> : null}
-              <col style={{ width: "52px" }} />
-              <col style={{ width: "42px" }} />
-              <col style={{ width: "68px" }} />
-              <col style={{ width: "46px" }} />
-              <col style={{ width: "82px" }} />
-            </colgroup>
-            <thead>
-              <tr>
-                <th style={hCell}>S.N.</th>
-                <th style={{ ...hCell, textAlign: "left" }}>Description of Goods</th>
-                {showHSN && <th style={hCell}>HSN/SAC Code</th>}
-                <th style={hCell}>Qty.</th>
-                <th style={hCell}>Unit</th>
-                <th style={hCell}>Price</th>
-                <th style={hCell}>Dis.%</th>
-                <th style={hCell}>Amount(₹)</th>
-              </tr>
-            </thead>
-            <tbody>
-              {lineRows.map((row) => (
-                <tr key={row.index}>
-                  <td style={{ ...cell, textAlign: "center" }}>{row.index}</td>
-                  <td style={cell}>
-                    <div style={{ fontWeight: 700 }}>{row.item.particulars}</div>
-                    {(row.item.size || row.item.color) && (
-                      <div style={{ fontSize: "11px", color: "#000", fontWeight: 600 }}>
-                        {[row.item.color, row.item.size].filter(Boolean).join(" / ")}
-                      </div>
-                    )}
-                  </td>
-                  {showHSN && (
-                    <td style={{ ...cell, textAlign: "center" }}>{dash(row.item.hsn) || "—"}</td>
+        {/* Items — fixed short blank rows only (never height:100%) */}
+        <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed", flexShrink: 0 }}>
+          <colgroup>
+            <col style={{ width: "30px" }} />
+            <col />
+            {showHSN ? <col style={{ width: "78px" }} /> : null}
+            <col style={{ width: "52px" }} />
+            <col style={{ width: "42px" }} />
+            <col style={{ width: "68px" }} />
+            <col style={{ width: "46px" }} />
+            <col style={{ width: "82px" }} />
+          </colgroup>
+          <thead>
+            <tr>
+              <th style={hCell}>S.N.</th>
+              <th style={{ ...hCell, textAlign: "left" }}>Description of Goods</th>
+              {showHSN && <th style={hCell}>HSN/SAC Code</th>}
+              <th style={hCell}>Qty.</th>
+              <th style={hCell}>Unit</th>
+              <th style={hCell}>Price</th>
+              <th style={hCell}>Dis.%</th>
+              <th style={hCell}>Amount(₹)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {lineRows.map((row) => (
+              <tr key={row.index}>
+                <td style={{ ...cell, textAlign: "center" }}>{row.index}</td>
+                <td style={cell}>
+                  <div style={{ fontWeight: 700 }}>{row.item.particulars}</div>
+                  {(row.item.size || row.item.color) && (
+                    <div style={{ fontSize: "11px", color: "#000", fontWeight: 600 }}>
+                      {[row.item.color, row.item.size].filter(Boolean).join(" / ")}
+                    </div>
                   )}
-                  <td style={{ ...cell, textAlign: "right", fontWeight: 700 }}>{fmt(row.item.qty)}</td>
-                  <td style={{ ...cell, textAlign: "center" }}>{row.uom}</td>
-                  <td style={{ ...cell, textAlign: "right" }}>{fmt(row.unitPrice)}</td>
-                  <td style={{ ...cell, textAlign: "right" }}>{fmt(row.discPct)}</td>
-                  <td style={{ ...cell, textAlign: "right", fontWeight: 700 }}>{fmt(row.taxable)}</td>
-                </tr>
-              ))}
-              {Array.from({ length: blankRows }).map((_, i) => (
-                <tr key={`blank-${i}`} style={{ height: i === blankRows - 1 ? "100%" : "18px" }}>
-                  <td style={cell}>&nbsp;</td>
-                  <td style={cell} />
-                  {showHSN && <td style={cell} />}
-                  <td style={cell} />
-                  <td style={cell} />
-                  <td style={cell} />
-                  <td style={cell} />
-                  <td style={cell} />
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                </td>
+                {showHSN && (
+                  <td style={{ ...cell, textAlign: "center" }}>{dash(row.item.hsn) || "—"}</td>
+                )}
+                <td style={{ ...cell, textAlign: "right", fontWeight: 700 }}>{fmt(row.item.qty)}</td>
+                <td style={{ ...cell, textAlign: "center" }}>{row.uom}</td>
+                <td style={{ ...cell, textAlign: "right" }}>{fmt(row.unitPrice)}</td>
+                <td style={{ ...cell, textAlign: "right" }}>{fmt(row.discPct)}</td>
+                <td style={{ ...cell, textAlign: "right", fontWeight: 700 }}>{fmt(row.taxable)}</td>
+              </tr>
+            ))}
+            {Array.from({ length: blankRows }).map((_, i) => (
+              <tr key={`blank-${i}`} style={{ height: "16px" }}>
+                <td style={cell}>&nbsp;</td>
+                <td style={cell} />
+                {showHSN && <td style={cell} />}
+                <td style={cell} />
+                <td style={cell} />
+                <td style={cell} />
+                <td style={cell} />
+                <td style={cell} />
+              </tr>
+            ))}
+          </tbody>
+        </table>
 
-        {/* Footer pinned to A4 bottom */}
+        {/* Screen-only filler so footer sits at A4 bottom in preview (hidden when printing) */}
+        <div
+          className="a4-gst-classic-items-spacer"
+          style={{ flex: 1, minHeight: "8px", borderTop: "none" }}
+          aria-hidden="true"
+        />
+
+        {/* Footer — always immediately after items in print */}
         <div className="a4-gst-classic-footer" style={{ marginTop: "auto", flexShrink: 0 }}>
           <div style={{ display: "flex", borderTop: b }}>
             <div style={{ flex: 1, borderRight: b, padding: "7px 9px" }}>
