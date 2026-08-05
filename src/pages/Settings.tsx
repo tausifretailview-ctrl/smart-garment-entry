@@ -2980,10 +2980,19 @@ export default function Settings() {
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="a4">A4 — Laser / Inkjet</SelectItem>
-                          <SelectItem value="a5-vertical">A5 Portrait</SelectItem>
-                          <SelectItem value="a5-horizontal">A5 Landscape</SelectItem>
-                          <SelectItem value="thermal">Thermal 80mm</SelectItem>
+                          <SelectGroup>
+                            <SelectLabel>A4 Size</SelectLabel>
+                            <SelectItem value="a4">A4 — Laser / Inkjet</SelectItem>
+                          </SelectGroup>
+                          <SelectGroup>
+                            <SelectLabel>A5 Size</SelectLabel>
+                            <SelectItem value="a5-vertical">A5 Portrait</SelectItem>
+                            <SelectItem value="a5-horizontal">A5 Landscape</SelectItem>
+                          </SelectGroup>
+                          <SelectGroup>
+                            <SelectLabel>Thermal</SelectLabel>
+                            <SelectItem value="thermal">Thermal 80mm</SelectItem>
+                          </SelectGroup>
                         </SelectContent>
                       </Select>
                     </div>
@@ -3007,10 +3016,19 @@ export default function Settings() {
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="thermal">Thermal 80mm — Most common</SelectItem>
-                          <SelectItem value="a5-vertical">A5 Portrait</SelectItem>
-                          <SelectItem value="a5-horizontal">A5 Landscape</SelectItem>
-                          <SelectItem value="a4">A4</SelectItem>
+                          <SelectGroup>
+                            <SelectLabel>A4 Size</SelectLabel>
+                            <SelectItem value="a4">A4</SelectItem>
+                          </SelectGroup>
+                          <SelectGroup>
+                            <SelectLabel>A5 Size</SelectLabel>
+                            <SelectItem value="a5-vertical">A5 Portrait</SelectItem>
+                            <SelectItem value="a5-horizontal">A5 Landscape</SelectItem>
+                          </SelectGroup>
+                          <SelectGroup>
+                            <SelectLabel>Thermal</SelectLabel>
+                            <SelectItem value="thermal">Thermal 80mm — Most common</SelectItem>
+                          </SelectGroup>
                         </SelectContent>
                       </Select>
                     </div>
@@ -3040,7 +3058,9 @@ export default function Settings() {
                           <SelectValue placeholder="Select template" />
                         </SelectTrigger>
                         <SelectContent>
-                          <InvoiceTemplateSelectItems />
+                          <InvoiceTemplateSelectItems
+                            currentValue={resolveSaleInvoiceTemplate(settings.sale_settings)}
+                          />
                         </SelectContent>
                       </Select>
                       <p className="text-xs text-muted-foreground">
@@ -3069,11 +3089,13 @@ export default function Settings() {
                           <SelectValue placeholder="Select template" />
                         </SelectTrigger>
                         <SelectContent>
-                          <InvoiceTemplateSelectItems />
+                          <InvoiceTemplateSelectItems
+                            currentValue={resolvePosInvoiceTemplate(settings.sale_settings)}
+                          />
                         </SelectContent>
                       </Select>
                       <p className="text-xs text-muted-foreground">
-                        Used for POS bills. Can differ from Sale — switch Live Preview to POS to see it.
+                        Grouped by A4 / A5 / Thermal. Can differ from Sale — switch Live Preview to POS to see it.
                       </p>
                     </div>
                   </div>
