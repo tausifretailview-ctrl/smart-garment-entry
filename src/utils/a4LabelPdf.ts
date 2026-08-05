@@ -1,4 +1,4 @@
-import { PDFDocument, PDFName, rgb, StandardFonts } from 'pdf-lib';
+import { PDFDocument, PDFName, rgb } from 'pdf-lib';
 import JsBarcode from 'jsbarcode';
 import { LabelDesignConfig, LabelFieldConfig, LabelItem, FieldKey } from '@/types/labelTypes';
 import {
@@ -11,6 +11,11 @@ import {
   type NovaJetSheetBrand,
 } from '@/utils/a4SheetLayout';
 import { barcodeHeightPxFromMm, resolveBarcodeSlotMm } from '@/utils/barcodeLabelLayout';
+import {
+  embedLabelPdfStandardFonts,
+  labelFontSizePxToPt,
+  pickLabelPdfFont,
+} from '@/utils/labelPdfFonts';
 import type { LabelData, TSPLTemplateConfig } from '@/utils/tsplGenerator';
 
 /** Exact PDF point conversion (72 pt / inch ÷ 25.4 mm/inch). */
@@ -112,8 +117,7 @@ export const generateA4LabelPdf = async (
 
   // Informational warning if layout exceeds A4 dimensions
   const pdfDoc = await PDFDocument.create();
-  const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
-  const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  const fonts = await embedLabelPdfStandardFonts(pdfDoc);
 
   // NovaJet MPL 48L / 40L: force gap 0 (+ official 39mm width for 40L) so pitch
   // matches die-cut — only when sheetType is the NovaJet brand (not shape alone).
@@ -212,9 +216,9 @@ export const generateA4LabelPdf = async (
         const content = getFieldContent(key, item, labelConfig.customTextValue, businessName);
         if (!content) continue;
 
-        const f = field.bold ? fontBold : font;
-        // Convert px fontSize to pt (1px ≈ 0.75pt)
-        const fsPt = Math.max(4, Math.min(14, field.fontSize * 0.75));
+        const f = pickLabelPdfFont(fonts, field.fontFamily, field.bold);
+        // Designer stores CSS px; convert to pt. No silent 14pt cap (preview has none).
+        const fsPt = labelFontSizePxToPt(field.fontSize);
 
         const fieldX = field.x ?? 0;
         const fieldY = field.y ?? 0;

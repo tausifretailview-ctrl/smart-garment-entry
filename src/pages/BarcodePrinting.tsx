@@ -992,31 +992,31 @@ function SortableFieldItem({ fieldKey, labelConfig, setLabelConfig, fieldLabels 
             B
           </Button>
 
-          {fieldKey === 'barcodeText' && (
-            <Select
-              value={field.fontFamily || 'Arial'}
-              onValueChange={(value) => {
-                setLabelConfig(prev => ({
-                  ...prev,
-                  [fieldKey]: { ...(prev[fieldKey] as LabelFieldConfig), fontFamily: value }
-                }));
-              }}
-            >
-              <SelectTrigger className="w-32 h-8 text-xs">
-                <SelectValue placeholder="Font" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Arial">Arial</SelectItem>
-                <SelectItem value="Courier New">Courier New</SelectItem>
-                <SelectItem value="Georgia">Georgia</SelectItem>
-                <SelectItem value="Times New Roman">Times New Roman</SelectItem>
-                <SelectItem value="Verdana">Verdana</SelectItem>
-                <SelectItem value="Tahoma">Tahoma</SelectItem>
-                <SelectItem value="Trebuchet MS">Trebuchet MS</SelectItem>
-                <SelectItem value="Comic Sans MS">Comic Sans MS</SelectItem>
-              </SelectContent>
-            </Select>
-          )}
+          <Select
+            value={
+              // Comic Sans removed from dropdown — map legacy saved values to Arial
+              field.fontFamily === 'Comic Sans MS' ? 'Arial' : (field.fontFamily || 'Arial')
+            }
+            onValueChange={(value) => {
+              setLabelConfig(prev => ({
+                ...prev,
+                [fieldKey]: { ...(prev[fieldKey] as LabelFieldConfig), fontFamily: value }
+              }));
+            }}
+          >
+            <SelectTrigger className="w-32 h-8 text-xs">
+              <SelectValue placeholder="Font" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="Arial">Arial</SelectItem>
+              <SelectItem value="Courier New">Courier New</SelectItem>
+              <SelectItem value="Georgia">Georgia</SelectItem>
+              <SelectItem value="Times New Roman">Times New Roman</SelectItem>
+              <SelectItem value="Verdana">Verdana</SelectItem>
+              <SelectItem value="Tahoma">Tahoma</SelectItem>
+              <SelectItem value="Trebuchet MS">Trebuchet MS</SelectItem>
+            </SelectContent>
+          </Select>
           
           <Select
             value={field.textAlign || 'center'}
