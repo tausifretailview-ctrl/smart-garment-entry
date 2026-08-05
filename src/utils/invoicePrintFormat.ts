@@ -1,3 +1,51 @@
+/** Shared invoice template ids used in Settings → Sale. */
+export type InvoiceTemplateId =
+  | 'professional'
+  | 'modern'
+  | 'modern-wholesale'
+  | 'classic'
+  | 'minimal'
+  | 'compact'
+  | 'detailed'
+  | 'tax-invoice'
+  | 'tally-tax-invoice'
+  | 'gift_tally'
+  | 'a4-gst-classic'
+  | 'a4-electronic'
+  | 'retail'
+  | 'retail-erp'
+  | 'retail-erp-dc'
+  | 'retail-erp-preprinted'
+  | 'retail-tax-ezzy'
+  | 'wholesale-a5'
+  | 'kids-80mm'
+  | 'real-tast';
+
+export type SaleSettingsTemplateSlice = {
+  invoice_template?: string | null;
+  pos_invoice_template?: string | null;
+};
+
+/** Sale Invoice template (Sales Invoice / Sale bill print). */
+export function resolveSaleInvoiceTemplate(
+  saleSettings?: SaleSettingsTemplateSlice | null,
+): string {
+  const t = String(saleSettings?.invoice_template || '').trim();
+  return t || 'professional';
+}
+
+/**
+ * POS Invoice template. Falls back to Sale `invoice_template` when unset
+ * so existing orgs keep one shared look until they pick a separate POS style.
+ */
+export function resolvePosInvoiceTemplate(
+  saleSettings?: SaleSettingsTemplateSlice | null,
+): string {
+  const pos = String(saleSettings?.pos_invoice_template || '').trim();
+  if (pos) return pos;
+  return resolveSaleInvoiceTemplate(saleSettings);
+}
+
 /** A4-only invoice templates — always print on A4 portrait. */
 export const A4_ONLY_INVOICE_TEMPLATES = new Set(['real-tast', 'gift_tally', 'a4-gst-classic']);
 
@@ -17,6 +65,42 @@ export const PREPRINTED_LETTERHEAD_TEMPLATES = new Set(['retail-erp-preprinted']
 
 /** Thermal-only invoice templates — always route through 80mm receipt path. */
 export const THERMAL_ONLY_INVOICE_TEMPLATES = new Set(['kids-80mm']);
+
+/** Paper-size patches when an A4 / A5 / thermal-only template is chosen. */
+export function paperPatchesForInvoiceTemplate(
+  template: string,
+  scope: 'sale' | 'pos',
+): Record<string, string> {
+  if (THERMAL_ONLY_INVOICE_TEMPLATES.has(template)) {
+    if (scope === 'sale') {
+      return {
+        invoice_paper_format: 'thermal',
+        sales_bill_format: 'thermal',
+      };
+    }
+    return { pos_bill_format: 'thermal' };
+  }
+  if (A4_ONLY_INVOICE_TEMPLATES.has(template)) {
+    if (scope === 'sale') {
+      return {
+        invoice_paper_format: 'a4',
+        sales_bill_format: 'a4',
+      };
+    }
+    return { pos_bill_format: 'a4' };
+  }
+  if (A5_ONLY_INVOICE_TEMPLATES.has(template)) {
+    if (scope === 'sale') {
+      return {
+        invoice_paper_format: 'a5-vertical',
+        sales_bill_format: 'a5',
+      };
+    }
+    // Settings POS select uses `a5-vertical` (not bare `a5`).
+    return { pos_bill_format: 'a5-vertical' };
+  }
+  return {};
+}
 
 /** Full-page invoice templates — never route through 80mm thermal. */
 export const FULL_PAGE_INVOICE_TEMPLATES = new Set([
@@ -50,13 +134,21 @@ function fallbackFormatForFullPageTemplate(
   return 'a4';
 }
 
+function normalizeBillFormat(raw: string | undefined | null): PosBillFormat {
+  if (raw === 'a5' || raw === 'a5-vertical') return 'a5';
+  if (raw === 'a5-horizontal') return 'a5-horizontal';
+  if (raw === 'thermal') return 'thermal';
+  return 'a4';
+}
+
 /** Resolve A4/A5 for preprinted letterhead templates from bill-format setting. */
 export function resolvePreprintedPaperFormat(
-  billFormat: PosBillFormat,
+  billFormat: PosBillFormat | string,
   invoicePaperFormat?: string,
 ): Exclude<PosBillFormat, 'thermal'> {
-  if (billFormat === 'a5' || billFormat === 'a5-horizontal') return billFormat;
-  if (billFormat === 'a4') return 'a4';
+  const normalized = normalizeBillFormat(billFormat);
+  if (normalized === 'a5' || normalized === 'a5-horizontal') return normalized;
+  if (normalized === 'a4') return 'a4';
   // thermal (or unknown) — use invoice paper / A4 fallback
   return fallbackFormatForFullPageTemplate(invoicePaperFormat);
 }
@@ -64,7 +156,7 @@ export function resolvePreprintedPaperFormat(
 /** POS paper size — named templates (Retail ERP, etc.) override generic thermal/A5 setting. */
 export function resolvePosBillFormat(
   invoiceTemplate: string | undefined,
-  posBillFormat: PosBillFormat,
+  posBillFormat: PosBillFormat | string,
   invoicePaperFormat?: string,
 ): PosBillFormat {
   if (invoiceTemplate && THERMAL_ONLY_INVOICE_TEMPLATES.has(invoiceTemplate)) {
@@ -79,16 +171,17 @@ export function resolvePosBillFormat(
   if (invoiceTemplate && PREPRINTED_LETTERHEAD_TEMPLATES.has(invoiceTemplate)) {
     return resolvePreprintedPaperFormat(posBillFormat, invoicePaperFormat);
   }
-  if (posBillFormat === 'thermal') {
+  const normalized = normalizeBillFormat(posBillFormat);
+  if (normalized === 'thermal') {
     return 'thermal';
   }
-  return posBillFormat;
+  return normalized;
 }
 
 /** Sales invoice dashboard paper size — full-page templates cannot use 80mm thermal. */
 export function resolveSaleBillFormat(
   invoiceTemplate: string | undefined,
-  salesBillFormat: PosBillFormat,
+  salesBillFormat: PosBillFormat | string,
   invoicePaperFormat?: string,
 ): PosBillFormat {
   if (invoiceTemplate && THERMAL_ONLY_INVOICE_TEMPLATES.has(invoiceTemplate)) {
@@ -103,14 +196,15 @@ export function resolveSaleBillFormat(
   if (invoiceTemplate && PREPRINTED_LETTERHEAD_TEMPLATES.has(invoiceTemplate)) {
     return resolvePreprintedPaperFormat(salesBillFormat, invoicePaperFormat);
   }
+  const normalized = normalizeBillFormat(salesBillFormat);
   if (
     invoiceTemplate &&
     FULL_PAGE_INVOICE_TEMPLATES.has(invoiceTemplate) &&
-    salesBillFormat === 'thermal'
+    normalized === 'thermal'
   ) {
     return fallbackFormatForFullPageTemplate(invoicePaperFormat);
   }
-  return salesBillFormat;
+  return normalized;
 }
 
 export type PosThermalPaper = '58mm' | '80mm';
@@ -166,9 +260,10 @@ export function resolvePosDirectPrintPaper(
 }
 
 /** Map POS bill format to InvoiceWrapper `format` prop. */
-export function toInvoiceWrapperFormat(posBillFormat: PosBillFormat): string {
+export function toInvoiceWrapperFormat(posBillFormat: PosBillFormat | string): string {
   switch (posBillFormat) {
     case 'a5':
+    case 'a5-vertical':
       return 'a5-vertical';
     case 'a5-horizontal':
       return 'a5-horizontal';

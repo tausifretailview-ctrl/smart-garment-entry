@@ -5,6 +5,7 @@ export type PublicInvoiceSaleSettings = {
   sales_bill_format?: string | null;
   pos_bill_format?: string | null;
   invoice_template?: string | null;
+  pos_invoice_template?: string | null;
 };
 
 export type BuildPublicInvoiceViewUrlInput = {
@@ -50,7 +51,14 @@ export function buildPublicInvoiceViewUrl(input: BuildPublicInvoiceViewUrlInput)
     params.set("format", "thermal");
   }
 
-  const template = String(input.saleSettings?.invoice_template || "").trim();
+  const template =
+    billContext === "pos"
+      ? String(
+          input.saleSettings?.pos_invoice_template ||
+            input.saleSettings?.invoice_template ||
+            "",
+        ).trim()
+      : String(input.saleSettings?.invoice_template || "").trim();
   if (template) {
     params.set("template", template);
   }

@@ -48,4 +48,21 @@ describe("buildPublicInvoiceViewUrl", () => {
       }),
     ).toBe("https://app.inventoryshop.in/demo-shop/invoice/view/abc-123?format=thermal");
   });
+
+  it("uses POS invoice template on public POS links when set", () => {
+    expect(
+      buildPublicInvoiceViewUrl({
+        orgSlug: "demo-shop",
+        saleId: "abc-123",
+        billContext: "pos",
+        saleSettings: {
+          pos_bill_format: "a5",
+          invoice_template: "a4-gst-classic",
+          pos_invoice_template: "wholesale-a5",
+        },
+      }),
+    ).toBe(
+      "https://app.inventoryshop.in/demo-shop/invoice/view/abc-123?template=wholesale-a5",
+    );
+  });
 });

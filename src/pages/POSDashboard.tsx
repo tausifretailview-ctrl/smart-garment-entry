@@ -110,6 +110,7 @@ import {
 } from "@/utils/posDashboardSettlement";
 import {
   resolvePosBillFormat,
+  resolvePosInvoiceTemplate,
   resolvePosThermalPaper,
   posThermalPageCss,
   toInvoiceWrapperFormat,
@@ -529,7 +530,7 @@ const POSDashboard = () => {
     const sale = (settings as any)?.sale_settings;
     if (!sale) return;
     if (sale.pos_bill_format) setPosBillFormat(sale.pos_bill_format);
-    if (sale.invoice_template) setPosInvoiceTemplate(sale.invoice_template);
+    setPosInvoiceTemplate(resolvePosInvoiceTemplate(sale));
   }, [settings]);
 
   const effectivePosBillFormat = useMemo((): PosBillFormat => {

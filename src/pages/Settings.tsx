@@ -7,6 +7,7 @@ import { UOM_OPTIONS } from "@/constants/uom";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { ArrowLeft, Home, Save, Eye, EyeOff, Shield, Printer, Package, Paintbrush, Copy, RefreshCw, CheckCircle2, Loader2, Building2, ShoppingCart, Receipt, CreditCard, BarChart2, Users, MessageSquare, MessageCircle, Database, Palette, FileText, Smartphone, History } from "lucide-react";
 import { SaleInvoiceFormatBackupDialog } from "@/components/settings/SaleInvoiceFormatBackupDialog";
+import { InvoiceTemplateSelectItems } from "@/components/settings/InvoiceTemplateSelectItems";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -31,7 +32,13 @@ import {
   type PrecisionPrintMode,
 } from "@/utils/precisionThermalModes";
 import { validatePurchaseCodeAlphabet } from "@/utils/purchaseCodeEncoder";
-import { resolvePosThermalPaper } from "@/utils/invoicePrintFormat";
+import {
+  paperPatchesForInvoiceTemplate,
+  resolvePosInvoiceTemplate,
+  resolvePosThermalPaper,
+  resolveSaleInvoiceTemplate,
+  type InvoiceTemplateId,
+} from "@/utils/invoicePrintFormat";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import { mergeActivityNavigationState } from "@/lib/activityCenterNavigation";
 
@@ -199,7 +206,9 @@ interface SaleSettings {
   defaultEntryMode?: 'grid' | 'inline';  // Default entry mode for Sale Order
   enable_size_grid_sales?: boolean; // Enable/disable size grid in Sales Invoice
   sales_tax_rate?: number;
-  invoice_template?: 'professional' | 'modern' | 'modern-wholesale' | 'classic' | 'minimal' | 'compact' | 'detailed' | 'tax-invoice' | 'tally-tax-invoice' | 'gift_tally' | 'a4-gst-classic' | 'a4-electronic' | 'retail' | 'retail-erp' | 'retail-erp-dc' | 'retail-erp-preprinted' | 'retail-tax-ezzy' | 'wholesale-a5' | 'kids-80mm' | 'real-tast';
+  invoice_template?: InvoiceTemplateId;
+  /** POS-only invoice layout; falls back to `invoice_template` when unset. */
+  pos_invoice_template?: InvoiceTemplateId;
   invoice_color_scheme?: string;
   declaration_text?: string;
   terms_list?: string[];
@@ -2948,6 +2957,66 @@ export default function Settings() {
                     </div>
                   </div>
 
+                  {/* Invoice template style — Sale vs POS can differ (e.g. A4 tax + A5 POS) */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="sale_invoice_template" className="text-sm font-medium">
+                        Sale Invoice Template
+                      </Label>
+                      <Select
+                        value={resolveSaleInvoiceTemplate(settings.sale_settings)}
+                        onValueChange={(value) =>
+                          setSettings({
+                            ...settings,
+                            sale_settings: {
+                              ...settings.sale_settings,
+                              invoice_template: value as InvoiceTemplateId,
+                              ...paperPatchesForInvoiceTemplate(value, "sale"),
+                            },
+                          })
+                        }
+                      >
+                        <SelectTrigger id="sale_invoice_template">
+                          <SelectValue placeholder="Select template" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <InvoiceTemplateSelectItems />
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground">
+                        Used for Sales Invoice bills (paper size above).
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="pos_invoice_template" className="text-sm font-medium">
+                        POS Invoice Template
+                      </Label>
+                      <Select
+                        value={resolvePosInvoiceTemplate(settings.sale_settings)}
+                        onValueChange={(value) =>
+                          setSettings({
+                            ...settings,
+                            sale_settings: {
+                              ...settings.sale_settings,
+                              pos_invoice_template: value as InvoiceTemplateId,
+                              ...paperPatchesForInvoiceTemplate(value, "pos"),
+                            },
+                          })
+                        }
+                      >
+                        <SelectTrigger id="pos_invoice_template">
+                          <SelectValue placeholder="Select template" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <InvoiceTemplateSelectItems />
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground">
+                        Used for POS bills. Can differ from Sale (e.g. A4 tax invoice + A5 POS).
+                      </p>
+                    </div>
+                  </div>
+
                   {/* Thermal style — shown only when either format is thermal */}
                   {(settings.sale_settings?.invoice_paper_format === 'thermal' ||
                     settings.sale_settings?.pos_bill_format === 'thermal') && (
@@ -3300,153 +3369,12 @@ export default function Settings() {
                     placeholder="e.g., 18"
                   />
                 </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="invoice_template">Invoice Template Style</Label>
-                    <Select
-                      value={settings.sale_settings?.invoice_template || "professional"}
-                      onValueChange={(value) =>
-                        setSettings({
-                          ...settings,
-                          sale_settings: {
-                            ...settings.sale_settings,
-                            invoice_template: value as 'professional' | 'modern' | 'modern-wholesale' | 'classic' | 'minimal' | 'compact' | 'detailed' | 'tax-invoice' | 'tally-tax-invoice' | 'gift_tally' | 'a4-gst-classic' | 'a4-electronic' | 'retail' | 'retail-erp' | 'retail-erp-dc' | 'retail-erp-preprinted' | 'retail-tax-ezzy' | 'wholesale-a5' | 'kids-80mm' | 'real-tast',
-                            ...(value === 'kids-80mm'
-                              ? {
-                                  invoice_paper_format: 'thermal' as const,
-                                  sales_bill_format: 'thermal' as const,
-                                  pos_bill_format: 'thermal' as const,
-                                }
-                              : value === 'real-tast' || value === 'gift_tally' || value === 'a4-gst-classic'
-                                ? {
-                                    invoice_paper_format: 'a4' as const,
-                                    sales_bill_format: 'a4' as const,
-                                  }
-                                : {}),
-                          },
-                        })
-                      }
-                    >
-                      <SelectTrigger id="invoice_template">
-                        <SelectValue placeholder="Select template" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="professional">
-                          <span className="flex items-center gap-2">
-                            <span className="text-blue-600 font-bold text-xs w-5">PRO</span>
-                            Professional — Detailed GST-ready
-                          </span>
-                        </SelectItem>
-                        <SelectItem value="modern">
-                          <span className="flex items-center gap-2">
-                            <span className="text-violet-600 font-bold text-xs w-5">MOD</span>
-                            Modern — Clean gradient design
-                          </span>
-                        </SelectItem>
-                        <SelectItem value="modern-wholesale">
-                          <span className="flex items-center gap-2">
-                            <span className="text-teal-600 font-bold text-xs w-5">WHL</span>
-                            Wholesale — Size grouping (38/2, 40/3)
-                          </span>
-                        </SelectItem>
-                        <SelectItem value="classic">
-                          <span className="flex items-center gap-2">
-                            <span className="text-gray-600 font-bold text-xs w-5">CLS</span>
-                            Classic — Traditional receipt style
-                          </span>
-                        </SelectItem>
-                        <SelectItem value="minimal">
-                          <span className="flex items-center gap-2">
-                            <span className="text-slate-500 font-bold text-xs w-5">MIN</span>
-                            Minimal — Simple &amp; clean
-                          </span>
-                        </SelectItem>
-                        <SelectItem value="compact">
-                          <span className="flex items-center gap-2">
-                            <span className="text-orange-600 font-bold text-xs w-5">CMP</span>
-                            Compact — Space-saving layout
-                          </span>
-                        </SelectItem>
-                        <SelectItem value="detailed">
-                          <span className="flex items-center gap-2">
-                            <span className="text-green-600 font-bold text-xs w-5">DET</span>
-                            Detailed — Full product info
-                          </span>
-                        </SelectItem>
-                        <SelectItem value="tax-invoice">
-                          <span className="flex items-center gap-2">
-                            <span className="text-red-600 font-bold text-xs w-5">TAX</span>
-                            Tax Invoice — GST B2B compliant
-                          </span>
-                        </SelectItem>
-                        <SelectItem value="tally-tax-invoice">
-                          <span className="flex items-center gap-2">
-                            <span className="text-amber-700 font-bold text-xs w-5">TLY</span>
-                            Tally Tax Invoice — Mobile/Electronics Shop
-                          </span>
-                        </SelectItem>
-                        <SelectItem value="gift_tally">
-                          <span className="flex items-center gap-2">
-                            <span className="text-stone-800 font-bold text-xs w-5">GFT</span>
-                            Gift Tally (A4 Tax Invoice)
-                          </span>
-                        </SelectItem>
-                        <SelectItem value="a4-gst-classic">
-                          <span className="flex items-center gap-2">
-                            <span className="text-rose-700 font-bold text-xs w-5">A4G</span>
-                            A4 GST Tax Invoice — Classic (with QR)
-                          </span>
-                        </SelectItem>
-                        <SelectItem value="a4-electronic">A4 Electronic</SelectItem>
-                        <SelectItem value="retail">
-                          <span className="flex items-center gap-2">
-                            <span className="text-pink-600 font-bold text-xs w-5">RET</span>
-                            Retail — Fixed ERP format
-                          </span>
-                        </SelectItem>
-                        <SelectItem value="retail-erp">
-                          <span className="flex items-center gap-2">
-                            <span className="text-indigo-600 font-bold text-xs w-5">ERP</span>
-                            Retail ERP — Tax Invoice ERP style
-                          </span>
-                        </SelectItem>
-                        <SelectItem value="retail-erp-dc">
-                          <span className="flex items-center gap-2">
-                            <span className="text-sky-700 font-bold text-xs w-5">DC</span>
-                            Retail ERP style DC — no HSN / GST details
-                          </span>
-                        </SelectItem>
-                        <SelectItem value="retail-erp-preprinted">
-                          <span className="flex items-center gap-2">
-                            <span className="text-violet-700 font-bold text-xs w-5">PRE</span>
-                            Preprinted Invoice — Retail ERP tax + 2&quot; letterhead (A4/A5)
-                          </span>
-                        </SelectItem>
-                        <SelectItem value="real-tast">
-                          <span className="flex items-center gap-2">
-                            <span className="text-emerald-700 font-bold text-xs w-5">RT</span>
-                            Real Tast — Bill of Supply (A4)
-                          </span>
-                        </SelectItem>
-                        <SelectItem value="retail-tax-ezzy">
-                          <span className="flex items-center gap-2">
-                            <span className="text-slate-700 font-bold text-xs w-5">EZY</span>
-                            Retail Tax (Ezzy A5) — A5 vertical tax invoice
-                          </span>
-                        </SelectItem>
-                        <SelectItem value="wholesale-a5">
-                          <span className="flex items-center gap-2">
-                            <span className="text-stone-700 font-bold text-xs w-5">A5W</span>
-                            Wholesale A5 — Laser print estimate
-                          </span>
-                        </SelectItem>
-                        <SelectItem value="kids-80mm">
-                          <span className="flex items-center gap-2">
-                            <span className="text-amber-600 font-bold text-xs w-5">KID</span>
-                            Kids 80mm — Compact thermal receipt
-                          </span>
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
+                  <div className="rounded-lg border border-dashed p-3 bg-muted/20 space-y-1">
+                    <p className="text-sm font-medium">Invoice templates</p>
+                    <p className="text-xs text-muted-foreground">
+                      Sale and POS invoice templates are set under <span className="font-medium">Print Format</span> above
+                      (Sale Invoice Template / POS Invoice Template). Preview below uses the Sale template.
+                    </p>
                     <p className="text-xs text-muted-foreground">
                       {settings.sale_settings?.invoice_template === 'kids-80mm'
                         ? 'Kids 80mm prints on 80mm thermal roll — product name, size, qty, sale price, MRP total, fixed footer & terms.'
@@ -3460,7 +3388,9 @@ export default function Settings() {
                           ? 'Gift Tally prints on A4 — GST tax invoice with billed/shipped blocks, per-line CGST/SGST/IGST, bank details and terms.'
                         : settings.sale_settings?.invoice_template === 'a4-gst-classic'
                           ? 'A4 GST Classic matches textile/wholesale Tax Invoice layout — logo, UPI QR, Billed/Shipped, transport, GST summary table, bank bar and signature.'
-                        : 'Modern Wholesale is optimized for bulk orders with size grouping (e.g., 38/2, 40/3, 42/1)'}
+                        : settings.sale_settings?.invoice_template === 'modern-wholesale'
+                          ? 'Modern Wholesale is optimized for bulk orders with size grouping (e.g., 38/2, 40/3, 42/1).'
+                          : `Sale: ${resolveSaleInvoiceTemplate(settings.sale_settings)} · POS: ${resolvePosInvoiceTemplate(settings.sale_settings)}`}
                     </p>
                   </div>
 

@@ -1,5 +1,39 @@
 import { describe, expect, it } from 'vitest';
-import { resolvePosBillFormat, resolveSaleBillFormat } from '@/utils/invoicePrintFormat';
+import {
+  resolvePosBillFormat,
+  resolvePosInvoiceTemplate,
+  resolveSaleBillFormat,
+  resolveSaleInvoiceTemplate,
+  toInvoiceWrapperFormat,
+} from '@/utils/invoicePrintFormat';
+
+describe('resolveSaleInvoiceTemplate / resolvePosInvoiceTemplate', () => {
+  it('defaults sale template to professional', () => {
+    expect(resolveSaleInvoiceTemplate({})).toBe('professional');
+  });
+
+  it('POS falls back to sale template when pos_invoice_template is unset', () => {
+    expect(
+      resolvePosInvoiceTemplate({ invoice_template: 'a4-gst-classic' }),
+    ).toBe('a4-gst-classic');
+  });
+
+  it('POS uses its own template when set', () => {
+    expect(
+      resolvePosInvoiceTemplate({
+        invoice_template: 'a4-gst-classic',
+        pos_invoice_template: 'wholesale-a5',
+      }),
+    ).toBe('wholesale-a5');
+  });
+});
+
+describe('toInvoiceWrapperFormat', () => {
+  it('maps a5-vertical settings value to a5-vertical wrapper format', () => {
+    expect(toInvoiceWrapperFormat('a5-vertical')).toBe('a5-vertical');
+    expect(toInvoiceWrapperFormat('a5')).toBe('a5-vertical');
+  });
+});
 
 describe('resolvePosBillFormat', () => {
   it('uses A5 Retail ERP when template is retail-erp even if POS format is thermal', () => {

@@ -66,6 +66,7 @@ import { waitForPrintReady } from "@/utils/printReady";
 import {
   resolvePosBillFormat,
   resolvePosDirectPrintPaper,
+  resolvePosInvoiceTemplate,
   resolvePosThermalPaper,
   posThermalPageCss,
   toInvoiceWrapperFormat,
@@ -1214,8 +1215,7 @@ export default function POSSales() {
   const _posSaleSettings = (settingsData as any)?.sale_settings || {};
   const posBillFormatSetting: PosBillFormat =
     (_posSaleSettings.pos_bill_format as PosBillFormat) || 'thermal';
-  const posInvoiceTemplate: string =
-    (_posSaleSettings.invoice_template as string) || 'professional';
+  const posInvoiceTemplate: string = resolvePosInvoiceTemplate(_posSaleSettings);
   const posBillFormat = resolvePosBillFormat(
     posInvoiceTemplate,
     posBillFormatSetting,

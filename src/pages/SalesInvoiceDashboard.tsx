@@ -55,6 +55,7 @@ import { EInvoicePrint } from "@/components/EInvoicePrint";
 import { useReactToPrint } from "react-to-print";
 import {
   resolveSaleBillFormat,
+  resolveSaleInvoiceTemplate,
   toInvoiceWrapperFormat,
   resolvePosThermalPaper,
   posThermalPageCss,
@@ -686,7 +687,7 @@ export default function SalesInvoiceDashboard() {
     const sale = (settings as any)?.sale_settings;
     if (!sale) return;
     setBillFormat(sale.sales_bill_format || 'a4');
-    setInvoiceTemplate(sale.invoice_template || 'professional');
+    setInvoiceTemplate(resolveSaleInvoiceTemplate(sale));
     setShowInvoicePreviewSetting(sale.show_invoice_preview ?? true);
   }, [settings]);
 

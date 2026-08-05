@@ -994,7 +994,10 @@ export const useSaveSale = () => {
               invoice_paper_format: (saleSettings as any)?.invoice_paper_format || '',
               sales_bill_format: (saleSettings as any)?.sales_bill_format || '',
               pos_bill_format: (saleSettings as any)?.pos_bill_format || '',
-              invoice_template: (saleSettings as any)?.invoice_template || '',
+              invoice_template:
+                (saleSettings as any)?.pos_invoice_template ||
+                (saleSettings as any)?.invoice_template ||
+                '',
               sale_source: 'pos',
               website: (whatsappSettings.social_links as Record<string, string> | null)?.website || '',
               instagram: (whatsappSettings.social_links as Record<string, string> | null)?.instagram || '',
