@@ -5,8 +5,7 @@ import { Plus, Trash2, BookPlus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
-import { BackToDashboard } from "@/components/BackToDashboard";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -129,57 +128,71 @@ export default function ManualJournalEntry() {
     setLines((prev) => prev.map((l) => (l.key === key ? { ...l, ...patch } : l)));
   };
 
+  const tabTriggerClass =
+    "h-10 px-3 text-sm font-semibold shrink-0 rounded-md data-[state=active]:bg-teal-700 data-[state=active]:text-white data-[state=inactive]:text-slate-600";
+
   return (
-    <div className="space-y-6 p-4 md:p-6">
-      <div className="flex items-start justify-between gap-3 flex-wrap">
-        <div className="flex items-center gap-3">
-          <BackToDashboard />
-          <div>
-            <h1 className="text-2xl font-bold flex items-center gap-2">
-              <BookPlus className="h-6 w-6 text-primary" />
+    <div className="manual-journal-workspace flex flex-col bg-slate-50 px-2 sm:px-3 py-2 min-h-0 h-full overflow-hidden w-full">
+      <div className="w-full min-w-0 flex flex-col flex-1 min-h-0 gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-2 shrink-0">
+          <div className="min-w-0">
+            <h1 className="text-xl font-bold text-teal-700 tracking-tight leading-none flex items-center gap-2">
+              <BookPlus className="h-5 w-5 shrink-0" />
               Manual journal &amp; contra
             </h1>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-muted-foreground mt-1 truncate">
               Post balanced double-entry vouchers to the general ledger (Tally-style journal / contra).
             </p>
           </div>
+          <div className="flex flex-wrap gap-1.5 shrink-0">
+            <Button variant="outline" size="sm" className="h-9 text-sm border-slate-200" asChild>
+              <Link to={getOrgPath("/third-party-entry")}>Third-party pay/receive</Link>
+            </Button>
+            <Button variant="outline" size="sm" className="h-9 text-sm border-slate-200" asChild>
+              <Link to={getOrgPath("/journal-vouchers")}>View day book</Link>
+            </Button>
+          </div>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" asChild>
-            <Link to={getOrgPath("/third-party-entry")}>Third-party pay/receive</Link>
-          </Button>
-          <Button variant="outline" asChild>
-            <Link to={getOrgPath("/journal-vouchers")}>View day book</Link>
-          </Button>
-        </div>
+
+        <Tabs
+          value={voucherKind}
+          onValueChange={(v) => setVoucherKind(v as "ManualJournal" | "Contra")}
+          className="flex flex-1 flex-col min-h-0 overflow-hidden gap-2"
+        >
+          <TabsList className="shrink-0 w-full h-auto p-1 bg-white border border-slate-200 rounded-lg grid grid-cols-2 gap-1">
+            <TabsTrigger value="ManualJournal" className={tabTriggerClass}>
+              Journal voucher
+            </TabsTrigger>
+            <TabsTrigger value="Contra" className={tabTriggerClass}>
+              Contra (cash / bank)
+            </TabsTrigger>
+          </TabsList>
+
+          <Card className="min-h-0 flex-1 flex flex-col overflow-hidden rounded-lg border border-slate-200 shadow-sm p-0">
+            <div className="flex-1 min-h-0 overflow-y-auto px-3 sm:px-4 py-3">
+              <TabsContent value="ManualJournal" className="mt-0 outline-none data-[state=inactive]:hidden">
+                <div className="mb-3">
+                  <h2 className="text-base font-bold text-slate-900">Journal voucher</h2>
+                  <p className="text-sm text-muted-foreground">
+                    Debit and credit any ledger accounts. Period lock applies to the voucher date.
+                  </p>
+                </div>
+                {renderForm()}
+              </TabsContent>
+
+              <TabsContent value="Contra" className="mt-0 outline-none data-[state=inactive]:hidden">
+                <div className="mb-3">
+                  <h2 className="text-base font-bold text-slate-900">Contra voucher</h2>
+                  <p className="text-sm text-muted-foreground">
+                    Transfer between cash and bank ledgers (both sides must be cash/bank accounts).
+                  </p>
+                </div>
+                {renderForm()}
+              </TabsContent>
+            </div>
+          </Card>
+        </Tabs>
       </div>
-
-      <Tabs value={voucherKind} onValueChange={(v) => setVoucherKind(v as "ManualJournal" | "Contra")}>
-        <TabsList>
-          <TabsTrigger value="ManualJournal">Journal voucher</TabsTrigger>
-          <TabsTrigger value="Contra">Contra (cash / bank)</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="ManualJournal" className="mt-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Journal voucher</CardTitle>
-              <CardDescription>Debit and credit any ledger accounts. Period lock applies to the voucher date.</CardDescription>
-            </CardHeader>
-            <CardContent>{renderForm()}</CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="Contra" className="mt-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Contra voucher</CardTitle>
-              <CardDescription>Transfer between cash and bank ledgers (both sides must be cash/bank accounts).</CardDescription>
-            </CardHeader>
-            <CardContent>{renderForm()}</CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
     </div>
   );
 

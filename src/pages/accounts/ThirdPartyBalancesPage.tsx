@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import {
-  ArrowLeft,
   BookOpen,
   Loader2,
   RefreshCw,
@@ -47,7 +46,7 @@ const fmtAmt = (n: number) => inr.format(n);
  */
 export default function ThirdPartyBalancesPage() {
   const { currentOrganization } = useOrganization();
-  const { getOrgPath, orgNavigate } = useOrgNavigation();
+  const { getOrgPath } = useOrgNavigation();
   const orgId = currentOrganization?.id;
 
   const [search, setSearch] = useState("");
@@ -123,38 +122,27 @@ export default function ThirdPartyBalancesPage() {
   })();
 
   return (
-    <div className="flex flex-col bg-slate-50 px-2 sm:px-3 py-2 min-h-0 h-full overflow-hidden w-full">
+    <div className="third-party-balances-workspace flex flex-col bg-slate-50 px-2 sm:px-3 py-2 min-h-0 h-full overflow-hidden w-full">
       <div className="w-full min-w-0 flex flex-col flex-1 min-h-0 gap-2">
         <div className="flex flex-wrap items-center justify-between gap-2 shrink-0">
-          <div className="flex items-center gap-2 min-w-0">
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-9 px-3 text-sm shrink-0"
-              onClick={() => orgNavigate("/third-party-entry")}
-            >
-              <ArrowLeft className="h-4 w-4 mr-1" />
-              Entry
-            </Button>
-            <div className="min-w-0">
-              <h1 className="text-xl font-bold text-teal-700 tracking-tight leading-none flex items-center gap-2">
-                <Scale className="h-5 w-5 shrink-0" />
-                Third-party Balances
-              </h1>
-              <p className="text-sm text-muted-foreground mt-1 truncate">
-                {isFetching && !isLoading ? (
-                  <span className="inline-flex items-center gap-1">
-                    <Loader2 className="h-3 w-3 animate-spin" />
-                    Refreshing…
-                  </span>
-                ) : (
-                  <>
-                    {rows.length.toLocaleString("en-IN")} accounts
-                    {!showZero ? " · zero balances hidden" : ""}
-                  </>
-                )}
-              </p>
-            </div>
+          <div className="min-w-0">
+            <h1 className="text-xl font-bold text-teal-700 tracking-tight leading-none flex items-center gap-2">
+              <Scale className="h-5 w-5 shrink-0" />
+              Third-party Balances
+            </h1>
+            <p className="text-sm text-muted-foreground mt-1 truncate">
+              {isFetching && !isLoading ? (
+                <span className="inline-flex items-center gap-1">
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  Refreshing…
+                </span>
+              ) : (
+                <>
+                  {rows.length.toLocaleString("en-IN")} accounts
+                  {!showZero ? " · zero balances hidden" : ""}
+                </>
+              )}
+            </p>
           </div>
           <div className="flex gap-2 shrink-0">
             <Button variant="outline" size="sm" className="h-9 text-sm" asChild>

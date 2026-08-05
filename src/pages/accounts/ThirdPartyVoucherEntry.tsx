@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { ArrowDownLeft, ArrowLeft, ArrowUpRight, Banknote, Plus } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, Banknote, Plus } from "lucide-react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -51,7 +51,7 @@ function parseAmount(s: string): number {
  */
 export default function ThirdPartyVoucherEntry() {
   const { currentOrganization } = useOrganization();
-  const { getOrgPath, orgNavigate } = useOrgNavigation();
+  const { getOrgPath } = useOrgNavigation();
   const queryClient = useQueryClient();
 
   const [direction, setDirection] = useState<Direction>("paid_out");
@@ -240,28 +240,17 @@ export default function ThirdPartyVoucherEntry() {
     "h-10 px-3 text-sm font-semibold shrink-0 rounded-md data-[state=active]:bg-teal-700 data-[state=active]:text-white data-[state=inactive]:text-slate-600";
 
   return (
-    <div className="flex flex-col bg-slate-50 px-2 sm:px-3 py-2 min-h-0 h-full overflow-hidden w-full">
+    <div className="third-party-entry-workspace flex flex-col bg-slate-50 px-2 sm:px-3 py-2 min-h-0 h-full overflow-hidden w-full">
       <div className="w-full min-w-0 flex flex-col flex-1 min-h-0 gap-2">
         <div className="flex flex-wrap items-center justify-between gap-2 shrink-0">
-          <div className="flex items-center gap-2 min-w-0">
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-9 px-3 text-sm shrink-0"
-              onClick={() => orgNavigate("/accounts")}
-            >
-              <ArrowLeft className="h-4 w-4 mr-1" />
-              Back
-            </Button>
-            <div className="min-w-0">
-              <h1 className="text-xl font-bold text-teal-700 tracking-tight leading-none flex items-center gap-2">
-                <Banknote className="h-5 w-5 shrink-0" />
-                Third-party Pay / Receive
-              </h1>
-              <p className="text-sm text-muted-foreground mt-1 truncate">
-                Sundry debtors/creditors, deposits, loans — not customer or supplier masters
-              </p>
-            </div>
+          <div className="min-w-0">
+            <h1 className="text-xl font-bold text-teal-700 tracking-tight leading-none flex items-center gap-2">
+              <Banknote className="h-5 w-5 shrink-0" />
+              Third-party Pay / Receive
+            </h1>
+            <p className="text-sm text-muted-foreground mt-1 truncate">
+              Sundry debtors/creditors, deposits, loans — not customer or supplier masters
+            </p>
           </div>
           <div className="flex flex-wrap gap-1.5 shrink-0">
             <Button variant="outline" size="sm" className="h-9 text-sm border-slate-200" asChild>

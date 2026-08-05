@@ -228,6 +228,16 @@ export const TAB_PAGE_REGISTRY: Record<string, TabPageDef> = {
     layout: "layout",
     roles: ["admin", "manager"],
   },
+  "third-party-entry": {
+    loader: () => import("@/pages/accounts/ThirdPartyVoucherEntry"),
+    layout: "layout",
+    roles: ["admin", "manager"],
+  },
+  "third-party-balances": {
+    loader: () => import("@/pages/accounts/ThirdPartyBalancesPage"),
+    layout: "layout",
+    roles: ["admin", "manager"],
+  },
   "ledger-opening-balances": {
     loader: () => import("@/pages/accounts/LedgerOpeningBalances"),
     layout: "layout",

@@ -9,7 +9,6 @@ import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
-import { BackToDashboard } from "@/components/BackToDashboard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -232,115 +231,118 @@ export default function JournalVouchers() {
   }, [lines]);
 
   return (
-    <div className="space-y-6 p-4 md:p-6">
-      <div className="flex items-start justify-between gap-3 flex-wrap">
-        <div className="flex items-center gap-3">
-          <BackToDashboard />
-          <div>
-            <h1 className="text-2xl font-bold">Journal Vouchers / Day Book</h1>
-            <p className="text-sm text-muted-foreground">Review auto-generated double-entry postings</p>
+    <div className="journal-vouchers-workspace flex flex-col bg-slate-50 px-2 sm:px-3 py-2 min-h-0 h-full overflow-hidden w-full">
+      <div className="w-full min-w-0 flex flex-col flex-1 min-h-0 gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-2 shrink-0">
+          <div className="min-w-0">
+            <h1 className="text-xl font-bold text-teal-700 tracking-tight leading-none flex items-center gap-2">
+              <BookText className="h-5 w-5 shrink-0" />
+              Journal Vouchers / Day Book
+            </h1>
+            <p className="text-sm text-muted-foreground mt-1 truncate">
+              Review auto-generated double-entry postings
+            </p>
           </div>
+          <Button size="sm" className="h-9 text-sm shrink-0" asChild>
+            <Link to={getOrgPath("/manual-journal")}>
+              <Plus className="h-4 w-4 mr-1.5" />
+              New journal / contra
+            </Link>
+          </Button>
         </div>
-        <Button asChild>
-          <Link to={getOrgPath("/manual-journal")}>
-            <Plus className="h-4 w-4 mr-2" />
-            New journal / contra
-          </Link>
-        </Button>
-      </div>
 
-      {engineExplicitlyOff && (
-        <Alert>
-          <Info className="h-4 w-4" />
-          <AlertTitle>Accounting engine disabled for this organization</AlertTitle>
-          <AlertDescription>
-            Posting to the day book is turned off because <strong>accounting_engine_enabled</strong> is set to{" "}
-            <strong>false</strong> in settings. Set it to <strong>true</strong> to resume automatic journals. Existing
-            entries in the selected date range still appear below.
-          </AlertDescription>
-        </Alert>
-      )}
+        {engineExplicitlyOff && (
+          <Alert className="shrink-0">
+            <Info className="h-4 w-4" />
+            <AlertTitle>Accounting engine disabled for this organization</AlertTitle>
+            <AlertDescription>
+              Posting to the day book is turned off because <strong>accounting_engine_enabled</strong> is set to{" "}
+              <strong>false</strong> in settings. Set it to <strong>true</strong> to resume automatic journals. Existing
+              entries in the selected date range still appear below.
+            </AlertDescription>
+          </Alert>
+        )}
 
-      <Card>
-        <CardContent className="pt-6">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-            <div className="space-y-1">
-              <p className="text-xs text-muted-foreground">From Date</p>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" className={cn("w-full justify-start text-left font-normal")}>
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {format(fromDate, "dd MMM yyyy")}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar mode="single" selected={fromDate} onSelect={(d) => d && setFromDate(d)} initialFocus />
-                </PopoverContent>
-              </Popover>
+        <Card className="shrink-0 rounded-lg border border-slate-200 shadow-sm">
+          <CardContent className="pt-4 pb-3 px-3 sm:px-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">From Date</p>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className={cn("w-full h-9 justify-start text-left font-normal")}>
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {format(fromDate, "dd MMM yyyy")}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar mode="single" selected={fromDate} onSelect={(d) => d && setFromDate(d)} initialFocus />
+                  </PopoverContent>
+                </Popover>
+              </div>
+
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">To Date</p>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className={cn("w-full h-9 justify-start text-left font-normal")}>
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {format(toDate, "dd MMM yyyy")}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar mode="single" selected={toDate} onSelect={(d) => d && setToDate(d)} initialFocus />
+                  </PopoverContent>
+                </Popover>
+              </div>
+
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">Reference Type</p>
+                <Select value={referenceType} onValueChange={(v: RefTypeFilter) => setReferenceType(v)}>
+                  <SelectTrigger className="h-9">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All</SelectItem>
+                    <SelectItem value="Sale">Sale</SelectItem>
+                    <SelectItem value="Purchase">Purchase</SelectItem>
+                    <SelectItem value="Payment">Payment</SelectItem>
+                    <SelectItem value="StudentFeeReceipt">Student fee receipt</SelectItem>
+                    <SelectItem value="ExpenseVoucher">Expense voucher</SelectItem>
+                    <SelectItem value="SalaryVoucher">Salary voucher</SelectItem>
+                    <SelectItem value="CustomerReceipt">Customer receipt</SelectItem>
+                    <SelectItem value="SupplierPayment">Supplier payment</SelectItem>
+                    <SelectItem value="CustomerAdvanceApplication">Customer advance application</SelectItem>
+                    <SelectItem value="CustomerCreditNoteApplication">Credit note application</SelectItem>
+                    <SelectItem value="CustomerAdvanceReceipt">Customer advance receipt</SelectItem>
+                    <SelectItem value="CustomerAdvanceRefund">Customer advance refund</SelectItem>
+                    <SelectItem value="SaleReturn">Sale return</SelectItem>
+                    <SelectItem value="PurchaseReturn">Purchase return</SelectItem>
+                    <SelectItem value="ManualJournal">Manual journal</SelectItem>
+                    <SelectItem value="Contra">Contra</SelectItem>
+                    <SelectItem value="RoundOff">Round off</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="rounded-md border bg-muted/20 p-3">
+                <p className="text-xs text-muted-foreground">Entries</p>
+                <p className="text-lg font-semibold tabular-nums">{entries.length}</p>
+              </div>
             </div>
+          </CardContent>
+        </Card>
 
-            <div className="space-y-1">
-              <p className="text-xs text-muted-foreground">To Date</p>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" className={cn("w-full justify-start text-left font-normal")}>
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {format(toDate, "dd MMM yyyy")}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar mode="single" selected={toDate} onSelect={(d) => d && setToDate(d)} initialFocus />
-                </PopoverContent>
-              </Popover>
-            </div>
-
-            <div className="space-y-1">
-              <p className="text-xs text-muted-foreground">Reference Type</p>
-              <Select value={referenceType} onValueChange={(v: RefTypeFilter) => setReferenceType(v)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All</SelectItem>
-                  <SelectItem value="Sale">Sale</SelectItem>
-                  <SelectItem value="Purchase">Purchase</SelectItem>
-                  <SelectItem value="Payment">Payment</SelectItem>
-                  <SelectItem value="StudentFeeReceipt">Student fee receipt</SelectItem>
-                  <SelectItem value="ExpenseVoucher">Expense voucher</SelectItem>
-                  <SelectItem value="SalaryVoucher">Salary voucher</SelectItem>
-                  <SelectItem value="CustomerReceipt">Customer receipt</SelectItem>
-                  <SelectItem value="SupplierPayment">Supplier payment</SelectItem>
-                  <SelectItem value="CustomerAdvanceApplication">Customer advance application</SelectItem>
-                  <SelectItem value="CustomerCreditNoteApplication">Credit note application</SelectItem>
-                  <SelectItem value="CustomerAdvanceReceipt">Customer advance receipt</SelectItem>
-                  <SelectItem value="CustomerAdvanceRefund">Customer advance refund</SelectItem>
-                  <SelectItem value="SaleReturn">Sale return</SelectItem>
-                  <SelectItem value="PurchaseReturn">Purchase return</SelectItem>
-                  <SelectItem value="ManualJournal">Manual journal</SelectItem>
-                  <SelectItem value="Contra">Contra</SelectItem>
-                  <SelectItem value="RoundOff">Round off</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="rounded-md border bg-muted/20 p-3">
-              <p className="text-xs text-muted-foreground">Entries</p>
-              <p className="text-lg font-semibold">{entries.length}</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2">
-            <BookText className="h-4 w-4 text-primary" />
-            Journal Entries
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-            <Table>
+        <Card className="min-h-0 flex-1 flex flex-col overflow-hidden rounded-lg border border-slate-200 shadow-sm">
+          <CardHeader className="pb-2 pt-3 px-3 sm:px-4 shrink-0">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <BookText className="h-4 w-4 text-teal-700" />
+              Journal Entries
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="flex-1 min-h-0 overflow-auto px-3 sm:px-4 pb-3 pt-0">
+            <div className="overflow-x-auto">
+              <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-[48px]"></TableHead>
@@ -462,9 +464,10 @@ export default function JournalVouchers() {
                 )}
               </TableBody>
             </Table>
-          </div>
-        </CardContent>
-      </Card>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }
