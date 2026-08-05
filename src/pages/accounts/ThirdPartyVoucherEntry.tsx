@@ -246,7 +246,10 @@ export default function ThirdPartyVoucherEntry() {
             </p>
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
+          <Button variant="outline" asChild>
+            <Link to={getOrgPath("/third-party-balances")}>View balances</Link>
+          </Button>
           <Button variant="outline" asChild>
             <Link to={getOrgPath("/journal-vouchers")}>Day book</Link>
           </Button>

@@ -89,6 +89,7 @@ const ChartOfAccounts = lazyWithRetry(() => import("./pages/accounts/ChartOfAcco
 const JournalVouchers = lazyWithRetry(() => import("./pages/accounts/JournalVouchers"));
 const ManualJournalEntry = lazyWithRetry(() => import("./pages/accounts/ManualJournalEntry"));
 const ThirdPartyVoucherEntry = lazyWithRetry(() => import("./pages/accounts/ThirdPartyVoucherEntry"));
+const ThirdPartyBalancesPage = lazyWithRetry(() => import("./pages/accounts/ThirdPartyBalancesPage"));
 const LedgerOpeningBalances = lazyWithRetry(() => import("./pages/accounts/LedgerOpeningBalances"));
 const DeliveryDashboard = lazyWithRetry(() => import("./pages/DeliveryDashboard"));
 const PaymentsDashboard = lazyWithRetry(() => import("./pages/PaymentsDashboard"));
@@ -1526,6 +1527,18 @@ const App = () => {
                       <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
                         <Layout>
                           <ThirdPartyVoucherEntry />
+                        </Layout>
+                      </RoleProtectedRoute>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="third-party-balances"
+                  element={
+                    <ProtectedRoute>
+                      <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
+                        <Layout>
+                          <ThirdPartyBalancesPage />
                         </Layout>
                       </RoleProtectedRoute>
                     </ProtectedRoute>
