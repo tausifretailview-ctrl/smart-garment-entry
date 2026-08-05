@@ -160,7 +160,7 @@ export const OrgLayout = () => {
         prefetchTabPage("pos-sales");
         prefetchTabPage("");
         if (tabPaths.includes("settings")) {
-          prefetchTabPage("settings");
+          prefetchTabPage("settings", { intent: true });
         }
         return;
       }

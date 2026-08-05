@@ -67,6 +67,23 @@ export const POST_LOGIN_WEB_IDLE_INVENTORY_PREFETCH_TAB_PATHS = [
   "product-entry",
 ] as const;
 
+/**
+ * Admin / secondary modules that cold-load on web and show Suspense skeleton
+ * ("Still loading… slow network") for 8s+. Warmed sequentially AFTER inventory
+ * idle prefetch — not in the parallel critical set (avoids starving first click).
+ */
+export const POST_LOGIN_WEB_IDLE_ADMIN_PREFETCH_TAB_PATHS = [
+  "settings",
+  "user-rights",
+  "accounts",
+  "barcode-printing",
+  "third-party-entry",
+  "third-party-balances",
+  "customers",
+  "payments-dashboard",
+  "profile",
+] as const;
+
 /** Re-warm after the browser tab was hidden/idle (module cache may have been discarded). */
 export const CRITICAL_ENTRY_CHUNK_PATHS = [
   "purchase-entry",

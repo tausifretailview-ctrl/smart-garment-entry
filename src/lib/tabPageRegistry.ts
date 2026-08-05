@@ -8,10 +8,15 @@ import {
   POST_LOGIN_PREFETCH_TAB_PATHS,
   POST_LOGIN_PREFETCH_TAB_PATHS_WEB,
   POST_LOGIN_WEB_IDLE_INVENTORY_PREFETCH_TAB_PATHS,
+  POST_LOGIN_WEB_IDLE_ADMIN_PREFETCH_TAB_PATHS,
 } from "@/lib/chunkLoadRetry";
 import { isElectronShell, shouldElectronMountOnlyActiveTab } from "@/lib/electronShell";
 
-export { CRITICAL_ENTRY_CHUNK_PATHS, POST_LOGIN_PREFETCH_TAB_PATHS };
+export {
+  CRITICAL_ENTRY_CHUNK_PATHS,
+  POST_LOGIN_PREFETCH_TAB_PATHS,
+  POST_LOGIN_WEB_IDLE_ADMIN_PREFETCH_TAB_PATHS,
+};
 
 export type TabPageLayout = "layout" | "fullscreen" | "pos";
 export type TabPageRole = "admin" | "manager" | "user" | "platform_admin";
@@ -395,14 +400,18 @@ export function prefetchPostLoginCriticalPages(): void {
 }
 
 /**
- * Warm heavy / inventory chunks when idle — one-at-a-time, gated by
+ * Warm heavy / inventory / admin chunks when idle — one-at-a-time, gated by
  * `isBackgroundPrefetchAllowed` so a user click can pause the queue.
  * (Web critical warm stays parallel via `prefetchPostLoginCriticalPages`.)
+ * Web: inventory first, then admin (settings, accounts, third-party, …).
  */
 export function prefetchPostLoginIdlePages(): () => void {
   const paths = isElectronShell()
     ? POST_LOGIN_IDLE_PREFETCH_TAB_PATHS
-    : POST_LOGIN_WEB_IDLE_INVENTORY_PREFETCH_TAB_PATHS;
+    : ([
+        ...POST_LOGIN_WEB_IDLE_INVENTORY_PREFETCH_TAB_PATHS,
+        ...POST_LOGIN_WEB_IDLE_ADMIN_PREFETCH_TAB_PATHS,
+      ] as const);
   return scheduleSequentialIdlePrefetch(paths, (path) => prefetchTabPage(path), {
     minDelay: isElectronShell() ? 0 : 4_000,
     timeout: 12_000,

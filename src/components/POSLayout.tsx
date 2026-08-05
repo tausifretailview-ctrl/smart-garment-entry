@@ -63,17 +63,19 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
   const can = (id: string) => !permissionsLoading && (permissions === null || hasMenuAccess(id));
 
   /**
-   * Warm the destination chunks as soon as the POS menu opens. Restricted users
-   * (POS + Settings only) never get these prefetched after login, so clicking
-   * Settings used to download the chunk on the spot and flash a blank screen.
+   * Warm destination chunks as soon as the POS menu opens. Restricted users
+   * (POS + Settings only) never get these after login; Settings used to cold-load
+   * and flash blank / "Still loading…". Use intent so Save-Data/2g still warms.
    */
   const handleMenuOpenChange = (open: boolean) => {
     if (!open) return;
-    if (can("main_dashboard")) prefetchTabPage("");
-    if (can("pos_dashboard")) prefetchTabPage("pos-dashboard");
-    if (can("product_dashboard")) prefetchTabPage("products");
-    if (can("sales_invoice_dashboard")) prefetchTabPage("sales-invoice-dashboard");
-    if (can("settings_view")) prefetchTabPage("settings");
+    if (can("main_dashboard")) prefetchTabPage("", { intent: true });
+    if (can("pos_dashboard")) prefetchTabPage("pos-dashboard", { intent: true });
+    if (can("product_dashboard")) prefetchTabPage("products", { intent: true });
+    if (can("sales_invoice_dashboard")) {
+      prefetchTabPage("sales-invoice-dashboard", { intent: true });
+    }
+    if (can("settings_view")) prefetchTabPage("settings", { intent: true });
   };
 
   const handleSignOut = async () => {
