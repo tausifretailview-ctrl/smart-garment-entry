@@ -82,6 +82,11 @@ const BLANK = "(Blank)";
 
 export type SaleRevenueMeta = {
   gross_amount: number;
+  /**
+   * Σ(line MRP×qty) for allocating header Disc / flat / points.
+   * Prefer this over `gross_amount` — Exclusive sales may store gross as MRP+GST.
+   */
+  mrp_allocation_base?: number;
   /** Item-level discount total on sale header (POS `discount_amount`). */
   discount_amount: number;
   flat_discount_amount: number;
@@ -93,7 +98,7 @@ export type SaleRevenueMeta = {
 /**
  * Per sale_item revenue.
  * Discounts match POS Disc: header discount_amount + flat + points only (never round-off / SR / negative).
- * Gross follows MRP×qty (same basis as POS Sale Amount / sales.gross_amount).
+ * Line gross follows MRP×qty. Header discount weights use Σ line MRP (not Exclusive gross+GST).
  * Net follows net_after_discount (incl. round-off), then caller subtracts SR share.
  */
 export function computeSaleLineRevenue(
@@ -115,19 +120,23 @@ export function computeSaleLineRevenue(
   const unitP = Number(item.unit_price) || 0;
   const mrp = Number(item.mrp) || 0;
 
-  // POS Sale Amount uses Σ(MRP×qty). Fall back to unit / line_total when MRP missing.
+  // Line gross = MRP×qty. Fall back to unit / line_total when MRP missing.
   let lineGross = qty * (mrp > 0 ? mrp : unitP);
   if (!(lineGross > 0) && lineTotal !== 0) {
     lineGross = lineTotal;
   }
 
-  const saleGross = saleMeta?.gross_amount ?? 0;
+  // Exclusive sales.gross_amount may be MRP+GST — never use that as allocation base.
+  const allocBase =
+    (saleMeta?.mrp_allocation_base != null && saleMeta.mrp_allocation_base > 0
+      ? saleMeta.mrp_allocation_base
+      : saleMeta?.gross_amount) ?? 0;
   const headerItemDisc = Math.max(0, Number(saleMeta?.discount_amount) || 0);
   const headerFlat = Math.max(0, Number(saleMeta?.flat_discount_amount) || 0);
   const headerPoints = Math.max(0, Number(saleMeta?.points_redeemed_amount) || 0);
 
   // Allocate POS header Disc only — never invent MRP−rate gaps when discount_amount is 0.
-  const mrpWeight = saleGross > 0 && lineGross > 0 ? lineGross / saleGross : 0;
+  const mrpWeight = allocBase > 0 && lineGross > 0 ? lineGross / allocBase : 0;
   const lineDiscount = headerItemDisc > 0 && mrpWeight > 0 ? headerItemDisc * mrpWeight : 0;
 
   let flatShare: number;
@@ -138,10 +147,10 @@ export function computeSaleLineRevenue(
   ) {
     flatShare = Number(item.discount_share);
   } else {
-    const flatWeight = saleGross > 0 ? Math.max(0, lineTotal) / saleGross : 0;
+    const flatWeight = allocBase > 0 ? Math.max(0, lineTotal) / allocBase : 0;
     flatShare = headerFlat > 0 && flatWeight > 0 ? headerFlat * flatWeight : 0;
   }
-  const pointsWeight = saleGross > 0 ? Math.max(0, lineTotal) / saleGross : 0;
+  const pointsWeight = allocBase > 0 ? Math.max(0, lineTotal) / allocBase : 0;
   const pointsShare = headerPoints > 0 && pointsWeight > 0 ? headerPoints * pointsWeight : 0;
 
   const roundOffShare =
@@ -403,9 +412,18 @@ export async function loadProfitDataset(
 
   // Pre-sum line_totals per sale for SR allocation weight
   const lineTotalBySaleId = new Map<string, number>();
+  // Σ(MRP×qty) per sale — discount weights must not use Exclusive gross (MRP+GST).
+  const mrpBaseBySaleId = new Map<string, number>();
   saleItems.forEach((item: any) => {
     const sid = item.sale_id as string;
     lineTotalBySaleId.set(sid, (lineTotalBySaleId.get(sid) || 0) + (Number(item.line_total) || 0));
+    const qty = Number(item.quantity) || 0;
+    const mrp = Number(item.mrp) || 0;
+    const unitP = Number(item.unit_price) || 0;
+    const lineTotal = Number(item.line_total) || 0;
+    let lineMrp = qty * (mrp > 0 ? mrp : unitP);
+    if (!(lineMrp > 0) && lineTotal !== 0) lineMrp = lineTotal;
+    mrpBaseBySaleId.set(sid, (mrpBaseBySaleId.get(sid) || 0) + lineMrp);
   });
 
   saleItems.forEach((item: any) => {
@@ -423,6 +441,7 @@ export async function loadProfitDataset(
     const meta: SaleRevenueMeta | undefined = sale
       ? {
           gross_amount: Number(sale.gross_amount) || 0,
+          mrp_allocation_base: mrpBaseBySaleId.get(item.sale_id) || 0,
           discount_amount: Number(sale.discount_amount) || 0,
           flat_discount_amount: Number(sale.flat_discount_amount) || 0,
           points_redeemed_amount: Number(sale.points_redeemed_amount) || 0,

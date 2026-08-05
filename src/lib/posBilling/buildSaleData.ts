@@ -22,6 +22,25 @@ export type PosSalePersistPayload = {
   saleDate?: string;
 };
 
+/**
+ * Value persisted to `sales.gross_amount`.
+ * Exclusive: MRP + GST so dashboard "Sale Amount" matches "Net Sale" when there
+ * is no discount. Inclusive / no_gst: unchanged MRP (pre-tax / as-priced) total.
+ * On-screen discount math must keep using raw MRP — only the DB write uses this.
+ */
+export function resolvePersistedSaleGrossAmount(params: {
+  taxType: GstTaxType | string | null | undefined;
+  mrpTotal: number;
+  totalGst: number;
+}): number {
+  const mrp = Math.round((Number(params.mrpTotal) || 0) * 100) / 100;
+  const gst = Math.round((Number(params.totalGst) || 0) * 100) / 100;
+  if (String(params.taxType || "").toLowerCase() === "exclusive" && gst > 0.005) {
+    return Math.round((mrp + gst) * 100) / 100;
+  }
+  return mrp;
+}
+
 export function buildPosSalePersistPayload(params: {
   customerId?: string | null;
   customerName: string;
@@ -41,7 +60,11 @@ export function buildPosSalePersistPayload(params: {
     customerName: params.customerName,
     customerPhone: params.customerPhone || null,
     items: params.items,
-    grossAmount: params.totals.mrp,
+    grossAmount: resolvePersistedSaleGrossAmount({
+      taxType: params.taxType,
+      mrpTotal: params.totals.mrp,
+      totalGst: params.totals.totalGst,
+    }),
     discountAmount: params.totals.discount,
     flatDiscountPercent: params.totals.flatDiscountPercent,
     flatDiscountAmount: params.totals.flatDiscountAmount,

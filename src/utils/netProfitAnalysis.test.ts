@@ -79,6 +79,7 @@ describe("computeSaleLineRevenue", () => {
       {
         // POS gross_amount = Σ(MRP×qty)
         gross_amount: 500,
+        mrp_allocation_base: 500,
         discount_amount: 50,
         flat_discount_amount: 50,
         points_redeemed_amount: 0,
@@ -88,6 +89,43 @@ describe("computeSaleLineRevenue", () => {
     expect(lineDiscount).toBe(50);
     expect(flatShare).toBe(50);
     expect(netLine).toBe(402);
+  });
+
+  it("allocates header Disc by Σ line MRP even when Exclusive gross includes GST", () => {
+    // Two equal MRP lines; Exclusive sales.gross_amount = MRP+GST would skew weights.
+    const meta = {
+      gross_amount: 1050, // mrp 1000 + gst 50
+      mrp_allocation_base: 1000,
+      discount_amount: 100,
+      flat_discount_amount: 0,
+      points_redeemed_amount: 0,
+      sale_return_adjust: 0,
+    };
+    const a = computeSaleLineRevenue(
+      {
+        quantity: 1,
+        line_total: 450,
+        unit_price: 450,
+        mrp: 500,
+        discount_percent: 0,
+        sale_id: "s1",
+      },
+      meta,
+    );
+    const b = computeSaleLineRevenue(
+      {
+        quantity: 1,
+        line_total: 450,
+        unit_price: 450,
+        mrp: 500,
+        discount_percent: 0,
+        sale_id: "s1",
+      },
+      meta,
+    );
+    expect(a.lineDiscount).toBe(50);
+    expect(b.lineDiscount).toBe(50);
+    expect(a.lineDiscount + b.lineDiscount).toBe(100);
   });
 
   it("includes round-off in net via net_after_discount; never as discount", () => {

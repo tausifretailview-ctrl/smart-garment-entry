@@ -134,7 +134,7 @@ export async function buildSaleJournalV2(
   const { data: sale, error: saleErr } = await client
     .from("sales")
     .select(
-      "id, net_amount, paid_amount, payment_method, sale_date, gross_amount, discount_amount, flat_discount_amount, other_charges, points_redeemed_amount, round_off, customer_id, customer_name, sale_return_adjust, credit_applied"
+      "id, net_amount, paid_amount, payment_method, sale_date, gross_amount, discount_amount, flat_discount_amount, other_charges, points_redeemed_amount, round_off, customer_id, customer_name, sale_return_adjust, credit_applied, tax_type"
     )
     .eq("id", saleId)
     .eq("organization_id", organizationId)
@@ -154,10 +154,17 @@ export async function buildSaleJournalV2(
     .is("deleted_at", null);
   if (itemsErr) throw itemsErr;
 
+  // Empty sale_items is rare. `sales` has no gst_amount column (unlike sale_returns),
+  // so we cannot mirror the return fallback's Number(sr.gst_amount). Exclusive
+  // gross_amount may include GST — use net as the base so GST is not booked as
+  // Sales Revenue. Inclusive keeps header gross (pre-existing behaviour).
+  const taxType = String((sale as { tax_type?: string | null }).tax_type || "inclusive").toLowerCase();
+  const headerGross = Number(sale.gross_amount ?? net);
+  const emptyItemsGstBase = taxType === "exclusive" ? net : headerGross;
   const gst =
     items && items.length > 0
       ? aggregateInclusiveLines(items)
-      : breakdownFromGrossAndGst(Number(sale.gross_amount ?? net), 0);
+      : breakdownFromGrossAndGst(emptyItemsGstBase, 0);
 
   const systemAccounts = await seedDefaultAccounts(organizationId, client);
   const salesRevenue = getAccountByCode(systemAccounts, "4000");

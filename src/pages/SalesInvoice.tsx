@@ -3140,7 +3140,7 @@ Thank you for choosing us!`;
             customer_phone: selectedCustomer.phone || null,
             customer_email: selectedCustomer.email || null,
             customer_address: selectedCustomer.address || null,
-            gross_amount: grossAmount,
+            gross_amount: persistedGrossAmount,
             discount_amount: lineItemDiscount,
             flat_discount_percent: flatDiscountPercent,
             flat_discount_amount: flatDiscountAmount,
@@ -3236,7 +3236,7 @@ Thank you for choosing us!`;
             customer_phone: selectedCustomer.phone || null,
             customer_email: selectedCustomer.email || null,
             customer_address: selectedCustomer.address || null,
-            gross_amount: grossAmount,
+            gross_amount: persistedGrossAmount,
             discount_amount: lineItemDiscount,
             flat_discount_percent: flatDiscountPercent,
             flat_discount_amount: flatDiscountAmount,
@@ -3381,7 +3381,7 @@ Thank you for choosing us!`;
                 sale_number: saleNumber,
                 sale_date: format(invoiceDate, "yyyy-MM-dd"),
                 net_amount: netAmount,
-                gross_amount: grossAmount,
+                gross_amount: persistedGrossAmount,
                 discount_amount: flatDiscountAmount,
                 payment_status: paymentOverride
                   ? paymentOverride.totalPaid >= netAmount
@@ -3654,6 +3654,13 @@ Thank you for choosing us!`;
   }, [netBeforeRoundOff, lineItems, editingInvoiceId, roundOff, isManualRoundOff]);
   
   const netAmount = Math.round(netBeforeRoundOff + roundOff);
+
+  // Persist Exclusive gross as MRP+GST (dashboard Sale Amount). Keep `grossAmount`
+  // for on-screen discount math / UI — only the DB write uses this.
+  const persistedGrossAmount =
+    taxType === "exclusive" && totalGST > 0.005
+      ? Math.round((grossAmount + totalGST) * 100) / 100
+      : grossAmount;
 
   const isMobile = useIsMobile();
 

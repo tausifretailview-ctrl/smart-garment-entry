@@ -7,6 +7,10 @@
 import { describe, expect, it } from "vitest";
 import { computePosBillTotals } from "./billTotals";
 import {
+  buildPosSalePersistPayload,
+  resolvePersistedSaleGrossAmount,
+} from "./buildSaleData";
+import {
   addLine,
   resolveAddLinePrices,
   updateDiscountAmount,
@@ -452,5 +456,43 @@ describe("POS billing characterisation — hold resume / edit restore", () => {
     // exclusive GST on (2000-200)=1800 @ 5% = 90 → payable 1890
     expect(t.totalGst).toBe(90);
     expect(t.amountBeforeRoundOff).toBe(1890);
+  });
+});
+
+describe("resolvePersistedSaleGrossAmount / buildPosSalePersistPayload", () => {
+  it("Exclusive persists MRP+GST; Inclusive keeps MRP", () => {
+    expect(
+      resolvePersistedSaleGrossAmount({ taxType: "exclusive", mrpTotal: 1000, totalGst: 50 }),
+    ).toBe(1050);
+    expect(
+      resolvePersistedSaleGrossAmount({ taxType: "inclusive", mrpTotal: 1000, totalGst: 50 }),
+    ).toBe(1000);
+    expect(
+      resolvePersistedSaleGrossAmount({ taxType: "no_gst", mrpTotal: 1000, totalGst: 0 }),
+    ).toBe(1000);
+  });
+
+  it("buildPosSalePersistPayload uses tax-aware gross for Exclusive", () => {
+    const items = [line({ mrp: 1000, unitCost: 1000, quantity: 1, discountPercent: 0, gstPer: 5 })];
+    const totals = computePosBillTotals({
+      items,
+      taxType: "exclusive",
+      flatDiscountValue: 0,
+      flatDiscountMode: "amount",
+      roundOff: 0,
+    });
+    const payload = buildPosSalePersistPayload({
+      customerName: "Walk-in",
+      items,
+      totals,
+      saleReturnAdjust: 0,
+      roundOff: 0,
+      creditApplied: 0,
+      taxType: "exclusive",
+    });
+    expect(totals.mrp).toBe(1000);
+    expect(totals.totalGst).toBe(50);
+    expect(payload.grossAmount).toBe(1050);
+    expect(payload.netAmount).toBe(1050);
   });
 });
