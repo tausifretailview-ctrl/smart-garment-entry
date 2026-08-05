@@ -6,13 +6,23 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 import {
   confirmReloadIfPosCartBusy,
   reloadAppWithUpdateCheck,
+  SILENT_UPDATE_BANNER_FALLBACK_MS,
+  SILENT_UPDATE_BANNER_FALLBACK_STANDALONE_MS,
+  STANDALONE_SW_UPDATE_CHECK_MS,
   startSilentUpdateWhenSafe,
 } from "@/lib/appReload";
 import { isElectronShell } from "@/lib/electronShell";
+import { isStandalonePwa } from "@/lib/orgPwaManifest";
 
 const SNOOZE_KEY = "ezzy_pwa_update_snooze_until";
-/** After "Later", hide the banner until this many ms elapse (or next browser session). */
+/** After "Later", hide the banner (browser tab). */
 const SNOOZE_MS = 8 * 60 * 60 * 1000;
+/** Installed PWA — shorter snooze so deploys are not ignored all day. */
+const SNOOZE_STANDALONE_MS = 60 * 60 * 1000;
+
+function snoozeMs(): number {
+  return isStandalonePwa() ? SNOOZE_STANDALONE_MS : SNOOZE_MS;
+}
 
 function isUpdateSnoozed(): boolean {
   try {
@@ -28,14 +38,16 @@ function isUpdateSnoozed(): boolean {
 
 function snoozeUpdatePrompt(): void {
   try {
-    sessionStorage.setItem(SNOOZE_KEY, String(Date.now() + SNOOZE_MS));
+    sessionStorage.setItem(SNOOZE_KEY, String(Date.now() + snoozeMs()));
   } catch {
     // ignore
   }
 }
 
 /**
- * Prompt-mode PWA update — silent reload when idle/hidden; banner only after 2h fallback.
+ * Prompt-mode PWA update — silent reload when idle/hidden; banner after fallback.
+ * Installed (standalone) PWAs check for SW updates more often and surface the
+ * banner sooner so shops do not sit on a dead precache after deploy.
  */
 export function UpdatePrompt() {
   const { currentOrganization } = useOrganization();
@@ -46,6 +58,7 @@ export function UpdatePrompt() {
   const prevNeedRefresh = useRef(false);
   const orgIdRef = useRef(currentOrganization?.id);
   orgIdRef.current = currentOrganization?.id;
+  const standalone = isStandalonePwa();
 
   const {
     needRefresh: [needRefresh],
@@ -55,6 +68,34 @@ export function UpdatePrompt() {
       console.error("SW registration error:", error);
     },
   });
+
+  // Installed PWA: poll SW updates often + on every focus so deploys do not leave a waiting worker all day.
+  useEffect(() => {
+    if (!("serviceWorker" in navigator)) return;
+    const intervalMs = standalone ? STANDALONE_SW_UPDATE_CHECK_MS : 60 * 60 * 1000;
+    let cancelled = false;
+    let intervalId = 0;
+
+    const tick = () => {
+      void navigator.serviceWorker.getRegistration().then((reg) => {
+        if (!cancelled && reg) void reg.update().catch(() => undefined);
+      });
+    };
+
+    tick();
+    intervalId = window.setInterval(tick, intervalMs);
+
+    const onVisible = () => {
+      if (document.visibilityState === "visible") tick();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [standalone]);
 
   useEffect(() => {
     if (needRefresh && !prevNeedRefresh.current) {
@@ -73,6 +114,9 @@ export function UpdatePrompt() {
 
     const session = startSilentUpdateWhenSafe({
       getOrganizationId: () => orgIdRef.current,
+      bannerFallbackMs: standalone
+        ? SILENT_UPDATE_BANNER_FALLBACK_STANDALONE_MS
+        : SILENT_UPDATE_BANNER_FALLBACK_MS,
       onFallbackBanner: () => {
         setSnoozed(isUpdateSnoozed());
         setAllowBanner(true);
@@ -87,7 +131,7 @@ export function UpdatePrompt() {
     });
 
     return () => session.stop();
-  }, [needRefresh, updateToken, updateServiceWorker]);
+  }, [needRefresh, updateToken, updateServiceWorker, standalone]);
 
   const handleReload = useCallback(async () => {
     if (reloading) return;
@@ -114,7 +158,9 @@ export function UpdatePrompt() {
 
   const versionHint = isElectronShell()
     ? "Reload to load the latest features from the server."
-    : "Reload when you are between tasks.";
+    : standalone
+      ? "A new version is ready. Reload now to avoid blank screens after update."
+      : "Reload when you are between tasks.";
 
   return (
     <div

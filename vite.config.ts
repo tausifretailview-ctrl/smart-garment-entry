@@ -41,13 +41,13 @@ export default defineConfig(({ mode }) => ({
         navigateFallback: null,
         runtimeCaching: [
           {
-            // HTML navigations: network-first so deploys aren't stuck behind a precached shell
+            // Navigations must NEVER fall back to a cached HTML shell after deploy.
+            // NetworkFirst + 8s timeout previously served yesterday's index.html on slow
+            // shop Wi‑Fi → hashed chunks 404 as text/html → blank PWA until cache clear.
             urlPattern: ({ request }) => request.mode === 'navigate',
-            handler: 'NetworkFirst',
+            handler: 'NetworkOnly',
             options: {
               cacheName: 'html-navigations',
-              networkTimeoutSeconds: 8,
-              expiration: { maxEntries: 5, maxAgeSeconds: 24 * 60 * 60 },
             },
           },
           {
