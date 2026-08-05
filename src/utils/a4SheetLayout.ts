@@ -112,13 +112,19 @@ export function resolveA4LayoutGap(
   return gapMm;
 }
 
-/** Coerce label width to official MPL 40L 39mm when a legacy 38mm 5×8 preset is used. */
+/**
+ * Coerce label width to official MPL 40L 39mm when a legacy 38/40mm 5×8 preset is used.
+ * When the preset already has gap 0 the values are treated as a deliberate,
+ * fine-tuned pitch (e.g. 38.6mm to match a slightly tighter die-cut) and kept as-is.
+ */
 export function resolveA4LabelWidthMm(
   cols: number,
   rows: number,
   labelWidthMm: number,
   labelHeightMm: number,
+  gapMm?: number,
 ): number {
+  if (gapMm !== undefined && Math.abs(gapMm) <= 0.05) return labelWidthMm;
   if (isNovaJetMpl40LGrid(cols, rows, labelWidthMm, labelHeightMm)) {
     return A4_40_LABEL_39X35.labelWidthMm;
   }
@@ -141,22 +147,17 @@ export function computeA4SheetMargins(
   offsets: A4SheetMarginOffsets = {},
 ): { marginTop: number; marginLeft: number; marginBottom: number; marginRight: number } {
   const effectiveGap = resolveA4LayoutGap(cols, rows, labelWidthMm, labelHeightMm, gapMm);
-  const effectiveWidth = resolveA4LabelWidthMm(cols, rows, labelWidthMm, labelHeightMm);
+  const effectiveWidth = resolveA4LabelWidthMm(cols, rows, labelWidthMm, labelHeightMm, gapMm);
   const contentW = cols * effectiveWidth + Math.max(0, cols - 1) * effectiveGap;
   const contentH = rows * labelHeightMm + Math.max(0, rows - 1) * effectiveGap;
 
   const novaJet48L = isNovaJetMpl48LGrid(cols, rows, labelWidthMm, labelHeightMm);
-  const novaJet40L = isNovaJetMpl40LGrid(cols, rows, labelWidthMm, labelHeightMm);
   const baseTop = novaJet48L
     ? A4_48_LABEL_48X24.sheetTopMarginMm
-    : novaJet40L
-      ? A4_40_LABEL_39X35.sheetTopMarginMm
-      : Math.max(0, (A4_PAGE_HEIGHT_MM - contentH) / 2);
+    : Math.max(0, (A4_PAGE_HEIGHT_MM - contentH) / 2);
   const baseLeft = novaJet48L
     ? A4_48_LABEL_48X24.sheetLeftMarginMm
-    : novaJet40L
-      ? A4_40_LABEL_39X35.sheetLeftMarginMm
-      : Math.max(0, (A4_PAGE_WIDTH_MM - contentW) / 2);
+    : Math.max(0, (A4_PAGE_WIDTH_MM - contentW) / 2);
   const baseBottom = Math.max(0, A4_PAGE_HEIGHT_MM - contentH - baseTop);
   const baseRight = Math.max(0, A4_PAGE_WIDTH_MM - contentW - baseLeft);
 

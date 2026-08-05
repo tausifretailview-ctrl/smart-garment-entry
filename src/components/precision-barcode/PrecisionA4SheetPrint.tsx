@@ -71,7 +71,7 @@ export const PrecisionA4SheetPrint = forwardRef<HTMLDivElement, PrecisionA4Sheet
     // NovaJet MPL 48L/40L → gap 0; MPL 40L legacy 38mm → 39mm width.
     const requestedGap = Math.max(0, columnGap || vGap || 0);
     const layoutGap = resolveA4LayoutGap(cols, rows, labelWidth, labelHeight, requestedGap);
-    const layoutWidth = resolveA4LabelWidthMm(cols, rows, labelWidth, labelHeight);
+    const layoutWidth = resolveA4LabelWidthMm(cols, rows, labelWidth, labelHeight, requestedGap);
     const rowGap = layoutGap;
     const colGap = layoutGap;
     const { marginTop, marginLeft, marginRight, marginBottom } = computeA4SheetMargins(
