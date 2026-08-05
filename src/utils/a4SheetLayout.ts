@@ -10,6 +10,31 @@ export type A4SheetMarginOffsets = {
 };
 
 /**
+ * Explicit NovaJet die-cut brand — never inferred from label shape alone.
+ * - mpl40 → Sheet Type `novajet40` (MPL 40L / 39×35, 5×8)
+ * - mpl48 → Sheet Type `a4_12x4` (MPL 48L / 48×24, 4×12) — not `novajet48`
+ *   (`novajet48` in BarcodePrinting is a different 8×6 × 33×19 sheet)
+ */
+export type NovaJetSheetBrand = "mpl40" | "mpl48";
+
+/**
+ * Map BarcodePrinting `sheetType` → NovaJet brand. Generic / custom sheets return null
+ * even when their cols×rows×size happen to match a NovaJet die-cut.
+ */
+export function novaJetBrandFromSheetType(
+  sheetType?: string | null,
+): NovaJetSheetBrand | null {
+  switch (String(sheetType || "").trim()) {
+    case "novajet40":
+      return "mpl40";
+    case "a4_12x4":
+      return "mpl48";
+    default:
+      return null;
+  }
+}
+
+/**
  * TechNova NovaJet MPL 48L (NJMPL 48L / 48×24WR): 4×12 on A4, no inter-label gap.
  * Official die-cut top margin is 7.5mm (not vertically centered).
  */
@@ -45,7 +70,7 @@ export const A4_40_LABEL_39X35 = {
   defaultOffsets: { top: 0, left: 0, bottom: 0, right: 0 } as A4SheetMarginOffsets,
 } as const;
 
-/** True when the grid matches NovaJet MPL 48L sticker size (gap ignored). */
+/** True when the grid matches NovaJet MPL 48L sticker size (gap ignored). Shape-only helper. */
 export function isNovaJetMpl48LGrid(
   cols: number,
   rows: number,
@@ -61,8 +86,8 @@ export function isNovaJetMpl48LGrid(
 }
 
 /**
- * True for NovaJet MPL 40L (39×35) and the common mistaken 38×35 preset —
- * both are 5×8 die-cut sheets that must use gap 0.
+ * True for NovaJet MPL 40L (39×35) and the common mistaken 38×35 / 40×35 presets —
+ * both are 5×8 die-cut sheets. Shape-only helper — do not use alone to force layout.
  */
 export function isNovaJetMpl40LGrid(
   cols: number,
@@ -78,7 +103,7 @@ export function isNovaJetMpl40LGrid(
 }
 
 /**
- * @deprecated Prefer {@link isNovaJetMpl48LGrid} + {@link resolveA4LayoutGap}.
+ * @deprecated Prefer {@link isNovaJetMpl48LGrid} + brand-gated {@link resolveA4LayoutGap}.
  * Kept for call sites that still pass gap; gap is ignored for the match.
  */
 export function isNovaJetMpl48LLayout(
@@ -91,10 +116,31 @@ export function isNovaJetMpl48LLayout(
   return isNovaJetMpl48LGrid(cols, rows, labelWidthMm, labelHeightMm);
 }
 
+function warnNovaJetShapeMismatch(
+  brand: NovaJetSheetBrand,
+  cols: number,
+  rows: number,
+  labelWidthMm: number,
+  labelHeightMm: number,
+): void {
+  const shapeOk =
+    brand === "mpl48"
+      ? isNovaJetMpl48LGrid(cols, rows, labelWidthMm, labelHeightMm)
+      : isNovaJetMpl40LGrid(cols, rows, labelWidthMm, labelHeightMm);
+  if (shapeOk) return;
+  console.warn(
+    `[a4SheetLayout] sheetType is NovaJet ${brand} but dimensions ` +
+      `${cols}×${rows} @ ${labelWidthMm}×${labelHeightMm}mm do not match the expected die-cut. ` +
+      `Manufacturer overrides are still applied; check the saved preset.`,
+  );
+}
+
 /**
- * NovaJet MPL 48L die-cuts have **zero** inter-label gap. Custom presets often
+ * NovaJet MPL 48L / 40L die-cuts have **zero** inter-label gap. Custom presets often
  * save Gap=1 by mistake; that disables manufacturer margins (contentH > A4) and
- * makes row pitch 25mm instead of 24mm → content drifts down the sheet.
+ * makes row pitch wrong → content drifts down the sheet.
+ *
+ * Overrides apply only when `novaJetBrand` is set from sheetType — never from shape alone.
  */
 export function resolveA4LayoutGap(
   cols: number,
@@ -102,20 +148,16 @@ export function resolveA4LayoutGap(
   labelWidthMm: number,
   labelHeightMm: number,
   gapMm: number,
+  novaJetBrand?: NovaJetSheetBrand | null,
 ): number {
-  if (isNovaJetMpl48LGrid(cols, rows, labelWidthMm, labelHeightMm)) {
-    return A4_48_LABEL_48X24.gapMm;
-  }
-  if (isNovaJetMpl40LGrid(cols, rows, labelWidthMm, labelHeightMm)) {
-    return A4_40_LABEL_39X35.gapMm;
-  }
+  if (novaJetBrand === "mpl48") return A4_48_LABEL_48X24.gapMm;
+  if (novaJetBrand === "mpl40") return A4_40_LABEL_39X35.gapMm;
   return gapMm;
 }
 
 /**
- * Coerce label width to official MPL 40L 39mm when a legacy 38/40mm 5×8 preset is used.
- * Always coerce for the 5×8 die-cut grid — including Gap=0 custom presets (a prior early
- * return for gap≈0 left width at 38mm and shifted left margin to 10mm).
+ * Coerce label width to official MPL 40L 39mm when sheetType is NovaJet 40L
+ * (covers legacy 38/40mm presets saved under that sheet type).
  */
 export function resolveA4LabelWidthMm(
   cols: number,
@@ -123,21 +165,19 @@ export function resolveA4LabelWidthMm(
   labelWidthMm: number,
   labelHeightMm: number,
   _gapMm?: number,
+  novaJetBrand?: NovaJetSheetBrand | null,
 ): number {
-  if (isNovaJetMpl40LGrid(cols, rows, labelWidthMm, labelHeightMm)) {
-    return A4_40_LABEL_39X35.labelWidthMm;
-  }
+  if (novaJetBrand === "mpl40") return A4_40_LABEL_39X35.labelWidthMm;
   return labelWidthMm;
 }
 
 /**
  * Center a label grid on A4, then apply user nudges (positive top = move down, positive left = move right).
- * NovaJet MPL 48L / 40L use manufacturer top/left margins instead of pure centering.
+ * NovaJet MPL 48L / 40L use manufacturer top/left margins instead of pure centering —
+ * only when `novaJetBrand` is set from the selected sheetType.
  *
  * Sheet Margin UI fields are **nudges** on top of these bases (0 = manufacturer / centered).
  * Negative nudge is allowed (clamped so margins stay ≥ 0).
- *
- * For 4×12 × 48×24 and 5×8 × 39×35, gap is forced to 0 (see resolveA4LayoutGap).
  */
 export function computeA4SheetMargins(
   cols: number,
@@ -146,14 +186,32 @@ export function computeA4SheetMargins(
   labelHeightMm: number,
   gapMm: number,
   offsets: A4SheetMarginOffsets = {},
+  novaJetBrand?: NovaJetSheetBrand | null,
 ): { marginTop: number; marginLeft: number; marginBottom: number; marginRight: number } {
-  const effectiveGap = resolveA4LayoutGap(cols, rows, labelWidthMm, labelHeightMm, gapMm);
-  const effectiveWidth = resolveA4LabelWidthMm(cols, rows, labelWidthMm, labelHeightMm, gapMm);
+  const effectiveGap = resolveA4LayoutGap(
+    cols,
+    rows,
+    labelWidthMm,
+    labelHeightMm,
+    gapMm,
+    novaJetBrand,
+  );
+  const effectiveWidth = resolveA4LabelWidthMm(
+    cols,
+    rows,
+    labelWidthMm,
+    labelHeightMm,
+    gapMm,
+    novaJetBrand,
+  );
   const contentW = cols * effectiveWidth + Math.max(0, cols - 1) * effectiveGap;
   const contentH = rows * labelHeightMm + Math.max(0, rows - 1) * effectiveGap;
 
-  const novaJet48L = isNovaJetMpl48LGrid(cols, rows, labelWidthMm, labelHeightMm);
-  const novaJet40L = isNovaJetMpl40LGrid(cols, rows, labelWidthMm, labelHeightMm);
+  const novaJet48L = novaJetBrand === "mpl48";
+  const novaJet40L = novaJetBrand === "mpl40";
+  if (novaJet48L || novaJet40L) {
+    warnNovaJetShapeMismatch(novaJetBrand!, cols, rows, labelWidthMm, labelHeightMm);
+  }
   const baseTop = novaJet48L
     ? A4_48_LABEL_48X24.sheetTopMarginMm
     : novaJet40L

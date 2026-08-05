@@ -40,7 +40,7 @@ import { encodePurchasePrice, getEffectivePurchasePrice } from "@/utils/purchase
 import { generateA4LabelPdf } from '@/utils/a4LabelPdf';
 import {
   computeA4SheetMargins,
-  isNovaJetMpl48LGrid,
+  novaJetBrandFromSheetType,
   resolveA4LayoutGap,
   resolveA4LabelWidthMm,
 } from '@/utils/a4SheetLayout';
@@ -4655,6 +4655,7 @@ export default function BarcodePrinting() {
       precisionSettings.labelWidth,
       precisionSettings.labelHeight,
       raw,
+      novaJetBrandFromSheetType(sheetType),
     );
   };
 
@@ -4686,8 +4687,9 @@ export default function BarcodePrinting() {
     return Math.min(scaleX, scaleY);
   };
 
-  /** A4 cell size for Standard print/preview — coerces MPL 48L/40L gap & 40L width. */
+  /** A4 cell size for Standard print/preview — coerces MPL 48L/40L gap & 40L width when brand sheetType. */
   const getA4SheetDimensions = () => {
+    const brand = novaJetBrandFromSheetType(sheetType);
     const cols = sheetType === "custom" ? customCols : sheetPresets[sheetType].cols;
     const rows =
       sheetType === "custom"
@@ -4699,27 +4701,36 @@ export default function BarcodePrinting() {
       sheetType === "custom" ? customHeight : parseFloat(sheetPresets[sheetType].height);
     const rawGap =
       sheetType === "custom" ? customGap : parseFloat(sheetPresets[sheetType].gap);
-    const width = resolveA4LabelWidthMm(cols, rows, rawWidth, height, rawGap);
+    const width = resolveA4LabelWidthMm(cols, rows, rawWidth, height, rawGap, brand);
     return {
       cols,
       rows,
       width,
       height,
-      gap: resolveA4LayoutGap(cols, rows, rawWidth, height, rawGap),
+      gap: resolveA4LayoutGap(cols, rows, rawWidth, height, rawGap, brand),
       rawGap,
       rawWidth,
+      novaJetBrand: brand,
     };
   };
 
   const getSheetPageMargins = () => {
-    const { cols, rows, width, height, gap } = getA4SheetDimensions();
+    const { cols, rows, width, height, gap, novaJetBrand } = getA4SheetDimensions();
 
-    return computeA4SheetMargins(cols, rows, width, height, gap, {
-      top: topOffset,
-      left: leftOffset,
-      bottom: bottomOffset,
-      right: rightOffset,
-    });
+    return computeA4SheetMargins(
+      cols,
+      rows,
+      width,
+      height,
+      gap,
+      {
+        top: topOffset,
+        left: leftOffset,
+        bottom: bottomOffset,
+        right: rightOffset,
+      },
+      novaJetBrand,
+    );
   };
 
   const generatePreview = (targetElementId: string) => {
@@ -5309,6 +5320,8 @@ export default function BarcodePrinting() {
         labelConfig,
         businessName,
         startPosition,
+        sheetType,
+        novaJetBrand: dimensions.novaJetBrand,
       });
 
       const blob = new Blob([new Uint8Array(pdfBytes) as any], { type: 'application/pdf' });
@@ -5407,6 +5420,8 @@ export default function BarcodePrinting() {
         labelConfig,
         businessName,
         startPosition,
+        sheetType,
+        novaJetBrand: dimensions.novaJetBrand,
       });
 
       const blob = new Blob([new Uint8Array(pdfBytes) as any], { type: 'application/pdf' });
@@ -6539,19 +6554,14 @@ export default function BarcodePrinting() {
                     onChange={(e) => setCustomGap(Math.max(0, Math.min(50, parseFloat(e.target.value) || 0)))}
                     placeholder="e.g., 0"
                   />
-                  {isNovaJetMpl48LGrid(customCols, customRows, customWidth, customHeight) && (
-                    <p className="text-xs text-muted-foreground bg-muted/40 border rounded px-2 py-1.5 space-y-0.5">
-                      <span className="block">
-                        NovaJet MPL 48L sheet margins (edge → first label):{" "}
-                        <strong>Top 7.5mm</strong>, <strong>Left/Right 9mm</strong>, Bottom 1.5mm.
-                        Inter-label gap is <strong>0</strong> (die-cuts touch) — not 1–2mm.
-                      </span>
-                      {Math.abs(customGap) > 0.05 && (
-                        <span className="block text-amber-700">
-                          Gap {customGap}mm is ignored for print (forced to 0). Click Update to save Gap 0,
-                          or pick Sheet Type → NovaJet MPL 48L.
-                        </span>
-                      )}
+                  {customCols === 4 &&
+                    customRows === 12 &&
+                    Math.abs(customWidth - 48) < 0.05 &&
+                    Math.abs(customHeight - 24) < 0.05 && (
+                    <p className="text-xs text-muted-foreground bg-muted/40 border rounded px-2 py-1.5">
+                      These dimensions match NovaJet MPL 48L stock. For manufacturer margins
+                      (Top 7.5mm / Left 9mm, gap 0), pick Sheet Type → <strong>NovaJet MPL 48L</strong>.
+                      Custom sheets use your saved gap and centered margins as-is.
                     </p>
                   )}
                 </div>
@@ -7820,6 +7830,7 @@ export default function BarcodePrinting() {
                       config={effectivePrecisionLabelConfig}
                       startPosition={startPosition}
                       productFieldSettings={productFieldSettings}
+                      sheetType={sheetType}
                     />
                   )}
                 </>
@@ -8039,6 +8050,7 @@ export default function BarcodePrinting() {
               startPosition={startPosition}
               active={printPageActive}
               productFieldSettings={productFieldSettings}
+              sheetType={sheetType}
             />
           )}
         </div>

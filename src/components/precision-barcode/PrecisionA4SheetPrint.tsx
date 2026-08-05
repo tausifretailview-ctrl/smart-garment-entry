@@ -7,8 +7,10 @@ import {
   computeA4SheetMargins,
   resolveA4LayoutGap,
   resolveA4LabelWidthMm,
+  novaJetBrandFromSheetType,
   A4_PAGE_WIDTH_MM,
   A4_PAGE_HEIGHT_MM,
+  type NovaJetSheetBrand,
 } from "@/utils/a4SheetLayout";
 
 interface PrecisionA4SheetPrintProps {
@@ -30,6 +32,10 @@ interface PrecisionA4SheetPrintProps {
   /** Gate the global `<style>` injection so it only happens during an active print job. */
   active?: boolean;
   productFieldSettings?: ProductFieldsConfig | null;
+  /** BarcodePrinting sheetType — gates NovaJet manufacturer overrides. */
+  sheetType?: string | null;
+  /** Explicit brand when sheetType is unavailable. */
+  novaJetBrand?: NovaJetSheetBrand | null;
 }
 
 export const PrecisionA4SheetPrint = forwardRef<HTMLDivElement, PrecisionA4SheetPrintProps>(
@@ -48,6 +54,8 @@ export const PrecisionA4SheetPrint = forwardRef<HTMLDivElement, PrecisionA4Sheet
       startPosition = 1,
       active = false,
       productFieldSettings = null,
+      sheetType = null,
+      novaJetBrand: novaJetBrandOpt = undefined,
     },
     ref,
   ) => {
@@ -67,11 +75,28 @@ export const PrecisionA4SheetPrint = forwardRef<HTMLDivElement, PrecisionA4Sheet
       pages.push(expandedItems.slice(i, i + labelsPerPage));
     }
 
+    const novaJetBrand =
+      novaJetBrandOpt !== undefined ? novaJetBrandOpt : novaJetBrandFromSheetType(sheetType);
+
     // Prefer sheet column gap; fall back to vGap when only one is set.
-    // NovaJet MPL 48L/40L → gap 0; MPL 40L legacy 38mm → 39mm width.
+    // NovaJet MPL 48L/40L → gap 0 / 39mm width only when sheetType is that brand.
     const requestedGap = Math.max(0, columnGap || vGap || 0);
-    const layoutGap = resolveA4LayoutGap(cols, rows, labelWidth, labelHeight, requestedGap);
-    const layoutWidth = resolveA4LabelWidthMm(cols, rows, labelWidth, labelHeight, requestedGap);
+    const layoutGap = resolveA4LayoutGap(
+      cols,
+      rows,
+      labelWidth,
+      labelHeight,
+      requestedGap,
+      novaJetBrand,
+    );
+    const layoutWidth = resolveA4LabelWidthMm(
+      cols,
+      rows,
+      labelWidth,
+      labelHeight,
+      requestedGap,
+      novaJetBrand,
+    );
     const rowGap = layoutGap;
     const colGap = layoutGap;
     const { marginTop, marginLeft, marginRight, marginBottom } = computeA4SheetMargins(
@@ -81,6 +106,7 @@ export const PrecisionA4SheetPrint = forwardRef<HTMLDivElement, PrecisionA4Sheet
       labelHeight,
       layoutGap,
       { top: yOffset, left: xOffset },
+      novaJetBrand,
     );
 
     return (

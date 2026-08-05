@@ -5,8 +5,10 @@ import {
   computeA4SheetMargins,
   resolveA4LayoutGap,
   resolveA4LabelWidthMm,
+  novaJetBrandFromSheetType,
   A4_PAGE_WIDTH_MM,
   A4_PAGE_HEIGHT_MM,
+  type NovaJetSheetBrand,
 } from '@/utils/a4SheetLayout';
 import { barcodeHeightPxFromMm, resolveBarcodeSlotMm } from '@/utils/barcodeLabelLayout';
 import type { LabelData, TSPLTemplateConfig } from '@/utils/tsplGenerator';
@@ -70,6 +72,13 @@ export interface A4SheetOptions {
   /** Start printing from this 1-based slot on the first page (default 1).
    *  Used to skip already-used labels on a partially-used A4 sheet. */
   startPosition?: number;
+  /**
+   * BarcodePrinting sheetType — gates NovaJet manufacturer overrides.
+   * Prefer this over guessing from cols/rows/size.
+   */
+  sheetType?: string | null;
+  /** Explicit brand override when sheetType is unavailable (e.g. tests). */
+  novaJetBrand?: NovaJetSheetBrand | null;
 }
 
 export const generateA4LabelPdf = async (
@@ -84,6 +93,8 @@ export const generateA4LabelPdf = async (
     rightOffsetMm: rawRightOffsetMm = 0,
     labelConfig, businessName = '',
     startPosition: rawStartPosition = 1,
+    sheetType = null,
+    novaJetBrand: novaJetBrandOpt = undefined,
   } = options;
   const labelsPerSlot = Math.max(1, cols * rows);
   const startPosition = Math.min(
@@ -96,6 +107,8 @@ export const generateA4LabelPdf = async (
   const leftOffsetMm = Number.isFinite(rawLeftOffsetMm) ? rawLeftOffsetMm : 0;
   const bottomOffsetMm = Number.isFinite(rawBottomOffsetMm) ? rawBottomOffsetMm : 0;
   const rightOffsetMm = Number.isFinite(rawRightOffsetMm) ? rawRightOffsetMm : 0;
+  const novaJetBrand =
+    novaJetBrandOpt !== undefined ? novaJetBrandOpt : novaJetBrandFromSheetType(sheetType);
 
   // Informational warning if layout exceeds A4 dimensions
   const pdfDoc = await PDFDocument.create();
@@ -103,9 +116,23 @@ export const generateA4LabelPdf = async (
   const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
 
   // NovaJet MPL 48L / 40L: force gap 0 (+ official 39mm width for 40L) so pitch
-  // matches die-cut even if a custom preset saved Gap=1 / 38mm (cumulative drift).
-  const layoutGapMm = resolveA4LayoutGap(cols, rows, labelWidthMm, labelHeightMm, gapMm);
-  const layoutWidthMm = resolveA4LabelWidthMm(cols, rows, labelWidthMm, labelHeightMm);
+  // matches die-cut — only when sheetType is the NovaJet brand (not shape alone).
+  const layoutGapMm = resolveA4LayoutGap(
+    cols,
+    rows,
+    labelWidthMm,
+    labelHeightMm,
+    gapMm,
+    novaJetBrand,
+  );
+  const layoutWidthMm = resolveA4LabelWidthMm(
+    cols,
+    rows,
+    labelWidthMm,
+    labelHeightMm,
+    gapMm,
+    novaJetBrand,
+  );
 
   const totalWidthMm =
     leftOffsetMm + rightOffsetMm + cols * layoutWidthMm + (cols - 1) * layoutGapMm;
@@ -129,6 +156,7 @@ export const generateA4LabelPdf = async (
     labelHeightMm,
     layoutGapMm,
     { top: topOffsetMm, left: leftOffsetMm, bottom: bottomOffsetMm, right: rightOffsetMm },
+    novaJetBrand,
   );
   const marginLeft = mmToPt(marginLeftMm);
   const marginTop = mmToPt(marginTopMm);
