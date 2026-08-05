@@ -186,7 +186,7 @@ const GSTSalePurchaseRegister = () => {
       const { data: salesData } = await supabase
         .from("sales")
         .select(`
-          id, sale_number, sale_date, customer_name, net_amount,
+          id, sale_number, sale_date, customer_name, net_amount, tax_type,
           gross_amount, discount_amount, flat_discount_amount,
           customer_id, customers(gst_number)
         `)
@@ -202,7 +202,7 @@ const GSTSalePurchaseRegister = () => {
       const { data: posSalesData } = await supabase
         .from("sales")
         .select(`
-          id, sale_number, sale_date, customer_name, net_amount,
+          id, sale_number, sale_date, customer_name, net_amount, tax_type,
           gross_amount, discount_amount, flat_discount_amount,
           customer_id, customers(gst_number)
         `)
