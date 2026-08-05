@@ -385,13 +385,22 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
       props.saleReturnAdjust || 0
     );
     const gstNetMultiplier = linesTotal > 0 ? gstNetBase / linesTotal : 0;
+    // Sale exclusive stores line_total = taxable + GST (net ≈ Σ lines). POS exclusive
+    // stores taxable line_total (net ≈ Σ lines + GST). Use inclusive extract when embedded.
+    const lineTotalsEmbedGst =
+      taxType === "exclusive" &&
+      Math.abs(
+        Number(props.grandTotal || 0) - linesTotal + Number(props.saleReturnAdjust || 0),
+      ) < 1;
+    const breakupTaxType =
+      taxType === "exclusive" && !lineTotalsEmbedGst ? "exclusive" : taxType === "no_gst" ? "no_gst" : "inclusive";
 
     const gstBreakup = calculateGSTBreakup(
       props.items.map((item) => ({
         gst_percent: item.gstPercent || 0,
         line_total: item.total * gstNetMultiplier,
       })),
-      taxType,
+      breakupTaxType,
       isInterState
     );
 

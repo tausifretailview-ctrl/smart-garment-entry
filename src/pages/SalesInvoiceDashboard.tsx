@@ -2182,6 +2182,7 @@ export default function SalesInvoiceDashboard() {
           cnAdjustDate={invoiceToPrint.cn_adjust_date || null}
           otherCharges={invoiceToPrint.other_charges || 0}
           roundOff={Number(invoiceToPrint.round_off ?? 0)}
+          taxType={invoiceToPrint.tax_type || undefined}
           financerDetails={invoiceToPrint.financerDetails || null}
         />
       );
@@ -3670,6 +3671,7 @@ export default function SalesInvoiceDashboard() {
               cnAdjustDate={invoiceToPrint.cn_adjust_date || null}
               otherCharges={invoiceToPrint.other_charges || 0}
               roundOff={Number(invoiceToPrint.round_off ?? 0)}
+              taxType={invoiceToPrint.tax_type || undefined}
               financerDetails={invoiceToPrint.financerDetails || null}
             />
           </div>
@@ -5376,6 +5378,7 @@ export default function SalesInvoiceDashboard() {
               cnAdjustDate={invoiceToPrint.cn_adjust_date || null}
               otherCharges={invoiceToPrint.other_charges || 0}
               roundOff={Number(invoiceToPrint.round_off ?? 0)}
+              taxType={invoiceToPrint.tax_type || undefined}
               financerDetails={invoiceToPrint.financerDetails || null}
             />
           </div>

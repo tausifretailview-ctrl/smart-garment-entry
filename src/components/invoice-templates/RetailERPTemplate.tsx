@@ -253,15 +253,100 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   const computedDiscountFromLines = Math.max(0, displaySubTotal - merchandiseNetExcludingRound);
   const displayDiscount =
     propDiscount > 0.005 ? propDiscount : computedDiscountFromLines > 0.005 ? computedDiscountFromLines : 0;
-  const explicitOtherCharges = Math.max(0, Number(otherCharges || 0));
-  // Exclusive GST is added on top of line totals — never treat that gap as "Other Charges".
-  const billLevelTax = Math.max(
+
+  // GST breakup first — needed so tax is never mislabeled as Other Charges.
+  // Independent of cgst/sgst/igst props: extracts from item.gstPercent on line totals.
+  // Must stay empty under Without GST so product tax rates never invent a summary.
+  const gstBreakup: Record<number, { hsn: string; taxableValue: number; cgst: number; sgst: number; igst: number }> = {};
+  const isInterState = igstAmount > 0;
+
+  // Sale exclusive often stores tax-inclusive line_total (net ≈ Σ lines).
+  // POS exclusive stores taxable line_total (net ≈ Σ lines + GST). Pick the match.
+  const linesSum = items.reduce((s, i) => s + Number(i.total || 0), 0);
+  const lineTotalsEmbedGst =
+    taxType === "exclusive" &&
+    Math.abs(Number(grandTotal || 0) - linesSum + Number(saleReturnAdjust || 0)) < 1;
+  const effectiveLineTaxMode: "inclusive" | "exclusive" =
+    taxType === "exclusive" && !lineTotalsEmbedGst ? "exclusive" : "inclusive";
+
+  if (!isNoGst && !isDc) {
+    items.forEach((item) => {
+      const gstPct = item.gstPercent || 0;
+      if (gstPct > 0) {
+        const lineTotal = Number(item.total || 0);
+        const taxOnItem =
+          effectiveLineTaxMode === "exclusive"
+            ? (lineTotal * gstPct) / 100
+            : (lineTotal * gstPct) / (100 + gstPct);
+        const taxableVal =
+          effectiveLineTaxMode === "exclusive" ? lineTotal : lineTotal - taxOnItem;
+        if (!gstBreakup[gstPct]) {
+          gstBreakup[gstPct] = { hsn: item.hsn || "", taxableValue: 0, cgst: 0, sgst: 0, igst: 0 };
+        }
+        gstBreakup[gstPct].taxableValue += taxableVal;
+        if (isInterState) {
+          gstBreakup[gstPct].igst += taxOnItem;
+        } else {
+          gstBreakup[gstPct].cgst += taxOnItem / 2;
+          gstBreakup[gstPct].sgst += taxOnItem / 2;
+        }
+        if (!gstBreakup[gstPct].hsn && item.hsn) gstBreakup[gstPct].hsn = item.hsn;
+      }
+    });
+  }
+
+  const hasGSTData = Object.keys(gstBreakup).length > 0;
+  const totalBeforeTax = Object.values(gstBreakup).reduce((s, v) => s + v.taxableValue, 0);
+  const breakupCgst = Object.values(gstBreakup).reduce((s, v) => s + v.cgst, 0);
+  const breakupSgst = Object.values(gstBreakup).reduce((s, v) => s + v.sgst, 0);
+  const breakupIgst = Object.values(gstBreakup).reduce((s, v) => s + v.igst, 0);
+  const breakupTaxTotal = breakupCgst + breakupSgst + breakupIgst;
+
+  const propTaxTotal = Math.max(
     0,
     Number(totalTax || 0) ||
       Number(cgstAmount || 0) + Number(sgstAmount || 0) + Number(igstAmount || 0),
   );
-  const exclusiveTaxInGrand =
-    taxType === "exclusive" ? billLevelTax : 0;
+  // Rate-column subtotal → bill gap is exclusive GST when lines omit tax (or taxType exclusive).
+  const gapBeforeOtherCharges = Math.max(
+    0,
+    Number(grandTotal || 0) -
+      displaySubTotal +
+      Number(saleReturnAdjust || 0) -
+      displayDiscount -
+      propRoundOff,
+  );
+  const residualTaxGap = Math.max(
+    0,
+    gapBeforeOtherCharges - Math.max(0, Number(otherCharges || 0)),
+  );
+  // Sale sometimes persists exclusive GST in other_charges when line gst_percent is 0.
+  const otherChargesAsGst =
+    !isNoGst &&
+    !isDc &&
+    taxType === "exclusive" &&
+    Math.max(0, Number(otherCharges || 0)) > 0.005 &&
+    propTaxTotal < 0.005 &&
+    breakupTaxTotal < 0.005 &&
+    Math.abs(gapBeforeOtherCharges - Number(otherCharges || 0)) <= 0.51
+      ? Math.max(0, Number(otherCharges || 0))
+      : 0;
+  const billLevelTax = Math.max(
+    propTaxTotal,
+    breakupTaxTotal,
+    otherChargesAsGst,
+    !isNoGst &&
+      !isDc &&
+      residualTaxGap > 0.005 &&
+      residualTaxGap < displaySubTotal &&
+      (taxType === "exclusive" || hasGSTData || propTaxTotal > 0.005)
+      ? residualTaxGap
+      : 0,
+  );
+
+  const explicitOtherCharges = Math.max(0, Number(otherCharges || 0));
+  // GST (inclusive extract or exclusive add-on) must never print as "Other Charges".
+  const taxInGrandTotal = billLevelTax;
   const derivedOtherCharges = Math.max(
     0,
     Number(grandTotal || 0) -
@@ -269,14 +354,19 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
       Number(saleReturnAdjust || 0) -
       displayDiscount -
       propRoundOff -
-      exclusiveTaxInGrand,
+      taxInGrandTotal,
   );
-  const displayOtherCharges =
+  const rawOtherCharges =
     explicitOtherCharges > 0.005
       ? explicitOtherCharges
       : derivedOtherCharges > 0.005
         ? derivedOtherCharges
         : 0;
+  // If freight field equals GST (mis-stored or residual), keep it as GST only.
+  const otherChargesIsGst =
+    billLevelTax > 0.005 && Math.abs(rawOtherCharges - billLevelTax) <= 0.51;
+  const displayOtherCharges =
+    rawOtherCharges > 0.005 && !otherChargesIsGst ? rawOtherCharges : 0;
   // If round_off was omitted/zeroed in props but net already includes it, recover for print.
   const impliedRoundOff =
     Math.round(
@@ -285,7 +375,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
         displayDiscount +
         Number(saleReturnAdjust || 0) -
         displayOtherCharges -
-        exclusiveTaxInGrand) *
+        taxInGrandTotal) *
         100,
     ) / 100;
   const printRoundOff =
@@ -332,42 +422,6 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   const lineNetAmounts = items.map((item, i) =>
     Math.round((getLineGross(item) - lineBillDiscounts[i]) * 100) / 100,
   );
-
-  // GST breakup calculation — group by rate.
-  // Independent of cgst/sgst/igst props: extracts from item.gstPercent on line totals.
-  // Must stay empty under Without GST so product tax rates never invent a summary.
-  const gstBreakup: Record<number, { hsn: string; taxableValue: number; cgst: number; sgst: number; igst: number }> = {};
-  const isInterState = igstAmount > 0;
-
-  if (!isNoGst && !isDc) {
-    items.forEach((item) => {
-      const gstPct = item.gstPercent || 0;
-      if (gstPct > 0) {
-        // Exclusive: line total is taxable; Inclusive: tax is embedded in line total.
-        const taxOnItem =
-          taxType === "exclusive"
-            ? (item.total * gstPct) / 100
-            : (item.total * gstPct) / (100 + gstPct);
-        const taxableVal = taxType === "exclusive" ? item.total : item.total - taxOnItem;
-        if (!gstBreakup[gstPct]) {
-          gstBreakup[gstPct] = { hsn: item.hsn || "", taxableValue: 0, cgst: 0, sgst: 0, igst: 0 };
-        }
-        gstBreakup[gstPct].taxableValue += taxableVal;
-        if (isInterState) {
-          gstBreakup[gstPct].igst += taxOnItem;
-        } else {
-          gstBreakup[gstPct].cgst += taxOnItem / 2;
-          gstBreakup[gstPct].sgst += taxOnItem / 2;
-        }
-        if (!gstBreakup[gstPct].hsn && item.hsn) gstBreakup[gstPct].hsn = item.hsn;
-      }
-    });
-  }
-
-  const hasGSTData = Object.keys(gstBreakup).length > 0;
-
-  // Calculate totals
-  const totalBeforeTax = Object.values(gstBreakup).reduce((s, v) => s + v.taxableValue, 0);
 
   // Payment breakdown (mix / multiple — show amounts applied to the bill).
   // Over-tender (customer change) must not print as Received > Bill / negative Balance.
@@ -512,17 +566,36 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   const showPaymentQr = Boolean(qrCodeUrl && !isRealTast);
   const signColWidth = isA5Retail ? (showPaymentQr ? "36%" : "34%") : "40%";
   // taxType gate is independent of hasGSTData — product rates must not resurrect a summary under no_gst.
-  // A5 Retail ERP: GST amounts sit in the right totals column after Round Off (before Bill Total).
-  // A4 / other variants: keep the Note-column GST Summary.
+  // Retail ERP Tax Invoice: GST Amount in totals column; CGST/SGST (or IGST) summary in Note.
   const showGstBreakdown =
-    !isRealTast && !isDc && showGSTBreakdown && hasGSTData && !isNoGst;
-  const showGstInTotals = showGstBreakdown && isA5Retail;
-  const showGstInNote = showGstBreakdown && !showGstInTotals;
-  const gstTotalsAmount = Math.max(
-    0,
-    Number(totalTax || 0) ||
-      Number(cgstAmount || 0) + Number(sgstAmount || 0) + Number(igstAmount || 0),
-  );
+    !isRealTast && !isDc && showGSTBreakdown && !isNoGst && (hasGSTData || billLevelTax > 0.005);
+  const showGstInTotals = showGstBreakdown;
+  const showGstInNote = showGstBreakdown;
+  const gstTotalsAmount = billLevelTax;
+  const printCgst =
+    Number(cgstAmount || 0) > 0.005
+      ? Number(cgstAmount)
+      : breakupCgst > 0.005
+        ? breakupCgst
+        : !isInterState && gstTotalsAmount > 0.005
+          ? gstTotalsAmount / 2
+          : 0;
+  const printSgst =
+    Number(sgstAmount || 0) > 0.005
+      ? Number(sgstAmount)
+      : breakupSgst > 0.005
+        ? breakupSgst
+        : !isInterState && gstTotalsAmount > 0.005
+          ? gstTotalsAmount / 2
+          : 0;
+  const printIgst =
+    Number(igstAmount || 0) > 0.005
+      ? Number(igstAmount)
+      : breakupIgst > 0.005
+        ? breakupIgst
+        : isInterState && gstTotalsAmount > 0.005
+          ? gstTotalsAmount
+          : 0;
   const fsGstSummaryLabel = isA4 ? "11px" : "9px";
   const fsGstSummaryBody = isA4 ? "11px" : "9px";
   const fsTermsTitle = isA4 ? (isRealTast ? "14px" : "13px") : "11px";
@@ -1166,27 +1239,27 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                                 </span>
                               </div>
                             )}
-                            {!isInterState && cgstAmount > 0 && (
+                            {!isInterState && printCgst > 0 && (
                               <div style={{ display: "flex", justifyContent: "space-between", gap: "6px" }}>
                                 <span>CGST</span>
                                 <span style={{ fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
-                                  ₹{fmt(cgstAmount)}
+                                  ₹{fmt(printCgst)}
                                 </span>
                               </div>
                             )}
-                            {!isInterState && sgstAmount > 0 && (
+                            {!isInterState && printSgst > 0 && (
                               <div style={{ display: "flex", justifyContent: "space-between", gap: "6px" }}>
                                 <span>SGST</span>
                                 <span style={{ fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
-                                  ₹{fmt(sgstAmount)}
+                                  ₹{fmt(printSgst)}
                                 </span>
                               </div>
                             )}
-                            {isInterState && igstAmount > 0 && (
+                            {isInterState && printIgst > 0 && (
                               <div style={{ display: "flex", justifyContent: "space-between", gap: "6px" }}>
                                 <span>IGST</span>
                                 <span style={{ fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
-                                  ₹{fmt(igstAmount)}
+                                  ₹{fmt(printIgst)}
                                 </span>
                               </div>
                             )}
@@ -1224,6 +1297,14 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                           <span style={totalsAmountStyle}>- ₹{fmt(displayDiscount)}</span>
                         </div>
                       )}
+                      {showGstInTotals && gstTotalsAmount > 0 && (
+                        <div style={{ ...totalsRowBase, fontSize: isA4 ? "14px" : "11px", fontWeight: 900 }}>
+                          <span style={totalsLabelStyle}>
+                            {isInterState ? "IGST Amount" : "GST Amount"}
+                          </span>
+                          <span style={totalsAmountStyle}>+ ₹{fmt(gstTotalsAmount)}</span>
+                        </div>
+                      )}
                       {displayOtherCharges > 0 && (
                         <div style={{ ...totalsRowBase, fontSize: isA4 ? "14px" : "11px", fontWeight: 900 }}>
                           <span style={totalsLabelStyle}>Other Charges</span>
@@ -1238,22 +1319,6 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                             {printRoundOff > 0 ? "+" : ""}
                             {fmt(printRoundOff)}
                           </span>
-                        </div>
-                      )}
-                      {showGstInTotals && gstTotalsAmount > 0 && (
-                        <div style={{ ...totalsRowBase, fontSize: "11px", fontWeight: 800 }}>
-                          <span style={totalsLabelStyle}>
-                            {isInterState
-                              ? "IGST"
-                              : cgstAmount > 0 && sgstAmount > 0
-                                ? "GST Amount"
-                                : cgstAmount > 0
-                                  ? "CGST"
-                                  : sgstAmount > 0
-                                    ? "SGST"
-                                    : "GST Amount"}
-                          </span>
-                          <span style={totalsAmountStyle}>₹{fmt(gstTotalsAmount)}</span>
                         </div>
                       )}
                       <div
