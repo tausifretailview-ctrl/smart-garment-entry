@@ -23,7 +23,8 @@ initScrollWheelFix();
 void initNativeShell();
 initBootSplashWatchdog();
 
-// Capture PWA install prompt BEFORE React mounts (event fires once, early)
+// Capture PWA install prompt BEFORE React mounts (event fires once, early).
+// Must preventDefault so Chrome keeps a deferred event we can prompt() from Install App.
 declare global {
   interface Window {
     __pwaInstallPrompt?: Event;
@@ -32,6 +33,8 @@ declare global {
 window.addEventListener("beforeinstallprompt", (e) => {
   e.preventDefault();
   window.__pwaInstallPrompt = e;
+  // Keep in sync if the hook already bound its shared capture.
+  window.dispatchEvent(new Event("ezzy-pwa-prompt-ready"));
 });
 
 // Global error handlers for async errors (not caught by React error boundaries)

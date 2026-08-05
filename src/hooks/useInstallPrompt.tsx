@@ -13,7 +13,7 @@ declare global {
   }
 }
 
-/** Shared across Header / banner / salesman layout — event fires once, early. */
+/** Shared across Header / banner / install page — event fires once, early. */
 let sharedDeferredPrompt: BeforeInstallPromptEvent | null = null;
 const promptListeners = new Set<() => void>();
 
@@ -44,9 +44,81 @@ function ensureGlobalPromptCapture() {
   }
 
   window.addEventListener("beforeinstallprompt", capturePrompt);
+  // main.tsx may capture BIP before this module binds — sync when it signals.
+  window.addEventListener("ezzy-pwa-prompt-ready", () => {
+    if (window.__pwaInstallPrompt) {
+      sharedDeferredPrompt = window.__pwaInstallPrompt as BeforeInstallPromptEvent;
+      notifyPromptListeners();
+    }
+  });
   window.addEventListener("appinstalled", () => {
     clearPrompt();
   });
+}
+
+/** Latest deferred Chrome/Edge install event (if any). */
+export function getDeferredInstallPrompt(): BeforeInstallPromptEvent | null {
+  ensureGlobalPromptCapture();
+  const fromWindow = window.__pwaInstallPrompt as BeforeInstallPromptEvent | undefined;
+  const next = sharedDeferredPrompt || fromWindow || null;
+  if (next && next !== sharedDeferredPrompt) {
+    sharedDeferredPrompt = next;
+  }
+  return sharedDeferredPrompt;
+}
+
+/** Wait briefly for beforeinstallprompt (manifest swap / late SW can delay it). */
+export async function waitForInstallPrompt(
+  timeoutMs = 4000,
+): Promise<BeforeInstallPromptEvent | null> {
+  ensureGlobalPromptCapture();
+  const existing = getDeferredInstallPrompt();
+  if (existing?.prompt) return existing;
+
+  return new Promise((resolve) => {
+    const started = Date.now();
+    const finish = (value: BeforeInstallPromptEvent | null) => {
+      window.clearInterval(timer);
+      promptListeners.delete(onChange);
+      resolve(value);
+    };
+    const onChange = () => {
+      const p = getDeferredInstallPrompt();
+      if (p?.prompt) finish(p);
+    };
+    promptListeners.add(onChange);
+    const timer = window.setInterval(() => {
+      onChange();
+      if (Date.now() - started >= timeoutMs) {
+        finish(getDeferredInstallPrompt());
+      }
+    }, 200);
+  });
+}
+
+export type PwaInstallOutcome = "accepted" | "dismissed" | "unavailable";
+
+/**
+ * Open the native Chrome/Edge “Install app” dialog (creates Start Menu + desktop icon on Windows).
+ * Returns unavailable when the browser has no deferred prompt (user can still use the address-bar icon).
+ */
+export async function triggerPwaInstall(): Promise<PwaInstallOutcome> {
+  if (typeof window === "undefined") return "unavailable";
+  if (isStandaloneDisplay() || isNativeShell()) return "accepted";
+
+  const promptEvent = await waitForInstallPrompt(4000);
+  if (!promptEvent?.prompt) return "unavailable";
+
+  try {
+    await promptEvent.prompt();
+    const { outcome } = await promptEvent.userChoice;
+    clearPrompt();
+    return outcome;
+  } catch (err) {
+    console.warn("[PWA] Install prompt failed:", err);
+    clearPrompt();
+    return "unavailable";
+  }
 }
 
 export function isStandaloneDisplay(): boolean {
@@ -92,18 +164,20 @@ export function useInstallPrompt() {
     }
 
     const sync = () => {
-      const next =
-        sharedDeferredPrompt ||
-        (window.__pwaInstallPrompt as BeforeInstallPromptEvent | undefined) ||
-        null;
-      if (next && !sharedDeferredPrompt) {
-        sharedDeferredPrompt = next;
-      }
-      setDeferredPrompt(sharedDeferredPrompt);
+      setDeferredPrompt(getDeferredInstallPrompt());
     };
 
     sync();
     promptListeners.add(sync);
+
+    // Late BIP after org manifest blob swap / service worker ready.
+    const poll = window.setInterval(sync, 500);
+    const stopPoll = window.setTimeout(() => window.clearInterval(poll), 8000);
+
+    const onVisible = () => {
+      if (document.visibilityState === "visible") sync();
+    };
+    document.addEventListener("visibilitychange", onVisible);
 
     const handleAppInstalled = () => {
       setIsInstalled(true);
@@ -113,34 +187,23 @@ export function useInstallPrompt() {
 
     return () => {
       promptListeners.delete(sync);
+      window.clearInterval(poll);
+      window.clearTimeout(stopPoll);
+      document.removeEventListener("visibilitychange", onVisible);
       window.removeEventListener("appinstalled", handleAppInstalled);
     };
   }, []);
 
   const promptInstall = useCallback(async () => {
-    const promptEvent = sharedDeferredPrompt || deferredPrompt;
-    if (!promptEvent?.prompt) return false;
-
-    try {
-      await promptEvent.prompt();
-      const { outcome } = await promptEvent.userChoice;
-
-      // Chrome invalidates the event after one prompt() — always clear.
-      clearPrompt();
+    const outcome = await triggerPwaInstall();
+    if (outcome === "accepted") {
+      setIsInstalled(true);
       setDeferredPrompt(null);
-
-      if (outcome === "accepted") {
-        setIsInstalled(true);
-        return true;
-      }
-      return false;
-    } catch (err) {
-      console.warn("[PWA] Install prompt failed:", err);
-      clearPrompt();
-      setDeferredPrompt(null);
-      return false;
+      return true;
     }
-  }, [deferredPrompt]);
+    setDeferredPrompt(getDeferredInstallPrompt());
+    return false;
+  }, []);
 
   const isInstallable = !!deferredPrompt && !isInstalled;
   /** Show Install App in browser chrome when not already a standalone/native app. */

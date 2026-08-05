@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Download, Share, Plus, Smartphone, CheckCircle2, Copy, MessageCircle, Monitor, RefreshCw, Info, Globe } from "lucide-react";
-import { useInstallPrompt } from "@/hooks/useInstallPrompt";
+import { useInstallPrompt, triggerPwaInstall } from "@/hooks/useInstallPrompt";
 import { toast } from "sonner";
 import { isValidOrgSlug, storeOrgSlug } from "@/lib/orgSlug";
 import { applyOrgPwaManifest } from "@/lib/orgPwaManifest";
@@ -68,16 +68,18 @@ function useOrgPwaManifestOnInstallPage(
   active: boolean,
   orgSlug: string | undefined,
   orgName: string,
+  ready: boolean,
 ) {
   useLayoutEffect(() => {
-    if (!active || !orgSlug || !isValidOrgSlug(orgSlug)) return;
+    if (!active || !ready || !orgSlug || !isValidOrgSlug(orgSlug)) return;
+    // Apply once after org name loads — avoid thrashing the blob URL (drops deferred install prompt).
     applyOrgPwaManifest(orgSlug, orgName || undefined);
-  }, [active, orgSlug, orgName]);
+  }, [active, ready, orgSlug, orgName]);
 }
 
 export default function InstallApp() {
   const { orgSlug } = useParams<{ orgSlug: string }>();
-  const { isInstalled, isInstallable, promptInstall } = useInstallPrompt();
+  const { isInstalled, isInstallable } = useInstallPrompt();
   const [orgName, setOrgName] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [pwaInstallBusy, setPwaInstallBusy] = useState(false);
@@ -90,7 +92,12 @@ export default function InstallApp() {
   const isStandalone = isStandaloneDisplay();
   const isNativeShell = Capacitor.isNativePlatform();
 
-  useOrgPwaManifestOnInstallPage(!!orgSlug && isValidOrgSlug(orgSlug), orgSlug, orgName);
+  useOrgPwaManifestOnInstallPage(
+    !!orgSlug && isValidOrgSlug(orgSlug),
+    orgSlug,
+    orgName,
+    !loading,
+  );
 
   // PWA / native shell: install page is only for downloading; open the org app once installed.
   useLayoutEffect(() => {
@@ -230,17 +237,26 @@ export default function InstallApp() {
   };
 
   const handlePwaInstall = async () => {
-    if (!isInstallable) return;
     setPwaInstallBusy(true);
     try {
-      const ok = await promptInstall();
-      if (ok) {
-        toast.success("App installed — open it from the Start menu, desktop, or home screen.");
-      } else {
-        toast.message("Install cancelled", {
-          description: "You can try again anytime, or use the browser menu steps below.",
-        });
+      // Do not re-apply the manifest here — swapping the blob URL drops Chrome's deferred prompt.
+      if (orgSlug && isValidOrgSlug(orgSlug)) storeOrgSlug(orgSlug);
+      const outcome = await triggerPwaInstall();
+      if (outcome === "accepted") {
+        toast.success("Installed — EzzyERP is on your Start menu and desktop (like a Windows app).");
+        return;
       }
+      if (outcome === "dismissed") {
+        toast.message("Install cancelled", {
+          description: "Click Install EzzyERP App again, or use the Chrome install icon in the address bar.",
+        });
+        return;
+      }
+      toast.message("Use the Chrome install icon", {
+        description:
+          "Click the monitor↓ Install icon on the right of the address bar, then Install — that adds the desktop shortcut.",
+        duration: 12_000,
+      });
     } finally {
       setPwaInstallBusy(false);
     }
@@ -370,46 +386,40 @@ export default function InstallApp() {
                   : "Quick home-screen shortcut. For USB printing and full Android features, use the APK below."}
               </p>
             </div>
-            {isInstallable ? (
-              <Button
-                className="w-full h-14 text-base"
-                size="lg"
-                disabled={pwaInstallBusy}
-                onClick={() => void handlePwaInstall()}
-              >
-                <Download className="mr-2 h-5 w-5" />
-                {pwaInstallBusy ? "Opening install…" : "Install EzzyERP App"}
-              </Button>
-            ) : (
-              <div className="space-y-3 rounded-md border bg-background p-4 text-sm text-muted-foreground">
-                <p className="font-semibold text-foreground">Install from the browser menu</p>
-                {platform === "desktop" ? (
-                  <ol className="list-decimal list-inside space-y-1.5">
-                    <li>
-                      In <strong>Chrome</strong>: click the install icon in the address bar, or{" "}
-                      <strong>⋮ → Cast, save, and share → Install page as app</strong>
-                    </li>
-                    <li>
-                      In <strong>Edge</strong>: <strong>⋯ → Apps → Install this site as an app</strong>
-                    </li>
-                    <li>Confirm <strong>Install</strong> — open from Start menu / desktop shortcut</li>
-                  </ol>
-                ) : (
-                  <ol className="list-decimal list-inside space-y-1.5">
-                    <li>
-                      Tap Chrome <strong>⋮</strong> → <strong>Install app</strong> /{" "}
-                      <strong>Add to Home screen</strong>
-                    </li>
-                    <li>Confirm Install, then open from the home-screen icon</li>
-                  </ol>
-                )}
-                <Button asChild variant="outline" className="w-full" size="sm">
-                  <a href={appStartUrl}>Open shop in browser first</a>
-                </Button>
-                <p className="text-xs">
-                  Tip: open your shop once ({orgSlug}), then return here if the Install button does not appear.
-                </p>
-              </div>
+            <Button
+              className="w-full h-14 text-base"
+              size="lg"
+              disabled={pwaInstallBusy}
+              onClick={() => void handlePwaInstall()}
+            >
+              <Download className="mr-2 h-5 w-5" />
+              {pwaInstallBusy
+                ? "Opening Windows install…"
+                : platform === "desktop"
+                  ? "Install EzzyERP on this PC"
+                  : "Install EzzyERP App"}
+            </Button>
+            <p className="text-xs text-center text-muted-foreground">
+              {isInstallable
+                ? "Opens the Chrome/Edge install dialog — tick Create desktop shortcut."
+                : "If the dialog does not open, click the Install icon (monitor↓) in the address bar."}
+            </p>
+            {platform === "desktop" && (
+              <details className="rounded-md border bg-background p-3 text-xs text-muted-foreground">
+                <summary className="cursor-pointer font-semibold text-foreground">
+                  Manual install steps (if needed)
+                </summary>
+                <ol className="list-decimal list-inside space-y-1.5 mt-2">
+                  <li>
+                    Chrome: address-bar install icon, or{" "}
+                    <strong>⋮ → Cast, save, and share → Install page as app</strong>
+                  </li>
+                  <li>
+                    Edge: <strong>⋯ → Apps → Install this site as an app</strong>
+                  </li>
+                  <li>Confirm Install — desktop + Start menu shortcut appear</li>
+                </ol>
+              </details>
             )}
           </Card>
         )}

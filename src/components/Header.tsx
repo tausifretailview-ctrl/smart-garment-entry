@@ -4,7 +4,7 @@ import { Menu, ShoppingCart, Package, Download, LayoutGrid, BoxIcon, Plus, FileT
 import { UIScaleSelector } from "@/components/UIScaleSelector";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { useInstallPrompt, isIOSDevice } from "@/hooks/useInstallPrompt";
+import { useInstallPrompt, isIOSDevice, triggerPwaInstall } from "@/hooks/useInstallPrompt";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -58,17 +58,19 @@ export const Header = () => {
     new RegExp(`/${segment}(/|$)`).test(location.pathname);
   const [supportOpen, setSupportOpen] = useState(false);
   const [helpShortcutsOpen, setHelpShortcutsOpen] = useState(false);
-  const { isInstallable, canOfferInstall, promptInstall } = useInstallPrompt();
+  const { canOfferInstall } = useInstallPrompt();
   const isDesktopApp = isElectronShell();
 
   const handleInstallApp = async () => {
-    // Chrome/Edge: native PWA install dialog (adds Start Menu / desktop / home-screen icon).
-    if (isInstallable) {
-      const ok = await promptInstall();
-      if (ok) {
-        toast.success("EzzyERP installed — open it from your Start menu or home screen.");
-        return;
-      }
+    // Chrome/Edge: native PWA install dialog (Start Menu + desktop icon on Windows).
+    const outcome = await triggerPwaInstall();
+    if (outcome === "accepted") {
+      toast.success("EzzyERP installed — open it from your Start menu or desktop shortcut.");
+      return;
+    }
+    if (outcome === "dismissed") {
+      toast.message("Install cancelled — tap Install App again anytime.");
+      return;
     }
     if (isIOSDevice()) {
       toast("Install on iPhone / iPad", {
@@ -78,11 +80,10 @@ export const Header = () => {
       orgNavigate("/install");
       return;
     }
-    // Windows / Android fallback: install page (Windows Setup EXE + Add to Home Screen / APK).
-    toast("Opening install options…", {
-      description:
-        "Choose Windows desktop installer, or Install / Add to Home Screen for the browser app icon.",
-      duration: 5000,
+    // Prompt not available yet — install page has the one-click PC button + APK / EXE options.
+    toast("Opening install page…", {
+      description: "Tap “Install EzzyERP on this PC”, or use the Chrome install icon in the address bar.",
+      duration: 6000,
     });
     orgNavigate("/install");
   };
