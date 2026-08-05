@@ -114,17 +114,16 @@ export function resolveA4LayoutGap(
 
 /**
  * Coerce label width to official MPL 40L 39mm when a legacy 38/40mm 5×8 preset is used.
- * When the preset already has gap 0 the values are treated as a deliberate,
- * fine-tuned pitch (e.g. 38.6mm to match a slightly tighter die-cut) and kept as-is.
+ * Always coerce for the 5×8 die-cut grid — including Gap=0 custom presets (a prior early
+ * return for gap≈0 left width at 38mm and shifted left margin to 10mm).
  */
 export function resolveA4LabelWidthMm(
   cols: number,
   rows: number,
   labelWidthMm: number,
   labelHeightMm: number,
-  gapMm?: number,
+  _gapMm?: number,
 ): number {
-  if (gapMm !== undefined && Math.abs(gapMm) <= 0.05) return labelWidthMm;
   if (isNovaJetMpl40LGrid(cols, rows, labelWidthMm, labelHeightMm)) {
     return A4_40_LABEL_39X35.labelWidthMm;
   }
@@ -133,10 +132,12 @@ export function resolveA4LabelWidthMm(
 
 /**
  * Center a label grid on A4, then apply user nudges (positive top = move down, positive left = move right).
- * NovaJet MPL 48L uses the manufacturer top/left margins instead of vertical centering —
- * centering left the first rows printing above the die-cut.
+ * NovaJet MPL 48L / 40L use manufacturer top/left margins instead of pure centering.
  *
- * For 4×12 × 48×24mm, gap is forced to 0 regardless of the caller's gap (see resolveA4LayoutGap).
+ * Sheet Margin UI fields are **nudges** on top of these bases (0 = manufacturer / centered).
+ * Negative nudge is allowed (clamped so margins stay ≥ 0).
+ *
+ * For 4×12 × 48×24 and 5×8 × 39×35, gap is forced to 0 (see resolveA4LayoutGap).
  */
 export function computeA4SheetMargins(
   cols: number,
@@ -152,12 +153,17 @@ export function computeA4SheetMargins(
   const contentH = rows * labelHeightMm + Math.max(0, rows - 1) * effectiveGap;
 
   const novaJet48L = isNovaJetMpl48LGrid(cols, rows, labelWidthMm, labelHeightMm);
+  const novaJet40L = isNovaJetMpl40LGrid(cols, rows, labelWidthMm, labelHeightMm);
   const baseTop = novaJet48L
     ? A4_48_LABEL_48X24.sheetTopMarginMm
-    : Math.max(0, (A4_PAGE_HEIGHT_MM - contentH) / 2);
+    : novaJet40L
+      ? A4_40_LABEL_39X35.sheetTopMarginMm
+      : Math.max(0, (A4_PAGE_HEIGHT_MM - contentH) / 2);
   const baseLeft = novaJet48L
     ? A4_48_LABEL_48X24.sheetLeftMarginMm
-    : Math.max(0, (A4_PAGE_WIDTH_MM - contentW) / 2);
+    : novaJet40L
+      ? A4_40_LABEL_39X35.sheetLeftMarginMm
+      : Math.max(0, (A4_PAGE_WIDTH_MM - contentW) / 2);
   const baseBottom = Math.max(0, A4_PAGE_HEIGHT_MM - contentH - baseTop);
   const baseRight = Math.max(0, A4_PAGE_WIDTH_MM - contentW - baseLeft);
 

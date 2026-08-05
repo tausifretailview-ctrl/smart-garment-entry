@@ -62,11 +62,16 @@ describe("NovaJet MPL 40L A4 margins (39×35, 5×8)", () => {
     expect(isNovaJetMpl40LGrid(4, 12, 48, 24)).toBe(false);
   });
 
-  it("forces gap 0 and coerces legacy 38mm width to 39mm", () => {
+  it("forces gap 0 and coerces legacy 38mm width to 39mm (including Gap=0)", () => {
     expect(resolveA4LayoutGap(5, 8, 39, 35, 0.6)).toBe(0);
     expect(resolveA4LayoutGap(5, 8, 38, 35, 1)).toBe(0);
     expect(resolveA4LabelWidthMm(5, 8, 38, 35)).toBe(39);
     expect(resolveA4LabelWidthMm(5, 8, 39, 35)).toBe(39);
+    // Gap=0 must still coerce — otherwise left margin becomes 10mm (5×38 centered).
+    expect(resolveA4LabelWidthMm(5, 8, 38, 35, 0)).toBe(39);
+    const margins38gap0 = computeA4SheetMargins(5, 8, 38, 35, 0);
+    expect(margins38gap0.marginTop).toBe(8.5);
+    expect(margins38gap0.marginLeft).toBe(7.5);
   });
 
   it("coerces the 40×35 gap 2 preset back to the die-cut pitch", () => {

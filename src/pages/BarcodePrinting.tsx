@@ -1316,8 +1316,8 @@ export default function BarcodePrinting() {
     if (preset?.defaultBottom !== undefined) setBottomOffset(preset.defaultBottom);
     if (preset?.defaultRight !== undefined) setRightOffset(preset.defaultRight);
 
-    // Keep Precision Pro dimensions aligned with standard A4 48-sheet
-    if (sheetType === 'a4_12x4') {
+    // Keep Precision Pro dimensions aligned with standard A4 sheet presets
+    if (sheetType === 'a4_12x4' || sheetType === 'novajet48') {
       setPrecisionSettings((prev) => ({
         ...prev,
         labelWidth: 48,
@@ -1325,6 +1325,21 @@ export default function BarcodePrinting() {
         a4Cols: 4,
         a4Rows: 12,
         vGap: 0,
+        hGap: 0,
+      }));
+    } else if (
+      sheetType === 'novajet40' ||
+      sheetType === 'a4_40sheet' ||
+      sheetType === 'a4_39x35_40sheet'
+    ) {
+      setPrecisionSettings((prev) => ({
+        ...prev,
+        labelWidth: 39,
+        labelHeight: 35,
+        a4Cols: 5,
+        a4Rows: 8,
+        vGap: 0,
+        hGap: 0,
       }));
     }
   }, [sheetType]);
@@ -5269,14 +5284,15 @@ export default function BarcodePrinting() {
       return;
     }
 
-    // For A4 sheets: route through the same absolute-positioned PDF generator
-    // as "Perfect PDF" to eliminate cumulative drift across the sheet.
+    // For A4 sheets: always emit the absolute-positioned Perfect PDF and download it.
+    // Auto print() → "Microsoft Print to PDF" re-encodes the page with Fit/scale and
+    // destroys die-cut alignment (top/bottom white bands + left→right drift).
     const hasLabels = labelItems.some((item) => item.qty > 0);
     if (!hasLabels) {
       toast.error('Please add at least one label with quantity > 0');
       return;
     }
-    toast.info('Preparing label sheet…');
+    toast.info('Preparing label sheet PDF…');
     try {
       const dimensions = getA4SheetDimensions();
 
@@ -5297,28 +5313,20 @@ export default function BarcodePrinting() {
 
       const blob = new Blob([new Uint8Array(pdfBytes) as any], { type: 'application/pdf' });
       const pdfUrl = URL.createObjectURL(blob);
-      const printWindow = window.open(pdfUrl, '_blank');
+      const fileName = `labels-a4-${dimensions.cols}x${dimensions.rows}-${Date.now()}.pdf`;
+      const a = document.createElement('a');
+      a.href = pdfUrl;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
 
-      if (!printWindow) {
-        // Pop-up blocker — fall back to download
-        const a = document.createElement('a');
-        a.href = pdfUrl;
-        a.download = `labels-${Date.now()}.pdf`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        toast.error('Pop-up blocked — PDF downloaded. Open it and print Actual Size 100% (turn off Fit / Shrink).');
-        setTimeout(() => URL.revokeObjectURL(pdfUrl), 60000);
-        return;
-      }
-
-      printWindow.addEventListener('load', () => {
-        setTimeout(() => {
-          try { printWindow.print(); } catch { /* ignore */ }
-          setTimeout(() => URL.revokeObjectURL(pdfUrl), 60000);
-        }, 500);
-      });
-      toast.success('Print Actual Size 100% — turn off Fit to page / Shrink oversized pages');
+      // Also open for preview — user must print THIS file at Actual Size 100%.
+      window.open(pdfUrl, '_blank');
+      setTimeout(() => URL.revokeObjectURL(pdfUrl), 120000);
+      toast.success(
+        'PDF saved — open the downloaded file and print Actual Size 100% (no Fit / Shrink). Do not re-print via Microsoft Print to PDF.',
+      );
     } catch (err) {
       console.error('Label PDF generation error:', err);
       toast.error('Failed to generate label sheet');
@@ -6400,10 +6408,12 @@ export default function BarcodePrinting() {
                 </Button>
               )}
             </div>
-            {(sheetType === "novajet40" || sheetType === "a4_40sheet") && (
+            {(sheetType === "novajet40" || sheetType === "a4_40sheet" || sheetType === "a4_39x35_40sheet") && (
               <p className="text-xs text-muted-foreground mt-2 p-2 bg-muted/30 rounded border">
-                <strong>MPL 40L (39×35mm, 5×8, gap 0):</strong> Print Actual Size 100% — turn off Fit to page / Shrink.
-                Margins: None. Headers/Footers: Off. Offsets start at 0 (nudge only if your tray feeds inconsistently).
+                <strong>MPL 40L (39×35mm, 5×8, gap 0):</strong> Use Print / Perfect PDF — open the{" "}
+                <em>downloaded</em> PDF and print Actual Size 100% (no Fit / Shrink). Do not send through
+                Microsoft Print to PDF again. Die-cut white edge is ~8.5mm top/bottom and ~7.5mm left/right
+                (Top nudge 0 is correct). Portrait A4: 5 columns × 8 rows.
               </p>
             )}
             {isA4SheetType() && sheetType !== "custom" && (
@@ -6984,7 +6994,10 @@ export default function BarcodePrinting() {
                 <div className="flex-1 min-w-0">
                   <h3 className="font-semibold text-sm">Sheet Margins &amp; Offsets</h3>
                   <p className="text-xs text-muted-foreground truncate">
-                    Top {topOffset}mm · Left {leftOffset}mm · Bottom {bottomOffset}mm · Right {rightOffset}mm
+                    {(() => {
+                      const m = getSheetPageMargins();
+                      return `Nudge T${topOffset} L${leftOffset} B${bottomOffset} R${rightOffset}mm · Effective T${m.marginTop.toFixed(1)} L${m.marginLeft.toFixed(1)}mm`;
+                    })()}
                   </p>
                 </div>
               </button>
@@ -6995,8 +7008,8 @@ export default function BarcodePrinting() {
               <div>
                 <h3 className="font-semibold">Sheet Margin Presets</h3>
                 <p className="text-sm text-muted-foreground">
-                  Save margin configurations for different label sheet brands (Avery, Brother, etc.).
-                  Select a preset, change Top/Left/Bottom/Right, then click Update.
+                  Save nudge configurations for different printers/trays. Values are fine-tunes on top of
+                  the die-cut sheet margins (not absolute edge distance). Select a preset, change nudges, then Update.
                 </p>
               </div>
 
@@ -7151,12 +7164,41 @@ export default function BarcodePrinting() {
               </div>
             </div>
 
+          {(() => {
+            const effective = getSheetPageMargins();
+            const is40L =
+              sheetType === "novajet40" ||
+              sheetType === "a4_40sheet" ||
+              sheetType === "a4_39x35_40sheet" ||
+              (sheetType === "custom" &&
+                customCols === 5 &&
+                customRows === 8 &&
+                Math.abs(customHeight - 35) <= 1);
+            return (
+              <p className="text-xs text-muted-foreground mb-3 p-2 bg-muted/40 rounded border">
+                Fields below are <strong>fine-tune nudges</strong> (mm).{" "}
+                {is40L ? (
+                  <>
+                    MPL 40L die-cut base is Top/Bottom <strong>8.5mm</strong>, Left/Right{" "}
+                    <strong>7.5mm</strong> — so Top=0 still leaves ~8.5mm white edge (correct for the sheet).
+                  </>
+                ) : (
+                  <>Nudge 0 keeps manufacturer / centered sheet margins.</>
+                )}{" "}
+                Effective now: Top {effective.marginTop.toFixed(1)} · Left {effective.marginLeft.toFixed(1)} ·
+                Bottom {effective.marginBottom.toFixed(1)} · Right {effective.marginRight.toFixed(1)} mm.
+                Negative nudge moves the grid toward that edge.
+              </p>
+            );
+          })()}
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
           <div className="space-y-2">
-            <Label>Top Margin (mm)</Label>
+            <Label>Top Nudge (mm)</Label>
             <Input
               type="number"
-              min="0"
+              min={-20}
+              max={40}
+              step={0.5}
               value={topOffset}
               onChange={(e) => {
                 setTopOffset(parseFloat(e.target.value) || 0);
@@ -7166,10 +7208,12 @@ export default function BarcodePrinting() {
           </div>
 
           <div className="space-y-2">
-            <Label>Left Margin (mm)</Label>
+            <Label>Left Nudge (mm)</Label>
             <Input
               type="number"
-              min="0"
+              min={-20}
+              max={40}
+              step={0.5}
               value={leftOffset}
               onChange={(e) => {
                 setLeftOffset(parseFloat(e.target.value) || 0);
@@ -7179,10 +7223,12 @@ export default function BarcodePrinting() {
           </div>
 
           <div className="space-y-2">
-            <Label>Bottom Margin (mm)</Label>
+            <Label>Bottom Nudge (mm)</Label>
             <Input
               type="number"
-              min="0"
+              min={-20}
+              max={40}
+              step={0.5}
               value={bottomOffset}
               onChange={(e) => {
                 setBottomOffset(parseFloat(e.target.value) || 0);
@@ -7192,10 +7238,12 @@ export default function BarcodePrinting() {
           </div>
 
           <div className="space-y-2">
-            <Label>Right Margin (mm)</Label>
+            <Label>Right Nudge (mm)</Label>
             <Input
               type="number"
-              min="0"
+              min={-20}
+              max={40}
+              step={0.5}
               value={rightOffset}
               onChange={(e) => {
                 setRightOffset(parseFloat(e.target.value) || 0);

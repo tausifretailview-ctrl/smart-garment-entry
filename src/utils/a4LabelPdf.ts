@@ -91,10 +91,11 @@ export const generateA4LabelPdf = async (
     Math.max(1, Math.floor(rawStartPosition || 1))
   );
   const skipSlots = startPosition - 1;
-  const topOffsetMm = Math.max(0, rawTopOffsetMm);
-  const leftOffsetMm = Math.max(0, rawLeftOffsetMm);
-  const bottomOffsetMm = Math.max(0, rawBottomOffsetMm);
-  const rightOffsetMm = Math.max(0, rawRightOffsetMm);
+  // Allow negative nudges (Sheet Margin fields = fine-tune from die-cut base).
+  const topOffsetMm = Number.isFinite(rawTopOffsetMm) ? rawTopOffsetMm : 0;
+  const leftOffsetMm = Number.isFinite(rawLeftOffsetMm) ? rawLeftOffsetMm : 0;
+  const bottomOffsetMm = Number.isFinite(rawBottomOffsetMm) ? rawBottomOffsetMm : 0;
+  const rightOffsetMm = Number.isFinite(rawRightOffsetMm) ? rawRightOffsetMm : 0;
 
   // Informational warning if layout exceeds A4 dimensions
   const pdfDoc = await PDFDocument.create();
