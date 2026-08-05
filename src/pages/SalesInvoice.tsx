@@ -114,6 +114,7 @@ import { useCustomerBrandDiscounts } from "@/hooks/useCustomerBrandDiscounts";
 import { fetchCustomerProductPrice } from "@/hooks/useCustomerProductPrice";
 import { ProductHistoryDialog } from "@/components/ProductHistoryDialog";
 import { PriceSelectionDialog } from "@/components/PriceSelectionDialog";
+import { QuickServiceProductDialog } from "@/components/QuickServiceProductDialog";
 import { StockIssueAlertDialog } from "@/components/StockIssueAlertDialog";
 import { CustomerPhoneLookupInput, type CustomerPhoneLookupRow } from "@/components/CustomerPhoneLookupInput";
 import {
@@ -193,6 +194,16 @@ type InvoiceUnavailableVariantRow = {
 
 function isStockTrackedInvoiceProduct(product: { product_type?: string | null } | null | undefined): boolean {
   return product?.product_type !== 'service' && product?.product_type !== 'combo';
+}
+
+/** Default service price from variant master (MRP, else sale price) — same as POS. */
+function resolveServiceVariantDefaultMrp(variant: {
+  sale_price?: number | string | null;
+  mrp?: number | string | null;
+}): number {
+  const salePrice = parseFloat(String(variant.sale_price || 0)) || 0;
+  const rawMrp = variant.mrp ? parseFloat(String(variant.mrp)) : 0;
+  return rawMrp > 0 ? rawMrp : salePrice;
 }
 
 async function fetchUnavailableInvoiceVariantByProductName(
@@ -579,6 +590,12 @@ export default function SalesInvoice() {
   const [showSizeGrid, setShowSizeGrid] = useState(false);
   const [showPriceSelectionDialog, setShowPriceSelectionDialog] = useState(false);
   const [pendingPriceSelection, setPendingPriceSelection] = useState<any>(null);
+  const [showQuickServiceDialog, setShowQuickServiceDialog] = useState(false);
+  const [quickServiceCode, setQuickServiceCode] = useState("");
+  const [quickServiceProductForAdd, setQuickServiceProductForAdd] = useState<{
+    product: any;
+    variant: any;
+  } | null>(null);
   const [sizeGridProduct, setSizeGridProduct] = useState<any>(null);
   const [sizeGridVariants, setSizeGridVariants] = useState<any[]>([]);
   
@@ -1934,7 +1951,12 @@ export default function SalesInvoice() {
     originalItemsForEdit,
   ]);
 
-  const addProductToInvoice = async (product: any, variant: any, overridePrice?: { sale_price: number; mrp: number }, options?: { skipSizeGrid?: boolean }) => {
+  const addProductToInvoice = async (
+    product: any,
+    variant: any,
+    overridePrice?: { sale_price: number; mrp: number },
+    options?: { skipSizeGrid?: boolean; quantity?: number; description?: string },
+  ) => {
     // Block variants currently in an open Stock Settlement session.
     // In edit mode we still allow the variant if it was on the original invoice.
     if (
@@ -1952,13 +1974,50 @@ export default function SalesInvoice() {
     // when a line item's own brand is empty.
     recordProductBrand(product?.id, product?.brand);
 
+    const isServiceProduct = product.product_type === "service";
+
+    // Service products: same as POS — ask qty/price unless Settings turns the dialog off
+    // and a master price already exists.
+    if (isServiceProduct && !overridePrice) {
+      const serviceQuickEntryEnabled =
+        (settingsData as any)?.product_settings?.service_quick_entry_dialog !== false;
+      const svcSalePrice = parseFloat(String(variant.sale_price || 0)) || 0;
+      const svcMrp = resolveServiceVariantDefaultMrp(variant);
+      const hasPredefinedPrice = svcMrp > 0 || svcSalePrice > 0;
+
+      if (serviceQuickEntryEnabled || !hasPredefinedPrice) {
+        setQuickServiceCode(variant.barcode || product.product_name || "");
+        setQuickServiceProductForAdd({ product, variant });
+        setShowQuickServiceDialog(true);
+        setOpenProductSearch(false);
+        setSearchInput("");
+        return;
+      }
+
+      setOpenProductSearch(false);
+      setSearchInput("");
+      await addProductToInvoice(
+        product,
+        variant,
+        { sale_price: svcSalePrice || svcMrp, mrp: svcMrp || svcSalePrice },
+        { skipSizeGrid: true, quantity: 1 },
+      );
+      return;
+    }
+
     // If in grid mode, open size grid dialog
     // For MTR/roll products, barcode uniquely identifies the variant — skip size grid
     // skipSizeGrid: passed from barcode scan path — barcode already identifies exact variant
+    // Service products never use the size grid.
     const isMtrProduct = (product.uom || '').toUpperCase() === 'MTR' ||
       /^\d+(\.\d+)?\s*MTR$/i.test(variant?.size || '');
     
-    if (entryMode === "grid" && !isMtrProduct && !options?.skipSizeGrid) {
+    if (
+      entryMode === "grid" &&
+      !isServiceProduct &&
+      !isMtrProduct &&
+      !options?.skipSizeGrid
+    ) {
       openSizeGridForProduct(product, variant?.sale_price);
       setOpenProductSearch(false);
       setSearchInput("");
@@ -2056,6 +2115,12 @@ export default function SalesInvoice() {
     
     const salePrice = overridePrice?.sale_price ?? masterSalePrice;
     const mrpToUse = overridePrice?.mrp ?? masterMrp;
+    const addQty =
+      options?.quantity && options.quantity > 0 ? Math.max(1, Math.floor(options.quantity)) : 1;
+    const descNote = (options?.description || "").trim();
+    const displayName = descNote
+      ? `${buildProductDisplayName(product)} — ${descNote}`
+      : buildProductDisplayName(product);
     
     const customerHasMasterDiscount =
       !!selectedCustomer?.discount_percent && selectedCustomer.discount_percent > 0;
@@ -2075,8 +2140,15 @@ export default function SalesInvoice() {
     hasManuallyAddedNewItemRef.current = true;
     let touchedItemId: string | null = null;
     setLineItems(prev => {
-      // Check for existing item inside the updater to always see latest state
-      const existingIndex = prev.findIndex(item => item.variantId === variant.id && item.productId !== '');
+      // Service: merge only same variant + same price (different MRP = separate line, like POS).
+      const existingIndex = prev.findIndex((item) => {
+        if (item.variantId !== variant.id || item.productId === "") return false;
+        if (!isServiceProduct) return true;
+        return (
+          Math.abs(Number(item.salePrice || 0) - salePrice) < 0.005 &&
+          Math.abs(Number(item.mrp || 0) - mrpToUse) < 0.005
+        );
+      });
       
       let next: LineItem[];
       if (existingIndex >= 0) {
@@ -2084,7 +2156,7 @@ export default function SalesInvoice() {
         const updatedItems = [...prev];
         updatedItems[existingIndex] = calculateLineTotal({
           ...updatedItems[existingIndex],
-          quantity: updatedItems[existingIndex].quantity + 1,
+          quantity: updatedItems[existingIndex].quantity + addQty,
         });
         touchedItemId = updatedItems[existingIndex].id;
         next = updatedItems;
@@ -2093,11 +2165,11 @@ export default function SalesInvoice() {
         const newItemBase = {
           productId: product.id,
           variantId: variant.id,
-          productName: buildProductDisplayName(product),
+          productName: displayName,
           size: variant.size,
           barcode: variant.barcode || '',
           color: variant.color || product.color || '',
-          quantity: 1,
+          quantity: addQty,
           box: '',
           mrp: mrpToUse,
           salePrice: salePrice,
@@ -3818,6 +3890,38 @@ Thank you for choosing us!`;
         </div>
         {historyProduct && currentOrganization && <ProductHistoryDialog isOpen={!!historyProduct} onClose={() => setHistoryProduct(null)} productId={historyProduct.id} productName={historyProduct.name} organizationId={currentOrganization.id} />}
         {pendingPriceSelection && <PriceSelectionDialog open={showPriceSelectionDialog} onOpenChange={(open) => { setShowPriceSelectionDialog(open); if (!open) setPendingPriceSelection(null); }} productName={pendingPriceSelection.product?.product_name || ''} size={pendingPriceSelection.variant?.size || ''} masterPrice={pendingPriceSelection.masterPrice} lastPurchasePrice={pendingPriceSelection.lastPurchasePrice} customerPrice={pendingPriceSelection.customerPrice} onSelect={(source, prices) => { const { product, variant } = pendingPriceSelection; setShowPriceSelectionDialog(false); setPendingPriceSelection(null); addProductToInvoice(product, variant, prices); }} />}
+        <QuickServiceProductDialog
+          open={showQuickServiceDialog}
+          onOpenChange={(open) => {
+            setShowQuickServiceDialog(open);
+            if (!open) {
+              setQuickServiceProductForAdd(null);
+              setQuickServiceCode("");
+              setTimeout(() => barcodeInputRef.current?.focus(), 50);
+            }
+          }}
+          serviceCode={quickServiceCode}
+          productName={quickServiceProductForAdd?.product?.product_name}
+          defaultMrp={
+            quickServiceProductForAdd?.variant
+              ? resolveServiceVariantDefaultMrp(quickServiceProductForAdd.variant)
+              : undefined
+          }
+          onAdd={({ quantity, mrp, description }) => {
+            const pending = quickServiceProductForAdd;
+            if (!pending) return;
+            setShowQuickServiceDialog(false);
+            setQuickServiceProductForAdd(null);
+            setQuickServiceCode("");
+            void addProductToInvoice(
+              pending.product,
+              pending.variant,
+              { sale_price: mrp, mrp },
+              { skipSizeGrid: true, quantity, description },
+            );
+            setTimeout(() => barcodeInputRef.current?.focus(), 100);
+          }}
+        />
         <StockIssueAlertDialog
           open={showStockIssueDialog}
           onOpenChange={(open) => {
@@ -5363,6 +5467,43 @@ Thank you for choosing us!`;
           }}
         />
       )}
+
+      <QuickServiceProductDialog
+        open={showQuickServiceDialog}
+        onOpenChange={(open) => {
+          setShowQuickServiceDialog(open);
+          if (!open) {
+            setQuickServiceProductForAdd(null);
+            setQuickServiceCode("");
+            setTimeout(() => barcodeInputRef.current?.focus(), 50);
+          }
+        }}
+        serviceCode={quickServiceCode}
+        productName={quickServiceProductForAdd?.product?.product_name}
+        defaultMrp={
+          quickServiceProductForAdd?.variant
+            ? resolveServiceVariantDefaultMrp(quickServiceProductForAdd.variant)
+            : undefined
+        }
+        onAdd={({ quantity, mrp, description }) => {
+          const pending = quickServiceProductForAdd;
+          if (!pending) return;
+          setShowQuickServiceDialog(false);
+          setQuickServiceProductForAdd(null);
+          setQuickServiceCode("");
+          void addProductToInvoice(
+            pending.product,
+            pending.variant,
+            { sale_price: mrp, mrp },
+            {
+              skipSizeGrid: true,
+              quantity,
+              description,
+            },
+          );
+          setTimeout(() => barcodeInputRef.current?.focus(), 100);
+        }}
+      />
 
       <StockIssueAlertDialog
         open={showStockIssueDialog}
