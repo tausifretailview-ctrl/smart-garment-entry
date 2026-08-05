@@ -119,18 +119,27 @@ export function useInstallPrompt() {
 
   const promptInstall = useCallback(async () => {
     const promptEvent = sharedDeferredPrompt || deferredPrompt;
-    if (!promptEvent) return false;
+    if (!promptEvent?.prompt) return false;
 
-    await promptEvent.prompt();
-    const { outcome } = await promptEvent.userChoice;
+    try {
+      await promptEvent.prompt();
+      const { outcome } = await promptEvent.userChoice;
 
-    if (outcome === "accepted") {
+      // Chrome invalidates the event after one prompt() — always clear.
       clearPrompt();
       setDeferredPrompt(null);
-      setIsInstalled(true);
-    }
 
-    return outcome === "accepted";
+      if (outcome === "accepted") {
+        setIsInstalled(true);
+        return true;
+      }
+      return false;
+    } catch (err) {
+      console.warn("[PWA] Install prompt failed:", err);
+      clearPrompt();
+      setDeferredPrompt(null);
+      return false;
+    }
   }, [deferredPrompt]);
 
   const isInstallable = !!deferredPrompt && !isInstalled;

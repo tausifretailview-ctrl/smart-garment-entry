@@ -8,6 +8,7 @@ import { Download, Share, Plus, Smartphone, CheckCircle2, Copy, MessageCircle, M
 import { useInstallPrompt } from "@/hooks/useInstallPrompt";
 import { toast } from "sonner";
 import { isValidOrgSlug, storeOrgSlug } from "@/lib/orgSlug";
+import { applyOrgPwaManifest } from "@/lib/orgPwaManifest";
 import {
   APP_VERSION,
   ANDROID_APK_VERSION,
@@ -68,13 +69,16 @@ function isStandaloneDisplay(): boolean {
   );
 }
 
-/** Install page is APK-only — do not register as an installable PWA. */
-function useDisablePwaOnInstallPage(active: boolean) {
+/** Install page is for downloads — temporarily detach org PWA manifest so /install is not installed. */
+function useDisablePwaOnInstallPage(
+  active: boolean,
+  orgSlug: string | undefined,
+  orgName: string,
+) {
   useLayoutEffect(() => {
-    if (!active) return;
+    if (!active || !orgSlug || !isValidOrgSlug(orgSlug)) return;
 
     const manifestLink = document.querySelector<HTMLLinkElement>('link[rel="manifest"]');
-    const previousManifestHref = manifestLink?.getAttribute("href") ?? null;
     manifestLink?.remove();
     window.__pwaInstallPrompt = undefined;
 
@@ -86,12 +90,10 @@ function useDisablePwaOnInstallPage(active: boolean) {
 
     return () => {
       window.removeEventListener("beforeinstallprompt", blockInstallPrompt);
-      if (manifestLink && previousManifestHref && !document.querySelector('link[rel="manifest"]')) {
-        manifestLink.href = previousManifestHref;
-        document.head.appendChild(manifestLink);
-      }
+      // Rebuild a fresh org manifest (blob URLs from before may be stale).
+      applyOrgPwaManifest(orgSlug, orgName || undefined);
     };
-  }, [active]);
+  }, [active, orgSlug, orgName]);
 }
 
 export default function InstallApp() {
@@ -108,7 +110,7 @@ export default function InstallApp() {
   const isStandalone = isStandaloneDisplay();
   const isNativeShell = Capacitor.isNativePlatform();
 
-  useDisablePwaOnInstallPage(!!orgSlug && isValidOrgSlug(orgSlug));
+  useDisablePwaOnInstallPage(!!orgSlug && isValidOrgSlug(orgSlug), orgSlug, orgName);
 
   // PWA / native shell: install page is only for downloading; open the org app once installed.
   useLayoutEffect(() => {

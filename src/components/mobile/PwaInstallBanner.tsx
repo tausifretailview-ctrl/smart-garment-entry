@@ -51,12 +51,12 @@ export function PwaInstallBanner() {
           <p className="font-semibold text-sm">Install EzzyERP app</p>
           {showAndroid ? (
             <p className="text-xs opacity-90 mt-0.5">
-              Add to your home screen for full-screen billing and faster access.
+              Install to get the EzzyERP app icon on your home screen — full-screen billing, faster open.
             </p>
           ) : (
             <p className="text-xs opacity-90 mt-0.5">
               Tap <Share className="inline h-3 w-3 mx-0.5 align-text-bottom" /> then{" "}
-              <strong>Add to Home Screen</strong>.
+              <strong>Add to Home Screen</strong> for the EzzyERP app icon.
             </p>
           )}
         </div>
@@ -66,7 +66,12 @@ export function PwaInstallBanner() {
               size="sm"
               variant="secondary"
               className="h-9 min-h-[44px] touch-manipulation"
-              onClick={() => void promptInstall()}
+              onClick={() => {
+                void (async () => {
+                  const ok = await promptInstall();
+                  if (!ok) orgNavigate("/install");
+                })();
+              }}
             >
               <Download className="h-4 w-4 mr-1" />
               Install

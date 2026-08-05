@@ -103,26 +103,19 @@ export default defineConfig(({ mode }) => ({
         theme_color: '#1e40af',
         background_color: '#ffffff',
         display: 'standalone',
-        orientation: 'portrait',
+        // "any" — portrait-only can block Chrome desktop install prompts on Windows.
+        orientation: 'any',
         scope: '/',
         // Cold install without a remembered shop → org URL entry (not Platform Admin /auth).
         // When a shop slug is known, OrgLayout swaps in a dynamic manifest with start_url /{slug}.
         start_url: '/organization-setup',
         categories: ['business', 'finance', 'productivity'],
         icons: [
-          {
-            src: '/icon-192.png',
-            sizes: '192x192',
-            type: 'image/png',
-            purpose: 'any maskable'
-          },
-          {
-            src: '/icon-512.png',
-            sizes: '512x512',
-            type: 'image/png',
-            purpose: 'any maskable'
-          }
-        ]
+          { src: '/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: '/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'maskable' },
+          { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+          { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+        ],
       }
     })
   ].filter(Boolean),

@@ -62,25 +62,29 @@ export const Header = () => {
   const isDesktopApp = isElectronShell();
 
   const handleInstallApp = async () => {
+    // Chrome/Edge: native PWA install dialog (adds Start Menu / desktop / home-screen icon).
     if (isInstallable) {
       const ok = await promptInstall();
       if (ok) {
-        toast.success("EzzyERP installed — open it from your home screen or Start menu.");
+        toast.success("EzzyERP installed — open it from your Start menu or home screen.");
+        return;
       }
-      return;
     }
     if (isIOSDevice()) {
       toast("Install on iPhone / iPad", {
-        description: 'Tap Share, then "Add to Home Screen".',
-        duration: 8000,
+        description: 'Tap Share → "Add to Home Screen" to get the EzzyERP app icon.',
+        duration: 10_000,
       });
+      orgNavigate("/install");
       return;
     }
-    toast("Install EzzyERP", {
+    // Windows / Android fallback: install page (Windows Setup EXE + Add to Home Screen / APK).
+    toast("Opening install options…", {
       description:
-        "Use your browser menu → Install app / Add to Home screen. On Chrome/Edge (Windows & Android), the Install prompt appears when the app is ready.",
-      duration: 8000,
+        "Choose Windows desktop installer, or Install / Add to Home Screen for the browser app icon.",
+      duration: 5000,
     });
+    orgNavigate("/install");
   };
   const { hasMenuAccess, hasMainMenuAccess, hasSpecialPermission, permissions, loading: permissionsLoading } = useUserPermissions();
   const can = (menuId: string) =>
