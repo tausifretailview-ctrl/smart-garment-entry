@@ -1,19 +1,17 @@
 import { useState, useMemo } from "react";
 import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
 import { restoreDashboardFilters, WINDOW_FILTER_IDS } from "@/lib/dashboardFilterPersistence";
-import { format, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear, subMonths } from "date-fns";
-import { FileSpreadsheet, Download, Calendar, Building2, AlertTriangle } from "lucide-react";
+import { format, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, subMonths } from "date-fns";
+import { ArrowLeft, FileSpreadsheet, Download, Calendar, Building2, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   calculateGSTBreakup,
   calculateInvoiceValue,
@@ -26,20 +24,29 @@ import {
   PurchaseRegisterRow,
   PurchaseReturnRegisterRow,
 } from "@/utils/gstRegisterUtils";
-// FIX G8: Static imports instead of dynamic
 import {
   fetchAllSaleItems,
   fetchSaleReturnItemsByIds,
   fetchPurchaseItemsByBillIds,
   fetchPurchaseReturnItemsByIds,
 } from "@/utils/fetchAllRows";
+import { InsightsKpiCard } from "@/components/business-insights/insightsLayout";
 
 type PeriodType = "custom" | "this-month" | "last-month" | "this-quarter" | "last-quarter" | "this-fy" | "last-fy";
 
 const GSTSalePurchaseRegister = () => {
   const { toast } = useToast();
   const { currentOrganization } = useOrganization();
+  const { orgNavigate } = useOrgNavigation();
   const today = new Date();
+
+  const handleBack = () => {
+    if (typeof window !== "undefined" && window.history.length > 1) {
+      window.history.back();
+      return;
+    }
+    orgNavigate("/reports");
+  };
 
   const [fromDate, setFromDate] = useState(format(startOfMonth(today), "yyyy-MM-dd"));
   const [toDate, setToDate] = useState(format(endOfMonth(today), "yyyy-MM-dd"));
@@ -544,38 +551,55 @@ const GSTSalePurchaseRegister = () => {
   };
 
   return (
-    <div className="space-y-6 p-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3">
-            <FileSpreadsheet className="h-8 w-8 text-primary" />
-            GST Sale/Purchase Register
-          </h1>
-          <p className="text-muted-foreground mt-1">
-            Export GST compliant Sale & Purchase Register for filing returns
-          </p>
+    <div className="business-insights-workspace flex flex-col bg-slate-50 px-2 sm:px-3 py-2 min-h-0 h-full overflow-hidden w-full">
+      <div className="w-full min-w-0 flex flex-col flex-1 min-h-0 gap-3 overflow-auto">
+        {/* Toolbar — Insights-style: Back only, no global header chrome */}
+        <div className="no-print flex flex-wrap items-center justify-between gap-2 shrink-0">
+          <div className="flex flex-wrap items-center gap-2 min-w-0">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9 px-3 text-sm shrink-0"
+              onClick={handleBack}
+            >
+              <ArrowLeft className="h-4 w-4 mr-1" />
+              Back
+            </Button>
+            <div className="min-w-0">
+              <h1 className="text-xl font-bold text-teal-700 tracking-tight leading-none flex items-center gap-2">
+                <FileSpreadsheet className="h-5 w-5 shrink-0" />
+                GST Sale/Purchase Register
+              </h1>
+              <p className="text-sm text-muted-foreground mt-1 truncate">
+                Export GST-compliant Sale &amp; Purchase Register for filing returns
+              </p>
+            </div>
+          </div>
+          <Button
+            onClick={handleExport}
+            disabled={isExporting}
+            className="h-9 gap-2 shrink-0 bg-blue-600 hover:bg-blue-700 text-white"
+          >
+            <Download className="h-4 w-4" />
+            {isExporting ? "Generating…" : "Export to Excel"}
+          </Button>
         </div>
-      </div>
 
-      {/* Main Card */}
-      <Card className="brand-accent">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Calendar className="h-5 w-5 text-primary" />
-            Select Period
-          </CardTitle>
-          <CardDescription>
-            Choose the date range for generating GST registers
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Period Selection */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <Label>Quick Select Period</Label>
+        {/* Period filters — full-width row */}
+        <div className="shrink-0 rounded-lg border border-slate-200 bg-white px-3 py-3 shadow-sm">
+          <div className="flex items-center gap-2 mb-3">
+            <Calendar className="h-4 w-4 text-teal-700" />
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Select Period
+            </p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 items-end">
+            <div className="space-y-1">
+              <Label className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                Quick Select
+              </Label>
               <Select value={periodType} onValueChange={(v) => handlePeriodChange(v as PeriodType)}>
-                <SelectTrigger>
+                <SelectTrigger className="h-9 text-sm border-slate-200 bg-white">
                   <SelectValue placeholder="Select period" />
                 </SelectTrigger>
                 <SelectContent>
@@ -589,9 +613,13 @@ const GSTSalePurchaseRegister = () => {
                 </SelectContent>
               </Select>
             </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="fromDate">From Date</Label>
+            <div className="space-y-1">
+              <Label
+                htmlFor="fromDate"
+                className="text-[11px] font-semibold uppercase tracking-wide text-slate-500"
+              >
+                From Date
+              </Label>
               <Input
                 id="fromDate"
                 type="date"
@@ -600,11 +628,16 @@ const GSTSalePurchaseRegister = () => {
                   setFromDate(e.target.value);
                   setPeriodType("custom");
                 }}
+                className="h-9 text-sm border-slate-200 bg-white"
               />
             </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="toDate">To Date</Label>
+            <div className="space-y-1">
+              <Label
+                htmlFor="toDate"
+                className="text-[11px] font-semibold uppercase tracking-wide text-slate-500"
+              >
+                To Date
+              </Label>
               <Input
                 id="toDate"
                 type="date"
@@ -613,94 +646,114 @@ const GSTSalePurchaseRegister = () => {
                   setToDate(e.target.value);
                   setPeriodType("custom");
                 }}
+                className="h-9 text-sm border-slate-200 bg-white"
               />
             </div>
-          </div>
-
-          <Separator />
-
-          {/* Info Alert */}
-          <Alert>
-            <Building2 className="h-4 w-4" />
-            <AlertTitle>Export Information</AlertTitle>
-            <AlertDescription>
-              The Excel file will contain 5 sheets: <Badge variant="outline">Sales Register</Badge>{" "}
-              <Badge variant="outline">Sale Return Register</Badge>{" "}
-              <Badge variant="outline">Purchase Register</Badge>{" "}
-              <Badge variant="outline">Purchase Return Register</Badge>{" "}
-              <Badge variant="outline">POS Sales Register</Badge>
-            </AlertDescription>
-          </Alert>
-
-          {/* UI-4: Stats preview */}
-          {stats && (
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-              {[
-                { label: "Invoice Sales", value: stats.salesCount },
-                { label: "POS Sales", value: stats.posSalesCount },
-                { label: "Sale Returns", value: stats.saleReturnCount },
-                { label: "Purchases", value: stats.purchaseCount },
-                { label: "Purchase Returns", value: stats.purchaseReturnCount },
-              ].map(s => (
-                <div key={s.label} className="bg-muted/50 p-3 rounded-lg text-center">
-                  <p className="text-xs text-muted-foreground">{s.label}</p>
-                  <p className="text-xl font-bold">{s.value}</p>
-                </div>
-              ))}
+            <div className="flex items-center gap-2 min-h-9 text-xs text-slate-500">
+              <Building2 className="h-3.5 w-3.5 shrink-0" />
+              <span className="leading-snug">
+                Excel sheets: Sales · POS · Sale Return · Purchase · Purchase Return
+              </span>
             </div>
-          )}
+          </div>
+        </div>
 
-          {/* Export Button */}
-          <div className="flex items-center gap-4">
-            <Button
-              onClick={handleExport}
-              disabled={isExporting}
-              size="lg"
-              className="gap-2"
+        {/* KPI cards — Insights count-up animation */}
+        <div className="shrink-0 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+          <InsightsKpiCard
+            label="Invoice Sales"
+            value={stats?.salesCount ?? 0}
+            valueFormat="int"
+            tone="neutral"
+          />
+          <InsightsKpiCard
+            label="POS Sales"
+            value={stats?.posSalesCount ?? 0}
+            valueFormat="int"
+            tone="positive"
+          />
+          <InsightsKpiCard
+            label="Sale Returns"
+            value={stats?.saleReturnCount ?? 0}
+            valueFormat="int"
+            tone="attention"
+          />
+          <InsightsKpiCard
+            label="Purchases"
+            value={stats?.purchaseCount ?? 0}
+            valueFormat="int"
+            tone="neutral"
+          />
+          <InsightsKpiCard
+            label="Purchase Returns"
+            value={stats?.purchaseReturnCount ?? 0}
+            valueFormat="int"
+            tone="attention"
+          />
+        </div>
+
+        {!stats && (
+          <p className="text-sm text-slate-500 shrink-0">
+            Click <strong>Export to Excel</strong> to generate the register and refresh counts for this period.
+          </p>
+        )}
+
+        {/* Sheets preview row */}
+        <div className="shrink-0 flex flex-wrap gap-2">
+          {[
+            "Sales Register",
+            "POS Sales Register",
+            "Sale Return Register",
+            "Purchase Register",
+            "Purchase Return Register",
+          ].map((name) => (
+            <Badge
+              key={name}
+              variant="outline"
+              className="h-8 px-3 text-xs font-semibold border-slate-200 bg-white text-slate-700"
             >
-              <Download className="h-5 w-5" />
-              {isExporting ? "Generating..." : "Export to Excel"}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+              {name}
+            </Badge>
+          ))}
+        </div>
 
-      {/* GST Information Card */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <AlertTriangle className="h-5 w-5 text-warning" />
-            GST Calculation Notes
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
+        {/* Notes panel */}
+        <div className="rounded-lg border border-slate-200 bg-white px-4 py-3 shadow-sm shrink-0">
+          <div className="flex items-center gap-2 mb-3">
+            <AlertTriangle className="h-4 w-4 text-amber-600" />
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              GST Calculation Notes
+            </p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
             <div>
-              <h4 className="font-semibold mb-2">Sales Register</h4>
-              <ul className="list-disc list-inside space-y-1 text-muted-foreground">
-                <li>GST calculated using <strong>Inclusive</strong> method (GST extracted from price)</li>
-                <li>CGST/SGST split for intra-state, IGST for inter-state transactions</li>
-                <li>Supports all GST slabs: 0%, 5%, 12%, 18%, 28%</li>
+              <h4 className="font-semibold text-slate-800 mb-1.5">Sales / POS Register</h4>
+              <ul className="list-disc list-inside space-y-1 text-slate-500">
+                <li>
+                  Breakup follows each bill&apos;s <strong>tax type</strong> (Inclusive / Exclusive /
+                  Without GST)
+                </li>
+                <li>CGST/SGST for intra-state, IGST for inter-state</li>
+                <li>Slabs: 0%, 5%, 12%, 18%, 28%</li>
               </ul>
             </div>
             <div>
-              <h4 className="font-semibold mb-2">Purchase Register</h4>
-              <ul className="list-disc list-inside space-y-1 text-muted-foreground">
-                <li>GST calculated using <strong>Exclusive</strong> method (GST added on top)</li>
-                <li>IGST columns included for inter-state purchases</li>
-                <li>State code derived from first 2 digits of GSTIN</li>
+              <h4 className="font-semibold text-slate-800 mb-1.5">Purchase Register</h4>
+              <ul className="list-disc list-inside space-y-1 text-slate-500">
+                <li>
+                  GST calculated using <strong>Exclusive</strong> method (GST on taxable)
+                </li>
+                <li>IGST columns for inter-state purchases</li>
+                <li>State code from first 2 digits of GSTIN</li>
               </ul>
             </div>
           </div>
-
-          <Separator />
-
-          <div className="text-sm text-muted-foreground">
-            <strong>Note:</strong> For accurate inter-state detection, ensure both your business GSTIN 
-            (in Settings) and party GSTINs (in Customer/Supplier Master) are correctly configured.
-          </div>
-        </CardContent>
-      </Card>
+          <p className="text-xs text-slate-500 mt-3 border-t border-slate-100 pt-3">
+            <strong className="text-slate-700">Note:</strong> For accurate inter-state detection,
+            set business GSTIN in Settings and party GSTINs in Customer/Supplier Master.
+          </p>
+        </div>
+      </div>
     </div>
   );
 };
