@@ -1,13 +1,12 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { ArrowDownLeft, ArrowUpRight, BookOpen, Plus } from "lucide-react";
+import { ArrowDownLeft, ArrowLeft, ArrowUpRight, Banknote, Plus } from "lucide-react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
-import { BackToDashboard } from "@/components/BackToDashboard";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,6 +16,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 import {
   clearSeedDefaultAccountsCache,
   seedDefaultAccounts,
@@ -51,7 +51,7 @@ function parseAmount(s: string): number {
  */
 export default function ThirdPartyVoucherEntry() {
   const { currentOrganization } = useOrganization();
-  const { getOrgPath } = useOrgNavigation();
+  const { getOrgPath, orgNavigate } = useOrgNavigation();
   const queryClient = useQueryClient();
 
   const [direction, setDirection] = useState<Direction>("paid_out");
@@ -234,268 +234,376 @@ export default function ThirdPartyVoucherEntry() {
     setNewGroup(groups.includes(preferred) ? preferred : groups[0]);
   };
 
+  const fieldLabelClass = "text-sm font-semibold text-slate-800";
+  const fieldControlClass = "h-10 border-slate-200 bg-slate-50 focus:bg-white";
+  const tabTriggerClass =
+    "h-10 px-3 text-sm font-semibold shrink-0 rounded-md data-[state=active]:bg-teal-700 data-[state=active]:text-white data-[state=inactive]:text-slate-600";
+
   return (
-    <div className="space-y-6 p-4 md:p-6">
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex items-center gap-3">
-          <BackToDashboard />
-          <div>
-            <h1 className="text-2xl font-bold">Third-party Pay / Receive</h1>
-            <p className="text-sm text-muted-foreground">
-              Sundry debtors/creditors, deposits, loans — not customer or supplier masters
-            </p>
+    <div className="flex flex-col bg-slate-50 px-2 sm:px-3 py-2 min-h-0 h-full overflow-hidden w-full">
+      <div className="w-full min-w-0 flex flex-col flex-1 min-h-0 gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-2 shrink-0">
+          <div className="flex items-center gap-2 min-w-0">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9 px-3 text-sm shrink-0"
+              onClick={() => orgNavigate("/accounts")}
+            >
+              <ArrowLeft className="h-4 w-4 mr-1" />
+              Back
+            </Button>
+            <div className="min-w-0">
+              <h1 className="text-xl font-bold text-teal-700 tracking-tight leading-none flex items-center gap-2">
+                <Banknote className="h-5 w-5 shrink-0" />
+                Third-party Pay / Receive
+              </h1>
+              <p className="text-sm text-muted-foreground mt-1 truncate">
+                Sundry debtors/creditors, deposits, loans — not customer or supplier masters
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-1.5 shrink-0">
+            <Button variant="outline" size="sm" className="h-9 text-sm border-slate-200" asChild>
+              <Link to={getOrgPath("/third-party-balances")}>View balances</Link>
+            </Button>
+            <Button variant="outline" size="sm" className="h-9 text-sm border-slate-200" asChild>
+              <Link to={getOrgPath("/journal-vouchers")}>Day book</Link>
+            </Button>
+            <Button variant="outline" size="sm" className="h-9 text-sm border-slate-200" asChild>
+              <Link to={getOrgPath("/manual-journal")}>Manual journal</Link>
+            </Button>
           </div>
         </div>
-        <div className="flex gap-2 flex-wrap">
-          <Button variant="outline" asChild>
-            <Link to={getOrgPath("/third-party-balances")}>View balances</Link>
-          </Button>
-          <Button variant="outline" asChild>
-            <Link to={getOrgPath("/journal-vouchers")}>Day book</Link>
-          </Button>
-          <Button variant="outline" asChild>
-            <Link to={getOrgPath("/manual-journal")}>Manual journal</Link>
-          </Button>
-        </div>
-      </div>
 
-      <Tabs defaultValue="entry" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="entry">Post entry</TabsTrigger>
-          <TabsTrigger value="ledger">Account ledger</TabsTrigger>
-        </TabsList>
+        <Tabs defaultValue="entry" className="flex flex-1 flex-col min-h-0 overflow-hidden gap-2">
+          <TabsList className="shrink-0 w-full h-auto p-1 bg-white border border-slate-200 rounded-lg grid grid-cols-2 gap-1">
+            <TabsTrigger value="entry" className={tabTriggerClass}>
+              Post entry
+            </TabsTrigger>
+            <TabsTrigger value="ledger" className={tabTriggerClass}>
+              Account ledger
+            </TabsTrigger>
+          </TabsList>
 
-        <TabsContent value="entry" className="space-y-4">
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">Direction</CardTitle>
-              <CardDescription>Money leaving or entering the business via cash/bank</CardDescription>
-            </CardHeader>
-            <CardContent className="flex flex-wrap gap-2">
-              <Button
-                type="button"
-                variant={direction === "paid_out" ? "default" : "outline"}
-                onClick={() => setDirection("paid_out")}
-              >
-                <ArrowUpRight className="h-4 w-4 mr-2" />
-                Money paid out
-              </Button>
-              <Button
-                type="button"
-                variant={direction === "received" ? "default" : "outline"}
-                onClick={() => setDirection("received")}
-              >
-                <ArrowDownLeft className="h-4 w-4 mr-2" />
-                Money received
-              </Button>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">Voucher details</CardTitle>
-            </CardHeader>
-            <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2 md:col-span-2">
-                <div className="flex items-center justify-between gap-2">
-                  <Label>Third-party account</Label>
-                  <Button type="button" size="sm" variant="outline" onClick={() => setCreateOpen(true)}>
-                    <Plus className="h-4 w-4 mr-1" />
-                    Create new master
-                  </Button>
+          <Card className="min-h-0 flex-1 flex flex-col overflow-hidden rounded-lg border border-slate-200 shadow-sm p-0">
+            <div className="flex-1 min-h-0 overflow-y-auto px-3 sm:px-4 py-3 space-y-3">
+              <TabsContent value="entry" className="mt-0 outline-none space-y-3 data-[state=inactive]:hidden">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h2 className="text-base font-bold text-slate-900">Third-party voucher</h2>
+                  <span className="text-xs font-semibold text-teal-800 bg-teal-50 border border-teal-200 rounded px-2 py-1">
+                    {direction === "paid_out" ? "Payment (paid out)" : "Receipt (received)"}
+                  </span>
                 </div>
-                <Select
-                  value={partyAccountId || undefined}
-                  onValueChange={(v) => {
-                    setPartyAccountId(v);
-                    setLedgerAccountId(v);
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder={accountsQuery.isLoading ? "Loading…" : "Select account"} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {partyAccounts.length === 0 ? (
-                      <SelectItem value="__none" disabled>
-                        No third-party masters yet — create one
-                      </SelectItem>
-                    ) : (
-                      partyAccounts.map((a) => (
-                        <SelectItem key={a.id} value={a.id}>
-                          {a.account_code} — {a.account_name}
-                          {a.account_group ? ` (${a.account_group})` : ""}
-                        </SelectItem>
-                      ))
-                    )}
-                  </SelectContent>
-                </Select>
-              </div>
 
-              <div className="space-y-2">
-                <Label>Cash / Bank</Label>
-                <Select
-                  value={effectiveCashBankId || undefined}
-                  onValueChange={setCashBankAccountId}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select cash or bank" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {cashBankAccounts.map((a) => (
-                      <SelectItem key={a.id} value={a.id}>
-                        {a.account_code} — {a.account_name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <div className="rounded-lg border border-slate-200 bg-white shadow-sm px-3 py-2.5">
+                    <p className="text-[11px] font-bold uppercase tracking-wide text-slate-700">Direction</p>
+                    <p className="text-sm font-semibold text-slate-900 mt-1">
+                      {direction === "paid_out" ? "Money paid out" : "Money received"}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-slate-200 bg-white shadow-sm px-3 py-2.5">
+                    <p className="text-[11px] font-bold uppercase tracking-wide text-slate-700">Amount</p>
+                    <p className="text-lg font-black text-slate-900 tabular-nums mt-0.5">
+                      {amountNum > 0 ? fmt(amountNum) : "₹0.00"}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-slate-200 bg-white shadow-sm px-3 py-2.5">
+                    <p className="text-[11px] font-bold uppercase tracking-wide text-slate-700">Cash / Bank</p>
+                    <p className="text-sm font-semibold text-slate-900 mt-1 truncate">
+                      {cashBank ? `${cashBank.account_code} — ${cashBank.account_name}` : "—"}
+                    </p>
+                  </div>
+                </div>
 
-              <div className="space-y-2">
-                <Label>Amount (₹)</Label>
-                <Input
-                  inputMode="decimal"
-                  className="font-mono tabular-nums"
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                  placeholder="0.00"
-                />
-              </div>
+                <div className="rounded-lg border border-slate-200 bg-white shadow-sm p-3 sm:p-4 space-y-4">
+                  <div className="space-y-2">
+                    <Label className={fieldLabelClass}>Direction</Label>
+                    <div className="flex flex-wrap gap-1.5">
+                      <Button
+                        type="button"
+                        size="sm"
+                        className={cn(
+                          "h-9 px-3 text-sm font-semibold rounded-md border",
+                          direction === "paid_out"
+                            ? "bg-teal-700 hover:bg-teal-700 text-white border-teal-700"
+                            : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50",
+                        )}
+                        onClick={() => setDirection("paid_out")}
+                      >
+                        <ArrowUpRight className="h-4 w-4 mr-1.5" />
+                        Money paid out
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        className={cn(
+                          "h-9 px-3 text-sm font-semibold rounded-md border",
+                          direction === "received"
+                            ? "bg-teal-700 hover:bg-teal-700 text-white border-teal-700"
+                            : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50",
+                        )}
+                        onClick={() => setDirection("received")}
+                      >
+                        <ArrowDownLeft className="h-4 w-4 mr-1.5" />
+                        Money received
+                      </Button>
+                    </div>
+                  </div>
 
-              <div className="space-y-2">
-                <Label>Date</Label>
-                <Input type="date" value={entryDate} onChange={(e) => setEntryDate(e.target.value)} />
-              </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-3">
+                    <div className="space-y-1.5 md:col-span-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <Label className={fieldLabelClass}>Third-party account</Label>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="h-8 text-xs border-slate-200"
+                          onClick={() => setCreateOpen(true)}
+                        >
+                          <Plus className="h-3.5 w-3.5 mr-1" />
+                          Create new master
+                        </Button>
+                      </div>
+                      <Select
+                        value={partyAccountId || undefined}
+                        onValueChange={(v) => {
+                          setPartyAccountId(v);
+                          setLedgerAccountId(v);
+                        }}
+                      >
+                        <SelectTrigger className={fieldControlClass}>
+                          <SelectValue placeholder={accountsQuery.isLoading ? "Loading…" : "Select account"} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {partyAccounts.length === 0 ? (
+                            <SelectItem value="__none" disabled>
+                              No third-party masters yet — create one
+                            </SelectItem>
+                          ) : (
+                            partyAccounts.map((a) => (
+                              <SelectItem key={a.id} value={a.id}>
+                                {a.account_code} — {a.account_name}
+                                {a.account_group ? ` (${a.account_group})` : ""}
+                              </SelectItem>
+                            ))
+                          )}
+                        </SelectContent>
+                      </Select>
+                    </div>
 
-              <div className="space-y-2 md:col-span-2">
-                <Label>Narration</Label>
-                <Textarea
-                  value={narration}
-                  onChange={(e) => setNarration(e.target.value)}
-                  placeholder="e.g. Rent deposit paid to landlord"
-                  rows={2}
-                />
-              </div>
-            </CardContent>
-          </Card>
+                    <div className="space-y-1.5">
+                      <Label className={fieldLabelClass}>Date</Label>
+                      <Input
+                        type="date"
+                        className={fieldControlClass}
+                        value={entryDate}
+                        onChange={(e) => setEntryDate(e.target.value)}
+                      />
+                    </div>
 
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <BookOpen className="h-4 w-4" />
-                Pre-post preview
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {previewLines.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Select account, cash/bank, and amount to preview Dr/Cr.</p>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-16">Side</TableHead>
-                      <TableHead>Account</TableHead>
-                      <TableHead className="text-right">Amount</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {previewLines.map((line) => (
-                      <TableRow key={`${line.side}-${line.account.id}`}>
-                        <TableCell className="font-semibold">{line.side}</TableCell>
-                        <TableCell>
-                          {line.account.account_code} — {line.account.account_name}
-                        </TableCell>
-                        <TableCell className="text-right font-mono tabular-nums">{fmt(line.amount)}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-              <div className="mt-4 flex justify-end">
-                <Button
-                  onClick={() => postMutation.mutate()}
-                  disabled={postMutation.isPending || previewLines.length < 2}
-                >
-                  {postMutation.isPending ? "Posting…" : "Post voucher"}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
+                    <div className="space-y-1.5">
+                      <Label className={fieldLabelClass}>Cash / Bank</Label>
+                      <Select
+                        value={effectiveCashBankId || undefined}
+                        onValueChange={setCashBankAccountId}
+                      >
+                        <SelectTrigger className={fieldControlClass}>
+                          <SelectValue placeholder="Select cash or bank" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {cashBankAccounts.map((a) => (
+                            <SelectItem key={a.id} value={a.id}>
+                              {a.account_code} — {a.account_name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
 
-        <TabsContent value="ledger" className="space-y-4">
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">Account ledger (read-only)</CardTitle>
-              <CardDescription>
-                Running balance = sum(debit − credit) from journal lines for this ledger only
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2 max-w-xl">
-                <Label>Account</Label>
-                <Select
-                  value={ledgerAccountId || undefined}
-                  onValueChange={setLedgerAccountId}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select third-party account" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {partyAccounts.map((a) => (
-                      <SelectItem key={a.id} value={a.id}>
-                        {a.account_code} — {a.account_name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+                    <div className="space-y-1.5">
+                      <Label className={fieldLabelClass}>Amount (₹)</Label>
+                      <Input
+                        inputMode="decimal"
+                        className={cn(fieldControlClass, "font-mono tabular-nums")}
+                        value={amount}
+                        onChange={(e) => setAmount(e.target.value)}
+                        placeholder="Enter amount"
+                      />
+                    </div>
 
-              {!ledgerAccountId ? (
-                <p className="text-sm text-muted-foreground">Select an account to view its ledger.</p>
-              ) : ledgerQuery.isLoading ? (
-                <p className="text-sm text-muted-foreground">Loading…</p>
-              ) : (ledgerQuery.data?.length || 0) === 0 ? (
-                <p className="text-sm text-muted-foreground">No journal lines for this account yet.</p>
-              ) : (
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Date</TableHead>
-                        <TableHead>Narration</TableHead>
-                        <TableHead>Type</TableHead>
-                        <TableHead className="text-right">Debit</TableHead>
-                        <TableHead className="text-right">Credit</TableHead>
-                        <TableHead className="text-right">Balance</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {ledgerQuery.data!.map((row) => (
-                        <TableRow key={`${row.journalLineId || row.lineSeq}-${row.entryDate}`}>
-                          <TableCell className="whitespace-nowrap">{row.entryDate}</TableCell>
-                          <TableCell className="max-w-[280px] truncate" title={row.description || ""}>
-                            {row.description || "—"}
-                          </TableCell>
-                          <TableCell className="text-muted-foreground text-xs">{row.referenceType}</TableCell>
-                          <TableCell className="text-right font-mono tabular-nums">
-                            {row.debitAmount ? fmt(row.debitAmount) : "—"}
-                          </TableCell>
-                          <TableCell className="text-right font-mono tabular-nums">
-                            {row.creditAmount ? fmt(row.creditAmount) : "—"}
-                          </TableCell>
-                          <TableCell className="text-right font-mono tabular-nums font-medium">
-                            {fmt(row.runningBalance)}
-                          </TableCell>
+                    <div className="space-y-1.5 md:col-span-2">
+                      <Label className={fieldLabelClass}>Narration</Label>
+                      <Textarea
+                        value={narration}
+                        onChange={(e) => setNarration(e.target.value)}
+                        placeholder="Payment note / narration"
+                        rows={2}
+                        className="border-slate-200 bg-slate-50 focus:bg-white min-h-[72px]"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded-lg border border-slate-200 bg-white shadow-sm overflow-hidden">
+                  <div className="px-3 py-2 border-b border-slate-100">
+                    <h3 className="text-sm font-bold text-slate-900">Pre-post preview</h3>
+                    <p className="text-xs text-slate-500 mt-0.5">Dr / Cr lines that will be posted</p>
+                  </div>
+                  {previewLines.length === 0 ? (
+                    <p className="px-3 py-4 text-sm text-slate-500">
+                      Select account, cash/bank, and amount to preview Dr/Cr.
+                    </p>
+                  ) : (
+                    <Table className="[&_td]:px-3 [&_th]:px-3">
+                      <TableHeader>
+                        <TableRow className="bg-slate-800 hover:bg-slate-800 border-none">
+                          <TableHead className="h-9 w-16 text-xs font-bold uppercase tracking-wide text-white">
+                            Side
+                          </TableHead>
+                          <TableHead className="h-9 text-xs font-bold uppercase tracking-wide text-white">
+                            Account
+                          </TableHead>
+                          <TableHead className="h-9 text-right text-xs font-bold uppercase tracking-wide text-white">
+                            Amount
+                          </TableHead>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+                      </TableHeader>
+                      <TableBody>
+                        {previewLines.map((line) => (
+                          <TableRow key={`${line.side}-${line.account.id}`} className="border-slate-100">
+                            <TableCell
+                              className={cn(
+                                "py-2.5 font-bold text-sm",
+                                line.side === "Dr" ? "text-red-600" : "text-emerald-600",
+                              )}
+                            >
+                              {line.side}
+                            </TableCell>
+                            <TableCell className="py-2.5 text-sm text-slate-800">
+                              {line.account.account_code} — {line.account.account_name}
+                            </TableCell>
+                            <TableCell className="py-2.5 text-right font-mono tabular-nums text-sm font-semibold text-slate-900">
+                              {fmt(line.amount)}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )}
+                  <div className="px-3 py-3 border-t border-slate-100 bg-slate-50/80">
+                    <Button
+                      className="h-10 px-4 text-sm font-semibold bg-sky-600 hover:bg-sky-700 text-white"
+                      onClick={() => postMutation.mutate()}
+                      disabled={postMutation.isPending || previewLines.length < 2}
+                    >
+                      <Plus className="h-4 w-4 mr-1.5" />
+                      {postMutation.isPending ? "Posting…" : "Post voucher"}
+                    </Button>
+                  </div>
                 </div>
-              )}
-            </CardContent>
+              </TabsContent>
+
+              <TabsContent value="ledger" className="mt-0 outline-none space-y-3 data-[state=inactive]:hidden">
+                <div className="rounded-lg border border-slate-200 bg-white shadow-sm p-3 sm:p-4 space-y-3">
+                  <div>
+                    <h2 className="text-base font-bold text-slate-900">Account ledger</h2>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Running balance from journal lines for this ledger only
+                    </p>
+                  </div>
+                  <div className="space-y-1.5 max-w-xl">
+                    <Label className={fieldLabelClass}>Account</Label>
+                    <Select value={ledgerAccountId || undefined} onValueChange={setLedgerAccountId}>
+                      <SelectTrigger className={fieldControlClass}>
+                        <SelectValue placeholder="Select third-party account" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {partyAccounts.map((a) => (
+                          <SelectItem key={a.id} value={a.id}>
+                            {a.account_code} — {a.account_name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="rounded-lg border border-slate-200 bg-white shadow-sm overflow-hidden">
+                  {!ledgerAccountId ? (
+                    <p className="px-3 py-6 text-sm text-slate-500 text-center">
+                      Select an account to view its ledger.
+                    </p>
+                  ) : ledgerQuery.isLoading ? (
+                    <p className="px-3 py-6 text-sm text-slate-500 text-center">Loading…</p>
+                  ) : (ledgerQuery.data?.length || 0) === 0 ? (
+                    <p className="px-3 py-6 text-sm text-slate-500 text-center">
+                      No journal lines for this account yet.
+                    </p>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <Table className="[&_td]:px-3 [&_th]:px-3">
+                        <TableHeader>
+                          <TableRow className="bg-slate-800 hover:bg-slate-800 border-none">
+                            <TableHead className="h-9 text-xs font-bold uppercase tracking-wide text-white">
+                              Date
+                            </TableHead>
+                            <TableHead className="h-9 text-xs font-bold uppercase tracking-wide text-white">
+                              Narration
+                            </TableHead>
+                            <TableHead className="h-9 text-xs font-bold uppercase tracking-wide text-white">
+                              Type
+                            </TableHead>
+                            <TableHead className="h-9 text-right text-xs font-bold uppercase tracking-wide text-white">
+                              Debit
+                            </TableHead>
+                            <TableHead className="h-9 text-right text-xs font-bold uppercase tracking-wide text-white">
+                              Credit
+                            </TableHead>
+                            <TableHead className="h-9 text-right text-xs font-bold uppercase tracking-wide text-white">
+                              Balance
+                            </TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {ledgerQuery.data!.map((row) => (
+                            <TableRow
+                              key={`${row.journalLineId || row.lineSeq}-${row.entryDate}`}
+                              className="border-slate-100"
+                            >
+                              <TableCell className="py-2.5 whitespace-nowrap tabular-nums text-sm text-slate-800">
+                                {row.entryDate}
+                              </TableCell>
+                              <TableCell
+                                className="py-2.5 max-w-[280px] truncate text-sm text-slate-800"
+                                title={row.description || ""}
+                              >
+                                {row.description || "—"}
+                              </TableCell>
+                              <TableCell className="py-2.5 text-xs text-slate-500">{row.referenceType}</TableCell>
+                              <TableCell className="py-2.5 text-right font-mono tabular-nums text-sm">
+                                {row.debitAmount ? fmt(row.debitAmount) : "—"}
+                              </TableCell>
+                              <TableCell className="py-2.5 text-right font-mono tabular-nums text-sm">
+                                {row.creditAmount ? fmt(row.creditAmount) : "—"}
+                              </TableCell>
+                              <TableCell className="py-2.5 text-right font-mono tabular-nums text-sm font-semibold text-slate-900">
+                                {fmt(row.runningBalance)}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
+                </div>
+              </TabsContent>
+            </div>
           </Card>
-        </TabsContent>
-      </Tabs>
+        </Tabs>
+      </div>
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent className="sm:max-w-[520px]">
@@ -503,18 +611,19 @@ export default function ThirdPartyVoucherEntry() {
             <DialogTitle>Create third-party master</DialogTitle>
           </DialogHeader>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-2">
-            <div className="space-y-2 md:col-span-2">
-              <Label>Account name</Label>
+            <div className="space-y-1.5 md:col-span-2">
+              <Label className={fieldLabelClass}>Account name</Label>
               <Input
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
                 placeholder="e.g. Landlord — Security Deposit"
+                className={fieldControlClass}
               />
             </div>
-            <div className="space-y-2">
-              <Label>Account type</Label>
+            <div className="space-y-1.5">
+              <Label className={fieldLabelClass}>Account type</Label>
               <Select value={newType} onValueChange={(v: MasterAccountType) => onTypeChange(v)}>
-                <SelectTrigger>
+                <SelectTrigger className={fieldControlClass}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -523,13 +632,10 @@ export default function ThirdPartyVoucherEntry() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <Label>Tally group</Label>
-              <Select
-                value={newGroup}
-                onValueChange={(v) => setNewGroup(v as AccountGroup)}
-              >
-                <SelectTrigger>
+            <div className="space-y-1.5">
+              <Label className={fieldLabelClass}>Tally group</Label>
+              <Select value={newGroup} onValueChange={(v) => setNewGroup(v as AccountGroup)}>
+                <SelectTrigger className={fieldControlClass}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -541,13 +647,13 @@ export default function ThirdPartyVoucherEntry() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2 md:col-span-2">
-              <Label>Account code (optional)</Label>
+            <div className="space-y-1.5 md:col-span-2">
+              <Label className={fieldLabelClass}>Account code (optional)</Label>
               <Input
                 value={newCode}
                 onChange={(e) => setNewCode(e.target.value)}
                 placeholder="Auto 9001–9999 if blank"
-                className="font-mono"
+                className={cn(fieldControlClass, "font-mono")}
               />
             </div>
           </div>
@@ -555,7 +661,11 @@ export default function ThirdPartyVoucherEntry() {
             <Button variant="outline" onClick={() => setCreateOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={() => createMaster.mutate()} disabled={createMaster.isPending}>
+            <Button
+              className="bg-sky-600 hover:bg-sky-700 text-white"
+              onClick={() => createMaster.mutate()}
+              disabled={createMaster.isPending}
+            >
               {createMaster.isPending ? "Creating…" : "Create & select"}
             </Button>
           </DialogFooter>
