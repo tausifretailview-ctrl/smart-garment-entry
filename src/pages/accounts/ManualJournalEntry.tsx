@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { Plus, Trash2, BookPlus } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, BookPlus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
@@ -17,7 +17,7 @@ import { toast } from "sonner";
 import { seedDefaultAccounts, type SeededAccount } from "@/utils/accounting/seedDefaultAccounts";
 import { postJournalEntry } from "@/utils/accounting/journalService";
 import type { JournalReferenceType } from "@/utils/accounting/accountingTypes";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 type LineDraft = {
   key: string;
@@ -36,8 +36,17 @@ function parseAmount(s: string): number {
 
 export default function ManualJournalEntry() {
   const { currentOrganization } = useOrganization();
-  const { getOrgPath } = useOrgNavigation();
+  const { getOrgPath, orgNavigate } = useOrgNavigation();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
+
+  const goBack = () => {
+    if (typeof window !== "undefined" && window.history.length > 1) {
+      navigate(-1);
+      return;
+    }
+    orgNavigate("/third-party-entry");
+  };
   const [voucherKind, setVoucherKind] = useState<"ManualJournal" | "Contra">("ManualJournal");
   const [entryDate, setEntryDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [description, setDescription] = useState("");
@@ -135,14 +144,25 @@ export default function ManualJournalEntry() {
     <div className="manual-journal-workspace flex flex-col bg-slate-50 px-2 sm:px-3 py-2 min-h-0 h-full overflow-hidden w-full">
       <div className="w-full min-w-0 flex flex-col flex-1 min-h-0 gap-2">
         <div className="flex flex-wrap items-center justify-between gap-2 shrink-0">
-          <div className="min-w-0">
-            <h1 className="text-xl font-bold text-teal-700 tracking-tight leading-none flex items-center gap-2">
-              <BookPlus className="h-5 w-5 shrink-0" />
-              Manual journal &amp; contra
-            </h1>
-            <p className="text-sm text-muted-foreground mt-1 truncate">
-              Post balanced double-entry vouchers to the general ledger (Tally-style journal / contra).
-            </p>
+          <div className="flex items-center gap-2 min-w-0">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9 px-3 text-sm shrink-0"
+              onClick={goBack}
+            >
+              <ArrowLeft className="h-4 w-4 mr-1" />
+              Back
+            </Button>
+            <div className="min-w-0">
+              <h1 className="text-xl font-bold text-teal-700 tracking-tight leading-none flex items-center gap-2">
+                <BookPlus className="h-5 w-5 shrink-0" />
+                Manual journal &amp; contra
+              </h1>
+              <p className="text-sm text-muted-foreground mt-1 truncate">
+                Post balanced double-entry vouchers to the general ledger (Tally-style journal / contra).
+              </p>
+            </div>
           </div>
           <div className="flex flex-wrap gap-1.5 shrink-0">
             <Button variant="outline" size="sm" className="h-9 text-sm border-slate-200" asChild>

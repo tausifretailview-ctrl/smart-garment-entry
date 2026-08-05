@@ -3,10 +3,9 @@ import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersist
 import { restoreDashboardFilters, WINDOW_FILTER_IDS } from "@/lib/dashboardFilterPersistence";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { CalendarIcon, BookText, ChevronDown, ChevronUp, Info, Plus } from "lucide-react";
-import { Link } from "react-router-dom";
+import { ArrowLeft, CalendarIcon, BookText, ChevronDown, ChevronUp, Info, Plus } from "lucide-react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
-import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -103,7 +102,8 @@ const toYmd = (date: Date) => format(date, "yyyy-MM-dd");
 
 export default function JournalVouchers() {
   const { currentOrganization } = useOrganization();
-  const { getOrgPath } = useOrgNavigation();
+  const { getOrgPath, orgNavigate } = useOrgNavigation();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const initialFrom = searchParams.get("from");
   const initialTo = searchParams.get("to");
@@ -230,18 +230,37 @@ export default function JournalVouchers() {
     );
   }, [lines]);
 
+  const goBack = () => {
+    if (typeof window !== "undefined" && window.history.length > 1) {
+      navigate(-1);
+      return;
+    }
+    orgNavigate("/third-party-entry");
+  };
+
   return (
     <div className="journal-vouchers-workspace flex flex-col bg-slate-50 px-2 sm:px-3 py-2 min-h-0 h-full overflow-hidden w-full">
       <div className="w-full min-w-0 flex flex-col flex-1 min-h-0 gap-2">
         <div className="flex flex-wrap items-center justify-between gap-2 shrink-0">
-          <div className="min-w-0">
-            <h1 className="text-xl font-bold text-teal-700 tracking-tight leading-none flex items-center gap-2">
-              <BookText className="h-5 w-5 shrink-0" />
-              Journal Vouchers / Day Book
-            </h1>
-            <p className="text-sm text-muted-foreground mt-1 truncate">
-              Review auto-generated double-entry postings
-            </p>
+          <div className="flex items-center gap-2 min-w-0">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9 px-3 text-sm shrink-0"
+              onClick={goBack}
+            >
+              <ArrowLeft className="h-4 w-4 mr-1" />
+              Back
+            </Button>
+            <div className="min-w-0">
+              <h1 className="text-xl font-bold text-teal-700 tracking-tight leading-none flex items-center gap-2">
+                <BookText className="h-5 w-5 shrink-0" />
+                Journal Vouchers / Day Book
+              </h1>
+              <p className="text-sm text-muted-foreground mt-1 truncate">
+                Review auto-generated double-entry postings
+              </p>
+            </div>
           </div>
           <Button size="sm" className="h-9 text-sm shrink-0" asChild>
             <Link to={getOrgPath("/manual-journal")}>
