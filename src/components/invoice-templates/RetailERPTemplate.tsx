@@ -670,18 +670,24 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
               </div>
               )}
 
-              {/* ===== TAX INVOICE / CREDIT NOTE — flush, no gap ===== */}
+              {/* ===== Document title — flush, no gap ===== */}
               <div style={{ textAlign: "center", fontWeight: "bold", fontSize: titleFs, borderBottom: B2, padding: "1px 0", lineHeight: "1.2", margin: 0, textTransform: "uppercase", letterSpacing: "1px" }}>
                 {(() => {
+                  const customTitle = documentTitle?.trim() || "";
+                  // Retail ERP DC (POS): Bill of Supply — ignore settings "TAX INVOICE" override.
+                  const dcTitle =
+                    !customTitle || /^TAX\s*INVOICE$/i.test(customTitle)
+                      ? "BILL OF SUPPLY"
+                      : customTitle;
                   const docTitle =
                     grandTotal < 0
                       ? "CREDIT NOTE"
                       : isDc
-                        ? (documentTitle?.trim() || "DELIVERY CHALLAN")
+                        ? dcTitle
                         : isNoGst
-                          ? (documentTitle?.trim() || "BILL OF SUPPLY")
+                          ? (customTitle || "BILL OF SUPPLY")
                           : isRealTast
-                            ? (documentTitle?.trim() || "BILL OF SUPPLY")
+                            ? (customTitle || "BILL OF SUPPLY")
                             : "TAX INVOICE";
                   return itemPages.length > 1
                     ? `${docTitle}${pageIndex > 0 ? ` (Page ${pageIndex + 1} of ${itemPages.length})` : ""}`
@@ -1224,7 +1230,8 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                           <span style={totalsAmountStyle}>+ ₹{fmt(displayOtherCharges)}</span>
                         </div>
                       )}
-                      {!isRealTast && (
+                      {/* Round Off hidden on Retail ERP DC (Bill of Supply) print. */}
+                      {!isRealTast && !isDc && (
                         <div style={{ ...totalsRowBase, fontSize: isA4 ? "14px" : "11px", fontWeight: 800 }}>
                           <span style={totalsLabelStyle}>Round Off</span>
                           <span style={totalsAmountStyle}>

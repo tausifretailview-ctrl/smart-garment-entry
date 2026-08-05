@@ -338,7 +338,7 @@ export default function PublicInvoiceView() {
             showHSN={false}
             showGSTBreakdown={false}
             showTaxDetails={false}
-            documentTitle={templateProps.documentTitle || 'DELIVERY CHALLAN'}
+            documentTitle={templateProps.documentTitle || 'BILL OF SUPPLY'}
           />
         );
       case 'retail-erp-preprinted': {

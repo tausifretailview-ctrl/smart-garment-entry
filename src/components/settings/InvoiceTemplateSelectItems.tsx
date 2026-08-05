@@ -86,7 +86,7 @@ export function InvoiceTemplateSelectItems() {
       <SelectItem value="retail-erp-dc">
         <span className="flex items-center gap-2">
           <span className="text-sky-700 font-bold text-xs w-5">DC</span>
-          Retail ERP style DC — no HSN / GST details
+          Retail ERP DC — Bill of Supply (no HSN / GST / Round Off)
         </span>
       </SelectItem>
       <SelectItem value="retail-erp-preprinted">

@@ -747,7 +747,7 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
               showHSN={false}
               showGSTBreakdown={false}
               showTaxDetails={false}
-              documentTitle={commonProps.documentTitle || 'DELIVERY CHALLAN'}
+              documentTitle={commonProps.documentTitle || 'BILL OF SUPPLY'}
             />
           );
         case 'retail-erp-preprinted':
