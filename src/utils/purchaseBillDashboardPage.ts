@@ -101,11 +101,20 @@ export type FetchPurchaseBillsDashboardPageParams = {
 };
 
 const PURCHASE_BILLS_PAGE_RPC_KEY = "ezzy:rpc:get_purchase_bills_dashboard_page";
+/** Hung RPC must not keep Purchase Bills on skeleton forever — fall back to client list. */
+const PURCHASE_BILLS_PAGE_RPC_TIMEOUT_MS = 12_000;
 
 function throwIfAborted(signal?: AbortSignal): void {
   if (signal?.aborted) {
     throw new DOMException("Aborted", "AbortError");
   }
+}
+
+function isAbortError(err: unknown): boolean {
+  return (
+    (err instanceof DOMException && err.name === "AbortError") ||
+    (err instanceof Error && err.name === "AbortError")
+  );
 }
 
 function withAbortSignal<T extends { abortSignal: (signal: AbortSignal) => T }>(
@@ -332,12 +341,32 @@ export async function fetchPurchaseBillsDashboardPage(
     return fetchPurchaseBillsDashboardPageClient(params);
   }
 
+  const rpcAbort = new AbortController();
+  const onParentAbort = () => rpcAbort.abort();
+  if (params.signal) {
+    if (params.signal.aborted) rpcAbort.abort();
+    else params.signal.addEventListener("abort", onParentAbort, { once: true });
+  }
+  const timeoutId = window.setTimeout(() => rpcAbort.abort(), PURCHASE_BILLS_PAGE_RPC_TIMEOUT_MS);
+
   try {
-    return await fetchPurchaseBillsDashboardPageViaRpc(params);
+    return await fetchPurchaseBillsDashboardPageViaRpc({
+      ...params,
+      signal: rpcAbort.signal,
+    });
   } catch (err) {
     if (isPurchaseBillsPageRpcNotFoundError(err as { code?: string; message?: string })) {
+      markPurchaseBillsPageRpcUnavailable();
+      return fetchPurchaseBillsDashboardPageClient(params);
+    }
+    // Timeout / hung RPC — use client list so the table can paint (KPIs load separately).
+    if (isAbortError(err) && !params.signal?.aborted) {
+      markPurchaseBillsPageRpcUnavailable();
       return fetchPurchaseBillsDashboardPageClient(params);
     }
     throw err;
+  } finally {
+    window.clearTimeout(timeoutId);
+    params.signal?.removeEventListener("abort", onParentAbort);
   }
 }

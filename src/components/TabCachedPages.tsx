@@ -232,6 +232,8 @@ const HEAVY_TAB_PATHS = new Set([
   "accounts",
   "pos-dashboard",
   "sales-invoice-dashboard",
+  // Canonical URL slug + legacy registry key (resolveTabCachePath → purchase-bills)
+  "purchase-bills",
   "purchase-bill-dashboard",
   "pos-sales",
   "pos-delivery-challan",
@@ -241,13 +243,17 @@ const HEAVY_TAB_PATHS = new Set([
   "sale-return-entry",
   "purchase-return-entry",
   "purchase-return-dashboard",
+  "purchase-returns",
   "sale-return-dashboard",
   "product-dashboard",
   "products",
 ]);
 
 function getTabLoadTimeoutMs(path: string): number {
-  return HEAVY_TAB_PATHS.has(path) ? HEAVY_TAB_LOAD_TIMEOUT_MS : TAB_LOAD_TIMEOUT_MS;
+  const resolved = resolveTabCachePath(path);
+  return HEAVY_TAB_PATHS.has(resolved) || HEAVY_TAB_PATHS.has(path)
+    ? HEAVY_TAB_LOAD_TIMEOUT_MS
+    : TAB_LOAD_TIMEOUT_MS;
 }
 
 function TabLoadShellView({ path }: { path: string }) {

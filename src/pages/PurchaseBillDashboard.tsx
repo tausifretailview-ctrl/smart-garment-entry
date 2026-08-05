@@ -27,7 +27,6 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { format, formatDistanceToNow } from "date-fns";
 import { formatPurchaseBillEntryAt, getPurchaseBillEntryAt } from "@/lib/purchaseBillEntryAt";
 import { ColumnDef } from "@tanstack/react-table";
-import * as XLSX from "xlsx";
 
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -2164,6 +2163,8 @@ const PurchaseBillDashboard = () => {
         "Type": b.is_dc_purchase ? "DC" : "GST",
       }));
 
+      // Lazy-load sheetjs so a missing/stale xlsx-vendor chunk cannot blank the dashboard.
+      const XLSX = await import("xlsx");
       const ws = XLSX.utils.json_to_sheet(rows);
       ws["!cols"] = [
         { wch: 6 }, { wch: 14 }, { wch: 12 }, { wch: 16 }, { wch: 24 },

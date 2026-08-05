@@ -76,6 +76,11 @@ export const OrgLayout = () => {
   const [accessDeniedForSlug, setAccessDeniedForSlug] = useState<string | null>(null);
   /** Tab-cache pane has mounted for the current path — keep Outlet as fallback until then. */
   const [tabPaneReady, setTabPaneReady] = useState(false);
+  /**
+   * If the cached pane never signals ready (chunk hang / deploy skew), fall back to
+   * <Outlet> so Purchase Bills / dashboards are not stuck on DashboardSkeleton forever.
+   */
+  const [forceOutletFallback, setForceOutletFallback] = useState(false);
   /** Paths whose lazy chunk already mounted — skip Outlet flash when switching back. */
   const tabPaneReadyPathsRef = useRef<Set<string>>(new Set());
 
@@ -225,9 +230,12 @@ export const OrgLayout = () => {
     effectiveTabPaneReady,
   ]);
 
-  // A cacheable route has one owner from the first render. Its Suspense fallback remains
-  // visible until the chunk resolves, avoiding a second copy mounted through <Outlet>.
-  const renderViaTabCache = wantsTabCache;
+  // Prefer tab-cache (keeps form state). Cacheable entry always uses the pane when active.
+  // Dashboards: Suspense shell first; if the chunk never mounts, forceOutletFallback → <Outlet>.
+  const renderViaTabCache =
+    wantsTabCache &&
+    (isCacheableEntryActive || effectiveTabPaneReady) &&
+    !forceOutletFallback;
   /**
    * Which cached pane is visible. Non-cacheable entry routes use INACTIVE so dashboard
    * panes stay mounted (hidden). Cacheable entry must use currentPath — otherwise
@@ -237,14 +245,20 @@ export const OrgLayout = () => {
     !wantsTabCache || (isEntryPage && !isCacheableEntryActive)
       ? TAB_CACHE_INACTIVE
       : resolvedCurrentPath;
-  /** Non-cacheable entry routes render through Outlet; cacheable routes use the pane. */
+  /**
+   * Hide tab-cache while Outlet owns first paint (dashboard cold chunk) or after
+   * forceOutletFallback — never render both (duplicated chrome / blank gap).
+   */
   const hideTabCacheContainer =
     (isEntryPage && !isCacheableEntryActive) ||
-    !isCacheableTabPath(resolvedCurrentPath);
+    (wantsTabCache && !effectiveTabPaneReady && !isCacheableEntryActive) ||
+    !isCacheableTabPath(resolvedCurrentPath) ||
+    forceOutletFallback;
 
   // Reset on navigation — restore before paint so going back from an entry screen
   // (e.g. POS) does not flash the <Outlet> copy for one frame before the cached pane shows.
   useLayoutEffect(() => {
+    setForceOutletFallback(false);
     if (
       isCacheableTabPath(resolvedCurrentPath) &&
       tabPaths.length > 0 &&
@@ -255,6 +269,19 @@ export const OrgLayout = () => {
       setTabPaneReady(false);
     }
   }, [resolvedCurrentPath, tabPaths.length, isTabPaneReadyForPath]);
+
+  // Safety net: stuck Suspense skeleton (purchase-bills blank) → fall back to route <Outlet>.
+  useEffect(() => {
+    if (!wantsTabCache || effectiveTabPaneReady || forceOutletFallback) return;
+    // Cacheable entry must stay on the pane (draft state); only dashboards use Outlet rescue.
+    if (isCacheableEntryActive) return;
+    const timeoutMs = isElectronShell() ? 12_000 : 18_000;
+    const timer = window.setTimeout(() => {
+      console.warn("[OrgLayout] Tab pane not ready — falling back to Outlet for", currentPath);
+      setForceOutletFallback(true);
+    }, timeoutMs);
+    return () => window.clearTimeout(timer);
+  }, [wantsTabCache, effectiveTabPaneReady, forceOutletFallback, isCacheableEntryActive, currentPath]);
 
   useEffect(() => {
     if (!isNavigationPerfEnabled()) return;
