@@ -245,6 +245,39 @@ export const normalizeGstTaxType = (value?: string | null): GstTaxType => {
   return 'inclusive';
 };
 
+/** Org settings slice for default GST mode (Sale vs POS can differ). */
+export type SaleSettingsTaxDefaults = {
+  default_tax_type?: string | null;
+  default_pos_tax_type?: string | null;
+};
+
+/** Default GST for Sale Invoice / Tally — uses `default_tax_type`. */
+export const resolveSaleDefaultTaxType = (
+  saleSettings?: SaleSettingsTaxDefaults | null,
+): GstTaxType => normalizeGstTaxType(saleSettings?.default_tax_type);
+
+/** True only when POS GST was set manually (not inheriting Sale's `default_tax_type`). */
+export const hasExplicitPosDefaultTaxType = (
+  saleSettings?: SaleSettingsTaxDefaults | null,
+): boolean => {
+  const pos = saleSettings?.default_pos_tax_type;
+  return pos != null && String(pos).trim() !== "";
+};
+
+/**
+ * Default GST for POS.
+ * - Existing orgs / unset: same as Sale (`default_tax_type`) — no behavior change.
+ * - Only when `default_pos_tax_type` is set manually (or for new orgs that choose it).
+ */
+export const resolvePosDefaultTaxType = (
+  saleSettings?: SaleSettingsTaxDefaults | null,
+): GstTaxType => {
+  if (hasExplicitPosDefaultTaxType(saleSettings)) {
+    return normalizeGstTaxType(saleSettings?.default_pos_tax_type);
+  }
+  return normalizeGstTaxType(saleSettings?.default_tax_type);
+};
+
 /** Invoice print line shape for gross vs net discount detection. */
 export type InvoiceLineForGst = {
   qty: number;

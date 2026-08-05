@@ -39,6 +39,12 @@ import {
   resolveSaleInvoiceTemplate,
   type InvoiceTemplateId,
 } from "@/utils/invoicePrintFormat";
+import {
+  hasExplicitPosDefaultTaxType,
+  resolvePosDefaultTaxType,
+  resolveSaleDefaultTaxType,
+  type GstTaxType,
+} from "@/utils/gstRegisterUtils";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import { mergeActivityNavigationState } from "@/lib/activityCenterNavigation";
 
@@ -194,8 +200,10 @@ interface SaleSettings {
   enable_customer_price_memory?: boolean; // Customer-wise sale price memory
   pos_barcode_price_mode?: 'mrp' | 'sale_price';
   default_discount?: number;
-  /** Default GST mode for POS / invoice print when not chosen per bill */
+  /** Shared / Sale default GST mode (existing setting — unchanged for current orgs) */
   default_tax_type?: 'inclusive' | 'exclusive' | 'no_gst';
+  /** Optional POS-only override; omit to keep using `default_tax_type` */
+  default_pos_tax_type?: 'inclusive' | 'exclusive' | 'no_gst';
   payment_methods?: string[];
   default_payment_method?: string;
   invoice_numbering_format?: string;  // For Sale Invoice INV-{YYYY}-{####}
@@ -460,6 +468,8 @@ export default function Settings() {
   const [editingTemplate, setEditingTemplate] = useState<BarcodeTemplate | null>(null);
   const [templateName, setTemplateName] = useState("");
   const [templateSheetType, setTemplateSheetType] = useState("a4_12x4");
+  /** Live preview channel — Sale vs POS format/template (Settings → Sale). */
+  const [invoicePreviewChannel, setInvoicePreviewChannel] = useState<"sale" | "pos">("sale");
 
   // Sample data for invoice preview - includes multiple sizes for wholesale grouping demo
   const sampleInvoiceData = {
@@ -2358,32 +2368,79 @@ export default function Settings() {
                     placeholder="e.g., 5"
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="default_tax_type">Default GST Type (POS / Tally Invoice)</Label>
-                  <Select
-                    value={settings.sale_settings?.default_tax_type || "inclusive"}
-                    onValueChange={(v: "inclusive" | "exclusive" | "no_gst") =>
-                      setSettings({
-                        ...settings,
-                        sale_settings: {
-                          ...settings.sale_settings,
-                          default_tax_type: v,
-                        },
-                      })
-                    }
-                  >
-                    <SelectTrigger id="default_tax_type">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="inclusive">GST Inclusive (MRP-style, GST bifurcated)</SelectItem>
-                      <SelectItem value="exclusive">GST Exclusive (taxable + GST at bottom)</SelectItem>
-                      <SelectItem value="no_gst">Without GST (no tax on bill)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-muted-foreground">
-                    Used on POS and Tally Tax Invoice print. Sale Invoice can still override per bill.
-                  </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="default_tax_type">Default GST Type</Label>
+                    <Select
+                      value={resolveSaleDefaultTaxType(settings.sale_settings)}
+                      onValueChange={(v: GstTaxType) => {
+                        setInvoicePreviewChannel("sale");
+                        setSettings({
+                          ...settings,
+                          sale_settings: {
+                            ...settings.sale_settings,
+                            default_tax_type: v,
+                          },
+                        });
+                      }}
+                    >
+                      <SelectTrigger id="default_tax_type">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="inclusive">GST Inclusive (MRP-style, GST bifurcated)</SelectItem>
+                        <SelectItem value="exclusive">GST Exclusive (taxable + GST at bottom)</SelectItem>
+                        <SelectItem value="no_gst">Without GST (no tax on bill)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      Existing setting — used for Sale Invoice and for POS until POS is set separately below.
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="default_pos_tax_type">POS GST Type (optional)</Label>
+                    <Select
+                      value={
+                        hasExplicitPosDefaultTaxType(settings.sale_settings)
+                          ? resolvePosDefaultTaxType(settings.sale_settings)
+                          : "__same_as_sale__"
+                      }
+                      onValueChange={(v: string) => {
+                        setInvoicePreviewChannel("pos");
+                        if (v === "__same_as_sale__") {
+                          const nextSale = { ...settings.sale_settings };
+                          delete nextSale.default_pos_tax_type;
+                          setSettings({
+                            ...settings,
+                            sale_settings: nextSale,
+                          });
+                          return;
+                        }
+                        setSettings({
+                          ...settings,
+                          sale_settings: {
+                            ...settings.sale_settings,
+                            default_pos_tax_type: v as GstTaxType,
+                          },
+                        });
+                      }}
+                    >
+                      <SelectTrigger id="default_pos_tax_type">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__same_as_sale__">
+                          Same as Default GST Type above
+                        </SelectItem>
+                        <SelectItem value="inclusive">GST Inclusive (MRP-style, GST bifurcated)</SelectItem>
+                        <SelectItem value="exclusive">GST Exclusive (taxable + GST at bottom)</SelectItem>
+                        <SelectItem value="no_gst">Without GST (no tax on bill)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      Leave as “Same as Default” for existing orgs. Change manually only when POS needs a different GST mode (e.g. Sale Exclusive, POS Without GST).
+                    </p>
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="invoice_numbering_format">Sale Invoice Numbering Format</Label>
@@ -2903,7 +2960,8 @@ export default function Settings() {
                       <Label htmlFor="invoice_paper_format" className="text-sm font-medium">Sale Invoice Format</Label>
                       <Select
                         value={settings.sale_settings?.invoice_paper_format || "a4"}
-                        onValueChange={(value) =>
+                        onValueChange={(value) => {
+                          setInvoicePreviewChannel("sale");
                           setSettings({
                             ...settings,
                             sale_settings: {
@@ -2915,8 +2973,8 @@ export default function Settings() {
                                 : value === 'a5-vertical' ? 'a5'
                                 : 'a4',
                             },
-                          })
-                        }
+                          });
+                        }}
                       >
                         <SelectTrigger id="invoice_paper_format">
                           <SelectValue />
@@ -2934,15 +2992,16 @@ export default function Settings() {
                       <Label htmlFor="pos_bill_format" className="text-sm font-medium">POS Bill Format</Label>
                       <Select
                         value={settings.sale_settings?.pos_bill_format || "thermal"}
-                        onValueChange={(value) =>
+                        onValueChange={(value) => {
+                          setInvoicePreviewChannel("pos");
                           setSettings({
                             ...settings,
                             sale_settings: {
                               ...settings.sale_settings,
                               pos_bill_format: value as any,
                             },
-                          })
-                        }
+                          });
+                        }}
                       >
                         <SelectTrigger id="pos_bill_format">
                           <SelectValue />
@@ -2965,7 +3024,8 @@ export default function Settings() {
                       </Label>
                       <Select
                         value={resolveSaleInvoiceTemplate(settings.sale_settings)}
-                        onValueChange={(value) =>
+                        onValueChange={(value) => {
+                          setInvoicePreviewChannel("sale");
                           setSettings({
                             ...settings,
                             sale_settings: {
@@ -2973,8 +3033,8 @@ export default function Settings() {
                               invoice_template: value as InvoiceTemplateId,
                               ...paperPatchesForInvoiceTemplate(value, "sale"),
                             },
-                          })
-                        }
+                          });
+                        }}
                       >
                         <SelectTrigger id="sale_invoice_template">
                           <SelectValue placeholder="Select template" />
@@ -2984,7 +3044,7 @@ export default function Settings() {
                         </SelectContent>
                       </Select>
                       <p className="text-xs text-muted-foreground">
-                        Used for Sales Invoice bills (paper size above).
+                        Used for Sales Invoice bills (paper size above). Live preview updates on the right.
                       </p>
                     </div>
                     <div className="space-y-2">
@@ -2993,7 +3053,8 @@ export default function Settings() {
                       </Label>
                       <Select
                         value={resolvePosInvoiceTemplate(settings.sale_settings)}
-                        onValueChange={(value) =>
+                        onValueChange={(value) => {
+                          setInvoicePreviewChannel("pos");
                           setSettings({
                             ...settings,
                             sale_settings: {
@@ -3001,8 +3062,8 @@ export default function Settings() {
                               pos_invoice_template: value as InvoiceTemplateId,
                               ...paperPatchesForInvoiceTemplate(value, "pos"),
                             },
-                          })
-                        }
+                          });
+                        }}
                       >
                         <SelectTrigger id="pos_invoice_template">
                           <SelectValue placeholder="Select template" />
@@ -3012,7 +3073,7 @@ export default function Settings() {
                         </SelectContent>
                       </Select>
                       <p className="text-xs text-muted-foreground">
-                        Used for POS bills. Can differ from Sale (e.g. A4 tax invoice + A5 POS).
+                        Used for POS bills. Can differ from Sale — switch Live Preview to POS to see it.
                       </p>
                     </div>
                   </div>
@@ -3373,7 +3434,7 @@ export default function Settings() {
                     <p className="text-sm font-medium">Invoice templates</p>
                     <p className="text-xs text-muted-foreground">
                       Sale and POS invoice templates are set under <span className="font-medium">Print Format</span> above
-                      (Sale Invoice Template / POS Invoice Template). Preview below uses the Sale template.
+                      (Sale Invoice Template / POS Invoice Template). Use the Sale / POS toggle on the live preview to check both designs.
                     </p>
                     <p className="text-xs text-muted-foreground">
                       {settings.sale_settings?.invoice_template === 'kids-80mm'
@@ -4572,42 +4633,109 @@ export default function Settings() {
                 </CardContent>
               </Card>
               
-              {/* Live Preview Panel */}
+              {/* Live Preview Panel — Sale and POS designs */}
+              {(() => {
+                const previewTemplate =
+                  invoicePreviewChannel === "pos"
+                    ? resolvePosInvoiceTemplate(settings.sale_settings)
+                    : resolveSaleInvoiceTemplate(settings.sale_settings);
+                const previewPaperRaw =
+                  invoicePreviewChannel === "pos"
+                    ? settings.sale_settings?.pos_bill_format || "thermal"
+                    : settings.sale_settings?.invoice_paper_format ||
+                      (settings.sale_settings?.sales_bill_format === "a5" ? "a5-vertical" : undefined) ||
+                      "a4";
+                const previewPaper =
+                  previewPaperRaw === "a5" ? "a5-vertical" : previewPaperRaw;
+                const previewFormat =
+                  previewPaper === "thermal" || previewTemplate === "kids-80mm"
+                    ? "thermal"
+                    : previewTemplate === "real-tast" ||
+                        previewTemplate === "gift_tally" ||
+                        previewTemplate === "a4-gst-classic"
+                      ? "a4"
+                      : (previewPaper as "a4" | "a5-vertical" | "a5-horizontal" | "thermal");
+                const previewScale =
+                  previewFormat === "thermal" || previewTemplate === "kids-80mm"
+                    ? "scale(0.9)"
+                    : previewFormat === "a4"
+                      ? "scale(0.6)"
+                      : "scale(0.72)";
+
+                return (
               <Card className="sticky top-2 h-fit">
                 <CardHeader className="pb-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="min-w-0">
-                      <CardTitle className="text-sm">Live Invoice Preview</CardTitle>
-                      <CardDescription className="text-[11px] mt-0.5">Updates as you change settings</CardDescription>
+                  <div className="flex flex-col gap-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <CardTitle className="text-sm">Live Invoice Preview</CardTitle>
+                        <CardDescription className="text-[11px] mt-0.5">
+                          {invoicePreviewChannel === "pos" ? "POS bill design" : "Sale invoice design"} — updates as you change settings
+                        </CardDescription>
+                      </div>
+                      <div className="flex gap-1 shrink-0 rounded-md border p-0.5 bg-muted/40">
+                        {(["sale", "pos"] as const).map((ch) => (
+                          <button
+                            key={ch}
+                            type="button"
+                            onClick={() => setInvoicePreviewChannel(ch)}
+                            className={`px-2.5 py-1 text-[10px] font-semibold rounded transition-colors ${
+                              invoicePreviewChannel === ch
+                                ? "bg-primary text-primary-foreground shadow-sm"
+                                : "text-muted-foreground hover:text-foreground"
+                            }`}
+                          >
+                            {ch === "sale" ? "Sale" : "POS"}
+                          </button>
+                        ))}
+                      </div>
                     </div>
-                    {/* Format switcher buttons */}
-                    <div className="flex gap-1">
-                      {(['a4', 'a5-vertical', 'a5-horizontal', 'thermal'] as const).map(fmt => (
+                    {/* Paper-size chips for the active channel */}
+                    <div className="flex flex-wrap gap-1">
+                      {(["a4", "a5-vertical", "a5-horizontal", "thermal"] as const).map((fmt) => (
                         <button
                           key={fmt}
                           type="button"
-                          onClick={() =>
-                            setSettings({
-                              ...settings,
-                              sale_settings: {
-                                ...settings.sale_settings,
-                                invoice_paper_format: fmt as any,
-                              },
-                            })
-                          }
+                          onClick={() => {
+                            if (invoicePreviewChannel === "pos") {
+                              setSettings({
+                                ...settings,
+                                sale_settings: {
+                                  ...settings.sale_settings,
+                                  pos_bill_format: fmt as any,
+                                },
+                              });
+                            } else {
+                              setSettings({
+                                ...settings,
+                                sale_settings: {
+                                  ...settings.sale_settings,
+                                  invoice_paper_format: fmt as any,
+                                  sales_bill_format:
+                                    fmt === "thermal" ? "thermal" : fmt === "a5-vertical" ? "a5" : "a4",
+                                },
+                              });
+                            }
+                          }}
                           className={`px-2 py-1 text-[10px] font-semibold rounded border transition-colors
-                            ${settings.sale_settings?.invoice_paper_format === fmt
-                              ? 'bg-primary text-primary-foreground border-primary'
-                              : 'bg-background text-muted-foreground border-border hover:border-primary'
+                            ${previewPaper === fmt
+                              ? "bg-primary text-primary-foreground border-primary"
+                              : "bg-background text-muted-foreground border-border hover:border-primary"
                             }`}
                         >
-                          {fmt === 'a5-vertical' ? 'A5↑'
-                           : fmt === 'a5-horizontal' ? 'A5→'
-                           : fmt === 'thermal' ? '80mm'
-                           : 'A4'}
+                          {fmt === "a5-vertical"
+                            ? "A5↑"
+                            : fmt === "a5-horizontal"
+                              ? "A5→"
+                              : fmt === "thermal"
+                                ? "80mm"
+                                : "A4"}
                         </button>
                       ))}
                     </div>
+                    <p className="text-[10px] text-muted-foreground truncate">
+                      Template: <span className="font-medium text-foreground">{previewTemplate}</span>
+                    </p>
                   </div>
                 </CardHeader>
                 <CardContent>
@@ -4615,20 +4743,16 @@ export default function Settings() {
                     <div
                       className="flex justify-center origin-top"
                       style={{
-                        transform:
-                          settings.sale_settings?.invoice_paper_format === 'thermal' ||
-                          settings.sale_settings?.invoice_template === 'kids-80mm'
-                            ? 'scale(0.9)'
-                            : settings.sale_settings?.invoice_paper_format === 'a4'
-                            ? 'scale(0.6)'
-                            : 'scale(0.72)',
-                        transformOrigin: 'top center',
+                        transform: previewScale,
+                        transformOrigin: "top center",
                       }}
                     >
                       <LazySettingsPanel>
                       <LazyInvoiceWrapper
                         orgSettings={settings as unknown as Record<string, unknown>}
-                        billNo={sampleInvoiceData.billNo}
+                        billNo={
+                          invoicePreviewChannel === "pos" ? "POS/25-26/0001" : sampleInvoiceData.billNo
+                        }
                         date={sampleInvoiceData.date}
                         customerName={sampleInvoiceData.customerName}
                         customerAddress={sampleInvoiceData.customerAddress}
@@ -4643,27 +4767,25 @@ export default function Settings() {
                         refundCash={sampleInvoiceData.refundCash}
                         upiPaid={sampleInvoiceData.upiPaid}
                         paymentMethod="cash"
-                        template={settings.sale_settings?.invoice_template}
+                        taxType={
+                          invoicePreviewChannel === "pos"
+                            ? resolvePosDefaultTaxType(settings.sale_settings)
+                            : resolveSaleDefaultTaxType(settings.sale_settings)
+                        }
+                        template={previewTemplate}
                         documentType={
-                          settings.sale_settings?.invoice_template === 'kids-80mm' ? 'pos' : undefined
+                          invoicePreviewChannel === "pos" || previewTemplate === "kids-80mm"
+                            ? "pos"
+                            : undefined
                         }
                         salesman={
-                          settings.sale_settings?.invoice_template === 'kids-80mm' ? 'SAMPLE SALES' : undefined
+                          previewTemplate === "kids-80mm" || invoicePreviewChannel === "pos"
+                            ? "SAMPLE SALES"
+                            : undefined
                         }
                         thermalPaper={resolvePosThermalPaper(settings.bill_barcode_settings?.direct_print_pos_paper)}
                         colorScheme={settings.sale_settings?.invoice_color_scheme}
-                        format={
-                          settings.sale_settings?.invoice_paper_format === 'thermal' ||
-                          settings.sale_settings?.invoice_template === 'kids-80mm'
-                            ? 'thermal'
-                            : settings.sale_settings?.invoice_template === 'real-tast' ||
-                              settings.sale_settings?.invoice_template === 'gift_tally' ||
-                              settings.sale_settings?.invoice_template === 'a4-gst-classic'
-                              ? 'a4'
-                            : (settings.sale_settings?.invoice_paper_format
-                               || (settings.sale_settings?.sales_bill_format === 'a5' ? 'a5-vertical' : undefined)
-                               || 'a4') as any
-                        }
+                        format={previewFormat as any}
                         showHSN={settings.sale_settings?.show_hsn_code ?? true}
                         showBarcode={settings.sale_settings?.show_barcode ?? true}
                         showGSTBreakdown={settings.sale_settings?.show_gst_breakdown ?? true}
@@ -4686,7 +4808,7 @@ export default function Settings() {
                         fontFamily={settings.sale_settings?.font_family}
                         declarationText={settings.sale_settings?.declaration_text}
                         termsConditions={settings.sale_settings?.terms_list}
-                        enableWholesaleMode={settings.sale_settings?.invoice_template === 'modern-wholesale'}
+                        enableWholesaleMode={previewTemplate === "modern-wholesale"}
                         sizeDisplayFormat={(settings.sale_settings as any)?.size_display_format}
                         showProductColor={(settings.sale_settings as any)?.show_product_color}
                         showProductBrand={(settings.sale_settings as any)?.show_product_brand}
@@ -4697,6 +4819,8 @@ export default function Settings() {
                   </div>
                 </CardContent>
               </Card>
+                );
+              })()}
             </div>
           </TabsContent>
 

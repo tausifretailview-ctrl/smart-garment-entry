@@ -35,6 +35,8 @@ import {
   calculateGSTBreakup,
   getGstInclusiveNetBase,
   normalizeGstTaxType,
+  resolvePosDefaultTaxType,
+  resolveSaleDefaultTaxType,
   type GstTaxType,
 } from '@/utils/gstRegisterUtils';
 import { resolvePosThermalPaper, type PosThermalPaper } from '@/utils/invoicePrintFormat';
@@ -358,7 +360,10 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
     const filteredTerms = rawTerms?.filter((t: string) => t && t.trim()) ?? [];
     
     const taxType = normalizeGstTaxType(
-      props.taxType ?? (settings?.sale_settings as { default_tax_type?: string })?.default_tax_type
+      props.taxType ??
+        (props.documentType === "pos"
+          ? resolvePosDefaultTaxType(settings?.sale_settings)
+          : resolveSaleDefaultTaxType(settings?.sale_settings)),
     );
     const thermalPaper =
       props.thermalPaper ??

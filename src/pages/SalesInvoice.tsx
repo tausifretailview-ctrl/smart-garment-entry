@@ -903,10 +903,11 @@ export default function SalesInvoice() {
     }
   }, [settingsData]);
 
-  // Default GST type from org settings (new invoices only)
+  // Default GST type from org settings (new invoices only) — Sale default, not POS.
   useEffect(() => {
     if (!settingsData || editingInvoiceId || isInitializingEditRef.current) return;
     const defaultTax = (settingsData.sale_settings as { default_tax_type?: string })?.default_tax_type;
+    // Sale Invoice UI currently supports Inclusive / Exclusive only.
     setTaxType(defaultTax === "exclusive" ? "exclusive" : "inclusive");
   }, [settingsData, editingInvoiceId]);
 

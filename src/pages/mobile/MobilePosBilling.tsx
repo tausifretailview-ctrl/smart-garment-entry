@@ -15,7 +15,12 @@ import { useCustomerPoints } from "@/hooks/useCustomerPoints";
 import { useSaveSale } from "@/hooks/useSaveSale";
 import { usePosBilling } from "@/hooks/usePosBilling";
 import { useMobileScan } from "@/contexts/MobileScanContext";
-import { GST_TAX_TYPE_OPTIONS, normalizeGstTaxType, type GstTaxType } from "@/utils/gstRegisterUtils";
+import {
+  GST_TAX_TYPE_OPTIONS,
+  normalizeGstTaxType,
+  resolvePosDefaultTaxType,
+  type GstTaxType,
+} from "@/utils/gstRegisterUtils";
 import type { PosGrossBasis } from "@/lib/posBilling";
 import { STALE_LIVE } from "@/lib/queryStaleTimes";
 import { Input } from "@/components/ui/input";
@@ -106,9 +111,14 @@ export default function MobilePosBilling() {
     garment_gst_threshold: purchaseSettings.garment_gst_threshold as number | undefined,
   };
 
-  const initialTaxType = normalizeGstTaxType(
-    typeof saleSettings.default_tax_type === "string" ? saleSettings.default_tax_type : undefined,
-  );
+  const initialTaxType = resolvePosDefaultTaxType({
+    default_tax_type:
+      typeof saleSettings.default_tax_type === "string" ? saleSettings.default_tax_type : undefined,
+    default_pos_tax_type:
+      typeof (saleSettings as { default_pos_tax_type?: string }).default_pos_tax_type === "string"
+        ? (saleSettings as { default_pos_tax_type?: string }).default_pos_tax_type
+        : undefined,
+  });
 
   const billing = usePosBilling({
     grossBasis,

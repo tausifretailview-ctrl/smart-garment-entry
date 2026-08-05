@@ -100,7 +100,11 @@ import { autoCorrectFY, generateOrgEstimateNumber, minSequenceFromSeriesStart, s
 import { posLineDisplayTotal } from "@/utils/posGstTotals";
 import { maxCombinedDiscountForGross } from "@/utils/saleSettlement";
 import { clampQty, minQtyForUom } from "@/utils/qtyInput";
-import { normalizeGstTaxType, type GstTaxType } from "@/utils/gstRegisterUtils";
+import {
+  normalizeGstTaxType,
+  resolvePosDefaultTaxType,
+  type GstTaxType,
+} from "@/utils/gstRegisterUtils";
 import { CreditNotePrint } from "@/components/CreditNotePrint";
 import { StockIssueAlertDialog } from "@/components/StockIssueAlertDialog";
 import {
@@ -482,8 +486,11 @@ export default function POSSales() {
       ? "mrp"
       : "sale_price";
 
-  const defaultPosTaxTypeEarly = normalizeGstTaxType(
-    ((settingsData as any)?.sale_settings || {}).default_tax_type,
+  const defaultPosTaxTypeEarly = resolvePosDefaultTaxType(
+    ((settingsData as any)?.sale_settings || {}) as {
+      default_tax_type?: string;
+      default_pos_tax_type?: string;
+    },
   );
 
   const billing = usePosBilling({
@@ -1255,7 +1262,7 @@ export default function POSSales() {
     return { width, minHeight, maxHeight, overflow: 'visible' as const };
   }, [posBillFormat, posThermalPaper]);
   const showInvoicePreviewSetting: boolean = _posSaleSettings.show_invoice_preview ?? true;
-  const defaultPosTaxType = normalizeGstTaxType(_posSaleSettings.default_tax_type);
+  const defaultPosTaxType = resolvePosDefaultTaxType(_posSaleSettings);
 
   useEffect(() => {
     setTaxType(defaultPosTaxType);

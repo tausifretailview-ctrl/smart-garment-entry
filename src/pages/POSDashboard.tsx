@@ -48,7 +48,7 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useReactToPrint } from "react-to-print";
 import { InvoiceWrapper } from "@/components/InvoiceWrapper";
-import { normalizeGstTaxType } from "@/utils/gstRegisterUtils";
+import { normalizeGstTaxType, resolvePosDefaultTaxType } from "@/utils/gstRegisterUtils";
 import { SettleCustomerAccountDialog } from "@/components/SettleCustomerAccountDialog";
 import { PrintPreviewDialog } from "@/components/PrintPreviewDialog";
 import { EInvoicePrint } from "@/components/EInvoicePrint";
@@ -4039,7 +4039,9 @@ const POSDashboard = () => {
               paidAmount={getEffectivePaidAmountForDashboard(previewSale)}
               salesman={previewSale.salesman || ''}
               notes={previewSale.notes || ''}
-              taxType={normalizeGstTaxType(previewSale.tax_type ?? saleSettings?.default_tax_type)}
+              taxType={normalizeGstTaxType(
+                previewSale.tax_type ?? resolvePosDefaultTaxType(saleSettings),
+              )}
               financerDetails={previewFinancerDetails}
             />
           )}
@@ -4192,7 +4194,9 @@ const POSDashboard = () => {
             previousBalance={printData.previousBalance}
             salesman={printData.salesman || ''}
             notes={printData.notes || ''}
-            taxType={normalizeGstTaxType(printData.taxType ?? saleSettings?.default_tax_type)}
+            taxType={normalizeGstTaxType(
+              printData.taxType ?? resolvePosDefaultTaxType(saleSettings),
+            )}
             financerDetails={printData.financerDetails || null}
                   format={posInvoiceWrapperFormat}
                   template={posInvoiceTemplate}
