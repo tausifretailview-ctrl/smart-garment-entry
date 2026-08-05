@@ -649,6 +649,42 @@ const GSTReports = () => {
     XLSX.writeFile(wb, `${fileName}_${fromDate}_to_${toDate}.xlsx`);
   };
 
+  /** Flatten nested GSTR-3B summary into rows json_to_sheet can serialize. */
+  const flattenGstr3bForExcel = (data: GSTR3BSummary) => {
+    const rows: { Section: string; Label: string; Amount: number }[] = [
+      { Section: "3.1 Outward Supplies", Label: "Taxable Value", Amount: data.outwardSupplies.taxable },
+      { Section: "3.1 Outward Supplies", Label: "IGST", Amount: data.outwardSupplies.igst },
+      { Section: "3.1 Outward Supplies", Label: "CGST", Amount: data.outwardSupplies.cgst },
+      { Section: "3.1 Outward Supplies", Label: "SGST", Amount: data.outwardSupplies.sgst },
+      { Section: "3.1 Outward Supplies", Label: "Total Tax", Amount: data.outwardSupplies.igst + data.outwardSupplies.cgst + data.outwardSupplies.sgst },
+      { Section: "4 Inward Supplies / ITC", Label: "Taxable Value", Amount: data.inwardSupplies.taxable },
+      { Section: "4 Inward Supplies / ITC", Label: "ITC IGST", Amount: data.itcAvailable.igst },
+      { Section: "4 Inward Supplies / ITC", Label: "ITC CGST", Amount: data.itcAvailable.cgst },
+      { Section: "4 Inward Supplies / ITC", Label: "ITC SGST", Amount: data.itcAvailable.sgst },
+      { Section: "6.1 Net Tax Payable", Label: "IGST", Amount: data.netTaxPayable.igst },
+      { Section: "6.1 Net Tax Payable", Label: "CGST", Amount: data.netTaxPayable.cgst },
+      { Section: "6.1 Net Tax Payable", Label: "SGST", Amount: data.netTaxPayable.sgst },
+      {
+        Section: "6.1 Net Tax Payable",
+        Label: "Total Tax Liability",
+        Amount: data.netTaxPayable.igst + data.netTaxPayable.cgst + data.netTaxPayable.sgst,
+      },
+    ];
+    if (data.itcCarryForward) {
+      rows.push(
+        { Section: "ITC Carry Forward", Label: "IGST", Amount: data.itcCarryForward.igst },
+        { Section: "ITC Carry Forward", Label: "CGST", Amount: data.itcCarryForward.cgst },
+        { Section: "ITC Carry Forward", Label: "SGST", Amount: data.itcCarryForward.sgst },
+      );
+    }
+    return rows;
+  };
+
+  const exportGstr3bToExcel = () => {
+    if (!gstr3bData) return;
+    exportToExcel(flattenGstr3bForExcel(gstr3bData), "GSTR3B_Summary", "Summary");
+  };
+
   // UI-3: Combined GSTR-1 Excel export
   const exportGSTR1ToExcel = () => {
     if (!gstr1Data) return;
@@ -1006,7 +1042,7 @@ const GSTReports = () => {
                   <CardTitle>GSTR-3B - Summary Return</CardTitle>
                   <CardDescription>Monthly summary for {format(new Date(fromDate), "MMM yyyy")}</CardDescription>
                 </div>
-                <Button variant="outline" size="sm" onClick={() => exportToExcel([gstr3bData], "GSTR3B_Summary", "Summary")}>
+                <Button variant="outline" size="sm" onClick={exportGstr3bToExcel}>
                   <Download className="h-4 w-4 mr-1" />
                   Export
                 </Button>
