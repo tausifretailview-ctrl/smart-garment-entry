@@ -4,7 +4,7 @@ import { Capacitor } from "@capacitor/core";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Download, Share, Plus, Smartphone, CheckCircle2, Copy, MessageCircle, Monitor, RefreshCw, Info } from "lucide-react";
+import { Download, Share, Plus, Smartphone, CheckCircle2, Copy, MessageCircle, Monitor, RefreshCw, Info, Globe } from "lucide-react";
 import { useInstallPrompt } from "@/hooks/useInstallPrompt";
 import { toast } from "sonner";
 import { isValidOrgSlug, storeOrgSlug } from "@/lib/orgSlug";
@@ -25,12 +25,6 @@ import {
 } from "@/config/downloads";
 
 type InstallerProbeStatus = "idle" | "checking" | "available" | "unavailable";
-
-declare global {
-  interface Window {
-    __pwaInstallPrompt?: Event;
-  }
-}
 
 /** HEAD first; fall back to a tiny ranged GET when HEAD is blocked. */
 async function probeInstallerDownload(url: string): Promise<boolean> {
@@ -69,38 +63,24 @@ function isStandaloneDisplay(): boolean {
   );
 }
 
-/** Install page is for downloads — temporarily detach org PWA manifest so /install is not installed. */
-function useDisablePwaOnInstallPage(
+/** Keep org PWA manifest active so Chrome/Edge can offer Install on this page (PC + Android). */
+function useOrgPwaManifestOnInstallPage(
   active: boolean,
   orgSlug: string | undefined,
   orgName: string,
 ) {
   useLayoutEffect(() => {
     if (!active || !orgSlug || !isValidOrgSlug(orgSlug)) return;
-
-    const manifestLink = document.querySelector<HTMLLinkElement>('link[rel="manifest"]');
-    manifestLink?.remove();
-    window.__pwaInstallPrompt = undefined;
-
-    const blockInstallPrompt = (e: Event) => {
-      e.preventDefault();
-      window.__pwaInstallPrompt = undefined;
-    };
-    window.addEventListener("beforeinstallprompt", blockInstallPrompt);
-
-    return () => {
-      window.removeEventListener("beforeinstallprompt", blockInstallPrompt);
-      // Rebuild a fresh org manifest (blob URLs from before may be stale).
-      applyOrgPwaManifest(orgSlug, orgName || undefined);
-    };
+    applyOrgPwaManifest(orgSlug, orgName || undefined);
   }, [active, orgSlug, orgName]);
 }
 
 export default function InstallApp() {
   const { orgSlug } = useParams<{ orgSlug: string }>();
-  const { isInstalled } = useInstallPrompt();
+  const { isInstalled, isInstallable, promptInstall } = useInstallPrompt();
   const [orgName, setOrgName] = useState<string>("");
   const [loading, setLoading] = useState(true);
+  const [pwaInstallBusy, setPwaInstallBusy] = useState(false);
   const [windowsSetupStatus, setWindowsSetupStatus] = useState<InstallerProbeStatus>("idle");
   const [windowsPortableStatus, setWindowsPortableStatus] = useState<InstallerProbeStatus>("idle");
   const [windowsDownloadBusy, setWindowsDownloadBusy] = useState(false);
@@ -110,7 +90,7 @@ export default function InstallApp() {
   const isStandalone = isStandaloneDisplay();
   const isNativeShell = Capacitor.isNativePlatform();
 
-  useDisablePwaOnInstallPage(!!orgSlug && isValidOrgSlug(orgSlug), orgSlug, orgName);
+  useOrgPwaManifestOnInstallPage(!!orgSlug && isValidOrgSlug(orgSlug), orgSlug, orgName);
 
   // PWA / native shell: install page is only for downloading; open the org app once installed.
   useLayoutEffect(() => {
@@ -249,12 +229,32 @@ export default function InstallApp() {
     toast.success("Install link copied");
   };
 
+  const handlePwaInstall = async () => {
+    if (!isInstallable) return;
+    setPwaInstallBusy(true);
+    try {
+      const ok = await promptInstall();
+      if (ok) {
+        toast.success("App installed — open it from the Start menu, desktop, or home screen.");
+      } else {
+        toast.message("Install cancelled", {
+          description: "You can try again anytime, or use the browser menu steps below.",
+        });
+      }
+    } finally {
+      setPwaInstallBusy(false);
+    }
+  };
+
   const shareWhatsApp = () => {
     const apkLine = androidApkConfigured ? `\nAndroid APK: ${androidApkUrl}` : "";
     const winLine = windowsInstallerConfigured ? `\nWindows PC: ${windowsSetupUrl}` : "";
     const text = `Install ${orgName || "our"} EzzyERP app:\n${installUrl}${apkLine}${winLine}`;
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank");
   };
+
+  const showPwaInstallCard =
+    !isNativeShell && !isStandalone && !isInstalled && platform !== "ios";
 
   if (loading) {
     return (
@@ -289,7 +289,9 @@ export default function InstallApp() {
           <div>
             <h1 className="text-2xl font-bold text-foreground">{orgName || "Ezzy ERP"}</h1>
             <p className="text-sm text-muted-foreground mt-1">
-              {platform === "desktop" ? "Download for phone or computer" : "Install the app on your phone"}
+              {platform === "desktop"
+                ? "Install on this PC, download Windows EXE, or get the Android APK"
+                : "Install the app on your phone"}
             </p>
           </div>
         </div>
@@ -303,15 +305,18 @@ export default function InstallApp() {
             </Button>
           </Card>
         ) : isStandalone || isInstalled ? (
-          <Card className="p-6 text-center space-y-3 border-amber-500/30 bg-amber-500/5">
-            <CheckCircle2 className="h-12 w-12 text-amber-600 mx-auto" />
-            <h2 className="font-semibold text-lg">Browser shortcut installed</h2>
+          <Card className="p-6 text-center space-y-3 border-green-500/30 bg-green-500/5">
+            <CheckCircle2 className="h-12 w-12 text-green-600 mx-auto" />
+            <h2 className="font-semibold text-lg">
+              {platform === "desktop" ? "App installed on this PC" : "Browser app installed"}
+            </h2>
             <p className="text-sm text-muted-foreground">
-              This is a web shortcut, not the native APK. For USB printing and full Android features, tap{" "}
-              <strong>Download EzzyERP for Android</strong> below.
+              {platform === "desktop"
+                ? "Open EzzyERP from the Start menu or desktop shortcut. You can still download the Windows EXE or Android APK below if needed."
+                : "This is a web shortcut. For USB printing and full Android features, tap Download EzzyERP for Android below."}
             </p>
             <Button asChild variant="outline" className="w-full" size="lg">
-              <a href={appStartUrl}>Open Web Shortcut</a>
+              <a href={appStartUrl}>Open App</a>
             </Button>
           </Card>
         ) : platform === "ios" ? (
@@ -350,6 +355,64 @@ export default function InstallApp() {
             </div>
           </Card>
         ) : null}
+
+        {/* Chrome / Edge PWA — primary option for PC; also available on Android Chrome */}
+        {showPwaInstallCard && (
+          <Card className="p-6 space-y-4 border-primary/30 bg-primary/5">
+            <div className="text-center space-y-1">
+              <h2 className="font-semibold text-lg flex items-center justify-center gap-2">
+                <Globe className="h-5 w-5 text-primary" />
+                {platform === "desktop" ? "Install on this PC (Chrome / Edge)" : "Install browser app"}
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                {platform === "desktop"
+                  ? "Adds EzzyERP to the Start menu and desktop — works without the Windows EXE. Opens your shop directly."
+                  : "Quick home-screen shortcut. For USB printing and full Android features, use the APK below."}
+              </p>
+            </div>
+            {isInstallable ? (
+              <Button
+                className="w-full h-14 text-base"
+                size="lg"
+                disabled={pwaInstallBusy}
+                onClick={() => void handlePwaInstall()}
+              >
+                <Download className="mr-2 h-5 w-5" />
+                {pwaInstallBusy ? "Opening install…" : "Install EzzyERP App"}
+              </Button>
+            ) : (
+              <div className="space-y-3 rounded-md border bg-background p-4 text-sm text-muted-foreground">
+                <p className="font-semibold text-foreground">Install from the browser menu</p>
+                {platform === "desktop" ? (
+                  <ol className="list-decimal list-inside space-y-1.5">
+                    <li>
+                      In <strong>Chrome</strong>: click the install icon in the address bar, or{" "}
+                      <strong>⋮ → Cast, save, and share → Install page as app</strong>
+                    </li>
+                    <li>
+                      In <strong>Edge</strong>: <strong>⋯ → Apps → Install this site as an app</strong>
+                    </li>
+                    <li>Confirm <strong>Install</strong> — open from Start menu / desktop shortcut</li>
+                  </ol>
+                ) : (
+                  <ol className="list-decimal list-inside space-y-1.5">
+                    <li>
+                      Tap Chrome <strong>⋮</strong> → <strong>Install app</strong> /{" "}
+                      <strong>Add to Home screen</strong>
+                    </li>
+                    <li>Confirm Install, then open from the home-screen icon</li>
+                  </ol>
+                )}
+                <Button asChild variant="outline" className="w-full" size="sm">
+                  <a href={appStartUrl}>Open shop in browser first</a>
+                </Button>
+                <p className="text-xs">
+                  Tip: open your shop once ({orgSlug}), then return here if the Install button does not appear.
+                </p>
+              </div>
+            )}
+          </Card>
+        )}
 
         {/* Android APK — shown on Android phones and on desktop (for sharing / sideload) */}
         {platform !== "ios" && (
@@ -415,8 +478,8 @@ export default function InstallApp() {
                         from chat. Share the <strong>install page</strong> link ({installUrl}), not a storage file URL.
                       </p>
                       <p>
-                        If Chrome offers <strong>Install app</strong>, dismiss it — that adds a web shortcut only. You
-                        need the APK file from the blue Download button.
+                        Chrome <strong>Install app</strong> is a browser shortcut (fine for PC). On Android phones prefer
+                        the APK from the blue Download button for USB printing and full native features.
                       </p>
                     </div>
                   </div>
