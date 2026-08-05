@@ -91,8 +91,10 @@ export function applyOrgPwaManifest(orgSlug: string, orgName?: string | null): v
     return;
   }
 
-  const startUrl = `/${slug}`;
   const origin = window.location.origin;
+  // Absolute same-origin URLs — relative start_url/scope against blob: manifests are
+  // ignored by Chrome ("URL is invalid") and break install / update detection.
+  const startUrl = `${origin}/${slug}`;
   const manifest = {
     id: `${origin}/${slug}`,
     name: displayName ? `${displayName} · EzzyERP` : "EzzyERP - Easy Billing, Smart Business",
@@ -102,7 +104,7 @@ export function applyOrgPwaManifest(orgSlug: string, orgName?: string | null): v
     background_color: "#ffffff",
     display: "standalone",
     orientation: "any",
-    scope: "/",
+    scope: `${origin}/`,
     start_url: startUrl,
     categories: ["business", "finance", "productivity"],
     // Stable same-origin manifest URL so Chrome can detect an existing install.
