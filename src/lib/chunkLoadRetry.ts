@@ -146,6 +146,11 @@ export function isChunkLoadError(error: unknown): boolean {
     // Do NOT match bare ReferenceError "X is not defined" — that is app code, not a chunk miss,
     // and treating it as skew caused "Updating…" + auto-reload (e.g. POS Flat Disc % click).
     /unexpected token '<'/i.test(msg) ||
+    // Stale service-worker precache / old index.html: the missing hashed chunk is served
+    // as the SPA fallback HTML, so the browser rejects the module on MIME type.
+    /expected a javascript(-or-wasm)? module script/i.test(msg) ||
+    /is not a valid javascript mime type/i.test(msg) ||
+    /mime type of "text\/html"/i.test(msg) ||
     msg.includes("Module load timed out")
   );
 }
@@ -160,7 +165,27 @@ export function resetSkewReloadCount(): void {
 }
 
 /**
+ * Drop the service worker + Cache Storage so the reload cannot be served the same
+ * stale index.html (which is what makes a hashed chunk 404 into text/html forever).
+ */
+async function purgeStaleAppCaches(): Promise<void> {
+  try {
+    if (typeof navigator !== "undefined" && "serviceWorker" in navigator) {
+      const registrations = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(registrations.map((r) => r.unregister()));
+    }
+    if (typeof caches !== "undefined") {
+      const names = await caches.keys();
+      await Promise.all(names.map((name) => caches.delete(name)));
+    }
+  } catch {
+    // ignore — reload anyway
+  }
+}
+
+/**
  * Bounded full-page reload for deploy/version skew. MAX 1 per session until reset.
+ * Clears the SW precache first, otherwise the reload re-serves the same dead build.
  * Returns true if reload was initiated (caller should show a brief splash).
  */
 export function attemptSkewRecoveryReload(): boolean {
@@ -168,7 +193,9 @@ export function attemptSkewRecoveryReload(): boolean {
     const count = parseInt(sessionStorage.getItem(SKEW_RELOAD_KEY) || "0", 10);
     if (count >= MAX_SKEW_RECOVERY_RELOADS) return false;
     sessionStorage.setItem(SKEW_RELOAD_KEY, String(count + 1));
-    window.location.reload();
+    void purgeStaleAppCaches().finally(() => {
+      window.location.reload();
+    });
     return true;
   } catch {
     return false;
