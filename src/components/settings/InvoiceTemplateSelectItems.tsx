@@ -103,6 +103,12 @@ export function InvoiceTemplateSelectItems({ currentValue }: InvoiceTemplateSele
             Retail ERP DC — Bill of Supply (no HSN / GST / Round Off)
           </span>
         </SelectItem>
+        <SelectItem value="zaika">
+          <span className="flex items-center gap-2">
+            <span className="text-orange-700 font-bold text-xs w-5">ZK</span>
+            Zaika — Tax Invoice (no Size / Barcode / Qty / Balances / Terms)
+          </span>
+        </SelectItem>
         <SelectItem value="retail-tax-ezzy">
           <span className="flex items-center gap-2">
             <span className="text-slate-700 font-bold text-xs w-5">EZY</span>

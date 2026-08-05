@@ -15,6 +15,7 @@ export type InvoiceTemplateId =
   | 'retail'
   | 'retail-erp'
   | 'retail-erp-dc'
+  | 'zaika'
   | 'retail-erp-preprinted'
   | 'retail-tax-ezzy'
   | 'wholesale-a5'
@@ -55,6 +56,7 @@ export const A5_ONLY_INVOICE_TEMPLATES = new Set([
   'wholesale-a5',
   'retail-erp',
   'retail-erp-dc',
+  'zaika',
 ]);
 
 /**
@@ -120,6 +122,7 @@ export const FULL_PAGE_INVOICE_TEMPLATES = new Set([
   'retail',
   'retail-erp',
   'retail-erp-dc',
+  'zaika',
   'retail-erp-preprinted',
   'real-tast',
 ]);

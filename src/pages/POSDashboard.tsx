@@ -1263,7 +1263,7 @@ const POSDashboard = () => {
     `;
     }
 
-    if (posInvoiceTemplate === "retail-tax-ezzy" || posInvoiceTemplate === "wholesale-a5" || posInvoiceTemplate === "retail-erp" || posInvoiceTemplate === "retail-erp-dc") {
+    if (posInvoiceTemplate === "retail-tax-ezzy" || posInvoiceTemplate === "wholesale-a5" || posInvoiceTemplate === "retail-erp" || posInvoiceTemplate === "retail-erp-dc" || posInvoiceTemplate === "zaika") {
       return `
       @page {
         size: A5 portrait;

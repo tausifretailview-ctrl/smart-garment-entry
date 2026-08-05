@@ -288,7 +288,8 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
       (templateForFormat === 'retail-tax-ezzy' ||
         templateForFormat === 'wholesale-a5' ||
         templateForFormat === 'retail-erp' ||
-        templateForFormat === 'retail-erp-dc')
+        templateForFormat === 'retail-erp-dc' ||
+        templateForFormat === 'zaika')
     ) {
       format = 'a5-vertical';
     }
@@ -762,6 +763,14 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
               showGSTBreakdown={false}
               showTaxDetails={false}
               documentTitle={commonProps.documentTitle || 'BILL OF SUPPLY'}
+            />
+          );
+        case 'zaika':
+          return (
+            <RetailERPTemplate
+              {...commonProps}
+              variant="zaika"
+              showBarcode={false}
             />
           );
         case 'retail-erp-preprinted':

@@ -121,8 +121,9 @@ interface RetailERPTemplateProps {
   instagramLink?: string;
   /** Real Tast — Bill of Supply A4 (no size, payment, balance, state code).
    *  Preprinted — same tax layout as standard, but 2in top gap for letterhead (no shop name/logo).
-   *  DC — Retail ERP layout without HSN, org/customer GSTIN, or GST tax lines (Delivery Challan). */
-  variant?: "standard" | "real-tast" | "preprinted" | "dc";
+   *  DC — Retail ERP layout without HSN, org/customer GSTIN, or GST tax lines (Delivery Challan).
+   *  Zaika — Retail ERP tax invoice without size/barcode/qty columns, balance row, or terms. */
+  variant?: "standard" | "real-tast" | "preprinted" | "dc" | "zaika";
 }
 
 const B = "1px solid #000";
@@ -187,6 +188,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   const isRealTast = variant === "real-tast";
   const isPreprinted = variant === "preprinted";
   const isDc = variant === "dc";
+  const isZaika = variant === "zaika";
   const isA4 = format === "a4" || isRealTast;
   const isA5Retail = !isA4 && !isRealTast;
   /** A5 letterhead leaf: 2in top gap — keep footer at bottom, 6 default item rows. */
@@ -500,47 +502,76 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   const ROW_H_WITH_DISC = isA4 ? "36px" : isA5Retail ? "28px" : "30px";
 
   // Real Tast: no size or barcode; HSN optional via show_hsn_code setting.
+  // Zaika: no size, barcode, or qty (restaurant-style).
   // DC: never show HSN (Delivery Challan style).
   const showHSNCol = showHSN && !isDc;
-  const showBarcodeCol = !isRealTast;
+  const showBarcodeCol = !isRealTast && !isZaika;
+  const showSizeCol = !isRealTast && !isZaika;
+  const showQtyCol = !isZaika;
 
   // Column % must sum to ~100% with table-layout:fixed (under-sum caused PDF column drift).
   const cols: { key: string; label: string; width: string; align: "center" | "left" | "right" }[] = [
-    { key: "sr", label: "SN", width: isRealTast ? "4%" : isA5Retail ? "5%" : "7%", align: "center" },
+    {
+      key: "sr",
+      label: "SN",
+      width: isZaika ? "6%" : isRealTast ? "4%" : isA5Retail ? "5%" : "7%",
+      align: "center",
+    },
     {
       key: "description",
       label: "DESCRIPTION",
-      width: isRealTast
-        ? (showHSNCol ? "47%" : "54%")
-        : isA5Retail
-          ? (showHSNCol ? "28%" : "35%")
-          : showHSNCol
-            ? "26%"
-            : "33%",
+      width: isZaika
+        ? showHSNCol
+          ? "52%"
+          : "60%"
+        : isRealTast
+          ? showHSNCol
+            ? "47%"
+            : "54%"
+          : isA5Retail
+            ? showHSNCol
+              ? "28%"
+              : "35%"
+            : showHSNCol
+              ? "26%"
+              : "33%",
       align: "left",
     },
-    ...(isRealTast
-      ? []
-      : [{ key: "size", label: "SIZE", width: "6%", align: "center" as const }]),
+    ...(showSizeCol ? [{ key: "size", label: "SIZE", width: "6%", align: "center" as const }] : []),
     ...(showBarcodeCol
       ? [{ key: "barcode", label: "BARCODE", width: "13%", align: "center" as const }]
       : []),
   ];
   if (showHSNCol) {
-    cols.push({ key: "hsn", label: "HSN", width: isRealTast ? "10%" : "7%", align: "center" });
+    cols.push({
+      key: "hsn",
+      label: "HSN",
+      width: isZaika ? "10%" : isRealTast ? "10%" : "7%",
+      align: "center",
+    });
   }
-  cols.push({ key: "qty", label: "QTY", width: isRealTast ? "6%" : "6%", align: "center" });
+  if (showQtyCol) {
+    cols.push({ key: "qty", label: "QTY", width: isRealTast ? "6%" : "6%", align: "center" });
+  }
   cols.push({
     key: "rate",
     label: "RATE",
-    width: isRealTast ? (showHSNCol ? "11%" : "12%") : "12%",
+    width: isZaika ? (showHSNCol ? "14%" : "16%") : isRealTast ? (showHSNCol ? "11%" : "12%") : "12%",
     align: "right",
   });
   cols.push({
     key: "amount",
     label: "AMOUNT",
     // Absorb remaining width so col % ≈ 100 (was ~88% → PDF column drift).
-    width: isRealTast ? (showHSNCol ? "12%" : "13%") : "23%",
+    width: isZaika
+      ? showHSNCol
+        ? "18%"
+        : "18%"
+      : isRealTast
+        ? showHSNCol
+          ? "12%"
+          : "13%"
+        : "23%",
     align: "right",
   });
 
@@ -1119,6 +1150,8 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
 
                   {/* Totals row */}
                   <tr style={{ borderTop: B2 }}>
+                    {showQtyCol ? (
+                      <>
                     <td
                       colSpan={cols.findIndex(c => c.key === "qty")}
                       style={{ ...cellBase, fontWeight: "bold", borderTop: B2, fontSize: fsTotals, height: isA4 ? "26px" : "20px", textAlign: "left" }}
@@ -1129,7 +1162,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                       {isLastPage ? totalQty : pageItems.filter(Boolean).reduce((s, i) => s + (i?.qty || 0), 0)}
                     </td>
                     <td
-                      colSpan={cols.length - cols.findIndex(c => c.key === "qty") - 2}
+                      colSpan={Math.max(0, cols.length - cols.findIndex(c => c.key === "qty") - 2)}
                       style={{ ...cellBase, fontWeight: "bold", borderTop: B2, fontSize: fsTotals, textAlign: "right" }}
                     >
                       {isLastPage ? "" : "Page Sub"}
@@ -1137,6 +1170,20 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                     <td style={{ ...cellBase, fontWeight: "bold", borderRight: "none", borderTop: B2, fontSize: fsTotals, textAlign: "right" }}>
                       {isLastPage ? "" : `₹${fmt(pageItems.filter(Boolean).reduce((s, i) => s + ((i ? getDisplayBaseRate(i) * (i.qty || 0) : 0)), 0))}`}
                     </td>
+                      </>
+                    ) : (
+                      <>
+                    <td
+                      colSpan={Math.max(1, cols.length - 1)}
+                      style={{ ...cellBase, fontWeight: "bold", borderTop: B2, fontSize: fsTotals, height: isA4 ? "26px" : "20px", textAlign: "left" }}
+                    >
+                      {isLastPage ? "" : `Page ${pageIndex + 1} — Continued...`}
+                    </td>
+                    <td style={{ ...cellBase, fontWeight: "bold", borderRight: "none", borderTop: B2, fontSize: fsTotals, textAlign: "right" }}>
+                      {isLastPage ? "" : `₹${fmt(pageItems.filter(Boolean).reduce((s, i) => s + ((i ? getDisplayBaseRate(i) * (i.qty || 0) : 0)), 0))}`}
+                    </td>
+                      </>
+                    )}
                   </tr>
                 </tbody>
               </table>
@@ -1353,8 +1400,8 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                     </div>
                   )}
 
-                  {/* Balance rows */}
-                  {!isRealTast && (
+                  {/* Balance rows — hidden on Real Tast and Zaika */}
+                  {!isRealTast && !isZaika && (
                   <div style={{ display: "flex", borderBottom: B }}>
                     <div style={{ flex: 1, borderRight: B, padding: isA4 ? "4px 8px" : "2px 4px", fontSize: fsFooterBalance, fontWeight: 900, color: "#000", lineHeight: 1.2 }}>
                       <strong>Received:</strong> ₹{fmt(receivedToday)}
@@ -1409,6 +1456,8 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                       }}
                     >
                       <div style={{ minWidth: 0, overflow: "hidden" }}>
+                        {!isZaika && (
+                          <>
                         <strong
                           style={{
                             textDecoration: "underline",
@@ -1448,6 +1497,8 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                           >
                             —
                           </div>
+                        )}
+                          </>
                         )}
                         <div
                           style={{

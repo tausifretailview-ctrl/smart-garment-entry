@@ -1851,7 +1851,7 @@ export default function SalesInvoiceDashboard() {
     `;
     }
 
-    if (invoiceTemplate === 'retail-tax-ezzy' || invoiceTemplate === 'wholesale-a5' || invoiceTemplate === 'retail-erp' || invoiceTemplate === 'retail-erp-dc') {
+    if (invoiceTemplate === 'retail-tax-ezzy' || invoiceTemplate === 'wholesale-a5' || invoiceTemplate === 'retail-erp' || invoiceTemplate === 'retail-erp-dc' || invoiceTemplate === 'zaika') {
       return `
       @page {
         size: A5 portrait;

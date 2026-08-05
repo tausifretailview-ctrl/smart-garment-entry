@@ -341,6 +341,15 @@ export default function PublicInvoiceView() {
             documentTitle={templateProps.documentTitle || 'BILL OF SUPPLY'}
           />
         );
+      case 'zaika':
+        return (
+          <RetailERPTemplate
+            {...templateProps}
+            variant="zaika"
+            format="a5-vertical"
+            showBarcode={false}
+          />
+        );
       case 'retail-erp-preprinted': {
         const preprintedFormat =
           formatParam === 'a5' || formatParam === 'a5-vertical'
@@ -389,7 +398,7 @@ export default function PublicInvoiceView() {
 
         <style>{`
           @media print {
-            @page { size: ${formatParam === 'thermal' ? '80mm auto' : template === 'retail-erp-preprinted' ? (formatParam === 'a5-horizontal' ? 'A5 landscape' : formatParam === 'a5' || formatParam === 'a5-vertical' ? 'A5 portrait' : 'A4 portrait') : template === 'retail-tax-ezzy' || template === 'retail-erp' || template === 'retail-erp-dc' || template === 'wholesale-a5' ? 'A5 portrait' : 'A4 portrait'}; margin: ${formatParam === 'thermal' ? '3mm' : template === 'retail-erp-preprinted' ? (formatParam === 'a5' || formatParam === 'a5-vertical' || formatParam === 'a5-horizontal' ? '0 4mm 4mm 4mm' : '0 10mm 10mm 10mm') : template === 'retail-erp' || template === 'retail-erp-dc' || template === 'retail-tax-ezzy' ? '4mm' : '5mm'}; }
+            @page { size: ${formatParam === 'thermal' ? '80mm auto' : template === 'retail-erp-preprinted' ? (formatParam === 'a5-horizontal' ? 'A5 landscape' : formatParam === 'a5' || formatParam === 'a5-vertical' ? 'A5 portrait' : 'A4 portrait') : template === 'retail-tax-ezzy' || template === 'retail-erp' || template === 'retail-erp-dc' || template === 'zaika' || template === 'wholesale-a5' ? 'A5 portrait' : 'A4 portrait'}; margin: ${formatParam === 'thermal' ? '3mm' : template === 'retail-erp-preprinted' ? (formatParam === 'a5' || formatParam === 'a5-vertical' || formatParam === 'a5-horizontal' ? '0 4mm 4mm 4mm' : '0 10mm 10mm 10mm') : template === 'retail-erp' || template === 'retail-erp-dc' || template === 'zaika' || template === 'retail-tax-ezzy' ? '4mm' : '5mm'}; }
             body { margin: 0; padding: 0; }
             .public-invoice-print-wrap {
               box-shadow: none !important;
