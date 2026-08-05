@@ -110,6 +110,11 @@ export default defineConfig(({ mode }) => ({
         // When a shop slug is known, OrgLayout swaps in a dynamic manifest with start_url /{slug}.
         start_url: '/organization-setup',
         categories: ['business', 'finance', 'productivity'],
+        // Lets Chrome report “already installed” via getInstalledRelatedApps / Open in app.
+        related_applications: [
+          { platform: 'webapp', url: '/manifest.webmanifest' },
+        ],
+        prefer_related_applications: false,
         icons: [
           { src: '/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
           { src: '/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'maskable' },

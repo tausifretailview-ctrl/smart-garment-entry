@@ -105,6 +105,9 @@ export function applyOrgPwaManifest(orgSlug: string, orgName?: string | null): v
     scope: "/",
     start_url: startUrl,
     categories: ["business", "finance", "productivity"],
+    // Stable same-origin manifest URL so Chrome can detect an existing install.
+    related_applications: [{ platform: "webapp", url: `${origin}/manifest.webmanifest` }],
+    prefer_related_applications: false,
     icons: buildPwaIconEntries(origin),
   };
 

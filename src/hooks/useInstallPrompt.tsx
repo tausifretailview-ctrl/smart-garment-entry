@@ -151,6 +151,22 @@ export function isNativeShell(): boolean {
   return false;
 }
 
+/** True when Chrome reports this origin’s PWA is already installed (shows “Open in app”). */
+export async function detectInstalledWebApp(): Promise<boolean> {
+  if (typeof navigator === "undefined") return false;
+  if (isStandaloneDisplay() || isNativeShell()) return true;
+  try {
+    const nav = navigator as Navigator & {
+      getInstalledRelatedApps?: () => Promise<Array<{ platform?: string; url?: string }>>;
+    };
+    if (typeof nav.getInstalledRelatedApps !== "function") return false;
+    const related = await nav.getInstalledRelatedApps();
+    return Array.isArray(related) && related.length > 0;
+  } catch {
+    return false;
+  }
+}
+
 export function useInstallPrompt() {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [isInstalled, setIsInstalled] = useState(false);
@@ -162,6 +178,10 @@ export function useInstallPrompt() {
       setIsInstalled(true);
       return;
     }
+
+    void detectInstalledWebApp().then((installed) => {
+      if (installed) setIsInstalled(true);
+    });
 
     const sync = () => {
       setDeferredPrompt(getDeferredInstallPrompt());
@@ -175,7 +195,12 @@ export function useInstallPrompt() {
     const stopPoll = window.setTimeout(() => window.clearInterval(poll), 8000);
 
     const onVisible = () => {
-      if (document.visibilityState === "visible") sync();
+      if (document.visibilityState === "visible") {
+        sync();
+        void detectInstalledWebApp().then((installed) => {
+          if (installed) setIsInstalled(true);
+        });
+      }
     };
     document.addEventListener("visibilitychange", onVisible);
 

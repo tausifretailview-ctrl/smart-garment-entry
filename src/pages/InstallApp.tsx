@@ -252,10 +252,10 @@ export default function InstallApp() {
         });
         return;
       }
-      toast.message("Use the Chrome install icon", {
+      toast.message("Install dialog not available in this Chrome", {
         description:
-          "Click the monitor↓ Install icon on the right of the address bar, then Install — that adds the desktop shortcut.",
-        duration: 12_000,
+          "If you see “Open in app” in the address bar, EzzyERP is already installed — click that. Otherwise update Chrome (⋮ → Help → About), then try ⋮ → More tools → Create shortcut → Open as window.",
+        duration: 14_000,
       });
     } finally {
       setPwaInstallBusy(false);
@@ -328,10 +328,10 @@ export default function InstallApp() {
             </h2>
             <p className="text-sm text-muted-foreground">
               {platform === "desktop"
-                ? "Open EzzyERP from the Start menu or desktop shortcut. You can still download the Windows EXE or Android APK below if needed."
+                ? "Chrome will show “Open in app” (not Install) when the app is already installed. Use that button, or open EzzyERP from the Start menu / desktop shortcut."
                 : "This is a web shortcut. For USB printing and full Android features, tap Download EzzyERP for Android below."}
             </p>
-            <Button asChild variant="outline" className="w-full" size="lg">
+            <Button asChild className="w-full" size="lg">
               <a href={appStartUrl}>Open App</a>
             </Button>
           </Card>
@@ -402,24 +402,32 @@ export default function InstallApp() {
             <p className="text-xs text-center text-muted-foreground">
               {isInstallable
                 ? "Opens the Chrome/Edge install dialog — tick Create desktop shortcut."
-                : "If the dialog does not open, click the Install icon (monitor↓) in the address bar."}
+                : "No Install icon? See tips below — older Chrome or “already installed” both hide it."}
             </p>
             {platform === "desktop" && (
-              <details className="rounded-md border bg-background p-3 text-xs text-muted-foreground">
-                <summary className="cursor-pointer font-semibold text-foreground">
-                  Manual install steps (if needed)
-                </summary>
-                <ol className="list-decimal list-inside space-y-1.5 mt-2">
+              <div className="rounded-md border bg-background p-3 text-xs text-muted-foreground space-y-2">
+                <p className="font-semibold text-foreground">If there is no Install icon in the address bar</p>
+                <ol className="list-decimal list-inside space-y-1.5">
                   <li>
-                    Chrome: address-bar install icon, or{" "}
-                    <strong>⋮ → Cast, save, and share → Install page as app</strong>
+                    <strong>Already installed:</strong> look for <strong>Open in app</strong> in the address bar
+                    (not Install). Click it, or open <strong>EzzyERP</strong> from the Windows Start menu.
                   </li>
                   <li>
-                    Edge: <strong>⋯ → Apps → Install this site as an app</strong>
+                    <strong>Update Chrome:</strong> ⋮ → <strong>Help → About Google Chrome</strong> (pink update
+                    badge means Chrome is outdated — finish the update and relaunch).
                   </li>
-                  <li>Confirm Install — desktop + Start menu shortcut appear</li>
+                  <li>
+                    <strong>Older Chrome menu:</strong> ⋮ → <strong>More tools → Create shortcut…</strong> → tick{" "}
+                    <strong>Open as window</strong> → Create (same as Install app).
+                  </li>
+                  <li>
+                    <strong>Newer Chrome:</strong> ⋮ → <strong>Cast, save, and share → Install page as app</strong>
+                  </li>
+                  <li>
+                    <strong>Edge:</strong> ⋯ → <strong>Apps → Install this site as an app</strong>
+                  </li>
                 </ol>
-              </details>
+              </div>
             )}
           </Card>
         )}
