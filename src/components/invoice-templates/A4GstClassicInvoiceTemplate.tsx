@@ -80,13 +80,14 @@ export interface A4GstClassicInvoiceTemplateProps {
 }
 
 const DEFAULT_TERMS = [
-  "Goods once sold will not be taken back.",
-  "Interest @ 24% p.a. will be charged if payment is not made within due date.",
-  "Subject to local jurisdiction.",
+  "GOODS ONCE SOLD WILL NOT BE TAKEN BACK.",
+  "INTEREST @ 24% P.A. WILL BE CHARGED IF THE PAYMENT IS NOT MADE WITHIN THE STIPULATED TIME.",
+  "SUBJECT TO LOCAL JURISDICTION ONLY.",
+  "THIS IS A COMPUTER GENERATED INVOICE.",
 ];
 
 const DEFAULT_DECLARATION =
-  "We declare that this invoice shows the actual price of the goods described and that all particulars are true and correct.";
+  "Declaration: we hereby certify that our registration certificate under the Goods and Service Tax Act 2017 is in force on the date on which the Sale of Goods specified in this Tax Invoice is made by us and that the transaction of Sale covered by this Tax Invoice has been effected by us and it shall be accounted for in the turnover of sales while filling of return and the due tax if any payable on the Sale has been paid or shall be paid.";
 
 const fmt = (n: number) =>
   n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -139,8 +140,8 @@ const panFromGstin = (gstin?: string) =>
   gstin && gstin.length >= 12 ? gstin.substring(2, 12) : "";
 
 /**
- * Classic A4 GST Tax Invoice — textile/wholesale layout with header QR
- * (matches PREET FASHIONS–style Tax Invoice sample).
+ * Classic A4 GST Tax Invoice — textile/wholesale layout with header QR.
+ * Fits one A4 page; footer (bank / terms / declaration) pinned to page bottom.
  */
 export const A4GstClassicInvoiceTemplate: React.FC<A4GstClassicInvoiceTemplateProps> = ({
   businessName,
@@ -178,7 +179,7 @@ export const A4GstClassicInvoiceTemplate: React.FC<A4GstClassicInvoiceTemplatePr
   documentTitle,
   stampImageBase64,
   stampSize = "medium",
-  minItemRows = 8,
+  minItemRows = 6,
 }) => {
   const taxType = normalizeGstTaxType(taxTypeProp);
   const isNoGst = taxType === "no_gst";
@@ -206,9 +207,8 @@ export const A4GstClassicInvoiceTemplate: React.FC<A4GstClassicInvoiceTemplatePr
 
   const totalQty = lineRows.reduce((s, r) => s + (Number(r.item.qty) || 0), 0);
   const lineTaxableTotal = lineRows.reduce((s, r) => s + r.taxable, 0);
-  const blankRows = Math.max(0, (minItemRows || 8) - lineRows.length);
+  const blankRows = Math.max(0, (minItemRows || 6) - lineRows.length);
 
-  // Tax summary by rate (for bottom GST table)
   const rateMap = new Map<number, { taxable: number; cgst: number; sgst: number; igst: number }>();
   lineRows.forEach((row) => {
     if (row.gstPct <= 0) return;
@@ -232,13 +232,13 @@ export const A4GstClassicInvoiceTemplate: React.FC<A4GstClassicInvoiceTemplatePr
   const bankName = bankDetails?.bankName || bankDetails?.bank_name || "";
   const bankAc = bankDetails?.accountNumber || bankDetails?.account_number || "";
   const bankIfsc = bankDetails?.ifscCode || bankDetails?.ifsc_code || "";
+  const bankHolder = bankDetails?.accountHolder || bankDetails?.account_holder || "";
 
+  // This template is marketed as A4 Tax Invoice (QR) — always Tax Invoice unless credit note / custom title.
   const titleText =
     grandTotal < 0
       ? "CREDIT NOTE"
-      : isNoGst
-        ? documentTitle?.trim() || "BILL OF SUPPLY"
-        : "TAX INVOICE";
+      : documentTitle?.trim() || "TAX INVOICE";
 
   const stampW =
     stampSize === "small" ? "90px" : stampSize === "large" ? "140px" : "115px";
@@ -246,20 +246,40 @@ export const A4GstClassicInvoiceTemplate: React.FC<A4GstClassicInvoiceTemplatePr
     stampSize === "small" ? "55px" : stampSize === "large" ? "80px" : "65px";
 
   const b = "1px solid #000";
+  const ink: React.CSSProperties = { color: "#000", fontWeight: 600 };
   const cell: React.CSSProperties = {
     border: b,
-    padding: "3px 4px",
-    fontSize: "11px",
+    padding: "4px 5px",
+    fontSize: "12px",
     verticalAlign: "top",
-    lineHeight: 1.3,
+    lineHeight: 1.35,
+    color: "#000",
+    fontWeight: 600,
   };
   const hCell: React.CSSProperties = {
     ...cell,
     fontWeight: 700,
     textAlign: "center",
-    backgroundColor: "#f0f0f0",
+    backgroundColor: "#e8e8e8",
+    fontSize: "12px",
     WebkitPrintColorAdjust: "exact",
     printColorAdjust: "exact",
+  };
+  const totLabel: React.CSSProperties = {
+    flex: 1,
+    borderRight: b,
+    padding: "5px 7px",
+    fontWeight: 700,
+    fontSize: "12px",
+    color: "#000",
+  };
+  const totVal: React.CSSProperties = {
+    width: "42%",
+    padding: "5px 7px",
+    textAlign: "right",
+    fontWeight: 700,
+    fontSize: "12px",
+    color: "#000",
   };
 
   const cgstRate =
@@ -271,6 +291,12 @@ export const A4GstClassicInvoiceTemplate: React.FC<A4GstClassicInvoiceTemplatePr
     lineTaxableTotal > 0 && igstAmount > 0
       ? Math.round((igstAmount / lineTaxableTotal) * 1000) / 10
       : 0;
+
+  const gstAmountDisplay = isNoGst
+    ? 0
+    : totalTax > 0
+      ? totalTax
+      : cgstAmount + sgstAmount + igstAmount;
 
   const station =
     customerAddress
@@ -287,27 +313,44 @@ export const A4GstClassicInvoiceTemplate: React.FC<A4GstClassicInvoiceTemplatePr
       style={{
         width: "210mm",
         minHeight: "297mm",
-        padding: "5mm",
+        padding: "4mm",
         fontFamily: "Arial, Helvetica, sans-serif",
-        fontSize: "11px",
+        fontSize: "12px",
         color: "#000",
         background: "#fff",
         boxSizing: "border-box",
+        display: "flex",
+        flexDirection: "column",
       }}
     >
       <style>{`
         @media print {
-          @page { size: A4 portrait; margin: 5mm; }
+          @page { size: A4 portrait; margin: 4mm; }
           .a4-gst-classic-invoice-root {
-            width: 200mm !important;
+            width: 202mm !important;
+            min-height: 289mm !important;
             padding: 0 !important;
-            min-height: auto !important;
           }
-          .a4-gst-classic-footer { page-break-inside: avoid; }
+          .a4-gst-classic-footer { page-break-inside: avoid; margin-top: auto !important; }
+          .a4-gst-classic-invoice-root,
+          .a4-gst-classic-invoice-root * {
+            color: #000 !important;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
         }
       `}</style>
 
-      <div style={{ border: b }}>
+      <div
+        style={{
+          border: b,
+          flex: 1,
+          display: "flex",
+          flexDirection: "column",
+          minHeight: 0,
+          overflow: "hidden",
+        }}
+      >
         {/* Title row */}
         <div
           style={{
@@ -315,15 +358,26 @@ export const A4GstClassicInvoiceTemplate: React.FC<A4GstClassicInvoiceTemplatePr
             gridTemplateColumns: "1fr auto 1fr",
             alignItems: "center",
             borderBottom: b,
-            padding: "6px 10px",
-            backgroundColor: "#f5f5f5",
+            padding: "7px 10px",
+            backgroundColor: "#f0f0f0",
+            flexShrink: 0,
           }}
         >
           <div />
-          <div style={{ fontWeight: "bold", fontSize: "18px", letterSpacing: "1px", textAlign: "center" }}>
+          <div
+            style={{
+              fontWeight: 800,
+              fontSize: "20px",
+              letterSpacing: "1px",
+              textAlign: "center",
+              color: "#000",
+            }}
+          >
             {titleText}
           </div>
-          <div style={{ textAlign: "right", fontWeight: "bold", fontSize: "12px" }}>Original Copy</div>
+          <div style={{ textAlign: "right", fontWeight: 700, fontSize: "13px", color: "#000" }}>
+            Original Copy
+          </div>
         </div>
 
         {/* Header: logo + company + QR */}
@@ -334,72 +388,131 @@ export const A4GstClassicInvoiceTemplate: React.FC<A4GstClassicInvoiceTemplatePr
             borderBottom: b,
             padding: "8px 10px",
             alignItems: "flex-start",
+            flexShrink: 0,
           }}
         >
           {logoUrl ? (
             <img
               src={logoUrl}
               alt=""
-              style={{ width: "72px", height: "72px", objectFit: "contain", flexShrink: 0 }}
+              style={{ width: "78px", height: "78px", objectFit: "contain", flexShrink: 0 }}
             />
           ) : (
-            <div style={{ width: "72px", flexShrink: 0 }} />
+            <div style={{ width: "78px", flexShrink: 0 }} />
           )}
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: "22px", fontWeight: "bold", textTransform: "uppercase", lineHeight: 1.15 }}>
+            <div
+              style={{
+                fontSize: "24px",
+                fontWeight: 800,
+                textTransform: "uppercase",
+                lineHeight: 1.15,
+                color: "#000",
+              }}
+            >
               {businessName}
             </div>
-            <div style={{ fontSize: "11px", marginTop: "3px", whiteSpace: "pre-line", lineHeight: 1.35 }}>
+            <div
+              style={{
+                fontSize: "12px",
+                marginTop: "3px",
+                whiteSpace: "pre-line",
+                lineHeight: 1.4,
+                fontWeight: 600,
+                color: "#000",
+              }}
+            >
               {address}
             </div>
-            <div style={{ fontSize: "11px", marginTop: "2px" }}>
+            <div style={{ fontSize: "12px", marginTop: "3px", fontWeight: 600, color: "#000" }}>
               {mobile && <span>Tel / Mob: {mobile}</span>}
               {mobile && email && <span> &nbsp;|&nbsp; </span>}
               {email && <span>Email: {email}</span>}
             </div>
-            <div style={{ fontSize: "11px", marginTop: "2px", fontWeight: "bold" }}>
+            <div style={{ fontSize: "13px", marginTop: "3px", fontWeight: 700, color: "#000" }}>
               GSTIN: {dash(gstNumber) || "—"}
               {customHeaderText?.trim() ? ` || ${customHeaderText.trim()}` : ""}
             </div>
           </div>
-          {qrCodeUrl ? (
-            <div style={{ textAlign: "center", flexShrink: 0 }}>
+          <div style={{ textAlign: "center", flexShrink: 0 }}>
+            {qrCodeUrl ? (
               <img
                 src={qrCodeUrl}
                 alt="UPI QR"
-                style={{ width: "78px", height: "78px", display: "block", border: "1px solid #ccc" }}
+                style={{
+                  width: "92px",
+                  height: "92px",
+                  display: "block",
+                  border: "1px solid #000",
+                }}
               />
-              <div style={{ fontSize: "9px", marginTop: "2px", fontWeight: 600 }}>Scan to Pay</div>
+            ) : (
+              <div
+                style={{
+                  width: "92px",
+                  height: "92px",
+                  border: "1px dashed #666",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: "11px",
+                  fontWeight: 700,
+                  color: "#000",
+                }}
+              >
+                QR
+              </div>
+            )}
+            <div style={{ fontSize: "11px", marginTop: "3px", fontWeight: 700, color: "#000" }}>
+              Scan to Pay
             </div>
-          ) : null}
+          </div>
         </div>
 
         {/* Billed / Shipped / Invoice meta */}
-        <div style={{ display: "flex", borderBottom: b }}>
-          <div style={{ flex: 1, borderRight: b, padding: "6px 8px" }}>
-            <div style={{ fontWeight: "bold", textDecoration: "underline", marginBottom: "4px", fontSize: "11px" }}>
+        <div style={{ display: "flex", borderBottom: b, flexShrink: 0 }}>
+          <div style={{ flex: 1, borderRight: b, padding: "7px 9px", ...ink }}>
+            <div
+              style={{
+                fontWeight: 800,
+                textDecoration: "underline",
+                marginBottom: "4px",
+                fontSize: "13px",
+              }}
+            >
               Billed To
             </div>
-            <div style={{ fontWeight: "bold", fontSize: "12px" }}>{customerName || "Walk-in Customer"}</div>
+            <div style={{ fontWeight: 800, fontSize: "14px" }}>{customerName || "Walk-in Customer"}</div>
             {customerAddress && (
-              <div style={{ whiteSpace: "pre-line", marginTop: "2px", lineHeight: 1.35 }}>{customerAddress}</div>
+              <div style={{ whiteSpace: "pre-line", marginTop: "3px", lineHeight: 1.4, fontSize: "12px" }}>
+                {customerAddress}
+              </div>
             )}
-            {customerMobile && <div style={{ marginTop: "2px" }}>Ph: {customerMobile}</div>}
-            <div style={{ marginTop: "2px" }}>GSTIN: {dash(customerGSTIN) || "—"}</div>
-            {customerGSTIN && <div>PAN No: {panFromGstin(customerGSTIN)}</div>}
+            {customerMobile && <div style={{ marginTop: "3px", fontSize: "12px" }}>Ph: {customerMobile}</div>}
+            <div style={{ marginTop: "3px", fontSize: "12px" }}>GSTIN: {dash(customerGSTIN) || "—"}</div>
+            {customerGSTIN && <div style={{ fontSize: "12px" }}>PAN No: {panFromGstin(customerGSTIN)}</div>}
           </div>
-          <div style={{ flex: 1, borderRight: b, padding: "6px 8px" }}>
-            <div style={{ fontWeight: "bold", textDecoration: "underline", marginBottom: "4px", fontSize: "11px" }}>
+          <div style={{ flex: 1, borderRight: b, padding: "7px 9px", ...ink }}>
+            <div
+              style={{
+                fontWeight: 800,
+                textDecoration: "underline",
+                marginBottom: "4px",
+                fontSize: "13px",
+              }}
+            >
               Shipped To
             </div>
-            <div style={{ fontWeight: "bold", fontSize: "12px" }}>{customerName || "Walk-in Customer"}</div>
+            <div style={{ fontWeight: 800, fontSize: "14px" }}>{customerName || "Walk-in Customer"}</div>
             {customerAddress && (
-              <div style={{ whiteSpace: "pre-line", marginTop: "2px", lineHeight: 1.35 }}>{customerAddress}</div>
+              <div style={{ whiteSpace: "pre-line", marginTop: "3px", lineHeight: 1.4, fontSize: "12px" }}>
+                {customerAddress}
+              </div>
             )}
-            {customerMobile && <div style={{ marginTop: "2px" }}>Ph: {customerMobile}</div>}
-            <div style={{ marginTop: "2px" }}>GSTIN: {dash(customerGSTIN) || "—"}</div>
+            {customerMobile && <div style={{ marginTop: "3px", fontSize: "12px" }}>Ph: {customerMobile}</div>}
+            <div style={{ marginTop: "3px", fontSize: "12px" }}>GSTIN: {dash(customerGSTIN) || "—"}</div>
           </div>
-          <div style={{ width: "32%", padding: "6px 8px", fontSize: "11px" }}>
+          <div style={{ width: "32%", padding: "7px 9px", fontSize: "12px", fontWeight: 600, color: "#000" }}>
             <div><b>Invoice No.:</b> {invoiceNumber}</div>
             <div><b>Date of Invoice:</b> {formatDate(invoiceDate)}</div>
             <div><b>E-Way Bill No.:</b> —</div>
@@ -416,9 +529,12 @@ export const A4GstClassicInvoiceTemplate: React.FC<A4GstClassicInvoiceTemplatePr
           style={{
             display: "flex",
             borderBottom: b,
-            padding: "5px 8px",
-            fontSize: "11px",
+            padding: "6px 9px",
+            fontSize: "12px",
+            fontWeight: 600,
+            color: "#000",
             gap: "16px",
+            flexShrink: 0,
           }}
         >
           <div style={{ flex: 1 }}>
@@ -428,76 +544,85 @@ export const A4GstClassicInvoiceTemplate: React.FC<A4GstClassicInvoiceTemplatePr
           <div style={{ width: "22%" }}><b>L.R Date:</b> —</div>
         </div>
 
-        {/* Items */}
-        <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
-          <colgroup>
-            <col style={{ width: "28px" }} />
-            <col />
-            {showHSN ? <col style={{ width: "72px" }} /> : null}
-            <col style={{ width: "48px" }} />
-            <col style={{ width: "40px" }} />
-            <col style={{ width: "62px" }} />
-            <col style={{ width: "42px" }} />
-            <col style={{ width: "78px" }} />
-          </colgroup>
-          <thead>
-            <tr>
-              <th style={hCell}>S.N.</th>
-              <th style={{ ...hCell, textAlign: "left" }}>Description of Goods</th>
-              {showHSN && <th style={hCell}>HSN/SAC Code</th>}
-              <th style={hCell}>Qty.</th>
-              <th style={hCell}>Unit</th>
-              <th style={hCell}>Price</th>
-              <th style={hCell}>Dis.%</th>
-              <th style={hCell}>Amount(₹)</th>
-            </tr>
-          </thead>
-          <tbody>
-            {lineRows.map((row) => (
-              <tr key={row.index}>
-                <td style={{ ...cell, textAlign: "center" }}>{row.index}</td>
-                <td style={cell}>
-                  <div style={{ fontWeight: 600 }}>{row.item.particulars}</div>
-                  {(row.item.size || row.item.color) && (
-                    <div style={{ fontSize: "10px", color: "#333" }}>
-                      {[row.item.color, row.item.size].filter(Boolean).join(" / ")}
-                    </div>
+        {/* Items — grows to push footer down */}
+        <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed", height: "100%" }}>
+            <colgroup>
+              <col style={{ width: "30px" }} />
+              <col />
+              {showHSN ? <col style={{ width: "78px" }} /> : null}
+              <col style={{ width: "52px" }} />
+              <col style={{ width: "42px" }} />
+              <col style={{ width: "68px" }} />
+              <col style={{ width: "46px" }} />
+              <col style={{ width: "82px" }} />
+            </colgroup>
+            <thead>
+              <tr>
+                <th style={hCell}>S.N.</th>
+                <th style={{ ...hCell, textAlign: "left" }}>Description of Goods</th>
+                {showHSN && <th style={hCell}>HSN/SAC Code</th>}
+                <th style={hCell}>Qty.</th>
+                <th style={hCell}>Unit</th>
+                <th style={hCell}>Price</th>
+                <th style={hCell}>Dis.%</th>
+                <th style={hCell}>Amount(₹)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {lineRows.map((row) => (
+                <tr key={row.index}>
+                  <td style={{ ...cell, textAlign: "center" }}>{row.index}</td>
+                  <td style={cell}>
+                    <div style={{ fontWeight: 700 }}>{row.item.particulars}</div>
+                    {(row.item.size || row.item.color) && (
+                      <div style={{ fontSize: "11px", color: "#000", fontWeight: 600 }}>
+                        {[row.item.color, row.item.size].filter(Boolean).join(" / ")}
+                      </div>
+                    )}
+                  </td>
+                  {showHSN && (
+                    <td style={{ ...cell, textAlign: "center" }}>{dash(row.item.hsn) || "—"}</td>
                   )}
-                </td>
-                {showHSN && (
-                  <td style={{ ...cell, textAlign: "center" }}>{dash(row.item.hsn) || "—"}</td>
-                )}
-                <td style={{ ...cell, textAlign: "right", fontWeight: 600 }}>{fmt(row.item.qty)}</td>
-                <td style={{ ...cell, textAlign: "center" }}>{row.uom}</td>
-                <td style={{ ...cell, textAlign: "right" }}>{fmt(row.unitPrice)}</td>
-                <td style={{ ...cell, textAlign: "right" }}>{fmt(row.discPct)}</td>
-                <td style={{ ...cell, textAlign: "right", fontWeight: 600 }}>{fmt(row.taxable)}</td>
-              </tr>
-            ))}
-            {Array.from({ length: blankRows }).map((_, i) => (
-              <tr key={`blank-${i}`} style={{ height: "16px" }}>
-                <td style={cell}>&nbsp;</td>
-                <td style={cell} />
-                {showHSN && <td style={cell} />}
-                <td style={cell} />
-                <td style={cell} />
-                <td style={cell} />
-                <td style={cell} />
-                <td style={cell} />
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                  <td style={{ ...cell, textAlign: "right", fontWeight: 700 }}>{fmt(row.item.qty)}</td>
+                  <td style={{ ...cell, textAlign: "center" }}>{row.uom}</td>
+                  <td style={{ ...cell, textAlign: "right" }}>{fmt(row.unitPrice)}</td>
+                  <td style={{ ...cell, textAlign: "right" }}>{fmt(row.discPct)}</td>
+                  <td style={{ ...cell, textAlign: "right", fontWeight: 700 }}>{fmt(row.taxable)}</td>
+                </tr>
+              ))}
+              {Array.from({ length: blankRows }).map((_, i) => (
+                <tr key={`blank-${i}`} style={{ height: i === blankRows - 1 ? "100%" : "18px" }}>
+                  <td style={cell}>&nbsp;</td>
+                  <td style={cell} />
+                  {showHSN && <td style={cell} />}
+                  <td style={cell} />
+                  <td style={cell} />
+                  <td style={cell} />
+                  <td style={cell} />
+                  <td style={cell} />
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
 
-        {/* Totals block */}
-        <div className="a4-gst-classic-footer">
+        {/* Footer pinned to A4 bottom */}
+        <div className="a4-gst-classic-footer" style={{ marginTop: "auto", flexShrink: 0 }}>
           <div style={{ display: "flex", borderTop: b }}>
-            <div style={{ flex: 1, borderRight: b, padding: "6px 8px" }}>
-              <div style={{ fontWeight: "bold", marginBottom: "4px" }}>
+            <div style={{ flex: 1, borderRight: b, padding: "7px 9px" }}>
+              <div style={{ fontWeight: 800, marginBottom: "5px", fontSize: "13px", color: "#000" }}>
                 Total Qty: {fmt(totalQty)} Pcs
               </div>
               {!isNoGst && taxSummaryRows.length > 0 && (
-                <table style={{ width: "100%", borderCollapse: "collapse", marginTop: "4px", fontSize: "10px" }}>
+                <table
+                  style={{
+                    width: "100%",
+                    borderCollapse: "collapse",
+                    marginTop: "4px",
+                    fontSize: "11px",
+                  }}
+                >
                   <thead>
                     <tr>
                       <th style={hCell}>Tax Rate</th>
@@ -516,17 +641,17 @@ export const A4GstClassicInvoiceTemplate: React.FC<A4GstClassicInvoiceTemplatePr
                   <tbody>
                     {taxSummaryRows.map(([rate, row]) => (
                       <tr key={rate}>
-                        <td style={{ ...cell, textAlign: "center" }}>{rate}%</td>
-                        <td style={{ ...cell, textAlign: "right" }}>{fmt(row.taxable)}</td>
+                        <td style={{ ...cell, textAlign: "center", fontSize: "11px" }}>{rate}%</td>
+                        <td style={{ ...cell, textAlign: "right", fontSize: "11px" }}>{fmt(row.taxable)}</td>
                         {isInterState ? (
-                          <td style={{ ...cell, textAlign: "right" }}>{fmt(row.igst)}</td>
+                          <td style={{ ...cell, textAlign: "right", fontSize: "11px" }}>{fmt(row.igst)}</td>
                         ) : (
                           <>
-                            <td style={{ ...cell, textAlign: "right" }}>{fmt(row.cgst)}</td>
-                            <td style={{ ...cell, textAlign: "right" }}>{fmt(row.sgst)}</td>
+                            <td style={{ ...cell, textAlign: "right", fontSize: "11px" }}>{fmt(row.cgst)}</td>
+                            <td style={{ ...cell, textAlign: "right", fontSize: "11px" }}>{fmt(row.sgst)}</td>
                           </>
                         )}
-                        <td style={{ ...cell, textAlign: "right" }}>
+                        <td style={{ ...cell, textAlign: "right", fontSize: "11px" }}>
                           {fmt(row.cgst + row.sgst + row.igst)}
                         </td>
                       </tr>
@@ -534,68 +659,74 @@ export const A4GstClassicInvoiceTemplate: React.FC<A4GstClassicInvoiceTemplatePr
                   </tbody>
                 </table>
               )}
-              <div style={{ marginTop: "8px", fontSize: "11px" }}>
-                <b>Rupees {numberToIndianWords(grandTotal)}</b>
+              <div style={{ marginTop: "8px", fontSize: "12px", fontWeight: 700, color: "#000" }}>
+                Rupees {numberToIndianWords(grandTotal)}
               </div>
             </div>
-            <div style={{ width: "38%" }}>
+            <div style={{ width: "40%" }}>
               <div style={{ display: "flex", borderBottom: b }}>
-                <div style={{ flex: 1, borderRight: b, padding: "4px 6px", fontWeight: 600 }}>Sub Total</div>
-                <div style={{ width: "42%", padding: "4px 6px", textAlign: "right" }}>
-                  {fmt(taxableAmount || lineTaxableTotal)}
-                </div>
+                <div style={totLabel}>Sub Total</div>
+                <div style={totVal}>{fmt(taxableAmount || lineTaxableTotal)}</div>
               </div>
               {discount > 0 && (
                 <div style={{ display: "flex", borderBottom: b }}>
-                  <div style={{ flex: 1, borderRight: b, padding: "4px 6px" }}>Less: Discount</div>
-                  <div style={{ width: "42%", padding: "4px 6px", textAlign: "right" }}>{fmt(discount)}</div>
+                  <div style={totLabel}>Less: Discount</div>
+                  <div style={totVal}>{fmt(discount)}</div>
                 </div>
               )}
-              {!isNoGst && !isInterState && (
+              {/* Always show GST breakdown after Sub Total */}
+              <div style={{ display: "flex", borderBottom: b }}>
+                <div style={totLabel}>GST Amount</div>
+                <div style={totVal}>{fmt(gstAmountDisplay)}</div>
+              </div>
+              {isInterState ? (
+                <div style={{ display: "flex", borderBottom: b }}>
+                  <div style={totLabel}>
+                    Add: IGST{igstRate > 0 ? ` @ ${igstRate.toFixed(2)}%` : ""}
+                  </div>
+                  <div style={totVal}>{fmt(isNoGst ? 0 : igstAmount)}</div>
+                </div>
+              ) : (
                 <>
                   <div style={{ display: "flex", borderBottom: b }}>
-                    <div style={{ flex: 1, borderRight: b, padding: "4px 6px" }}>
-                      Add: CGST{cgstRate > 0 ? ` @ ${cgstRate.toFixed(3)}%` : ""}
+                    <div style={totLabel}>
+                      Add: CGST{cgstRate > 0 ? ` @ ${cgstRate.toFixed(2)}%` : ""}
                     </div>
-                    <div style={{ width: "42%", padding: "4px 6px", textAlign: "right" }}>{fmt(cgstAmount)}</div>
+                    <div style={totVal}>{fmt(isNoGst ? 0 : cgstAmount)}</div>
                   </div>
                   <div style={{ display: "flex", borderBottom: b }}>
-                    <div style={{ flex: 1, borderRight: b, padding: "4px 6px" }}>
-                      Add: SGST{sgstRate > 0 ? ` @ ${sgstRate.toFixed(3)}%` : ""}
+                    <div style={totLabel}>
+                      Add: SGST{sgstRate > 0 ? ` @ ${sgstRate.toFixed(2)}%` : ""}
                     </div>
-                    <div style={{ width: "42%", padding: "4px 6px", textAlign: "right" }}>{fmt(sgstAmount)}</div>
+                    <div style={totVal}>{fmt(isNoGst ? 0 : sgstAmount)}</div>
                   </div>
                 </>
               )}
-              {!isNoGst && isInterState && (
-                <div style={{ display: "flex", borderBottom: b }}>
-                  <div style={{ flex: 1, borderRight: b, padding: "4px 6px" }}>
-                    Add: IGST{igstRate > 0 ? ` @ ${igstRate.toFixed(3)}%` : ""}
-                  </div>
-                  <div style={{ width: "42%", padding: "4px 6px", textAlign: "right" }}>{fmt(igstAmount)}</div>
-                </div>
-              )}
               {Math.abs(roundOff) >= 0.005 && (
                 <div style={{ display: "flex", borderBottom: b }}>
-                  <div style={{ flex: 1, borderRight: b, padding: "4px 6px" }}>
+                  <div style={totLabel}>
                     {roundOff >= 0 ? "Add" : "Less"}: Rounded Off
                   </div>
-                  <div style={{ width: "42%", padding: "4px 6px", textAlign: "right" }}>
-                    {fmt(Math.abs(roundOff))}
-                  </div>
+                  <div style={totVal}>{fmt(Math.abs(roundOff))}</div>
                 </div>
               )}
-              <div style={{ display: "flex", backgroundColor: "#f0f0f0" }}>
-                <div style={{ flex: 1, borderRight: b, padding: "6px", fontWeight: "bold", fontSize: "13px" }}>
+              <div style={{ display: "flex", backgroundColor: "#e8e8e8" }}>
+                <div
+                  style={{
+                    ...totLabel,
+                    fontSize: "14px",
+                    fontWeight: 800,
+                    padding: "7px",
+                  }}
+                >
                   Grand Total
                 </div>
                 <div
                   style={{
-                    width: "42%",
-                    padding: "6px",
-                    textAlign: "right",
-                    fontWeight: "bold",
-                    fontSize: "14px",
+                    ...totVal,
+                    fontSize: "15px",
+                    fontWeight: 800,
+                    padding: "7px",
                   }}
                 >
                   ₹ {fmt(grandTotal)}
@@ -604,38 +735,58 @@ export const A4GstClassicInvoiceTemplate: React.FC<A4GstClassicInvoiceTemplatePr
             </div>
           </div>
 
-          {/* Bank bar */}
-          {showBankDetails && (bankName || bankAc) && (
+          {/* Bank details — bold */}
+          {showBankDetails && (bankName || bankAc || bankIfsc) && (
             <div
               style={{
                 borderTop: b,
-                padding: "5px 8px",
-                fontSize: "11px",
-                fontWeight: 600,
-                backgroundColor: "#fafafa",
+                padding: "6px 9px",
+                fontSize: "12px",
+                fontWeight: 800,
+                color: "#000",
+                backgroundColor: "#f5f5f5",
+                letterSpacing: "0.2px",
               }}
             >
+              <b>Bank Account Details: </b>
+              {bankHolder ? `${bankHolder.toUpperCase()} | ` : ""}
               {bankName ? `${bankName.toUpperCase()} ` : ""}
               {bankAc ? `A/C NO : ${bankAc}` : ""}
               {bankIfsc ? ` || IFSC CODE : ${bankIfsc}` : ""}
             </div>
           )}
 
-          {/* Terms / Stamp / Sign */}
-          <div style={{ display: "flex", borderTop: b, minHeight: "88px" }}>
-            <div style={{ flex: 1.2, borderRight: b, padding: "6px 8px", fontSize: "10px" }}>
-              <div style={{ fontWeight: "bold", textDecoration: "underline", marginBottom: "3px" }}>
+          {/* Terms / Stamp / Sign — terms bold */}
+          <div style={{ display: "flex", borderTop: b, minHeight: "96px" }}>
+            <div
+              style={{
+                flex: 1.2,
+                borderRight: b,
+                padding: "7px 9px",
+                fontSize: "11px",
+                fontWeight: 700,
+                color: "#000",
+              }}
+            >
+              <div
+                style={{
+                  fontWeight: 800,
+                  textDecoration: "underline",
+                  marginBottom: "4px",
+                  fontSize: "12px",
+                }}
+              >
                 Terms &amp; Conditions
               </div>
               {terms.map((t, i) => (
-                <div key={i} style={{ marginBottom: "1px" }}>
+                <div key={i} style={{ marginBottom: "2px", fontWeight: 700 }}>
                   {i + 1}. {t}
                 </div>
               ))}
             </div>
             <div
               style={{
-                width: "28%",
+                width: "26%",
                 borderRight: b,
                 padding: "6px",
                 textAlign: "center",
@@ -652,28 +803,40 @@ export const A4GstClassicInvoiceTemplate: React.FC<A4GstClassicInvoiceTemplatePr
                   style={{ width: stampW, maxHeight: stampH, objectFit: "contain" }}
                 />
               ) : (
-                <div style={{ fontSize: "10px", color: "#666", marginTop: "20px" }}>Company Seal</div>
+                <div style={{ fontSize: "11px", fontWeight: 700, color: "#000", marginTop: "16px" }}>
+                  Company Seal
+                </div>
               )}
             </div>
             <div
               style={{
                 width: "30%",
-                padding: "6px 8px",
+                padding: "7px 9px",
                 textAlign: "center",
                 display: "flex",
                 flexDirection: "column",
-                minHeight: "88px",
+                minHeight: "96px",
               }}
             >
-              <div style={{ fontWeight: "bold", fontSize: "11px" }}>For {businessName}</div>
-              <div style={{ flex: 1, minHeight: "40px" }} aria-hidden="true" />
-              <div style={{ fontWeight: "bold", fontSize: "11px" }}>Authorised Signatory</div>
+              <div style={{ fontWeight: 800, fontSize: "12px", color: "#000" }}>For {businessName}</div>
+              <div style={{ flex: 1, minHeight: "44px" }} aria-hidden="true" />
+              <div style={{ fontWeight: 800, fontSize: "12px", color: "#000" }}>Authorised Signatory</div>
             </div>
           </div>
 
-          <div style={{ borderTop: b, padding: "4px 8px", fontSize: "9px", lineHeight: 1.35 }}>
+          {/* Declaration — bold */}
+          <div
+            style={{
+              borderTop: b,
+              padding: "5px 9px",
+              fontSize: "10px",
+              lineHeight: 1.4,
+              fontWeight: 700,
+              color: "#000",
+            }}
+          >
             {declaration}
-            {!isNoGst && totalTax > 0 ? ` | Total Tax: ₹ ${fmt(totalTax)}` : ""}
+            {!isNoGst && gstAmountDisplay > 0 ? ` | Total Tax: ₹ ${fmt(gstAmountDisplay)}` : ""}
           </div>
         </div>
       </div>
