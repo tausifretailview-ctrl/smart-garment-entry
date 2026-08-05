@@ -315,7 +315,7 @@ const App = () => {
     if (slug) applyOrgPwaManifest(slug);
   }, []);
 
-  // Recover from transient chunk load failures (common on first navigation after login in desktop WebView).
+  // Recover from deploy skew / stale PWA cache (HTML served for hashed .js → MIME errors).
   useEffect(() => {
     const handleRejection = (event: PromiseRejectionEvent) => {
       if (!isChunkLoadError(event.reason)) {
@@ -329,8 +329,22 @@ const App = () => {
       console.warn("Chunk load failed (skew recovery exhausted):", event.reason);
     };
 
+    // Some browsers surface MIME text/html module failures as window "error" (not rejection).
+    const handleError = (event: ErrorEvent) => {
+      const msg = event.message || "";
+      const fromError = event.error;
+      if (!isChunkLoadError(fromError) && !isChunkLoadError(msg)) return;
+      if (attemptSkewRecoveryReload()) {
+        event.preventDefault();
+      }
+    };
+
     window.addEventListener("unhandledrejection", handleRejection);
-    return () => window.removeEventListener("unhandledrejection", handleRejection);
+    window.addEventListener("error", handleError);
+    return () => {
+      window.removeEventListener("unhandledrejection", handleRejection);
+      window.removeEventListener("error", handleError);
+    };
   }, []);
 
   useEffect(() => {

@@ -1,6 +1,8 @@
 import type { ComponentType, LazyExoticComponent } from "react";
 import {
+  attemptSkewRecoveryReload,
   importWithRetry,
+  isChunkLoadError,
   lazyWithRetry,
   scheduleSequentialIdlePrefetch,
   CRITICAL_ENTRY_CHUNK_PATHS,
@@ -364,15 +366,18 @@ export function shouldAllowSpeculativeChunkPrefetch(): boolean {
 
 /**
  * Warm a tab chunk via the shared promise cache (deduped).
- * Failures are silent — never toast and never enter the skew-reload path.
+ * Soft network blips stay silent; deploy-skew (HTML-for-JS / MIME) triggers one
+ * bounded SW purge + reload so installed PWAs do not stay blank until cache clear.
  */
 export function prefetchTabPage(path: string, options?: PrefetchTabPageOptions): void {
   if (!options?.intent && !shouldAllowSpeculativeChunkPrefetch()) return;
   const resolved = resolveTabCachePath(path);
   const promise = loadTabPageModule(resolved);
   if (!promise) return;
-  void promise.catch(() => {
-    // Silent: real navigation retries via importWithRetry / Suspense.
+  void promise.catch((err) => {
+    if (isChunkLoadError(err)) {
+      attemptSkewRecoveryReload();
+    }
   });
 }
 

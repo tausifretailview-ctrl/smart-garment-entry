@@ -15,6 +15,13 @@ function getElectronAPI(): ElectronReloadApi | undefined {
 export const SILENT_UPDATE_IDLE_MS = 45_000;
 /** If no safe moment arrives, show the existing update banner. */
 export const SILENT_UPDATE_BANNER_FALLBACK_MS = 2 * 60 * 60 * 1000;
+/**
+ * Installed Windows/Android PWA — show update banner sooner. Busy shops otherwise
+ * stay on a waiting SW all day and hit MIME text/html chunk skew after deploy.
+ */
+export const SILENT_UPDATE_BANNER_FALLBACK_STANDALONE_MS = 15 * 60 * 1000;
+/** How often installed PWAs should call registration.update(). */
+export const STANDALONE_SW_UPDATE_CHECK_MS = 5 * 60 * 1000;
 
 const ACTIVITY_EVENTS = ["mousemove", "keydown", "click", "touchstart"] as const;
 /** How often to re-check idle + cart + dialog gates. */

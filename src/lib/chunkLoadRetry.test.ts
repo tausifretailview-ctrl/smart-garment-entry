@@ -35,6 +35,19 @@ describe("isChunkLoadError", () => {
         new Error("Failed to fetch dynamically imported module: https://app.example/assets/Index-oldhash.js"),
       ),
     ).toBe(true);
+    // Browser console (Albeli / Windows PWA): MIME text/html for pdf-vendor / Profile chunks.
+    expect(
+      isChunkLoadError(
+        new Error(
+          'Failed to load module script: Expected a JavaScript-or-Wasm module script but the server responded with a MIME type of "text/html".',
+        ),
+      ),
+    ).toBe(true);
+    expect(
+      isChunkLoadError(
+        'Failed to load module script: Expected a JavaScript-or-Wasm module script but the server responded with a MIME type of "text/html".',
+      ),
+    ).toBe(true);
   });
 
   it("does not treat app ReferenceErrors as chunk skew (no Updating… reload)", () => {
