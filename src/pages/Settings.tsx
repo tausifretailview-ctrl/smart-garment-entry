@@ -188,7 +188,7 @@ interface SaleSettings {
   pos_barcode_price_mode?: 'mrp' | 'sale_price';
   default_discount?: number;
   /** Default GST mode for POS / invoice print when not chosen per bill */
-  default_tax_type?: 'inclusive' | 'exclusive';
+  default_tax_type?: 'inclusive' | 'exclusive' | 'no_gst';
   payment_methods?: string[];
   default_payment_method?: string;
   invoice_numbering_format?: string;  // For Sale Invoice INV-{YYYY}-{####}
@@ -2353,7 +2353,7 @@ export default function Settings() {
                   <Label htmlFor="default_tax_type">Default GST Type (POS / Tally Invoice)</Label>
                   <Select
                     value={settings.sale_settings?.default_tax_type || "inclusive"}
-                    onValueChange={(v: "inclusive" | "exclusive") =>
+                    onValueChange={(v: "inclusive" | "exclusive" | "no_gst") =>
                       setSettings({
                         ...settings,
                         sale_settings: {
@@ -2369,6 +2369,7 @@ export default function Settings() {
                     <SelectContent>
                       <SelectItem value="inclusive">GST Inclusive (MRP-style, GST bifurcated)</SelectItem>
                       <SelectItem value="exclusive">GST Exclusive (taxable + GST at bottom)</SelectItem>
+                      <SelectItem value="no_gst">Without GST (no tax on bill)</SelectItem>
                     </SelectContent>
                   </Select>
                   <p className="text-xs text-muted-foreground">
