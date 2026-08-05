@@ -122,7 +122,7 @@ interface RetailERPTemplateProps {
   /** Real Tast — Bill of Supply A4 (no size, payment, balance, state code).
    *  Preprinted — same tax layout as standard, but 2in top gap for letterhead (no shop name/logo).
    *  DC — Retail ERP layout without HSN, org/customer GSTIN, or GST tax lines (Delivery Challan).
-   *  Zaika — Retail ERP tax invoice without size/barcode/qty columns, balance row, or terms. */
+   *  Zaika — Retail ERP tax invoice without size/barcode/qty/rate columns, balance row, or terms. */
   variant?: "standard" | "real-tast" | "preprinted" | "dc" | "zaika";
 }
 
@@ -502,12 +502,13 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   const ROW_H_WITH_DISC = isA4 ? "36px" : isA5Retail ? "28px" : "30px";
 
   // Real Tast: no size or barcode; HSN optional via show_hsn_code setting.
-  // Zaika: no size, barcode, or qty (restaurant-style).
+  // Zaika: no size, barcode, qty, or rate (restaurant-style).
   // DC: never show HSN (Delivery Challan style).
   const showHSNCol = showHSN && !isDc;
   const showBarcodeCol = !isRealTast && !isZaika;
   const showSizeCol = !isRealTast && !isZaika;
   const showQtyCol = !isZaika;
+  const showRateCol = !isZaika;
 
   // Column % must sum to ~100% with table-layout:fixed (under-sum caused PDF column drift).
   const cols: { key: string; label: string; width: string; align: "center" | "left" | "right" }[] = [
@@ -522,8 +523,8 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
       label: "DESCRIPTION",
       width: isZaika
         ? showHSNCol
-          ? "52%"
-          : "60%"
+          ? "64%"
+          : "74%"
         : isRealTast
           ? showHSNCol
             ? "47%"
@@ -553,20 +554,22 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   if (showQtyCol) {
     cols.push({ key: "qty", label: "QTY", width: isRealTast ? "6%" : "6%", align: "center" });
   }
-  cols.push({
-    key: "rate",
-    label: "RATE",
-    width: isZaika ? (showHSNCol ? "14%" : "16%") : isRealTast ? (showHSNCol ? "11%" : "12%") : "12%",
-    align: "right",
-  });
+  if (showRateCol) {
+    cols.push({
+      key: "rate",
+      label: "RATE",
+      width: isRealTast ? (showHSNCol ? "11%" : "12%") : "12%",
+      align: "right",
+    });
+  }
   cols.push({
     key: "amount",
     label: "AMOUNT",
     // Absorb remaining width so col % ≈ 100 (was ~88% → PDF column drift).
     width: isZaika
       ? showHSNCol
-        ? "18%"
-        : "18%"
+        ? "20%"
+        : "20%"
       : isRealTast
         ? showHSNCol
           ? "12%"

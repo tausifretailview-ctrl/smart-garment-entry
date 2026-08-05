@@ -3464,7 +3464,7 @@ export default function Settings() {
                         : settings.sale_settings?.invoice_template === 'retail-erp-dc'
                           ? 'Retail ERP style DC matches Retail ERP layout without HSN, organization GSTIN, customer GSTIN, or GST tax lines. Title prints as Delivery Challan (A5).'
                         : settings.sale_settings?.invoice_template === 'zaika'
-                          ? 'Zaika matches Retail ERP tax invoice without Size, Barcode, Qty columns, and without Received/Balance/Prev Bal or Terms & Conditions (A5).'
+                          ? 'Zaika matches Retail ERP tax invoice without Size, Barcode, Qty, Rate columns, and without Received/Balance/Prev Bal or Terms & Conditions (A5).'
                         : settings.sale_settings?.invoice_template === 'retail-erp-preprinted'
                           ? 'Preprinted Invoice matches Retail ERP tax layout with a 2-inch top letterhead gap. Paper size follows POS Bill Format / Sale Invoice Format (A4 or A5).'
                         : settings.sale_settings?.invoice_template === 'real-tast'

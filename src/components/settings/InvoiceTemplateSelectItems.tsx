@@ -106,7 +106,7 @@ export function InvoiceTemplateSelectItems({ currentValue }: InvoiceTemplateSele
         <SelectItem value="zaika">
           <span className="flex items-center gap-2">
             <span className="text-orange-700 font-bold text-xs w-5">ZK</span>
-            Zaika — Tax Invoice (no Size / Barcode / Qty / Balances / Terms)
+            Zaika — Tax Invoice (no Size / Barcode / Qty / Rate / Balances / Terms)
           </span>
         </SelectItem>
         <SelectItem value="retail-tax-ezzy">
