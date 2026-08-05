@@ -1,4 +1,12 @@
-import type { AccountGroup, SeededAccount } from "@/utils/accounting/seedDefaultAccounts";
+import {
+  seedDefaultAccounts,
+  type AccountGroup,
+  type SeededAccount,
+} from "@/utils/accounting/seedDefaultAccounts";
+import { supabase } from "@/integrations/supabase/client";
+
+const COA_SELECT =
+  "id, organization_id, account_code, account_name, account_type, account_group, parent_account_id, is_system_account";
 
 type AccountType = SeededAccount["account_type"];
 
@@ -67,6 +75,25 @@ export function filterThirdPartyMasters(accounts: SeededAccount[]): SeededAccoun
   return accounts
     .filter(isThirdPartyMasterAccount)
     .sort((a, b) => a.account_code.localeCompare(b.account_code));
+}
+
+/**
+ * System COA (seeded) + user-created masters.
+ * `seedDefaultAccounts` alone only returns is_system_account=true, so third-party
+ * masters created from the voucher screen would never appear in the picker.
+ */
+export async function loadOrgChartAccountsForThirdParty(
+  organizationId: string,
+  client: { from: (table: string) => any } = supabase as any,
+): Promise<SeededAccount[]> {
+  await seedDefaultAccounts(organizationId, client);
+  const { data, error } = await client
+    .from("chart_of_accounts")
+    .select(COA_SELECT)
+    .eq("organization_id", organizationId)
+    .order("account_code", { ascending: true });
+  if (error) throw error;
+  return (data || []) as SeededAccount[];
 }
 
 export function filterCashBankAccounts(accounts: SeededAccount[]): SeededAccount[] {

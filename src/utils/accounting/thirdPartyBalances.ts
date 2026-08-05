@@ -1,9 +1,10 @@
 import { supabase } from "@/integrations/supabase/client";
 import {
   filterThirdPartyMasters,
+  loadOrgChartAccountsForThirdParty,
   type ThirdPartyPickerGroup,
 } from "@/utils/accounting/thirdPartyAccounts";
-import { seedDefaultAccounts, type SeededAccount } from "@/utils/accounting/seedDefaultAccounts";
+import type { SeededAccount } from "@/utils/accounting/seedDefaultAccounts";
 
 export type ThirdPartyBalanceRow = {
   accountId: string;
@@ -26,7 +27,7 @@ function round2(n: number) {
  * Does not touch voucher_entries or customer/supplier balance RPCs.
  */
 export async function fetchThirdPartyBalances(organizationId: string): Promise<ThirdPartyBalanceRow[]> {
-  const all = await seedDefaultAccounts(organizationId, supabase);
+  const all = await loadOrgChartAccountsForThirdParty(organizationId, supabase);
   const accounts = filterThirdPartyMasters(all);
   if (accounts.length === 0) return [];
 

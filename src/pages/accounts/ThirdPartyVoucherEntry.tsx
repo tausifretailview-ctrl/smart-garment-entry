@@ -19,7 +19,6 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import {
   clearSeedDefaultAccountsCache,
-  seedDefaultAccounts,
   type AccountGroup,
   type SeededAccount,
 } from "@/utils/accounting/seedDefaultAccounts";
@@ -29,6 +28,7 @@ import {
   filterCashBankAccounts,
   filterThirdPartyMasters,
   isUniqueAccountCodeViolation,
+  loadOrgChartAccountsForThirdParty,
   TALLY_GROUPS_BY_ACCOUNT_TYPE,
 } from "@/utils/accounting/thirdPartyAccounts";
 import { calculateGlAccountLedger } from "@/utils/accountingReportUtils";
@@ -82,7 +82,7 @@ export default function ThirdPartyVoucherEntry() {
     queryKey: ["third-party-accounts", currentOrganization?.id],
     enabled: !!currentOrganization?.id,
     queryFn: async (): Promise<SeededAccount[]> => {
-      return seedDefaultAccounts(currentOrganization!.id, supabase);
+      return loadOrgChartAccountsForThirdParty(currentOrganization!.id, supabase);
     },
   });
 
@@ -165,8 +165,17 @@ export default function ThirdPartyVoucherEntry() {
       setNewCode("");
       setPartyAccountId(created.id);
       setLedgerAccountId(created.id);
+      queryClient.setQueryData<SeededAccount[]>(
+        ["third-party-accounts", currentOrganization?.id],
+        (prev) => {
+          const list = prev || [];
+          if (list.some((a) => a.id === created.id)) return list;
+          return [...list, created];
+        },
+      );
       void queryClient.invalidateQueries({ queryKey: ["third-party-accounts", currentOrganization?.id] });
       void queryClient.invalidateQueries({ queryKey: ["chart-of-accounts", currentOrganization?.id] });
+      void queryClient.invalidateQueries({ queryKey: ["third-party-balances", currentOrganization?.id] });
     },
     onError: (err: any) => {
       toast.error(err?.message || "Failed to create account");

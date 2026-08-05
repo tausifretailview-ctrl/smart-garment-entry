@@ -63,8 +63,15 @@ describe("thirdPartyAccounts", () => {
         account_type: "Liability",
         account_group: "Sundry Creditors",
       }),
+      acc({
+        account_code: "9105",
+        account_name: "Investment Party",
+        account_type: "Asset",
+        account_group: "Investments",
+        is_system_account: false,
+      }),
     ];
     expect(filterCashBankAccounts(accounts).map((a) => a.account_code)).toEqual(["1000"]);
-    expect(filterThirdPartyMasters(accounts).map((a) => a.account_code)).toEqual(["9102"]);
+    expect(filterThirdPartyMasters(accounts).map((a) => a.account_code)).toEqual(["9102", "9105"]);
   });
 });
