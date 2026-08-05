@@ -157,6 +157,7 @@ export function AppSidebar() {
     "/chart-of-accounts",
     "/journal-vouchers",
     "/manual-journal",
+    "/third-party-entry",
     "/ledger-opening-balances",
     "/payments-dashboard",
   ];
@@ -1106,6 +1107,16 @@ export function AppSidebar() {
                               <NavLink to="/manual-journal" className="flex items-center gap-2 group">
                                 <BookOpen className="h-4 w-4 sidebar-icon text-primary" />
                                 <span className="text-sidebar-foreground font-semibold group-hover:text-primary">Manual Journal</span>
+                              </NavLink>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                        )}
+                        {(isAdminPermissions || hasMenuAccess("accounts_dashboard")) && (
+                          <SidebarMenuSubItem>
+                            <SidebarMenuSubButton asChild isActive={isActive("/third-party-entry")} className="text-sidebar-foreground hover:bg-sidebar-accent data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-bold">
+                              <NavLink to="/third-party-entry" className="flex items-center gap-2 group">
+                                <Banknote className="h-4 w-4 sidebar-icon text-primary" />
+                                <span className="text-sidebar-foreground font-semibold group-hover:text-primary">Third-party Pay/Receive</span>
                               </NavLink>
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>

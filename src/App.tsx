@@ -88,6 +88,7 @@ const Accounts = lazyWithRetry(() => import("./pages/Accounts"));
 const ChartOfAccounts = lazyWithRetry(() => import("./pages/accounts/ChartOfAccounts"));
 const JournalVouchers = lazyWithRetry(() => import("./pages/accounts/JournalVouchers"));
 const ManualJournalEntry = lazyWithRetry(() => import("./pages/accounts/ManualJournalEntry"));
+const ThirdPartyVoucherEntry = lazyWithRetry(() => import("./pages/accounts/ThirdPartyVoucherEntry"));
 const LedgerOpeningBalances = lazyWithRetry(() => import("./pages/accounts/LedgerOpeningBalances"));
 const DeliveryDashboard = lazyWithRetry(() => import("./pages/DeliveryDashboard"));
 const PaymentsDashboard = lazyWithRetry(() => import("./pages/PaymentsDashboard"));
@@ -1513,6 +1514,18 @@ const App = () => {
                       <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
                         <Layout>
                           <ManualJournalEntry />
+                        </Layout>
+                      </RoleProtectedRoute>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="third-party-entry"
+                  element={
+                    <ProtectedRoute>
+                      <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
+                        <Layout>
+                          <ThirdPartyVoucherEntry />
                         </Layout>
                       </RoleProtectedRoute>
                     </ProtectedRoute>

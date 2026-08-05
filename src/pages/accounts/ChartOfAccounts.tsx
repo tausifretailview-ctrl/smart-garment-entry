@@ -13,7 +13,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { seedDefaultAccounts } from "@/utils/accounting/seedDefaultAccounts";
+import {
+  clearSeedDefaultAccountsCache,
+  seedDefaultAccounts,
+  type AccountGroup,
+} from "@/utils/accounting/seedDefaultAccounts";
+import { TALLY_GROUPS_BY_ACCOUNT_TYPE } from "@/utils/accounting/thirdPartyAccounts";
 import { AccountingEntriesGuide } from "@/components/accounting/AccountingEntriesGuide";
 
 type AccountType = "Asset" | "Liability" | "Equity" | "Revenue" | "Expense";
@@ -38,7 +43,10 @@ export default function ChartOfAccounts() {
   const [accountCode, setAccountCode] = useState("");
   const [accountName, setAccountName] = useState("");
   const [accountType, setAccountType] = useState<AccountType>("Asset");
+  const [accountGroup, setAccountGroup] = useState<AccountGroup | "">("Current Assets");
   const [parentAccountId, setParentAccountId] = useState<string>("none");
+
+  const groupsForType = TALLY_GROUPS_BY_ACCOUNT_TYPE[accountType];
 
   const { data: accounts = [], isLoading } = useQuery({
     queryKey: ["chart-of-accounts", currentOrganization?.id],
@@ -82,6 +90,7 @@ export default function ChartOfAccounts() {
         account_code: accountCode.trim(),
         account_name: accountName.trim(),
         account_type: accountType,
+        account_group: accountGroup || null,
         parent_account_id: parentAccountId === "none" ? null : parentAccountId,
         is_system_account: false,
       };
@@ -90,13 +99,16 @@ export default function ChartOfAccounts() {
       if (error) throw error;
     },
     onSuccess: () => {
+      clearSeedDefaultAccountsCache(currentOrganization?.id);
       toast.success("Ledger account created");
       setOpen(false);
       setAccountCode("");
       setAccountName("");
       setAccountType("Asset");
+      setAccountGroup("Current Assets");
       setParentAccountId("none");
       queryClient.invalidateQueries({ queryKey: ["chart-of-accounts", currentOrganization?.id] });
+      queryClient.invalidateQueries({ queryKey: ["third-party-accounts", currentOrganization?.id] });
     },
     onError: (err: any) => {
       toast.error(err?.message || "Failed to create account");
@@ -190,7 +202,16 @@ export default function ChartOfAccounts() {
             </div>
             <div className="space-y-2">
               <Label>Account Type</Label>
-              <Select value={accountType} onValueChange={(v: AccountType) => setAccountType(v)}>
+              <Select
+                value={accountType}
+                onValueChange={(v: AccountType) => {
+                  setAccountType(v);
+                  const nextGroups = TALLY_GROUPS_BY_ACCOUNT_TYPE[v];
+                  setAccountGroup((prev) =>
+                    nextGroups.includes(prev as AccountGroup) ? prev : nextGroups[0] || "",
+                  );
+                }}
+              >
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {ACCOUNT_TYPES.map((type) => (
@@ -206,6 +227,24 @@ export default function ChartOfAccounts() {
                 onChange={(e) => setAccountName(e.target.value)}
                 placeholder="e.g. HDFC Bank - Main"
               />
+            </div>
+            <div className="space-y-2 md:col-span-2">
+              <Label>Tally group (optional)</Label>
+              <Select
+                value={accountGroup || "none"}
+                onValueChange={(v) => setAccountGroup(v === "none" ? "" : (v as AccountGroup))}
+              >
+                <SelectTrigger><SelectValue placeholder="Select group" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No group</SelectItem>
+                  {groupsForType.map((g) => (
+                    <SelectItem key={g} value={g}>{g}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Use Sundry Debtors / Sundry Creditors for non-customer/supplier parties (third-party pay/receive).
+              </p>
             </div>
             <div className="space-y-2 md:col-span-2">
               <Label>Parent Account (Optional)</Label>

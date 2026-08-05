@@ -144,9 +144,14 @@ export default function ManualJournalEntry() {
             </p>
           </div>
         </div>
-        <Button variant="outline" asChild>
-          <Link to={getOrgPath("/journal-vouchers")}>View day book</Link>
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" asChild>
+            <Link to={getOrgPath("/third-party-entry")}>Third-party pay/receive</Link>
+          </Button>
+          <Button variant="outline" asChild>
+            <Link to={getOrgPath("/journal-vouchers")}>View day book</Link>
+          </Button>
+        </div>
       </div>
 
       <Tabs value={voucherKind} onValueChange={(v) => setVoucherKind(v as "ManualJournal" | "Contra")}>
