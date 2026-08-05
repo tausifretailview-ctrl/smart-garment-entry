@@ -2,23 +2,20 @@ import { useState, useMemo } from "react";
 import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
 import { restoreDashboardFilters, WINDOW_FILTER_IDS } from "@/lib/dashboardFilterPersistence";
 import { format, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, subMonths } from "date-fns";
-import { 
-  FileSpreadsheet, 
-  Download, 
-  Calendar, 
-  Building2, 
+import {
+  FileSpreadsheet,
+  Download,
+  Calendar,
+  Building2,
   FileText,
   BarChart3,
-  ChevronRight,
   BookOpen,
-  Receipt,
   ArrowUpRight,
-  ArrowDownLeft,
   Package,
-  AlertTriangle
+  AlertTriangle,
+  ArrowLeft,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -26,23 +23,28 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import * as XLSX from "xlsx";
 import {
   calculateGSTBreakup,
   isInterState,
-  generateGSTRegisterExcel,
-  downloadGSTRegisterExcel,
-  SalesRegisterRow,
-  SaleReturnRegisterRow,
-  PurchaseRegisterRow,
-  PurchaseReturnRegisterRow,
 } from "@/utils/gstRegisterUtils";
 import { fetchAllSaleItems } from "@/utils/fetchAllRows";
+import {
+  InsightsKpiCard,
+  InsightsTableHeader,
+  InsightsStaticTh,
+  INSIGHTS_BODY_ROW,
+  INSIGHTS_BODY_CELL,
+  INSIGHTS_BODY_CELL_NUM,
+  INSIGHTS_SUB_TAB_LIST,
+  INSIGHTS_SUB_TAB_TRIGGER,
+} from "@/components/business-insights/insightsLayout";
+import { cn } from "@/lib/utils";
 
 type PeriodType = "custom" | "this-month" | "last-month" | "this-quarter" | "last-quarter" | "this-fy" | "last-fy";
 type ReportType = "gstr1" | "gstr2" | "gstr3b" | "hsn-summary" | "register";
@@ -109,7 +111,16 @@ interface HSNSummary {
 const GSTReports = () => {
   const { toast } = useToast();
   const { currentOrganization } = useOrganization();
+  const { orgNavigate } = useOrgNavigation();
   const today = new Date();
+
+  const handleBack = () => {
+    if (typeof window !== "undefined" && window.history.length > 1) {
+      window.history.back();
+      return;
+    }
+    orgNavigate("/reports");
+  };
 
   const [fromDate, setFromDate] = useState(format(startOfMonth(today), "yyyy-MM-dd"));
   const [toDate, setToDate] = useState(format(endOfMonth(today), "yyyy-MM-dd"));
@@ -721,79 +732,92 @@ const GSTReports = () => {
     }).format(amount);
   };
 
-  const reportCards = [
-    {
-      id: "gstr1",
-      title: "GSTR-1",
-      description: "Outward Supplies Return",
-      icon: ArrowUpRight,
-      color: "text-green-600"
-    },
-    {
-      id: "gstr3b",
-      title: "GSTR-3B",
-      description: "Summary Return",
-      icon: BarChart3,
-      color: "text-blue-600"
-    },
-    {
-      id: "hsn-summary",
-      title: "HSN Summary",
-      description: "HSN-wise Sales Summary",
-      icon: Package,
-      color: "text-purple-600"
-    },
-    {
-      id: "register",
-      title: "GST Register",
-      description: "Sale & Purchase Register",
-      icon: BookOpen,
-      color: "text-orange-600"
-    }
+  const reportTabs: { id: ReportType; title: string; icon: typeof ArrowUpRight }[] = [
+    { id: "gstr1", title: "GSTR-1", icon: ArrowUpRight },
+    { id: "gstr3b", title: "GSTR-3B", icon: BarChart3 },
+    { id: "hsn-summary", title: "HSN Summary", icon: Package },
+    { id: "register", title: "GST Register", icon: BookOpen },
   ];
 
+  const reportTabTriggerClass =
+    "rounded-none border-b-2 border-transparent px-3 py-2 text-xs sm:text-sm font-semibold shrink-0 data-[state=active]:border-teal-600 data-[state=active]:bg-white data-[state=active]:text-teal-700 flex items-center gap-1.5";
+
+  const showEmptyState =
+    (activeReport === "gstr1" && !gstr1Data) ||
+    (activeReport === "gstr3b" && !gstr3bData) ||
+    (activeReport === "hsn-summary" && hsnData.length === 0);
+
   return (
-    <div className="min-h-screen bg-slate-50 w-full px-2 sm:px-4 lg:px-6 py-6 space-y-5">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <h1 className="text-3xl font-extrabold text-blue-600 tracking-tight">GST Reports</h1>
-          <p className="text-slate-400 text-base mt-0.5">Generate GST returns and reports for compliance</p>
+    <div className="business-insights-workspace flex flex-col bg-slate-50 px-2 sm:px-3 py-2 min-h-0 h-full overflow-hidden w-full">
+      <div className="w-full min-w-0 flex flex-col flex-1 min-h-0 gap-3 overflow-auto">
+        {/* Toolbar */}
+        <div className="no-print flex flex-wrap items-center justify-between gap-2 shrink-0">
+          <div className="flex flex-wrap items-center gap-2 min-w-0">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9 px-3 text-sm shrink-0"
+              onClick={handleBack}
+            >
+              <ArrowLeft className="h-4 w-4 mr-1" />
+              Back
+            </Button>
+            <div className="min-w-0">
+              <h1 className="text-xl font-bold text-teal-700 tracking-tight leading-none flex items-center gap-2">
+                <FileSpreadsheet className="h-5 w-5 shrink-0" />
+                GST Reports
+              </h1>
+              <p className="text-sm text-muted-foreground mt-1 truncate">
+                Generate GST returns and reports for compliance
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            {businessInfo.gstin && (
+              <Badge variant="outline" className="h-8 px-3 text-xs font-semibold border-slate-200 bg-white text-slate-700">
+                <Building2 className="h-3 w-3 mr-1" />
+                GSTIN: {businessInfo.gstin}
+              </Badge>
+            )}
+            {activeReport !== "register" && (
+              <Button
+                onClick={handleGenerateReport}
+                disabled={isLoading}
+                className="h-9 gap-2 shrink-0 bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                <FileText className="h-4 w-4" />
+                {isLoading ? "Generating…" : "Generate Report"}
+              </Button>
+            )}
+          </div>
         </div>
-        {businessInfo.gstin && (
-          <Badge variant="outline" className="text-sm">
-            <Building2 className="h-3 w-3 mr-1" />
-            GSTIN: {businessInfo.gstin}
-          </Badge>
+
+        {!businessInfo.gstin && gstr1Data && (
+          <Alert variant="destructive" className="shrink-0">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>GSTIN Not Configured</AlertTitle>
+            <AlertDescription>
+              Inter-state detection requires your business GSTIN in Settings → Business Info.
+              Without it, all transactions are treated as intra-state (CGST+SGST).
+            </AlertDescription>
+          </Alert>
         )}
-      </div>
 
-      {/* UI-1: GSTIN warning */}
-      {!businessInfo.gstin && gstr1Data && (
-        <Alert variant="destructive">
-          <AlertTriangle className="h-4 w-4" />
-          <AlertTitle>GSTIN Not Configured</AlertTitle>
-          <AlertDescription>
-            Inter-state detection requires your business GSTIN in Settings → Business Info.
-            Without it, all transactions are treated as intra-state (CGST+SGST).
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {/* Period Selection */}
-      <Card className="rounded-xl border border-slate-200 shadow-sm">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-lg flex items-center gap-2">
-            <Calendar className="h-4 w-4" />
-            Select Period
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div>
-              <Label>Quick Period</Label>
+        {/* Period filters */}
+        <div className="shrink-0 rounded-lg border border-slate-200 bg-white px-3 py-3 shadow-sm">
+          <div className="flex items-center gap-2 mb-3">
+            <Calendar className="h-4 w-4 text-teal-700" />
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Select Period
+            </p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 items-end">
+            <div className="space-y-1">
+              <Label className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                Quick Select
+              </Label>
               <Select value={periodType} onValueChange={(v) => handlePeriodChange(v as PeriodType)}>
-                <SelectTrigger>
+                <SelectTrigger className="h-9 text-sm border-slate-200 bg-white">
                   <SelectValue placeholder="Select period" />
                 </SelectTrigger>
                 <SelectContent>
@@ -803,457 +827,397 @@ const GSTReports = () => {
                   <SelectItem value="last-quarter">Last Quarter</SelectItem>
                   <SelectItem value="this-fy">This Financial Year</SelectItem>
                   <SelectItem value="last-fy">Last Financial Year</SelectItem>
-                  <SelectItem value="custom">Custom</SelectItem>
+                  <SelectItem value="custom">Custom Range</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-            <div>
-              <Label>From Date</Label>
+            <div className="space-y-1">
+              <Label
+                htmlFor="gst-reports-from"
+                className="text-[11px] font-semibold uppercase tracking-wide text-slate-500"
+              >
+                From Date
+              </Label>
               <Input
+                id="gst-reports-from"
                 type="date"
                 value={fromDate}
                 onChange={(e) => {
                   setFromDate(e.target.value);
                   setPeriodType("custom");
                 }}
+                className="h-9 text-sm border-slate-200 bg-white"
               />
             </div>
-            <div>
-              <Label>To Date</Label>
+            <div className="space-y-1">
+              <Label
+                htmlFor="gst-reports-to"
+                className="text-[11px] font-semibold uppercase tracking-wide text-slate-500"
+              >
+                To Date
+              </Label>
               <Input
+                id="gst-reports-to"
                 type="date"
                 value={toDate}
                 onChange={(e) => {
                   setToDate(e.target.value);
                   setPeriodType("custom");
                 }}
+                className="h-9 text-sm border-slate-200 bg-white"
               />
             </div>
-            <div className="flex items-end">
-              <Button onClick={handleGenerateReport} disabled={isLoading} className="w-full">
-                {isLoading ? "Generating..." : "Generate Report"}
-              </Button>
+            <div className="flex items-center gap-2 min-h-9 text-xs text-slate-500">
+              <FileSpreadsheet className="h-3.5 w-3.5 shrink-0 text-teal-700" />
+              <span className="leading-snug">
+                GSTR-1 · GSTR-3B · HSN Summary · GST Register
+              </span>
             </div>
           </div>
-        </CardContent>
-      </Card>
+        </div>
 
-      {/* Report Type Selection */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {reportCards.map((report) => (
-          <Card
-            key={report.id}
-            className={`cursor-pointer transition-all hover:shadow-md ${
-              activeReport === report.id ? "ring-2 ring-primary" : ""
-            }`}
-            onClick={() => setActiveReport(report.id as ReportType)}
-          >
-            <CardContent className="p-4">
-              <div className="flex items-start justify-between">
-                <div>
-                  <report.icon className={`h-8 w-8 ${report.color} mb-2`} />
-                  <h3 className="font-semibold">{report.title}</h3>
-                  <p className="text-xs text-muted-foreground">{report.description}</p>
-                </div>
-                {activeReport === report.id && (
-                  <ChevronRight className="h-4 w-4 text-primary" />
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+        {/* Report type tabs */}
+        <div className="shrink-0 rounded-lg border border-slate-200 bg-white shadow-sm overflow-hidden">
+          <div className="w-full h-auto p-0 bg-slate-50/80 flex flex-nowrap justify-start overflow-x-auto gap-0">
+            {reportTabs.map((tab) => {
+              const Icon = tab.icon;
+              const active = activeReport === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setActiveReport(tab.id)}
+                  className={cn(
+                    reportTabTriggerClass,
+                    "text-slate-700 hover:bg-white hover:text-teal-700 hover:border-teal-400",
+                    active && "border-teal-600 bg-white text-teal-700",
+                  )}
+                >
+                  <Icon className="h-4 w-4 shrink-0" />
+                  <span className="whitespace-nowrap">{tab.title}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
 
-      {/* Report Content */}
-      <div className="space-y-4">
         {/* GSTR-1 */}
         {activeReport === "gstr1" && gstr1Data && (
-          <Card>
-            <CardHeader>
-              <div className="flex justify-between items-center">
-                <div>
-                  <CardTitle>GSTR-1 - Outward Supplies</CardTitle>
-                  <CardDescription>Details of outward supplies for {format(new Date(fromDate), "MMM yyyy")}</CardDescription>
-                </div>
-                <div className="flex gap-2 flex-wrap">
-                  <Button
-                    variant="default"
-                    size="sm"
-                    onClick={downloadGstr1Json}
-                    disabled={isDownloadingGstr1Json}
-                  >
-                    <FileText className="h-4 w-4 mr-1" />
-                    {isDownloadingGstr1Json ? "Generating…" : "Download GSTR-1 JSON"}
-                  </Button>
-                  {/* UI-3: Combined Excel export */}
-                  <Button variant="outline" size="sm" onClick={exportGSTR1ToExcel}>
-                    <Download className="h-4 w-4 mr-1" />
-                    Export All Excel
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={() => exportToExcel(gstr1Data.b2b, "GSTR1_B2B", "B2B")}>
-                    <Download className="h-4 w-4 mr-1" />
-                    B2B
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={() => exportToExcel(gstr1Data.b2cs, "GSTR1_B2CS", "B2CS")}>
-                    <Download className="h-4 w-4 mr-1" />
-                    B2CS
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={() => exportToExcel(gstr1Data.hsn, "GSTR1_HSN", "HSN")}>
-                    <Download className="h-4 w-4 mr-1" />
-                    HSN
-                  </Button>
-                </div>
+          <div className="shrink-0 rounded-lg border border-slate-200 bg-white px-3 py-3 shadow-sm space-y-3">
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div className="min-w-0">
+                <h2 className="text-base font-bold text-teal-700">GSTR-1 — Outward Supplies</h2>
+                <p className="text-sm text-muted-foreground">
+                  Details of outward supplies for {format(new Date(fromDate), "MMM yyyy")}
+                </p>
               </div>
-            </CardHeader>
-            <CardContent>
-              {/* UI-2: Summary card strip */}
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
-                <div className="bg-muted/50 p-3 rounded-lg">
-                  <p className="text-xs text-muted-foreground">B2B Invoices</p>
-                  <p className="text-xl font-bold text-blue-700 dark:text-blue-400">{gstr1Data.b2b.length}</p>
-                </div>
-                <div className="bg-muted/50 p-3 rounded-lg">
-                  <p className="text-xs text-muted-foreground">B2CS Rates</p>
-                  <p className="text-xl font-bold text-emerald-700 dark:text-emerald-400">{gstr1Data.b2cs.length}</p>
-                </div>
-                <div className="bg-muted/50 p-3 rounded-lg">
-                  <p className="text-xs text-muted-foreground">Credit Notes</p>
-                  <p className="text-xl font-bold text-amber-700 dark:text-amber-400">{gstr1Data.cdnr.length}</p>
-                </div>
-                <div className="bg-muted/50 p-3 rounded-lg">
-                  <p className="text-xs text-muted-foreground">Taxable Value</p>
-                  <p className="text-xl font-bold">{formatCurrency(gstr1Data.summary.totalTaxableValue)}</p>
-                </div>
-                <div className="bg-muted/50 p-3 rounded-lg">
-                  <p className="text-xs text-muted-foreground">Total Tax</p>
-                  <p className="text-xl font-bold text-rose-700 dark:text-rose-400">{formatCurrency(gstr1Data.summary.totalCGST + gstr1Data.summary.totalSGST + gstr1Data.summary.totalIGST)}</p>
-                </div>
+              <div className="flex gap-1.5 flex-wrap">
+                <Button
+                  size="sm"
+                  className="h-8 bg-blue-600 hover:bg-blue-700 text-white"
+                  onClick={downloadGstr1Json}
+                  disabled={isDownloadingGstr1Json}
+                >
+                  <FileText className="h-3.5 w-3.5 mr-1" />
+                  {isDownloadingGstr1Json ? "Generating…" : "GSTR-1 JSON"}
+                </Button>
+                <Button variant="outline" size="sm" className="h-8 border-slate-200" onClick={exportGSTR1ToExcel}>
+                  <Download className="h-3.5 w-3.5 mr-1" />
+                  All Excel
+                </Button>
+                <Button variant="outline" size="sm" className="h-8 border-slate-200" onClick={() => exportToExcel(gstr1Data.b2b, "GSTR1_B2B", "B2B")}>
+                  <Download className="h-3.5 w-3.5 mr-1" />
+                  B2B
+                </Button>
+                <Button variant="outline" size="sm" className="h-8 border-slate-200" onClick={() => exportToExcel(gstr1Data.b2cs, "GSTR1_B2CS", "B2CS")}>
+                  <Download className="h-3.5 w-3.5 mr-1" />
+                  B2CS
+                </Button>
+                <Button variant="outline" size="sm" className="h-8 border-slate-200" onClick={() => exportToExcel(gstr1Data.hsn, "GSTR1_HSN", "HSN")}>
+                  <Download className="h-3.5 w-3.5 mr-1" />
+                  HSN
+                </Button>
               </div>
+            </div>
 
-              <Tabs defaultValue="b2b">
-                <TabsList>
-                  <TabsTrigger value="b2b">B2B ({gstr1Data.b2b.length})</TabsTrigger>
-                  <TabsTrigger value="b2cs">B2CS ({gstr1Data.b2cs.length})</TabsTrigger>
-                  <TabsTrigger value="cdnr">CDNR ({gstr1Data.cdnr.length})</TabsTrigger>
-                  <TabsTrigger value="cdnur">CDNUR ({gstr1Data.cdnur.length})</TabsTrigger>
-                </TabsList>
-                <TabsContent value="b2b">
-                  <ScrollArea className="h-[300px]">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>GSTIN</TableHead>
-                          <TableHead>Party Name</TableHead>
-                          <TableHead>Invoice No</TableHead>
-                          <TableHead>Date</TableHead>
-                          <TableHead className="text-right">Taxable</TableHead>
-                          <TableHead className="text-right">CGST</TableHead>
-                          <TableHead className="text-right">SGST</TableHead>
-                          <TableHead className="text-right">IGST</TableHead>
-                          <TableHead className="text-right">Total</TableHead>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+              <InsightsKpiCard label="B2B Invoices" value={gstr1Data.b2b.length} valueFormat="int" tone="neutral" />
+              <InsightsKpiCard label="B2CS Rates" value={gstr1Data.b2cs.length} valueFormat="int" tone="positive" />
+              <InsightsKpiCard label="Credit Notes" value={gstr1Data.cdnr.length} valueFormat="int" tone="attention" />
+              <InsightsKpiCard label="Taxable Value" value={gstr1Data.summary.totalTaxableValue} valueFormat="inr" tone="neutral" />
+              <InsightsKpiCard
+                label="Total Tax"
+                value={gstr1Data.summary.totalCGST + gstr1Data.summary.totalSGST + gstr1Data.summary.totalIGST}
+                valueFormat="inr"
+                tone="critical"
+              />
+            </div>
+
+            <Tabs defaultValue="b2b" className="space-y-2">
+              <TabsList className={INSIGHTS_SUB_TAB_LIST}>
+                <TabsTrigger value="b2b" className={INSIGHTS_SUB_TAB_TRIGGER}>B2B ({gstr1Data.b2b.length})</TabsTrigger>
+                <TabsTrigger value="b2cs" className={INSIGHTS_SUB_TAB_TRIGGER}>B2CS ({gstr1Data.b2cs.length})</TabsTrigger>
+                <TabsTrigger value="cdnr" className={INSIGHTS_SUB_TAB_TRIGGER}>CDNR ({gstr1Data.cdnr.length})</TabsTrigger>
+                <TabsTrigger value="cdnur" className={INSIGHTS_SUB_TAB_TRIGGER}>CDNUR ({gstr1Data.cdnur.length})</TabsTrigger>
+              </TabsList>
+              <TabsContent value="b2b" className="mt-0">
+                <ScrollArea className="h-[300px] rounded-md border border-slate-200">
+                  <Table>
+                    <InsightsTableHeader>
+                      <InsightsStaticTh label="GSTIN" />
+                      <InsightsStaticTh label="Party Name" />
+                      <InsightsStaticTh label="Invoice No" />
+                      <InsightsStaticTh label="Date" />
+                      <InsightsStaticTh label="Taxable" className="text-right" />
+                      <InsightsStaticTh label="CGST" className="text-right" />
+                      <InsightsStaticTh label="SGST" className="text-right" />
+                      <InsightsStaticTh label="IGST" className="text-right" />
+                      <InsightsStaticTh label="Total" className="text-right" />
+                    </InsightsTableHeader>
+                    <TableBody>
+                      {gstr1Data.b2b.map((row, idx) => (
+                        <TableRow key={idx} className={INSIGHTS_BODY_ROW}>
+                          <TableCell className={cn(INSIGHTS_BODY_CELL, "font-mono text-xs")}>{row.gstin}</TableCell>
+                          <TableCell className={INSIGHTS_BODY_CELL}>{row.partyName}</TableCell>
+                          <TableCell className={INSIGHTS_BODY_CELL}>{row.invoiceNo}</TableCell>
+                          <TableCell className={INSIGHTS_BODY_CELL}>{row.invoiceDate}</TableCell>
+                          <TableCell className={INSIGHTS_BODY_CELL_NUM}>{formatCurrency(row.taxableValue)}</TableCell>
+                          <TableCell className={INSIGHTS_BODY_CELL_NUM}>{formatCurrency(row.cgst)}</TableCell>
+                          <TableCell className={INSIGHTS_BODY_CELL_NUM}>{formatCurrency(row.sgst)}</TableCell>
+                          <TableCell className={INSIGHTS_BODY_CELL_NUM}>{formatCurrency(row.igst)}</TableCell>
+                          <TableCell className={cn(INSIGHTS_BODY_CELL_NUM, "font-medium")}>{formatCurrency(row.invoiceValue)}</TableCell>
                         </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {gstr1Data.b2b.map((row, idx) => (
-                          <TableRow key={idx}>
-                            <TableCell className="font-mono text-xs">{row.gstin}</TableCell>
-                            <TableCell>{row.partyName}</TableCell>
-                            <TableCell>{row.invoiceNo}</TableCell>
-                            <TableCell>{row.invoiceDate}</TableCell>
-                            <TableCell className="text-right">{formatCurrency(row.taxableValue)}</TableCell>
-                            <TableCell className="text-right">{formatCurrency(row.cgst)}</TableCell>
-                            <TableCell className="text-right">{formatCurrency(row.sgst)}</TableCell>
-                            <TableCell className="text-right">{formatCurrency(row.igst)}</TableCell>
-                            <TableCell className="text-right font-medium">{formatCurrency(row.invoiceValue)}</TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </ScrollArea>
-                </TabsContent>
-                {/* FIX G2: B2CS now shows aggregated by rate */}
-                <TabsContent value="b2cs">
-                  <ScrollArea className="h-[300px]">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>S.No</TableHead>
-                          <TableHead>Supply Type</TableHead>
-                          <TableHead className="text-right">Rate %</TableHead>
-                          <TableHead className="text-right">Taxable Value</TableHead>
-                          <TableHead className="text-right">CGST</TableHead>
-                          <TableHead className="text-right">SGST</TableHead>
-                          <TableHead className="text-right">IGST</TableHead>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </ScrollArea>
+              </TabsContent>
+              <TabsContent value="b2cs" className="mt-0">
+                <ScrollArea className="h-[300px] rounded-md border border-slate-200">
+                  <Table>
+                    <InsightsTableHeader>
+                      <InsightsStaticTh label="S.No" />
+                      <InsightsStaticTh label="Supply Type" />
+                      <InsightsStaticTh label="Rate %" className="text-right" />
+                      <InsightsStaticTh label="Taxable Value" className="text-right" />
+                      <InsightsStaticTh label="CGST" className="text-right" />
+                      <InsightsStaticTh label="SGST" className="text-right" />
+                      <InsightsStaticTh label="IGST" className="text-right" />
+                    </InsightsTableHeader>
+                    <TableBody>
+                      {gstr1Data.b2cs.map((row, idx) => (
+                        <TableRow key={idx} className={INSIGHTS_BODY_ROW}>
+                          <TableCell className={INSIGHTS_BODY_CELL}>{row.sno}</TableCell>
+                          <TableCell className={INSIGHTS_BODY_CELL}>{row.supplyType}</TableCell>
+                          <TableCell className={INSIGHTS_BODY_CELL_NUM}>{row.rate}%</TableCell>
+                          <TableCell className={INSIGHTS_BODY_CELL_NUM}>{formatCurrency(row.taxableValue)}</TableCell>
+                          <TableCell className={INSIGHTS_BODY_CELL_NUM}>{formatCurrency(row.cgst)}</TableCell>
+                          <TableCell className={INSIGHTS_BODY_CELL_NUM}>{formatCurrency(row.sgst)}</TableCell>
+                          <TableCell className={INSIGHTS_BODY_CELL_NUM}>{formatCurrency(row.igst)}</TableCell>
                         </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {gstr1Data.b2cs.map((row, idx) => (
-                          <TableRow key={idx}>
-                            <TableCell>{row.sno}</TableCell>
-                            <TableCell>{row.supplyType}</TableCell>
-                            <TableCell className="text-right">{row.rate}%</TableCell>
-                            <TableCell className="text-right">{formatCurrency(row.taxableValue)}</TableCell>
-                            <TableCell className="text-right">{formatCurrency(row.cgst)}</TableCell>
-                            <TableCell className="text-right">{formatCurrency(row.sgst)}</TableCell>
-                            <TableCell className="text-right">{formatCurrency(row.igst)}</TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </ScrollArea>
-                </TabsContent>
-                <TabsContent value="cdnr">
-                  <ScrollArea className="h-[300px]">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>GSTIN</TableHead>
-                          <TableHead>Note No</TableHead>
-                          <TableHead>Date</TableHead>
-                          <TableHead>Original Invoice</TableHead>
-                          <TableHead className="text-right">Value</TableHead>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </ScrollArea>
+              </TabsContent>
+              <TabsContent value="cdnr" className="mt-0">
+                <ScrollArea className="h-[300px] rounded-md border border-slate-200">
+                  <Table>
+                    <InsightsTableHeader>
+                      <InsightsStaticTh label="GSTIN" />
+                      <InsightsStaticTh label="Note No" />
+                      <InsightsStaticTh label="Date" />
+                      <InsightsStaticTh label="Original Invoice" />
+                      <InsightsStaticTh label="Value" className="text-right" />
+                    </InsightsTableHeader>
+                    <TableBody>
+                      {gstr1Data.cdnr.map((row, idx) => (
+                        <TableRow key={idx} className={INSIGHTS_BODY_ROW}>
+                          <TableCell className={cn(INSIGHTS_BODY_CELL, "font-mono text-xs")}>{row.gstin}</TableCell>
+                          <TableCell className={INSIGHTS_BODY_CELL}>{row.noteNo}</TableCell>
+                          <TableCell className={INSIGHTS_BODY_CELL}>{row.noteDate}</TableCell>
+                          <TableCell className={INSIGHTS_BODY_CELL}>{row.originalInvoice}</TableCell>
+                          <TableCell className={cn(INSIGHTS_BODY_CELL_NUM, "font-medium")}>{formatCurrency(row.noteValue)}</TableCell>
                         </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {gstr1Data.cdnr.map((row, idx) => (
-                          <TableRow key={idx}>
-                            <TableCell className="font-mono text-xs">{row.gstin}</TableCell>
-                            <TableCell>{row.noteNo}</TableCell>
-                            <TableCell>{row.noteDate}</TableCell>
-                            <TableCell>{row.originalInvoice}</TableCell>
-                            <TableCell className="text-right font-medium">{formatCurrency(row.noteValue)}</TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </ScrollArea>
-                </TabsContent>
-              </Tabs>
-            </CardContent>
-          </Card>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </ScrollArea>
+              </TabsContent>
+              <TabsContent value="cdnur" className="mt-0">
+                <div className="rounded-md border border-slate-200 px-4 py-8 text-center text-sm text-muted-foreground">
+                  CDNUR rows ({gstr1Data.cdnur.length}) — export via All Excel / JSON
+                </div>
+              </TabsContent>
+            </Tabs>
+          </div>
         )}
 
         {/* GSTR-3B */}
         {activeReport === "gstr3b" && gstr3bData && (
-          <Card>
-            <CardHeader>
-              <div className="flex justify-between items-center">
-                <div>
-                  <CardTitle>GSTR-3B - Summary Return</CardTitle>
-                  <CardDescription>Monthly summary for {format(new Date(fromDate), "MMM yyyy")}</CardDescription>
-                </div>
-                <Button variant="outline" size="sm" onClick={exportGstr3bToExcel}>
-                  <Download className="h-4 w-4 mr-1" />
-                  Export
-                </Button>
+          <div className="shrink-0 rounded-lg border border-slate-200 bg-white px-3 py-3 shadow-sm space-y-4">
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div className="min-w-0">
+                <h2 className="text-base font-bold text-teal-700">GSTR-3B — Summary Return</h2>
+                <p className="text-sm text-muted-foreground">
+                  Monthly summary for {format(new Date(fromDate), "MMM yyyy")}
+                </p>
               </div>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {/* 3.1 - Outward Supplies */}
-              <div>
-                <h3 className="font-semibold mb-3 flex items-center gap-2">
-                  <Badge variant="outline">3.1</Badge>
-                  Outward Supplies (net of returns)
-                </h3>
-                <div className="grid grid-cols-4 gap-4">
-                  <div className="bg-green-50 dark:bg-green-900/20 p-4 rounded-lg">
-                    <p className="text-sm text-muted-foreground">Taxable Value</p>
-                    <p className="text-xl font-bold text-green-700 dark:text-green-400">{formatCurrency(gstr3bData.outwardSupplies.taxable)}</p>
-                  </div>
-                  <div className="bg-muted/50 p-4 rounded-lg">
-                    <p className="text-sm text-muted-foreground">IGST</p>
-                    <p className="text-xl font-bold">{formatCurrency(gstr3bData.outwardSupplies.igst)}</p>
-                  </div>
-                  <div className="bg-muted/50 p-4 rounded-lg">
-                    <p className="text-sm text-muted-foreground">CGST</p>
-                    <p className="text-xl font-bold">{formatCurrency(gstr3bData.outwardSupplies.cgst)}</p>
-                  </div>
-                  <div className="bg-muted/50 p-4 rounded-lg">
-                    <p className="text-sm text-muted-foreground">SGST</p>
-                    <p className="text-xl font-bold">{formatCurrency(gstr3bData.outwardSupplies.sgst)}</p>
-                  </div>
-                </div>
+              <Button variant="outline" size="sm" className="h-8 border-slate-200" onClick={exportGstr3bToExcel}>
+                <Download className="h-3.5 w-3.5 mr-1" />
+                Export Excel
+              </Button>
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 flex items-center gap-2">
+                <Badge variant="outline" className="h-5 px-1.5 text-[10px] border-slate-200">3.1</Badge>
+                Outward Supplies (net of returns)
+              </p>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <InsightsKpiCard label="Taxable Value" value={gstr3bData.outwardSupplies.taxable} valueFormat="inr" tone="positive" />
+                <InsightsKpiCard label="IGST" value={gstr3bData.outwardSupplies.igst} valueFormat="inr" tone="neutral" />
+                <InsightsKpiCard label="CGST" value={gstr3bData.outwardSupplies.cgst} valueFormat="inr" tone="neutral" />
+                <InsightsKpiCard label="SGST" value={gstr3bData.outwardSupplies.sgst} valueFormat="inr" tone="neutral" />
               </div>
+            </div>
 
-              <Separator />
-
-              {/* 4 - ITC Available */}
-              <div>
-                <h3 className="font-semibold mb-3 flex items-center gap-2">
-                  <Badge variant="outline">4</Badge>
-                  Eligible ITC
-                </h3>
-                <div className="grid grid-cols-4 gap-4">
-                  <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
-                    <p className="text-sm text-muted-foreground">Inward Taxable</p>
-                    <p className="text-xl font-bold text-blue-700 dark:text-blue-400">{formatCurrency(gstr3bData.inwardSupplies.taxable)}</p>
-                  </div>
-                  <div className="bg-muted/50 p-4 rounded-lg">
-                    <p className="text-sm text-muted-foreground">IGST</p>
-                    <p className="text-xl font-bold">{formatCurrency(gstr3bData.itcAvailable.igst)}</p>
-                  </div>
-                  <div className="bg-muted/50 p-4 rounded-lg">
-                    <p className="text-sm text-muted-foreground">CGST</p>
-                    <p className="text-xl font-bold">{formatCurrency(gstr3bData.itcAvailable.cgst)}</p>
-                  </div>
-                  <div className="bg-muted/50 p-4 rounded-lg">
-                    <p className="text-sm text-muted-foreground">SGST</p>
-                    <p className="text-xl font-bold">{formatCurrency(gstr3bData.itcAvailable.sgst)}</p>
-                  </div>
-                </div>
+            <div className="space-y-2 border-t border-slate-100 pt-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 flex items-center gap-2">
+                <Badge variant="outline" className="h-5 px-1.5 text-[10px] border-slate-200">4</Badge>
+                Eligible ITC
+              </p>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <InsightsKpiCard label="Inward Taxable" value={gstr3bData.inwardSupplies.taxable} valueFormat="inr" tone="neutral" />
+                <InsightsKpiCard label="ITC IGST" value={gstr3bData.itcAvailable.igst} valueFormat="inr" tone="neutral" />
+                <InsightsKpiCard label="ITC CGST" value={gstr3bData.itcAvailable.cgst} valueFormat="inr" tone="neutral" />
+                <InsightsKpiCard label="ITC SGST" value={gstr3bData.itcAvailable.sgst} valueFormat="inr" tone="neutral" />
               </div>
+            </div>
 
-              <Separator />
+            <div className="space-y-2 border-t border-slate-100 pt-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 flex items-center gap-2">
+                <Badge variant="outline" className="h-5 px-1.5 text-[10px] border-slate-200">6</Badge>
+                Net Tax Payable
+              </p>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <InsightsKpiCard label="IGST Payable" value={gstr3bData.netTaxPayable.igst} valueFormat="inr" tone="attention" />
+                <InsightsKpiCard label="CGST Payable" value={gstr3bData.netTaxPayable.cgst} valueFormat="inr" tone="attention" />
+                <InsightsKpiCard label="SGST Payable" value={gstr3bData.netTaxPayable.sgst} valueFormat="inr" tone="attention" />
+                <InsightsKpiCard
+                  label="Total Tax Liability"
+                  value={gstr3bData.netTaxPayable.igst + gstr3bData.netTaxPayable.cgst + gstr3bData.netTaxPayable.sgst}
+                  valueFormat="inr"
+                  tone="critical"
+                />
+              </div>
+            </div>
 
-              {/* 6 - Net Tax Payable */}
-              <div>
-                <h3 className="font-semibold mb-3 flex items-center gap-2">
-                  <Badge variant="outline">6</Badge>
-                  Net Tax Payable
-                </h3>
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="bg-orange-50 dark:bg-orange-900/20 p-4 rounded-lg">
-                    <p className="text-sm text-muted-foreground">IGST Payable</p>
-                    <p className="text-2xl font-bold text-orange-700 dark:text-orange-400">{formatCurrency(gstr3bData.netTaxPayable.igst)}</p>
-                  </div>
-                  <div className="bg-orange-50 dark:bg-orange-900/20 p-4 rounded-lg">
-                    <p className="text-sm text-muted-foreground">CGST Payable</p>
-                    <p className="text-2xl font-bold text-orange-700 dark:text-orange-400">{formatCurrency(gstr3bData.netTaxPayable.cgst)}</p>
-                  </div>
-                  <div className="bg-orange-50 dark:bg-orange-900/20 p-4 rounded-lg">
-                    <p className="text-sm text-muted-foreground">SGST Payable</p>
-                    <p className="text-2xl font-bold text-orange-700 dark:text-orange-400">{formatCurrency(gstr3bData.netTaxPayable.sgst)}</p>
-                  </div>
-                </div>
-                <div className="mt-4 p-4 bg-primary/10 rounded-lg">
-                  <p className="text-sm text-muted-foreground">Total Tax Liability</p>
-                  <p className="text-3xl font-bold text-primary">
-                    {formatCurrency(gstr3bData.netTaxPayable.igst + gstr3bData.netTaxPayable.cgst + gstr3bData.netTaxPayable.sgst)}
+            {gstr3bData.itcCarryForward &&
+              (gstr3bData.itcCarryForward.cgst > 0 ||
+                gstr3bData.itcCarryForward.sgst > 0 ||
+                gstr3bData.itcCarryForward.igst > 0) && (
+                <div className="space-y-2 border-t border-slate-100 pt-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    ITC Carry-Forward (Excess Credit)
                   </p>
-                </div>
-              </div>
-
-              {/* FIX G7: ITC Carry-Forward */}
-              {gstr3bData.itcCarryForward && (gstr3bData.itcCarryForward.cgst > 0 || gstr3bData.itcCarryForward.sgst > 0 || gstr3bData.itcCarryForward.igst > 0) && (
-                <>
-                  <Separator />
-                  <div>
-                    <h3 className="font-semibold mb-3 flex items-center gap-2">
-                      <Badge variant="outline" className="bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">ITC</Badge>
-                      ITC Carry-Forward (Excess Credit)
-                    </h3>
-                    <div className="grid grid-cols-3 gap-4">
-                      <div className="bg-emerald-50 dark:bg-emerald-900/20 p-4 rounded-lg">
-                        <p className="text-sm text-muted-foreground">IGST</p>
-                        <p className="text-xl font-bold text-emerald-700 dark:text-emerald-400">{formatCurrency(gstr3bData.itcCarryForward.igst)}</p>
-                      </div>
-                      <div className="bg-emerald-50 dark:bg-emerald-900/20 p-4 rounded-lg">
-                        <p className="text-sm text-muted-foreground">CGST</p>
-                        <p className="text-xl font-bold text-emerald-700 dark:text-emerald-400">{formatCurrency(gstr3bData.itcCarryForward.cgst)}</p>
-                      </div>
-                      <div className="bg-emerald-50 dark:bg-emerald-900/20 p-4 rounded-lg">
-                        <p className="text-sm text-muted-foreground">SGST</p>
-                        <p className="text-xl font-bold text-emerald-700 dark:text-emerald-400">{formatCurrency(gstr3bData.itcCarryForward.sgst)}</p>
-                      </div>
-                    </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    <InsightsKpiCard label="IGST" value={gstr3bData.itcCarryForward.igst} valueFormat="inr" tone="positive" />
+                    <InsightsKpiCard label="CGST" value={gstr3bData.itcCarryForward.cgst} valueFormat="inr" tone="positive" />
+                    <InsightsKpiCard label="SGST" value={gstr3bData.itcCarryForward.sgst} valueFormat="inr" tone="positive" />
                   </div>
-                </>
+                </div>
               )}
-            </CardContent>
-          </Card>
+          </div>
         )}
 
         {/* HSN Summary */}
         {activeReport === "hsn-summary" && hsnData.length > 0 && (
-          <Card>
-            <CardHeader>
-              <div className="flex justify-between items-center">
-                <div>
-                  <CardTitle>HSN-wise Summary</CardTitle>
-                  <CardDescription>Summary of outward supplies by HSN code</CardDescription>
-                </div>
-                <Button variant="outline" size="sm" onClick={() => exportToExcel(hsnData, "HSN_Summary", "HSN")}>
-                  <Download className="h-4 w-4 mr-1" />
-                  Export Excel
-                </Button>
+          <div className="shrink-0 rounded-lg border border-slate-200 bg-white px-3 py-3 shadow-sm space-y-3">
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div className="min-w-0">
+                <h2 className="text-base font-bold text-teal-700">HSN-wise Summary</h2>
+                <p className="text-sm text-muted-foreground">Summary of outward supplies by HSN code</p>
               </div>
-            </CardHeader>
-            <CardContent>
-              <ScrollArea className="h-[400px]">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>HSN Code</TableHead>
-                      <TableHead>Description</TableHead>
-                      <TableHead>UQC</TableHead>
-                      <TableHead className="text-right">Qty</TableHead>
-                      <TableHead className="text-right">Total Value</TableHead>
-                      <TableHead className="text-right">Taxable Value</TableHead>
-                      <TableHead className="text-right">Rate %</TableHead>
-                      <TableHead className="text-right">CGST</TableHead>
-                      <TableHead className="text-right">SGST</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {hsnData.map((row, idx) => (
-                      <TableRow key={idx}>
-                        <TableCell className="font-mono">{row.hsnCode}</TableCell>
-                        <TableCell className="max-w-[200px] truncate">{row.description}</TableCell>
-                        <TableCell>{row.uqc}</TableCell>
-                        <TableCell className="text-right">{row.totalQty}</TableCell>
-                        <TableCell className="text-right">{formatCurrency(row.totalValue)}</TableCell>
-                        <TableCell className="text-right">{formatCurrency(row.taxableValue)}</TableCell>
-                        <TableCell className="text-right">{row.rate}%</TableCell>
-                        <TableCell className="text-right">{formatCurrency(row.cgst)}</TableCell>
-                        <TableCell className="text-right">{formatCurrency(row.sgst)}</TableCell>
-                      </TableRow>
-                    ))}
-                    <TableRow className="font-bold bg-muted/50">
-                      <TableCell colSpan={3}>Total</TableCell>
-                      <TableCell className="text-right">{hsnData.reduce((a, b) => a + b.totalQty, 0)}</TableCell>
-                      <TableCell className="text-right">{formatCurrency(hsnData.reduce((a, b) => a + b.totalValue, 0))}</TableCell>
-                      <TableCell className="text-right">{formatCurrency(hsnData.reduce((a, b) => a + b.taxableValue, 0))}</TableCell>
-                      <TableCell></TableCell>
-                      <TableCell className="text-right">{formatCurrency(hsnData.reduce((a, b) => a + b.cgst, 0))}</TableCell>
-                      <TableCell className="text-right">{formatCurrency(hsnData.reduce((a, b) => a + b.sgst, 0))}</TableCell>
-                    </TableRow>
-                  </TableBody>
-                </Table>
-              </ScrollArea>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* GST Register - Link to existing */}
-        {activeReport === "register" && (
-          <Card>
-            <CardContent className="p-8 text-center">
-              <BookOpen className="h-16 w-16 mx-auto text-orange-600 mb-4" />
-              <h3 className="text-xl font-semibold mb-2">GST Sale & Purchase Register</h3>
-              <p className="text-muted-foreground mb-4">
-                Generate detailed GST register with rate-wise breakup for Sales, POS Sales, Purchase, and Returns
-              </p>
-              <Button onClick={() => window.location.href = window.location.pathname.replace('/gst-reports', '/gst-register')}>
-                <FileSpreadsheet className="h-4 w-4 mr-2" />
-                Open GST Register
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 border-slate-200"
+                onClick={() => exportToExcel(hsnData, "HSN_Summary", "HSN")}
+              >
+                <Download className="h-3.5 w-3.5 mr-1" />
+                Export Excel
               </Button>
-            </CardContent>
-          </Card>
+            </div>
+            <ScrollArea className="h-[400px] rounded-md border border-slate-200">
+              <Table>
+                <InsightsTableHeader>
+                  <InsightsStaticTh label="HSN Code" />
+                  <InsightsStaticTh label="Description" />
+                  <InsightsStaticTh label="UQC" />
+                  <InsightsStaticTh label="Qty" className="text-right" />
+                  <InsightsStaticTh label="Total Value" className="text-right" />
+                  <InsightsStaticTh label="Taxable Value" className="text-right" />
+                  <InsightsStaticTh label="Rate %" className="text-right" />
+                  <InsightsStaticTh label="CGST" className="text-right" />
+                  <InsightsStaticTh label="SGST" className="text-right" />
+                </InsightsTableHeader>
+                <TableBody>
+                  {hsnData.map((row, idx) => (
+                    <TableRow key={idx} className={INSIGHTS_BODY_ROW}>
+                      <TableCell className={cn(INSIGHTS_BODY_CELL, "font-mono")}>{row.hsnCode}</TableCell>
+                      <TableCell className={cn(INSIGHTS_BODY_CELL, "max-w-[200px] truncate")}>{row.description}</TableCell>
+                      <TableCell className={INSIGHTS_BODY_CELL}>{row.uqc}</TableCell>
+                      <TableCell className={INSIGHTS_BODY_CELL_NUM}>{row.totalQty}</TableCell>
+                      <TableCell className={INSIGHTS_BODY_CELL_NUM}>{formatCurrency(row.totalValue)}</TableCell>
+                      <TableCell className={INSIGHTS_BODY_CELL_NUM}>{formatCurrency(row.taxableValue)}</TableCell>
+                      <TableCell className={INSIGHTS_BODY_CELL_NUM}>{row.rate}%</TableCell>
+                      <TableCell className={INSIGHTS_BODY_CELL_NUM}>{formatCurrency(row.cgst)}</TableCell>
+                      <TableCell className={INSIGHTS_BODY_CELL_NUM}>{formatCurrency(row.sgst)}</TableCell>
+                    </TableRow>
+                  ))}
+                  <TableRow className={cn(INSIGHTS_BODY_ROW, "font-bold bg-slate-100/80")}>
+                    <TableCell className={INSIGHTS_BODY_CELL} colSpan={3}>Total</TableCell>
+                    <TableCell className={INSIGHTS_BODY_CELL_NUM}>{hsnData.reduce((a, b) => a + b.totalQty, 0)}</TableCell>
+                    <TableCell className={INSIGHTS_BODY_CELL_NUM}>{formatCurrency(hsnData.reduce((a, b) => a + b.totalValue, 0))}</TableCell>
+                    <TableCell className={INSIGHTS_BODY_CELL_NUM}>{formatCurrency(hsnData.reduce((a, b) => a + b.taxableValue, 0))}</TableCell>
+                    <TableCell className={INSIGHTS_BODY_CELL} />
+                    <TableCell className={INSIGHTS_BODY_CELL_NUM}>{formatCurrency(hsnData.reduce((a, b) => a + b.cgst, 0))}</TableCell>
+                    <TableCell className={INSIGHTS_BODY_CELL_NUM}>{formatCurrency(hsnData.reduce((a, b) => a + b.sgst, 0))}</TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
+            </ScrollArea>
+          </div>
         )}
 
-        {/* Empty State */}
-        {((activeReport === "gstr1" && !gstr1Data) ||
-          (activeReport === "gstr3b" && !gstr3bData) ||
-          (activeReport === "hsn-summary" && hsnData.length === 0)) && (
-          <Card>
-            <CardContent className="p-12 text-center">
-              <FileText className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
-              <h3 className="text-lg font-semibold mb-2">No Data Generated</h3>
-              <p className="text-muted-foreground mb-4">
-                Select a period and click "Generate Report" to view {activeReport.toUpperCase()} data
-              </p>
-            </CardContent>
-          </Card>
+        {/* GST Register link */}
+        {activeReport === "register" && (
+          <div className="shrink-0 rounded-lg border border-slate-200 bg-white px-3 py-10 shadow-sm text-center">
+            <BookOpen className="h-12 w-12 mx-auto text-teal-700 mb-3" />
+            <h3 className="text-base font-bold text-teal-700 mb-1">GST Sale &amp; Purchase Register</h3>
+            <p className="text-sm text-muted-foreground mb-4 max-w-md mx-auto">
+              Generate detailed GST register with rate-wise breakup for Sales, POS Sales, Purchase, and Returns
+            </p>
+            <Button
+              className="h-9 gap-2 bg-blue-600 hover:bg-blue-700 text-white"
+              onClick={() => orgNavigate("/gst-register")}
+            >
+              <FileSpreadsheet className="h-4 w-4" />
+              Open GST Register
+            </Button>
+          </div>
+        )}
+
+        {/* Empty state */}
+        {showEmptyState && (
+          <div className="shrink-0 rounded-lg border border-slate-200 bg-white px-3 py-12 shadow-sm text-center">
+            <FileText className="h-12 w-12 mx-auto text-slate-300 mb-3" />
+            <h3 className="text-base font-semibold text-slate-700 mb-1">No Data Generated</h3>
+            <p className="text-sm text-muted-foreground">
+              Select a period and click Generate Report to view {activeReport.toUpperCase()} data
+            </p>
+          </div>
         )}
       </div>
     </div>

@@ -74,6 +74,7 @@ const PAGE_CONFIG: Record<string, { label: string; icon: string }> = {
   "product-tracking": { label: "Product Tracking", icon: "History" },
   "daily-cashier-report": { label: "Daily Cashier", icon: "CalendarDays" },
   "gst-register": { label: "GST Register", icon: "FileSpreadsheet" },
+  "gst-reports": { label: "GST Reports", icon: "FileSpreadsheet" },
   "tally-export": { label: "Tally Export", icon: "FileSpreadsheet" },
   "payments-dashboard": { label: "Payments", icon: "Wallet" },
   "accounts": { label: "Accounts", icon: "BookOpen" },
