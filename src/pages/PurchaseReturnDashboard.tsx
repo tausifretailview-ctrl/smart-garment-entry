@@ -15,12 +15,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { ChevronDown, ChevronUp, Trash2, Search, Calendar, Package, TrendingDown, Plus, Printer, Receipt, IndianRupee, Edit, Eye, CreditCard, FileText, X, Download } from "lucide-react";
-import html2canvas from "html2canvas";
-import jsPDF from "jspdf";
 import { format, formatDistanceToNow } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PurchaseReturnPrint } from "@/components/PurchaseReturnPrint";
 import { PrintPreviewDialog } from "@/components/PrintPreviewDialog";
+import { captureElementToPdfBlob } from "@/utils/invoiceElementToPdf";
+import { deliverPdfBlob } from "@/utils/mobileDocumentDelivery";
 import { SupplierHistoryDialog } from "@/components/SupplierHistoryDialog";
 import { useSoftDelete } from "@/hooks/useSoftDelete";
 import { AdjustCreditNoteDialog } from "@/components/AdjustCreditNoteDialog";
@@ -648,6 +648,22 @@ const PurchaseReturnDashboard = () => {
     }
   };
 
+  const waitForPurchaseReturnPrintDom = (): Promise<HTMLElement | null> => {
+    const MAX_WAIT = 10000;
+    const startTime = Date.now();
+    return new Promise((resolve) => {
+      const poll = () => {
+        const el = printRef.current;
+        const text = (el?.textContent || "").trim();
+        const isReady = !!el && el.childElementCount > 0 && text.length > 32;
+        if (isReady) return resolve(el);
+        if (Date.now() - startTime > MAX_WAIT) return resolve(null);
+        setTimeout(poll, 200);
+      };
+      poll();
+    });
+  };
+
   const handlePdfDownload = async (returnRecord: PurchaseReturn) => {
     try {
       let items = returnRecord.items;
@@ -659,37 +675,38 @@ const PurchaseReturnDashboard = () => {
         return;
       }
 
-      // Set the print data so the hidden PurchaseReturnPrint renders
+      toast({ title: "Generating PDF", description: "Please wait while PDF is being generated..." });
+
+      // Off-screen PurchaseReturnPrint (not display:none — html2canvas needs layout size)
       const enriched = await enrichReturnForPrint({ ...returnRecord, items });
       setReturnToPrint(enriched);
 
-      // Wait for render
-      await new Promise(resolve => setTimeout(resolve, 300));
-
-      if (!printRef.current) {
+      const ready = await waitForPurchaseReturnPrintDom();
+      if (!ready) {
         toast({ title: "Error", description: "Failed to render PDF content", variant: "destructive" });
         return;
       }
 
-      const canvas = await html2canvas(printRef.current, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: "#ffffff",
-        logging: false,
+      const blob = await captureElementToPdfBlob(ready, {
+        pageFormat: "a4",
+        mobileOptimized: window.innerWidth < 768,
       });
 
-      const imgData = canvas.toDataURL("image/jpeg", 0.95);
-      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+      const safeReturnNo = String(returnRecord.return_number || returnRecord.id).replace(/[\\/:*?"<>|]+/g, "_");
+      const fileName = `Purchase_Return_${safeReturnNo}.pdf`;
+      const result = await deliverPdfBlob(blob, fileName);
 
-      pdf.addImage(imgData, "JPEG", 0, 0, pdfWidth, pdfHeight);
-
-      const fileName = `Purchase_Return_${returnRecord.return_number || returnRecord.id}.pdf`;
-      pdf.save(fileName);
-
-      toast({ title: "PDF Downloaded", description: fileName });
+      toast({
+        title: "PDF Downloaded",
+        description:
+          result === "shared"
+            ? "Purchase return shared — choose Save to Files or a printer app"
+            : result === "opened"
+              ? "Purchase return PDF opened — use Save or Print from the viewer"
+              : fileName,
+      });
     } catch (error) {
+      if ((error as Error)?.name === "AbortError") return;
       console.error("Error generating PDF:", error);
       toast({ title: "Error", description: "Failed to generate PDF", variant: "destructive" });
     }
@@ -1272,9 +1289,12 @@ const PurchaseReturnDashboard = () => {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Hidden Print Component */}
-      <div className="hidden">
-        {returnToPrint && (
+      {/* Off-screen print source — keep layout size for react-to-print + PDF capture */}
+      {returnToPrint && (
+        <div
+          className="invoice-print-source-screen invoice-print-source"
+          style={{ width: "210mm", minHeight: "297mm", background: "#fff" }}
+        >
           <PurchaseReturnPrint
             ref={printRef}
             returnData={returnToPrint}
@@ -1283,8 +1303,8 @@ const PurchaseReturnDashboard = () => {
             saleSettings={saleSettings}
             logoUrl={logoUrl}
           />
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Print Preview Dialog */}
       {returnToPrint && (

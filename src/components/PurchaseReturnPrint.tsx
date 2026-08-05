@@ -190,7 +190,7 @@ export const PurchaseReturnPrint = forwardRef<HTMLDivElement, PurchaseReturnPrin
     const logo = logoUrl || saleSettings?.logo_url;
     
     return (
-      <div ref={ref} className="bg-white text-black" style={{ width: "210mm", maxHeight: "297mm", fontFamily: "Arial, sans-serif", padding: "5mm" }}>
+      <div ref={ref} className="bg-white text-black" style={{ width: "210mm", fontFamily: "Arial, sans-serif", padding: "5mm" }}>
         <style>
           {`
             @media print {
@@ -344,9 +344,9 @@ export const PurchaseReturnPrint = forwardRef<HTMLDivElement, PurchaseReturnPrin
                   <td className="text-center">{item.color || "-"}</td>
                   <td className="text-center">{isDC ? "" : (item.hsn_code || "")}</td>
                   <td className="text-center">{item.qty}</td>
-                  <td className="text-right">{item.pur_price.toFixed(2)}</td>
-                  <td className="text-right">{(item.discount_percent || 0).toFixed(2)}</td>
-                  <td className="text-right">{(item.discount_amount || 0).toFixed(2)}</td>
+                  <td className="text-right">{(Number(item.pur_price) || 0).toFixed(2)}</td>
+                  <td className="text-right">{(Number(item.discount_percent) || 0).toFixed(2)}</td>
+                  <td className="text-right">{(Number(item.discount_amount) || 0).toFixed(2)}</td>
                   <td className="text-right">{((Number(item.qty) || 0) * (Number(item.pur_price) || 0)).toFixed(2)}</td>
                 </tr>
               ))}
