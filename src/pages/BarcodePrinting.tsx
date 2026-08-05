@@ -4684,7 +4684,7 @@ export default function BarcodePrinting() {
       sheetType === "custom" ? customHeight : parseFloat(sheetPresets[sheetType].height);
     const rawGap =
       sheetType === "custom" ? customGap : parseFloat(sheetPresets[sheetType].gap);
-    const width = resolveA4LabelWidthMm(cols, rows, rawWidth, height);
+    const width = resolveA4LabelWidthMm(cols, rows, rawWidth, height, rawGap);
     return {
       cols,
       rows,
@@ -6474,6 +6474,7 @@ export default function BarcodePrinting() {
                     type="number"
                     min="1"
                     max="300"
+                    step="0.1"
                     value={customWidth}
                     onChange={(e) => setCustomWidth(Math.max(1, Math.min(300, parseFloat(e.target.value) || 1)))}
                     placeholder="e.g., 50"
@@ -6486,6 +6487,7 @@ export default function BarcodePrinting() {
                     type="number"
                     min="1"
                     max="300"
+                    step="0.1"
                     value={customHeight}
                     onChange={(e) => setCustomHeight(Math.max(1, Math.min(300, parseFloat(e.target.value) || 1)))}
                     placeholder="e.g., 25"
@@ -6522,6 +6524,7 @@ export default function BarcodePrinting() {
                     type="number"
                     min="0"
                     max="50"
+                    step="0.1"
                     value={customGap}
                     onChange={(e) => setCustomGap(Math.max(0, Math.min(50, parseFloat(e.target.value) || 0)))}
                     placeholder="e.g., 0"
