@@ -128,9 +128,10 @@ export const OrgLayout = () => {
   }, [currentPath]);
 
   /**
-   * Recently visited Master/Inventory panes — kept in `tabPaths` so TabCachedPages
-   * does not unmount when sidebar nav replaces the window-tab path (Sales parity).
-   * Disabled when Electron single-tab mount is on (OOM guard).
+   * Recently visited cacheable panes (Settings, Accounts, ledgers, masters, …) —
+   * kept in `tabPaths` so TabCachedPages does not unmount when sidebar nav
+   * replaces the window-tab path. Default-retain + exclusion list (see
+   * recentTabPaneRetention.ts). Disabled when Electron single-tab mount is on.
    */
   const recentVisitedAtRef = useRef<Map<string, number>>(new Map());
   const prevResolvedPathRef = useRef<string | null>(null);

@@ -1,70 +1,78 @@
 import { describe, expect, it } from "vitest";
 import {
   bumpRecentTabPaneRetention,
+  isRetainableTabCachePath,
+  RECENT_TAB_PANE_RETENTION_EXCLUSIONS,
   RECENT_TAB_PANE_RETENTION_MAX,
   RECENT_TAB_PANE_RETENTION_MS,
-  RETAINABLE_TAB_CACHE_PATHS,
 } from "./recentTabPaneRetention";
-import {
-  INVENTORY_TAB_PREFETCH_PATHS,
-  MASTER_TAB_PREFETCH_PATHS,
-} from "./chunkLoadRetry";
 
 describe("recentTabPaneRetention", () => {
-  it("derives retainable paths from master + inventory prefetch lists", () => {
-    for (const p of MASTER_TAB_PREFETCH_PATHS) {
-      expect(RETAINABLE_TAB_CACHE_PATHS.has(p)).toBe(true);
-    }
-    for (const p of INVENTORY_TAB_PREFETCH_PATHS) {
-      expect(RETAINABLE_TAB_CACHE_PATHS.has(p)).toBe(true);
-    }
-    expect(RETAINABLE_TAB_CACHE_PATHS.has("customers")).toBe(true);
-    expect(RETAINABLE_TAB_CACHE_PATHS.has("suppliers")).toBe(true);
+  it("retains cacheable registry pages by default (Settings, Accounts, masters)", () => {
+    expect(isRetainableTabCachePath("settings")).toBe(true);
+    expect(isRetainableTabCachePath("accounts")).toBe(true);
+    expect(isRetainableTabCachePath("customers")).toBe(true);
+    expect(isRetainableTabCachePath("chart-of-accounts")).toBe(true);
+    expect(isRetainableTabCachePath("customer-account-statement")).toBe(true);
   });
 
-  it("keeps outgoing master path within the retention window", () => {
+  it("excludes user-rights (idle-evict policy) and non-cacheable entry screens", () => {
+    expect(RECENT_TAB_PANE_RETENTION_EXCLUSIONS.has("user-rights")).toBe(true);
+    expect(isRetainableTabCachePath("user-rights")).toBe(false);
+    expect(isRetainableTabCachePath("pos-sales")).toBe(false);
+    expect(isRetainableTabCachePath("sales-invoice")).toBe(false);
+  });
+
+  it("keeps outgoing Settings/Accounts within the retention window", () => {
     const map = new Map<string, number>();
     const now = 1_000_000;
-    const kept = bumpRecentTabPaneRetention(map, "customers", "suppliers", now);
-    expect(kept).toContain("customers");
-    expect(kept).not.toContain("suppliers");
+    const kept = bumpRecentTabPaneRetention(map, "settings", "accounts", now);
+    expect(kept).toContain("settings");
+    expect(kept).not.toContain("accounts");
+
+    const kept2 = bumpRecentTabPaneRetention(map, "accounts", "customers", now + 1);
+    expect(kept2).toContain("settings");
+    expect(kept2).toContain("accounts");
   });
 
   it("expires paths older than the retention window", () => {
     const map = new Map<string, number>([
-      ["customers", 0],
-      ["employees", 1_000_000],
+      ["settings", 0],
+      ["accounts", 1_000_000],
     ]);
     const now = RECENT_TAB_PANE_RETENTION_MS + 1;
-    const kept = bumpRecentTabPaneRetention(map, null, "suppliers", now);
-    expect(kept).not.toContain("customers");
-    expect(kept).toContain("employees");
+    const kept = bumpRecentTabPaneRetention(map, null, "customers", now);
+    expect(kept).not.toContain("settings");
+    expect(kept).toContain("accounts");
   });
 
   it("LRU-evicts when over the cap", () => {
     const map = new Map<string, number>();
     const base = 10_000;
     const paths = [
+      "settings",
+      "accounts",
       "customers",
       "suppliers",
       "employees",
-      "salesman-commission",
+      "chart-of-accounts",
+      "journal-vouchers",
       "products",
-      "product-dashboard",
     ];
     let now = base;
-    let current = "stock-settlement";
+    let current = "stock-report";
     for (const p of paths) {
       bumpRecentTabPaneRetention(map, p, current, now);
       now += 1;
     }
     expect(map.size).toBeLessThanOrEqual(RECENT_TAB_PANE_RETENTION_MAX);
-    expect(map.has("customers")).toBe(false);
+    expect(map.has("settings")).toBe(false);
   });
 
-  it("ignores non-retainable outgoing paths", () => {
+  it("ignores excluded and non-registry outgoing paths", () => {
     const map = new Map<string, number>();
-    const kept = bumpRecentTabPaneRetention(map, "pos-dashboard", "customers", 1);
-    expect(kept).toEqual([]);
+    expect(bumpRecentTabPaneRetention(map, "user-rights", "customers", 1)).toEqual([]);
+    expect(bumpRecentTabPaneRetention(map, "pos-sales", "customers", 2)).toEqual([]);
+    expect(bumpRecentTabPaneRetention(map, "not-a-real-page", "customers", 3)).toEqual([]);
   });
 });
