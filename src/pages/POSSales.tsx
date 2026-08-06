@@ -6406,74 +6406,138 @@ export default function POSSales() {
                             />
                           </div>
                           <div>
-                            {canEditPosUnitPrice ? (
-                              <Input
-                                type="number"
-                                inputMode="decimal"
-                                value={
-                                  unitPriceDraft?.index === index
-                                    ? unitPriceDraft.value
-                                    : item.unitCost || ""
-                                }
-                                onFocus={(e) => {
-                                  setUnitPriceDraft({
-                                    index,
-                                    value:
-                                      item.unitCost != null && item.unitCost !== 0
-                                        ? String(item.unitCost)
-                                        : "",
-                                  });
-                                  // select() is safe on number; setSelectionRange is not
-                                  e.currentTarget.select();
-                                }}
-                                onChange={(e) =>
-                                  setUnitPriceDraft({ index, value: e.target.value })
-                                }
-                                onBlur={() => {
-                                  if (unitPriceDraft?.index !== index) return;
-                                  const parsed = parseFloat(unitPriceDraft.value);
-                                  if (!Number.isFinite(parsed)) {
-                                    setUnitPriceDraft(null);
-                                    return;
+                            {(() => {
+                              const listUnit =
+                                Number(item.mrp) > 0.005
+                                  ? Number(item.mrp)
+                                  : Number(item.unitCost) || 0;
+                              const baseAmount = Math.max(
+                                0,
+                                (Number(item.mrp) || 0) * (Number(item.quantity) || 0),
+                              );
+                              const percentAmount =
+                                baseAmount > 0
+                                  ? (baseAmount * (Number(item.discountPercent) || 0)) / 100
+                                  : 0;
+                              const lineDiscRs =
+                                Number(item.discountAmount) > 0
+                                  ? Number(item.discountAmount)
+                                  : percentAmount;
+                              const discPct = Number(item.discountPercent) || 0;
+                              const hasLineDisc = lineDiscRs > 0.005 || discPct > 0.005;
+                              // Match bill print: show list rate + -% when line discount is on
+                              if (hasLineDisc) {
+                                return (
+                                  <div
+                                    className="flex flex-col items-end justify-center min-h-8 leading-tight text-right"
+                                    title={`List ₹${formatINR2(listUnit)} · Disc ${discPct > 0 ? `${discPct}%` : ""} ₹${formatINR2(lineDiscRs)} · Net unit ₹${formatINR2(posLineNetUnitPrice(item))}`}
+                                  >
+                                    <span className="text-base font-semibold tabular-nums text-foreground">
+                                      ₹{formatINR2(listUnit)}
+                                    </span>
+                                    {discPct > 0.005 && (
+                                      <span className="text-[11px] font-semibold text-muted-foreground">
+                                        -{discPct % 1 === 0 ? discPct.toFixed(0) : discPct.toFixed(1)}%
+                                      </span>
+                                    )}
+                                  </div>
+                                );
+                              }
+                              if (canEditPosUnitPrice) {
+                                return (
+                                  <Input
+                                    type="number"
+                                    inputMode="decimal"
+                                    value={
+                                      unitPriceDraft?.index === index
+                                        ? unitPriceDraft.value
+                                        : item.unitCost || ""
+                                    }
+                                    onFocus={(e) => {
+                                      setUnitPriceDraft({
+                                        index,
+                                        value:
+                                          item.unitCost != null && item.unitCost !== 0
+                                            ? String(item.unitCost)
+                                            : "",
+                                      });
+                                      e.currentTarget.select();
+                                    }}
+                                    onChange={(e) =>
+                                      setUnitPriceDraft({ index, value: e.target.value })
+                                    }
+                                    onBlur={() => {
+                                      if (unitPriceDraft?.index !== index) return;
+                                      const parsed = parseFloat(unitPriceDraft.value);
+                                      if (!Number.isFinite(parsed)) {
+                                        setUnitPriceDraft(null);
+                                        return;
+                                      }
+                                      requestUnitPriceCommit(index, parsed);
+                                    }}
+                                    onKeyDown={(e) => {
+                                      if (e.key === "Enter") {
+                                        e.preventDefault();
+                                        (e.target as HTMLInputElement).blur();
+                                      }
+                                    }}
+                                    placeholder="0"
+                                    className="h-8 text-sm w-full text-right bg-muted/30 border-border/60"
+                                    min="0"
+                                    step="0.01"
+                                    title="Selling unit price (typed rate clears Disc% / Disc Rs)"
+                                  />
+                                );
+                              }
+                              return (
+                                <div
+                                  className="flex items-center justify-end text-base font-medium text-muted-foreground h-8"
+                                  title={
+                                    taxType === "exclusive"
+                                      ? "Taxable unit (GST added in line total)"
+                                      : taxType === "no_gst"
+                                        ? "Sale price (no GST applied)"
+                                        : "Unit price"
                                   }
-                                  requestUnitPriceCommit(index, parsed);
-                                }}
-                                onKeyDown={(e) => {
-                                  if (e.key === "Enter") {
-                                    e.preventDefault();
-                                    (e.target as HTMLInputElement).blur();
-                                  }
-                                }}
-                                placeholder="0"
-                                className="h-8 text-sm w-full text-right bg-muted/30 border-border/60"
-                                min="0"
-                                step="0.01"
-                                title="Selling unit price (typed rate clears Disc% / Disc Rs)"
-                              />
-                            ) : (
-                              <div
-                                className="flex items-center justify-end text-base font-medium text-muted-foreground h-8"
-                                title={
-                                  taxType === "exclusive"
-                                    ? "Taxable unit (GST added in line total)"
-                                    : taxType === "no_gst"
-                                      ? "Sale price (no GST applied)"
-                                      : "Net unit after line Disc% / Disc Rs"
-                                }
-                              >
-                                ₹{formatINR2(posLineNetUnitPrice(item))}
-                              </div>
-                            )}
+                                >
+                                  ₹{formatINR2(listUnit > 0 ? listUnit : posLineNetUnitPrice(item))}
+                                </div>
+                              );
+                            })()}
                           </div>
-                          <div className="flex items-center justify-between">
-                            <span className="font-extrabold text-base md:text-lg">
-                              ₹{formatINR2(posLineDisplayTotal(item.netAmount, item.gstPer, taxType))}
-                            </span>
+                          <div className="flex items-center justify-between gap-1 min-w-0">
+                            {(() => {
+                              const baseAmount = Math.max(
+                                0,
+                                (Number(item.mrp) || 0) * (Number(item.quantity) || 0),
+                              );
+                              const percentAmount =
+                                baseAmount > 0
+                                  ? (baseAmount * (Number(item.discountPercent) || 0)) / 100
+                                  : 0;
+                              const lineDiscRs =
+                                Number(item.discountAmount) > 0
+                                  ? Number(item.discountAmount)
+                                  : percentAmount;
+                              const hasLineDisc = lineDiscRs > 0.005;
+                              return (
+                                <div className="flex flex-col items-end min-w-0 leading-tight">
+                                  {hasLineDisc && (
+                                    <span className="text-[11px] font-semibold text-muted-foreground tabular-nums">
+                                      Disc -{formatINR2(lineDiscRs)}
+                                    </span>
+                                  )}
+                                  <span className="font-extrabold text-base md:text-lg tabular-nums">
+                                    ₹{formatINR2(posLineDisplayTotal(item.netAmount, item.gstPer, taxType))}
+                                  </span>
+                                </div>
+                              );
+                            })()}
                             <Button
                               size="icon"
                               variant="ghost"
                               onClick={() => removeItem(index)}
-                              className="h-7 w-7 text-destructive/60 hover:text-destructive hover:bg-destructive/10 transition-colors"
+                              className="h-7 w-7 shrink-0 text-destructive/60 hover:text-destructive hover:bg-destructive/10 transition-colors"
                             >
                               <Trash2 className="h-3.5 w-3.5" />
                             </Button>
@@ -6567,50 +6631,37 @@ export default function POSSales() {
         {/* Totals + shortcuts — locked to viewport bottom (never shifts with line items) */}
         <div className="pos-sales-footer w-full flex flex-col">
         <div className="w-full bg-gradient-to-r from-cyan-600 to-teal-600 text-white border-t shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
-          {/* Top Info Bar — Qty, Savings, Charges, Discount with vertical dividers */}
+          {/* Top Info Bar — Qty → Charges → Sub Total → Discount → Time (matches bill print) */}
           <div className="flex min-h-[52px] flex-nowrap items-center px-6 py-3 gap-0 border-b border-white/10 overflow-x-auto">
             {/* Qty */}
             <div className="text-center px-3">
               <div className="text-xl font-bold leading-tight">{totals.quantity}</div>
               <div className="text-[11px] text-white/70 uppercase tracking-wider font-semibold">Qty</div>
             </div>
-            
-            {enableMrp && (
-              <>
-                <div className="w-px h-8 bg-white/20 shrink-0" />
-                {/* MRP Total */}
-                <div className="text-center px-3">
-                  <div className="text-lg font-bold leading-tight">₹{formatINR2(totals.mrp)}</div>
-                  <div className="text-[11px] text-white/70 uppercase font-semibold">MRP Total</div>
-                </div>
-                {/* Savings */}
-                {(totals.mrp > totals.subtotal || totals.savings > 0) && (
-                  <>
-                    <div className="w-px h-8 bg-white/20 shrink-0" />
-                    <div className="text-center bg-green-500/90 rounded-md py-1.5 px-3 mx-2 shrink-0">
-                      <div className="text-lg font-bold leading-tight">
-                        ₹{formatINR2(totalDiscountDisplay)} · Saves {totals.mrp > 0 ? `${((totalDiscountDisplay / totals.mrp) * 100).toFixed(0)}%` : ''}
-                      </div>
-                      <div className="text-[11px] font-semibold uppercase">Savings</div>
-                    </div>
-                  </>
-                )}
-              </>
-            )}
-            
+
             <div className="w-px h-8 bg-white/20 shrink-0" />
-            
+
             {/* Charges */}
             <div className="text-center px-3">
               <div className="text-lg font-bold leading-tight">₹0</div>
               <div className="text-[11px] text-white/70 uppercase font-semibold">Charges</div>
             </div>
-            
+
             <div className="w-px h-8 bg-white/20 shrink-0" />
-            
-            {/* Discount */}
+
+            {/* Sub Total — pre-discount gross (same as bill Sub Total) */}
             <div className="text-center px-3">
-              <div className="text-xl font-extrabold leading-tight text-white">₹{formatINR2(totalDiscountDisplay)}</div>
+              <div className="text-lg font-bold leading-tight tabular-nums">₹{formatINR2(totals.mrp)}</div>
+              <div className="text-[11px] text-white/70 uppercase font-semibold">Sub Total</div>
+            </div>
+
+            <div className="w-px h-8 bg-white/20 shrink-0" />
+
+            {/* Discount */}
+            <div className="text-center px-3 min-w-[5.5rem]">
+              <div className="text-xl font-extrabold leading-tight text-white tabular-nums">
+                {totalDiscountDisplay > 0.005 ? `−₹${formatINR2(totalDiscountDisplay)}` : "₹0"}
+              </div>
               <div className="text-xs text-white/90 uppercase font-bold tracking-wide">Discount</div>
             </div>
 
