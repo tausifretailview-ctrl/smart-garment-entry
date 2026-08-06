@@ -49,6 +49,12 @@ export const POST_LOGIN_PREFETCH_TAB_PATHS_WEB = [
   "purchase-bills",
   "purchase-bill-dashboard",
   "stock-report",
+  // Masters + Product Dashboard — same instant-switch bar as Sales dashboards
+  // (Customers ↔ Suppliers / Products ↔ Purchase Bills must not cold-load).
+  "customers",
+  "suppliers",
+  "products",
+  "product-dashboard",
 ] as const;
 
 /**
@@ -91,6 +97,44 @@ export const MASTER_TAB_PREFETCH_PATHS = [
   "customers",
   "suppliers",
   "employees",
+  "salesman-commission",
+] as const;
+
+/**
+ * Inventory section — mutual intent-warm (same pattern as Sales POS ↔ Invoice).
+ * Speculative prefetch is skipped on Save-Data/2g; siblings use intent:true.
+ */
+export const INVENTORY_TAB_PREFETCH_PATHS = [
+  "products",
+  "product-dashboard",
+  "purchase-bills",
+  "purchase-bill-dashboard",
+  "purchase-returns",
+  "purchase-return-dashboard",
+  "purchase-entry",
+  "product-entry",
+  "purchase-orders",
+  "purchase-return-entry",
+  "bulk-product-update",
+  "stock-settlement",
+  "barcode-printing",
+] as const;
+
+/** Sales section dashboards — keep mutual warm explicit (locks current “no loading” UX). */
+export const SALES_TAB_PREFETCH_PATHS = [
+  "pos-dashboard",
+  "sales-invoice-dashboard",
+  "pos-sales",
+  "sales-invoice",
+  "sale-returns",
+  "sale-return-dashboard",
+  "sale-return-entry",
+  "quotation-dashboard",
+  "quotation-entry",
+  "sale-order-dashboard",
+  "sale-order-entry",
+  "delivery-challan-dashboard",
+  "advance-booking-dashboard",
 ] as const;
 
 /** Re-warm after the browser tab was hidden/idle (module cache may have been discarded). */
