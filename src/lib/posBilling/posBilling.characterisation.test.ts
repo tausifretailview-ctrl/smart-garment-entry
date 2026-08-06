@@ -269,6 +269,36 @@ describe("POS billing characterisation — grossBasis (add price)", () => {
     expect(items[0].discountPercent).toBe(0);
     expect(items[0].netAmount).toBe(1000);
   });
+
+  it("addLine snapshots stockQty for goods; omits for service/combo", () => {
+    const goods = addLine({
+      items: [],
+      grossBasis: "sale_price",
+      garmentGstSettings: null,
+      product: { id: "p1", product_name: "Shirt", product_type: "goods" },
+      variant: { id: "v1", barcode: "B1", size: "M", sale_price: 100, mrp: 100, stock_qty: 7 },
+    });
+    expect(goods.items[0].stockQty).toBe(7);
+
+    const service = addLine({
+      items: [],
+      grossBasis: "sale_price",
+      garmentGstSettings: null,
+      product: { id: "p2", product_name: "Alteration", product_type: "service" },
+      variant: { id: "v2", barcode: "S1", size: "", sale_price: 50, mrp: 50, stock_qty: 999999 },
+      makeLineId: () => "svc-1",
+    });
+    expect(service.items[0].stockQty).toBeUndefined();
+
+    const combo = addLine({
+      items: [],
+      grossBasis: "sale_price",
+      garmentGstSettings: null,
+      product: { id: "p3", product_name: "Combo", product_type: "combo" },
+      variant: { id: "v3", barcode: "C1", size: "F", sale_price: 200, mrp: 200, stock_qty: 3 },
+    });
+    expect(combo.items[0].stockQty).toBeUndefined();
+  });
 });
 
 describe("POS billing characterisation — round-off boundaries", () => {
