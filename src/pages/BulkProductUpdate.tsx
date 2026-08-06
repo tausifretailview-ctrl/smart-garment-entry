@@ -26,6 +26,7 @@ import {
 } from "@/hooks/useBulkProductUpdate";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { FormPageSkeleton } from "@/components/skeletons/FormPageSkeleton";
 import { Loader2 } from "lucide-react";
 
 const GST_OPTIONS = [0, 5, 12, 18, 28];
@@ -61,11 +62,7 @@ export default function BulkProductUpdate() {
 
   // Show loading state while organization data is loading
   if (orgLoading || !currentOrganization) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
+    return <FormPageSkeleton groups={2} fieldsPerGroup={4} />;
   }
 
   const loadFilterOptions = async () => {

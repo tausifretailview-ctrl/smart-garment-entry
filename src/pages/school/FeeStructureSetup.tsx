@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { Loader2, Save, BookOpen, Lock, History, Pencil } from "lucide-react";
+import { FormPageSkeleton } from "@/components/skeletons/FormPageSkeleton";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { format } from "date-fns";
 
@@ -347,11 +348,7 @@ const FeeStructureSetup = () => {
   })();
 
   if (!currentOrganization) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
-    );
+    return <FormPageSkeleton groups={2} fieldsPerGroup={3} />;
   }
 
   return (
@@ -437,9 +434,7 @@ const FeeStructureSetup = () => {
           </CardHeader>
           <CardContent>
             {loadingAll ? (
-              <div className="flex items-center justify-center h-24">
-                <Loader2 className="h-6 w-6 animate-spin" />
-              </div>
+              <FormPageSkeleton groups={1} fieldsPerGroup={2} className="p-0" />
             ) : classesWithStructures.length === 0 ? (
               <p className="text-center text-muted-foreground py-6">
                 No fee structures defined yet. Select a class below and add fees.
@@ -510,9 +505,7 @@ const FeeStructureSetup = () => {
           </CardHeader>
           <CardContent>
             {loadingStructures ? (
-              <div className="flex items-center justify-center h-32">
-                <Loader2 className="h-6 w-6 animate-spin" />
-              </div>
+              <FormPageSkeleton groups={1} fieldsPerGroup={4} className="p-0" />
             ) : feeRows.length === 0 ? (
               <p className="text-center text-muted-foreground py-8">No fee heads found. Please add fee heads first.</p>
             ) : (
@@ -605,9 +598,7 @@ const FeeStructureSetup = () => {
           </CardHeader>
           <CardContent>
             {loadingHistory ? (
-              <div className="flex items-center justify-center h-24">
-                <Loader2 className="h-6 w-6 animate-spin" />
-              </div>
+              <FormPageSkeleton groups={1} fieldsPerGroup={2} className="p-0" />
             ) : !historyData || historyData.length === 0 ? (
               <p className="text-center text-muted-foreground py-6">No changes recorded yet.</p>
             ) : (
@@ -684,9 +675,7 @@ const FeeStructureSetup = () => {
           </CardHeader>
           <CardContent>
             {loadingAllHistory ? (
-              <div className="flex items-center justify-center h-24">
-                <Loader2 className="h-6 w-6 animate-spin" />
-              </div>
+              <FormPageSkeleton groups={1} fieldsPerGroup={2} className="p-0" />
             ) : !allHistory || allHistory.length === 0 ? (
               <p className="text-center text-muted-foreground py-6">No updates recorded yet.</p>
             ) : (
