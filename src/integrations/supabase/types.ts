@@ -9006,10 +9006,10 @@ export type Database = {
         Args: { p_org_id: string }
         Returns: {
           customer_id: string
-          segment: string
+          last_sale_date: string
           order_count: number
           revenue: number
-          last_sale_date: string | null
+          segment: string
         }[]
       }
       get_customer_true_outstanding: {
