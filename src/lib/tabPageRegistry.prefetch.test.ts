@@ -1,6 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   TAB_PAGE_REGISTRY,
+  MASTER_TAB_PREFETCH_PATHS,
+  INVENTORY_TAB_PREFETCH_PATHS,
+  SALES_TAB_PREFETCH_PATHS,
+  POST_LOGIN_PREFETCH_TAB_PATHS_WEB,
+  POST_LOGIN_WEB_IDLE_ADMIN_PREFETCH_TAB_PATHS,
   prefetchTabPage,
   resolveTabCachePath,
   shouldAllowSpeculativeChunkPrefetch,
@@ -47,6 +52,32 @@ describe("tab load shell coverage", () => {
     expect(resolveTabLoadShell("third-party-entry")).toBe("dashboard");
     expect(resolveTabLoadShell("third-party-balances")).toBe("dashboard");
     expect(resolveTabLoadShell("accounts")).toBe("dashboard");
+  });
+});
+
+describe("master / inventory / sales tab mutual prefetch", () => {
+  it("warms Customers and Suppliers like Sales dashboards (web critical + sibling set)", () => {
+    expect(MASTER_TAB_PREFETCH_PATHS).toContain("customers");
+    expect(MASTER_TAB_PREFETCH_PATHS).toContain("suppliers");
+    expect(MASTER_TAB_PREFETCH_PATHS).toContain("salesman-commission");
+    expect(POST_LOGIN_PREFETCH_TAB_PATHS_WEB).toContain("customers");
+    expect(POST_LOGIN_PREFETCH_TAB_PATHS_WEB).toContain("suppliers");
+    expect(POST_LOGIN_PREFETCH_TAB_PATHS_WEB).toContain("pos-dashboard");
+    expect(POST_LOGIN_PREFETCH_TAB_PATHS_WEB).toContain("sales-invoice-dashboard");
+    expect(POST_LOGIN_WEB_IDLE_ADMIN_PREFETCH_TAB_PATHS).toContain("customers");
+  });
+
+  it("warms Inventory siblings including Product + Purchase dashboards", () => {
+    expect(INVENTORY_TAB_PREFETCH_PATHS).toContain("products");
+    expect(INVENTORY_TAB_PREFETCH_PATHS).toContain("purchase-bills");
+    expect(INVENTORY_TAB_PREFETCH_PATHS).toContain("purchase-orders");
+    expect(INVENTORY_TAB_PREFETCH_PATHS).toContain("stock-settlement");
+    expect(POST_LOGIN_PREFETCH_TAB_PATHS_WEB).toContain("products");
+  });
+
+  it("keeps Sales POS ↔ Invoice mutual warm set", () => {
+    expect(SALES_TAB_PREFETCH_PATHS).toContain("pos-dashboard");
+    expect(SALES_TAB_PREFETCH_PATHS).toContain("sales-invoice-dashboard");
   });
 });
 

@@ -9,6 +9,9 @@ import {
   prefetchTabPage,
   prefetchTabPagesIdle,
   POST_LOGIN_WEB_IDLE_ADMIN_PREFETCH_TAB_PATHS,
+  MASTER_TAB_PREFETCH_PATHS,
+  INVENTORY_TAB_PREFETCH_PATHS,
+  SALES_TAB_PREFETCH_PATHS,
   resetTabPageChunk,
   resolveTabCachePath,
   type TabPageLayout,
@@ -28,6 +31,7 @@ import { reloadAppWithUpdateCheck } from "@/lib/appReload";
 import { isElectronShell, shouldElectronMountOnlyActiveTab } from "@/lib/electronShell";
 import { beginUserPriorityLoad } from "@/lib/chunkLoadRetry";
 import {
+  isTabCachePaneMounted,
   markTabCachePaneMounted,
   markTabCachePaneUnmounted,
 } from "@/lib/tabCacheMountRegistry";
@@ -160,6 +164,15 @@ const ELECTRON_WORKFLOW_DASHBOARD_PATHS = new Set([
   "customer-ledger-report",
   "customer-points-report",
   "customer-balance-activity",
+  // Party masters — Customers ↔ Suppliers must reopen instantly (no remount splash).
+  "customers",
+  "suppliers",
+  "employees",
+  "salesman-commission",
+  // Inventory secondary lists — same keep-alive as Purchase/Product dashboards.
+  "purchase-orders",
+  "bulk-product-update",
+  "stock-settlement",
   "settings",
 ]);
 
@@ -311,10 +324,13 @@ function TabPageFallback({
   active,
   path,
   onRetry,
+  /** Sibling pane already on screen — keep it dimmed; do not paint a full loading page. */
+  silent = false,
 }: {
   active: boolean;
   path: string;
   onRetry: () => void;
+  silent?: boolean;
 }) {
   const [timedOut, setTimedOut] = useState(false);
   const [showSoftHint, setShowSoftHint] = useState(false);
@@ -393,6 +409,10 @@ function TabPageFallback({
     );
   }
 
+  // Desktop-like tab switch: keep the previous pane visible (dimmed) instead of
+  // replacing it with DashboardSkeleton / AppBootSplash (Sales POS ↔ Invoice feel).
+  if (silent) return null;
+
   // Immediate route-shaped shell (<150ms target). Soft hint is second-stage only.
   return (
     <div className="relative flex flex-1 h-full min-h-0 w-full flex-col">
@@ -425,6 +445,8 @@ function CachedTabPane({
   onActivePaneReady,
   /** Destination chunk still loading — keep outgoing pane mounted but visibly dimmed (never unmount). */
   dimOutgoing = false,
+  /** Suppress active Suspense shell when a sibling pane is already painted. */
+  silentFallback = false,
 }: {
   path: string;
   active: boolean;
@@ -432,6 +454,7 @@ function CachedTabPane({
   layout: TabPageLayout;
   onActivePaneReady?: (path: string) => void;
   dimOutgoing?: boolean;
+  silentFallback?: boolean;
 }) {
   const paneRef = useRef<HTMLDivElement>(null);
   const wasActiveRef = useRef(active);
@@ -494,7 +517,14 @@ function CachedTabPane({
     <TabPaneErrorBoundary tabPath={path} onRetry={retryTabLoad}>
       <Suspense
         key={loadKey}
-        fallback={<TabPageFallback active={active} path={path} onRetry={retryTabLoad} />}
+        fallback={
+          <TabPageFallback
+            active={active}
+            path={path}
+            onRetry={retryTabLoad}
+            silent={silentFallback}
+          />
+        }
       >
         <TabPageWithPerf
           path={path}
@@ -679,31 +709,37 @@ export function TabCachedPages({ paths, activePath, onActivePaneReady, onTabEvic
     // to avoid a hidden React tree + chunk waterfall on cold load.
   }, [uniquePaths, activePath]);
 
-  // Prefetch inventory chunks while inventory tabs are open; pre-mount product dashboard in browser.
+  // Inventory — intent-warm all siblings (Sales-tab parity; Save-Data must not skip).
   useEffect(() => {
-    const inventoryPaths = [
-      "product-dashboard",
-      "products",
-      "purchase-bill-dashboard",
-      "purchase-bills",
-      "product-entry",
-      "barcode-printing",
-    ];
-    const shouldWarmInventory = inventoryPaths.some(
+    const shouldWarmInventory = INVENTORY_TAB_PREFETCH_PATHS.some(
       (p) => uniquePaths.includes(p) || activePath === p,
     );
     if (!shouldWarmInventory) return;
+    for (const path of INVENTORY_TAB_PREFETCH_PATHS) {
+      prefetchTabPage(path, { intent: true });
+    }
+  }, [uniquePaths, activePath]);
 
-    prefetchTabPage("product-dashboard");
-    prefetchTabPage("purchase-bill-dashboard");
-    prefetchTabPage("purchase-bills");
-    prefetchTabPage("purchase-return-dashboard");
-    prefetchTabPage("purchase-returns");
-    prefetchTabPage("purchase-entry");
-    prefetchTabPage("product-entry");
-    prefetchTabPage("barcode-printing");
-    // Note: previously also pre-mounted product-dashboard. Removed to avoid
-    // hidden chunk waterfall on cold load.
+  // Party masters — intent-warm all siblings (Customers ↔ Suppliers ↔ Employees ↔ Commission).
+  useEffect(() => {
+    const shouldWarmMasters = MASTER_TAB_PREFETCH_PATHS.some(
+      (p) => uniquePaths.includes(p) || activePath === p,
+    );
+    if (!shouldWarmMasters) return;
+    for (const path of MASTER_TAB_PREFETCH_PATHS) {
+      prefetchTabPage(path, { intent: true });
+    }
+  }, [uniquePaths, activePath]);
+
+  // Sales — explicit mutual warm (documents POS Dashboard ↔ Invoice Dashboard “no loading”).
+  useEffect(() => {
+    const shouldWarmSales = SALES_TAB_PREFETCH_PATHS.some(
+      (p) => uniquePaths.includes(p) || activePath === p,
+    );
+    if (!shouldWarmSales) return;
+    for (const path of SALES_TAB_PREFETCH_PATHS) {
+      prefetchTabPage(path, { intent: true });
+    }
   }, [uniquePaths, activePath]);
 
   useEffect(() => {
@@ -744,6 +780,12 @@ export function TabCachedPages({ paths, activePath, onActivePaneReady, onTabEvic
   const activeChunkReady =
     !isTabCachePath(resolvedActivePath) || isTabPageChunkLoaded(resolvedActivePath);
   const dimOutgoingDuringLoad = !activeChunkReady;
+  // Ready sibling on screen → silent Suspense (no full-page loading shell).
+  const hasReadySiblingPane = pathsToRender.some((p) => {
+    if (p === resolvedActivePath) return false;
+    return isTabCachePaneMounted(p) || isTabPageChunkLoaded(p);
+  });
+  const silentColdNav = dimOutgoingDuringLoad && hasReadySiblingPane;
 
   if (uniquePaths.length === 0) return null;
 
@@ -759,6 +801,7 @@ export function TabCachedPages({ paths, activePath, onActivePaneReady, onTabEvic
             path={path}
             active={isActive}
             dimOutgoing={!isActive && dimOutgoingDuringLoad}
+            silentFallback={isActive && silentColdNav}
             layout={meta.layout}
             roles={meta.roles}
             onActivePaneReady={onActivePaneReady}
