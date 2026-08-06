@@ -5295,15 +5295,16 @@ export default function BarcodePrinting() {
       return;
     }
 
-    // For A4 sheets: always emit the absolute-positioned Perfect PDF and download it.
-    // Auto print() → "Microsoft Print to PDF" re-encodes the page with Fit/scale and
-    // destroys die-cut alignment (top/bottom white bands + left→right drift).
+    // For A4 sheets: open Perfect PDF preview only (no auto-download).
+    // Browser print() → "Microsoft Print to PDF" re-encodes with Fit/scale and
+    // destroys die-cut alignment. User prints from the preview at Actual Size 100%.
+    // Explicit download remains on "Perfect PDF" / Export actions.
     const hasLabels = labelItems.some((item) => item.qty > 0);
     if (!hasLabels) {
       toast.error('Please add at least one label with quantity > 0');
       return;
     }
-    toast.info('Preparing label sheet PDF…');
+    toast.info('Preparing label sheet preview…');
     try {
       const dimensions = getA4SheetDimensions();
 
@@ -5326,19 +5327,15 @@ export default function BarcodePrinting() {
 
       const blob = new Blob([new Uint8Array(pdfBytes) as any], { type: 'application/pdf' });
       const pdfUrl = URL.createObjectURL(blob);
-      const fileName = `labels-a4-${dimensions.cols}x${dimensions.rows}-${Date.now()}.pdf`;
-      const a = document.createElement('a');
-      a.href = pdfUrl;
-      a.download = fileName;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-
-      // Also open for preview — user must print THIS file at Actual Size 100%.
-      window.open(pdfUrl, '_blank');
+      const previewWin = window.open(pdfUrl, '_blank');
+      if (!previewWin) {
+        toast.error('Pop-up blocked — allow pop-ups to preview the label sheet PDF');
+        URL.revokeObjectURL(pdfUrl);
+        return;
+      }
       setTimeout(() => URL.revokeObjectURL(pdfUrl), 120000);
       toast.success(
-        'PDF saved — open the downloaded file and print Actual Size 100% (no Fit / Shrink). Do not re-print via Microsoft Print to PDF.',
+        'Preview opened — print Actual Size 100% (no Fit / Shrink). Use Perfect PDF if you need a download.',
       );
     } catch (err) {
       console.error('Label PDF generation error:', err);
