@@ -80,8 +80,17 @@ export const POST_LOGIN_WEB_IDLE_ADMIN_PREFETCH_TAB_PATHS = [
   "third-party-entry",
   "third-party-balances",
   "customers",
+  // Pair with customers — Master tab switches (Customers ↔ Suppliers) must not cold-load.
+  "suppliers",
   "payments-dashboard",
   "profile",
+] as const;
+
+/** Party masters — warm siblings while any one is open (desktop-like tab switch). */
+export const MASTER_TAB_PREFETCH_PATHS = [
+  "customers",
+  "suppliers",
+  "employees",
 ] as const;
 
 /** Re-warm after the browser tab was hidden/idle (module cache may have been discarded). */
