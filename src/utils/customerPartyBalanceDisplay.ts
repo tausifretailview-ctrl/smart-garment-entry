@@ -72,6 +72,42 @@ export function isPartyBalanceSettled(signedBalance: number | null | undefined):
   return Math.abs(Number(signedBalance ?? 0)) < PARTY_BALANCE_SETTLED_THRESHOLD;
 }
 
+/**
+ * Default list hides ₹0 (settled) parties. A non-empty search must still find them —
+ * otherwise searching a settled customer looks like a "search limit" bug.
+ */
+export function includeSettledInPartyBalanceList(
+  showSettled: boolean,
+  searchQuery: string,
+): boolean {
+  return showSettled || searchQuery.trim().length > 0;
+}
+
+export type PartyBalanceListRow = PartyBalanceDisplayInput & PartySearchRow & {
+  signed_balance?: number | null;
+};
+
+/** Apply settled / direction / name-phone filters for the Customer Balances list. */
+export function filterPartyBalanceRows<T extends PartyBalanceListRow>(
+  rows: T[],
+  opts: {
+    search: string;
+    showSettled: boolean;
+    directionFilter: PartyDirectionFilter;
+  },
+): T[] {
+  const includeSettled = includeSettledInPartyBalanceList(opts.showSettled, opts.search);
+  return rows.filter((row) => {
+    if (!includeSettled && isPartyBalanceSettled(row.signed_balance)) {
+      return false;
+    }
+    if (!matchesPartyDirectionFilter(row, opts.directionFilter)) {
+      return false;
+    }
+    return matchesPartyBalanceSearch(row, opts.search);
+  });
+}
+
 export function slicePartyBalancePage<T>(rows: T[], page: number, pageSize: number = CUSTOMER_PARTY_BALANCES_PAGE_SIZE): T[] {
   const safePage = Math.max(1, page);
   const start = (safePage - 1) * pageSize;

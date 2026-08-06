@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   CUSTOMER_PARTY_BALANCES_PAGE_SIZE,
+  filterPartyBalanceRows,
+  includeSettledInPartyBalanceList,
   matchesPartyBalanceSearch,
   matchesPartyDirectionFilter,
   partyBalanceDirection,
@@ -80,6 +82,43 @@ describe("matchesPartyDirectionFilter", () => {
     expect(matchesPartyDirectionFilter({ signed_balance: -100 }, "Dr")).toBe(false);
     expect(matchesPartyDirectionFilter({ signed_balance: -100 }, "Cr")).toBe(true);
     expect(matchesPartyDirectionFilter({ signed_balance: 0 }, "Cr")).toBe(false);
+  });
+});
+
+describe("filterPartyBalanceRows / settled + search", () => {
+  const rows = [
+    { customer_name: "Aa Production", phone: "111", signed_balance: 500, direction: "Dr" },
+    { customer_name: "Settled Party", phone: "999", signed_balance: 0, direction: "Settled" },
+    { customer_name: "Credit Party", phone: "222", signed_balance: -100, direction: "Cr" },
+  ];
+
+  it("hides settled when toggle is off and search is empty", () => {
+    const filtered = filterPartyBalanceRows(rows, {
+      search: "",
+      showSettled: false,
+      directionFilter: "all",
+    });
+    expect(filtered.map((r) => r.customer_name)).toEqual(["Aa Production", "Credit Party"]);
+  });
+
+  it("finds settled customers by search even when Show settled is off (not a fetch limit)", () => {
+    expect(includeSettledInPartyBalanceList(false, "settled")).toBe(true);
+    const filtered = filterPartyBalanceRows(rows, {
+      search: "Settled Party",
+      showSettled: false,
+      directionFilter: "all",
+    });
+    expect(filtered).toHaveLength(1);
+    expect(filtered[0].customer_name).toBe("Settled Party");
+  });
+
+  it("still respects Dr/Cr direction filter while searching", () => {
+    const filtered = filterPartyBalanceRows(rows, {
+      search: "Party",
+      showSettled: false,
+      directionFilter: "Cr",
+    });
+    expect(filtered.map((r) => r.customer_name)).toEqual(["Credit Party"]);
   });
 });
 

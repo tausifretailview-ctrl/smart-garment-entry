@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   SUPPLIER_PARTY_BALANCES_PAGE_SIZE,
+  filterSupplierPartyBalanceRows,
   matchesSupplierPartyBalanceSearch,
   matchesSupplierPartyDirectionFilter,
   supplierPartyBalanceDirection,
@@ -40,9 +41,43 @@ describe("matchesSupplierPartyBalanceSearch", () => {
   });
 });
 
+describe("filterSupplierPartyBalanceRows / settled + search", () => {
+  const rows = [
+    { supplier_name: "Active Supplier", phone: "111", signed_balance: 500, direction: "Cr" },
+    { supplier_name: "Zero Balance Co", phone: "999", signed_balance: 0, direction: "Settled" },
+  ];
+
+  it("finds settled suppliers by search when Show settled is off", () => {
+    const filtered = filterSupplierPartyBalanceRows(rows, {
+      search: "Zero Balance",
+      showSettled: false,
+      directionFilter: "all",
+    });
+    expect(filtered).toHaveLength(1);
+    expect(filtered[0].supplier_name).toBe("Zero Balance Co");
+  });
+});
+
 describe("supplierPartyBalanceDisplayAmount", () => {
   it("uses absolute value", () => {
     expect(supplierPartyBalanceDisplayAmount(-12850)).toBe(12850);
+  });
+});
+
+describe("filterSupplierPartyBalanceRows / settled + search", () => {
+  const rows = [
+    { supplier_name: "Active Supplier", phone: "111", signed_balance: 500, direction: "Cr" },
+    { supplier_name: "Zero Balance Co", phone: "999", signed_balance: 0, direction: "Settled" },
+  ];
+
+  it("finds settled suppliers by search when Show settled is off", () => {
+    const filtered = filterSupplierPartyBalanceRows(rows, {
+      search: "Zero Balance",
+      showSettled: false,
+      directionFilter: "all",
+    });
+    expect(filtered).toHaveLength(1);
+    expect(filtered[0].supplier_name).toBe("Zero Balance Co");
   });
 });
 

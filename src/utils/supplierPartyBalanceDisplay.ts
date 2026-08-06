@@ -72,6 +72,39 @@ export function isSupplierPartyBalanceSettled(signedBalance: number | null | und
   return Math.abs(Number(signedBalance ?? 0)) < PARTY_BALANCE_SETTLED_THRESHOLD;
 }
 
+/** Same rule as customer list: search must find settled (₹0) suppliers. */
+export function includeSettledInSupplierPartyBalanceList(
+  showSettled: boolean,
+  searchQuery: string,
+): boolean {
+  return showSettled || searchQuery.trim().length > 0;
+}
+
+export type SupplierPartyBalanceListRow = SupplierPartyBalanceDisplayInput &
+  SupplierPartySearchRow & {
+    signed_balance?: number | null;
+  };
+
+export function filterSupplierPartyBalanceRows<T extends SupplierPartyBalanceListRow>(
+  rows: T[],
+  opts: {
+    search: string;
+    showSettled: boolean;
+    directionFilter: SupplierPartyDirectionFilter;
+  },
+): T[] {
+  const includeSettled = includeSettledInSupplierPartyBalanceList(opts.showSettled, opts.search);
+  return rows.filter((row) => {
+    if (!includeSettled && isSupplierPartyBalanceSettled(row.signed_balance)) {
+      return false;
+    }
+    if (!matchesSupplierPartyDirectionFilter(row, opts.directionFilter)) {
+      return false;
+    }
+    return matchesSupplierPartyBalanceSearch(row, opts.search);
+  });
+}
+
 export function sliceSupplierPartyBalancePage<T>(
   rows: T[],
   page: number,

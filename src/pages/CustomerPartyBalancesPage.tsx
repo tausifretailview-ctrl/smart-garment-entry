@@ -33,9 +33,8 @@ import { CustomerLedger } from "@/components/CustomerLedger";
 import {
   CUSTOMER_PARTY_BALANCES_PAGE_SIZE,
   clampPartyBalancePage,
-  isPartyBalanceSettled,
-  matchesPartyBalanceSearch,
-  matchesPartyDirectionFilter,
+  filterPartyBalanceRows,
+  includeSettledInPartyBalanceList,
   partyBalanceDirection,
   partyBalanceDisplayAmount,
   partyBalanceTotalPages,
@@ -128,17 +127,17 @@ export default function CustomerPartyBalancesPage() {
     };
   }, [rows]);
 
-  const filteredRows = useMemo(() => {
-    return rows.filter((row) => {
-      if (!showSettled && isPartyBalanceSettled(row.signed_balance)) {
-        return false;
-      }
-      if (!matchesPartyDirectionFilter(row, directionFilter)) {
-        return false;
-      }
-      return matchesPartyBalanceSearch(row, search);
-    });
-  }, [rows, search, showSettled, directionFilter]);
+  const filteredRows = useMemo(
+    () =>
+      filterPartyBalanceRows(rows, {
+        search,
+        showSettled,
+        directionFilter,
+      }),
+    [rows, search, showSettled, directionFilter],
+  );
+  const searchIncludesSettled =
+    !showSettled && includeSettledInPartyBalanceList(showSettled, search);
 
   const totalPages = partyBalanceTotalPages(filteredRows.length);
   const currentPage = clampPartyBalancePage(page, totalPages);
@@ -432,7 +431,11 @@ export default function CustomerPartyBalancesPage() {
                 ) : (
                   <>
                     {rows.length.toLocaleString("en-IN")} parties loaded
-                    {!showSettled ? " · settled hidden" : ""}
+                    {searchIncludesSettled
+                      ? " · search includes settled"
+                      : !showSettled
+                        ? " · settled hidden"
+                        : ""}
                   </>
                 )}
               </p>
