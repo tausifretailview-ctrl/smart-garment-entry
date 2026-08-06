@@ -334,7 +334,7 @@ const GSTSalePurchaseRegister = () => {
       const { data: saleReturnsData } = await supabase
         .from("sale_returns")
         .select(`
-          id, return_number, return_date, customer_name, net_amount, gst_amount,
+          id, return_number, return_date, customer_name, net_amount, gst_amount, linked_sale_id,
           customer_id, customers(gst_number)
         `)
         .eq("organization_id", currentOrganization.id)
@@ -342,6 +342,25 @@ const GSTSalePurchaseRegister = () => {
         .gte("return_date", fromDate)
         .lte("return_date", toDate)
         .order("return_date", { ascending: true });
+
+      const linkedSaleIds = [
+        ...new Set(
+          (saleReturnsData || [])
+            .map((r) => (r as { linked_sale_id?: string | null }).linked_sale_id)
+            .filter((id): id is string => !!id),
+        ),
+      ];
+      const linkedSaleTaxType = new Map<string, ReturnType<typeof normalizeGstTaxType>>();
+      if (linkedSaleIds.length > 0) {
+        const { data: linkedSales } = await supabase
+          .from("sales")
+          .select("id, tax_type")
+          .eq("organization_id", currentOrganization.id)
+          .in("id", linkedSaleIds);
+        (linkedSales || []).forEach((s) => {
+          linkedSaleTaxType.set(String(s.id), normalizeGstTaxType((s as { tax_type?: string | null }).tax_type));
+        });
+      }
 
       const saleReturnIds = saleReturnsData?.map(sr => sr.id) || [];
       // FIX G8: Use static import
@@ -360,7 +379,13 @@ const GSTSalePurchaseRegister = () => {
         const items = saleReturnItemsMap.get(ret.id) || [];
         const customerGSTIN = (ret.customers as any)?.gst_number || "";
         const isInterStateTx = isInterState(businessGSTIN, customerGSTIN);
-        const breakup = calculateGSTBreakup(items.map(i => ({ gst_percent: i.gst_percent, line_total: i.line_total })), "inclusive", isInterStateTx);
+        const linkedId = (ret as { linked_sale_id?: string | null }).linked_sale_id;
+        const retTaxType = (linkedId && linkedSaleTaxType.get(String(linkedId))) || "inclusive";
+        const breakup = calculateGSTBreakup(
+          items.map(i => ({ gst_percent: i.gst_percent, line_total: i.line_total })),
+          retTaxType,
+          isInterStateTx,
+        );
 
         const totalTaxable = breakup.taxable_0 + breakup.taxable_5 + breakup.taxable_12 + breakup.taxable_18 + breakup.taxable_28;
         const totalCGST = breakup.cgst_2_5 + breakup.cgst_6 + breakup.cgst_9 + breakup.cgst_14;

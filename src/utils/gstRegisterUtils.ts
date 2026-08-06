@@ -240,9 +240,10 @@ export const computeTallyLineDisplay = (
 };
 
 export const normalizeGstTaxType = (value?: string | null): GstTaxType => {
-  if (value === 'exclusive' || value === 'gst_exclusive') return 'exclusive';
-  if (value === 'no_gst' || value === 'without_gst') return 'no_gst';
-  return 'inclusive';
+  const v = String(value ?? "").trim().toLowerCase().replace(/[\s-]+/g, "_");
+  if (v === "exclusive" || v === "gst_exclusive") return "exclusive";
+  if (v === "no_gst" || v === "without_gst" || v === "bill_of_supply") return "no_gst";
+  return "inclusive";
 };
 
 /** Org settings slice for default GST mode (Sale vs POS can differ). */

@@ -148,8 +148,9 @@ Deno.serve(async (req) => {
     const orgStateCode = extractStateCode(settings?.gst_number?.slice(0, 2), settings?.state);
 
     const normalizeTaxType = (value?: string | null): "inclusive" | "exclusive" | "no_gst" => {
-      if (value === "exclusive" || value === "gst_exclusive") return "exclusive";
-      if (value === "no_gst" || value === "without_gst") return "no_gst";
+      const v = String(value ?? "").trim().toLowerCase().replace(/[\s-]+/g, "_");
+      if (v === "exclusive" || v === "gst_exclusive") return "exclusive";
+      if (v === "no_gst" || v === "without_gst" || v === "bill_of_supply") return "no_gst";
       return "inclusive";
     };
 

@@ -32,8 +32,23 @@ import * as XLSX from "xlsx";
 import {
   isInterState,
   normalizeGstTaxType,
+  resolvePosDefaultTaxType,
+  resolveSaleDefaultTaxType,
   type GstTaxType,
+  type SaleSettingsTaxDefaults,
 } from "@/utils/gstRegisterUtils";
+import { fetchAllSaleItems } from "@/utils/fetchAllRows";
+import {
+  InsightsKpiCard,
+  InsightsTableHeader,
+  InsightsStaticTh,
+  INSIGHTS_BODY_ROW,
+  INSIGHTS_BODY_CELL,
+  INSIGHTS_BODY_CELL_NUM,
+  INSIGHTS_SUB_TAB_LIST,
+  INSIGHTS_SUB_TAB_TRIGGER,
+} from "@/components/business-insights/insightsLayout";
+import { cn } from "@/lib/utils";
 
 /** Per-line taxable + GST — mirrors get_gst_summary / calculateGSTBreakup tax_type rules. */
 function lineTaxableAndGst(
@@ -52,18 +67,20 @@ function lineTaxableAndGst(
   const taxable = total / (1 + gstPercent / 100);
   return { taxable, gst: total - taxable };
 }
-import { fetchAllSaleItems } from "@/utils/fetchAllRows";
-import {
-  InsightsKpiCard,
-  InsightsTableHeader,
-  InsightsStaticTh,
-  INSIGHTS_BODY_ROW,
-  INSIGHTS_BODY_CELL,
-  INSIGHTS_BODY_CELL_NUM,
-  INSIGHTS_SUB_TAB_LIST,
-  INSIGHTS_SUB_TAB_TRIGGER,
-} from "@/components/business-insights/insightsLayout";
-import { cn } from "@/lib/utils";
+
+/** Prefer sale.tax_type; if null/blank, fall back to org Sale/POS defaults. */
+function resolveReportTaxType(
+  saleTaxType: string | null | undefined,
+  saleType: string | null | undefined,
+  saleSettings?: SaleSettingsTaxDefaults | null,
+): GstTaxType {
+  const raw = String(saleTaxType ?? "").trim();
+  if (raw) return normalizeGstTaxType(raw);
+  if (String(saleType || "").toLowerCase() === "pos") {
+    return resolvePosDefaultTaxType(saleSettings);
+  }
+  return resolveSaleDefaultTaxType(saleSettings);
+}
 
 type PeriodType = "custom" | "this-month" | "last-month" | "this-quarter" | "last-quarter" | "this-fy" | "last-fy";
 type ReportType = "gstr1" | "gstr2" | "gstr3b" | "hsn-summary" | "register";
@@ -225,7 +242,7 @@ const GSTReports = () => {
     
     const { data: settings } = await supabase
       .from("settings")
-      .select("business_name, gst_number")
+      .select("business_name, gst_number, sale_settings")
       .eq("organization_id", currentOrganization.id)
       .maybeSingle();
     
@@ -248,6 +265,7 @@ const GSTReports = () => {
       // FIX G1: Capture businessGSTIN from fetchBusinessInfo
       const settings = await fetchBusinessInfo();
       const businessGSTIN = settings?.gst_number || "";
+      const saleSettings = ((settings as { sale_settings?: SaleSettingsTaxDefaults | null } | null)?.sale_settings) || null;
       
       const fromDateObj = new Date(fromDate);
       const toDateObj = new Date(toDate);
@@ -257,7 +275,7 @@ const GSTReports = () => {
       const { data: salesData } = await supabase
         .from("sales")
         .select(`
-          id, sale_number, sale_date, customer_name, net_amount, gross_amount, discount_amount, tax_type,
+          id, sale_number, sale_date, sale_type, customer_name, net_amount, gross_amount, discount_amount, tax_type,
           customer_id, customers(gst_number, address)
         `)
         .eq("organization_id", currentOrganization.id)
@@ -274,9 +292,10 @@ const GSTReports = () => {
       // Group items by sale
       const saleItemsMap = new Map<string, typeof saleItems>();
       saleItems?.forEach(item => {
-        const existing = saleItemsMap.get(item.sale_id) || [];
+        const sid = String(item.sale_id);
+        const existing = saleItemsMap.get(sid) || [];
         existing.push(item);
-        saleItemsMap.set(item.sale_id, existing);
+        saleItemsMap.set(sid, existing);
       });
 
       // B2B - Sales to registered dealers
@@ -293,11 +312,15 @@ const GSTReports = () => {
 
       salesData?.forEach(sale => {
         const customerGSTIN = (sale.customers as any)?.gst_number || "";
-        const items = saleItemsMap.get(sale.id) || [];
+        const items = saleItemsMap.get(String(sale.id)) || [];
         const isB2B = customerGSTIN && customerGSTIN.length === 15;
         // FIX G1: Inter-state detection
         const interState = isInterState(businessGSTIN, customerGSTIN);
-        const taxType = normalizeGstTaxType((sale as { tax_type?: string | null }).tax_type);
+        const taxType = resolveReportTaxType(
+          (sale as { tax_type?: string | null }).tax_type,
+          (sale as { sale_type?: string | null }).sale_type,
+          saleSettings,
+        );
 
         let saleGstAmount = 0;
         let saleTaxableFromLines = 0;
@@ -434,12 +457,13 @@ const GSTReports = () => {
           igst: 0,
         }));
 
+      const hsnRows = Array.from(hsnMap.values());
       setGstr1Data({
         b2b,
         b2cs,
         cdnr,
         cdnur,
-        hsn: Array.from(hsnMap.values()),
+        hsn: hsnRows,
         summary: {
           totalInvoices: salesData?.length || 0,
           totalTaxableValue,
@@ -449,6 +473,8 @@ const GSTReports = () => {
           totalCess: 0
         }
       });
+      // Keep HSN Summary tab in sync with the same exclusive-aware totals
+      setHsnData(hsnRows.sort((a, b) => b.totalValue - a.totalValue));
 
       toast({ title: "Success", description: "GSTR-1 data generated successfully" });
     } catch (error) {
@@ -585,7 +611,8 @@ const GSTReports = () => {
 
     setIsLoading(true);
     try {
-      await fetchBusinessInfo();
+      const settings = await fetchBusinessInfo();
+      const saleSettings = ((settings as { sale_settings?: SaleSettingsTaxDefaults | null } | null)?.sale_settings) || null;
       
       const fromDateObj = new Date(fromDate);
       const toDateObj = new Date(toDate);
@@ -593,16 +620,24 @@ const GSTReports = () => {
 
       const { data: salesData } = await supabase
         .from("sales")
-        .select("id, tax_type")
+        .select("id, tax_type, sale_type")
         .eq("organization_id", currentOrganization.id)
         .is("deleted_at", null)
         .eq("is_cancelled", false)
+        .gt("net_amount", 0)
         .gte("sale_date", fromDateObj.toISOString())
         .lte("sale_date", toDateObj.toISOString());
 
       const saleIds = salesData?.map(s => s.id) || [];
       const taxTypeBySale = new Map(
-        (salesData || []).map((s) => [s.id, normalizeGstTaxType((s as { tax_type?: string | null }).tax_type)]),
+        (salesData || []).map((s) => [
+          String(s.id),
+          resolveReportTaxType(
+            (s as { tax_type?: string | null }).tax_type,
+            (s as { sale_type?: string | null }).sale_type,
+            saleSettings,
+          ),
+        ]),
       );
       const saleItems = saleIds.length > 0 ? (await fetchAllSaleItems(saleIds)).filter((i: any) => !i.is_dc_item) : [];
 
@@ -612,7 +647,7 @@ const GSTReports = () => {
         const hsnCode = item.hsn_code || "00000000";
         const rate = item.gst_percent || 0;
         const lineTotal = item.line_total || 0;
-        const taxType = taxTypeBySale.get(item.sale_id) || "inclusive";
+        const taxType = taxTypeBySale.get(String(item.sale_id)) || "inclusive";
         const { taxable: taxableValue, gst: gstAmount } = lineTaxableAndGst(lineTotal, rate, taxType);
 
         const existing = hsnMap.get(hsnCode) || {
