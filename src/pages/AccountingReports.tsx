@@ -27,6 +27,7 @@ import {
   Loader2, Download, Printer, TrendingUp, TrendingDown, Wallet, PieChart, 
   FileSpreadsheet, Scale, Calculator, AlertTriangle, Calendar, Building2, Clock, ExternalLink, RefreshCw, BookText, Landmark, BarChart3, Table2, Users, Info, ShieldCheck, FileText, CheckCircle2, Receipt, ChevronDown, ArrowLeft
 } from "lucide-react";
+import { ReportPageSkeleton } from "@/components/skeletons/ReportPageSkeleton";
 import { format, startOfMonth, endOfMonth, subMonths } from "date-fns";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
@@ -1033,9 +1034,13 @@ export default function AccountingReports() {
             />
           </div>
           {loading ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-            </div>
+            <ReportPageSkeleton
+              showFilters={false}
+              kpiCount={0}
+              chartBlocks={0}
+              tableRows={10}
+              className="p-0"
+            />
           ) : (
             <>
               <AccountingReportTable
@@ -1228,10 +1233,14 @@ export default function AccountingReports() {
                   generatedAt={format(new Date(), "dd MMM yyyy, hh:mm a")}
                 />
               </div>
-              {glTrialQuery.isFetching ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="h-8 w-8 animate-spin text-teal-600" />
-                </div>
+              {glTrialQuery.isLoading ? (
+                <ReportPageSkeleton
+                  showFilters={false}
+                  kpiCount={0}
+                  chartBlocks={0}
+                  tableRows={10}
+                  className="p-0"
+                />
               ) : glTrialQuery.isError ? (
                 <div className="text-center py-8 text-destructive text-sm">
                   Could not load GL trial balance. Check that the three-argument GL trial RPC migration is applied, then retry.
@@ -1354,10 +1363,14 @@ export default function AccountingReports() {
               </div>
             </CardHeader>
             <CardContent>
-              {glPnlQuery.isFetching ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                </div>
+              {glPnlQuery.isLoading ? (
+                <ReportPageSkeleton
+                  showFilters={false}
+                  kpiCount={3}
+                  chartBlocks={0}
+                  tableRows={8}
+                  className="p-0"
+                />
               ) : glPnlQuery.isError ? (
                 <div className="text-center py-8 text-destructive text-sm">Could not load GL P&amp;L. Try again or check the console.</div>
               ) : glPnlReport ? (
@@ -1469,10 +1482,14 @@ export default function AccountingReports() {
               </div>
             </CardHeader>
             <CardContent>
-              {glBsQuery.isFetching ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                </div>
+              {glBsQuery.isLoading ? (
+                <ReportPageSkeleton
+                  showFilters={false}
+                  kpiCount={0}
+                  chartBlocks={0}
+                  tableRows={10}
+                  className="p-0"
+                />
               ) : glBsQuery.isError ? (
                 <div className="text-center py-8 text-destructive text-sm">
                   Could not load GL balance sheet. Try again or check the console.
@@ -1613,9 +1630,13 @@ export default function AccountingReports() {
             <AccountingReportKpiCards items={profitLossKpis} />
           </div>
               {loading ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                </div>
+                <ReportPageSkeleton
+                  showFilters={false}
+                  kpiCount={4}
+                  chartBlocks={0}
+                  tableRows={8}
+                  className="p-0"
+                />
               ) : profitLoss ? (
                 <div className="space-y-6">
                   {/* Warnings */}
@@ -1804,9 +1825,13 @@ export default function AccountingReports() {
             />
           </div>
           {loading ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-            </div>
+            <ReportPageSkeleton
+              showFilters={false}
+              kpiCount={0}
+              chartBlocks={0}
+              tableRows={10}
+              className="p-0"
+            />
           ) : balanceSheet ? (
                 <div className="grid md:grid-cols-2 gap-6">
                   {/* Assets */}
@@ -1923,9 +1948,13 @@ export default function AccountingReports() {
             </CardHeader>
             <CardContent>
               {loading ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                </div>
+                <ReportPageSkeleton
+                  showFilters={false}
+                  kpiCount={4}
+                  chartBlocks={0}
+                  tableRows={8}
+                  className="p-0"
+                />
               ) : netProfitSummary ? (
                 <div className="max-w-2xl mx-auto space-y-4">
                   {/* REVENUE SECTION */}
@@ -2191,9 +2220,13 @@ export default function AccountingReports() {
               </div>
             )}
             {glLedgerLoading ? (
-              <div className="flex justify-center py-12">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              </div>
+              <ReportPageSkeleton
+                showFilters={false}
+                kpiCount={0}
+                chartBlocks={0}
+                tableRows={10}
+                className="p-0"
+              />
             ) : glLedgerRows.length === 0 ? (
               <p className="text-sm text-muted-foreground py-6">No lines in this range.</p>
             ) : (

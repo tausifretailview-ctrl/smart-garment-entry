@@ -16,7 +16,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { format, subDays, startOfMonth, endOfMonth, startOfYear, subMonths, parseISO, startOfWeek, endOfWeek } from "date-fns";
-import { CalendarIcon, TrendingUp, IndianRupee, ShoppingCart, ArrowUpRight, ArrowDownRight, Loader2 } from "lucide-react";
+import { CalendarIcon, TrendingUp, IndianRupee, ShoppingCart, ArrowUpRight, ArrowDownRight } from "lucide-react";
+import { ReportPageSkeleton } from "@/components/skeletons/ReportPageSkeleton";
 import { cn } from "@/lib/utils";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
@@ -415,9 +416,7 @@ export default function SalesAnalyticsDashboard() {
   if (salesLoading) {
     return (
       <div className="business-insights-workspace flex flex-col bg-slate-50 px-2 sm:px-3 py-2 min-h-0 h-full overflow-hidden">
-        <div className="flex flex-1 items-center justify-center min-h-[400px]">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        </div>
+        <ReportPageSkeleton kpiCount={4} chartBlocks={2} tableRows={6} className="flex-1 min-h-0" />
       </div>
     );
   }

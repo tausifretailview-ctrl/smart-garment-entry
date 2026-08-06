@@ -31,6 +31,7 @@ import {
   UserCheck,
   Layers,
 } from "lucide-react";
+import { ReportPageSkeleton } from "@/components/skeletons/ReportPageSkeleton";
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek } from "date-fns";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
@@ -136,9 +137,13 @@ function ProfitBreakdownTable({
 
   if (loading) {
     return (
-      <div className="flex flex-1 items-center justify-center py-16">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
+      <ReportPageSkeleton
+        showFilters={false}
+        kpiCount={0}
+        chartBlocks={0}
+        tableRows={10}
+        className="flex-1 p-0"
+      />
     );
   }
   if (!hasGenerated) {
