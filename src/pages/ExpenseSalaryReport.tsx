@@ -21,8 +21,8 @@ import {
   Wallet,
   IndianRupee,
   Layers,
-  Loader2,
 } from "lucide-react";
+import { ReportPageSkeleton } from "@/components/skeletons/ReportPageSkeleton";
 import { AccountsHistoryPanel } from "@/components/accounts/AccountsHistoryPanel";
 import {
   accountsHistoryTableClass,
@@ -598,10 +598,13 @@ export default function ExpenseSalaryReport() {
           }
         >
           {isLoading ? (
-            <div className="flex items-center justify-center py-16 text-muted-foreground gap-2">
-              <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
-              Loading transactions…
-            </div>
+            <ReportPageSkeleton
+              showFilters={false}
+              kpiCount={0}
+              chartBlocks={0}
+              tableRows={10}
+              className="p-0"
+            />
           ) : (
             <Table className={accountsHistoryTableClass}>
               <TableHeader>

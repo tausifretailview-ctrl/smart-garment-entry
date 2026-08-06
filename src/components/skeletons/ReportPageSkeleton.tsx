@@ -43,11 +43,13 @@ export function ReportPageSkeleton({
         </div>
       )}
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        {Array.from({ length: kpiCount }).map((_, i) => (
-          <MetricCardSkeleton key={i} />
-        ))}
-      </div>
+      {kpiCount > 0 && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {Array.from({ length: kpiCount }).map((_, i) => (
+            <MetricCardSkeleton key={i} />
+          ))}
+        </div>
+      )}
 
       {Array.from({ length: chartBlocks }).map((_, i) => (
         <div key={i} className="bg-card border border-border rounded-md p-4">
@@ -59,9 +61,11 @@ export function ReportPageSkeleton({
         </div>
       ))}
 
-      <div className="bg-card border border-border rounded-md p-3 min-h-[200px]">
-        <TableSkeleton rows={tableRows} columns={6} showHeader />
-      </div>
+      {tableRows > 0 && (
+        <div className="bg-card border border-border rounded-md p-3 min-h-[200px]">
+          <TableSkeleton rows={tableRows} columns={6} showHeader />
+        </div>
+      )}
     </div>
   );
 }

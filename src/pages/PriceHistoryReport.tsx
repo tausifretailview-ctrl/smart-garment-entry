@@ -37,6 +37,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { ReportPageSkeleton } from "@/components/skeletons/ReportPageSkeleton";
 import { multiTokenMatch } from "@/utils/multiTokenSearch";
 import {
   Bar,
@@ -1282,8 +1283,14 @@ const PriceHistoryReport = () => {
                   <TableBody>
                     {loading ? (
                       <TableRow>
-                        <TableCell colSpan={9} className="text-center py-8">
-                          <RefreshCw className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />
+                        <TableCell colSpan={12} className="p-3">
+                          <ReportPageSkeleton
+                            showFilters={false}
+                            kpiCount={0}
+                            chartBlocks={0}
+                            tableRows={8}
+                            className="p-0"
+                          />
                         </TableCell>
                       </TableRow>
                     ) : combinedHistory.length === 0 ? (
@@ -1356,8 +1363,14 @@ const PriceHistoryReport = () => {
                   <TableBody>
                     {loading ? (
                       <TableRow>
-                        <TableCell colSpan={11} className="text-center py-8">
-                          <RefreshCw className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />
+                        <TableCell colSpan={12} className="p-3">
+                          <ReportPageSkeleton
+                            showFilters={false}
+                            kpiCount={0}
+                            chartBlocks={0}
+                            tableRows={8}
+                            className="p-0"
+                          />
                         </TableCell>
                       </TableRow>
                     ) : filteredPurchaseData.length === 0 ? (
@@ -1433,8 +1446,14 @@ const PriceHistoryReport = () => {
                   <TableBody>
                     {loading ? (
                       <TableRow>
-                        <TableCell colSpan={11} className="text-center py-8">
-                          <RefreshCw className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />
+                        <TableCell colSpan={12} className="p-3">
+                          <ReportPageSkeleton
+                            showFilters={false}
+                            kpiCount={0}
+                            chartBlocks={0}
+                            tableRows={8}
+                            className="p-0"
+                          />
                         </TableCell>
                       </TableRow>
                     ) : filteredSalesData.length === 0 ? (
@@ -1511,8 +1530,14 @@ const PriceHistoryReport = () => {
                   <TableBody>
                     {loading ? (
                       <TableRow>
-                        <TableCell colSpan={8} className="text-center py-8">
-                          <RefreshCw className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />
+                        <TableCell colSpan={12} className="p-3">
+                          <ReportPageSkeleton
+                            showFilters={false}
+                            kpiCount={0}
+                            chartBlocks={0}
+                            tableRows={8}
+                            className="p-0"
+                          />
                         </TableCell>
                       </TableRow>
                     ) : filteredPriceEdits.length === 0 ? (
@@ -1571,8 +1596,14 @@ const PriceHistoryReport = () => {
                   <TableBody>
                     {loading ? (
                       <TableRow>
-                        <TableCell colSpan={8} className="text-center py-8">
-                          <RefreshCw className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />
+                        <TableCell colSpan={12} className="p-3">
+                          <ReportPageSkeleton
+                            showFilters={false}
+                            kpiCount={0}
+                            chartBlocks={0}
+                            tableRows={8}
+                            className="p-0"
+                          />
                         </TableCell>
                       </TableRow>
                     ) : filteredStockMovements.length === 0 ? (
@@ -1638,8 +1669,14 @@ const PriceHistoryReport = () => {
                   <TableBody>
                     {loading ? (
                       <TableRow>
-                        <TableCell colSpan={6} className="text-center py-8">
-                          <RefreshCw className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />
+                        <TableCell colSpan={12} className="p-3">
+                          <ReportPageSkeleton
+                            showFilters={false}
+                            kpiCount={0}
+                            chartBlocks={0}
+                            tableRows={8}
+                            className="p-0"
+                          />
                         </TableCell>
                       </TableRow>
                     ) : filteredProductChanges.length === 0 ? (
