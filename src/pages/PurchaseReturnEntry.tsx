@@ -215,6 +215,8 @@ const PurchaseReturnEntry = () => {
   const searchInputRef = useRef<HTMLInputElement>(null);
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lineItemsRef = useRef<LineItem[]>([]);
+  /** Per-sku qty already on this return (edit mode) — credit back into available stock checks. */
+  const editBaselineQtyBySkuRef = useRef<Map<string, number>>(new Map());
   const initialDraftCheckDone = useRef(false);
   const [stockAlertOpen, setStockAlertOpen] = useState(false);
   const [stockAlertMessage, setStockAlertMessage] = useState("");
@@ -362,6 +364,7 @@ const PurchaseReturnEntry = () => {
   // Load existing return data in edit mode
   useEffect(() => {
     if (!editId) {
+      editBaselineQtyBySkuRef.current = new Map();
       setLoadingReturn(false);
       setReturnLoadError(null);
       return;
@@ -480,6 +483,15 @@ const PurchaseReturnEntry = () => {
           });
 
           if (cancelled || loadGen !== loadReturnGenRef.current) return;
+          const baseline = new Map<string, number>();
+          for (const item of loadedItems) {
+            if (!item.sku_id) continue;
+            baseline.set(
+              item.sku_id,
+              (baseline.get(item.sku_id) || 0) + (Number(item.qty) || 0),
+            );
+          }
+          editBaselineQtyBySkuRef.current = baseline;
           setLineItems(loadedItems);
         };
 
@@ -766,7 +778,11 @@ const PurchaseReturnEntry = () => {
     async (variant: ProductVariant) => {
       const currentItems = lineItemsRef.current;
       const existingItem = currentItems.find((item) => item.sku_id === variant.id);
-      const available = Math.max(0, Number(variant.stock_qty) || 0);
+      // On edit, stock_qty already excludes this return — credit baseline qty back (same as RPC).
+      const baselineCredit = isEditMode
+        ? editBaselineQtyBySkuRef.current.get(variant.id) || 0
+        : 0;
+      const available = Math.max(0, (Number(variant.stock_qty) || 0) + baselineCredit);
       const label = purchaseReturnLineLabel(variant.product_name, variant.size);
 
       if (existingItem) {
@@ -829,7 +845,7 @@ const PurchaseReturnEntry = () => {
         description: `${variant.product_name} - ${variant.size}`,
       });
     },
-    [toast, originalBillId, defaultTaxRate, openStockAlert],
+    [toast, originalBillId, defaultTaxRate, openStockAlert, isEditMode],
   );
 
   /** POS-style: scan / Enter adds line directly; dropdown only for slow manual typing. */
@@ -1208,7 +1224,11 @@ const PurchaseReturnEntry = () => {
             products?: { organization_id?: string } | null;
           };
           if (row.products?.organization_id === currentOrganization.id) {
-            stockBySku.set(row.id, Math.max(0, Number(row.stock_qty) || 0));
+            // Edit: credit qty already deducted by this return (matches update_purchase_return_items RPC).
+            const baseline = isEditMode
+              ? editBaselineQtyBySkuRef.current.get(row.id) || 0
+              : 0;
+            stockBySku.set(row.id, Math.max(0, (Number(row.stock_qty) || 0) + baseline));
           }
         }
 
@@ -1217,7 +1237,9 @@ const PurchaseReturnEntry = () => {
           .map((item) => {
             const available = stockBySku.has(item.sku_id)
               ? (stockBySku.get(item.sku_id) as number)
-              : 0;
+              : isEditMode
+                ? editBaselineQtyBySkuRef.current.get(item.sku_id) || 0
+                : 0;
             return { item, available };
           })
           .filter(({ item, available }) => item.qty > available);
