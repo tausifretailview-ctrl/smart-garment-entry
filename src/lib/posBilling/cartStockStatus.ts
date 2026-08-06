@@ -1,15 +1,17 @@
 /**
  * POS cart stock-status dot (v1).
  *
- * Simpler than Daily Sale Analysis (no days-of-stock / blue overstock).
- * Snapshot is scan-time only — no live refresh while the bill is open.
- * Out of scope for v1: blue/overstock, cart polling, mobile POS billing layout.
+ * Color rules (cashier request): based on scan-time `stockQty` snapshot —
+ *   red    = stock ≤ 2 (0, 1, or 2) or overselling this bill (remaining < 0)
+ *   yellow = stock > 2
+ * No green in this model. Snapshot is add-time only — not refreshed while the bill is open.
+ * Out of scope: blue/overstock, cart polling, mobile POS billing layout.
  */
 
-/** Same default as Stock Report / Product Dashboard when settings omit a value. */
-export const POS_CART_DEFAULT_LOW_STOCK_THRESHOLD = 10;
+/** Critical band: stock of 1 or 2 (also treat 0 / oversell as red). */
+export const POS_CART_CRITICAL_STOCK_MAX = 2;
 
-export type PosCartStockStatus = "green" | "yellow" | "red";
+export type PosCartStockStatus = "yellow" | "red";
 
 export type PosCartStockIndicator = {
   status: PosCartStockStatus;
@@ -26,24 +28,15 @@ export type PosCartStockIndicator = {
 export function getPosCartStockIndicator(
   stockQty: number | null | undefined,
   quantity: number,
-  lowStockThreshold: number = POS_CART_DEFAULT_LOW_STOCK_THRESHOLD,
 ): PosCartStockIndicator | null {
   if (stockQty == null || !Number.isFinite(stockQty)) return null;
 
   const qty = Number(quantity) || 0;
   const remaining = stockQty - qty;
-  const threshold = Number.isFinite(lowStockThreshold)
-    ? lowStockThreshold
-    : POS_CART_DEFAULT_LOW_STOCK_THRESHOLD;
 
-  let status: PosCartStockStatus;
-  if (remaining < 0 || stockQty <= 0) {
-    status = "red";
-  } else if (remaining <= threshold) {
-    status = "yellow";
-  } else {
-    status = "green";
-  }
+  // Red: out / critical (≤2) or this bill would oversell. Yellow: stock greater than 2.
+  const status: PosCartStockStatus =
+    remaining < 0 || stockQty <= POS_CART_CRITICAL_STOCK_MAX ? "red" : "yellow";
 
   return { status, stockQty, remaining };
 }

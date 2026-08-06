@@ -17,7 +17,6 @@ import {
   getPosCartStockIndicator,
   minUnitPriceForDiscountCap,
   normalizeFlatDiscountInput,
-  POS_CART_DEFAULT_LOW_STOCK_THRESHOLD,
   posLineNetUnitPrice,
   resolveBillFlatForPosEdit,
 } from "@/lib/posBilling";
@@ -482,12 +481,6 @@ export default function POSSales() {
     }),
     [settingsData],
   );
-
-  /** Same source as Stock Report — Settings → Product → low_stock_threshold (default 10). */
-  const lowStockThreshold = useMemo(() => {
-    const raw = Number((settingsData as any)?.product_settings?.low_stock_threshold);
-    return Number.isFinite(raw) && raw >= 0 ? raw : POS_CART_DEFAULT_LOW_STOCK_THRESHOLD;
-  }, [settingsData]);
 
   /** Call-site settings lookup — engine must not read settings context. */
   const grossBasis: PosGrossBasis =
@@ -6301,7 +6294,6 @@ export default function POSSales() {
                         const stockIndicator = getPosCartStockIndicator(
                           item.stockQty,
                           item.quantity,
-                          lowStockThreshold,
                         );
                         return (
                         <div
@@ -6342,7 +6334,6 @@ export default function POSSales() {
                                   <span
                                     className={cn(
                                       "inline-block h-2.5 w-2.5 shrink-0 rounded-full",
-                                      stockIndicator.status === "green" && "bg-emerald-500",
                                       stockIndicator.status === "yellow" && "bg-amber-400",
                                       stockIndicator.status === "red" && "bg-red-500",
                                     )}
