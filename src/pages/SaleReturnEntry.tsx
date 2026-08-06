@@ -22,6 +22,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 import { Trash2, Search, Plus, Check, ChevronsUpDown, ChevronLeft, RotateCcw, Barcode, Save, X, Loader2, CalendarIcon } from "lucide-react";
+import { FormPageSkeleton } from "@/components/skeletons/FormPageSkeleton";
 import { format } from "date-fns";
 import { CameraScanButton } from "@/components/CameraBarcodeScannerDialog";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
@@ -1177,15 +1178,7 @@ export default function SaleReturnEntry() {
   if (editLoading) {
     return (
       <div className={cn(entryPageShellClass, "bg-white sale-order-readable min-h-0 relative")} data-entry-form>
-        <div className="absolute inset-0 z-30 flex items-start justify-center bg-white/80 px-4 pt-16 backdrop-blur-[1px]">
-          <Card className="w-full max-w-md border-black/20 shadow-lg">
-            <CardContent className="flex flex-col items-center gap-3 p-5 text-center">
-              <Loader2 className="h-5 w-5 animate-spin text-black" />
-              <p className="text-sm font-bold text-black">Loading sale return details...</p>
-              <p className="text-xs text-black/60">Item rows will appear here shortly.</p>
-            </CardContent>
-          </Card>
-        </div>
+        <FormPageSkeleton groups={2} fieldsPerGroup={4} className="bg-white" />
       </div>
     );
   }

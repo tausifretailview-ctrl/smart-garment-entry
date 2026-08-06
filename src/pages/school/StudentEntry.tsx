@@ -20,6 +20,7 @@ import {
 import { toast } from "sonner";
 import { formatNextAdmissionAfterMax, maxAdmNumericFromRows } from "@/lib/schoolAdmissionNumber";
 import { ArrowLeft, Save, Loader2, GraduationCap } from "lucide-react";
+import { FormPageSkeleton } from "@/components/skeletons/FormPageSkeleton";
 
 interface StudentFormData {
   admission_number: string;
@@ -272,11 +273,7 @@ const StudentEntry = () => {
   };
 
   if (isEditing && loadingStudent) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin" />
-      </div>
-    );
+    return <FormPageSkeleton groups={3} fieldsPerGroup={4} />;
   }
 
   return (

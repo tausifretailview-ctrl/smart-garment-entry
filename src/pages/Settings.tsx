@@ -6,6 +6,7 @@ import { logError } from "@/lib/errorLogger";
 import { UOM_OPTIONS } from "@/constants/uom";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { ArrowLeft, Home, Save, Eye, EyeOff, Shield, Printer, Package, Paintbrush, Copy, RefreshCw, CheckCircle2, Loader2, Building2, ShoppingCart, Receipt, CreditCard, BarChart2, Users, MessageSquare, MessageCircle, Database, Palette, FileText, Smartphone, History } from "lucide-react";
+import { FormPageSkeleton } from "@/components/skeletons/FormPageSkeleton";
 import { SaleInvoiceFormatBackupDialog } from "@/components/settings/SaleInvoiceFormatBackupDialog";
 import { InvoiceTemplateSelectItems } from "@/components/settings/InvoiceTemplateSelectItems";
 import { Button } from "@/components/ui/button";
@@ -95,11 +96,7 @@ const LazyDuplicatePurchaseBillsReconciler = lazyWithRetry(() =>
 );
 
 function SettingsPanelFallback() {
-  return (
-    <div className="flex items-center justify-center p-8">
-      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-    </div>
-  );
+  return <FormPageSkeleton groups={1} fieldsPerGroup={4} className="p-4" />;
 }
 
 function LazySettingsPanel({ children }: { children: ReactNode }) {
