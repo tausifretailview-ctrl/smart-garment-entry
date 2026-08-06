@@ -8,6 +8,7 @@ import {
   sumLineDiscount,
   sumMrpTotal,
 } from "./lineMath";
+import { isNonStockTrackedProduct } from "@/utils/productStockDisplay";
 import type { PosBillingError, PosCartItem, PosGrossBasis } from "./types";
 
 export type CartMutatorResult = {
@@ -346,6 +347,8 @@ export type AddLineVariant = {
   sale_price?: number | string | null;
   mrp?: number | string | null;
   is_dc_product?: boolean | null;
+  /** Scan-time stock snapshot; omitted for non-tracked / custom-size lines. */
+  stock_qty?: number | null;
 };
 
 export type AddLineInput = {
@@ -398,6 +401,13 @@ export function addLine(input: AddLineInput): CartMutatorResult {
     input.makeLineId ??
     (() => `${variant.id}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`);
 
+  // Stock-tracked goods only — service/combo and lines without variantId get no snapshot (no badge).
+  // Snapshot is add-time only; not refreshed while the bill stays open (v1).
+  const stockQtySnapshot =
+    !isNonStockTrackedProduct(product.product_type) && variant.id
+      ? Number(variant.stock_qty ?? 0) || 0
+      : undefined;
+
   const newItem: PosCartItem = {
     id: isServiceProduct ? makeId() : variant.id,
     barcode: variant.barcode || "",
@@ -421,6 +431,7 @@ export function addLine(input: AddLineInput): CartMutatorResult {
     isDcProduct: variant.is_dc_product === true,
     uom: product.uom || "NOS",
     showDiscount: priced.showDiscount,
+    stockQty: stockQtySnapshot,
   };
   const pricedItem = applyPosGarmentGstToItem(newItem, input.garmentGstSettings);
 

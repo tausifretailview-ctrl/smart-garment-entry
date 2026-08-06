@@ -34,6 +34,15 @@ export interface PosCartItem {
   uom?: string;
   showDiscount?: boolean;
   itemNotes?: string | null;
+  /**
+   * Scan-time snapshot of `product_variants.stock_qty` for the cart stock-status dot.
+   * - Taken once at add; not refreshed while the bill is open (v1 — bills are short-lived).
+   * - `null` / `undefined` = unknown or not stock-tracked (service/combo, custom size without
+   *   variantId, edit-restore without a snapshot) → render no badge.
+   * - Edit-invoice caveat: does not include `freedQty` from the bill being edited, so the dot
+   *   can look slightly pessimistic vs `checkStock`. Informational only — never blocks save.
+   */
+  stockQty?: number | null;
 }
 
 /** Alias kept for call-site familiarity with POSSales. */

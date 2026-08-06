@@ -14,11 +14,14 @@ import {
   applyPosGarmentGstToItem,
   calculatePosCartLineNet,
   findPosServiceMergeIndex,
+  getPosCartStockIndicator,
   minUnitPriceForDiscountCap,
   normalizeFlatDiscountInput,
+  POS_CART_DEFAULT_LOW_STOCK_THRESHOLD,
   posLineNetUnitPrice,
   resolveBillFlatForPosEdit,
 } from "@/lib/posBilling";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { displaySaleStockQty } from "@/utils/productStockDisplay";
 import { useLocation, useSearchParams } from "react-router-dom";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
@@ -479,6 +482,12 @@ export default function POSSales() {
     }),
     [settingsData],
   );
+
+  /** Same source as Stock Report — Settings → Product → low_stock_threshold (default 10). */
+  const lowStockThreshold = useMemo(() => {
+    const raw = Number((settingsData as any)?.product_settings?.low_stock_threshold);
+    return Number.isFinite(raw) && raw >= 0 ? raw : POS_CART_DEFAULT_LOW_STOCK_THRESHOLD;
+  }, [settingsData]);
 
   /** Call-site settings lookup — engine must not read settings context. */
   const grossBasis: PosGrossBasis =
@@ -6286,7 +6295,15 @@ export default function POSSales() {
                   );
                   return (
                     <>
-                      {items.map((item, index) => (
+                      {items.map((item, index) => {
+                        // Informational only — checkStock / validateCartStock remain enforcement.
+                        // Edit mode: stockQty ignores freedQty (may look slightly pessimistic).
+                        const stockIndicator = getPosCartStockIndicator(
+                          item.stockQty,
+                          item.quantity,
+                          lowStockThreshold,
+                        );
+                        return (
                         <div
                           key={item.id}
                           ref={(el) => {
@@ -6296,7 +6313,11 @@ export default function POSSales() {
                           data-pos-cart-row={item.id}
                           className={cn(
                             "pos-sales-cart-row grid gap-1.5 px-3 py-2.5 border-b border-border/40 hover:bg-accent/30 text-base transition-colors duration-500",
-                            index % 2 === 1 ? "bg-muted/20" : "",
+                            stockIndicator?.status === "red"
+                              ? "bg-red-50/80"
+                              : index % 2 === 1
+                                ? "bg-muted/20"
+                                : "",
                             highlightCartItemId === item.id &&
                               "ring-2 ring-inset ring-primary/70 bg-primary/10 shadow-[inset_0_0_0_1px_rgba(59,130,246,0.35)] z-[1] relative"
                           )}
@@ -6315,6 +6336,25 @@ export default function POSSales() {
                             </span>
                           </div>
                           <div className="flex items-center font-semibold text-base min-w-0 gap-1">
+                            {stockIndicator && (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span
+                                    className={cn(
+                                      "inline-block h-2.5 w-2.5 shrink-0 rounded-full",
+                                      stockIndicator.status === "green" && "bg-emerald-500",
+                                      stockIndicator.status === "yellow" && "bg-amber-400",
+                                      stockIndicator.status === "red" && "bg-red-500",
+                                    )}
+                                    aria-label={`Stock ${stockIndicator.stockQty}, after this bill ${stockIndicator.remaining}`}
+                                  />
+                                </TooltipTrigger>
+                                <TooltipContent side="top" className="text-xs">
+                                  Stock: {stockIndicator.stockQty} · After this bill:{" "}
+                                  {stockIndicator.remaining}
+                                </TooltipContent>
+                              </Tooltip>
+                            )}
                             <span className="truncate">{item.productName}</span>
                             {item.isDcProduct && (
                               <span className="px-1 py-0.5 text-[9px] font-bold bg-orange-100 text-orange-700 border border-orange-300 rounded flex-shrink-0">DC</span>
@@ -6519,7 +6559,8 @@ export default function POSSales() {
                             </Button>
                           </div>
                         </div>
-                      ))}
+                        );
+                      })}
                       {Array.from({ length: blankRowsNeeded }).map((_, i) => blankRow(i))}
                     </>
                   );

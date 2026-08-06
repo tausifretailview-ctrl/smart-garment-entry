@@ -51,7 +51,11 @@ export function resolveBillFlatForPosEdit(
   return { value: 0, mode: "percent", percentLooksClean: false };
 }
 
-/** Map persisted sale_items → cart (edit-existing-bill path). */
+/**
+ * Map persisted sale_items → cart (edit-existing-bill path).
+ * Does not set `stockQty` — no extra DB round-trip on load. Cart stock dots stay hidden
+ * for restored lines unless the cashier re-adds (v1; edit-mode freedQty caveat applies).
+ */
 export function mapSaleItemsToPosCart(
   saleItems: Array<{
     id: string;
