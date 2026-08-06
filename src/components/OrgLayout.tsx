@@ -147,7 +147,20 @@ export const OrgLayout = () => {
   const wantsTabCache = isCacheableTabPath(resolvedCurrentPath) && tabPaths.length > 0;
   const tabPaneWasReady = isTabPaneReadyForPath(resolvedCurrentPath);
   const paneMounted = isTabCachePaneMounted(resolvedCurrentPath);
-  const effectiveTabPaneReady = tabPaneReady || (tabPaneWasReady && paneMounted);
+  // Trust chunk-already-loaded / prior ready — do not require paneMounted. The old
+  // `tabPaneWasReady && paneMounted` forced an <Outlet> skeleton flash on every
+  // master/dashboard switch even when the destination chunk was warm (Customers → Suppliers).
+  const effectiveTabPaneReady = tabPaneReady || tabPaneWasReady || paneMounted;
+  // Keep the previous pane visible (dimmed) while a sibling cold-loads — desktop UX.
+  const hasReadySiblingPane = tabPaths.some((p) => {
+    const resolved = resolveTabCachePath(p);
+    return resolved !== resolvedCurrentPath && isTabPaneReadyForPath(resolved);
+  });
+  const showTabCacheDuringColdNav =
+    wantsTabCache &&
+    !isCacheableEntryActive &&
+    !forceOutletFallback &&
+    hasReadySiblingPane;
 
   // Warm bill-entry chunks after login. Electron: defer prefetch so login paint is not blocked.
   useEffect(() => {
@@ -232,9 +245,11 @@ export const OrgLayout = () => {
 
   // Prefer tab-cache (keeps form state). Cacheable entry always uses the pane when active.
   // Dashboards: Suspense shell first; if the chunk never mounts, forceOutletFallback → <Outlet>.
+  // During cold sibling switches (e.g. Customer Master → Supplier Master), keep the cache
+  // so the previous pane stays dimmed instead of swapping to a full-page loading skeleton.
   const renderViaTabCache =
     wantsTabCache &&
-    (isCacheableEntryActive || effectiveTabPaneReady) &&
+    (isCacheableEntryActive || effectiveTabPaneReady || showTabCacheDuringColdNav) &&
     !forceOutletFallback;
   /**
    * Which cached pane is visible. Non-cacheable entry routes use INACTIVE so dashboard
@@ -248,10 +263,14 @@ export const OrgLayout = () => {
   /**
    * Hide tab-cache while Outlet owns first paint (dashboard cold chunk) or after
    * forceOutletFallback — never render both (duplicated chrome / blank gap).
+   * Exception: cold nav with a ready sibling keeps the cache visible (dimmed outgoing).
    */
   const hideTabCacheContainer =
     (isEntryPage && !isCacheableEntryActive) ||
-    (wantsTabCache && !effectiveTabPaneReady && !isCacheableEntryActive) ||
+    (wantsTabCache &&
+      !effectiveTabPaneReady &&
+      !isCacheableEntryActive &&
+      !showTabCacheDuringColdNav) ||
     !isCacheableTabPath(resolvedCurrentPath) ||
     forceOutletFallback;
 
@@ -434,7 +453,10 @@ export const OrgLayout = () => {
 
   // Window tabs need a fixed viewport height chain so dashboard panes scroll inside <main>.
   // min-h-[100dvh] alone lets content grow past the viewport and breaks overflow-y on tab return.
-  const hasVisibleTabCache = tabPaths.length > 0 && !hideTabCacheContainer && effectiveTabPaneReady;
+  const hasVisibleTabCache =
+    tabPaths.length > 0 &&
+    !hideTabCacheContainer &&
+    (effectiveTabPaneReady || showTabCacheDuringColdNav);
   const isFillHeightPage = isFillHeightShellPath(location.pathname);
   const isMainDashboard = isMainDashboardPath(location.pathname);
   const isViewportFixedEntry = isViewportFixedEntryPath(location.pathname);

@@ -9,6 +9,7 @@ import {
   prefetchTabPage,
   prefetchTabPagesIdle,
   POST_LOGIN_WEB_IDLE_ADMIN_PREFETCH_TAB_PATHS,
+  MASTER_TAB_PREFETCH_PATHS,
   resetTabPageChunk,
   resolveTabCachePath,
   type TabPageLayout,
@@ -160,6 +161,10 @@ const ELECTRON_WORKFLOW_DASHBOARD_PATHS = new Set([
   "customer-ledger-report",
   "customer-points-report",
   "customer-balance-activity",
+  // Party masters — Customers ↔ Suppliers must reopen instantly (no remount splash).
+  "customers",
+  "suppliers",
+  "employees",
   "settings",
 ]);
 
@@ -704,6 +709,23 @@ export function TabCachedPages({ paths, activePath, onActivePaneReady, onTabEvic
     prefetchTabPage("barcode-printing");
     // Note: previously also pre-mounted product-dashboard. Removed to avoid
     // hidden chunk waterfall on cold load.
+  }, [uniquePaths, activePath]);
+
+  // Party masters (Customers ↔ Suppliers ↔ Employees): warm siblings while any is open
+  // so window-tab / sidebar switch opens immediately like desktop software.
+  useEffect(() => {
+    const shouldWarmMasters = MASTER_TAB_PREFETCH_PATHS.some(
+      (p) => uniquePaths.includes(p) || activePath === p,
+    );
+    if (!shouldWarmMasters) return;
+
+    for (const path of MASTER_TAB_PREFETCH_PATHS) {
+      if (activePath === path) {
+        prefetchTabPage(path, { intent: true });
+      } else {
+        prefetchTabPage(path);
+      }
+    }
   }, [uniquePaths, activePath]);
 
   useEffect(() => {

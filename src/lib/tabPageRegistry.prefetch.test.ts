@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   TAB_PAGE_REGISTRY,
+  MASTER_TAB_PREFETCH_PATHS,
+  POST_LOGIN_WEB_IDLE_ADMIN_PREFETCH_TAB_PATHS,
   prefetchTabPage,
   resolveTabCachePath,
   shouldAllowSpeculativeChunkPrefetch,
@@ -47,6 +49,15 @@ describe("tab load shell coverage", () => {
     expect(resolveTabLoadShell("third-party-entry")).toBe("dashboard");
     expect(resolveTabLoadShell("third-party-balances")).toBe("dashboard");
     expect(resolveTabLoadShell("accounts")).toBe("dashboard");
+  });
+});
+
+describe("master tab mutual prefetch", () => {
+  it("warms Customers and Suppliers together for instant master switches", () => {
+    expect(MASTER_TAB_PREFETCH_PATHS).toContain("customers");
+    expect(MASTER_TAB_PREFETCH_PATHS).toContain("suppliers");
+    expect(POST_LOGIN_WEB_IDLE_ADMIN_PREFETCH_TAB_PATHS).toContain("customers");
+    expect(POST_LOGIN_WEB_IDLE_ADMIN_PREFETCH_TAB_PATHS).toContain("suppliers");
   });
 });
 

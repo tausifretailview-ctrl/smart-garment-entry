@@ -11,6 +11,7 @@ import {
   POST_LOGIN_PREFETCH_TAB_PATHS_WEB,
   POST_LOGIN_WEB_IDLE_INVENTORY_PREFETCH_TAB_PATHS,
   POST_LOGIN_WEB_IDLE_ADMIN_PREFETCH_TAB_PATHS,
+  MASTER_TAB_PREFETCH_PATHS,
 } from "@/lib/chunkLoadRetry";
 import { isElectronShell, shouldElectronMountOnlyActiveTab } from "@/lib/electronShell";
 
@@ -18,6 +19,7 @@ export {
   CRITICAL_ENTRY_CHUNK_PATHS,
   POST_LOGIN_PREFETCH_TAB_PATHS,
   POST_LOGIN_WEB_IDLE_ADMIN_PREFETCH_TAB_PATHS,
+  MASTER_TAB_PREFETCH_PATHS,
 };
 
 export type TabPageLayout = "layout" | "fullscreen" | "pos";
