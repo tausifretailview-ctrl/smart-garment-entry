@@ -152,6 +152,11 @@ async function fetchAllPurchaseBillsForSegments(organizationId: string): Promise
   return allRows;
 }
 
+/**
+ * Supplier Master segment index — still a client OFFSET walk over purchase_bills
+ * (no `get_supplier_segment_*` RPC yet; Phase B #12). Smaller table than sales;
+ * list query stays non-blocking when segment filter is "all".
+ */
 export async function fetchSupplierSegmentIndex(
   organizationId: string,
 ): Promise<SupplierSegmentIndex> {

@@ -9002,6 +9002,16 @@ export type Database = {
           vip_count: number
         }[]
       }
+      get_customer_segment_index: {
+        Args: { p_org_id: string }
+        Returns: {
+          customer_id: string
+          segment: string
+          order_count: number
+          revenue: number
+          last_sale_date: string | null
+        }[]
+      }
       get_customer_true_outstanding: {
         Args: { p_customer_id: string; p_organization_id: string }
         Returns: number

@@ -28,6 +28,7 @@ import {
   prefetchTabPage,
   resolveTabCachePath,
 } from "@/lib/tabPageRegistry";
+import { bumpRecentTabPaneRetention } from "@/lib/recentTabPaneRetention";
 import { isElectronShell, shouldElectronMountOnlyActiveTab } from "@/lib/electronShell";
 import { syncElectronViewportHeight } from "@/lib/electronViewportSync";
 import {
@@ -126,6 +127,36 @@ export const OrgLayout = () => {
     );
   }, [currentPath]);
 
+  /**
+   * Recently visited Master/Inventory panes — kept in `tabPaths` so TabCachedPages
+   * does not unmount when sidebar nav replaces the window-tab path (Sales parity).
+   * Disabled when Electron single-tab mount is on (OOM guard).
+   */
+  const recentVisitedAtRef = useRef<Map<string, number>>(new Map());
+  const prevResolvedPathRef = useRef<string | null>(null);
+  const [recentRetainedPaths, setRecentRetainedPaths] = useState<string[]>([]);
+
+  useLayoutEffect(() => {
+    const prev = prevResolvedPathRef.current;
+    prevResolvedPathRef.current = resolvedCurrentPath;
+
+    if (shouldElectronMountOnlyActiveTab()) {
+      recentVisitedAtRef.current.clear();
+      setRecentRetainedPaths((cur) => (cur.length === 0 ? cur : []));
+      return;
+    }
+
+    const next = bumpRecentTabPaneRetention(
+      recentVisitedAtRef.current,
+      prev,
+      resolvedCurrentPath,
+    );
+    setRecentRetainedPaths((cur) => {
+      if (cur.length === next.length && cur.every((p, i) => p === next[i])) return cur;
+      return next;
+    });
+  }, [resolvedCurrentPath]);
+
   const tabPaths = useMemo(() => {
     const set = new Set<string>();
     if (Array.isArray(openWindows)) {
@@ -138,9 +169,14 @@ export const OrgLayout = () => {
       const resolved = resolveTabCachePath(p);
       if (isCacheableTabPath(resolved)) set.add(resolved);
     });
+    // Retention alone keeps panes mounted — TabCachedPages pathsToRender needs no changes.
+    recentRetainedPaths.forEach((p) => {
+      const resolved = resolveTabCachePath(p);
+      if (isCacheableTabPath(resolved)) set.add(resolved);
+    });
     if (isCacheableTabPath(resolvedCurrentPath)) set.add(resolvedCurrentPath);
     return [...set];
-  }, [openWindows, resolvedCurrentPath, pinnedCacheableEntryPaths]);
+  }, [openWindows, resolvedCurrentPath, pinnedCacheableEntryPaths, recentRetainedPaths]);
 
   // Decide the route owner before starting background work so the active pane gets
   // network priority on a cold load.

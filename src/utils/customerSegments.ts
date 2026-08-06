@@ -1,6 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 
-/** Same rules as main dashboard (Index.tsx). */
+/** Same rules as main dashboard (Index.tsx) and get_customer_segment_* RPCs. */
 export const CUSTOMER_SEGMENT_RULES = {
   vipRecencyDays: 90,
   riskRecencyDays: 365,
@@ -31,6 +31,8 @@ export type CustomerSegmentIndex = {
 };
 
 const PAGE = 1000;
+
+const SEGMENT_VALUES: CustomerSegment[] = ["vip", "regular", "risk", "lost"];
 
 function daysSince(ymd: string): number {
   const now = new Date();
@@ -126,8 +128,11 @@ async function fetchAllCustomerIds(organizationId: string): Promise<Set<string>>
   return customerIds;
 }
 
-/** Paginate all qualifying sales for segment aggregation. */
-async function fetchAllSalesForSegments(organizationId: string): Promise<SaleRow[]> {
+/**
+ * Client OFFSET walk over all sales — Phase B #4 hot path.
+ * Kept only for equivalence proofs vs RPC; do not call from UI mounts.
+ */
+export async function fetchAllSalesForSegments(organizationId: string): Promise<SaleRow[]> {
   const allRows: SaleRow[] = [];
   let offset = 0;
   let useCancelledColumn = true;
@@ -165,8 +170,52 @@ async function fetchAllSalesForSegments(organizationId: string): Promise<SaleRow
   return allRows;
 }
 
-/** Build segment index from all customers + sales (for Customer Master filters). */
-export async function fetchCustomerSegmentIndex(
+function emptyCounts(total = 0): CustomerSegmentCounts {
+  return { vip: 0, regular: 0, risk: 0, lost: 0, total };
+}
+
+function normalizeSegment(raw: string | null | undefined): CustomerSegment {
+  const s = String(raw || "").toLowerCase();
+  if (SEGMENT_VALUES.includes(s as CustomerSegment)) return s as CustomerSegment;
+  return "regular";
+}
+
+function indexFromRows(
+  rows: Array<{
+    customer_id: string;
+    segment: string;
+    order_count: number | string | null;
+    revenue: number | string | null;
+    last_sale_date: string | null;
+  }>,
+): CustomerSegmentIndex {
+  const segments: Record<string, CustomerSegment> = {};
+  const stats: Record<string, CustomerSaleStats> = {};
+  const counts = emptyCounts(rows.length);
+
+  for (const row of rows) {
+    const cid = row.customer_id;
+    if (!cid) continue;
+    const seg = normalizeSegment(row.segment);
+    segments[cid] = seg;
+    counts[seg] += 1;
+    const last = row.last_sale_date ? String(row.last_sale_date).slice(0, 10) : null;
+    stats[cid] = {
+      orders: Number(row.order_count || 0),
+      revenue: Number(row.revenue || 0),
+      lastSaleDate: last,
+    };
+  }
+
+  counts.total = Object.keys(segments).length;
+  return { counts, segments, stats };
+}
+
+/**
+ * Client-side index (full sales OFFSET walk). Use only for equivalence proofs /
+ * emergency fallback — Customer Master mounts must use the RPC path.
+ */
+export async function fetchCustomerSegmentIndexClient(
   organizationId: string,
 ): Promise<CustomerSegmentIndex> {
   const customerIds = await fetchAllCustomerIds(organizationId);
@@ -195,12 +244,116 @@ export async function fetchCustomerSegmentIndex(
   return { counts, segments, stats };
 }
 
-/** Stats for one customer (Customer history / detail). */
+/**
+ * Diff client index vs counts RPC / index RPC for a real org (Phase B precondition).
+ * Returns null when both sides agree.
+ */
+export function diffCustomerSegmentEquivalence(
+  client: CustomerSegmentIndex,
+  rpcCounts: CustomerSegmentCounts,
+  rpcIndex?: CustomerSegmentIndex,
+): {
+  countsMatch: boolean;
+  countDiff: Partial<Record<keyof CustomerSegmentCounts, { client: number; rpc: number }>>;
+  segmentMismatchCount?: number;
+  sampleMismatches?: Array<{ customerId: string; client: CustomerSegment; rpc: CustomerSegment }>;
+} | null {
+  const countDiff: Partial<
+    Record<keyof CustomerSegmentCounts, { client: number; rpc: number }>
+  > = {};
+  let countsMatch = true;
+  for (const key of ["vip", "regular", "risk", "lost", "total"] as const) {
+    if (client.counts[key] !== rpcCounts[key]) {
+      countsMatch = false;
+      countDiff[key] = { client: client.counts[key], rpc: rpcCounts[key] };
+    }
+  }
+
+  let segmentMismatchCount = 0;
+  const sampleMismatches: Array<{
+    customerId: string;
+    client: CustomerSegment;
+    rpc: CustomerSegment;
+  }> = [];
+
+  if (rpcIndex) {
+    const ids = new Set([
+      ...Object.keys(client.segments),
+      ...Object.keys(rpcIndex.segments),
+    ]);
+    for (const id of ids) {
+      const c = client.segments[id] ?? "regular";
+      const r = rpcIndex.segments[id] ?? "regular";
+      if (c !== r) {
+        segmentMismatchCount += 1;
+        if (sampleMismatches.length < 20) {
+          sampleMismatches.push({ customerId: id, client: c, rpc: r });
+        }
+      }
+    }
+  }
+
+  if (countsMatch && segmentMismatchCount === 0) return null;
+  return {
+    countsMatch,
+    countDiff,
+    ...(rpcIndex
+      ? { segmentMismatchCount, sampleMismatches }
+      : {}),
+  };
+}
+
+/**
+ * Build segment index for Customer Master filters/badges.
+ *
+ * Phase B #4: after a real-org equivalence proof passes (see
+ * `docs/customer-segment-equivalence.md` + `scripts/prove-customer-segment-equivalence.mjs`),
+ * flip this to prefer `fetchCustomerSegmentIndexViaRpc`. Until then the client walk
+ * remains canonical so we do not silently prefer an unproven RPC.
+ *
+ * Chip counts already use `fetchCustomerSegmentCounts` (deployed RPC) and do not
+ * block the customer list.
+ */
+export async function fetchCustomerSegmentIndex(
+  organizationId: string,
+): Promise<CustomerSegmentIndex> {
+  return fetchCustomerSegmentIndexClient(organizationId);
+}
+
+/** RPC path — ready once migration is applied and equivalence proof passes. */
+export async function fetchCustomerSegmentIndexViaRpc(
+  organizationId: string,
+): Promise<CustomerSegmentIndex> {
+  const { data, error } = await supabase.rpc("get_customer_segment_index", {
+    p_org_id: organizationId,
+  });
+  if (error) throw error;
+
+  return indexFromRows(
+    (data || []) as Array<{
+      customer_id: string;
+      segment: string;
+      order_count: number | string | null;
+      revenue: number | string | null;
+      last_sale_date: string | null;
+    }>,
+  );
+}
+
+/**
+ * Stats for one customer (Customer history / detail).
+ *
+ * TODO(phase-B#4): `get_customer_segment_counts` is counts-only and cannot replace
+ * this. Keep the bounded per-customer walk for `useCustomerAccountHistoryData`
+ * until a single-customer RPC exists.
+ */
 export async function fetchCustomerSaleStats(
   organizationId: string,
   customerId: string,
 ): Promise<CustomerSaleStats> {
-  const stats: CustomerSaleStats = { orders: 0, revenue: 0, lastSaleDate: null };
+  const statsMap: Record<string, CustomerSaleStats> = {
+    [customerId]: { orders: 0, revenue: 0, lastSaleDate: null },
+  };
   const ids = new Set([customerId]);
   let offset = 0;
   let useCancelledColumn = true;
@@ -229,14 +382,14 @@ export async function fetchCustomerSaleStats(
     if (!data?.length) break;
 
     for (const row of (data as unknown) as SaleRow[]) {
-      mergeSaleIntoStats({ [customerId]: stats }, row, ids);
+      mergeSaleIntoStats(statsMap, row, ids);
     }
 
     if (data.length < PAGE) break;
     offset += PAGE;
   }
 
-  return stats;
+  return statsMap[customerId];
 }
 
 export async function fetchCustomerSegmentCounts(

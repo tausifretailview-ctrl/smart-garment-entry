@@ -55,6 +55,7 @@ import {
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import {
+  fetchCustomerSegmentCounts,
   fetchCustomerSegmentIndex,
   CUSTOMER_SEGMENT_HINTS,
   CUSTOMER_SEGMENT_LABELS,
@@ -344,6 +345,24 @@ const CustomerMaster = () => {
     staleTime: 60000,
   });
 
+  /**
+   * Fast chip counts via get_customer_segment_counts — independent of the full
+   * per-customer index so the list can paint while segments resolve.
+   */
+  const {
+    data: segmentCountsRpc,
+    isLoading: segmentCountsLoading,
+    isError: segmentCountsError,
+    refetch: refetchSegmentCounts,
+  } = useQuery({
+    queryKey: ["customer-segment-counts", currentOrganization?.id],
+    queryFn: () => fetchCustomerSegmentCounts(currentOrganization!.id),
+    enabled: !!currentOrganization?.id,
+    ...DASHBOARD_TAB_RETURN_QUERY_OPTIONS,
+    staleTime: 5 * 60 * 1000,
+    retry: 2,
+  });
+
   const {
     data: segmentIndex,
     isLoading: segmentsLoading,
@@ -357,6 +376,11 @@ const CustomerMaster = () => {
     staleTime: 5 * 60 * 1000,
     retry: 2,
   });
+
+  const refetchAllSegments = () => {
+    void refetchSegmentCounts();
+    void refetchSegments();
+  };
 
   const { data: customersPage, isLoading } = useQuery({
     queryKey: ["customers", currentOrganization?.id, debouncedSearch, currentPage, segmentFilter],
@@ -675,13 +699,16 @@ const CustomerMaster = () => {
 
   const isSomeSelected = selectedCustomers.size > 0;
 
-  const segmentCounts = segmentIndex?.counts ?? {
-    total: totalCount,
-    vip: 0,
-    regular: 0,
-    risk: 0,
-    lost: 0,
-  };
+  // Prefer fast counts RPC for chips; fall back to index counts when RPC is slow/unavailable.
+  const segmentCounts = segmentCountsRpc ??
+    segmentIndex?.counts ?? {
+      total: totalCount,
+      vip: 0,
+      regular: 0,
+      risk: 0,
+      lost: 0,
+    };
+  const chipsPending = segmentCountsLoading && !segmentCountsRpc && !segmentIndex;
 
   const segmentCards: {
     key: SegmentFilter;
@@ -1310,7 +1337,7 @@ const CustomerMaster = () => {
                     : "bg-background text-muted-foreground border-border",
                 )}
               >
-                {card.label} ({segmentsLoading ? "…" : card.count})
+                {card.label} ({chipsPending ? "…" : card.count})
               </button>
             ))}
           </div>
@@ -1476,18 +1503,18 @@ const CustomerMaster = () => {
                 </div>
               </div>
               <p className="mt-1 truncate text-base font-black tabular-nums leading-tight text-white sm:text-lg">
-                {segmentsLoading ? "…" : card.count.toLocaleString("en-IN")}
+                {chipsPending ? "…" : card.count.toLocaleString("en-IN")}
               </p>
             </button>
           ))}
         </div>
 
-        {segmentsError && (
+        {(segmentsError || segmentCountsError) && !segmentIndex && !segmentCountsRpc && (
           <div className="flex shrink-0 flex-wrap items-center gap-3 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-2.5 text-sm">
             <span className="text-destructive font-medium">
               Could not load lifetime sales / segment data for this organization.
             </span>
-            <Button variant="outline" size="sm" className="h-8" onClick={() => refetchSegments()}>
+            <Button variant="outline" size="sm" className="h-8" onClick={() => refetchAllSegments()}>
               <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
               Retry
             </Button>

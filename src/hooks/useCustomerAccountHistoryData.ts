@@ -424,6 +424,8 @@ export function useCustomerAccountHistoryData({
   const refunds = salesHistory?.filter((s) => (s.refund_amount || 0) > 0) || [];
   const isLoading = balanceLoading || salesLoading;
 
+  // TODO(phase-B#4): still uses per-customer sales walk (`fetchCustomerSaleStats`).
+  // `get_customer_segment_counts` is counts-only and cannot replace this path.
   const { data: customerSaleStats, isLoading: saleStatsLoading } = useQuery({
     queryKey: ["customer-sale-stats", customerId, organizationId],
     queryFn: () => fetchCustomerSaleStats(organizationId!, customerId!),
