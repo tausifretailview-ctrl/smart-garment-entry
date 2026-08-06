@@ -1009,7 +1009,7 @@ export function FloatingSaleReport({ open, onOpenChange }: { open: boolean; onOp
   const { data: saleRows = [], isPending, error, refetch } = useQuery({
     queryKey: ["floating-barcode-sale-report", currentOrganization?.id, debouncedQuery],
     queryFn: () => lookupBarcodeSales(currentOrganization!.id, debouncedQuery),
-    enabled: !!currentOrganization?.id && open && debouncedQuery.length > 0,
+    enabled: !!currentOrganization?.id && open && debouncedQuery.length >= 3,
     staleTime: STALE_LIVE,
     refetchOnWindowFocus: false,
   });

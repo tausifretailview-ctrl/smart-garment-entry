@@ -294,6 +294,10 @@ export async function lookupBarcodeSales(
   const term = searchQuery.trim();
   if (!term || !organizationId) return [];
 
+  // Skip 1–2 char stubs — FloatingSaleReport already debounces, but short
+  // queries still produce wide sale_items ILIKE scans with little UX value.
+  if (term.length < 3) return [];
+
   if (looksLikeBarcode(term)) {
     const exact = await lookupExactBarcodeSales(organizationId, term);
     if (exact.length > 0) return exact;

@@ -42,6 +42,7 @@ import {
   WINDOW_FILTER_IDS,
 } from "@/lib/dashboardFilterPersistence";
 import { fetchAllOpenSettlementVariantIds } from "@/utils/stockSettlementScans";
+import { fetchOldBarcodeSaleItemMappings } from "@/utils/stockReportOldBarcodeSearch";
 import { mergeActivityNavigationState } from "@/lib/activityCenterNavigation";
 
 interface StockItem {
@@ -770,29 +771,23 @@ export default function StockReport() {
         .is("deleted_at", null)
         .limit(50);
 
-      // Search in sale_items
-      const { data: saleData } = await supabase
-        .from("sale_items")
-        .select("variant_id, barcode")
-        .ilike("barcode", `%${barcode}%`)
-        .limit(50);
-
       const newMap = new Map<string, string>();
-      
+
       // Add purchase_items mappings
       (purchaseData || []).forEach((item: any) => {
         if (item.sku_id && item.barcode) {
           newMap.set(item.barcode.toLowerCase(), item.sku_id);
         }
       });
-      
-      // Add sale_items mappings
-      (saleData || []).forEach((item: any) => {
-        if (item.variant_id && item.barcode) {
-          newMap.set(item.barcode.toLowerCase(), item.variant_id);
-        }
-      });
-      
+
+      // sale_items — org-scoped via sales!inner (see stockReportOldBarcodeSearch).
+      const saleMap = await fetchOldBarcodeSaleItemMappings(
+        supabase,
+        currentOrganization.id,
+        barcode,
+      );
+      saleMap.forEach((variantId, bc) => newMap.set(bc, variantId));
+
       setOldBarcodeVariantMap(newMap);
     } catch (error) {
       console.error("Error searching old barcodes:", error);

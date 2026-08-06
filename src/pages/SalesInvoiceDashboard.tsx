@@ -753,11 +753,11 @@ export default function SalesInvoiceDashboard() {
     [effectiveSaleBillFormat],
   );
 
-  // Debounce search input
+  // Debounce search input — keeps invoice line-item RPC off the keystroke path.
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearch(searchQuery);
-    }, 250);
+    }, 350);
     return () => clearTimeout(timer);
   }, [searchQuery]);
 

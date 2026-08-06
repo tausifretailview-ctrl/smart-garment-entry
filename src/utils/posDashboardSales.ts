@@ -641,17 +641,25 @@ function buildPosDashboardBaseQuery(
 async function countFilteredPosSales(
   client: SupabaseClient,
   filters: PosDashboardFilters,
+  searchResolution: PosSearchResolution | null = null,
 ): Promise<number> {
   let query: any = applyPosDashboardFilters(
     client.from("sales").select("id", { count: "exact", head: true }),
     filters,
   );
-  query = await applyPosSearchToQuery(client, filters, query);
+  const resolution =
+    searchResolution ?? (await resolvePosSearch(client, filters));
+  query = applyResolvedPosSearch(query, resolution);
   const { count, error } = await query;
   if (error) throw error;
   return count ?? 0;
 }
 
+/**
+ * Line-item (sale_items ILIKE) match — always date-scoped.
+ * Header search may still bypass dates (invoice serial lookup); product/barcode
+ * union must not scan the org's full sale history per keystroke.
+ */
 async function fetchPosSaleIdsMatchingLineItems(
   client: SupabaseClient,
   organizationId: string,
@@ -662,6 +670,9 @@ async function fetchPosSaleIdsMatchingLineItems(
   const saleIdsInRange: string[] = [];
   const PAGE = 1000;
   let offset = 0;
+  const bounded = resolvePosDashboardDateRange(filters.startDate, filters.endDate);
+  const startIso = localDayStartUtcIso(bounded.startDate);
+  const endIso = localDayEndUtcIso(bounded.endDate);
   while (true) {
     let q = client
       .from("sales")
@@ -669,13 +680,8 @@ async function fetchPosSaleIdsMatchingLineItems(
       .eq("organization_id", organizationId)
       .in("sale_type", ["pos", "delivery_challan"])
       .is("deleted_at", null);
-    if (!posSearchBypassesDateFilter(searchStr)) {
-      const bounded = resolvePosDashboardDateRange(filters.startDate, filters.endDate);
-      const startIso = localDayStartUtcIso(bounded.startDate);
-      const endIso = localDayEndUtcIso(bounded.endDate);
-      if (startIso) q = q.gte("sale_date", startIso);
-      if (endIso) q = q.lte("sale_date", endIso);
-    }
+    if (startIso) q = q.gte("sale_date", startIso);
+    if (endIso) q = q.lte("sale_date", endIso);
     const { data, error } = await q.range(offset, offset + PAGE - 1);
     if (error) throw error;
     if (!data?.length) break;
@@ -733,13 +739,19 @@ async function fetchPosSaleIdsMatchingLineItems(
   return [...matched];
 }
 
-async function applyPosSearchToQuery(
+/** Resolved once per dashboard fetch so count + page share one sale_items pass. */
+type PosSearchResolution = {
+  saleTextFilter: string;
+  /** When set, restrict the sales query to these ids (header ± line-item union). */
+  restrictToIds: string[] | null;
+};
+
+async function resolvePosSearch(
   client: SupabaseClient,
   filters: PosDashboardFilters,
-  query: any,
-): Promise<any> {
+): Promise<PosSearchResolution | null> {
   const searchStr = filters.search.trim();
-  if (!searchStr) return query;
+  if (!searchStr) return null;
 
   const saleTextFilter = buildPosSaleHeaderSearchFilter(searchStr);
 
@@ -757,7 +769,7 @@ async function applyPosSearchToQuery(
 
   // When invoice serial matches exist (e.g. "1029" → POS/26-27/1029), skip line-item union.
   if (headerMatchIds.length > 0 && !shouldUnionSaleItemsForPosSearch(searchStr)) {
-    return query.in("id", headerMatchIds);
+    return { saleTextFilter, restrictToIds: headerMatchIds };
   }
 
   let matchingSaleIds: string[] = [];
@@ -773,9 +785,19 @@ async function applyPosSearchToQuery(
 
   if (matchingSaleIds.length > 0) {
     const allMatchIds = [...new Set([...headerMatchIds, ...matchingSaleIds])];
-    return query.in("id", allMatchIds);
+    return { saleTextFilter, restrictToIds: allMatchIds };
   }
-  return query.or(saleTextFilter);
+
+  // No line-item hits — apply the same header text filter the list/count queries already scope.
+  return { saleTextFilter, restrictToIds: null };
+}
+
+function applyResolvedPosSearch(query: any, resolution: PosSearchResolution | null): any {
+  if (!resolution) return query;
+  if (resolution.restrictToIds && resolution.restrictToIds.length > 0) {
+    return query.in("id", resolution.restrictToIds);
+  }
+  return query.or(resolution.saleTextFilter);
 }
 
 async function enrichPosSalesWithCreditNotes(
@@ -995,15 +1017,18 @@ export async function fetchPosDashboardPage(
   const from = (options.page - 1) * options.pageSize;
   const to = from + options.pageSize - 1;
 
+  // Resolve search once — count + page previously each ran sale_items ILIKE batches.
+  const searchResolution = await resolvePosSearch(client, filters);
+
   const [totalCount, dataResult] = await Promise.all([
-    countFilteredPosSales(client, filters),
+    countFilteredPosSales(client, filters, searchResolution),
     (async () => {
       let query: any = buildPosDashboardBaseQuery(
         client,
         filters,
         POS_DASHBOARD_SALES_SELECT,
       ).range(from, to);
-      query = await applyPosSearchToQuery(client, filters, query);
+      query = applyResolvedPosSearch(query, searchResolution);
       return query;
     })(),
   ]);
@@ -1047,13 +1072,15 @@ async function scanPosDashboardSummaryRows(
   const PAGE_SIZE = 1000;
   let offset = 0;
   const allRows: PosDashboardSaleLike[] = [];
+  // Resolve once — the previous per-page applyPosSearchToQuery re-ran sale_items ILIKE every 1000 rows.
+  const searchResolution = await resolvePosSearch(client, filters);
 
   while (true) {
     let query: any = buildPosDashboardBaseQuery(client, filters, select).range(
       offset,
       offset + PAGE_SIZE - 1,
     );
-    query = await applyPosSearchToQuery(client, filters, query);
+    query = applyResolvedPosSearch(query, searchResolution);
     const { data, error } = await query;
     if (error) throw error;
     if (!data?.length) break;
@@ -1206,6 +1233,7 @@ export async function fetchPosDashboardExportRows(
   const PAGE_SIZE = 1000;
   let offset = 0;
   const allSales: any[] = [];
+  const searchResolution = await resolvePosSearch(client, filters);
 
   while (true) {
     let query: any = buildPosDashboardBaseQuery(
@@ -1213,7 +1241,7 @@ export async function fetchPosDashboardExportRows(
       filters,
       POS_DASHBOARD_SALES_SELECT,
     ).range(offset, offset + PAGE_SIZE - 1);
-    query = await applyPosSearchToQuery(client, filters, query);
+    query = applyResolvedPosSearch(query, searchResolution);
     const { data, error } = await query;
     if (error) throw error;
     if (!data?.length) break;
