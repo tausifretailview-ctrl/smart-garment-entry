@@ -24,7 +24,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
 import { 
-  Loader2, Download, Printer, TrendingUp, TrendingDown, Wallet, PieChart, 
+  Download, Printer, TrendingUp, TrendingDown, Wallet, PieChart, 
   FileSpreadsheet, Scale, Calculator, AlertTriangle, Calendar, Building2, Clock, ExternalLink, RefreshCw, BookText, Landmark, BarChart3, Table2, Users, Info, ShieldCheck, FileText, CheckCircle2, Receipt, ChevronDown, ArrowLeft
 } from "lucide-react";
 import { ReportPageSkeleton } from "@/components/skeletons/ReportPageSkeleton";
