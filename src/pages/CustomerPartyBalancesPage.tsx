@@ -27,6 +27,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ReportSkeleton } from "@/components/ui/skeletons";
+import { ListPageSkeleton } from "@/components/skeletons/ListPageSkeleton";
 import { cn } from "@/lib/utils";
 import { fetchAllCustomerPartyBalances, fetchCustomerPhoneMap } from "@/utils/fetchAllRows";
 import { CustomerLedger } from "@/components/CustomerLedger";
@@ -364,10 +365,12 @@ export default function CustomerPartyBalancesPage() {
           </div>
           <div className="customer-party-balances-ledger-panel flex-1 min-h-0 flex flex-col overflow-hidden w-full">
             {ledgerProfileLoading ? (
-              <div className="flex flex-col items-center justify-center flex-1 min-h-[12rem] text-muted-foreground gap-2 py-12">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                <span className="text-sm">Loading customer details…</span>
-              </div>
+              <ListPageSkeleton
+                rows={6}
+                columns={4}
+                showToolbar={false}
+                className="flex-1 min-h-[12rem]"
+              />
             ) : ledgerProfileError ? (
               <div className="m-2 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-4 text-sm text-destructive">
                 Failed to load customer: {(ledgerProfileError as Error).message}

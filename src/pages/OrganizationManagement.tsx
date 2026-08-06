@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { toast } from "sonner";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { Building2, Crown, Users, Plus, Loader2, UserX, Copy, Eye, EyeOff, CheckCircle2, XCircle, Save } from "lucide-react";
+import { ListTableSkeleton } from "@/components/skeletons/ListPageSkeleton";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 const AVAILABLE_FEATURES = [
@@ -673,9 +674,7 @@ export default function OrganizationManagement() {
             </CardHeader>
             <CardContent>
               {membersLoading ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="h-6 w-6 animate-spin" />
-                </div>
+                <ListTableSkeleton rows={5} columns={4} />
               ) : (
                 <div className="space-y-4">
                   {members.map((member: any) => (

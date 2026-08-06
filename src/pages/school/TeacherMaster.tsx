@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Plus, Pencil, Trash2, GraduationCap, Loader2, Search, Phone, Mail } from "lucide-react";
+import { ListPageSkeleton, ListTableSkeleton } from "@/components/skeletons/ListPageSkeleton";
 import {
   Dialog,
   DialogContent,
@@ -187,9 +188,7 @@ const TeacherMaster = () => {
 
   if (!currentOrganization) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
+      <ListPageSkeleton rows={6} columns={5} />
     );
   }
 
@@ -228,9 +227,7 @@ const TeacherMaster = () => {
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <div className="flex items-center justify-center h-32">
-              <Loader2 className="h-6 w-6 animate-spin" />
-            </div>
+            <ListTableSkeleton rows={6} columns={5} />
           ) : teachers?.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               <GraduationCap className="h-12 w-12 mx-auto mb-4 opacity-50" />

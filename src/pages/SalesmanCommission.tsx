@@ -16,6 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { format, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear, subMonths, startOfDay, endOfDay } from "date-fns";
 import { IndianRupee, TrendingUp, CheckCircle, Clock, Download, Plus, Trash2, BarChart3, Award, Loader2 } from "lucide-react";
+import { ListTableSkeleton } from "@/components/skeletons/ListPageSkeleton";
 
 const RULE_TYPES = [
   { value: "default", label: "Default (all products)" },
@@ -383,7 +384,7 @@ export default function SalesmanCommission() {
             </CardHeader>
             <CardContent>
               {rulesLoading ? (
-                <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+                <ListTableSkeleton rows={5} columns={5} />
               ) : rules.length === 0 ? (
                 <p className="text-sm text-muted-foreground py-8 text-center">No custom rules. Default employee commission % will be used.</p>
               ) : (
@@ -454,7 +455,7 @@ export default function SalesmanCommission() {
             </CardHeader>
             <CardContent>
               {commissionsLoading ? (
-                <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+                <ListTableSkeleton rows={8} columns={6} />
               ) : filteredCommissions.length === 0 ? (
                 <p className="text-sm text-muted-foreground py-8 text-center">No commission records found</p>
               ) : (
