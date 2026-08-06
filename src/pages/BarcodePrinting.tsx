@@ -349,7 +349,7 @@ interface MarginPreset {
 
 type SheetType = 
   // A4 Sheet Types
-  "novajet48" | "novajet40" | "a4_40sheet" | "novajet65" | "a4_12x4" | "a4_65sheet" | "a4_32sheet" | 
+  "novajet48" | "novajet40" | "a4_40sheet" | "a4_39x35_40sheet" | "novajet65" | "a4_12x4" | "a4_65sheet" | "a4_32sheet" | 
   "a4_24sheet" | "a4_20sheet" | "a4_35square" | "a4_21sheet" | "a4_80sheet" | "a4_36sheet" |
   // Thermal 1UP Types
   "thermal_50x30_1up" | "thermal_50x38_1up" | "thermal_50x25_1up" | "thermal_38x25_1up" | 
