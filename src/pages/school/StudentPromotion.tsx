@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/table";
 import { toast } from "sonner";
 import { ArrowRight, Loader2, Users, CheckCircle2, AlertTriangle, History, GraduationCap, UserCheck, UserX } from "lucide-react";
+import { ListTableSkeleton } from "@/components/skeletons/ListPageSkeleton";
 import { format } from "date-fns";
 
 const StudentPromotion = () => {
@@ -514,8 +515,8 @@ const StudentPromotion = () => {
               <TableBody>
                 {studentsLoading ? (
                   <TableRow>
-                    <TableCell colSpan={carryForward ? 7 : 6} className="text-center py-8">
-                      <Loader2 className="h-6 w-6 animate-spin mx-auto" />
+                    <TableCell colSpan={carryForward ? 7 : 6} className="p-3">
+                      <ListTableSkeleton rows={6} columns={carryForward ? 7 : 6} />
                     </TableCell>
                   </TableRow>
                 ) : filteredStudents.length === 0 ? (

@@ -15,6 +15,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Trash2, Search, Archive, Users, Truck, Package, ShoppingCart, FileText, Receipt, Loader2, RotateCcw } from "lucide-react";
+import { ListTableSkeleton } from "@/components/skeletons/ListPageSkeleton";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 
@@ -665,9 +666,7 @@ export default function RecycleBin() {
                     </div>
 
                     {isLoading ? (
-                      <div className="flex items-center justify-center py-12">
-                        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                      </div>
+                      <ListTableSkeleton rows={8} columns={5} className="py-2" />
                     ) : filteredRecords.length === 0 ? (
                       <div className="text-center py-12">
                         <Trash2 className="h-16 w-16 mx-auto text-muted-foreground mb-4" />

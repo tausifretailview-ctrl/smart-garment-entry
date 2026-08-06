@@ -16,6 +16,7 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Plus, BookOpen, Edit, Trash2, Loader2, ListPlus } from "lucide-react";
+import { ListTableSkeleton } from "@/components/skeletons/ListPageSkeleton";
 
 const DEFAULT_CLASSES = [
   { class_name: "NURSERY", display_order: 0 },
@@ -270,8 +271,8 @@ const ClassSectionSetup = () => {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8">
-                    <Loader2 className="h-6 w-6 animate-spin mx-auto" />
+                  <TableCell colSpan={5} className="p-3">
+                    <ListTableSkeleton rows={5} columns={5} />
                   </TableCell>
                 </TableRow>
               ) : classes.length === 0 ? (

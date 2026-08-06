@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Search, Edit, ChevronDown, ChevronUp, Trash2, Loader2, ClipboardList, ArrowRight, Plus, CheckCircle, Clock, Package, IndianRupee, CalendarIcon } from "lucide-react";
+import { ListTableSkeleton } from "@/components/skeletons/ListPageSkeleton";
 import { format } from "date-fns";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useToast } from "@/hooks/use-toast";
@@ -433,8 +434,8 @@ export default function PurchaseOrderDashboard() {
       {/* Orders Table */}
       <Card>
         {isLoading ? (
-          <div className="flex items-center justify-center p-8">
-            <Loader2 className="h-8 w-8 animate-spin" />
+          <div className="p-3">
+            <ListTableSkeleton rows={8} columns={8} />
           </div>
         ) : (
           <Table>

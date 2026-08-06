@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { Plus, Pencil, Trash2, CreditCard, Loader2 } from "lucide-react";
+import { ListPageSkeleton, ListTableSkeleton } from "@/components/skeletons/ListPageSkeleton";
 import {
   Dialog,
   DialogContent,
@@ -163,11 +164,7 @@ const FeeHeadsSetup = () => {
   };
 
   if (!currentOrganization) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
-    );
+    return <ListPageSkeleton rows={6} columns={4} />;
   }
 
   return (
@@ -194,9 +191,7 @@ const FeeHeadsSetup = () => {
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <div className="flex items-center justify-center h-32">
-              <Loader2 className="h-6 w-6 animate-spin" />
-            </div>
+            <ListTableSkeleton rows={6} columns={4} />
           ) : feeHeads?.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               <CreditCard className="h-12 w-12 mx-auto mb-4 opacity-50" />

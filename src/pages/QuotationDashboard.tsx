@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 
 import { Search, Printer, Edit, ChevronDown, ChevronUp, Trash2, Loader2, FileText, ArrowRight, Plus, MessageCircle, CalendarIcon, Download, FilePenLine, Home, RefreshCw } from "lucide-react";
+import { ListTableSkeleton } from "@/components/skeletons/ListPageSkeleton";
 import { useWhatsAppTemplates } from "@/hooks/useWhatsAppTemplates";
 import { format } from "date-fns";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
@@ -471,8 +472,8 @@ export default function QuotationDashboard() {
               className="purchase-dashboard-table-panel flex-1 min-h-0 overflow-y-auto overflow-x-auto tab-scroll-stable overscroll-y-contain"
             >
         {isLoading ? (
-          <div className="flex items-center justify-center py-16 bg-white">
-            <Loader2 className="h-8 w-8 animate-spin text-teal-600" />
+          <div className="bg-white p-3">
+            <ListTableSkeleton rows={8} columns={7} />
           </div>
         ) : filteredQuotations.length === 0 ? (
           <div className="text-center py-16 text-muted-foreground bg-white">

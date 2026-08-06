@@ -11,6 +11,7 @@ import {
   Download, FileSpreadsheet, X, Check, Loader2, Box, Upload,
   ChevronLeft, ChevronRight, IndianRupee, Package, Save, Trash2, AlertTriangle,
 } from "lucide-react";
+import { ListTableSkeleton } from "@/components/skeletons/ListPageSkeleton";
 import StockImportTab from "@/components/StockImportTab";
 import StockSettlementWriteOffTab from "@/components/StockSettlementWriteOffTab";
 import BarcodeScanSection from "@/components/BarcodeScanSection";
@@ -1079,10 +1080,7 @@ const StockSettlement = () => {
                 </div>
 
                 {loading ? (
-                  <div className="flex flex-1 flex-col items-center justify-center gap-3 py-16 text-slate-500">
-                    <Loader2 className="h-8 w-8 animate-spin text-teal-600" />
-                    <span className="text-sm">Loading products...</span>
-                  </div>
+                  <ListTableSkeleton rows={10} columns={6} className="flex-1 py-4" />
                 ) : paginatedTable.length === 0 ? (
                   <div className="flex flex-1 flex-col items-center justify-center gap-2 py-16 text-slate-500">
                     <ScanBarcode className="h-10 w-10 text-slate-300" />

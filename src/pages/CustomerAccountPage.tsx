@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { CustomerAccountHistoryShell } from "@/components/customer-account/CustomerAccountHistoryShell";
+import { ListPageSkeleton } from "@/components/skeletons/ListPageSkeleton";
 
 type LocationState = { from?: string; customerName?: string };
 
@@ -80,9 +81,7 @@ export default function CustomerAccountPage() {
       </div>
 
       {isLoading ? (
-        <div className="flex flex-1 items-center justify-center py-16">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-        </div>
+        <ListPageSkeleton rows={8} columns={5} showToolbar={false} className="flex-1" />
       ) : isError || !customer ? (
         <div className="flex flex-1 items-center justify-center py-16 text-muted-foreground">
           Customer not found.

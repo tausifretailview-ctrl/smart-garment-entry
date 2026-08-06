@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { ArrowLeft, IndianRupee, TrendingUp, Clock, Loader2, LogOut } from 'lucide-react';
+import { ListPageSkeleton } from '@/components/skeletons/ListPageSkeleton';
 
 const PORTAL_SESSION_KEY = 'portal_session';
 
@@ -107,9 +108,7 @@ export default function PortalAccount() {
 
       <div className="p-4">
         {loading ? (
-          <div className="flex items-center justify-center py-20">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-          </div>
+          <ListPageSkeleton rows={6} columns={4} showToolbar={false} className="py-4" />
         ) : (
           <>
             {/* Stats cards */}
