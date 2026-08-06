@@ -6506,33 +6506,9 @@ export default function POSSales() {
                             })()}
                           </div>
                           <div className="flex items-center justify-between gap-1 min-w-0">
-                            {(() => {
-                              const baseAmount = Math.max(
-                                0,
-                                (Number(item.mrp) || 0) * (Number(item.quantity) || 0),
-                              );
-                              const percentAmount =
-                                baseAmount > 0
-                                  ? (baseAmount * (Number(item.discountPercent) || 0)) / 100
-                                  : 0;
-                              const lineDiscRs =
-                                Number(item.discountAmount) > 0
-                                  ? Number(item.discountAmount)
-                                  : percentAmount;
-                              const hasLineDisc = lineDiscRs > 0.005;
-                              return (
-                                <div className="flex flex-col items-end min-w-0 leading-tight">
-                                  {hasLineDisc && (
-                                    <span className="text-[11px] font-semibold text-muted-foreground tabular-nums">
-                                      Disc -{formatINR2(lineDiscRs)}
-                                    </span>
-                                  )}
-                                  <span className="font-extrabold text-base md:text-lg tabular-nums">
-                                    ₹{formatINR2(posLineDisplayTotal(item.netAmount, item.gstPer, taxType))}
-                                  </span>
-                                </div>
-                              );
-                            })()}
+                            <span className="font-extrabold text-base md:text-lg tabular-nums">
+                              ₹{formatINR2(posLineDisplayTotal(item.netAmount, item.gstPer, taxType))}
+                            </span>
                             <Button
                               size="icon"
                               variant="ghost"
