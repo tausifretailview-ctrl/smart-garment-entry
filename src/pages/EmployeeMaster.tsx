@@ -31,8 +31,10 @@ import { Plus, Pencil, Trash2, Search, Smartphone } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useSoftDelete } from "@/hooks/useSoftDelete";
 import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
 import { ColumnDef } from "@tanstack/react-table";
 import { ERPTable } from "@/components/erp-table";
+import { cn } from "@/lib/utils";
 
 interface Employee {
   id: string;
@@ -210,174 +212,322 @@ const EmployeeMaster = () => {
 
   // ERPTable columns
   const tableColumns = useMemo<ColumnDef<Employee, any>[]>(() => [
-    { accessorKey: "employee_name", header: "Employee Name", cell: ({ row }) => <span className="font-medium">{row.original.employee_name}</span>, size: 200 },
-    { accessorKey: "designation", header: "Designation", cell: ({ row }) => row.original.designation || "-", size: 150 },
     {
-      accessorKey: "commission_percent", header: "Commission %",
-      cell: ({ row }) => <span className="font-semibold text-emerald-700 dark:text-emerald-400 text-center block">{(row.original.commission_percent ?? 1).toFixed(1)}%</span>,
-      size: 110,
+      accessorKey: "employee_name",
+      header: "Employee Name",
+      cell: ({ row }) => <span className="font-semibold text-foreground">{row.original.employee_name}</span>,
+      size: 220,
     },
-    { accessorKey: "phone", header: "Phone", cell: ({ row }) => row.original.phone || "-", size: 130 },
-    { accessorKey: "email", header: "Email", cell: ({ row }) => row.original.email || "-", size: 180 },
+    { accessorKey: "designation", header: "Designation", cell: ({ row }) => row.original.designation || "-", size: 160 },
     {
-      accessorKey: "joining_date", header: "Joining Date",
-      cell: ({ row }) => row.original.joining_date ? new Date(row.original.joining_date).toLocaleDateString() : "-",
+      accessorKey: "commission_percent",
+      header: "Commission %",
+      cell: ({ row }) => (
+        <span className="font-semibold tabular-nums text-emerald-700 dark:text-emerald-400 text-center block">
+          {(row.original.commission_percent ?? 1).toFixed(1)}%
+        </span>
+      ),
       size: 120,
     },
+    { accessorKey: "phone", header: "Phone", cell: ({ row }) => row.original.phone || "-", size: 140 },
+    { accessorKey: "email", header: "Email", cell: ({ row }) => row.original.email || "-", size: 200 },
     {
-      accessorKey: "status", header: "Status",
-      cell: ({ row }) => <Badge variant={row.original.status === "active" ? "default" : "secondary"}>{row.original.status}</Badge>,
-      size: 100,
+      accessorKey: "joining_date",
+      header: "Joining Date",
+      cell: ({ row }) =>
+        row.original.joining_date ? new Date(row.original.joining_date).toLocaleDateString() : "-",
+      size: 130,
+    },
+    {
+      accessorKey: "status",
+      header: "Status",
+      cell: ({ row }) => (
+        <Badge
+          variant={row.original.status === "active" ? "default" : "secondary"}
+          className="text-sm px-2.5 py-0.5"
+        >
+          {row.original.status}
+        </Badge>
+      ),
+      size: 110,
     },
     {
       id: "field_sales",
       header: "Field Sales",
-      cell: ({ row }) => row.original.field_sales_access
-        ? <Badge variant="default" className="bg-green-600"><Smartphone className="h-3 w-3 mr-1" />Enabled</Badge>
-        : <Badge variant="outline" className="text-muted-foreground">Disabled</Badge>,
-      size: 110,
+      cell: ({ row }) =>
+        row.original.field_sales_access ? (
+          <Badge variant="default" className="bg-green-600 text-sm px-2.5 py-0.5">
+            <Smartphone className="h-3.5 w-3.5 mr-1" />
+            Enabled
+          </Badge>
+        ) : (
+          <Badge variant="outline" className="text-sm text-muted-foreground px-2.5 py-0.5">
+            Disabled
+          </Badge>
+        ),
+      size: 130,
     },
     {
       id: "actions",
       header: "Actions",
       cell: ({ row }) => (
         <div className="flex items-center gap-1">
-          <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); handleEdit(row.original); }}>
-            <Pencil className="h-4 w-4" />
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-9 w-9"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleEdit(row.original);
+            }}
+          >
+            <Pencil className="h-5 w-5" />
           </Button>
-          <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); handleDelete(row.original.id); }}>
-            <Trash2 className="h-4 w-4" />
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-9 w-9"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleDelete(row.original.id);
+            }}
+          >
+            <Trash2 className="h-5 w-5" />
           </Button>
         </div>
       ),
-      size: 100,
+      size: 110,
     },
   ], []);
 
   return (
-    <div className="w-full px-6 py-6 space-y-6">
-      <BackToDashboard />
-      
-      <div className="flex items-center gap-4">
-        <h1 className="text-[20px] font-bold text-foreground shrink-0">Employee Master</h1>
-        <span className="text-[12px] text-muted-foreground bg-muted px-2.5 py-1 rounded-full font-medium shrink-0">
-          {employees.length} records
-        </span>
-
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search employees..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="h-9 text-sm pl-9"
-          />
+    <div className="employee-master-workspace flex h-full min-h-0 w-full flex-col overflow-hidden bg-slate-50 px-2 py-2 sm:px-3">
+      <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col gap-2">
+        <div className="shrink-0 space-y-1">
+          <div className="[&_button]:mb-0">
+            <BackToDashboard />
+          </div>
+          <h1 className="text-2xl font-bold leading-none tracking-tight text-blue-700">Employee Master</h1>
+          <p className="text-sm text-muted-foreground">Manage staff, commissions, and field sales access.</p>
         </div>
 
-        <div id="erp-toolbar-portal-employee" className="flex items-center gap-2" />
+        <Card className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-slate-200 p-0 shadow-sm">
+          <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-slate-100 bg-white px-3 py-2.5">
+            <span className="shrink-0 rounded-full bg-slate-100 px-3 py-1 text-sm font-medium tabular-nums text-slate-600">
+              {employees.length} records
+            </span>
 
-        <div className="ml-auto shrink-0">
-          <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) resetForm(); }}>
-            <DialogTrigger asChild>
-              <Button size="sm" className="h-9">
-                <Plus className="h-4 w-4 mr-2" />
-                Add Employee
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>{editingEmployee ? "Edit Employee" : "Add New Employee"}</DialogTitle>
-              </DialogHeader>
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div>
-                  <Label htmlFor="employee_name">Employee Name *</Label>
-                  <Input id="employee_name" value={formData.employee_name} onChange={(e) => setFormData({ ...formData, employee_name: e.target.value })} required />
-                </div>
-                <div>
-                  <Label htmlFor="designation">Designation</Label>
-                  <Input id="designation" value={formData.designation} onChange={(e) => setFormData({ ...formData, designation: e.target.value })} />
-                </div>
-                <div className="space-y-1">
-                  <Label htmlFor="commission_percent">
-                    Commission % <span className="text-xs text-muted-foreground ml-2 font-normal">default 1% = ₹1 per ₹100 sale</span>
-                  </Label>
-                  <div className="flex items-center gap-3">
-                    <Input id="commission_percent" type="number" min="0" max="100" step="0.1" value={formData.commission_percent} onChange={(e) => setFormData({ ...formData, commission_percent: parseFloat(e.target.value) || 0 })} className="w-28" placeholder="1.0" />
-                    <span className="text-sm text-muted-foreground">= ₹{(formData.commission_percent || 0).toFixed(2)} earned per ₹100 sale</span>
-                  </div>
-                </div>
-                <div>
-                  <Label htmlFor="phone">Phone</Label>
-                  <Input id="phone" value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} />
-                </div>
-                <div>
-                  <Label htmlFor="email">Email</Label>
-                  <Input id="email" type="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} />
-                </div>
-                <div>
-                  <Label htmlFor="address">Address</Label>
-                  <Textarea id="address" value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} />
-                </div>
-                <div>
-                  <Label htmlFor="joining_date">Joining Date</Label>
-                  <Input id="joining_date" type="date" value={formData.joining_date} onChange={(e) => setFormData({ ...formData, joining_date: e.target.value })} />
-                </div>
-                <div>
-                  <Label htmlFor="status">Status</Label>
-                  <Select value={formData.status} onValueChange={(value) => setFormData({ ...formData, status: value })}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="active">Active</SelectItem>
-                      <SelectItem value="inactive">Inactive</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex items-center justify-between p-4 border rounded-lg bg-muted/50">
-                  <div className="space-y-0.5">
-                    <Label htmlFor="field_sales_access" className="text-base font-medium flex items-center gap-2">
-                      <Smartphone className="h-4 w-4" />
-                      Field Sales App Access
-                    </Label>
-                    <p className="text-sm text-muted-foreground">Allow this employee to use the Field Sales mobile app</p>
-                  </div>
-                  <Switch id="field_sales_access" checked={formData.field_sales_access} onCheckedChange={(checked) => setFormData({ ...formData, field_sales_access: checked })} />
-                </div>
-                {formData.field_sales_access && (
-                  <div>
-                    <Label htmlFor="user_id">Link User Account *</Label>
-                    <Select value={formData.user_id || "none"} onValueChange={(value) => setFormData({ ...formData, user_id: value === "none" ? "" : value })}>
-                      <SelectTrigger><SelectValue placeholder="Select user account..." /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">No account linked</SelectItem>
-                        {orgUsers.map((user) => (
-                          <SelectItem key={user.id} value={user.id}>{user.email} ({user.role})</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <p className="text-xs text-muted-foreground mt-1">Link this employee to a user account for Field Sales app login</p>
-                  </div>
-                )}
-                <Button type="submit" className="w-full">{editingEmployee ? "Update" : "Create"} Employee</Button>
-              </form>
-            </DialogContent>
-          </Dialog>
-        </div>
+            <div className="relative min-w-[220px] max-w-full flex-1 sm:max-w-md md:max-w-xl">
+              <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="SEARCH EMPLOYEES..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="h-11 border-slate-200 bg-slate-50 pl-10 text-base uppercase placeholder:normal-case focus:bg-white"
+              />
+            </div>
+
+            <div id="erp-toolbar-portal-employee" className="flex items-center gap-1.5" />
+
+            <div className="ml-auto shrink-0">
+              <Dialog
+                open={isDialogOpen}
+                onOpenChange={(open) => {
+                  setIsDialogOpen(open);
+                  if (!open) resetForm();
+                }}
+              >
+                <DialogTrigger asChild>
+                  <Button className="h-11 px-4 text-base">
+                    <Plus className="h-5 w-5 mr-2" />
+                    Add Employee
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                  <DialogHeader>
+                    <DialogTitle className="text-xl">
+                      {editingEmployee ? "Edit Employee" : "Add New Employee"}
+                    </DialogTitle>
+                  </DialogHeader>
+                  <form onSubmit={handleSubmit} className="space-y-4 text-base">
+                    <div>
+                      <Label htmlFor="employee_name">Employee Name *</Label>
+                      <Input
+                        id="employee_name"
+                        value={formData.employee_name}
+                        onChange={(e) => setFormData({ ...formData, employee_name: e.target.value })}
+                        required
+                        className="h-10 text-base"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="designation">Designation</Label>
+                      <Input
+                        id="designation"
+                        value={formData.designation}
+                        onChange={(e) => setFormData({ ...formData, designation: e.target.value })}
+                        className="h-10 text-base"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="commission_percent">
+                        Commission %{" "}
+                        <span className="text-sm text-muted-foreground ml-2 font-normal">
+                          default 1% = ₹1 per ₹100 sale
+                        </span>
+                      </Label>
+                      <div className="flex items-center gap-3">
+                        <Input
+                          id="commission_percent"
+                          type="number"
+                          min="0"
+                          max="100"
+                          step="0.1"
+                          value={formData.commission_percent}
+                          onChange={(e) =>
+                            setFormData({ ...formData, commission_percent: parseFloat(e.target.value) || 0 })
+                          }
+                          className="w-28 h-10 text-base"
+                          placeholder="1.0"
+                        />
+                        <span className="text-sm text-muted-foreground">
+                          = ₹{(formData.commission_percent || 0).toFixed(2)} earned per ₹100 sale
+                        </span>
+                      </div>
+                    </div>
+                    <div>
+                      <Label htmlFor="phone">Phone</Label>
+                      <Input
+                        id="phone"
+                        value={formData.phone}
+                        onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                        className="h-10 text-base"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="email">Email</Label>
+                      <Input
+                        id="email"
+                        type="email"
+                        value={formData.email}
+                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                        className="h-10 text-base"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="address">Address</Label>
+                      <Textarea
+                        id="address"
+                        value={formData.address}
+                        onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                        className="text-base"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="joining_date">Joining Date</Label>
+                      <Input
+                        id="joining_date"
+                        type="date"
+                        value={formData.joining_date}
+                        onChange={(e) => setFormData({ ...formData, joining_date: e.target.value })}
+                        className="h-10 text-base"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="status">Status</Label>
+                      <Select
+                        value={formData.status}
+                        onValueChange={(value) => setFormData({ ...formData, status: value })}
+                      >
+                        <SelectTrigger className="h-10 text-base">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="active">Active</SelectItem>
+                          <SelectItem value="inactive">Inactive</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="flex items-center justify-between p-4 border rounded-lg bg-muted/50">
+                      <div className="space-y-0.5">
+                        <Label
+                          htmlFor="field_sales_access"
+                          className="text-base font-medium flex items-center gap-2"
+                        >
+                          <Smartphone className="h-4 w-4" />
+                          Field Sales App Access
+                        </Label>
+                        <p className="text-sm text-muted-foreground">
+                          Allow this employee to use the Field Sales mobile app
+                        </p>
+                      </div>
+                      <Switch
+                        id="field_sales_access"
+                        checked={formData.field_sales_access}
+                        onCheckedChange={(checked) =>
+                          setFormData({ ...formData, field_sales_access: checked })
+                        }
+                      />
+                    </div>
+                    {formData.field_sales_access && (
+                      <div>
+                        <Label htmlFor="user_id">Link User Account *</Label>
+                        <Select
+                          value={formData.user_id || "none"}
+                          onValueChange={(value) =>
+                            setFormData({ ...formData, user_id: value === "none" ? "" : value })
+                          }
+                        >
+                          <SelectTrigger className="h-10 text-base">
+                            <SelectValue placeholder="Select user account..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">No account linked</SelectItem>
+                            {orgUsers.map((user) => (
+                              <SelectItem key={user.id} value={user.id}>
+                                {user.email} ({user.role})
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          Link this employee to a user account for Field Sales app login
+                        </p>
+                      </div>
+                    )}
+                    <Button type="submit" className="w-full h-11 text-base">
+                      {editingEmployee ? "Update" : "Create"} Employee
+                    </Button>
+                  </form>
+                </DialogContent>
+              </Dialog>
+            </div>
+          </div>
+
+          <div className="employee-master-table-panel min-h-0 flex-1 overflow-y-auto overflow-x-auto tab-scroll-stable">
+            <ERPTable<Employee>
+              tableId="employee_master"
+              columns={tableColumns}
+              data={filteredEmployees}
+              stickyFirstColumn={false}
+              fitToContainer
+              isLoading={isLoading}
+              emptyMessage="No employees found"
+              defaultDensity="comfortable"
+              showToolbar={false}
+              className={cn(
+                "employee-master-table border-0 [&_.border]:border-0",
+                "[&_td]:!text-base [&_th]:!text-sm [&_th]:!font-bold [&_th]:!uppercase [&_th]:!tracking-wide",
+                "[&_tbody_tr:nth-child(even)]:bg-slate-50/80 [&_tbody_tr:hover]:bg-sky-50/70",
+              )}
+              renderToolbar={(toolbar) => {
+                const el = document.getElementById("erp-toolbar-portal-employee");
+                return el ? createPortal(toolbar, el) : toolbar;
+              }}
+            />
+          </div>
+        </Card>
       </div>
-
-      <ERPTable<Employee>
-        tableId="employee_master"
-        columns={tableColumns}
-        data={filteredEmployees}
-        stickyFirstColumn={false}
-        isLoading={isLoading}
-        emptyMessage="No employees found"
-        defaultDensity="compact"
-        showToolbar={false}
-        renderToolbar={(toolbar) => {
-          const el = document.getElementById('erp-toolbar-portal-employee');
-          return el ? createPortal(toolbar, el) : toolbar;
-        }}
-      />
     </div>
   );
 };
