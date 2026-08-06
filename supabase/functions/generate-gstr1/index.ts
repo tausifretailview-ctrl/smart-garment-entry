@@ -96,7 +96,7 @@ Deno.serve(async (req) => {
     const { data: sales, error: salesErr } = await admin
       .from("sales")
       .select(
-        `id, sale_number, sale_date, customer_name, net_amount, gross_amount, discount_amount,
+        `id, sale_number, sale_date, customer_name, net_amount, gross_amount, discount_amount, tax_type,
          customer_id, customer_address, pos, customers(gst_number, address)`
       )
       .eq("organization_id", organization_id)
@@ -147,6 +147,29 @@ Deno.serve(async (req) => {
 
     const orgStateCode = extractStateCode(settings?.gst_number?.slice(0, 2), settings?.state);
 
+    const normalizeTaxType = (value?: string | null): "inclusive" | "exclusive" | "no_gst" => {
+      if (value === "exclusive" || value === "gst_exclusive") return "exclusive";
+      if (value === "no_gst" || value === "without_gst") return "no_gst";
+      return "inclusive";
+    };
+
+    const lineTaxableAndGst = (
+      lineTotal: number,
+      rate: number,
+      taxType: "inclusive" | "exclusive" | "no_gst",
+    ): { taxable: number; gst: number } => {
+      const total = lineTotal || 0;
+      const gstPercent = rate || 0;
+      if (taxType === "no_gst" || gstPercent <= 0) {
+        return { taxable: total, gst: 0 };
+      }
+      if (taxType === "exclusive") {
+        return { taxable: total, gst: total * (gstPercent / 100) };
+      }
+      const taxable = total / (1 + gstPercent / 100);
+      return { taxable, gst: total - taxable };
+    };
+
     (sales || []).forEach((sale: any) => {
       const customerGSTIN = sale.customers?.gst_number || "";
       const items = itemsBySale.get(sale.id) || [];
@@ -158,6 +181,7 @@ Deno.serve(async (req) => {
         sale.customers?.address
       );
       const isInterState = !!orgStateCode && !!customerStateCode && customerStateCode !== orgStateCode;
+      const taxType = normalizeTaxType(sale.tax_type);
 
       // Build invoice items grouped by GST rate
       const rateGrouped = new Map<number, { txval: number; camt: number; samt: number; iamt: number }>();
@@ -166,8 +190,7 @@ Deno.serve(async (req) => {
         if (item.is_dc_item) return; // DC items excluded from GST reporting
         const rate = item.gst_percent || 0;
         const lineTotal = item.line_total || 0;
-        const taxableValue = lineTotal / (1 + rate / 100);
-        const gstAmt = lineTotal - taxableValue;
+        const { taxable: taxableValue, gst: gstAmt } = lineTaxableAndGst(lineTotal, rate, taxType);
         const iamt = isInterState ? gstAmt : 0;
         const cgst = isInterState ? 0 : gstAmt / 2;
         const sgst = isInterState ? 0 : gstAmt / 2;
@@ -186,7 +209,7 @@ Deno.serve(async (req) => {
           qty: 0, val: 0, txval: 0, iamt: 0, camt: 0, samt: 0, csamt: 0,
         };
         h.qty += item.quantity || 1;
-        h.val += lineTotal;
+        h.val += taxType === "exclusive" ? taxableValue + gstAmt : lineTotal;
         h.txval += taxableValue;
         h.iamt += iamt;
         h.camt += cgst;

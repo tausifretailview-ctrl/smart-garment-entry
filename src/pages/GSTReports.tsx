@@ -30,9 +30,28 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import * as XLSX from "xlsx";
 import {
-  calculateGSTBreakup,
   isInterState,
+  normalizeGstTaxType,
+  type GstTaxType,
 } from "@/utils/gstRegisterUtils";
+
+/** Per-line taxable + GST — mirrors get_gst_summary / calculateGSTBreakup tax_type rules. */
+function lineTaxableAndGst(
+  lineTotal: number,
+  rate: number,
+  taxType: GstTaxType,
+): { taxable: number; gst: number } {
+  const total = lineTotal || 0;
+  const gstPercent = rate || 0;
+  if (taxType === "no_gst" || gstPercent <= 0) {
+    return { taxable: total, gst: 0 };
+  }
+  if (taxType === "exclusive") {
+    return { taxable: total, gst: total * (gstPercent / 100) };
+  }
+  const taxable = total / (1 + gstPercent / 100);
+  return { taxable, gst: total - taxable };
+}
 import { fetchAllSaleItems } from "@/utils/fetchAllRows";
 import {
   InsightsKpiCard,
@@ -238,7 +257,7 @@ const GSTReports = () => {
       const { data: salesData } = await supabase
         .from("sales")
         .select(`
-          id, sale_number, sale_date, customer_name, net_amount, gross_amount, discount_amount,
+          id, sale_number, sale_date, customer_name, net_amount, gross_amount, discount_amount, tax_type,
           customer_id, customers(gst_number, address)
         `)
         .eq("organization_id", currentOrganization.id)
@@ -278,15 +297,17 @@ const GSTReports = () => {
         const isB2B = customerGSTIN && customerGSTIN.length === 15;
         // FIX G1: Inter-state detection
         const interState = isInterState(businessGSTIN, customerGSTIN);
+        const taxType = normalizeGstTaxType((sale as { tax_type?: string | null }).tax_type);
 
         let saleGstAmount = 0;
+        let saleTaxableFromLines = 0;
         items.forEach(item => {
           const rate = item.gst_percent || 0;
           const lineTotal = item.line_total || 0;
-          const taxableValue = lineTotal / (1 + rate / 100);
-          const gstAmount = lineTotal - taxableValue;
+          const { taxable: taxableValue, gst: gstAmount } = lineTaxableAndGst(lineTotal, rate, taxType);
 
           saleGstAmount += gstAmount;
+          saleTaxableFromLines += taxableValue;
           totalTaxableValue += taxableValue;
 
           // FIX G1: Split based on inter-state
@@ -297,7 +318,7 @@ const GSTReports = () => {
             totalSGST += gstAmount / 2;
           }
 
-          // HSN aggregation
+          // HSN aggregation — totalValue = invoice value (taxable + tax for exclusive)
           const hsnCode = item.hsn_code || "00000000";
           const existing = hsnMap.get(hsnCode) || {
             hsnCode,
@@ -312,7 +333,7 @@ const GSTReports = () => {
             rate
           };
           existing.totalQty += item.quantity || 1;
-          existing.totalValue += lineTotal;
+          existing.totalValue += taxType === "exclusive" ? taxableValue + gstAmount : lineTotal;
           existing.taxableValue += taxableValue;
           if (interState) {
             existing.igst += gstAmount;
@@ -323,7 +344,7 @@ const GSTReports = () => {
           hsnMap.set(hsnCode, existing);
         });
 
-        const taxableValue = sale.net_amount - saleGstAmount;
+        const taxableValue = saleTaxableFromLines;
 
         if (isB2B) {
           b2b.push({
@@ -343,8 +364,7 @@ const GSTReports = () => {
           items.forEach(item => {
             const rate = item.gst_percent || 0;
             const lineTotal = item.line_total || 0;
-            const taxable = lineTotal / (1 + rate / 100);
-            const gst = lineTotal - taxable;
+            const { taxable, gst } = lineTaxableAndGst(lineTotal, rate, taxType);
             const key = `${rate}`;
             const existing = b2csMap.get(key) || { rate, taxableValue: 0, cgst: 0, sgst: 0, igst: 0 };
             existing.taxableValue += taxable;
@@ -573,13 +593,17 @@ const GSTReports = () => {
 
       const { data: salesData } = await supabase
         .from("sales")
-        .select("id")
+        .select("id, tax_type")
         .eq("organization_id", currentOrganization.id)
         .is("deleted_at", null)
+        .eq("is_cancelled", false)
         .gte("sale_date", fromDateObj.toISOString())
         .lte("sale_date", toDateObj.toISOString());
 
       const saleIds = salesData?.map(s => s.id) || [];
+      const taxTypeBySale = new Map(
+        (salesData || []).map((s) => [s.id, normalizeGstTaxType((s as { tax_type?: string | null }).tax_type)]),
+      );
       const saleItems = saleIds.length > 0 ? (await fetchAllSaleItems(saleIds)).filter((i: any) => !i.is_dc_item) : [];
 
       const hsnMap = new Map<string, HSNSummary>();
@@ -588,8 +612,8 @@ const GSTReports = () => {
         const hsnCode = item.hsn_code || "00000000";
         const rate = item.gst_percent || 0;
         const lineTotal = item.line_total || 0;
-        const taxableValue = lineTotal / (1 + rate / 100);
-        const gstAmount = lineTotal - taxableValue;
+        const taxType = taxTypeBySale.get(item.sale_id) || "inclusive";
+        const { taxable: taxableValue, gst: gstAmount } = lineTaxableAndGst(lineTotal, rate, taxType);
 
         const existing = hsnMap.get(hsnCode) || {
           hsnCode,
@@ -605,7 +629,7 @@ const GSTReports = () => {
         };
 
         existing.totalQty += item.quantity || 1;
-        existing.totalValue += lineTotal;
+        existing.totalValue += taxType === "exclusive" ? taxableValue + gstAmount : lineTotal;
         existing.taxableValue += taxableValue;
         existing.cgst += gstAmount / 2;
         existing.sgst += gstAmount / 2;
