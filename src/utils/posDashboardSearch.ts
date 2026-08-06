@@ -12,8 +12,10 @@ export function shouldUnionSaleItemsForPosSearch(searchStr: string): boolean {
   if (!t) return false;
   // Pure invoice serials should match sale_number first — skip noisy line-item union.
   if (looksLikeInvoiceSequence(t)) return false;
-  if (/^\d+$/.test(t)) return t.length >= 4;
-  return /[A-Za-z]/.test(t) && t.length >= 3;
+  // Digits that aren't invoice serials are barcode-like — align with invoice search min.
+  if (/^\d+$/.test(t)) return t.length >= 8;
+  // Product text: require 4+ chars so 1–3 keystroke stubs never hit sale_items ILIKE.
+  return /[A-Za-z]/.test(t) && t.length >= 4;
 }
 
 /** PostgREST `.or()` filter for sale header text search. */

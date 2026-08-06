@@ -770,11 +770,14 @@ export default function StockReport() {
         .is("deleted_at", null)
         .limit(50);
 
-      // Search in sale_items
+      // Search in sale_items — org-scoped via sales join (sale_items has no organization_id).
       const { data: saleData } = await supabase
         .from("sale_items")
-        .select("variant_id, barcode")
+        .select("variant_id, barcode, sales!inner(organization_id)")
+        .eq("sales.organization_id", currentOrganization.id)
+        .is("sales.deleted_at", null)
         .ilike("barcode", `%${barcode}%`)
+        .is("deleted_at", null)
         .limit(50);
 
       const newMap = new Map<string, string>();

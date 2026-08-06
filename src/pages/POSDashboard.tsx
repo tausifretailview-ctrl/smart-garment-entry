@@ -371,7 +371,7 @@ const POSDashboard = () => {
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearch(searchQuery);
-    }, 300);
+    }, 400);
     return () => clearTimeout(timer);
   }, [searchQuery]);
 

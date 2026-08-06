@@ -28,8 +28,18 @@ describe("shouldUnionSaleItemsForPosSearch", () => {
     expect(shouldUnionSaleItemsForPosSearch("10001220")).toBe(true);
   });
 
-  it("allows line-item union for product text", () => {
+  it("skips short numeric stubs that are not invoice serials", () => {
+    // 7 digits is past invoice-serial length but still below barcode min.
+    expect(shouldUnionSaleItemsForPosSearch("1234567")).toBe(false);
+  });
+
+  it("allows line-item union for product text of 4+ chars", () => {
     expect(shouldUnionSaleItemsForPosSearch("silk")).toBe(true);
+  });
+
+  it("skips short product text that would burn sale_items ILIKE per keystroke", () => {
+    expect(shouldUnionSaleItemsForPosSearch("ab")).toBe(false);
+    expect(shouldUnionSaleItemsForPosSearch("abc")).toBe(false);
   });
 });
 
