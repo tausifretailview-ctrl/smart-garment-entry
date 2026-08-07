@@ -14,6 +14,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { format } from "date-fns";
 import { Loader2, IndianRupee } from "lucide-react";
+import { ListSkeleton } from "@/components/ui/skeletons";
 import { useOpenCustomerAccount } from "@/hooks/useOpenCustomerAccount";
 import {
   recordCustomerCreditNoteApplicationJournalEntry,
@@ -605,8 +606,8 @@ export function AdjustCustomerCreditNoteDialog({
             <div className="space-y-2">
               <Label>Invoices</Label>
               {salesLoading || returnMetaLoading ? (
-                <div className="flex items-center justify-center p-6">
-                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                <div className="p-2" aria-busy="true">
+                  <ListSkeleton items={4} showIcon={false} />
                 </div>
               ) : unpaidSales.length === 0 ? (
                 <p className="text-sm text-muted-foreground p-3 bg-muted rounded-lg">No unpaid invoices for this customer</p>

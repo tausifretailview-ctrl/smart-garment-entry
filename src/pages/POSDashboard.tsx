@@ -439,6 +439,7 @@ const POSDashboard = () => {
   const invoicePrintRef = useRef<HTMLDivElement>(null);
   const [showPreviewDialog, setShowPreviewDialog] = useState(false);
   const [previewSale, setPreviewSale] = useState<Sale | null>(null);
+  const [previewHydrating, setPreviewHydrating] = useState(false);
   const [previewFinancerDetails, setPreviewFinancerDetails] = useState<any>(null);
   const [previewCustomerData, setPreviewCustomerData] = useState<{ gst_number?: string; transport_details?: string; address?: string } | null>(null);
   const [posBillFormat, setPosBillFormat] = useState<string | null>(null);
@@ -1807,24 +1808,31 @@ const POSDashboard = () => {
 
   const handlePreviewClick = async (sale: Sale, event: React.MouseEvent) => {
     event.stopPropagation();
-    await fetchSaleItems(sale.id);
-    // Fetch financer details and customer GST for preview
-    const [{ data: finData }, { data: custData }] = await Promise.all([
-      supabase.from('sale_financer_details').select('*').eq('sale_id', sale.id).maybeSingle(),
-      sale.customer_id
-        ? supabase.from('customers').select('gst_number, transport_details, address').eq('id', sale.customer_id).maybeSingle()
-        : Promise.resolve({ data: null }),
-    ]);
-    setPreviewFinancerDetails(finData ? {
-      financer_name: finData.financer_name,
-      loan_number: finData.loan_number || undefined,
-      emi_amount: finData.emi_amount || undefined,
-      tenure: finData.tenure || undefined,
-      down_payment: finData.down_payment || undefined,
-    } : null);
-    setPreviewCustomerData(custData);
+    // Open immediately so the click is acknowledged; hydrate items/extras in background.
     setPreviewSale(sale);
+    setPreviewFinancerDetails(null);
+    setPreviewCustomerData(null);
+    setPreviewHydrating(true);
     setShowPreviewDialog(true);
+    try {
+      await fetchSaleItems(sale.id);
+      const [{ data: finData }, { data: custData }] = await Promise.all([
+        supabase.from('sale_financer_details').select('*').eq('sale_id', sale.id).maybeSingle(),
+        sale.customer_id
+          ? supabase.from('customers').select('gst_number, transport_details, address').eq('id', sale.customer_id).maybeSingle()
+          : Promise.resolve({ data: null }),
+      ]);
+      setPreviewFinancerDetails(finData ? {
+        financer_name: finData.financer_name,
+        loan_number: finData.loan_number || undefined,
+        emi_amount: finData.emi_amount || undefined,
+        tenure: finData.tenure || undefined,
+        down_payment: finData.down_payment || undefined,
+      } : null);
+      setPreviewCustomerData(custData);
+    } finally {
+      setPreviewHydrating(false);
+    }
   };
 
   const openPaymentDialog = (sale: Sale) => {
@@ -3239,8 +3247,9 @@ const POSDashboard = () => {
                         <React.Fragment key={sale.id}>
                           <TableRow
                             className={cn(
-                              "cursor-pointer h-14",
+                              "cursor-pointer h-14 active:bg-muted/50",
                               cancelled && "bg-red-50/50 dark:bg-red-950/20",
+                              expandedSale === sale.id && !cancelled && "bg-muted/40",
                             )}
                           >
                             <TableCell className="px-2 py-2.5" onClick={(e) => e.stopPropagation()}>
@@ -4002,6 +4011,9 @@ const POSDashboard = () => {
           defaultFormat={posInvoiceWrapperFormat}
           thermalPaper={posThermalPaper}
           renderInvoice={(format) => (
+            previewHydrating && !(saleItems[previewSale.id]?.length) ? (
+              <div data-invoice-loading className="p-6 text-sm text-muted-foreground">Loading preview…</div>
+            ) : (
             <InvoiceWrapper
               format={format}
               billNo={previewSale.sale_number}
@@ -4049,6 +4061,7 @@ const POSDashboard = () => {
               )}
               financerDetails={previewFinancerDetails}
             />
+            )
           )}
         />
       )}

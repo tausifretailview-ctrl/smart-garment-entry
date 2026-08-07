@@ -6,7 +6,6 @@ import { useSettings } from "@/hooks/useSettings";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { fetchSaleForInvoicePreview } from "@/utils/mobileInvoicePreviewData";
 import { withMobileQueryTimeout } from "@/lib/mobileQueryTimeout";
-import { Loader2 } from "lucide-react";
 
 type Props = {
   saleId: string | null;
@@ -89,42 +88,28 @@ export function MobileSalePrintPreviewDialog({ saleId, open, onOpenChange }: Pro
 
   if (!open || !saleId) return null;
 
-  if (isLoading) {
-    return (
-      <div className="fixed inset-0 z-[100] flex items-center justify-center bg-background/80 backdrop-blur-sm">
-        <div className="flex flex-col items-center gap-3">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          <p className="text-sm text-muted-foreground">Loading invoice preview…</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (isError || !sale || !invoiceProps) {
-    return (
-      <div className="fixed inset-0 z-[100] flex items-center justify-center bg-background/80 p-6">
-        <div className="text-center space-y-3">
-          <p className="text-sm font-medium">Could not load invoice preview</p>
-          <button
-            type="button"
-            className="text-sm text-primary font-semibold"
-            onClick={() => onOpenChange(false)}
-          >
-            Close
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <PrintPreviewDialog
       open={open}
       onOpenChange={onOpenChange}
       defaultFormat={billFormat}
-      renderInvoice={(format) => (
-        <InvoiceWrapper {...invoiceProps} format={format as typeof invoiceProps.format} />
-      )}
+      renderInvoice={(format) => {
+        if (isLoading) {
+          return (
+            <div data-invoice-loading className="p-6 text-sm text-muted-foreground">
+              Loading preview…
+            </div>
+          );
+        }
+        if (isError || !invoiceProps) {
+          return (
+            <div className="p-6 text-center space-y-3">
+              <p className="text-sm font-medium">Could not load invoice preview</p>
+            </div>
+          );
+        }
+        return <InvoiceWrapper {...invoiceProps} format={format as typeof invoiceProps.format} />;
+      }}
     />
   );
 }

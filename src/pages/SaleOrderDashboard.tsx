@@ -103,6 +103,7 @@ export default function SaleOrderDashboard() {
   
   // Conversion dialog state
   const [showConversionDialog, setShowConversionDialog] = useState(false);
+  const [conversionLoading, setConversionLoading] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
   const [conversionItems, setConversionItems] = useState<ConversionItem[]>([]);
   const [isConverting, setIsConverting] = useState(false);
@@ -357,16 +358,21 @@ export default function SaleOrderDashboard() {
 
   const handleOpenConversion = async (order: any) => {
     setRowActionLoadingId(order.id);
+    setSelectedOrder(order);
+    setConversionItems([]);
+    setConversionLoading(true);
+    setShowConversionDialog(true);
     try {
       const fullOrder = await fetchSaleOrderWithItems(order.id);
       if (!fullOrder) throw new Error("Order not found");
       const items = await fetchStockForConversion(fullOrder);
       setConversionItems(items);
       setSelectedOrder(fullOrder);
-      setShowConversionDialog(true);
     } catch (error: any) {
+      setShowConversionDialog(false);
       toast({ title: "Error", description: error.message || "Could not load order", variant: "destructive" });
     } finally {
+      setConversionLoading(false);
       setRowActionLoadingId(null);
     }
   };
@@ -1065,7 +1071,13 @@ export default function SaleOrderDashboard() {
       </AlertDialog>
 
       {/* Conversion Dialog */}
-      <Dialog open={showConversionDialog} onOpenChange={setShowConversionDialog}>
+      <Dialog
+        open={showConversionDialog}
+        onOpenChange={(open) => {
+          if (conversionLoading && !open) return;
+          setShowConversionDialog(open);
+        }}
+      >
         <DialogContent className="max-w-3xl">
           <DialogHeader>
             <DialogTitle>Convert to Sale Bill</DialogTitle>
@@ -1075,6 +1087,12 @@ export default function SaleOrderDashboard() {
           </DialogHeader>
           
           <div className="max-h-96 overflow-auto">
+            {conversionLoading ? (
+              <div className="flex flex-col items-center justify-center gap-3 py-16 text-muted-foreground" aria-busy="true">
+                <Loader2 className="h-8 w-8 animate-spin" />
+                <p className="text-sm">Loading order items…</p>
+              </div>
+            ) : (
             <Table>
               <TableHeader>
                 <TableRow>
@@ -1153,11 +1171,12 @@ export default function SaleOrderDashboard() {
                 })}
               </TableBody>
             </Table>
+            )}
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowConversionDialog(false)}>Cancel</Button>
-            <Button onClick={handleConvertToSaleBill} disabled={isConverting}>
+            <Button variant="outline" onClick={() => setShowConversionDialog(false)} disabled={conversionLoading || isConverting}>Cancel</Button>
+            <Button onClick={handleConvertToSaleBill} disabled={isConverting || conversionLoading || conversionItems.length === 0}>
               {isConverting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <ArrowRight className="h-4 w-4 mr-2" />}
               Create Sale Bill
             </Button>

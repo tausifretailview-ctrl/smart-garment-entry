@@ -82,6 +82,7 @@ export function ReconciliationTab({ organizationId, customers, visitedTabs }: Re
   const [reconEndDate, setReconEndDate] = useState<Date>(endOfMonth(new Date()));
   const [reconCustomerFilter, setReconCustomerFilter] = useState<string>("");
   const [reconStatusFilter, setReconStatusFilter] = useState<string>("all");
+  const [deleteConfirmPaymentId, setDeleteConfirmPaymentId] = useState<string | null>(null);
 
   // Fetch reconciliation data
   const { data: reconciliationData } = useQuery({
@@ -412,9 +413,20 @@ export function ReconciliationTab({ organizationId, customers, visitedTabs }: Re
                       <TableCell className={cn("text-right font-medium", balance > 0 && "text-orange-600 dark:text-orange-400")}>₹{balance.toFixed(2)}</TableCell>
                       {isAdmin && (
                         <TableCell className="text-center">
-                          <AlertDialog>
+                          <AlertDialog
+                            open={deleteConfirmPaymentId === payment.id}
+                            onOpenChange={(open) => {
+                              if (deleteReceipt.isPending && !open) return;
+                              setDeleteConfirmPaymentId(open ? payment.id : null);
+                            }}
+                          >
                             <AlertDialogTrigger asChild>
-                              <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10" disabled={deleteReceipt.isPending}>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                disabled={deleteReceipt.isPending}
+                              >
                                 <Trash2 className="h-4 w-4" />
                               </Button>
                             </AlertDialogTrigger>
@@ -426,8 +438,20 @@ export function ReconciliationTab({ organizationId, customers, visitedTabs }: Re
                                 </AlertDialogDescription>
                               </AlertDialogHeader>
                               <AlertDialogFooter>
-                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction onClick={() => deleteReceipt.mutate(payment)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete & Reverse</AlertDialogAction>
+                                <AlertDialogCancel disabled={deleteReceipt.isPending}>Cancel</AlertDialogCancel>
+                                <AlertDialogAction
+                                  disabled={deleteReceipt.isPending}
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    if (deleteReceipt.isPending) return;
+                                    void deleteReceipt.mutateAsync(payment).then(() => {
+                                      setDeleteConfirmPaymentId(null);
+                                    });
+                                  }}
+                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                >
+                                  {deleteReceipt.isPending ? "Deleting…" : "Delete & Reverse"}
+                                </AlertDialogAction>
                               </AlertDialogFooter>
                             </AlertDialogContent>
                           </AlertDialog>

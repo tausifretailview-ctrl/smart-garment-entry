@@ -590,7 +590,7 @@ export default function CustomerPartyBalancesPage() {
                         return (
                           <TableRow
                             key={row.customer_id}
-                            className="h-11 cursor-pointer hover:bg-teal-50/80 dark:hover:bg-teal-950/20"
+                            className="h-11 cursor-pointer hover:bg-teal-50/80 dark:hover:bg-teal-950/20 active:bg-teal-100/80 dark:active:bg-teal-950/40"
                             onClick={() => openCustomerLedger(row)}
                             title="Open customer ledger"
                           >

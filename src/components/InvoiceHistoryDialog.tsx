@@ -13,7 +13,8 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, ArrowLeft, History, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, History, CheckCircle2 } from "lucide-react";
+import { ListSkeleton } from "@/components/ui/skeletons";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 import {
@@ -368,8 +369,9 @@ export function InvoiceHistoryDialog({
   const renderBody = () => {
     if (isLoading) {
       return (
-        <div className="flex justify-center py-16">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <div className="space-y-4 py-2" aria-busy="true">
+          <ListSkeleton items={1} showIcon={false} className="rounded-lg border bg-muted/30 p-3" />
+          <ListSkeleton items={5} showIcon={false} />
         </div>
       );
     }

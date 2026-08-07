@@ -465,7 +465,7 @@ export default function SupplierPartyBalancesPage() {
                         return (
                           <TableRow
                             key={row.supplier_id}
-                            className="h-11 cursor-pointer hover:bg-amber-50/80 dark:hover:bg-amber-950/20"
+                            className="h-11 cursor-pointer hover:bg-amber-50/80 dark:hover:bg-amber-950/20 active:bg-amber-100/80 dark:active:bg-amber-950/40"
                             onClick={openSupplierLedger}
                             title="Open Supplier Ledger"
                           >

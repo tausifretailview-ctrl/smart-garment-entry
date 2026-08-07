@@ -134,6 +134,9 @@ export function SupplierPaymentTab({
   const PAYMENTS_PER_PAGE = 10;
   const [paymentsPage, setPaymentsPage] = useState(1);
   const [selectedPaymentIds, setSelectedPaymentIds] = useState<string[]>([]);
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const bulkDeleteSilentRef = useRef(false);
   const [paymentSearchTerm, setPaymentSearchTerm] = useState("");
 
   const { data: supplierBalanceMapLocal } = useQuery({
@@ -718,7 +721,9 @@ export function SupplierPaymentTab({
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Payment deleted");
+      if (!bulkDeleteSilentRef.current) {
+        toast.success("Payment deleted");
+      }
       queryClient.invalidateQueries({ queryKey: ["voucher-entries"] });
       queryClient.invalidateQueries({ queryKey: ["supplier-bills"] });
       queryClient.invalidateQueries({ queryKey: ["supplier-balance-map"] });
@@ -731,8 +736,48 @@ export function SupplierPaymentTab({
       queryClient.invalidateQueries({ queryKey: ["purchase-summary"] });
       queryClient.invalidateQueries({ queryKey: ["journal-vouchers"] });
     },
-    onError: (error: any) => toast.error(error.message),
+    onError: (error: any) => {
+      if (!bulkDeleteSilentRef.current) {
+        toast.error(error.message);
+      }
+    },
   });
+
+  const handleBulkDeletePayments = async () => {
+    if (bulkDeleting) return;
+    const selected = supplierPayments.filter((v) => selectedPaymentIds.includes(v.id));
+    if (selected.length === 0) return;
+
+    setBulkDeleting(true);
+    bulkDeleteSilentRef.current = true;
+    const succeededIds: string[] = [];
+    const failures: string[] = [];
+    try {
+      for (const voucher of selected) {
+        try {
+          await deletePayment.mutateAsync(voucher);
+          succeededIds.push(voucher.id);
+        } catch {
+          failures.push(String(voucher.voucher_number || voucher.id));
+        }
+      }
+      setSelectedPaymentIds((prev) => prev.filter((id) => !succeededIds.includes(id)));
+      if (failures.length === 0) {
+        toast.success(`Deleted ${succeededIds.length} payment(s).`);
+        setBulkDeleteOpen(false);
+      } else if (succeededIds.length === 0) {
+        toast.error(`Failed to delete all ${failures.length} payment(s).`);
+      } else {
+        toast.error(
+          `Deleted ${succeededIds.length} of ${selected.length}. Failed: ${failures.join(", ")}`,
+        );
+        setBulkDeleteOpen(false);
+      }
+    } finally {
+      bulkDeleteSilentRef.current = false;
+      setBulkDeleting(false);
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -1261,9 +1306,15 @@ export function SupplierPaymentTab({
         onSearchChange={(v) => { setPaymentSearchTerm(v); setPaymentsPage(1); }}
         toolbar={
           isAdmin && selectedPaymentIds.length > 0 ? (
-            <AlertDialog>
+            <AlertDialog
+              open={bulkDeleteOpen}
+              onOpenChange={(open) => {
+                if (bulkDeleting && !open) return;
+                setBulkDeleteOpen(open);
+              }}
+            >
               <AlertDialogTrigger asChild>
-                <Button variant="destructive" size="sm" className="h-9">
+                <Button variant="destructive" size="sm" className="h-9" disabled={bulkDeleting}>
                   <Trash2 className="mr-2 h-4 w-4" />
                   Delete Selected ({selectedPaymentIds.length})
                 </Button>
@@ -1274,13 +1325,16 @@ export function SupplierPaymentTab({
                   <AlertDialogDescription>This will delete {selectedPaymentIds.length} payment(s).</AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction onClick={() => {
-                    const selected = supplierPayments.filter((v) => selectedPaymentIds.includes(v.id));
-                    selected.forEach((v) => deletePayment.mutate(v));
-                    setSelectedPaymentIds([]);
-                  }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                    Delete All
+                  <AlertDialogCancel disabled={bulkDeleting}>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    disabled={bulkDeleting}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      void handleBulkDeletePayments();
+                    }}
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  >
+                    {bulkDeleting ? "Deleting…" : "Delete All"}
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>

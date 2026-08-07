@@ -141,6 +141,7 @@ export default function DeliveryChallanEntry() {
   const [entryModeInitialized, setEntryModeInitialized] = useState(false);
   const [invoiceFormat, setInvoiceFormat] = useState<"standard" | "wholesale-size-grouping">("standard");
   const [showSizeGrid, setShowSizeGrid] = useState(false);
+  const [sizeGridLoading, setSizeGridLoading] = useState(false);
   const [sizeGridProduct, setSizeGridProduct] = useState<any>(null);
   const [sizeGridVariants, setSizeGridVariants] = useState<any[]>([]);
   const [selectedSaleOrderId, setSelectedSaleOrderId] = useState<string | null>(null);
@@ -326,6 +327,13 @@ export default function DeliveryChallanEntry() {
       if (!currentOrganization?.id || productIds.length === 0) return;
 
       const primaryProductId = productIds[0];
+      setSizeGridProduct({ id: primaryProductId, product_name: "Loading…" });
+      setSizeGridVariants([]);
+      setSizeGridLoading(true);
+      setShowSizeGrid(true);
+      productSearch.setOpenProductSearch(false);
+      productSearch.setSearchInput("");
+
       const { data: productRow, error: productError } = await supabase
         .from("products")
         .select("id, product_name, brand, category, style, color, hsn_code, gst_per, uom, size_group_id")
@@ -334,6 +342,8 @@ export default function DeliveryChallanEntry() {
         .maybeSingle();
 
       if (productError || !productRow) {
+        setShowSizeGrid(false);
+        setSizeGridLoading(false);
         toast({ title: "Product not found", variant: "destructive" });
         return;
       }
@@ -347,6 +357,8 @@ export default function DeliveryChallanEntry() {
         .is("deleted_at", null);
 
       if (error || !data?.length) {
+        setShowSizeGrid(false);
+        setSizeGridLoading(false);
         toast({
           title: "No variants found",
           description: "This product has no active variants.",
@@ -370,9 +382,7 @@ export default function DeliveryChallanEntry() {
           defaultColor: productRow.color || "",
         }),
       );
-      setShowSizeGrid(true);
-      productSearch.setOpenProductSearch(false);
-      productSearch.setSearchInput("");
+      setSizeGridLoading(false);
     },
     [currentOrganization?.id, lineItems, toast, productSearch],
   );
@@ -1489,7 +1499,7 @@ export default function DeliveryChallanEntry() {
 
       <SizeGridDialog
         open={showSizeGrid}
-        onClose={() => setShowSizeGrid(false)}
+        onClose={() => { setShowSizeGrid(false); setSizeGridLoading(false); }}
         product={sizeGridProduct}
         variants={sizeGridVariants}
         onConfirm={handleSizeGridConfirm}
@@ -1498,6 +1508,7 @@ export default function DeliveryChallanEntry() {
         allowMultiColor={true}
         showSizePrices={false}
         title="Enter Color & Size-wise Qty"
+        isLoading={sizeGridLoading}
       />
 
       <div className="invoice-print-source-screen">
