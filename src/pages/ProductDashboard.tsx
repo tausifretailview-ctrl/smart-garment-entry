@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { isStatementTimeout } from "@/utils/statementTimeout";
 import { DASHBOARD_TAB_RETURN_QUERY_OPTIONS } from "@/lib/dashboardQueryOptions";
 import { STALE_REFERENCE } from "@/lib/queryStaleTimes";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -257,6 +258,79 @@ const ProductDashboard = () => {
   const [galleryRefreshKey, setGalleryRefreshKey] = useState(0);
   const [showMergeDialog, setShowMergeDialog] = useState(false);
 
+  type ProductCatalogPage = { rows: ProductRow[]; totalCount: number };
+
+  /** Optimistic status flip on the same `product-catalog` keys retained panes read. */
+  const toggleProductStatus = useMutation({
+    mutationFn: async (vars: {
+      productId: string;
+      newStatus: "active" | "inactive";
+      productName: string;
+    }) => {
+      if (!currentOrganization?.id) throw new Error("No organization selected");
+      const { error } = await supabase
+        .from("products")
+        .update({ status: vars.newStatus })
+        .eq("id", vars.productId)
+        .eq("organization_id", currentOrganization.id);
+      if (error) throw error;
+      return vars;
+    },
+    onMutate: async (vars) => {
+      const orgId = currentOrganization?.id;
+      if (!orgId) return { previous: [] as Array<[readonly unknown[], ProductCatalogPage | undefined]> };
+
+      const catalogKey = ["product-catalog", orgId] as const;
+      await queryClient.cancelQueries({ queryKey: catalogKey });
+
+      const previous = queryClient.getQueriesData<ProductCatalogPage>({ queryKey: catalogKey });
+
+      queryClient.setQueriesData<ProductCatalogPage>({ queryKey: catalogKey }, (old) => {
+        if (!old?.rows) return old;
+        return {
+          ...old,
+          rows: old.rows.map((row) =>
+            row.product_id === vars.productId ? { ...row, status: vars.newStatus } : row,
+          ),
+        };
+      });
+
+      return { previous };
+    },
+    onError: (error, _vars, context) => {
+      if (context?.previous) {
+        for (const [key, data] of context.previous) {
+          queryClient.setQueryData(key, data);
+        }
+      }
+      // Global MutationCache already toasts 57014 — avoid a second conflicting toast.
+      if (isStatementTimeout(error)) return;
+      const offline =
+        typeof navigator !== "undefined" && navigator.onLine === false;
+      toast({
+        title: "Couldn't save — change undone",
+        description: offline
+          ? "You're offline. Reconnect and try again."
+          : error instanceof Error
+            ? error.message
+            : "Failed to update product status",
+        variant: "destructive",
+      });
+    },
+    onSuccess: (vars) => {
+      toast({
+        title: "Saved",
+        description: `"${vars.productName}" marked as ${vars.newStatus}`,
+      });
+    },
+    onSettled: () => {
+      const orgId = currentOrganization?.id;
+      if (!orgId) return;
+      void queryClient.invalidateQueries({ queryKey: ["product-catalog", orgId] });
+      void queryClient.invalidateQueries({ queryKey: ["product-dashboard-stats", orgId] });
+    },
+  });
+
   // Stock import states
   const [showStockImportDialog, setShowStockImportDialog] = useState(false);
   const [stockImportFile, setStockImportFile] = useState<File | null>(null);
@@ -339,20 +413,14 @@ const ProductDashboard = () => {
       {
         label: product.status === 'active' ? "Mark Inactive" : "Mark Active",
         icon: Ban,
-        onClick: async () => {
-          const newStatus = product.status === 'active' ? 'inactive' : 'active';
-          const { error } = await supabase
-            .from("products")
-            .update({ status: newStatus })
-            .eq("id", product.product_id);
-          
-          if (!error) {
-            toast({
-              title: "Success",
-              description: `Product marked as ${newStatus}`,
-            });
-            fetchProductVariants();
-          }
+        onClick: () => {
+          if (toggleProductStatus.isPending) return;
+          const newStatus = product.status === "active" ? "inactive" : "active";
+          toggleProductStatus.mutate({
+            productId: product.product_id,
+            newStatus,
+            productName: product.product_name,
+          });
         },
       },
       ...(canDelete ? [{
@@ -1024,35 +1092,23 @@ const ProductDashboard = () => {
     }
   };
 
-  const handleMarkProductInactive = async () => {
-    if (!relationDialog.productId) return;
-    
+  const handleMarkProductInactive = () => {
+    if (!relationDialog.productId || toggleProductStatus.isPending) return;
     setIsMarkingInactive(true);
-    try {
-      const { error } = await supabase
-        .from("products")
-        .update({ status: "inactive" })
-        .eq("id", relationDialog.productId);
-
-      if (error) throw error;
-
-      toast({
-        title: "Success",
-        description: `"${relationDialog.productName}" has been marked as inactive`,
-      });
-
-      setRelationDialog({ open: false, productName: "", productId: "", relations: [] });
-      setSelectedProducts(new Set());
-      await fetchProductVariants();
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to mark product as inactive",
-        variant: "destructive",
-      });
-    } finally {
-      setIsMarkingInactive(false);
-    }
+    toggleProductStatus.mutate(
+      {
+        productId: relationDialog.productId,
+        newStatus: "inactive",
+        productName: relationDialog.productName,
+      },
+      {
+        onSettled: () => {
+          setIsMarkingInactive(false);
+          setRelationDialog({ open: false, productName: "", productId: "", relations: [] });
+          setSelectedProducts(new Set());
+        },
+      },
+    );
   };
 
   const handlePageSizeChange = (value: string) => {
