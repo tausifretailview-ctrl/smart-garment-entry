@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -20,6 +21,7 @@ import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { isStatementTimeout } from "@/utils/statementTimeout";
 import OrganizationResetDialog from "./OrganizationResetDialog";
 
 interface BackupSettingsProps {
@@ -27,6 +29,8 @@ interface BackupSettingsProps {
   backupEmail?: string;
   backupRetentionDays?: number;
   lastAutoBackupAt?: string | null;
+  /** Keep Settings page local state aligned with optimistic toggle. */
+  onAutoBackupEnabledChange?: (enabled: boolean) => void;
 }
 
 const BackupSettings = ({
@@ -34,8 +38,10 @@ const BackupSettings = ({
   backupEmail: backupEmailProp = "",
   backupRetentionDays: backupRetentionDaysProp = 0,
   lastAutoBackupAt: lastAutoBackupAtProp = null,
+  onAutoBackupEnabledChange,
 }: BackupSettingsProps) => {
   const { organizationRole, currentOrganization } = useOrganization();
+  const queryClient = useQueryClient();
   const { 
     backupLogs, isLoadingLogs, isBackingUp, isDownloading, 
     startBackup, downloadBackup, downloadBackupAsExcel, formatFileSize,
@@ -68,34 +74,92 @@ const BackupSettings = ({
     setIsLoadingSettings(false);
   }, [autoBackupEnabledProp, backupEmailProp, backupRetentionDaysProp, lastAutoBackupAtProp]);
 
-  const handleSaveAutoBackupSettings = async (enabled?: boolean) => {
+  const applyEnabledLocally = (enabled: boolean) => {
+    setAutoBackupEnabled(enabled);
+    onAutoBackupEnabledChange?.(enabled);
+  };
+
+  const toggleAutoBackup = useMutation({
+    mutationFn: async (enabled: boolean) => {
+      if (!currentOrganization?.id) throw new Error("No organization selected");
+      const { error } = await supabase
+        .from("settings")
+        .update({ auto_backup_enabled: enabled })
+        .eq("organization_id", currentOrganization.id);
+      if (error) throw error;
+      return enabled;
+    },
+    onMutate: async (enabled) => {
+      const orgId = currentOrganization?.id;
+      const previousEnabled = autoBackupEnabled;
+      applyEnabledLocally(enabled);
+
+      let previousOrgSettings: unknown;
+      if (orgId) {
+        const key = ["org-settings", orgId] as const;
+        await queryClient.cancelQueries({ queryKey: key });
+        previousOrgSettings = queryClient.getQueryData(key);
+        queryClient.setQueryData(key, (old: Record<string, unknown> | null | undefined) =>
+          old ? { ...old, auto_backup_enabled: enabled } : old,
+        );
+      }
+
+      return { previousEnabled, previousOrgSettings, orgId };
+    },
+    onError: (error, _enabled, context) => {
+      if (context) {
+        applyEnabledLocally(context.previousEnabled);
+        if (context.orgId) {
+          queryClient.setQueryData(["org-settings", context.orgId], context.previousOrgSettings);
+        }
+      }
+      if (isStatementTimeout(error)) return;
+      const offline = typeof navigator !== "undefined" && navigator.onLine === false;
+      toast.error("Couldn't save — change undone", {
+        description: offline
+          ? "You're offline. Reconnect and try again."
+          : error instanceof Error
+            ? error.message
+            : "Auto-backup setting was not saved",
+      });
+    },
+    onSettled: () => {
+      if (currentOrganization?.id) {
+        void queryClient.invalidateQueries({ queryKey: ["org-settings", currentOrganization.id] });
+      }
+    },
+  });
+
+  const handleSaveAutoBackupSettings = async () => {
     if (!currentOrganization?.id) return;
     setIsSavingSettings(true);
     try {
-      const updates: Record<string, any> = {
-        auto_backup_enabled: enabled !== undefined ? enabled : autoBackupEnabled,
-        backup_email: backupEmail.trim() || null,
-        backup_retention_days: parseInt(retentionDays),
-      };
-
       const { error } = await supabase
-        .from('settings')
-        .update(updates)
-        .eq('organization_id', currentOrganization.id);
+        .from("settings")
+        .update({
+          auto_backup_enabled: autoBackupEnabled,
+          backup_email: backupEmail.trim() || null,
+          backup_retention_days: parseInt(retentionDays, 10),
+        })
+        .eq("organization_id", currentOrganization.id);
 
       if (error) throw error;
+      onAutoBackupEnabledChange?.(autoBackupEnabled);
+      void queryClient.invalidateQueries({ queryKey: ["org-settings", currentOrganization.id] });
       toast.success("Backup settings saved!");
-    } catch (error: any) {
-      console.error('Failed to save backup settings:', error);
-      toast.error("Failed to save settings");
+    } catch (error: unknown) {
+      console.error("Failed to save backup settings:", error);
+      if (!isStatementTimeout(error)) {
+        toast.error("Failed to save settings");
+      }
     } finally {
       setIsSavingSettings(false);
     }
   };
 
-  const handleToggleAutoBackup = async (checked: boolean) => {
-    setAutoBackupEnabled(checked);
-    await handleSaveAutoBackupSettings(checked);
+  const handleToggleAutoBackup = (checked: boolean) => {
+    if (toggleAutoBackup.isPending) return;
+    toggleAutoBackup.mutate(checked);
   };
 
   const handleSaveCredentials = async () => {
@@ -166,7 +230,7 @@ const BackupSettings = ({
                 <Switch
                   checked={autoBackupEnabled}
                   onCheckedChange={handleToggleAutoBackup}
-                  disabled={isSavingSettings}
+                  disabled={isSavingSettings || toggleAutoBackup.isPending}
                 />
               </div>
 
@@ -197,8 +261,8 @@ const BackupSettings = ({
                 </div>
                 <Button
                   size="sm"
-                  onClick={() => handleSaveAutoBackupSettings()}
-                  disabled={isSavingSettings}
+                  onClick={() => void handleSaveAutoBackupSettings()}
+                  disabled={isSavingSettings || toggleAutoBackup.isPending}
                   variant="outline"
                   className="gap-1"
                 >
