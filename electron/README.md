@@ -48,14 +48,14 @@ inside the installer.
 
 | What changed | What to do |
 | --- | --- |
-| Web UI (Accounts, reports, etc.) | **F5** or **File → Refresh App** (clears cache + reloads from server). Help → Check for Updates checks the **installer** only. |
+| Web UI (Accounts, reports, etc.) | **Ctrl+R** or **File → Refresh App** (clears cache + reloads from server). Help → Check for Updates checks the **installer** only. F5 is reserved for POS Sale Return. |
 | Desktop shell (printing, menus, tray) | Help → Check for Updates, or reinstall from GitHub Releases. |
 
-If Accounts looks old after a deploy: press **F5**, use the header **↻** button,
+If Accounts looks old after a deploy: press **Ctrl+R**, use the header **↻** button,
 or wait for the **“New version on server”** banner and click **Reload now**.
 
 Stale data can also come from the React Query offline cache — a hard refresh
-(F5) clears it. The web build ID changes on every `vite build` so persisted
+(Ctrl+R) clears it. The web build ID changes on every `vite build` so persisted
 cache is discarded after reload.
 
 ## Performance switches (already enabled in `main.cjs`)
@@ -75,11 +75,11 @@ cache is discarded after reload.
 
 | Symptom | Check |
 | --- | --- |
-| Blank window on launch | Internet down? App auto-retries up to 4 times. Press **F5**, use **File → Refresh App**, or right-click → **Refresh App**. |
-| Blank window after minimize / tab switch | Renderer may have crashed (memory). A **Reload app** dialog should appear; if not, press **F5**. Close unused ERP tabs to reduce memory use. |
-| Stale data / screen stuck | **F5** or **Ctrl+R** reloads the app (cache is cleared). Tray icon → **Refresh App** also works. If a web deploy landed, an **Update available** banner may appear — click **Reload now**. |
-| Web changes missing but desktop is current | The `.exe` only wraps the browser — UI changes ship to `app.inventoryshop.in`. Press **F5** after deploy; no new installer needed unless `electron/` or `package.json` version changed. |
-| POS / dashboard shows half width or clipped footer on launch | Update to the latest desktop build (100% zoom + auto viewport sync). Use header **Display Scale** (monitor icon) → **Standard** if text is too large. Press **F5** once after login if layout still looks wrong. |
+| Blank window on launch | Internet down? App auto-retries up to 4 times. Press **Ctrl+R**, use **File → Refresh App**, or right-click → **Refresh App**. |
+| Blank window after minimize / tab switch | Renderer may have crashed (memory). A **Reload app** dialog should appear; if not, press **Ctrl+R**. Close unused ERP tabs to reduce memory use. |
+| Stale data / screen stuck | **Ctrl+R** reloads the app (cache is cleared). Tray icon → **Refresh App** also works. If a web deploy landed, an **Update available** banner may appear — click **Reload now**. |
+| Web changes missing but desktop is current | The `.exe` only wraps the browser — UI changes ship to `app.inventoryshop.in`. Press **Ctrl+R** after deploy; no new installer needed unless `electron/` or `package.json` version changed. |
+| POS / dashboard shows half width or clipped footer on launch | Update to the latest desktop build (100% zoom + auto viewport sync). Use header **Display Scale** (monitor icon) → **Standard** if text is too large. Press **Ctrl+R** once after login if layout still looks wrong. |
 | "Not responding" dialog | Click **Reload now** — work on the current screen may be lost. |
 | App stays in background after Close | That's intentional. Right-click tray icon → **Quit** to fully exit. |
 | Printing dialog still appears | The web app calls `electronAPI.silentPrint()` only when running inside the desktop shell. Verify `window.electronAPI?.isElectron === true` in DevTools. |

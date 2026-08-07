@@ -5,6 +5,7 @@ import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { getMenuPermissionForPath, resolveFirstAllowedPath } from "@/lib/menuPermissions";
 import { prefetchTabPage, resolveTabCachePath } from "@/lib/tabPageRegistry";
+import { isEditableTarget } from "@/lib/keyboardShortcuts";
 import { 
   ShoppingCart, BarChart3, FileText, Users, Package, Settings, 
   Home, Truck, Receipt, ArrowLeftRight, ClipboardList, UserCheck,
@@ -273,9 +274,11 @@ export function WindowTabsProvider({ children }: { children: React.ReactNode }) 
     }
   }, [location.pathname, location.search, getCurrentPath, canAccessPath, navigate, getOrgPath]);
 
-  // Keyboard shortcuts
+  // Keyboard shortcuts — never while typing (barcode / form fields).
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (isEditableTarget(e.target)) return;
+
       const allowedWindows = Array.isArray(openWindows)
         ? openWindows.filter(w => canAccessPath(w.path))
         : [];

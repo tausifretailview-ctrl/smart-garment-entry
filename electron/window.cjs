@@ -262,7 +262,7 @@ function createWindow() {
     recoverSupabaseOAuthJsonErrorPage();
   });
 
-  // Retry main-frame load failures (network blip / CDN timeout). User can still F5 anytime.
+  // Retry main-frame load failures (network blip / CDN timeout). User can still Ctrl+R anytime.
   mainWindow.webContents.on('did-fail-load', (_event, errorCode, _description, _url, isMainFrame) => {
     if (!isMainFrame) return;
     if (errorCode === -3) return; // ERR_ABORTED — navigation cancelled
@@ -305,18 +305,21 @@ function createWindow() {
     }
   });
 
-  // F5 / Ctrl+R — always reload the app (Windows-style refresh), even when focus is in a form.
+  // Ctrl+R — reload the app even when focus is in a form.
+  // Do NOT intercept F5/F11 here: POS (and POS Delivery Challan) bind F5 = Sale
+  // Return and F11 = Size Stock. preventDefault() would swallow the key before the
+  // renderer sees it, reloading mid-bill and discarding the cart. Refresh stays on
+  // Ctrl+R and File/Window → Refresh App (no F1–F11 accelerators — see main.cjs).
   mainWindow.webContents.on('before-input-event', (event, input) => {
     if (input.type !== 'keyDown') return;
-    const f5 = input.key === 'F5';
     const ctrlR =
       input.control &&
       !input.shift &&
       !input.alt &&
       (input.key === 'r' || input.key === 'R');
-    if (f5 || ctrlR) {
+    if (ctrlR) {
       event.preventDefault();
-      manualReloadMainWindow(f5 ? 'F5' : 'Ctrl+R');
+      manualReloadMainWindow('Ctrl+R');
     }
   });
 
@@ -433,7 +436,7 @@ function createWindow() {
     if (items.length) items.push({ type: 'separator' });
     items.push({
       label: 'Refresh App',
-      accelerator: 'F5',
+      accelerator: 'CmdOrCtrl+R',
       click: () => manualReloadMainWindow('context-menu'),
     });
     items.push({
