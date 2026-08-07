@@ -23,6 +23,7 @@ import {
   Layers,
 } from "lucide-react";
 import { ReportPageSkeleton } from "@/components/skeletons/ReportPageSkeleton";
+import { QuietRefreshBar } from "@/components/QuietRefreshBar";
 import { AccountsHistoryPanel } from "@/components/accounts/AccountsHistoryPanel";
 import {
   accountsHistoryTableClass,
@@ -342,7 +343,13 @@ export default function ExpenseSalaryReport() {
     pnlExpenseTotal == null || Math.abs(reportExpenseTotal - pnlExpenseTotal) <= 0.01;
 
   return (
-    <div className="min-h-screen bg-slate-50 px-2 sm:px-3 md:px-4 lg:px-5 py-4 pb-24 lg:pb-6 print:bg-white print:p-0">
+    <div className="relative min-h-screen bg-slate-50 px-2 sm:px-3 md:px-4 lg:px-5 py-4 pb-24 lg:pb-6 print:bg-white print:p-0">
+      <QuietRefreshBar
+        queryKeys={[
+          ["expense-salary-report", currentOrganization?.id],
+          ["expense-salary-pnl-check", currentOrganization?.id],
+        ]}
+      />
       <div ref={printRef} className="space-y-4 print:space-y-6">
       <div className="flex items-start justify-between gap-4 flex-wrap print:hidden">
         <div className="space-y-1">

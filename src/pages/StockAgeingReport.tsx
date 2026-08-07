@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganizationData } from "@/hooks/useOrganizationData";
 import { BackToDashboard } from "@/components/BackToDashboard";
+import { QuietRefreshBar } from "@/components/QuietRefreshBar";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -261,7 +262,8 @@ export default function StockAgeingReport() {
   }
 
   return (
-    <div className="business-insights-workspace flex flex-col bg-slate-50 px-2 sm:px-3 py-2 min-h-0 h-full overflow-hidden w-full">
+    <div className="business-insights-workspace relative flex flex-col bg-slate-50 px-2 sm:px-3 py-2 min-h-0 h-full overflow-hidden w-full">
+      <QuietRefreshBar queryKey={["stock-ageing", organizationId]} />
       <div className={`${INSIGHTS_TAB_SHELL}`}>
         <div className="no-print flex flex-wrap items-center justify-between gap-2 shrink-0">
           <div className="flex flex-wrap items-center gap-2 min-w-0">

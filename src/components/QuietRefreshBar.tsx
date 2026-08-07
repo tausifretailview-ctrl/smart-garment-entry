@@ -3,6 +3,18 @@ import { useIsFetching, useQueryClient, type QueryKey } from "@tanstack/react-qu
 import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+function resolveKeys(queryKey?: QueryKey, queryKeys?: QueryKey[]): QueryKey[] {
+  if (queryKeys?.length) return queryKeys;
+  if (queryKey) return [queryKey];
+  return [];
+}
+
+/** TanStack partial-match: filter is a prefix of the query key. */
+function keyMatches(queryKey: readonly unknown[], filter: QueryKey): boolean {
+  if (filter.length > queryKey.length) return false;
+  return filter.every((part, i) => part === queryKey[i]);
+}
+
 /**
  * True when a matching query is fetching *and* already has cached data.
  * Uses `useIsFetching` so it still updates under the app-wide
@@ -10,22 +22,37 @@ import { cn } from "@/lib/utils";
  * `isFetching` flips on `useQuery` consumers).
  */
 export function useQuietRefreshActive(queryKey: QueryKey, enabled = true): boolean {
+  return useQuietRefreshActiveKeys([queryKey], enabled);
+}
+
+export function useQuietRefreshActiveKeys(keys: QueryKey[], enabled = true): boolean {
   const queryClient = useQueryClient();
-  const fetching = useIsFetching({ queryKey });
-  if (!enabled || fetching === 0) return false;
-  return queryClient.getQueriesData({ queryKey }).some(([, data]) => data != null);
+  const fetching = useIsFetching({
+    predicate: (query) => keys.some((key) => keyMatches(query.queryKey, key)),
+  });
+  if (!enabled || keys.length === 0 || fetching === 0) return false;
+  return keys.some((key) =>
+    queryClient.getQueriesData({ queryKey: key }).some(([, data]) => data != null),
+  );
 }
 
 type QuietRefreshBarProps = {
-  queryKey: QueryKey;
+  queryKey?: QueryKey;
+  /** Prefer over `queryKey` when several queries drive the page. */
+  queryKeys?: QueryKey[];
   /** When false, never show (e.g. no customer selected). */
   enabled?: boolean;
   className?: string;
 };
 
 /** Thin indeterminate strip — no layout shift (absolute overlay). Hidden in print. */
-export function QuietRefreshBar({ queryKey, enabled = true, className }: QuietRefreshBarProps) {
-  const active = useQuietRefreshActive(queryKey, enabled);
+export function QuietRefreshBar({
+  queryKey,
+  queryKeys,
+  enabled = true,
+  className,
+}: QuietRefreshBarProps) {
+  const active = useQuietRefreshActiveKeys(resolveKeys(queryKey, queryKeys), enabled);
   if (!active) return null;
 
   return (
@@ -46,7 +73,8 @@ export function QuietRefreshBar({ queryKey, enabled = true, className }: QuietRe
 }
 
 type QuietRefreshHintProps = {
-  queryKey: QueryKey;
+  queryKey?: QueryKey;
+  queryKeys?: QueryKey[];
   enabled?: boolean;
   /** Shown when not quietly refreshing (e.g. party count subtitle). */
   idle?: ReactNode;
@@ -54,8 +82,14 @@ type QuietRefreshHintProps = {
 };
 
 /** Inline “Refreshing…” cue for header subtitles (party-balances pattern). */
-export function QuietRefreshHint({ queryKey, enabled = true, idle, className }: QuietRefreshHintProps) {
-  const active = useQuietRefreshActive(queryKey, enabled);
+export function QuietRefreshHint({
+  queryKey,
+  queryKeys,
+  enabled = true,
+  idle,
+  className,
+}: QuietRefreshHintProps) {
+  const active = useQuietRefreshActiveKeys(resolveKeys(queryKey, queryKeys), enabled);
   if (active) {
     return (
       <span className={cn("inline-flex items-center gap-1", className)}>

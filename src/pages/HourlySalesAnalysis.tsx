@@ -9,6 +9,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BackToDashboard } from "@/components/BackToDashboard";
+import { QuietRefreshBar } from "@/components/QuietRefreshBar";
 import { 
   BarChart, 
   Bar, 
@@ -216,7 +217,8 @@ export default function HourlySalesAnalysis() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="relative min-h-screen bg-background">
+      <QuietRefreshBar queryKey={["hourly-sales", currentOrganization?.id]} />
       <div className="w-full px-6 py-6 space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">

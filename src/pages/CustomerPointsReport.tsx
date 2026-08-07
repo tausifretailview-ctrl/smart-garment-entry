@@ -23,6 +23,7 @@ import { useSettings } from "@/hooks/useSettings";
 import { getIndianFinancialYearBounds } from "@/utils/paymentVoucherFilters";
 import { fetchAllCustomers } from "@/utils/fetchAllRows";
 import { cn } from "@/lib/utils";
+import { QuietRefreshBar } from "@/components/QuietRefreshBar";
 import { ReportKpiCards, type ReportKpiItem } from "@/components/reports/ReportKpiCards";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -422,7 +423,8 @@ export default function CustomerPointsReport() {
   }
 
   return (
-    <div className="customer-points-report flex h-full min-h-0 w-full flex-col overflow-hidden bg-slate-50 px-2 py-2 sm:px-3 print:min-h-screen print:h-auto print:overflow-visible print:bg-white print:p-4">
+    <div className="customer-points-report relative flex h-full min-h-0 w-full flex-col overflow-hidden bg-slate-50 px-2 py-2 sm:px-3 print:min-h-screen print:h-auto print:overflow-visible print:bg-white print:p-4">
+      <QuietRefreshBar queryKey={["customer-points-report", orgId]} />
       <div className="print:hidden shrink-0 flex flex-wrap items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
           <Button
