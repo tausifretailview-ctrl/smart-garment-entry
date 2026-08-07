@@ -32,23 +32,30 @@ prefer either side; investigate timezone/`CURRENT_DATE` vs client `daysSince`.
 
 ## Status (this change)
 
-- **Real-org numeric proof:** not run in this environment (no authenticated org
-  credentials; production must not be seeded). **BLOCKED — pending a manual run.**
+- **Real-org numeric proof:** **BLOCKED (2026-08-07).** Agent run exited 2 —
+  `SUPABASE_ACCESS_TOKEN` and `ORG_ID` are not in the environment (URL/anon key
+  are in `.env`). Production must not be seeded; do not invent a tenant.
   Do not flip `fetchCustomerSegmentIndex` to the RPC until exit 0 is posted here.
+- **Types / migration:** `get_customer_segment_index` already appears in
+  `src/integrations/supabase/types.ts` (likely applied in cloud). Equivalence
+  proof is still required before the client flip.
 - **Logical equivalence:** index RPC SQL copies the deployed counts RPC CASE rules
-  (already documented as mirroring `classifyCustomerSegment`).
+  (already documented as mirroring `classifyCustomerSegment`). Watch for
+  `CURRENT_DATE` (DB TZ) vs client `daysSince` (local TZ) near day boundaries.
 - **Customer Master (shipped now):**
   - Pane retention (Part 1) stops remount flash on Customer↔Supplier.
   - Chip counts use existing `get_customer_segment_counts` (non-blocking).
   - Full index still uses the client walk until proof + RPC flip.
 - **`useCustomerAccountHistoryData`:** still uses `fetchCustomerSaleStats` (TODO);
   counts RPC cannot supply per-customer stats.
+- **Supplier Master / `fetchAllSuppliers`:** deferred until this proof exits 0
+  (sequencing: customer → supplier → supplier-list hot paths).
 
 ### Proof log
 
 | Date | Org | Counts match? | Index mismatch count | Notes |
 |------|-----|---------------|----------------------|-------|
-| — | — | — | — | _awaiting authenticated run_ |
+| 2026-08-07 | — | — | — | Exit 2 — no `SUPABASE_ACCESS_TOKEN` / `ORG_ID` |
 
 ### After proof passes
 

@@ -2,18 +2,45 @@
  * Real-org equivalence: client segment index vs get_customer_segment_counts
  * and get_customer_segment_index. Exit 0 on match; non-zero on divergence.
  *
- * Env: VITE_SUPABASE_URL, VITE_SUPABASE_PUBLISHABLE_KEY, SUPABASE_ACCESS_TOKEN, ORG_ID
+ * Env (URL/key load from .env if present):
+ *   VITE_SUPABASE_URL, VITE_SUPABASE_PUBLISHABLE_KEY,
+ *   SUPABASE_ACCESS_TOKEN (user JWT), ORG_ID
+ *
+ * PowerShell:
+ *   $env:SUPABASE_ACCESS_TOKEN="…"; $env:ORG_ID="…"; node scripts/prove-customer-segment-equivalence.mjs
  */
 import { createClient } from "@supabase/supabase-js";
+import { existsSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
 
-const url = process.env.VITE_SUPABASE_URL;
-const key = process.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+function loadEnv() {
+  const envPath = resolve(process.cwd(), ".env");
+  if (!existsSync(envPath)) return;
+  for (const line of readFileSync(envPath, "utf8").split(/\r?\n/)) {
+    const m = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/);
+    if (!m) continue;
+    let v = m[2].trim();
+    if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) {
+      v = v.slice(1, -1);
+    }
+    if (!process.env[m[1]]) process.env[m[1]] = v;
+  }
+}
+
+loadEnv();
+
+const url = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
+const key =
+  process.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
+  process.env.SUPABASE_PUBLISHABLE_KEY ||
+  process.env.VITE_SUPABASE_ANON_KEY;
 const token = process.env.SUPABASE_ACCESS_TOKEN;
 const orgId = process.env.ORG_ID;
 
 if (!url || !key || !token || !orgId) {
   console.error(
-    "Missing env. Need VITE_SUPABASE_URL, VITE_SUPABASE_PUBLISHABLE_KEY, SUPABASE_ACCESS_TOKEN, ORG_ID",
+    "Missing env. Need VITE_SUPABASE_URL + VITE_SUPABASE_PUBLISHABLE_KEY (from .env),\n" +
+      "plus SUPABASE_ACCESS_TOKEN (signed-in user JWT) and ORG_ID.",
   );
   process.exit(2);
 }
