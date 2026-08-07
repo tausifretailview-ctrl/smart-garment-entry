@@ -21,11 +21,19 @@ export type MixPaymentInitialBreakdown = {
   financeAmount?: number;
 };
 
+export type MixExchangeBreakdown = {
+  returnTotal: number;
+  applied: number;
+  refundDue: number;
+};
+
 interface MixPaymentDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   billAmount: number;
   creditApplied?: number;
+  /** Same-bill exchange: Return / Applied / Refund due (shown in refund mode). */
+  exchangeBreakdown?: MixExchangeBreakdown | null;
   /** When re-opening Mix Pay on an edited POS invoice, prefill tender rows from DB / saved snapshot. */
   initialBreakdown?: MixPaymentInitialBreakdown | null;
   onSave: (paymentData: {
@@ -47,6 +55,7 @@ export function MixPaymentDialog({
   onOpenChange,
   billAmount,
   creditApplied = 0,
+  exchangeBreakdown = null,
   initialBreakdown = null,
   onSave,
 }: MixPaymentDialogProps) {
@@ -199,6 +208,23 @@ export function MixPaymentDialog({
             <div className="flex items-center justify-between p-3 bg-green-100 dark:bg-green-900 rounded-lg border border-green-300 dark:border-green-700">
               <span className="text-sm font-medium text-green-700 dark:text-green-300">Net Payable:</span>
               <span className="text-lg font-bold text-green-700 dark:text-green-300">{formatCurrency(billAmount)}</span>
+            </div>
+          )}
+
+          {isRefundMode && exchangeBreakdown && exchangeBreakdown.returnTotal > 0.01 && (
+            <div className="space-y-1 p-3 rounded-lg border border-orange-300 dark:border-orange-700 bg-orange-50 dark:bg-orange-950/40 text-sm">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Return</span>
+                <span className="font-semibold tabular-nums">{formatCurrency(exchangeBreakdown.returnTotal)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Applied to bill</span>
+                <span className="font-semibold tabular-nums">{formatCurrency(exchangeBreakdown.applied)}</span>
+              </div>
+              <div className="flex justify-between text-orange-700 dark:text-orange-300">
+                <span className="font-medium">Refund due</span>
+                <span className="font-bold tabular-nums">{formatCurrency(exchangeBreakdown.refundDue)}</span>
+              </div>
             </div>
           )}
 

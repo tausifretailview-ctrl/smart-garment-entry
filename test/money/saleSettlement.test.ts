@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  computeExchangeRefundDue,
   derivePaidAndStatus,
+  isPosExchangeRefundPaymentVoucher,
   maxCombinedDiscountForGross,
   maxSaleReturnAdjustForPayable,
   normalizeDiscountsAgainstGross,
@@ -135,6 +137,75 @@ describe("normalizeSaleReturnAdjustAgainstBill", () => {
   it("maxSaleReturnAdjustForPayable = current payable + current S/R", () => {
     expect(maxSaleReturnAdjustForPayable(0, 4500)).toBe(4500);
     expect(maxSaleReturnAdjustForPayable(1200, 800)).toBe(2000);
+  });
+});
+
+describe("computeExchangeRefundDue — keep net≥0 + explicit refund", () => {
+  it("after bill cap: net=0, sra=applied, explicit refund is the excess", () => {
+    const result = computeExchangeRefundDue({
+      netAmount: 0,
+      saleReturnAdjust: 2000,
+      explicitRefundAmount: 500,
+    });
+    expect(result.billAmount).toBe(2000);
+    expect(result.appliedSr).toBe(2000);
+    expect(result.refundDue).toBe(500);
+    expect(result.isExchangeRefund).toBe(true);
+  });
+
+  it("before bill cap: negative net carries legacy excess", () => {
+    const result = computeExchangeRefundDue({
+      netAmount: -500,
+      saleReturnAdjust: 2500,
+      explicitRefundAmount: 0,
+    });
+    expect(result.billAmount).toBe(2000);
+    expect(result.refundDue).toBe(500);
+    expect(result.isExchangeRefund).toBe(true);
+  });
+
+  it("equal exchange: no refund due", () => {
+    const result = computeExchangeRefundDue({
+      netAmount: 0,
+      saleReturnAdjust: 2000,
+      explicitRefundAmount: 0,
+    });
+    expect(result.refundDue).toBe(0);
+    expect(result.isExchangeRefund).toBe(false);
+  });
+
+  it("partial S/R under bill: not an exchange refund", () => {
+    const result = computeExchangeRefundDue({
+      netAmount: 500,
+      saleReturnAdjust: 1500,
+      explicitRefundAmount: 0,
+    });
+    expect(result.isExchangeRefund).toBe(false);
+    expect(result.refundDue).toBe(0);
+  });
+});
+
+describe("isPosExchangeRefundPaymentVoucher", () => {
+  it("matches exchange cash refund descriptions", () => {
+    expect(
+      isPosExchangeRefundPaymentVoucher({
+        description: "Refund paid for POS exchange POS/26-27/1",
+      }),
+    ).toBe(true);
+    expect(
+      isPosExchangeRefundPaymentVoucher({
+        description: "Round off adjustment for POS exchange POS/26-27/1",
+      }),
+    ).toBe(true);
+  });
+
+  it("does not match ordinary customer payment vouchers", () => {
+    expect(
+      isPosExchangeRefundPaymentVoucher({
+        description: "Refund paid to customer",
+        payment_method: "cash",
+      }),
+    ).toBe(false);
   });
 });
 

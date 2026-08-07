@@ -618,8 +618,53 @@ export function maxSaleReturnAdjustForPayable(
 }
 
 /**
+ * Payment vouchers written for POS same-bill exchange cash refunds.
+ * Must be excluded from customerPaymentDebits — the S/R / refund_amount path
+ * already settles that overflow; counting the voucher again phantom-credits the customer.
+ */
+export function isPosExchangeRefundPaymentVoucher(v: {
+  description?: string | null;
+  payment_method?: string | null;
+}): boolean {
+  const desc = String(v.description || "").toLowerCase();
+  return (
+    desc.includes("refund paid for pos exchange") ||
+    desc.includes("round off adjustment for pos exchange")
+  );
+}
+
+/**
+ * Same-bill exchange excess (return > bill) with keep-net≥0 persistence.
+ * - Before save cap: net may be negative; excess = |net|.
+ * - After save cap: net≈0, sra=applied; excess comes from explicit refund_amount / CN amount.
+ */
+export function computeExchangeRefundDue(params: {
+  netAmount: number;
+  saleReturnAdjust: number;
+  explicitRefundAmount?: number;
+}): {
+  billAmount: number;
+  appliedSr: number;
+  refundDue: number;
+  isExchangeRefund: boolean;
+} {
+  const sra = Math.max(0, roundMoney2(params.saleReturnAdjust));
+  const net = roundMoney2(params.netAmount);
+  const billAmount = Math.max(0, roundMoney2(net + sra));
+  const explicit = Math.max(0, roundMoney2(params.explicitRefundAmount || 0));
+  const legacyExcess = net < -SETTLEMENT_TOLERANCE ? roundMoney2(-net) : 0;
+  const refundDue = Math.max(explicit, legacyExcess);
+  const appliedSr =
+    billAmount > 0.005 ? Math.min(sra, billAmount) : Math.max(0, roundMoney2(sra - refundDue));
+  const isExchangeRefund =
+    sra > 0.005 && billAmount > 0.005 && refundDue > 0.005 && net <= SETTLEMENT_TOLERANCE;
+  return { billAmount, appliedSr, refundDue, isExchangeRefund };
+}
+
+/**
  * Cap S/R adjust so net_amount cannot go negative. Excess credit must stay on the
- * customer's pending return/CN balance (not absorbed into a negative net).
+ * customer's pending return/CN balance (not absorbed into a negative net) — unless the
+ * caller intentionally settles that excess via cash refund or a credit note.
  * `netAmount` is payable AFTER the requested adjust (POS / useSaveSale convention).
  */
 export function normalizeSaleReturnAdjustAgainstBill(params: {

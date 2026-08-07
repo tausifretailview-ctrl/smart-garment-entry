@@ -14,6 +14,7 @@ import { insertLedgerDebit, insertLedgerCredit, deleteLedgerEntries } from "@/li
 import { deleteJournalEntryByReference, postSaleJournalInBackground } from "@/utils/accounting/journalService";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
 import {
+  computeExchangeRefundDue,
   derivePaidAndStatus,
   getAvailableCN,
   normalizeDiscountsAgainstGross,
@@ -188,17 +189,26 @@ export const useSaveSale = () => {
     };
   };
 
-  /** Cap S/R so net cannot go negative; excess stays on customer credit for a future bill. */
-  const applySaleReturnBillCap = (saleData: SaleData): SaleData => {
+  /**
+   * Cap S/R so persisted net_amount cannot go negative.
+   * When Mix settles the excess (cash refund / CN), skip the "future bill" toast —
+   * that leftover is intentional same-bill exchange overflow, not silent absorb.
+   */
+  const applySaleReturnBillCap = (
+    saleData: SaleData,
+    opts?: { settleExcess?: boolean },
+  ): SaleData => {
     const normalized = normalizeSaleReturnAdjustAgainstBill({
       netAmount: saleData.netAmount,
       saleReturnAdjust: saleData.saleReturnAdjust || 0,
     });
     if (!normalized.wasCapped) return saleData;
-    toast({
-      title: "S/R adjust capped to bill",
-      description: `Only ₹${normalized.maxApply.toLocaleString("en-IN")} of credit can be applied to this bill. ₹${normalized.excess.toLocaleString("en-IN")} remains for a future bill.`,
-    });
+    if (!opts?.settleExcess) {
+      toast({
+        title: "S/R adjust capped to bill",
+        description: `Only ₹${normalized.maxApply.toLocaleString("en-IN")} of credit can be applied to this bill. ₹${normalized.excess.toLocaleString("en-IN")} remains for a future bill.`,
+      });
+    }
     return {
       ...saleData,
       netAmount: normalized.netAmount,
@@ -206,18 +216,45 @@ export const useSaveSale = () => {
     };
   };
 
-  const applyBillCaps = (saleData: SaleData): SaleData =>
-    applySaleReturnBillCap(applyDiscountGrossCap(saleData));
+  const applyBillCaps = (saleData: SaleData, opts?: { settleExcess?: boolean }): SaleData =>
+    applySaleReturnBillCap(applyDiscountGrossCap(saleData), opts);
 
-  const getExchangeAmounts = (saleData: SaleData, refundAmt: number) => {
-    const saleReturnTotal = roundMoney(saleData.saleReturnAdjust || 0);
-    const billAmount = Math.max(0, roundMoney((saleData.netAmount || 0) + saleReturnTotal));
-    const isExchangeRefund = saleReturnTotal > 0 && (saleData.netAmount || 0) <= 0 && billAmount > 0;
-    const refundDue = isExchangeRefund ? Math.max(0, roundMoney(saleReturnTotal - billAmount)) : 0;
-    const cashRefund = Math.min(Math.max(0, roundMoney(refundAmt || 0)), refundDue);
-    const roundOffRemainder = Math.max(0, roundMoney(refundDue - cashRefund));
-
-    return { isExchangeRefund, billAmount, cashRefund, roundOffRemainder };
+  const getExchangeAmounts = (
+    saleData: SaleData,
+    refundAmt: number,
+    opts?: { issueCreditNote?: boolean },
+  ) => {
+    const computed = computeExchangeRefundDue({
+      netAmount: saleData.netAmount,
+      saleReturnAdjust: saleData.saleReturnAdjust || 0,
+      explicitRefundAmount: refundAmt,
+    });
+    const sra = roundMoney(saleData.saleReturnAdjust || 0);
+    // CN path: settle excess as credit note (no cash payment voucher).
+    if (opts?.issueCreditNote) {
+      return {
+        isExchangeRefund: false,
+        billAmount: computed.billAmount,
+        cashRefund: 0,
+        roundOffRemainder: 0,
+        refundDue: computed.refundDue,
+        // Consume applied S/R + excess so leftover pending SR does not double the new CN.
+        consumeSrAmount: roundMoney(computed.appliedSr + computed.refundDue),
+      };
+    }
+    const cashRefund = Math.min(Math.max(0, roundMoney(refundAmt || 0)), computed.refundDue);
+    const roundOffRemainder = Math.max(0, roundMoney(computed.refundDue - cashRefund));
+    return {
+      isExchangeRefund: computed.isExchangeRefund && cashRefund > 0.005,
+      billAmount: computed.billAmount,
+      cashRefund,
+      roundOffRemainder,
+      refundDue: computed.refundDue,
+      // Cash refund of excess must also clear that SR credit (not leave it pending).
+      consumeSrAmount: computed.isExchangeRefund
+        ? roundMoney(computed.appliedSr + computed.refundDue)
+        : sra,
+    };
   };
 
   const writeExchangePaymentVouchers = async (params: {
@@ -502,6 +539,7 @@ export const useSaveSale = () => {
       financeAmount?: number;
       totalPaid: number;
       refundAmount: number;
+      issueCreditNote?: boolean;
     },
     options?: {
       existingPaidAmount?: number;
@@ -521,7 +559,7 @@ export const useSaveSale = () => {
       // amounts applied to the bill — storing tender (e.g. ₹8000 on a ₹4500 bill)
       // inflated POS Dashboard Cash / cash tally while Paid stayed capped at net.
       const applied = allocateMixPaymentToBill({
-        billAmount: saleData.netAmount,
+        billAmount: Math.max(0, saleData.netAmount),
         cashAmount: paymentBreakdown.cashAmount,
         cardAmount: paymentBreakdown.cardAmount,
         upiAmount: paymentBreakdown.upiAmount,
@@ -558,12 +596,17 @@ export const useSaveSale = () => {
       else if (paymentMethod === 'upi') upiAmt = saleData.netAmount;
     }
 
-    const exchange = getExchangeAmounts(saleData, refundAmt);
+    const exchange = getExchangeAmounts(saleData, refundAmt, {
+      issueCreditNote: !!paymentBreakdown?.issueCreditNote,
+    });
     if (exchange.isExchangeRefund) {
       paidAmt = Math.max(0, saleData.netAmount || 0);
       cashAmt = 0;
       cardAmt = 0;
       upiAmt = 0;
+      // Persist cash refund on sales.refund_amount (carrier for dashboard / ledger).
+      refundAmt = exchange.cashRefund;
+    } else if (paymentBreakdown?.issueCreditNote) {
       refundAmt = 0;
     }
 
@@ -603,6 +646,7 @@ export const useSaveSale = () => {
       finalPaymentMethod,
       isExchangeRefund: exchange.isExchangeRefund,
       exchange,
+      consumeSrAmount: exchange.consumeSrAmount,
     };
   };
 
@@ -613,8 +657,11 @@ export const useSaveSale = () => {
       cashAmount: number;
       cardAmount: number;
       upiAmount: number;
+      bankAmount?: number;
+      financeAmount?: number;
       totalPaid: number;
       refundAmount: number;
+      issueCreditNote?: boolean;
     },
     saleType: 'pos' | 'sale_invoice' = 'pos',
     runtimeOptions?: SaveSaleRuntimeOptions,
@@ -687,7 +734,7 @@ export const useSaveSale = () => {
 
     // Mix payment with unpaid credit balance must have a named customer.
     if (paymentMethod === "multiple" && paymentBreakdown) {
-      const mixCreditAmount = Math.max(0, saleData.netAmount - paymentBreakdown.totalPaid);
+      const mixCreditAmount = Math.max(0, Math.max(0, saleData.netAmount) - paymentBreakdown.totalPaid);
       if (mixCreditAmount > 0.01 && !hasNamedCustomer()) {
         savingLockRef.current = false;
         toast({
@@ -699,7 +746,11 @@ export const useSaveSale = () => {
       }
     }
 
-    saleData = applyBillCaps(saleData);
+    const settleExcess =
+      (paymentBreakdown?.refundAmount || 0) > 0.005 ||
+      !!paymentBreakdown?.issueCreditNote ||
+      (saleData.refundAmount || 0) > 0.005;
+    saleData = applyBillCaps(saleData, { settleExcess });
 
     try {
       preSaveInvariants({
@@ -777,6 +828,7 @@ export const useSaveSale = () => {
         finalPaymentMethod,
         isExchangeRefund,
         exchange,
+        consumeSrAmount,
       } = resolveSalePaymentFields(saleData, paymentMethod, paymentBreakdown);
 
       // Insert sale record — IST business date (not UTC day after midnight IST).
@@ -917,15 +969,15 @@ export const useSaveSale = () => {
       }
 
       // Mark consumed sale_return(s) as adjusted and link to this sale.
-      // When sale_return_adjust > 0, FIFO-consume pending SRs for this customer
-      // so the customer balance formula recognizes them as already absorbed
-      // into this sale's net_amount (prevents double-counting credit).
-      if (saleData.saleReturnAdjust > 0 && saleData.customerId) {
+      // Exchange excess (cash refund / CN): consume applied + excess so leftover
+      // pending SR credit does not remain after the overflow was settled.
+      const srConsumeAmount = Math.max(saleData.saleReturnAdjust || 0, consumeSrAmount || 0);
+      if (srConsumeAmount > 0 && saleData.customerId) {
         const runSrConsume = () =>
           consumeSaleReturnAdjustments({
             customerId: saleData.customerId!,
             saleId: sale.id,
-            adjustmentAmount: saleData.saleReturnAdjust,
+            adjustmentAmount: srConsumeAmount,
           });
         if (runtimeOptions?.nonBlockingSaleReturnConsume) {
           void runSrConsume().catch((srErr) => console.error('Failed to mark SR as adjusted:', srErr));
@@ -1317,8 +1369,11 @@ export const useSaveSale = () => {
       cashAmount: number;
       cardAmount: number;
       upiAmount: number;
+      bankAmount?: number;
+      financeAmount?: number;
       totalPaid: number;
       refundAmount: number;
+      issueCreditNote?: boolean;
     },
     runtimeOptions?: SaveSaleRuntimeOptions,
   ) => {
@@ -1377,7 +1432,7 @@ export const useSaveSale = () => {
     }
 
     if (paymentMethod === "multiple" && paymentBreakdown) {
-      const mixCreditAmount = Math.max(0, saleData.netAmount - paymentBreakdown.totalPaid);
+      const mixCreditAmount = Math.max(0, Math.max(0, saleData.netAmount) - paymentBreakdown.totalPaid);
       if (mixCreditAmount > 0.01 && !hasNamedCustomer()) {
         savingLockRef.current = false;
         toast({
@@ -1389,7 +1444,11 @@ export const useSaveSale = () => {
       }
     }
 
-    saleData = applyBillCaps(saleData);
+    const settleExcessUpdate =
+      (paymentBreakdown?.refundAmount || 0) > 0.005 ||
+      !!paymentBreakdown?.issueCreditNote ||
+      (saleData.refundAmount || 0) > 0.005;
+    saleData = applyBillCaps(saleData, { settleExcess: settleExcessUpdate });
 
     try {
       preSaveInvariants({
@@ -1551,6 +1610,7 @@ export const useSaveSale = () => {
         finalPaymentMethod,
         isExchangeRefund,
         exchange,
+        consumeSrAmount,
       } = resolveSalePaymentFields(saleData, paymentMethod, paymentBreakdown, {
         existingPaidAmount,
         existingPaymentStatus: existingSale?.payment_status,
@@ -1731,12 +1791,13 @@ export const useSaveSale = () => {
         }
       }
 
-      if (saleData.saleReturnAdjust > 0 && saleData.customerId) {
+      const srConsumeAmountUpdate = Math.max(saleData.saleReturnAdjust || 0, consumeSrAmount || 0);
+      if (srConsumeAmountUpdate > 0 && saleData.customerId) {
         const runSrConsume = () =>
           consumeSaleReturnAdjustments({
             customerId: saleData.customerId!,
             saleId: sale.id,
-            adjustmentAmount: saleData.saleReturnAdjust,
+            adjustmentAmount: srConsumeAmountUpdate,
           });
         if (runtimeOptions?.nonBlockingSaleReturnConsume) {
           void runSrConsume().catch((srErr) => console.error('Failed to mark SR as adjusted:', srErr));
@@ -1981,8 +2042,11 @@ export const useSaveSale = () => {
       cashAmount: number;
       cardAmount: number;
       upiAmount: number;
+      bankAmount?: number;
+      financeAmount?: number;
       totalPaid: number;
       refundAmount: number;
+      issueCreditNote?: boolean;
     },
     runtimeOptions?: SaveSaleRuntimeOptions,
   ) => {
@@ -2002,7 +2066,11 @@ export const useSaveSale = () => {
       return null;
     }
 
-    saleData = applyBillCaps(saleData);
+    const settleExcessResume =
+      (paymentBreakdown?.refundAmount || 0) > 0.005 ||
+      !!paymentBreakdown?.issueCreditNote ||
+      (saleData.refundAmount || 0) > 0.005;
+    saleData = applyBillCaps(saleData, { settleExcess: settleExcessResume });
 
     try {
       preSaveInvariants({
@@ -2055,6 +2123,9 @@ export const useSaveSale = () => {
         refundAmt,
         payStatus,
         finalPaymentMethod,
+        isExchangeRefund,
+        exchange,
+        consumeSrAmount,
       } = resolveSalePaymentFields(saleData, paymentMethod, paymentBreakdown);
 
       // Insert sale items with proportional bill discount + round-off distribution (NOW affects stock via triggers)
@@ -2141,13 +2212,29 @@ export const useSaveSale = () => {
         );
       }
 
+      if (isExchangeRefund && saleData.customerId && sale?.sale_number) {
+        try {
+          const txnDate = istCalendarYmd();
+          await writeExchangePaymentVouchers({
+            saleNumber: sale.sale_number,
+            customerId: saleData.customerId,
+            txnDate,
+            cashRefund: exchange.cashRefund,
+            roundOffRemainder: exchange.roundOffRemainder,
+          });
+        } catch (exErr) {
+          console.error('Exchange refund voucher write failed (resume):', exErr);
+        }
+      }
+
       // Mark consumed sale_return(s) as adjusted and link to this sale (resume-held path)
-      if (saleData.saleReturnAdjust > 0 && saleData.customerId) {
+      const srConsumeAmountResume = Math.max(saleData.saleReturnAdjust || 0, consumeSrAmount || 0);
+      if (srConsumeAmountResume > 0 && saleData.customerId) {
         const runSrConsume = () =>
           consumeSaleReturnAdjustments({
             customerId: saleData.customerId!,
             saleId: sale.id,
-            adjustmentAmount: saleData.saleReturnAdjust,
+            adjustmentAmount: srConsumeAmountResume,
           });
         if (runtimeOptions?.nonBlockingSaleReturnConsume) {
           void runSrConsume().catch((srErr) => console.error('Failed to mark SR as adjusted:', srErr));
