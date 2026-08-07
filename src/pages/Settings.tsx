@@ -6253,6 +6253,9 @@ export default function Settings() {
                 backupEmail={settings.backup_email}
                 backupRetentionDays={settings.backup_retention_days}
                 lastAutoBackupAt={settings.last_auto_backup_at}
+                onAutoBackupEnabledChange={(enabled) =>
+                  setSettings((prev) => ({ ...prev, auto_backup_enabled: enabled }))
+                }
               />
             </LazySettingsPanel>
           </TabsContent>
