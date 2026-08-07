@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSettings, useProductFieldSettings } from "@/hooks/useSettings";
 import { useCustomerSearch } from "@/hooks/useCustomerSearch";
@@ -149,7 +149,7 @@ export default function SaleOrderEntry() {
   const [roundOff, setRoundOff] = useState<number>(0);
   const initialDraftCheckDone = useRef(false);
 
-  // Size grid entry mode â€” Sale Order always supports grid/inline toggle (not gated by Sales Invoice setting).
+  // Size grid entry mode — Sale Order always supports grid/inline toggle (not gated by Sales Invoice setting).
   const [entryMode, setEntryMode] = useState<"grid" | "inline">("grid");
   const [entryModeInitialized, setEntryModeInitialized] = useState(false);
   const [showSizeGrid, setShowSizeGrid] = useState(false);
@@ -527,7 +527,7 @@ export default function SaleOrderEntry() {
     }
   }, [taxType]);
 
-  // Open size grid â€” fetch all variants (merged product ids = all MRP rows for same name).
+  // Open size grid — fetch all variants (merged product ids = all MRP rows for same name).
   const openSizeGridForProductGroup = useCallback(async (
     productIds: string[],
     selectedSalePrice?: number,
@@ -708,7 +708,7 @@ export default function SaleOrderEntry() {
       // Sale Price = customer's last sale price, MRP = actual product MRP
       if (!overridePrice && customerPrice !== null) {
         overridePrice = {
-          sale_price: customerPrice.sale_price,  // Use customer's last sale price (e.g., â‚¹54)
+          sale_price: customerPrice.sale_price,  // Use customer's last sale price (e.g., ₹54)
           mrp: masterMrp,                        // MRP = actual product MRP (unchanged)
         };
       }
@@ -1718,7 +1718,7 @@ export default function SaleOrderEntry() {
                           />
                         </td>
                         <td className="text-right px-2 py-2 border-l border-black/10 font-black font-mono tabular-nums">
-                          â‚¹{item.lineTotal.toFixed(2)}
+                          ₹{item.lineTotal.toFixed(2)}
                         </td>
                         <td className="px-0 py-1 text-center">
                           <Button variant="ghost" size="icon" className="h-7 w-7 opacity-0 group-hover:opacity-100" onClick={() => removeItem(item.id)}>
@@ -1781,7 +1781,7 @@ export default function SaleOrderEntry() {
                 className="w-[80px] h-10 text-[16px] text-right bg-white text-black font-extrabold font-mono border-2 border-black/20 rounded-sm"
               />
               <div className="w-px h-8 bg-black/15 mx-3 shrink-0" />
-              <span className="text-[14px] font-extrabold uppercase tracking-wide text-black mr-2 whitespace-nowrap">Flat Disc â‚¹</span>
+              <span className="text-[14px] font-extrabold uppercase tracking-wide text-black mr-2 whitespace-nowrap">Flat Disc ₹</span>
               <Input
                 type="number"
                 min="0"
@@ -1820,17 +1820,17 @@ export default function SaleOrderEntry() {
               <div className="hidden lg:flex flex-col gap-0.5 pl-4 border-l border-black/15">
                 <div className="flex items-center justify-between gap-3 min-w-[140px]">
                   <span className="text-[12px] uppercase tracking-wide font-extrabold text-black/70">Gross</span>
-                  <span className="text-[16px] font-extrabold tabular-nums">â‚¹{grossAmount.toFixed(0)}</span>
+                  <span className="text-[16px] font-extrabold tabular-nums">₹{grossAmount.toFixed(0)}</span>
                 </div>
                 <div className="flex items-center justify-between gap-3 min-w-[140px]">
                   <span className="text-[12px] uppercase tracking-wide font-extrabold text-black/70">Discount</span>
-                  <span className="text-[16px] font-extrabold tabular-nums">-â‚¹{totalDiscount.toFixed(0)}</span>
+                  <span className="text-[16px] font-extrabold tabular-nums">-₹{totalDiscount.toFixed(0)}</span>
                 </div>
               </div>
               <div className="pl-4 border-l-2 border-black flex flex-col items-end shrink-0">
                 <span className="text-[13px] font-extrabold uppercase tracking-wide text-black underline underline-offset-2">Net Amount</span>
                 <span className="text-[36px] font-black font-mono tabular-nums leading-none text-black tracking-tighter">
-                  â‚¹{netAmount.toLocaleString("en-IN")}
+                  ₹{netAmount.toLocaleString("en-IN")}
                 </span>
               </div>
             </div>
@@ -1838,13 +1838,13 @@ export default function SaleOrderEntry() {
         </div>
         <div className="bg-neutral-100 border-t border-black/10 flex flex-wrap items-center px-4 py-2 gap-x-3 gap-y-1.5">
           <div className="hidden xl:flex items-center gap-2 text-[14px] text-black font-mono flex-1 min-w-0 overflow-hidden whitespace-nowrap">
-            <span>Subtotal <span className="font-extrabold">â‚¹{grossAmount.toFixed(0)}</span></span>
-            <span className="text-black/30">â€”</span>
-            <span>Disc <span className="font-extrabold">â‚¹{totalDiscount.toFixed(0)}</span></span>
+            <span>Subtotal <span className="font-extrabold">₹{grossAmount.toFixed(0)}</span></span>
+            <span className="text-black/30">—</span>
+            <span>Disc <span className="font-extrabold">₹{totalDiscount.toFixed(0)}</span></span>
             <span className="text-black/30">+</span>
-            <span>GST <span className="font-extrabold">â‚¹{taxType === "exclusive" ? totalGST.toFixed(0) : "0"}</span></span>
+            <span>GST <span className="font-extrabold">₹{taxType === "exclusive" ? totalGST.toFixed(0) : "0"}</span></span>
             <span className="text-black/30">=</span>
-            <span>Net <span className="font-black">â‚¹{netAmount.toLocaleString("en-IN")}</span></span>
+            <span>Net <span className="font-black">₹{netAmount.toLocaleString("en-IN")}</span></span>
           </div>
           <div className="flex items-center gap-2 shrink-0 ml-auto">
             <Button
@@ -1888,7 +1888,7 @@ export default function SaleOrderEntry() {
         </div>
       </footer>
 
-      {/* Off-screen print source â€” do not use Tailwind hidden (blanks react-to-print) */}
+      {/* Off-screen print source — do not use Tailwind hidden (blanks react-to-print) */}
       <div className="invoice-print-source-screen">
         <SaleOrderPrint
           ref={printRef}
