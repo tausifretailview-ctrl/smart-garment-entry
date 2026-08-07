@@ -32,6 +32,7 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { QuietRefreshBar } from "@/components/QuietRefreshBar";
 
 interface CustomerOption {
   id: string;
@@ -295,7 +296,11 @@ export default function CustomerAccountStatementAuditPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-background p-4 print:p-0 print:bg-white">
+    <div className="relative min-h-screen bg-slate-50 dark:bg-background p-4 print:p-0 print:bg-white">
+      <QuietRefreshBar
+        queryKey={["customer-account-statement-audit", currentOrganization.id, customerId]}
+        enabled={!!customerId}
+      />
       <div className="w-full max-w-none mx-0 space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
           <div className="flex items-start gap-3">

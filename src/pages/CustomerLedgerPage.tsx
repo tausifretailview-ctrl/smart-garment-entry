@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/command";
 import { Check, ChevronsUpDown } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { QuietRefreshBar } from "@/components/QuietRefreshBar";
 
 interface LedgerRow {
   id: string;
@@ -738,7 +739,11 @@ export default function CustomerLedgerPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-background p-4 print:p-0 print:bg-white">
+    <div className="relative min-h-screen bg-slate-50 dark:bg-background p-4 print:p-0 print:bg-white">
+      <QuietRefreshBar
+        queryKey={["customer-ledger-statement", currentOrganization.id, customerId]}
+        enabled={!!customerId}
+      />
       <div className="w-full max-w-none mx-0 space-y-4">
         {/* Header */}
         <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">

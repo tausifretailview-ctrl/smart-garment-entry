@@ -28,6 +28,7 @@ import {
   FileSpreadsheet, Scale, Calculator, AlertTriangle, Calendar, Building2, Clock, ExternalLink, RefreshCw, BookText, Landmark, BarChart3, Table2, Users, Info, ShieldCheck, FileText, CheckCircle2, Receipt, ChevronDown, ArrowLeft
 } from "lucide-react";
 import { ReportPageSkeleton } from "@/components/skeletons/ReportPageSkeleton";
+import { QuietRefreshBar } from "@/components/QuietRefreshBar";
 import { format, startOfMonth, endOfMonth, subMonths } from "date-fns";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
@@ -436,6 +437,13 @@ export default function AccountingReports() {
     (activeTab === "gl-trial-balance" && glTrialQuery.isFetching) ||
     (activeTab === "gl-profit-loss" && glPnlQuery.isFetching) ||
     (activeTab === "gl-balance-sheet" && glBsQuery.isFetching);
+
+  const glQuietQueryKey = useMemo(() => {
+    if (activeTab === "gl-trial-balance") return ["accounting-reports", "gl-trial-balance"] as const;
+    if (activeTab === "gl-profit-loss") return ["accounting-reports", "gl-profit-loss"] as const;
+    if (activeTab === "gl-balance-sheet") return ["accounting-reports", "gl-balance-sheet"] as const;
+    return null;
+  }, [activeTab]);
 
   // Auto-load operational reports when tab, dates, or org changes (GL tabs use useQuery keys above)
   useEffect(() => {
@@ -884,7 +892,8 @@ export default function AccountingReports() {
     "rounded-none border-b-2 border-transparent px-3 py-2 text-xs sm:text-sm font-semibold shrink-0 data-[state=active]:border-teal-600 data-[state=active]:bg-white data-[state=active]:text-teal-700 flex items-center gap-1.5";
 
   return (
-    <div className="accounting-reports-workspace flex flex-col bg-slate-50 px-2 sm:px-3 py-2 min-h-0 h-full overflow-hidden w-full print:bg-white print:overflow-visible print:h-auto">
+    <div className="accounting-reports-workspace relative flex flex-col bg-slate-50 px-2 sm:px-3 py-2 min-h-0 h-full overflow-hidden w-full print:bg-white print:overflow-visible print:h-auto">
+      {glQuietQueryKey ? <QuietRefreshBar queryKey={glQuietQueryKey} /> : null}
       <div className="w-full min-w-0 flex flex-col flex-1 min-h-0 gap-2 print:gap-4">
         {/* Toolbar — Customer Balances style */}
         <div className="flex flex-wrap items-center justify-between gap-2 shrink-0 print:hidden">

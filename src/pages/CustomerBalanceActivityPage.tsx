@@ -29,6 +29,7 @@ import {
   verifyActivityMatchesSnapshot,
 } from "@/utils/customerBalanceActivity";
 import { cn } from "@/lib/utils";
+import { QuietRefreshBar } from "@/components/QuietRefreshBar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Calendar } from "@/components/ui/calendar";
@@ -222,7 +223,11 @@ export default function CustomerBalanceActivityPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-background p-4 print:p-0 print:bg-white">
+    <div className="relative min-h-screen bg-slate-50 dark:bg-background p-4 print:p-0 print:bg-white">
+      <QuietRefreshBar
+        queryKey={["customer-balance-activity", currentOrganization.id, customerId]}
+        enabled={!!customerId}
+      />
       <div className="w-full max-w-none mx-0 space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
           <div className="flex items-start gap-3">

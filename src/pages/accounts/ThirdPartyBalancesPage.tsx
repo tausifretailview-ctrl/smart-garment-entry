@@ -27,6 +27,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ReportSkeleton } from "@/components/ui/skeletons";
+import { QuietRefreshHint } from "@/components/QuietRefreshBar";
 import { cn } from "@/lib/utils";
 import { calculateGlAccountLedger } from "@/utils/accountingReportUtils";
 import {
@@ -151,17 +152,15 @@ export default function ThirdPartyBalancesPage() {
                 Third-party Balances
               </h1>
               <p className="text-sm text-muted-foreground mt-1 truncate">
-                {isFetching && !isLoading ? (
-                  <span className="inline-flex items-center gap-1">
-                    <Loader2 className="h-3 w-3 animate-spin" />
-                    Refreshing…
-                  </span>
-                ) : (
-                  <>
-                    {rows.length.toLocaleString("en-IN")} accounts
-                    {!showZero ? " · zero balances hidden" : ""}
-                  </>
-                )}
+                <QuietRefreshHint
+                  queryKey={["third-party-balances", orgId]}
+                  idle={
+                    <>
+                      {rows.length.toLocaleString("en-IN")} accounts
+                      {!showZero ? " · zero balances hidden" : ""}
+                    </>
+                  }
+                />
               </p>
             </div>
           </div>

@@ -8,7 +8,6 @@ import {
   ChevronLeft,
   ChevronRight,
   ArrowLeft,
-  Loader2,
   FileSpreadsheet,
   FileText,
 } from "lucide-react";
@@ -28,6 +27,7 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ReportSkeleton } from "@/components/ui/skeletons";
 import { ListPageSkeleton } from "@/components/skeletons/ListPageSkeleton";
+import { QuietRefreshHint } from "@/components/QuietRefreshBar";
 import { cn } from "@/lib/utils";
 import { fetchAllCustomerPartyBalances, fetchCustomerPhoneMap } from "@/utils/fetchAllRows";
 import { CustomerLedger } from "@/components/CustomerLedger";
@@ -426,21 +426,19 @@ export default function CustomerPartyBalancesPage() {
                 Customer Balances
               </h1>
               <p className="text-sm text-muted-foreground mt-1 truncate">
-                {isFetching && !isLoading ? (
-                  <span className="inline-flex items-center gap-1">
-                    <Loader2 className="h-3 w-3 animate-spin" />
-                    Refreshing…
-                  </span>
-                ) : (
-                  <>
-                    {rows.length.toLocaleString("en-IN")} parties loaded
-                    {searchIncludesSettled
-                      ? " · search includes settled"
-                      : !showSettled
-                        ? " · settled hidden"
-                        : ""}
-                  </>
-                )}
+                <QuietRefreshHint
+                  queryKey={["customer-party-balances", orgId]}
+                  idle={
+                    <>
+                      {rows.length.toLocaleString("en-IN")} parties loaded
+                      {searchIncludesSettled
+                        ? " · search includes settled"
+                        : !showSettled
+                          ? " · settled hidden"
+                          : ""}
+                    </>
+                  }
+                />
               </p>
             </div>
           </div>

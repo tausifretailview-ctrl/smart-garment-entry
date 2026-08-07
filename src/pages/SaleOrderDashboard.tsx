@@ -13,6 +13,7 @@ import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 
 import { Search, Edit, ChevronDown, ChevronUp, Trash2, Loader2, ClipboardList, ArrowRight, Plus, CheckCircle, AlertTriangle, Printer, Clock, Package, IndianRupee, MessageCircle, CalendarIcon } from "lucide-react";
 import { ListTableSkeleton } from "@/components/skeletons/ListPageSkeleton";
+import { useQuietRefreshActive } from "@/components/QuietRefreshBar";
 import { useWhatsAppTemplates } from "@/hooks/useWhatsAppTemplates";
 import { format } from "date-fns";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
@@ -192,7 +193,6 @@ export default function SaleOrderDashboard() {
   const {
     data: listPageData,
     isLoading,
-    isFetching,
   } = useQuery({
     queryKey: ["sale-orders-list", currentOrganization?.id, listFilters, currentPage],
     queryFn: () =>
@@ -205,6 +205,13 @@ export default function SaleOrderDashboard() {
     enabled: !!currentOrganization?.id,
     placeholderData: (previous) => previous,
   });
+
+  const listQuietRefreshing = useQuietRefreshActive([
+    "sale-orders-list",
+    currentOrganization?.id,
+    listFilters,
+    currentPage,
+  ]);
 
   const {
     data: statsData,
@@ -1008,7 +1015,7 @@ export default function SaleOrderDashboard() {
           <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-t border-slate-100 bg-white">
             <div className="text-sm text-slate-500">
               Showing {totalCount === 0 ? 0 : (currentPage - 1) * SALE_ORDER_LIST_PAGE_SIZE + 1} to {Math.min(currentPage * SALE_ORDER_LIST_PAGE_SIZE, totalCount)} of {totalCount}
-              {isFetching && !isLoading ? " · refreshing…" : ""}
+              {listQuietRefreshing ? " · refreshing…" : ""}
             </div>
             <div className="flex gap-2">
               <Button variant="outline" className="h-9 text-sm border-slate-200" onClick={() => setCurrentPage(p => p - 1)} disabled={currentPage === 1}>Previous</Button>
