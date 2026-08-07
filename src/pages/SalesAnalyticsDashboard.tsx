@@ -18,6 +18,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { format, subDays, startOfMonth, endOfMonth, startOfYear, subMonths, parseISO, startOfWeek, endOfWeek, startOfDay } from "date-fns";
 import { CalendarIcon, TrendingUp, IndianRupee, ShoppingCart, ArrowUpRight, ArrowDownRight, Loader2 } from "lucide-react";
 import { ReportPageSkeleton } from "@/components/skeletons/ReportPageSkeleton";
+import { QuietRefreshBar } from "@/components/QuietRefreshBar";
 import { cn } from "@/lib/utils";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
@@ -432,7 +433,15 @@ export default function SalesAnalyticsDashboard() {
   }
 
   return (
-    <div className="business-insights-workspace flex flex-col bg-slate-50 px-2 sm:px-3 py-2 min-h-0 h-full overflow-hidden">
+    <div className="business-insights-workspace relative flex flex-col bg-slate-50 px-2 sm:px-3 py-2 min-h-0 h-full overflow-hidden">
+      <QuietRefreshBar
+        queryKeys={[
+          ["sales-analytics"],
+          ["sale-items-analytics"],
+          ["previous-sales-analytics"],
+          ["customers-analytics"],
+        ]}
+      />
       <div className="w-full min-w-0 flex flex-col flex-1 min-h-0 gap-2">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 shrink-0">
           <div className="min-w-0">

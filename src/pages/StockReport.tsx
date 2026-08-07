@@ -16,6 +16,7 @@ import type { ReportKpiItem } from "@/components/reports/ReportKpiCards";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { cn } from "@/lib/utils";
+import { QuietRefreshBar } from "@/components/QuietRefreshBar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MobilePageHeader } from "@/components/mobile/MobilePageHeader";
 import { MobileStatStrip } from "@/components/mobile/MobileStatStrip";
@@ -1816,7 +1817,14 @@ export default function StockReport() {
   }
 
   return (
-    <div className="stock-report-workspace stock-report-page flex flex-col bg-slate-50 px-2 sm:px-3 py-2 min-h-0 h-full overflow-hidden w-full print:min-h-screen print:h-auto print:overflow-visible print:bg-white print:p-4">
+    <div className="stock-report-workspace stock-report-page relative flex flex-col bg-slate-50 px-2 sm:px-3 py-2 min-h-0 h-full overflow-hidden w-full print:min-h-screen print:h-auto print:overflow-visible print:bg-white print:p-4">
+      <QuietRefreshBar
+        queryKeys={[
+          ["stock-report-global-totals", currentOrganization?.id],
+          ["stock-report-filtered-totals"],
+          ["stock-report-filter-options", currentOrganization?.id],
+        ]}
+      />
       <div className="w-full min-w-0 flex flex-col flex-1 min-h-0 gap-2 print:space-y-2">
         {/* Toolbar */}
         <div className="flex flex-wrap items-center justify-between gap-2 shrink-0 print:hidden">

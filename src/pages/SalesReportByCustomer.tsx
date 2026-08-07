@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { fetchAllCustomers } from "@/utils/fetchAllRows";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { BackToDashboard } from "@/components/BackToDashboard";
+import { QuietRefreshBar } from "@/components/QuietRefreshBar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
@@ -231,7 +232,13 @@ const SalesReportByCustomer = () => {
   ], [totals]);
 
   return (
-    <div className="min-h-screen bg-slate-50 px-2 sm:px-4 lg:px-5 py-6 space-y-5">
+    <div className="relative min-h-screen bg-slate-50 px-2 sm:px-4 lg:px-5 py-6 space-y-5">
+      <QuietRefreshBar
+        queryKeys={[
+          ["sales-report", currentOrganization?.id],
+          ["sales-report-summary-rpc", currentOrganization?.id],
+        ]}
+      />
       <BackToDashboard />
 
       <div>

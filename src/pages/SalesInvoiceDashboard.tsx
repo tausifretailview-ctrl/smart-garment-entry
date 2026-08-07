@@ -34,6 +34,7 @@ import { LoadingButton } from "@/components/ui/loading-button";
 import { SkeletonKpiCards } from "@/components/skeletons/SkeletonKpiCards";
 import { SkeletonMobileListRows, SkeletonTableRows } from "@/components/skeletons/SkeletonTableRows";
 import { SALES_INVOICE_TABLE_SKELETON_COLUMNS } from "@/components/skeletons/dashboardSkeletonPresets";
+import { QuietRefreshBar, useQuietRefreshActive } from "@/components/QuietRefreshBar";
 
 import { Search, Printer, Edit, ChevronDown, ChevronUp, Trash2, Loader2, MessageCircle, Link2, Settings2, Package, IndianRupee, Send, FileText, TrendingUp, CheckCircle2, Clock, CalendarIcon, Download, Percent, Zap, FileDown, Lock, X, Plus, RefreshCw, Copy, Ban, Eye, MoreHorizontal, FileSpreadsheet, User, Phone, AlertTriangle, Receipt } from "lucide-react";
 import * as XLSX from "xlsx";
@@ -866,7 +867,6 @@ export default function SalesInvoiceDashboard() {
   const {
     data: dashboardPage,
     isLoading,
-    isFetching,
     refetch,
     error: invoicesError,
     dataUpdatedAt: invoicesUpdatedAt,
@@ -912,7 +912,8 @@ export default function SalesInvoiceDashboard() {
   });
 
   const isDashboardInitialLoad = isLoading && dashboardPage === undefined;
-  const isDashboardBackgroundRefresh = isFetching && !isDashboardInitialLoad;
+  // useIsFetching-based — app notifyOnChangeProps silences useQuery isFetching flips
+  const isDashboardBackgroundRefresh = useQuietRefreshActive(dashboardQueryKey, dashboardQueryEnabled);
 
   useEffect(() => {
     if (!invoicesError) return;
@@ -3685,10 +3686,11 @@ export default function SalesInvoiceDashboard() {
   return (
     <div
       className={cn(
-        "sales-dashboard-workspace sales-invoice-dashboard flex h-full min-h-0 w-full flex-col overflow-hidden bg-slate-50 px-2 py-2 sm:px-3",
+        "sales-dashboard-workspace sales-invoice-dashboard relative flex h-full min-h-0 w-full flex-col overflow-hidden bg-slate-50 px-2 py-2 sm:px-3",
         !inTabCache && !sharedShell && "h-[calc(100vh-3.5rem)]",
       )}
     >
+      <QuietRefreshBar queryKey={dashboardQueryKey} enabled={dashboardQueryEnabled} />
       <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col gap-2">
         <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
           <div>

@@ -19,6 +19,7 @@ import {
   ClipboardList, X
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { QuietRefreshBar } from "@/components/QuietRefreshBar";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { MobilePageHeader } from "@/components/mobile/MobilePageHeader";
 import { MobileBottomNav } from "@/components/mobile/MobileBottomNav";
@@ -658,7 +659,8 @@ export default function DailySaleAnalysis() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="relative space-y-4">
+      <QuietRefreshBar queryKey={["daily-sale-analysis", orgId]} />
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">

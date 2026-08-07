@@ -17,6 +17,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Search, AlertTriangle, Activity } from "lucide-react";
 import { BackToDashboard } from "@/components/BackToDashboard";
+import { QuietRefreshBar } from "@/components/QuietRefreshBar";
 import { format, subDays } from "date-fns";
 import { ColumnDef } from "@tanstack/react-table";
 import { ERPTable } from "@/components/erp-table";
@@ -475,7 +476,8 @@ const ProductTrackingReport = () => {
   }
 
   return (
-    <div className="business-insights-workspace flex flex-col bg-slate-50 px-2 sm:px-3 py-2 min-h-0 h-full overflow-hidden w-full">
+    <div className="business-insights-workspace relative flex flex-col bg-slate-50 px-2 sm:px-3 py-2 min-h-0 h-full overflow-hidden w-full">
+      <QuietRefreshBar queryKey={["product-tracking", currentOrganization?.id]} />
       <div className={`${INSIGHTS_TAB_SHELL} overflow-y-auto`}>
         <div className="no-print flex flex-wrap items-center gap-2 shrink-0">
           <BackToDashboard />

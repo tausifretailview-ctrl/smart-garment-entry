@@ -18,6 +18,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { format, startOfDay, endOfDay, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear } from "date-fns";
 import { CalendarIcon, Search, ArrowLeft, Printer, FileSpreadsheet, Filter, X, ChevronDown, ChevronUp } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { QuietRefreshBar } from "@/components/QuietRefreshBar";
 import * as XLSX from "xlsx";
 import { multiTokenMatch } from "@/utils/multiTokenSearch";
 import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
@@ -932,7 +933,13 @@ export default function ItemWiseSalesReport() {
   );
 
   return (
-    <div className="item-wise-sales-workspace item-wise-sales-report flex h-full min-h-0 w-full flex-col overflow-hidden bg-slate-50 px-2 py-2 sm:px-3 print:min-h-screen print:h-auto print:overflow-visible print:bg-white print:p-4">
+    <div className="item-wise-sales-workspace item-wise-sales-report relative flex h-full min-h-0 w-full flex-col overflow-hidden bg-slate-50 px-2 py-2 sm:px-3 print:min-h-screen print:h-auto print:overflow-visible print:bg-white print:p-4">
+      <QuietRefreshBar
+        queryKeys={[
+          ["item-wise-sales", currentOrganization?.id],
+          ["item-sales-summary-rpc", currentOrganization?.id],
+        ]}
+      />
       <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col gap-2">
       <div className="print:hidden shrink-0 flex flex-wrap items-center justify-between gap-2 [&_button]:mb-0">
         <div className="flex min-w-0 items-center gap-2">

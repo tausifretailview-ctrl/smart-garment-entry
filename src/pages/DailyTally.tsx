@@ -28,6 +28,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { BackToDashboard } from "@/components/BackToDashboard";
+import { QuietRefreshBar } from "@/components/QuietRefreshBar";
 import { localDayBounds } from "@/lib/localDayBounds";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
@@ -527,7 +528,16 @@ const DailyTally = () => {
 
   // ─── Render ────────────────────────────────────────────────────────
   return (
-    <div className="space-y-6 pb-10">
+    <div className="relative space-y-6 pb-10">
+      <QuietRefreshBar
+        queryKeys={[
+          ["daily-tally-sales", orgId],
+          ["daily-tally-vouchers", orgId],
+          ["daily-tally-advances", orgId],
+          ["daily-tally-refunds", orgId],
+          ["daily-tally-snapshot", orgId],
+        ]}
+      />
       {/* ═══ Page Header ═══ */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3">

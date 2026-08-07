@@ -20,6 +20,7 @@ import { MobileBottomNav } from "@/components/mobile/MobileBottomNav";
 import { addDays, subDays } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+import { QuietRefreshBar } from "@/components/QuietRefreshBar";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { localDayBounds } from "@/lib/localDayBounds";
 import {
@@ -822,7 +823,16 @@ const DailyCashierReport = () => {
   }
 
   return (
-    <div id="cashier-report-root" className="min-h-screen bg-slate-50 p-4 md:p-6 print:p-2 print:bg-white">
+    <div id="cashier-report-root" className="relative min-h-screen bg-slate-50 p-4 md:p-6 print:p-2 print:bg-white">
+      <QuietRefreshBar
+        queryKeys={[
+          ["cashier-report-sales-v2"],
+          ["cashier-report-receipts"],
+          ["cashier-report-fee-collections"],
+          ["cashier-report-cash-refunds"],
+          ["cashier-report-expenses"],
+        ]}
+      />
       {/* Header */}
       <div className="flex items-center justify-between mb-6 print:hidden">
         <div>

@@ -42,6 +42,7 @@ import {
 } from "@/lib/purchaseEntryPersistence";
 import { useSettings } from "@/hooks/useSettings";
 import { DASHBOARD_TAB_RETURN_QUERY_OPTIONS } from "@/lib/dashboardQueryOptions";
+import { QuietRefreshBar, useQuietRefreshActiveKeys } from "@/components/QuietRefreshBar";
 import { invalidatePurchaseDashboardQueries } from "@/utils/invalidateDashboardQueries";
 import { runFixMissingMrpEquivalenceCheck } from "@/utils/fixMissingMrpEquivalence";
 import { fixMissingMrpForOrgViaRpc } from "@/utils/fixMissingMrpForOrg";
@@ -1542,8 +1543,11 @@ const PurchaseBillDashboard = () => {
   // Table skeleton only waits on the LIST — never on KPI summary (Chirag hang fix).
   const isDashboardInitialLoad =
     purchaseQueriesEnabled && billsQueryLoading && bills.length === 0;
-  const isDashboardBackgroundRefresh =
-    (billsQueryFetching || purchaseSummaryFetching) && !isDashboardInitialLoad;
+  // useIsFetching-based — app notifyOnChangeProps silences useQuery isFetching flips
+  const isDashboardBackgroundRefresh = useQuietRefreshActiveKeys(
+    [purchaseBillsQueryKey, purchaseSummaryQueryKey],
+    purchaseQueriesEnabled,
+  );
   const loading = isDashboardInitialLoad && !billsQueryError;
 
   useNavPerfQueryWatch("purchase-bills-list", PERF_PATH, {
@@ -2357,10 +2361,14 @@ const PurchaseBillDashboard = () => {
   return (
     <div
       className={cn(
-        "purchase-dashboard-workspace purchase-bill-dashboard flex h-full min-h-0 w-full flex-col overflow-hidden bg-slate-50 px-2 py-2 sm:px-3",
+        "purchase-dashboard-workspace purchase-bill-dashboard relative flex h-full min-h-0 w-full flex-col overflow-hidden bg-slate-50 px-2 py-2 sm:px-3",
         !inTabCache && !sharedShell && "h-[calc(100vh-3.5rem)]",
       )}
     >
+      <QuietRefreshBar
+        queryKeys={[purchaseBillsQueryKey, purchaseSummaryQueryKey]}
+        enabled={purchaseQueriesEnabled}
+      />
       <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col gap-2">
         <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
           <div>
