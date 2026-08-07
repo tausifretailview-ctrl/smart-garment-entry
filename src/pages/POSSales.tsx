@@ -3038,7 +3038,7 @@ export default function POSSales() {
       toast.success(refundType === "exchange" ? "Exchange Applied" : "Credit Note Created", {
         description:
           refundDue > 0.01
-            ? `${returnNumber} â€” Return â‚¹${Math.round(raw)} Â· Applied â‚¹${Math.round(applied)} Â· Refund due â‚¹${Math.round(refundDue)}. Open Mix Payment (F6) to refund cash or issue C/Note.`
+            ? `${returnNumber} â€” Return â‚¹${Math.round(raw)} · Applied â‚¹${Math.round(applied)} · Refund due â‚¹${Math.round(refundDue)}. Open Mix Payment (F6) to refund cash or issue C/Note.`
             : `${returnNumber} â€” â‚¹${Math.round(amount)} ${refundType === "exchange" ? "deducted from new bill" : "credit note issued"}`,
       });
       return;
@@ -6397,7 +6397,7 @@ export default function POSSales() {
                                   />
                                 </TooltipTrigger>
                                 <TooltipContent side="top" className="text-xs">
-                                  Stock: {stockIndicator.stockQty} Â· After this bill:{" "}
+                                  Stock: {stockIndicator.stockQty} · After this bill:{" "}
                                   {stockIndicator.remaining}
                                 </TooltipContent>
                               </Tooltip>
@@ -6517,7 +6517,7 @@ export default function POSSales() {
                                 return (
                                   <div
                                     className="flex flex-col items-end justify-center min-h-8 leading-tight text-right"
-                                    title={`List â‚¹${formatINR2(listUnit)} Â· Disc ${discPct > 0 ? `${discPct}%` : ""} â‚¹${formatINR2(lineDiscRs)} Â· Net unit â‚¹${formatINR2(posLineNetUnitPrice(item))}`}
+                                    title={`List â‚¹${formatINR2(listUnit)} · Disc ${discPct > 0 ? `${discPct}%` : ""} â‚¹${formatINR2(lineDiscRs)} · Net unit â‚¹${formatINR2(posLineNetUnitPrice(item))}`}
                                   >
                                     <span className="text-base font-semibold tabular-nums text-foreground">
                                       â‚¹{formatINR2(listUnit)}
@@ -6932,7 +6932,7 @@ export default function POSSales() {
                 </div>
                 {exchangeRefundDue > 0.01 ? (
                   <div className="text-[10px] text-orange-200 mt-0.5 max-w-[11rem] leading-tight">
-                    Return â‚¹{Math.round(saleReturnAdjust)} Â· Applied â‚¹{Math.round(exchangeSrApplied)} Â· Refund due â‚¹{Math.round(exchangeRefundDue)}
+                    Return â‚¹{Math.round(saleReturnAdjust)} · Applied â‚¹{Math.round(exchangeSrApplied)} · Refund due â‚¹{Math.round(exchangeRefundDue)}
                   </div>
                 ) : (
                   !isSameBillExchangeSr &&
@@ -7761,7 +7761,7 @@ export default function POSSales() {
                         <div className="flex items-center justify-between mb-2.5">
                           <span className="text-xs text-muted-foreground">
                             {itemCount} item{itemCount !== 1 ? 's' : ''}
-                            {bill.customer_phone && ` Â· ${bill.customer_phone}`}
+                            {bill.customer_phone && ` · ${bill.customer_phone}`}
                           </span>
                           <span className="text-sm font-bold text-foreground">â‚¹{Math.round(bill.net_amount || 0).toLocaleString('en-IN')}</span>
                         </div>
