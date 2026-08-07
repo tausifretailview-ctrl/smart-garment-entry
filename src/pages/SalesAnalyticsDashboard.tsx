@@ -15,9 +15,14 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+fix/swr-cache-buster-ymd-keys
+import { format, subDays, startOfMonth, endOfMonth, startOfYear, subMonths, parseISO, startOfWeek, endOfWeek, startOfDay } from "date-fns";
+import { CalendarIcon, TrendingUp, IndianRupee, ShoppingCart, ArrowUpRight, ArrowDownRight, Loader2 } from "lucide-react";
+=======
 import { format, subDays, startOfMonth, endOfMonth, startOfYear, subMonths, parseISO, startOfWeek, endOfWeek } from "date-fns";
 import { CalendarIcon, TrendingUp, IndianRupee, ShoppingCart, ArrowUpRight, ArrowDownRight } from "lucide-react";
 import { ReportPageSkeleton } from "@/components/skeletons/ReportPageSkeleton";
+main
 import { cn } from "@/lib/utils";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
@@ -54,8 +59,8 @@ export default function SalesAnalyticsDashboard() {
   const tabFromUrl = searchParams.get("tab");
   const [activeTab, setActiveTab] = useState(tabFromUrl || "overview");
   const [periodType, setPeriodType] = useState<PeriodType>("this-month");
-  const [startDate, setStartDate] = useState<Date>(startOfMonth(new Date()));
-  const [endDate, setEndDate] = useState<Date>(new Date());
+  const [startDate, setStartDate] = useState<Date>(() => startOfMonth(new Date()));
+  const [endDate, setEndDate] = useState<Date>(() => startOfDay(new Date()));
 
   const salesAnalyticsFilterSnapshot = useMemo(
     () => ({
@@ -92,37 +97,44 @@ export default function SalesAnalyticsDashboard() {
     }
   }, [tabFromUrl]);
 
-  // Calculate date range based on period type
+  // Calculate date range based on period type (day-normalized Dates for UI / queryFn).
   const dateRange = useMemo(() => {
-    const today = new Date();
+    const today = startOfDay(new Date());
     switch (periodType) {
       case "today":
         return { start: today, end: today };
-      case "yesterday":
+      case "yesterday": {
         const yesterday = subDays(today, 1);
         return { start: yesterday, end: yesterday };
+      }
       case "this-week":
         return { start: startOfWeek(today, { weekStartsOn: 1 }), end: endOfWeek(today, { weekStartsOn: 1 }) };
-      case "last-week":
+      case "last-week": {
         const lastWeekStart = startOfWeek(subDays(today, 7), { weekStartsOn: 1 });
         return { start: lastWeekStart, end: endOfWeek(lastWeekStart, { weekStartsOn: 1 }) };
+      }
       case "this-month":
         return { start: startOfMonth(today), end: endOfMonth(today) };
-      case "last-month":
+      case "last-month": {
         const lastMonth = subMonths(today, 1);
         return { start: startOfMonth(lastMonth), end: endOfMonth(lastMonth) };
+      }
       case "this-year":
         return { start: startOfYear(today), end: today };
       case "custom":
-        return { start: startDate, end: endDate };
+        return { start: startOfDay(startDate), end: startOfDay(endDate) };
       default:
         return { start: startOfMonth(today), end: today };
     }
   }, [periodType, startDate, endDate]);
 
+  // Stable cache keys — never put raw Date / range objects in queryKey.
+  const rangeStartYmd = format(dateRange.start, "yyyy-MM-dd");
+  const rangeEndYmd = format(dateRange.end, "yyyy-MM-dd");
+
   // Fetch sales data
   const { data: salesData, isLoading: salesLoading } = useQuery({
-    queryKey: ["sales-analytics", currentOrganization?.id, dateRange],
+    queryKey: ["sales-analytics", currentOrganization?.id, rangeStartYmd, rangeEndYmd],
     queryFn: async () => {
       if (!currentOrganization?.id) return [];
       const { data, error } = await supabase
@@ -131,8 +143,8 @@ export default function SalesAnalyticsDashboard() {
         .eq("organization_id", currentOrganization.id)
         .is("deleted_at", null)
         .eq("is_cancelled", false)
-        .gte("sale_date", format(dateRange.start, "yyyy-MM-dd"))
-        .lte("sale_date", format(dateRange.end, "yyyy-MM-dd'T'23:59:59"))
+        .gte("sale_date", rangeStartYmd)
+        .lte("sale_date", `${rangeEndYmd}T23:59:59`)
         .order("sale_date", { ascending: true });
       if (error) throw error;
       return data || [];
@@ -144,7 +156,7 @@ export default function SalesAnalyticsDashboard() {
 
   // Fetch sale items for top products - use paginated fetch to bypass 1000 row limit
   const { data: saleItemsData } = useQuery({
-    queryKey: ["sale-items-analytics", currentOrganization?.id, dateRange],
+    queryKey: ["sale-items-analytics", currentOrganization?.id, rangeStartYmd, rangeEndYmd],
     queryFn: async () => {
       if (!currentOrganization?.id || !salesData?.length) return [];
       const saleIds = salesData.map(s => s.id);
@@ -164,8 +176,11 @@ export default function SalesAnalyticsDashboard() {
     };
   }, [dateRange]);
 
+  const prevRangeStartYmd = format(previousPeriodRange.start, "yyyy-MM-dd");
+  const prevRangeEndYmd = format(previousPeriodRange.end, "yyyy-MM-dd");
+
   const { data: previousSalesData } = useQuery({
-    queryKey: ["previous-sales-analytics", currentOrganization?.id, previousPeriodRange],
+    queryKey: ["previous-sales-analytics", currentOrganization?.id, prevRangeStartYmd, prevRangeEndYmd],
     queryFn: async () => {
       if (!currentOrganization?.id) return [];
       const { data, error } = await supabase
@@ -174,8 +189,8 @@ export default function SalesAnalyticsDashboard() {
         .eq("organization_id", currentOrganization.id)
         .is("deleted_at", null)
         .eq("is_cancelled", false)
-        .gte("sale_date", format(previousPeriodRange.start, "yyyy-MM-dd"))
-        .lte("sale_date", format(previousPeriodRange.end, "yyyy-MM-dd'T'23:59:59"));
+        .gte("sale_date", prevRangeStartYmd)
+        .lte("sale_date", `${prevRangeEndYmd}T23:59:59`);
       if (error) throw error;
       return data || [];
     },
@@ -186,7 +201,7 @@ export default function SalesAnalyticsDashboard() {
 
   // Fetch unique customers for the period
   const { data: customersData } = useQuery({
-    queryKey: ["customers-analytics", currentOrganization?.id, dateRange],
+    queryKey: ["customers-analytics", currentOrganization?.id, rangeStartYmd, rangeEndYmd],
     queryFn: async () => {
       if (!currentOrganization?.id) return [];
       const { data, error } = await supabase
@@ -195,8 +210,8 @@ export default function SalesAnalyticsDashboard() {
         .eq("organization_id", currentOrganization.id)
         .is("deleted_at", null)
         .eq("is_cancelled", false)
-        .gte("sale_date", format(dateRange.start, "yyyy-MM-dd"))
-        .lte("sale_date", format(dateRange.end, "yyyy-MM-dd'T'23:59:59"))
+        .gte("sale_date", rangeStartYmd)
+        .lte("sale_date", `${rangeEndYmd}T23:59:59`)
         .not("customer_id", "is", null);
       if (error) throw error;
       return data || [];
