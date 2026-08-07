@@ -47,6 +47,7 @@ import { toast } from "sonner";
 import * as XLSX from "xlsx";
 import { getWhatsAppErrorHint } from "@/utils/whatsappErrorHints";
 import { getEffectiveWhatsAppLogStatus } from "@/utils/whatsappLogStatus";
+import { ListTableSkeleton } from "@/components/skeletons/ListPageSkeleton";
 
 /** @deprecated use getWhatsAppErrorHint — kept as alias for this file */
 const getFriendlyErrorHint = (
@@ -366,9 +367,7 @@ const WhatsAppLogs = () => {
           </CardHeader>
           <CardContent>
             {isLoading ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-              </div>
+              <ListTableSkeleton rows={8} columns={6} />
             ) : filteredLogs.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
                 <MessageSquare className="h-12 w-12 mx-auto mb-4 opacity-50" />

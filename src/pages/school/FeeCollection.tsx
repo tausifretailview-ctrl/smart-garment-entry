@@ -10,6 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Search, Receipt, Loader2, IndianRupee, Calendar, User, MessageCircle, Pencil, CreditCard, Banknote, Smartphone, Building2, Printer, Trash2, Send, ExternalLink } from "lucide-react";
+import { ListPageSkeleton, ListTableSkeleton } from "@/components/skeletons/ListPageSkeleton";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { FeeCollectionDialog } from "@/components/school/FeeCollectionDialog";
 import { StudentHistoryDialog } from "@/components/school/StudentHistoryDialog";
@@ -757,11 +758,7 @@ const FeeCollection = () => {
   };
 
   if (!currentOrganization) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
-    );
+    return <ListPageSkeleton rows={6} columns={5} />;
   }
 
   return (
@@ -892,9 +889,7 @@ const FeeCollection = () => {
             </CardHeader>
             <CardContent>
               {isLoading ? (
-                <div className="flex items-center justify-center h-32">
-                  <Loader2 className="h-6 w-6 animate-spin" />
-                </div>
+                <ListTableSkeleton rows={6} columns={5} />
               ) : filteredStudents.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
                   <User className="h-12 w-12 mx-auto mb-4 opacity-50" />
@@ -1192,9 +1187,7 @@ const FeeCollection = () => {
             </CardHeader>
             <CardContent>
               {collectedLoading ? (
-                <div className="flex items-center justify-center h-32">
-                  <Loader2 className="h-6 w-6 animate-spin" />
-                </div>
+                <ListTableSkeleton rows={6} columns={5} />
               ) : filteredCollected.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
                   <Receipt className="h-12 w-12 mx-auto mb-4 opacity-50" />

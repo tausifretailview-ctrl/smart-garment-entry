@@ -115,6 +115,9 @@ const ExpenseSalaryReport = lazyWithRetry(() => import("./pages/ExpenseSalaryRep
 const NetProfitAnalysis = lazyWithRetry(() => import("./pages/NetProfitAnalysis"));
 const HourlySalesAnalysis = lazyWithRetry(() => import("./pages/HourlySalesAnalysis"));
 const RecycleBin = lazyWithRetry(() => import("./pages/RecycleBin"));
+const ListSkeletonSpotCheck = import.meta.env.DEV
+  ? lazyWithRetry(() => import("./pages/dev/ListSkeletonSpotCheck"))
+  : null;
 const StockAdjustment = lazyWithRetry(() => import("./pages/StockAdjustment"));
 const StockAnalysis = lazyWithRetry(() => import("./pages/StockAnalysis"));
 const StockAgeingReport = lazyWithRetry(() => import("./pages/StockAgeingReport"));
@@ -454,6 +457,9 @@ const App = () => {
               <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/invoice/view/:saleId" element={<PublicInvoiceView />} />
               <Route path="/pay" element={<PublicPaymentPage />} />
+              {ListSkeletonSpotCheck ? (
+                <Route path="/__dev__/list-skeletons" element={<ListSkeletonSpotCheck />} />
+              ) : null}
 
               {/* MCP OAuth 2.1 consent screen (Supabase authorization server) */}
               <Route path="/oauth/consent" element={<OAuthConsent />} />

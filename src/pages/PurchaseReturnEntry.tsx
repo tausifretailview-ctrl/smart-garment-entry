@@ -18,6 +18,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { AlertDialog, AlertDialogAction, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Loader2, CalendarIcon, Trash2, Search, Barcode, ChevronLeft, Save, X, RotateCcw } from "lucide-react";
+import { FormPageSkeleton } from "@/components/skeletons/FormPageSkeleton";
 import { format } from "date-fns";
 import { cn, sortSearchResults } from "@/lib/utils";
 import { getUOMLabel, isDecimalUOM } from "@/constants/uom";
@@ -1614,13 +1615,7 @@ const PurchaseReturnEntry = () => {
                   </div>
                 </>
               ) : (
-                <>
-                  <Loader2 className="h-5 w-5 animate-spin text-black" />
-                  <p className="text-sm font-bold text-black">Loading purchase return details...</p>
-                  <p className="text-xs text-black/60">
-                    The window is ready. Item rows will appear here shortly.
-                  </p>
-                </>
+                <FormPageSkeleton groups={2} fieldsPerGroup={3} className="p-0 text-left w-full" />
               )}
             </CardContent>
           </Card>

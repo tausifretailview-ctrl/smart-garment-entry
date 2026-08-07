@@ -1,0 +1,38 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { describe, expect, it } from "vitest";
+
+/** FORM-bucket files — skeletons must gate on isLoading / loading / *Loading, never isFetching. */
+const FORM_MIGRATED_FILES = [
+  "src/pages/BulkProductUpdate.tsx",
+  "src/pages/Profile.tsx",
+  "src/pages/school/StudentEntry.tsx",
+  "src/pages/school/FeeStructureSetup.tsx",
+  "src/pages/SaleReturnEntry.tsx",
+  "src/pages/PurchaseReturnEntry.tsx",
+  "src/pages/Settings.tsx",
+] as const;
+
+describe("FORM skeleton migration", () => {
+  it("every migrated file imports FormPageSkeleton", () => {
+    for (const rel of FORM_MIGRATED_FILES) {
+      const src = readFileSync(join("/workspace", rel), "utf8");
+      expect(src, rel).toMatch(/FormPageSkeleton/);
+    }
+  });
+
+  it("does not gate FormPageSkeleton on isFetching", () => {
+    for (const rel of FORM_MIGRATED_FILES) {
+      const src = readFileSync(join("/workspace", rel), "utf8");
+      expect(src, rel).not.toMatch(/isFetching\s*\?\s*[\s\S]{0,200}<FormPageSkeleton/);
+    }
+  });
+
+  it("FormPageSkeleton keeps field-group min-height", () => {
+    const src = readFileSync(
+      "/workspace/src/components/skeletons/FormPageSkeleton.tsx",
+      "utf8",
+    );
+    expect(src).toContain("min-h-[140px]");
+  });
+});

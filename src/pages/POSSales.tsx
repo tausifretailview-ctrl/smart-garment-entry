@@ -20,7 +20,6 @@ import {
   posLineNetUnitPrice,
   resolveBillFlatForPosEdit,
 } from "@/lib/posBilling";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { displaySaleStockQty } from "@/utils/productStockDisplay";
 import { useLocation, useSearchParams } from "react-router-dom";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";

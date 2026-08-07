@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2, User, Shield, CheckCircle2, KeyRound } from "lucide-react";
+import { FormPageSkeleton } from "@/components/skeletons/FormPageSkeleton";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -82,11 +83,7 @@ export default function Profile() {
   };
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
+    return <FormPageSkeleton groups={2} fieldsPerGroup={3} />;
   }
 
   return (

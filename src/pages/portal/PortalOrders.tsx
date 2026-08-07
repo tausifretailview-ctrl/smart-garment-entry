@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { ArrowLeft, Package, ChevronDown, ChevronRight, Loader2 } from 'lucide-react';
+import { ListTableSkeleton } from '@/components/skeletons/ListPageSkeleton';
 
 const PORTAL_SESSION_KEY = 'portal_session';
 
@@ -114,9 +115,7 @@ export default function PortalOrders() {
 
       <div className="p-4 space-y-3">
         {loading ? (
-          <div className="flex items-center justify-center py-20">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-          </div>
+          <ListTableSkeleton rows={6} columns={4} className="py-4" />
         ) : orders.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
             <Package className="h-12 w-12 mb-3" />

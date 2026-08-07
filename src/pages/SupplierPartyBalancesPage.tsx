@@ -30,9 +30,8 @@ import { fetchAllSupplierPartyBalances, fetchSupplierPhoneMap } from "@/utils/fe
 import {
   SUPPLIER_PARTY_BALANCES_PAGE_SIZE,
   clampSupplierPartyBalancePage,
-  isSupplierPartyBalanceSettled,
-  matchesSupplierPartyBalanceSearch,
-  matchesSupplierPartyDirectionFilter,
+  filterSupplierPartyBalanceRows,
+  includeSettledInSupplierPartyBalanceList,
   supplierPartyBalanceDirection,
   supplierPartyBalanceDisplayAmount,
   supplierPartyBalanceTotalPages,
@@ -93,17 +92,17 @@ export default function SupplierPartyBalancesPage() {
     };
   }, [rows]);
 
-  const filteredRows = useMemo(() => {
-    return rows.filter((row) => {
-      if (!showSettled && isSupplierPartyBalanceSettled(row.signed_balance)) {
-        return false;
-      }
-      if (!matchesSupplierPartyDirectionFilter(row, directionFilter)) {
-        return false;
-      }
-      return matchesSupplierPartyBalanceSearch(row, search);
-    });
-  }, [rows, search, showSettled, directionFilter]);
+  const filteredRows = useMemo(
+    () =>
+      filterSupplierPartyBalanceRows(rows, {
+        search,
+        showSettled,
+        directionFilter,
+      }),
+    [rows, search, showSettled, directionFilter],
+  );
+  const searchIncludesSettled =
+    !showSettled && includeSettledInSupplierPartyBalanceList(showSettled, search);
 
   const totalPages = supplierPartyBalanceTotalPages(filteredRows.length);
   const currentPage = clampSupplierPartyBalancePage(page, totalPages);
@@ -312,7 +311,11 @@ export default function SupplierPartyBalancesPage() {
                 ) : (
                   <>
                     {rows.length.toLocaleString("en-IN")} suppliers loaded
-                    {!showSettled ? " · settled hidden" : ""}
+                    {searchIncludesSettled
+                      ? " · search includes settled"
+                      : !showSettled
+                        ? " · settled hidden"
+                        : ""}
                   </>
                 )}
               </p>

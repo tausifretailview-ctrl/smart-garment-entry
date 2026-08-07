@@ -5,6 +5,7 @@ import { ShoppingCart, ArrowLeft, Search, Loader2, Plus, Minus, X, Package } fro
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
+import { ListTableSkeleton } from '@/components/skeletons/ListPageSkeleton';
 
 const PORTAL_SESSION_KEY = 'portal_session';
 
@@ -234,9 +235,7 @@ export default function PortalCatalogue() {
       {/* Products */}
       <div className="p-4 space-y-4">
         {loading ? (
-          <div className="flex items-center justify-center py-20">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-          </div>
+          <ListTableSkeleton rows={8} columns={4} className="py-4" />
         ) : filteredProducts.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
             <Package className="h-12 w-12 mb-3" />

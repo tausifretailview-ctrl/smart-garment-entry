@@ -31,6 +31,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Plus, Calendar, Star, Edit, Trash2, Loader2 } from "lucide-react";
+import { ListTableSkeleton } from "@/components/skeletons/ListPageSkeleton";
 import { format } from "date-fns";
 import { useSettings } from "@/hooks/useSettings";
 
@@ -278,8 +279,8 @@ const AcademicYearSetup = () => {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8">
-                    <Loader2 className="h-6 w-6 animate-spin mx-auto" />
+                  <TableCell colSpan={5} className="p-3">
+                    <ListTableSkeleton rows={5} columns={5} />
                   </TableCell>
                 </TableRow>
               ) : academicYears.length === 0 ? (
