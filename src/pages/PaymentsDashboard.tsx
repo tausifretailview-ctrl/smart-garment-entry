@@ -63,7 +63,7 @@ import {
   formatSnapshotInr,
   invalidateCustomerFinancialSnapshot,
 } from "@/utils/customerFinancialSnapshot";
-import { confirmInvoiceOverpaymentIfNeeded } from "@/utils/invoiceOverpaymentGuard";
+import { assertCustomerPaymentWithinOutstandingCap } from "@/utils/invoiceOverpaymentGuard";
 import {
   accountsHistoryFooterClass,
   accountsHistorySearchInputClass,
@@ -448,13 +448,18 @@ export default function PaymentsDashboard() {
       return;
     }
 
-    const overpayConfirmed = await confirmInvoiceOverpaymentIfNeeded(supabase, {
-      organizationId: currentOrganization!.id,
-      saleId: selectedInvoice.id,
-      saleNumber: selectedInvoice.sale_number,
-      proposedSettlement: amount,
-    });
-    if (!overpayConfirmed) {
+    try {
+      await assertCustomerPaymentWithinOutstandingCap(supabase, {
+        organizationId: currentOrganization!.id,
+        saleIds: [selectedInvoice.id],
+        proposedSettlement: amount,
+      });
+    } catch (overpayErr) {
+      toast({
+        title: "Amount too high",
+        description: overpayErr instanceof Error ? overpayErr.message : "Payment exceeds outstanding",
+        variant: "destructive",
+      });
       return;
     }
 

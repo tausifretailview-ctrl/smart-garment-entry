@@ -32,13 +32,21 @@ import {
   paymentPickerAmountBadgeClass,
   paymentPickerRefClass,
 } from "@/components/accounts/accountsHistoryUi";
-import { resolveCustomerOpeningBalance } from "@/utils/customerOpeningBalanceRemaining";
+import {
+  fetchCustomerOpeningBalanceRemaining,
+  resolveCustomerOpeningBalance,
+} from "@/utils/customerOpeningBalanceRemaining";
 import { DASHBOARD_TAB_RETURN_QUERY_OPTIONS } from "@/lib/dashboardQueryOptions";
 import { setCloudUsageRoutePath } from "@/lib/cloudUsageDiagnostics";
 import { safeMapGet } from "@/lib/coerceToMap";
 import { loadSupplierBalanceMapForOrg } from "@/utils/supplierBalanceUtils";
 import { whatsappPaymentReceiptDiscountLines } from "@/utils/paymentReceiptWhatsApp";
-import { confirmInvoiceOverpaymentIfNeeded } from "@/utils/invoiceOverpaymentGuard";
+import {
+  assertCustomerPaymentWithinOutstandingCap,
+  formatPaymentExceedsOutstandingMessage,
+  INVOICE_OVERPAYMENT_WARN_TOLERANCE_RUPEE,
+  paymentExceedsOutstandingCap,
+} from "@/utils/invoiceOverpaymentGuard";
 import { confirmSupplierOverpaymentIfNeeded } from "@/utils/supplierOverpaymentGuard";
 import { invalidateCustomerFinancialSnapshot } from "@/utils/customerFinancialSnapshot";
 import { PaymentReceipt } from "@/components/PaymentReceipt";
@@ -302,22 +310,52 @@ function CustomerPaymentForm({
 
   const customerBalance = pickerOutstanding ?? customerBalanceFallback;
 
+  const { data: openingBalanceRemaining = 0 } = useQuery({
+    queryKey: ["customer-opening-balance-remaining", referenceId, organizationId],
+    queryFn: () =>
+      fetchCustomerOpeningBalanceRemaining(supabase, organizationId, referenceId, queryClient),
+    enabled: !!referenceId && !!organizationId && dialogOpen,
+    staleTime: 60 * 1000,
+  });
+
+  const invoiceOutstandingOf = (inv: {
+    net_amount?: number | null;
+    paid_amount?: number | null;
+    sale_return_adjust?: number | null;
+    _outstanding?: number;
+  }) =>
+    Math.max(
+      0,
+      Number(
+        inv._outstanding ??
+          Number(inv.net_amount || 0) -
+            Number(inv.paid_amount || 0) -
+            Number(inv.sale_return_adjust || 0),
+      ),
+    );
+
+  const selectedPaymentCap = useMemo(() => {
+    if (!referenceId) return 0;
+    if (selectedInvoiceIds.length === 0) {
+      // No invoices selected → opening-balance receipt only (spec: cap at OB remaining).
+      return Math.max(0, Number(openingBalanceRemaining || 0));
+    }
+    if (!customerInvoices) return 0;
+    return customerInvoices
+      .filter((inv) => selectedInvoiceIds.includes(inv.id))
+      .reduce((sum, inv) => sum + invoiceOutstandingOf(inv), 0);
+  }, [referenceId, selectedInvoiceIds, customerInvoices, openingBalanceRemaining]);
+
+  const enteredPaymentAmount = parseFloat(amount) || 0;
+  const paymentExceedsCap =
+    enteredPaymentAmount > 0 &&
+    paymentExceedsOutstandingCap(enteredPaymentAmount, selectedPaymentCap);
+
   useEffect(() => {
     if (selectedInvoiceIds.length === 0 || !customerInvoices) return;
     const total = customerInvoices
       .filter((inv) => selectedInvoiceIds.includes(inv.id))
-      .reduce(
-        (sum, inv) =>
-          sum +
-          Math.max(
-            0,
-            Number((inv as { _outstanding?: number })._outstanding ??
-              Number(inv.net_amount || 0) -
-                Number(inv.paid_amount || 0) -
-                Number((inv as { sale_return_adjust?: number }).sale_return_adjust || 0)),
-          ),
-        0,
-      );
+      .reduce((sum, inv) => sum + invoiceOutstandingOf(inv), 0);
     const nextAmount = total.toFixed(2);
     setAmount((prev) => (prev === nextAmount ? prev : nextAmount));
   }, [selectedInvoiceIds, customerInvoices]);
@@ -347,6 +385,17 @@ function CustomerPaymentForm({
       );
 
       const paymentAmount = parseFloat(amount);
+      const isOpeningBalancePayment = selectedInvoiceIds.length === 0;
+
+      // Fresh outstanding cap — blocks stale-cache overpayments before any voucher write.
+      await assertCustomerPaymentWithinOutstandingCap(supabase, {
+        organizationId,
+        saleIds: selectedInvoiceIds,
+        customerId: referenceId,
+        includeOpeningBalance: isOpeningBalancePayment,
+        proposedSettlement: paymentAmount,
+      });
+
       let remainingAmount = paymentAmount;
       const processedInvoices: any[] = [];
       const pendingSalesUpdates: Array<{
@@ -358,7 +407,6 @@ function CustomerPaymentForm({
         prevStatus: string;
       }> = [];
       const saleRevert: Array<{ id: string; prevPaid: number; prevStatus: string }> = [];
-      const isOpeningBalancePayment = selectedInvoiceIds.length === 0;
 
       if (selectedInvoiceIds.length > 0) {
         for (const invoiceId of selectedInvoiceIds) {
@@ -367,7 +415,7 @@ function CustomerPaymentForm({
           if (!invoice) continue;
           const currentPaid = invoice.paid_amount || 0;
           const prevStatus = (invoice.payment_status || "pending") as string;
-          const outstanding = invoice.net_amount - currentPaid;
+          const outstanding = invoiceOutstandingOf(invoice);
           const amountToApply = Math.min(remainingAmount, outstanding);
           if (amountToApply <= 0) continue;
           const newPaidAmount = currentPaid + amountToApply;
@@ -383,17 +431,9 @@ function CustomerPaymentForm({
           processedInvoices.push({ invoice, amountApplied: amountToApply, previousBalance: outstanding, currentBalance: outstanding - amountToApply });
           remainingAmount -= amountToApply;
         }
-      }
-
-      for (const processed of processedInvoices) {
-        const confirmed = await confirmInvoiceOverpaymentIfNeeded(supabase, {
-          organizationId,
-          saleId: processed.invoice.id,
-          saleNumber: processed.invoice.sale_number,
-          proposedSettlement: processed.amountApplied,
-        });
-        if (!confirmed) {
-          throw new Error("Payment cancelled");
+        // Leftover after FIFO would previously be discarded while UX implied full amount paid.
+        if (remainingAmount > INVOICE_OVERPAYMENT_WARN_TOLERANCE_RUPEE) {
+          throw new Error(formatPaymentExceedsOutstandingMessage(paymentAmount - remainingAmount));
         }
       }
 
@@ -726,6 +766,12 @@ function CustomerPaymentForm({
         </div>
       </div>
 
+      {paymentExceedsCap && (
+        <p className="text-xs text-destructive">
+          {formatPaymentExceedsOutstandingMessage(selectedPaymentCap)}
+        </p>
+      )}
+
       {paymentMethod === 'cheque' && (
         <div className="space-y-1">
           <Label className="text-xs">Cheque Number</Label>
@@ -746,7 +792,7 @@ function CustomerPaymentForm({
 
       <Button
         onClick={() => createVoucher.mutate()}
-        disabled={createVoucher.isPending || !referenceId || !amount}
+        disabled={createVoucher.isPending || !referenceId || !amount || paymentExceedsCap}
         className={cn("w-full h-9 text-xs gap-1", showSaved ? "bg-emerald-600 hover:bg-emerald-700" : "")}
       >
         {showSaved ? <><CheckCircle2 className="h-3 w-3" /> Saved</> : <><Plus className="h-3 w-3" /> {createVoucher.isPending ? "Saving..." : "Record Payment"}</>}

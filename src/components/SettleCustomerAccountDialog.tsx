@@ -41,7 +41,10 @@ import {
 import { formatCnApplyError } from "@/utils/saleReturnCnBalance";
 import { useCustomerFinancialSnapshot } from "@/hooks/useCustomerFinancialSnapshot";
 import { invalidateCustomerFinancialSnapshot } from "@/utils/customerFinancialSnapshot";
-import { confirmInvoiceOverpaymentIfNeeded } from "@/utils/invoiceOverpaymentGuard";
+import {
+  formatPaymentExceedsOutstandingMessage,
+  paymentExceedsOutstandingCap,
+} from "@/utils/invoiceOverpaymentGuard";
 
 export interface SettleCustomerAccountDialogProps {
   open: boolean;
@@ -324,6 +327,16 @@ export function SettleCustomerAccountDialog({
       return;
     }
 
+    // Hard block: do not apply more than selected invoice outstanding (no silent leftover credit).
+    if (paymentExceedsOutstandingCap(totalApplied, selectedTotal)) {
+      toast({
+        title: "Amount too high",
+        description: formatPaymentExceedsOutstandingMessage(selectedTotal),
+        variant: "destructive",
+      });
+      return;
+    }
+
     const isPartialSettlement = totalApplied < selectedTotal - 0.5;
       const {
         data: { user },
@@ -400,17 +413,6 @@ export function SettleCustomerAccountDialog({
           );
 
           if (cashForThis > 0.01 || discForThis > 0.01) {
-            const settlementForInvoice = cashForThis + discForThis;
-            const confirmed = await confirmInvoiceOverpaymentIfNeeded(supabase, {
-              organizationId,
-              saleId: inv.id,
-              saleNumber: inv.sale_number,
-              proposedSettlement: settlementForInvoice,
-            });
-            if (!confirmed) {
-              throw new Error("Payment cancelled");
-            }
-
             await createReceiptVoucher(supabase, {
               organizationId,
               referenceId: inv.id,

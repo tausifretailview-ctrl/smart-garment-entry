@@ -92,6 +92,11 @@ export function formatSupplierOverpaymentConfirmMessage(params: {
 /**
  * Fresh server-side payable check + warn/confirm before supplier payment write.
  * Returns true to proceed, false if user cancelled.
+ *
+ * INTENTIONAL ASYMMETRY vs customer payments: supplier overpayment is WARNING-ONLY
+ * (shops often pay suppliers in advance / create supplier credit). Customer paths
+ * hard-block via `assertCustomerPaymentWithinOutstandingCap` and do not mint advances.
+ * Flip to a hard block only after product confirmation that supplier advance pay is disallowed.
  */
 export async function confirmSupplierOverpaymentIfNeeded(
   client: SupabaseClient,
