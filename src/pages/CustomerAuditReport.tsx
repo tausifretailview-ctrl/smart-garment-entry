@@ -21,6 +21,7 @@ import {
   Wallet,
 } from "lucide-react";
 import { ReportKpiCards, type ReportKpiItem } from "@/components/reports/ReportKpiCards";
+import { QuietRefreshBar } from "@/components/QuietRefreshBar";
 import { useQuery } from "@tanstack/react-query";
 import { useReactToPrint } from "react-to-print";
 import * as XLSX from "xlsx";
@@ -537,7 +538,11 @@ export default function CustomerAuditReport() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-background p-4 print:p-0 print:bg-white">
+    <div className="relative min-h-screen bg-slate-50 dark:bg-background p-4 print:p-0 print:bg-white">
+      <QuietRefreshBar
+        queryKey={["customer-audit-report", currentOrganization.id, customerId]}
+        enabled={!!customerId}
+      />
       <div className="w-full max-w-none mx-0 space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
           <div>

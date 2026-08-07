@@ -8,7 +8,6 @@ import {
   ChevronLeft,
   ChevronRight,
   ArrowLeft,
-  Loader2,
   FileSpreadsheet,
   FileText,
 } from "lucide-react";
@@ -25,6 +24,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ReportSkeleton } from "@/components/ui/skeletons";
+import { QuietRefreshHint } from "@/components/QuietRefreshBar";
 import { cn } from "@/lib/utils";
 import { fetchAllSupplierPartyBalances, fetchSupplierPhoneMap } from "@/utils/fetchAllRows";
 import {
@@ -303,21 +303,19 @@ export default function SupplierPartyBalancesPage() {
                 Supplier Balances
               </h1>
               <p className="text-sm text-muted-foreground mt-1 truncate">
-                {isFetching && !isLoading ? (
-                  <span className="inline-flex items-center gap-1">
-                    <Loader2 className="h-3 w-3 animate-spin" />
-                    Refreshing…
-                  </span>
-                ) : (
-                  <>
-                    {rows.length.toLocaleString("en-IN")} suppliers loaded
-                    {searchIncludesSettled
-                      ? " · search includes settled"
-                      : !showSettled
-                        ? " · settled hidden"
-                        : ""}
-                  </>
-                )}
+                <QuietRefreshHint
+                  queryKey={["supplier-party-balances", orgId]}
+                  idle={
+                    <>
+                      {rows.length.toLocaleString("en-IN")} suppliers loaded
+                      {searchIncludesSettled
+                        ? " · search includes settled"
+                        : !showSettled
+                          ? " · settled hidden"
+                          : ""}
+                    </>
+                  }
+                />
               </p>
             </div>
           </div>
