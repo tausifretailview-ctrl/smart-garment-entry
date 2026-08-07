@@ -178,7 +178,7 @@ export default function CustomerAuditReport() {
   const fromYmd = ymdBoundary(fromDate);
   const toYmd = ymdBoundary(toDate);
 
-  const { data: auditBundle, isFetching, error } = useQuery({
+  const { data: auditBundle, isLoading: auditLoading, error } = useQuery({
     // Full customer snapshot; date range only affects client-side filters and math.
     queryKey: ["customer-audit-report", currentOrganization?.id, customerId],
     enabled: !!currentOrganization?.id && !!customerId && !!fromYmd && !!toYmd,
@@ -694,7 +694,7 @@ export default function CustomerAuditReport() {
                         Select a customer to run the audit
                       </TableCell>
                     </TableRow>
-                  ) : isFetching ? (
+                  ) : auditLoading && !auditBundle ? (
                     <TableRow>
                       <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
                         Loading…

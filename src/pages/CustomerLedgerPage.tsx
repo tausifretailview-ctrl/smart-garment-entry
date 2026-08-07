@@ -151,13 +151,13 @@ export default function CustomerLedgerPage() {
     [customers, customerId],
   );
 
-  const { data: ledger = [], isFetching } = useQuery({
+  const { data: ledger = [], isLoading: ledgerLoading } = useQuery({
     queryKey: [
       "customer-ledger-statement",
       currentOrganization?.id,
       customerId,
-      fromDate?.toISOString() ?? null,
-      toDate?.toISOString() ?? null,
+      fromDate ? format(fromDate, "yyyy-MM-dd") : null,
+      toDate ? format(toDate, "yyyy-MM-dd") : null,
     ],
     enabled: !!currentOrganization?.id && !!customerId,
     queryFn: async () => {
@@ -873,7 +873,7 @@ export default function CustomerLedgerPage() {
                       Select a customer to view their account statement
                     </TableCell>
                   </TableRow>
-                ) : isFetching ? (
+                ) : ledgerLoading && rows.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
                       Loading ledger...
