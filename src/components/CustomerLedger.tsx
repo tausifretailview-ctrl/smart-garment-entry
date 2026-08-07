@@ -22,6 +22,7 @@ import jsPDF from "jspdf";
 import { format } from "date-fns";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
+import { isPosExchangeRefundPaymentVoucher } from "@/utils/saleSettlement";
 import { accountsHistoryTableClass, accountsHistoryTableWrapClass, accountsHistoryThClass } from "@/components/accounts/accountsHistoryUi";
 import * as XLSX from "xlsx";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -864,12 +865,7 @@ export function CustomerLedger({
         // Exclude exchange-refund vouchers (POS refund + round-off). Those refunds
         // settle SR overflow already captured in sale return / ledger math; counting
         // them again would create a phantom debit.
-        const desc = (v.description || '').toLowerCase();
-        const isExchangeRefund =
-          desc.includes('refund paid for pos exchange') ||
-          desc.includes('round off adjustment for pos exchange') ||
-          v.payment_method === 'round_off';
-        if (isExchangeRefund) return;
+        if (isPosExchangeRefundPaymentVoucher(v)) return;
         customerRefundsPaid.set(v.reference_id, (customerRefundsPaid.get(v.reference_id) || 0) + (v.total_amount || 0));
       });
 

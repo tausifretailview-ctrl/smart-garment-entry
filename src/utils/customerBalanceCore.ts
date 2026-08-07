@@ -1,4 +1,5 @@
 import { salePaidAtSaleTender } from "@/utils/customerAuditBundle";
+import { isPosExchangeRefundPaymentVoucher } from "@/utils/saleSettlement";
 
 /**
  * Client-side lifetime outstanding (transaction list / audit). For headline UI numbers
@@ -299,7 +300,10 @@ export function computeCustomerBalanceCore(params: CustomerBalanceCoreParams): C
       .filter(
         (v) =>
           String(v.voucher_type || "").toLowerCase() === "payment" &&
-          String(v.reference_type || "").toLowerCase() === "customer",
+          String(v.reference_type || "").toLowerCase() === "customer" &&
+          // POS exchange cash refunds settle S/R overflow via sales.refund_amount;
+          // counting the payment voucher again would phantom-credit the customer.
+          !isPosExchangeRefundPaymentVoucher(v),
       )
       .reduce((sum, v) => sum + Math.max(0, Number(v.total_amount) || 0), 0) +
     Math.max(0, Number(params.additionalCustomerPaymentDebits || 0));
