@@ -119,7 +119,7 @@ export default function CustomerBalanceActivityPage() {
   const fromYmd = ymdBoundary(fromDate);
   const toYmd = ymdBoundary(toDate);
 
-  const { data: activityData, isFetching, error } = useQuery({
+  const { data: activityData, isLoading: activityLoading, error } = useQuery({
     queryKey: ["customer-balance-activity", currentOrganization?.id, customerId],
     enabled: !!currentOrganization?.id && !!customerId && !isSchool,
     queryFn: async () => {
@@ -390,7 +390,11 @@ export default function CustomerBalanceActivityPage() {
             )}
           </div>
 
-          {selectedCustomer && snap && fromYmd && toYmd && !isFetching && period && (
+          {selectedCustomer && activityLoading && !activityData && (
+            <p className="text-sm text-muted-foreground py-8 text-center">Loading activity…</p>
+          )}
+
+          {selectedCustomer && snap && fromYmd && toYmd && period && (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
               <Card className="shadow-sm border-l-4 border-l-slate-500">
                 <CardContent className="p-4">
@@ -422,7 +426,7 @@ export default function CustomerBalanceActivityPage() {
             </div>
           )}
 
-          {selectedCustomer && fromYmd && toYmd && !isFetching && period && (
+          {selectedCustomer && fromYmd && toYmd && period && (
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-base">Activity in period</CardTitle>

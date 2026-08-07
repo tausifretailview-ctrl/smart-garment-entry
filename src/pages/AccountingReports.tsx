@@ -1233,7 +1233,7 @@ export default function AccountingReports() {
                   generatedAt={format(new Date(), "dd MMM yyyy, hh:mm a")}
                 />
               </div>
-              {glTrialQuery.isLoading ? (
+              {glTrialQuery.isLoading && !glTrialQuery.data ? (
                 <ReportPageSkeleton
                   showFilters={false}
                   kpiCount={0}
@@ -1363,7 +1363,7 @@ export default function AccountingReports() {
               </div>
             </CardHeader>
             <CardContent>
-              {glPnlQuery.isLoading ? (
+              {glPnlQuery.isLoading && !glPnlQuery.data ? (
                 <ReportPageSkeleton
                   showFilters={false}
                   kpiCount={3}
@@ -1482,7 +1482,7 @@ export default function AccountingReports() {
               </div>
             </CardHeader>
             <CardContent>
-              {glBsQuery.isLoading ? (
+              {glBsQuery.isLoading && !glBsQuery.data ? (
                 <ReportPageSkeleton
                   showFilters={false}
                   kpiCount={0}

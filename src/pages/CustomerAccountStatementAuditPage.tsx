@@ -101,7 +101,7 @@ export default function CustomerAccountStatementAuditPage() {
   const fromYmd = ymdBoundary(fromDate);
   const toYmd = ymdBoundary(toDate);
 
-  const { data: auditBundle, isFetching, error } = useQuery({
+  const { data: auditBundle, isLoading: auditLoading, error } = useQuery({
     queryKey: ["customer-account-statement-audit", currentOrganization?.id, customerId],
     enabled: !!currentOrganization?.id && !!customerId && !!fromYmd && !!toYmd && !isSchool,
     queryFn: async () => {
@@ -433,7 +433,7 @@ export default function CustomerAccountStatementAuditPage() {
             </p>
           </div>
 
-          {selectedCustomer && fromYmd && toYmd && !isFetching && auditBundle && (
+          {selectedCustomer && fromYmd && toYmd && auditBundle && (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <Card className="shadow-sm border-l-4 border-l-slate-500">
                 <CardContent className="p-4">
@@ -499,7 +499,7 @@ export default function CustomerAccountStatementAuditPage() {
                         Select a customer
                       </TableCell>
                     </TableRow>
-                  ) : isFetching ? (
+                  ) : auditLoading && !auditBundle ? (
                     <TableRow>
                       <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
                         Loading…
@@ -565,7 +565,7 @@ export default function CustomerAccountStatementAuditPage() {
                     })
                   )}
                 </TableBody>
-                {selectedCustomer && !isFetching && displayRows.length > 0 && (
+                {selectedCustomer && displayRows.length > 0 && (
                   <TableFooter>
                     <TableRow className="bg-slate-100 dark:bg-muted/40 font-bold">
                       <TableCell colSpan={4} className="border px-3 py-2 text-right uppercase text-xs tracking-wide">
