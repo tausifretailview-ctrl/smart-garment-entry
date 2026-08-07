@@ -310,7 +310,10 @@ const TAB_CACHE_CANONICAL_PATH: Record<string, string> = {
 /** Resolve URL / window-tab segment to the single tab-cache key for that page. */
 export function resolveTabCachePath(path: string): string {
   if (!path) return path;
-  return TAB_CACHE_CANONICAL_PATH[path] ?? path;
+  // Call sites often pass "/purchase-entry"; registry keys are slash-less.
+  // Without this, prefetchTabPage("/purchase-entry") is a silent no-op.
+  const bare = path.startsWith("/") ? path.slice(1) : path;
+  return TAB_CACHE_CANONICAL_PATH[bare] ?? bare;
 }
 
 type TabPageModule = { default: ComponentType<unknown> };

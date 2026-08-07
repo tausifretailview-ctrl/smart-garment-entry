@@ -29,6 +29,19 @@ function resolveTabLoadShell(path: string): "entry" | "dashboard" | "page" {
   return "dashboard";
 }
 
+describe("resolveTabCachePath", () => {
+  it("strips a leading slash so Header quickActions paths prefetch correctly", () => {
+    expect(resolveTabCachePath("/purchase-entry")).toBe("purchase-entry");
+    expect(resolveTabCachePath("purchase-entry")).toBe("purchase-entry");
+    expect(resolveTabCachePath("/pos-sales")).toBe("pos-sales");
+  });
+
+  it("applies canonical aliases after slash strip", () => {
+    expect(resolveTabCachePath("/purchase-bill-dashboard")).toBe("purchase-bills");
+    expect(resolveTabCachePath("purchase-bill-dashboard")).toBe("purchase-bills");
+  });
+});
+
 describe("tab load shell coverage", () => {
   it("maps every TAB_PAGE_REGISTRY key to entry or dashboard shell (no bare-spinner routes)", () => {
     const keys = Object.keys(TAB_PAGE_REGISTRY);

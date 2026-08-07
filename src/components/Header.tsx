@@ -300,6 +300,15 @@ export const Header = () => {
                     key={action.label}
                     variant="ghost"
                     className="justify-start text-sidebar-foreground hover:bg-sidebar-accent"
+                    onPointerEnter={() => {
+                      if (action.path) void prefetchTabPage(action.path);
+                    }}
+                    onFocus={() => {
+                      if (action.path) void prefetchTabPage(action.path);
+                    }}
+                    onPointerDown={() => {
+                      if (action.path) prefetchTabPage(action.path, { intent: true });
+                    }}
                     onClick={() => {
                       handleQuickAction(action);
                       setMobileMenuOpen(false);
@@ -467,6 +476,7 @@ export const Header = () => {
               type="button"
               className={cn("erp-tbtn", isShortcutPath("stock-report") && "erp-tbtn--primary")}
               onPointerEnter={() => void prefetchTabPage("stock-report")}
+              onFocus={() => void prefetchTabPage("stock-report")}
               onPointerDown={() => prefetchTabPage("stock-report", { intent: true })}
               onClick={() => orgNavigate("/stock-report")}
             >
@@ -481,6 +491,9 @@ export const Header = () => {
             <button
               type="button"
               className={cn("erp-tbtn", isShortcutPath("reports") && "erp-tbtn--primary")}
+              onPointerEnter={() => void prefetchTabPage("reports")}
+              onFocus={() => void prefetchTabPage("reports")}
+              onPointerDown={() => prefetchTabPage("reports", { intent: true })}
               onClick={() => orgNavigate("/reports")}
             >
               <BarChart3 className="erp-tbtn__icon" />
@@ -491,6 +504,9 @@ export const Header = () => {
             <button
               type="button"
               className={cn("erp-tbtn", isShortcutPath("daily-cashier-report") && "erp-tbtn--primary")}
+              onPointerEnter={() => void prefetchTabPage("daily-cashier-report")}
+              onFocus={() => void prefetchTabPage("daily-cashier-report")}
+              onPointerDown={() => prefetchTabPage("daily-cashier-report", { intent: true })}
               onClick={() => orgNavigate("/daily-cashier-report")}
             >
               <Wallet className="erp-tbtn__icon" />
@@ -522,6 +538,9 @@ export const Header = () => {
             <button
               type="button"
               className={cn("erp-tbtn", isShortcutPath("accounts-payments") && "erp-tbtn--primary")}
+              onPointerEnter={() => void prefetchTabPage("accounts-payments")}
+              onFocus={() => void prefetchTabPage("accounts-payments")}
+              onPointerDown={() => prefetchTabPage("accounts-payments", { intent: true })}
               onClick={() => orgNavigate("/accounts-payments")}
             >
               <Banknote className="erp-tbtn__icon" />
@@ -542,6 +561,9 @@ export const Header = () => {
             <button
               type="button"
               className={cn("erp-tbtn", isShortcutPath("supplier-party-balances") && "erp-tbtn--primary")}
+              onPointerEnter={() => void prefetchTabPage("supplier-party-balances")}
+              onFocus={() => void prefetchTabPage("supplier-party-balances")}
+              onPointerDown={() => prefetchTabPage("supplier-party-balances", { intent: true })}
               onClick={() => orgNavigate("/supplier-party-balances")}
             >
               <Building2 className="erp-tbtn__icon" />
