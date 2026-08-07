@@ -23,6 +23,10 @@ export interface CalibrationValues {
   yOffset: number;
   vGap: number;
   hGap: number;
+  /** Independent column pitch (mm). A4 die-cut — default = label width. */
+  pitchX: number;
+  /** Independent row pitch (mm). A4 die-cut — default = label height. */
+  pitchY: number;
   labelWidth: number;
   labelHeight: number;
   thermalCols?: number;
@@ -35,6 +39,8 @@ export interface CalibrationPreset {
   yOffset: number;
   vGap: number;
   hGap?: number;
+  pitchX?: number;
+  pitchY?: number;
   width: number;
   height: number;
   a4Cols?: number;
@@ -58,11 +64,10 @@ const BUILT_IN_PRESETS: CalibrationPreset[] = [
 ];
 
 const A4_SHEET_PRESETS = [
-  { name: "Novajet 40 (52×30mm, 4×10)", width: 52, height: 30, cols: 4, rows: 10, xOffset: 1, yOffset: 5, vGap: 0 },
+  { name: "MPL 40L (39×35mm, 5×8)", width: 39, height: 35, cols: 5, rows: 8, xOffset: 0, yOffset: 0, vGap: 0, pitchX: 39, pitchY: 35 },
+  { name: "A4 48-Sheet (48×24mm, 4×12)", width: 48, height: 24, cols: 4, rows: 12, xOffset: 0, yOffset: 0, vGap: 0, pitchX: 48, pitchY: 24 },
   { name: "Novajet 24 (64×34mm, 3×8)", width: 64, height: 34, cols: 3, rows: 8, xOffset: 5, yOffset: 5, vGap: 0 },
   { name: "Novajet 12 (100×44mm, 2×6)", width: 100, height: 44, cols: 2, rows: 6, xOffset: 5, yOffset: 5, vGap: 0 },
-  { name: "39×35mm (4×7)", width: 39, height: 35, cols: 4, rows: 7, xOffset: 13, yOffset: 11, vGap: 3.5 },
-  { name: "A4 48-Sheet (48×24mm, 4×12)", width: 48, height: 24, cols: 4, rows: 12, xOffset: 0, yOffset: 0, vGap: 0 },
   { name: "48×25mm (4×11)", width: 48, height: 25, cols: 4, rows: 11, xOffset: 5, yOffset: 5, vGap: 0 },
   { name: "65×38mm (3×7)", width: 65, height: 38, cols: 3, rows: 7, xOffset: 5, yOffset: 10, vGap: 2 },
   { name: "A4 Custom", width: 50, height: 25, cols: 4, rows: 12, xOffset: 5, yOffset: 5, vGap: 2 },
@@ -298,10 +303,13 @@ export function LabelCalibrationUI({
     const preset = allPresets.find((p) => p.name === name);
     if (preset) {
       onChange({
+        ...values,
         xOffset: preset.xOffset,
         yOffset: preset.yOffset,
         vGap: preset.vGap,
         hGap: preset.hGap ?? 0,
+        pitchX: preset.pitchX ?? preset.width,
+        pitchY: preset.pitchY ?? preset.height,
         labelWidth: preset.width,
         labelHeight: preset.height,
         thermalCols: preset.thermalCols,
@@ -323,6 +331,8 @@ export function LabelCalibrationUI({
       yOffset: values.yOffset,
       vGap: values.vGap,
       hGap: values.hGap,
+      pitchX: values.pitchX,
+      pitchY: values.pitchY,
       width: values.labelWidth,
       height: values.labelHeight,
       // Bind to the currently selected print mode so "Update" re-homes the preset
@@ -352,6 +362,8 @@ export function LabelCalibrationUI({
       yOffset: values.yOffset,
       vGap: values.vGap,
       hGap: values.hGap,
+      pitchX: values.pitchX,
+      pitchY: values.pitchY,
       width: newPresetWidth,
       height: newPresetHeight,
       printMode: newPresetMode,
@@ -716,6 +728,9 @@ export function LabelCalibrationUI({
                         xOffset: builtIn.xOffset,
                         yOffset: builtIn.yOffset,
                         vGap: builtIn.vGap,
+                        hGap: 0,
+                        pitchX: builtIn.pitchX ?? builtIn.width,
+                        pitchY: builtIn.pitchY ?? builtIn.height,
                       });
                       onA4ColsChange?.(builtIn.cols);
                       onA4RowsChange?.(builtIn.rows);
@@ -726,10 +741,13 @@ export function LabelCalibrationUI({
                     const userPreset = a4UserPresets.find(p => p.name === name);
                     if (userPreset) {
                       onChange({
+                        ...values,
                         xOffset: userPreset.xOffset,
                         yOffset: userPreset.yOffset,
                         vGap: userPreset.vGap,
                         hGap: userPreset.hGap ?? 0,
+                        pitchX: userPreset.pitchX ?? userPreset.width,
+                        pitchY: userPreset.pitchY ?? userPreset.height,
                         labelWidth: userPreset.width,
                         labelHeight: userPreset.height,
                       });
@@ -850,26 +868,70 @@ export function LabelCalibrationUI({
         {/* Controls */}
         <div className="space-y-3">
           <div className="flex items-center gap-1.5">
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Offsets & Gap</p>
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              {printMode === "a4" ? "Offsets & Pitch" : "Offsets & Gap"}
+            </p>
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <HelpCircle className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
                 </TooltipTrigger>
-                <TooltipContent side="right" className="max-w-[260px] text-xs">
-                  Print the Test Label. If the red crosshair is not centered on your sticker, use X and Y offsets to nudge the print. Positive X moves right, positive Y moves down. 1mm = 1 unit.
+                <TooltipContent side="right" className="max-w-[280px] text-xs">
+                  {printMode === "a4" ? (
+                    <>
+                      X/Y offset moves the whole grid. Pitch X/Y is the step between labels
+                      (col1→col5 / row1→row8). If column 5 drifts left, raise Pitch X by 0.1mm.
+                      If lower rows drift up, raise Pitch Y by 0.1mm. Do not change label size
+                      to fix drift. Print Actual Size 100%.
+                    </>
+                  ) : (
+                    <>
+                      Print the Test Label. If the red crosshair is not centered on your sticker,
+                      use X and Y offsets to nudge the print. Positive X moves right, positive Y
+                      moves down. 1mm = 1 unit.
+                    </>
+                  )}
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
           </div>
-          <div className={cn("grid gap-2", showHGap ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-3")}>
-            <NudgeField label="X-Offset" value={values.xOffset} onChange={(v) => update({ xOffset: v })} min={-15} max={15} />
-            <NudgeField label="Y-Offset" value={values.yOffset} onChange={(v) => update({ yOffset: v })} min={-15} max={15} />
-            <NudgeField label="V-Gap" value={values.vGap} onChange={(v) => update({ vGap: v })} min={0} max={10} />
-            {showHGap && (
-              <NudgeField label="H-Gap" value={values.hGap} onChange={(v) => update({ hGap: v })} min={0} max={20} />
+          <div className={cn("grid gap-2", printMode === "a4" ? "grid-cols-2 sm:grid-cols-4" : showHGap ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-3")}>
+            <NudgeField label="X-Offset" value={values.xOffset} onChange={(v) => update({ xOffset: v })} min={-15} max={15} step={0.1} />
+            <NudgeField label="Y-Offset" value={values.yOffset} onChange={(v) => update({ yOffset: v })} min={-15} max={15} step={0.1} />
+            {printMode === "a4" ? (
+              <>
+                <NudgeField
+                  label="Pitch X"
+                  value={values.pitchX}
+                  onChange={(v) => update({ pitchX: v })}
+                  min={10}
+                  max={120}
+                  step={0.1}
+                />
+                <NudgeField
+                  label="Pitch Y"
+                  value={values.pitchY}
+                  onChange={(v) => update({ pitchY: v })}
+                  min={10}
+                  max={120}
+                  step={0.1}
+                />
+              </>
+            ) : (
+              <>
+                <NudgeField label="V-Gap" value={values.vGap} onChange={(v) => update({ vGap: v })} min={0} max={10} />
+                {showHGap && (
+                  <NudgeField label="H-Gap" value={values.hGap} onChange={(v) => update({ hGap: v })} min={0} max={20} />
+                )}
+              </>
             )}
           </div>
+          {printMode === "a4" && (
+            <p className="text-[10px] text-muted-foreground">
+              Position: X = offsetX + col×pitchX · Y = offsetY + row×pitchY · Label box stays{" "}
+              {values.labelWidth}×{values.labelHeight}mm (gap unused for A4 pitch).
+            </p>
+          )}
 
           <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide pt-1">Label Dimensions</p>
           <div className="grid grid-cols-2 gap-2">

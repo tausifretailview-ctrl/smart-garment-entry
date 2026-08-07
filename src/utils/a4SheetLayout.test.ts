@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   A4_40_LABEL_39X35,
   A4_48_LABEL_48X24,
+  a4LabelCellOriginMm,
   computeA4SheetMargins,
   isNovaJetMpl40LGrid,
   isNovaJetMpl48LGrid,
@@ -9,18 +10,69 @@ import {
   novaJetBrandFromSheetType,
   resolveA4LabelWidthMm,
   resolveA4LayoutGap,
+  resolveA4PitchMm,
 } from "./a4SheetLayout";
 
 describe("novaJetBrandFromSheetType", () => {
-  it("maps only explicit NovaJet sheet types", () => {
+  it("maps MPL 40L aliases and MPL 48L sheet types", () => {
     expect(novaJetBrandFromSheetType("novajet40")).toBe("mpl40");
+    expect(novaJetBrandFromSheetType("a4_40sheet")).toBe("mpl40");
+    expect(novaJetBrandFromSheetType("a4_39x35_40sheet")).toBe("mpl40");
     expect(novaJetBrandFromSheetType("a4_12x4")).toBe("mpl48");
     // novajet48 is a different 8×6 × 33×19 sheet — not MPL 48L
     expect(novaJetBrandFromSheetType("novajet48")).toBeNull();
-    expect(novaJetBrandFromSheetType("a4_40sheet")).toBeNull();
-    expect(novaJetBrandFromSheetType("a4_39x35_40sheet")).toBeNull();
     expect(novaJetBrandFromSheetType("custom")).toBeNull();
     expect(novaJetBrandFromSheetType(null)).toBeNull();
+  });
+});
+
+describe("A4 independent pitch (no cumulative drift)", () => {
+  it("defaults MPL 40L pitch to 39×35 when gap coerced to 0", () => {
+    const { pitchXMm, pitchYMm } = resolveA4PitchMm({
+      labelWidthMm: 39,
+      labelHeightMm: 35,
+      gapMm: 1,
+      novaJetBrand: "mpl40",
+    });
+    expect(pitchXMm).toBe(39);
+    expect(pitchYMm).toBe(35);
+  });
+
+  it("honors explicit pitch overrides in 0.1mm steps", () => {
+    const { pitchXMm, pitchYMm } = resolveA4PitchMm({
+      labelWidthMm: 39,
+      labelHeightMm: 35,
+      gapMm: 0,
+      pitchXMm: 39.2,
+      pitchYMm: 35.1,
+      novaJetBrand: "mpl40",
+    });
+    expect(pitchXMm).toBe(39.2);
+    expect(pitchYMm).toBe(35.1);
+  });
+
+  it("places col0/row0 at offset and col4/row7 at offset+4*pitch / +7*pitch", () => {
+    const offsetX = 7.5;
+    const offsetY = 8.5;
+    const pitchX = 39;
+    const pitchY = 35;
+    expect(a4LabelCellOriginMm(0, 0, offsetX, offsetY, pitchX, pitchY)).toEqual({
+      xMm: 7.5,
+      yMm: 8.5,
+    });
+    expect(a4LabelCellOriginMm(4, 0, offsetX, offsetY, pitchX, pitchY)).toEqual({
+      xMm: 7.5 + 4 * 39,
+      yMm: 8.5,
+    });
+    expect(a4LabelCellOriginMm(0, 7, offsetX, offsetY, pitchX, pitchY)).toEqual({
+      xMm: 7.5,
+      yMm: 8.5 + 7 * 35,
+    });
+    // Raising pitchX by 0.2mm moves column 5 (index 4) by +0.8mm — fixes left drift
+    expect(a4LabelCellOriginMm(4, 0, offsetX, offsetY, 39.2, pitchY).xMm).toBeCloseTo(
+      7.5 + 4 * 39.2,
+      5,
+    );
   });
 });
 

@@ -26,6 +26,9 @@ export function novaJetBrandFromSheetType(
 ): NovaJetSheetBrand | null {
   switch (String(sheetType || "").trim()) {
     case "novajet40":
+    case "a4_40sheet":
+    case "a4_39x35_40sheet":
+      // All three aliases are the same MPL 40L die-cut (39×35, 5×8, gap 0).
       return "mpl40";
     case "a4_12x4":
       return "mpl48";
@@ -169,6 +172,77 @@ export function resolveA4LabelWidthMm(
 ): number {
   if (novaJetBrand === "mpl40") return A4_40_LABEL_39X35.labelWidthMm;
   return labelWidthMm;
+}
+
+/**
+ * Independent die-cut pitch (mm). Label content box stays at label W×H;
+ * pitch alone controls cumulative column/row advance to stop drift.
+ *
+ * X = offsetX + col * pitchX
+ * Y = offsetY + row * pitchY
+ *
+ * When overrides are omitted: pitch = labelSize + gap (MPL 40L → 39 / 35).
+ */
+export function resolveA4PitchMm(opts: {
+  labelWidthMm: number;
+  labelHeightMm: number;
+  gapMm: number;
+  pitchXMm?: number | null;
+  pitchYMm?: number | null;
+  novaJetBrand?: NovaJetSheetBrand | null;
+}): { pitchXMm: number; pitchYMm: number } {
+  const {
+    labelWidthMm,
+    labelHeightMm,
+    gapMm,
+    pitchXMm,
+    pitchYMm,
+    novaJetBrand,
+  } = opts;
+  const effectiveGap = resolveA4LayoutGap(
+    /* cols/rows unused when brand set */ 5,
+    8,
+    labelWidthMm,
+    labelHeightMm,
+    gapMm,
+    novaJetBrand,
+  );
+  const effectiveWidth = resolveA4LabelWidthMm(
+    5,
+    8,
+    labelWidthMm,
+    labelHeightMm,
+    gapMm,
+    novaJetBrand,
+  );
+  const derivedX = effectiveWidth + effectiveGap;
+  const derivedY = labelHeightMm + effectiveGap;
+  const round01 = (n: number) => Math.round(n * 10) / 10;
+  return {
+    pitchXMm:
+      pitchXMm != null && Number.isFinite(pitchXMm) && pitchXMm > 0
+        ? round01(pitchXMm)
+        : round01(derivedX),
+    pitchYMm:
+      pitchYMm != null && Number.isFinite(pitchYMm) && pitchYMm > 0
+        ? round01(pitchYMm)
+        : round01(derivedY),
+  };
+}
+
+/** Absolute top-left of label cell (col/row are 0-based). */
+export function a4LabelCellOriginMm(
+  col: number,
+  row: number,
+  offsetXMm: number,
+  offsetYMm: number,
+  pitchXMm: number,
+  pitchYMm: number,
+): { xMm: number; yMm: number } {
+  return {
+    xMm: offsetXMm + col * pitchXMm,
+    yMm: offsetYMm + row * pitchYMm,
+  };
 }
 
 /**
