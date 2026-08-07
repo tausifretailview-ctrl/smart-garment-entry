@@ -1,4 +1,4 @@
-﻿import { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo } from "react";
+import { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo } from "react";
 import { createPortal, flushSync } from "react-dom";
 import { logError } from "@/lib/errorLogger";
 import { cn } from "@/lib/utils";
@@ -204,7 +204,7 @@ function posCartBarcodeColumnWidth(items: { barcode?: string | null }[]): number
     return len > max ? len : max;
   }, 0);
   if (longest <= 0) return POS_CART_BARCODE_COL_MIN;
-  // Mono digits at text-sm/base â‰ˆ 8â€“9px; pad for cell padding + gap.
+  // Mono digits at text-sm/base ≈ 8–9px; pad for cell padding + gap.
   return Math.min(
     POS_CART_BARCODE_COL_MAX,
     Math.max(POS_CART_BARCODE_COL_MIN, Math.ceil(longest * 9 + 20)),
@@ -417,7 +417,7 @@ export default function POSSales() {
   const [pendingSaleReturnCredits, setPendingSaleReturnCredits] = useState<Array<{ id: string; return_number: string; net_amount: number; credit_note_id: string | null }>>([]);
   const [recentAdjustedSaleReturnCredits, setRecentAdjustedSaleReturnCredits] = useState<Array<{ id: string; return_number: string; net_amount: number; linked_sale_id: string | null; linked_sale_number?: string }>>([]);
   const [showSRCreditDropdown, setShowSRCreditDropdown] = useState(false);
-  /** Full return value from same-bill S/R dialog this session â€” may exceed bill (exchange excess). */
+  /** Full return value from same-bill S/R dialog this session — may exceed bill (exchange excess). */
   const [sameBillReturnGross, setSameBillReturnGross] = useState(0);
   const { checkStock, validateCartStock } = useStockValidation();
   const { lockedVariantIds, isLocked: isVariantLockedForSettlement } = useOpenSettlementVariantIds();
@@ -483,7 +483,7 @@ export default function POSSales() {
     [settingsData],
   );
 
-  /** Call-site settings lookup â€” engine must not read settings context. */
+  /** Call-site settings lookup — engine must not read settings context. */
   const grossBasis: PosGrossBasis =
     posRuntimeSettings?.enable_mrp === true && posRuntimeSettings?.pos_barcode_price_mode === "mrp"
       ? "mrp"
@@ -627,7 +627,7 @@ export default function POSSales() {
     syncCartPadRows();
   }, [items.length, syncCartPadRows]);
 
-  // â”€â”€ WhatsApp invoice PDF capture â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── WhatsApp invoice PDF capture ──────────────────────────────────────────
   // A hidden off-screen InvoiceWrapper rendered with the user's selected A4
   // template (logo, header, columns, totals) so the WhatsApp auto-send
   // attaches the SAME design the customer would see when printing.
@@ -683,7 +683,7 @@ export default function POSSales() {
   const [invoiceSearchInput, setInvoiceSearchInput] = useState("");
   const [showMixPaymentDialog, setShowMixPaymentDialog] = useState(false);
   const [showCreditCustomerRequiredDialog, setShowCreditCustomerRequiredDialog] = useState(false);
-  /** Local draft for Unit Price cell (commit on blur â€” avoids mid-keystroke cap reject). */
+  /** Local draft for Unit Price cell (commit on blur — avoids mid-keystroke cap reject). */
   const [unitPriceDraft, setUnitPriceDraft] = useState<{ index: number; value: string } | null>(null);
   const [unitPriceConfirm, setUnitPriceConfirm] = useState<{
     index: number;
@@ -799,10 +799,10 @@ export default function POSSales() {
   const { openDrawer: openCashDrawer } = useCashDrawer();
   const { softDelete } = useSoftDelete();
 
-  // Persist cart in sessionStorage â€” survives minimize / in-app tab switch, not app quit.
+  // Persist cart in sessionStorage — survives minimize / in-app tab switch, not app quit.
   useEffect(() => {
     const orgId = currentOrganization?.id || "default";
-    // Don't snapshot a loaded/edited invoice â€” only unsaved new-sale work belongs in the snapshot.
+    // Don't snapshot a loaded/edited invoice — only unsaved new-sale work belongs in the snapshot.
     if (currentSaleId) {
       clearPosCartSnapshot(orgId);
       return;
@@ -822,7 +822,7 @@ export default function POSSales() {
     writePosCartSnapshot(orgId, snapshot);
   }, [items, customerId, customerName, customerPhone, saleNotes, currentOrganization?.id, currentSaleId]);
 
-  // Org may load after first paint â€” restore in-session cart once per org (not after app quit).
+  // Org may load after first paint — restore in-session cart once per org (not after app quit).
   const posCartHydratedOrgRef = useRef<string | null>(null);
   useEffect(() => {
     const orgId = currentOrganization?.id;
@@ -898,7 +898,7 @@ export default function POSSales() {
     const wasOn = wasOnPosSalesRef.current;
     wasOnPosSalesRef.current = isOnPosSales;
     if (!isOnPosSales || wasOn) return;
-    if (searchParams.get('saleId')) return; // explicit edit URL â€” leave it alone
+    if (searchParams.get('saleId')) return; // explicit edit URL — leave it alone
     if (!currentSaleId) return;
     // Detect unsaved edits relative to the originally loaded invoice.
     const sameLength = items.length === originalItemsForEdit.length;
@@ -906,7 +906,7 @@ export default function POSSales() {
       const orig = originalItemsForEdit[i];
       return orig && orig.variantId === it.variantId && Number(orig.quantity) === Number(it.quantity);
     });
-    if (!sameContents) return; // user has unsaved work â€” keep the loaded invoice
+    if (!sameContents) return; // user has unsaved work — keep the loaded invoice
     handleNewInvoice();
   }, [location.pathname, searchParams, currentSaleId, items, originalItemsForEdit]);
 
@@ -1045,7 +1045,7 @@ export default function POSSales() {
   const loadSaleForEdit = async (saleId: string) => {
     isInitializingEditRef.current = true;
     hasManuallyAddedNewItemRef.current = false;
-    // Drop any unsaved-cart snapshot â€” we're now viewing a specific saved invoice.
+    // Drop any unsaved-cart snapshot — we're now viewing a specific saved invoice.
     clearPosCartSnapshot(currentOrganization?.id || "default");
     try {
       // Fetch sale data
@@ -1184,7 +1184,7 @@ export default function POSSales() {
     }
   };
 
-  // Display gate only â€” computations (mrpTotal / savings / discount cap) stay unconditional.
+  // Display gate only — computations (mrpTotal / savings / discount cap) stay unconditional.
   const enableMrp = posRuntimeSettings?.enable_mrp === true;
   const posCartGridCols = useMemo(
     () => posCartGridColumns(posCartBarcodeColumnWidth(items), enableMrp),
@@ -1194,7 +1194,7 @@ export default function POSSales() {
   // Optional POS invoice-date override (admin-gated). When OFF, POS silently uses today.
   const posAllowDateChange = (settingsData as any)?.sale_settings?.pos_allow_date_change === true;
 
-  /** Master switch â€” default off. Existing orgs unchanged until explicitly enabled. */
+  /** Master switch — default off. Existing orgs unchanged until explicitly enabled. */
   const allowPosEditUnitPrice =
     (settingsData as any)?.sale_settings?.allow_pos_edit_unit_price === true;
   const posUnitPriceOverrideConfirmPct = (() => {
@@ -1315,7 +1315,7 @@ export default function POSSales() {
   // Keyboard shortcuts for POS actions
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
-      // Tab cache keeps POS mounted while other screens are open â€” only handle keys on active POS route.
+      // Tab cache keeps POS mounted while other screens are open — only handle keys on active POS route.
       if (!isPosSalesRoute(location.pathname)) return;
       if (isSaving) return;
       if (
@@ -1410,8 +1410,8 @@ export default function POSSales() {
     return () => window.removeEventListener('keydown', handleKeyPress);
   }, [items, customerName, flatDiscountValue, roundOff, paymentMethod, savedInvoiceData, isSaving, location.pathname]);
 
-  // Apply defaults when settings load â€” only for empty new bills (never stomp an active cart
-  // or force Flat Disc mode back to % after the cashier toggles %/â‚¹).
+  // Apply defaults when settings load — only for empty new bills (never stomp an active cart
+  // or force Flat Disc mode back to % after the cashier toggles %/₹).
   useEffect(() => {
     if (!settingsData || currentSaleId || items.length > 0) return;
     const saleSettings = (settingsData as any).sale_settings;
@@ -1460,7 +1460,7 @@ export default function POSSales() {
     };
   }, [webDesktopPos]);
 
-  // Web PWA desktop: compact 16px â€” no CSS zoom (zoom misaligns grid/footer on browsers).
+  // Web PWA desktop: compact 16px — no CSS zoom (zoom misaligns grid/footer on browsers).
   useEffect(() => {
     if (!webDesktopPos) return;
     return applyWebPosCompactScale();
@@ -1636,7 +1636,7 @@ export default function POSSales() {
           const seqStr = padLen > 0 ? String(sequence).padStart(padLen, "0") : String(sequence);
           setNextInvoicePreview(`${basePattern}${seqStr}`);
         } else {
-          // Preview = MAX(active POS seq) + 1 â€” matches generate_pos_number_atomic
+          // Preview = MAX(active POS seq) + 1 — matches generate_pos_number_atomic
           const ist = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
           const m = ist.getMonth() + 1;
           const y = ist.getFullYear();
@@ -1743,7 +1743,7 @@ export default function POSSales() {
     },
     enabled: !!currentOrganization?.id,
     staleTime: 5 * 60 * 1000,   // Cache 5 minutes
-    refetchInterval: false,       // No auto-poll â€” refetch on hold/resume action only
+    refetchInterval: false,       // No auto-poll — refetch on hold/resume action only
   });
 
   const [showHoldPanel, setShowHoldPanel] = useState(false);
@@ -1785,7 +1785,7 @@ export default function POSSales() {
         .eq('is_active', true);
       if (error) {
         // If this logs "relation does not exist", the migration hasn't run
-        console.error('[commission_rules] Query failed â€” migration may not have run:', error.message);
+        console.error('[commission_rules] Query failed — migration may not have run:', error.message);
         return [];
       }
       return data || [];
@@ -2040,7 +2040,7 @@ export default function POSSales() {
     // Detect if this looks like scanner input
     const isScannerLike = detectScannerInput(value, timeSinceLastKeystroke);
     
-    // Fast keystrokes on numeric barcodes only â€” not text product search (e.g. "SHIRT")
+    // Fast keystrokes on numeric barcodes only — not text product search (e.g. "SHIRT")
     const trimmed = value.trim();
     const looksLikeNumericBarcode = /^\d+$/.test(trimmed);
     if (isScannerLike || (looksLikeNumericBarcode && trimmed.length >= 4 && timeSinceLastKeystroke < 50)) {
@@ -2244,7 +2244,7 @@ export default function POSSales() {
           allData = finalVariants || [];
         }
       } else {
-        // Text / mixed search â€” reuse sale-order product search (name, brand, style, category, barcode)
+        // Text / mixed search — reuse sale-order product search (name, brand, style, category, barcode)
         const saleOrderHits = await searchSaleOrderVariants(currentOrganization.id, term);
         if (requestSeq !== productSearchSeqRef.current) return;
 
@@ -2432,7 +2432,7 @@ export default function POSSales() {
 
         setSearchInput("");
         if (stockQty > 0 || !isStockTrackedPosProduct(prod)) {
-          // Same barcode again â†’ addItemToCart merges qty (+1), not a duplicate line.
+          // Same barcode again → addItemToCart merges qty (+1), not a duplicate line.
           await addItemToCart(prod, dbVariant, undefined, 'barcode');
           recordPosBarcodeScanSuccess(trimmedTerm);
           return;
@@ -2445,7 +2445,7 @@ export default function POSSales() {
         return;
       }
 
-      // No variant match â€” Mobile ERP IMEI format gate before name / legacy fallback
+      // No variant match — Mobile ERP IMEI format gate before name / legacy fallback
       if (mobileERP.enabled && mobileERP.imei_scan_enforcement) {
         if (!validateIMEI(trimmedTerm, mobileERP.imei_min_length, mobileERP.imei_max_length)) {
           toast.error("Invalid IMEI", { description: `Please scan a valid barcode (${mobileERP.imei_min_length}-${mobileERP.imei_max_length} characters)` });
@@ -2504,7 +2504,7 @@ export default function POSSales() {
       }
 
       // Fallback: search purchase_items for IMEI barcode (for legacy IMEI purchases).
-      // Scope to current org via purchase_bills â€” purchase_items has no organization_id column.
+      // Scope to current org via purchase_bills — purchase_items has no organization_id column.
       if (mobileERP.enabled) {
         const { data: purchaseItem, error: purchaseError } = await supabase
           .from('purchase_items')
@@ -2519,7 +2519,7 @@ export default function POSSales() {
         if (purchaseError) throw purchaseError;
 
         if (purchaseItem?.sku_id) {
-          // Same products.status gate as fetchPosVariantByBarcode â€” legacy IMEIâ†’sku
+          // Same products.status gate as fetchPosVariantByBarcode — legacy IMEI→sku
           // must not re-open deactivated masters that still have units on hand.
           // Do not gate product_variants.active here (semantics held).
           const { data: variant, error: variantError } = await supabase
@@ -2637,7 +2637,7 @@ export default function POSSales() {
       return;
     }
 
-    // Existing shortcode logic (1-9) â€” find product by barcode
+    // Existing shortcode logic (1-9) — find product by barcode
     let productName = `Service Item ${code}`;
     let productId = '';
     let variantId = '';
@@ -2708,8 +2708,8 @@ export default function POSSales() {
     // Service products: merge same barcode + price into one line; different MRP stays separate (saree pieces).
     const isServiceProduct = product.product_type === 'service';
 
-    // Service products: ask for actual price before adding â€” unless the org turned
-    // the quick-entry dialog OFF (Settings â†’ Product), in which case we add the item
+    // Service products: ask for actual price before adding — unless the org turned
+    // the quick-entry dialog OFF (Settings → Product), in which case we add the item
     // straight to the cart using the price already defined at product entry.
     if (isServiceProduct && !overridePrice) {
       const serviceQuickEntryEnabled =
@@ -2727,7 +2727,7 @@ export default function POSSales() {
         return;
       }
 
-      // Dialog disabled + price predefined â†’ add directly using the master price.
+      // Dialog disabled + price predefined → add directly using the master price.
       setSearchInput("");
       await addItemToCart(
         product,
@@ -2753,7 +2753,7 @@ export default function POSSales() {
     }
 
     if (existingItemIndex >= 0) {
-      // Real-time stock validation before incrementing (skip for service â€” unlimited virtual stock)
+      // Real-time stock validation before incrementing (skip for service — unlimited virtual stock)
       const newQty = itemsRef.current[existingItemIndex].quantity + 1;
       if (!isServiceProduct) {
         const stockCheck = await checkStock(variant.id, newQty);
@@ -2773,7 +2773,7 @@ export default function POSSales() {
 
       const mergedLineId = itemsRef.current[existingItemIndex]?.id;
 
-      // Increment quantity if already in cart â€” via billing engine
+      // Increment quantity if already in cart — via billing engine
       billingUpdateQty(existingItemIndex, newQty);
       if (mergedLineId) bumpCartHighlight(mergedLineId);
     } else {
@@ -2820,7 +2820,7 @@ export default function POSSales() {
         return;
       }
       
-      // Mutually exclusive discount logic (call site) â€” engine receives resolved percents.
+      // Mutually exclusive discount logic (call site) — engine receives resolved percents.
       const customer = customers?.find((c: any) => c.id === customerId);
       const customerHasMasterDiscount = !!(customer?.discount_percent && customer.discount_percent > 0);
       const brandDiscount = customerHasMasterDiscount
@@ -2890,7 +2890,7 @@ export default function POSSales() {
     taxableSubtotal: billingTotals.taxableSubtotal,
     totalGst: billingTotals.totalGst,
   };
-  /** Max S/R that keeps bill net â‰¥ 0 (gross/subtotal after other discounts/credits). */
+  /** Max S/R that keeps bill net ≥ 0 (gross/subtotal after other discounts/credits). */
   const maxSrFromBill = billingMaxSrFromBill;
 
   const removeItem = (index: number) => {
@@ -2953,7 +2953,7 @@ export default function POSSales() {
     const minUnit = minUnitPriceForDiscountCap(items, index, flatDiscountAmount);
     if (unitCost + 0.005 < minUnit) {
       toast.warning(
-        `Minimum â‚¹${minUnit.toLocaleString("en-IN", { maximumFractionDigits: 2 })} on this line.`,
+        `Minimum ₹${minUnit.toLocaleString("en-IN", { maximumFractionDigits: 2 })} on this line.`,
       );
       // Keep draft so cashier can correct; do not snap cart.
       return;
@@ -2990,7 +2990,7 @@ export default function POSSales() {
     (s, sr) => s + (Number(sr.net_amount) || 0),
     0,
   );
-  // Same-bill exchange: allow S/R above bill (excess â†’ Mix refund/CN).
+  // Same-bill exchange: allow S/R above bill (excess → Mix refund/CN).
   // Pre-existing pending credit: keep bill cap so leftover stays for a future bill.
   const isSameBillExchangeSr = sameBillReturnGross > 0.005;
   const maxSrAllowed = isSameBillExchangeSr
@@ -3014,8 +3014,8 @@ export default function POSSales() {
     if (!opts?.silent && raw > capped + 0.01) {
       toast.warning(
         isSameBillExchangeSr
-          ? `Only â‚¹${maxSrAllowed.toLocaleString("en-IN", { maximumFractionDigits: 2 })} return credit is available`
-          : `Only â‚¹${maxSrAllowed.toLocaleString("en-IN", { maximumFractionDigits: 2 })} of credit can be applied to this bill`,
+          ? `Only ₹${maxSrAllowed.toLocaleString("en-IN", { maximumFractionDigits: 2 })} return credit is available`
+          : `Only ₹${maxSrAllowed.toLocaleString("en-IN", { maximumFractionDigits: 2 })} of credit can be applied to this bill`,
       );
     }
     setSaleReturnAdjust(capped);
@@ -3038,8 +3038,8 @@ export default function POSSales() {
       toast.success(refundType === "exchange" ? "Exchange Applied" : "Credit Note Created", {
         description:
           refundDue > 0.01
-            ? `${returnNumber} â€” Return â‚¹${Math.round(raw)} · Applied â‚¹${Math.round(applied)} · Refund due â‚¹${Math.round(refundDue)}. Open Mix Payment (F6) to refund cash or issue C/Note.`
-            : `${returnNumber} â€” â‚¹${Math.round(amount)} ${refundType === "exchange" ? "deducted from new bill" : "credit note issued"}`,
+            ? `${returnNumber} — Return ₹${Math.round(raw)} · Applied ₹${Math.round(applied)} · Refund due ₹${Math.round(refundDue)}. Open Mix Payment (F6) to refund cash or issue C/Note.`
+            : `${returnNumber} — ₹${Math.round(amount)} ${refundType === "exchange" ? "deducted from new bill" : "credit note issued"}`,
       });
       return;
     }
@@ -3048,7 +3048,7 @@ export default function POSSales() {
       const capped = Math.min(raw, maxSrFromBill);
       if (raw > capped + 0.01) {
         toast.warning(
-          `Only â‚¹${maxSrFromBill.toLocaleString("en-IN", { maximumFractionDigits: 2 })} of credit can be applied to this bill`,
+          `Only ₹${maxSrFromBill.toLocaleString("en-IN", { maximumFractionDigits: 2 })} of credit can be applied to this bill`,
         );
       }
       setSaleReturnAdjust(capped);
@@ -3060,17 +3060,17 @@ export default function POSSales() {
       toast.success("Cash Refund Adjusted", {
         description:
           leftover > 0.01
-            ? `${returnNumber} â€” â‚¹${Math.round(capped)} on this bill; â‚¹${Math.round(leftover)} remains. Save to finalize.`
-            : `${returnNumber} â€” â‚¹${Math.round(amount)} adjusted in current bill. Save to finalize.`,
+            ? `${returnNumber} — ₹${Math.round(capped)} on this bill; ₹${Math.round(leftover)} remains. Save to finalize.`
+            : `${returnNumber} — ₹${Math.round(amount)} adjusted in current bill. Save to finalize.`,
       });
       return;
     }
     toast.success("Cash Refund Processed", {
-      description: `${returnNumber} â€” â‚¹${Math.round(amount)} cash refunded to customer`,
+      description: `${returnNumber} — ₹${Math.round(amount)} cash refunded to customer`,
     });
   };
 
-  // â”€â”€ WhatsApp invoice PDF capture wiring â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── WhatsApp invoice PDF capture wiring ──────────────────────────────────
   // When `whatsappPdfSnapshot` is set the off-screen <InvoiceWrapper> mounts
   // with the just-saved sale's props. Once React commits + the logo loads we
   // rasterize that DOM with html2canvas + jsPDF and resolve the pending
@@ -3399,7 +3399,7 @@ export default function POSSales() {
               voucher_date: buildPosVoucherDate(),
               reference_type: "sale",
               reference_id: result.id,
-              description: `Finance Discount â€” ${financerDetails.financer_name} (${result.sale_number})`,
+              description: `Finance Discount — ${financerDetails.financer_name} (${result.sale_number})`,
               total_amount: financerDetails.finance_discount,
               category: "finance_discount",
               payment_method: "bank",
@@ -3428,7 +3428,7 @@ export default function POSSales() {
         void applyCredit(customerId, result.id, creditApplied);
       }
       
-      // Check for DC items â€” offer transfer to delivery challan for cash sales
+      // Check for DC items — offer transfer to delivery challan for cash sales
       const effectivePayment = forcePaymentMethod || paymentMethod;
       const dcCartItems = items.filter(i => i.isDcProduct);
       if (dcCartItems.length > 0 && effectivePayment === 'cash' && !currentSaleId) {
@@ -3557,7 +3557,7 @@ export default function POSSales() {
 
   const handlePaymentAndPrint = async (method: 'cash' | 'card' | 'upi' | 'pay_later') => {
     // Ref-based lock prevents duplicate saves from rapid keyboard + click combos
-    // (isSaving is React state and only updates on next render â€” too slow for rapid inputs)
+    // (isSaving is React state and only updates on next render — too slow for rapid inputs)
     if (paymentLockRef.current || isSaving) {
       return;
     }
@@ -3647,7 +3647,7 @@ export default function POSSales() {
               voucher_number: `EXP-${String(parseInt(lastNum) + 1).padStart(5, "0")}`,
               voucher_type: "expense", voucher_date: buildPosVoucherDate(),
               reference_type: "sale", reference_id: result.id,
-              description: `Finance Discount â€” ${financerDetails.financer_name} (${result.sale_number})`,
+              description: `Finance Discount — ${financerDetails.financer_name} (${result.sale_number})`,
               total_amount: financerDetails.finance_discount, category: "finance_discount", payment_method: "bank",
             } as any);
           } catch (vErr) { console.error("Finance discount voucher failed:", vErr); }
@@ -3700,7 +3700,7 @@ export default function POSSales() {
         createCommissionRecords(result.id, result.sale_number, result.sale_date || new Date().toISOString().split('T')[0], salesmanForPrint, result.net_amount);
       }
 
-      // WhatsApp invoice auto-send is handled by useSaveSale hook â€” do NOT send here to avoid duplicates
+      // WhatsApp invoice auto-send is handled by useSaveSale hook — do NOT send here to avoid duplicates
       const willAutoPrint = isDirectPrintEnabled && isAutoPrintEnabled;
       // Set print snapshot first so hidden invoice re-renders with salesman before cart clears.
       // flushSync: commit portal DOM before cart clear + auto-print (avoids blank clone).
@@ -3802,7 +3802,7 @@ export default function POSSales() {
       return;
     }
 
-    // Keep full S/R + possibly-negative net through to save; applyBillCaps persists netâ‰¥0.
+    // Keep full S/R + possibly-negative net through to save; applyBillCaps persists net≥0.
     // Explicit refundAmount (or issueCreditNote) tells save to settle excess instead of
     // toasting "remains for a future bill".
     const saleData = {
@@ -3820,7 +3820,7 @@ export default function POSSales() {
 
     const paymentMethodType: 'multiple' = 'multiple';
 
-    // â”€â”€ Refund cash-flow audit fix â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Refund cash-flow audit fix ─────────────────────────────────────────
     // For refunds (negative net) where cash/upi/card amounts in the dialog
     // are 0 and the user picked a refundMode, persist the refund as NEGATIVE
     // cash/upi/card on the sale so cashier reports show the outflow and the
@@ -3868,7 +3868,7 @@ export default function POSSales() {
               voucher_number: `EXP-${String(parseInt(lastNum) + 1).padStart(5, "0")}`,
               voucher_type: "expense", voucher_date: buildPosVoucherDate(),
               reference_type: "sale", reference_id: result.id,
-              description: `Finance Discount â€” ${financerDetails.financer_name} (${result.sale_number})`,
+              description: `Finance Discount — ${financerDetails.financer_name} (${result.sale_number})`,
               total_amount: financerDetails.finance_discount, category: "finance_discount", payment_method: "bank",
             } as any);
           } catch (vErr) { console.error("Finance discount voucher failed:", vErr); }
@@ -3981,7 +3981,7 @@ export default function POSSales() {
         createCommissionRecords(result.id, result.sale_number, result.sale_date || new Date().toISOString().split('T')[0], selectedSalesman, result.net_amount);
       }
 
-      // WhatsApp invoice auto-send is handled by useSaveSale hook â€” do NOT send here to avoid duplicates
+      // WhatsApp invoice auto-send is handled by useSaveSale hook — do NOT send here to avoid duplicates
 
       setItems([]);
       setCustomerId("");
@@ -4041,7 +4041,7 @@ export default function POSSales() {
     if (posInvoiceTemplate === 'retail-erp-preprinted') {
       const isA5 = format === 'a5' || format === 'a5-horizontal';
       const isA5Landscape = format === 'a5-horizontal';
-      // Exact mm sizes â€” more reliable than "A5 portrait" with Chrome / Print-to-PDF on Windows
+      // Exact mm sizes — more reliable than "A5 portrait" with Chrome / Print-to-PDF on Windows
       const pageSize = isA5Landscape
         ? '210mm 148mm'
         : isA5
@@ -4453,7 +4453,7 @@ export default function POSSales() {
     }
 
     const itemsList = itemsToUse?.map((item: any, index: number) =>
-      `${index + 1}. ${item.productName} (${item.size}) - Qty: ${item.quantity} - â‚¹${(item.netAmount || 0).toFixed(2)}`
+      `${index + 1}. ${item.productName} (${item.size}) - Qty: ${item.quantity} - ₹${(item.netAmount || 0).toFixed(2)}`
     ).join('\n') || '';
 
     // Get invoice URL if we have a sale ID - include org slug for branding
@@ -4472,10 +4472,10 @@ export default function POSSales() {
     
     // Build payment breakdown
     const paymentParts: string[] = [];
-    if (cashAmt > 0) paymentParts.push(`Cash: â‚¹${Number(cashAmt).toLocaleString("en-IN")}`);
-    if (cardAmt > 0) paymentParts.push(`Card: â‚¹${Number(cardAmt).toLocaleString("en-IN")}`);
-    if (upiAmt > 0) paymentParts.push(`UPI: â‚¹${Number(upiAmt).toLocaleString("en-IN")}`);
-    if (creditAmt > 0) paymentParts.push(`Credit: â‚¹${Number(creditAmt).toLocaleString("en-IN")}`);
+    if (cashAmt > 0) paymentParts.push(`Cash: ₹${Number(cashAmt).toLocaleString("en-IN")}`);
+    if (cardAmt > 0) paymentParts.push(`Card: ₹${Number(cardAmt).toLocaleString("en-IN")}`);
+    if (upiAmt > 0) paymentParts.push(`UPI: ₹${Number(upiAmt).toLocaleString("en-IN")}`);
+    if (creditAmt > 0) paymentParts.push(`Credit: ₹${Number(creditAmt).toLocaleString("en-IN")}`);
     const paymentBreakdown = paymentParts.length > 0 ? paymentParts.join(" | ") : (method || 'cash').toUpperCase();
     
     // Fetch customer outstanding and points if customer exists
@@ -4502,20 +4502,20 @@ export default function POSSales() {
       const customerBalance = openingBalance + totalSales - totalPaid;
       
       if (customerBalance > 0) {
-        outstandingText = `\nðŸ’° *Outstanding Balance: â‚¹${Number(customerBalance).toLocaleString("en-IN")}*`;
+        outstandingText = `\n💰 *Outstanding Balance: ₹${Number(customerBalance).toLocaleString("en-IN")}*`;
       }
       
       // Add points info
       if (isPointsEnabled) {
         if (pointsRedeemedAmt > 0) {
-          pointsText = `\n\nðŸŽ *Loyalty Points*\nPoints Redeemed: ${pointsRedeemedAmt} pts (â‚¹${pointsRedemptionVal.toFixed(0)} discount)\nPoints Balance: ${pointsBalance} pts`;
+          pointsText = `\n\n🎁 *Loyalty Points*\nPoints Redeemed: ${pointsRedeemedAmt} pts (₹${pointsRedemptionVal.toFixed(0)} discount)\nPoints Balance: ${pointsBalance} pts`;
         } else if (pointsBalance > 0) {
-          pointsText = `\n\nðŸŽ *Loyalty Points*\nPoints Balance: ${pointsBalance} pts`;
+          pointsText = `\n\n🎁 *Loyalty Points*\nPoints Balance: ${pointsBalance} pts`;
         }
       }
     }
     
-    const message = `*Invoice Details*\n\nInvoice No: ${invoiceNo}\nDate: ${format(new Date(), 'dd/MM/yyyy')}\nCustomer: ${name || 'Walk in Customer'}\n\n*Items:*\n${itemsList}\n\nGross Amount: â‚¹${(grossAmount || 0).toFixed(2)}\nDiscount: â‚¹${(discountAmount || 0).toFixed(2)}${pointsRedeemedAmt > 0 ? `\nPoints Redeemed: ${pointsRedeemedAmt} pts (-â‚¹${pointsRedemptionVal.toFixed(0)})` : ''}${srAdjust > 0 ? `\nS/R Adjust: -â‚¹${srAdjust.toFixed(2)}` : ''}\nRound Off: â‚¹${(roundOffAmount || 0).toFixed(2)}\n*Net Amount: â‚¹${(totalAmount || 0).toFixed(2)}*\n\nPayment: ${paymentBreakdown}${outstandingText}${pointsText}${invoiceUrl ? `\n\nðŸ“„ View Invoice Online:\n${invoiceUrl}` : ''}\n\nThank you for your business!`;
+    const message = `*Invoice Details*\n\nInvoice No: ${invoiceNo}\nDate: ${format(new Date(), 'dd/MM/yyyy')}\nCustomer: ${name || 'Walk in Customer'}\n\n*Items:*\n${itemsList}\n\nGross Amount: ₹${(grossAmount || 0).toFixed(2)}\nDiscount: ₹${(discountAmount || 0).toFixed(2)}${pointsRedeemedAmt > 0 ? `\nPoints Redeemed: ${pointsRedeemedAmt} pts (-₹${pointsRedemptionVal.toFixed(0)})` : ''}${srAdjust > 0 ? `\nS/R Adjust: -₹${srAdjust.toFixed(2)}` : ''}\nRound Off: ₹${(roundOffAmount || 0).toFixed(2)}\n*Net Amount: ₹${(totalAmount || 0).toFixed(2)}*\n\nPayment: ${paymentBreakdown}${outstandingText}${pointsText}${invoiceUrl ? `\n\n📄 View Invoice Online:\n${invoiceUrl}` : ''}\n\nThank you for your business!`;
 
     sendWhatsApp(phone, message);
   };
@@ -4895,7 +4895,7 @@ export default function POSSales() {
     }
   };
 
-  // â”€â”€ WhatsApp Invoice Auto-Send â”€â”€
+  // ── WhatsApp Invoice Auto-Send ──
   const sendWhatsAppInvoice = async (
     saleId: string,
     saleNumber: string,
@@ -4978,7 +4978,7 @@ export default function POSSales() {
         return;
       }
 
-      // If send_invoice_pdf is OFF â€” just send text template
+      // If send_invoice_pdf is OFF — just send text template
       if (!waSettings.send_invoice_pdf) {
         if (!waSettings.auto_send_invoice || !waSettings.invoice_template_name) return;
         await sendMessageAsync({
@@ -5016,7 +5016,7 @@ export default function POSSales() {
           pdfBlob: pdfBase64 || undefined,
         });
       } else {
-        // STANDARD ATTACHMENT â€” text template + separate PDF message
+        // STANDARD ATTACHMENT — text template + separate PDF message
         if (waSettings.invoice_template_name) {
           await sendMessageAsync({
             phone,
@@ -5034,19 +5034,19 @@ export default function POSSales() {
           if (pdfBase64) {
             await sendMessageAsync({
               phone,
-              message: `ðŸ“„ Invoice ${saleNumber} â€” â‚¹${Math.round(netAmount).toLocaleString('en-IN')}`,
+              message: `📄 Invoice ${saleNumber} — ₹${Math.round(netAmount).toLocaleString('en-IN')}`,
               templateType: 'invoice_pdf',
               referenceId: saleId,
               referenceType: 'sale',
               documentFilename: `Invoice_${saleNumber.replace(/\//g, '-')}.pdf`,
-              documentCaption: `Invoice ${saleNumber} â€” ${custName}`,
+              documentCaption: `Invoice ${saleNumber} — ${custName}`,
               pdfBlob: pdfBase64,
             });
           }
         }
       }
     } catch (err: any) {
-      // Non-blocking â€” log but don't fail the sale
+      // Non-blocking — log but don't fail the sale
       console.error('WhatsApp invoice send failed:', err);
     }
   };
@@ -5156,13 +5156,13 @@ export default function POSSales() {
               {unitPriceConfirm && (
                 <ul className="list-disc pl-5 space-y-1">
                   <li>
-                    MRP â‚¹
-                    {unitPriceConfirm.mrp.toLocaleString("en-IN", { maximumFractionDigits: 2 })} â†’ unit â‚¹
+                    MRP ₹
+                    {unitPriceConfirm.mrp.toLocaleString("en-IN", { maximumFractionDigits: 2 })} → unit ₹
                     {unitPriceConfirm.value.toLocaleString("en-IN", { maximumFractionDigits: 2 })}
                   </li>
                   <li>
                     Effective discount{" "}
-                    {unitPriceConfirm.pctOff.toLocaleString("en-IN", { maximumFractionDigits: 1 })}% (â‚¹
+                    {unitPriceConfirm.pctOff.toLocaleString("en-IN", { maximumFractionDigits: 1 })}% (₹
                     {unitPriceConfirm.rupeesOff.toLocaleString("en-IN", {
                       maximumFractionDigits: 2,
                     })}
@@ -5547,7 +5547,7 @@ export default function POSSales() {
       <div className="w-[clamp(76px,6.4vw,96px)] self-stretch min-h-0 bg-slate-50 dark:bg-slate-900 border-r border-border/60 flex flex-col gap-1.5 p-1.5 z-30 relative overflow-y-auto shrink-0">
         {/* Buttons in sequence: Cash, UPI, Card, Credit, Mix, Hold, New, Last, Print, Clear, WhatsApp */}
         {/* flex-fill: the 13 buttons divide the column height so they always fit
-            (no scroll, no manual browser zoom) on any screen â€” 1366Ã—768 included.
+            (no scroll, no manual browser zoom) on any screen — 1366×768 included.
             min-h floors + the column's overflow-y-auto guard very short screens. */}
         <div className="flex-1 min-h-0 flex flex-col gap-1.5">
           {/* 1. Cash F1 */}
@@ -5723,7 +5723,7 @@ export default function POSSales() {
         </div>
       </div>
 
-      {/* Main column â€” toolbar/body/footer absolutely positioned (same pattern as Sales Invoice) */}
+      {/* Main column — toolbar/body/footer absolutely positioned (same pattern as Sales Invoice) */}
       <div className="pos-sales-main flex-1 min-h-0 h-full min-w-0 overflow-hidden">
         <div className="hidden lg:block shrink-0 z-20">
           <WindowTabsBar className="erp-window-tabs--medium" />
@@ -5815,7 +5815,7 @@ export default function POSSales() {
                       <div className="px-3 py-1.5 text-xs text-muted-foreground border-b bg-muted/40 flex items-center justify-between">
                         <span>
                           {filteredProducts.length} product{filteredProducts.length !== 1 ? 's' : ''} found
-                          {filteredProducts.length > 20 && ` â€” showing top 20`}
+                          {filteredProducts.length > 20 && ` — showing top 20`}
                         </span>
                         <span className="text-[10px] opacity-70">
                           Tip: Use multiple words to narrow down (e.g. "top black 1350")
@@ -5885,10 +5885,10 @@ export default function POSSales() {
                                   {formatPosCartBarcode(item.variant.barcode) && (
                                     <span className="font-mono text-xs">{formatPosCartBarcode(item.variant.barcode)}</span>
                                   )}
-                                  <span className="font-semibold text-primary group-data-[selected=true]:text-white">â‚¹{item.variant.sale_price}</span>
+                                  <span className="font-semibold text-primary group-data-[selected=true]:text-white">₹{item.variant.sale_price}</span>
                                   {enableMrp && item.variant.mrp && item.variant.mrp > item.variant.sale_price && (
                                     <span className="text-[10px] line-through text-slate-500 dark:text-slate-400 group-data-[selected=true]:text-white/70">
-                                      MRP â‚¹{item.variant.mrp}
+                                      MRP ₹{item.variant.mrp}
                                     </span>
                                   )}
                                   {(() => {
@@ -6025,12 +6025,12 @@ export default function POSSales() {
                                   <div className="flex items-center gap-1.5">
                                     {advanceAmt > 0 && (
                                       <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-orange-500/10 text-orange-600">
-                                        â‚¹{advanceAmt.toLocaleString('en-IN')} Adv
+                                        ₹{advanceAmt.toLocaleString('en-IN')} Adv
                                       </span>
                                     )}
                                     {creditNoteAmt > 0 && (
                                       <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-600">
-                                        â‚¹{creditNoteAmt.toLocaleString('en-IN')} CN
+                                        ₹{creditNoteAmt.toLocaleString('en-IN')} CN
                                       </span>
                                     )}
                                     {balance !== 0 && (
@@ -6039,7 +6039,7 @@ export default function POSSales() {
                                           ? 'bg-destructive/10 text-destructive' 
                                           : 'bg-green-500/10 text-green-600'
                                       }`}>
-                                        â‚¹{Math.abs(balance).toLocaleString('en-IN')} {balance > 0 ? 'Due' : 'Cr'}
+                                        ₹{Math.abs(balance).toLocaleString('en-IN')} {balance > 0 ? 'Due' : 'Cr'}
                                       </span>
                                     )}
                                   </div>
@@ -6062,7 +6062,7 @@ export default function POSSales() {
           
           {/* Customer Discount & Points moved to bottom after Note section */}
 
-          {/* GST Type â€” Tally tax invoice / billing */}
+          {/* GST Type — Tally tax invoice / billing */}
           <div className="w-36 shrink-0">
             <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1 block">GST Type</Label>
             <Select value={taxType} onValueChange={(v) => setTaxType(normalizeGstTaxType(v))}>
@@ -6156,7 +6156,7 @@ export default function POSSales() {
           {/* Running Total Display */}
           <div className="h-10 bg-gradient-to-r from-green-600 to-emerald-600 rounded-md px-3 flex items-center justify-center min-w-[120px] shadow-sm shrink-0">
             <div className="text-white font-bold text-base tracking-tight">
-              â‚¹{formatINR2(finalAmount)}
+              ₹{formatINR2(finalAmount)}
             </div>
           </div>
               
@@ -6222,12 +6222,12 @@ export default function POSSales() {
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent>
-                      <p>{mobileERP.enabled ? 'Financer / EMI Details' : 'Enable Mobile ERP in Settings â†’ Product to use EMI'}</p>
+                      <p>{mobileERP.enabled ? 'Financer / EMI Details' : 'Enable Mobile ERP in Settings → Product to use EMI'}</p>
                     </TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
 
-                {/* Invoice date picker â€” only when admin enabled "Allow invoice date change in POS" */}
+                {/* Invoice date picker — only when admin enabled "Allow invoice date change in POS" */}
                 {posAllowDateChange && (
                   <Popover>
                     <PopoverTrigger asChild>
@@ -6254,7 +6254,7 @@ export default function POSSales() {
             </div>
         </div>
 
-        {/* Items table â€” only this region scrolls; footer stays viewport-bottom */}
+        {/* Items table — only this region scrolls; footer stays viewport-bottom */}
         <div className="pos-sales-body px-2 md:px-3">
           <div className="w-full h-full min-h-0 flex flex-col overflow-hidden">
           <Card className="flex-1 min-h-0 overflow-hidden flex flex-col border-border/60 shadow-sm">
@@ -6280,7 +6280,7 @@ export default function POSSales() {
                 <div className="flex items-center gap-2 text-purple-700 dark:text-purple-300">
                   <Wallet className="h-4 w-4 shrink-0" />
                   <span>
-                    <strong>â‚¹{availableCreditBalance.toLocaleString('en-IN')}</strong> credit note available for {customerName}
+                    <strong>₹{availableCreditBalance.toLocaleString('en-IN')}</strong> credit note available for {customerName}
                   </span>
                 </div>
                 <button
@@ -6291,7 +6291,7 @@ export default function POSSales() {
                   }}
                   className="ml-3 shrink-0 px-3 py-1 bg-purple-600 text-white text-xs font-semibold rounded hover:bg-purple-700 transition-colors"
                 >
-                  Apply â‚¹{Math.min(availableCreditBalance, amountBeforeCredit) > 0
+                  Apply ₹{Math.min(availableCreditBalance, amountBeforeCredit) > 0
                     ? Math.min(availableCreditBalance, Math.round(amountBeforeCredit)).toLocaleString('en-IN')
                     : availableCreditBalance.toLocaleString('en-IN')} Now
                 </button>
@@ -6329,23 +6329,23 @@ export default function POSSales() {
                   const blankRow = (idx: number) => (
                     <div key={`blank-${idx}`} className={`pos-sales-cart-row grid gap-1.5 px-3 py-2.5 border-b border-border/40 text-base ${(items.length + idx) % 2 === 1 ? 'bg-muted/20' : ''}`} style={{ gridTemplateColumns: posCartGridCols }}>
                       <div className="flex items-center justify-center text-muted-foreground/30 font-medium">{items.length + idx + 1}</div>
-                      <div className="flex items-center text-muted-foreground/20">â€”</div>
-                      <div className="flex items-center text-muted-foreground/20">â€”</div>
-                      <div className="flex items-center justify-center text-muted-foreground/20">â€”</div>
-                      <div className="flex items-center justify-center text-muted-foreground/20">â€”</div>
-                      <div className="flex items-center justify-center text-muted-foreground/20">â€”</div>
-                      {enableMrp && <div className="flex items-center justify-end text-muted-foreground/20">â€”</div>}
-                      <div className="flex items-center justify-center text-muted-foreground/20">â€”</div>
-                      <div className="flex items-center justify-center text-muted-foreground/20">â€”</div>
-                      <div className="flex items-center justify-end text-muted-foreground/20">â€”</div>
-                      <div className="flex items-center justify-end text-muted-foreground/20">â€”</div>
-                      <div className="flex items-center justify-end text-muted-foreground/20">â€”</div>
+                      <div className="flex items-center text-muted-foreground/20">—</div>
+                      <div className="flex items-center text-muted-foreground/20">—</div>
+                      <div className="flex items-center justify-center text-muted-foreground/20">—</div>
+                      <div className="flex items-center justify-center text-muted-foreground/20">—</div>
+                      <div className="flex items-center justify-center text-muted-foreground/20">—</div>
+                      {enableMrp && <div className="flex items-center justify-end text-muted-foreground/20">—</div>}
+                      <div className="flex items-center justify-center text-muted-foreground/20">—</div>
+                      <div className="flex items-center justify-center text-muted-foreground/20">—</div>
+                      <div className="flex items-center justify-end text-muted-foreground/20">—</div>
+                      <div className="flex items-center justify-end text-muted-foreground/20">—</div>
+                      <div className="flex items-center justify-end text-muted-foreground/20">—</div>
                     </div>
                   );
                   return (
                     <>
                       {items.map((item, index) => {
-                        // Informational only â€” checkStock / validateCartStock remain enforcement.
+                        // Informational only — checkStock / validateCartStock remain enforcement.
                         // Edit mode: stockQty ignores freedQty (may look slightly pessimistic).
                         const stockIndicator = getPosCartStockIndicator(
                           item.stockQty,
@@ -6448,7 +6448,7 @@ export default function POSSales() {
                               value={taxType === "no_gst" ? "0" : String(item.gstPer ?? 0)}
                               onChange={(e) => updateGstPer(index, parseInt(e.target.value, 10))}
                               disabled={taxType === "no_gst"}
-                              title={taxType === "no_gst" ? "Without GST â€” tax rate not applied" : undefined}
+                              title={taxType === "no_gst" ? "Without GST — tax rate not applied" : undefined}
                               className="h-8 w-full rounded-md text-sm border border-border/60 bg-muted/30 px-1.5 text-center focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-60 disabled:cursor-not-allowed"
                             >
                               <option value="0">0%</option>
@@ -6517,10 +6517,10 @@ export default function POSSales() {
                                 return (
                                   <div
                                     className="flex flex-col items-end justify-center min-h-8 leading-tight text-right"
-                                    title={`List â‚¹${formatINR2(listUnit)} · Disc ${discPct > 0 ? `${discPct}%` : ""} â‚¹${formatINR2(lineDiscRs)} · Net unit â‚¹${formatINR2(posLineNetUnitPrice(item))}`}
+                                    title={`List ₹${formatINR2(listUnit)} · Disc ${discPct > 0 ? `${discPct}%` : ""} ₹${formatINR2(lineDiscRs)} · Net unit ₹${formatINR2(posLineNetUnitPrice(item))}`}
                                   >
                                     <span className="text-base font-semibold tabular-nums text-foreground">
-                                      â‚¹{formatINR2(listUnit)}
+                                      ₹{formatINR2(listUnit)}
                                     </span>
                                     {discPct > 0.005 && (
                                       <span className="text-[11px] font-semibold text-muted-foreground">
@@ -6587,14 +6587,14 @@ export default function POSSales() {
                                         : "Unit price"
                                   }
                                 >
-                                  â‚¹{formatINR2(listUnit > 0 ? listUnit : posLineNetUnitPrice(item))}
+                                  ₹{formatINR2(listUnit > 0 ? listUnit : posLineNetUnitPrice(item))}
                                 </div>
                               );
                             })()}
                           </div>
                           <div className="flex items-center justify-between gap-1 min-w-0">
                             <span className="font-extrabold text-base md:text-lg tabular-nums">
-                              â‚¹{formatINR2(posLineDisplayTotal(item.netAmount, item.gstPer, taxType))}
+                              ₹{formatINR2(posLineDisplayTotal(item.netAmount, item.gstPer, taxType))}
                             </span>
                             <Button
                               size="icon"
@@ -6615,7 +6615,7 @@ export default function POSSales() {
             </div>
           </Card>
 
-          {/* Notes / discounts â€” sibling of table card (does not push footer; scrolls if tall) */}
+          {/* Notes / discounts — sibling of table card (does not push footer; scrolls if tall) */}
           <div className="pos-sales-notes shrink-0 border-t border-border/60 bg-card">
             <div className="p-2 bg-muted/30">
               <div className="flex items-center gap-3">
@@ -6677,7 +6677,7 @@ export default function POSSales() {
                             Math.max(0, totals.subtotal - saleReturnAdjust - flatDiscountAmount),
                           );
                           return pendingPts > 0 ? (
-                            <span className="text-amber-100 text-sm" title="Earned after bill save â€” not redeemable on this bill">
+                            <span className="text-amber-100 text-sm" title="Earned after bill save — not redeemable on this bill">
                               +{pendingPts} pending
                             </span>
                           ) : null;
@@ -6692,10 +6692,10 @@ export default function POSSales() {
           </div>
         </div>
 
-        {/* Totals + shortcuts â€” locked to viewport bottom (never shifts with line items) */}
+        {/* Totals + shortcuts — locked to viewport bottom (never shifts with line items) */}
         <div className="pos-sales-footer w-full flex flex-col">
         <div className="w-full bg-gradient-to-r from-cyan-600 to-teal-600 text-white border-t shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
-          {/* Top Info Bar â€” Qty â†’ Charges â†’ Sub Total â†’ Discount â†’ Time (matches bill print) */}
+          {/* Top Info Bar — Qty → Charges → Sub Total → Discount → Time (matches bill print) */}
           <div className="flex min-h-[52px] flex-nowrap items-center px-6 py-3 gap-0 border-b border-white/10 overflow-x-auto">
             {/* Qty */}
             <div className="text-center px-3">
@@ -6707,15 +6707,15 @@ export default function POSSales() {
 
             {/* Charges */}
             <div className="text-center px-3">
-              <div className="text-lg font-bold leading-tight">â‚¹0</div>
+              <div className="text-lg font-bold leading-tight">₹0</div>
               <div className="text-[11px] text-white/70 uppercase font-semibold">Charges</div>
             </div>
 
             <div className="w-px h-8 bg-white/20 shrink-0" />
 
-            {/* Sub Total â€” pre-discount gross (same as bill Sub Total) */}
+            {/* Sub Total — pre-discount gross (same as bill Sub Total) */}
             <div className="text-center px-3">
-              <div className="text-lg font-bold leading-tight tabular-nums">â‚¹{formatINR2(totals.mrp)}</div>
+              <div className="text-lg font-bold leading-tight tabular-nums">₹{formatINR2(totals.mrp)}</div>
               <div className="text-[11px] text-white/70 uppercase font-semibold">Sub Total</div>
             </div>
 
@@ -6724,14 +6724,14 @@ export default function POSSales() {
             {/* Discount */}
             <div className="text-center px-3 min-w-[5.5rem]">
               <div className="text-xl font-extrabold leading-tight text-white tabular-nums">
-                {totalDiscountDisplay > 0.005 ? `âˆ’â‚¹${formatINR2(totalDiscountDisplay)}` : "â‚¹0"}
+                {totalDiscountDisplay > 0.005 ? `−₹${formatINR2(totalDiscountDisplay)}` : "₹0"}
               </div>
               <div className="text-xs text-white/90 uppercase font-bold tracking-wide">Discount</div>
             </div>
 
             <div className="w-px h-8 bg-white/20 shrink-0" />
 
-            {/* Invoice / wall clock â€” uses same 1s tick as print date */}
+            {/* Invoice / wall clock — uses same 1s tick as print date */}
             <div className="text-center px-2 shrink-0 min-w-[7.5rem]">
               <div className="text-[11px] text-white/70 uppercase tracking-wider font-semibold">
                 {footerLoadedInvoiceTime && currentSaleId ? "Invoice time" : "Time"}
@@ -6758,9 +6758,9 @@ export default function POSSales() {
               </div>
             )}
             
-            {/* Middle Fields â€” Flat Disc, S/R Adj, Round */}
+            {/* Middle Fields — Flat Disc, S/R Adj, Round */}
             <div className="flex items-end gap-3 flex-nowrap justify-end shrink-0 min-w-0">
-              {/* Flat Disc â€” combined with line disc capped to gross (before S/R) */}
+              {/* Flat Disc — combined with line disc capped to gross (before S/R) */}
               <div className="text-center">
                 <div className="text-sm text-white/90 uppercase font-bold mb-1 tracking-wide">Flat Disc</div>
                 <div className="flex items-center">
@@ -6774,7 +6774,7 @@ export default function POSSales() {
                       setFlatDiscountMode(flatDiscountMode === 'percent' ? 'amount' : 'percent');
                     }}
                   >
-                    {flatDiscountMode === 'percent' ? '%' : 'â‚¹'}
+                    {flatDiscountMode === 'percent' ? '%' : '₹'}
                   </Button>
                   <Input 
                     type="number"
@@ -6798,12 +6798,12 @@ export default function POSSales() {
                       let next = normalizeFlatDiscountInput(flatDiscountValue);
                       if (flatDiscountMode === "amount" && next > maxFlatDiscountForGross + 0.01) {
                         toast.warning(
-                          `Only â‚¹${maxFlatDiscountForGross.toLocaleString("en-IN", { maximumFractionDigits: 0 })} discount can be applied to this bill`,
+                          `Only ₹${maxFlatDiscountForGross.toLocaleString("en-IN", { maximumFractionDigits: 0 })} discount can be applied to this bill`,
                         );
                         next = Math.round(maxFlatDiscountForGross);
                       } else if (flatDiscountMode === "percent" && flatDiscountCapped) {
                         toast.warning(
-                          `Only â‚¹${maxCombinedDiscountForGross(totals.mrp).toLocaleString("en-IN", { maximumFractionDigits: 0 })} discount can be applied to this bill`,
+                          `Only ₹${maxCombinedDiscountForGross(totals.mrp).toLocaleString("en-IN", { maximumFractionDigits: 0 })} discount can be applied to this bill`,
                         );
                         const base = Math.max(0.01, totals.mrp - saleReturnAdjust);
                         next = Math.min(
@@ -6817,12 +6817,12 @@ export default function POSSales() {
                 </div>
                 {flatDiscountCapped && (
                   <div className="text-[10px] text-amber-200 mt-0.5 max-w-[9rem] leading-tight">
-                    Only â‚¹{maxCombinedDiscountForGross(totals.mrp).toLocaleString("en-IN", { maximumFractionDigits: 0 })} discount can be applied to this bill
+                    Only ₹{maxCombinedDiscountForGross(totals.mrp).toLocaleString("en-IN", { maximumFractionDigits: 0 })} discount can be applied to this bill
                   </div>
                 )}
               </div>
               
-              {/* S/R Adj â€” same-bill exchange may exceed bill (Mix refund/CN); pre-existing credit stays bill-capped */}
+              {/* S/R Adj — same-bill exchange may exceed bill (Mix refund/CN); pre-existing credit stays bill-capped */}
               <div className="text-center">
                 <div className="text-sm text-white/90 uppercase font-bold mb-1 tracking-wide">
                   S/R Adj{customerId && pendingSaleReturnCredits.length > 0 ? ` (${pendingSaleReturnCredits.length})` : ''}
@@ -6889,7 +6889,7 @@ export default function POSSales() {
                               }}
                             >
                               <span className="font-medium truncate">{sr.return_number || "S/R"}</span>
-                              <Badge variant="secondary" className="ml-2 shrink-0">â‚¹{formatINR2(sr.net_amount)}</Badge>
+                              <Badge variant="secondary" className="ml-2 shrink-0">₹{formatINR2(sr.net_amount)}</Badge>
                             </button>
                           ))}
                           {pendingSaleReturnCredits.length === 0 && (
@@ -6919,7 +6919,7 @@ export default function POSSales() {
                                     </span>
                                   </span>
                                   <Badge variant="outline" className="ml-2 shrink-0">
-                                    â‚¹{formatINR2(sr.net_amount)}
+                                    ₹{formatINR2(sr.net_amount)}
                                   </Badge>
                                 </div>
                               ))}
@@ -6932,14 +6932,14 @@ export default function POSSales() {
                 </div>
                 {exchangeRefundDue > 0.01 ? (
                   <div className="text-[10px] text-orange-200 mt-0.5 max-w-[11rem] leading-tight">
-                    Return â‚¹{Math.round(saleReturnAdjust)} · Applied â‚¹{Math.round(exchangeSrApplied)} · Refund due â‚¹{Math.round(exchangeRefundDue)}
+                    Return ₹{Math.round(saleReturnAdjust)} · Applied ₹{Math.round(exchangeSrApplied)} · Refund due ₹{Math.round(exchangeRefundDue)}
                   </div>
                 ) : (
                   !isSameBillExchangeSr &&
                   (saleReturnAdjust > maxSrAllowed + 0.01 ||
                     (maxSrAllowed > 0 && availableSrCredit > maxSrFromBill + 0.01)) && (
                     <div className="text-[10px] text-amber-200 mt-0.5 max-w-[9rem] leading-tight">
-                      Only â‚¹{maxSrAllowed.toLocaleString("en-IN", { maximumFractionDigits: 0 })} of credit can be applied to this bill
+                      Only ₹{maxSrAllowed.toLocaleString("en-IN", { maximumFractionDigits: 0 })} of credit can be applied to this bill
                     </div>
                   )
                 )}
@@ -6981,7 +6981,7 @@ export default function POSSales() {
                 </div>
               </div>
 
-              {/* Redeem old CRM points only â€” current-bill earn stays pending until save */}
+              {/* Redeem old CRM points only — current-bill earn stays pending until save */}
               {customerId && isPointsEnabled && isRedemptionEnabled && (
                 <div className="text-center">
                   <div className="text-sm text-white/90 uppercase font-bold mb-1 tracking-wide">
@@ -7016,7 +7016,7 @@ export default function POSSales() {
                       (customerPointsData?.balance || 0) <= 0
                         ? "No old points to redeem"
                         : (customerPointsData?.balance || 0) < (pointsSettings?.min_points_for_redemption || 1)
-                          ? `Need at least ${pointsSettings?.min_points_for_redemption || 1} old pts (this billâ€™s +pts are pending)`
+                          ? `Need at least ${pointsSettings?.min_points_for_redemption || 1} old pts (this bill's +pts are pending)`
                           : `Redeem old points only (max ${calculateMaxRedeemablePoints(
                               Math.max(0, totals.subtotal - saleReturnAdjust - flatDiscountAmount),
                               customerPointsData?.balance || 0,
@@ -7025,7 +7025,7 @@ export default function POSSales() {
                   />
                   {pointsToRedeem > 0 ? (
                     <div className="text-[10px] text-amber-200 font-semibold mt-0.5 text-center">
-                      âˆ’â‚¹{calculateRedemptionValue(pointsToRedeem).toFixed(0)}
+                      −₹{calculateRedemptionValue(pointsToRedeem).toFixed(0)}
                     </div>
                   ) : (customerPointsData?.balance || 0) > 0 &&
                     (customerPointsData?.balance || 0) < (pointsSettings?.min_points_for_redemption || 1) ? (
@@ -7039,7 +7039,7 @@ export default function POSSales() {
               {/* Credit Applied */}
               {(availableCreditBalance > 0 || creditApplied > 0) && (
                 <div className="text-center">
-                  <div className="text-sm text-white/90 uppercase font-bold mb-1 tracking-wide">Cr â‚¹{availableCreditBalance.toFixed(0)}</div>
+                  <div className="text-sm text-white/90 uppercase font-bold mb-1 tracking-wide">Cr ₹{availableCreditBalance.toFixed(0)}</div>
                   <Input 
                     type="number"
                     className="w-24 h-10 bg-purple-100 text-purple-700 text-center text-lg font-semibold border-0 rounded-md" 
@@ -7056,7 +7056,7 @@ export default function POSSales() {
                   />
                   {creditApplied > 0 && (
                     <div className="text-[10px] text-green-400 font-semibold mt-0.5 text-center">
-                      âœ“ Applied
+                      ✓ Applied
                     </div>
                   )}
                 </div>
@@ -7076,7 +7076,7 @@ export default function POSSales() {
                   >
                     {isBalanceLoading
                       ? "..."
-                      : `â‚¹${Math.abs(customerBalance).toLocaleString('en-IN')}`}
+                      : `₹${Math.abs(customerBalance).toLocaleString('en-IN')}`}
                   </div>
                 </div>
               )}
@@ -7087,18 +7087,18 @@ export default function POSSales() {
             {taxType === "exclusive" && posGst.totalGst > 0.005 && (
               <>
                 <div className="text-center px-3 shrink-0">
-                  <div className="text-lg font-bold leading-tight">â‚¹{formatINR2(posGst.totalGst)}</div>
+                  <div className="text-lg font-bold leading-tight">₹{formatINR2(posGst.totalGst)}</div>
                   <div className="text-[11px] text-white/70 uppercase font-semibold">GST</div>
                 </div>
                 <div className="w-px h-8 bg-white/20 mx-3 shrink-0" />
               </>
             )}
             
-            {/* Right Summary â€” MRP (strikethrough), Net Amount, discount badge */}
+            {/* Right Summary — MRP (strikethrough), Net Amount, discount badge */}
             <div className="text-center shrink-0 min-w-[160px]">
               {enableMrp && totals.mrp > 0 && totals.mrp !== finalAmount && (
                 <div className="text-xs text-white/90 line-through font-bold leading-tight">
-                  MRP â‚¹{formatINR2(totals.mrp)}
+                  MRP ₹{formatINR2(totals.mrp)}
                 </div>
               )}
               <div className="text-sm text-white/90 uppercase font-bold mb-1 tracking-wide">
@@ -7114,7 +7114,7 @@ export default function POSSales() {
               />
               {enableMrp && effectiveDiscountPercent > 0 && (
                 <div className="text-xs font-extrabold text-lime-200 mt-0.5">
-                  â†“ {effectiveDiscountPercent.toFixed(1)}% off
+                  ↓ {effectiveDiscountPercent.toFixed(1)}% off
                 </div>
               )}
             </div>
@@ -7123,7 +7123,7 @@ export default function POSSales() {
 
         {/* Keyboard Shortcut Bar - Desktop only, redesigned with columns */}
         <div className="pos-sales-shortcuts hidden md:flex h-[52px] shrink-0 w-full flex-nowrap bg-slate-800 dark:bg-slate-950 text-white items-center gap-2 border-t border-slate-700/50 select-none px-2">
-          {/* Last saved bill â€” pinned left so it is never clipped off-screen on web */}
+          {/* Last saved bill — pinned left so it is never clipped off-screen on web */}
           <div
             className="flex shrink-0 items-center gap-3 px-3 py-1.5 rounded-md bg-slate-900/90 border border-slate-600/50 min-w-[min(100%,22rem)]"
             title="Last saved POS invoice today"
@@ -7141,7 +7141,7 @@ export default function POSSales() {
                   <span className="text-[15px] font-bold text-white tabular-nums">{lastCompletedPosHint.qty}</span>
                 </span>
                 <span className="text-base font-extrabold text-amber-300 tabular-nums whitespace-nowrap">
-                  â‚¹{formatINR2(lastCompletedPosHint.amount)}
+                  ₹{formatINR2(lastCompletedPosHint.amount)}
                 </span>
               </>
             ) : (
@@ -7487,7 +7487,7 @@ export default function POSSales() {
                 <div className="bg-purple-50 p-4 rounded-lg text-center">
                   <p className="text-sm text-gray-600">Credit Note Number</p>
                   <p className="text-lg font-bold text-purple-700">{creditNoteData.credit_note_number}</p>
-                  <p className="text-2xl font-bold text-purple-700 mt-2">â‚¹{creditNoteData.credit_amount?.toFixed(2)}</p>
+                  <p className="text-2xl font-bold text-purple-700 mt-2">₹{creditNoteData.credit_amount?.toFixed(2)}</p>
                   <p className="text-sm text-gray-600 mt-2">Customer: {creditNoteData.customer_name}</p>
                 </div>
               )}
@@ -7516,7 +7516,7 @@ export default function POSSales() {
                 <Button 
                   variant="outline"
                   onClick={() => {
-                    const message = `*CREDIT NOTE ISSUED*\n\nC/Note No: ${creditNoteData.credit_note_number}\nDate: ${format(new Date(), 'dd/MM/yyyy')}\n\nCustomer: ${creditNoteData.customer_name}\nCredit Amount: â‚¹${creditNoteData.credit_amount?.toFixed(2)}\n\nThis credit can be used for your next purchase.\n\nThank you for your business!`;
+                    const message = `*CREDIT NOTE ISSUED*\n\nC/Note No: ${creditNoteData.credit_note_number}\nDate: ${format(new Date(), 'dd/MM/yyyy')}\n\nCustomer: ${creditNoteData.customer_name}\nCredit Amount: ₹${creditNoteData.credit_amount?.toFixed(2)}\n\nThis credit can be used for your next purchase.\n\nThank you for your business!`;
                     sendWhatsApp(creditNoteData.customer_phone, message);
                   }}
                   className="w-full flex items-center justify-center gap-2 text-green-600 border-green-600 hover:bg-green-50 hover:text-green-700"
@@ -7716,7 +7716,7 @@ export default function POSSales() {
               <button
                 onClick={() => setShowHoldPanel(false)}
                 className="text-white/70 hover:text-white text-2xl leading-none"
-              >Ã—</button>
+              >×</button>
             </div>
 
             {/* Search */}
@@ -7763,7 +7763,7 @@ export default function POSSales() {
                             {itemCount} item{itemCount !== 1 ? 's' : ''}
                             {bill.customer_phone && ` · ${bill.customer_phone}`}
                           </span>
-                          <span className="text-sm font-bold text-foreground">â‚¹{Math.round(bill.net_amount || 0).toLocaleString('en-IN')}</span>
+                          <span className="text-sm font-bold text-foreground">₹{Math.round(bill.net_amount || 0).toLocaleString('en-IN')}</span>
                         </div>
                         <div className="flex gap-2">
                           <Button
