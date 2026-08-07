@@ -96,7 +96,7 @@ function checkForUpdatesManually(interactive = true) {
           type: 'info',
           title: 'Check for Updates',
           message: `You're on the latest desktop version (${current}).`,
-          detail: 'Press F5 or use Refresh App to load the newest web features from the server.',
+          detail: 'Press Ctrl+R or use Refresh App to load the newest web features from the server.',
           buttons: ['OK'],
         });
       }
@@ -108,7 +108,7 @@ function checkForUpdatesManually(interactive = true) {
         type: 'error',
         title: 'Update check failed',
         message: 'Could not check for updates.',
-        detail: 'Press F5 to refresh the app from the server, or try again later.',
+        detail: 'Press Ctrl+R to refresh the app from the server, or try again later.',
         buttons: ['OK'],
       });
     });

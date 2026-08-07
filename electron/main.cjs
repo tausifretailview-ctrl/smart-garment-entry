@@ -156,7 +156,7 @@ function createMenu() {
         },
         {
           label: 'Refresh App',
-          accelerator: 'F5',
+          accelerator: 'CmdOrCtrl+R',
           click: () => manualReloadMainWindow('file-menu'),
         },
         { type: 'separator' },
@@ -249,14 +249,9 @@ function createMenu() {
       label: '&Window',
       submenu: [
         {
+          // No F5 / Ctrl+R here — File menu owns Ctrl+R; F5 is reserved for POS Sale Return.
           label: 'Refresh App',
-          accelerator: 'F5',
           click: () => manualReloadMainWindow('window-menu'),
-        },
-        {
-          label: 'Reload',
-          accelerator: 'CmdOrCtrl+R',
-          click: () => manualReloadMainWindow('window-menu-ctrl-r'),
         },
         { type: 'separator' },
         {
@@ -276,8 +271,8 @@ function createMenu() {
         },
         { type: 'separator' },
         {
+          // No F11 accelerator — POS uses F11 for Size-wise Stock.
           label: 'Full Screen',
-          accelerator: 'F11',
           click: () => getMainWindow() && getMainWindow().setFullScreen(!getMainWindow().isFullScreen()),
         },
         ...(isDev
@@ -306,14 +301,10 @@ function createMenu() {
                 'Alt+P   POS Sale\n' +
                 'Alt+S   Stock Report\n' +
                 'Alt+D   Dashboard\n' +
-                'F5      Refresh app\n' +
                 'Ctrl+R  Refresh app\n' +
                 'Ctrl+P  Print\n' +
-                'F1      Help (in-app)\n' +
-                'F2      Search (in-app)\n' +
-                'F9      Save (in-app)\n' +
-                'F10     Print preview (in-app)\n' +
-                'F11     Full Screen\n' +
+                'Ctrl+K  Command palette\n' +
+                'F1–F11  POS actions (in-app; see Shortcuts)\n' +
                 'Esc     Back / Cancel',
               buttons: ['OK'],
             });
@@ -342,7 +333,8 @@ function createMenu() {
 
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 
-  // Keep accelerators (Alt+N, F5, Ctrl+P…) but never show the white OS menu bar.
+  // Keep accelerators (Alt+N, Ctrl+R, Ctrl+P…) but never show the white OS menu bar.
+  // F1–F11 are reserved for in-app POS shortcuts — never bind them as menu accelerators.
   if (getMainWindow() && !getMainWindow().isDestroyed()) {
     getMainWindow().setMenuBarVisibility(false);
     getMainWindow().setAutoHideMenuBar(false);

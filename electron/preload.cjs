@@ -53,7 +53,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   printToPdf: (options) => ipcRenderer.invoke('print-to-pdf', options),
   printHtml: (options) => ipcRenderer.invoke('print-html', options),
 
-  /** Full page reload — same as F5 / File → Refresh App. */
+  /** Full page reload — same as Ctrl+R / File → Refresh App. */
   reloadApp: () => ipcRenderer.invoke('reload-app'),
 
   /** Check for a new desktop installer (Help → Check for Updates). */

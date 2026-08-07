@@ -361,7 +361,7 @@ export const Header = () => {
             variant="ghost"
             size="icon"
             className="h-8 w-8 text-[var(--erp-chrome-ink-dim)] hover:text-white hover:bg-white/10"
-            title={isDesktopApp ? "Refresh app (F5)" : "Refresh app"}
+            title={isDesktopApp ? "Refresh app (Ctrl+R)" : "Refresh app"}
             onClick={handleManualReload}
           >
             <RefreshCw className="h-4 w-4" />
