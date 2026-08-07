@@ -817,10 +817,22 @@ export default function POSSales() {
       customerName,
       customerPhone,
       saleNotes,
+      saleReturnAdjust,
+      sameBillReturnGross,
       savedAt: Date.now(),
     };
     writePosCartSnapshot(orgId, snapshot);
-  }, [items, customerId, customerName, customerPhone, saleNotes, currentOrganization?.id, currentSaleId]);
+  }, [
+    items,
+    customerId,
+    customerName,
+    customerPhone,
+    saleNotes,
+    saleReturnAdjust,
+    sameBillReturnGross,
+    currentOrganization?.id,
+    currentSaleId,
+  ]);
 
   // Org may load after first paint — restore in-session cart once per org (not after app quit).
   const posCartHydratedOrgRef = useRef<string | null>(null);
@@ -839,7 +851,13 @@ export default function POSSales() {
     if (saved.customerName) setCustomerName(saved.customerName);
     if (saved.customerPhone) setCustomerPhone(saved.customerPhone);
     if (saved.saleNotes) setSaleNotes(saved.saleNotes);
-  }, [currentOrganization?.id, items.length, currentSaleId, setItems]);
+    if (Number(saved.saleReturnAdjust) > 0.005) {
+      setSaleReturnAdjust(Number(saved.saleReturnAdjust) || 0);
+    }
+    if (Number(saved.sameBillReturnGross) > 0.005) {
+      setSameBillReturnGross(Number(saved.sameBillReturnGross) || 0);
+    }
+  }, [currentOrganization?.id, items.length, currentSaleId, setItems, setSaleReturnAdjust]);
 
   // Barcode scanner detection for instant cart add
   const {
@@ -2991,11 +3009,13 @@ export default function POSSales() {
     0,
   );
   // Same-bill exchange: allow S/R above bill (excess → Mix refund/CN).
-  // Pre-existing pending credit: keep bill cap so leftover stays for a future bill.
-  const isSameBillExchangeSr = sameBillReturnGross > 0.005;
+  // Also treat live S/R > bill as exchange so we don't wipe credit after a line delete
+  // when sameBillReturnGross was not set (manual entry / restored cart).
+  const isSameBillExchangeSr =
+    sameBillReturnGross > 0.005 || saleReturnAdjust > maxSrFromBill + 0.005;
   const maxSrAllowed = isSameBillExchangeSr
     ? Math.max(
-        Math.round(sameBillReturnGross * 100) / 100,
+        Math.round(Math.max(sameBillReturnGross, saleReturnAdjust) * 100) / 100,
         Math.round(availableSrCredit * 100) / 100,
       )
     : availableSrCredit > 0.005
@@ -3007,6 +3027,11 @@ export default function POSSales() {
     Math.max(0, maxSrFromBill),
   );
   const exchangeRefundDue = Math.max(0, Math.round((saleReturnAdjust - exchangeSrApplied) * 100) / 100);
+  /** Mix dialog bill: negative refund amount when exchange excess exists (even if net is 0). */
+  const mixDialogBillAmount =
+    finalAmount < -0.005 || exchangeRefundDue > 0.005
+      ? -Math.max(Math.abs(Math.min(0, finalAmount)), exchangeRefundDue)
+      : finalAmount;
 
   const clampSaleReturnAdjust = (requested: number, opts?: { silent?: boolean }) => {
     const raw = Math.max(0, Math.round((Number(requested) || 0) * 100) / 100);
@@ -5276,7 +5301,7 @@ export default function POSSales() {
         <MixPaymentDialog
           open={showMixPaymentDialog}
           onOpenChange={setShowMixPaymentDialog}
-          billAmount={finalAmount}
+          billAmount={mixDialogBillAmount}
           creditApplied={creditApplied}
           exchangeBreakdown={
             exchangeRefundDue > 0.01
@@ -5404,7 +5429,7 @@ export default function POSSales() {
         <MixPaymentDialog
           open={showMixPaymentDialog}
           onOpenChange={setShowMixPaymentDialog}
-          billAmount={finalAmount}
+          billAmount={mixDialogBillAmount}
           creditApplied={creditApplied}
           exchangeBreakdown={
             exchangeRefundDue > 0.01
@@ -6758,12 +6783,12 @@ export default function POSSales() {
               </div>
             )}
             
-            {/* Middle Fields — Flat Disc, S/R Adj, Round */}
-            <div className="flex items-end gap-3 flex-nowrap justify-end shrink-0 min-w-0">
+            {/* Middle Fields — Flat Disc, S/R Adj, Round (items-start + hint slots keep inputs aligned) */}
+            <div className="flex items-start gap-3 flex-nowrap justify-end shrink-0 min-w-0">
               {/* Flat Disc — combined with line disc capped to gross (before S/R) */}
-              <div className="text-center">
+              <div className="text-center flex flex-col items-center min-h-[4.5rem]">
                 <div className="text-sm text-white/90 uppercase font-bold mb-1 tracking-wide">Flat Disc</div>
-                <div className="flex items-center">
+                <div className="flex items-center h-10">
                   <Button
                     type="button"
                     size="sm"
@@ -6823,17 +6848,18 @@ export default function POSSales() {
               </div>
               
               {/* S/R Adj — same-bill exchange may exceed bill (Mix refund/CN); pre-existing credit stays bill-capped */}
-              <div className="text-center">
+              <div className="text-center flex flex-col items-center min-h-[4.5rem]">
                 <div className="text-sm text-white/90 uppercase font-bold mb-1 tracking-wide">
                   S/R Adj{customerId && pendingSaleReturnCredits.length > 0 ? ` (${pendingSaleReturnCredits.length})` : ''}
                 </div>
-                <div className="flex items-center">
+                <div className="flex items-center h-10">
                   <Input 
                     type="number"
                     className="w-24 h-10 bg-white text-foreground text-center text-lg font-semibold border-0 rounded-md" 
                     value={saleReturnAdjust || ""}
                     placeholder="0"
-                    max={maxSrAllowed > 0 ? maxSrAllowed : undefined}
+                    // No HTML max on exchange — over-bill S/R is intentional (Mix refund).
+                    max={isSameBillExchangeSr ? undefined : maxSrAllowed > 0 ? maxSrAllowed : undefined}
                     min={0}
                     onChange={(e) => {
                       const raw = e.target.value;
@@ -6846,6 +6872,9 @@ export default function POSSales() {
                       if (!Number.isFinite(n)) return;
                       // Allow typing above bill; clamp on blur to maxSrAllowed (exchange vs pre-existing).
                       setSaleReturnAdjust(Math.max(0, n));
+                      if (n > maxSrFromBill + 0.005) {
+                        setSameBillReturnGross((prev) => Math.max(prev, n));
+                      }
                     }}
                     step="0.01"
                     onBlur={(e) => {
@@ -6855,8 +6884,14 @@ export default function POSSales() {
                         setSameBillReturnGross(0);
                         return;
                       }
+                      // Keep exchange / over-bill S/R — never wipe when return exceeds bill
+                      // (blur often fires when clicking delete on a cart line).
+                      if (requested > maxSrFromBill + 0.005 || sameBillReturnGross > 0.005) {
+                        setSameBillReturnGross((prev) => Math.max(prev, requested));
+                        setSaleReturnAdjust(requested);
+                        return;
+                      }
                       if (
-                        !isSameBillExchangeSr &&
                         customerId &&
                         availableSrCredit <= 0.01 &&
                         requested > 0.01
@@ -6946,11 +6981,11 @@ export default function POSSales() {
               </div>
               
               {/* Round */}
-              <div className="text-center">
+              <div className="text-center flex flex-col items-center min-h-[4.5rem]">
                 <div className="text-sm text-white/90 uppercase font-bold mb-1 tracking-wide">
                   Round{isManualRoundOff && <span className="text-yellow-300 normal-case"> (M)</span>}
                 </div>
-                <div className="flex items-center gap-0.5">
+                <div className="flex items-center gap-0.5 h-10">
                   {isManualRoundOff && (
                     <TooltipProvider>
                       <Tooltip>
@@ -7095,7 +7130,7 @@ export default function POSSales() {
             )}
             
             {/* Right Summary — MRP (strikethrough), Net Amount, discount badge */}
-            <div className="text-center shrink-0 min-w-[160px]">
+            <div className="text-center shrink-0 min-w-[160px] flex flex-col items-center self-start min-h-[4.5rem]">
               {enableMrp && totals.mrp > 0 && totals.mrp !== finalAmount && (
                 <div className="text-xs text-white/90 line-through font-bold leading-tight">
                   MRP ₹{formatINR2(totals.mrp)}
@@ -7465,7 +7500,7 @@ export default function POSSales() {
         <MixPaymentDialog
           open={showMixPaymentDialog}
           onOpenChange={setShowMixPaymentDialog}
-          billAmount={finalAmount}
+          billAmount={mixDialogBillAmount}
           creditApplied={creditApplied}
           exchangeBreakdown={
             exchangeRefundDue > 0.01

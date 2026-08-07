@@ -67,8 +67,14 @@ export function MixPaymentDialog({
   const [refundAmount, setRefundAmount] = useState(0);
   const [refundMode, setRefundMode] = useState<'cash' | 'upi' | 'bank_transfer'>('cash');
 
-  const isRefundMode = billAmount < 0;
-  const refundRequired = Math.abs(billAmount);
+  // Refund when bill is negative OR same-bill exchange passed an explicit refund due
+  // (covers net≈0 edge cases where excess was tracked only on exchangeBreakdown).
+  const breakdownRefund = Math.max(0, Number(exchangeBreakdown?.refundDue) || 0);
+  const isRefundMode = billAmount < -0.005 || breakdownRefund > 0.005;
+  const refundRequired = Math.max(
+    billAmount < -0.005 ? Math.abs(billAmount) : 0,
+    breakdownRefund,
+  );
   const payableBill = Math.max(0, billAmount);
   const totalPaid = cashAmount + cardAmount + upiAmount + bankAmount + financeAmount;
   const creditBalance = isRefundMode ? 0 : Math.max(0, payableBill - totalPaid);
@@ -189,9 +195,9 @@ export function MixPaymentDialog({
         <div className="space-y-4 py-4">
           {/* Bill Amount */}
           <div className={`flex items-center justify-between p-3 rounded-lg ${isRefundMode ? 'bg-orange-100 dark:bg-orange-900' : 'bg-muted'}`}>
-            <span className="text-sm font-medium">Bill Amount:</span>
+            <span className="text-sm font-medium">{isRefundMode ? "Refund Due:" : "Bill Amount:"}</span>
             <span className={`text-lg font-bold ${isRefundMode ? 'text-orange-600 dark:text-orange-400' : ''}`}>
-              {formatCurrency(isRefundMode ? -(billAmount + creditApplied) : (billAmount + creditApplied))}
+              {formatCurrency(isRefundMode ? refundRequired : billAmount + creditApplied)}
             </span>
           </div>
 

@@ -9,6 +9,9 @@ export type PosCartSnapshot = {
   customerName?: string;
   customerPhone?: string;
   saleNotes?: string;
+  /** Persist S/R so deleting a cart line / tab switch does not wipe exchange credit. */
+  saleReturnAdjust?: number;
+  sameBillReturnGross?: number;
   savedAt?: number;
 };
 
