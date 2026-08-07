@@ -1326,6 +1326,8 @@ export default function BarcodePrinting() {
         a4Rows: 12,
         vGap: 0,
         hGap: 0,
+        pitchX: 48,
+        pitchY: 24,
       }));
     } else if (
       sheetType === 'novajet40' ||
@@ -1340,6 +1342,9 @@ export default function BarcodePrinting() {
         a4Rows: 8,
         vGap: 0,
         hGap: 0,
+        // Initial die-cut pitch — calibrate in 0.1mm steps if col/row drift.
+        pitchX: 39,
+        pitchY: 35,
       }));
     }
   }, [sheetType]);
@@ -1461,6 +1466,10 @@ export default function BarcodePrinting() {
     yOffset: 0,
     vGap: 2,
     hGap: 0,
+    /** Independent A4 column pitch (mm). Default = label width. */
+    pitchX: 50,
+    /** Independent A4 row pitch (mm). Default = label height. */
+    pitchY: 25,
     labelWidth: 50,
     labelHeight: 25,
     a4Cols: 4,
@@ -2241,6 +2250,8 @@ export default function BarcodePrinting() {
                 yOffset: presetToLoad.yOffset,
                 vGap: presetToLoad.vGap,
                 hGap: presetToLoad.hGap ?? 0,
+                pitchX: presetToLoad.pitchX ?? presetToLoad.width,
+                pitchY: presetToLoad.pitchY ?? presetToLoad.height,
                 labelWidth: fixedDims?.width ?? presetToLoad.width,
                 labelHeight: fixedDims?.height ?? presetToLoad.height,
                 ...(presetToLoad.a4Cols ? { a4Cols: presetToLoad.a4Cols } : {}),
@@ -2383,6 +2394,8 @@ export default function BarcodePrinting() {
         yOffset: preset.yOffset,
         vGap: preset.vGap,
         hGap: preset.hGap ?? 0,
+        pitchX: preset.pitchX ?? preset.width,
+        pitchY: preset.pitchY ?? preset.height,
         thermalCols:
           preset.thermalCols ??
           prev.thermalCols ??
@@ -2413,6 +2426,8 @@ export default function BarcodePrinting() {
           yOffset: preset.yOffset,
           vGap: preset.vGap,
           hGap: preset.hGap ?? 0,
+          pitchX: preset.pitchX ?? preset.width,
+          pitchY: preset.pitchY ?? preset.height,
           labelWidth: preset.width,
           labelHeight: preset.height,
           a4Cols: preset.a4Cols ?? precisionSettings.a4Cols,
@@ -2613,6 +2628,8 @@ export default function BarcodePrinting() {
         yOffset: preset.yOffset ?? prev.yOffset,
         vGap: preset.vGap ?? prev.vGap,
         hGap: preset.hGap ?? prev.hGap ?? 0,
+        pitchX: preset.pitchX ?? preset.width ?? prev.pitchX,
+        pitchY: preset.pitchY ?? preset.height ?? prev.pitchY,
         ...(preset.a4Cols ? { a4Cols: preset.a4Cols } : {}),
         ...(preset.a4Rows ? { a4Rows: preset.a4Rows } : {}),
         thermalCols: preset.thermalCols || printModeToThermalCols(mode),
@@ -5318,6 +5335,8 @@ export default function BarcodePrinting() {
         leftOffsetMm: leftOffset,
         bottomOffsetMm: bottomOffset,
         rightOffsetMm: rightOffset,
+        pitchXMm: precisionSettings.pitchX,
+        pitchYMm: precisionSettings.pitchY,
         labelConfig,
         businessName,
         startPosition,
@@ -5414,6 +5433,8 @@ export default function BarcodePrinting() {
         leftOffsetMm: leftOffset,
         bottomOffsetMm: bottomOffset,
         rightOffsetMm: rightOffset,
+        pitchXMm: precisionSettings.pitchX,
+        pitchYMm: precisionSettings.pitchY,
         labelConfig,
         businessName,
         startPosition,
@@ -6422,10 +6443,11 @@ export default function BarcodePrinting() {
             </div>
             {(sheetType === "novajet40" || sheetType === "a4_40sheet" || sheetType === "a4_39x35_40sheet") && (
               <p className="text-xs text-muted-foreground mt-2 p-2 bg-muted/30 rounded border">
-                <strong>MPL 40L (39×35mm, 5×8, gap 0):</strong> Use Print / Perfect PDF — open the{" "}
+                <strong>MPL 40L (39×35mm, 5×8, pitch 39×35):</strong> Use Print / Perfect PDF — open the{" "}
                 <em>downloaded</em> PDF and print Actual Size 100% (no Fit / Shrink). Do not send through
-                Microsoft Print to PDF again. Die-cut white edge is ~8.5mm top/bottom and ~7.5mm left/right
-                (Top nudge 0 is correct). Portrait A4: 5 columns × 8 rows.
+                Microsoft Print to PDF again. Die-cut edge ~8.5mm top / ~7.5mm left. If column 5 drifts left,
+                raise <em>Pitch X</em> by 0.1mm; if lower rows drift up, raise <em>Pitch Y</em> by 0.1mm
+                (Precision Pro → Offsets & Pitch). Do not shrink label size to chase drift.
               </p>
             )}
             {isA4SheetType() && sheetType !== "custom" && (
@@ -7356,6 +7378,8 @@ export default function BarcodePrinting() {
                 yOffset: precisionSettings.yOffset,
                 vGap: precisionSettings.vGap,
                 hGap: precisionSettings.hGap,
+                pitchX: precisionSettings.pitchX,
+                pitchY: precisionSettings.pitchY,
                 labelWidth: precisionSettings.labelWidth,
                 labelHeight: precisionSettings.labelHeight,
                 thermalCols: precisionSettings.thermalCols,
@@ -7367,6 +7391,8 @@ export default function BarcodePrinting() {
                   yOffset: vals.yOffset,
                   vGap: vals.vGap,
                   hGap: vals.hGap,
+                  pitchX: vals.pitchX,
+                  pitchY: vals.pitchY,
                   labelWidth: vals.labelWidth,
                   labelHeight: vals.labelHeight,
                   thermalCols: vals.thermalCols || 1,
@@ -7718,6 +7744,8 @@ export default function BarcodePrinting() {
                   yOffset: precisionSettings.yOffset,
                   vGap: precisionSettings.vGap,
                   hGap: precisionSettings.hGap,
+                  pitchX: precisionSettings.pitchX,
+                  pitchY: precisionSettings.pitchY,
                   labelWidth: precisionSettings.labelWidth,
                   labelHeight: precisionSettings.labelHeight,
                   thermalCols: precisionSettings.thermalCols,
@@ -7729,6 +7757,8 @@ export default function BarcodePrinting() {
                     yOffset: vals.yOffset,
                     vGap: vals.vGap,
                     hGap: vals.hGap,
+                    pitchX: vals.pitchX,
+                    pitchY: vals.pitchY,
                     labelWidth: vals.labelWidth,
                     labelHeight: vals.labelHeight,
                     thermalCols: vals.thermalCols || 1,
@@ -7824,6 +7854,8 @@ export default function BarcodePrinting() {
                       yOffset={precisionSettings.yOffset}
                       vGap={precisionSettings.vGap}
                       columnGap={getA4ColumnGap()}
+                      pitchX={precisionSettings.pitchX}
+                      pitchY={precisionSettings.pitchY}
                       config={effectivePrecisionLabelConfig}
                       startPosition={startPosition}
                       productFieldSettings={productFieldSettings}
@@ -8043,6 +8075,8 @@ export default function BarcodePrinting() {
               yOffset={precisionSettings.yOffset}
               vGap={precisionSettings.vGap}
               columnGap={getA4ColumnGap()}
+              pitchX={precisionSettings.pitchX}
+              pitchY={precisionSettings.pitchY}
               config={effectivePrecisionLabelConfig}
               startPosition={startPosition}
               active={printPageActive}

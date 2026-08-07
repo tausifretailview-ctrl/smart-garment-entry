@@ -5,6 +5,8 @@ import {
   computeA4SheetMargins,
   resolveA4LayoutGap,
   resolveA4LabelWidthMm,
+  resolveA4PitchMm,
+  a4LabelCellOriginMm,
   novaJetBrandFromSheetType,
   A4_PAGE_WIDTH_MM,
   A4_PAGE_HEIGHT_MM,
@@ -72,6 +74,12 @@ export interface A4SheetOptions {
   leftOffsetMm?: number;
   bottomOffsetMm?: number;
   rightOffsetMm?: number;
+  /**
+   * Independent column/row pitch (mm). When omitted, pitch = labelSize + gap
+   * (MPL 40L → 39×35). Do not use gap to fix cumulative drift — adjust pitch.
+   */
+  pitchXMm?: number | null;
+  pitchYMm?: number | null;
   labelConfig: LabelDesignConfig;
   businessName?: string;
   /** Start printing from this 1-based slot on the first page (default 1).
@@ -96,6 +104,8 @@ export const generateA4LabelPdf = async (
     leftOffsetMm: rawLeftOffsetMm = 0,
     bottomOffsetMm: rawBottomOffsetMm = 0,
     rightOffsetMm: rawRightOffsetMm = 0,
+    pitchXMm: rawPitchXMm = null,
+    pitchYMm: rawPitchYMm = null,
     labelConfig, businessName = '',
     startPosition: rawStartPosition = 1,
     sheetType = null,
@@ -152,7 +162,16 @@ export const generateA4LabelPdf = async (
   const PAGE_H = mmToPt(A4_PAGE_HEIGHT_MM);
   const labelW = mmToPt(layoutWidthMm);
   const labelH = mmToPt(labelHeightMm);
-  const gap = mmToPt(layoutGapMm);
+  const { pitchXMm, pitchYMm } = resolveA4PitchMm({
+    labelWidthMm: layoutWidthMm,
+    labelHeightMm,
+    gapMm: layoutGapMm,
+    pitchXMm: rawPitchXMm,
+    pitchYMm: rawPitchYMm,
+    novaJetBrand,
+  });
+  // Sheet origin (offset). NovaJet brand uses manufacturer 7.5/8.5; others center
+  // on label+gap footprint. Pitch advances are independent of this origin.
   const { marginLeft: marginLeftMm, marginTop: marginTopMm } = computeA4SheetMargins(
     cols,
     rows,
@@ -162,8 +181,8 @@ export const generateA4LabelPdf = async (
     { top: topOffsetMm, left: leftOffsetMm, bottom: bottomOffsetMm, right: rightOffsetMm },
     novaJetBrand,
   );
-  const marginLeft = mmToPt(marginLeftMm);
-  const marginTop = mmToPt(marginTopMm);
+  const offsetX = marginLeftMm;
+  const offsetY = marginTopMm;
 
   // Discourage browser/Acrobat "Fit" / "Shrink oversized pages" — that skews
   // A4 label sheets (top row drifts one way, bottom the other).
@@ -192,8 +211,11 @@ export const generateA4LabelPdf = async (
       const col = i % cols;
       const row = Math.floor(i / cols);
 
-      const x = marginLeft + col * (labelW + gap);
-      const y = PAGE_H - marginTop - (row + 1) * labelH - row * gap;
+      // Absolute pitch: X = offsetX + col*pitchX, Y = offsetY + row*pitchY
+      // (PDF y is bottom-up — convert from top-left sheet coords).
+      const { xMm, yMm } = a4LabelCellOriginMm(col, row, offsetX, offsetY, pitchXMm, pitchYMm);
+      const x = mmToPt(xMm);
+      const y = PAGE_H - mmToPt(yMm) - labelH;
 
       // No cell borders on the print PDF — grey grid lines look like inter-label
       // "columns"/gaps and confuse alignment against the physical die-cut sheet.
