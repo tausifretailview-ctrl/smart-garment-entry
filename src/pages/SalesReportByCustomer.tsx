@@ -88,10 +88,17 @@ const SalesReportByCustomer = () => {
   const { currentOrganization } = useOrganization();
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>("all");
   const [selectedSalesman, setSelectedSalesman] = useState<string>("all");
-  // Default to current month start
-  const [startDate, setStartDate] = useState<Date>(startOfMonth(new Date()));
-  const [endDate, setEndDate] = useState<Date>(new Date());
+  // Calendar-day defaults — query keys use YMD strings so remount reuses cache.
+  const [startDate, setStartDate] = useState<Date>(() => startOfMonth(new Date()));
+  const [endDate, setEndDate] = useState<Date>(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
+  });
   const [currentPage, setCurrentPage] = useState(1);
+
+  const startDateYmd = format(startDate, "yyyy-MM-dd");
+  const endDateYmd = format(endDate, "yyyy-MM-dd");
 
   const salesReportFilterSnapshot = useMemo(
     () => ({
@@ -134,13 +141,13 @@ const SalesReportByCustomer = () => {
 
   // Fetch sales with lightweight query + caching
   const { data: sales = [], isLoading } = useQuery({
-    queryKey: ["sales-report", currentOrganization?.id, selectedCustomerId, selectedSalesman, startDate, endDate],
+    queryKey: ["sales-report", currentOrganization?.id, selectedCustomerId, selectedSalesman, startDateYmd, endDateYmd],
     queryFn: async () => {
       if (!currentOrganization?.id) return [];
       
       const filters: any = {};
-      if (startDate) filters.startDate = format(startDate, "yyyy-MM-dd");
-      if (endDate) filters.endDate = format(endDate, "yyyy-MM-dd");
+      filters.startDate = startDateYmd;
+      filters.endDate = endDateYmd;
       if (selectedCustomerId !== "all") filters.customerId = selectedCustomerId;
       if (selectedSalesman !== "all") filters.salesman = selectedSalesman;
       
@@ -162,12 +169,12 @@ const SalesReportByCustomer = () => {
 
   // RPC-powered summary (single JSON response instead of downloading all rows)
   const { data: summary } = useQuery({
-    queryKey: ["sales-report-summary-rpc", currentOrganization?.id, startDate, endDate, selectedCustomerId],
+    queryKey: ["sales-report-summary-rpc", currentOrganization?.id, startDateYmd, endDateYmd, selectedCustomerId],
     queryFn: async () => {
       if (!currentOrganization?.id) return null;
       const params: any = { p_organization_id: currentOrganization.id };
-      if (startDate) params.p_start_date = format(startDate, "yyyy-MM-dd");
-      if (endDate) params.p_end_date = format(endDate, "yyyy-MM-dd");
+      params.p_start_date = startDateYmd;
+      params.p_end_date = endDateYmd;
       if (selectedCustomerId !== "all") params.p_customer_id = selectedCustomerId;
       const { data, error } = await supabase.rpc("get_sales_report_summary", params);
       if (error) throw error;

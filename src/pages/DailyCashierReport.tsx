@@ -42,7 +42,12 @@ type PeriodType = "daily" | "monthly" | "quarterly";
 
 const DailyCashierReport = () => {
   const { currentOrganization } = useOrganization();
-  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  // Calendar-day default — query keys use YMD strings (not raw Date) so remount reuses cache.
+  const [selectedDate, setSelectedDate] = useState<Date>(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
+  });
   const [period, setPeriod] = useState<PeriodType>("daily");
 
   useDashboardFilterPersistence(
@@ -111,7 +116,7 @@ const DailyCashierReport = () => {
 
   // Fetch payment receipts (RCP) for selected period using range pagination
   const { data: receiptData, isLoading: receiptsLoading } = useQuery({
-    queryKey: ["cashier-report-receipts", currentOrganization?.id, selectedDate, period],
+    queryKey: ["cashier-report-receipts", currentOrganization?.id, rangeStartYmd, rangeEndYmd, period],
     queryFn: async () => {
       if (!currentOrganization?.id) return null;
 
@@ -132,7 +137,7 @@ const DailyCashierReport = () => {
 
   // Fetch student fee collections for selected period (school ERP)
   const { data: feeCollectionData, isLoading: feesLoading } = useQuery({
-    queryKey: ["cashier-report-fee-collections", currentOrganization?.id, selectedDate, period],
+    queryKey: ["cashier-report-fee-collections", currentOrganization?.id, rangeStartYmd, rangeEndYmd, period],
     queryFn: async () => {
       if (!currentOrganization?.id) return [];
       const startDateStr = format(startDate, 'yyyy-MM-dd');
@@ -154,7 +159,7 @@ const DailyCashierReport = () => {
 
   // Fetch cash refund sale returns for selected period
   const { data: cashRefundData, isLoading: refundsLoading } = useQuery({
-    queryKey: ["cashier-report-cash-refunds", currentOrganization?.id, selectedDate, period],
+    queryKey: ["cashier-report-cash-refunds", currentOrganization?.id, rangeStartYmd, rangeEndYmd, period],
     queryFn: async () => {
       if (!currentOrganization?.id) return [];
 
@@ -186,7 +191,7 @@ const DailyCashierReport = () => {
 
   // Fetch expense vouchers for selected period
   const { data: expenseData, isLoading: expensesLoading } = useQuery({
-    queryKey: ["cashier-report-expenses", currentOrganization?.id, selectedDate, period],
+    queryKey: ["cashier-report-expenses", currentOrganization?.id, rangeStartYmd, rangeEndYmd, period],
     queryFn: async () => {
       if (!currentOrganization?.id) return [];
       const startDateStr = format(startDate, 'yyyy-MM-dd');

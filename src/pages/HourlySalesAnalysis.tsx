@@ -65,13 +65,17 @@ const getTimeOfDayLabel = (hour: number): string => {
 
 export default function HourlySalesAnalysis() {
   const { currentOrganization } = useOrganization();
-  const [dateRange, setDateRange] = useState<{ from: Date; to: Date }>({
-    from: subDays(new Date(), 7),
-    to: new Date()
-  });
+  const [dateRange, setDateRange] = useState<{ from: Date; to: Date }>(() => ({
+    from: startOfDay(subDays(new Date(), 7)),
+    to: startOfDay(new Date()),
+  }));
+
+  // Key by calendar day — remount must not mint a new cache entry for the same range.
+  const rangeFromYmd = format(dateRange.from, "yyyy-MM-dd");
+  const rangeToYmd = format(dateRange.to, "yyyy-MM-dd");
 
   const { data: hourlyData, isLoading } = useQuery({
-    queryKey: ["hourly-sales", currentOrganization?.id, dateRange.from, dateRange.to],
+    queryKey: ["hourly-sales", currentOrganization?.id, rangeFromYmd, rangeToYmd],
     queryFn: async () => {
       if (!currentOrganization) return [];
 
