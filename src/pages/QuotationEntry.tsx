@@ -131,6 +131,7 @@ export default function QuotationEntry() {
   const [entryMode, setEntryMode] = useState<"grid" | "inline">("grid");
   const [entryModeInitialized, setEntryModeInitialized] = useState(false);
   const [showSizeGrid, setShowSizeGrid] = useState(false);
+  const [sizeGridLoading, setSizeGridLoading] = useState(false);
   const [sizeGridProduct, setSizeGridProduct] = useState<any>(null);
   const [sizeGridVariants, setSizeGridVariants] = useState<any[]>([]);
 
@@ -409,6 +410,13 @@ export default function QuotationEntry() {
     if (!currentOrganization?.id || productIds.length === 0) return;
 
     const primaryProductId = productIds[0];
+    setSizeGridProduct({ id: primaryProductId, product_name: "Loading…" });
+    setSizeGridVariants([]);
+    setSizeGridLoading(true);
+    setShowSizeGrid(true);
+    setOpenProductSearch(false);
+    setSearchInput("");
+
     const { data: productRow, error: productError } = await supabase
       .from("products")
       .select("id, product_name, brand, category, style, color, hsn_code, gst_per, size_group_id")
@@ -417,6 +425,8 @@ export default function QuotationEntry() {
       .maybeSingle();
 
     if (productError || !productRow) {
+      setShowSizeGrid(false);
+      setSizeGridLoading(false);
       toast({ title: "Product not found", variant: "destructive" });
       return;
     }
@@ -430,6 +440,8 @@ export default function QuotationEntry() {
       .is("deleted_at", null);
 
     if (error || !data?.length) {
+      setShowSizeGrid(false);
+      setSizeGridLoading(false);
       toast({
         title: "No variants found",
         description: "This product has no active variants.",
@@ -456,9 +468,7 @@ export default function QuotationEntry() {
         defaultColor: productRow.color || "",
       }),
     );
-    setShowSizeGrid(true);
-    setOpenProductSearch(false);
-    setSearchInput("");
+    setSizeGridLoading(false);
   }, [currentOrganization?.id, lineItems, toast, setOpenProductSearch, setSearchInput]);
 
   const handleSizeGridConfirm = (items: Array<{ variant: any; qty: number }>) => {
@@ -1556,13 +1566,14 @@ export default function QuotationEntry() {
 
       <SizeGridDialog
         open={showSizeGrid}
-        onClose={() => setShowSizeGrid(false)}
+        onClose={() => { setShowSizeGrid(false); setSizeGridLoading(false); }}
         product={sizeGridProduct}
         variants={sizeGridVariants}
         onConfirm={handleSizeGridConfirm}
         showStock
         validateStock={false}
         title="Enter Size-wise Qty"
+        isLoading={sizeGridLoading}
       />
     </div>
   );

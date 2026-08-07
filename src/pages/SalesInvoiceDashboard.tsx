@@ -406,6 +406,7 @@ export default function SalesInvoiceDashboard() {
 
   const [invoiceToPrint, setInvoiceToPrint] = useState<any>(null);
   const [showPrintPreview, setShowPrintPreview] = useState(false);
+  const [previewHydrating, setPreviewHydrating] = useState(false);
   const [billFormat, setBillFormat] = useState<'a4' | 'a5' | 'a5-horizontal' | 'thermal' | null>(null);
   const [invoiceTemplate, setInvoiceTemplate] = useState<string>('professional');
   const [showInvoicePreviewSetting, setShowInvoicePreviewSetting] = useState(true);
@@ -546,10 +547,8 @@ export default function SalesInvoiceDashboard() {
       {
         label: "Print Invoice",
         icon: Printer,
-        onClick: async () => {
-          const invoiceWithItems = await ensureSaleItems(invoice);
-          setInvoiceToPrint(invoiceWithItems);
-          setShowPrintPreview(true);
+        onClick: () => {
+          void handleViewInvoicePreview(invoice);
         },
       },
       {
@@ -2154,6 +2153,16 @@ export default function SalesInvoiceDashboard() {
   const renderInvoiceForPreview = useCallback(
     (format: string) => {
       if (!invoiceToPrint) return null;
+      const needsItems =
+        previewHydrating &&
+        (!invoiceToPrint.sale_items || invoiceToPrint.sale_items.length === 0);
+      if (needsItems) {
+        return (
+          <div data-invoice-loading className="p-6 text-sm text-muted-foreground">
+            Loading preview…
+          </div>
+        );
+      }
       return (
         <InvoiceWrapper
           format={format}
@@ -2188,13 +2197,19 @@ export default function SalesInvoiceDashboard() {
         />
       );
     },
-    [getInvoicePreviewItems, invoiceTemplate, invoiceToPrint, settings?.sale_settings],
+    [getInvoicePreviewItems, invoiceTemplate, invoiceToPrint, previewHydrating, settings?.sale_settings],
   );
 
   const handleViewInvoicePreview = async (invoice: any) => {
-    const invoiceWithItems = await ensureSaleItems(invoice);
-    setInvoiceToPrint(invoiceWithItems);
+    setInvoiceToPrint(invoice);
+    setPreviewHydrating(true);
     setShowPrintPreview(true);
+    try {
+      const invoiceWithItems = await ensureSaleItems(invoice);
+      setInvoiceToPrint(invoiceWithItems);
+    } finally {
+      setPreviewHydrating(false);
+    }
   };
 
   const waitForInvoicePrintDom = useCallback((): Promise<HTMLElement | null> => {
@@ -4246,7 +4261,10 @@ export default function SalesInvoiceDashboard() {
                         <>
                           <TableRow 
                             key={invoice.id} 
-                            className="min-h-11 cursor-pointer border-b border-slate-100"
+                            className={cn(
+                              "min-h-11 cursor-pointer border-b border-slate-100 active:bg-slate-100/80",
+                              expandedRows.has(invoice.id) && "bg-slate-50",
+                            )}
                             onContextMenu={(e) => handleRowContextMenu(e, invoice)}
                           >
                             <TableCell onClick={(e) => e.stopPropagation()}>

@@ -588,6 +588,7 @@ export default function SalesInvoice() {
   const [entryMode, setEntryMode] = useState<"grid" | "inline">("grid");
   const [sizeGridEnabled, setSizeGridEnabled] = useState(true);
   const [showSizeGrid, setShowSizeGrid] = useState(false);
+  const [sizeGridLoading, setSizeGridLoading] = useState(false);
   const [showPriceSelectionDialog, setShowPriceSelectionDialog] = useState(false);
   const [pendingPriceSelection, setPendingPriceSelection] = useState<any>(null);
   const [showQuickServiceDialog, setShowQuickServiceDialog] = useState(false);
@@ -1597,6 +1598,12 @@ export default function SalesInvoice() {
   const openSizeGridForProduct = async (product: any, selectedSalePrice?: number) => {
     if (!currentOrganization) return;
 
+    // Acknowledge click immediately; hydrate variants into the open dialog.
+    setSizeGridProduct(product);
+    setSizeGridVariants([]);
+    setSizeGridLoading(true);
+    setShowSizeGrid(true);
+
     // Fetch variants ONLY for the specific product the user selected.
     // (Earlier code broadened this to all products with same name+brand, which caused
     //  cross-product dedup bugs when tenants had duplicate product records.)
@@ -1612,6 +1619,8 @@ export default function SalesInvoice() {
       .is("deleted_at", null);
 
     if (error || !data || data.length === 0) {
+      setShowSizeGrid(false);
+      setSizeGridLoading(false);
       toast({
         title: "No variants found",
         description: "This product has no active variants.",
@@ -1633,9 +1642,8 @@ export default function SalesInvoice() {
       defaultColor: product.color || "",
     });
 
-    setSizeGridProduct(product);
     setSizeGridVariants(mergedVariants);
-    setShowSizeGrid(true);
+    setSizeGridLoading(false);
 
     // Safety net: if the dropdown advertised stock for a specific size but the size-grid
     // computed zero or less for that same size+color, log it. This means the dedup/merge
@@ -3890,7 +3898,7 @@ Thank you for choosing us!`;
             <AlertDialogFooter><AlertDialogCancel onClick={handleClosePrintDialog}>Skip</AlertDialogCancel><AlertDialogAction onClick={(e) => { e.preventDefault(); handlePrintInvoice(); }}>Print</AlertDialogAction></AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
-        <SizeGridDialog open={showSizeGrid} onClose={() => setShowSizeGrid(false)} product={sizeGridProduct} variants={sizeGridVariants} onConfirm={handleSizeGridConfirm} showStock validateStock title="Enter Size-wise Qty" />
+        <SizeGridDialog open={showSizeGrid} onClose={() => { setShowSizeGrid(false); setSizeGridLoading(false); }} product={sizeGridProduct} variants={sizeGridVariants} onConfirm={handleSizeGridConfirm} showStock validateStock title="Enter Size-wise Qty" isLoading={sizeGridLoading} />
         <div style={{ position: 'absolute', left: '-9999px', top: 0 }}>
           {savedInvoiceData?.invoiceNumber && (savedInvoiceData?.filledItems?.length ?? 0) > 0 ? (
             <InvoiceWrapper ref={printRef} billNo={savedInvoiceData.invoiceNumber} date={invoiceDate} customerName={savedInvoiceData?.customer?.customer_name || selectedCustomer?.customer_name || ""} customerAddress={savedInvoiceData?.customer?.address || ""} customerMobile={savedInvoiceData?.customer?.phone || ""} customerGSTIN={savedInvoiceData?.customer?.gst_number || ""} customerTransportDetails="" items={(savedInvoiceData.filledItems).map((item: any, index: number) => ({ sr: index + 1, particulars: item.productName, size: item.size, barcode: item.barcode || "", hsn: item.hsnCode || "", sp: item.salePrice, mrp: item.mrp, qty: item.quantity, rate: item.salePrice, total: item.lineTotal, color: item.color || "", gstPercent: item.gstPercent || 0, discountPercent: item.discountPercent || 0 }))} subTotal={savedInvoiceData?.grossAmount ?? grossAmount} discount={savedInvoiceData?.totalDiscount ?? totalDiscount} grandTotal={savedInvoiceData?.netAmount ?? netAmount} notes={savedInvoiceData?.notes ?? notes} otherCharges={savedInvoiceData?.otherCharges ?? otherCharges} roundOff={roundOff} paymentMethod="Cash" taxType={taxType} financerDetails={financerDetails} />
@@ -5392,13 +5400,14 @@ Thank you for choosing us!`;
       {/* Size Grid Dialog */}
       <SizeGridDialog
         open={showSizeGrid}
-        onClose={() => setShowSizeGrid(false)}
+        onClose={() => { setShowSizeGrid(false); setSizeGridLoading(false); }}
         product={sizeGridProduct}
         variants={sizeGridVariants}
         onConfirm={handleSizeGridConfirm}
         showStock={true}
         validateStock={true}
         title="Enter Size-wise Qty (Stock Validated)"
+        isLoading={sizeGridLoading}
       />
 
 

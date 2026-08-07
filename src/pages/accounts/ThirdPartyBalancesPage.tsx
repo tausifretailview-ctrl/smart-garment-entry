@@ -306,7 +306,7 @@ export default function ThirdPartyBalancesPage() {
                       return (
                         <TableRow
                           key={row.accountId}
-                          className="h-11 cursor-pointer hover:bg-teal-50/80 dark:hover:bg-teal-950/20"
+                          className="h-11 cursor-pointer hover:bg-teal-50/80 dark:hover:bg-teal-950/20 active:bg-teal-100/80 dark:active:bg-teal-950/40"
                           onClick={() => {
                             setLedgerFrom("2000-01-01");
                             setLedgerTo(format(new Date(), "yyyy-MM-dd"));

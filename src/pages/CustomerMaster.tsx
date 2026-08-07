@@ -646,12 +646,15 @@ const CustomerMaster = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (createCustomer.isPending || updateCustomer.isPending) return;
     if (editingCustomer) {
       updateCustomer.mutate({ id: editingCustomer.id, data: formData });
     } else {
       createCustomer.mutate(formData);
     }
   };
+
+  const customerSubmitPending = createCustomer.isPending || updateCustomer.isPending;
 
   const handleEdit = (customer: Customer) => {
     setEditingCustomer(customer);
@@ -1455,7 +1458,13 @@ const CustomerMaster = () => {
                 </div>
                 <Switch checked={formData.portal_enabled} onCheckedChange={(checked) => setFormData({ ...formData, portal_enabled: !!checked })} />
               </div>
-              <Button type="submit" className="w-full">{editingCustomer ? "Update" : "Create"} Customer</Button>
+              <Button type="submit" className="w-full" disabled={customerSubmitPending}>
+                {customerSubmitPending
+                  ? editingCustomer
+                    ? "Updating…"
+                    : "Creating…"
+                  : `${editingCustomer ? "Update" : "Create"} Customer`}
+              </Button>
             </form>
           </DialogContent>
         </Dialog>
@@ -1671,7 +1680,13 @@ const CustomerMaster = () => {
                       </div>
                       <Switch checked={formData.portal_enabled} onCheckedChange={(checked) => setFormData({ ...formData, portal_enabled: !!checked })} />
                     </div>
-                    <Button type="submit" className="w-full h-9">{editingCustomer ? "Update" : "Create"} Customer</Button>
+                    <Button type="submit" className="w-full h-9" disabled={customerSubmitPending}>
+                      {customerSubmitPending
+                        ? editingCustomer
+                          ? "Updating…"
+                          : "Creating…"
+                        : `${editingCustomer ? "Update" : "Create"} Customer`}
+                    </Button>
                   </form>
                 </DialogContent>
               </Dialog>

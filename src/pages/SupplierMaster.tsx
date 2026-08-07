@@ -448,12 +448,15 @@ const SupplierMaster = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (createSupplier.isPending || updateSupplier.isPending) return;
     if (editingSupplier) {
       updateSupplier.mutate({ id: editingSupplier.id, data: formData });
     } else {
       createSupplier.mutate(formData);
     }
   };
+
+  const supplierSubmitPending = createSupplier.isPending || updateSupplier.isPending;
 
   const handleEdit = (supplier: Supplier) => {
     setEditingSupplier(supplier);
@@ -1020,7 +1023,13 @@ const SupplierMaster = () => {
                       <Input id="opening_balance" type="number" step="0.01" value={formData.opening_balance} onChange={(e) => setFormData({ ...formData, opening_balance: e.target.value })} placeholder="Payable to supplier" className="h-9" />
                       <p className="text-[10px] text-muted-foreground mt-0.5">Positive = Payable to supplier</p>
                     </div>
-                    <Button type="submit" className="w-full h-9">{editingSupplier ? "Update" : "Create"} Supplier</Button>
+                    <Button type="submit" className="w-full h-9" disabled={supplierSubmitPending}>
+                      {supplierSubmitPending
+                        ? editingSupplier
+                          ? "Updating…"
+                          : "Creating…"
+                        : `${editingSupplier ? "Update" : "Create"} Supplier`}
+                    </Button>
                   </form>
                 </DialogContent>
               </Dialog>

@@ -694,6 +694,7 @@ const PurchaseEntry = () => {
   const [searchResults, setSearchResults] = useState<ProductVariant[]>([]);
   const [showSearch, setShowSearch] = useState(false);
   const [showSizeGrid, setShowSizeGrid] = useState(false);
+  const [sizeGridLoading, setSizeGridLoading] = useState(false);
   const [repurchaseMode, setRepurchaseMode] = useState(false);
   const [showRepurchaseDialog, setShowRepurchaseDialog] = useState(false);
   const [repurchaseProduct, setRepurchaseProduct] = useState<RepurchaseProductInfo | null>(null);
@@ -3460,6 +3461,11 @@ const PurchaseEntry = () => {
 
   const openSizeGridModal = async (productId: string) => {
     if (!currentOrganization) return;
+
+    setSelectedProduct({ id: productId, product_name: "Loading…" });
+    setSizeGridVariants([]);
+    setSizeGridLoading(true);
+    setShowSizeGrid(true);
     
     const { data, error } = await supabase
       .from("product_variants")
@@ -3497,6 +3503,8 @@ const PurchaseEntry = () => {
       .eq("active", true);
 
     if (error || !data || data.length === 0) {
+      setShowSizeGrid(false);
+      setSizeGridLoading(false);
       toast({
         title: "Error",
         description: "Failed to load product variants",
@@ -3505,8 +3513,10 @@ const PurchaseEntry = () => {
       return;
     }
 
-    // If only one variant, add directly
+    // If only one variant, add directly (close the loading dialog first)
     if (data.length === 1) {
+      setShowSizeGrid(false);
+      setSizeGridLoading(false);
       const v = data[0];
       const product = v.products as any;
       let barcode = v.barcode || "";
@@ -3580,6 +3590,8 @@ const PurchaseEntry = () => {
     const productData = data[0].products as any;
     const productUom = productData?.uom || 'NOS';
     if (rollWiseMtrEntry && productUom === 'MTR') {
+      setShowSizeGrid(false);
+      setSizeGridLoading(false);
       // Collect unique colors from variants
       const uniqueColors = [...new Set(mappedVariants.map((v: any) => v.color || '').filter(Boolean))];
       if (uniqueColors.length === 0) uniqueColors.push(productData?.color || 'DEFAULT');
@@ -3590,11 +3602,11 @@ const PurchaseEntry = () => {
       return;
     }
 
-    // Show size grid modal
+    // Show size grid modal (already open with loading skeleton)
     setSelectedProduct(productData);
     setSizeGridVariants(mappedVariants);
     setSizeQty({});
-    setShowSizeGrid(true);
+    setSizeGridLoading(false);
   };
 
   const openRepurchaseDialog = async (productId: string) => {
@@ -7093,7 +7105,7 @@ const PurchaseEntry = () => {
             await handleSave();
           }}
         />
-        <SizeGridDialog open={showSizeGrid} onClose={() => setShowSizeGrid(false)} product={selectedProduct} variants={sizeGridVariants} onConfirm={handleSizeGridConfirm} reviewMode={sizeGridReviewMode} showPurPrice={sizeGridReviewMode} showSizePrices={sizeGridReviewMode} showMrp={sizeGridReviewMode ? true : showMrp} />
+        <SizeGridDialog open={showSizeGrid} onClose={() => { setShowSizeGrid(false); setSizeGridLoading(false); }} product={selectedProduct} variants={sizeGridVariants} onConfirm={handleSizeGridConfirm} reviewMode={sizeGridReviewMode} showPurPrice={sizeGridReviewMode} showSizePrices={sizeGridReviewMode} showMrp={sizeGridReviewMode ? true : showMrp} isLoading={sizeGridLoading} />
         <RepurchaseDialog
           open={showRepurchaseDialog}
           onClose={() => {
@@ -8152,7 +8164,7 @@ const PurchaseEntry = () => {
         {/* Size Grid Dialog with Color Selection */}
         <SizeGridDialog
           open={showSizeGrid}
-          onClose={() => setShowSizeGrid(false)}
+          onClose={() => { setShowSizeGrid(false); setSizeGridLoading(false); }}
           product={selectedProduct}
           variants={sizeGridVariants}
           onConfirm={handleSizeGridConfirm}
@@ -8168,6 +8180,7 @@ const PurchaseEntry = () => {
           showMrp={sizeGridReviewMode ? true : showMrp}
           showSizePrices={sizeGridReviewMode ? true : false}
           reviewMode={sizeGridReviewMode}
+          isLoading={sizeGridLoading}
           showPurPrice={sizeGridReviewMode}
         />
 

@@ -26,6 +26,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Loader2, CheckCircle2, IndianRupee, Receipt } from "lucide-react";
+import { ListSkeleton } from "@/components/ui/skeletons";
 import { useToast } from "@/hooks/use-toast";
 import {
   applyCreditNoteFifoToSale,
@@ -545,8 +546,8 @@ export function SettleCustomerAccountDialog({
                     </Button>
                   </div>
                   {invoicesLoading ? (
-                    <div className="flex justify-center py-8">
-                      <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                    <div className="py-2" aria-busy="true">
+                      <ListSkeleton items={4} showIcon={false} />
                     </div>
                   ) : !pendingInvoices?.length ? (
                     <p className="text-sm text-muted-foreground text-center py-6">No pending invoices.</p>

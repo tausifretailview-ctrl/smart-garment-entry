@@ -424,14 +424,6 @@ export default function SalesAnalyticsDashboard() {
     return null;
   };
 
-  if (salesLoading) {
-    return (
-      <div className="business-insights-workspace flex flex-col bg-slate-50 px-2 sm:px-3 py-2 min-h-0 h-full overflow-hidden">
-        <ReportPageSkeleton kpiCount={4} chartBlocks={2} tableRows={6} className="flex-1 min-h-0" />
-      </div>
-    );
-  }
-
   return (
     <div className="business-insights-workspace relative flex flex-col bg-slate-50 px-2 sm:px-3 py-2 min-h-0 h-full overflow-hidden">
       <QuietRefreshBar
@@ -500,6 +492,10 @@ export default function SalesAnalyticsDashboard() {
           </div>
         </div>
 
+        {salesLoading ? (
+          <ReportPageSkeleton kpiCount={4} chartBlocks={2} tableRows={6} className="flex-1 min-h-0" />
+        ) : (
+          <>
         {/* Summary KPIs */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 w-full shrink-0">
           <InsightsKpiCard
@@ -885,6 +881,8 @@ export default function SalesAnalyticsDashboard() {
             />
           </TabsContent>
         </Tabs>
+          </>
+        )}
       </div>
     </div>
   );

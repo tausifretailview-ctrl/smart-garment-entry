@@ -242,8 +242,9 @@ export function ERPTable<T>({
                           className={cn(
                             rowHeight,
                             "border-b border-muted/80 hover:bg-primary/5 transition-colors",
-                            onRowClick && "cursor-pointer",
-                            hasSubRows && "cursor-pointer",
+                            onRowClick && "cursor-pointer active:bg-primary/10",
+                            hasSubRows && "cursor-pointer active:bg-primary/10",
+                            isExpanded && "bg-primary/5",
                             getRowClassName?.(row.original)
                           )}
                           onClick={() => {

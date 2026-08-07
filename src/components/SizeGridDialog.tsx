@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, X } from "lucide-react";
 import { compareSizes } from "@/utils/sizeSort";
@@ -61,6 +62,8 @@ interface SizeGridDialogProps {
   onColorAdded?: (color: string) => void;
   reviewMode?: boolean;
   showPurPrice?: boolean;
+  /** When true, dialog is open while variants are still loading. */
+  isLoading?: boolean;
 }
 
 export function SizeGridDialog({
@@ -83,6 +86,7 @@ export function SizeGridDialog({
   onColorAdded,
   reviewMode = false,
   showPurPrice = false,
+  isLoading = false,
 }: SizeGridDialogProps) {
   const { toast } = useToast();
   const [sizeQty, setSizeQty] = useState<{ [size: string]: string }>({});
@@ -592,9 +596,20 @@ export function SizeGridDialog({
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
 
+        {isLoading ? (
+          <div className="space-y-3 py-2" aria-busy="true" aria-label="Loading sizes">
+            <Skeleton className="h-6 w-48" />
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <Skeleton key={i} className="h-14 w-full" />
+              ))}
+            </div>
+          </div>
+        ) : (
+          <>
         <div className="mb-4">
           <div className="flex items-center justify-between">
-            <h3 className="font-semibold text-lg">{product.product_name}</h3>
+            <h3 className="font-semibold text-lg">{product?.product_name || "…"}</h3>
             {/* Add Colour Button - Prominently at top for multi-color mode */}
             {allowMultiColor && hasMultipleColors && allowAddColor && !showAddColor && (
               <Button
@@ -1301,19 +1316,21 @@ export function SizeGridDialog({
             )}
           </>
         )}
+          </>
+        )}
 
         <div className="flex justify-end gap-2">
           <Button variant="outline" onClick={onClose}>
             Cancel (Esc)
           </Button>
         {/* Multi-color mode confirm button */}
-          {allowMultiColor && hasMultipleColors && totalQty > 0 && (
+          {!isLoading && allowMultiColor && hasMultipleColors && totalQty > 0 && (
             <Button onClick={handleConfirm}>
               {reviewMode ? "Add to Bill (Ctrl+A / Enter)" : "Confirm (Enter)"}
             </Button>
           )}
           {/* Single-color mode confirm button - show when in single-color mode (either disabled multi-color OR single-color product) */}
-          {(!allowMultiColor || !hasMultipleColors) && (selectedColor || !hasMultipleColors) && (filteredVariants.length > 0 || customSizes.length > 0) && (
+          {!isLoading && (!allowMultiColor || !hasMultipleColors) && (selectedColor || !hasMultipleColors) && (filteredVariants.length > 0 || customSizes.length > 0) && (
             <Button onClick={handleConfirm}>
               {reviewMode ? "Add to Bill (Ctrl+A / Enter)" : "Confirm (Enter)"}
             </Button>

@@ -153,6 +153,7 @@ export default function SaleOrderEntry() {
   const [entryMode, setEntryMode] = useState<"grid" | "inline">("grid");
   const [entryModeInitialized, setEntryModeInitialized] = useState(false);
   const [showSizeGrid, setShowSizeGrid] = useState(false);
+  const [sizeGridLoading, setSizeGridLoading] = useState(false);
   const [sizeGridProduct, setSizeGridProduct] = useState<any>(null);
   const [sizeGridVariants, setSizeGridVariants] = useState<any[]>([]);
 
@@ -534,6 +535,13 @@ export default function SaleOrderEntry() {
     if (!currentOrganization?.id || productIds.length === 0) return;
 
     const primaryProductId = productIds[0];
+    setSizeGridProduct({ id: primaryProductId, product_name: "Loading…" });
+    setSizeGridVariants([]);
+    setSizeGridLoading(true);
+    setShowSizeGrid(true);
+    setOpenProductSearch(false);
+    setSearchInput("");
+
     const { data: productRow, error: productError } = await supabase
       .from("products")
       .select("id, product_name, brand, category, style, color, hsn_code, gst_per, uom, size_group_id")
@@ -542,6 +550,8 @@ export default function SaleOrderEntry() {
       .maybeSingle();
 
     if (productError || !productRow) {
+      setShowSizeGrid(false);
+      setSizeGridLoading(false);
       toast({
         title: "Product not found",
         variant: "destructive",
@@ -558,6 +568,8 @@ export default function SaleOrderEntry() {
       .is("deleted_at", null);
 
     if (error || !data?.length) {
+      setShowSizeGrid(false);
+      setSizeGridLoading(false);
       toast({
         title: "No variants found",
         description: "This product has no active variants.",
@@ -584,10 +596,8 @@ export default function SaleOrderEntry() {
         defaultColor: productRow.color || "",
       }),
     );
-    setShowSizeGrid(true);
-    setOpenProductSearch(false);
-    setSearchInput("");
-  }, [currentOrganization?.id, lineItems, toast]);
+    setSizeGridLoading(false);
+  }, [currentOrganization?.id, lineItems, toast, setOpenProductSearch, setSearchInput]);
 
   // Handle size grid confirmation
   const handleSizeGridConfirm = (items: Array<{ variant: any; qty: number }>) => {
@@ -1962,6 +1972,7 @@ export default function SaleOrderEntry() {
         open={showSizeGrid}
         onClose={() => {
           setShowSizeGrid(false);
+          setSizeGridLoading(false);
           focusProductSearchBar();
         }}
         product={sizeGridProduct}
@@ -1972,6 +1983,7 @@ export default function SaleOrderEntry() {
         allowMultiColor={true}
         showSizePrices={false}
         title="Enter Color & Size-wise Qty"
+        isLoading={sizeGridLoading}
       />
 
 
