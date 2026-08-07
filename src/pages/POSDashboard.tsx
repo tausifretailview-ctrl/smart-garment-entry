@@ -100,7 +100,7 @@ import {
 } from "@/utils/posSalesRefresh";
 import { isSaleInvoiceCancelled } from "@/utils/saleInvoiceStatus";
 import { syncSalePaymentFromVouchers } from "@/utils/customerBalanceUtils";
-import { confirmInvoiceOverpaymentIfNeeded } from "@/utils/invoiceOverpaymentGuard";
+import { assertCustomerPaymentWithinOutstandingCap } from "@/utils/invoiceOverpaymentGuard";
 import {
   getEffectivePaidAmountForPosDashboard,
   getPosSaleOutstandingBalance,
@@ -1870,13 +1870,18 @@ const POSDashboard = () => {
     const currentPaid = getEffectivePaidAmountForDashboard(selectedSaleForPayment);
     const currentCNAdjust = selectedSaleForPayment.sale_return_adjust || 0;
 
-    const overpayConfirmed = await confirmInvoiceOverpaymentIfNeeded(supabase, {
-      organizationId: currentOrganization!.id,
-      saleId: selectedSaleForPayment.id,
-      saleNumber: selectedSaleForPayment.sale_number,
-      proposedSettlement: amount,
-    });
-    if (!overpayConfirmed) {
+    try {
+      await assertCustomerPaymentWithinOutstandingCap(supabase, {
+        organizationId: currentOrganization!.id,
+        saleIds: [selectedSaleForPayment.id],
+        proposedSettlement: amount,
+      });
+    } catch (overpayErr) {
+      toast({
+        title: "Amount too high",
+        description: overpayErr instanceof Error ? overpayErr.message : "Payment exceeds outstanding",
+        variant: "destructive",
+      });
       return;
     }
 

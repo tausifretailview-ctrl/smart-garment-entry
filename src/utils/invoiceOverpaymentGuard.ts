@@ -1,14 +1,20 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { QueryClient } from "@tanstack/react-query";
 import {
   fetchSaleReceiptSplitsForInvoices,
   reconcileSaleInvoiceWithSplit,
 } from "@/utils/customerBalanceUtils";
+import { fetchCustomerOpeningBalanceRemaining } from "@/utils/customerOpeningBalanceRemaining";
 
-/** Warn when proposed settlement exceeds fresh outstanding by more than this (rupees). */
+/** Block when proposed settlement exceeds fresh outstanding by more than this (rupees). */
 export const INVOICE_OVERPAYMENT_WARN_TOLERANCE_RUPEE = 1;
 
 const fmtInr = (n: number) =>
   `₹${Math.max(0, n).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+function roundMoney(n: number): number {
+  return Math.round(n * 100) / 100;
+}
 
 export type FreshInvoiceSettlement = {
   saleId: string;
@@ -55,53 +61,101 @@ export async function fetchFreshInvoiceSettlement(
   };
 }
 
-export function formatInvoiceOverpaymentConfirmMessage(params: {
-  saleNumber: string;
-  netAmount: number;
-  paidSettled: number;
-  proposedSettlement: number;
-  excess: number;
-}): string {
-  const { saleNumber, netAmount, paidSettled, proposedSettlement, excess } = params;
-  return (
-    `Invoice ${saleNumber} already has ${fmtInr(paidSettled)} paid of ${fmtInr(netAmount)}.\n` +
-    `This payment of ${fmtInr(proposedSettlement)} exceeds the balance by ${fmtInr(excess)} and will create an advance.\n\n` +
-    `Continue?`
-  );
+/** True when proposed exceeds cap by more than the ₹1 tolerance. */
+export function paymentExceedsOutstandingCap(
+  proposedSettlement: number,
+  outstandingCap: number,
+  toleranceRupee: number = INVOICE_OVERPAYMENT_WARN_TOLERANCE_RUPEE,
+): boolean {
+  const proposed = Math.max(0, Number(proposedSettlement) || 0);
+  const cap = Math.max(0, Number(outstandingCap) || 0);
+  return proposed - cap > toleranceRupee;
+}
+
+export function formatPaymentExceedsOutstandingMessage(outstandingCap: number): string {
+  return `Amount exceeds total outstanding of ${fmtInr(outstandingCap)}`;
+}
+
+export class PaymentExceedsOutstandingError extends Error {
+  readonly outstandingCap: number;
+
+  constructor(outstandingCap: number) {
+    super(formatPaymentExceedsOutstandingMessage(outstandingCap));
+    this.name = "PaymentExceedsOutstandingError";
+    this.outstandingCap = outstandingCap;
+  }
 }
 
 /**
- * Fresh server-side remaining balance check + warn/confirm before allocating to an invoice.
- * Returns true to proceed, false if user cancelled.
+ * Fresh cap = sum of selected invoice outstandings (+ opening-balance remaining when requested).
+ * Uses the same reconcile basis as receipt allocation (`fetchFreshInvoiceSettlement`).
  */
-export async function confirmInvoiceOverpaymentIfNeeded(
+export async function fetchFreshCustomerPaymentCap(
   client: SupabaseClient,
   params: {
     organizationId: string;
-    saleId: string;
-    saleNumber?: string;
-    /** Cash + settlement discount being applied to this invoice. */
-    proposedSettlement: number;
+    saleIds: string[];
+    customerId?: string | null;
+    includeOpeningBalance?: boolean;
+    queryClient?: QueryClient;
   },
-): Promise<boolean> {
+): Promise<number> {
+  const saleIds = [...new Set(params.saleIds.filter(Boolean))];
+  let cap = 0;
+
+  if (saleIds.length > 0) {
+    const settlements = await Promise.all(
+      saleIds.map((id) => fetchFreshInvoiceSettlement(client, params.organizationId, id)),
+    );
+    for (const s of settlements) {
+      if (s) cap += Math.max(0, s.outstanding);
+    }
+  }
+
+  if (params.includeOpeningBalance && params.customerId) {
+    const ob = await fetchCustomerOpeningBalanceRemaining(
+      client,
+      params.organizationId,
+      params.customerId,
+      params.queryClient,
+    );
+    cap += Math.max(0, ob);
+  }
+
+  return roundMoney(cap);
+}
+
+/**
+ * Pre-write guarantee: re-derive outstanding from live data and throw if the
+ * entered settlement still exceeds it. Do not auto-create advances here.
+ */
+export async function assertCustomerPaymentWithinOutstandingCap(
+  client: SupabaseClient,
+  params: {
+    organizationId: string;
+    saleIds: string[];
+    customerId?: string | null;
+    includeOpeningBalance?: boolean;
+    /** Cash + settlement discount being recorded. */
+    proposedSettlement: number;
+    queryClient?: QueryClient;
+  },
+): Promise<number> {
   const proposed = Math.max(0, Number(params.proposedSettlement) || 0);
-  if (proposed <= INVOICE_OVERPAYMENT_WARN_TOLERANCE_RUPEE) return true;
+  if (proposed <= INVOICE_OVERPAYMENT_WARN_TOLERANCE_RUPEE) {
+    return 0;
+  }
 
-  const fresh = await fetchFreshInvoiceSettlement(client, params.organizationId, params.saleId);
-  if (!fresh) return true;
-
-  const outstanding = Math.max(0, fresh.outstanding);
-  const excess = proposed - outstanding;
-  if (excess <= INVOICE_OVERPAYMENT_WARN_TOLERANCE_RUPEE) return true;
-
-  const saleNumber = params.saleNumber || fresh.saleNumber;
-  const message = formatInvoiceOverpaymentConfirmMessage({
-    saleNumber,
-    netAmount: fresh.netAmount,
-    paidSettled: fresh.paidSettled,
-    proposedSettlement: proposed,
-    excess,
+  const cap = await fetchFreshCustomerPaymentCap(client, {
+    organizationId: params.organizationId,
+    saleIds: params.saleIds,
+    customerId: params.customerId,
+    includeOpeningBalance: params.includeOpeningBalance,
+    queryClient: params.queryClient,
   });
 
-  return window.confirm(message);
+  if (paymentExceedsOutstandingCap(proposed, cap)) {
+    throw new PaymentExceedsOutstandingError(cap);
+  }
+  return cap;
 }

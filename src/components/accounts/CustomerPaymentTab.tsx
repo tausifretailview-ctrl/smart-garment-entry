@@ -68,7 +68,12 @@ import {
 import { useCustomerFinancialSnapshot } from "@/hooks/useCustomerFinancialSnapshot";
 import { invalidateCustomerFinancialSnapshot } from "@/utils/customerFinancialSnapshot";
 import { invalidateAfterCustomerPaymentMutation } from "@/utils/invalidateDashboardQueries";
-import { confirmInvoiceOverpaymentIfNeeded } from "@/utils/invoiceOverpaymentGuard";
+import {
+  assertCustomerPaymentWithinOutstandingCap,
+  formatPaymentExceedsOutstandingMessage,
+  INVOICE_OVERPAYMENT_WARN_TOLERANCE_RUPEE,
+  paymentExceedsOutstandingCap,
+} from "@/utils/invoiceOverpaymentGuard";
 import {
   fetchCustomerOpeningBalanceRemaining,
   readCustomerOpeningBalanceFromOrgLedgerCache,
@@ -907,6 +912,18 @@ export function CustomerPaymentTab({
         discountPercent,
         discountAmount,
       );
+      const settlementTotal = roundToRupee(paymentAmount + discountValue);
+
+      // Fresh outstanding cap — blocks stale-cache overpayments before any voucher write.
+      await assertCustomerPaymentWithinOutstandingCap(supabase, {
+        organizationId,
+        saleIds: invoicesToProcess,
+        customerId: referenceId,
+        includeOpeningBalance: includesOpeningBalance,
+        proposedSettlement: settlementTotal,
+        queryClient,
+      });
+
       let remainingCash = paymentAmount;
       let remainingDiscount = discountValue;
       /** Apply settlement to invoices/OB: use cash first, then discount (matches “received + waived” mentally). */
@@ -968,15 +985,13 @@ export function CustomerPaymentTab({
         }
       }
 
-      for (const processed of processedInvoices) {
-        const confirmed = await confirmInvoiceOverpaymentIfNeeded(supabase, {
-          organizationId,
-          saleId: processed.invoice.id,
-          saleNumber: processed.invoice.sale_number,
-          proposedSettlement: processed.amountApplied,
-        });
-        if (!confirmed) {
-          throw new Error("Payment cancelled");
+      // Invoice (+ mixed OB) path allocates via Math.min; leftover would be discarded while the
+      // voucher used to record only applied legs — reject unallocated remainder explicitly.
+      // OB-only writes the full settlement against the customer; fresh assert already capped it.
+      if (!isOpeningBalancePayment) {
+        const leftoverPool = roundToRupee(remainingCash + remainingDiscount);
+        if (leftoverPool > INVOICE_OVERPAYMENT_WARN_TOLERANCE_RUPEE) {
+          throw new Error(formatPaymentExceedsOutstandingMessage(settlementTotal - leftoverPool));
         }
       }
 
@@ -2186,15 +2201,17 @@ export function CustomerPaymentTab({
                 discountAmount,
               );
               const totalSettled = paymentAmount + discountValue;
-              const outstandingBalance = lifetimeOutstanding ?? customerBalance ?? 0;
-              const isExcessPayment = Math.round(totalSettled) > Math.round(outstandingBalance) && outstandingBalance > 0;
-              const isZeroBalance = outstandingBalance <= 0;
+              // Cap against selected invoices (+ OB row), not lifetime party balance.
+              const outstandingCap = selectedPayableTotal;
+              const isExcessPayment =
+                totalSettled > 0 && paymentExceedsOutstandingCap(totalSettled, outstandingCap);
+              const isZeroBalance = outstandingCap <= 0;
               const isDisabled = isZeroBalance || isExcessPayment;
               return (
                 <div className={cn("space-y-2", compact && "space-y-1 pt-0.5", paymentSubmitFooterClass(fullPage))}>
                   {isExcessPayment && (
                     <p className="text-sm text-red-600 dark:text-red-400">
-                      ⚠️ Payment (₹{Math.round(totalSettled).toLocaleString('en-IN')}) exceeds outstanding balance (₹{Math.round(outstandingBalance).toLocaleString('en-IN')})
+                      {formatPaymentExceedsOutstandingMessage(outstandingCap)}
                     </p>
                   )}
                   <Button type="submit" className={cn(compact ? "w-full h-9" : fullPage ? "w-full md:w-auto h-10 px-6" : "w-full md:w-auto")} disabled={isDisabled || createVoucher.isPending || savingRef.current}>

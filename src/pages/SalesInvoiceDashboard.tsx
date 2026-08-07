@@ -126,7 +126,7 @@ import {
   type CnFifoVoucherChunk,
 } from "@/utils/saleSettlement";
 import { fetchCustomerBalanceSnapshot } from "@/utils/customerBalanceUtils";
-import { confirmInvoiceOverpaymentIfNeeded } from "@/utils/invoiceOverpaymentGuard";
+import { assertCustomerPaymentWithinOutstandingCap } from "@/utils/invoiceOverpaymentGuard";
 import {
   fetchInvoiceDashboardPage,
   fetchInvoiceDashboardStats,
@@ -2517,7 +2517,7 @@ export default function SalesInvoiceDashboard() {
   const handleRecordPayment = async () => {
     if (!selectedInvoiceForPayment || !paidAmount) return;
     // Ref lock BEFORE any await — React state alone cannot stop double-click races
-    // during confirmInvoiceOverpaymentIfNeeded / advance balance checks (INV/362 class).
+    // during fresh outstanding assert / advance balance checks (INV/362 class).
     if (recordingPaymentRef.current || isRecordingPayment) return;
     recordingPaymentRef.current = true;
     setIsRecordingPayment(true);
@@ -2536,15 +2536,11 @@ export default function SalesInvoiceDashboard() {
     const currentPaid = selectedInvoiceForPayment.paid_amount || 0;
     const currentCNAdjust = selectedInvoiceForPayment.sale_return_adjust || 0;
 
-    const overpayConfirmed = await confirmInvoiceOverpaymentIfNeeded(supabase, {
+    await assertCustomerPaymentWithinOutstandingCap(supabase, {
       organizationId: currentOrganization!.id,
-      saleId: selectedInvoiceForPayment.id,
-      saleNumber: selectedInvoiceForPayment.sale_number,
+      saleIds: [selectedInvoiceForPayment.id],
       proposedSettlement: amount,
     });
-    if (!overpayConfirmed) {
-      return;
-    }
 
     // Hard guard: re-verify available advance balance from customer_advances at write time.
     if (paymentMode === "advance" && selectedInvoiceForPayment.customer_id) {
