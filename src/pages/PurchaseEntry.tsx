@@ -116,7 +116,10 @@ import { restrictProductsToExactNameMatches } from "@/utils/productSearch";
 import { getUniversalCodeScanWarning } from "@/utils/imeiValidation";
 import { validateIMEI } from "@/hooks/useMobileERP";
 import { productRequiresImei } from "@/utils/productRequiresImei";
-import { syncVariantPriceFromPurchase } from "@/utils/syncVariantPriceFromPurchase";
+import {
+  syncLastPurchaseFromBillLines,
+  syncVariantPriceFromPurchase,
+} from "@/utils/syncVariantPriceFromPurchase";
 import { getNetSoldQtyByVariantIds } from "@/utils/variantNetSoldQty";
 import { IMEIScanDialog } from "@/components/IMEIScanDialog";
 import { RollEntryDialog } from "@/components/RollEntryDialog";
@@ -938,16 +941,20 @@ const PurchaseEntry = () => {
         const salePrice = Number(item.sale_price) || 0;
         if (purPrice <= 0 || salePrice <= 0) return;
 
+        // Keep master + last_purchase_* in lockstep so POS does not show
+        // Master ₹1000 vs Last Purchase ₹1 after a purchase-bill edit.
         void syncVariantPriceFromPurchase({
           barcode: item.barcode,
           purPrice,
           salePrice,
           organizationId: orgId,
           variantId: item.sku_id || undefined,
+          mrp: Number(item.mrp) || undefined,
+          purchaseDate: format(billDate, "yyyy-MM-dd"),
         });
       }, 600);
     },
-    [currentOrganization?.id],
+    [currentOrganization?.id, billDate],
   );
 
   // Helper: For MTR/roll items, use meters (from size field) as multiplier instead of qty
@@ -5516,6 +5523,31 @@ const PurchaseEntry = () => {
           }
         }
 
+        // Bill lines are persisted — sync last_purchase_* from this bill for any
+        // price-touched SKUs. Live sync may have already updated master sale_price,
+        // which causes detectPriceChanges to skip and leave Last Purchase stale (POS dialog).
+        try {
+          const priceTouchedItems = workingLineItems.filter((item) => {
+            if (!item.sku_id) return false;
+            const orig = originalLineItems.find((o) => o.temp_id === item.temp_id);
+            if (!orig) return true;
+            return (
+              !itemNumbersEqual(orig.sale_price, item.sale_price) ||
+              !itemNumbersEqual(orig.pur_price, item.pur_price) ||
+              !itemNumbersEqual(orig.mrp || 0, item.mrp || 0)
+            );
+          });
+          if (priceTouchedItems.length > 0) {
+            await syncLastPurchaseFromBillLines({
+              organizationId: orgId,
+              purchaseDate: format(billDate, "yyyy-MM-dd"),
+              items: priceTouchedItems,
+            });
+          }
+        } catch (syncErr) {
+          console.warn("[PurchaseEntry] last_purchase sync after edit failed:", syncErr);
+        }
+
         // Check for price changes and show dialog if any
         const priceChanges = await detectPriceChanges(workingLineItems);
         if (priceChanges.length > 0) {
@@ -5895,6 +5927,19 @@ const PurchaseEntry = () => {
               .update({ user_cancelled_at: null })
               .in("id", chunk);
           }
+        }
+
+        // Ensure last_purchase_* matches this new bill (same master/last-purchase lockstep as edit).
+        try {
+          if (currentOrganization?.id) {
+            await syncLastPurchaseFromBillLines({
+              organizationId: currentOrganization.id,
+              purchaseDate: format(billDate, "yyyy-MM-dd"),
+              items: lineItems,
+            });
+          }
+        } catch (syncErr) {
+          console.warn("[PurchaseEntry] last_purchase sync after create failed:", syncErr);
         }
 
         // Check for price changes and show dialog if any
