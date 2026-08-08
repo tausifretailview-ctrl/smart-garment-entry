@@ -6415,6 +6415,7 @@ export default function POSSales() {
                                   <span
                                     className={cn(
                                       "inline-block h-2.5 w-2.5 shrink-0 rounded-full",
+                                      stockIndicator.status === "green" && "bg-green-500",
                                       stockIndicator.status === "yellow" && "bg-amber-400",
                                       stockIndicator.status === "red" && "bg-red-500",
                                     )}

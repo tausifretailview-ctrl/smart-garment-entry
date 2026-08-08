@@ -1,17 +1,20 @@
 /**
- * POS cart stock-status dot (v1).
+ * POS cart stock-status dot.
  *
- * Color rules (cashier request): based on scan-time `stockQty` snapshot —
- *   red    = stock ≤ 2 (0, 1, or 2) or overselling this bill (remaining < 0)
- *   yellow = stock > 2
- * No green in this model. Snapshot is add-time only — not refreshed while the bill is open.
- * Out of scope: blue/overstock, cart polling, mobile POS billing layout.
+ * Color rules based on scan-time `stockQty` snapshot:
+ *   red    = stock 0–2, or overselling this bill (remaining < 0)
+ *   yellow = stock 3–5
+ *   green  = stock > 5
+ * Snapshot is add-time only — not refreshed while the bill is open.
  */
 
-/** Critical band: stock of 1 or 2 (also treat 0 / oversell as red). */
+/** Critical band: stock of 0, 1, or 2 (also treat oversell as red). */
 export const POS_CART_CRITICAL_STOCK_MAX = 2;
 
-export type PosCartStockStatus = "yellow" | "red";
+/** Low band upper bound: stock 3–5 → yellow; above this → green. */
+export const POS_CART_LOW_STOCK_MAX = 5;
+
+export type PosCartStockStatus = "green" | "yellow" | "red";
 
 export type PosCartStockIndicator = {
   status: PosCartStockStatus;
@@ -34,9 +37,14 @@ export function getPosCartStockIndicator(
   const qty = Number(quantity) || 0;
   const remaining = stockQty - qty;
 
-  // Red: out / critical (≤2) or this bill would oversell. Yellow: stock greater than 2.
-  const status: PosCartStockStatus =
-    remaining < 0 || stockQty <= POS_CART_CRITICAL_STOCK_MAX ? "red" : "yellow";
+  let status: PosCartStockStatus;
+  if (remaining < 0 || stockQty <= POS_CART_CRITICAL_STOCK_MAX) {
+    status = "red";
+  } else if (stockQty <= POS_CART_LOW_STOCK_MAX) {
+    status = "yellow";
+  } else {
+    status = "green";
+  }
 
   return { status, stockQty, remaining };
 }
