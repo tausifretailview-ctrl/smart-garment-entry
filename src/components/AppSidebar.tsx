@@ -84,7 +84,9 @@ import { resolveMobileLandingPath } from "@/lib/menuPermissions";
 import { toast } from "sonner";
 
 export function AppSidebar() {
-  const { open, setOpen, useSheetSidebar, setOpenMobile } = useSidebar();
+  const { open: sidebarOpen, setOpen, useSheetSidebar, setOpenMobile } = useSidebar();
+  // Sheet / force-desktop phone: always show nav labels (icon-only looks like "no menu").
+  const open = sidebarOpen || useSheetSidebar;
   const [isLocked, setIsLocked] = useState<boolean>(() => readSidebarLockedOpen());
   const forceDesktopView = useForceDesktopView();
   const { disableDesktopView } = useDesktopViewActions();
@@ -104,8 +106,7 @@ export function AppSidebar() {
   }, []);
 
   const handleToggleLock = () => {
-    // Sheet (mobile / narrow Desktop View): Collapse must close the drawer, not only
-    // flip desktop `open` — otherwise menu content hides but the sheet width remains.
+    // Mobile sheet sidebar: close the drawer (don't only flip desktop `open`).
     if (useSheetSidebar) {
       setOpenMobile(false);
       setIsLocked(false);

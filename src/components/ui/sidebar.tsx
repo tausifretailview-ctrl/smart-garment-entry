@@ -54,7 +54,10 @@ const SidebarProvider = React.forwardRef<
   const isMobile = useIsMobile();
   const isNarrowViewport = useIsNarrowViewport();
   const forceDesktop = useForceDesktopView();
-  const useSheetSidebar = isMobile || (forceDesktop && isNarrowViewport);
+  // Desktop view on a phone must use a docked sidebar — sheet overlay covers the
+  // titlebar File/Edit/Sales menubar and makes it look "not visible".
+  // Sheet is only for true mobile chrome (force-desktop off).
+  const useSheetSidebar = isMobile && !forceDesktop;
   const [openMobile, setOpenMobile] = React.useState(false);
 
   // This is the internal state of the sidebar.
@@ -75,6 +78,13 @@ const SidebarProvider = React.forwardRef<
     },
     [setOpenProp, open],
   );
+
+  // Phone + Desktop view: keep sidebar expanded so labels stay readable.
+  React.useEffect(() => {
+    if (forceDesktop && isNarrowViewport) {
+      setOpen(true);
+    }
+  }, [forceDesktop, isNarrowViewport, setOpen]);
 
   // Helper to toggle the sidebar.
   const toggleSidebar = React.useCallback(() => {
