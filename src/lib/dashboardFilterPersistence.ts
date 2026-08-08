@@ -109,7 +109,15 @@ export function dashboardFilterStorageKey(
   userId: string,
   dashboardId: string,
 ): string {
+  if (!orgId || !userId || !dashboardId) {
+    throw new Error("dashboardFilterStorageKey requires orgId, userId, and dashboardId");
+  }
   return `${STORAGE_PREFIX_V2}:${orgId}:${userId}:${dashboardId}`;
+}
+
+/** Reject empty / literal "undefined" / "null" user ids before any storage I/O. */
+export function isUsablePersistenceUserId(userId: string | null | undefined): userId is string {
+  return typeof userId === "string" && userId.length > 0 && userId !== "undefined" && userId !== "null";
 }
 
 function legacySessionStorageKey(orgId: string, dashboardId: string): string {
@@ -220,17 +228,20 @@ export function readDashboardFilters(
 ): Record<string, unknown> | null {
   if (!orgId || !dashboardId) return null;
 
-  if (userId) {
-    try {
-      const fromLocal = parseStoredObject(
-        localStorage.getItem(dashboardFilterStorageKey(orgId, userId, dashboardId)),
-      );
-      if (fromLocal) {
-        return sanitizePersistedFiltersForToday(fromLocal);
-      }
-    } catch {
-      // Private mode — fall through to legacy
+  // Never read/write under …:undefined:… — wait for a real user id.
+  if (!isUsablePersistenceUserId(userId)) {
+    return null;
+  }
+
+  try {
+    const fromLocal = parseStoredObject(
+      localStorage.getItem(dashboardFilterStorageKey(orgId, userId, dashboardId)),
+    );
+    if (fromLocal) {
+      return sanitizePersistedFiltersForToday(fromLocal);
     }
+  } catch {
+    // Private mode — fall through to legacy
   }
 
   // One-time migrate: sessionStorage v1 (org-only) → localStorage v2 (org+user).
@@ -243,10 +254,8 @@ export function readDashboardFilters(
     _savedOn: todayLocalYmd(),
   });
 
-  if (userId) {
-    writeDashboardFilters(orgId, dashboardId, sanitized, userId);
-    removeLegacySessionFilters(orgId, dashboardId);
-  }
+  writeDashboardFilters(orgId, dashboardId, sanitized, userId);
+  removeLegacySessionFilters(orgId, dashboardId);
 
   return sanitized;
 }
@@ -269,7 +278,7 @@ export function writeDashboardFilters(
   filters: Record<string, unknown>,
   userId?: string | null,
 ): void {
-  if (!orgId || !dashboardId || !userId) return;
+  if (!orgId || !dashboardId || !isUsablePersistenceUserId(userId)) return;
   try {
     const payload = {
       _v: 2,
@@ -292,7 +301,7 @@ export function clearDashboardFilters(
   userId?: string | null,
 ): void {
   if (!orgId || !dashboardId) return;
-  if (userId) {
+  if (isUsablePersistenceUserId(userId)) {
     try {
       localStorage.removeItem(dashboardFilterStorageKey(orgId, userId, dashboardId));
     } catch {
@@ -303,7 +312,7 @@ export function clearDashboardFilters(
   // Purchase bills dual id
   if (dashboardId === "purchase-bills") {
     removeLegacySessionFilters(orgId, "purchase-bill-dashboard");
-    if (userId) {
+    if (isUsablePersistenceUserId(userId)) {
       try {
         localStorage.removeItem(
           dashboardFilterStorageKey(orgId, userId, "purchase-bill-dashboard"),

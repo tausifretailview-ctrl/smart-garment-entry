@@ -52,7 +52,7 @@ export default function AuditLog() {
   const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
 
-  useDashboardFilterPersistence(
+  const { clearPersistedFilters } = useDashboardFilterPersistence(
     WINDOW_FILTER_IDS.auditLog,
     currentOrganization?.id,
     useMemo(
@@ -146,6 +146,7 @@ export default function AuditLog() {
     setFilterUser("");
     setDateFrom(undefined);
     setDateTo(undefined);
+    clearPersistedFilters();
   };
 
   return (

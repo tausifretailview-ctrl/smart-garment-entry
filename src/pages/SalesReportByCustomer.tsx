@@ -20,6 +20,7 @@ import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip, Legend, Pie,
 import { Badge } from "@/components/ui/badge";
 import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
 import { restoreDashboardFilters, WINDOW_FILTER_IDS } from "@/lib/dashboardFilterPersistence";
+import { ResetPersistedFiltersButton } from "@/components/ResetPersistedFiltersButton";
 
 interface Sale {
   id: string;
@@ -112,7 +113,7 @@ const SalesReportByCustomer = () => {
     [selectedCustomerId, selectedSalesman, startDate, endDate, currentPage],
   );
 
-  useDashboardFilterPersistence(
+  const { clearPersistedFilters } = useDashboardFilterPersistence(
     WINDOW_FILTER_IDS.salesReportByCustomer,
     currentOrganization?.id,
     salesReportFilterSnapshot,
@@ -128,6 +129,29 @@ const SalesReportByCustomer = () => {
       });
     },
   );
+
+  const defaultEndDate = (() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
+  })();
+  const salesReportFiltersDirty =
+    selectedCustomerId !== "all" ||
+    selectedSalesman !== "all" ||
+    currentPage !== 1 ||
+    format(startDate, "yyyy-MM-dd") !== format(startOfMonth(new Date()), "yyyy-MM-dd") ||
+    format(endDate, "yyyy-MM-dd") !== format(defaultEndDate, "yyyy-MM-dd");
+
+  const resetSalesReportFilters = () => {
+    setSelectedCustomerId("all");
+    setSelectedSalesman("all");
+    setStartDate(startOfMonth(new Date()));
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    setEndDate(today);
+    setCurrentPage(1);
+    clearPersistedFilters();
+  };
 
   // Fetch customers with caching
   const { data: customers = [] } = useQuery({
@@ -324,6 +348,11 @@ const SalesReportByCustomer = () => {
               </Popover>
             </div>
           </div>
+          <ResetPersistedFiltersButton
+            visible={salesReportFiltersDirty}
+            onReset={resetSalesReportFilters}
+            className="mt-3"
+          />
         </CardContent>
       </Card>
 

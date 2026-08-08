@@ -28,6 +28,7 @@ import { MobileStatStrip } from "@/components/mobile/MobileStatStrip";
 import { MobileListCard } from "@/components/mobile/MobileListCard";
 import { AccountsHistoryPanel } from "@/components/accounts/AccountsHistoryPanel";
 import { accountsHistoryTableClass, accountsHistoryThClass } from "@/components/accounts/accountsHistoryUi";
+import { ResetPersistedFiltersButton } from "@/components/ResetPersistedFiltersButton";
 
 interface OutstandingDashboardTabProps {
   organizationId: string;
@@ -66,7 +67,7 @@ export function OutstandingDashboardTab({ organizationId, visitedTabs }: Outstan
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [minAmount, setMinAmount] = useState<string>("all");
 
-  useDashboardFilterPersistence(
+  const { clearPersistedFilters } = useDashboardFilterPersistence(
     WINDOW_FILTER_IDS.accountsOutstanding,
     organizationId,
     useMemo(
@@ -84,6 +85,20 @@ export function OutstandingDashboardTab({ organizationId, visitedTabs }: Outstan
       });
     },
   );
+
+  const outstandingFiltersDirty =
+    search !== "" ||
+    sortField !== "totalOutstanding" ||
+    sortDir !== "desc" ||
+    minAmount !== "all";
+
+  const resetOutstandingFilters = () => {
+    setSearch("");
+    setSortField("totalOutstanding");
+    setSortDir("desc");
+    setMinAmount("all");
+    clearPersistedFilters();
+  };
 
   // Fetch all outstanding invoices (pending + partial)
   const { data: outstandingData, isLoading } = useQuery({
@@ -514,18 +529,24 @@ export function OutstandingDashboardTab({ organizationId, visitedTabs }: Outstan
           </span>
         }
         filters={
-          <Select value={minAmount} onValueChange={setMinAmount}>
-            <SelectTrigger className={cn("h-9 text-sm border-slate-200 bg-slate-50 hover:bg-white", isMobile ? "flex-1 min-w-[120px]" : "w-36")}>
-              <SelectValue placeholder="Min amount" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All amounts</SelectItem>
-              <SelectItem value="1000">≥ ₹1,000</SelectItem>
-              <SelectItem value="5000">≥ ₹5,000</SelectItem>
-              <SelectItem value="10000">≥ ₹10,000</SelectItem>
-              <SelectItem value="50000">≥ ₹50,000</SelectItem>
-            </SelectContent>
-          </Select>
+          <>
+            <Select value={minAmount} onValueChange={setMinAmount}>
+              <SelectTrigger className={cn("h-9 text-sm border-slate-200 bg-slate-50 hover:bg-white", isMobile ? "flex-1 min-w-[120px]" : "w-36")}>
+                <SelectValue placeholder="Min amount" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All amounts</SelectItem>
+                <SelectItem value="1000">≥ ₹1,000</SelectItem>
+                <SelectItem value="5000">≥ ₹5,000</SelectItem>
+                <SelectItem value="10000">≥ ₹10,000</SelectItem>
+                <SelectItem value="50000">≥ ₹50,000</SelectItem>
+              </SelectContent>
+            </Select>
+            <ResetPersistedFiltersButton
+              visible={outstandingFiltersDirty}
+              onReset={resetOutstandingFilters}
+            />
+          </>
         }
       >
           {isMobile && (

@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   clearDashboardFilters,
   dashboardFilterStorageKey,
+  isUsablePersistenceUserId,
   readDashboardFilters,
   sanitizePersistedFiltersForToday,
   writeDashboardFilters,
@@ -93,6 +94,19 @@ describe("dashboardFilterPersistence namespacing", () => {
     expect(read).toMatchObject({ searchQuery: "legacy", periodFilter: "daily" });
     expect(sessionStorage.getItem("dashboard_filters_v1:org-a:pos-dashboard")).toBeNull();
     expect(localStorage.getItem("dashboard_filters_v2:org-a:user-1:pos-dashboard")).toBeTruthy();
+  });
+
+  it("skips read/write when user id is missing or the string undefined", () => {
+    expect(isUsablePersistenceUserId(undefined)).toBe(false);
+    expect(isUsablePersistenceUserId(null)).toBe(false);
+    expect(isUsablePersistenceUserId("undefined")).toBe(false);
+    expect(isUsablePersistenceUserId("")).toBe(false);
+
+    writeDashboardFilters("org-a", "pos-dashboard", { searchQuery: "nope" }, undefined);
+    writeDashboardFilters("org-a", "pos-dashboard", { searchQuery: "nope" }, "undefined");
+    expect(localStorage.length).toBe(0);
+    expect(readDashboardFilters("org-a", "pos-dashboard", undefined)).toBeNull();
+    expect(readDashboardFilters("org-a", "pos-dashboard", "undefined")).toBeNull();
   });
 });
 

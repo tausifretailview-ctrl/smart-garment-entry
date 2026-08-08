@@ -40,6 +40,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { useSoftDelete } from "@/hooks/useSoftDelete";
 import { BackToDashboard } from "@/components/BackToDashboard";
+import { ResetPersistedFiltersButton } from "@/components/ResetPersistedFiltersButton";
 
 interface ConversionItem {
   id: string;
@@ -91,7 +92,7 @@ export default function PurchaseOrderDashboard() {
     [searchQuery, statusFilter, supplierFilter, fromDate, toDate, currentPage],
   );
 
-  useDashboardFilterPersistence(
+  const { clearPersistedFilters } = useDashboardFilterPersistence(
     "purchase-orders",
     currentOrganization?.id,
     purchaseOrderFilterSnapshot,
@@ -110,6 +111,24 @@ export default function PurchaseOrderDashboard() {
       });
     },
   );
+
+  const purchaseOrderFiltersDirty =
+    searchQuery !== "" ||
+    statusFilter !== "all" ||
+    supplierFilter !== "all" ||
+    fromDate !== undefined ||
+    toDate !== undefined ||
+    currentPage !== 1;
+
+  const resetPurchaseOrderFilters = () => {
+    setSearchQuery("");
+    setStatusFilter("all");
+    setSupplierFilter("all");
+    setFromDate(undefined);
+    setToDate(undefined);
+    setCurrentPage(1);
+    clearPersistedFilters();
+  };
 
   const { data: ordersData, isLoading, refetch } = useQuery({
     queryKey: ['purchase-orders', currentOrganization?.id],
@@ -424,6 +443,11 @@ export default function PurchaseOrderDashboard() {
               </SelectContent>
             </Select>
           </div>
+
+          <ResetPersistedFiltersButton
+            visible={purchaseOrderFiltersDirty}
+            onReset={resetPurchaseOrderFilters}
+          />
           
           <Button onClick={() => navigate('/purchase-order-entry')}>
             <Plus className="h-4 w-4 mr-2" /> New Purchase Order

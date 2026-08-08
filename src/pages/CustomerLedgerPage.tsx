@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
 import { restoreDashboardFilters, WINDOW_FILTER_IDS } from "@/lib/dashboardFilterPersistence";
+import { ResetPersistedFiltersButton } from "@/components/ResetPersistedFiltersButton";
 import { useSearchParams } from "react-router-dom";
 import { format } from "date-fns";
 import { CalendarIcon, Printer, FileText, ArrowDownCircle, ArrowUpCircle, Wallet } from "lucide-react";
@@ -105,7 +106,7 @@ export default function CustomerLedgerPage() {
   const [toDate, setToDate] = useState<Date | undefined>(fyEnd);
   const [custOpen, setCustOpen] = useState(false);
 
-  useDashboardFilterPersistence(
+  const { clearPersistedFilters } = useDashboardFilterPersistence(
     WINDOW_FILTER_IDS.customerAccountStatement,
     currentOrganization?.id,
     useMemo(
@@ -128,6 +129,18 @@ export default function CustomerLedgerPage() {
       });
     },
   );
+
+  const customerLedgerFiltersDirty =
+    (!preSelectedCustomerId && customerId != null) ||
+    format(fromDate ?? fyStart, "yyyy-MM-dd") !== format(fyStart, "yyyy-MM-dd") ||
+    format(toDate ?? fyEnd, "yyyy-MM-dd") !== format(fyEnd, "yyyy-MM-dd");
+
+  const resetCustomerLedgerFilters = () => {
+    if (!preSelectedCustomerId) setCustomerId(null);
+    setFromDate(fyStart);
+    setToDate(fyEnd);
+    clearPersistedFilters();
+  };
 
   // Customers list — paginate past PostgREST default max (1000 rows).
   const { data: customers = [] } = useQuery({
@@ -813,6 +826,12 @@ export default function CustomerLedgerPage() {
             </div>
             <DateField label="From Date" value={fromDate} onChange={setFromDate} />
             <DateField label="To Date" value={toDate} onChange={setToDate} />
+            <div className="flex items-end md:col-span-4">
+              <ResetPersistedFiltersButton
+                visible={customerLedgerFiltersDirty}
+                onReset={resetCustomerLedgerFilters}
+              />
+            </div>
           </CardContent>
         </Card>
 

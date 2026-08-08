@@ -201,7 +201,7 @@ const ProductDashboard = () => {
     ],
   );
 
-  useDashboardFilterPersistence(
+  const { clearPersistedFilters } = useDashboardFilterPersistence(
     "product-dashboard",
     currentOrganization?.id,
     productFilterSnapshot,
@@ -955,6 +955,7 @@ const ProductDashboard = () => {
     setMinPrice("");
     setMaxPrice("");
     setSearchQuery("");
+    clearPersistedFilters();
   };
 
   const toggleSelectAll = () => {

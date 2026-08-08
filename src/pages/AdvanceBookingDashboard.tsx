@@ -29,6 +29,7 @@ import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngine
 import { deleteJournalEntryByReference } from "@/utils/accounting/journalService";
 import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
 import { restoreDashboardFilters } from "@/lib/dashboardFilterPersistence";
+import { ResetPersistedFiltersButton } from "@/components/ResetPersistedFiltersButton";
 import { invalidateCustomerFinancialSnapshot } from "@/utils/customerFinancialSnapshot";
 
 const PAGE_SIZE = 50;
@@ -58,7 +59,7 @@ export default function AdvanceBookingDashboard() {
     [search, dateFilter, statusFilter, currentPage],
   );
 
-  useDashboardFilterPersistence(
+  const { clearPersistedFilters } = useDashboardFilterPersistence(
     "advance-booking-dashboard",
     orgId,
     advanceBookingFilterSnapshot,
@@ -73,6 +74,21 @@ export default function AdvanceBookingDashboard() {
       });
     },
   );
+
+  const advanceBookingFiltersDirty =
+    search !== "" ||
+    dateFilter !== "all" ||
+    statusFilter !== "all" ||
+    currentPage !== 1;
+
+  const resetAdvanceBookingFilters = () => {
+    setSearch("");
+    setDebouncedSearch("");
+    setDateFilter("all");
+    setStatusFilter("all");
+    setCurrentPage(1);
+    clearPersistedFilters();
+  };
 
    const [addDialogOpen, setAddDialogOpen] = useState(false);
    const [refundDialogOpen, setRefundDialogOpen] = useState(false);
@@ -581,6 +597,10 @@ export default function AdvanceBookingDashboard() {
             <SelectItem value="refunded">Refunded</SelectItem>
           </SelectContent>
         </Select>
+        <ResetPersistedFiltersButton
+          visible={advanceBookingFiltersDirty}
+          onReset={resetAdvanceBookingFilters}
+        />
         <Button variant="outline" size="icon" onClick={() => {
           queryClient.invalidateQueries({ queryKey: ["advance-dashboard"] });
           queryClient.invalidateQueries({ queryKey: ["advance-summary"] });

@@ -61,7 +61,6 @@ import { useSharedAppShell } from "@/contexts/SharedAppShellContext";
 import { onWheelScrollContainer } from "@/lib/scrollWheel";
 import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
 import {
-  clearDashboardFilters,
   isDashboardFilterRestoring,
   pickPersistedNumber,
   pickPersistedString,
@@ -296,7 +295,7 @@ const PurchaseBillDashboard = () => {
     ],
   );
 
-  useDashboardFilterPersistence(
+  const { clearPersistedFilters } = useDashboardFilterPersistence(
     "purchase-bills",
     currentOrganization?.id,
     purchaseFilterSnapshot,
@@ -337,9 +336,7 @@ const PurchaseBillDashboard = () => {
     setPaymentStatusFilter("all");
     setDcFilter("all");
     setCurrentPage(1);
-    if (currentOrganization?.id && user?.id) {
-      clearDashboardFilters(currentOrganization.id, "purchase-bills", user.id);
-    }
+    clearPersistedFilters();
   };
 
   const purchaseQueriesEnabled = !!currentOrganization?.id;

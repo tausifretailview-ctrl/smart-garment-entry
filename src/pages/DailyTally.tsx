@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
 import { restoreDashboardFilters, WINDOW_FILTER_IDS } from "@/lib/dashboardFilterPersistence";
+import { ResetPersistedFiltersButton } from "@/components/ResetPersistedFiltersButton";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -89,7 +90,7 @@ const DailyTally = () => {
   const [coinsBulk, setCoinsBulk] = useState(0);
   const [tallyTab, setTallyTab] = useState<string>("manual");
 
-  useDashboardFilterPersistence(
+  const { clearPersistedFilters } = useDashboardFilterPersistence(
     WINDOW_FILTER_IDS.dailyTally,
     currentOrganization?.id,
     useMemo(() => ({ selectedDate, tallyTab }), [selectedDate, tallyTab]),
@@ -100,6 +101,14 @@ const DailyTally = () => {
       });
     },
   );
+
+  const tallyFiltersDirty = !isToday(selectedDate) || tallyTab !== "manual";
+
+  const resetTallyFilters = () => {
+    setSelectedDate(new Date());
+    setTallyTab("manual");
+    clearPersistedFilters();
+  };
 
   const orgId = currentOrganization?.id;
   const dateStr = format(selectedDate, "yyyy-MM-dd");
@@ -571,6 +580,10 @@ const DailyTally = () => {
               Today
             </Button>
           )}
+          <ResetPersistedFiltersButton
+            visible={tallyFiltersDirty}
+            onReset={resetTallyFilters}
+          />
           <Button variant="outline" size="icon" onClick={handleRefresh} disabled={isLoading} className="border-[1.5px] border-slate-200 dark:border-slate-700">
             <RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />
           </Button>

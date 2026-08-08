@@ -23,6 +23,7 @@ import { cn } from "@/lib/utils";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
 import { restoreDashboardFilters } from "@/lib/dashboardFilterPersistence";
+import { ResetPersistedFiltersButton } from "@/components/ResetPersistedFiltersButton";
 import {
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, LineChart, Line,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
@@ -68,7 +69,7 @@ export default function SalesAnalyticsDashboard() {
     [activeTab, periodType, startDate, endDate],
   );
 
-  useDashboardFilterPersistence(
+  const { clearPersistedFilters } = useDashboardFilterPersistence(
     "sales-analytics",
     currentOrganization?.id,
     salesAnalyticsFilterSnapshot,
@@ -85,6 +86,21 @@ export default function SalesAnalyticsDashboard() {
       });
     },
   );
+
+  const defaultActiveTab = tabFromUrl || "overview";
+  const salesAnalyticsFiltersDirty =
+    activeTab !== defaultActiveTab ||
+    periodType !== "this-month" ||
+    format(startDate, "yyyy-MM-dd") !== format(startOfMonth(new Date()), "yyyy-MM-dd") ||
+    format(endDate, "yyyy-MM-dd") !== format(startOfDay(new Date()), "yyyy-MM-dd");
+
+  const resetSalesAnalyticsFilters = () => {
+    setActiveTab(defaultActiveTab);
+    setPeriodType("this-month");
+    setStartDate(startOfMonth(new Date()));
+    setEndDate(startOfDay(new Date()));
+    clearPersistedFilters();
+  };
   
   // Sync tab from URL on mount
   useEffect(() => {
@@ -489,6 +505,10 @@ export default function SalesAnalyticsDashboard() {
                 </Popover>
               </div>
             )}
+            <ResetPersistedFiltersButton
+              visible={salesAnalyticsFiltersDirty}
+              onReset={resetSalesAnalyticsFilters}
+            />
           </div>
         </div>
 

@@ -142,7 +142,6 @@ import { invalidateSalesQueriesNow } from "@/utils/deferredSalesInvalidation";
 import { formatCnApplyError } from "@/utils/saleReturnCnBalance";
 import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
 import {
-  clearDashboardFilters,
   isDashboardFilterRestoring,
   restoreDashboardFilters,
 } from "@/lib/dashboardFilterPersistence";
@@ -384,7 +383,7 @@ export default function SalesInvoiceDashboard() {
     ],
   );
 
-  useDashboardFilterPersistence(
+  const { clearPersistedFilters } = useDashboardFilterPersistence(
     "sales-invoice-dashboard",
     currentOrganization?.id,
     invoiceFilterSnapshot,
@@ -430,9 +429,7 @@ export default function SalesInvoiceDashboard() {
     setStartDate(undefined);
     setEndDate(undefined);
     setCurrentPage(1);
-    if (currentOrganization?.id && user?.id) {
-      clearDashboardFilters(currentOrganization.id, "sales-invoice-dashboard", user.id);
-    }
+    clearPersistedFilters();
   };
 
   const [invoiceToPrint, setInvoiceToPrint] = useState<any>(null);

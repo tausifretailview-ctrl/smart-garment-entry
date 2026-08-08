@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
 import { restoreDashboardFilters, WINDOW_FILTER_IDS } from "@/lib/dashboardFilterPersistence";
+import { ResetPersistedFiltersButton } from "@/components/ResetPersistedFiltersButton";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -51,7 +52,7 @@ const DailyCashierReport = () => {
   });
   const [period, setPeriod] = useState<PeriodType>("daily");
 
-  useDashboardFilterPersistence(
+  const { clearPersistedFilters } = useDashboardFilterPersistence(
     WINDOW_FILTER_IDS.dailyCashierReport,
     currentOrganization?.id,
     useMemo(() => ({ selectedDate, period }), [selectedDate, period]),
@@ -62,6 +63,18 @@ const DailyCashierReport = () => {
       });
     },
   );
+
+  const cashierFiltersDirty =
+    format(selectedDate, "yyyy-MM-dd") !== format(new Date(), "yyyy-MM-dd") ||
+    period !== "daily";
+
+  const resetCashierFilters = () => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    setSelectedDate(d);
+    setPeriod("daily");
+    clearPersistedFilters();
+  };
 
   // Calculate date range based on period
   const getDateRange = () => {
@@ -870,6 +883,11 @@ const DailyCashierReport = () => {
               />
             </PopoverContent>
           </Popover>
+
+          <ResetPersistedFiltersButton
+            visible={cashierFiltersDirty}
+            onReset={resetCashierFilters}
+          />
           
           <Button onClick={handleExportExcel} variant="outline">
             <FileSpreadsheet className="h-4 w-4 mr-2" />

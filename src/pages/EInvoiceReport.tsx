@@ -9,6 +9,7 @@ import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useToast } from "@/hooks/use-toast";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { ReportKpiCards, type ReportKpiItem } from "@/components/reports/ReportKpiCards";
+import { ResetPersistedFiltersButton } from "@/components/ResetPersistedFiltersButton";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -100,7 +101,7 @@ export default function EInvoiceReport() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isRetryingAll, setIsRetryingAll] = useState(false);
 
-  useDashboardFilterPersistence(
+  const { clearPersistedFilters } = useDashboardFilterPersistence(
     WINDOW_FILTER_IDS.einvoiceReport,
     currentOrganization?.id,
     useMemo(
@@ -117,6 +118,16 @@ export default function EInvoiceReport() {
       });
     },
   );
+
+  const einvoiceFiltersDirty =
+    periodFilter !== "this_month" || statusFilter !== "all" || searchQuery !== "";
+
+  const resetEinvoiceFilters = () => {
+    setPeriodFilter("this_month");
+    setStatusFilter("all");
+    setSearchQuery("");
+    clearPersistedFilters();
+  };
 
   const getDateRange = (period: PeriodFilter) => {
     const now = new Date();
@@ -476,6 +487,10 @@ export default function EInvoiceReport() {
             <SelectItem value="cancelled">❌ Cancelled</SelectItem>
           </SelectContent>
         </Select>
+        <ResetPersistedFiltersButton
+          visible={einvoiceFiltersDirty}
+          onReset={resetEinvoiceFilters}
+        />
         {summary.failed > 0 && (
           <Button variant="outline" size="sm" onClick={handleRetryAllFailed} disabled={isRetryingAll}>
             {isRetryingAll ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-1" />}

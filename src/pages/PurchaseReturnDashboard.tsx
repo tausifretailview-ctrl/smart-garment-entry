@@ -33,6 +33,7 @@ import {
 import { lookupMap } from "@/lib/coerceToMap";
 import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
 import { isDashboardFilterRestoring, restoreDashboardFilters } from "@/lib/dashboardFilterPersistence";
+import { ResetPersistedFiltersButton } from "@/components/ResetPersistedFiltersButton";
 
 interface PurchaseReturnItem {
   id: string;
@@ -151,7 +152,7 @@ const PurchaseReturnDashboard = () => {
     [searchQuery, startDate, endDate, dcFilter, currentPage, pageSize],
   );
 
-  useDashboardFilterPersistence(
+  const { clearPersistedFilters } = useDashboardFilterPersistence(
     "purchase-return-dashboard",
     currentOrganization?.id,
     purchaseReturnFilterSnapshot,
@@ -170,6 +171,24 @@ const PurchaseReturnDashboard = () => {
       });
     },
   );
+
+  const purchaseReturnFiltersDirty =
+    searchQuery !== "" ||
+    startDate !== "" ||
+    endDate !== "" ||
+    dcFilter !== "all" ||
+    currentPage !== 1 ||
+    pageSize !== 50;
+
+  const resetPurchaseReturnFilters = () => {
+    setSearchQuery("");
+    setStartDate("");
+    setEndDate("");
+    setDcFilter("all");
+    setCurrentPage(1);
+    setPageSize(50);
+    clearPersistedFilters();
+  };
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -897,6 +916,10 @@ const PurchaseReturnDashboard = () => {
             <option value="dc">DC Only</option>
             <option value="gst">GST Only</option>
           </select>
+          <ResetPersistedFiltersButton
+            visible={purchaseReturnFiltersDirty}
+            onReset={resetPurchaseReturnFilters}
+          />
         </div>
         <CardContent className="p-0 pt-0">
           {tableLoading ? (

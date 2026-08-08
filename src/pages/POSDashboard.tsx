@@ -122,7 +122,6 @@ import {
 } from "@/utils/thermalReceiptPrintDocument";
 import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
 import {
-  clearDashboardFilters,
   isDashboardFilterRestoring,
   restoreDashboardFilters,
 } from "@/lib/dashboardFilterPersistence";
@@ -417,7 +416,7 @@ const POSDashboard = () => {
     ],
   );
 
-  useDashboardFilterPersistence(
+  const { clearPersistedFilters } = useDashboardFilterPersistence(
     routePathSegment || "pos-dashboard",
     currentOrganization?.id,
     posFilterSnapshot,
@@ -519,13 +518,7 @@ const POSDashboard = () => {
     setCancelFilter("active");
     setUserFilter("all");
     setCurrentPage(1);
-    if (currentOrganization?.id && user?.id) {
-      clearDashboardFilters(
-        currentOrganization.id,
-        routePathSegment || "pos-dashboard",
-        user.id,
-      );
-    }
+    clearPersistedFilters();
   };
   
   const { columnSettings, updateColumnSetting } = useDashboardColumnSettings(

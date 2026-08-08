@@ -1,6 +1,8 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import {
+  clearDashboardFilters,
+  isUsablePersistenceUserId,
   markDashboardFilterRestoring,
   readDashboardFilters,
   serializeDashboardFilters,
@@ -15,7 +17,7 @@ export function readInitialDashboardFilters(
   dashboardId: string,
   userId?: string | null,
 ): Record<string, unknown> | null {
-  if (!orgId || !dashboardId) return null;
+  if (!orgId || !dashboardId || !isUsablePersistenceUserId(userId)) return null;
   return readDashboardFilters(orgId, dashboardId, userId);
 }
 
@@ -37,10 +39,10 @@ export function useDashboardFilterPersistence(
   filters: Record<string, unknown>,
   onRestore: (saved: Record<string, unknown>) => void,
   options?: UseDashboardFilterPersistenceOptions,
-): { filtersReady: boolean } {
+): { filtersReady: boolean; clearPersistedFilters: () => void } {
   const { enabled = true } = options ?? {};
   const { user } = useAuth();
-  const userId = user?.id ?? null;
+  const userId = isUsablePersistenceUserId(user?.id) ? user.id : null;
 
   const restoreKeyRef = useRef<string | null>(null);
   const skipPersistRef = useRef(true);
@@ -48,18 +50,19 @@ export function useDashboardFilterPersistence(
   onRestoreRef.current = onRestore;
 
   const [filtersReady, setFiltersReady] = useState(() => {
-    if (!enabled || !orgId || !dashboardId || !userId) {
-      return !enabled || !dashboardId || !orgId ? true : false;
-    }
+    // Wait for auth — never treat "no user yet" as "no saved filters".
+    if (!enabled || !dashboardId) return true;
+    if (!orgId || !userId) return false;
     return readDashboardFilters(orgId, dashboardId, userId) == null;
   });
 
   useLayoutEffect(() => {
-    if (!enabled || !orgId || !dashboardId) {
+    if (!enabled || !dashboardId) {
       setFiltersReady(true);
       return;
     }
-    if (!userId) {
+    if (!orgId || !userId) {
+      // Skip restore/persist until both org and user are resolved.
       setFiltersReady(false);
       return;
     }
@@ -91,5 +94,10 @@ export function useDashboardFilterPersistence(
     return () => window.clearTimeout(timer);
   }, [enabled, orgId, userId, dashboardId, serialized]);
 
-  return { filtersReady };
+  const clearPersistedFilters = () => {
+    if (!orgId || !dashboardId || !userId) return;
+    clearDashboardFilters(orgId, dashboardId, userId);
+  };
+
+  return { filtersReady, clearPersistedFilters };
 }
