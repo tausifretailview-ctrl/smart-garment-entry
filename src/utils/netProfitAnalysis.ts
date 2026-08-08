@@ -25,6 +25,7 @@ export type NetProfitTab =
   | "supplier-wise"
   | "product-wise"
   | "bill-wise"
+  | "date-wise"
   | "customer-wise"
   | "salesman-wise"
   | "field-wise";
@@ -641,6 +642,25 @@ export function aggregateForTab(
         secondary: dayKey(l.saleDate),
         tertiary: l.customerName,
       }));
+    case "date-wise": {
+      // One row per calendar day × product — brand/qty/profit for that day.
+      const rows = aggregateBy(lines, (l) => {
+        const date = dayKey(l.saleDate);
+        const productKey = l.productId || l.productName;
+        return {
+          key: `${date}::${productKey}`,
+          label: l.productName,
+          secondary: date,
+          tertiary: l.brand,
+        };
+      });
+      rows.sort((a, b) => {
+        const dateCmp = String(b.secondary || "").localeCompare(String(a.secondary || ""));
+        if (dateCmp !== 0) return dateCmp;
+        return b.grossProfit - a.grossProfit;
+      });
+      return rows;
+    }
     case "customer-wise":
       return aggregateBy(lines, (l) => ({
         key: l.customerId || l.customerName || "walk-in",

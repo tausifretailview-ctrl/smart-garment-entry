@@ -246,12 +246,66 @@ describe("aggregateForTab", () => {
     expect(goods?.netSales).toBe(300);
   });
 
+  it("date-wise groups by day × product with brand detail", () => {
+    const rows = aggregateForTab(
+      [
+        line({
+          netSales: 400,
+          totalCOGS: 200,
+          grossSales: 450,
+          qty: 2,
+          productId: "shirt-1",
+          productName: "SHIRT-H/S",
+          brand: "StyleWear",
+          saleDate: "2026-08-08T10:00:00",
+          saleId: "s-a",
+          saleNumber: "POS/1",
+        }),
+        line({
+          netSales: 100,
+          totalCOGS: 40,
+          grossSales: 120,
+          qty: 1,
+          productId: "shirt-1",
+          productName: "SHIRT-H/S",
+          brand: "StyleWear",
+          saleDate: "2026-08-08T15:00:00",
+          saleId: "s-b",
+          saleNumber: "POS/2",
+        }),
+        line({
+          netSales: 80,
+          totalCOGS: 30,
+          productId: "pant-1",
+          productName: "PANT",
+          brand: "DenimCo",
+          saleDate: "2026-08-07T12:00:00",
+          saleId: "s-c",
+          saleNumber: "POS/3",
+        }),
+      ],
+      "date-wise",
+    );
+
+    expect(rows).toHaveLength(2);
+    // Newer date first
+    expect(rows[0].secondary).toBe("2026-08-08");
+    expect(rows[0].label).toBe("SHIRT-H/S");
+    expect(rows[0].tertiary).toBe("StyleWear");
+    expect(rows[0].itemsSold).toBe(3);
+    expect(rows[0].netSales).toBe(500);
+    expect(rows[1].secondary).toBe("2026-08-07");
+    expect(rows[1].label).toBe("PANT");
+  });
+
   it("filtered tab totals stay consistent across dimensions", () => {
     const supplier = sumAggregates(aggregateForTab(lines, "supplier-wise"));
     const bill = sumAggregates(aggregateForTab(lines, "bill-wise"));
     const field = sumAggregates(aggregateForTab(lines, "field-wise", "brand"));
+    const dateWise = sumAggregates(aggregateForTab(lines, "date-wise"));
     expect(supplier.netSales).toBe(bill.netSales);
     expect(bill.netSales).toBe(field.netSales);
-    expect(supplier.grossProfit).toBe(field.grossProfit);
+    expect(field.netSales).toBe(dateWise.netSales);
+    expect(supplier.grossProfit).toBe(dateWise.grossProfit);
   });
 });
