@@ -14,8 +14,10 @@ type DesktopViewToggleProps = {
 };
 
 /**
- * Fixed escape hatch when desktop view is forced on a phone-width screen.
+ * Fixed escape hatch when desktop view is forced on a phone-sized device.
  * Always on top — not buried in menus or scrollable headers.
+ * Uses physical screen size (not layout viewport) because force-desktop sets
+ * meta viewport width=1280, which would otherwise hide this control.
  */
 export function DesktopViewEscapeHatch() {
   const forced = useForceDesktopView();
@@ -39,11 +41,11 @@ export function DesktopViewEscapeHatch() {
       type="button"
       onClick={handleSwitch}
       className={cn(
-        "fixed left-1/2 -translate-x-1/2 z-[100]",
-        "flex items-center gap-2 px-4 py-2 rounded-full shadow-lg",
-        "bg-primary text-primary-foreground text-xs font-semibold",
+        "fixed left-1/2 -translate-x-1/2 z-[200]",
+        "flex items-center gap-2 px-4 py-2.5 rounded-full shadow-lg",
+        "bg-primary text-primary-foreground text-sm font-semibold",
         "border border-primary-foreground/20 touch-manipulation active:scale-[0.97]",
-        "bottom-[calc(env(safe-area-inset-bottom,0px)+var(--erp-status-bar-height,1.75rem)+0.5rem)]",
+        "bottom-[calc(env(safe-area-inset-bottom,0px)+var(--erp-status-bar-height,1.75rem)+0.75rem)]",
         "max-w-[calc(100vw-1.5rem)]",
       )}
       aria-label="Switch to mobile view"

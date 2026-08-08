@@ -50,9 +50,24 @@ function computeIsTablet(): boolean {
   return isTouchTabletDevice() && w < TABLET_BREAKPOINT;
 }
 
-/** Viewport width only — ignores force-desktop (for layout damage-control on phones). */
+/**
+ * True on a phone-sized device even when force-desktop rewrites the layout
+ * viewport to width=1280 (which makes window.innerWidth look "desktop").
+ * Uses the smaller screen edge so portrait/landscape both count.
+ */
+export function isPhysicallyNarrowDevice(): boolean {
+  if (typeof window === "undefined" || typeof screen === "undefined") return false;
+  return Math.min(window.screen.width, window.screen.height) < MOBILE_BREAKPOINT;
+}
+
+/**
+ * Narrow phone layout escape hatch.
+ * When force-desktop is on, prefer physical screen size — not layout viewport —
+ * so "Switch to Mobile View" stays available in PWA/APK desktop mode.
+ */
 function computeIsNarrowViewport(): boolean {
   if (typeof window === "undefined") return false;
+  if (isForceDesktopViewEnabled()) return isPhysicallyNarrowDevice();
   return window.innerWidth < MOBILE_BREAKPOINT;
 }
 
@@ -97,10 +112,12 @@ export function useIsNarrowViewport() {
     const mql = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`);
     mql.addEventListener("change", refresh);
     window.addEventListener("resize", refresh);
+    const unsubPreference = subscribeForceDesktopView(refresh);
     refresh();
     return () => {
       mql.removeEventListener("change", refresh);
       window.removeEventListener("resize", refresh);
+      unsubPreference();
     };
   }, []);
 

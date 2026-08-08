@@ -20,7 +20,7 @@ import { initUIScale } from "@/components/UIScaleSelector";
 import { useLocation } from "react-router-dom";
 import { DashboardToolbarProvider } from "@/contexts/DashboardToolbarContext";
 import { mobileFullscreenMainClass, mobileMainContentClass } from "@/lib/mobileShell";
-import { useShowDesktopChrome } from "@/hooks/useDesktopViewPreference";
+import { useForceDesktopView, useShowDesktopChrome } from "@/hooks/useDesktopViewPreference";
 import { DesktopViewToggle, DesktopViewEscapeHatch } from "@/components/mobile/DesktopViewToggle";
 import { useTabCacheLayout } from "@/contexts/TabCacheLayoutContext";
 import { cn } from "@/lib/utils";
@@ -43,6 +43,7 @@ export const Layout = ({ children }: LayoutProps) => {
   const isMainDashboard = isMainDashboardPath(location.pathname);
   const isFullHeightWorkspace = isSidebarOnlyPage || isFillHeightDashboard || isMainDashboard;
   const showDesktopChrome = useShowDesktopChrome();
+  const forceDesktopView = useForceDesktopView();
   const inTabCachePane = useTabCacheLayout();
   const sharedShell = useSharedAppShell();
 
@@ -100,7 +101,7 @@ export const Layout = ({ children }: LayoutProps) => {
                     )}
                     {!showDesktopChrome && <MobileAppHeader />}
                     {showDesktopChrome && !hideTopChrome && (
-                      <div className="px-3 pt-2 lg:hidden">
+                      <div className={cn("px-3 pt-2", !forceDesktopView && "lg:hidden")}>
                         <DesktopViewToggle variant="banner" />
                       </div>
                     )}
