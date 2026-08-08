@@ -21,7 +21,7 @@ import {
   mobileShellInsetClass,
   mobileShellOuterClass,
 } from "@/lib/mobileShell";
-import { useShowDesktopChrome } from "@/hooks/useDesktopViewPreference";
+import { useForceDesktopView, useShowDesktopChrome } from "@/hooks/useDesktopViewPreference";
 import { DesktopViewToggle, DesktopViewEscapeHatch } from "@/components/mobile/DesktopViewToggle";
 import { IdleMount } from "@/components/IdleMount";
 import { entryPageLayoutMainClass, isEntryFullscreenPath, isFillHeightShellPath, isHideGlobalHeaderPath, isNoSidebarEntryPath } from "@/lib/entryPageLayout";
@@ -40,6 +40,7 @@ export const FullScreenLayout = ({ children }: FullScreenLayoutProps) => {
   const isEntryFullscreenPage = isEntryFullscreenPath(location.pathname);
   const isFillHeightWorkspace = isFillHeightShellPath(location.pathname);
   const showDesktopChrome = useShowDesktopChrome();
+  const forceDesktopView = useForceDesktopView();
   const sharedShell = useSharedAppShell();
   const inTabCachePane = useTabCacheLayout();
   const isMobileShell = !showDesktopChrome && !isEntryFullscreenPage;
@@ -112,7 +113,7 @@ export const FullScreenLayout = ({ children }: FullScreenLayoutProps) => {
                 {showHeader && (
                   <>
                     <Header />
-                    <div className="px-3 pt-2 lg:hidden">
+                    <div className={cn("px-3 pt-2", !forceDesktopView && "lg:hidden")}>
                       <DesktopViewToggle variant="banner" />
                     </div>
                   </>

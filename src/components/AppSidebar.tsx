@@ -40,6 +40,7 @@ import {
   ChevronsLeft,
   ChevronsRight,
   Monitor,
+  Smartphone,
   Lock,
   Unlock,
   AlertTriangle,
@@ -77,10 +78,17 @@ import {
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { readSidebarLockedOpen, writeSidebarLockedOpen, SIDEBAR_PREFERENCE_SYNC_EVENT } from "@/lib/sidebarPreference";
 import { BrandSocialIcons } from "@/components/sidebar/BrandSocialIcons";
+import { useDesktopViewActions, useForceDesktopView } from "@/hooks/useDesktopViewPreference";
+import { useOrgNavigation } from "@/hooks/useOrgNavigation";
+import { resolveMobileLandingPath } from "@/lib/menuPermissions";
+import { toast } from "sonner";
 
 export function AppSidebar() {
   const { open, setOpen, useSheetSidebar, setOpenMobile } = useSidebar();
   const [isLocked, setIsLocked] = useState<boolean>(() => readSidebarLockedOpen());
+  const forceDesktopView = useForceDesktopView();
+  const { disableDesktopView } = useDesktopViewActions();
+  const { orgNavigate } = useOrgNavigation();
 
   useEffect(() => {
     if (!useSheetSidebar) {
@@ -111,11 +119,26 @@ export function AppSidebar() {
   };
   const location = useLocation();
   const { canAccessSettings, canAccessPurchases, isPlatformAdmin, isAdmin } = useUserRoles();
-  const { hasMenuAccess, hasMainMenuAccess, hasSpecialPermission, isAdmin: isAdminPermissions, loading: permissionsLoading } = useUserPermissions();
-  const { currentOrganization } = useOrganization();
+  const {
+    hasMenuAccess,
+    hasMainMenuAccess,
+    hasSpecialPermission,
+    isAdmin: isAdminPermissions,
+    loading: permissionsLoading,
+    permissions,
+  } = useUserPermissions();
+  const { currentOrganization, organizationRole } = useOrganization();
   const { data: orgSettings } = useSettings();
   const enablePointsSystem = !!(orgSettings as { sale_settings?: { enable_points_system?: boolean } } | null)
     ?.sale_settings?.enable_points_system;
+
+  const handleSwitchToMobileView = () => {
+    disableDesktopView();
+    toast.success("Mobile view restored");
+    if (useSheetSidebar) setOpenMobile(false);
+    const landing = resolveMobileLandingPath(hasMenuAccess, permissions, organizationRole);
+    orgNavigate(`/${landing}`);
+  };
 
   const isSchool = currentOrganization?.organization_type === "school";
 
@@ -1349,6 +1372,24 @@ export function AppSidebar() {
                 </div>
               </SidebarMenuButton>
             </SidebarMenuItem>
+            {forceDesktopView && (
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  onClick={handleSwitchToMobileView}
+                  className="text-sidebar-foreground hover:bg-sidebar-accent cursor-pointer bg-primary/10 hover:bg-primary/15"
+                  title="Switch to mobile view"
+                >
+                  <div className={cn("flex items-center gap-2", !open && !useSheetSidebar && "justify-center w-full")}>
+                    <Smartphone className="h-4 w-4 sidebar-icon text-primary flex-shrink-0" />
+                    {(open || useSheetSidebar) && (
+                      <span className="text-sm font-semibold text-primary">
+                        Switch to Mobile View
+                      </span>
+                    )}
+                  </div>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            )}
           </SidebarMenu>
         </SidebarGroup>
       </SidebarContent>

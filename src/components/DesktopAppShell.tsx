@@ -12,11 +12,12 @@ import { WhatsAppMessageNotifier } from "@/components/WhatsAppMessageNotifier";
 import { OfflineIndicator } from "@/components/mobile/OfflineIndicator";
 import { MobileScanProvider } from "@/contexts/MobileScanContext";
 import { StatusBar } from "@/components/StatusBar";
-import { DesktopViewEscapeHatch } from "@/components/mobile/DesktopViewToggle";
+import { DesktopViewEscapeHatch, DesktopViewToggle } from "@/components/mobile/DesktopViewToggle";
 import { IdleMount } from "@/components/IdleMount";
 import { DashboardToolbarProvider } from "@/contexts/DashboardToolbarContext";
 import { readSidebarLockedOpen } from "@/lib/sidebarPreference";
 import { isHideGlobalHeaderPath, isNoSidebarEntryPath } from "@/lib/entryPageLayout";
+import { useForceDesktopView } from "@/hooks/useDesktopViewPreference";
 import { cn } from "@/lib/utils";
 import { CommandPaletteProvider } from "@/contexts/CommandPaletteContext";
 import { CommandPaletteHost } from "@/components/command-palette/CommandPaletteHost";
@@ -36,6 +37,7 @@ export function DesktopAppShell({ children, className }: DesktopAppShellProps) {
   const location = useLocation();
   const billingFullScreen = isNoSidebarEntryPath(location.pathname);
   const hideTopChrome = isHideGlobalHeaderPath(location.pathname);
+  const forceDesktopView = useForceDesktopView();
 
   return (
     <ChatProvider>
@@ -54,6 +56,12 @@ export function DesktopAppShell({ children, className }: DesktopAppShellProps) {
                   <div className="erp-chrome-stack">
                     <Header />
                     <WindowTabsBar />
+                  </div>
+                )}
+                {/* Switch-back banner: force-desktop widens viewport so lg:hidden cannot be used. */}
+                {forceDesktopView && !billingFullScreen && !hideTopChrome && (
+                  <div className="px-3 pt-2 shrink-0">
+                    <DesktopViewToggle variant="banner" />
                   </div>
                 )}
                 <div className="flex min-h-0 flex-1 flex-col overflow-hidden h-full">{children}</div>
