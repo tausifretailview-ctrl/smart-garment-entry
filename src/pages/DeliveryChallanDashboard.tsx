@@ -32,6 +32,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import { Search, Plus, Calendar as CalendarIcon, FileText, Trash2, ArrowRight, Loader2, Home, RefreshCw, Edit, Truck } from "lucide-react";
+import { useContextMenu, useIsDesktop } from "@/hooks/useContextMenu";
+import { DesktopContextMenu, ContextMenuItem } from "@/components/DesktopContextMenu";
 import { ListTableSkeleton } from "@/components/skeletons/ListPageSkeleton";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
@@ -49,6 +51,41 @@ export default function DeliveryChallanDashboard() {
   const { user } = useAuth();
   const inTabCache = useTabCacheLayout();
   const sharedShell = useSharedAppShell();
+
+  const isDesktop = useIsDesktop();
+  const rowContextMenu = useContextMenu<any>();
+
+  const getChallanContextMenuItems = (challan: any): ContextMenuItem[] => [
+    {
+      label: "Edit",
+      icon: Edit,
+      onClick: () => navigate("/delivery-challan-entry", { state: { challanData: challan } }),
+    },
+    {
+      label: "Convert to Invoice",
+      icon: ArrowRight,
+      onClick: () => setConvertConfirm(challan),
+      hidden: challan.status !== "pending",
+    },
+    {
+      label: "View Invoice",
+      icon: FileText,
+      onClick: () => navigate("/sales-invoice-dashboard"),
+      hidden: !challan.converted_to_invoice_id,
+    },
+    { label: "", separator: true, onClick: () => {} },
+    {
+      label: "Delete",
+      icon: Trash2,
+      onClick: () => setDeleteConfirm(challan.id),
+      destructive: true,
+    },
+  ];
+
+  const handleRowContextMenu = (e: React.MouseEvent, challan: any) => {
+    if (!isDesktop) return;
+    rowContextMenu.openMenu(e, challan);
+  };
 
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -430,7 +467,11 @@ export default function DeliveryChallanDashboard() {
                   </TableHeader>
                   <TableBody>
                     {filteredChallans.map((challan: any) => (
-                      <TableRow key={challan.id} className="h-11">
+                      <TableRow
+                        key={challan.id}
+                        className="h-11"
+                        onContextMenu={(e) => handleRowContextMenu(e, challan)}
+                      >
                         <TableCell className="font-semibold text-teal-800">{challan.challan_number}</TableCell>
                         <TableCell className="tabular-nums">{format(new Date(challan.challan_date), 'dd/MM/yyyy')}</TableCell>
                         <TableCell>
@@ -520,6 +561,15 @@ export default function DeliveryChallanDashboard() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {isDesktop && (
+        <DesktopContextMenu
+          isOpen={rowContextMenu.isOpen}
+          position={rowContextMenu.position}
+          items={rowContextMenu.contextData ? getChallanContextMenuItems(rowContextMenu.contextData) : []}
+          onClose={rowContextMenu.closeMenu}
+        />
+      )}
     </div>
   );
 }

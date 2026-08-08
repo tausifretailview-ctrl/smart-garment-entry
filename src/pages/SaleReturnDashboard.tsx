@@ -23,6 +23,8 @@ import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, Table
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ChevronDown, ChevronUp, Printer, Trash2, Plus, Search, Receipt, TrendingDown, IndianRupee, CreditCard, Banknote, ArrowLeftRight, Pencil, FileSpreadsheet, Package, Settings2 } from "lucide-react";
+import { useContextMenu, useIsDesktop } from "@/hooks/useContextMenu";
+import { DesktopContextMenu, ContextMenuItem } from "@/components/DesktopContextMenu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useDashboardColumnSettings } from "@/hooks/useDashboardColumnSettings";
@@ -153,6 +155,78 @@ export default function SaleReturnDashboard() {
   const { orgNavigate: navigate } = useOrgNavigation();
   const { toast } = useToast();
   const { currentOrganization } = useOrganization();
+
+  const isDesktop = useIsDesktop();
+  const rowContextMenu = useContextMenu<SaleReturn>();
+
+  const getReturnContextMenuItems = (ret: SaleReturn): ContextMenuItem[] => {
+    const status = (ret.credit_status || "").toLowerCase();
+    const canAdjust =
+      status !== "refunded" &&
+      !!ret.customer_id &&
+      !isSaleReturnConsumedAtBilling(ret) &&
+      getAvailableCN(ret) > 0;
+    const refundableAmt = getAvailableCN(ret);
+    const canRefund =
+      status !== "refunded" &&
+      status !== "adjusted" &&
+      (status === "pending" ||
+        status === "partially_adjusted" ||
+        status === "credit note pending") &&
+      refundableAmt > 0 &&
+      !!ret.customer_id;
+
+    return [
+      {
+        label: "Edit Return",
+        icon: Pencil,
+        onClick: () => navigate(`/sale-return-entry/${ret.id}`),
+      },
+      {
+        label: "Adjust Credit Note",
+        icon: CreditCard,
+        onClick: () => {
+          setSelectedReturnForAdjust(ret);
+          setShowAdjustDialog(true);
+        },
+        hidden: !canAdjust,
+      },
+      {
+        label: `Refund ₹${refundableAmt.toLocaleString("en-IN")}`,
+        icon: Banknote,
+        onClick: () => {
+          setSelectedReturnForRefund(ret);
+          setRefundAmount(refundableAmt.toFixed(2));
+          setRefundNote("");
+          setRefundMode("cash");
+          setShowRefundDialog(true);
+        },
+        hidden: !canRefund,
+      },
+      {
+        label: "Print",
+        icon: Printer,
+        onClick: () => {
+          void handlePrintClick(ret);
+        },
+      },
+      { label: "", separator: true, onClick: () => {} },
+      {
+        label: "Delete",
+        icon: Trash2,
+        onClick: () => {
+          setReturnToDelete(ret.id);
+          setDeleteDialogOpen(true);
+        },
+        destructive: true,
+      },
+    ];
+  };
+
+  const handleRowContextMenu = (e: React.MouseEvent, ret: SaleReturn) => {
+    if (!isDesktop) return;
+    rowContextMenu.openMenu(e, ret);
+  };
 
   const { columnSettings, updateColumnSetting } = useDashboardColumnSettings(
     "sale_return_dashboard",
@@ -1452,7 +1526,11 @@ export default function SaleReturnDashboard() {
                     <TableBody>
                       {returns.map((ret) => (
                         <>
-                          <TableRow key={ret.id} className="cursor-pointer hover:bg-accent/50">
+                          <TableRow
+                            key={ret.id}
+                            className="cursor-pointer hover:bg-accent/50"
+                            onContextMenu={(e) => handleRowContextMenu(e, ret)}
+                          >
                             <TableCell className="print:hidden">
                               <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => toggleRow(ret.id)}>
                                 {expandedRows.has(ret.id) ? (
@@ -1785,6 +1863,15 @@ export default function SaleReturnDashboard() {
         </Card>
 
         {saleReturnDialogs}
+
+        {isDesktop && (
+          <DesktopContextMenu
+            isOpen={rowContextMenu.isOpen}
+            position={rowContextMenu.position}
+            items={rowContextMenu.contextData ? getReturnContextMenuItems(rowContextMenu.contextData) : []}
+            onClose={rowContextMenu.closeMenu}
+          />
+        )}
       </div>
     </div>
   );

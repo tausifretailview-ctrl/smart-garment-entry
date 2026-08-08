@@ -9,6 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Search, Edit, ChevronDown, ChevronUp, Trash2, Loader2, ClipboardList, ArrowRight, Plus, CheckCircle, Clock, Package, IndianRupee, CalendarIcon } from "lucide-react";
+import { useContextMenu, useIsDesktop } from "@/hooks/useContextMenu";
+import { DesktopContextMenu, ContextMenuItem } from "@/components/DesktopContextMenu";
 import { ListTableSkeleton } from "@/components/skeletons/ListPageSkeleton";
 import { format } from "date-fns";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
@@ -62,6 +64,36 @@ export default function PurchaseOrderDashboard() {
   const { toast } = useToast();
   const { orgNavigate: navigate } = useOrgNavigation();
   const { currentOrganization } = useOrganization();
+
+  const isDesktop = useIsDesktop();
+  const rowContextMenu = useContextMenu<any>();
+
+  const getOrderContextMenuItems = (order: any): ContextMenuItem[] => [
+    {
+      label: "Edit",
+      icon: Edit,
+      onClick: () => navigate("/purchase-order-entry", { state: { orderData: order } }),
+    },
+    {
+      label: "Convert to Purchase Bill",
+      icon: ArrowRight,
+      onClick: () => handleOpenConversion(order),
+      hidden: order.status === "confirmed",
+    },
+    { label: "", separator: true, onClick: () => {} },
+    {
+      label: "Delete",
+      icon: Trash2,
+      onClick: () => setOrderToDelete(order),
+      destructive: true,
+    },
+  ];
+
+  const handleRowContextMenu = (e: React.MouseEvent, order: any) => {
+    if (!isDesktop) return;
+    rowContextMenu.openMenu(e, order);
+  };
+
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [supplierFilter, setSupplierFilter] = useState<string>("all");
@@ -463,7 +495,11 @@ export default function PurchaseOrderDashboard() {
               ) : (
                 paginatedOrders.map((order: any) => (
                   <>
-                    <TableRow key={order.id} className="cursor-pointer hover:bg-muted/50">
+                    <TableRow
+                      key={order.id}
+                      className="cursor-pointer hover:bg-muted/50"
+                      onContextMenu={(e) => handleRowContextMenu(e, order)}
+                    >
                       <TableCell onClick={() => toggleExpanded(order.id)}>
                         {expandedRows.has(order.id) ? (
                           <ChevronUp className="h-4 w-4" />
@@ -679,6 +715,15 @@ export default function PurchaseOrderDashboard() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {isDesktop && (
+        <DesktopContextMenu
+          isOpen={rowContextMenu.isOpen}
+          position={rowContextMenu.position}
+          items={rowContextMenu.contextData ? getOrderContextMenuItems(rowContextMenu.contextData) : []}
+          onClose={rowContextMenu.closeMenu}
+        />
+      )}
     </div>
   );
 }

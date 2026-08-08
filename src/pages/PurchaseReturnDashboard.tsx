@@ -15,6 +15,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { ChevronDown, ChevronUp, Trash2, Search, Calendar, Package, TrendingDown, Plus, Printer, Receipt, IndianRupee, Edit, Eye, CreditCard, FileText, X, Download } from "lucide-react";
+import { useContextMenu, useIsDesktop } from "@/hooks/useContextMenu";
+import { DesktopContextMenu, ContextMenuItem } from "@/components/DesktopContextMenu";
 import { format, formatDistanceToNow } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PurchaseReturnPrint } from "@/components/PurchaseReturnPrint";
@@ -85,6 +87,53 @@ const PurchaseReturnDashboard = () => {
   const location = useLocation();
   const { currentOrganization } = useOrganization();
   const queryClient = useQueryClient();
+
+  const isDesktop = useIsDesktop();
+  const rowContextMenu = useContextMenu<PurchaseReturn>();
+
+  const getReturnContextMenuItems = (returnRecord: PurchaseReturn): ContextMenuItem[] => [
+    {
+      label: "Adjust Credit Note",
+      icon: CreditCard,
+      onClick: () => {
+        setSelectedReturnForAdjust(returnRecord);
+        setShowAdjustDialog(true);
+      },
+      hidden: !(returnRecord.credit_status === "pending" || !returnRecord.credit_status),
+    },
+    {
+      label: "Edit",
+      icon: Edit,
+      onClick: () =>
+        navigate(`/purchase-return-entry?edit=${returnRecord.id}`, {
+          state: {
+            editReturnId: returnRecord.id,
+            returnPreview: returnRecord,
+          },
+        }),
+    },
+    {
+      label: "Preview",
+      icon: Eye,
+      onClick: () => handlePrintPreviewClick(returnRecord),
+    },
+    {
+      label: "Print",
+      icon: Printer,
+      onClick: () => handlePrintClick(returnRecord),
+    },
+    {
+      label: "Download PDF",
+      icon: Download,
+      onClick: () => handlePdfDownload(returnRecord),
+    },
+  ];
+
+  const handleRowContextMenu = (e: React.MouseEvent, returnRecord: PurchaseReturn) => {
+    if (!isDesktop) return;
+    rowContextMenu.openMenu(e, returnRecord);
+  };
+
   const [returns, setReturns] = useState<PurchaseReturn[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [startDate, setStartDate] = useState("");
@@ -946,6 +995,7 @@ const PurchaseReturnDashboard = () => {
                         key={returnRecord.id} 
                         className="hover:bg-muted/50 cursor-pointer h-10"
                         onClick={() => toggleExpanded(returnRecord.id)}
+                        onContextMenu={(e) => handleRowContextMenu(e, returnRecord)}
                       >
                         <TableCell className="px-2 py-1.5" onClick={(e) => e.stopPropagation()}>
                           <input
@@ -1365,6 +1415,15 @@ const PurchaseReturnDashboard = () => {
           supplierId={selectedSupplierForHistory.id}
           supplierName={selectedSupplierForHistory.name}
           organizationId={currentOrganization.id}
+        />
+      )}
+
+      {isDesktop && (
+        <DesktopContextMenu
+          isOpen={rowContextMenu.isOpen}
+          position={rowContextMenu.position}
+          items={rowContextMenu.contextData ? getReturnContextMenuItems(rowContextMenu.contextData) : []}
+          onClose={rowContextMenu.closeMenu}
         />
       )}
     </div>

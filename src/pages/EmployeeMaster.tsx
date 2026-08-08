@@ -35,6 +35,8 @@ import { Card } from "@/components/ui/card";
 import { ColumnDef } from "@tanstack/react-table";
 import { ERPTable } from "@/components/erp-table";
 import { cn } from "@/lib/utils";
+import { useContextMenu, useIsDesktop } from "@/hooks/useContextMenu";
+import { DesktopContextMenu, ContextMenuItem } from "@/components/DesktopContextMenu";
 
 interface Employee {
   id: string;
@@ -76,6 +78,29 @@ const EmployeeMaster = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { currentOrganization } = useOrganization();
+
+  const isDesktop = useIsDesktop();
+  const rowContextMenu = useContextMenu<Employee>();
+
+  const getEmployeeContextMenuItems = (employee: Employee): ContextMenuItem[] => [
+    {
+      label: "Edit",
+      icon: Pencil,
+      onClick: () => handleEdit(employee),
+    },
+    { label: "", separator: true, onClick: () => {} },
+    {
+      label: "Delete",
+      icon: Trash2,
+      onClick: () => handleDelete(employee.id),
+      destructive: true,
+    },
+  ];
+
+  const handleRowContextMenu = (e: React.MouseEvent, employee: Employee) => {
+    if (!isDesktop) return;
+    rowContextMenu.openMenu(e, employee);
+  };
 
   useCreateFormDraftPersistence(
     `${WINDOW_FILTER_IDS.employees}:create`,
@@ -515,6 +540,7 @@ const EmployeeMaster = () => {
               emptyMessage="No employees found"
               defaultDensity="comfortable"
               showToolbar={false}
+              onRowContextMenu={handleRowContextMenu}
               className={cn(
                 "employee-master-table border-0 [&_.border]:border-0",
                 "[&_td]:!text-base [&_th]:!text-sm [&_th]:!font-bold [&_th]:!uppercase [&_th]:!tracking-wide",
@@ -528,6 +554,15 @@ const EmployeeMaster = () => {
           </div>
         </Card>
       </div>
+
+      {isDesktop && (
+        <DesktopContextMenu
+          isOpen={rowContextMenu.isOpen}
+          position={rowContextMenu.position}
+          items={rowContextMenu.contextData ? getEmployeeContextMenuItems(rowContextMenu.contextData) : []}
+          onClose={rowContextMenu.closeMenu}
+        />
+      )}
     </div>
   );
 };

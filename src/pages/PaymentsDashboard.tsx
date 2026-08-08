@@ -34,6 +34,8 @@ import {
   X,
   type LucideIcon,
 } from "lucide-react";
+import { useContextMenu, useIsDesktop } from "@/hooks/useContextMenu";
+import { DesktopContextMenu, ContextMenuItem } from "@/components/DesktopContextMenu";
 import { format, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { useWhatsAppTemplates } from "@/hooks/useWhatsAppTemplates";
@@ -163,6 +165,43 @@ export default function PaymentsDashboard() {
   const { currentOrganization } = useOrganization();
   const { formatMessage } = useWhatsAppTemplates();
   const { sendWhatsApp } = useWhatsAppSend();
+
+  const isDesktop = useIsDesktop();
+  const rowContextMenu = useContextMenu<Invoice>();
+
+  const getPaymentContextMenuItems = (invoice: Invoice): ContextMenuItem[] => [
+    {
+      label: "Send Payment Reminder",
+      icon: MessageCircle,
+      onClick: () => {
+        void handleSendPaymentReminder(invoice);
+      },
+      hidden: !columnSettings.whatsapp || invoice.payment_status === "completed",
+      disabled: !invoice.customer_phone,
+    },
+    {
+      label: "Send Payment Link",
+      icon: Link2,
+      onClick: () => {
+        setPaymentLinkInvoice(invoice);
+        setShowPaymentLinkDialog(true);
+      },
+      hidden: invoice.payment_status === "completed",
+      disabled: !invoice.customer_phone,
+    },
+    {
+      label: "Record Payment",
+      icon: IndianRupee,
+      onClick: () => openPaymentDialog(invoice),
+      hidden: !columnSettings.recordPayment || invoice.payment_status === "completed",
+    },
+  ];
+
+  const handleRowContextMenu = (e: React.MouseEvent, invoice: Invoice) => {
+    if (!isDesktop) return;
+    rowContextMenu.openMenu(e, invoice);
+  };
+
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [dateFrom, setDateFrom] = useState<Date | undefined>();
@@ -1312,7 +1351,11 @@ Thank you for your business!`;
                       const pendingAmount = Number(invoice.net_amount || 0) - Number(invoice.paid_amount || 0);
                       
                       return (
-                        <TableRow key={invoice.id} className="hover:bg-accent/50">
+                        <TableRow
+                          key={invoice.id}
+                          className="hover:bg-accent/50"
+                          onContextMenu={(e) => handleRowContextMenu(e, invoice)}
+                        >
                           {columnSettings.saleNumber && (
                             <TableCell className="font-medium">{invoice.sale_number}</TableCell>
                           )}
@@ -1457,6 +1500,15 @@ Thank you for your business!`;
         )}
       </Card>
       {dashboardDialogs}
+
+      {isDesktop && (
+        <DesktopContextMenu
+          isOpen={rowContextMenu.isOpen}
+          position={rowContextMenu.position}
+          items={rowContextMenu.contextData ? getPaymentContextMenuItems(rowContextMenu.contextData) : []}
+          onClose={rowContextMenu.closeMenu}
+        />
+      )}
     </div>
   );
 }
