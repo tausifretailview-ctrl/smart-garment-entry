@@ -121,7 +121,12 @@ import {
   INVOICE_PRINT_VISIBILITY_OVERRIDE_CSS,
 } from "@/utils/thermalReceiptPrintDocument";
 import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
-import { isDashboardFilterRestoring, restoreDashboardFilters } from "@/lib/dashboardFilterPersistence";
+import {
+  clearDashboardFilters,
+  isDashboardFilterRestoring,
+  restoreDashboardFilters,
+} from "@/lib/dashboardFilterPersistence";
+import { ResetPersistedFiltersButton } from "@/components/ResetPersistedFiltersButton";
 
 interface SaleItem {
   id: string;
@@ -378,8 +383,12 @@ const POSDashboard = () => {
   const posFilterSnapshot = useMemo(
     () => ({
       searchQuery,
-      startDate,
-      endDate,
+      // Persist absolute dates only for custom / daily (same-day day-pick).
+      // Relative periods re-resolve from today; day-boundary sanitize drops stale daily.
+      startDate:
+        periodFilter === "custom" || periodFilter === "daily" ? startDate : "",
+      endDate:
+        periodFilter === "custom" || periodFilter === "daily" ? endDate : "",
       periodFilter,
       paymentMethodFilter,
       paymentStatusFilter,
@@ -479,6 +488,43 @@ const POSDashboard = () => {
         if (!startDate) setStartDate(todayStr);
         if (!endDate) setEndDate(startDate || todayStr);
         break;
+    }
+  };
+
+  const todayYmd = format(new Date(), "yyyy-MM-dd");
+  const posFiltersDirty =
+    searchQuery !== "" ||
+    periodFilter !== "daily" ||
+    startDate !== todayYmd ||
+    endDate !== todayYmd ||
+    paymentMethodFilter !== "all" ||
+    paymentStatusFilter.length > 0 ||
+    saleTypeFilter !== "all" ||
+    refundFilter !== "all" ||
+    creditNoteFilter !== "all" ||
+    cancelFilter !== "active" ||
+    (userFilter !== "__pending__" && userFilter !== "all" && userFilter !== "");
+
+  const resetPosFilters = () => {
+    const todayStr = format(new Date(), "yyyy-MM-dd");
+    setSearchQuery("");
+    setPeriodFilter("daily");
+    setStartDate(todayStr);
+    setEndDate(todayStr);
+    setPaymentMethodFilter("all");
+    setPaymentStatusFilter([]);
+    setSaleTypeFilter("all");
+    setRefundFilter("all");
+    setCreditNoteFilter("all");
+    setCancelFilter("active");
+    setUserFilter("all");
+    setCurrentPage(1);
+    if (currentOrganization?.id && user?.id) {
+      clearDashboardFilters(
+        currentOrganization.id,
+        routePathSegment || "pos-dashboard",
+        user.id,
+      );
     }
   };
   
@@ -2884,6 +2930,10 @@ const POSDashboard = () => {
                 </SelectContent>
               </Select>
               </div>
+              <ResetPersistedFiltersButton
+                visible={posFiltersDirty}
+                onReset={resetPosFilters}
+              />
               {periodFilter !== 'all' &&
                 (periodFilter === 'daily' ? (
                   <div className="flex-1 min-w-[110px]">

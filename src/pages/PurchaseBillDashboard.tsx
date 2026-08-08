@@ -60,7 +60,15 @@ import { prefetchTabPage } from "@/lib/tabPageRegistry";
 import { useSharedAppShell } from "@/contexts/SharedAppShellContext";
 import { onWheelScrollContainer } from "@/lib/scrollWheel";
 import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
-import { isDashboardFilterRestoring, pickPersistedNumber, pickPersistedString, readPurchaseBillDashboardFilters, restoreDashboardFilters } from "@/lib/dashboardFilterPersistence";
+import {
+  clearDashboardFilters,
+  isDashboardFilterRestoring,
+  pickPersistedNumber,
+  pickPersistedString,
+  readPurchaseBillDashboardFilters,
+  restoreDashboardFilters,
+} from "@/lib/dashboardFilterPersistence";
+import { ResetPersistedFiltersButton } from "@/components/ResetPersistedFiltersButton";
 import {
   derivePurchaseBillDisplayStatus,
   getEffectivePaidAmountForPurchaseBill,
@@ -214,7 +222,10 @@ const PurchaseBillDashboard = () => {
   const location = useLocation();
   const { currentOrganization } = useOrganization();
   const { user } = useAuth();
-  const savedPurchaseFilters = readPurchaseBillDashboardFilters(currentOrganization?.id);
+  const savedPurchaseFilters = readPurchaseBillDashboardFilters(
+    currentOrganization?.id,
+    user?.id,
+  );
   const initialPurchasePeriod = resolvePurchaseDashboardInitialPeriod(savedPurchaseFilters);
   const [itemsLoading, setItemsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState(
@@ -307,6 +318,29 @@ const PurchaseBillDashboard = () => {
       });
     },
   );
+
+  const purchaseFiltersDirty =
+    searchQuery !== "" ||
+    periodFilter !== "monthly" ||
+    startDate !== "" ||
+    endDate !== "" ||
+    sortOrder !== "desc" ||
+    paymentStatusFilter !== "all" ||
+    dcFilter !== "all";
+
+  const resetPurchaseFilters = () => {
+    setSearchQuery("");
+    setPeriodFilter("monthly");
+    setStartDate("");
+    setEndDate("");
+    setSortOrder("desc");
+    setPaymentStatusFilter("all");
+    setDcFilter("all");
+    setCurrentPage(1);
+    if (currentOrganization?.id && user?.id) {
+      clearDashboardFilters(currentOrganization.id, "purchase-bills", user.id);
+    }
+  };
 
   const purchaseQueriesEnabled = !!currentOrganization?.id;
 
@@ -2632,6 +2666,10 @@ const PurchaseBillDashboard = () => {
                   <SelectItem value="custom">Custom</SelectItem>
                 </SelectContent>
               </Select>
+              <ResetPersistedFiltersButton
+                visible={purchaseFiltersDirty}
+                onReset={resetPurchaseFilters}
+              />
               {periodFilter === "custom" && (
                 <>
                   <Input
