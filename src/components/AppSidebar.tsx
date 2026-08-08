@@ -124,7 +124,6 @@ export function AppSidebar() {
     hasMainMenuAccess,
     hasSpecialPermission,
     isAdmin: isAdminPermissions,
-    loading: permissionsLoading,
     permissions,
   } = useUserPermissions();
   const { currentOrganization, organizationRole } = useOrganization();
