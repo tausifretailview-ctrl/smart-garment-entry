@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import {
   ChevronLeft,
@@ -36,6 +37,7 @@ import {
 } from "@/components/accounts/accountsHistoryUi";
 import { supabase } from "@/integrations/supabase/client";
 import { resolveReceiptReprintBalances } from "@/utils/customerBalanceUtils";
+import { fetchSuppliersByIds } from "@/utils/supplierSearch";
 
 const TAB_LABELS: Record<AccountsPaymentTabId, string> = {
   "customer-payment": "Customer receipts",
@@ -74,12 +76,41 @@ export function PaymentTransactionHistoryPanel({
   const { isAdmin } = useUserRoles();
   const [search, setSearch] = useState("");
 
+  const supplierIdsForHistory = useMemo(() => {
+    if (tab !== "supplier-payment" || !vouchers?.length) return [] as string[];
+    return [
+      ...new Set(
+        filterVouchersForPaymentTab(tab, vouchers)
+          .map((v) => String(v.reference_id || ""))
+          .filter(Boolean),
+      ),
+    ];
+  }, [tab, vouchers]);
+
+  const { data: supplierRows = [] } = useQuery({
+    queryKey: ["suppliers-by-ids-history", organizationId, supplierIdsForHistory],
+    queryFn: () => fetchSuppliersByIds(organizationId!, supplierIdsForHistory),
+    enabled: !!organizationId && tab === "supplier-payment" && supplierIdsForHistory.length > 0,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const suppliersResolved = useMemo(() => {
+    if (suppliers?.length) return suppliers;
+    return supplierRows;
+  }, [suppliers, supplierRows]);
+
   const filtered = useMemo(() => {
     let rows = sortVouchersNewestFirst(filterVouchersForPaymentTab(tab, vouchers));
     if (search.trim()) {
       const q = search.toLowerCase();
       rows = rows.filter((v) => {
-        const party = resolveVoucherPartyName(v, { tab, sales, customers, suppliers, employees });
+        const party = resolveVoucherPartyName(v, {
+          tab,
+          sales,
+          customers,
+          suppliers: suppliersResolved,
+          employees,
+        });
         return (
           (v.voucher_number || "").toLowerCase().includes(q) ||
           party.toLowerCase().includes(q) ||
@@ -89,7 +120,7 @@ export function PaymentTransactionHistoryPanel({
       });
     }
     return rows;
-  }, [tab, vouchers, search, sales, customers, suppliers, employees]);
+  }, [tab, vouchers, search, sales, customers, suppliersResolved, employees]);
 
   const selected =
     navIndex !== null && navIndex >= 0 && navIndex < filtered.length ? filtered[navIndex] : null;
@@ -127,7 +158,7 @@ export function PaymentTransactionHistoryPanel({
       tab,
       sales,
       customers,
-      suppliers,
+      suppliers: suppliersResolved,
       employees,
     });
     const paid = Number(voucher.total_amount) || 0;
@@ -250,7 +281,13 @@ export function PaymentTransactionHistoryPanel({
               {selected.payment_method || "—"}
             </Badge>
             <span className="text-muted-foreground truncate max-w-[200px]">
-              {resolveVoucherPartyName(selected, { tab, sales, customers, suppliers, employees })}
+              {resolveVoucherPartyName(selected, {
+                tab,
+                sales,
+                customers,
+                suppliers: suppliersResolved,
+                employees,
+              })}
             </span>
             <span className="text-muted-foreground truncate flex-1 min-w-[120px]">
               {selected.description || "—"}
@@ -305,7 +342,13 @@ export function PaymentTransactionHistoryPanel({
                     {format(new Date(v.voucher_date || v.created_at || 0), "dd/MM/yy")}
                   </TableCell>
                   <TableCell className="text-sm max-w-[140px] truncate">
-                    {resolveVoucherPartyName(v, { tab, sales, customers, suppliers, employees })}
+                    {resolveVoucherPartyName(v, {
+                      tab,
+                      sales,
+                      customers,
+                      suppliers: suppliersResolved,
+                      employees,
+                    })}
                   </TableCell>
                   <TableCell className={cn("text-right", paymentPickerAmountClass)}>
                     ₹{Number(v.total_amount || 0).toLocaleString("en-IN")}

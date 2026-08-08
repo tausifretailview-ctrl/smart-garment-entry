@@ -57,6 +57,7 @@ import {
   voucherSettlementCredit,
 } from "@/utils/paymentSettlementBreakdown";
 import { confirmSupplierOverpaymentIfNeeded } from "@/utils/supplierOverpaymentGuard";
+import { fetchSuppliersByIds, searchSuppliers } from "@/utils/supplierSearch";
 
 function roundMoney(n: number): number {
   return Math.round(n * 100) / 100;
@@ -81,7 +82,8 @@ const EMPTY_SUPPLIER_SNAPSHOT = (supplierId: string): SupplierBalanceSnapshot =>
 interface SupplierPaymentTabProps {
   organizationId: string;
   vouchers: any[] | undefined;
-  suppliers: any[] | undefined;
+  /** @deprecated Prefer search + by-ids; kept optional for call-site compat. */
+  suppliers?: any[] | undefined;
   onEditPayment?: (voucher: any) => void;
   embedded?: boolean;
   fullPage?: boolean;
@@ -93,7 +95,7 @@ interface SupplierPaymentTabProps {
 export function SupplierPaymentTab({
   organizationId,
   vouchers,
-  suppliers,
+  suppliers: suppliersProp,
   onEditPayment,
   embedded = false,
   fullPage = false,
@@ -152,32 +154,80 @@ export function SupplierPaymentTab({
     ? supplierBalanceMapFromParent
     : supplierBalanceMapLocal;
 
-  // Suppliers with balance (picker list — uses shared org balance map).
-  const { data: allSuppliers } = useQuery({
-    queryKey: ["suppliers-with-balance", organizationId],
+  // Debounce picker search — server-side limit, not a full-table walk.
+  const [debouncedSupplierSearch, setDebouncedSupplierSearch] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSupplierSearch(supplierSearchTerm), 300);
+    return () => clearTimeout(t);
+  }, [supplierSearchTerm]);
+
+  const owedSupplierIds = useMemo(() => {
+    if (!supplierBalanceMap) return [] as string[];
+    const ids: string[] = [];
+    supplierBalanceMap.balanceMap.forEach((snap, id) => {
+      if ((snap?.balance ?? 0) > 0.01) ids.push(id);
+    });
+    return ids.sort();
+  }, [supplierBalanceMap]);
+
+  /** Suppliers with payable balance — resolve only those ids from the balance map. */
+  const { data: suppliersWithBalance } = useQuery({
+    queryKey: ["suppliers-with-balance", organizationId, owedSupplierIds],
     queryFn: async () => {
-      const { data, error: suppError } = await supabase
-        .from("suppliers")
-        .select("*")
-        .eq("organization_id", organizationId)
-        .is("deleted_at", null)
-        .order("supplier_name");
-      if (suppError) throw suppError;
-      return data || [];
+      const balanceMap = supplierBalanceMap!.balanceMap;
+      const rows = await fetchSuppliersByIds(organizationId, owedSupplierIds);
+      return rows
+        .map((s) => ({
+          ...s,
+          outstandingBalance: safeMapGet<SupplierBalanceSnapshot>(balanceMap, s.id)?.balance ?? 0,
+        }))
+        .sort((a, b) => a.supplier_name.localeCompare(b.supplier_name));
     },
-    enabled: !!organizationId && tabActive,
+    enabled: !!organizationId && tabActive && !!supplierBalanceMap,
+    staleTime: 2 * 60 * 1000,
   });
 
-  const suppliersWithBalance = useMemo(() => {
-    if (!allSuppliers || !supplierBalanceMap) return undefined;
-    const { balanceMap } = supplierBalanceMap;
-    return allSuppliers
-      .filter((s: any) => (safeMapGet<SupplierBalanceSnapshot>(balanceMap, s.id)?.balance ?? 0) > 0.01)
-      .map((s: any) => ({
-        ...s,
-        outstandingBalance: safeMapGet<SupplierBalanceSnapshot>(balanceMap, s.id)?.balance ?? 0,
-      }));
-  }, [allSuppliers, supplierBalanceMap]);
+  const { data: searchedSuppliers = [] } = useQuery({
+    queryKey: ["suppliers-search", organizationId, debouncedSupplierSearch],
+    queryFn: () => searchSuppliers(organizationId, debouncedSupplierSearch),
+    enabled: !!organizationId && tabActive && (supplierSearchOpen || !!debouncedSupplierSearch),
+    staleTime: 30 * 1000,
+  });
+
+  const voucherSupplierIds = useMemo(() => {
+    if (!vouchers?.length) return [] as string[];
+    return [
+      ...new Set(
+        vouchers
+          .filter((v) => v.voucher_type === "payment" && v.reference_id)
+          .map((v) => String(v.reference_id)),
+      ),
+    ];
+  }, [vouchers]);
+
+  const nameResolveIds = useMemo(() => {
+    const ids = [...voucherSupplierIds];
+    if (referenceId) ids.push(referenceId);
+    return [...new Set(ids)];
+  }, [voucherSupplierIds, referenceId]);
+
+  const { data: voucherSupplierRows = [] } = useQuery({
+    queryKey: ["suppliers-by-ids", organizationId, nameResolveIds],
+    queryFn: () => fetchSuppliersByIds(organizationId, nameResolveIds),
+    enabled: !!organizationId && tabActive && nameResolveIds.length > 0,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const supplierNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const s of voucherSupplierRows) map.set(s.id, s.supplier_name);
+    for (const s of suppliersWithBalance || []) map.set(s.id, s.supplier_name);
+    for (const s of searchedSuppliers) map.set(s.id, s.supplier_name);
+    for (const s of suppliersProp || []) {
+      if (s?.id && s?.supplier_name) map.set(s.id, s.supplier_name);
+    }
+    return map;
+  }, [voucherSupplierRows, suppliersWithBalance, searchedSuppliers, suppliersProp]);
 
   const balanceSnapshotDegraded = supplierBalanceMap?.degraded ?? false;
 
@@ -788,7 +838,7 @@ export function SupplierPaymentTab({
   const allSupplierPayments = vouchers?.filter((v) => v.reference_type === "supplier" && (v.voucher_type === "payment" || v.voucher_type === "PAYMENT")) || [];
   const supplierPayments = paymentSearchTerm
     ? allSupplierPayments.filter((v) => {
-        const supplierName = suppliers?.find((s) => s.id === v.reference_id)?.supplier_name || "";
+        const supplierName = supplierNameById.get(String(v.reference_id)) || "";
         return supplierName.toLowerCase().includes(paymentSearchTerm.toLowerCase()) ||
           (v.voucher_number || "").toLowerCase().includes(paymentSearchTerm.toLowerCase()) ||
           (v.description || "").toLowerCase().includes(paymentSearchTerm.toLowerCase());
@@ -877,12 +927,13 @@ export function SupplierPaymentTab({
                     <Button variant="outline" role="combobox" aria-expanded={supplierSearchOpen} className="w-full justify-between font-normal">
                       <span className="flex min-w-0 flex-1 items-center gap-2 truncate text-left">
                       {referenceId ? (() => {
-                        const supplier = suppliersWithBalance?.find(s => s.id === referenceId) || suppliers?.find(s => s.id === referenceId);
-                        return supplier ? (
+                        const withBal = suppliersWithBalance?.find((s) => s.id === referenceId);
+                        const name = withBal?.supplier_name || supplierNameById.get(referenceId);
+                        return name ? (
                           <>
-                            <span className="truncate">{supplier.supplier_name}</span>
-                            {supplier.outstandingBalance !== undefined && (
-                              <Badge variant="destructive" className="shrink-0 tabular-nums">₹{(supplier.outstandingBalance || 0).toFixed(2)}</Badge>
+                            <span className="truncate">{name}</span>
+                            {withBal?.outstandingBalance !== undefined && (
+                              <Badge variant="destructive" className="shrink-0 tabular-nums">₹{(withBal.outstandingBalance || 0).toFixed(2)}</Badge>
                             )}
                           </>
                         ) : "Select supplier";
@@ -901,7 +952,13 @@ export function SupplierPaymentTab({
                       <CommandList className="max-h-[min(50vh,360px)]">
                         <CommandEmpty>No supplier found.</CommandEmpty>
                         <CommandGroup heading="Suppliers with Balance">
-                          {suppliersWithBalance?.filter(s => s.supplier_name.toLowerCase().includes(supplierSearchTerm.toLowerCase())).map((supplier) => (
+                          {suppliersWithBalance
+                            ?.filter((s) =>
+                              s.supplier_name
+                                .toLowerCase()
+                                .includes(supplierSearchTerm.toLowerCase()),
+                            )
+                            .map((supplier) => (
                             <CommandItem
                               key={supplier.id}
                               value={supplier.supplier_name}
@@ -920,7 +977,9 @@ export function SupplierPaymentTab({
                           ))}
                         </CommandGroup>
                         <CommandGroup heading="All Suppliers">
-                          {suppliers?.filter(s => s.supplier_name.toLowerCase().includes(supplierSearchTerm.toLowerCase()) && !suppliersWithBalance?.find(sw => sw.id === s.id)).map((supplier) => (
+                          {searchedSuppliers
+                            .filter((s) => !suppliersWithBalance?.some((sw) => sw.id === s.id))
+                            .map((supplier) => (
                             <CommandItem
                               key={supplier.id}
                               value={supplier.supplier_name}
@@ -1376,7 +1435,7 @@ export function SupplierPaymentTab({
             <TableBody>
               {paginatedPayments.map((voucher) => {
                 const supplierName =
-                  suppliers?.find((s) => s.id === voucher.reference_id)?.supplier_name ||
+                  supplierNameById.get(String(voucher.reference_id)) ||
                   voucher.description?.match(/Supplier:\s*([^|]+)/i)?.[1]?.trim() ||
                   "-";
                 const isSelected = selectedPaymentIds.includes(voucher.id);
@@ -1432,7 +1491,7 @@ export function SupplierPaymentTab({
       <ChequePrintDialog
         open={showChequePrintDialog}
         onOpenChange={setShowChequePrintDialog}
-        payeeName={suppliers?.find(s => s.id === referenceId)?.supplier_name || ""}
+        payeeName={supplierNameById.get(referenceId) || ""}
         amount={paymentBreakdown.cash || 0}
         chequeDate={chequeDate || new Date()}
         chequeNumber={chequeNumber}

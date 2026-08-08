@@ -69,7 +69,7 @@ export default function AccountsPaymentsPage() {
   const [historyOpen, setHistoryOpen] = useState(false);
 
   const paymentDialogs = useAccountsPaymentDialogs(settings);
-  const { vouchers, sales, customers, suppliers, employees } = useAccountsVoucherData(
+  const { vouchers, sales, customers, employees } = useAccountsVoucherData(
     orgId,
     activeTab,
     true,
@@ -184,7 +184,6 @@ export default function AccountsPaymentsPage() {
                     fullPage
                     organizationId={orgId}
                     vouchers={vouchers}
-                    suppliers={suppliers}
                     onEditPayment={paymentDialogs.openEditPaymentDialog}
                   />
                 </TabsContent>
@@ -231,7 +230,6 @@ export default function AccountsPaymentsPage() {
                     vouchers={vouchers}
                     sales={sales}
                     customers={customers}
-                    suppliers={suppliers}
                     employees={employees}
                     organizationId={orgId}
                     navIndex={navIndex}

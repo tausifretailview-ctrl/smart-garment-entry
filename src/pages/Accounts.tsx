@@ -50,9 +50,8 @@ import { CustomerBalanceAdjustmentDialog } from "@/components/CustomerBalanceAdj
 import { RecentBalanceAdjustments } from "@/components/RecentBalanceAdjustments";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { coerceToMap, coerceToArray } from "@/lib/coerceToMap";
+import { coerceToMap } from "@/lib/coerceToMap";
 import { loadSupplierBalanceMapForOrg } from "@/utils/supplierBalanceUtils";
-import { fetchAllSuppliers } from "@/utils/fetchAllRows";
 import { useOrgLedgerReferenceData } from "@/hooks/useOrgLedgerReferenceData";
 import {
   deleteJournalEntryByReference,
@@ -760,18 +759,8 @@ export default function Accounts() {
     loadSalesSummary: needsSales,
   });
 
-  // Fetch suppliers only when supplier tab is active
-  const needsSuppliers =
-    visitedTabs.has("supplier-payment") || visitedTabs.has("supplier-ledger");
-  const { data: suppliers } = useQuery({
-    queryKey: ["suppliers", currentOrganization?.id],
-    queryFn: async () => fetchAllSuppliers(currentOrganization!.id),
-    select: (data) => coerceToArray(data),
-    enabled: !!currentOrganization?.id && needsSuppliers,
-    staleTime: 2 * 60 * 1000,
-    gcTime: 10 * 60 * 1000,
-    refetchOnWindowFocus: false,
-  });
+  // Supplier payment picker uses search/by-ids (SupplierPaymentTab).
+  // Supplier ledger loads its own directory — do not preload fetchAllSuppliers here.
 
   // Fetch vouchers only when tabs that need them are active
   const needsVouchers =
@@ -1128,7 +1117,7 @@ export default function Accounts() {
               )}
               {shouldMountTab("supplier-payment") && (
               <div className={cn(selectedTab !== "supplier-payment" && "hidden")} aria-hidden={selectedTab !== "supplier-payment"}>
-                <SupplierPaymentTab organizationId={currentOrganization.id} vouchers={vouchers} suppliers={suppliers} onEditPayment={paymentDialogs.openEditPaymentDialog} visitedTabs={visitedTabs} supplierBalanceMap={supplierBalanceMapData} />
+                <SupplierPaymentTab organizationId={currentOrganization.id} vouchers={vouchers} onEditPayment={paymentDialogs.openEditPaymentDialog} visitedTabs={visitedTabs} supplierBalanceMap={supplierBalanceMapData} />
               </div>
               )}
               {shouldMountTab("employee-salary") && (
@@ -1309,7 +1298,7 @@ export default function Accounts() {
 
         <TabsContent value="supplier-payment" forceMount={shouldMountTab("supplier-payment") ? true : undefined} className={STICKY_TAB_CONTENT_CLASS}>
           {currentOrganization?.id && shouldMountTab("supplier-payment") && (
-            <SupplierPaymentTab organizationId={currentOrganization.id} vouchers={vouchers} suppliers={suppliers} onEditPayment={paymentDialogs.openEditPaymentDialog} visitedTabs={visitedTabs} supplierBalanceMap={supplierBalanceMapData} />
+            <SupplierPaymentTab organizationId={currentOrganization.id} vouchers={vouchers} onEditPayment={paymentDialogs.openEditPaymentDialog} visitedTabs={visitedTabs} supplierBalanceMap={supplierBalanceMapData} />
           )}
         </TabsContent>
 

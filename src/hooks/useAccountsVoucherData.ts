@@ -1,6 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { fetchAllSuppliers } from "@/utils/fetchAllRows";
 import { useOrgLedgerReferenceData } from "@/hooks/useOrgLedgerReferenceData";
 
 export type AccountsPaymentTabId =
@@ -62,16 +61,6 @@ export function useAccountsVoucherData(
     loadSalesSummary: needsSales,
   });
 
-  const needsSuppliers = activeTab === "supplier-payment";
-  const { data: suppliers } = useQuery({
-    queryKey: ["suppliers", organizationId],
-    queryFn: () => fetchAllSuppliers(organizationId!),
-    enabled: orgReady && needsSuppliers,
-    staleTime: 2 * 60 * 1000,
-    gcTime: 10 * 60 * 1000,
-    refetchOnWindowFocus: false,
-  });
-
   const needsEmployees = loadAllParties || activeTab === "employee-salary";
   const { data: employees } = useQuery({
     queryKey: ["employees", organizationId],
@@ -95,7 +84,6 @@ export function useAccountsVoucherData(
     vouchersLoading,
     sales,
     customers,
-    suppliers,
     employees,
   };
 }

@@ -20,7 +20,7 @@ import {
   fetchSupplierBalanceSnapshot,
   type SupplierBalanceMapForOrg,
 } from "@/utils/supplierBalanceUtils";
-import { fetchAllSuppliers } from "@/utils/fetchAllRows";
+import { fetchSupplierDirectory } from "@/utils/fetchAllRows";
 import { voucherSettlementCredit } from "@/utils/paymentSettlementBreakdown";
 import {
   supplierCreditNoteLedgerDebit,
@@ -111,10 +111,11 @@ export function SupplierLedger({ organizationId, visitedTabs, supplierBalanceMap
     },
   );
 
-  // Suppliers list (balances from shared org-level map in Accounts.tsx).
+  // Directory only — balances from shared org-level map (Accounts.tsx).
+  // Not fetchAllSuppliers (keeps opening_balance / gst off the hot path).
   const { data: suppliersData, isLoading: suppliersLoading } = useQuery({
-    queryKey: ["supplier-ledger", organizationId],
-    queryFn: () => fetchAllSuppliers(organizationId),
+    queryKey: ["supplier-directory", organizationId],
+    queryFn: () => fetchSupplierDirectory(organizationId),
     select: (data) => coerceToArray(data),
     enabled: !!organizationId && tabActive,
   });

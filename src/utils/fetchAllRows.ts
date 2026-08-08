@@ -451,6 +451,8 @@ export async function fetchAllSalesDetails(organizationId: string) {
 
 /**
  * Fetch all suppliers for an organization using range pagination.
+ * Prefer for bulk export (Tally). Hot UI paths should use
+ * `searchSuppliers` / `fetchSuppliersByIds` or `fetchSupplierDirectory`.
  */
 export async function fetchAllSuppliers(organizationId: string) {
   const allRows: any[] = [];
@@ -469,6 +471,44 @@ export async function fetchAllSuppliers(organizationId: string) {
 
     if (error) {
       console.error("Error fetching suppliers:", error);
+      throw error;
+    }
+
+    if (data && data.length > 0) {
+      allRows.push(...data);
+      offset += pageSize;
+      if (data.length < pageSize) {
+        hasMore = false;
+      }
+    } else {
+      hasMore = false;
+    }
+  }
+
+  return allRows;
+}
+
+/**
+ * Lightweight supplier directory for ledger lists (no opening_balance / gst).
+ * Balances come from supplierBalanceMap — keep this for name/contact columns only.
+ */
+export async function fetchSupplierDirectory(organizationId: string) {
+  const allRows: any[] = [];
+  let offset = 0;
+  const pageSize = 1000;
+  let hasMore = true;
+
+  while (hasMore) {
+    const { data, error } = await supabase
+      .from("suppliers")
+      .select("id, supplier_name, phone, email, address")
+      .eq("organization_id", organizationId)
+      .is("deleted_at", null)
+      .order("supplier_name")
+      .range(offset, offset + pageSize - 1);
+
+    if (error) {
+      console.error("Error fetching supplier directory:", error);
       throw error;
     }
 
