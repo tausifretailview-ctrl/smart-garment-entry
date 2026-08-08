@@ -49,6 +49,7 @@ import { fixMissingMrpForOrgViaRpc } from "@/utils/fixMissingMrpForOrg";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SupplierHistoryDialog } from "@/components/SupplierHistoryDialog";
+import { PurchaseBillHistoryDialog } from "@/components/PurchaseBillHistoryDialog";
 import { useSoftDelete, StockDependency } from "@/hooks/useSoftDelete";
 import { useDraftSave } from "@/hooks/useDraftSave";
 import { useContextMenu, useIsDesktop } from "@/hooks/useContextMenu";
@@ -359,6 +360,8 @@ const PurchaseBillDashboard = () => {
   // Supplier history dialog states
   const [showSupplierHistory, setShowSupplierHistory] = useState(false);
   const [selectedSupplierForHistory, setSelectedSupplierForHistory] = useState<{id: string; name: string} | null>(null);
+  const [showBillHistory, setShowBillHistory] = useState(false);
+  const [selectedBillForHistory, setSelectedBillForHistory] = useState<{ id: string } | null>(null);
   
   // Stock dependency warning states
   const [showDependencyWarning, setShowDependencyWarning] = useState(false);
@@ -437,6 +440,14 @@ const PurchaseBillDashboard = () => {
         label: "View Details",
         icon: Eye,
         onClick: () => handleToggleExpand(bill.id),
+      },
+      {
+        label: "Bill History",
+        icon: Clock,
+        onClick: () => {
+          setSelectedBillForHistory({ id: bill.id });
+          setShowBillHistory(true);
+        },
       },
       {
         label: "Edit Bill",
@@ -1729,7 +1740,18 @@ const PurchaseBillDashboard = () => {
         const bill = row.original;
         return (
           <div className={cn("flex items-center gap-1.5", bill.is_cancelled && "opacity-60")}>
-            <span className={cn("font-mono text-base font-semibold text-blue-600 hover:text-blue-800 px-0.5 leading-tight", bill.is_cancelled && "line-through")}>
+            <span
+              className={cn(
+                "font-mono text-base font-semibold text-blue-600 hover:text-blue-800 px-0.5 leading-tight cursor-pointer hover:underline",
+                bill.is_cancelled && "line-through",
+              )}
+              title="View bill history"
+              onClick={(e) => {
+                e.stopPropagation();
+                setSelectedBillForHistory({ id: bill.id });
+                setShowBillHistory(true);
+              }}
+            >
               {bill.software_bill_no || "N/A"}
             </span>
             {bill.is_dc_purchase && (
@@ -2279,7 +2301,19 @@ const PurchaseBillDashboard = () => {
                 <div className="flex items-start justify-between">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className={cn("font-mono text-xs font-bold text-primary", bill.is_cancelled && "line-through")}>{bill.software_bill_no}</span>
+                      <span
+                        className={cn(
+                          "font-mono text-xs font-bold text-primary cursor-pointer hover:underline",
+                          bill.is_cancelled && "line-through",
+                        )}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedBillForHistory({ id: bill.id });
+                          setShowBillHistory(true);
+                        }}
+                      >
+                        {bill.software_bill_no}
+                      </span>
                       {bill.is_dc_purchase && (
                         <span className="text-xs font-bold px-1 py-0.5 rounded bg-orange-100 text-orange-700 dark:bg-orange-950 dark:text-orange-400 border border-orange-300 dark:border-orange-700">DC</span>
                       )}
@@ -3231,6 +3265,13 @@ const PurchaseBillDashboard = () => {
           organizationId={currentOrganization.id}
         />
       )}
+
+      <PurchaseBillHistoryDialog
+        open={showBillHistory}
+        onOpenChange={setShowBillHistory}
+        billId={selectedBillForHistory?.id}
+        organizationId={currentOrganization?.id}
+      />
 
       {/* Desktop Context Menus */}
       {isDesktop && (

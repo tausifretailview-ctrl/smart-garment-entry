@@ -23,6 +23,7 @@ import {
   reconcileSaleInvoiceWithSplit,
   type SaleReceiptVoucherSplit,
 } from "@/utils/customerBalanceUtils";
+import { fetchDocumentEditEvents } from "@/utils/documentHistoryEdits";
 
 interface InvoiceHistoryDialogProps {
   open: boolean;
@@ -33,6 +34,7 @@ interface InvoiceHistoryDialogProps {
 
 type TimelineType =
   | "created"
+  | "edited"
   | "payment"
   | "sale_return"
   | "delivery"
@@ -198,6 +200,22 @@ export function InvoiceHistoryDialog({
         split = splitMap.get(sale.id) ?? split;
       }
 
+      const editEvents = sale
+        ? await fetchDocumentEditEvents({
+            organizationId: organizationId!,
+            entityId: sale.id,
+            entityTypes: ["sale", "sales", "invoice"],
+            createdAt: sale.created_at,
+            updatedAt: sale.updated_at,
+            ignoreUpdatedNearTimestamps: [
+              sale.cancelled_at || "",
+              ...vouchers.map((v) => v.created_at || v.voucher_date || ""),
+              ...(returnsRes.data || []).map((r) => r.created_at || r.return_date || ""),
+              ...(deliveryRes.data || []).map((d) => d.created_at || d.status_date || ""),
+            ],
+          })
+        : [];
+
       return {
         sale,
         vouchers,
@@ -205,13 +223,14 @@ export function InvoiceHistoryDialog({
         saleReturns: returnsRes.data || [],
         deliveryHistory: deliveryRes.data || [],
         saleItems: saleItemsRes.data || [],
+        editEvents,
       };
     },
   });
 
   const timeline = useMemo((): TimelineEntry[] => {
     if (!data?.sale) return [];
-    const { sale, vouchers, saleReturns, deliveryHistory } = data;
+    const { sale, vouchers, saleReturns, deliveryHistory, editEvents } = data;
     const entries: TimelineEntry[] = [];
 
     const srLines: string[] = [];
@@ -239,6 +258,17 @@ export function InvoiceHistoryDialog({
         ...(sale.shop_name ? [`Shop: ${sale.shop_name}`] : []),
       ],
     });
+
+    for (const edit of editEvents || []) {
+      entries.push({
+        id: edit.id,
+        type: "edited",
+        timestamp: edit.timestamp,
+        icon: "✏️",
+        title: "Invoice Edited",
+        lines: edit.lines,
+      });
+    }
 
     for (const v of vouchers) {
       const pm = (v.payment_method || "").toLowerCase();
