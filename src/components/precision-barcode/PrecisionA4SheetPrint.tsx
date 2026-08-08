@@ -7,8 +7,6 @@ import {
   computeA4SheetMargins,
   resolveA4LayoutGap,
   resolveA4LabelWidthMm,
-  resolveA4PitchMm,
-  a4LabelCellOriginMm,
   novaJetBrandFromSheetType,
   A4_PAGE_WIDTH_MM,
   A4_PAGE_HEIGHT_MM,
@@ -21,23 +19,13 @@ interface PrecisionA4SheetPrintProps {
   labelHeight: number;
   cols: number;
   rows: number;
-  /** Nudge from manufacturer/centered origin (mm). Positive X = right, positive Y = down. */
+  /** Nudge from auto-centered position (mm). Positive X = right, positive Y = down. */
   xOffset: number;
   yOffset: number;
-  /** Legacy row gap — only used to derive pitch when pitchY is omitted. */
+  /** Row gap between labels on the sheet (mm). */
   vGap: number;
-  /** Legacy column gap — only used to derive pitch when pitchX is omitted. */
+  /** Column gap between labels (mm). Default 0 for die-cut A4 sheets. */
   columnGap?: number;
-  /**
-   * Independent column pitch (mm). Default = labelWidth (+ gap).
-   * MPL 40L starts at 39.0 — raise in 0.1mm steps if column 5 drifts left.
-   */
-  pitchX?: number | null;
-  /**
-   * Independent row pitch (mm). Default = labelHeight (+ gap).
-   * MPL 40L starts at 35.0 — raise in 0.1mm steps if lower rows drift up.
-   */
-  pitchY?: number | null;
   config?: LabelDesignConfig;
   /** 1-based slot on the first page to begin printing (default 1). */
   startPosition?: number;
@@ -62,8 +50,6 @@ export const PrecisionA4SheetPrint = forwardRef<HTMLDivElement, PrecisionA4Sheet
       yOffset,
       vGap,
       columnGap = 0,
-      pitchX: pitchXProp = null,
-      pitchY: pitchYProp = null,
       config,
       startPosition = 1,
       active = false,
@@ -111,16 +97,9 @@ export const PrecisionA4SheetPrint = forwardRef<HTMLDivElement, PrecisionA4Sheet
       requestedGap,
       novaJetBrand,
     );
-    const { pitchXMm, pitchYMm } = resolveA4PitchMm({
-      labelWidthMm: layoutWidth,
-      labelHeightMm: labelHeight,
-      gapMm: layoutGap,
-      pitchXMm: pitchXProp,
-      pitchYMm: pitchYProp,
-      novaJetBrand,
-    });
-    // Sheet origin (offset). Pitch advances are independent of CSS gap.
-    const { marginTop, marginLeft } = computeA4SheetMargins(
+    const rowGap = layoutGap;
+    const colGap = layoutGap;
+    const { marginTop, marginLeft, marginRight, marginBottom } = computeA4SheetMargins(
       cols,
       rows,
       layoutWidth,
@@ -141,42 +120,24 @@ export const PrecisionA4SheetPrint = forwardRef<HTMLDivElement, PrecisionA4Sheet
                 width: `${A4_PAGE_WIDTH_MM}mm`,
                 height: `${A4_PAGE_HEIGHT_MM}mm`,
                 boxSizing: "border-box",
-                position: "relative",
                 pageBreakAfter: pageIdx < pages.length - 1 ? "always" : "auto",
-                // Exact mm pitch — no CSS gap / space-between / scale.
-                ["--offset-x" as string]: `${marginLeft}mm`,
-                ["--offset-y" as string]: `${marginTop}mm`,
-                ["--pitch-x" as string]: `${pitchXMm}mm`,
-                ["--pitch-y" as string]: `${pitchYMm}mm`,
-                padding: 0,
-                margin: 0,
-                overflow: "hidden",
+                padding: `${marginTop}mm ${marginRight}mm ${marginBottom}mm ${marginLeft}mm`,
               }}
             >
-              {pageItems.map((item, idx) => {
-                const col = idx % cols;
-                const row = Math.floor(idx / cols);
-                const { xMm, yMm } = a4LabelCellOriginMm(
-                  col,
-                  row,
-                  marginLeft,
-                  marginTop,
-                  pitchXMm,
-                  pitchYMm,
-                );
-                return item ? (
-                  <div
-                    key={idx}
-                    style={{
-                      position: "absolute",
-                      left: `${xMm}mm`,
-                      top: `${yMm}mm`,
-                      width: `${layoutWidth}mm`,
-                      height: `${labelHeight}mm`,
-                      overflow: "hidden",
-                    }}
-                  >
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: `repeat(${cols}, ${layoutWidth}mm)`,
+                  gridTemplateRows: `repeat(${rows}, ${labelHeight}mm)`,
+                  columnGap: `${colGap}mm`,
+                  rowGap: `${rowGap}mm`,
+                  width: `${cols * layoutWidth + Math.max(0, cols - 1) * colGap}mm`,
+                }}
+              >
+                {pageItems.map((item, idx) =>
+                  item ? (
                     <PrecisionLabelPreview
+                      key={idx}
                       item={item}
                       width={layoutWidth}
                       height={labelHeight}
@@ -184,20 +145,14 @@ export const PrecisionA4SheetPrint = forwardRef<HTMLDivElement, PrecisionA4Sheet
                       config={config}
                       productFieldSettings={productFieldSettings}
                     />
-                  </div>
-                ) : (
-                  <div
-                    key={idx}
-                    style={{
-                      position: "absolute",
-                      left: `${xMm}mm`,
-                      top: `${yMm}mm`,
-                      width: `${layoutWidth}mm`,
-                      height: `${labelHeight}mm`,
-                    }}
-                  />
-                );
-              })}
+                  ) : (
+                    <div
+                      key={idx}
+                      style={{ width: `${layoutWidth}mm`, height: `${labelHeight}mm` }}
+                    />
+                  ),
+                )}
+              </div>
             </div>
           ))}
         </div>
