@@ -31,6 +31,7 @@ import {
   fetchPurchaseReturnItemsByIds,
 } from "@/utils/fetchAllRows";
 import { InsightsKpiCard } from "@/components/business-insights/insightsLayout";
+import { ResetPersistedFiltersButton } from "@/components/ResetPersistedFiltersButton";
 
 type PeriodType = "custom" | "this-month" | "last-month" | "this-quarter" | "last-quarter" | "this-fy" | "last-fy";
 
@@ -60,7 +61,7 @@ const GSTSalePurchaseRegister = () => {
     purchaseReturnCount: number;
   } | null>(null);
 
-  useDashboardFilterPersistence(
+  const { clearPersistedFilters } = useDashboardFilterPersistence(
     WINDOW_FILTER_IDS.gstRegister,
     currentOrganization?.id,
     useMemo(() => ({ fromDate, toDate, periodType }), [fromDate, toDate, periodType]),
@@ -74,6 +75,19 @@ const GSTSalePurchaseRegister = () => {
       });
     },
   );
+
+  const defaultFromDate = format(startOfMonth(today), "yyyy-MM-dd");
+  const defaultToDate = format(endOfMonth(today), "yyyy-MM-dd");
+  const gstRegisterFiltersDirty =
+    periodType !== "this-month" || fromDate !== defaultFromDate || toDate !== defaultToDate;
+
+  const resetGstRegisterFilters = () => {
+    const now = new Date();
+    setFromDate(format(startOfMonth(now), "yyyy-MM-dd"));
+    setToDate(format(endOfMonth(now), "yyyy-MM-dd"));
+    setPeriodType("this-month");
+    clearPersistedFilters();
+  };
 
   // Get current financial year
   const getCurrentFY = () => {
@@ -675,6 +689,10 @@ const GSTSalePurchaseRegister = () => {
               />
             </div>
             <div className="flex items-center gap-2 min-h-9 text-xs text-slate-500">
+              <ResetPersistedFiltersButton
+                visible={gstRegisterFiltersDirty}
+                onReset={resetGstRegisterFilters}
+              />
               <Building2 className="h-3.5 w-3.5 shrink-0" />
               <span className="leading-snug">
                 Excel sheets: Sales · POS · Sale Return · Purchase · Purchase Return

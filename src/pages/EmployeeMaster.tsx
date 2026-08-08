@@ -34,6 +34,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { ColumnDef } from "@tanstack/react-table";
 import { ERPTable } from "@/components/erp-table";
+import { ResetPersistedFiltersButton } from "@/components/ResetPersistedFiltersButton";
 import { cn } from "@/lib/utils";
 import { useContextMenu, useIsDesktop } from "@/hooks/useContextMenu";
 import { DesktopContextMenu, ContextMenuItem } from "@/components/DesktopContextMenu";
@@ -112,7 +113,7 @@ const EmployeeMaster = () => {
     { enabled: !editingEmployee },
   );
 
-  useDashboardFilterPersistence(
+  const { clearPersistedFilters } = useDashboardFilterPersistence(
     WINDOW_FILTER_IDS.employees,
     currentOrganization?.id,
     useMemo(() => ({ searchQuery }), [searchQuery]),
@@ -122,6 +123,13 @@ const EmployeeMaster = () => {
       });
     },
   );
+
+  const employeeFiltersDirty = searchQuery !== "";
+
+  const resetEmployeeFilters = () => {
+    setSearchQuery("");
+    clearPersistedFilters();
+  };
 
   // Fetch organization users for dropdown
   const { data: orgUsers = [], isLoading: isLoadingUsers } = useQuery({
@@ -351,6 +359,11 @@ const EmployeeMaster = () => {
                 className="h-11 border-slate-200 bg-slate-50 pl-10 text-base uppercase placeholder:normal-case focus:bg-white"
               />
             </div>
+
+            <ResetPersistedFiltersButton
+              visible={employeeFiltersDirty}
+              onReset={resetEmployeeFilters}
+            />
 
             <div id="erp-toolbar-portal-employee" className="flex items-center gap-1.5" />
 

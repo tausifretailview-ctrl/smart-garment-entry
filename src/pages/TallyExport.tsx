@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
 import { restoreDashboardFilters, WINDOW_FILTER_IDS } from "@/lib/dashboardFilterPersistence";
+import { ResetPersistedFiltersButton } from "@/components/ResetPersistedFiltersButton";
 import { Link } from "react-router-dom";
 import { format, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, subMonths } from "date-fns";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -98,7 +99,7 @@ const TallyExport = () => {
     ],
   );
 
-  useDashboardFilterPersistence(
+  const { clearPersistedFilters } = useDashboardFilterPersistence(
     WINDOW_FILTER_IDS.tallyExport,
     currentOrganization?.id,
     tallyExportFilterSnapshot,
@@ -209,6 +210,29 @@ const TallyExport = () => {
       setIncludeReceipts(true);
       setIncludePayments(true);
     }
+  };
+
+  const defaultFromDate = format(startOfMonth(new Date()), "yyyy-MM-dd");
+  const defaultToDate = format(endOfMonth(new Date()), "yyyy-MM-dd");
+  const tallyExportFiltersDirty =
+    periodType !== "this-month" ||
+    exportType !== "complete" ||
+    fromDate !== defaultFromDate ||
+    toDate !== defaultToDate ||
+    !includeCustomers ||
+    !includeSuppliers ||
+    !includeProducts ||
+    !includeSales ||
+    !includePurchases ||
+    !includeSaleReturns ||
+    !includePurchaseReturns ||
+    !includeReceipts ||
+    !includePayments;
+
+  const resetTallyExportFilters = () => {
+    handlePeriodChange("this-month");
+    handleExportTypeChange("complete");
+    clearPersistedFilters();
   };
 
   const handleExport = async () => {
@@ -562,6 +586,10 @@ const TallyExport = () => {
                 />
               </div>
             </div>
+            <ResetPersistedFiltersButton
+              visible={tallyExportFiltersDirty}
+              onReset={resetTallyExportFilters}
+            />
 
             {/* Export Type */}
             <div className="space-y-2">

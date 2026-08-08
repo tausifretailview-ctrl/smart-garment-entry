@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils";
 import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip, Legend } from "recharts";
 import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
 import { restoreDashboardFilters, WINDOW_FILTER_IDS } from "@/lib/dashboardFilterPersistence";
+import { ResetPersistedFiltersButton } from "@/components/ResetPersistedFiltersButton";
 
 interface PurchaseBill {
   id: string;
@@ -54,7 +55,7 @@ const PurchaseReportBySupplier = () => {
     [selectedSupplierId, startDate, endDate],
   );
 
-  useDashboardFilterPersistence(
+  const { clearPersistedFilters } = useDashboardFilterPersistence(
     WINDOW_FILTER_IDS.purchaseReportBySupplier,
     currentOrganization?.id,
     purchaseReportFilterSnapshot,
@@ -68,6 +69,16 @@ const PurchaseReportBySupplier = () => {
       });
     },
   );
+
+  const purchaseReportFiltersDirty =
+    selectedSupplierId !== "all" || !!startDate || !!endDate;
+
+  const resetPurchaseReportFilters = () => {
+    setSelectedSupplierId("all");
+    setStartDate(undefined);
+    setEndDate(undefined);
+    clearPersistedFilters();
+  };
 
   const REPORT_CACHE = { staleTime: 5 * 60 * 1000, gcTime: 30 * 60 * 1000, refetchOnWindowFocus: false as const };
 
@@ -246,6 +257,11 @@ const PurchaseReportBySupplier = () => {
               </Popover>
             </div>
           </div>
+          <ResetPersistedFiltersButton
+            visible={purchaseReportFiltersDirty}
+            onReset={resetPurchaseReportFilters}
+            className="mt-3"
+          />
         </CardContent>
       </Card>
 

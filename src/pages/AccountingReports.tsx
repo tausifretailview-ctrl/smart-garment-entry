@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, type ReactNode } from "react";
 import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
 import { restoreDashboardFilters, WINDOW_FILTER_IDS } from "@/lib/dashboardFilterPersistence";
+import { ResetPersistedFiltersButton } from "@/components/ResetPersistedFiltersButton";
 import { useQuery } from "@tanstack/react-query";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { Link } from "react-router-dom";
@@ -279,7 +280,7 @@ export default function AccountingReports() {
     ],
   );
 
-  useDashboardFilterPersistence(
+  const { clearPersistedFilters } = useDashboardFilterPersistence(
     WINDOW_FILTER_IDS.accountingReports,
     currentOrganization?.id,
     accountingReportsFilterSnapshot,
@@ -301,6 +302,34 @@ export default function AccountingReports() {
       });
     },
   );
+
+  const defaultAsOfDate = format(endOfMonth(new Date()), "yyyy-MM-dd");
+  const defaultFromDate = format(startOfMonth(new Date()), "yyyy-MM-dd");
+  const defaultToDate = format(endOfMonth(new Date()), "yyyy-MM-dd");
+  const accountingFiltersDirty =
+    activeTab !== "gl-trial-balance" ||
+    showLegacyReports !== false ||
+    glTbGrouped !== true ||
+    periodType !== "monthly" ||
+    asOfDate !== defaultAsOfDate ||
+    fromDate !== defaultFromDate ||
+    toDate !== defaultToDate ||
+    glTrialMode !== "cumulative" ||
+    glLedgerPartyId !== "all";
+
+  const resetAccountingFilters = () => {
+    const now = new Date();
+    setActiveTab("gl-trial-balance");
+    setShowLegacyReports(false);
+    setGlTbGrouped(true);
+    setPeriodType("monthly");
+    setAsOfDate(format(endOfMonth(now), "yyyy-MM-dd"));
+    setFromDate(format(startOfMonth(now), "yyyy-MM-dd"));
+    setToDate(format(endOfMonth(now), "yyyy-MM-dd"));
+    setGlTrialMode("cumulative");
+    setGlLedgerPartyId("all");
+    clearPersistedFilters();
+  };
 
   const { data: accountingSettings } = useQuery({
     queryKey: ["settings-accounting-flag", currentOrganization?.id],
@@ -918,6 +947,10 @@ export default function AccountingReports() {
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-1.5 shrink-0">
+            <ResetPersistedFiltersButton
+              visible={accountingFiltersDirty}
+              onReset={resetAccountingFilters}
+            />
             <Button
               variant="outline"
               size="sm"

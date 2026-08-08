@@ -23,6 +23,7 @@ import * as XLSX from "xlsx";
 import { multiTokenMatch } from "@/utils/multiTokenSearch";
 import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
 import { parsePersistedDate, restoreDashboardFilters, WINDOW_FILTER_IDS } from "@/lib/dashboardFilterPersistence";
+import { ResetPersistedFiltersButton } from "@/components/ResetPersistedFiltersButton";
 import { useAuth } from "@/contexts/AuthContext";
 
 type PeriodType = "daily" | "monthly" | "quarterly" | "yearly" | "all" | "custom";
@@ -272,7 +273,7 @@ export default function ItemWiseSalesReport() {
     ],
   );
 
-  useDashboardFilterPersistence(
+  const { clearPersistedFilters } = useDashboardFilterPersistence(
     WINDOW_FILTER_IDS.itemWiseSales,
     currentOrganization?.id,
     itemWiseSalesFilterSnapshot,
@@ -307,6 +308,49 @@ export default function ItemWiseSalesReport() {
       if (from && to) setCustomDateRange({ from, to });
     },
   );
+
+  const todayYmd = format(new Date(), "yyyy-MM-dd");
+  const itemWiseFiltersDirty =
+    periodType !== "daily" ||
+    format(selectedDate, "yyyy-MM-dd") !== todayYmd ||
+    searchQuery !== "" ||
+    searchInput !== "" ||
+    selectedBrand !== "all" ||
+    selectedCategory !== "all" ||
+    selectedDepartment !== "all" ||
+    selectedCustomer !== "all" ||
+    selectedColor !== "all" ||
+    selectedUser !== "all" ||
+    activeTab !== "itemwise" ||
+    saleDetailsGroupBy !== "product_name" ||
+    saleDetailsSearch !== "" ||
+    currentPage !== 1 ||
+    customerPage !== 1 ||
+    brandPage !== 1 ||
+    saleDetailsPage !== 1;
+
+  const resetItemWiseFilters = () => {
+    const today = new Date();
+    setPeriodType("daily");
+    setSelectedDate(today);
+    setCustomDateRange({ from: today, to: today });
+    setSearchInput("");
+    setSearchQuery("");
+    setSelectedBrand("all");
+    setSelectedCategory("all");
+    setSelectedDepartment("all");
+    setSelectedCustomer("all");
+    setSelectedColor("all");
+    setSelectedUser("all");
+    setActiveTab("itemwise");
+    setSaleDetailsGroupBy("product_name");
+    setSaleDetailsSearch("");
+    setCurrentPage(1);
+    setCustomerPage(1);
+    setBrandPage(1);
+    setSaleDetailsPage(1);
+    clearPersistedFilters();
+  };
 
   // Customer / user lists (org-wide). Brand/category/style/color are derived from period sale rows below.
   const { data: filterOptionsData } = useQuery({
@@ -1098,6 +1142,10 @@ export default function ItemWiseSalesReport() {
                     <Search className="h-4 w-4" />
                     Search
                   </Button>
+                  <ResetPersistedFiltersButton
+                    visible={itemWiseFiltersDirty}
+                    onReset={resetItemWiseFilters}
+                  />
                 </div>
               </div>
 

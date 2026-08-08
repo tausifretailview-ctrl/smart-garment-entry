@@ -18,6 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { cn } from "@/lib/utils";
 import { seedDefaultAccounts } from "@/utils/accounting/seedDefaultAccounts";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { ResetPersistedFiltersButton } from "@/components/ResetPersistedFiltersButton";
 
 type RefTypeFilter =
   | "all"
@@ -113,7 +114,7 @@ export default function JournalVouchers() {
   const [referenceType, setReferenceType] = useState<RefTypeFilter>(initialRef);
   const skipSessionRestoreRef = useRef(!!(initialFrom || initialTo));
 
-  useDashboardFilterPersistence(
+  const { clearPersistedFilters } = useDashboardFilterPersistence(
     WINDOW_FILTER_IDS.journalVouchers,
     currentOrganization?.id,
     useMemo(() => ({ fromDate, toDate, referenceType }), [fromDate, toDate, referenceType]),
@@ -128,6 +129,20 @@ export default function JournalVouchers() {
     },
     { enabled: !skipSessionRestoreRef.current },
   );
+
+  const todayYmd = toYmd(new Date());
+  const journalFiltersDirty =
+    toYmd(fromDate) !== todayYmd ||
+    toYmd(toDate) !== todayYmd ||
+    referenceType !== "all";
+
+  const resetJournalFilters = () => {
+    const today = new Date();
+    setFromDate(today);
+    setToDate(today);
+    setReferenceType("all");
+    clearPersistedFilters();
+  };
 
   useEffect(() => {
     const from = searchParams.get("from");
@@ -342,6 +357,10 @@ export default function JournalVouchers() {
                     <SelectItem value="RoundOff">Round off</SelectItem>
                   </SelectContent>
                 </Select>
+                <ResetPersistedFiltersButton
+                  visible={journalFiltersDirty}
+                  onReset={resetJournalFilters}
+                />
               </div>
 
               <div className="rounded-md border bg-muted/20 p-3">

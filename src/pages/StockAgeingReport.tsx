@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
 import { restoreDashboardFilters, WINDOW_FILTER_IDS } from "@/lib/dashboardFilterPersistence";
+import { ResetPersistedFiltersButton } from "@/components/ResetPersistedFiltersButton";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganizationData } from "@/hooks/useOrganizationData";
@@ -96,7 +97,7 @@ export default function StockAgeingReport() {
   const [brandFilter, setBrandFilter] = useState("all");
   const [page, setPage] = useState(0);
 
-  useDashboardFilterPersistence(
+  const { clearPersistedFilters } = useDashboardFilterPersistence(
     WINDOW_FILTER_IDS.stockAgeing,
     organizationId,
     useMemo(
@@ -115,6 +116,22 @@ export default function StockAgeingReport() {
       });
     },
   );
+
+  const stockAgeingFiltersDirty =
+    search !== "" ||
+    supplierFilter !== "all" ||
+    ageFilter !== "30" ||
+    brandFilter !== "all" ||
+    page !== 0;
+
+  const resetStockAgeingFilters = () => {
+    setSearch("");
+    setSupplierFilter("all");
+    setAgeFilter("30");
+    setBrandFilter("all");
+    setPage(0);
+    clearPersistedFilters();
+  };
 
   const { data: rawData, isLoading } = useQuery({
     queryKey: ["stock-ageing", organizationId],
@@ -387,6 +404,10 @@ export default function StockAgeingReport() {
                 {brands.map((b) => <SelectItem key={b} value={b}>{b}</SelectItem>)}
               </SelectContent>
             </Select>
+            <ResetPersistedFiltersButton
+              visible={stockAgeingFiltersDirty}
+              onReset={resetStockAgeingFilters}
+            />
             <span className="text-xs text-muted-foreground ml-auto">
               Showing {paginatedRows.length.toLocaleString("en-IN")} of {filtered.length.toLocaleString("en-IN")}
             </span>

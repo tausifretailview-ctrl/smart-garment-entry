@@ -1,6 +1,7 @@
 import { useMemo, useState, useCallback, useEffect } from "react";
 import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
 import { restoreDashboardFilters, WINDOW_FILTER_IDS } from "@/lib/dashboardFilterPersistence";
+import { ResetPersistedFiltersButton } from "@/components/ResetPersistedFiltersButton";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { MobilePageHeader } from "@/components/mobile/MobilePageHeader";
@@ -312,7 +313,7 @@ export default function Accounts() {
     setVisitedTabs((prev) => (prev.has(tab) ? prev : new Set([...prev, tab])));
   }, [urlTab, selectedTab]);
 
-  useDashboardFilterPersistence(
+  const { clearPersistedFilters } = useDashboardFilterPersistence(
     WINDOW_FILTER_IDS.accounts,
     currentOrganization?.id,
     useMemo(
@@ -327,6 +328,13 @@ export default function Accounts() {
       }
     },
   );
+
+  const accountsFiltersDirty = !urlTab && selectedTab !== "customer-ledger";
+
+  const resetAccountsFilters = () => {
+    setSelectedTab("customer-ledger");
+    clearPersistedFilters();
+  };
 
   // Card filter state
   const [paymentCardFilter, setPaymentCardFilter] = useState<string | null>(null);
@@ -1074,6 +1082,10 @@ export default function Accounts() {
               {t.label}
             </button>
           ))}
+          <ResetPersistedFiltersButton
+            visible={accountsFiltersDirty}
+            onReset={resetAccountsFilters}
+          />
         </div>
 
         {/* Single scroll region for tab content + demoted summary */}
@@ -1239,6 +1251,11 @@ export default function Accounts() {
           <TabsTrigger value="voucher-entry" className={ACCOUNTS_TAB_TRIGGER_CLASS}>Voucher Entry</TabsTrigger>
           <TabsTrigger value="reconciliation" className={ACCOUNTS_TAB_TRIGGER_CLASS}>Reconciliation</TabsTrigger>
           {isAdmin && <TabsTrigger value="balance-adjustment" className={ACCOUNTS_TAB_TRIGGER_CLASS}>Balance Adj.</TabsTrigger>}
+          <ResetPersistedFiltersButton
+            visible={accountsFiltersDirty}
+            onReset={resetAccountsFilters}
+            className="shrink-0 ml-1"
+          />
           </TabsList>
 
           <Card className="rounded-lg border border-slate-200 shadow-sm overflow-hidden p-0 flex-1 min-h-0 flex flex-col">

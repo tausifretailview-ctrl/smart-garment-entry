@@ -40,6 +40,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useOpenCustomerAccount } from "@/hooks/useOpenCustomerAccount";
 import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
 import { restoreDashboardFilters } from "@/lib/dashboardFilterPersistence";
+import { ResetPersistedFiltersButton } from "@/components/ResetPersistedFiltersButton";
 import { useTabCacheLayout } from "@/contexts/TabCacheLayoutContext";
 import { useSharedAppShell } from "@/contexts/SharedAppShellContext";
 import { cn } from "@/lib/utils";
@@ -102,7 +103,7 @@ export default function DeliveryChallanDashboard() {
     [searchQuery, statusFilter, dateFrom, dateTo],
   );
 
-  useDashboardFilterPersistence(
+  const { clearPersistedFilters } = useDashboardFilterPersistence(
     "delivery-challan-dashboard",
     currentOrganization?.id,
     deliveryChallanFilterSnapshot,
@@ -119,6 +120,20 @@ export default function DeliveryChallanDashboard() {
       });
     },
   );
+
+  const deliveryChallanFiltersDirty =
+    searchQuery !== "" ||
+    statusFilter !== "all" ||
+    format(dateFrom, "yyyy-MM-dd") !== format(startOfMonth(new Date()), "yyyy-MM-dd") ||
+    format(dateTo, "yyyy-MM-dd") !== format(endOfMonth(new Date()), "yyyy-MM-dd");
+
+  const resetDeliveryChallanFilters = () => {
+    setSearchQuery("");
+    setStatusFilter("all");
+    setDateFrom(startOfMonth(new Date()));
+    setDateTo(endOfMonth(new Date()));
+    clearPersistedFilters();
+  };
 
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [convertConfirm, setConvertConfirm] = useState<any | null>(null);
@@ -436,6 +451,10 @@ export default function DeliveryChallanDashboard() {
                   <Calendar mode="single" selected={dateTo} onSelect={(d) => d && setDateTo(d)} />
                 </PopoverContent>
               </Popover>
+              <ResetPersistedFiltersButton
+                visible={deliveryChallanFiltersDirty}
+                onReset={resetDeliveryChallanFilters}
+              />
             </div>
 
             <div

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
 import { restoreDashboardFilters, WINDOW_FILTER_IDS } from "@/lib/dashboardFilterPersistence";
+import { ResetPersistedFiltersButton } from "@/components/ResetPersistedFiltersButton";
 import { useSearchParams } from "react-router-dom";
 import { format } from "date-fns";
 import {
@@ -125,7 +126,7 @@ export default function CustomerAuditReport() {
   } | null>(null);
   const printRef = useRef<HTMLDivElement>(null);
 
-  useDashboardFilterPersistence(
+  const { clearPersistedFilters } = useDashboardFilterPersistence(
     WINDOW_FILTER_IDS.customerAuditReport,
     currentOrganization?.id,
     useMemo(
@@ -148,6 +149,18 @@ export default function CustomerAuditReport() {
       });
     },
   );
+
+  const customerAuditFiltersDirty =
+    (!preSelectedCustomerId && customerId != null) ||
+    format(fromDate ?? fyStart, "yyyy-MM-dd") !== format(fyStart, "yyyy-MM-dd") ||
+    format(toDate ?? fyEnd, "yyyy-MM-dd") !== format(fyEnd, "yyyy-MM-dd");
+
+  const resetCustomerAuditFilters = () => {
+    if (!preSelectedCustomerId) setCustomerId(null);
+    setFromDate(fyStart);
+    setToDate(fyEnd);
+    clearPersistedFilters();
+  };
 
   const handlePrint = useReactToPrint({
     contentRef: printRef,
@@ -647,6 +660,12 @@ export default function CustomerAuditReport() {
             </div>
             <DateField label="From Date" value={fromDate} onChange={setFromDate} />
             <DateField label="To Date" value={toDate} onChange={setToDate} />
+            <div className="flex items-end md:col-span-4">
+              <ResetPersistedFiltersButton
+                visible={customerAuditFiltersDirty}
+                onReset={resetCustomerAuditFilters}
+              />
+            </div>
           </CardContent>
         </Card>
 

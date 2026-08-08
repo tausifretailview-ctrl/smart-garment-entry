@@ -48,6 +48,7 @@ import {
   INSIGHTS_SUB_TAB_LIST,
   INSIGHTS_SUB_TAB_TRIGGER,
 } from "@/components/business-insights/insightsLayout";
+import { ResetPersistedFiltersButton } from "@/components/ResetPersistedFiltersButton";
 import { cn } from "@/lib/utils";
 
 /** Per-line taxable + GST — mirrors get_gst_summary / calculateGSTBreakup tax_type rules. */
@@ -169,7 +170,7 @@ const GSTReports = () => {
   const [businessInfo, setBusinessInfo] = useState<{ name: string; gstin: string }>({ name: "", gstin: "" });
   const [isDownloadingGstr1Json, setIsDownloadingGstr1Json] = useState(false);
 
-  useDashboardFilterPersistence(
+  const { clearPersistedFilters } = useDashboardFilterPersistence(
     WINDOW_FILTER_IDS.gstReports,
     currentOrganization?.id,
     useMemo(() => ({ fromDate, toDate, periodType, activeReport }), [fromDate, toDate, periodType, activeReport]),
@@ -184,6 +185,23 @@ const GSTReports = () => {
       });
     },
   );
+
+  const defaultFromDate = format(startOfMonth(today), "yyyy-MM-dd");
+  const defaultToDate = format(endOfMonth(today), "yyyy-MM-dd");
+  const gstReportsFiltersDirty =
+    periodType !== "this-month" ||
+    fromDate !== defaultFromDate ||
+    toDate !== defaultToDate ||
+    activeReport !== "gstr1";
+
+  const resetGstReportsFilters = () => {
+    const now = new Date();
+    setFromDate(format(startOfMonth(now), "yyyy-MM-dd"));
+    setToDate(format(endOfMonth(now), "yyyy-MM-dd"));
+    setPeriodType("this-month");
+    setActiveReport("gstr1");
+    clearPersistedFilters();
+  };
 
   // Get current financial year
   const getCurrentFY = () => {
@@ -927,6 +945,10 @@ const GSTReports = () => {
               />
             </div>
             <div className="flex items-center gap-2 min-h-9 text-xs text-slate-500">
+              <ResetPersistedFiltersButton
+                visible={gstReportsFiltersDirty}
+                onReset={resetGstReportsFilters}
+              />
               <FileSpreadsheet className="h-3.5 w-3.5 shrink-0 text-teal-700" />
               <span className="leading-snug">
                 GSTR-1 · GSTR-3B · HSN Summary · GST Register

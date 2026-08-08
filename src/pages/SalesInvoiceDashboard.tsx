@@ -141,7 +141,11 @@ import { isSaleInvoiceCancelled } from "@/utils/saleInvoiceStatus";
 import { invalidateSalesQueriesNow } from "@/utils/deferredSalesInvalidation";
 import { formatCnApplyError } from "@/utils/saleReturnCnBalance";
 import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
-import { isDashboardFilterRestoring, restoreDashboardFilters } from "@/lib/dashboardFilterPersistence";
+import {
+  isDashboardFilterRestoring,
+  restoreDashboardFilters,
+} from "@/lib/dashboardFilterPersistence";
+import { ResetPersistedFiltersButton } from "@/components/ResetPersistedFiltersButton";
 import { ReceivingBankAccountPicker } from "@/components/accounts/ReceivingBankAccountPicker";
 import { useOrganizationBankAccounts } from "@/hooks/useOrganizationBankAccounts";
 import {
@@ -359,8 +363,9 @@ export default function SalesInvoiceDashboard() {
       deliveryFilter,
       shopFilter,
       userFilter: userFilter === "__pending__" ? undefined : userFilter,
-      startDate,
-      endDate,
+      // Absolute dates only for custom — relative periods recompute from today.
+      startDate: periodFilter === "custom" ? startDate : undefined,
+      endDate: periodFilter === "custom" ? endDate : undefined,
       currentPage,
       itemsPerPage,
     }),
@@ -378,7 +383,7 @@ export default function SalesInvoiceDashboard() {
     ],
   );
 
-  useDashboardFilterPersistence(
+  const { clearPersistedFilters } = useDashboardFilterPersistence(
     "sales-invoice-dashboard",
     currentOrganization?.id,
     invoiceFilterSnapshot,
@@ -403,6 +408,29 @@ export default function SalesInvoiceDashboard() {
       });
     },
   );
+
+  const salesFiltersDirty =
+    searchQuery !== "" ||
+    periodFilter !== "weekly" ||
+    paymentStatusFilter.length > 0 ||
+    deliveryFilter !== "all" ||
+    shopFilter !== "all" ||
+    (userFilter !== "__pending__" && userFilter !== "all" && userFilter !== "") ||
+    startDate != null ||
+    endDate != null;
+
+  const resetSalesFilters = () => {
+    setSearchQuery("");
+    setPeriodFilter("weekly");
+    setPaymentStatusFilter([]);
+    setDeliveryFilter("all");
+    setShopFilter("all");
+    setUserFilter("all");
+    setStartDate(undefined);
+    setEndDate(undefined);
+    setCurrentPage(1);
+    clearPersistedFilters();
+  };
 
   const [invoiceToPrint, setInvoiceToPrint] = useState<any>(null);
   const [showPrintPreview, setShowPrintPreview] = useState(false);
@@ -3960,6 +3988,10 @@ export default function SalesInvoiceDashboard() {
                   <SelectItem value="custom">Custom</SelectItem>
                 </SelectContent>
               </Select>
+              <ResetPersistedFiltersButton
+                visible={salesFiltersDirty}
+                onReset={resetSalesFilters}
+              />
               {periodFilter === 'custom' && (
                 <>
                   <Popover>

@@ -47,6 +47,7 @@ import { MobileListCard, MobileListCardSkeleton } from "@/components/mobile/Mobi
 import { cn } from "@/lib/utils";
 import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
 import { isDashboardFilterRestoring, restoreDashboardFilters } from "@/lib/dashboardFilterPersistence";
+import { ResetPersistedFiltersButton } from "@/components/ResetPersistedFiltersButton";
 
 interface SaleReturn {
   id: string;
@@ -267,7 +268,7 @@ export default function SaleReturnDashboard() {
     [searchTerm, fromDate, toDate, statusFilter, currentPage],
   );
 
-  useDashboardFilterPersistence(
+  const { clearPersistedFilters } = useDashboardFilterPersistence(
     "sale-returns",
     currentOrganization?.id,
     saleReturnFilterSnapshot,
@@ -283,6 +284,22 @@ export default function SaleReturnDashboard() {
       });
     },
   );
+
+  const saleReturnFiltersDirty =
+    searchTerm !== "" ||
+    fromDate !== "" ||
+    toDate !== "" ||
+    statusFilter !== "all" ||
+    currentPage !== 1;
+
+  const resetSaleReturnFilters = () => {
+    setSearchTerm("");
+    setFromDate("");
+    setToDate("");
+    setStatusFilter("all");
+    setCurrentPage(1);
+    clearPersistedFilters();
+  };
 
   const [returnToPrint, setReturnToPrint] = useState<SaleReturn | null>(null);
   const [businessDetails, setBusinessDetails] = useState<BusinessDetails | null>(null);
@@ -1396,6 +1413,10 @@ export default function SaleReturnDashboard() {
                   <SelectItem value="partially_adjusted">Partially Adjusted</SelectItem>
                 </SelectContent>
               </Select>
+              <ResetPersistedFiltersButton
+                visible={saleReturnFiltersDirty}
+                onReset={resetSaleReturnFilters}
+              />
               <Button
                 variant="outline"
                 onClick={() => handlePrintTable()}

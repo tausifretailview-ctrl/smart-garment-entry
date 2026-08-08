@@ -506,7 +506,7 @@ export default function StockReport() {
     ],
   );
 
-  const { filtersReady } = useDashboardFilterPersistence(
+  const { filtersReady, clearPersistedFilters } = useDashboardFilterPersistence(
     WINDOW_FILTER_IDS.stockReport,
     currentOrganization?.id,
     stockFilterSnapshot,
@@ -1287,6 +1287,7 @@ export default function StockReport() {
     setStockItems([]);
     setServerTotalRows(0);
     setHasSearched(false);
+    clearPersistedFilters();
   };
 
   const hasActiveFilters =
