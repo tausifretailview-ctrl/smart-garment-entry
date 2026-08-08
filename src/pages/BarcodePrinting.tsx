@@ -2426,8 +2426,6 @@ export default function BarcodePrinting() {
           yOffset: preset.yOffset,
           vGap: preset.vGap,
           hGap: preset.hGap ?? 0,
-          pitchX: preset.pitchX ?? preset.width,
-          pitchY: preset.pitchY ?? preset.height,
           labelWidth: preset.width,
           labelHeight: preset.height,
           a4Cols: preset.a4Cols ?? precisionSettings.a4Cols,
