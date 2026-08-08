@@ -411,6 +411,10 @@ export default function NetProfitAnalysis() {
         base["Bill No"] = r.label;
         base["Date"] = r.secondary || "";
         base["Customer"] = r.tertiary || "";
+      } else if (activeTab === "date-wise") {
+        base["Date"] = r.secondary || "";
+        base["Product"] = r.label;
+        base["Brand"] = r.tertiary || "";
       } else if (activeTab === "product-wise") {
         base["Product"] = r.label;
         base["Brand"] = r.secondary || "";
@@ -446,7 +450,11 @@ export default function NetProfitAnalysis() {
 
   const columnsForTab = useMemo((): ColumnDef[] => {
     const qtyHeader =
-      activeTab === "product-wise" || activeTab === "field-wise" ? "Qty Sold" : "Items Sold";
+      activeTab === "product-wise" ||
+      activeTab === "date-wise" ||
+      activeTab === "field-wise"
+        ? "Qty Sold"
+        : "Items Sold";
     const moneyCols: ColumnDef[] = [
       { key: "items", header: qtyHeader, align: "right", get: (r) => r.itemsSold },
       { key: "gross", header: "Gross Sales", align: "right", money: true, get: (r) => r.grossSales },
@@ -493,6 +501,14 @@ export default function NetProfitAnalysis() {
         ...moneyCols,
       ];
     }
+    if (activeTab === "date-wise") {
+      return [
+        { key: "date", header: "Date", get: (r) => r.secondary || "-" },
+        { key: "label", header: "Product", get: (r) => r.label },
+        { key: "brand", header: "Brand", get: (r) => r.tertiary || "-" },
+        ...moneyCols,
+      ];
+    }
     if (activeTab === "product-wise") {
       return [
         { key: "label", header: "Product", get: (r) => r.label },
@@ -519,11 +535,13 @@ export default function NetProfitAnalysis() {
         ? "SEARCH PRODUCT, BRAND, CATEGORY..."
         : activeTab === "bill-wise"
           ? "SEARCH BILL NO, CUSTOMER..."
-          : activeTab === "customer-wise"
-            ? "SEARCH CUSTOMER..."
-            : activeTab === "salesman-wise"
-              ? "SEARCH SALESMAN..."
-              : `SEARCH ${fieldDimensionLabel.toUpperCase()}...`;
+          : activeTab === "date-wise"
+            ? "SEARCH DATE, PRODUCT, BRAND..."
+            : activeTab === "customer-wise"
+              ? "SEARCH CUSTOMER..."
+              : activeTab === "salesman-wise"
+                ? "SEARCH SALESMAN..."
+                : `SEARCH ${fieldDimensionLabel.toUpperCase()}...`;
 
   const countLabel =
     activeTab === "supplier-wise"
@@ -532,11 +550,13 @@ export default function NetProfitAnalysis() {
         ? "products"
         : activeTab === "bill-wise"
           ? "bills"
-          : activeTab === "customer-wise"
-            ? "customers"
-            : activeTab === "salesman-wise"
-              ? "salesmen"
-              : "groups";
+          : activeTab === "date-wise"
+            ? "date × product rows"
+            : activeTab === "customer-wise"
+              ? "customers"
+              : activeTab === "salesman-wise"
+                ? "salesmen"
+                : "groups";
 
   const kpiItems = useMemo(
     () => [
@@ -568,6 +588,7 @@ export default function NetProfitAnalysis() {
     { value: "supplier-wise", label: "Supplier-wise", icon: Users },
     { value: "product-wise", label: "Product-wise", icon: Package },
     { value: "bill-wise", label: "Bill-wise", icon: FileText },
+    { value: "date-wise", label: "Date-wise", icon: Calendar },
     { value: "customer-wise", label: "Customer-wise", icon: UserRound },
     { value: "salesman-wise", label: "Salesman-wise", icon: UserCheck },
     { value: "field-wise", label: "Field-wise", icon: Layers },
