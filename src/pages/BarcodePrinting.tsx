@@ -45,6 +45,7 @@ import {
   resolveA4LabelWidthMm,
 } from '@/utils/a4SheetLayout';
 import {
+  findMatchingA4SheetType,
   resolveStandardSheetTypeForLabelDimensions,
   resolveTemplateLabelDimensions,
   sheetPresetDimensions,
@@ -2605,6 +2606,8 @@ export default function BarcodePrinting() {
     const fixedDims = getFixedBuiltinLabelDimensions(preset.name);
     const migratedConfig = resolvePresetLabelConfig(preset.name, preset.labelConfig);
     const mode = inferPrecisionPrintMode(preset);
+    const labelWidth = fixedDims?.width ?? preset.width;
+    const labelHeight = fixedDims?.height ?? preset.height;
 
     const isLabelTemplate = savedLabelTemplates.some((t) => t.name === preset.name);
     const activeName = isLabelTemplate ? preset.name : `preset:${preset.name}`;
@@ -2643,6 +2646,40 @@ export default function BarcodePrinting() {
     if (template) {
       setSelectedLabelTemplate(preset.name);
       setLabelConfig(migratedConfig);
+    }
+
+    // A4 presets (e.g. Bansari Creation 39×35 5×8) must also set Standard sheetType.
+    // Perfect PDF / on-screen A4 layout read sheetType for brand + grid; leaving
+    // novajet48 (default) while Precision is 5×8 causes mismatch preview vs PDF.
+    if (
+      mode === "a4" &&
+      labelWidth != null &&
+      labelHeight != null &&
+      Number.isFinite(labelWidth) &&
+      Number.isFinite(labelHeight)
+    ) {
+      const resolved = resolveStandardSheetTypeForLabelDimensions(
+        labelWidth,
+        labelHeight,
+        sheetPresets,
+        {
+          cols: preset.a4Cols,
+          rows: preset.a4Rows,
+          gap: preset.vGap ?? preset.hGap ?? 0,
+        },
+      );
+      if (resolved.custom) {
+        setSheetType("custom");
+        setCustomWidth(resolved.custom.width);
+        setCustomHeight(resolved.custom.height);
+        setCustomCols(resolved.custom.cols);
+        setCustomRows(resolved.custom.rows);
+        setCustomGap(resolved.custom.gap);
+        setSelectedPreset("");
+      } else {
+        setSheetType(resolved.sheetType as SheetType);
+        setSelectedPreset("");
+      }
     }
   }, [savedLabelTemplates, setActivePrecisionTemplateName]);
 
@@ -4202,22 +4239,39 @@ export default function BarcodePrinting() {
       // cannot later clobber field toggles with a stale precision copy.
       setLabelConfig(mergedConfig);
       setSelectedLabelTemplate(template.name);
+      const loadWidth =
+        templateDims?.width ?? template.labelWidth ?? precisionSettings.labelWidth;
+      const loadHeight =
+        templateDims?.height ?? template.labelHeight ?? precisionSettings.labelHeight;
+      // 39×35 (and other A4 die-cuts) → A4 print mode so Standard sheet syncs to 40-sheet.
+      const inferredA4Sheet = findMatchingA4SheetType(loadWidth, loadHeight, sheetPresets, {
+        cols: precisionSettings.a4Cols,
+        rows: precisionSettings.a4Rows,
+      });
+      const loadPrintMode =
+        inferredA4Sheet || precisionSettings.printMode === "a4"
+          ? "a4"
+          : precisionSettings.printMode;
       handlePrecisionPresetLoad({
         name: template.name,
         xOffset: precisionSettings.xOffset,
         yOffset: precisionSettings.yOffset,
         vGap: precisionSettings.vGap,
         hGap: precisionSettings.hGap,
-        width: templateDims?.width ?? template.labelWidth ?? precisionSettings.labelWidth,
-        height: templateDims?.height ?? template.labelHeight ?? precisionSettings.labelHeight,
+        width: loadWidth,
+        height: loadHeight,
         labelConfig: mergedConfig,
-        printMode: precisionSettings.printMode,
+        printMode: loadPrintMode,
         thermalCols: precisionSettings.thermalCols,
         a4Cols: precisionSettings.a4Cols,
         a4Rows: precisionSettings.a4Rows,
       });
       if (templateDims) {
-        applyStandardSheetForTemplateDims(templateDims.width, templateDims.height);
+        applyStandardSheetForTemplateDims(templateDims.width, templateDims.height, {
+          cols: precisionSettings.a4Cols,
+          rows: precisionSettings.a4Rows,
+          gap: precisionSettings.vGap,
+        });
       }
       toast.success(`Loaded template "${templateName}"`);
     }
@@ -4286,7 +4340,11 @@ export default function BarcodePrinting() {
 
   /** Align Standard tab sheet size with template sticker (prevents 1st label split on 50×38 etc.). */
   const applyStandardSheetForTemplateDims = useCallback(
-    (width: number, height: number, opts?: { force?: boolean }) => {
+    (
+      width: number,
+      height: number,
+      opts?: { force?: boolean; cols?: number; rows?: number; gap?: number },
+    ) => {
       const current =
         sheetType === "custom"
           ? { width: customWidth, height: customHeight }
@@ -4301,6 +4359,7 @@ export default function BarcodePrinting() {
         width,
         height,
         sheetPresets,
+        { cols: opts?.cols, rows: opts?.rows, gap: opts?.gap },
       );
       if (resolved.custom) {
         setSheetType("custom");
