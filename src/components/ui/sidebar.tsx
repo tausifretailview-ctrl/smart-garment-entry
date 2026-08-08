@@ -3,7 +3,7 @@ import { Slot } from "@radix-ui/react-slot";
 import { VariantProps, cva } from "class-variance-authority";
 import { PanelLeft } from "lucide-react";
 
-import { useIsMobile, useIsNarrowViewport } from "@/hooks/use-mobile";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { useForceDesktopView } from "@/hooks/useDesktopViewPreference";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -52,9 +52,11 @@ const SidebarProvider = React.forwardRef<
   }
 >(({ defaultOpen = true, open: openProp, onOpenChange: setOpenProp, className, style, children, ...props }, ref) => {
   const isMobile = useIsMobile();
-  const isNarrowViewport = useIsNarrowViewport();
   const forceDesktop = useForceDesktopView();
-  const useSheetSidebar = isMobile || (forceDesktop && isNarrowViewport);
+  // Desktop view on a phone must use a docked sidebar — sheet overlay covers the
+  // titlebar File/Edit/Sales menubar and makes it look "not visible".
+  // Sheet is only for true mobile chrome (force-desktop off).
+  const useSheetSidebar = isMobile && !forceDesktop;
   const [openMobile, setOpenMobile] = React.useState(false);
 
   // This is the internal state of the sidebar.

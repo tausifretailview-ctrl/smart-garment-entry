@@ -267,8 +267,13 @@ export const Header = () => {
           <span className="hidden sm:inline text-white">Ezzy ERP</span>
         </button>
 
-        {/* Desktop menu bar */}
-        <div className="hidden lg:flex erp-no-drag min-w-0">
+        {/* Desktop menu bar — always show in force-desktop (phone PWA); don't rely on lg: alone */}
+        <div
+          className={cn(
+            "erp-no-drag min-w-0",
+            forceDesktopView ? "flex overflow-x-auto" : "hidden lg:flex",
+          )}
+        >
           <HeaderMenubar
             can={can}
             canAccessReportsHub={canAccessReportsHub}
@@ -280,7 +285,7 @@ export const Header = () => {
           />
         </div>
 
-        {/* Mobile / narrow: collapsed menu */}
+        {/* Mobile / narrow: collapsed menu (not used in Desktop view) */}
         {!forceDesktopView && (
           <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
             <SheetTrigger asChild>
@@ -422,8 +427,13 @@ export const Header = () => {
         </div>
       </div>
 
-      {/* ROW 2: Quick-action toolbar (mockup ribbon) */}
-      <div className="erp-toolbar hidden lg:flex overflow-x-auto">
+      {/* ROW 2: Quick-action toolbar — show in force-desktop phone view too */}
+      <div
+        className={cn(
+          "erp-toolbar overflow-x-auto",
+          forceDesktopView ? "flex" : "hidden lg:flex",
+        )}
+      >
         <div className="flex items-center gap-1.5 flex-1 min-w-0 flex-nowrap">
           {showPrimarySaleButton && (
             <button
