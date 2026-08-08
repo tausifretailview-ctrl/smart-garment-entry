@@ -1,31 +1,42 @@
-# Application Health Audit (Speed, Loading, Cloud Usage) — 2026-08
+# Ella Noor — Parishma Memon (9624697786) ledger vs invoice dashboard mismatch
 
-Deliverable: one read-only report at `docs/app-health-audit-2026-08.md`. No code changes in this phase.
+## What I checked
+Customer `PARISHMA MEMON`, phone 9624697786, Ella Noor. Compared the invoice dashboard screenshot, the uploaded ledger PDF, and the live data (sales, customer_advances, voucher_entries).
 
-## One correction to the brief before we start
+## Finding: the bill list is not the problem — duplicate receipts are
 
-The brief's headline assumption — "AppSidebar has zero hover or touch prefetch" — does not match the code. `src/components/AppSidebar.tsx` renders every item through `src/components/NavLink.tsx`, and that component already fires `prefetchTabPage(path)` on `mouseenter`/`focus` and `prefetchTabPage(path, { intent: true })` on `pointerdown`/`touchstart`. `docs/web-nav-loading-implementation-2026-08.md` records this as landed in PR #225 ("Core shell + sidebar NavLink intent prefetch landed earlier").
+Both the dashboard and the ledger list exactly the same 3 invoices (₹2,900 + ₹5,120 + ₹6,300 = ₹14,320). Nothing is missing.
 
-So the sidebar-only routes (Settings, User Rights) are prefetched on hover/touch, and the confirmed field case must have another cause. The audit's first job is to find that cause instead of re-shipping a fix that already exists. Candidates to test: prefetch fires but the chunk request itself fails or stalls (deployment skew / MIME error path already seen in `chunkLoadRetry.ts`), touch users tapping straight through with no dwell time, or the timeout being driven by data fetch rather than chunk load.
+The real mismatch is the balance. Invoice INV/26-27/1653 is ₹5,120, but it has **four** receipts against it totalling ₹10,240:
 
-## Evidence already gathered (goes into the report)
+```text
+RCP/26-27/1916  18/06  ₹2,560  UPI                 <- genuine
+RCP/26-27/1917  18/06  ₹2,560  UPI                 <- duplicate (created 13:46:56)
+RCP/26-27/1918  18/06  ₹2,560  UPI                 <- duplicate (created 13:49:12)
+RCP/26-27/1978  21/06  ₹2,560  advance adjustment  <- genuine (from ADV/26-27/361)
+```
 
-- Top DB query by total time: the `sale_items` ILIKE search — **167,990 calls, 38.65 ms mean, 6,493 s total**. It is ~10x the next query by total time and is the dominant cost item in both latency and call volume.
-- Next tier: `purchase_items` + `purchase_bills` lateral join (5,137 calls, 118 ms mean), `sales` 4-column ILIKE (6,972 calls, 81 ms mean), `v_dashboard_purchase_summary` (4,605 calls, 110 ms mean, 2.97 s max).
-- Database size: **1052 MB total, 1018 MB in public tables**. Largest: `stock_movements` 213 MB, `product_variants` 140 MB, `audit_logs` 138 MB, `purchase_items` 115 MB, `sales` 84 MB, `sale_items` 67 MB.
-- Sequential-scan red flags: `product_variants` 55.7M seq scans and `sale_items` 6.85M seq scans — both large tables being scanned rather than indexed on some call path.
-- 72 files under `src/pages` still use a bare `animate-spin` loader; 48 files use `.range(` pagination.
+The three UPI receipts were saved within ~3 minutes of each other — a double/triple submit. That ₹5,120 of phantom credit is why the ledger prints "Rs. 2,560 Cr" while the dashboard shows ₹6,300 pending and ₹3,740 unused advance.
 
-## What the audit will still do
+Correct position once the two duplicates are removed:
+- Invoiced ₹14,320; genuine cash/UPI ₹5,460 (₹2,900 + ₹2,560); advance applied ₹2,560
+- INV/26-27/2169 stays fully pending at ₹6,300
+- Unused advance ₹3,740 (₹590 of ADV/361 + ₹1,750 + ₹1,400) — matches the dashboard's "Adjust Advance ₹3,740"
+- Party balance = **₹2,560 Dr**, not ₹2,560 Cr
 
-1. **Speed / loading**
-   - Trace the actual path from a sidebar tap on Settings/User Rights: confirm the prefetch call fires, whether the chunk resolves, and whether the 8 s soft hint and hard timeout in `TabCachedPages.tsx` are triggered by chunk load or by the page's own data queries.
-   - Enumerate every nav surface and list any route reachable only through a surface without prefetch (verified per-file, not assumed).
-   - Re-run the `window.__ezzyNavPerf` harness if it still functions in this environment; if authenticated timing is unavailable here (as it was in the prior pass), say so plainly rather than reporting modelled numbers as measured.
-2. **General triage** — classify each finding as cold-chunk / slow-query / render cost, and separately assess whether the bare-spinner pages and the `.range(` loops sit on user-facing load paths or background/report paths.
-3. **Cloud usage** — extend the numbers above with per-query call-count ranking, growth rate on the largest tables, edge-function invocation counts, storage, and any over-fetching (full-row selects feeding screens that render a few columns). Flag anything trending to a limit.
-4. **Ranking** — three separate lists: confirmed user pain, cost savings, unreported/theoretical. Each item states its §2 category and how it was measured.
+So the invoice dashboard is currently right; the ledger is inflated by the duplicates.
+
+## Fix
+
+1. Soft-delete the two duplicate receipt vouchers `RCP/26-27/1917` and `RCP/26-27/1918` (scoped to Ella Noor org id and those two voucher ids only), so they drop out of the ledger and the reconciliation footer.
+2. Re-derive INV/26-27/1653 settlement: ₹2,560 UPI + ₹2,560 advance = ₹5,120, `payment_status = completed` (unchanged in value, just re-confirmed against the surviving vouchers).
+3. Re-run the customer balance reconciliation for this customer and verify the ledger PDF then prints ₹2,560 Dr and cash received ₹5,460.
+
+No other customer, invoice, or advance is touched. Advances ADV/26-27/361, 648, 652 are left as they are.
+
+## Optional follow-up (say if you want it)
+Add a duplicate-receipt guard: block saving a receipt for the same invoice with the same amount within a short window (the same pattern already used for the 5-minute duplicate block in school fee collection), so this triple-submit cannot recur. I can also scan all Ella Noor invoices for the same over-receipt pattern and report the list before changing anything.
 
 ## Technical notes
-
-Read-only throughout: `pg_stat_statements` via the slow-query tool, `pg_class`/`pg_stat_user_tables` for size and scan counts, `supabase--analytics_query` for edge-function invocation volume, ripgrep over `src/` for call-shape patterns. Fixes are proposed in the report only and built later, one at a time with a build + regression check after each.
+- Org `3fdca631-1e0c-4417-9704-421f5129ff67`, customer `4822a0a8-0328-430b-944a-ece95ca118a2`, sale `9988583e-ed50-4bb1-8d85-bc3f11e5cfe1`.
+- Change is a migration using soft delete (`deleted_at`/`deleted_by`) per the project's soft-delete policy — no hard delete.
