@@ -41,6 +41,8 @@ import { Label } from "@/components/ui/label";
 import { Calendar } from "@/components/ui/calendar";
 import { Textarea } from "@/components/ui/textarea";
 import { Loader2, Receipt, Search, ChevronDown, ChevronRight, Printer, Plus, Edit, Trash2, MessageCircle, Eye, Link2, Settings2, IndianRupee, Send, CheckCircle2, Clock, RefreshCcw, ShoppingCart, Pause, FileText, Lock, FileSpreadsheet, FileCheck, XCircle, Download, FileDown, Ban, Home } from "lucide-react";
+import { useContextMenu, useIsDesktop } from "@/hooks/useContextMenu";
+import { DesktopContextMenu, ContextMenuItem } from "@/components/DesktopContextMenu";
 import * as XLSX from "xlsx";
 import { format } from "date-fns";
 
@@ -525,6 +527,93 @@ const POSDashboard = () => {
   const showItemHsn = saleSettings?.show_item_hsn ?? false;
   const showItemMrp = saleSettings?.show_item_mrp ?? saleSettings?.show_mrp_column ?? false;
   const isEInvoiceEnabled = saleSettings?.einvoice_settings?.enabled ?? false;
+
+  const isDesktop = useIsDesktop();
+  const rowContextMenu = useContextMenu<Sale>();
+
+  const getSaleContextMenuItems = (sale: Sale): ContextMenuItem[] => {
+    const cancelled = isSaleInvoiceCancelled(sale);
+    const own = canModifyEntry((sale as any).created_by, creatorLabel((sale as any).created_by));
+    const noopEvent = { stopPropagation: () => {} } as React.MouseEvent;
+    return [
+      {
+        label: "Print Invoice",
+        icon: Printer,
+        onClick: () => {
+          void handlePrintClick(sale, noopEvent);
+        },
+        hidden: !columnSettings.print,
+      },
+      {
+        label: "Record Payment",
+        icon: IndianRupee,
+        onClick: () => openPaymentDialog(sale),
+        hidden: isPaidCompletedForDashboard(sale) || sale.payment_status === "hold",
+      },
+      {
+        label: "Copy Invoice Link",
+        icon: Link2,
+        onClick: () => {
+          void handleCopyLink(sale, noopEvent);
+        },
+        hidden: !columnSettings.copyLink,
+      },
+      {
+        label: "Preview Invoice",
+        icon: Eye,
+        onClick: () => {
+          void handlePreviewClick(sale, noopEvent);
+        },
+        hidden: !columnSettings.preview,
+      },
+      {
+        label: "Generate E-Invoice",
+        icon: FileCheck,
+        onClick: () => handleGenerateEInvoice(sale),
+        hidden:
+          !(saleSettings?.einvoice_settings?.enabled ?? false) ||
+          sale.sale_type === "delivery_challan" ||
+          !!sale.irn ||
+          sale.einvoice_status === "cancelled" ||
+          sale.status === "cancelled",
+        disabled: isGeneratingEInvoice === sale.id,
+      },
+      {
+        label: "Print/Download E-Invoice",
+        icon: FileCheck,
+        onClick: () => handleDownloadEInvoicePDF(sale),
+        hidden:
+          !isEInvoiceEnabled ||
+          !sale.irn ||
+          sale.einvoice_status === "cancelled" ||
+          sale.status === "cancelled",
+        disabled: isDownloadingEInvoice === sale.id,
+      },
+      { label: "", separator: true, onClick: () => {} },
+      {
+        label: "Modify",
+        icon: Edit,
+        onClick: () => handleEditSale(sale.id, noopEvent),
+        hidden: !columnSettings.modify || !hasSpecialPermission("modify_records") || cancelled,
+        disabled: !own.allowed,
+      },
+      {
+        label: "Delete cancelled invoice",
+        icon: Trash2,
+        onClick: () => {
+          void handleInitiateDelete(sale);
+        },
+        hidden: !cancelled || !hasSpecialPermission("delete_records"),
+        disabled: !own.allowed,
+        destructive: true,
+      },
+    ];
+  };
+
+  const handleRowContextMenu = (e: React.MouseEvent, sale: Sale) => {
+    if (!isDesktop) return;
+    rowContextMenu.openMenu(e, sale);
+  };
 
   // Sync POS bill format / invoice template from cached settings
   useEffect(() => {
@@ -3251,6 +3340,7 @@ const POSDashboard = () => {
                               cancelled && "bg-red-50/50 dark:bg-red-950/20",
                               expandedSale === sale.id && !cancelled && "bg-muted/40",
                             )}
+                            onContextMenu={(e) => handleRowContextMenu(e, sale)}
                           >
                             <TableCell className="px-2 py-2.5" onClick={(e) => e.stopPropagation()}>
                               <Checkbox
@@ -4431,6 +4521,15 @@ const POSDashboard = () => {
           queryClient.invalidateQueries({ queryKey: ["customer-balance"] });
         }}
       />
+
+      {isDesktop && (
+        <DesktopContextMenu
+          isOpen={rowContextMenu.isOpen}
+          position={rowContextMenu.position}
+          items={rowContextMenu.contextData ? getSaleContextMenuItems(rowContextMenu.contextData) : []}
+          onClose={rowContextMenu.closeMenu}
+        />
+      )}
     </>
   );
 };

@@ -15,6 +15,8 @@ import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 
 import { Search, Printer, Edit, ChevronDown, ChevronUp, Trash2, Loader2, FileText, ArrowRight, Plus, MessageCircle, CalendarIcon, Download, FilePenLine, Home, RefreshCw } from "lucide-react";
+import { useContextMenu, useIsDesktop } from "@/hooks/useContextMenu";
+import { DesktopContextMenu, ContextMenuItem } from "@/components/DesktopContextMenu";
 import { ListTableSkeleton } from "@/components/skeletons/ListPageSkeleton";
 import { useWhatsAppTemplates } from "@/hooks/useWhatsAppTemplates";
 import { format } from "date-fns";
@@ -49,6 +51,41 @@ export default function QuotationDashboard() {
   const { currentOrganization } = useOrganization();
   const inTabCache = useTabCacheLayout();
   const sharedShell = useSharedAppShell();
+
+  const isDesktop = useIsDesktop();
+  const rowContextMenu = useContextMenu<any>();
+
+  const getQuotationContextMenuItems = (quotation: any): ContextMenuItem[] => [
+    {
+      label: "Print / PDF",
+      icon: Printer,
+      onClick: () => setQuotationToPrint(quotation),
+    },
+    {
+      label: "Edit",
+      icon: Edit,
+      onClick: () => navigate("/quotation-entry", { state: { quotationData: quotation } }),
+    },
+    {
+      label: "Convert to Sale Order",
+      icon: ArrowRight,
+      onClick: () => handleConvertToSaleOrder(quotation),
+      hidden: quotation.status === "confirmed",
+    },
+    { label: "", separator: true, onClick: () => {} },
+    {
+      label: "Delete",
+      icon: Trash2,
+      onClick: () => setQuotationToDelete(quotation),
+      destructive: true,
+    },
+  ];
+
+  const handleRowContextMenu = (e: React.MouseEvent, quotation: any) => {
+    if (!isDesktop) return;
+    rowContextMenu.openMenu(e, quotation);
+  };
+
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [customerFilter, setCustomerFilter] = useState<string>("all");
@@ -497,7 +534,11 @@ export default function QuotationDashboard() {
             <TableBody>
               {paginatedQuotations.map((quotation: any) => (
                 <>
-                  <TableRow key={quotation.id} className="h-11">
+                  <TableRow
+                    key={quotation.id}
+                    className="h-11"
+                    onContextMenu={(e) => handleRowContextMenu(e, quotation)}
+                  >
                     <TableCell>
                       <Button variant="ghost" size="icon" onClick={() => toggleExpanded(quotation.id)}>
                         {expandedRows.has(quotation.id) ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
@@ -629,6 +670,14 @@ export default function QuotationDashboard() {
         />
       )}
 
+      {isDesktop && (
+        <DesktopContextMenu
+          isOpen={rowContextMenu.isOpen}
+          position={rowContextMenu.position}
+          items={rowContextMenu.contextData ? getQuotationContextMenuItems(rowContextMenu.contextData) : []}
+          onClose={rowContextMenu.closeMenu}
+        />
+      )}
     </div>
   );
 }

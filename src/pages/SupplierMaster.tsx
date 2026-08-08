@@ -48,6 +48,8 @@ import {
 } from "@/utils/supplierSegments";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
+import { useContextMenu, useIsDesktop } from "@/hooks/useContextMenu";
+import { DesktopContextMenu, ContextMenuItem } from "@/components/DesktopContextMenu";
 import { useSoftDelete } from "@/hooks/useSoftDelete";
 import { ExcelImportDialog, ImportProgress } from "@/components/ExcelImportDialog";
 import { supplierMasterFields, supplierMasterSampleData, normalizePhoneNumber } from "@/utils/excelImportUtils";
@@ -127,6 +129,34 @@ const SupplierMaster = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [historySupplier, setHistorySupplier] = useState<Supplier | null>(null);
   const [mergeSuppliers, setMergeSuppliers] = useState<Supplier[]>([]);
+
+  const isDesktop = useIsDesktop();
+  const rowContextMenu = useContextMenu<Supplier>();
+
+  const getSupplierContextMenuItems = (supplier: Supplier): ContextMenuItem[] => [
+    {
+      label: "View Ledger",
+      icon: BookOpen,
+      onClick: () => setHistorySupplier(supplier),
+    },
+    {
+      label: "Edit",
+      icon: Pencil,
+      onClick: () => handleEdit(supplier),
+    },
+    { label: "", separator: true, onClick: () => {} },
+    {
+      label: "Delete",
+      icon: Trash2,
+      onClick: () => handleDelete(supplier.id),
+      destructive: true,
+    },
+  ];
+
+  const handleRowContextMenu = (e: React.MouseEvent, supplier: Supplier) => {
+    if (!isDesktop) return;
+    rowContextMenu.openMenu(e, supplier);
+  };
 
   // Debounced search for server-side filtering
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -1051,6 +1081,7 @@ const SupplierMaster = () => {
             defaultDensity="comfortable"
             className="[&_td]:!text-[15px] [&_th]:!text-[13px]"
             showToolbar={false}
+            onRowContextMenu={handleRowContextMenu}
             renderToolbar={(toolbar) => {
               const el = document.getElementById("erp-toolbar-portal-supplier");
               return el ? createPortal(toolbar, el) : toolbar;
@@ -1124,6 +1155,15 @@ const SupplierMaster = () => {
           setMergeSuppliers([]);
         }}
       />
+
+      {isDesktop && (
+        <DesktopContextMenu
+          isOpen={rowContextMenu.isOpen}
+          position={rowContextMenu.position}
+          items={rowContextMenu.contextData ? getSupplierContextMenuItems(rowContextMenu.contextData) : []}
+          onClose={rowContextMenu.closeMenu}
+        />
+      )}
     </div>
   );
 };

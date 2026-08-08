@@ -47,6 +47,7 @@ import { DesktopAppShell } from "@/components/DesktopAppShell";
 import { SharedAppShellContext } from "@/contexts/SharedAppShellContext";
 import { useShowDesktopChrome } from "@/hooks/useDesktopViewPreference";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
+import { formatDocumentTitle } from "@/lib/pageTitles";
 import { Button } from "@/components/ui/button";
 import { AlertCircle, RefreshCw } from "lucide-react";
 
@@ -360,6 +361,21 @@ export const OrgLayout = () => {
   const isPublicPortalRoute = /^\/[^/]+\/portal(\/|$)/.test(location.pathname);
   const isFieldSalesRoute = /^\/[^/]+\/field-sales\/?$/.test(location.pathname);
   const isPublicRoute = isPublicInvoiceRoute || isPublicInstallRoute || isPublicPortalRoute || isFieldSalesRoute;
+
+  // Per-page window/tab title (browser + Electron chrome). Skip public routes that
+  // own their own title (e.g. PublicInvoiceView).
+  useEffect(() => {
+    if (isPublicRoute) return;
+    document.title = formatDocumentTitle(
+      resolvedCurrentPath || currentPath,
+      currentOrganization?.name,
+    );
+  }, [
+    isPublicRoute,
+    resolvedCurrentPath,
+    currentPath,
+    currentOrganization?.name,
+  ]);
 
   useEffect(() => {
     if (orgSlug && user && !orgLoading && organizations.length > 0) {

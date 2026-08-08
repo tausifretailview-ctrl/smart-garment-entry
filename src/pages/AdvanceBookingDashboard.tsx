@@ -13,6 +13,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Coins, Plus, Search, RefreshCw, Undo2, IndianRupee, TrendingUp, Wallet, ChevronLeft, ChevronRight, Pencil, Printer, Trash2 } from "lucide-react";
+import { useContextMenu, useIsDesktop } from "@/hooks/useContextMenu";
+import { DesktopContextMenu, ContextMenuItem } from "@/components/DesktopContextMenu";
 import { Checkbox } from "@/components/ui/checkbox";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { format, startOfDay, startOfWeek, startOfMonth } from "date-fns";
@@ -41,6 +43,38 @@ export default function AdvanceBookingDashboard() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const orgId = currentOrganization?.id;
+
+  const isDesktop = useIsDesktop();
+  const rowContextMenu = useContextMenu<any>();
+
+  const getAdvanceContextMenuItems = (adv: any): ContextMenuItem[] => {
+    const canRefund = adv.status === "active" || adv.status === "partially_used";
+    const available = (adv.amount || 0) - (adv.used_amount || 0);
+    return [
+      {
+        label: "Print Receipt",
+        icon: Printer,
+        onClick: () => openPrintDialog(adv),
+      },
+      {
+        label: "Edit",
+        icon: Pencil,
+        onClick: () => openEdit(adv),
+        hidden: !canRefund,
+      },
+      {
+        label: `Refund ₹${available.toLocaleString("en-IN")}`,
+        icon: Undo2,
+        onClick: () => openRefund(adv),
+        hidden: !canRefund,
+      },
+    ];
+  };
+
+  const handleRowContextMenu = (e: React.MouseEvent, adv: any) => {
+    if (!isDesktop) return;
+    rowContextMenu.openMenu(e, adv);
+  };
 
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -623,7 +657,11 @@ export default function AdvanceBookingDashboard() {
                 const available = (adv.amount || 0) - (adv.used_amount || 0);
                 const canRefund = adv.status === "active" || adv.status === "partially_used";
                 return (
-                  <TableRow key={adv.id} className={selectedIds.has(adv.id) ? "bg-muted/50" : ""}>
+                  <TableRow
+                    key={adv.id}
+                    className={selectedIds.has(adv.id) ? "bg-muted/50" : ""}
+                    onContextMenu={(e) => handleRowContextMenu(e, adv)}
+                  >
                     <TableCell>
                       <Checkbox
                         checked={selectedIds.has(adv.id)}
@@ -984,6 +1022,15 @@ export default function AdvanceBookingDashboard() {
            </AlertDialogFooter>
          </AlertDialogContent>
        </AlertDialog>
+
+       {isDesktop && (
+         <DesktopContextMenu
+           isOpen={rowContextMenu.isOpen}
+           position={rowContextMenu.position}
+           items={rowContextMenu.contextData ? getAdvanceContextMenuItems(rowContextMenu.contextData) : []}
+           onClose={rowContextMenu.closeMenu}
+         />
+       )}
       </div>
    );
 }

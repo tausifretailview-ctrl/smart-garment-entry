@@ -3,7 +3,9 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Package, Clock, CheckCircle2, TrendingUp, Search, Calendar as CalendarIcon, MessageCircle, Download } from "lucide-react";
+import { Package, Clock, CheckCircle2, TrendingUp, Search, Calendar as CalendarIcon, MessageCircle, Download, User } from "lucide-react";
+import { useContextMenu, useIsDesktop } from "@/hooks/useContextMenu";
+import { DesktopContextMenu, ContextMenuItem } from "@/components/DesktopContextMenu";
 import { AnimatedChart } from "@/components/dashboard/AnimatedChart";
 import { format, subDays, startOfDay, endOfDay } from "date-fns";
 import { useState, useMemo, useCallback } from "react";
@@ -29,6 +31,33 @@ const DeliveryDashboard = () => {
   const { currentOrganization } = useOrganization();
   const queryClient = useQueryClient();
   const { formatMessage } = useWhatsAppTemplates();
+
+  const isDesktop = useIsDesktop();
+  const rowContextMenu = useContextMenu<any>();
+
+  const getDeliveryContextMenuItems = (invoice: any): ContextMenuItem[] => [
+    {
+      label: "Update Delivery Status",
+      icon: Package,
+      onClick: () => openStatusDialog(invoice),
+    },
+    {
+      label: "Open Customer",
+      icon: User,
+      onClick: () => {
+        if (invoice.customer_id) {
+          openCustomerAccount(invoice.customer_id, invoice.customer_name);
+        }
+      },
+      disabled: !invoice.customer_id,
+    },
+  ];
+
+  const handleRowContextMenu = (e: React.MouseEvent, invoice: any) => {
+    if (!isDesktop) return;
+    rowContextMenu.openMenu(e, invoice);
+  };
+
   const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [dateFrom, setDateFrom] = useState<Date | undefined>();
@@ -728,7 +757,11 @@ const DeliveryDashboard = () => {
                 </TableHeader>
                 <TableBody>
                   {filteredInvoices?.map((invoice) => (
-                    <TableRow key={invoice.id} data-state={selectedInvoiceIds.has(invoice.id) ? "selected" : undefined}>
+                    <TableRow
+                      key={invoice.id}
+                      data-state={selectedInvoiceIds.has(invoice.id) ? "selected" : undefined}
+                      onContextMenu={(e) => handleRowContextMenu(e, invoice)}
+                    >
                       <TableCell>
                         <Checkbox
                           checked={selectedInvoiceIds.has(invoice.id)}
@@ -890,6 +923,14 @@ const DeliveryDashboard = () => {
           </DialogContent>
         </Dialog>
 
+        {isDesktop && (
+          <DesktopContextMenu
+            isOpen={rowContextMenu.isOpen}
+            position={rowContextMenu.position}
+            items={rowContextMenu.contextData ? getDeliveryContextMenuItems(rowContextMenu.contextData) : []}
+            onClose={rowContextMenu.closeMenu}
+          />
+        )}
       </div>
   );
 };

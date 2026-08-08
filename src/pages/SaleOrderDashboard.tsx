@@ -12,6 +12,8 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 
 import { Search, Edit, ChevronDown, ChevronUp, Trash2, Loader2, ClipboardList, ArrowRight, Plus, CheckCircle, AlertTriangle, Printer, Clock, Package, IndianRupee, MessageCircle, CalendarIcon } from "lucide-react";
+import { useContextMenu, useIsDesktop } from "@/hooks/useContextMenu";
+import { DesktopContextMenu, ContextMenuItem } from "@/components/DesktopContextMenu";
 import { ListTableSkeleton } from "@/components/skeletons/ListPageSkeleton";
 import { useQuietRefreshActive } from "@/components/QuietRefreshBar";
 import { useWhatsAppTemplates } from "@/hooks/useWhatsAppTemplates";
@@ -89,6 +91,45 @@ export default function SaleOrderDashboard() {
   const { toast } = useToast();
   const { orgNavigate: navigate } = useOrgNavigation();
   const { currentOrganization } = useOrganization();
+
+  const isDesktop = useIsDesktop();
+  const rowContextMenu = useContextMenu<any>();
+
+  const getOrderContextMenuItems = (order: any): ContextMenuItem[] => [
+    {
+      label: "Print",
+      icon: Printer,
+      onClick: () => {
+        void handlePrintOrder(order);
+      },
+    },
+    {
+      label: "Edit",
+      icon: Edit,
+      onClick: () => {
+        void handleEditOrder(order);
+      },
+    },
+    {
+      label: "Convert to Sale Bill",
+      icon: ArrowRight,
+      onClick: () => handleOpenConversion(order),
+      hidden: order.status === "confirmed",
+    },
+    { label: "", separator: true, onClick: () => {} },
+    {
+      label: "Delete",
+      icon: Trash2,
+      onClick: () => setOrderToDelete(order),
+      destructive: true,
+    },
+  ];
+
+  const handleRowContextMenu = (e: React.MouseEvent, order: any) => {
+    if (!isDesktop) return;
+    rowContextMenu.openMenu(e, order);
+  };
+
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [customerFilter, setCustomerFilter] = useState<string>("all");
@@ -888,7 +929,10 @@ export default function SaleOrderDashboard() {
                   
                   return (
                     <>
-                      <TableRow key={order.id}>
+                      <TableRow
+                        key={order.id}
+                        onContextMenu={(e) => handleRowContextMenu(e, order)}
+                      >
                         <TableCell>
                           <Button variant="ghost" size="icon" onClick={() => void toggleExpanded(order.id)}>
                             {expandedRows.has(order.id) ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
@@ -1193,6 +1237,14 @@ export default function SaleOrderDashboard() {
         />
       )}
 
+      {isDesktop && (
+        <DesktopContextMenu
+          isOpen={rowContextMenu.isOpen}
+          position={rowContextMenu.position}
+          items={rowContextMenu.contextData ? getOrderContextMenuItems(rowContextMenu.contextData) : []}
+          onClose={rowContextMenu.closeMenu}
+        />
+      )}
     </div>
   );
 }

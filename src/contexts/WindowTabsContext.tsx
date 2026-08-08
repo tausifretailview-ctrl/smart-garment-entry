@@ -5,6 +5,7 @@ import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { getMenuPermissionForPath, resolveFirstAllowedPath } from "@/lib/menuPermissions";
 import { prefetchTabPage, resolveTabCachePath } from "@/lib/tabPageRegistry";
+import { PAGE_TITLE_CONFIG } from "@/lib/pageTitles";
 import { isEditableTarget } from "@/lib/keyboardShortcuts";
 import { 
   ShoppingCart, BarChart3, FileText, Users, Package, Settings, 
@@ -38,61 +39,8 @@ interface WindowTabsContextType {
 
 const WindowTabsContext = createContext<WindowTabsContextType | undefined>(undefined);
 
-// Map routes to friendly names and icons
-const PAGE_CONFIG: Record<string, { label: string; icon: string }> = {
-  "": { label: "Dashboard", icon: "Home" },
-  "dashboard": { label: "Dashboard", icon: "Home" },
-  "pos-sales": { label: "POS Sales", icon: "ShoppingCart" },
-  "pos-delivery-challan": { label: "POS DC", icon: "Truck" },
-  "pos-dashboard": { label: "POS Dashboard", icon: "Receipt" },
-  "sales-invoice": { label: "Sales Invoice", icon: "FileText" },
-  "sales-invoice-dashboard": { label: "Sales Dashboard", icon: "FileText" },
-  "quotation-entry": { label: "Quotation", icon: "ClipboardList" },
-  "quotation-dashboard": { label: "Quotations", icon: "ClipboardList" },
-  "sale-order-entry": { label: "Sale Order", icon: "ClipboardList" },
-  "sale-order-dashboard": { label: "Sale Orders", icon: "ClipboardList" },
-  "sale-return-entry": { label: "Sale Return", icon: "ArrowLeftRight" },
-  "sale-returns": { label: "Sale Returns", icon: "ArrowLeftRight" },
-  "sale-return-dashboard": { label: "Sale Returns", icon: "ArrowLeftRight" },
-  "purchase-entry": { label: "Purchase Entry", icon: "Package" },
-  "purchase-bill-dashboard": { label: "Purchase Bills", icon: "Package" },
-  "purchase-bills": { label: "Purchase Bills", icon: "Package" },
-  "purchase-return-entry": { label: "Purchase Return", icon: "ArrowLeftRight" },
-  "purchase-return-dashboard": { label: "Purchase Returns", icon: "ArrowLeftRight" },
-  "purchase-returns": { label: "Purchase Returns", icon: "ArrowLeftRight" },
-  "product-entry": { label: "Product Entry", icon: "Tag" },
-  "product-dashboard": { label: "Products", icon: "Layers" },
-  "products": { label: "Products", icon: "Layers" },
-  "customers": { label: "Customers", icon: "Users" },
-  "suppliers": { label: "Suppliers", icon: "Building2" },
-  "employees": { label: "Employees", icon: "UserCheck" },
-  "salesman-commission": { label: "Commission", icon: "UserCheck" },
-  "bulk-product-update": { label: "Bulk Update", icon: "Layers" },
-  "stock-settlement": { label: "Stock Settlement", icon: "Package" },
-  "stock-report": { label: "Stock Report", icon: "BarChart3" },
-  reports: { label: "Reports Hub", icon: "BarChart3" },
-  "item-wise-sales": { label: "Item Sales", icon: "PieChart" },
-  "sales-report-by-customer": { label: "Customer Sales", icon: "TrendingUp" },
-  "purchase-report-by-supplier": { label: "Supplier Report", icon: "TrendingUp" },
-  "price-history": { label: "Price History", icon: "History" },
-  "product-tracking": { label: "Product Tracking", icon: "History" },
-  "daily-cashier-report": { label: "Daily Cashier", icon: "CalendarDays" },
-  "gst-register": { label: "GST Register", icon: "FileSpreadsheet" },
-  "gst-reports": { label: "GST Reports", icon: "FileSpreadsheet" },
-  "tally-export": { label: "Tally Export", icon: "FileSpreadsheet" },
-  "payments-dashboard": { label: "Payments", icon: "Wallet" },
-  "accounts": { label: "Accounts", icon: "BookOpen" },
-  "chart-of-accounts": { label: "Chart of Accounts", icon: "BookOpen" },
-  "journal-vouchers": { label: "Journal Vouchers", icon: "BookOpen" },
-  "manual-journal": { label: "Manual Journal", icon: "BookOpen" },
-  "ledger-opening-balances": { label: "Opening Balances", icon: "BookOpen" },
-  "purchase-orders": { label: "Purchase Orders", icon: "ClipboardList" },
-  "delivery-dashboard": { label: "Delivery", icon: "Truck" },
-  "barcode-printing": { label: "Barcode Print", icon: "Printer" },
-  "settings": { label: "Settings", icon: "Settings" },
-  "audit-log": { label: "Audit Log", icon: "History" },
-  "user-rights": { label: "User Rights", icon: "UserCheck" },
-};
+/** Shared with document.title via pageTitles.ts */
+const PAGE_CONFIG = PAGE_TITLE_CONFIG;
 
 const STORAGE_KEY = "smart_inventory_open_windows";
 const VISIBILITY_KEY = "smart_inventory_tabs_visible";
