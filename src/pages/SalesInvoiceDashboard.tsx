@@ -3986,7 +3986,13 @@ export default function SalesInvoiceDashboard() {
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-8 h-10 text-base border-slate-200 bg-slate-50 focus:bg-white"
                 />
+                {dashboardPage?.searchMeta?.lineItemCapped && (
+                  <p className="absolute left-0 -bottom-5 text-xs text-amber-600 whitespace-nowrap">
+                    Showing first {dashboardPage.searchMeta.lineItemCount} matches — narrow your search
+                  </p>
+                )}
               </div>
+
               <Select value={periodFilter} onValueChange={setPeriodFilter}>
                 <SelectTrigger className="w-[130px] h-9 text-sm border-slate-200 bg-slate-50 hover:bg-white">
                   <SelectValue placeholder="Period" />
