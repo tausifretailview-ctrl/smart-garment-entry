@@ -28,6 +28,8 @@ const CHECK_LABEL: Record<string, string> = {
   advance_applied_exceeds_invoice: "Advance applied exceeds invoice",
   paid_exceeds_net: "Paid amount exceeds invoice value",
   paid_diverges_from_receipts: "Paid amount unreconstructable from receipts",
+  advance_draw_exceeds_booking: "Advance drawn beyond booking amount",
+  customer_advance_pool_negative: "Customer advance pool negative (unbacked adjustments)",
 };
 
 const inr = (v: number) => new Intl.NumberFormat("en-IN", { maximumFractionDigits: 2 }).format(Number(v || 0));
