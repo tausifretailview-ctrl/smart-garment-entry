@@ -5021,6 +5021,13 @@ Please clear your dues at the earliest. Thank you!`;
                                       CN Used
                                     </span>
                                   </div>
+                                ) : transaction.type === 'adv_refund' || transaction.type === 'cn_refund' || transaction.type === 'refund' ? (
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="text-xs rounded-full border border-rose-300 bg-rose-100 px-2 py-0.5 font-medium text-rose-700 dark:bg-rose-950/40 dark:text-rose-300">
+                                      ↩ Refund paid to customer
+                                    </span>
+                                    <span className="text-muted-foreground">{cleanDescription(transaction.description || "")}</span>
+                                  </div>
                                 ) : (
                                   <div className="text-muted-foreground">{cleanDescription(transaction.description || "")}</div>
                                 )}
