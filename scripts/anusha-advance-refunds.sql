@@ -9,8 +9,7 @@ SELECT
   used_amount,
   amount - used_amount AS remaining_booking,
   status,
-  advance_date,
-  deleted_at
+  advance_date
 FROM public.customer_advances
 WHERE customer_id = '4751fce3-6453-49c1-bd16-e11ea2a67ee2'
 ORDER BY advance_date, created_at;

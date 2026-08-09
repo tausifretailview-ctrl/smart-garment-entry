@@ -42,8 +42,7 @@ SELECT
   ca.used_amount,
   ca.amount - ca.used_amount AS remaining_booking,
   ca.status,
-  ca.advance_date,
-  ca.deleted_at
+  ca.advance_date
 FROM public.customer_advances ca
 WHERE ca.customer_id = '4751fce3-6453-49c1-bd16-e11ea2a67ee2'
 ORDER BY ca.advance_date, ca.created_at;
@@ -68,7 +67,8 @@ SELECT
   ve.deleted_at AS voucher_deleted_at,
   ve.description AS voucher_description,
   je.id AS journal_entry_id,
-  je.entry_number AS journal_entry_number
+  je.date AS journal_date,
+  je.total_amount AS journal_amount
 FROM public.advance_refunds ar
 JOIN public.customer_advances ca ON ca.id = ar.advance_id
 LEFT JOIN public.voucher_entries ve ON ve.id = ar.voucher_entry_id
@@ -76,7 +76,6 @@ LEFT JOIN public.journal_entries je
   ON je.organization_id = ar.organization_id
  AND je.reference_type = 'CustomerAdvanceRefund'
  AND je.reference_id = ar.id
- AND je.deleted_at IS NULL
 WHERE ca.customer_id = '4751fce3-6453-49c1-bd16-e11ea2a67ee2'
 ORDER BY ar.refund_date, ar.created_at;
 
@@ -104,8 +103,8 @@ SELECT
         ), 0)
   ) AS unused_after_refunds
 FROM public.customer_advances ca
-WHERE ca.customer_id = '4751fce3-6453-49c1-bd16-e11ea2a67ee2'
-  AND ca.deleted_at IS NULL;
+WHERE ca.customer_id = '4751fce3-6453-49c1-bd16-e11ea2a67ee2';
+-- (customer_advances has no deleted_at column)
 
 
 -- P0.5 Advance applications on invoices (should ≈ used_total ₹29,800)
@@ -190,15 +189,14 @@ ORDER BY ve.voucher_date, ve.created_at;
 -- )
 -- AND ve.deleted_at IS NULL;
 --
--- -- Soft-delete GL journals if accounting engine wrote them
--- UPDATE public.journal_entries je
--- SET deleted_at = now()
+-- -- Remove GL journals if accounting engine wrote them
+-- -- (journal_entries has no deleted_at — hard delete; confirm ids from P0.3 first)
+-- DELETE FROM public.journal_entries je
 -- WHERE je.reference_type = 'CustomerAdvanceRefund'
 --   AND je.reference_id IN (
 --     '________-____-____-____-____________',
 --     '________-____-____-____-____________'
---   )
---   AND je.deleted_at IS NULL;
+--   );
 --
 -- -- Hard-delete refund rows (table has no deleted_at)
 -- DELETE FROM public.advance_refunds
