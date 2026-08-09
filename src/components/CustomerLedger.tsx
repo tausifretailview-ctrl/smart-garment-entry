@@ -56,6 +56,7 @@ import {
 } from "@/utils/customerBalanceUtils";
 import { derivePaidAndStatus } from "@/utils/saleSettlement";
 import { computeAuditPeriodOutstanding, fetchCustomerAuditBundle } from "@/utils/customerAuditBundle";
+import { computeInvoiceOutstandingFromReconciliation } from "@/utils/customerLedgerReconciliation";
 import {
   isCnRefundPaymentVoucher,
   parseSaleReturnRefFromCnRefundDescription,
@@ -2705,6 +2706,105 @@ export function CustomerLedger({
 
   const totalPages = Math.ceil(filteredCustomers.length / CUSTOMERS_PER_PAGE);
 
+  // Reconciliation summary — must live above effectiveBalance (retail Outstanding).
+  const reconciliation = useMemo(() => {
+    const empty = {
+      opening: 0,
+      grossInvoiced: 0,
+      saleReturns: 0,
+      netInvoiced: 0,
+      payments: 0,
+      paymentsCash: 0,
+      paymentsDiscount: 0,
+      invoiceCnApplied: 0,
+      advanceApplied: 0,
+      advanceCredit: 0,
+      advanceRefunded: 0,
+      cnRefunded: 0,
+      adjustments: 0,
+      finalBalance: 0,
+      invoiceOutstanding: 0,
+    };
+    if (!transactions || transactions.length === 0) return empty;
+
+    let opening = 0;
+    let grossInvoiced = 0;
+    let saleReturns = 0;
+    let payments = 0;
+    let paymentsCash = 0;
+    let paymentsDiscount = 0;
+    let invoiceCnApplied = 0;
+    let advanceApplied = 0;
+    let advanceCredit = 0;
+    let advanceRefunded = 0;
+    let cnRefunded = 0;
+    let adjustments = 0;
+
+    for (const t of transactions) {
+      if (t.id === "opening-balance") {
+        opening = (t.debit || 0) - (t.credit || 0);
+        continue;
+      }
+      if (t.informational) continue;
+      if (t.type === "invoice") {
+        grossInvoiced += t.grossBill ?? t.displayDebit ?? t.debit ?? 0;
+        invoiceCnApplied += t.saleReturnAdjustApplied ?? 0;
+      } else if (t.type === "return") {
+        saleReturns += t.credit || 0;
+      } else if (t.type === "payment") {
+        const discount = t.paymentBreakdown?.settlementDiscount || 0;
+        const cash =
+          t.paymentBreakdown?.cashReceived != null
+            ? t.paymentBreakdown.cashReceived
+            : Math.max(0, (t.credit || 0) - discount);
+        paymentsCash += cash;
+        paymentsDiscount += discount;
+        payments += cash + discount;
+      } else if (t.type === "advance_application") {
+        advanceApplied += t.appliedAmount || 0;
+      } else if (t.type === "advance") {
+        advanceCredit += t.credit || 0;
+      } else if (t.type === "adv_refund") {
+        advanceRefunded += t.debit || 0;
+      } else if (t.type === "cn_refund") {
+        cnRefunded += t.debit || 0;
+      } else if (t.type === "adjustment") {
+        adjustments += (t.debit || 0) - (t.credit || 0);
+      }
+    }
+
+    const finalBalance = transactions[transactions.length - 1]?.balance ?? 0;
+    const netInvoiced = grossInvoiced - invoiceCnApplied - saleReturns;
+    const invoiceOutstanding = computeInvoiceOutstandingFromReconciliation({
+      opening,
+      grossInvoiced,
+      invoiceCnApplied,
+      saleReturns,
+      paymentsCash,
+      paymentsDiscount,
+      advanceApplied,
+      adjustments,
+      cnRefunded,
+    });
+    return {
+      opening,
+      grossInvoiced,
+      saleReturns,
+      netInvoiced,
+      payments,
+      paymentsCash,
+      paymentsDiscount,
+      invoiceCnApplied,
+      advanceApplied,
+      advanceCredit,
+      advanceRefunded,
+      cnRefunded,
+      adjustments,
+      finalBalance,
+      invoiceOutstanding,
+    };
+  }, [transactions]);
+
   const effectiveBalance = useMemo(() => {
     if (!selectedCustomer) return 0;
     if (isSchool) {
@@ -2713,21 +2813,27 @@ export function CustomerLedger({
       }
       return authoritativeBalance;
     }
-    const ledgerClosing =
-      transactions && transactions.length > 0
-        ? Number(transactions[transactions.length - 1].balance || 0)
-        : ledgerAuditClosingBalance != null && !Number.isNaN(Number(ledgerAuditClosingBalance))
-          ? Number(ledgerAuditClosingBalance)
-          : null;
-    if (authoritativeBalance < 0) {
-      if (ledgerClosing != null && Math.abs(ledgerClosing - authoritativeBalance) <= 1) {
-        return ledgerClosing;
-      }
-      return authoritativeBalance;
+    // Retail: invoice outstanding from recon arithmetic (includes memo-only advance
+    // applications). Do NOT use the last running-balance row — that mixes advance
+    // bookings/refunds (party-cash) and left Anusha at ₹8,450 Dr while invoices were Paid.
+    if (transactions && transactions.length > 0) {
+      return reconciliation.invoiceOutstanding;
     }
-    if (ledgerClosing != null) return ledgerClosing;
+    if (
+      ledgerAuditClosingBalance != null &&
+      !Number.isNaN(Number(ledgerAuditClosingBalance))
+    ) {
+      return Number(ledgerAuditClosingBalance);
+    }
     return authoritativeBalance;
-  }, [selectedCustomer, isSchool, transactions, authoritativeBalance, ledgerAuditClosingBalance]);
+  }, [
+    selectedCustomer,
+    isSchool,
+    transactions,
+    authoritativeBalance,
+    ledgerAuditClosingBalance,
+    reconciliation.invoiceOutstanding,
+  ]);
 
   /** Refund banner — net economic refund: min(lifetime Cr, unused advance + CN pool). */
   const refundableCreditBalance = useMemo(() => {
@@ -2908,84 +3014,6 @@ export function CustomerLedger({
         totalCredit: acc.totalCredit + c,
       };
     }, { totalDebit: 0, totalCredit: 0 });
-  }, [transactions]);
-
-  // Reconciliation summary for the footer box. Numbers are derived directly
-  // from the transaction list so they always tally with what the user sees.
-  const reconciliation = useMemo(() => {
-    const empty = {
-      opening: 0,
-      grossInvoiced: 0,
-      saleReturns: 0,
-      netInvoiced: 0,
-      payments: 0,
-      paymentsCash: 0,
-      paymentsDiscount: 0,
-      invoiceCnApplied: 0,
-      advanceApplied: 0,
-      advanceCredit: 0,
-      adjustments: 0,
-      finalBalance: 0,
-    };
-    if (!transactions || transactions.length === 0) return empty;
-
-    let opening = 0;
-    let grossInvoiced = 0;
-    let saleReturns = 0;
-    let netInvoiced = 0;
-    let payments = 0;
-    let paymentsCash = 0;
-    let paymentsDiscount = 0;
-    let invoiceCnApplied = 0;
-    let advanceApplied = 0;
-    let advanceCredit = 0;
-    let adjustments = 0;
-
-    for (const t of transactions) {
-      if (t.id === 'opening-balance') {
-        opening = (t.debit || 0) - (t.credit || 0);
-        continue;
-      }
-      if (t.informational) continue;
-      if (t.type === 'invoice') {
-        grossInvoiced += t.grossBill ?? t.displayDebit ?? t.debit ?? 0;
-        invoiceCnApplied += t.saleReturnAdjustApplied ?? 0;
-      } else if (t.type === 'return') {
-        saleReturns += t.credit || 0;
-      } else if (t.type === 'payment') {
-        const discount = t.paymentBreakdown?.settlementDiscount || 0;
-        const cash =
-          t.paymentBreakdown?.cashReceived != null
-            ? t.paymentBreakdown.cashReceived
-            : Math.max(0, (t.credit || 0) - discount);
-        paymentsCash += cash;
-        paymentsDiscount += discount;
-        payments += cash + discount;
-      } else if (t.type === 'advance_application') {
-        advanceApplied += t.appliedAmount || 0;
-      } else if (t.type === 'advance') {
-        advanceCredit += t.credit || 0;
-      } else if (t.type === 'adjustment') {
-        adjustments += (t.debit || 0) - (t.credit || 0);
-      }
-    }
-
-    const finalBalance = transactions[transactions.length - 1]?.balance ?? 0;
-    netInvoiced = grossInvoiced - invoiceCnApplied - saleReturns;
-    return {
-      opening,
-      grossInvoiced,
-      saleReturns,
-      netInvoiced,
-      payments,
-      paymentsCash,
-      paymentsDiscount,
-      invoiceCnApplied,
-      advanceApplied,
-      advanceCredit,
-      adjustments,
-      finalBalance,
-    };
   }, [transactions]);
 
   /** KPI / integrity figures aligned with the rendered transaction list when available. */
@@ -3739,6 +3767,7 @@ Please clear your dues at the earliest. Thank you!`;
       yPos = 20;
     }
 
+    const invoiceOutstanding = reconciliation.invoiceOutstanding;
     const reconLines: Array<[string, number]> = [
       ["Opening Balance", reconciliation.opening],
       ["(+) Total Invoiced", reconciliation.grossInvoiced],
@@ -3752,19 +3781,26 @@ Please clear your dues at the earliest. Thank you!`;
         ? [["(-) Settlement Discount", -reconciliation.paymentsDiscount] as [string, number]]
         : []),
     ];
-    if (reconciliation.advanceCredit > 0) {
-      reconLines.push(["(-) Advance Received", -reconciliation.advanceCredit]);
+    if (reconciliation.advanceApplied > 0) {
+      reconLines.push(["(-) Advance Adjusted", -reconciliation.advanceApplied]);
+    }
+    if (reconciliation.cnRefunded > 0) {
+      reconLines.push(["(+) CN Refunded to Customer", reconciliation.cnRefunded]);
     }
     if (reconciliation.adjustments !== 0) {
       reconLines.push(["(+/-) Balance Adjustments", reconciliation.adjustments]);
     }
     const finalLabel =
-      reconciliation.finalBalance > 0
+      invoiceOutstanding > 0
         ? "Outstanding (Dr)"
-        : reconciliation.finalBalance < 0
+        : invoiceOutstanding < 0
           ? "Party balance (Cr)"
           : "Settled";
-    const reconBoxH = 8 + reconLines.length * 5 + 8;
+    const noteLines =
+      reconciliation.advanceRefunded > 0
+        ? 1
+        : 0;
+    const reconBoxH = 8 + reconLines.length * 5 + 8 + noteLines * 5;
     pdfSetFill(doc, LEDGER_PDF.reconBg);
     pdfSetDraw(doc, LEDGER_PDF.reconBorder);
     doc.rect(margin, yPos - 2, tableWidth, reconBoxH, "FD");
@@ -3788,15 +3824,26 @@ Please clear your dues at the earliest. Thank you!`;
     });
     doc.setFont("helvetica", "bold");
     const finalColor =
-      reconciliation.finalBalance > 0
+      invoiceOutstanding > 0
         ? LEDGER_PDF.balanceDr
-        : reconciliation.finalBalance < 0
+        : invoiceOutstanding < 0
           ? LEDGER_PDF.balanceCr
           : LEDGER_PDF.balanceSettled;
     pdfSetText(doc, finalColor);
     doc.text(finalLabel, labelX, yPos + 1);
-    doc.text(`Rs. ${Math.abs(Math.round(reconciliation.finalBalance)).toLocaleString("en-IN")}`, valueX, yPos + 1);
-    yPos += 10;
+    doc.text(`Rs. ${Math.abs(Math.round(invoiceOutstanding)).toLocaleString("en-IN")}`, valueX, yPos + 1);
+    yPos += 6;
+    if (reconciliation.advanceRefunded > 0) {
+      doc.setFont("helvetica", "normal");
+      pdfSetText(doc, LEDGER_PDF.muted);
+      doc.text(
+        `Note: Advance refunded out Rs. ${Math.round(reconciliation.advanceRefunded).toLocaleString("en-IN")} (unused advance; not in Outstanding)`,
+        labelX,
+        yPos + 1,
+      );
+      yPos += 5;
+    }
+    yPos += 4;
 
     yPos += 6;
     doc.setFontSize(8);
@@ -4832,16 +4879,10 @@ Please clear your dues at the earliest. Thank you!`;
                       const settlementDiscount = reconciliation.paymentsDiscount;
                       const cnOnInvoices = reconciliation.invoiceCnApplied;
                       const advanceAdjusted = reconciliation.advanceApplied;
-                      const advanceRefunded = Math.max(0, ledgerRows
-                        .filter((t) => t.type === 'adv_refund')
-                        .reduce((sum, t) => sum + (t.debit || 0), 0));
-                      const cnRefunded = Math.max(0, ledgerRows
-                        .filter((t) => t.type === 'cn_refund')
-                        .reduce((sum, t) => sum + (t.debit || 0), 0));
-                      const outstanding =
-                        ledgerRows.length > 0
-                          ? ledgerRows[ledgerRows.length - 1].balance
-                          : reconciliation.finalBalance;
+                      const advanceRefunded = reconciliation.advanceRefunded;
+                      const cnRefunded = reconciliation.cnRefunded;
+                      // Same arithmetic as printed settlement lines (not last-row running balance).
+                      const outstanding = reconciliation.invoiceOutstanding;
                       return (
                     <div className="space-y-1.5 text-sm tabular-nums max-w-md">
                       <div className="flex justify-between">
@@ -4869,7 +4910,7 @@ Please clear your dues at the earliest. Thank you!`;
                       <div className="text-[11px] text-orange-500 -mt-1">Pending — awaiting adjustment</div>
                       <div className="flex justify-between border-t pt-1.5">
                         <span className="font-semibold">(=) Net Invoiced</span>
-                        <span className="font-semibold">₹{Math.round(reconciliation.grossInvoiced - cnOnInvoices - confirmedReturns - pendingReturns).toLocaleString("en-IN")}</span>
+                        <span className="font-semibold">₹{Math.round(reconciliation.netInvoiced).toLocaleString("en-IN")}</span>
                       </div>
                       <div className="flex justify-between text-emerald-700 dark:text-emerald-400">
                         <span>(−) Cash / UPI / Card Received</span>
@@ -4885,12 +4926,6 @@ Please clear your dues at the earliest. Thank you!`;
                         <div className="flex justify-between text-emerald-700 dark:text-emerald-400">
                           <span>(−) Advance Adjusted</span>
                           <span className="font-medium">₹{Math.round(advanceAdjusted).toLocaleString("en-IN")}</span>
-                        </div>
-                      )}
-                      {advanceRefunded > 0 && (
-                        <div className="flex justify-between">
-                          <span>(−) Advance Refunded Out</span>
-                          <span className="font-medium">₹{Math.round(advanceRefunded).toLocaleString("en-IN")}</span>
                         </div>
                       )}
                       {cnRefunded > 0 && (
@@ -4914,6 +4949,12 @@ Please clear your dues at the earliest. Thank you!`;
                         <span>Outstanding ({outstanding > 0 ? 'Dr' : outstanding < 0 ? 'Cr' : 'Settled'})</span>
                         <span>₹{Math.abs(Math.round(outstanding)).toLocaleString("en-IN")}</span>
                       </div>
+                      {advanceRefunded > 0 && (
+                        <div className="flex justify-between text-muted-foreground pt-1 text-xs">
+                          <span>Advance Refunded Out (unused advance; not in Outstanding)</span>
+                          <span className="font-medium">₹{Math.round(advanceRefunded).toLocaleString("en-IN")}</span>
+                        </div>
+                      )}
                     </div>
                       );
                     })()}
