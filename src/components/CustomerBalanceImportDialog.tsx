@@ -27,6 +27,7 @@ import { useToast } from "@/hooks/use-toast";
 import { normalizePhoneNumber } from "@/utils/excelImportUtils";
 import { format } from "date-fns";
 import { fetchAllCustomers } from "@/utils/fetchAllRows";
+import { createCustomerAdvance } from "@/utils/createCustomerAdvance";
 import * as XLSX from "xlsx";
 
 interface CustomerBalanceImportDialogProps {
@@ -300,35 +301,16 @@ export function CustomerBalanceImportDialog({
                 continue;
               }
 
-              // Generate advance number
-              const { data: advanceNumber, error: rpcError } = await supabase.rpc(
-                "generate_advance_number",
-                { p_organization_id: currentOrganization.id }
-              );
-
-              if (rpcError) {
-                errors++;
-                continue;
-              }
-
-              // Create advance record
-              const { error } = await supabase.from("customer_advances").insert({
-                organization_id: currentOrganization.id,
-                customer_id: row.matchedCustomerId!,
-                advance_number: advanceNumber,
+              await createCustomerAdvance(supabase, {
+                organizationId: currentOrganization.id,
+                customerId: row.matchedCustomerId!,
                 amount: row.closing,
-                used_amount: 0,
-                advance_date: format(new Date(), "yyyy-MM-dd"),
-                payment_method: "Excel Import",
+                advanceDate: format(new Date(), "yyyy-MM-dd"),
+                paymentMethod: "Excel Import",
                 description: `Imported from Excel - ${row.partyName}`,
                 status: "active",
               });
-
-              if (error) {
-                errors++;
-              } else {
-                advSuccess++;
-              }
+              advSuccess++;
             } catch {
               errors++;
             }

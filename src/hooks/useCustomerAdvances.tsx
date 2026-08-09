@@ -7,6 +7,7 @@ import {
 } from "@/utils/accounting/journalService";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
 import { invalidateCustomerFinancialSnapshot } from "@/utils/customerFinancialSnapshot";
+import { createCustomerAdvance } from "@/utils/createCustomerAdvance";
 
 interface CustomerAdvance {
   id: string;
@@ -85,35 +86,17 @@ export function useCustomerAdvances(organizationId: string | null) {
   // Create new advance
   const createAdvance = useMutation({
     mutationFn: async (data: CreateAdvanceData) => {
-      // Generate advance number
-      const { data: advanceNumber, error: numberError } = await supabase.rpc(
-        "generate_advance_number",
-        { p_organization_id: organizationId! }
-      );
-
-      if (numberError) throw numberError;
-
-      const { data: advance, error } = await supabase
-        .from("customer_advances")
-        .insert({
-          organization_id: organizationId!,
-          advance_number: advanceNumber,
-          customer_id: data.customerId,
-          amount: data.amount,
-          used_amount: 0,
-          advance_date: format(data.advanceDate, "yyyy-MM-dd"),
-          payment_method: data.paymentMethod,
-          cheque_number: data.chequeNumber || null,
-          transaction_id: data.transactionId || null,
-          description: data.description || null,
-          status: "active",
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      const adv = advance as CustomerAdvance & { id: string; advance_number: string; advance_date: string };
+      const adv = await createCustomerAdvance(supabase, {
+        organizationId: organizationId!,
+        customerId: data.customerId,
+        amount: data.amount,
+        advanceDate: format(data.advanceDate, "yyyy-MM-dd"),
+        paymentMethod: data.paymentMethod,
+        chequeNumber: data.chequeNumber || null,
+        transactionId: data.transactionId || null,
+        description: data.description || null,
+        status: "active",
+      });
       const { data: acctAdv } = await supabase
         .from("settings")
         .select("accounting_engine_enabled")
@@ -136,7 +119,7 @@ export function useCustomerAdvances(organizationId: string | null) {
         }
       }
 
-      return advance;
+      return adv;
     },
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["customer-advances"] });

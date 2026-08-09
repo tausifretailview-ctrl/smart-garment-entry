@@ -29,6 +29,7 @@ import {
   reverseBalanceAdjustmentVouchers,
   type AdjustmentAllocation,
 } from "@/utils/applyAdjustmentToInvoices";
+import { createCustomerAdvance } from "@/utils/createCustomerAdvance";
 
 interface CustomerBalanceAdjustmentDialogProps {
   open: boolean;
@@ -173,19 +174,15 @@ export function CustomerBalanceAdjustmentDialog({
 
     // Advance
     if (advDiff > 0) {
-      const { data: advNum } = await supabase.rpc("generate_advance_number", {
-        p_organization_id: organizationId,
-      });
-      await supabase.from("customer_advances").insert({
-        organization_id: organizationId,
-        customer_id: customerId,
+      await createCustomerAdvance(supabase, {
+        organizationId,
+        customerId,
         amount: advDiff,
-        used_amount: 0,
-        advance_number: advNum || `ADJ-${Date.now()}`,
+        advanceDate: format(new Date(), "yyyy-MM-dd"),
+        paymentMethod: "other",
         description: `Balance Adjustment: ${reasonText}`,
-        payment_method: "other",
         status: "active",
-        created_by: user?.id,
+        createdBy: user?.id,
       });
     } else if (advDiff < 0) {
       const { data: activeAdvances } = await supabase

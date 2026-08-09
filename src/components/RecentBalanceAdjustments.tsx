@@ -20,6 +20,7 @@ import { accountsHistoryTableClass, accountsHistoryThClass } from "@/components/
 import { cn } from "@/lib/utils";
 import { reverseBalanceAdjustmentVouchers } from "@/utils/applyAdjustmentToInvoices";
 import { invalidateCustomerFinancialSnapshot } from "@/utils/customerFinancialSnapshot";
+import { createCustomerAdvance } from "@/utils/createCustomerAdvance";
 
 const PAGE_SIZE = 10;
 
@@ -38,19 +39,15 @@ async function applyAdvanceEffects(
   userId?: string
 ) {
   if (advDiff > 0) {
-    const { data: advNum } = await supabaseClient.rpc("generate_advance_number" as any, {
-      p_organization_id: organizationId,
-    });
-    await (supabaseClient as any).from("customer_advances").insert({
-      organization_id: organizationId,
-      customer_id: customerId,
+    await createCustomerAdvance(supabaseClient, {
+      organizationId,
+      customerId,
       amount: advDiff,
-      used_amount: 0,
-      advance_number: advNum || `ADJ-${Date.now()}`,
+      advanceDate: format(new Date(), "yyyy-MM-dd"),
+      paymentMethod: "other",
       description: `Balance Adjustment: ${reasonText}`,
-      payment_method: "other",
       status: "active",
-      created_by: userId,
+      createdBy: userId,
     });
   } else if (advDiff < 0) {
     const { data: activeAdvances } = await supabaseClient
