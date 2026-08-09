@@ -2608,7 +2608,13 @@ const POSDashboard = () => {
                 className="pl-9 h-10 bg-card border-border/60 rounded-xl text-sm"
               />
             </div>
+            {salesPayload?.searchMeta?.lineItemCapped && (
+              <p className="text-xs text-amber-600 mt-1.5 px-0.5">
+                Showing first {salesPayload.searchMeta.lineItemCount} matches — narrow your search
+              </p>
+            )}
           </div>
+
 
           <MobilePeriodChips
             value={periodFilter}
@@ -2997,7 +3003,13 @@ const POSDashboard = () => {
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-10 h-9 w-full text-sm border-slate-200 bg-slate-50 focus:bg-white no-uppercase"
                 />
+                {salesPayload?.searchMeta?.lineItemCapped && (
+                  <p className="absolute left-0 -bottom-5 text-xs text-amber-600 whitespace-nowrap">
+                    Showing first {salesPayload.searchMeta.lineItemCount} matches — narrow your search
+                  </p>
+                )}
               </div>
+
               <div className="flex-1 min-w-[88px]">
               <Select value={periodFilter} onValueChange={handlePeriodChange}>
                 <SelectTrigger className="w-full h-9 text-sm border-slate-200 bg-slate-50 hover:bg-white">
