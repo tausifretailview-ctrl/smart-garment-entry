@@ -23,8 +23,11 @@ import {
   type PosDashboardSaleLike,
 } from "@/utils/posDashboardSettlement";
 import { getSaleReportGrossAmount, getSaleReportNetAmount } from "@/utils/cashierReportUtils";
+import { withDashboardTimeout } from "@/utils/withDashboardTimeout";
 
 /** Calendar bounds for server queries from period chip + date inputs (fixes persisted single-day monthly). */
+
+
 export function resolvePosDashboardQueryDates(
   periodFilter: string,
   startDate: string,
@@ -296,10 +299,21 @@ export type PosDashboardCreditNoteUsage = Record<
   { credit_amount: number; used_amount: number; status: string }
 >;
 
+export type PosDashboardSearchMeta = {
+  /** True when the line-item search hit the hard result cap. */
+  lineItemCapped: boolean;
+  /** The cap value used for this search. */
+  lineItemCap: number;
+  /** Number of distinct sale ids returned by the line-item search. */
+  lineItemCount: number;
+};
+
 export type PosDashboardSalesPayload = {
   sales: any[];
   creditNoteUsage: PosDashboardCreditNoteUsage;
+  searchMeta?: PosDashboardSearchMeta;
 };
+
 
 export type PosDashboardFilters = {
   organizationId: string;
@@ -660,91 +674,57 @@ async function countFilteredPosSales(
  * Header search may still bypass dates (invoice serial lookup); product/barcode
  * union must not scan the org's full sale history per keystroke.
  */
+const POS_LINE_ITEM_SEARCH_CAP = 500;
+
 async function fetchPosSaleIdsMatchingLineItems(
   client: SupabaseClient,
   organizationId: string,
   filters: PosDashboardFilters,
   searchStr: string,
-  itemLimit: number,
-): Promise<string[]> {
-  const saleIdsInRange: string[] = [];
-  const PAGE = 1000;
-  let offset = 0;
+  _itemLimit: number,
+): Promise<{ saleIds: string[]; meta: PosDashboardSearchMeta }> {
   const bounded = resolvePosDashboardDateRange(filters.startDate, filters.endDate);
   const startIso = localDayStartUtcIso(bounded.startDate);
   const endIso = localDayEndUtcIso(bounded.endDate);
-  while (true) {
-    let q = client
-      .from("sales")
-      .select("id")
-      .eq("organization_id", organizationId)
-      .in("sale_type", ["pos", "delivery_challan"])
-      .is("deleted_at", null);
-    if (startIso) q = q.gte("sale_date", startIso);
-    if (endIso) q = q.lte("sale_date", endIso);
-    const { data, error } = await q.range(offset, offset + PAGE - 1);
-    if (error) throw error;
-    if (!data?.length) break;
-    saleIdsInRange.push(...data.map((r) => r.id).filter(Boolean));
-    if (data.length < PAGE) break;
-    offset += PAGE;
-  }
-  if (saleIdsInRange.length === 0) return [];
 
-  const escSearch = searchStr.replace(/[%_,]/g, "");
-  const { data: styleProducts } = await client
-    .from("products")
-    .select("id")
-    .eq("organization_id", organizationId)
-    .is("deleted_at", null)
-    .or(`style.ilike.%${escSearch}%,category.ilike.%${escSearch}%,brand.ilike.%${escSearch}%`)
-    .limit(200);
-  const styleProductIds = (styleProducts || []).map((p: { id: string }) => p.id);
-
-  const orFilter =
-    `barcode.ilike.%${escSearch}%,` +
-    `product_name.ilike.%${escSearch}%,` +
-    `size.ilike.%${escSearch}%,` +
-    `color.ilike.%${escSearch}%`;
-
-  const matched = new Set<string>();
-  for (let i = 0; i < saleIdsInRange.length; i += 200) {
-    const batch = saleIdsInRange.slice(i, i + 200);
-    const { data: matchingItems, error } = await client
-      .from("sale_items")
-      .select("sale_id")
-      .in("sale_id", batch)
-      .is("deleted_at", null)
-      .or(orFilter)
-      .limit(itemLimit);
-    if (error) throw error;
-    (matchingItems || []).forEach((row) => {
-      if (row.sale_id) matched.add(row.sale_id);
+  const { data, error } = await (client as any)
+    .rpc("search_pos_sale_ids", {
+      p_org_id: organizationId,
+      p_search: searchStr,
+      p_date_from: startIso ? startIso.slice(0, 10) : null,
+      p_date_to: endIso ? endIso.slice(0, 10) : null,
+      p_limit: POS_LINE_ITEM_SEARCH_CAP,
     });
-    if (styleProductIds.length > 0) {
-      const { data: byProduct, error: prodErr } = await client
-        .from("sale_items")
-        .select("sale_id")
-        .in("sale_id", batch)
-        .in("product_id", styleProductIds)
-        .is("deleted_at", null)
-        .limit(itemLimit);
-      if (prodErr) throw prodErr;
-      (byProduct || []).forEach((row) => {
-        if (row.sale_id) matched.add(row.sale_id);
-      });
-    }
-    if (matched.size >= itemLimit) break;
+
+  if (error) {
+    console.error("search_pos_sale_ids RPC failed:", error);
+    throw error;
   }
-  return [...matched];
+
+  const rows = (data || []) as { sale_id: string }[];
+  const saleIds = rows.map((r) => r.sale_id).filter(Boolean);
+  const capped = saleIds.length >= POS_LINE_ITEM_SEARCH_CAP;
+
+  return {
+    saleIds,
+    meta: {
+      lineItemCapped: capped,
+      lineItemCap: POS_LINE_ITEM_SEARCH_CAP,
+      lineItemCount: saleIds.length,
+    },
+  };
 }
+
 
 /** Resolved once per dashboard fetch so count + page share one sale_items pass. */
 type PosSearchResolution = {
   saleTextFilter: string;
   /** When set, restrict the sales query to these ids (header ± line-item union). */
   restrictToIds: string[] | null;
+  /** Metadata about the line-item search, surfaced in the UI for cap warnings. */
+  searchMeta?: PosDashboardSearchMeta;
 };
+
 
 async function resolvePosSearch(
   client: SupabaseClient,
@@ -773,24 +753,29 @@ async function resolvePosSearch(
   }
 
   let matchingSaleIds: string[] = [];
+  let searchMeta: PosDashboardSearchMeta | undefined;
   if (shouldUnionSaleItemsForPosSearch(searchStr)) {
-    matchingSaleIds = await fetchPosSaleIdsMatchingLineItems(
+    const result = await fetchPosSaleIdsMatchingLineItems(
       client,
       filters.organizationId,
       filters,
       searchStr,
       1000,
     );
+    matchingSaleIds = result.saleIds;
+    searchMeta = result.meta;
   }
+
 
   if (matchingSaleIds.length > 0) {
     const allMatchIds = [...new Set([...headerMatchIds, ...matchingSaleIds])];
-    return { saleTextFilter, restrictToIds: allMatchIds };
+    return { saleTextFilter, restrictToIds: allMatchIds, searchMeta };
   }
 
   // No line-item hits — apply the same header text filter the list/count queries already scope.
-  return { saleTextFilter, restrictToIds: null };
+  return { saleTextFilter, restrictToIds: null, searchMeta };
 }
+
 
 function applyResolvedPosSearch(query: any, resolution: PosSearchResolution | null): any {
   if (!resolution) return query;
@@ -1018,9 +1003,14 @@ export async function fetchPosDashboardPage(
   const to = from + options.pageSize - 1;
 
   // Resolve search once — count + page previously each ran sale_items ILIKE batches.
-  const searchResolution = await resolvePosSearch(client, filters);
+  const searchResolution = await withDashboardTimeout(
+
+    resolvePosSearch(client, filters),
+    "POS dashboard search resolution",
+  );
 
   const [totalCount, dataResult] = await Promise.all([
+
     countFilteredPosSales(client, filters, searchResolution),
     (async () => {
       let query: any = buildPosDashboardBaseQuery(
@@ -1055,8 +1045,14 @@ export async function fetchPosDashboardPage(
   const rankedSales = filters.search.trim()
     ? rankPosDashboardSearchResults(settled, filters.search)
     : settled;
-  return { sales: rankedSales, creditNoteUsage: enriched.creditNoteUsage, totalCount };
+  return {
+    sales: rankedSales,
+    creditNoteUsage: enriched.creditNoteUsage,
+    totalCount,
+    searchMeta: searchResolution?.searchMeta,
+  };
 }
+
 
 /**
  * Lightweight summary scan — sale columns only.
@@ -1073,9 +1069,14 @@ async function scanPosDashboardSummaryRows(
   let offset = 0;
   const allRows: PosDashboardSaleLike[] = [];
   // Resolve once — the previous per-page applyPosSearchToQuery re-ran sale_items ILIKE every 1000 rows.
-  const searchResolution = await resolvePosSearch(client, filters);
+  const searchResolution = await withDashboardTimeout(
+
+    resolvePosSearch(client, filters),
+    "POS dashboard summary search resolution",
+  );
 
   while (true) {
+
     let query: any = buildPosDashboardBaseQuery(client, filters, select).range(
       offset,
       offset + PAGE_SIZE - 1,
@@ -1233,9 +1234,13 @@ export async function fetchPosDashboardExportRows(
   const PAGE_SIZE = 1000;
   let offset = 0;
   const allSales: any[] = [];
-  const searchResolution = await resolvePosSearch(client, filters);
+  const searchResolution = await withDashboardTimeout(
+    resolvePosSearch(client, filters),
+    "POS dashboard export search resolution",
+  );
 
   while (true) {
+
     let query: any = buildPosDashboardBaseQuery(
       client,
       filters,
@@ -1250,8 +1255,10 @@ export async function fetchPosDashboardExportRows(
     offset += PAGE_SIZE;
   }
 
-  return enrichPosSalesWithCreditNotes(allSales);
+  const enriched = await enrichPosSalesWithCreditNotes(allSales);
+  return { ...enriched, searchMeta: searchResolution?.searchMeta };
 }
+
 
 export const POS_DASHBOARD_QUERY_KEY = "pos-dashboard-sales" as const;
 

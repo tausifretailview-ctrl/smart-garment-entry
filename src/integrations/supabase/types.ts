@@ -9832,6 +9832,18 @@ export type Database = {
           sale_id: string
         }[]
       }
+      search_pos_sale_ids: {
+        Args: {
+          p_date_from?: string
+          p_date_to?: string
+          p_limit?: number
+          p_org_id: string
+          p_search: string
+        }
+        Returns: {
+          sale_id: string
+        }[]
+      }
       set_whatsapp_send_provider: {
         Args: { p_organization_id: string; p_send_provider: string }
         Returns: undefined

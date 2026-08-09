@@ -1,6 +1,8 @@
 import type { QueryClient } from "@tanstack/react-query";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { withDashboardTimeout } from "@/utils/withDashboardTimeout";
 import { resolveCnAdjustDateForSale } from "@/utils/customerAuditBundle";
+
 import {
   fetchSaleReceiptSplitsForInvoices,
   reconcileSaleInvoiceWithSplit,
@@ -51,11 +53,22 @@ export type InvoiceDashboardStats = {
   undeliveredAmount: number;
 };
 
+export type InvoiceDashboardSearchMeta = {
+  /** True when the line-item search hit the hard result cap. */
+  lineItemCapped: boolean;
+  /** The cap value used for this search. */
+  lineItemCap: number;
+  /** Number of distinct sale ids returned by the line-item search. */
+  lineItemCount: number;
+};
+
 export type InvoiceDashboardUnifiedResult = {
   invoices: any[];
   stats: InvoiceDashboardStats;
   totalCount: number;
+  searchMeta?: InvoiceDashboardSearchMeta;
 };
+
 
 export type InvoiceDashboardRpcFilters = {
   search: string;
@@ -140,6 +153,8 @@ function applyPaymentStatusFilterToSalesQuery(query: any, paymentStatusFilter: s
   return query.in("payment_status", rest).eq("is_cancelled", false);
 }
 
+const INVOICE_LINE_ITEM_SEARCH_CAP = 1000;
+
 /** Line-item search scoped to this org's invoice sales in the active date range. */
 async function fetchSaleIdsMatchingLineItems(
   client: SupabaseClient,
@@ -147,9 +162,14 @@ async function fetchSaleIdsMatchingLineItems(
   saleDateFilter: InvoiceDashboardSaleDateFilter,
   searchStr: string,
   itemLimit: number,
-): Promise<string[]> {
+): Promise<{ saleIds: string[]; meta: InvoiceDashboardSearchMeta }> {
   const term = searchStr.trim();
-  if (!term) return [];
+  if (!term) {
+    return {
+      saleIds: [],
+      meta: { lineItemCapped: false, lineItemCap: itemLimit, lineItemCount: 0 },
+    };
+  }
   // RPC expects date; saleDateFilter may carry ISO timestamps from the dashboard.
   const dateFrom = saleDateFilter.start ? saleDateFilter.start.slice(0, 10) : null;
   const dateTo = saleDateFilter.end ? saleDateFilter.end.slice(0, 10) : null;
@@ -161,9 +181,17 @@ async function fetchSaleIdsMatchingLineItems(
     p_limit: itemLimit,
   });
   if (error) throw error;
-  return (data ?? [])
+  const saleIds = (data ?? [])
     .map((r: { sale_id: string | null }) => r.sale_id)
     .filter((id: string | null): id is string => Boolean(id));
+  return {
+    saleIds,
+    meta: {
+      lineItemCapped: saleIds.length >= itemLimit,
+      lineItemCap: itemLimit,
+      lineItemCount: saleIds.length,
+    },
+  };
 }
 
 /**
@@ -174,7 +202,9 @@ async function fetchSaleIdsMatchingLineItems(
 type InvoiceSearchResolution = {
   saleTextFilter: string;
   lineItemSaleIds: string[];
+  searchMeta?: InvoiceDashboardSearchMeta;
 };
+
 
 async function resolveInvoiceSearch(
   client: SupabaseClient,
@@ -190,18 +220,26 @@ async function resolveInvoiceSearch(
     `salesman.ilike.%${searchStr}%`;
 
   let lineItemSaleIds: string[] = [];
+  let searchMeta: InvoiceDashboardSearchMeta | undefined;
   if (shouldUnionSaleItemsForInvoiceSearch(searchStr)) {
-    lineItemSaleIds = await fetchSaleIdsMatchingLineItems(
-      client,
-      filters.organizationId,
-      filters.saleDateFilter,
-      searchStr,
-      1000,
+    const result = await withDashboardTimeout(
+      fetchSaleIdsMatchingLineItems(
+        client,
+        filters.organizationId,
+        filters.saleDateFilter,
+        searchStr,
+        INVOICE_LINE_ITEM_SEARCH_CAP,
+      ),
+      "Invoice dashboard line-item search",
     );
+    lineItemSaleIds = result.saleIds;
+    searchMeta = result.meta;
   }
 
-  return { saleTextFilter, lineItemSaleIds };
+  return { saleTextFilter, lineItemSaleIds, searchMeta };
 }
+
+
 
 function applyResolvedInvoiceSearch(
   query: any,
@@ -722,7 +760,9 @@ export type InvoiceDashboardPageResult = {
   totalCount: number;
   /** Raw DB rows for background reconcile (omitted when reconcile: true). */
   sourceRows?: any[];
+  searchMeta?: InvoiceDashboardSearchMeta;
 };
+
 
 export async function reconcileInvoiceDashboardRows(
   client: SupabaseClient,
@@ -833,7 +873,7 @@ export async function fetchInvoiceDashboardPage(
 
   const pageRows = data || [];
   if (pageRows.length === 0) {
-    return { invoices: [], totalCount };
+    return { invoices: [], totalCount, searchMeta: searchResolution?.searchMeta };
   }
 
   if (!reconcile) {
@@ -844,7 +884,7 @@ export async function fetchInvoiceDashboardPage(
             filters.paymentStatusFilter.includes(inv.payment_status),
           )
         : quickDisplay;
-    return { invoices, totalCount, sourceRows: pageRows };
+    return { invoices, totalCount, sourceRows: pageRows, searchMeta: searchResolution?.searchMeta };
   }
 
   const normalized = await reconcileInvoiceDashboardRows(client, filters, pageRows);
@@ -855,8 +895,9 @@ export async function fetchInvoiceDashboardPage(
         )
       : normalized;
 
-  return { invoices, totalCount };
+  return { invoices, totalCount, searchMeta: searchResolution?.searchMeta };
 }
+
 
 /** Default weekly range — matches SalesInvoiceDashboard initial periodFilter. */
 export function buildDefaultWeeklyInvoiceDashboardFilters(
