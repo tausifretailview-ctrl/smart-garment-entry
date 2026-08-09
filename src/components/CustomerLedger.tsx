@@ -2252,7 +2252,8 @@ export function CustomerLedger({
             linkedSaleNumber = voucher.description?.replace('Adjusted from advance balance for ', '') || '';
           }
 
-          const memo = ` [Memo only — ₹${amount.toLocaleString("en-IN")} excluded from Dr/Cr totals]`;
+          // Short marker only — explained once in the ledger legend (in-app + PDF).
+          const memo = ` [Memo — ₹${amount.toLocaleString("en-IN")}]`;
           const description = isCnApply
             ? linkedSaleNumber
               ? cleanDescription(`Credit note applied to ${linkedSaleNumber}${memo}`)
