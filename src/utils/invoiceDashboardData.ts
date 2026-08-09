@@ -140,7 +140,7 @@ function applyPaymentStatusFilterToSalesQuery(query: any, paymentStatusFilter: s
   return query.in("payment_status", rest).eq("is_cancelled", false);
 }
 
-/** Line-item search scoped to this org's invoice sales in the active date range (avoids org-wide sale_items scan). */
+/** Line-item search scoped to this org's invoice sales in the active date range. */
 async function fetchSaleIdsMatchingLineItems(
   client: SupabaseClient,
   organizationId: string,
@@ -150,17 +150,70 @@ async function fetchSaleIdsMatchingLineItems(
 ): Promise<string[]> {
   const term = searchStr.trim();
   if (!term) return [];
+  // RPC expects date; saleDateFilter may carry ISO timestamps from the dashboard.
+  const dateFrom = saleDateFilter.start ? saleDateFilter.start.slice(0, 10) : null;
+  const dateTo = saleDateFilter.end ? saleDateFilter.end.slice(0, 10) : null;
   const { data, error } = await client.rpc("search_invoice_sale_ids", {
     p_org_id: organizationId,
     p_search: term,
-    p_date_from: saleDateFilter.start,
-    p_date_to: saleDateFilter.end,
+    p_date_from: dateFrom,
+    p_date_to: dateTo,
     p_limit: itemLimit,
   });
   if (error) throw error;
   return (data ?? [])
     .map((r: { sale_id: string | null }) => r.sale_id)
     .filter((id: string | null): id is string => Boolean(id));
+}
+
+/**
+ * Resolved once per dashboard fetch so count + page + stats pages share one
+ * search_invoice_sale_ids pass (POS Dashboard #230 pattern). Does NOT gate
+ * line-item search on header hits (item 1 excluded — would drop product matches).
+ */
+type InvoiceSearchResolution = {
+  saleTextFilter: string;
+  lineItemSaleIds: string[];
+};
+
+async function resolveInvoiceSearch(
+  client: SupabaseClient,
+  filters: InvoiceDashboardFilters,
+): Promise<InvoiceSearchResolution | null> {
+  const searchStr = filters.debouncedSearch.trim();
+  if (!searchStr) return null;
+
+  const saleTextFilter =
+    `sale_number.ilike.%${searchStr}%,` +
+    `customer_name.ilike.%${searchStr}%,` +
+    `customer_phone.ilike.%${searchStr}%,` +
+    `salesman.ilike.%${searchStr}%`;
+
+  let lineItemSaleIds: string[] = [];
+  if (shouldUnionSaleItemsForInvoiceSearch(searchStr)) {
+    lineItemSaleIds = await fetchSaleIdsMatchingLineItems(
+      client,
+      filters.organizationId,
+      filters.saleDateFilter,
+      searchStr,
+      1000,
+    );
+  }
+
+  return { saleTextFilter, lineItemSaleIds };
+}
+
+function applyResolvedInvoiceSearch(
+  query: any,
+  resolution: InvoiceSearchResolution | null,
+): any {
+  if (!resolution) return query;
+  if (resolution.lineItemSaleIds.length > 0) {
+    return query.or(
+      `${resolution.saleTextFilter},id.in.(${resolution.lineItemSaleIds.join(",")})`,
+    );
+  }
+  return query.or(resolution.saleTextFilter);
 }
 
 function applyInvoiceDashboardFilters(query: any, filters: InvoiceDashboardFilters) {
@@ -207,48 +260,18 @@ function buildFilteredSalesQuery(
 async function countFilteredInvoiceSales(
   client: SupabaseClient,
   filters: InvoiceDashboardFilters,
+  searchResolution: InvoiceSearchResolution | null = null,
 ): Promise<number> {
   let query: any = applyInvoiceDashboardFilters(
     client.from("sales").select("id", { count: "exact", head: true }),
     filters,
   );
-  query = await applySearchToSalesQuery(client, filters, query);
+  const resolution =
+    searchResolution ?? (await resolveInvoiceSearch(client, filters));
+  query = applyResolvedInvoiceSearch(query, resolution);
   const { count, error } = await query;
   if (error) throw error;
   return count ?? 0;
-}
-
-async function applySearchToSalesQuery(
-  client: SupabaseClient,
-  filters: InvoiceDashboardFilters,
-  query: any,
-): Promise<any> {
-  const searchStr = filters.debouncedSearch.trim();
-  if (!searchStr) return query;
-
-  const saleTextFilter =
-    `sale_number.ilike.%${searchStr}%,` +
-    `customer_name.ilike.%${searchStr}%,` +
-    `customer_phone.ilike.%${searchStr}%,` +
-    `salesman.ilike.%${searchStr}%`;
-
-  let matchingSaleIds: string[] = [];
-  if (shouldUnionSaleItemsForInvoiceSearch(searchStr)) {
-    matchingSaleIds = await fetchSaleIdsMatchingLineItems(
-      client,
-      filters.organizationId,
-      filters.saleDateFilter,
-      searchStr,
-      1000,
-    );
-  }
-
-  // Reuse the caller's filtered query (full-row or count) — no separate id-only probe.
-  // Text header matches OR line-item sale ids, ANDed with existing org/date/status filters.
-  if (matchingSaleIds.length > 0) {
-    return query.or(`${saleTextFilter},id.in.(${matchingSaleIds.join(",")})`);
-  }
-  return query.or(saleTextFilter);
 }
 
 function invoiceDashboardRpcErrorMessage(error: unknown): string {
@@ -303,6 +326,9 @@ async function fetchInvoiceDashboardStatsClient(
     return { ...EMPTY_INVOICE_DASHBOARD_STATS };
   }
 
+  // One line-item RPC for the whole stats pagination loop (not once per 1,000-row page).
+  const searchResolution = await resolveInvoiceSearch(client, filters);
+
   const PAGE_SIZE = 1000;
   let offset = 0;
   const allRows: any[] = [];
@@ -313,7 +339,7 @@ async function fetchInvoiceDashboardStatsClient(
       filters,
       INVOICE_DASHBOARD_STATS_SELECT,
     ).range(offset, offset + PAGE_SIZE - 1);
-    query = await applySearchToSalesQuery(client, filters, query);
+    query = applyResolvedInvoiceSearch(query, searchResolution);
     const { data, error } = await query;
     if (error) throw error;
     if (!data?.length) break;
@@ -790,12 +816,15 @@ export async function fetchInvoiceDashboardPage(
   const to = from + options.pageSize - 1;
   const select = reconcile ? INVOICE_DASHBOARD_SALES_SELECT : INVOICE_DASHBOARD_LIST_SELECT;
 
-  // Match export/unified fetch: range before search filters, then await (not range after .or()).
+  // Resolve search once — count + page previously each ran search_invoice_sale_ids.
+  const searchResolution = await resolveInvoiceSearch(client, filters);
+
+  // Match export/unified fetch: range before search filters (not range after .or()).
   const [totalCount, dataResult] = await Promise.all([
-    countFilteredInvoiceSales(client, filters),
+    countFilteredInvoiceSales(client, filters, searchResolution),
     (async () => {
       let query: any = buildFilteredSalesQuery(client, filters, select).range(from, to);
-      query = await applySearchToSalesQuery(client, filters, query);
+      query = applyResolvedInvoiceSearch(query, searchResolution);
       return query;
     })(),
   ]);
@@ -999,6 +1028,9 @@ export async function fetchInvoiceDashboardUnified(
     return { invoices: [], stats: { ...EMPTY_INVOICE_DASHBOARD_STATS }, totalCount: 0 };
   }
 
+  // One line-item RPC for the whole export pagination loop.
+  const searchResolution = await resolveInvoiceSearch(client, filters);
+
   const PAGE_SIZE = 1000;
   let offset = 0;
   const allInvoices: any[] = [];
@@ -1009,7 +1041,7 @@ export async function fetchInvoiceDashboardUnified(
       filters,
       INVOICE_DASHBOARD_SALES_SELECT,
     ).range(offset, offset + PAGE_SIZE - 1);
-    query = await applySearchToSalesQuery(client, filters, query);
+    query = applyResolvedInvoiceSearch(query, searchResolution);
     const { data, error } = await query;
     if (error) throw error;
     if (!data?.length) break;
