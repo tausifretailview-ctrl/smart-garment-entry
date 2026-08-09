@@ -37,6 +37,9 @@ Neither fully-used booking is ₹5,450; ADV/574 remaining is ₹2,450, not ₹5,
 
 → `32250 − 29800 − 10900 = 0`. Strip ₹0 is consistent with those refund rows existing. Restoring Unused Advance ₹2,450 requires **data repair** of the refund rows, not a second formula.
 
+Repair proposal (read-only preflight + commented mutate, gates A–D):  
+`scripts/anusha-advance-refund-repair-PROPOSAL.sql`
+
 ## Separate display bug (fixed in app — no data write)
 
 Outstanding header/recon used **last running-balance row** while advance applications are memo-only (excluded from Dr/Cr). That left Outstanding ₹8,450 under lines that economically sum to ₹0. Fixed by deriving Outstanding from:
