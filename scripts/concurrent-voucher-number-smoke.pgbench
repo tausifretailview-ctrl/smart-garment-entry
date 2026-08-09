@@ -1,0 +1,1 @@
+SELECT generate_voucher_number('receipt', CURRENT_DATE);
