@@ -1002,7 +1002,9 @@ export function CustomerLedger({
         const adjustmentTotal = customerAdjustments.get(customer.id) || 0;
         const unusedAdvanceTotal = customerUnusedAdvances.get(customer.id) || 0;
         const advanceRefundTotal = customerAdvanceRefunds.get(customer.id) || 0;
-        const effectiveUnusedAdvances = Math.max(0, unusedAdvanceTotal - advanceRefundTotal);
+        // Refunds already reduce each booking's residual via `used_amount`; subtracting the
+        // refund total again clamped genuine advance credit to ₹0.
+        const effectiveUnusedAdvances = Math.max(0, unusedAdvanceTotal);
         const refundsPaidTotal = customerRefundsPaid.get(customer.id) || 0;
 
         const co = computeCustomerOutstanding({
@@ -3164,11 +3166,17 @@ export function CustomerLedger({
       };
     }
 
-    const advanceBalance = Math.round(
+    // Advance held is an as-of-now position, not a period total: use the unfiltered
+    // booking residuals so a narrow date filter cannot show ₹0 for a live advance.
+    const advanceBalanceFromRows = Math.round(
       (transactions || [])
         .filter((t) => t.type === "advance")
         .reduce((sum, t) => sum + Math.max(0, Number(t.advanceRemaining || 0)), 0),
     );
+    const advanceBalance =
+      selectedCustomer.unusedAdvanceTotal != null
+        ? Math.round(selectedCustomer.unusedAdvanceTotal)
+        : advanceBalanceFromRows;
     const advanceAdjusted = Math.round(reconciliation.advanceApplied || 0);
     const returnsPending = saleReturnsSummary.pending + saleReturnsSummary.partialPending;
     // Same path school already used: pending sale-return rows on this ledger.
