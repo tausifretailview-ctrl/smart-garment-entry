@@ -30,6 +30,9 @@ Migration: `supabase/migrations/20261111120000_search_invoice_sale_ids_trgm_unio
 ## Verification (required)
 
 1. Apply migration; run `scripts/invoice-dashboard-search-invoice-sale-ids-verify.sql` on ELLA NOOR — `EXPLAIN (ANALYZE)` for customer name + product/barcode, before/after.
+   - SQL Editor has no JWT → RPC hits `assert_org_member` → `42501 Authentication required`.
+   - Run script step **0c** once per session (impersonate an `organization_members` user), then A–D.
+   - If impersonation fails, use **E–G** (body-only UNION EXPLAIN, no assert).
 2. Wall-clock All Time search on the dashboard.
 3. Network tab: count `search_invoice_sale_ids` per settled search — expect ~1 for the table fetch (was 2+ for count+page; stats RPC uses its own SQL, not this RPC).
 
