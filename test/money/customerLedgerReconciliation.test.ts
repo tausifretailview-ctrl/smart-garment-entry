@@ -75,6 +75,29 @@ describe("customerLedgerReconciliation", () => {
     };
     expect(computeInvoiceOutstandingFromReconciliation(facets)).toBe(0);
   });
+
+  it("advance-refund case: displayed lines still sum to Outstanding, and Net Position is self-consistent", () => {
+    // Anusha Pathan, 10 Aug 2026: advances received 32,250 / applied 29,800 /
+    // refunded 5,450 → pool is over-drawn by 3,000 while per-booking residual is 2,450.
+    const facets: LedgerReconciliationFacets = { ...ANUSHA_SHAPED };
+    const outstanding = computeInvoiceOutstandingFromReconciliation(facets);
+    expect(outstanding).toBe(0);
+    // Refunds never enter the printed Outstanding arithmetic.
+    expect(sumReconciliationLinesToOutstanding(facets)).toBe(outstanding);
+
+    const unusedAdvance = 2_450; // floored per-booking residual shown in the panel
+    const netPosition = outstanding - unusedAdvance;
+    expect(netPosition).toBe(-2_450); // Cr
+
+    // The unclamped pool disagrees with the floored residual — the panel must be
+    // able to surface that gap rather than silently print the floor.
+    const advanceReceived = 32_250;
+    const advanceRefunded = 5_450;
+    const poolUnclamped = advanceReceived - facets.advanceApplied - advanceRefunded;
+    expect(poolUnclamped).toBe(-3_000);
+    expect(poolUnclamped).toBeLessThan(unusedAdvance);
+    expect(unusedAdvance - poolUnclamped).toBe(5_450);
+  });
 });
 
 describe("computeRefundableCreditBalance", () => {
