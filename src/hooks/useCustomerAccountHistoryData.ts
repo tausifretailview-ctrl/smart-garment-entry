@@ -10,6 +10,7 @@ import { useCustomerFinancialSnapshot } from "@/hooks/useCustomerFinancialSnapsh
 import { useSchoolFeatures } from "@/hooks/useSchoolFeatures";
 import { resolveImportedOpeningBalance } from "@/lib/schoolFeeOpening";
 import { adjustmentDueDelta } from "@/lib/schoolFeeLiability";
+import { computeRefundableCreditBalance } from "@/utils/customerLedgerReconciliation";
 
 export async function invalidateCustomerAccountHistoryQueries(
   queryClient: QueryClient,
@@ -461,19 +462,19 @@ export function useCustomerAccountHistoryData({
     totalCnApplied,
   ]);
 
-  /** Same refund banner math as CustomerLedger (derived from snapshot + summary). */
+  /**
+   * Same refund banner math as CustomerLedger.
+   * Use JS `balance` (unused advance NOT subtracted) — not snapshot outstanding_dr
+   * (SQL still nets unused_advances; Aafra-class phantom refund).
+   */
   const refundableCreditBalance = useMemo(() => {
     if (isSchool) return 0;
-    const unused = summary.advanceAvailable;
-    const cn = summary.cnAvailable;
-    const pool = unused + cn;
-    const lifetimeSigned = summary.outstandingDr;
-    if (lifetimeSigned < -0.5) {
-      return Math.round(Math.min(pool, Math.abs(lifetimeSigned)));
-    }
-    const outstandingDr = Math.max(0, lifetimeSigned);
-    return Math.round(Math.max(0, pool - outstandingDr));
-  }, [isSchool, summary]);
+    return computeRefundableCreditBalance({
+      unusedAdvance: summary.advanceAvailable,
+      cnAvailable: summary.cnAvailable,
+      invoiceOutstanding: balance,
+    });
+  }, [isSchool, summary.advanceAvailable, summary.cnAvailable, balance]);
 
   return {
     isSchool,

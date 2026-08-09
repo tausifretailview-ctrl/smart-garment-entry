@@ -44,3 +44,28 @@ export function computeInvoiceOutstandingFromReconciliation(
 export function sumReconciliationLinesToOutstanding(f: LedgerReconciliationFacets): number {
   return computeInvoiceOutstandingFromReconciliation(f);
 }
+
+/**
+ * Economic refundable credit: unused advance + CN − invoice outstanding (Dr).
+ *
+ * `invoiceOutstanding` must NOT already net unused advances. SQL
+ * `get_customer_true_outstanding` / financial-snapshot `outstanding_dr` still
+ * subtract unused_advances in the SUM — do not pass that here (Aafra class:
+ * invoice ₹14,800 + unused ₹10,000 must not yield phantom ₹5,200 “Refund owed”).
+ *
+ * Signed invoice outstanding: >0 customer owes on invoices; <0 invoice-side credit.
+ */
+export function computeRefundableCreditBalance(params: {
+  unusedAdvance: number;
+  cnAvailable?: number;
+  invoiceOutstanding: number;
+}): number {
+  const pool =
+    Math.max(0, Number(params.unusedAdvance) || 0) +
+    Math.max(0, Number(params.cnAvailable) || 0);
+  const inv = Number(params.invoiceOutstanding) || 0;
+  if (inv < -0.5) {
+    return Math.round(Math.abs(inv) + pool);
+  }
+  return Math.round(Math.max(0, pool - inv));
+}

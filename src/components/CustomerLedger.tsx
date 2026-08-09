@@ -56,7 +56,10 @@ import {
 } from "@/utils/customerBalanceUtils";
 import { derivePaidAndStatus } from "@/utils/saleSettlement";
 import { computeAuditPeriodOutstanding, fetchCustomerAuditBundle } from "@/utils/customerAuditBundle";
-import { computeInvoiceOutstandingFromReconciliation } from "@/utils/customerLedgerReconciliation";
+import {
+  computeInvoiceOutstandingFromReconciliation,
+  computeRefundableCreditBalance,
+} from "@/utils/customerLedgerReconciliation";
 import {
   filterLedgerRowsByCardDrill,
   ledgerCardDrillLabel,
@@ -2846,32 +2849,27 @@ export function CustomerLedger({
     reconciliation.invoiceOutstanding,
   ]);
 
-  /** Refund banner — net economic refund: min(lifetime Cr, unused advance + CN pool). */
+  /**
+   * Refund banner — unused advance + CN minus invoice outstanding (recon).
+   * Do not use snapshot outstanding_dr: SQL still nets unused_advances into the SUM,
+   * which invented phantom “Refund owed” (Aafra: 10k − 4.8k party net = 5.2k).
+   */
   const refundableCreditBalance = useMemo(() => {
     if (!selectedCustomer || isSchool) return 0;
     const unused =
       snapshotAdvanceAvailable > 0
         ? snapshotAdvanceAvailable
         : selectedCustomer.unusedAdvanceTotal || 0;
-    const cn = snapshotCnAvailable || 0;
-    const pool = unused + cn;
-    const snap =
-      snapshotOutstandingDr != null && !Number.isNaN(Number(snapshotOutstandingDr))
-        ? Number(snapshotOutstandingDr)
-        : null;
-    const lifetimeSigned = snap ?? authoritativeBalance;
-    if (lifetimeSigned < -0.5) {
-      return Math.round(Math.min(pool, Math.abs(lifetimeSigned)));
-    }
-    const outstandingDr = Math.max(0, lifetimeSigned);
-    return Math.round(Math.max(0, pool - outstandingDr));
+    return computeRefundableCreditBalance({
+      unusedAdvance: unused,
+      cnAvailable: snapshotCnAvailable || 0,
+      invoiceOutstanding: effectiveBalance,
+    });
   }, [
     selectedCustomer,
     isSchool,
     snapshotAdvanceAvailable,
     snapshotCnAvailable,
-    snapshotOutstandingDr,
-    authoritativeBalance,
     effectiveBalance,
   ]);
 

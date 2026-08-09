@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   computeInvoiceOutstandingFromReconciliation,
+  computeRefundableCreditBalance,
   sumReconciliationLinesToOutstanding,
   type LedgerReconciliationFacets,
 } from "@/utils/customerLedgerReconciliation";
@@ -73,5 +74,56 @@ describe("customerLedgerReconciliation", () => {
       adjustments: 0,
     };
     expect(computeInvoiceOutstandingFromReconciliation(facets)).toBe(0);
+  });
+});
+
+describe("computeRefundableCreditBalance", () => {
+  it("Aafra-shaped: unused advance under invoice outstanding → no refund owed", () => {
+    // Invoice ₹14,800 pending, unused advance ₹10,000 (not applied).
+    // Buggy path used SQL party-net ₹4,800 → max(0, 10_000 − 4_800) = 5_200.
+    expect(
+      computeRefundableCreditBalance({
+        unusedAdvance: 10_000,
+        cnAvailable: 0,
+        invoiceOutstanding: 14_800,
+      }),
+    ).toBe(0);
+    expect(
+      computeRefundableCreditBalance({
+        unusedAdvance: 10_000,
+        cnAvailable: 0,
+        invoiceOutstanding: 4_800,
+      }),
+    ).toBe(5_200);
+  });
+
+  it("excess unused advance over invoice outstanding is refundable", () => {
+    expect(
+      computeRefundableCreditBalance({
+        unusedAdvance: 10_000,
+        cnAvailable: 0,
+        invoiceOutstanding: 3_000,
+      }),
+    ).toBe(7_000);
+  });
+
+  it("unused advance with no invoices is fully refundable", () => {
+    expect(
+      computeRefundableCreditBalance({
+        unusedAdvance: 10_000,
+        cnAvailable: 0,
+        invoiceOutstanding: 0,
+      }),
+    ).toBe(10_000);
+  });
+
+  it("invoice-side credit plus unused pool both count as refundable", () => {
+    expect(
+      computeRefundableCreditBalance({
+        unusedAdvance: 1_000,
+        cnAvailable: 500,
+        invoiceOutstanding: -2_000,
+      }),
+    ).toBe(3_500);
   });
 });
