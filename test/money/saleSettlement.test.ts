@@ -3,11 +3,13 @@ import {
   computeExchangeRefundDue,
   derivePaidAndStatus,
   isPosExchangeRefundPaymentVoucher,
+  isVoucherNumberUniqueViolation,
   maxCombinedDiscountForGross,
   maxSaleReturnAdjustForPayable,
   normalizeDiscountsAgainstGross,
   normalizeSaleReturnAdjustAgainstBill,
   preSaveInvariants,
+  voucherNumberWithRegeneratedBase,
 } from "@/utils/saleSettlement";
 
 describe("derivePaidAndStatus — POS / sales settlement", () => {
@@ -267,5 +269,30 @@ describe("preSaveInvariants — negative net rejected", () => {
         flatDiscountAmount: 200,
       }),
     ).toThrow(/cannot exceed bill gross/i);
+  });
+});
+
+describe("receipt voucher number collision helpers", () => {
+  it("detects uq_voucher_entries_number_active (customer payment error)", () => {
+    expect(
+      isVoucherNumberUniqueViolation({
+        code: "23505",
+        message:
+          'duplicate key value violates unique constraint "uq_voucher_entries_number_active"',
+      }),
+    ).toBe(true);
+    expect(isVoucherNumberUniqueViolation({ code: "23503", message: "fk" })).toBe(false);
+  });
+
+  it("preserves -N / -OB suffixes when regenerating base after collision", () => {
+    expect(voucherNumberWithRegeneratedBase("RCP/26-27/100", "RCP/26-27/105")).toBe(
+      "RCP/26-27/105",
+    );
+    expect(voucherNumberWithRegeneratedBase("RCP/26-27/100-1", "RCP/26-27/105")).toBe(
+      "RCP/26-27/105-1",
+    );
+    expect(voucherNumberWithRegeneratedBase("RCP/26-27/100-OB", "RCP/26-27/105")).toBe(
+      "RCP/26-27/105-OB",
+    );
   });
 });

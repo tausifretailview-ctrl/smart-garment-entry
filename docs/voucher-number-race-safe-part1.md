@@ -45,6 +45,23 @@ SELECT generate_voucher_number('receipt', CURRENT_DATE);
 
 Or from two browsers / two app instances: save two receipts at once → two different RCP numbers.
 
+## Known gap after Part 1 (client TOCTOU)
+
+`pg_advisory_xact_lock` lives only inside the `generate_voucher_number` RPC
+transaction. The app then INSERTs in a **separate** round-trip, so two cashiers
+can still be handed the same `RCP/…/N` before either row lands — unique index
+fires:
+
+`duplicate key value violates unique constraint "uq_voucher_entries_number_active"`
+
+**Mitigation (app):** `createReceiptVoucher` (`saleSettlement.ts`) retries the
+insert up to 8 times, regenerating via RPC and preserving multi-invoice / OB
+suffixes (`-1`, `-OB`). That covers Customer Payment, SID cash, advance FIFO
+receipts, etc.
+
+**Proper close (future):** allocate + INSERT in one SECURITY DEFINER RPC that
+holds the advisory lock across both steps.
+
 ## Out of scope
 
 - Sale/POS numbering (already race-safe).
