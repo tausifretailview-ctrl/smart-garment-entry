@@ -65,6 +65,6 @@ holds the advisory lock across both steps.
 ## Out of scope
 
 - Sale/POS numbering (already race-safe).
-- ADV/DC/PO/CN generators (Part 2 triage).
-- Making the series per-org.
+- ADV/DC/PO/CN generators — see [Part 2 triage](./voucher-number-race-safe-part2-triage.md).
+- Making the Part 1 voucher series per-org.
 - Rewriting ambiguous `customer_ledger_entries.voucher_no` labels for renamed dups.
