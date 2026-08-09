@@ -2864,6 +2864,36 @@ export type Database = {
           },
         ]
       }
+      invariant_daily_snapshot: {
+        Row: {
+          check_name: string
+          created_at: string
+          id: string
+          organization_id: string | null
+          snapshot_date: string
+          total_detail: number
+          violation_count: number
+        }
+        Insert: {
+          check_name: string
+          created_at?: string
+          id?: string
+          organization_id?: string | null
+          snapshot_date?: string
+          total_detail?: number
+          violation_count?: number
+        }
+        Update: {
+          check_name?: string
+          created_at?: string
+          id?: string
+          organization_id?: string | null
+          snapshot_date?: string
+          total_detail?: number
+          violation_count?: number
+        }
+        Relationships: []
+      }
       invoice_adjustments: {
         Row: {
           adjusted_by: string | null
@@ -9079,6 +9109,18 @@ export type Database = {
           total_amount: number
         }[]
       }
+      get_invariant_digest: {
+        Args: { p_date?: string }
+        Returns: {
+          check_name: string
+          delta: number
+          organization_id: string
+          organization_name: string
+          prev_count: number
+          total_detail: number
+          violation_count: number
+        }[]
+      }
       get_invoice_dashboard_stats: {
         Args: {
           p_customer_id?: string
@@ -9854,6 +9896,10 @@ export type Database = {
           p_organization_id: string
           p_session_id: string
         }
+        Returns: Json
+      }
+      snapshot_accounting_invariants: {
+        Args: { p_date?: string }
         Returns: Json
       }
       soft_delete_delivery_challan: {
