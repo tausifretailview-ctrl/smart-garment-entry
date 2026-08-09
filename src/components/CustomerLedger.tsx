@@ -3287,7 +3287,14 @@ export function CustomerLedger({
       for (const v of vouchers || []) {
         const pm = String(v.payment_method || "").toLowerCase();
         const refId = String(v.reference_id || "");
-        if (pm === "advance_adjustment") {
+        // Legacy imports tagged advance applications as `cash`; the description still
+        // marks them ("Adjusted from advance balance ..."). Display-only inclusion so
+        // the applied table matches the amount already inside Advance Adjusted.
+        const legacyAdvanceApply =
+          pm !== "advance_adjustment" &&
+          pm !== "credit_note_adjustment" &&
+          /from advance/i.test(String(v.description || ""));
+        if (pm === "advance_adjustment" || legacyAdvanceApply) {
           if (refId === custId || saleNumById.has(refId)) {
             advanceRows.push(mapRow(v));
           }
