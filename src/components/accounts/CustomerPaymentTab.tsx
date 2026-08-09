@@ -74,6 +74,7 @@ import {
   INVOICE_OVERPAYMENT_WARN_TOLERANCE_RUPEE,
   paymentExceedsOutstandingCap,
 } from "@/utils/invoiceOverpaymentGuard";
+import { CustomerAccountSummaryStrip } from "@/components/CustomerAccountSummaryStrip";
 import {
   fetchCustomerOpeningBalanceRemaining,
   readCustomerOpeningBalanceFromOrgLedgerCache,
@@ -1742,74 +1743,57 @@ export function CustomerPaymentTab({
                   Retry loading customers
                 </Button>
               )}
-                {referenceId && (() => {
-                  if (balanceBannerLoading) {
-                    return (
-                      <div className="mt-2 p-3 border rounded-md bg-muted/40 text-sm text-muted-foreground">
-                        Loading outstanding balance…
-                      </div>
-                    );
-                  }
-                  if (lifetimeOutstanding === undefined) return null;
-                  const lifetimeDr = lifetimeOutstanding;
-                  const showAsNoOutstanding =
-                    lifetimeDr <= 0 && listedInvoicePendingTotal < MIN_PENDING_RUPEE;
-                  const displayBalance = Math.round(
-                    lifetimeDr >= MIN_PENDING_RUPEE
-                      ? lifetimeDr
-                      : listedInvoicePendingTotal,
-                  );
-                  return (
-                  <div className={cn("mt-2 border rounded-md", shell ? (compact ? "py-1.5 px-2" : "py-2 px-3") : "p-3", showAsNoOutstanding ? "bg-gradient-to-r from-red-50 to-red-100 dark:from-red-950 dark:to-red-900 border-red-200 dark:border-red-800" : "bg-gradient-to-r from-amber-50 to-amber-100 dark:from-amber-950 dark:to-amber-900 border-amber-200 dark:border-amber-800")}>
-                    {showAsNoOutstanding ? (
-                      <p className={cn("font-medium text-red-900 dark:text-red-100", compact ? "text-xs" : "text-sm")}>⚠️ No outstanding balance - Payment receipt not allowed</p>
-                    ) : (
-                      <p className={cn("font-medium text-amber-900 dark:text-amber-100", compact ? "text-xs" : "text-sm")}>
-                        Outstanding Balance:{" "}
-                        <span className={cn("font-bold", compact ? "text-base" : "text-lg")}>
-                          ₹{displayBalance.toLocaleString("en-IN")}
-                        </span>
-                        {lifetimeDr < MIN_PENDING_RUPEE && listedInvoicePendingTotal >= MIN_PENDING_RUPEE && (
-                          <span className="block text-xs font-normal mt-1 text-amber-800 dark:text-amber-200">
-                            Includes sale return / credit note adjustments on invoices
-                          </span>
-                        )}
-                      </p>
-                    )}
-                  </div>
-                  );
-                })()}
-                {/* Advance Balance Banner */}
-                {referenceId && advanceBalance > 0 && (lifetimeOutstanding !== undefined || customerBalance !== undefined) && ((lifetimeOutstanding ?? customerBalance ?? 0) >= MIN_PENDING_RUPEE || listedInvoicePendingTotal >= MIN_PENDING_RUPEE) && (
-                  <div className={cn("mt-2 border rounded-md bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950 dark:to-teal-950 border-emerald-300 dark:border-emerald-700", shell ? (compact ? "py-1.5 px-2" : "py-2 px-3") : "p-3")}>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Zap className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-                        <p className="text-sm font-medium text-emerald-900 dark:text-emerald-100">
-                          Advance Balance Available: <span className="text-lg font-bold">₹{Math.round(advanceBalance).toLocaleString('en-IN')}</span>
-                        </p>
-                      </div>
-                      {selectedInvoiceIds.length > 0 && (
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="default"
-                          className="bg-emerald-600 hover:bg-emerald-700 text-white"
-                          disabled={
-                            applyAdvanceMutation.isPending ||
-                            selectedAdvanceApplyAmount < MIN_PENDING_RUPEE
-                          }
-                          onClick={() => applyAdvanceMutation.mutate()}
-                        >
-                          <Wallet className="h-3.5 w-3.5 mr-1.5" />
-                          {applyAdvanceMutation.isPending
-                            ? "Applying..."
-                            : `Apply ₹${Math.round(selectedAdvanceApplyAmount).toLocaleString("en-IN")}`}
-                        </Button>
+                {referenceId && organizationId && (
+                  <div className="mt-2 space-y-2">
+                    <CustomerAccountSummaryStrip
+                      organizationId={organizationId}
+                      customerId={referenceId}
+                      customerName={
+                        customersWithBalance?.find((c) => c.id === referenceId)?.customer_name
+                      }
+                      compact={compact}
+                    />
+                    {(() => {
+                      if (balanceBannerLoading || lifetimeOutstanding === undefined) return null;
+                      const lifetimeDr = lifetimeOutstanding;
+                      const showAsNoOutstanding =
+                        lifetimeDr <= 0 && listedInvoicePendingTotal < MIN_PENDING_RUPEE;
+                      if (!showAsNoOutstanding) return null;
+                      return (
+                        <div className="border rounded-md py-2 px-3 bg-gradient-to-r from-red-50 to-red-100 dark:from-red-950 dark:to-red-900 border-red-200 dark:border-red-800">
+                          <p className={cn("font-medium text-red-900 dark:text-red-100", compact ? "text-xs" : "text-sm")}>
+                            ⚠️ No outstanding balance - Payment receipt not allowed
+                          </p>
+                        </div>
+                      );
+                    })()}
+                    {advanceBalance > 0 &&
+                      selectedInvoiceIds.length > 0 &&
+                      ((lifetimeOutstanding ?? customerBalance ?? 0) >= MIN_PENDING_RUPEE ||
+                        listedInvoicePendingTotal >= MIN_PENDING_RUPEE) && (
+                        <div className="flex justify-end">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="default"
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                            disabled={
+                              applyAdvanceMutation.isPending ||
+                              selectedAdvanceApplyAmount < MIN_PENDING_RUPEE
+                            }
+                            onClick={() => applyAdvanceMutation.mutate()}
+                          >
+                            <Wallet className="h-3.5 w-3.5 mr-1.5" />
+                            {applyAdvanceMutation.isPending
+                              ? "Applying..."
+                              : `Apply advance ₹${Math.round(selectedAdvanceApplyAmount).toLocaleString("en-IN")}`}
+                          </Button>
+                        </div>
                       )}
-                    </div>
-                    {selectedInvoiceIds.length === 0 && (
-                      <p className="text-xs text-emerald-700 dark:text-emerald-300 mt-1">Select invoice(s) or Opening Balance below to apply advance</p>
+                    {advanceBalance > 0 && selectedInvoiceIds.length === 0 && (
+                      <p className="text-xs text-muted-foreground">
+                        Select invoice(s) or Opening Balance below to apply advance
+                      </p>
                     )}
                   </div>
                 )}

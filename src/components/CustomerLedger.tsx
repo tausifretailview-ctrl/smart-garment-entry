@@ -35,6 +35,11 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { useOpenCustomerAccount } from "@/hooks/useOpenCustomerAccount";
 import { useCustomerBalance } from "@/hooks/useCustomerBalance";
 import { useCustomerFinancialSnapshot } from "@/hooks/useCustomerFinancialSnapshot";
+import { CustomerAccountSummaryStrip } from "@/components/CustomerAccountSummaryStrip";
+import {
+  fetchCustomerAccountStateView,
+  formatCustomerAccountArithmeticLine,
+} from "@/utils/customerAccountStateView";
 import {
   summarizeSignedBalanceFacets,
 } from "@/utils/organizationReceivables";
@@ -3440,8 +3445,20 @@ Please clear your dues at the earliest. Thank you!`;
     XLSX.writeFile(wb, `${selectedCustomer.customer_name}_Ledger_${format(new Date(), "dd-MM-yyyy")}.xlsx`);
   };
 
-  const handleExportToPDF = () => {
+  const handleExportToPDF = async () => {
     if (!selectedCustomer || !transactions) return;
+
+    let accountArithmeticLine = "";
+    try {
+      const accountView = await fetchCustomerAccountStateView(
+        supabase,
+        organizationId,
+        selectedCustomer.id,
+      );
+      accountArithmeticLine = formatCustomerAccountArithmeticLine(accountView);
+    } catch {
+      // PDF still exports without the strip if fetch fails.
+    }
 
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
@@ -3590,6 +3607,16 @@ Please clear your dues at the earliest. Thank you!`;
     }
     doc.setFont("helvetica", "normal");
     yPos = Math.max(yPos, balanceBoxY + balanceBoxH + 6);
+
+    // Same Pure Outstanding arithmetic as SID / Record Payment / Collect.
+    if (accountArithmeticLine) {
+      pdfSetText(doc, LEDGER_PDF.muted);
+      doc.setFontSize(8);
+      doc.setFont("helvetica", "normal");
+      const wrapped = doc.splitTextToSize(accountArithmeticLine, tableWidth);
+      doc.text(wrapped, margin, yPos);
+      yPos += Math.max(5, wrapped.length * 4) + 2;
+    }
 
     yPos = drawLedgerTableHeader(yPos);
 
@@ -4260,6 +4287,15 @@ Please clear your dues at the earliest. Thank you!`;
               </div>
               )}
             </div>
+            {!isSchool && (
+              <div className="mt-3">
+                <CustomerAccountSummaryStrip
+                  organizationId={organizationId}
+                  customerId={selectedCustomer.id}
+                  customerName={selectedCustomer.customer_name}
+                />
+              </div>
+            )}
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-2 mb-0 min-h-[4.5rem]">
