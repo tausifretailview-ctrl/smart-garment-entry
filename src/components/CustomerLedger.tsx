@@ -5140,27 +5140,35 @@ Please clear your dues at the earliest. Thank you!`;
                           </TableRow>
                         ))
                       )}
-                      {/* Totals Row */}
+                      {/* Column totals — bookkeeping check, NOT what the customer owes. */}
                       {!ledgerLoading && ledgerRows.length > 0 && (
-                        <TableRow className="bg-slate-100 dark:bg-slate-800 font-bold border-t-2 border-slate-300 dark:border-slate-600">
-                          <TableCell colSpan={4} className="text-right text-sm font-bold uppercase tracking-wide text-slate-600 dark:text-slate-400">
-                            Totals
-                          </TableCell>
-                          <TableCell className="text-right text-red-600 dark:text-red-400">
-                            ₹{transactionTotals.totalDebit.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-                          </TableCell>
-                          <TableCell className="text-right text-emerald-700 dark:text-emerald-300 font-semibold">
-                            ₹{transactionTotals.totalCredit.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-                          </TableCell>
-                          <TableCell className={cn(
-                            "text-right",
-                            ledgerRows[ledgerRows.length - 1].balance > 0 ? "text-red-600 dark:text-red-400" : 
-                            ledgerRows[ledgerRows.length - 1].balance < 0 ? "text-emerald-700 dark:text-emerald-300" : 
-                            "text-foreground"
-                          )}>
-                            ₹{Math.abs(ledgerRows[ledgerRows.length - 1].balance).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-                          </TableCell>
-                        </TableRow>
+                        <>
+                          <TableRow className="bg-slate-50 dark:bg-slate-900/40 border-t border-slate-300 dark:border-slate-600">
+                            <TableCell colSpan={4} className="text-right text-[11px] font-normal uppercase tracking-wide text-muted-foreground">
+                              Column totals (Dr / Cr)
+                            </TableCell>
+                            <TableCell className="text-right text-xs font-medium text-muted-foreground tabular-nums">
+                              ₹{transactionTotals.totalDebit.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                            </TableCell>
+                            <TableCell className="text-right text-xs font-medium text-muted-foreground tabular-nums">
+                              ₹{transactionTotals.totalCredit.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                            </TableCell>
+                            <TableCell className="text-right text-xs font-medium text-muted-foreground tabular-nums">
+                              ₹{Math.abs(
+                                Math.round(transactionTotals.totalDebit - transactionTotals.totalCredit),
+                              ).toLocaleString("en-IN")}{" "}
+                              {transactionTotals.totalDebit - transactionTotals.totalCredit >= 0 ? "Dr" : "Cr"} diff
+                            </TableCell>
+                          </TableRow>
+                          <TableRow className="bg-slate-50 dark:bg-slate-900/40 hover:bg-slate-50">
+                            <TableCell colSpan={7} className="py-1 text-[11px] leading-snug text-muted-foreground">
+                              Column totals include advance receipts and refunds. See Balance Reconciliation below for what the customer owes.
+                              {" · "}
+                              Rows marked <span className="font-medium">[Memo]</span> (advance / credit-note applications) are shown for
+                              tracing only and are excluded from the Dr / Cr columns.
+                            </TableCell>
+                          </TableRow>
+                        </>
                       )}
                     </TableBody>
                   </Table>
