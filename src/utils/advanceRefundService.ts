@@ -192,6 +192,20 @@ export async function createAdvanceRefund(params: {
     throw new Error("Refund amount exceeds available balance");
   }
 
+  // Duplicate guard: the same amount already refunded on this booking for the same date is
+  // almost always a re-entry of an earlier refund (it silently doubles the deduction).
+  const { data: sameDayRefunds } = await client
+    .from("advance_refunds")
+    .select("id")
+    .eq("advance_id", params.advanceId)
+    .eq("refund_date", refundYmd)
+    .eq("refund_amount", amount);
+  if ((sameDayRefunds || []).length > 0) {
+    throw new Error(
+      `A refund of ₹${amount.toLocaleString("en-IN")} is already recorded on this advance for ${refundYmd}. Check the refund history before entering it again.`,
+    );
+  }
+
   const snapUsed = Number(adv.used_amount || 0);
   const snapStatus = String(adv.status || "active");
   const newUsed = roundMoney(snapUsed + amount);
