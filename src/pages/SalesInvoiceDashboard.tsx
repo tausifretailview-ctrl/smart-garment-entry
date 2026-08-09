@@ -3467,7 +3467,13 @@ export default function SalesInvoiceDashboard() {
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-9 h-10 bg-card border-border/60 rounded-xl text-sm" />
           </div>
+          {dashboardPage?.searchMeta?.lineItemCapped && (
+            <p className="text-xs text-amber-600 mt-1.5 px-0.5">
+              Showing first {dashboardPage.searchMeta.lineItemCount} matches — narrow your search
+            </p>
+          )}
         </div>
+
 
         <MobilePeriodChips
           value={periodFilter}
