@@ -3883,18 +3883,10 @@ Please clear your dues at the earliest. Thank you!`;
       { text: "", color: LEDGER_PDF.text },
       { text: "", color: LEDGER_PDF.text },
       { text: "", color: LEDGER_PDF.text },
-      { text: "TOTAL", color: LEDGER_PDF.text },
-      { text: `Rs. ${Math.round(transactionTotals.totalDebit).toLocaleString("en-IN")}`, color: LEDGER_PDF.debit },
-      { text: `Rs. ${Math.round(transactionTotals.totalCredit).toLocaleString("en-IN")}`, color: LEDGER_PDF.credit },
-      {
-        text: closingStr,
-        color:
-          closingBalance > 0
-            ? LEDGER_PDF.balanceDr
-            : closingBalance < 0
-              ? LEDGER_PDF.balanceCr
-              : LEDGER_PDF.balanceSettled,
-      },
+      { text: "COLUMN TOTALS (Dr / Cr)", color: LEDGER_PDF.muted },
+      { text: `Rs. ${Math.round(transactionTotals.totalDebit).toLocaleString("en-IN")}`, color: LEDGER_PDF.muted },
+      { text: `Rs. ${Math.round(transactionTotals.totalCredit).toLocaleString("en-IN")}`, color: LEDGER_PDF.muted },
+      { text: `${closingStr} diff`, color: LEDGER_PDF.muted },
     ];
     totalsSpecs.forEach((cell, i) => {
       pdfSetText(doc, cell.color);
