@@ -807,16 +807,30 @@ export function CustomerLedger({
         salesData.map((s: { id: string }) => s.id),
       );
 
-      // Fetch ALL voucher payments (both opening balance and invoice payments)
-      const { data: allVouchers, error: voucherError } = await supabase
-        .from('voucher_entries')
-        .select('reference_id, reference_type, total_amount, discount_amount, voucher_type, description, payment_method')
-        .eq('organization_id', organizationId)
-        .in('voucher_type', ['receipt', 'payment'])
-        .is('deleted_at', null);
-
-      if (voucherError) {
-        console.error('Error fetching voucher payments:', voucherError);
+      // Paginate receipts/payments — bare select is capped at 1000 and under-counts paid.
+      const allVouchers: any[] = [];
+      {
+        let offset = 0;
+        const pageSize = 1000;
+        for (;;) {
+          const { data, error: voucherError } = await supabase
+            .from("voucher_entries")
+            .select(
+              "reference_id, reference_type, total_amount, discount_amount, voucher_type, description, payment_method, voucher_number",
+            )
+            .eq("organization_id", organizationId)
+            .in("voucher_type", ["receipt", "payment"])
+            .is("deleted_at", null)
+            .range(offset, offset + pageSize - 1);
+          if (voucherError) {
+            console.error("Error fetching voucher payments:", voucherError);
+            break;
+          }
+          if (!data?.length) break;
+          allVouchers.push(...data);
+          if (data.length < pageSize) break;
+          offset += pageSize;
+        }
       }
 
       // Fetch ALL balance adjustments
@@ -835,63 +849,78 @@ export function CustomerLedger({
           (customerAdjustments.get(adj.customer_id) || 0) + (adj.outstanding_difference || 0));
       });
 
-      // Fetch ALL unused advances
-      const { data: allAdvances, error: advError } = await supabase
-        .from('customer_advances')
-        .select('id, customer_id, amount, used_amount')
-        .eq('organization_id', organizationId)
-        .in('status', ['active', 'partially_used']);
+      // ALL advances (including fully_used) — list Outstanding needs used_amount.
+      // Filtering to active/partially_used left Anusha-class invoices looking unpaid.
+      const allAdvances: any[] = [];
+      {
+        let offset = 0;
+        const pageSize = 1000;
+        for (;;) {
+          const { data, error: advError } = await supabase
+            .from("customer_advances")
+            .select("id, customer_id, amount, used_amount, status")
+            .eq("organization_id", organizationId)
+            .range(offset, offset + pageSize - 1);
+          if (advError) {
+            console.error("Error fetching advances:", advError);
+            break;
+          }
+          if (!data?.length) break;
+          allAdvances.push(...data);
+          if (data.length < pageSize) break;
+          offset += pageSize;
+        }
+      }
 
-      if (advError) console.error('Error fetching advances:', advError);
-
-      // Build unused advance totals per customer
+      // Booking residual (amount − used) for Advance column — matches ledger PDF footnote.
       const customerUnusedAdvances = new Map<string, number>();
-      allAdvances?.forEach((adv: any) => {
+      allAdvances.forEach((adv: any) => {
         const unused = Math.max(0, (adv.amount || 0) - (adv.used_amount || 0));
         if (unused > 0) {
-          customerUnusedAdvances.set(adv.customer_id, 
-            (customerUnusedAdvances.get(adv.customer_id) || 0) + unused);
+          customerUnusedAdvances.set(
+            adv.customer_id,
+            (customerUnusedAdvances.get(adv.customer_id) || 0) + unused,
+          );
         }
       });
 
-      // Fetch advance refunds to reduce unused advance credit
-      const advanceIdsAll = allAdvances?.map((a: any) => a.id) || [];
+      // Advance refunds for ALL advance ids (fully_used rows can still have ARF history)
+      const advanceIdsAll = allAdvances.map((a: any) => a.id).filter(Boolean);
       const customerAdvanceRefunds = new Map<string, number>();
-      if (advanceIdsAll.length > 0) {
+      const advToCustomer = new Map<string, string>();
+      allAdvances.forEach((a: any) => {
+        if (a.id) advToCustomer.set(a.id, a.customer_id);
+      });
+      for (let i = 0; i < advanceIdsAll.length; i += 200) {
+        const chunk = advanceIdsAll.slice(i, i + 200);
         const { data: advRefunds } = await supabase
-          .from('advance_refunds')
-          .select('advance_id, refund_amount')
-          .in('advance_id', advanceIdsAll);
-        
-        // Map advance_id -> customer_id
-        const advToCustomer = new Map<string, string>();
-        allAdvances?.forEach((a: any) => advToCustomer.set(a.id, a.customer_id));
-        
+          .from("advance_refunds")
+          .select("advance_id, refund_amount")
+          .in("advance_id", chunk);
         advRefunds?.forEach((r: any) => {
           const custId = advToCustomer.get(r.advance_id);
           if (custId) {
-            customerAdvanceRefunds.set(custId, (customerAdvanceRefunds.get(custId) || 0) + (r.refund_amount || 0));
+            customerAdvanceRefunds.set(
+              custId,
+              (customerAdvanceRefunds.get(custId) || 0) + (r.refund_amount || 0),
+            );
           }
         });
       }
 
-      // Fetch refund payment vouchers per customer
-      const { data: refundVouchers } = await supabase
-        .from('voucher_entries')
-        .select('reference_id, total_amount, description, payment_method')
-        .eq('organization_id', organizationId)
-        .eq('voucher_type', 'payment')
-        .eq('reference_type', 'customer')
-        .is('deleted_at', null);
-
+      // Customer payment refunds — exclude POS exchange + advance-refund (ARF) vouchers.
+      // ARF already reduces unused advance; counting it as invoice debit invented phantom Outstanding.
       const customerRefundsPaid = new Map<string, number>();
-      refundVouchers?.forEach((v: any) => {
+      allVouchers.forEach((v: any) => {
+        if (v.voucher_type !== "payment") return;
+        if (String(v.reference_type || "").toLowerCase() !== "customer") return;
         if (!v.reference_id) return;
-        // Exclude exchange-refund vouchers (POS refund + round-off). Those refunds
-        // settle SR overflow already captured in sale return / ledger math; counting
-        // them again would create a phantom debit.
         if (isPosExchangeRefundPaymentVoucher(v)) return;
-        customerRefundsPaid.set(v.reference_id, (customerRefundsPaid.get(v.reference_id) || 0) + (v.total_amount || 0));
+        if (isAdvanceRefundPaymentVoucher(v)) return;
+        customerRefundsPaid.set(
+          v.reference_id,
+          (customerRefundsPaid.get(v.reference_id) || 0) + (v.total_amount || 0),
+        );
       });
 
       // Build sale_id -> customer_id map for routing receipt vouchers to customers
