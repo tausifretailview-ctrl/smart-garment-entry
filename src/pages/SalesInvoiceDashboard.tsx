@@ -127,6 +127,7 @@ import {
 } from "@/utils/saleSettlement";
 import { fetchCustomerBalanceSnapshot } from "@/utils/customerBalanceUtils";
 import { assertCustomerPaymentWithinOutstandingCap } from "@/utils/invoiceOverpaymentGuard";
+import { CustomerAccountSummaryStrip } from "@/components/CustomerAccountSummaryStrip";
 import {
   fetchInvoiceDashboardPage,
   fetchInvoiceDashboardStats,
@@ -3486,10 +3487,15 @@ export default function SalesInvoiceDashboard() {
           { label: "Invoices", value: String(effectiveStats.totalInvoices), color: "text-purple-600", bg: "bg-purple-50" },
           { label: "Qty", value: String(effectiveStats.totalQty), color: "text-emerald-600", bg: "bg-emerald-50" },
         ]} />
-        {filteredCustomer && (
-          <p className="px-4 pt-1 text-[10px] text-muted-foreground leading-snug">
-            Pending is the sum of invoice dues. Unused advance (Adjust Advance) reduces this total only after you apply it per invoice.
-          </p>
+        {filteredCustomer && currentOrganization?.id && (
+          <div className="px-4 pt-1">
+            <CustomerAccountSummaryStrip
+              organizationId={currentOrganization.id}
+              customerId={filteredCustomer.id}
+              customerName={filteredCustomer.name}
+              compact
+            />
+          </div>
         )}
 
         <div className="flex gap-2 px-4 py-2 overflow-x-auto no-scrollbar">
@@ -4222,6 +4228,16 @@ export default function SalesInvoiceDashboard() {
               )}
               <div id="erp-toolbar-portal" className="flex items-center gap-1.5 ml-auto flex-shrink-0" />
             </div>
+            {filteredCustomer && currentOrganization?.id && (
+              <div className="shrink-0 px-3 py-2 border-b border-slate-100">
+                <CustomerAccountSummaryStrip
+                  organizationId={currentOrganization.id}
+                  customerId={filteredCustomer.id}
+                  customerName={filteredCustomer.name}
+                  compact
+                />
+              </div>
+            )}
             <div className="flex-1 min-h-0 flex flex-col">
                 <div
                   ref={tableContainerRef}
@@ -5103,6 +5119,14 @@ export default function SalesInvoiceDashboard() {
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
+              {selectedInvoiceForPayment?.customer_id && currentOrganization?.id && (
+                <CustomerAccountSummaryStrip
+                  organizationId={currentOrganization.id}
+                  customerId={selectedInvoiceForPayment.customer_id}
+                  customerName={selectedInvoiceForPayment.customer_name}
+                  compact
+                />
+              )}
               <div className="grid grid-cols-2 gap-2 text-sm">
                 <span className="text-muted-foreground">Customer:</span>
                 <span className="font-medium">{selectedInvoiceForPayment?.customer_name?.toUpperCase()}</span>
@@ -5110,7 +5134,7 @@ export default function SalesInvoiceDashboard() {
                 <span className="font-medium">₹{Math.round(selectedInvoiceForPayment?.net_amount || 0).toLocaleString('en-IN')}</span>
                 <span className="text-muted-foreground">Paid Amount:</span>
                 <span className="font-medium">₹{Math.round(selectedInvoiceForPayment?.paid_amount || 0).toLocaleString('en-IN')}</span>
-                <span className="text-muted-foreground">Pending Amount:</span>
+                <span className="text-muted-foreground">This invoice pending:</span>
                 <span className="font-semibold text-orange-600">
                   ₹{Math.max(0, Math.round((selectedInvoiceForPayment?.net_amount || 0) - (selectedInvoiceForPayment?.paid_amount || 0) - Math.max(selectedInvoiceForPayment?.sale_return_adjust || 0, selectedInvoiceForPayment?.credit_applied || 0))).toLocaleString('en-IN')}
                 </span>

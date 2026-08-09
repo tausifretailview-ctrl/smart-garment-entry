@@ -151,4 +151,6 @@ export function invalidateAfterCustomerPaymentMutation(
   invalidatePosDashboardQueries(queryClient, organizationId);
   notifyPosSalesChanged({ organizationId });
   invalidateSalesQueriesNow(queryClient, organizationId);
+  queryClient.invalidateQueries({ queryKey: ["customer-account-state-view"] });
+  queryClient.invalidateQueries({ queryKey: ["customer-account-audit"] });
 }
