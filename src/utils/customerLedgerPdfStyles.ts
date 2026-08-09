@@ -93,7 +93,11 @@ export function ledgerPdfTypeColor(t: { type: string; status?: string }): Rgb {
 }
 
 export function ledgerPdfReconLineColor(label: string): Rgb | null {
-  if (label.includes("Sale Returns (Confirmed)") || label.includes("Cash / UPI")) {
+  if (
+    label.includes("Sale Returns (Confirmed)") ||
+    label.includes("Cash / UPI") ||
+    label.includes("Advance Adjusted")
+  ) {
     return LEDGER_PDF.green;
   }
   if (label.includes("Pending CN") || label.includes("CN / S/R")) {
