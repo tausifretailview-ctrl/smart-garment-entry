@@ -58,6 +58,12 @@ import { derivePaidAndStatus } from "@/utils/saleSettlement";
 import { computeAuditPeriodOutstanding, fetchCustomerAuditBundle } from "@/utils/customerAuditBundle";
 import { computeInvoiceOutstandingFromReconciliation } from "@/utils/customerLedgerReconciliation";
 import {
+  filterLedgerRowsByCardDrill,
+  ledgerCardDrillLabel,
+  tabForLedgerCardDrill,
+  type LedgerCardDrillKey,
+} from "@/utils/customerLedgerCardDrill";
+import {
   isCnRefundPaymentVoucher,
   parseSaleReturnRefFromCnRefundDescription,
 } from "@/utils/cnRefundVoucher";
@@ -188,6 +194,8 @@ interface Transaction {
   /** Informational/secondary row — rendered with muted styling and EXCLUDED
    *  from the totals row to avoid double-counting. */
   informational?: boolean;
+  /** Advance booking remaining = amount − used_amount (same as list unused calc). */
+  advanceRemaining?: number;
 }
 
 const cleanDescription = (desc: string) => {
@@ -326,6 +334,8 @@ export function CustomerLedger({
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
   const [selectedAcademicYearId, setSelectedAcademicYearId] = useState<string>("all");
   const [activeTab, setActiveTab] = useState("transactions");
+  /** KPI card drill — filters the Transactions list (or switches tab when one exists). */
+  const [cardDrill, setCardDrill] = useState<LedgerCardDrillKey | null>(null);
   const [customerPage, setCustomerPage] = useState(0);
   const CUSTOMERS_PER_PAGE = 20;
 
@@ -2179,6 +2189,7 @@ export function CustomerLedger({
             credit: advance.amount,
             balance: runningBalance,
             paymentBreakdown: advance.payment_method ? { method: advance.payment_method } : undefined,
+            advanceRemaining: Math.max(0, Math.round(availableAmount)),
           });
         } else if (item.type === 'advance_application') {
           // Advance or CN applied to invoice: memo-only — does not change running balance
@@ -3016,19 +3027,6 @@ export function CustomerLedger({
     }, { totalDebit: 0, totalCredit: 0 });
   }, [transactions]);
 
-  /** KPI / integrity figures aligned with the rendered transaction list when available. */
-  const ledgerDerivedStats = useMemo(() => {
-    if (!selectedCustomer || isSchool) return null;
-    const hasTxn = (transactions?.length ?? 0) > 0;
-    const closingFromRows = hasTxn
-      ? Number(transactions![transactions!.length - 1].balance || 0)
-      : null;
-    return {
-      cashPaid: hasTxn && reconciliation.paymentsCash > 0 ? reconciliation.paymentsCash : null,
-      closingBalance: closingFromRows,
-    };
-  }, [selectedCustomer, isSchool, transactions, reconciliation]);
-
   // FIX 5 — Single, unambiguous "Returns / CR" stat. We classify each Sale
   // Return row from the rendered ledger as either Pending or Adjusted by
   // reading the status hint already embedded in the description by the
@@ -3068,12 +3066,74 @@ export function CustomerLedger({
       }));
   }, [transactions]);
 
-  const cnAvailable = useMemo(() => {
-    if (!isSchool) {
-      return Math.round(snapshotCnAvailable || 0);
+  /**
+   * KPI cards — single source from rendered ledger rows (retail) or the school
+   * customer snapshot (school labels / Opening Balance path unchanged).
+   * SQL snapshot (`selectedCustomer.*` / get_customer_financial_snapshot) is
+   * reserved for the cross-check amber banner only.
+   */
+  const ledgerDerivedStats = useMemo(() => {
+    if (!selectedCustomer) return null;
+
+    if (isSchool) {
+      const cn = pendingSaleReturns.reduce((sum, t) => sum + (t.amount || 0), 0);
+      return {
+        totalSales: Math.round(selectedCustomer.totalSales || 0),
+        cashPaid: Math.round(selectedCustomer.totalCashPaid || 0),
+        advanceAdjusted: Math.round(selectedCustomer.totalAdvanceApplied || 0),
+        advanceReceived: Math.round(
+          (selectedCustomer.totalAdvanceApplied || 0) + (selectedCustomer.unusedAdvanceTotal || 0),
+        ),
+        advanceBalance: Math.round(selectedCustomer.unusedAdvanceTotal || 0),
+        returnsPending: saleReturnsSummary.pending + saleReturnsSummary.partialPending,
+        returnsAdjusted: saleReturnsSummary.adjusted,
+        cnAvailable: Math.round(cn),
+        openingBalance: Math.round(selectedCustomer.opening_balance || 0),
+        closingBalance:
+          transactions && transactions.length > 0
+            ? Number(transactions[transactions.length - 1].balance || 0)
+            : null,
+      };
     }
-    return pendingSaleReturns.reduce((sum, t) => sum + (t.amount || 0), 0);
-  }, [isSchool, snapshotCnAvailable, pendingSaleReturns]);
+
+    const advanceBalance = Math.round(
+      (transactions || [])
+        .filter((t) => t.type === "advance")
+        .reduce((sum, t) => sum + Math.max(0, Number(t.advanceRemaining || 0)), 0),
+    );
+    const advanceAdjusted = Math.round(reconciliation.advanceApplied || 0);
+    const returnsPending = saleReturnsSummary.pending + saleReturnsSummary.partialPending;
+    // Same path school already used: pending sale-return rows on this ledger.
+    const cnFromRows = Math.round(
+      pendingSaleReturns.reduce((sum, t) => sum + (t.amount || 0), 0),
+    );
+
+    return {
+      totalSales: Math.round(reconciliation.grossInvoiced || 0),
+      cashPaid: Math.round(reconciliation.paymentsCash || 0),
+      advanceAdjusted,
+      // Same composition the card used: applied + unused.
+      advanceReceived: Math.round(advanceAdjusted + advanceBalance),
+      advanceBalance,
+      returnsPending,
+      returnsAdjusted: saleReturnsSummary.adjusted,
+      cnAvailable: cnFromRows,
+      openingBalance: Math.round(reconciliation.opening || 0),
+      closingBalance:
+        transactions && transactions.length > 0
+          ? Number(transactions[transactions.length - 1].balance || 0)
+          : null,
+    };
+  }, [
+    selectedCustomer,
+    isSchool,
+    transactions,
+    reconciliation,
+    saleReturnsSummary,
+    pendingSaleReturns,
+  ]);
+
+  const cnAvailable = ledgerDerivedStats?.cnAvailable ?? 0;
 
   type LedgerAllocationRow = {
     id: string;
@@ -3325,6 +3385,10 @@ export function CustomerLedger({
       setActiveTab("transactions");
     }
   }, [isSchool, activeTab]);
+
+  useEffect(() => {
+    setCardDrill(null);
+  }, [selectedCustomer?.id]);
 
   const handleApplyToInvoice = useCallback((sr: { reference: string }) => {
     toast.info(
@@ -4061,9 +4125,27 @@ Please clear your dues at the earliest. Thank you!`;
   );
 
   if (selectedCustomer) {
-    const ledgerRows = transactions ?? [];
+    const allLedgerRows = transactions ?? [];
+    const ledgerRows = filterLedgerRowsByCardDrill(allLedgerRows, cardDrill);
     const ledgerLoading = transactionsPending && transactions === undefined;
     const isLedgerBackgroundRefresh = isTransactionsFetching && !ledgerLoading;
+
+    const activateCardDrill = (key: LedgerCardDrillKey) => {
+      // School has no Advance-adjusted tab — keep a Transactions filter chip.
+      if (isSchool && key === "advance_adjusted") {
+        setActiveTab("transactions");
+        setCardDrill(key);
+        return;
+      }
+      const tab = tabForLedgerCardDrill(key);
+      setActiveTab(tab);
+      // Tabs that already own the row set don't need a Transactions filter chip.
+      if (key === "payments" || key === "advance_adjusted") {
+        setCardDrill(null);
+      } else {
+        setCardDrill(key);
+      }
+    };
 
     const ledgerBody = (
       <div className="space-y-3">
@@ -4305,8 +4387,9 @@ Please clear your dues at the earliest. Thank you!`;
                 {snapshotOutstandingDr != null &&
                   !isSchool &&
                   (() => {
-                    const ledgerBalance =
-                      ledgerDerivedStats?.closingBalance ?? authoritativeBalance;
+                    // Compare snapshot to invoice Outstanding (same figure as the header),
+                    // not the last running-balance row (party-cash / memo advances).
+                    const ledgerBalance = effectiveBalance;
                     return Math.abs(ledgerBalance - snapshotOutstandingDr) > 1;
                   })() && (
                     <p className="text-xs text-amber-700 dark:text-amber-400 mt-2 text-left max-w-[260px] ml-auto">
@@ -4317,17 +4400,14 @@ Please clear your dues at the earliest. Thank you!`;
                           minimumFractionDigits: 2,
                         })}{" "}
                         {snapshotOutstandingDr >= 0 ? "Dr" : "Cr"} — ledger uses ₹
-                        {Math.abs(
-                          ledgerDerivedStats?.closingBalance ?? authoritativeBalance,
-                        ).toLocaleString("en-IN", {
+                        {Math.abs(effectiveBalance).toLocaleString("en-IN", {
                           minimumFractionDigits: 2,
                         })}{" "}
-                        {(ledgerDerivedStats?.closingBalance ?? authoritativeBalance) >= 0
-                          ? "Dr"
-                          : "Cr"}
+                        {effectiveBalance >= 0 ? "Dr" : "Cr"}
                         . Run migration{" "}
                         <code className="text-[10px]">20260628120000_fix_reconcile_gross_invoiced_cn_receipts</code>{" "}
-                        in Supabase SQL editor, then hard-refresh.
+                        in Supabase SQL editor, then hard-refresh. Also run{" "}
+                        <code className="text-[10px]">scripts/report-schema-migrations-drift.sql</code>.
                       </span>
                     </p>
                   )}
@@ -4345,93 +4425,185 @@ Please clear your dues at the earliest. Thank you!`;
             )}
           </CardHeader>
           <CardContent>
+            {(() => {
+              const stats = ledgerDerivedStats;
+              const totalSales = stats?.totalSales ?? 0;
+              const cashPaid = stats?.cashPaid ?? 0;
+              const advanceAdjusted = stats?.advanceAdjusted ?? 0;
+              const advanceReceived = stats?.advanceReceived ?? 0;
+              const advanceBalance = stats?.advanceBalance ?? 0;
+              const returnsPending = stats?.returnsPending ?? 0;
+              const returnsAdjusted = stats?.returnsAdjusted ?? 0;
+              const cnAvail = stats?.cnAvailable ?? 0;
+              const openingBal = stats?.openingBalance ?? selectedCustomer.opening_balance ?? 0;
+              const cardClass = (active: boolean) =>
+                cn(
+                  "border border-slate-200 shadow-sm rounded-lg bg-white overflow-hidden cursor-pointer transition-colors hover:border-primary/40 hover:bg-slate-50/80 dark:hover:bg-slate-900/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                  active && "ring-2 ring-primary border-primary/50",
+                );
+              return (
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-2 mb-0 min-h-[4.5rem]">
               {/* For school non-structure students, opening_balance IS totalSales — show only once as "Opening Balance" */}
-              {selectedCustomer.opening_balance !== 0 && !(isSchool && (selectedCustomer as any).hasStructures === false) && (
-                <Card className="border border-slate-200 shadow-sm rounded-lg bg-white overflow-hidden">
+              {openingBal !== 0 && !(isSchool && (selectedCustomer as any).hasStructures === false) && (
+                <Card
+                  className={cardClass(cardDrill === "opening")}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => activateCardDrill("opening")}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      activateCardDrill("opening");
+                    }
+                  }}
+                >
                   <CardContent className="p-3">
                     <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-1">Opening Balance</div>
                     <div className={cn(
                       "text-lg font-bold tabular-nums",
-                      selectedCustomer.opening_balance > 0 ? "text-orange-600 dark:text-orange-400" : "text-emerald-600 dark:text-emerald-400"
+                      openingBal > 0 ? "text-orange-600 dark:text-orange-400" : "text-emerald-600 dark:text-emerald-400"
                     )}>
-                      ₹{Math.abs(selectedCustomer.opening_balance).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                      ₹{Math.abs(openingBal).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                     </div>
                     <div className="text-[10px] text-muted-foreground mt-0.5">
-                      {selectedCustomer.opening_balance > 0 ? "Receivable" : "Advance"}
+                      {openingBal > 0 ? "Receivable" : "Advance"}
                     </div>
                   </CardContent>
                 </Card>
               )}
-              <Card className="border border-slate-200 shadow-sm rounded-lg bg-white overflow-hidden">
+              <Card
+                className={cardClass(cardDrill === "invoices")}
+                role="button"
+                tabIndex={0}
+                onClick={() => activateCardDrill("invoices")}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    activateCardDrill("invoices");
+                  }
+                }}
+              >
                 <CardContent className="p-3">
                   <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-1">
                     {isSchool ? ((selectedCustomer as any).hasStructures === false ? "Opening Balance" : "Total Fees") : "Total Sales"}
                   </div>
                   <div className="text-lg font-bold text-blue-700 dark:text-blue-300 tabular-nums">
-                    ₹{selectedCustomer.totalSales.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                    ₹{totalSales.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                   </div>
                 </CardContent>
               </Card>
-              <Card className="border border-slate-200 shadow-sm rounded-lg bg-white overflow-hidden">
+              <Card
+                className={cardClass(activeTab === "payments" && !cardDrill)}
+                role="button"
+                tabIndex={0}
+                onClick={() => activateCardDrill("payments")}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    activateCardDrill("payments");
+                  }
+                }}
+              >
                 <CardContent className="p-3">
                   <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-1">
                     {isSchool ? "Fees Received" : "Cash/UPI Paid"}
                   </div>
                   <div className="text-lg font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">
-                    ₹{(
-                      ledgerDerivedStats?.cashPaid ?? selectedCustomer.totalCashPaid ?? 0
-                    ).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                    ₹{cashPaid.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                   </div>
                 </CardContent>
               </Card>
-              <Card className="border border-slate-200 shadow-sm rounded-lg bg-white overflow-hidden">
+              <Card
+                className={cardClass(activeTab === "advance-adjusted" && !cardDrill)}
+                role="button"
+                tabIndex={0}
+                onClick={() => activateCardDrill("advance_adjusted")}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    activateCardDrill("advance_adjusted");
+                  }
+                }}
+              >
                 <CardContent className="p-3">
                   <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-1">Advance Adjusted</div>
                   <div className="text-lg font-bold text-purple-600 dark:text-purple-300 tabular-nums">
-                    ₹{(selectedCustomer.totalAdvanceApplied ?? 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                    ₹{advanceAdjusted.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                   </div>
                 </CardContent>
               </Card>
-              <Card className="border border-slate-200 shadow-sm rounded-lg bg-white overflow-hidden">
+              <Card
+                className={cardClass(cardDrill === "advance_received")}
+                role="button"
+                tabIndex={0}
+                onClick={() => activateCardDrill("advance_received")}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    activateCardDrill("advance_received");
+                  }
+                }}
+              >
                 <CardContent className="p-3">
                   <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-1">Advance Received</div>
                   <div className="text-lg font-bold text-indigo-600 dark:text-indigo-300 tabular-nums">
-                    ₹{((selectedCustomer.totalAdvanceApplied ?? 0) + (selectedCustomer.unusedAdvanceTotal ?? 0)).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                    ₹{advanceReceived.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                   </div>
                   <div className="text-[10px] text-muted-foreground mt-0.5">Applied + Unused</div>
                 </CardContent>
               </Card>
-              <Card className="border border-slate-200 shadow-sm rounded-lg bg-white overflow-hidden">
+              <Card
+                className={cardClass(cardDrill === "advance_balance")}
+                role="button"
+                tabIndex={0}
+                onClick={() => activateCardDrill("advance_balance")}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    activateCardDrill("advance_balance");
+                  }
+                }}
+              >
                 <CardContent className="p-3">
                   <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-1">Advance Balance</div>
                   <div className={cn(
                     "text-lg font-bold tabular-nums",
-                    (isSchool ? (selectedCustomer.unusedAdvanceTotal ?? 0) : snapshotAdvanceAvailable) > 0
+                    advanceBalance > 0
                       ? "text-teal-600 dark:text-teal-400"
                       : "text-muted-foreground"
                   )}>
-                    ₹{(isSchool ? (selectedCustomer.unusedAdvanceTotal ?? 0) : snapshotAdvanceAvailable).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                    ₹{advanceBalance.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                   </div>
-                  {(selectedCustomer.unusedAdvanceTotal ?? 0) > 0 && (
+                  {advanceBalance > 0 && (
                     <div className="text-[10px] text-teal-600 dark:text-teal-400 mt-0.5">Available to apply</div>
                   )}
                 </CardContent>
               </Card>
-              <Card className="border border-slate-200 shadow-sm rounded-lg bg-white overflow-hidden">
+              <Card
+                className={cardClass(cardDrill === "returns")}
+                role="button"
+                tabIndex={0}
+                onClick={() => activateCardDrill("returns")}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    activateCardDrill("returns");
+                  }
+                }}
+              >
                 <CardContent className="p-3">
                   <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-1">Returns / CR</div>
-                  {saleReturnsSummary.pending + saleReturnsSummary.partialPending > 0 ? (
+                  {returnsPending > 0 ? (
                     <>
                       <div className="text-lg font-bold text-amber-600 dark:text-amber-400 tabular-nums">
-                        ₹{(saleReturnsSummary.pending + saleReturnsSummary.partialPending).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                        ₹{returnsPending.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                       </div>
                       <div className="text-[10px] text-amber-600 dark:text-amber-400 mt-0.5">Pending adjustment</div>
                     </>
-                  ) : saleReturnsSummary.adjusted > 0 ? (
+                  ) : returnsAdjusted > 0 ? (
                     <>
                       <div className="text-lg font-bold text-emerald-700 dark:text-emerald-400 tabular-nums">
-                        ₹{saleReturnsSummary.adjusted.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                        ₹{returnsAdjusted.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                       </div>
                       <div className="text-[10px] text-emerald-700 dark:text-emerald-400 mt-0.5">Adjusted ✓</div>
                     </>
@@ -4443,21 +4615,34 @@ Please clear your dues at the earliest. Thank you!`;
                   )}
                 </CardContent>
               </Card>
-              <Card className="border border-slate-200 shadow-sm rounded-lg bg-white overflow-hidden">
+              <Card
+                className={cardClass(cardDrill === "cn_available")}
+                role="button"
+                tabIndex={0}
+                onClick={() => activateCardDrill("cn_available")}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    activateCardDrill("cn_available");
+                  }
+                }}
+              >
                 <CardContent className="p-3">
                   <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-1">CN Available</div>
                   <div className={cn(
                     "text-lg font-bold tabular-nums",
-                    cnAvailable > 0 ? "text-green-600 dark:text-green-400" : "text-muted-foreground"
+                    cnAvail > 0 ? "text-green-600 dark:text-green-400" : "text-muted-foreground"
                   )}>
-                    ₹{cnAvailable.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                    ₹{cnAvail.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                   </div>
-                  {cnAvailable > 0 && (
+                  {cnAvail > 0 && (
                     <div className="text-[10px] text-orange-500 mt-0.5">Pending adjustment</div>
                   )}
                 </CardContent>
               </Card>
             </div>
+              );
+            })()}
 
             {/* Refund shortcut - shows when customer has credit balance */}
             {refundableCreditBalance > 0 && (
@@ -4530,7 +4715,42 @@ Please clear your dues at the earliest. Thank you!`;
             <div className="my-4" />
 
             <TooltipProvider delayDuration={300}>
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            {cardDrill && (
+              <div className="mb-3 flex flex-wrap items-center gap-2">
+                <Badge variant="secondary" className="gap-1.5 pr-1 font-normal">
+                  Showing: {ledgerCardDrillLabel(cardDrill)}
+                  <button
+                    type="button"
+                    className="ml-1 rounded-sm px-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                    aria-label="Clear card filter"
+                    onClick={() => setCardDrill(null)}
+                  >
+                    ×
+                  </button>
+                </Badge>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 text-xs"
+                  onClick={() => {
+                    setCardDrill(null);
+                    setActiveTab("transactions");
+                  }}
+                >
+                  Show all
+                </Button>
+              </div>
+            )}
+            <Tabs
+              value={activeTab}
+              onValueChange={(v) => {
+                setActiveTab(v);
+                // Switching tabs manually clears a Transactions-only drill chip.
+                if (v !== "transactions") setCardDrill(null);
+              }}
+              className="w-full"
+            >
               <TabsList className="flex w-full max-w-full flex-nowrap overflow-x-auto gap-1 mb-4 min-h-10 bg-muted/60 rounded-xl p-1">
                 <TabsTrigger value="transactions" className="flex shrink-0 items-center gap-2 rounded-lg text-sm font-medium px-3">
                   <FileText className="h-4 w-4" />
@@ -4812,6 +5032,13 @@ Please clear your dues at the earliest. Thank you!`;
                                         Rec. ₹{(transaction.paymentBreakdown?.cashReceived ?? 0).toLocaleString("en-IN")}
                                         {" · "}
                                         Disc. ₹{transaction.paymentBreakdown!.settlementDiscount!.toLocaleString("en-IN")}
+                                      </span>
+                                    )}
+                                    {cardDrill === "advance_balance" &&
+                                      transaction.type === "advance" &&
+                                      (transaction.advanceRemaining || 0) > 0 && (
+                                      <span className="text-[10px] text-teal-700 dark:text-teal-400 tabular-nums">
+                                        Remaining ₹{(transaction.advanceRemaining || 0).toLocaleString("en-IN")}
                                       </span>
                                     )}
                                   </div>
