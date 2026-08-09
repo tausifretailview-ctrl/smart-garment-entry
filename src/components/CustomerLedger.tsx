@@ -3258,7 +3258,8 @@ export function CustomerLedger({
         // Phase 1.2: include mis-tagged customer rows pointing at this customer's sales,
         // plus customer-scoped opening-balance advance applications (reference_id = customer id).
         .in("reference_type", ["sale", "customer"])
-        .in("payment_method", ["advance_adjustment", "credit_note_adjustment"])
+        // Payment method is filtered client-side: legacy imports tagged advance
+        // applications as `cash`, and they must still appear in the applied table.
         .is("deleted_at", null)
         .in("reference_id", refIds.length > 0 ? refIds : sentinel);
       if (startDate) vq = vq.gte("voucher_date", format(startDate, "yyyy-MM-dd"));
