@@ -639,7 +639,7 @@ export default function CustomerPartyBalancesPage() {
                                 isCr && "text-emerald-600 dark:text-emerald-400",
                               )}
                             >
-                              {formatNetFacetLabel(f.netPosition)}
+                              ₹{fmtAmt(Math.abs(f.netPosition))}
                             </TableCell>
                             <TableCell className="py-2.5 text-center">
                               <span
