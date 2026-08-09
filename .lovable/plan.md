@@ -12,6 +12,20 @@ Her three advance bookings:
 
 So ₹2,450 is the correct available advance.
 
+## Her actual balance after the fix
+
+| Item | Amount |
+|---|---|
+| Opening balance | ₹0 |
+| Invoices (11, none cancelled/deleted) | ₹92,500 billed, ₹92,500 settled |
+| Invoice outstanding | **₹0** |
+| Ledger (debit ₹58,400 vs credit ₹58,400) | **₹0** |
+| Unused advance (ADV/26-27/574) | **₹2,450** |
+
+**Net position: nothing owed, ₹2,450 advance held in her favour** — shown consistently as ₹2,450 in the header strip, the KPI card and the Advance Booking screen, on every date filter.
+
+One caveat: this assumes the surviving 13-Apr-2026 refund of ₹5,450 was a genuine payout. It sits against a booking that was already fully consumed, so it cannot legitimately reduce her advances — it likely belongs against something else, or is itself a mis-entry. If you confirm it was never actually paid out to her, it gets reversed and the ₹2,450 stands unchanged. If it was paid out, it needs re-attributing to the correct booking, which does not change the ₹2,450 either — it only corrects the audit trail.
+
 But there are also two **advance refund** rows against ADV/25-26/849 — a booking that is already fully used:
 
 - 13-Apr-2026 · ₹5,450 · UPI · no reason
