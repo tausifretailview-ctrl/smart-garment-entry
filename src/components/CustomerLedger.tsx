@@ -5195,6 +5195,15 @@ Please clear your dues at the earliest. Thank you!`;
                       const cnRefunded = reconciliation.cnRefunded;
                       // Same arithmetic as printed settlement lines (not last-row running balance).
                       const outstanding = reconciliation.invoiceOutstanding;
+                      const unusedAdvance = Math.max(0, Math.round(ledgerDerivedStats?.advanceBalance ?? 0));
+                      // Unclamped advance-pool position: received − applied − refunded.
+                      const poolUnclamped = Math.round(
+                        (reconciliation.advanceCredit || 0) -
+                          (reconciliation.advanceApplied || 0) -
+                          (reconciliation.advanceRefunded || 0),
+                      );
+                      const poolIsFloored = poolUnclamped < unusedAdvance - 0.5;
+                      const netPosition = Math.round(outstanding - unusedAdvance);
                       return (
                     <div className="space-y-1.5 text-sm tabular-nums max-w-md">
                       <div className="flex justify-between">
@@ -5258,12 +5267,33 @@ Please clear your dues at the earliest. Thank you!`;
                         outstanding < 0 ? "text-emerald-700 dark:text-emerald-300" :
                         "text-foreground"
                       )}>
-                        <span>Outstanding ({outstanding > 0 ? 'Dr' : outstanding < 0 ? 'Cr' : 'Settled'})</span>
+                        <span>Outstanding ({outstanding > 0 ? 'Dr' : outstanding < 0 ? 'Cr' : 'Nil'})</span>
                         <span>₹{Math.abs(Math.round(outstanding)).toLocaleString("en-IN")}</span>
                       </div>
+                      <div className="flex justify-between text-teal-700 dark:text-teal-400 font-medium">
+                        <span>(−) Unused Advance</span>
+                        <span>₹{unusedAdvance.toLocaleString("en-IN")}</span>
+                      </div>
+                      <div className={cn(
+                        "flex justify-between border-t pt-1.5 text-base font-bold",
+                        netPosition > 0 ? "text-red-600 dark:text-red-400" :
+                        netPosition < 0 ? "text-emerald-700 dark:text-emerald-300" :
+                        "text-foreground"
+                      )}>
+                        <span>(=) Net Position ({netPosition > 0 ? 'Dr' : netPosition < 0 ? 'Cr' : 'Nil'})</span>
+                        <span>₹{Math.abs(netPosition).toLocaleString("en-IN")}</span>
+                      </div>
+                      {poolIsFloored && (
+                        <div className="rounded border border-amber-300 bg-amber-50 dark:bg-amber-950/30 px-2 py-1 text-[11px] text-amber-800 dark:text-amber-300">
+                          Unused Advance is floored at the per-booking residual (₹{unusedAdvance.toLocaleString("en-IN")}).
+                          Unclamped advance pool (received − applied − refunded) is
+                          {" "}₹{poolUnclamped.toLocaleString("en-IN")} — a shortfall of
+                          {" "}₹{Math.abs(unusedAdvance - poolUnclamped).toLocaleString("en-IN")} needs review.
+                        </div>
+                      )}
                       {advanceRefunded > 0 && (
                         <div className="flex justify-between text-muted-foreground pt-1 text-xs">
-                          <span>Advance Refunded Out (unused advance; not in Outstanding)</span>
+                          <span>Advance refunded out to customer (not in Outstanding)</span>
                           <span className="font-medium">₹{Math.round(advanceRefunded).toLocaleString("en-IN")}</span>
                         </div>
                       )}
