@@ -4032,13 +4032,13 @@ Please clear your dues at the earliest. Thank you!`;
       labelX,
       yPos + 1,
     );
-    doc.setFontSize(9);
     yPos += 5;
     doc.text(
       "Column totals above include advance receipts and refunds - they are not what the customer owes.",
       labelX,
       yPos + 1,
     );
+    doc.setFontSize(9);
     yPos += 5;
     yPos += 4;
 
