@@ -1,32 +1,64 @@
-# Fix slow customer search on Sales Invoice Dashboard (All Time)
+# Speed, Search & Database Health — Improvement Plan
 
-## What I found (measured on Ella Noor)
+Measured from live query statistics. The numbers below are actual totals from the database, not estimates.
 
-Searching a customer name with the **All Time** filter is slow because the dashboard does far more work than the search needs:
+## What is actually slow (measured)
 
-1. **The line-item search runs even for customer-name searches.** Any text of 4+ letters (e.g. "ANUSHA PATHAN") triggers `search_invoice_sale_ids`, which scans every invoice of the organization, joins all its sale lines and their products, and filters them one by one. With no date bounds it touched ~4,150 sales / ~5,500 lines and took ~200 ms server-side for Ella Noor, and it scales linearly with org size (bigger orgs are much worse). It returned **zero** rows — pure waste for a customer search.
-2. **That same expensive call is repeated many times per search.** It fires once for the KPI count, once for the stats aggregation, and again for every 1,000-row page of the stats loop, plus once for the row page — so one search can trigger 4+ full scans.
-3. The header search itself (sale number / customer / phone / salesman) is fast (~56 ms) — it correctly uses the trigram indexes. So the delay is almost entirely the line-item path.
+| Rank | Operation | Calls | Avg | Total time |
+|---|---|---|---|---|
+| 1 | Sale line-item text search (`sale_items` name/barcode/size/colour) | 181,034 | 38 ms | **6,815 sec** |
+| 2 | Purchase item lookup by SKU (with bill join) | 5,598 | 121 ms | 677 sec |
+| 3 | Sales header search (invoice no / customer / phone / salesman) | 8,066 | 84 ms | 674 sec |
+| 4 | Dashboard purchase summary view | 5,331 | 114 ms (peak 2.9 s) | 608 sec |
+| 5 | Customer search + full customer list | 46,967 | ~20 ms | 917 sec |
+| 6 | Product / variant search (barcode + name expansion) | 35,000+ | 20–106 ms | 1,114 sec |
+| 7 | Purchase barcode lookup (no org filter on items) | 675 | **513 ms** (peak 2.3 s) | 346 sec |
 
-## Fix
+Item 1 alone is roughly half of all database time in the app. The query runs with no `organization_id` filter — it scans line items across every tenant and is filtered afterwards by a list of sale ids.
 
-### 1. Do not run the line-item search when the header search already answers it
-Run the fast header (sales) match first. Only fall back to / union the line-item search when the header match returns no rows, or when the term looks like a product/barcode term (digits, or short SKU-ish tokens). A full customer name that already matches invoices will never pay the line-item cost.
+## Fix plan (ordered by payoff)
 
-### 2. Compute the matching line-item sale ids once per search
-Resolve the id list a single time for a given filter set and reuse it for the count, the stats pages and the row page, instead of re-running the RPC inside every query and every pagination loop.
+### 1. Line-item search — the single biggest win
+- Route all line-item search through one server-side function per screen instead of a PostgREST `ILIKE` chain, so the work happens once with tenant + date bounds applied first.
+- Add `organization_id` to the search predicate everywhere it is missing (sale line items, purchase line items).
+- Trigram indexes on the searched columns so `ILIKE '%term%'` uses an index instead of a scan.
+- Keep the existing minimum-length gates (4+ letters, 8+ digits) and add a per-search result cap.
+Expected: this query drops from ~38 ms average to single-digit ms and stops being called several times per keystroke.
 
-### 3. Make `search_invoice_sale_ids` index-driven
-Rewrite the function so each text column is matched through its existing trigram GIN index and the results are unioned, instead of one OR filter across a sales x sale_items x products join:
-- match `sale_items` on `product_name` / `barcode` / `size` / `color` (each already has a `gin_trgm_ops` index) with a per-branch cap, then join to the org's sales;
-- match `products` (org-scoped) first to get product ids, then find sale lines by `product_id`;
-- keep the existing `assert_org_member` check, org/date/deleted filters and `LIMIT`.
+### 2. Search call volume (typing behaviour)
+- One settled search per term: debounce raised to a consistent 350 ms and the same resolved result reused by the row query, the count query, the KPI totals and Excel export instead of each re-running the search.
+- Cancel in-flight searches when the term changes (currently older responses still complete and cost database time).
 
-### 4. Guard All Time
-When no date range is set, cap the line-item id lookup (bounded row cap per branch) so an unbounded org-wide scan can never happen; header search stays unbounded so customer results are complete.
+### 3. Query timeouts and safety limits
+- A single shared timeout wrapper for every dashboard/search fetch (the mobile one already exists) so a stuck request shows a retry instead of an endless skeleton.
+- Explicit statement-level ceiling for search functions so a pathological "All Time + 2 letters" search fails fast and clearly rather than hanging the page.
+- Hard result caps with a visible "showing first N — narrow your search" hint, instead of silent truncation.
+
+### 4. Purchase and dashboard queries
+- Index purchase line items on `(organization_id, sku_id)` and `(organization_id, barcode)`; add the org filter to the barcode lookup so the 513 ms average collapses.
+- Dashboard purchase/stock summary views: cache per organization for 60 s and serve tiles from one aggregated call rather than repeat view reads on every visit.
+
+### 5. Customer and product lookups
+- Customer picker: server-side search with a limit instead of loading the whole customer list, plus a longer cache window for the reference list.
+- Product search: stop expanding one term into 28 `ILIKE` branches; use a single trigram-indexed match with client-side ranking.
+
+### 6. Database housekeeping
+- Confirm supporting indexes exist for every hot predicate and drop indexes that no query uses (write cost with no read benefit).
+- Archive/prune the legacy backup tables still sitting in the main schema.
+- Schedule regular table maintenance on the highest-churn tables (sale items, sales, vouchers) to control bloat.
+
+## User experience improvements
+- Search box shows a live "searching…" state and a result count, so long searches feel responsive instead of frozen.
+- Date filter defaults to the current month on heavy dashboards, with "All Time" as a deliberate choice that warns it is slower.
+- Skeleton rows keep the table layout stable so the page does not jump when data lands.
+- Consistent retry buttons on every failed fetch instead of blank panels.
 
 ## Technical notes
-- Files: `src/utils/invoiceDashboardData.ts` (`shouldUnionSaleItemsForInvoiceSearch`, `applySearchToSalesQuery`, `countFilteredInvoiceSales`, `fetchInvoiceDashboardStatsClient`).
-- One migration replacing `public.search_invoice_sale_ids` (same signature, `SECURITY DEFINER`, `search_path = public`).
-- No schema/data changes; behaviour of results stays the same, only the path taken to get them changes.
-- Verify with `EXPLAIN (ANALYZE)` before/after on Ella Noor for a customer-name term and a barcode term.
+- Changes are additive: new database functions and indexes, plus front-end call-site updates. No change to any money, stock or settlement formula.
+- Indexes cost a small amount of write time and disk in exchange for large read savings.
+- Rollout order: (1) line-item search + indexes, (2) call-volume/debounce, (3) timeouts and caps, (4) purchase + dashboard, (5) customer/product, (6) housekeeping. Each step is verifiable on its own by re-reading the query statistics.
+
+## Verification after each step
+- Re-read live query statistics and compare total time for the targeted query.
+- Time an "All Time" customer search on the sales dashboard before and after.
+- Count network calls per settled search (target: one search call, not several).
