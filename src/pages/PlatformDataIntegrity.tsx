@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import { AlertTriangle, RefreshCw, ShieldCheck, Loader2 } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { AdjustmentDriftPanel } from "@/components/AdjustmentDriftPanel";
+import { InvariantDigestPanel } from "@/components/InvariantDigestPanel";
 
 type DriftRow = {
   id: string;
@@ -182,7 +183,11 @@ export default function PlatformDataIntegrity() {
           <TabsList>
             <TabsTrigger value="settlement">Settlement drift</TabsTrigger>
             <TabsTrigger value="adjustment">Adjustment drift</TabsTrigger>
+            <TabsTrigger value="invariants">Invariants</TabsTrigger>
           </TabsList>
+          <TabsContent value="invariants" className="space-y-4">
+            <InvariantDigestPanel />
+          </TabsContent>
           <TabsContent value="settlement" className="space-y-4">
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
           <Card><CardHeader className="pb-1"><CardTitle className="text-xs text-muted-foreground">Open drifts</CardTitle></CardHeader>
