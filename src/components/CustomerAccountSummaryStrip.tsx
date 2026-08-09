@@ -98,36 +98,39 @@ export function CustomerAccountSummaryStrip({
           {/* Visible arithmetic — not four detached cards */}
           <div
             className={cn(
-              "flex flex-wrap items-baseline gap-x-1.5 gap-y-1 font-medium tabular-nums",
-              compact ? "text-sm" : "text-base",
+              "flex flex-wrap items-baseline gap-x-2 gap-y-1 tabular-nums font-mono",
+              compact ? "text-base leading-snug" : "text-lg leading-snug",
             )}
           >
             <span className="text-foreground">
-              <span className="text-muted-foreground font-normal text-xs mr-1">Customer owes</span>
-              {formatAccountInr(state.outstanding)}
+              <span className="text-muted-foreground font-sans font-normal text-xs mr-1.5">
+                Customer owes
+              </span>
+              <span className="font-bold">{formatAccountInr(state.outstanding)}</span>
               <span className="sr-only"> (Outstanding)</span>
             </span>
-            <span className="text-muted-foreground font-normal" aria-hidden>
+            <span className="text-muted-foreground font-sans font-normal" aria-hidden>
               −
             </span>
             <span className="text-foreground">
-              <span className="text-muted-foreground font-normal text-xs mr-1">Advance held</span>
-              {formatAccountInr(state.unusedAdvance)}
+              <span className="text-muted-foreground font-sans font-normal text-xs mr-1.5">
+                Advance held
+              </span>
+              <span className="font-bold">{formatAccountInr(state.unusedAdvance)}</span>
               <span className="sr-only"> (Unused Advance)</span>
             </span>
-            <span className="text-muted-foreground font-normal" aria-hidden>
+            <span className="text-muted-foreground font-sans font-normal" aria-hidden>
               =
             </span>
             <span
               className={cn(
-                "font-semibold",
                 netPositive && "text-destructive",
                 netCredit && "text-emerald-700 dark:text-emerald-400",
                 !netPositive && !netCredit && "text-foreground",
               )}
             >
-              <span className="text-muted-foreground font-normal text-xs mr-1">Net</span>
-              {netLabel}
+              <span className="text-muted-foreground font-sans font-normal text-xs mr-1.5">Net</span>
+              <span className="font-bold">{netLabel}</span>
               <span className="sr-only"> (Net Position)</span>
             </span>
           </div>

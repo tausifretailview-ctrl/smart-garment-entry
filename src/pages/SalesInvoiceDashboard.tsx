@@ -36,7 +36,7 @@ import { SkeletonMobileListRows, SkeletonTableRows } from "@/components/skeleton
 import { SALES_INVOICE_TABLE_SKELETON_COLUMNS } from "@/components/skeletons/dashboardSkeletonPresets";
 import { QuietRefreshBar, useQuietRefreshActive } from "@/components/QuietRefreshBar";
 
-import { Search, Printer, Edit, ChevronDown, ChevronUp, Trash2, Loader2, MessageCircle, Link2, Settings2, Package, IndianRupee, Send, FileText, TrendingUp, CheckCircle2, Clock, CalendarIcon, Download, Percent, Zap, FileDown, Lock, X, Plus, RefreshCw, Copy, Ban, Eye, MoreHorizontal, FileSpreadsheet, User, Phone, AlertTriangle, Receipt } from "lucide-react";
+import { Search, Printer, Edit, ChevronDown, ChevronUp, Trash2, Loader2, MessageCircle, Link2, Settings2, Package, IndianRupee, Send, FileText, TrendingUp, CheckCircle2, Clock, CalendarIcon, Download, Percent, Zap, FileDown, Lock, X, Plus, RefreshCw, Copy, Ban, Eye, MoreHorizontal, FileSpreadsheet, User, Phone, AlertTriangle, Receipt, ShieldCheck } from "lucide-react";
 import * as XLSX from "xlsx";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { captureElementToPdfBase64 } from "@/utils/captureInvoicePdf";
@@ -93,7 +93,7 @@ import { useSoftDelete } from "@/hooks/useSoftDelete";
 import { useDraftSave } from "@/hooks/useDraftSave";
 import { useCustomerAdvances } from "@/hooks/useCustomerAdvances";
 import { BulkAdvanceAdjustDialog } from "@/components/BulkAdvanceAdjustDialog";
-import { SettleCustomerAccountDialog } from "@/components/SettleCustomerAccountDialog";
+import { CustomerAccountAuditDialog } from "@/components/CustomerAccountAuditDialog";
 import { InvoiceDashboardBulkBar } from "@/components/sales-invoice-dashboard/InvoiceDashboardBulkBar";
 import {
   invoiceOutstandingAmount,
@@ -542,9 +542,7 @@ export default function SalesInvoiceDashboard() {
   const [showBulkAdvanceDialog, setShowBulkAdvanceDialog] = useState(false);
   const [bulkAdvanceCustomer, setBulkAdvanceCustomer] = useState<{ id: string; name: string } | null>(null);
   const [bulkAdvanceBalance, setBulkAdvanceBalance] = useState<number>(0);
-  const [showSettleDialog, setShowSettleDialog] = useState(false);
-  const [settleCustomerId, setSettleCustomerId] = useState<string | null>(null);
-  const [settleCustomerName, setSettleCustomerName] = useState("");
+  const [showAccountAuditDialog, setShowAccountAuditDialog] = useState(false);
 
   // Context menu for desktop right-click
   const isDesktop = useIsDesktop();
@@ -3488,13 +3486,23 @@ export default function SalesInvoiceDashboard() {
           { label: "Qty", value: String(effectiveStats.totalQty), color: "text-emerald-600", bg: "bg-emerald-50" },
         ]} />
         {filteredCustomer && currentOrganization?.id && (
-          <div className="px-4 pt-1">
+          <div className="px-4 pt-1 space-y-1.5">
             <CustomerAccountSummaryStrip
               organizationId={currentOrganization.id}
               customerId={filteredCustomer.id}
               customerName={filteredCustomer.name}
               compact
+              hideAuditButton
             />
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 w-full text-sm border-emerald-400 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 font-medium gap-1.5"
+              onClick={() => setShowAccountAuditDialog(true)}
+            >
+              <ShieldCheck className="h-3.5 w-3.5" />
+              Check this account
+            </Button>
           </div>
         )}
 
@@ -4201,14 +4209,10 @@ export default function SalesInvoiceDashboard() {
                     variant="outline"
                     size="sm"
                     className="h-9 text-sm border-emerald-400 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 font-medium gap-1.5 flex-shrink-0"
-                    onClick={() => {
-                      setSettleCustomerId(filteredCustomer.id);
-                      setSettleCustomerName(filteredCustomer.name || "");
-                      setShowSettleDialog(true);
-                    }}
+                    onClick={() => setShowAccountAuditDialog(true)}
                   >
-                    <Receipt className="h-3.5 w-3.5" />
-                    Settle Account
+                    <ShieldCheck className="h-3.5 w-3.5" />
+                    Check this account
                   </Button>
                   {bulkAdvanceBalance > 0 && (
                     <Button
@@ -4235,6 +4239,7 @@ export default function SalesInvoiceDashboard() {
                   customerId={filteredCustomer.id}
                   customerName={filteredCustomer.name}
                   compact
+                  hideAuditButton
                 />
               </div>
             )}
@@ -5528,19 +5533,15 @@ export default function SalesInvoiceDashboard() {
           />
         )}
 
-        <SettleCustomerAccountDialog
-          open={showSettleDialog}
-          onOpenChange={setShowSettleDialog}
-          customerId={settleCustomerId}
-          customerName={settleCustomerName}
-          organizationId={currentOrganization?.id || ""}
-          onSuccess={() => {
-            setShowSettleDialog(false);
-            invalidateSalesQueriesNow(queryClient, currentOrganization?.id);
-            void queryClient.invalidateQueries({ queryKey: ["sales-invoice-dashboard"] });
-            queryClient.invalidateQueries({ queryKey: ["sales-invoices"] });
-          }}
-        />
+        {filteredCustomer && currentOrganization?.id && (
+          <CustomerAccountAuditDialog
+            open={showAccountAuditDialog}
+            onOpenChange={setShowAccountAuditDialog}
+            organizationId={currentOrganization.id}
+            customerId={filteredCustomer.id}
+            customerName={filteredCustomer.name}
+          />
+        )}
       </div>
   );
 }
