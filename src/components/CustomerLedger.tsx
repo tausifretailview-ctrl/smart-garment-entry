@@ -44,6 +44,12 @@ import {
   summarizeSignedBalanceFacets,
 } from "@/utils/organizationReceivables";
 import { useOrganizationReceivablesSummary } from "@/hooks/useOrganizationReceivablesSummary";
+import {
+  accountFacetStatus,
+  facetsFromInvoiceOutstanding,
+  formatNetFacetLabel,
+  summarizeAccountFacets,
+} from "@/utils/customerAccountFacets";
 import { useBusinessInfo } from "@/hooks/useSettings";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -1019,6 +1025,9 @@ export function CustomerLedger({
   const isCustomersBackgroundRefresh = isCustomersFetching && !isCustomersInitialLoad;
 
   const customersForList = customers;
+  /** Facet cards (Outstanding / Credit / Net) prefer the loaded customer list. */
+  const facetCardsLoading =
+    !isSchool && !(customersForList?.length) && orgReceivablesSummaryLoading;
 
   // Auto-select customer from URL or persisted session when list is loaded
   useEffect(() => {
@@ -2693,14 +2702,20 @@ export function CustomerLedger({
         customer.email?.toLowerCase().includes(searchLower)
       );
 
-      // Payment status filter
+      // Payment status filter — use Outstanding / Advance / Net facets (not invoice-only balance)
+      const facets = facetsFromInvoiceOutstanding(
+        customer.balance,
+        customer.unusedAdvanceTotal || 0,
+      );
+      const status = accountFacetStatus(facets);
       let matchesPaymentStatus = true;
       if (paymentStatusFilter === "outstanding") {
-        matchesPaymentStatus = customer.balance > 0;
+        matchesPaymentStatus = status === "outstanding";
       } else if (paymentStatusFilter === "settled") {
-        matchesPaymentStatus = customer.balance === 0;
+        matchesPaymentStatus = status === "settled";
       } else if (paymentStatusFilter === "advance") {
-        matchesPaymentStatus = customer.balance < 0;
+        matchesPaymentStatus =
+          status === "credit" || (customer.unusedAdvanceTotal || 0) > 0.5;
       }
 
       return matchesSearch && matchesPaymentStatus;
@@ -2879,7 +2894,7 @@ export function CustomerLedger({
     }
   }, [selectedCustomer, showOverpaymentRefundDialog]);
 
-  // KPI cards: org RPC for business (fast mount); school still derives from student list.
+  // KPI cards: same Outstanding / Credit / Net facets as the list (unused advance not double-counted).
   const summary = useMemo(() => {
     if (isSchool) {
       if (!filteredCustomers) {
@@ -2900,6 +2915,21 @@ export function CustomerLedger({
         netReceivable: facets.netReceivable,
       };
     }
+    const list = customersForList || [];
+    if (list.length > 0) {
+      const totals = summarizeAccountFacets(
+        list.map((c) =>
+          facetsFromInvoiceOutstanding(c.balance, c.unusedAdvanceTotal || 0),
+        ),
+      );
+      return {
+        totalCustomers: orgReceivablesSummary.customerCount ?? list.length,
+        totalOutstanding: totals.totalOutstandingDr,
+        totalReceivable: orgReceivablesSummary.totalSales ?? 0,
+        customerCreditPool: totals.totalCreditPoolCr,
+        netReceivable: totals.netReceivable,
+      };
+    }
     return {
       totalCustomers: orgReceivablesSummary.customerCount ?? 0,
       totalOutstanding: orgReceivablesSummary.grossReceivableDr ?? 0,
@@ -2907,21 +2937,28 @@ export function CustomerLedger({
       customerCreditPool: orgReceivablesSummary.customerCreditPoolCr ?? 0,
       netReceivable: orgReceivablesSummary.netReceivable ?? 0,
     };
-  }, [isSchool, filteredCustomers, orgReceivablesSummary]);
+  }, [isSchool, filteredCustomers, customersForList, orgReceivablesSummary]);
 
   // Export customer list to Excel
   const handleExportCustomerListExcel = useCallback(() => {
     if (!filteredCustomers.length) return;
-    const rows = filteredCustomers.map((c) => ({
-      "Customer Name": c.customer_name,
-      "Phone": c.phone || "",
-      "Email": c.email || "",
-      "Opening Balance": Math.round(c.opening_balance || 0),
-      "Total Sales": Math.round(c.totalSales),
-      "Total Paid": Math.round(c.totalPaid),
-      "Balance": Math.round(c.balance),
-      "Status": c.balance > 0 ? "Outstanding" : c.balance < 0 ? "Advance" : "Settled",
-    }));
+    const rows = filteredCustomers.map((c) => {
+      const f = facetsFromInvoiceOutstanding(c.balance, c.unusedAdvanceTotal || 0);
+      const status = accountFacetStatus(f);
+      return {
+        "Customer Name": c.customer_name,
+        Phone: c.phone || "",
+        Email: c.email || "",
+        "Opening Balance": Math.round(c.opening_balance || 0),
+        "Total Sales": Math.round(c.totalSales),
+        "Total Paid": Math.round(c.totalPaid),
+        Outstanding: f.outstanding,
+        "Unused Advance": f.unusedAdvance,
+        Net: f.netPosition,
+        Status:
+          status === "outstanding" ? "Outstanding" : status === "credit" ? "Credit" : "Settled",
+      };
+    });
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Customer Ledger");
@@ -2940,8 +2977,8 @@ export function CustomerLedger({
     doc.setFontSize(9);
     doc.text(`Date: ${format(new Date(), "dd/MM/yyyy")}  |  Customers: ${filteredCustomers.length}  |  Outstanding: ₹${Math.round(summary.totalOutstanding).toLocaleString("en-IN")}`, 14, 22);
 
-    const cols = ["#", "Customer Name", "Phone", "Total Sales", "Total Paid", "Balance", "Status"];
-    const colWidths = [10, 70, 35, 40, 40, 40, 30];
+    const cols = ["#", "Customer Name", "Phone", "Sales", "Paid", "Outstanding", "Advance", "Net", "Status"];
+    const colWidths = [8, 48, 28, 28, 28, 32, 28, 32, 24];
     let y = 30;
 
     // Header
@@ -2982,14 +3019,18 @@ export function CustomerLedger({
 
       doc.setFontSize(7.5);
       x = 14;
+      const f = facetsFromInvoiceOutstanding(c.balance, c.unusedAdvanceTotal || 0);
+      const status = accountFacetStatus(f);
       const row = [
         String(idx + 1),
-        c.customer_name.substring(0, 35),
-        (c.phone || "").substring(0, 15),
+        c.customer_name.substring(0, 28),
+        (c.phone || "").substring(0, 12),
         `₹${Math.round(c.totalSales).toLocaleString("en-IN")}`,
         `₹${Math.round(c.totalPaid).toLocaleString("en-IN")}`,
-        `₹${Math.round(c.balance).toLocaleString("en-IN")}`,
-        c.balance > 0 ? "Outstanding" : c.balance < 0 ? "Advance" : "Settled",
+        `₹${Math.round(f.outstanding).toLocaleString("en-IN")}`,
+        `₹${Math.round(f.unusedAdvance).toLocaleString("en-IN")}`,
+        formatNetFacetLabel(f.netPosition).replace("₹", ""),
+        status === "outstanding" ? "Dr" : status === "credit" ? "Cr" : "OK",
       ];
       row.forEach((val, i) => {
         doc.text(val, x + 2, y);
@@ -6059,15 +6100,15 @@ Please clear your dues at the earliest. Thank you!`;
                   {isSchool ? "Total Fees Due" : "Total Outstanding"}
                 </p>
                 <div className="text-2xl font-black text-white tabular-nums mt-0.5">
-                  {kpiCardsLoading ? (
+                  {facetCardsLoading ? (
                     <Skeleton className="h-8 w-28 bg-white/30" />
                   ) : (
                     <>₹{(summary.totalOutstanding ?? 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</>
                   )}
                 </div>
-                <p className="text-xs text-white/65 mt-0.5 truncate">
-                  {isSchool ? "Fees pending collection" : "Amount pending collection"}
-                </p>
+                    <p className="text-xs text-white/65 mt-0.5 truncate">
+                      {isSchool ? "Fees pending collection" : "Invoice outstanding (before advance)"}
+                    </p>
               </div>
               <div className="w-9 h-9 bg-white/20 rounded-lg flex items-center justify-center shrink-0">
                 <AlertCircle className="h-4 w-4 text-white" />
@@ -6115,13 +6156,13 @@ Please clear your dues at the earliest. Thank you!`;
                   <div className="min-w-0">
                     <p className="text-xs font-medium text-white/80">Net AR</p>
                     <div className="text-2xl font-black text-white tabular-nums mt-0.5">
-                      {kpiCardsLoading ? (
+                      {facetCardsLoading ? (
                         <Skeleton className="h-8 w-28 bg-white/30" />
                       ) : (
                         <>₹{(summary.netReceivable ?? 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</>
                       )}
                     </div>
-                    <p className="text-xs text-white/65 mt-0.5 truncate">Outstanding − credit pool</p>
+                    <p className="text-xs text-white/65 mt-0.5 truncate">Outstanding − advances held</p>
                   </div>
                   <div className="w-9 h-9 bg-white/20 rounded-lg flex items-center justify-center shrink-0">
                     <Scale className="h-4 w-4 text-white" />
@@ -6139,7 +6180,7 @@ Please clear your dues at the earliest. Thank you!`;
                   <div className="min-w-0">
                     <p className="text-xs font-medium text-white/80">Customer Credit Pool</p>
                     <div className="text-2xl font-black text-white tabular-nums mt-0.5">
-                      {kpiCardsLoading ? (
+                      {facetCardsLoading ? (
                         <Skeleton className="h-8 w-28 bg-white/30" />
                       ) : (
                         <>₹{(summary.customerCreditPool ?? 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</>
@@ -6298,7 +6339,13 @@ Please clear your dues at the earliest. Thank you!`;
                   No customers found
                 </div>
               ) : (
-                paginatedCustomers.map((customer) => (
+                paginatedCustomers.map((customer) => {
+                  const f = facetsFromInvoiceOutstanding(
+                    customer.balance,
+                    customer.unusedAdvanceTotal || 0,
+                  );
+                  const status = accountFacetStatus(f);
+                  return (
                   <Card 
                     key={customer.id}
                     className="cursor-pointer hover:shadow-md transition-shadow"
@@ -6325,37 +6372,42 @@ Please clear your dues at the earliest. Thank you!`;
                             </div>
                           )}
                         </div>
-                        {customer.balance > 0 && (
+                        {status === "outstanding" && (
                           <Badge variant="destructive" className="ml-2">Outstanding</Badge>
                         )}
-                        {customer.balance < 0 && (
-                          <Badge variant="default" className="bg-green-600 ml-2">Advance</Badge>
+                        {status === "credit" && (
+                          <Badge variant="default" className="bg-green-600 ml-2">Credit</Badge>
                         )}
-                        {customer.balance === 0 && (
+                        {status === "settled" && (
                           <Badge variant="outline" className="ml-2">Settled</Badge>
                         )}
                       </div>
-                      
-                      <div className="flex items-center justify-between mt-3 pt-3 border-t">
+                      <div className="grid grid-cols-3 gap-2 mt-3 pt-3 border-t">
                         <div className="text-center">
-                          <div className="text-xs text-muted-foreground">{isSchool ? 'Fees' : 'Sales'}</div>
-                          <div className="font-medium text-sm">₹{customer.totalSales.toLocaleString("en-IN")}</div>
-                        </div>
-                        <div className="text-center">
-                          <div className="text-xs text-muted-foreground">Paid</div>
-                          <div className="font-medium text-sm text-green-600 dark:text-green-400">₹{customer.totalPaid.toLocaleString("en-IN")}</div>
-                        </div>
-                        <div className="text-center">
-                          <div className="text-xs text-muted-foreground">Balance</div>
-                          <div className={cn(
-                            "font-bold text-sm",
-                            customer.balance > 0 ? "text-red-600 dark:text-red-400" : 
-                            customer.balance < 0 ? "text-green-600 dark:text-green-400" : 
-                            "text-foreground"
-                          )}>
-                            ₹{Math.abs(customer.balance).toLocaleString("en-IN")}
+                          <div className="text-xs text-muted-foreground">Outstanding</div>
+                          <div className="font-medium text-sm tabular-nums text-red-600 dark:text-red-400">
+                            ₹{Math.abs(f.outstanding).toLocaleString("en-IN")}
                           </div>
                         </div>
+                        <div className="text-center">
+                          <div className="text-xs text-muted-foreground">Advance</div>
+                          <div className="font-medium text-sm tabular-nums text-emerald-600 dark:text-emerald-400">
+                            ₹{f.unusedAdvance.toLocaleString("en-IN")}
+                          </div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-xs text-muted-foreground">Net</div>
+                          <div className={cn(
+                            "font-bold text-sm tabular-nums",
+                            f.netPosition > 0 ? "text-red-600 dark:text-red-400" :
+                            f.netPosition < 0 ? "text-green-600 dark:text-green-400" :
+                            "text-foreground"
+                          )}>
+                            {formatNetFacetLabel(f.netPosition)}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex justify-end mt-2">
                         <Button
                           variant="outline"
                           size="sm"
@@ -6369,7 +6421,8 @@ Please clear your dues at the earliest. Thank you!`;
                       </div>
                     </CardContent>
                   </Card>
-                ))
+                  );
+                })
               )}
             </div>
           ) : (
@@ -6382,7 +6435,9 @@ Please clear your dues at the earliest. Thank you!`;
                     <TableHead className={accountsHistoryThClass}>Contact</TableHead>
                     <TableHead className={cn(accountsHistoryThClass, "text-right")}>{isSchool ? "Total Fees" : "Total Sales"}</TableHead>
                     <TableHead className={cn(accountsHistoryThClass, "text-right")}>{isSchool ? "Fees Paid" : "Total Paid"}</TableHead>
-                    <TableHead className={cn(accountsHistoryThClass, "text-right")}>Balance</TableHead>
+                    <TableHead className={cn(accountsHistoryThClass, "text-right")}>Outstanding</TableHead>
+                    <TableHead className={cn(accountsHistoryThClass, "text-right")}>Advance</TableHead>
+                    <TableHead className={cn(accountsHistoryThClass, "text-right")}>Net</TableHead>
                     <TableHead className={cn(accountsHistoryThClass, "text-center")}>Status</TableHead>
                     <TableHead className={cn(accountsHistoryThClass, "text-right")}>Action</TableHead>
                   </TableRow>
@@ -6390,18 +6445,24 @@ Please clear your dues at the earliest. Thank you!`;
                 <TableBody>
                   {isCustomersInitialLoad ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                      <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
                         Loading customers...
                       </TableCell>
                     </TableRow>
                   ) : filteredCustomers.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                      <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
                         No customers found
                       </TableCell>
                     </TableRow>
                   ) : (
-                    paginatedCustomers.map((customer) => (
+                    paginatedCustomers.map((customer) => {
+                      const f = facetsFromInvoiceOutstanding(
+                        customer.balance,
+                        customer.unusedAdvanceTotal || 0,
+                      );
+                      const status = accountFacetStatus(f);
+                      return (
                       <TableRow 
                         key={customer.id}
                         className="cursor-pointer hover:bg-muted/50"
@@ -6434,28 +6495,34 @@ Please clear your dues at the earliest. Thank you!`;
                             )}
                           </div>
                         </TableCell>
-                        <TableCell className="text-right">
+                        <TableCell className="text-right tabular-nums">
                           ₹{customer.totalSales.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                         </TableCell>
-                        <TableCell className="text-right text-green-600 dark:text-green-400">
+                        <TableCell className="text-right tabular-nums text-green-600 dark:text-green-400">
                           ₹{customer.totalPaid.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                         </TableCell>
+                        <TableCell className="text-right tabular-nums font-medium text-red-600 dark:text-red-400">
+                          ₹{Math.abs(f.outstanding).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums font-medium text-emerald-600 dark:text-emerald-400">
+                          ₹{f.unusedAdvance.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                        </TableCell>
                         <TableCell className={cn(
-                          "text-right font-bold",
-                          customer.balance > 0 ? "text-red-600 dark:text-red-400" : 
-                          customer.balance < 0 ? "text-green-600 dark:text-green-400" : 
+                          "text-right font-bold tabular-nums",
+                          f.netPosition > 0 ? "text-red-600 dark:text-red-400" :
+                          f.netPosition < 0 ? "text-green-600 dark:text-green-400" :
                           "text-foreground"
                         )}>
-                          ₹{Math.abs(customer.balance).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                          {formatNetFacetLabel(f.netPosition)}
                         </TableCell>
                         <TableCell className="text-center">
-                          {customer.balance > 0 && (
+                          {status === "outstanding" && (
                             <Badge variant="destructive">Outstanding</Badge>
                           )}
-                          {customer.balance < 0 && (
-                            <Badge variant="default" className="bg-green-600">Advance</Badge>
+                          {status === "credit" && (
+                            <Badge variant="default" className="bg-green-600">Credit</Badge>
                           )}
-                          {customer.balance === 0 && (
+                          {status === "settled" && (
                             <Badge variant="outline">Settled</Badge>
                           )}
                         </TableCell>
@@ -6472,7 +6539,8 @@ Please clear your dues at the earliest. Thank you!`;
                           </Button>
                         </TableCell>
                       </TableRow>
-                    ))
+                      );
+                    })
                   )}
                 </TableBody>
               </Table>

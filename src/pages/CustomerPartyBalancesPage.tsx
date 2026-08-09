@@ -37,11 +37,15 @@ import {
   filterPartyBalanceRows,
   includeSettledInPartyBalanceList,
   partyBalanceDirection,
-  partyBalanceDisplayAmount,
   partyBalanceTotalPages,
   slicePartyBalancePage,
   type PartyDirectionFilter,
 } from "@/utils/customerPartyBalanceDisplay";
+import {
+  facetsFromPartySignedBalance,
+  formatNetFacetLabel,
+  summarizeAccountFacets,
+} from "@/utils/customerAccountFacets";
 
 export type CustomerPartyBalanceRow = {
   customer_id: string;
@@ -119,12 +123,16 @@ export default function CustomerPartyBalancesPage() {
     },
   });
 
+  /** Outstanding (unnetted) / Credit pool / Net — same facets as Customer Ledger. */
   const orgTotals = useMemo(() => {
-    const first = rows[0];
+    const facets = rows.map((r) =>
+      facetsFromPartySignedBalance(r.signed_balance, r.advance_available),
+    );
+    const t = summarizeAccountFacets(facets);
     return {
-      totalDr: Number(first?.total_dr ?? 0),
-      totalCr: Number(first?.total_cr ?? 0),
-      netReceivable: Number(first?.net_receivable ?? 0),
+      totalOutstandingDr: t.totalOutstandingDr,
+      totalCreditPoolCr: t.totalCreditPoolCr,
+      netReceivable: t.netReceivable,
     };
   }, [rows]);
 
@@ -199,22 +207,27 @@ export default function CustomerPartyBalancesPage() {
       [`Exported: ${exportedAt}`],
       [`Filter: ${filterLabel}${showSettled ? "" : " · settled hidden"}`],
       [],
-      ["Total Receivable (Dr)", fmtAmt(Math.abs(orgTotals.totalDr))],
-      ["Total Credit (Cr)", fmtAmt(Math.abs(orgTotals.totalCr))],
-      ["Net Receivable", fmtAmt(Math.abs(orgTotals.netReceivable))],
+      ["Total Outstanding (Dr)", fmtAmt(orgTotals.totalOutstandingDr)],
+      ["Total Credit / Advances (Cr)", fmtAmt(orgTotals.totalCreditPoolCr)],
+      ["Net Receivable", fmtAmt(orgTotals.netReceivable)],
       [],
-      ["Sr No", "Party Name", "Phone", "Amount", "Dr/Cr"],
-      ...filteredRows.map((row, index) => [
-        index + 1,
-        row.customer_name,
-        row.phone || "",
-        partyBalanceDisplayAmount(row.signed_balance),
-        partyBalanceDirection(row),
-      ]),
+      ["Sr No", "Party Name", "Phone", "Outstanding", "Advance", "Net", "Dr/Cr"],
+      ...filteredRows.map((row, index) => {
+        const f = facetsFromPartySignedBalance(row.signed_balance, row.advance_available);
+        return [
+          index + 1,
+          row.customer_name,
+          row.phone || "",
+          f.outstanding,
+          f.unusedAdvance,
+          f.netPosition,
+          partyBalanceDirection(row),
+        ];
+      }),
     ];
 
     const ws = XLSX.utils.aoa_to_sheet(sheetRows);
-    ws["!cols"] = [{ wch: 8 }, { wch: 36 }, { wch: 16 }, { wch: 14 }, { wch: 8 }];
+    ws["!cols"] = [{ wch: 8 }, { wch: 36 }, { wch: 16 }, { wch: 14 }, { wch: 12 }, { wch: 14 }, { wch: 8 }];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Customer Balances");
     XLSX.writeFile(wb, `Customer_Balances_${format(new Date(), "yyyy-MM-dd")}.xlsx`);
@@ -258,12 +271,13 @@ export default function CustomerPartyBalancesPage() {
       );
       y += 7;
 
-      doc.setFontSize(8);
+      doc.setFontSize(7);
       doc.setFont("helvetica", "bold");
       doc.text("Sr.", margin, y);
-      doc.text("Party Name", margin + 10, y);
-      doc.text("Phone", pageWidth - 78, y);
-      doc.text("Amount", pageWidth - 48, y, { align: "right" });
+      doc.text("Party", margin + 8, y);
+      doc.text("Outst.", pageWidth - 72, y, { align: "right" });
+      doc.text("Adv.", pageWidth - 50, y, { align: "right" });
+      doc.text("Net", pageWidth - 28, y, { align: "right" });
       doc.text("Dr/Cr", pageWidth - margin, y, { align: "right" });
       y += 1;
       doc.line(margin, y, pageWidth - margin, y);
@@ -281,15 +295,15 @@ export default function CustomerPartyBalancesPage() {
       }
 
       const direction = partyBalanceDirection(row);
-      const amount = partyBalanceDisplayAmount(row.signed_balance);
-      const name = row.customer_name.length > 42 ? `${row.customer_name.slice(0, 42)}…` : row.customer_name;
-      const phone = (row.phone || "").slice(0, 14);
+      const f = facetsFromPartySignedBalance(row.signed_balance, row.advance_available);
+      const name = row.customer_name.length > 28 ? `${row.customer_name.slice(0, 28)}…` : row.customer_name;
 
-      doc.setFontSize(8);
+      doc.setFontSize(7);
       doc.text(String(index + 1), margin, y);
-      doc.text(name, margin + 10, y);
-      doc.text(phone, pageWidth - 78, y);
-      doc.text(fmtAmt(amount), pageWidth - 48, y, { align: "right" });
+      doc.text(name, margin + 8, y);
+      doc.text(fmtAmt(f.outstanding), pageWidth - 72, y, { align: "right" });
+      doc.text(fmtAmt(f.unusedAdvance), pageWidth - 50, y, { align: "right" });
+      doc.text(fmtAmt(Math.abs(f.netPosition)), pageWidth - 28, y, { align: "right" });
       doc.text(direction, pageWidth - margin, y, { align: "right" });
       y += 5;
     });
@@ -302,14 +316,14 @@ export default function CustomerPartyBalancesPage() {
     doc.line(margin, y, pageWidth - margin, y);
     y += 5;
     doc.setFont("helvetica", "bold");
-    doc.text("Total Receivable (Dr)", margin, y);
-    doc.text(`₹${fmtAmt(Math.abs(orgTotals.totalDr))}`, pageWidth - margin, y, { align: "right" });
+    doc.text("Total Outstanding (Dr)", margin, y);
+    doc.text(`₹${fmtAmt(orgTotals.totalOutstandingDr)}`, pageWidth - margin, y, { align: "right" });
     y += 5;
-    doc.text("Total Credit (Cr)", margin, y);
-    doc.text(`₹${fmtAmt(Math.abs(orgTotals.totalCr))}`, pageWidth - margin, y, { align: "right" });
+    doc.text("Total Credit / Advances (Cr)", margin, y);
+    doc.text(`₹${fmtAmt(orgTotals.totalCreditPoolCr)}`, pageWidth - margin, y, { align: "right" });
     y += 5;
     doc.text("Net Receivable", margin, y);
-    doc.text(`₹${fmtAmt(Math.abs(orgTotals.netReceivable))}`, pageWidth - margin, y, { align: "right" });
+    doc.text(`₹${fmtAmt(orgTotals.netReceivable)}`, pageWidth - margin, y, { align: "right" });
 
     doc.save(`Customer_Balances_${format(new Date(), "yyyy-MM-dd")}.pdf`);
 
@@ -457,22 +471,25 @@ export default function CustomerPartyBalancesPage() {
         {/* Org totals — compact strip */}
         <div className="grid grid-cols-3 gap-2 w-full shrink-0">
           <div className="rounded-lg bg-gradient-to-br from-red-500 to-red-600 px-3 py-2 min-w-0 shadow-sm">
-            <p className="text-xs font-medium text-white/80 leading-none">Total Receivable (Dr)</p>
+            <p className="text-xs font-medium text-white/80 leading-none">Total Outstanding (Dr)</p>
             <p className="text-base sm:text-lg font-black text-white tabular-nums leading-tight mt-1 truncate">
-              ₹{fmtAmt(Math.abs(orgTotals.totalDr))}
+              ₹{fmtAmt(orgTotals.totalOutstandingDr)}
             </p>
+            <p className="text-[10px] text-white/70 mt-0.5 truncate">Invoice debt before advance</p>
           </div>
           <div className="rounded-lg bg-gradient-to-br from-emerald-500 to-emerald-600 px-3 py-2 min-w-0 shadow-sm">
             <p className="text-xs font-medium text-white/80 leading-none">Total Credit (Cr)</p>
             <p className="text-base sm:text-lg font-black text-white tabular-nums leading-tight mt-1 truncate">
-              ₹{fmtAmt(Math.abs(orgTotals.totalCr))}
+              ₹{fmtAmt(orgTotals.totalCreditPoolCr)}
             </p>
+            <p className="text-[10px] text-white/70 mt-0.5 truncate">Advances / credits held</p>
           </div>
           <div className="rounded-lg bg-gradient-to-br from-slate-600 to-slate-700 px-3 py-2 min-w-0 shadow-sm">
             <p className="text-xs font-medium text-white/80 leading-none">Net Receivable</p>
             <p className="text-base sm:text-lg font-black text-white tabular-nums leading-tight mt-1 truncate">
-              ₹{fmtAmt(Math.abs(orgTotals.netReceivable))}
+              {formatNetFacetLabel(orgTotals.netReceivable)}
             </p>
+            <p className="text-[10px] text-white/70 mt-0.5 truncate">Outstanding − advances</p>
           </div>
         </div>
 
@@ -558,14 +575,20 @@ export default function CustomerPartyBalancesPage() {
                 <Table className="[&_td]:px-4 [&_th]:px-4">
                   <TableHeader className="sticky top-0 z-10">
                     <TableRow className="bg-slate-800 hover:bg-slate-800 border-none">
-                      <TableHead className="h-10 w-[56px] text-xs font-bold uppercase tracking-wide text-white">
+                      <TableHead className="h-10 w-[48px] text-xs font-bold uppercase tracking-wide text-white">
                         Sr.
                       </TableHead>
                       <TableHead className="h-10 text-xs font-bold uppercase tracking-wide text-white">
                         Party Name
                       </TableHead>
-                      <TableHead className="h-10 text-right text-xs font-bold uppercase tracking-wide text-white w-[150px]">
-                        Amount
+                      <TableHead className="h-10 text-right text-xs font-bold uppercase tracking-wide text-white w-[120px]">
+                        Outstanding
+                      </TableHead>
+                      <TableHead className="h-10 text-right text-xs font-bold uppercase tracking-wide text-white w-[110px]">
+                        Advance
+                      </TableHead>
+                      <TableHead className="h-10 text-right text-xs font-bold uppercase tracking-wide text-white w-[130px]">
+                        Net
                       </TableHead>
                       <TableHead className="h-10 text-center text-xs font-bold uppercase tracking-wide text-white w-[72px]">
                         Dr/Cr
@@ -575,14 +598,17 @@ export default function CustomerPartyBalancesPage() {
                   <TableBody>
                     {filteredRows.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={4} className="h-20 text-center text-base text-muted-foreground">
+                        <TableCell colSpan={6} className="h-20 text-center text-base text-muted-foreground">
                           {rows.length === 0 ? "No customers found." : "No matching customers."}
                         </TableCell>
                       </TableRow>
                     ) : (
                       paginatedRows.map((row, index) => {
                         const direction = partyBalanceDirection(row);
-                        const displayAmount = partyBalanceDisplayAmount(row.signed_balance);
+                        const f = facetsFromPartySignedBalance(
+                          row.signed_balance,
+                          row.advance_available,
+                        );
                         const isDr = direction === "Dr";
                         const isCr = direction === "Cr";
                         const srNo = pageStart + index;
@@ -600,6 +626,12 @@ export default function CustomerPartyBalancesPage() {
                             <TableCell className="py-2.5 text-base font-medium">
                               {row.customer_name}
                             </TableCell>
+                            <TableCell className="py-2.5 text-right tabular-nums text-sm font-medium text-red-600 dark:text-red-400">
+                              {fmtAmt(Math.abs(f.outstanding))}
+                            </TableCell>
+                            <TableCell className="py-2.5 text-right tabular-nums text-sm font-medium text-emerald-600 dark:text-emerald-400">
+                              {fmtAmt(f.unusedAdvance)}
+                            </TableCell>
                             <TableCell
                               className={cn(
                                 "py-2.5 text-right tabular-nums text-base font-semibold",
@@ -607,7 +639,7 @@ export default function CustomerPartyBalancesPage() {
                                 isCr && "text-emerald-600 dark:text-emerald-400",
                               )}
                             >
-                              {fmtAmt(displayAmount)}
+                              {formatNetFacetLabel(f.netPosition)}
                             </TableCell>
                             <TableCell className="py-2.5 text-center">
                               <span
@@ -618,7 +650,7 @@ export default function CustomerPartyBalancesPage() {
                                   !isDr && !isCr && "bg-muted text-muted-foreground",
                                 )}
                               >
-                                {direction}
+                                {direction === "Settled" ? "—" : direction}
                               </span>
                             </TableCell>
                           </TableRow>
