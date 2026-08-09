@@ -1752,6 +1752,7 @@ export function CustomerPaymentTab({
                         customersWithBalance?.find((c) => c.id === referenceId)?.customer_name
                       }
                       compact={compact}
+                      hideAuditButton
                     />
                     {(() => {
                       if (balanceBannerLoading || lifetimeOutstanding === undefined) return null;
