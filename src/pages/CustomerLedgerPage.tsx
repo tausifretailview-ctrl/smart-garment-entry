@@ -919,6 +919,7 @@ export default function CustomerLedgerPage() {
                       (vtUp === "ADVANCE_APPLIED" || vtUp === "CN_APPLIED") &&
                       debit < 0.005 &&
                       credit < 0.005;
+                    const isRefundRow = vtUp.includes("REFUND");
                     const rowTone = isMemoApplicationRow
                       ? "bg-slate-50/80 dark:bg-muted/20"
                       : debit > 0
@@ -938,7 +939,19 @@ export default function CustomerLedgerPage() {
                           {r.voucher_no || "—"}
                         </TableCell>
                         <TableCell className="border px-3 py-1.5">
-                          {r.particulars || "—"}
+                          <div className="flex flex-wrap items-center gap-2">
+                            {isRefundRow && (
+                              <span className="rounded-full border border-rose-300 bg-rose-100 px-2 py-0.5 text-[11px] font-medium text-rose-700 dark:bg-rose-950/40 dark:text-rose-300">
+                                ↩ Refund paid to customer
+                              </span>
+                            )}
+                            {isMemoApplicationRow && (
+                              <span className="rounded-full border border-slate-300 bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                                Memo
+                              </span>
+                            )}
+                            <span>{r.particulars || "—"}</span>
+                          </div>
                         </TableCell>
                         <TableCell className="border px-3 py-1.5 text-right font-mono tabular-nums">
                           {debit > 0 ? fmtAmtCell(debit) : ""}
@@ -956,18 +969,26 @@ export default function CustomerLedgerPage() {
               </TableBody>
               {rows.length > 0 && (
                 <tfoot>
-                  <tr className="bg-slate-100 dark:bg-muted/50 font-semibold">
-                    <td colSpan={4} className="border px-3 py-2 text-right text-xs uppercase">
-                      Totals
+                  <tr className="bg-slate-50 dark:bg-muted/30 text-muted-foreground">
+                    <td colSpan={4} className="border px-3 py-2 text-right text-[11px] uppercase">
+                      Column totals (Dr / Cr)
                     </td>
-                    <td className="border px-3 py-2 text-right font-mono tabular-nums">
+                    <td className="border px-3 py-2 text-right font-mono text-xs tabular-nums">
                       {fmtAmtBalance(totalDebit)}
                     </td>
-                    <td className="border px-3 py-2 text-right font-mono tabular-nums">
+                    <td className="border px-3 py-2 text-right font-mono text-xs tabular-nums">
                       {fmtAmtBalance(totalCredit)}
                     </td>
-                    <td className="border px-3 py-2 text-right font-mono tabular-nums">
-                      {fmtAmtBalance(closing)} {closing >= 0 ? "Dr" : "Cr"}
+                    <td className="border px-3 py-2 text-right font-mono text-xs tabular-nums">
+                      {fmtAmtBalance(Math.abs(totalDebit - totalCredit))}{" "}
+                      {totalDebit - totalCredit >= 0 ? "Dr" : "Cr"} diff
+                    </td>
+                  </tr>
+                  <tr className="bg-slate-50 dark:bg-muted/30">
+                    <td colSpan={7} className="border px-3 py-1.5 text-[11px] leading-snug text-muted-foreground">
+                      Column totals include advance receipts and refunds — they are not what the customer owes. Rows marked
+                      {" "}<span className="font-medium">Memo</span> (advance / credit-note applications) are tracing entries only and are
+                      excluded from the Dr / Cr columns.
                     </td>
                   </tr>
                 </tfoot>

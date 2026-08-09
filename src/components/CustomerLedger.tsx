@@ -2252,7 +2252,8 @@ export function CustomerLedger({
             linkedSaleNumber = voucher.description?.replace('Adjusted from advance balance for ', '') || '';
           }
 
-          const memo = ` [Memo only — ₹${amount.toLocaleString("en-IN")} excluded from Dr/Cr totals]`;
+          // Short marker only — explained once in the ledger legend (in-app + PDF).
+          const memo = ` [Memo — ₹${amount.toLocaleString("en-IN")}]`;
           const description = isCnApply
             ? linkedSaleNumber
               ? cleanDescription(`Credit note applied to ${linkedSaleNumber}${memo}`)
@@ -3257,7 +3258,8 @@ export function CustomerLedger({
         // Phase 1.2: include mis-tagged customer rows pointing at this customer's sales,
         // plus customer-scoped opening-balance advance applications (reference_id = customer id).
         .in("reference_type", ["sale", "customer"])
-        .in("payment_method", ["advance_adjustment", "credit_note_adjustment"])
+        // Payment method is filtered client-side: legacy imports tagged advance
+        // applications as `cash`, and they must still appear in the applied table.
         .is("deleted_at", null)
         .in("reference_id", refIds.length > 0 ? refIds : sentinel);
       if (startDate) vq = vq.gte("voucher_date", format(startDate, "yyyy-MM-dd"));
@@ -3286,7 +3288,14 @@ export function CustomerLedger({
       for (const v of vouchers || []) {
         const pm = String(v.payment_method || "").toLowerCase();
         const refId = String(v.reference_id || "");
-        if (pm === "advance_adjustment") {
+        // Legacy imports tagged advance applications as `cash`; the description still
+        // marks them ("Adjusted from advance balance ..."). Display-only inclusion so
+        // the applied table matches the amount already inside Advance Adjusted.
+        const legacyAdvanceApply =
+          pm !== "advance_adjustment" &&
+          pm !== "credit_note_adjustment" &&
+          /from advance/i.test(String(v.description || ""));
+        if (pm === "advance_adjustment" || legacyAdvanceApply) {
           if (refId === custId || saleNumById.has(refId)) {
             advanceRows.push(mapRow(v));
           }
@@ -3882,18 +3891,10 @@ Please clear your dues at the earliest. Thank you!`;
       { text: "", color: LEDGER_PDF.text },
       { text: "", color: LEDGER_PDF.text },
       { text: "", color: LEDGER_PDF.text },
-      { text: "TOTAL", color: LEDGER_PDF.text },
-      { text: `Rs. ${Math.round(transactionTotals.totalDebit).toLocaleString("en-IN")}`, color: LEDGER_PDF.debit },
-      { text: `Rs. ${Math.round(transactionTotals.totalCredit).toLocaleString("en-IN")}`, color: LEDGER_PDF.credit },
-      {
-        text: closingStr,
-        color:
-          closingBalance > 0
-            ? LEDGER_PDF.balanceDr
-            : closingBalance < 0
-              ? LEDGER_PDF.balanceCr
-              : LEDGER_PDF.balanceSettled,
-      },
+      { text: "COLUMN TOTALS (Dr / Cr)", color: LEDGER_PDF.muted },
+      { text: `Rs. ${Math.round(transactionTotals.totalDebit).toLocaleString("en-IN")}`, color: LEDGER_PDF.muted },
+      { text: `Rs. ${Math.round(transactionTotals.totalCredit).toLocaleString("en-IN")}`, color: LEDGER_PDF.muted },
+      { text: `${closingStr} diff`, color: LEDGER_PDF.muted },
     ];
     totalsSpecs.forEach((cell, i) => {
       pdfSetText(doc, cell.color);
@@ -3934,12 +3935,21 @@ Please clear your dues at the earliest. Thank you!`;
       invoiceOutstanding > 0
         ? "Outstanding (Dr)"
         : invoiceOutstanding < 0
-          ? "Party balance (Cr)"
-          : "Settled";
+          ? "Outstanding (Cr)"
+          : "Outstanding (Nil)";
+    const pdfUnusedAdvance = Math.max(
+      0,
+      Math.round(selectedCustomer?.unusedAdvanceTotal ?? 0),
+    );
+    const pdfPoolUnclamped = Math.round(
+      (reconciliation.advanceCredit || 0) -
+        (reconciliation.advanceApplied || 0) -
+        (reconciliation.advanceRefunded || 0),
+    );
+    const pdfPoolFloored = pdfPoolUnclamped < pdfUnusedAdvance - 0.5;
+    const pdfNetPosition = Math.round(invoiceOutstanding - pdfUnusedAdvance);
     const noteLines =
-      reconciliation.advanceRefunded > 0
-        ? 1
-        : 0;
+      2 + (pdfPoolFloored ? 1 : 0) + (reconciliation.advanceRefunded > 0 ? 1 : 0) + 1;
     const reconBoxH = 8 + reconLines.length * 5 + 8 + noteLines * 5;
     pdfSetFill(doc, LEDGER_PDF.reconBg);
     pdfSetDraw(doc, LEDGER_PDF.reconBorder);
@@ -3973,16 +3983,63 @@ Please clear your dues at the earliest. Thank you!`;
     doc.text(finalLabel, labelX, yPos + 1);
     doc.text(`Rs. ${Math.abs(Math.round(invoiceOutstanding)).toLocaleString("en-IN")}`, valueX, yPos + 1);
     yPos += 6;
-    if (reconciliation.advanceRefunded > 0) {
+    doc.setFont("helvetica", "normal");
+    pdfSetText(doc, LEDGER_PDF.text);
+    doc.text("(-) Unused Advance", labelX, yPos + 1);
+    doc.text(`Rs. ${pdfUnusedAdvance.toLocaleString("en-IN")}`, valueX, yPos + 1);
+    yPos += 5;
+    doc.setFont("helvetica", "bold");
+    pdfSetText(
+      doc,
+      pdfNetPosition > 0
+        ? LEDGER_PDF.balanceDr
+        : pdfNetPosition < 0
+          ? LEDGER_PDF.balanceCr
+          : LEDGER_PDF.balanceSettled,
+    );
+    doc.text(
+      `(=) Net Position (${pdfNetPosition > 0 ? "Dr" : pdfNetPosition < 0 ? "Cr" : "Nil"})`,
+      labelX,
+      yPos + 1,
+    );
+    doc.text(`Rs. ${Math.abs(pdfNetPosition).toLocaleString("en-IN")}`, valueX, yPos + 1);
+    yPos += 6;
+    if (pdfPoolFloored) {
       doc.setFont("helvetica", "normal");
-      pdfSetText(doc, LEDGER_PDF.muted);
+      pdfSetText(doc, LEDGER_PDF.balanceDr);
       doc.text(
-        `Note: Advance refunded out Rs. ${Math.round(reconciliation.advanceRefunded).toLocaleString("en-IN")} (unused advance; not in Outstanding)`,
+        `Note: Unused Advance floored at booking residual. Unclamped pool Rs. ${pdfPoolUnclamped.toLocaleString("en-IN")} (shortfall Rs. ${Math.abs(pdfUnusedAdvance - pdfPoolUnclamped).toLocaleString("en-IN")}) - needs review.`,
         labelX,
         yPos + 1,
       );
       yPos += 5;
     }
+    if (reconciliation.advanceRefunded > 0) {
+      doc.setFont("helvetica", "normal");
+      pdfSetText(doc, LEDGER_PDF.muted);
+      doc.text(
+        `Note: Advance refunded out to customer Rs. ${Math.round(reconciliation.advanceRefunded).toLocaleString("en-IN")} (not in Outstanding)`,
+        labelX,
+        yPos + 1,
+      );
+      yPos += 5;
+    }
+    doc.setFont("helvetica", "normal");
+    pdfSetText(doc, LEDGER_PDF.muted);
+    doc.setFontSize(7);
+    doc.text(
+      "Legend: [Memo] rows (advance / credit-note applications) are tracing entries only and are excluded from the Dr / Cr columns.",
+      labelX,
+      yPos + 1,
+    );
+    yPos += 5;
+    doc.text(
+      "Column totals above include advance receipts and refunds - they are not what the customer owes.",
+      labelX,
+      yPos + 1,
+    );
+    doc.setFontSize(9);
+    yPos += 5;
     yPos += 4;
 
     yPos += 6;
@@ -5020,6 +5077,13 @@ Please clear your dues at the earliest. Thank you!`;
                                       CN Used
                                     </span>
                                   </div>
+                                ) : transaction.type === 'adv_refund' || transaction.type === 'cn_refund' || transaction.type === 'refund' ? (
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="text-xs rounded-full border border-rose-300 bg-rose-100 px-2 py-0.5 font-medium text-rose-700 dark:bg-rose-950/40 dark:text-rose-300">
+                                      ↩ Refund paid to customer
+                                    </span>
+                                    <span className="text-muted-foreground">{cleanDescription(transaction.description || "")}</span>
+                                  </div>
                                 ) : (
                                   <div className="text-muted-foreground">{cleanDescription(transaction.description || "")}</div>
                                 )}
@@ -5139,27 +5203,35 @@ Please clear your dues at the earliest. Thank you!`;
                           </TableRow>
                         ))
                       )}
-                      {/* Totals Row */}
+                      {/* Column totals — bookkeeping check, NOT what the customer owes. */}
                       {!ledgerLoading && ledgerRows.length > 0 && (
-                        <TableRow className="bg-slate-100 dark:bg-slate-800 font-bold border-t-2 border-slate-300 dark:border-slate-600">
-                          <TableCell colSpan={4} className="text-right text-sm font-bold uppercase tracking-wide text-slate-600 dark:text-slate-400">
-                            Totals
-                          </TableCell>
-                          <TableCell className="text-right text-red-600 dark:text-red-400">
-                            ₹{transactionTotals.totalDebit.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-                          </TableCell>
-                          <TableCell className="text-right text-emerald-700 dark:text-emerald-300 font-semibold">
-                            ₹{transactionTotals.totalCredit.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-                          </TableCell>
-                          <TableCell className={cn(
-                            "text-right",
-                            ledgerRows[ledgerRows.length - 1].balance > 0 ? "text-red-600 dark:text-red-400" : 
-                            ledgerRows[ledgerRows.length - 1].balance < 0 ? "text-emerald-700 dark:text-emerald-300" : 
-                            "text-foreground"
-                          )}>
-                            ₹{Math.abs(ledgerRows[ledgerRows.length - 1].balance).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-                          </TableCell>
-                        </TableRow>
+                        <>
+                          <TableRow className="bg-slate-50 dark:bg-slate-900/40 border-t border-slate-300 dark:border-slate-600">
+                            <TableCell colSpan={4} className="text-right text-[11px] font-normal uppercase tracking-wide text-muted-foreground">
+                              Column totals (Dr / Cr)
+                            </TableCell>
+                            <TableCell className="text-right text-xs font-medium text-muted-foreground tabular-nums">
+                              ₹{transactionTotals.totalDebit.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                            </TableCell>
+                            <TableCell className="text-right text-xs font-medium text-muted-foreground tabular-nums">
+                              ₹{transactionTotals.totalCredit.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                            </TableCell>
+                            <TableCell className="text-right text-xs font-medium text-muted-foreground tabular-nums">
+                              ₹{Math.abs(
+                                Math.round(transactionTotals.totalDebit - transactionTotals.totalCredit),
+                              ).toLocaleString("en-IN")}{" "}
+                              {transactionTotals.totalDebit - transactionTotals.totalCredit >= 0 ? "Dr" : "Cr"} diff
+                            </TableCell>
+                          </TableRow>
+                          <TableRow className="bg-slate-50 dark:bg-slate-900/40 hover:bg-slate-50">
+                            <TableCell colSpan={7} className="py-1 text-[11px] leading-snug text-muted-foreground">
+                              Column totals include advance receipts and refunds. See Balance Reconciliation below for what the customer owes.
+                              {" · "}
+                              Rows marked <span className="font-medium">[Memo]</span> (advance / credit-note applications) are shown for
+                              tracing only and are excluded from the Dr / Cr columns.
+                            </TableCell>
+                          </TableRow>
+                        </>
                       )}
                     </TableBody>
                   </Table>
@@ -5186,6 +5258,15 @@ Please clear your dues at the earliest. Thank you!`;
                       const cnRefunded = reconciliation.cnRefunded;
                       // Same arithmetic as printed settlement lines (not last-row running balance).
                       const outstanding = reconciliation.invoiceOutstanding;
+                      const unusedAdvance = Math.max(0, Math.round(ledgerDerivedStats?.advanceBalance ?? 0));
+                      // Unclamped advance-pool position: received − applied − refunded.
+                      const poolUnclamped = Math.round(
+                        (reconciliation.advanceCredit || 0) -
+                          (reconciliation.advanceApplied || 0) -
+                          (reconciliation.advanceRefunded || 0),
+                      );
+                      const poolIsFloored = poolUnclamped < unusedAdvance - 0.5;
+                      const netPosition = Math.round(outstanding - unusedAdvance);
                       return (
                     <div className="space-y-1.5 text-sm tabular-nums max-w-md">
                       <div className="flex justify-between">
@@ -5249,12 +5330,33 @@ Please clear your dues at the earliest. Thank you!`;
                         outstanding < 0 ? "text-emerald-700 dark:text-emerald-300" :
                         "text-foreground"
                       )}>
-                        <span>Outstanding ({outstanding > 0 ? 'Dr' : outstanding < 0 ? 'Cr' : 'Settled'})</span>
+                        <span>Outstanding ({outstanding > 0 ? 'Dr' : outstanding < 0 ? 'Cr' : 'Nil'})</span>
                         <span>₹{Math.abs(Math.round(outstanding)).toLocaleString("en-IN")}</span>
                       </div>
+                      <div className="flex justify-between text-teal-700 dark:text-teal-400 font-medium">
+                        <span>(−) Unused Advance</span>
+                        <span>₹{unusedAdvance.toLocaleString("en-IN")}</span>
+                      </div>
+                      <div className={cn(
+                        "flex justify-between border-t pt-1.5 text-base font-bold",
+                        netPosition > 0 ? "text-red-600 dark:text-red-400" :
+                        netPosition < 0 ? "text-emerald-700 dark:text-emerald-300" :
+                        "text-foreground"
+                      )}>
+                        <span>(=) Net Position ({netPosition > 0 ? 'Dr' : netPosition < 0 ? 'Cr' : 'Nil'})</span>
+                        <span>₹{Math.abs(netPosition).toLocaleString("en-IN")}</span>
+                      </div>
+                      {poolIsFloored && (
+                        <div className="rounded border border-amber-300 bg-amber-50 dark:bg-amber-950/30 px-2 py-1 text-[11px] text-amber-800 dark:text-amber-300">
+                          Unused Advance is floored at the per-booking residual (₹{unusedAdvance.toLocaleString("en-IN")}).
+                          Unclamped advance pool (received − applied − refunded) is
+                          {" "}₹{poolUnclamped.toLocaleString("en-IN")} — a shortfall of
+                          {" "}₹{Math.abs(unusedAdvance - poolUnclamped).toLocaleString("en-IN")} needs review.
+                        </div>
+                      )}
                       {advanceRefunded > 0 && (
                         <div className="flex justify-between text-muted-foreground pt-1 text-xs">
-                          <span>Advance Refunded Out (unused advance; not in Outstanding)</span>
+                          <span>Advance refunded out to customer (not in Outstanding)</span>
                           <span className="font-medium">₹{Math.round(advanceRefunded).toLocaleString("en-IN")}</span>
                         </div>
                       )}
