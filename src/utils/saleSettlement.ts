@@ -112,9 +112,46 @@ export const CN_ADJUST_ALLOWED_CALLERS = [
   "AdjustCustomerCreditNoteDialog.tsx",
 ] as const;
 
+/** True when Postgres rejected a voucher_number that already exists (active unique). */
+export function isVoucherNumberUniqueViolation(err: unknown): boolean {
+  const e = err as { code?: string; message?: string } | null;
+  if (!e) return false;
+  if (e.code === "23505") {
+    const msg = String(e.message || "");
+    return (
+      msg.includes("uq_voucher_entries_number_active") ||
+      msg.includes("voucher_number") ||
+      /duplicate key/i.test(msg)
+    );
+  }
+  return /uq_voucher_entries_number_active/i.test(String(e.message || ""));
+}
+
+/**
+ * After a unique collision, keep multi-invoice / OB suffixes (-1, -OB) on a fresh base.
+ * `RCP/26-27/100-1` + newBase `RCP/26-27/105` → `RCP/26-27/105-1`
+ */
+export function voucherNumberWithRegeneratedBase(
+  previousNumber: string | undefined,
+  newBase: string,
+): string {
+  if (!previousNumber) return newBase;
+  const m = previousNumber.match(
+    /^(RCP|PAY|EXP|JV|CNT|RF|ARF)\/\d{2}-\d{2}\/\d+(-[A-Za-z0-9]+)?$/i,
+  );
+  if (!m) return newBase;
+  return `${newBase}${m[2] || ""}`;
+}
+
+const RECEIPT_VOUCHER_NUMBER_MAX_ATTEMPTS = 8;
+
 /**
  * Create a voucher_entries receipt row.
  * Invoice-linked receipts always use reference_type = 'sale'.
+ *
+ * Retries on `uq_voucher_entries_number_active`: generate_voucher_number's
+ * advisory lock ends when the RPC returns, so two concurrent cashiers can still
+ * be handed the same RCP before either INSERT lands (TOCTOU).
  */
 export async function createReceiptVoucher(
   supabase: SupabaseClient,
@@ -128,47 +165,68 @@ export async function createReceiptVoucher(
   const referenceType = params.referenceType ?? "sale";
   const voucherDate = params.voucherDate || new Date().toISOString().split("T")[0];
 
-  let voucherNumber = params.voucherNumber;
-  if (!voucherNumber) {
-    const { data: generated, error: numErr } = await supabase.rpc("generate_voucher_number", {
-      p_type: "receipt",
-      p_date: voucherDate,
-    });
-    if (numErr) throw numErr;
-    voucherNumber = String(generated);
+  let lastError: unknown;
+  for (let attempt = 0; attempt < RECEIPT_VOUCHER_NUMBER_MAX_ATTEMPTS; attempt++) {
+    let voucherNumber = params.voucherNumber;
+    if (!voucherNumber || attempt > 0) {
+      const { data: generated, error: numErr } = await supabase.rpc("generate_voucher_number", {
+        p_type: "receipt",
+        p_date: voucherDate,
+      });
+      if (numErr) throw numErr;
+      const newBase = String(generated);
+      voucherNumber =
+        attempt > 0
+          ? voucherNumberWithRegeneratedBase(params.voucherNumber, newBase)
+          : newBase;
+    }
+
+    const insertRow: Record<string, unknown> = {
+      organization_id: params.organizationId,
+      voucher_type: "receipt",
+      voucher_number: voucherNumber,
+      voucher_date: voucherDate,
+      reference_type: referenceType,
+      reference_id: params.referenceId,
+      total_amount: params.amount,
+      discount_amount: params.discountAmount ?? 0,
+      payment_method: params.paymentMethod,
+      description: params.description,
+    };
+    if (params.receivingBankAccountId) {
+      insertRow.receiving_bank_account_id = params.receivingBankAccountId;
+    }
+    if (params.discountReason != null) {
+      insertRow.discount_reason = params.discountReason;
+    }
+    if (params.createdBy) {
+      insertRow.created_by = params.createdBy;
+    }
+
+    const { data, error } = await supabase
+      .from("voucher_entries")
+      .insert(insertRow as never)
+      .select("id, voucher_number")
+      .single();
+
+    if (!error && data?.id) {
+      return { id: data.id as string, voucher_number: data.voucher_number as string };
+    }
+    if (!error && !data?.id) {
+      throw new Error("Receipt voucher insert failed");
+    }
+    lastError = error;
+    if (!isVoucherNumberUniqueViolation(error)) throw error;
   }
 
-  const insertRow: Record<string, unknown> = {
-    organization_id: params.organizationId,
-    voucher_type: "receipt",
-    voucher_number: voucherNumber,
-    voucher_date: voucherDate,
-    reference_type: referenceType,
-    reference_id: params.referenceId,
-    total_amount: params.amount,
-    discount_amount: params.discountAmount ?? 0,
-    payment_method: params.paymentMethod,
-    description: params.description,
-  };
-  if (params.receivingBankAccountId) {
-    insertRow.receiving_bank_account_id = params.receivingBankAccountId;
-  }
-  if (params.discountReason != null) {
-    insertRow.discount_reason = params.discountReason;
-  }
-  if (params.createdBy) {
-    insertRow.created_by = params.createdBy;
-  }
-
-  const { data, error } = await supabase
-    .from("voucher_entries")
-    .insert(insertRow as never)
-    .select("id, voucher_number")
-    .single();
-
-  if (error) throw error;
-  if (!data?.id) throw new Error("Receipt voucher insert failed");
-  return { id: data.id as string, voucher_number: data.voucher_number as string };
+  throw lastError instanceof Error
+    ? lastError
+    : new Error(
+        String(
+          (lastError as { message?: string })?.message ||
+            "Failed to allocate a unique receipt voucher number",
+        ),
+      );
 }
 
 export type ConsumeAdvanceFIFOParams = {
