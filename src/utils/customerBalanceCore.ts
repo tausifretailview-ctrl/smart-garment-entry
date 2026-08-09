@@ -322,7 +322,12 @@ export function computeCustomerBalanceCore(params: CustomerBalanceCoreParams): C
     (sum, r) => sum + Number(r.refund_amount || 0),
     0,
   );
-  const unusedAdvance = Math.max(0, totalAdvanceReceived - totalAdvanceUsed - advanceRefundedTotal);
+  // Per-booking residual. `used_amount` already absorbs refunds (createAdvanceRefund bumps it),
+  // so subtracting advanceRefundedTotal again double-counted and clamped real credit to 0.
+  const unusedAdvance = params.customerAdvances.reduce(
+    (sum, a) => sum + Math.max(0, Number(a.amount || 0) - Number(a.used_amount || 0)),
+    0,
+  );
 
   const openingBalance = Number(params.openingBalance || 0);
 

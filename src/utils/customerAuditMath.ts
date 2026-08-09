@@ -102,9 +102,11 @@ function computeCustomerOutstandingLegacyAudit(
     (sum, r) => sum + Number(r.refund_amount || 0),
     0,
   );
-  const unusedAdvance = Math.max(
+  // Per-booking residual; `used_amount` already includes refunds, so refunds are not
+  // subtracted a second time here (that produced a phantom ₹0 advance).
+  const unusedAdvance = params.customerAdvances.reduce(
+    (sum, a) => sum + Math.max(0, Number(a.amount || 0) - Number(a.used_amount || 0)),
     0,
-    totalAdvanceReceived - totalAdvanceUsed - advanceRefundedTotal,
   );
 
   const outstanding =
