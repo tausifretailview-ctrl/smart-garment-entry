@@ -3927,12 +3927,21 @@ Please clear your dues at the earliest. Thank you!`;
       invoiceOutstanding > 0
         ? "Outstanding (Dr)"
         : invoiceOutstanding < 0
-          ? "Party balance (Cr)"
-          : "Settled";
+          ? "Outstanding (Cr)"
+          : "Outstanding (Nil)";
+    const pdfUnusedAdvance = Math.max(
+      0,
+      Math.round(selectedCustomer?.unusedAdvanceTotal ?? 0),
+    );
+    const pdfPoolUnclamped = Math.round(
+      (reconciliation.advanceCredit || 0) -
+        (reconciliation.advanceApplied || 0) -
+        (reconciliation.advanceRefunded || 0),
+    );
+    const pdfPoolFloored = pdfPoolUnclamped < pdfUnusedAdvance - 0.5;
+    const pdfNetPosition = Math.round(invoiceOutstanding - pdfUnusedAdvance);
     const noteLines =
-      reconciliation.advanceRefunded > 0
-        ? 1
-        : 0;
+      2 + (pdfPoolFloored ? 1 : 0) + (reconciliation.advanceRefunded > 0 ? 1 : 0) + 1;
     const reconBoxH = 8 + reconLines.length * 5 + 8 + noteLines * 5;
     pdfSetFill(doc, LEDGER_PDF.reconBg);
     pdfSetDraw(doc, LEDGER_PDF.reconBorder);
@@ -3966,16 +3975,63 @@ Please clear your dues at the earliest. Thank you!`;
     doc.text(finalLabel, labelX, yPos + 1);
     doc.text(`Rs. ${Math.abs(Math.round(invoiceOutstanding)).toLocaleString("en-IN")}`, valueX, yPos + 1);
     yPos += 6;
-    if (reconciliation.advanceRefunded > 0) {
+    doc.setFont("helvetica", "normal");
+    pdfSetText(doc, LEDGER_PDF.text);
+    doc.text("(-) Unused Advance", labelX, yPos + 1);
+    doc.text(`Rs. ${pdfUnusedAdvance.toLocaleString("en-IN")}`, valueX, yPos + 1);
+    yPos += 5;
+    doc.setFont("helvetica", "bold");
+    pdfSetText(
+      doc,
+      pdfNetPosition > 0
+        ? LEDGER_PDF.balanceDr
+        : pdfNetPosition < 0
+          ? LEDGER_PDF.balanceCr
+          : LEDGER_PDF.balanceSettled,
+    );
+    doc.text(
+      `(=) Net Position (${pdfNetPosition > 0 ? "Dr" : pdfNetPosition < 0 ? "Cr" : "Nil"})`,
+      labelX,
+      yPos + 1,
+    );
+    doc.text(`Rs. ${Math.abs(pdfNetPosition).toLocaleString("en-IN")}`, valueX, yPos + 1);
+    yPos += 6;
+    if (pdfPoolFloored) {
       doc.setFont("helvetica", "normal");
-      pdfSetText(doc, LEDGER_PDF.muted);
+      pdfSetText(doc, LEDGER_PDF.balanceDr);
       doc.text(
-        `Note: Advance refunded out Rs. ${Math.round(reconciliation.advanceRefunded).toLocaleString("en-IN")} (unused advance; not in Outstanding)`,
+        `Note: Unused Advance floored at booking residual. Unclamped pool Rs. ${pdfPoolUnclamped.toLocaleString("en-IN")} (shortfall Rs. ${Math.abs(pdfUnusedAdvance - pdfPoolUnclamped).toLocaleString("en-IN")}) - needs review.`,
         labelX,
         yPos + 1,
       );
       yPos += 5;
     }
+    if (reconciliation.advanceRefunded > 0) {
+      doc.setFont("helvetica", "normal");
+      pdfSetText(doc, LEDGER_PDF.muted);
+      doc.text(
+        `Note: Advance refunded out to customer Rs. ${Math.round(reconciliation.advanceRefunded).toLocaleString("en-IN")} (not in Outstanding)`,
+        labelX,
+        yPos + 1,
+      );
+      yPos += 5;
+    }
+    doc.setFont("helvetica", "normal");
+    pdfSetText(doc, LEDGER_PDF.muted);
+    doc.setFontSize(7);
+    doc.text(
+      "Legend: [Memo] rows (advance / credit-note applications) are tracing entries only and are excluded from the Dr / Cr columns.",
+      labelX,
+      yPos + 1,
+    );
+    doc.setFontSize(9);
+    yPos += 5;
+    doc.text(
+      "Column totals above include advance receipts and refunds - they are not what the customer owes.",
+      labelX,
+      yPos + 1,
+    );
+    yPos += 5;
     yPos += 4;
 
     yPos += 6;
