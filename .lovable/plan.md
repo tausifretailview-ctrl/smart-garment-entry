@@ -35,7 +35,15 @@ no other work bundled in.
    (357 permissive). `CREATE POLICY` defaults to PERMISSIVE, so recreating one
    of those four without `AS RESTRICTIVE` inverts its meaning from "further
    limits access" to "grants access" — and an expression-text diff would not
-   catch it.
+   catch it. The four are named in the PR for a manual before/after read rather
+   than trusting the diff tooling:
+
+   ```text
+   balance_reconciliation_log  Allow select for restrictive layer   (SELECT)
+   balance_reconciliation_log  Block writes from authenticated users (ALL)
+   barcode_sequence            Allow select for restrictive layer   (SELECT)
+   barcode_sequence            Block writes from authenticated users (ALL)
+   ```
 2. **Prefer `ALTER POLICY`** — `ALTER POLICY <name> ON <table> USING (…) WITH
    CHECK (…)` changes only the expression. It never restates the role list, the
    command, or the permissive flag, so none of those can be silently lost (e.g.
