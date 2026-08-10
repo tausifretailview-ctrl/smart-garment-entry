@@ -43,6 +43,12 @@ no other work bundled in.
    where the policy is absent. `DROP` + `CREATE` is used only where ALTER cannot
    express the change; every such case is listed explicitly in the PR, with the
    permissive flag restated in the generated DDL.
+   The generator emits **only the clauses that are non-null in the snapshot for
+   that policy** — never a fixed `USING (…) WITH CHECK (…)` template. Postgres
+   rejects `WITH CHECK` on `FOR SELECT`/`FOR DELETE` and rejects `USING` on
+   `FOR INSERT`; `FOR UPDATE`/`FOR ALL` take both. With 268 unwrapped `qual` and
+   117 unwrapped `with_check`, many policies are single-clause, so a fixed
+   template would fail mid-batch.
 3. **Generate, don't hand-write** — a script reads the snapshot and rewrites
    `auth.uid()` occurrences that are not already inside a scalar subquery. The
    match is **case-insensitive and whitespace-tolerant**: Postgres normalises
@@ -80,14 +86,28 @@ proceeding.
 
 ## Measurement
 
-Recorded before batch 1 and again after all batches, with `stats_reset` noted so
-the windows are comparable:
+`pg_stat_user_tables.seq_scan` and `seq_tup_read` are cumulative since
+`stats_reset` — they only ever increase, so a raw before/after total would look
+like the fix failed even when it worked. Measure a **rate**, not a total, using
+paired readings rather than `pg_stat_reset()` (a reset would also wipe the
+`pg_stat_statements` history the top-5 comparison depends on):
 
-- `seq_scan` / `seq_tup_read` on `organization_members` and `user_roles`
+- Two readings ~30 minutes apart **before** any change, during normal traffic →
+  baseline scans-per-minute and tuples-read-per-minute for
+  `organization_members` and `user_roles`.
+- Two more readings ~30 minutes apart **after**, at a comparable time of day.
+- `stats_reset` is recorded with every reading to confirm no reset intervened.
+
+Also recorded, unaffected by the counter issue and compared directly:
+
 - wall-clock for Sales Invoice Dashboard, All Time, ~1,000 rows
-- `pg_stat_statements` total_exec_time for the top 5 queries
+- `pg_stat_statements` total_exec_time / mean_exec_time for the top 5 queries
 
-Success is the scan counters dropping, not the diff looking clean.
+**Measure after batch 1, not only at the end.** If four tables' worth of
+policies move the scan rate not at all, that is worth knowing before rewriting
+the remaining 340-odd — and it validates the measurement method while the blast
+radius is still small. Success is the scan *rate* falling, not the diff looking
+clean.
 
 ## Explicitly out of scope
 
