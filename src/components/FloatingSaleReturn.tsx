@@ -852,11 +852,12 @@ export const FloatingSaleReturn = ({
       return;
     }
 
-    // Credit Note refund REQUIRES a customer (otherwise the credit cannot be tracked/applied later)
+    // Credit Note path REQUIRES a customer (otherwise the credit cannot be tracked/applied later).
+    // Cash refund and S/R Exchange do not require a customer (walk-in OK).
     if (refundType === "credit_note" && returnItems.length > 0 && !effectiveCustomerId) {
       toast({
         title: "Customer Required",
-        description: "Please select a customer to generate a Credit Note. Use the customer search above.",
+        description: "Please select a customer to generate a Credit Note. Cash refund and exchange do not need a customer.",
         variant: "destructive",
       });
       return;

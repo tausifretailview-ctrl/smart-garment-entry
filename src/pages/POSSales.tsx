@@ -3382,12 +3382,6 @@ export default function POSSales() {
       return;
     }
 
-    // Credit Note (negative net amount) requires a customer (name or phone)
-    if (finalAmount < 0 && !customerId && !customerPhone?.trim() && (!customerName?.trim() || customerName.trim().toLowerCase() === 'walk-in customer')) {
-      toast.error("Customer Required for Credit Note", { description: "Net amount is negative (credit note). Please add customer name or mobile number before saving." });
-      return;
-    }
-
     const saleData = buildSaleData({
       customerId,
       customerName,
@@ -3594,6 +3588,14 @@ export default function POSSales() {
       return;
     }
 
+    // Same-bill exchange / negative net: open Mix so cashier can Process Refund or Issue C/Note.
+    // Cash refund does not require a customer name.
+    if (finalAmount < -0.005 || exchangeRefundDue > 0.005) {
+      paymentLockRef.current = false;
+      handleMixPayment();
+      return;
+    }
+
     // Real-time stock validation before saving
     // When editing, pass original items so their stock is considered "freed"
     const cartItemsForValidation = items.map(item => ({
@@ -3622,14 +3624,6 @@ export default function POSSales() {
     if (method === 'pay_later' && !hasNamedPosCustomer()) {
       paymentLockRef.current = false;
       showCustomerNameRequiredWindow();
-      return;
-    }
-
-    // Credit Note (negative net amount) requires a customer (name or phone)
-    // so the credit can be redeemed by them later
-    if (finalAmount < 0 && !customerId && !customerPhone?.trim() && (!customerName?.trim() || customerName.trim().toLowerCase() === 'walk-in customer')) {
-      paymentLockRef.current = false;
-      toast.error("Customer Required for Credit Note", { description: "Net amount is negative (credit note). Please add customer name or mobile number so the balance can be redeemed later." });
       return;
     }
 
@@ -3795,12 +3789,17 @@ export default function POSSales() {
       showCustomerNameRequiredWindow("mix_credit");
       return;
     }
-    // Exchange refund / CN needs a named customer for balance integrity
+    // Cash refund after S/R excess is fine without a customer (walk-in).
+    // Issue C/Note still needs a named customer so credit can be redeemed later.
     if (
-      (paymentData.refundAmount > 0.01 || paymentData.issueCreditNote) &&
+      paymentData.issueCreditNote &&
+      paymentData.refundAmount > 0.01 &&
       !hasNamedPosCustomer()
     ) {
-      showCustomerNameRequiredWindow("mix_credit");
+      toast.error("Customer Name Required", {
+        description: "Please enter customer name to issue a credit note. Cash refund does not require a customer.",
+      });
+      setOpenCustomerSearch(true);
       return;
     }
 

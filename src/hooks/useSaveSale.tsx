@@ -263,10 +263,19 @@ export const useSaveSale = () => {
     txnDate: string;
     cashRefund: number;
     roundOffRemainder: number;
+    /** Mix Payment Refund Mode selector — default cash. */
+    refundMode?: "cash" | "upi" | "bank_transfer";
   }) => {
+    const refundMethod =
+      params.refundMode === "upi"
+        ? "upi"
+        : params.refundMode === "bank_transfer"
+          ? "bank_transfer"
+          : "cash";
+
     const writePaymentVoucher = async (
       amount: number,
-      method: 'cash' | 'round_off',
+      method: string,
       description: string
     ) => {
       if (amount <= 0 || !currentOrganization?.id) return;
@@ -300,8 +309,16 @@ export const useSaveSale = () => {
       });
     };
 
-    await writePaymentVoucher(params.cashRefund, 'cash', `Refund paid for POS exchange ${params.saleNumber}`);
-    await writePaymentVoucher(params.roundOffRemainder, 'round_off', `Round off adjustment for POS exchange ${params.saleNumber}`);
+    await writePaymentVoucher(
+      params.cashRefund,
+      refundMethod,
+      `Refund paid for POS exchange ${params.saleNumber}`,
+    );
+    await writePaymentVoucher(
+      params.roundOffRemainder,
+      "round_off",
+      `Round off adjustment for POS exchange ${params.saleNumber}`,
+    );
   };
 
   const markCreditNoteFullyUsedForSrAdjust = async (cnId: string) => {
@@ -540,6 +557,7 @@ export const useSaveSale = () => {
       totalPaid: number;
       refundAmount: number;
       issueCreditNote?: boolean;
+      refundMode?: "cash" | "upi" | "bank_transfer";
     },
     options?: {
       existingPaidAmount?: number;
@@ -662,6 +680,7 @@ export const useSaveSale = () => {
       totalPaid: number;
       refundAmount: number;
       issueCreditNote?: boolean;
+      refundMode?: "cash" | "upi" | "bank_transfer";
     },
     saleType: 'pos' | 'sale_invoice' = 'pos',
     runtimeOptions?: SaveSaleRuntimeOptions,
@@ -962,6 +981,7 @@ export const useSaveSale = () => {
             txnDate,
             cashRefund: exchange.cashRefund,
             roundOffRemainder: exchange.roundOffRemainder,
+            refundMode: paymentBreakdown?.refundMode,
           });
         } catch (exErr) {
           console.error('Exchange refund voucher write failed:', exErr);
@@ -1374,6 +1394,7 @@ export const useSaveSale = () => {
       totalPaid: number;
       refundAmount: number;
       issueCreditNote?: boolean;
+      refundMode?: "cash" | "upi" | "bank_transfer";
     },
     runtimeOptions?: SaveSaleRuntimeOptions,
   ) => {
@@ -1785,6 +1806,7 @@ export const useSaveSale = () => {
             txnDate,
             cashRefund: exchange.cashRefund,
             roundOffRemainder: exchange.roundOffRemainder,
+            refundMode: paymentBreakdown?.refundMode,
           });
         } catch (exErr) {
           console.error('Exchange refund voucher refresh failed:', exErr);
@@ -2047,6 +2069,7 @@ export const useSaveSale = () => {
       totalPaid: number;
       refundAmount: number;
       issueCreditNote?: boolean;
+      refundMode?: "cash" | "upi" | "bank_transfer";
     },
     runtimeOptions?: SaveSaleRuntimeOptions,
   ) => {
@@ -2221,6 +2244,7 @@ export const useSaveSale = () => {
             txnDate,
             cashRefund: exchange.cashRefund,
             roundOffRemainder: exchange.roundOffRemainder,
+            refundMode: paymentBreakdown?.refundMode,
           });
         } catch (exErr) {
           console.error('Exchange refund voucher write failed (resume):', exErr);
