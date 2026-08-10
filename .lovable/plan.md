@@ -92,6 +92,26 @@ after each batch:
 If any check fails, the batch's migration is reverted from the snapshot before
 proceeding.
 
+## Direct proof the hoisting engaged (after batch 1)
+
+Counters need comparable traffic; the plan shape does not. Immediately after
+batch 1, as a **non-admin org user**, run `EXPLAIN (ANALYZE, BUFFERS)` on one
+representative query against `sales` (and one against `sale_items`) and confirm:
+
+- an **InitPlan** node appears for the `auth.uid()` subquery, evaluated once, and
+- the membership lookup no longer appears inside the inner loop of the scan.
+
+This is available in seconds and is the tie-breaker when the rate numbers look
+noisy: it says whether the mechanism engaged, independently of load.
+
+## Expectation on the payoff
+
+Wall-clock page timing may barely move even when the scan rate drops sharply.
+Cache hit ratio is 99.998%, so those billions of scans are CPU work on
+memory-resident pages, not disk I/O. The win shows up as CPU headroom and on the
+heaviest row-count queries, not as a visibly snappier UI. Worth having with
+concurrent users, but it is headroom, not "pages load faster".
+
 ## Measurement
 
 `pg_stat_user_tables.seq_scan` and `seq_tup_read` are cumulative since
