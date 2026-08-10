@@ -29,21 +29,37 @@ no other work bundled in.
 ## Method
 
 1. **Snapshot first** — dump `pg_policies` (schemaname, tablename, policyname,
-   cmd, roles, qual, with_check) for all 361 policies to
+   **permissive**, cmd, roles, qual, with_check) for all 361 policies to
    `docs/rls-policy-snapshot-<date>.sql` in the repo. Rollback reference.
-2. **Generate, don't hand-write** — a script reads the snapshot, applies the
-   wrapping by regex on `auth.uid()` occurrences not already preceded by
-   `select `, and emits `DROP POLICY` / `CREATE POLICY` pairs preserving name,
-   cmd, roles, qual, with_check verbatim otherwise.
-3. **Batch by table**, one migration per batch, run and verified in order:
+   `permissive` is captured because **4 of the 361 policies are RESTRICTIVE**
+   (357 permissive). `CREATE POLICY` defaults to PERMISSIVE, so recreating one
+   of those four without `AS RESTRICTIVE` inverts its meaning from "further
+   limits access" to "grants access" — and an expression-text diff would not
+   catch it.
+2. **Prefer `ALTER POLICY`** — `ALTER POLICY <name> ON <table> USING (…) WITH
+   CHECK (…)` changes only the expression. It never restates the role list, the
+   command, or the permissive flag, so none of those can be silently lost (e.g.
+   dropping `TO authenticated` and defaulting to PUBLIC), and there is no window
+   where the policy is absent. `DROP` + `CREATE` is used only where ALTER cannot
+   express the change; every such case is listed explicitly in the PR, with the
+   permissive flag restated in the generated DDL.
+3. **Generate, don't hand-write** — a script reads the snapshot and rewrites
+   `auth.uid()` occurrences that are not already inside a scalar subquery. The
+   match is **case-insensitive and whitespace-tolerant**: Postgres normalises
+   stored expressions, so the 9 already-wrapped ones render as
+   `( SELECT auth.uid() AS uid)` — leading space, uppercase SELECT, `AS uid`
+   alias. A naive "not preceded by `select `" test would double-wrap them.
+   Everything else in each expression is preserved verbatim.
+4. **Batch by table**, one migration per batch, run and verified in order:
    - Batch 1: `sales`, `sale_items`, `product_variants`, `products`
    - Batch 2: `customers`, `voucher_entries`, `purchase_bills`, `purchase_items`
    - Batch 3: `organization_members` (9 policies), `user_roles` (5)
    - Batch 4+: remaining tables, alphabetical, ~20 per migration
    `organization_members` / `user_roles` sit in their own batch because they are
    the tables the other policies read; a mistake there is the widest blast radius.
-4. **Post-batch diff** — re-dump policies and diff against the snapshot; the only
-   textual difference permitted is `auth.uid()` → `(select auth.uid())`.
+5. **Post-batch diff** — re-dump policies and diff against the snapshot,
+   including `permissive`, `cmd`, and `roles`. The only textual difference
+   permitted is `auth.uid()` → `(select auth.uid())`.
 
 ## Verification per batch
 
@@ -52,6 +68,9 @@ after each batch:
 
 - Row counts on 3-4 tables in the batch match exactly, pre vs post.
 - A record id known to belong to another org is still unreadable.
+- The mirror test: sign in as a user belonging to a *different* org entirely and
+  confirm they see none of the first org's rows. This is the direction that
+  catches an accidentally-permissive policy.
 - One INSERT and one UPDATE succeed (catches a broken `with_check`, which shows
   up as "save failed" rather than a wrong list).
 - An admin user still sees the elevated rows they saw before.
