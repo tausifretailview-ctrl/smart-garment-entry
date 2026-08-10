@@ -391,9 +391,30 @@ export function prefetchTabPage(path: string, options?: PrefetchTabPageOptions):
   });
 }
 
+/**
+ * Collapse a prefetch list to the chunks that actually still need downloading:
+ * resolve URL aliases (products / product-dashboard → one chunk), drop repeats
+ * across lists, and skip anything already downloaded or in flight.
+ * Without this the sequential idle queue spends slots re-requesting warm chunks
+ * and delays the genuinely cold ones (barcode-printing, purchase-entry).
+ */
+export function dedupeTabPrefetchPaths(paths: readonly string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const p of paths) {
+    const resolved = resolveTabCachePath(p);
+    if (!resolved || seen.has(resolved)) continue;
+    seen.add(resolved);
+    if (loadedChunkPaths.has(resolved) || prefetchCache.has(resolved)) continue;
+    if (!TAB_PAGE_REGISTRY[resolved]) continue;
+    out.push(resolved);
+  }
+  return out;
+}
+
 /** Warm purchase/product/POS entry chunks (login idle + after tab wake from idle). */
 export function prefetchCriticalEntryChunks(): void {
-  CRITICAL_ENTRY_CHUNK_PATHS.forEach((p) => prefetchTabPage(p));
+  dedupeTabPrefetchPaths(CRITICAL_ENTRY_CHUNK_PATHS).forEach((p) => prefetchTabPage(p));
 }
 
 /** Drop cached lazy/prefetch state so the next mount re-fetches the chunk. */
@@ -411,7 +432,7 @@ export function prefetchPostLoginCriticalPages(): void {
   const list = isElectronShell()
     ? POST_LOGIN_PREFETCH_TAB_PATHS
     : POST_LOGIN_PREFETCH_TAB_PATHS_WEB;
-  list.forEach((p) => prefetchTabPage(p));
+  dedupeTabPrefetchPaths(list).forEach((p) => prefetchTabPage(p));
 }
 
 /**
@@ -427,14 +448,17 @@ export function prefetchPostLoginIdlePages(): () => void {
         ...POST_LOGIN_WEB_IDLE_INVENTORY_PREFETCH_TAB_PATHS,
         ...POST_LOGIN_WEB_IDLE_ADMIN_PREFETCH_TAB_PATHS,
       ] as const);
-  return scheduleSequentialIdlePrefetch(paths, (path) => prefetchTabPage(path), {
+  // Critical warm already ran — only queue chunks that are still cold.
+  const queue = dedupeTabPrefetchPaths(paths);
+  if (queue.length === 0) return () => {};
+  return scheduleSequentialIdlePrefetch(queue, (path) => prefetchTabPage(path), {
     minDelay: isElectronShell() ? 0 : 4_000,
     timeout: 12_000,
   });
 }
 
 export function prefetchTabPages(paths: string[]): void {
-  paths.forEach((p) => prefetchTabPage(p));
+  dedupeTabPrefetchPaths(paths).forEach((p) => prefetchTabPage(p));
 }
 
 /** Prefetch the active tab immediately; load other open tabs when the browser is idle. */
@@ -443,7 +467,7 @@ export function prefetchTabPagesIdle(paths: string[], activePath: string): () =>
   if (isTabCachePath(resolvedActive)) prefetchTabPage(resolvedActive);
   // Electron: prefetch only the visible tab — idle prefetch of many chunks can spike memory.
   if (shouldElectronMountOnlyActiveTab()) return () => {};
-  const rest = paths.map(resolveTabCachePath).filter((p) => isTabCachePath(p) && p !== resolvedActive);
+  const rest = dedupeTabPrefetchPaths(paths).filter((p) => p !== resolvedActive);
   if (rest.length === 0) return () => {};
 
   // Web/PWA: skip background prefetch on Save-Data / 2g so the visible tab keeps bandwidth.
