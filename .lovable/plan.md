@@ -35,15 +35,20 @@ no other work bundled in.
    (357 permissive). `CREATE POLICY` defaults to PERMISSIVE, so recreating one
    of those four without `AS RESTRICTIVE` inverts its meaning from "further
    limits access" to "grants access" — and an expression-text diff would not
-   catch it. The four are named in the PR for a manual before/after read rather
-   than trusting the diff tooling:
+   catch it. **Checked: none of the four contain `auth.uid()`** — their
+   expressions are literal `true` / `false`, so the generator skips all four and
+   the permissive-flag risk for this PR is zero. They are still named in the PR
+   with their expressions so a human can confirm they were untouched:
 
    ```text
-   balance_reconciliation_log  Allow select for restrictive layer   (SELECT)
-   balance_reconciliation_log  Block writes from authenticated users (ALL)
-   barcode_sequence            Allow select for restrictive layer   (SELECT)
-   barcode_sequence            Block writes from authenticated users (ALL)
+   balance_reconciliation_log  Allow select for restrictive layer    SELECT  qual: true
+   balance_reconciliation_log  Block writes from authenticated users ALL     qual: false, with_check: false
+   barcode_sequence            Allow select for restrictive layer    SELECT  qual: true
+   barcode_sequence            Block writes from authenticated users ALL     qual: false, with_check: false
    ```
+
+   The snapshot still captures `permissive` for all 361 policies as rollback
+   reference and to catch drift if a later batch touches these tables.
 2. **Prefer `ALTER POLICY`** — `ALTER POLICY <name> ON <table> USING (…) WITH
    CHECK (…)` changes only the expression. It never restates the role list, the
    command, or the permissive flag, so none of those can be silently lost (e.g.
