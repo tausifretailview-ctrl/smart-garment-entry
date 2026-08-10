@@ -3201,9 +3201,13 @@ export default function BarcodePrinting() {
         if (variantIds.length > 0) {
           const { data: purchaseData } = await supabase
             .from("purchase_items")
-            .select("sku_id, bill_id, created_at")
+            .select("sku_id, bill_id, created_at, purchase_bills!inner(organization_id, deleted_at)")
             .in("sku_id", variantIds)
-            .order("created_at", { ascending: false });
+            .eq("purchase_bills.organization_id", currentOrganization?.id ?? "")
+            .is("purchase_bills.deleted_at", null)
+            .is("deleted_at", null)
+            .order("created_at", { ascending: false })
+            .limit(500);
 
           if (purchaseData) {
             // Get unique bill IDs

@@ -4420,19 +4420,16 @@ const PurchaseEntry = () => {
     // product currently has 0 stock and no purchase history.
     if (removed?.product_id && currentOrganization?.id) {
       try {
-        const { data: pi } = await supabase
+        // If product has any prior purchase, don't tag.
+        // Existence check only — an exact COUNT here scanned every tenant's rows.
+        const { data: priorPurchase } = await supabase
           .from("purchase_items")
-          .select("id", { head: true, count: "exact" })
+          .select("id")
           .eq("product_id", removed.product_id)
           .is("deleted_at", null)
-          .limit(1);
-        // If product has any prior purchase, don't tag
-        const { count: purchaseCount } = await supabase
-          .from("purchase_items")
-          .select("id", { head: true, count: "exact" })
-          .eq("product_id", removed.product_id)
-          .is("deleted_at", null);
-        if ((purchaseCount ?? 0) === 0) {
+          .limit(1)
+          .maybeSingle();
+        if (!priorPurchase) {
           // Check total stock across variants
           const { data: vrows } = await supabase
             .from("product_variants")
