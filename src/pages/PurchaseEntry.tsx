@@ -5309,34 +5309,38 @@ const PurchaseEntry = () => {
           const orig = originalItemsMap.get(item.temp_id);
           return !orig || hasItemChanged(orig, item);
         });
-        const EDIT_UPDATE_CHUNK = 5;
-        for (let ci = 0; ci < changedItems.length; ci += EDIT_UPDATE_CHUNK) {
-          const chunk = changedItems.slice(ci, ci + EDIT_UPDATE_CHUNK);
-          const results = await Promise.all(
-            chunk.map((item) =>
-              supabase
-                .from("purchase_items")
-                .update({
-                  product_name: item.product_name,
-                  sku_id: item.sku_id,
-                  size: item.size,
-                  qty: item.qty,
-                  pur_price: item.pur_price,
-                  sale_price: item.sale_price,
-                  mrp: item.mrp || 0,
-                  gst_per: Math.round(Number(item.gst_per) || 0),
-                  line_total: item.line_total,
-                  hsn_code: item.hsn_code || null,
-                  brand: item.brand || null,
-                  category: item.category || null,
-                  color: item.color || null,
-                  style: item.style || null,
-                })
-                .eq("id", item.temp_id),
-            ),
-          );
-          const failed = results.find((r) => r.error);
-          if (failed?.error) throw failed.error;
+        if (changedItems.length > 0) {
+          const updatePayload = changedItems.map((item) => ({
+            id: item.temp_id,
+            product_name: item.product_name,
+            sku_id: item.sku_id,
+            size: item.size,
+            qty: item.qty,
+            pur_price: item.pur_price,
+            sale_price: item.sale_price,
+            mrp: item.mrp || 0,
+            gst_per: Math.round(Number(item.gst_per) || 0),
+            line_total: item.line_total,
+            hsn_code: item.hsn_code || null,
+            brand: item.brand || null,
+            category: item.category || null,
+            color: item.color || null,
+            style: item.style || null,
+          }));
+
+          // One round trip for the whole bill. Per-row stock triggers still fire;
+          // the bill-total recompute runs once instead of once per line, which is
+          // what pushed large edited bills past the 8s statement timeout.
+          // Chunked so a very large bill still stays inside the timeout.
+          const EDIT_UPDATE_CHUNK = 200;
+          for (let ci = 0; ci < updatePayload.length; ci += EDIT_UPDATE_CHUNK) {
+            const chunk = updatePayload.slice(ci, ci + EDIT_UPDATE_CHUNK);
+            const { error: bulkUpdateError } = await (supabase as any).rpc(
+              "bulk_update_purchase_items",
+              { p_bill_id: editingBillId, p_items: chunk },
+            );
+            if (bulkUpdateError) throw bulkUpdateError;
+          }
         }
 
         // 3. Find items to INSERT (new items not in original / not already inserted this save)
