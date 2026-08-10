@@ -43,6 +43,12 @@ no other work bundled in.
    where the policy is absent. `DROP` + `CREATE` is used only where ALTER cannot
    express the change; every such case is listed explicitly in the PR, with the
    permissive flag restated in the generated DDL.
+   The generator emits **only the clauses that are non-null in the snapshot for
+   that policy** — never a fixed `USING (…) WITH CHECK (…)` template. Postgres
+   rejects `WITH CHECK` on `FOR SELECT`/`FOR DELETE` and rejects `USING` on
+   `FOR INSERT`; `FOR UPDATE`/`FOR ALL` take both. With 268 unwrapped `qual` and
+   117 unwrapped `with_check`, many policies are single-clause, so a fixed
+   template would fail mid-batch.
 3. **Generate, don't hand-write** — a script reads the snapshot and rewrites
    `auth.uid()` occurrences that are not already inside a scalar subquery. The
    match is **case-insensitive and whitespace-tolerant**: Postgres normalises
