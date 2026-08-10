@@ -1,0 +1,633 @@
+schemaname,tablename,policyname,permissive,roles,cmd,qual,with_check
+public,academic_years,org_members_academic_years_delete,PERMISSIVE,authenticated,DELETE,"(organization_id IN ( SELECT organization_members.organization_id
+   FROM organization_members
+  WHERE (organization_members.user_id = auth.uid())))",
+public,academic_years,org_members_academic_years_insert,PERMISSIVE,authenticated,INSERT,,"(organization_id IN ( SELECT organization_members.organization_id
+   FROM organization_members
+  WHERE (organization_members.user_id = auth.uid())))"
+public,academic_years,org_members_academic_years_select,PERMISSIVE,authenticated,SELECT,"(organization_id IN ( SELECT organization_members.organization_id
+   FROM organization_members
+  WHERE (organization_members.user_id = auth.uid())))",
+public,academic_years,org_members_academic_years_update,PERMISSIVE,authenticated,UPDATE,"(organization_id IN ( SELECT organization_members.organization_id
+   FROM organization_members
+  WHERE (organization_members.user_id = auth.uid())))",
+public,account_ledgers,Admins can manage ledgers,PERMISSIVE,public,ALL,"has_org_role(auth.uid(), organization_id, 'admin'::app_role)","has_org_role(auth.uid(), organization_id, 'admin'::app_role)"
+public,account_ledgers,Users can view ledgers in their organizations,PERMISSIVE,public,SELECT,(organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids)),
+public,advance_booking_attempts,Org members can insert advance attempts,PERMISSIVE,authenticated,INSERT,,"(EXISTS ( SELECT 1
+   FROM organization_members om
+  WHERE ((om.organization_id = advance_booking_attempts.organization_id) AND (om.user_id = auth.uid()))))"
+public,advance_booking_attempts,Org members can view advance attempts,PERMISSIVE,authenticated,SELECT,"(EXISTS ( SELECT 1
+   FROM organization_members om
+  WHERE ((om.organization_id = advance_booking_attempts.organization_id) AND (om.user_id = auth.uid()))))",
+public,advance_refunds,Users can create refunds in their organization,PERMISSIVE,public,INSERT,,(organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids))
+public,advance_refunds,Users can delete refunds in their organization,PERMISSIVE,public,DELETE,"(organization_id IN ( SELECT organization_members.organization_id
+   FROM organization_members
+  WHERE (organization_members.user_id = auth.uid())))",
+public,advance_refunds,Users can view refunds in their organization,PERMISSIVE,public,SELECT,(organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids)),
+public,ai_assistant_usage,ai_usage_owner_select,PERMISSIVE,public,SELECT,(user_id = auth.uid()),
+public,app_error_logs,authenticated_insert_errors,PERMISSIVE,authenticated,INSERT,,(user_id = auth.uid())
+public,app_error_logs,org_or_own_select_errors,PERMISSIVE,authenticated,SELECT,(((organization_id IS NOT NULL) AND (organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids))) OR (user_id = auth.uid())),
+public,audit_logs,No one can delete audit logs,PERMISSIVE,authenticated,DELETE,false,
+public,audit_logs,No one can update audit logs,PERMISSIVE,authenticated,UPDATE,false,
+public,audit_logs,Organization members can view own audit logs,PERMISSIVE,authenticated,SELECT,"(organization_id IN ( SELECT organization_members.organization_id
+   FROM organization_members
+  WHERE (organization_members.user_id = auth.uid())))",
+public,audit_logs_archive,audit_logs_archive_no_client_access,PERMISSIVE,authenticated,ALL,false,false
+public,backup_logs,Users can create backup logs for their organization,PERMISSIVE,public,INSERT,,"user_belongs_to_org(auth.uid(), organization_id)"
+public,backup_logs,Users can update their organization's backup logs,PERMISSIVE,public,UPDATE,"user_belongs_to_org(auth.uid(), organization_id)",
+public,backup_logs,Users can view their organization's backup logs,PERMISSIVE,public,SELECT,"user_belongs_to_org(auth.uid(), organization_id)",
+public,balance_reconciliation_log,Allow select for restrictive layer,RESTRICTIVE,"anon,authenticated",SELECT,true,
+public,balance_reconciliation_log,Block writes from authenticated users,RESTRICTIVE,"anon,authenticated",ALL,false,false
+public,balance_reconciliation_log,org_members_recon_log_select,PERMISSIVE,public,SELECT,(organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids)),
+public,barcode_label_settings,Admins and managers can manage barcode settings,PERMISSIVE,public,ALL,"(user_belongs_to_org(auth.uid(), organization_id) AND (has_org_role(auth.uid(), organization_id, 'admin'::app_role) OR has_org_role(auth.uid(), organization_id, 'manager'::app_role)))","(user_belongs_to_org(auth.uid(), organization_id) AND (has_org_role(auth.uid(), organization_id, 'admin'::app_role) OR has_org_role(auth.uid(), organization_id, 'manager'::app_role)))"
+public,barcode_label_settings,Users can view barcode settings in their organizations,PERMISSIVE,public,SELECT,(organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids)),
+public,barcode_sequence,Allow select for restrictive layer,RESTRICTIVE,"anon,authenticated",SELECT,true,
+public,barcode_sequence,Block writes from authenticated users,RESTRICTIVE,"anon,authenticated",ALL,false,false
+public,barcode_sequence,org_barcode_sequence_select,PERMISSIVE,authenticated,SELECT,(organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids)),
+public,batch_stock,Org members can manage batch stock,PERMISSIVE,authenticated,ALL,(organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids)),(organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids))
+public,batch_stock,Org members can view batch stock,PERMISSIVE,authenticated,SELECT,(organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids)),
+public,batch_stock,Service role can delete batch stock,PERMISSIVE,service_role,DELETE,true,
+public,batch_stock,Service role can insert batch stock,PERMISSIVE,service_role,INSERT,,true
+public,batch_stock,Service role can manage batch stock,PERMISSIVE,service_role,ALL,true,true
+public,batch_stock,Service role can update batch stock,PERMISSIVE,service_role,UPDATE,true,true
+public,batch_stock,org_batch_stock_all,PERMISSIVE,public,ALL,(organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids)),
+public,bill_number_sequence,Org members can manage bill sequence,PERMISSIVE,authenticated,ALL,(organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids)),(organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids))
+public,bill_number_sequence,Org members can view bill sequences,PERMISSIVE,public,SELECT,(organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids)),
+public,bill_number_sequence,Service role can insert sequences,PERMISSIVE,service_role,INSERT,,true
+public,bill_number_sequence,Service role can manage bill sequences,PERMISSIVE,service_role,ALL,true,true
+public,bill_number_sequence,Service role can update sequences,PERMISSIVE,service_role,UPDATE,true,true
+public,bill_number_sequence,org_bill_sequence_all,PERMISSIVE,public,ALL,(organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids)),
+public,bill_number_sequences,org_bill_sequences,PERMISSIVE,authenticated,ALL,(organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids)),
+public,bulk_update_history,Users can insert bulk update history for their org,PERMISSIVE,public,INSERT,,(organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids))
+public,bulk_update_history,Users can view bulk update history for their org,PERMISSIVE,public,SELECT,(organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids)),
+public,chart_of_accounts,Org admins can delete chart_of_accounts,PERMISSIVE,authenticated,DELETE,"is_org_admin(auth.uid(), organization_id)",
+public,chart_of_accounts,Org members can insert chart_of_accounts,PERMISSIVE,authenticated,INSERT,,"user_belongs_to_org(auth.uid(), organization_id)"
+public,chart_of_accounts,Org members can update chart_of_accounts,PERMISSIVE,authenticated,UPDATE,"user_belongs_to_org(auth.uid(), organization_id)","user_belongs_to_org(auth.uid(), organization_id)"
+public,chart_of_accounts,Org members can view chart_of_accounts,PERMISSIVE,authenticated,SELECT,"user_belongs_to_org(auth.uid(), organization_id)",
+public,cheque_formats,Admins and managers can manage cheque formats,PERMISSIVE,public,ALL,"(user_belongs_to_org(auth.uid(), organization_id) AND (has_org_role(auth.uid(), organization_id, 'admin'::app_role) OR has_org_role(auth.uid(), organization_id, 'manager'::app_role)))","(user_belongs_to_org(auth.uid(), organization_id) AND (has_org_role(auth.uid(), organization_id, 'admin'::app_role) OR has_org_role(auth.uid(), organization_id, 'manager'::app_role)))"
+public,cheque_formats,Users can view cheque formats in their organizations,PERMISSIVE,public,SELECT,(organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids)),
+public,commission_rules,org_commission_rules,PERMISSIVE,public,ALL,"(organization_id IN ( SELECT organization_members.organization_id
+   FROM organization_members
+  WHERE (organization_members.user_id = auth.uid())))",
+public,credit_notes,Admins and managers can update credit notes,PERMISSIVE,public,UPDATE,"(user_belongs_to_org(auth.uid(), organization_id) AND (has_org_role(auth.uid(), organization_id, 'admin'::app_role) OR has_org_role(auth.uid(), organization_id, 'manager'::app_role)))",
+public,credit_notes,Admins can delete credit notes,PERMISSIVE,public,DELETE,"has_org_role(auth.uid(), organization_id, 'admin'::app_role)",
+public,credit_notes,Users can create credit notes in their organizations,PERMISSIVE,public,INSERT,,"user_belongs_to_org(auth.uid(), organization_id)"
+public,credit_notes,Users can view credit notes in their organizations,PERMISSIVE,public,SELECT,(organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids)),
+public,customer_advances,Admins and managers can delete advances,PERMISSIVE,authenticated,DELETE,"((organization_id IN ( SELECT om.organization_id
+   FROM organization_members om
+  WHERE (om.user_id = auth.uid()))) AND (has_org_role(auth.uid(), organization_id, 'admin'::app_role) OR has_org_role(auth.uid(), organization_id, 'manager'::app_role)))",
+public,customer_advances,Users can insert advances for their organization,PERMISSIVE,public,INSERT,,"(organization_id IN ( SELECT organization_members.organization_id
+   FROM organization_members
+  WHERE (organization_members.user_id = auth.uid())))"
+public,customer_advances,Users can update advances for their organization,PERMISSIVE,public,UPDATE,"(organization_id IN ( SELECT organization_members.organization_id
+   FROM organization_members
+  WHERE (organization_members.user_id = auth.uid())))",
+public,customer_advances,Users can view advances for their organization,PERMISSIVE,public,SELECT,"(organization_id IN ( SELECT organization_members.organization_id
+   FROM organization_members
+  WHERE (organization_members.user_id = auth.uid())))",
+public,customer_balance_adjustments,Org members can delete adjustments,PERMISSIVE,public,DELETE,"user_belongs_to_org(auth.uid(), organization_id)",
+public,customer_balance_adjustments,Org members can insert adjustments,PERMISSIVE,public,INSERT,,"user_belongs_to_org(auth.uid(), organization_id)"
+public,customer_balance_adjustments,Org members can update adjustments,PERMISSIVE,public,UPDATE,"user_belongs_to_org(auth.uid(), organization_id)","user_belongs_to_org(auth.uid(), organization_id)"
+public,customer_balance_adjustments,Org members can view adjustments,PERMISSIVE,public,SELECT,"user_belongs_to_org(auth.uid(), organization_id)",
+public,customer_brand_discounts,Users can delete brand discounts in their org,PERMISSIVE,authenticated,DELETE,(organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids)),
+public,customer_brand_discounts,Users can insert brand discounts in their org,PERMISSIVE,authenticated,INSERT,,(organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids))
+public,customer_brand_discounts,Users can update brand discounts in their org,PERMISSIVE,authenticated,UPDATE,(organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids)),
+public,customer_brand_discounts,Users can view brand discounts in their org,PERMISSIVE,authenticated,SELECT,(organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids)),
+public,customer_ledger_entries,Org members can delete customer ledger entries,PERMISSIVE,public,DELETE,(organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids)),
+public,customer_ledger_entries,Org members can insert customer ledger entries,PERMISSIVE,public,INSERT,,(organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids))
+public,customer_ledger_entries,Org members can update customer ledger entries,PERMISSIVE,public,UPDATE,(organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids)),(organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids))
+public,customer_ledger_entries,Org members can view customer ledger entries,PERMISSIVE,public,SELECT,(organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids)),
+public,customer_points_history,Admins and managers can update points history,PERMISSIVE,public,UPDATE,"(user_belongs_to_org(auth.uid(), organization_id) AND (has_org_role(auth.uid(), organization_id, 'admin'::app_role) OR has_org_role(auth.uid(), organization_id, 'manager'::app_role)))",
+public,customer_points_history,Admins can delete points history,PERMISSIVE,public,DELETE,"has_org_role(auth.uid(), organization_id, 'admin'::app_role)",
+public,customer_points_history,Users can create points history in their organizations,PERMISSIVE,public,INSERT,,"user_belongs_to_org(auth.uid(), organization_id)"
+public,customer_points_history,Users can view points history in their organizations,PERMISSIVE,public,SELECT,(organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids)),
+public,customer_product_prices,Users can delete customer prices in their organization,PERMISSIVE,public,DELETE,"user_belongs_to_org(auth.uid(), organization_id)",
+public,customer_product_prices,Users can insert customer prices in their organization,PERMISSIVE,public,INSERT,,"user_belongs_to_org(auth.uid(), organization_id)"
+public,customer_product_prices,Users can update customer prices in their organization,PERMISSIVE,public,UPDATE,"user_belongs_to_org(auth.uid(), organization_id)",
+public,customer_product_prices,Users can view customer prices in their organization,PERMISSIVE,public,SELECT,"user_belongs_to_org(auth.uid(), organization_id)",
+public,customers,Admins and managers can update customers,PERMISSIVE,public,UPDATE,"(user_belongs_to_org(auth.uid(), organization_id) AND (has_org_role(auth.uid(), organization_id, 'admin'::app_role) OR has_org_role(auth.uid(), organization_id, 'manager'::app_role)))",
+public,customers,Admins can delete customers,PERMISSIVE,public,DELETE,"has_org_role(auth.uid(), organization_id, 'admin'::app_role)",
+public,customers,Organization members can create customers,PERMISSIVE,authenticated,INSERT,,"user_belongs_to_org(auth.uid(), organization_id)"
+public,customers,Users can view customers in their organizations,PERMISSIVE,public,SELECT,(organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids)),
+public,daily_tally_snapshot,Users can delete daily tally snapshots for their org,PERMISSIVE,public,DELETE,"user_belongs_to_org(auth.uid(), organization_id)",
+public,daily_tally_snapshot,Users can insert daily tally snapshots for their org,PERMISSIVE,public,INSERT,,"user_belongs_to_org(auth.uid(), organization_id)"
+public,daily_tally_snapshot,Users can update daily tally snapshots for their org,PERMISSIVE,public,UPDATE,"user_belongs_to_org(auth.uid(), organization_id)",
+public,daily_tally_snapshot,Users can view daily tally snapshots for their org,PERMISSIVE,public,SELECT,"user_belongs_to_org(auth.uid(), organization_id)",
+public,dc_sale_transfers,Users can manage dc_sale_transfers in their org,PERMISSIVE,authenticated,ALL,"(organization_id IN ( SELECT organization_members.organization_id
+   FROM organization_members
+  WHERE (organization_members.user_id = auth.uid())))","(organization_id IN ( SELECT organization_members.organization_id
+   FROM organization_members
+  WHERE (organization_members.user_id = auth.uid())))"
+public,delivery_challan_items,Users can delete challan items of their organizations,PERMISSIVE,public,DELETE,"(challan_id IN ( SELECT delivery_challans.id
+   FROM delivery_challans
+  WHERE (delivery_challans.organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids))))",
+public,delivery_challan_items,Users can insert challan items to their organizations,PERMISSIVE,public,INSERT,,"(challan_id IN ( SELECT delivery_challans.id
+   FROM delivery_challans
+  WHERE (delivery_challans.organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids))))"
+public,delivery_challan_items,Users can update challan items of their organizations,PERMISSIVE,public,UPDATE,"(challan_id IN ( SELECT delivery_challans.id
+   FROM delivery_challans
+  WHERE (delivery_challans.organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids))))",
+public,delivery_challan_items,Users can view challan items of their organizations,PERMISSIVE,public,SELECT,"(challan_id IN ( SELECT delivery_challans.id
+   FROM delivery_challans
+  WHERE (delivery_challans.organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids))))",
+public,delivery_challans,Users can delete delivery challans of their organizations,PERMISSIVE,public,DELETE,(organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids)),
+public,delivery_challans,Users can insert delivery challans to their organizations,PERMISSIVE,public,INSERT,,(organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids))
+public,delivery_challans,Users can update delivery challans of their organizations,PERMISSIVE,public,UPDATE,(organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids)),
+public,delivery_challans,Users can view delivery challans of their organizations,PERMISSIVE,public,SELECT,(organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids)),
+public,delivery_tracking,Admins and managers can manage delivery tracking,PERMISSIVE,public,ALL,"(user_belongs_to_org(auth.uid(), organization_id) AND (has_org_role(auth.uid(), organization_id, 'admin'::app_role) OR has_org_role(auth.uid(), organization_id, 'manager'::app_role)))","(user_belongs_to_org(auth.uid(), organization_id) AND (has_org_role(auth.uid(), organization_id, 'admin'::app_role) OR has_org_role(auth.uid(), organization_id, 'manager'::app_role)))"
+public,delivery_tracking,Users can view delivery tracking in their organizations,PERMISSIVE,public,SELECT,(organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids)),
+public,drafts,Users can create their own drafts,PERMISSIVE,public,INSERT,,"(user_belongs_to_org(auth.uid(), organization_id) AND (created_by = auth.uid()))"
+public,drafts,Users can delete their own drafts,PERMISSIVE,public,DELETE,"(user_belongs_to_org(auth.uid(), organization_id) AND (created_by = auth.uid()))",
+public,drafts,Users can update their own drafts,PERMISSIVE,public,UPDATE,"(user_belongs_to_org(auth.uid(), organization_id) AND (created_by = auth.uid()))",
+public,drafts,Users can view their own drafts,PERMISSIVE,public,SELECT,"(user_belongs_to_org(auth.uid(), organization_id) AND (created_by = auth.uid()))",
+public,drift_detection_runs,Platform admin reads run log,PERMISSIVE,authenticated,SELECT,"has_role(auth.uid(), 'platform_admin'::app_role)",
+public,employees,Admins and managers can manage employees,PERMISSIVE,public,ALL,"(user_belongs_to_org(auth.uid(), organization_id) AND (has_org_role(auth.uid(), organization_id, 'admin'::app_role) OR has_org_role(auth.uid(), organization_id, 'manager'::app_role)))","(user_belongs_to_org(auth.uid(), organization_id) AND (has_org_role(auth.uid(), organization_id, 'admin'::app_role) OR has_org_role(auth.uid(), organization_id, 'manager'::app_role)))"
+public,employees,Users can view employees in their organizations,PERMISSIVE,public,SELECT,(organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids)),
+public,expense_categories,Users can create expense categories in their organization,PERMISSIVE,public,INSERT,,"(organization_id IN ( SELECT organization_members.organization_id
+   FROM organization_members
+  WHERE (organization_members.user_id = auth.uid())))"
+public,expense_categories,Users can delete expense categories in their organization,PERMISSIVE,public,DELETE,"(organization_id IN ( SELECT organization_members.organization_id
+   FROM organization_members
+  WHERE (organization_members.user_id = auth.uid())))",
+public,expense_categories,Users can update expense categories in their organization,PERMISSIVE,public,UPDATE,"(organization_id IN ( SELECT organization_members.organization_id
+   FROM organization_members
+  WHERE (organization_members.user_id = auth.uid())))",
+public,expense_categories,Users can view expense categories in their organization,PERMISSIVE,public,SELECT,"(organization_id IN ( SELECT organization_members.organization_id
+   FROM organization_members
+  WHERE (organization_members.user_id = auth.uid())))",
+public,fee_heads,org_members_fee_heads_delete,PERMISSIVE,authenticated,DELETE,"(organization_id IN ( SELECT organization_members.organization_id
+   FROM organization_members
+  WHERE (organization_members.user_id = auth.uid())))",
+public,fee_heads,org_members_fee_heads_insert,PERMISSIVE,authenticated,INSERT,,"(organization_id IN ( SELECT organization_members.organization_id
+   FROM organization_members
+  WHERE (organization_members.user_id = auth.uid())))"
+public,fee_heads,org_members_fee_heads_select,PERMISSIVE,authenticated,SELECT,"(organization_id IN ( SELECT organization_members.organization_id
+   FROM organization_members
+  WHERE (organization_members.user_id = auth.uid())))",
+public,fee_heads,org_members_fee_heads_update,PERMISSIVE,authenticated,UPDATE,"(organization_id IN ( SELECT organization_members.organization_id
+   FROM organization_members
+  WHERE (organization_members.user_id = auth.uid())))",
+public,fee_receipt_sequence,org_fee_receipt_sequence_insert,PERMISSIVE,public,INSERT,,"(organization_id IN ( SELECT organization_members.organization_id
+   FROM organization_members
+  WHERE (organization_members.user_id = auth.uid())))"
+public,fee_receipt_sequence,org_fee_receipt_sequence_select,PERMISSIVE,public,SELECT,"(organization_id IN ( SELECT organization_members.organization_id
+   FROM organization_members
+  WHERE (organization_members.user_id = auth.uid())))",
+public,fee_receipt_sequence,org_fee_receipt_sequence_update,PERMISSIVE,public,UPDATE,"(organization_id IN ( SELECT organization_members.organization_id
+   FROM organization_members
+  WHERE (organization_members.user_id = auth.uid())))",
+public,fee_schedules,org_members_fee_schedules_delete,PERMISSIVE,authenticated,DELETE,"(organization_id IN ( SELECT organization_members.organization_id
+   FROM organization_members
+  WHERE (organization_members.user_id = auth.uid())))",
+public,fee_schedules,org_members_fee_schedules_insert,PERMISSIVE,authenticated,INSERT,,"(organization_id IN ( SELECT organization_members.organization_id
+   FROM organization_members
+  WHERE (organization_members.user_id = auth.uid())))"
+public,fee_schedules,org_members_fee_schedules_select,PERMISSIVE,authenticated,SELECT,"(organization_id IN ( SELECT organization_members.organization_id
+   FROM organization_members
+  WHERE (organization_members.user_id = auth.uid())))",
+public,fee_schedules,org_members_fee_schedules_update,PERMISSIVE,authenticated,UPDATE,"(organization_id IN ( SELECT organization_members.organization_id
+   FROM organization_members
+  WHERE (organization_members.user_id = auth.uid())))",
+public,fee_structure_history,Users can insert fee structure history,PERMISSIVE,authenticated,INSERT,,"(organization_id IN ( SELECT organization_members.organization_id
+   FROM organization_members
+  WHERE (organization_members.user_id = auth.uid())))"
+public,fee_structure_history,Users can view fee structure history,PERMISSIVE,authenticated,SELECT,"(organization_id IN ( SELECT organization_members.organization_id
+   FROM organization_members
+  WHERE (organization_members.user_id = auth.uid())))",
+public,fee_structures,org_members_fee_structures_delete,PERMISSIVE,authenticated,DELETE,"(organization_id IN ( SELECT organization_members.organization_id
+   FROM organization_members
+  WHERE (organization_members.user_id = auth.uid())))",
+public,fee_structures,org_members_fee_structures_insert,PERMISSIVE,authenticated,INSERT,,"(organization_id IN ( SELECT organization_members.organization_id
+   FROM organization_members
+  WHERE (organization_members.user_id = auth.uid())))"
+public,fee_structures,org_members_fee_structures_select,PERMISSIVE,authenticated,SELECT,"(organization_id IN ( SELECT organization_members.organization_id
+   FROM organization_members
+  WHERE (organization_members.user_id = auth.uid())))",
+public,fee_structures,org_members_fee_structures_update,PERMISSIVE,authenticated,UPDATE,"(organization_id IN ( SELECT organization_members.organization_id
+   FROM organization_members
+  WHERE (organization_members.user_id = auth.uid())))",
+public,gift_redemptions,Admins can delete gift redemptions,PERMISSIVE,public,DELETE,"has_org_role(auth.uid(), organization_id, 'admin'::app_role)",
+public,gift_redemptions,Users can create gift redemptions in their organizations,PERMISSIVE,public,INSERT,,"user_belongs_to_org(auth.uid(), organization_id)"
+public,gift_redemptions,Users can view gift redemptions in their organizations,PERMISSIVE,public,SELECT,(organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids)),
+public,gift_rewards,Admins and managers can manage gift rewards,PERMISSIVE,public,ALL,"(user_belongs_to_org(auth.uid(), organization_id) AND (has_org_role(auth.uid(), organization_id, 'admin'::app_role) OR has_org_role(auth.uid(), organization_id, 'manager'::app_role)))","(user_belongs_to_org(auth.uid(), organization_id) AND (has_org_role(auth.uid(), organization_id, 'admin'::app_role) OR has_org_role(auth.uid(), organization_id, 'manager'::app_role)))"
+public,gift_rewards,Users can view gift rewards in their organizations,PERMISSIVE,public,SELECT,(organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids)),
+public,import_templates,Users can delete their org templates,PERMISSIVE,public,DELETE,"(organization_id IN ( SELECT organization_members.organization_id
+   FROM organization_members
+  WHERE (organization_members.user_id = auth.uid())))",
+public,import_templates,Users can insert their org templates,PERMISSIVE,public,INSERT,,"(organization_id IN ( SELECT organization_members.organization_id
+   FROM organization_members
+  WHERE (organization_members.user_id = auth.uid())))"
+public,import_templates,Users can update their org templates,PERMISSIVE,public,UPDATE,"(organization_id IN ( SELECT organization_members.organization_id
+   FROM organization_members
+  WHERE (organization_members.user_id = auth.uid())))",
+public,import_templates,Users can view their org templates,PERMISSIVE,public,SELECT,"(organization_id IN ( SELECT organization_members.organization_id
+   FROM organization_members
+  WHERE (organization_members.user_id = auth.uid())))",
+public,invariant_daily_snapshot,Platform admins read invariant snapshots,PERMISSIVE,authenticated,SELECT,"has_role(auth.uid(), 'platform_admin'::app_role)",
+public,invoice_adjustments,Org admins can delete invoice_adjustments,PERMISSIVE,authenticated,DELETE,"is_org_admin(auth.uid(), organization_id)",
+public,invoice_adjustments,Org admins can update invoice_adjustments,PERMISSIVE,authenticated,UPDATE,"is_org_admin(auth.uid(), organization_id)","is_org_admin(auth.uid(), organization_id)"
+public,invoice_adjustments,Org members can insert invoice_adjustments,PERMISSIVE,authenticated,INSERT,,"user_belongs_to_org(auth.uid(), organization_id)"
+public,invoice_adjustments,Org members can view invoice_adjustments,PERMISSIVE,authenticated,SELECT,"user_belongs_to_org(auth.uid(), organization_id)",
+public,journal_entries,Org admins can delete journal_entries,PERMISSIVE,authenticated,DELETE,"is_org_admin(auth.uid(), organization_id)",
+public,journal_entries,Org admins can update journal_entries,PERMISSIVE,authenticated,UPDATE,"is_org_admin(auth.uid(), organization_id)","is_org_admin(auth.uid(), organization_id)"
+public,journal_entries,Org members can insert journal_entries,PERMISSIVE,authenticated,INSERT,,"user_belongs_to_org(auth.uid(), organization_id)"
+public,journal_entries,Org members can view journal_entries,PERMISSIVE,authenticated,SELECT,"user_belongs_to_org(auth.uid(), organization_id)",
+public,journal_lines,Org admins can delete journal_lines,PERMISSIVE,authenticated,DELETE,"(EXISTS ( SELECT 1
+   FROM journal_entries je
+  WHERE ((je.id = journal_lines.journal_entry_id) AND is_org_admin(auth.uid(), je.organization_id))))",
+public,journal_lines,Org admins can update journal_lines,PERMISSIVE,authenticated,UPDATE,"(EXISTS ( SELECT 1
+   FROM journal_entries je
+  WHERE ((je.id = journal_lines.journal_entry_id) AND is_org_admin(auth.uid(), je.organization_id))))",
+public,journal_lines,Org members can insert journal_lines,PERMISSIVE,authenticated,INSERT,,"(EXISTS ( SELECT 1
+   FROM journal_entries je
+  WHERE ((je.id = journal_lines.journal_entry_id) AND user_belongs_to_org(auth.uid(), je.organization_id))))"
+public,journal_lines,Org members can view journal_lines,PERMISSIVE,authenticated,SELECT,"(EXISTS ( SELECT 1
+   FROM journal_entries je
+  WHERE ((je.id = journal_lines.journal_entry_id) AND user_belongs_to_org(auth.uid(), je.organization_id))))",
+public,kidzstock_barcode_swap_20260615,no client access,PERMISSIVE,public,ALL,false,false
+public,ledger_opening_balances,Org admins can delete ledger opening balances,PERMISSIVE,public,DELETE,"((organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids)) AND (has_role(auth.uid(), 'platform_admin'::app_role) OR has_org_role(auth.uid(), organization_id, 'admin'::app_role)))",
+public,ledger_opening_balances,Org admins can update ledger opening balances,PERMISSIVE,public,UPDATE,"((organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids)) AND (has_role(auth.uid(), 'platform_admin'::app_role) OR has_org_role(auth.uid(), organization_id, 'admin'::app_role)))",
+public,ledger_opening_balances,Org members can insert ledger opening balances,PERMISSIVE,public,INSERT,,(organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids))
+public,ledger_opening_balances,Org members can view ledger opening balances,PERMISSIVE,public,SELECT,(organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids)),
+public,legacy_invoices,Admins and managers can manage legacy invoices,PERMISSIVE,public,ALL,"(user_belongs_to_org(auth.uid(), organization_id) AND (has_org_role(auth.uid(), organization_id, 'admin'::app_role) OR has_org_role(auth.uid(), organization_id, 'manager'::app_role)))","(user_belongs_to_org(auth.uid(), organization_id) AND (has_org_role(auth.uid(), organization_id, 'admin'::app_role) OR has_org_role(auth.uid(), organization_id, 'manager'::app_role)))"
+public,legacy_invoices,Users can view legacy invoices in their organizations,PERMISSIVE,public,SELECT,(organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids)),
+public,login_attempts,anon_insert_rate_limited,PERMISSIVE,"anon,authenticated",INSERT,,((identifier IS NOT NULL) AND (length(identifier) <= 320) AND login_attempts_rate_ok(identifier))
+public,organization_bank_accounts,Admins and managers can insert organization bank accounts,PERMISSIVE,public,INSERT,,"((organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids)) AND (has_org_role(auth.uid(), organization_id, 'admin'::app_role) OR has_org_role(auth.uid(), organization_id, 'manager'::app_role)))"
+public,organization_bank_accounts,Admins and managers can manage bank accounts,PERMISSIVE,authenticated,ALL,"(user_belongs_to_org(auth.uid(), organization_id) AND (has_org_role(auth.uid(), organization_id, 'admin'::app_role) OR has_org_role(auth.uid(), organization_id, 'manager'::app_role)))","(user_belongs_to_org(auth.uid(), organization_id) AND (has_org_role(auth.uid(), organization_id, 'admin'::app_role) OR has_org_role(auth.uid(), organization_id, 'manager'::app_role)))"
+public,organization_bank_accounts,Admins and managers can update organization bank accounts,PERMISSIVE,public,UPDATE,"((organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids)) AND (has_org_role(auth.uid(), organization_id, 'admin'::app_role) OR has_org_role(auth.uid(), organization_id, 'manager'::app_role)))","((organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids)) AND (has_org_role(auth.uid(), organization_id, 'admin'::app_role) OR has_org_role(auth.uid(), organization_id, 'manager'::app_role)))"
+public,organization_bank_accounts,Org members can view bank accounts,PERMISSIVE,authenticated,SELECT,(organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids)),
+public,organization_bank_accounts,Org members can view organization bank accounts,PERMISSIVE,public,SELECT,((deleted_at IS NULL) AND (organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids))),
+public,organization_label_templates_backup,Admins can manage label backups,PERMISSIVE,public,ALL,"has_org_role(auth.uid(), organization_id, 'admin'::app_role)","has_org_role(auth.uid(), organization_id, 'admin'::app_role)"
+public,organization_label_templates_backup,Organization members can view their label backups,PERMISSIVE,public,SELECT,"(organization_id IN ( SELECT organization_members.organization_id
+   FROM organization_members
+  WHERE (organization_members.user_id = auth.uid())))",
+public,organization_members,Admins can delete members in their organization,PERMISSIVE,public,DELETE,"has_org_role(auth.uid(), organization_id, 'admin'::app_role)",
+public,organization_members,Admins can manage members in their organization,PERMISSIVE,public,UPDATE,"(has_org_role(auth.uid(), organization_id, 'admin'::app_role) AND (user_id <> auth.uid()))","(has_org_role(auth.uid(), organization_id, 'admin'::app_role) AND (user_id <> auth.uid()))"
+public,organization_members,Org admins can delete members,PERMISSIVE,authenticated,DELETE,"is_org_admin(auth.uid(), organization_id)",
+public,organization_members,Org admins can insert members,PERMISSIVE,authenticated,INSERT,,"is_org_admin(auth.uid(), organization_id)"
+public,organization_members,Org admins can update members,PERMISSIVE,public,UPDATE,"(is_org_admin(auth.uid(), organization_id) AND (user_id <> auth.uid()))","(is_org_admin(auth.uid(), organization_id) AND (user_id <> auth.uid()))"
+public,organization_members,Users can view members of their organizations,PERMISSIVE,authenticated,SELECT,(organization_id IN ( SELECT get_user_organization_ids(( SELECT auth.uid() AS uid)) AS get_user_organization_ids)),
+public,organization_members,platform_admins_can_delete_members,PERMISSIVE,authenticated,DELETE,"has_role(auth.uid(), 'platform_admin'::app_role)",
+public,organization_members,platform_admins_can_manage_all_members,PERMISSIVE,public,ALL,"has_role(auth.uid(), 'platform_admin'::app_role)","has_role(auth.uid(), 'platform_admin'::app_role)"
+public,organization_members,platform_admins_can_update_member_roles,PERMISSIVE,authenticated,UPDATE,"has_role(auth.uid(), 'platform_admin'::app_role)","has_role(auth.uid(), 'platform_admin'::app_role)"
+public,organization_reset_audit,Org members can view reset audit for their organization,PERMISSIVE,authenticated,SELECT,"user_belongs_to_org(auth.uid(), organization_id)",
+public,organizations,admins_can_update_organizations,PERMISSIVE,public,UPDATE,"(has_role(auth.uid(), 'platform_admin'::app_role) OR has_org_role(auth.uid(), id, 'admin'::app_role))","(has_role(auth.uid(), 'platform_admin'::app_role) OR has_org_role(auth.uid(), id, 'admin'::app_role))"
+public,organizations,platform_admins_can_create_organizations,PERMISSIVE,public,INSERT,,"has_role(auth.uid(), 'platform_admin'::app_role)"
+public,organizations,platform_admins_can_delete_organizations,PERMISSIVE,authenticated,DELETE,"has_role(auth.uid(), 'platform_admin'::app_role)",
+public,organizations,users_can_select_their_organizations,PERMISSIVE,public,SELECT,"(has_role(auth.uid(), 'platform_admin'::app_role) OR (id IN ( SELECT organization_members.organization_id
+   FROM organization_members
+  WHERE (organization_members.user_id = auth.uid()))))",
+public,payment_gateway_settings,Admins and managers can view gateway settings,PERMISSIVE,authenticated,SELECT,"(has_org_role(auth.uid(), organization_id, 'admin'::app_role) OR has_org_role(auth.uid(), organization_id, 'manager'::app_role))",
+public,payment_gateway_settings,Admins can manage gateway settings,PERMISSIVE,public,ALL,"has_org_role(auth.uid(), organization_id, 'admin'::app_role)","has_org_role(auth.uid(), organization_id, 'admin'::app_role)"
+public,payment_links,Users can create payment links in their organizations,PERMISSIVE,public,INSERT,,(organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids))
+public,payment_links,Users can update payment links in their organizations,PERMISSIVE,public,UPDATE,(organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids)),
+public,payment_links,Users can view payment links in their organizations,PERMISSIVE,public,SELECT,(organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids)),
+public,platform_settings,Platform admins can modify platform settings,PERMISSIVE,authenticated,ALL,"has_role(auth.uid(), 'platform_admin'::app_role)","has_role(auth.uid(), 'platform_admin'::app_role)"
+public,platform_settings,Platform admins can view platform settings,PERMISSIVE,authenticated,SELECT,"has_role(auth.uid(), 'platform_admin'::app_role)",
+public,portal_sessions,Block all client access to portal_sessions,PERMISSIVE,"anon,authenticated",ALL,false,false
+public,portal_sessions,Service role full access to portal_sessions,PERMISSIVE,service_role,ALL,true,true
+public,printer_presets,Users can delete org presets,PERMISSIVE,authenticated,DELETE,"(organization_id IN ( SELECT organization_members.organization_id
+   FROM organization_members
+  WHERE (organization_members.user_id = auth.uid())))",
+public,printer_presets,Users can insert org presets,PERMISSIVE,authenticated,INSERT,,"(organization_id IN ( SELECT organization_members.organization_id
+   FROM organization_members
+  WHERE (organization_members.user_id = auth.uid())))"
+public,printer_presets,Users can update org presets,PERMISSIVE,authenticated,UPDATE,"(organization_id IN ( SELECT organization_members.organization_id
+   FROM organization_members
+  WHERE (organization_members.user_id = auth.uid())))",
+public,printer_presets,Users can view org presets,PERMISSIVE,authenticated,SELECT,"(organization_id IN ( SELECT organization_members.organization_id
+   FROM organization_members
+  WHERE (organization_members.user_id = auth.uid())))",
+public,printer_presets_backup,Org members can insert printer preset backups,PERMISSIVE,authenticated,INSERT,,"(organization_id IN ( SELECT organization_members.organization_id
+   FROM organization_members
+  WHERE (organization_members.user_id = auth.uid())))"
+public,printer_presets_backup,Org members can view printer preset backups,PERMISSIVE,authenticated,SELECT,"(organization_id IN ( SELECT organization_members.organization_id
+   FROM organization_members
+  WHERE (organization_members.user_id = auth.uid())))",
+public,product_images,Users can delete product images for their organization,PERMISSIVE,public,DELETE,"(organization_id IN ( SELECT organization_members.organization_id
+   FROM organization_members
+  WHERE (organization_members.user_id = auth.uid())))",
+public,product_images,Users can insert product images for their organization,PERMISSIVE,public,INSERT,,"(organization_id IN ( SELECT organization_members.organization_id
+   FROM organization_members
+  WHERE (organization_members.user_id = auth.uid())))"
+public,product_images,Users can update product images for their organization,PERMISSIVE,public,UPDATE,"(organization_id IN ( SELECT organization_members.organization_id
+   FROM organization_members
+  WHERE (organization_members.user_id = auth.uid())))",
+public,product_images,Users can view product images for their organization,PERMISSIVE,public,SELECT,"(organization_id IN ( SELECT organization_members.organization_id
+   FROM organization_members
+  WHERE (organization_members.user_id = auth.uid())))",
+public,product_variants,Admins and managers can manage variants,PERMISSIVE,public,ALL,"(user_belongs_to_org(auth.uid(), organization_id) AND (has_org_role(auth.uid(), organization_id, 'admin'::app_role) OR has_org_role(auth.uid(), organization_id, 'manager'::app_role)))","(user_belongs_to_org(auth.uid(), organization_id) AND (has_org_role(auth.uid(), organization_id, 'admin'::app_role) OR has_org_role(auth.uid(), organization_id, 'manager'::app_role)))"
+public,product_variants,Users can view variants in their organizations,PERMISSIVE,public,SELECT,(organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids)),
+public,product_variants,org_variants_select,PERMISSIVE,public,SELECT,(organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids)),
+public,products,Admins and managers can insert products,PERMISSIVE,public,INSERT,,"(user_belongs_to_org(auth.uid(), organization_id) AND (has_org_role(auth.uid(), organization_id, 'admin'::app_role) OR has_org_role(auth.uid(), organization_id, 'manager'::app_role)))"
+public,products,Admins and managers can update products,PERMISSIVE,public,UPDATE,"(user_belongs_to_org(auth.uid(), organization_id) AND (has_org_role(auth.uid(), organization_id, 'admin'::app_role) OR has_org_role(auth.uid(), organization_id, 'manager'::app_role)))",
+public,products,Admins can delete products,PERMISSIVE,public,DELETE,"has_org_role(auth.uid(), organization_id, 'admin'::app_role)",
+public,products,Users can view products in their organizations,PERMISSIVE,public,SELECT,(organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids)),
+public,products,org_products_select,PERMISSIVE,public,SELECT,(organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids)),
+public,promotion_history,Users can insert promotion history for their org,PERMISSIVE,authenticated,INSERT,,"(organization_id IN ( SELECT organization_members.organization_id
+   FROM organization_members
+  WHERE (organization_members.user_id = auth.uid())))"
+public,promotion_history,Users can view promotion history for their org,PERMISSIVE,authenticated,SELECT,"(organization_id IN ( SELECT organization_members.organization_id
+   FROM organization_members
+  WHERE (organization_members.user_id = auth.uid())))",
+public,purchase_bills,Admins and managers can insert purchase bills,PERMISSIVE,authenticated,INSERT,,"(user_belongs_to_org(auth.uid(), organization_id) AND (has_org_role(auth.uid(), organization_id, 'admin'::app_role) OR has_org_role(auth.uid(), organization_id, 'manager'::app_role)))"
+public,purchase_bills,Admins and managers can view purchase bills,PERMISSIVE,public,SELECT,"(user_belongs_to_org(auth.uid(), organization_id) AND (has_org_role(auth.uid(), organization_id, 'admin'::app_role) OR has_org_role(auth.uid(), organization_id, 'manager'::app_role)))",
+public,purchase_bills,Creator or admin can delete purchase bills,PERMISSIVE,authenticated,DELETE,"(user_belongs_to_org(auth.uid(), organization_id) AND (has_org_role(auth.uid(), organization_id, 'admin'::app_role) OR has_org_role(auth.uid(), organization_id, 'manager'::app_role)) AND is_entry_creator_or_admin(organization_id, created_by))",
+public,purchase_bills,Creator or admin can update purchase bills,PERMISSIVE,authenticated,UPDATE,"(user_belongs_to_org(auth.uid(), organization_id) AND (has_org_role(auth.uid(), organization_id, 'admin'::app_role) OR has_org_role(auth.uid(), organization_id, 'manager'::app_role)) AND is_entry_creator_or_admin(organization_id, created_by))","(user_belongs_to_org(auth.uid(), organization_id) AND (has_org_role(auth.uid(), organization_id, 'admin'::app_role) OR has_org_role(auth.uid(), organization_id, 'manager'::app_role)) AND is_entry_creator_or_admin(organization_id, created_by))"
+public,purchase_items,Org members can delete purchase items,PERMISSIVE,authenticated,DELETE,"(bill_id IN ( SELECT purchase_bills.id
+   FROM purchase_bills
+  WHERE (purchase_bills.organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids))))",
+public,purchase_items,Org members can insert purchase items,PERMISSIVE,authenticated,INSERT,,"(bill_id IN ( SELECT purchase_bills.id
+   FROM purchase_bills
+  WHERE (purchase_bills.organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids))))"
+public,purchase_items,Org members can update purchase items,PERMISSIVE,authenticated,UPDATE,"(bill_id IN ( SELECT purchase_bills.id
+   FROM purchase_bills
+  WHERE (purchase_bills.organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids))))",
+public,purchase_items,Org members can view purchase items,PERMISSIVE,authenticated,SELECT,"(bill_id IN ( SELECT purchase_bills.id
+   FROM purchase_bills
+  WHERE (purchase_bills.organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids))))",
+public,purchase_order_items,Admins and managers can delete purchase order items,PERMISSIVE,authenticated,DELETE,"(order_id IN ( SELECT po.id
+   FROM purchase_orders po
+  WHERE ((po.organization_id IN ( SELECT om.organization_id
+           FROM organization_members om
+          WHERE (om.user_id = auth.uid()))) AND (has_org_role(auth.uid(), po.organization_id, 'admin'::app_role) OR has_org_role(auth.uid(), po.organization_id, 'manager'::app_role)))))",
+public,purchase_order_items,Users can create purchase order items,PERMISSIVE,public,INSERT,,"(order_id IN ( SELECT purchase_orders.id
+   FROM purchase_orders
+  WHERE (purchase_orders.organization_id IN ( SELECT organization_members.organization_id
+           FROM organization_members
+          WHERE (organization_members.user_id = auth.uid())))))"
+public,purchase_order_items,Users can update purchase order items,PERMISSIVE,public,UPDATE,"(order_id IN ( SELECT purchase_orders.id
+   FROM purchase_orders
+  WHERE (purchase_orders.organization_id IN ( SELECT organization_members.organization_id
+           FROM organization_members
+          WHERE (organization_members.user_id = auth.uid())))))",
+public,purchase_order_items,Users can view purchase order items,PERMISSIVE,public,SELECT,"(order_id IN ( SELECT purchase_orders.id
+   FROM purchase_orders
+  WHERE (purchase_orders.organization_id IN ( SELECT organization_members.organization_id
+           FROM organization_members
+          WHERE (organization_members.user_id = auth.uid())))))",
+public,purchase_orders,Admins and managers can delete purchase orders,PERMISSIVE,authenticated,DELETE,"((organization_id IN ( SELECT om.organization_id
+   FROM organization_members om
+  WHERE (om.user_id = auth.uid()))) AND (has_org_role(auth.uid(), organization_id, 'admin'::app_role) OR has_org_role(auth.uid(), organization_id, 'manager'::app_role)))",
+public,purchase_orders,Users can create purchase orders in their organization,PERMISSIVE,public,INSERT,,"(organization_id IN ( SELECT organization_members.organization_id
+   FROM organization_members
+  WHERE (organization_members.user_id = auth.uid())))"
+public,purchase_orders,Users can update purchase orders in their organization,PERMISSIVE,public,UPDATE,"(organization_id IN ( SELECT organization_members.organization_id
+   FROM organization_members
+  WHERE (organization_members.user_id = auth.uid())))",
+public,purchase_orders,Users can view purchase orders in their organization,PERMISSIVE,public,SELECT,"(organization_id IN ( SELECT organization_members.organization_id
+   FROM organization_members
+  WHERE (organization_members.user_id = auth.uid())))",
+public,purchase_return_items,Org members can delete purchase return items,PERMISSIVE,authenticated,DELETE,"(return_id IN ( SELECT purchase_returns.id
+   FROM purchase_returns
+  WHERE (purchase_returns.organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids))))",
+public,purchase_return_items,Org members can insert purchase return items,PERMISSIVE,authenticated,INSERT,,"(return_id IN ( SELECT purchase_returns.id
+   FROM purchase_returns
+  WHERE (purchase_returns.organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids))))"
+public,purchase_return_items,Org members can update purchase return items,PERMISSIVE,authenticated,UPDATE,"(return_id IN ( SELECT purchase_returns.id
+   FROM purchase_returns
+  WHERE (purchase_returns.organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids))))",
+public,purchase_return_items,Org members can view purchase return items,PERMISSIVE,authenticated,SELECT,"(return_id IN ( SELECT purchase_returns.id
+   FROM purchase_returns
+  WHERE (purchase_returns.organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids))))",
+public,purchase_return_items,Users can view return items in their organizations,PERMISSIVE,public,SELECT,"(return_id IN ( SELECT purchase_returns.id
+   FROM purchase_returns
+  WHERE (purchase_returns.organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids))))",
+public,purchase_returns,Admins and managers can manage returns,PERMISSIVE,public,ALL,"(user_belongs_to_org(auth.uid(), organization_id) AND (has_org_role(auth.uid(), organization_id, 'admin'::app_role) OR has_org_role(auth.uid(), organization_id, 'manager'::app_role)))","(user_belongs_to_org(auth.uid(), organization_id) AND (has_org_role(auth.uid(), organization_id, 'admin'::app_role) OR has_org_role(auth.uid(), organization_id, 'manager'::app_role)))"
+public,purchase_returns,Users can view returns in their organizations,PERMISSIVE,public,SELECT,(organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids)),
+public,quotation_items,Org members can delete quotation items,PERMISSIVE,authenticated,DELETE,"(quotation_id IN ( SELECT quotations.id
+   FROM quotations
+  WHERE (quotations.organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids))))",
+public,quotation_items,Org members can insert quotation items,PERMISSIVE,authenticated,INSERT,,"(quotation_id IN ( SELECT quotations.id
+   FROM quotations
+  WHERE (quotations.organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids))))"
+public,quotation_items,Org members can update quotation items,PERMISSIVE,authenticated,UPDATE,"(quotation_id IN ( SELECT quotations.id
+   FROM quotations
+  WHERE (quotations.organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids))))",
+public,quotation_items,Org members can view quotation items,PERMISSIVE,authenticated,SELECT,"(quotation_id IN ( SELECT quotations.id
+   FROM quotations
+  WHERE (quotations.organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids))))",
+public,quotations,Admins and managers can update quotations,PERMISSIVE,public,UPDATE,"(user_belongs_to_org(auth.uid(), organization_id) AND (has_org_role(auth.uid(), organization_id, 'admin'::app_role) OR has_org_role(auth.uid(), organization_id, 'manager'::app_role)))",
+public,quotations,Admins can delete quotations,PERMISSIVE,public,DELETE,"has_org_role(auth.uid(), organization_id, 'admin'::app_role)",
+public,quotations,Users can create quotations in their organizations,PERMISSIVE,public,INSERT,,"user_belongs_to_org(auth.uid(), organization_id)"
+public,quotations,Users can view quotations in their organizations,PERMISSIVE,public,SELECT,(organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids)),
+public,sale_financer_details,Org members can delete financer details,PERMISSIVE,public,DELETE,(organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids)),
+public,sale_financer_details,Org members can insert financer details,PERMISSIVE,public,INSERT,,(organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids))
+public,sale_financer_details,Org members can update financer details,PERMISSIVE,public,UPDATE,(organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids)),(organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids))
+public,sale_financer_details,Org members can view financer details,PERMISSIVE,public,SELECT,(organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids)),
+public,sale_items,Org members can insert sale items,PERMISSIVE,authenticated,INSERT,,"(sale_id IN ( SELECT sales.id
+   FROM sales
+  WHERE (sales.organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids))))"
+public,sale_items,Org members can update sale items,PERMISSIVE,authenticated,UPDATE,"(sale_id IN ( SELECT sales.id
+   FROM sales
+  WHERE (sales.organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids))))",
+public,sale_items,Org members can view sale items,PERMISSIVE,authenticated,SELECT,"(sale_id IN ( SELECT sales.id
+   FROM sales
+  WHERE (sales.organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids))))",
+public,sale_items,Organization members can delete sale items,PERMISSIVE,public,DELETE,"(EXISTS ( SELECT 1
+   FROM (sales s
+     JOIN organization_members om ON ((om.organization_id = s.organization_id)))
+  WHERE ((s.id = sale_items.sale_id) AND (om.user_id = auth.uid()))))",
+public,sale_items,org_sale_items_select,PERMISSIVE,public,SELECT,"(sale_id IN ( SELECT sales.id
+   FROM sales
+  WHERE (sales.organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids))))",
+public,sale_number_sequence,org_sale_number_sequence_all,PERMISSIVE,authenticated,ALL,(organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids)),(organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids))
+public,sale_order_items,Org members can delete sale order items,PERMISSIVE,authenticated,DELETE,"(order_id IN ( SELECT sale_orders.id
+   FROM sale_orders
+  WHERE (sale_orders.organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids))))",
+public,sale_order_items,Org members can insert sale order items,PERMISSIVE,authenticated,INSERT,,"(order_id IN ( SELECT sale_orders.id
+   FROM sale_orders
+  WHERE (sale_orders.organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids))))"
+public,sale_order_items,Org members can update sale order items,PERMISSIVE,authenticated,UPDATE,"(order_id IN ( SELECT sale_orders.id
+   FROM sale_orders
+  WHERE (sale_orders.organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids))))",
+public,sale_order_items,Org members can view sale order items,PERMISSIVE,authenticated,SELECT,"(order_id IN ( SELECT sale_orders.id
+   FROM sale_orders
+  WHERE (sale_orders.organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids))))",
+public,sale_orders,Admins and managers can update sale orders,PERMISSIVE,public,UPDATE,"(user_belongs_to_org(auth.uid(), organization_id) AND (has_org_role(auth.uid(), organization_id, 'admin'::app_role) OR has_org_role(auth.uid(), organization_id, 'manager'::app_role)))",
+public,sale_orders,Admins can delete sale orders,PERMISSIVE,public,DELETE,"has_org_role(auth.uid(), organization_id, 'admin'::app_role)",
+public,sale_orders,Users can create sale orders in their organizations,PERMISSIVE,public,INSERT,,"user_belongs_to_org(auth.uid(), organization_id)"
+public,sale_orders,Users can view sale orders in their organizations,PERMISSIVE,public,SELECT,(organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids)),
+public,sale_return_invoice_allocations,Org members can delete sr allocations,PERMISSIVE,authenticated,DELETE,"user_belongs_to_org(auth.uid(), organization_id)",
+public,sale_return_invoice_allocations,Org members can insert sr allocations,PERMISSIVE,authenticated,INSERT,,"user_belongs_to_org(auth.uid(), organization_id)"
+public,sale_return_invoice_allocations,Org members can update sr allocations,PERMISSIVE,authenticated,UPDATE,"user_belongs_to_org(auth.uid(), organization_id)","user_belongs_to_org(auth.uid(), organization_id)"
+public,sale_return_invoice_allocations,Org members can view sr allocations,PERMISSIVE,authenticated,SELECT,"user_belongs_to_org(auth.uid(), organization_id)",
+public,sale_return_items,Admins and managers can manage return items,PERMISSIVE,public,ALL,"(return_id IN ( SELECT sr.id
+   FROM sale_returns sr
+  WHERE (user_belongs_to_org(auth.uid(), sr.organization_id) AND (has_org_role(auth.uid(), sr.organization_id, 'admin'::app_role) OR has_org_role(auth.uid(), sr.organization_id, 'manager'::app_role)))))","(return_id IN ( SELECT sr.id
+   FROM sale_returns sr
+  WHERE (user_belongs_to_org(auth.uid(), sr.organization_id) AND (has_org_role(auth.uid(), sr.organization_id, 'admin'::app_role) OR has_org_role(auth.uid(), sr.organization_id, 'manager'::app_role)))))"
+public,sale_return_items,Users can view return items in their organizations,PERMISSIVE,public,SELECT,"(return_id IN ( SELECT sale_returns.id
+   FROM sale_returns
+  WHERE (sale_returns.organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids))))",
+public,sale_returns,Admins and managers can insert returns,PERMISSIVE,public,INSERT,,"(user_belongs_to_org(auth.uid(), organization_id) AND (has_org_role(auth.uid(), organization_id, 'admin'::app_role) OR has_org_role(auth.uid(), organization_id, 'manager'::app_role)))"
+public,sale_returns,Admins and managers can update returns,PERMISSIVE,public,UPDATE,"(user_belongs_to_org(auth.uid(), organization_id) AND (has_org_role(auth.uid(), organization_id, 'admin'::app_role) OR has_org_role(auth.uid(), organization_id, 'manager'::app_role)))",
+public,sale_returns,Admins can delete returns,PERMISSIVE,public,DELETE,"has_org_role(auth.uid(), organization_id, 'admin'::app_role)",
+public,sale_returns,Users can view returns in their organizations,PERMISSIVE,public,SELECT,(organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids)),
+public,sales,Creator or admin can delete sales,PERMISSIVE,authenticated,DELETE,"(user_belongs_to_org(auth.uid(), organization_id) AND is_entry_creator_or_admin(organization_id, created_by))",
+public,sales,Creator or admin can update sales,PERMISSIVE,authenticated,UPDATE,"(user_belongs_to_org(auth.uid(), organization_id) AND is_entry_creator_or_admin(organization_id, created_by))","(user_belongs_to_org(auth.uid(), organization_id) AND is_entry_creator_or_admin(organization_id, created_by))"
+public,sales,Users can create sales in their organizations,PERMISSIVE,public,INSERT,,"user_belongs_to_org(auth.uid(), organization_id)"
+public,sales,Users can view sales in their organizations,PERMISSIVE,public,SELECT,(organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids)),
+public,salesman_commissions,org_salesman_commissions,PERMISSIVE,public,ALL,"(organization_id IN ( SELECT organization_members.organization_id
+   FROM organization_members
+  WHERE (organization_members.user_id = auth.uid())))",
+public,school_classes,org_members_school_classes_delete,PERMISSIVE,authenticated,DELETE,"(organization_id IN ( SELECT organization_members.organization_id
+   FROM organization_members
+  WHERE (organization_members.user_id = auth.uid())))",
+public,school_classes,org_members_school_classes_insert,PERMISSIVE,authenticated,INSERT,,"(organization_id IN ( SELECT organization_members.organization_id
+   FROM organization_members
+  WHERE (organization_members.user_id = auth.uid())))"
+public,school_classes,org_members_school_classes_select,PERMISSIVE,authenticated,SELECT,"(organization_id IN ( SELECT organization_members.organization_id
+   FROM organization_members
+  WHERE (organization_members.user_id = auth.uid())))",
+public,school_classes,org_members_school_classes_update,PERMISSIVE,authenticated,UPDATE,"(organization_id IN ( SELECT organization_members.organization_id
+   FROM organization_members
+  WHERE (organization_members.user_id = auth.uid())))",
+public,settings,Admins can manage settings,PERMISSIVE,public,ALL,"has_org_role(auth.uid(), organization_id, 'admin'::app_role)","has_org_role(auth.uid(), organization_id, 'admin'::app_role)"
+public,settings,Users can view settings in their organizations,PERMISSIVE,public,SELECT,(organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids)),
+public,settings,platform_admins_can_view_all_settings,PERMISSIVE,public,SELECT,"(has_role(auth.uid(), 'platform_admin'::app_role) OR (organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids)))",
+public,settlement_drift_log,Org members read own drift,PERMISSIVE,authenticated,SELECT,"((EXISTS ( SELECT 1
+   FROM organization_members om
+  WHERE ((om.organization_id = settlement_drift_log.organization_id) AND (om.user_id = auth.uid())))) OR has_role(auth.uid(), 'platform_admin'::app_role))",
+public,settlement_drift_log,Platform admin resolves drift,PERMISSIVE,authenticated,UPDATE,"has_role(auth.uid(), 'platform_admin'::app_role)","has_role(auth.uid(), 'platform_admin'::app_role)"
+public,size_groups,Admins and managers can manage size groups,PERMISSIVE,public,ALL,"(user_belongs_to_org(auth.uid(), organization_id) AND (has_org_role(auth.uid(), organization_id, 'admin'::app_role) OR has_org_role(auth.uid(), organization_id, 'manager'::app_role)))","(user_belongs_to_org(auth.uid(), organization_id) AND (has_org_role(auth.uid(), organization_id, 'admin'::app_role) OR has_org_role(auth.uid(), organization_id, 'manager'::app_role)))"
+public,size_groups,Users can view size groups in their organizations,PERMISSIVE,public,SELECT,(organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids)),
+public,sms_logs,Users can create SMS logs in their organizations,PERMISSIVE,public,INSERT,,"user_belongs_to_org(auth.uid(), organization_id)"
+public,sms_logs,Users can view SMS logs in their organizations,PERMISSIVE,public,SELECT,(organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids)),
+public,sms_settings,Admins can manage SMS settings,PERMISSIVE,public,ALL,"has_org_role(auth.uid(), organization_id, 'admin'::app_role)","has_org_role(auth.uid(), organization_id, 'admin'::app_role)"
+public,sms_settings,Users can view SMS settings in their organizations,PERMISSIVE,public,SELECT,(organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids)),
+public,sms_templates,Admins can manage SMS templates,PERMISSIVE,public,ALL,"has_org_role(auth.uid(), organization_id, 'admin'::app_role)","has_org_role(auth.uid(), organization_id, 'admin'::app_role)"
+public,sms_templates,Users can view SMS templates in their organizations,PERMISSIVE,public,SELECT,(organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids)),
+public,stock_alerts,Service role manages stock alerts,PERMISSIVE,service_role,ALL,true,true
+public,stock_alerts,Users can view stock alerts for their organizations,PERMISSIVE,authenticated,SELECT,"(organization_id IN ( SELECT organization_members.organization_id
+   FROM organization_members
+  WHERE (organization_members.user_id = auth.uid())))",
+public,stock_movements,Org members can insert stock movements,PERMISSIVE,authenticated,INSERT,,(organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids))
+public,stock_movements,Org members can view stock movements,PERMISSIVE,authenticated,SELECT,(organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids)),
+public,stock_movements,Service role can insert stock movements,PERMISSIVE,service_role,INSERT,,true
+public,stock_movements,Users can insert stock movements in their organizations,PERMISSIVE,public,INSERT,,(organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids))
+public,stock_settlement_scans,Org members can delete stock settlement scans,PERMISSIVE,public,DELETE,(organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids)),
+public,stock_settlement_scans,Org members can insert stock settlement scans,PERMISSIVE,public,INSERT,,(organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids))
+public,stock_settlement_scans,Org members can update stock settlement scans,PERMISSIVE,public,UPDATE,(organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids)),(organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids))
+public,stock_settlement_scans,Org members can view stock settlement scans,PERMISSIVE,public,SELECT,(organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids)),
+public,stock_settlement_zero_items,Org members can view stock settlement zero items,PERMISSIVE,public,SELECT,(organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids)),
+public,stock_settlement_zero_runs,Org members can view stock settlement zero runs,PERMISSIVE,public,SELECT,(organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids)),
+public,student_balance_audit,org_student_balance_audit,PERMISSIVE,public,ALL,"(organization_id IN ( SELECT organization_members.organization_id
+   FROM organization_members
+  WHERE (organization_members.user_id = auth.uid())))",
+public,student_fees,org_members_student_fees_delete,PERMISSIVE,authenticated,DELETE,"(organization_id IN ( SELECT organization_members.organization_id
+   FROM organization_members
+  WHERE (organization_members.user_id = auth.uid())))",
+public,student_fees,org_members_student_fees_insert,PERMISSIVE,authenticated,INSERT,,"(organization_id IN ( SELECT organization_members.organization_id
+   FROM organization_members
+  WHERE (organization_members.user_id = auth.uid())))"
+public,student_fees,org_members_student_fees_select,PERMISSIVE,authenticated,SELECT,"((organization_id IN ( SELECT organization_members.organization_id
+   FROM organization_members
+  WHERE (organization_members.user_id = auth.uid()))) OR (student_id IN ( SELECT students.id
+   FROM students
+  WHERE (students.user_id = auth.uid()))))",
+public,student_fees,org_members_student_fees_update,PERMISSIVE,authenticated,UPDATE,"(organization_id IN ( SELECT organization_members.organization_id
+   FROM organization_members
+  WHERE (organization_members.user_id = auth.uid())))",
+public,student_ledger_entries,Org members can delete student ledger entries,PERMISSIVE,public,DELETE,(organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids)),
+public,student_ledger_entries,Org members can insert student ledger entries,PERMISSIVE,public,INSERT,,(organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids))
+public,student_ledger_entries,Org members can update student ledger entries,PERMISSIVE,public,UPDATE,(organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids)),
+public,student_ledger_entries,Org members can view student ledger entries,PERMISSIVE,public,SELECT,(organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids)),
+public,students,org_members_students_delete,PERMISSIVE,authenticated,DELETE,"(organization_id IN ( SELECT organization_members.organization_id
+   FROM organization_members
+  WHERE (organization_members.user_id = auth.uid())))",
+public,students,org_members_students_insert,PERMISSIVE,authenticated,INSERT,,"(organization_id IN ( SELECT organization_members.organization_id
+   FROM organization_members
+  WHERE (organization_members.user_id = auth.uid())))"
+public,students,org_members_students_select,PERMISSIVE,authenticated,SELECT,"((organization_id IN ( SELECT organization_members.organization_id
+   FROM organization_members
+  WHERE (organization_members.user_id = auth.uid()))) OR (user_id = auth.uid()))",
+public,students,org_members_students_update,PERMISSIVE,authenticated,UPDATE,"(organization_id IN ( SELECT organization_members.organization_id
+   FROM organization_members
+  WHERE (organization_members.user_id = auth.uid())))",
+public,suppliers,Admins and managers can manage suppliers,PERMISSIVE,public,ALL,"(user_belongs_to_org(auth.uid(), organization_id) AND (has_org_role(auth.uid(), organization_id, 'admin'::app_role) OR has_org_role(auth.uid(), organization_id, 'manager'::app_role)))","(user_belongs_to_org(auth.uid(), organization_id) AND (has_org_role(auth.uid(), organization_id, 'admin'::app_role) OR has_org_role(auth.uid(), organization_id, 'manager'::app_role)))"
+public,suppliers,Users can view suppliers in their organizations,PERMISSIVE,public,SELECT,(organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids)),
+public,teachers,org_members_teachers_delete,PERMISSIVE,authenticated,DELETE,"(organization_id IN ( SELECT organization_members.organization_id
+   FROM organization_members
+  WHERE (organization_members.user_id = auth.uid())))",
+public,teachers,org_members_teachers_insert,PERMISSIVE,authenticated,INSERT,,"(organization_id IN ( SELECT organization_members.organization_id
+   FROM organization_members
+  WHERE (organization_members.user_id = auth.uid())))"
+public,teachers,org_members_teachers_select,PERMISSIVE,authenticated,SELECT,"((organization_id IN ( SELECT organization_members.organization_id
+   FROM organization_members
+  WHERE (organization_members.user_id = auth.uid()))) OR (user_id = auth.uid()))",
+public,teachers,org_members_teachers_update,PERMISSIVE,authenticated,UPDATE,"(organization_id IN ( SELECT organization_members.organization_id
+   FROM organization_members
+  WHERE (organization_members.user_id = auth.uid())))",
+public,user_permissions,Admins can manage user permissions,PERMISSIVE,public,ALL,"has_org_role(auth.uid(), organization_id, 'admin'::app_role)","has_org_role(auth.uid(), organization_id, 'admin'::app_role)"
+public,user_permissions,Users can view their own permissions,PERMISSIVE,public,SELECT,(user_id = auth.uid()),
+public,user_roles,Platform admins can delete roles,PERMISSIVE,authenticated,DELETE,"has_role(auth.uid(), 'platform_admin'::app_role)",
+public,user_roles,Platform admins can insert roles,PERMISSIVE,authenticated,INSERT,,"has_role(auth.uid(), 'platform_admin'::app_role)"
+public,user_roles,Platform admins can update roles,PERMISSIVE,authenticated,UPDATE,"has_role(auth.uid(), 'platform_admin'::app_role)",
+public,user_roles,platform_admins_can_view_all_roles,PERMISSIVE,authenticated,SELECT,"has_role(auth.uid(), 'platform_admin'::app_role)",
+public,user_roles,users_can_view_own_roles,PERMISSIVE,authenticated,SELECT,(user_id = auth.uid()),
+public,voucher_entries,Admins and managers can insert vouchers,PERMISSIVE,authenticated,INSERT,,"(user_belongs_to_org(auth.uid(), organization_id) AND (has_org_role(auth.uid(), organization_id, 'admin'::app_role) OR has_org_role(auth.uid(), organization_id, 'manager'::app_role)))"
+public,voucher_entries,Creator or admin can delete vouchers,PERMISSIVE,authenticated,DELETE,"(user_belongs_to_org(auth.uid(), organization_id) AND (has_org_role(auth.uid(), organization_id, 'admin'::app_role) OR has_org_role(auth.uid(), organization_id, 'manager'::app_role)) AND is_entry_creator_or_admin(organization_id, created_by))",
+public,voucher_entries,Creator or admin can update vouchers,PERMISSIVE,authenticated,UPDATE,"(user_belongs_to_org(auth.uid(), organization_id) AND (has_org_role(auth.uid(), organization_id, 'admin'::app_role) OR has_org_role(auth.uid(), organization_id, 'manager'::app_role)) AND is_entry_creator_or_admin(organization_id, created_by))","(user_belongs_to_org(auth.uid(), organization_id) AND (has_org_role(auth.uid(), organization_id, 'admin'::app_role) OR has_org_role(auth.uid(), organization_id, 'manager'::app_role)) AND is_entry_creator_or_admin(organization_id, created_by))"
+public,voucher_entries,Users can view vouchers in their organizations,PERMISSIVE,public,SELECT,(organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids)),
+public,voucher_items,Admins and managers can manage voucher items,PERMISSIVE,public,ALL,"(voucher_id IN ( SELECT ve.id
+   FROM voucher_entries ve
+  WHERE (user_belongs_to_org(auth.uid(), ve.organization_id) AND (has_org_role(auth.uid(), ve.organization_id, 'admin'::app_role) OR has_org_role(auth.uid(), ve.organization_id, 'manager'::app_role)))))","(voucher_id IN ( SELECT ve.id
+   FROM voucher_entries ve
+  WHERE (user_belongs_to_org(auth.uid(), ve.organization_id) AND (has_org_role(auth.uid(), ve.organization_id, 'admin'::app_role) OR has_org_role(auth.uid(), ve.organization_id, 'manager'::app_role)))))"
+public,voucher_items,Users can view voucher items in their organizations,PERMISSIVE,public,SELECT,"(voucher_id IN ( SELECT voucher_entries.id
+   FROM voucher_entries
+  WHERE (voucher_entries.organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids))))",
+public,whatsapp_api_settings,Admins and managers can delete whatsapp settings,PERMISSIVE,authenticated,DELETE,"(has_org_role(auth.uid(), organization_id, 'admin'::app_role) OR has_org_role(auth.uid(), organization_id, 'manager'::app_role))",
+public,whatsapp_api_settings,Admins and managers can insert whatsapp settings,PERMISSIVE,authenticated,INSERT,,"(has_org_role(auth.uid(), organization_id, 'admin'::app_role) OR has_org_role(auth.uid(), organization_id, 'manager'::app_role))"
+public,whatsapp_api_settings,Admins and managers can update whatsapp settings,PERMISSIVE,authenticated,UPDATE,"(has_org_role(auth.uid(), organization_id, 'admin'::app_role) OR has_org_role(auth.uid(), organization_id, 'manager'::app_role))","(has_org_role(auth.uid(), organization_id, 'admin'::app_role) OR has_org_role(auth.uid(), organization_id, 'manager'::app_role))"
+public,whatsapp_api_settings,Admins and managers can view whatsapp settings,PERMISSIVE,authenticated,SELECT,"(has_org_role(auth.uid(), organization_id, 'admin'::app_role) OR has_org_role(auth.uid(), organization_id, 'manager'::app_role))",
+public,whatsapp_conversations,Org members can manage conversations,PERMISSIVE,authenticated,ALL,(organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids)),(organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids))
+public,whatsapp_conversations,Org members can view conversations,PERMISSIVE,authenticated,SELECT,(organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids)),
+public,whatsapp_conversations,Service role manages conversations with org context,PERMISSIVE,service_role,ALL,(organization_id IS NOT NULL),(organization_id IS NOT NULL)
+public,whatsapp_conversations,Users can insert conversations for their organization,PERMISSIVE,public,INSERT,,"(organization_id IN ( SELECT organization_members.organization_id
+   FROM organization_members
+  WHERE (organization_members.user_id = auth.uid())))"
+public,whatsapp_conversations,Users can update conversations for their organization,PERMISSIVE,public,UPDATE,"(organization_id IN ( SELECT organization_members.organization_id
+   FROM organization_members
+  WHERE (organization_members.user_id = auth.uid())))",
+public,whatsapp_conversations,Users can view conversations for their organization,PERMISSIVE,public,SELECT,"(organization_id IN ( SELECT organization_members.organization_id
+   FROM organization_members
+  WHERE (organization_members.user_id = auth.uid())))",
+public,whatsapp_logs,Platform admins can view all whatsapp logs,PERMISSIVE,public,SELECT,"has_role(auth.uid(), 'platform_admin'::app_role)",
+public,whatsapp_logs,Users can insert their organization whatsapp logs,PERMISSIVE,public,INSERT,,"user_belongs_to_org(auth.uid(), organization_id)"
+public,whatsapp_logs,Users can update their organization whatsapp logs,PERMISSIVE,public,UPDATE,"user_belongs_to_org(auth.uid(), organization_id)",
+public,whatsapp_logs,Users can view their organization whatsapp logs,PERMISSIVE,public,SELECT,"user_belongs_to_org(auth.uid(), organization_id)",
+public,whatsapp_logs_archive,whatsapp_logs_archive_no_client_access,PERMISSIVE,authenticated,ALL,false,false
+public,whatsapp_message_stats,Org members can view own WhatsApp stats,PERMISSIVE,public,SELECT,"(EXISTS ( SELECT 1
+   FROM organization_members
+  WHERE ((organization_members.user_id = auth.uid()) AND (organization_members.organization_id = whatsapp_message_stats.organization_id))))",
+public,whatsapp_message_stats,Platform admins can view all WhatsApp stats,PERMISSIVE,public,SELECT,"(EXISTS ( SELECT 1
+   FROM user_roles
+  WHERE ((user_roles.user_id = auth.uid()) AND (user_roles.role = 'platform_admin'::app_role))))",
+public,whatsapp_messages,Org members can manage messages,PERMISSIVE,authenticated,ALL,(organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids)),(organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids))
+public,whatsapp_messages,Org members can view messages,PERMISSIVE,authenticated,SELECT,(organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids)),
+public,whatsapp_messages,Service role manages messages with org context,PERMISSIVE,service_role,ALL,(organization_id IS NOT NULL),(organization_id IS NOT NULL)
+public,whatsapp_messages,Users can insert messages for their organization,PERMISSIVE,public,INSERT,,"(organization_id IN ( SELECT organization_members.organization_id
+   FROM organization_members
+  WHERE (organization_members.user_id = auth.uid())))"
+public,whatsapp_messages,Users can update messages for their organization,PERMISSIVE,public,UPDATE,"(organization_id IN ( SELECT organization_members.organization_id
+   FROM organization_members
+  WHERE (organization_members.user_id = auth.uid())))",
+public,whatsapp_messages,Users can view messages for their organization,PERMISSIVE,public,SELECT,"(organization_id IN ( SELECT organization_members.organization_id
+   FROM organization_members
+  WHERE (organization_members.user_id = auth.uid())))",
+public,whatsapp_meta_templates,Users can delete their organization meta templates,PERMISSIVE,public,DELETE,"(organization_id IN ( SELECT organization_members.organization_id
+   FROM organization_members
+  WHERE (organization_members.user_id = auth.uid())))",
+public,whatsapp_meta_templates,Users can insert their organization meta templates,PERMISSIVE,public,INSERT,,"(organization_id IN ( SELECT organization_members.organization_id
+   FROM organization_members
+  WHERE (organization_members.user_id = auth.uid())))"
+public,whatsapp_meta_templates,Users can update their organization meta templates,PERMISSIVE,public,UPDATE,"(organization_id IN ( SELECT organization_members.organization_id
+   FROM organization_members
+  WHERE (organization_members.user_id = auth.uid())))",
+public,whatsapp_meta_templates,Users can view their organization meta templates,PERMISSIVE,public,SELECT,"(organization_id IN ( SELECT organization_members.organization_id
+   FROM organization_members
+  WHERE (organization_members.user_id = auth.uid())))",
+public,whatsapp_templates,Admins can manage templates,PERMISSIVE,public,ALL,"has_org_role(auth.uid(), organization_id, 'admin'::app_role)","has_org_role(auth.uid(), organization_id, 'admin'::app_role)"
+public,whatsapp_templates,Users can view templates in their organizations,PERMISSIVE,public,SELECT,(organization_id IN ( SELECT get_user_organization_ids(auth.uid()) AS get_user_organization_ids)),
