@@ -8665,6 +8665,10 @@ export type Database = {
       }
       assert_org_member: { Args: { p_org: string }; Returns: undefined }
       assert_platform_admin: { Args: never; Returns: undefined }
+      bulk_update_purchase_items: {
+        Args: { p_bill_id: string; p_items: Json }
+        Returns: number
+      }
       cancel_invoice: {
         Args: { p_reason?: string; p_sale_id: string }
         Returns: Json
