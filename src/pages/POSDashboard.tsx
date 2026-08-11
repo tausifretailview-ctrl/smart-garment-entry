@@ -58,8 +58,16 @@ import { normalizeGstTaxType, resolvePosDefaultTaxType } from "@/utils/gstRegist
 import { SettleCustomerAccountDialog } from "@/components/SettleCustomerAccountDialog";
 import { PrintPreviewDialog } from "@/components/PrintPreviewDialog";
 import { EInvoicePrint } from "@/components/EInvoicePrint";
-import html2canvas from "html2canvas";
-import jsPDF from "jspdf";
+import type html2canvasType from "html2canvas";
+import type jsPDFType from "jspdf";
+/** Lazily loaded on export — keeps jsPDF/html2canvas off this page's initial chunk. */
+let jsPdfPromise: Promise<typeof jsPDFType> | null = null;
+const loadJsPdf = (): Promise<typeof jsPDFType> =>
+  (jsPdfPromise ??= import("jspdf").then((m) => m.default));
+let html2canvasPromise: Promise<typeof html2canvasType> | null = null;
+const loadHtml2Canvas = (): Promise<typeof html2canvasType> =>
+  (html2canvasPromise ??= import("html2canvas").then((m) => m.default));
+
 import { useWhatsAppTemplates } from "@/hooks/useWhatsAppTemplates";
 import { PaymentReceipt } from "@/components/PaymentReceipt";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -2488,6 +2496,8 @@ const POSDashboard = () => {
     setTimeout(async () => {
       try {
         if (!eInvoicePrintRef.current) throw new Error("Print component not ready");
+        const html2canvas = await loadHtml2Canvas();
+        const jsPDF = await loadJsPdf();
         const canvas = await html2canvas(eInvoicePrintRef.current, { scale: 2, useCORS: true, logging: false, backgroundColor: "#ffffff" });
         const imgData = canvas.toDataURL("image/png");
         const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });

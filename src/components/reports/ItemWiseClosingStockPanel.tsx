@@ -22,8 +22,17 @@ import {
   ChevronRight,
   Filter,
 } from "lucide-react";
-import * as XLSX from "xlsx";
-import jsPDF from "jspdf";
+import type * as XLSXType from "xlsx";
+/** Lazily loaded on export — keeps the xlsx bundle off this page's initial chunk. */
+let xlsxModulePromise: Promise<typeof XLSXType> | null = null;
+const loadXlsx = (): Promise<typeof XLSXType> => (xlsxModulePromise ??= import("xlsx"));
+
+import type jsPDFType from "jspdf";
+/** Lazily loaded on export — keeps jsPDF/html2canvas off this page's initial chunk. */
+let jsPdfPromise: Promise<typeof jsPDFType> | null = null;
+const loadJsPdf = (): Promise<typeof jsPDFType> =>
+  (jsPdfPromise ??= import("jspdf").then((m) => m.default));
+
 import { cn } from "@/lib/utils";
 import {
   fetchAllItemWiseStockRows,
@@ -247,6 +256,7 @@ export function ItemWiseClosingStockPanel({
         "Purchase Value": grandTotals.purchase_value.toFixed(2),
         "Sales Value": grandTotals.sale_value.toFixed(2),
       });
+      const XLSX = await loadXlsx();
       const ws = XLSX.utils.json_to_sheet(exportData);
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, `${groupLabel} Wise Stock`);
@@ -261,6 +271,7 @@ export function ItemWiseClosingStockPanel({
     setIsExporting(true);
     try {
       const rows = await loadAllRowsForExport();
+      const jsPDF = await loadJsPdf();
       const doc = new jsPDF("p", "mm", "a4");
       const pageWidth = doc.internal.pageSize.getWidth();
       const margin = 10;

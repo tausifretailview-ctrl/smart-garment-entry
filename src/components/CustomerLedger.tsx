@@ -18,7 +18,12 @@ import { Search, ArrowLeft, Download, Phone, Mail, MapPin, IndianRupee, Calendar
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import jsPDF from "jspdf";
+import type jsPDFType from "jspdf";
+/** Lazily loaded on export — keeps jsPDF/html2canvas off this page's initial chunk. */
+let jsPdfPromise: Promise<typeof jsPDFType> | null = null;
+const loadJsPdf = (): Promise<typeof jsPDFType> =>
+  (jsPdfPromise ??= import("jspdf").then((m) => m.default));
+
 import { format } from "date-fns";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
@@ -3004,8 +3009,9 @@ export function CustomerLedger({
   }, [filteredCustomers]);
 
   // Export customer list to PDF
-  const handleExportCustomerListPDF = useCallback(() => {
+  const handleExportCustomerListPDF = useCallback(async () => {
     if (!filteredCustomers.length) return;
+    const jsPDF = await loadJsPdf();
     const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
     const pageWidth = doc.internal.pageSize.getWidth();
 
@@ -3643,6 +3649,7 @@ Please clear your dues at the earliest. Thank you!`;
       // PDF still exports without the strip if fetch fails.
     }
 
+    const jsPDF = await loadJsPdf();
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
     const margin = 14;

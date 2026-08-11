@@ -48,8 +48,16 @@ import { captureElementToPdfBlob } from "@/utils/invoiceElementToPdf";
 import { resendSaleInvoiceWhatsApp } from "@/utils/resendSaleInvoiceWhatsApp";
 import { deliverPdfBlob, shouldUseMobileDocumentDelivery } from "@/utils/mobileDocumentDelivery";
 import { useIsNativeApp } from "@/hooks/useNativeApp";
-import html2canvas from "html2canvas";
-import jsPDF from "jspdf";
+import type html2canvasType from "html2canvas";
+import type jsPDFType from "jspdf";
+/** Lazily loaded on export — keeps jsPDF/html2canvas off this page's initial chunk. */
+let jsPdfPromise: Promise<typeof jsPDFType> | null = null;
+const loadJsPdf = (): Promise<typeof jsPDFType> =>
+  (jsPdfPromise ??= import("jspdf").then((m) => m.default));
+let html2canvasPromise: Promise<typeof html2canvasType> | null = null;
+const loadHtml2Canvas = (): Promise<typeof html2canvasType> =>
+  (html2canvasPromise ??= import("html2canvas").then((m) => m.default));
+
 import { format, startOfDay, endOfDay, startOfMonth, endOfMonth, startOfYear, endOfYear, startOfWeek, endOfWeek, subDays } from "date-fns";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useSearchParams, useLocation } from "react-router-dom";
@@ -3382,6 +3390,8 @@ export default function SalesInvoiceDashboard() {
           throw new Error("Print component not ready");
         }
 
+        const html2canvas = await loadHtml2Canvas();
+        const jsPDF = await loadJsPdf();
         const canvas = await html2canvas(eInvoicePrintRef.current, {
           scale: 2,
           useCORS: true,

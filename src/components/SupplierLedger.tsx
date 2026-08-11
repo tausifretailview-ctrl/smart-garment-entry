@@ -9,7 +9,12 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Search, ArrowLeft, Download, FileDown, Phone, Mail, MapPin, IndianRupee, Calendar, FileText, CalendarIcon, AlertTriangle, Clock, Scale, BookOpen } from "lucide-react";
-import jsPDF from "jspdf";
+import type jsPDFType from "jspdf";
+/** Lazily loaded on export — keeps jsPDF/html2canvas off this page's initial chunk. */
+let jsPdfPromise: Promise<typeof jsPDFType> | null = null;
+const loadJsPdf = (): Promise<typeof jsPDFType> =>
+  (jsPdfPromise ??= import("jspdf").then((m) => m.default));
+
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { Separator } from "@/components/ui/separator";
@@ -670,9 +675,10 @@ export function SupplierLedger({ organizationId, visitedTabs, supplierBalanceMap
     toast.success("Supplier ledger exported to Excel");
   };
 
-  const handleExportToPDF = () => {
+  const handleExportToPDF = async () => {
     if (!selectedSupplier || !transactions) return;
 
+    const jsPDF = await loadJsPdf();
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
     const margin = 14;

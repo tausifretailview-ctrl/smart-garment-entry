@@ -11,8 +11,16 @@ import {
   FileSpreadsheet,
   FileText,
 } from "lucide-react";
-import * as XLSX from "xlsx";
-import jsPDF from "jspdf";
+import type * as XLSXType from "xlsx";
+/** Lazily loaded on export — keeps the xlsx bundle off this page's initial chunk. */
+let xlsxModulePromise: Promise<typeof XLSXType> | null = null;
+const loadXlsx = (): Promise<typeof XLSXType> => (xlsxModulePromise ??= import("xlsx"));
+
+import type jsPDFType from "jspdf";
+/** Lazily loaded on export — keeps jsPDF/html2canvas off this page's initial chunk. */
+let jsPdfPromise: Promise<typeof jsPDFType> | null = null;
+const loadJsPdf = (): Promise<typeof jsPDFType> =>
+  (jsPdfPromise ??= import("jspdf").then((m) => m.default));
 
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
@@ -186,7 +194,7 @@ export default function CustomerPartyBalancesPage() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [ledgerCustomerId]);
 
-  const exportToExcel = useCallback(() => {
+  const exportToExcel = useCallback(async () => {
     if (filteredRows.length === 0) {
       toast({
         title: "No data to export",
@@ -226,6 +234,7 @@ export default function CustomerPartyBalancesPage() {
       }),
     ];
 
+    const XLSX = await loadXlsx();
     const ws = XLSX.utils.aoa_to_sheet(sheetRows);
     ws["!cols"] = [{ wch: 8 }, { wch: 36 }, { wch: 16 }, { wch: 14 }, { wch: 12 }, { wch: 14 }, { wch: 8 }];
     const wb = XLSX.utils.book_new();
@@ -238,7 +247,7 @@ export default function CustomerPartyBalancesPage() {
     });
   }, [filteredRows, currentOrganization?.name, directionFilter, showSettled, orgTotals, toast]);
 
-  const exportToPdf = useCallback(() => {
+  const exportToPdf = useCallback(async () => {
     if (filteredRows.length === 0) {
       toast({
         title: "No data to export",
@@ -248,6 +257,7 @@ export default function CustomerPartyBalancesPage() {
       return;
     }
 
+    const jsPDF = await loadJsPdf();
     const doc = new jsPDF("p", "mm", "a4");
     const pageWidth = doc.internal.pageSize.getWidth();
     const margin = 10;
