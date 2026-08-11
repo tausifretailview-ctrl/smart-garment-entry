@@ -1,4 +1,9 @@
-import jsPDF from 'jspdf';
+import type jsPDFType from 'jspdf';
+
+/** Lazily loaded — keeps jsPDF (~350 KB gz) out of the initial app payload. */
+let jsPdfPromise: Promise<typeof jsPDFType> | null = null;
+const loadJsPdf = (): Promise<typeof jsPDFType> =>
+  (jsPdfPromise ??= import('jspdf').then((m) => m.default));
 import { supabase } from "@/integrations/supabase/client";
 
 export interface InvoicePdfData {
@@ -37,7 +42,8 @@ export interface InvoicePdfData {
 /**
  * Generate a simple PDF invoice using jsPDF
  */
-export function generateInvoicePdfBlob(data: InvoicePdfData): Blob {
+export async function generateInvoicePdfBlob(data: InvoicePdfData): Promise<Blob> {
+  const jsPDF = await loadJsPdf();
   const pdf = new jsPDF({
     orientation: 'portrait',
     unit: 'mm',
@@ -199,7 +205,8 @@ export function generateInvoicePdfBlob(data: InvoicePdfData): Blob {
 /**
  * Generate PDF as base64 string for Meta media upload
  */
-export function generateInvoicePdfBase64(data: InvoicePdfData): string {
+export async function generateInvoicePdfBase64(data: InvoicePdfData): Promise<string> {
+  const jsPDF = await loadJsPdf();
   const pdf = new jsPDF({
     orientation: 'portrait',
     unit: 'mm',

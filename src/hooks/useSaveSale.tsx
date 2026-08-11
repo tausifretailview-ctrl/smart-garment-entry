@@ -1129,10 +1129,10 @@ export const useSaveSale = () => {
                           saleId: sale.id,
                           saleDate: new Date(sale.sale_date || sale.created_at || Date.now()),
                         })
-                      : generateInvoicePdfBase64(pdfData);
+                      : await generateInvoicePdfBase64(pdfData);
                   } catch (captureErr) {
                     console.error('WhatsApp invoice PDF capture failed, falling back to basic PDF:', captureErr);
-                    pdfBase64 = generateInvoicePdfBase64(pdfData);
+                    pdfBase64 = await generateInvoicePdfBase64(pdfData);
                   }
                 }
 
@@ -1259,10 +1259,10 @@ export const useSaveSale = () => {
                         saleId: sale.id,
                         saleDate: new Date(sale.sale_date || sale.created_at || Date.now()),
                       })
-                    : generateInvoicePdfBase64(pdfData);
+                    : await generateInvoicePdfBase64(pdfData);
                 } catch (captureErr) {
                   console.error('WhatsApp invoice PDF capture failed, falling back to basic PDF:', captureErr);
-                  pdfBase64 = generateInvoicePdfBase64(pdfData);
+                  pdfBase64 = await generateInvoicePdfBase64(pdfData);
                 }
 
                 if (pdfBase64) {
