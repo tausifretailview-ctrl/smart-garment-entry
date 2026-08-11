@@ -805,13 +805,13 @@ const GSTReports = () => {
   const handleGenerateReport = () => {
     switch (activeReport) {
       case "gstr1":
-        generateGSTR1();
+        void generateGSTR1();
         break;
       case "gstr3b":
-        generateGSTR3B();
+        void generateGSTR3B();
         break;
       case "hsn-summary":
-        generateHSNSummary();
+        void generateHSNSummary();
         break;
       default:
         break;
