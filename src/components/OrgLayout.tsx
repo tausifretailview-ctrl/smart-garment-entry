@@ -36,6 +36,9 @@ import {
   recordNavigation,
   recordRenderPath,
   recordTabCacheSnapshot,
+  recordRenderOwnerDecision,
+  recordBlankFrame,
+  type RenderOwner,
 } from "@/lib/navigationPerfDiagnostics";
 import { cn } from "@/lib/utils";
 import { invoiceDashboardPrefetchQueryOptions } from "@/utils/invoiceDashboardData";
@@ -281,14 +284,37 @@ export const OrgLayout = () => {
     effectiveTabPaneReady,
   ]);
 
-  // Prefer tab-cache (keeps form state). Cacheable entry always uses the pane when active.
-  // Dashboards: Suspense shell first; if the chunk never mounts, forceOutletFallback → <Outlet>.
-  // During cold sibling switches (e.g. Customer Master → Supplier Master), keep the cache
-  // so the previous pane stays dimmed instead of swapping to a full-page loading skeleton.
-  const renderViaTabCache =
+  /**
+   * Single source of truth for who paints the workspace.
+   *
+   * Previously `renderViaTabCache` and `hideTabCacheContainer` were computed
+   * independently, which made "tab cache hidden AND Outlet suppressed" — a blank
+   * white page — a reachable state nobody designed for. Both now derive from one
+   * value, so that state is unrepresentable.
+   *
+   * Equivalence with the two old booleans (reviewer table — nothing silently merged):
+   *
+   *  case                                              old renderViaTabCache / hideContainer   new owner
+   *  1. non-cacheable entry route (POS, bill entry)    false / true   (wantsTabCache=false)    outlet
+   *  2. path not in tab registry (e.g. Insights)       false / true   (wantsTabCache=false)    outlet
+   *  3. cacheable entry active (purchase-entry)        true  / false                          tab-cache
+   *  4. pane ready for current path                    true  / false                          tab-cache
+   *  5. cold nav with a ready sibling (dimmed)         true  / false                          tab-cache
+   *  6. cold nav, no ready sibling (Suspense shell)    false / true                           outlet
+   *  7. forceOutletFallback after rescue timer         false / true                           outlet
+   *  8. wantsTabCache but tabPaths empty               false / n-a (container not rendered)   outlet
+   *  9. "both hidden"                                  reachable, blank page                  impossible
+   *
+   * Cases 1-8 map 1:1 to the previous behaviour; case 9 is the bug being removed.
+   */
+  const renderOwner: RenderOwner =
     wantsTabCache &&
-    (isCacheableEntryActive || effectiveTabPaneReady || showTabCacheDuringColdNav) &&
-    !forceOutletFallback;
+    !forceOutletFallback &&
+    (isCacheableEntryActive || effectiveTabPaneReady || showTabCacheDuringColdNav)
+      ? "tab-cache"
+      : "outlet";
+  const renderViaTabCache = renderOwner === "tab-cache";
+  const hideTabCacheContainer = renderOwner !== "tab-cache";
   /**
    * Which cached pane is visible. Non-cacheable entry routes use INACTIVE so dashboard
    * panes stay mounted (hidden). Cacheable entry must use currentPath — otherwise
@@ -298,19 +324,14 @@ export const OrgLayout = () => {
     !wantsTabCache || (isEntryPage && !isCacheableEntryActive)
       ? TAB_CACHE_INACTIVE
       : resolvedCurrentPath;
+
   /**
-   * Hide tab-cache while Outlet owns first paint (dashboard cold chunk) or after
-   * forceOutletFallback — never render both (duplicated chrome / blank gap).
-   * Exception: cold nav with a ready sibling keeps the cache visible (dimmed outgoing).
+   * Bill-entry screens hold unsaved draft state and legitimately show a boot splash
+   * for longer. The blank-frame watchdog and the stuck-pane rescue timer MUST share
+   * this one exemption — if they ever diverge, a draft screen could be swapped out
+   * from under the user by the fast watchdog.
    */
-  const hideTabCacheContainer =
-    (isEntryPage && !isCacheableEntryActive) ||
-    (wantsTabCache &&
-      !effectiveTabPaneReady &&
-      !isCacheableEntryActive &&
-      !showTabCacheDuringColdNav) ||
-    !isCacheableTabPath(resolvedCurrentPath) ||
-    forceOutletFallback;
+  const usesLongLoadBudget = isEntryPage || isCacheableEntryActive;
 
   // Reset on navigation — restore before paint so going back from an entry screen
   // (e.g. POS) does not flash the <Outlet> copy for one frame before the cached pane shows.
@@ -331,14 +352,59 @@ export const OrgLayout = () => {
   useEffect(() => {
     if (!wantsTabCache || effectiveTabPaneReady || forceOutletFallback) return;
     // Cacheable entry must stay on the pane (draft state); only dashboards use Outlet rescue.
-    if (isCacheableEntryActive) return;
-    const timeoutMs = isElectronShell() ? 12_000 : 18_000;
+    if (usesLongLoadBudget) return;
+    // 18s/12s was far past the point users gave up and reloaded manually.
+    const timeoutMs = 6_000;
     const timer = window.setTimeout(() => {
       console.warn("[OrgLayout] Tab pane not ready — falling back to Outlet for", currentPath);
       setForceOutletFallback(true);
     }, timeoutMs);
     return () => window.clearTimeout(timer);
-  }, [wantsTabCache, effectiveTabPaneReady, forceOutletFallback, isCacheableEntryActive, currentPath]);
+  }, [wantsTabCache, effectiveTabPaneReady, forceOutletFallback, usesLongLoadBudget, currentPath]);
+
+  // Record the render-owner decision for every navigation (always on — field evidence).
+  useEffect(() => {
+    recordRenderOwnerDecision({
+      path: currentPath,
+      owner: renderOwner,
+      wantsTabCache,
+      effectiveTabPaneReady,
+      showTabCacheDuringColdNav,
+      forceOutletFallback,
+      isCacheableEntryActive,
+      activeChunkLoaded: isTabPageChunkLoaded(resolvedCurrentPath),
+      paneMounted: isTabCachePaneMounted(resolvedCurrentPath),
+      tabPaths,
+    });
+  }, [
+    currentPath,
+    resolvedCurrentPath,
+    renderOwner,
+    wantsTabCache,
+    effectiveTabPaneReady,
+    showTabCacheDuringColdNav,
+    forceOutletFallback,
+    isCacheableEntryActive,
+    tabPaths,
+  ]);
+
+  /**
+   * Blank-frame watchdog — the user-visible save. If the workspace container painted
+   * nothing shortly after a navigation, log the decision snapshot and hand the route
+   * back to <Outlet> instead of leaving a white screen that needs a manual reload.
+   * Skipped for long-budget (bill-entry) screens — see `usesLongLoadBudget`.
+   */
+  useEffect(() => {
+    if (usesLongLoadBudget || forceOutletFallback) return;
+    const timer = window.setTimeout(() => {
+      const el = workspaceRef.current;
+      if (!el || hasPaintedContent(el)) return;
+      const canRescue = renderOwner === "tab-cache";
+      recordBlankFrame(currentPath, canRescue);
+      if (canRescue) setForceOutletFallback(true);
+    }, BLANK_FRAME_GRACE_MS);
+    return () => window.clearTimeout(timer);
+  }, [currentPath, renderOwner, usesLongLoadBudget, forceOutletFallback]);
 
   useEffect(() => {
     if (!isNavigationPerfEnabled()) return;
@@ -517,7 +583,7 @@ export const OrgLayout = () => {
     isViewportFixedEntry || isEntryPage || hasVisibleTabCache || isFillHeightPage || isMainDashboard;
 
   const workspaceBody = (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden w-full">
+    <div ref={workspaceRef} className="flex min-h-0 flex-1 flex-col overflow-hidden w-full">
       {tabPaths.length > 0 && (
         <div
           className={cn(
