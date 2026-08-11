@@ -379,7 +379,7 @@ export async function generateAndUploadInvoicePDF(
   // Generate PDF blob
   let pdfBlob: Blob;
   try {
-    pdfBlob = generateInvoicePdfBlob(data);
+    pdfBlob = await generateInvoicePdfBlob(data);
     console.log('PDF blob generated, size:', pdfBlob.size);
   } catch (blobError: any) {
     console.error('Error generating PDF blob:', blobError);
