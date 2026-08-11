@@ -127,7 +127,9 @@ export const TAB_PAGE_REGISTRY: Record<string, TabPageDef> = {
   "daily-sale-analysis": { loader: () => import("@/pages/DailySaleAnalysis"), layout: "layout" },
   "hourly-sales-analysis": { loader: () => import("@/pages/HourlySalesAnalysis"), layout: "layout" },
   "sales-analytics": { loader: () => import("@/pages/SalesAnalyticsDashboard"), layout: "layout" },
-  insights: { loader: () => import("@/pages/BusinessInsights"), layout: "layout" },
+  // NOTE: `insights` is deliberately NOT registered here. Its route is gated by
+  // MenuPermissionRoute("business_insights"); the tab registry only supports role
+  // gating, so caching it would bypass that permission check. It stays on <Outlet>.
   "net-profit-analysis": {
     loader: () => import("@/pages/NetProfitAnalysis"),
     layout: "fullscreen",
