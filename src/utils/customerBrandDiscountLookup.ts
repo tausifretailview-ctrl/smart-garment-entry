@@ -3,7 +3,12 @@ export interface BrandDiscountRow {
   discount_percent: number;
 }
 
-/** Normalize brand strings before comparing: trim, collapse whitespace, lowercase. */
+/**
+ * Normalize brand strings before comparing: trim, collapse whitespace, lowercase.
+ * Brand-wise customer discounts take precedence over customer.master discount_percent:
+ * master is bill-level flat only when the customer has *zero* brand-discount rows
+ * (enforced in Sales Invoice / POS, not in this pure lookup).
+ */
 export function normalizeBrand(s: string | null | undefined): string {
   return (s || "").trim().toLowerCase().replace(/\s+/g, " ");
 }

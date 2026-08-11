@@ -281,6 +281,10 @@ export type ResolveAddLinePricesInput = {
   overridePrice?: { sale_price: number; mrp: number };
   brandDiscountPercent?: number;
   productSaleDiscountPercent?: number;
+  /**
+   * @deprecated Ignored. Master Disc % is bill-level flat only when the customer
+   * has no brand-discount rows (handled in Sales/POS), never zeros brand %.
+   */
   customerHasMasterDiscount?: boolean;
 };
 
@@ -302,8 +306,8 @@ export function resolveAddLinePrices(input: ResolveAddLinePricesInput): {
   const useMrpAsPrice = input.grossBasis === "mrp" && !input.overridePrice;
   const displayMrp =
     mrpToUse && mrpToUse > 0 ? (mrpToUse > salePrice ? mrpToUse : salePrice) : salePrice;
-  const brandDiscount =
-    input.customerHasMasterDiscount ? 0 : Math.max(0, Number(input.brandDiscountPercent) || 0);
+  // brandDiscountPercent is already resolved by caller (master never suppresses brand).
+  const brandDiscount = Math.max(0, Number(input.brandDiscountPercent) || 0);
   const productSaleDiscount = Math.max(0, Number(input.productSaleDiscountPercent) || 0);
   const discountPercent = useMrpAsPrice
     ? 0
@@ -385,7 +389,6 @@ export function addLine(input: AddLineInput): CartMutatorResult {
     overridePrice: input.overridePrice,
     brandDiscountPercent: input.brandDiscountPercent,
     productSaleDiscountPercent: productSaleDiscount,
-    customerHasMasterDiscount: input.customerHasMasterDiscount,
   });
 
   const descriptionParts = [product.product_name];

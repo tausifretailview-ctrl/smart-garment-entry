@@ -299,6 +299,17 @@ describe("POS billing characterisation — grossBasis (add price)", () => {
     expect(p.showDiscount).toBe(true);
   });
 
+  it("brand disc is not suppressed by legacy customerHasMasterDiscount flag", () => {
+    const p = resolveAddLinePrices({
+      grossBasis: "sale_price",
+      masterSalePrice: 800,
+      masterMrp: 1000,
+      brandDiscountPercent: 7,
+      customerHasMasterDiscount: true,
+    });
+    expect(p.discountPercent).toBe(7);
+  });
+
   it("overridePrice disables mrp-as-price even on mrp basis", () => {
     const p = resolveAddLinePrices({
       grossBasis: "mrp",

@@ -452,7 +452,7 @@ export default function POSSales() {
   // Customer points hooks
   const { calculatePoints, isPointsEnabled, isRedemptionEnabled, calculateMaxRedeemablePoints, calculateRedemptionValue, redeemPoints, pointsSettings } = useCustomerPoints();
   const { data: customerPointsData } = useCustomerPointsBalance(customerId || null);
-  const { getBrandDiscountForProduct, hasBrandDiscounts, brandDiscounts } = useCustomerBrandDiscounts(customerId || null);
+  const { getBrandDiscountForProduct, hasBrandDiscounts, brandDiscounts, isLoading: isBrandDiscountsLoading } = useCustomerBrandDiscounts(customerId || null);
 
   // Settings first so grossBasis / garment GST are explicit params into the billing engine.
   const { data: settingsData } = useSettings();
@@ -1987,28 +1987,29 @@ export default function POSSales() {
     fetchCreditBalance();
   }, [customerId]);
 
-  // Mutually exclusive discount: Apply customer master discount ONLY if no brand discounts exist
+  // Brand-wise takes precedence: master Disc % is bill flat only with no brand rows.
+  // Wait for brand query so master 3% is never race-applied over brand 7%.
   useEffect(() => {
     // Preserve historical invoice pricing while opening an existing bill in edit mode.
     if (isInitializingEditRef.current) return;
     if (currentSaleId && !hasManuallyAddedNewItemRef.current) return;
-    if (customerId && customers) {
-      const customer = customers.find((c: any) => c.id === customerId);
-      if (customer && hasBrandDiscounts) {
-        // Customer HAS brand discounts - reset flat discount to avoid double discount
-        setFlatDiscountValue(0);
-        setFlatDiscountMode('percent');
-      } else if (customer && !hasBrandDiscounts) {
-        // Customer has NO brand discounts, so apply master discount as flat discount
-        if (customer.discount_percent && customer.discount_percent > 0) {
-          handleFlatDiscountValueChange(customer.discount_percent);
-          setFlatDiscountMode('percent');
-        }
-      }
-      // If customer has brand discounts, don't auto-apply flat discount
-      // Brand discounts will be applied per-item when products are added
+    if (isBrandDiscountsLoading) return;
+    if (!customerId || !customers) return;
+
+    const customer = customers.find((c: any) => c.id === customerId);
+    if (!customer) return;
+
+    if (hasBrandDiscounts) {
+      setFlatDiscountValue(0);
+      setFlatDiscountMode("percent");
+      return;
     }
-  }, [customerId, customers, hasBrandDiscounts, currentSaleId]);
+
+    if (customer.discount_percent && customer.discount_percent > 0) {
+      handleFlatDiscountValueChange(customer.discount_percent);
+      setFlatDiscountMode("percent");
+    }
+  }, [customerId, customers, hasBrandDiscounts, isBrandDiscountsLoading, currentSaleId, handleFlatDiscountValueChange]);
 
   // Handle barcode/product search on Enter - reads DOM value to avoid React state lag
   const handleSearch = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -2838,12 +2839,9 @@ export default function POSSales() {
         return;
       }
       
-      // Mutually exclusive discount logic (call site) — engine receives resolved percents.
-      const customer = customers?.find((c: any) => c.id === customerId);
-      const customerHasMasterDiscount = !!(customer?.discount_percent && customer.discount_percent > 0);
-      const brandDiscount = customerHasMasterDiscount
-        ? 0
-        : getBrandDiscountForProduct(product.brand, product.product_name);
+      // Brand-wise always applies when configured (even if customer master Disc % is set).
+      // Master is bill-level flat only when there are zero brand-discount rows.
+      const brandDiscount = getBrandDiscountForProduct(product.brand, product.product_name);
 
       console.log("POS price mode at add:", {
         grossBasis,
@@ -2857,7 +2855,6 @@ export default function POSSales() {
         variant,
         overridePrice,
         brandDiscountPercent: brandDiscount,
-        customerHasMasterDiscount,
       });
       const highlightId = addResult.mergedItemId || addResult.addedItemId;
       if (highlightId) bumpCartHighlight(highlightId);
@@ -6667,7 +6664,7 @@ export default function POSSales() {
               return (
                 <div className="p-2 border-t border-border/60 bg-amber-50/50 dark:bg-amber-950/20 flex items-center gap-4 flex-wrap">
                   {hasBrandDiscounts && brandDiscounts.length > 0 ? (
-                    <div className="flex items-center gap-2 bg-primary/5 px-3 py-1.5 rounded-lg">
+                    <div className="flex items-center gap-2 bg-primary/5 px-3 py-1.5 rounded-lg flex-wrap">
                       <span className="text-sm text-muted-foreground font-medium">Brand Discounts:</span>
                       {brandDiscounts.slice(0, 5).map((bd, idx) => (
                         <span
@@ -6679,6 +6676,11 @@ export default function POSSales() {
                       ))}
                       {brandDiscounts.length > 5 && (
                         <span className="text-sm text-muted-foreground">+{brandDiscounts.length - 5} more</span>
+                      )}
+                      {customerMasterDiscount > 0 && (
+                        <span className="text-xs text-muted-foreground">
+                          (master {customerMasterDiscount}% ignored)
+                        </span>
                       )}
                     </div>
                   ) : customerMasterDiscount > 0 ? (

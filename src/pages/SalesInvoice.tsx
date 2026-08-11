@@ -833,20 +833,29 @@ export default function SalesInvoice() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [paymentOverride]);
 
-  // Mutually exclusive discount: Apply customer master discount ONLY if no brand discounts exist
+  // Brand-wise takes precedence: master Customer Discount % is applied as flat
+  // only when the customer has NO brand-discount rows. Wait for brands to load
+  // so we never race-apply 3% flat then suppress brand 7% on lines.
   useEffect(() => {
     if (editingInvoiceId || isInitializingEditRef.current) return;
-    if (selectedCustomer && !hasBrandDiscounts) {
-      // Customer has NO brand discounts, so apply master discount as flat discount
-      if (selectedCustomer.discount_percent && selectedCustomer.discount_percent > 0) {
-        setFlatDiscountPercent(selectedCustomer.discount_percent);
+    if (isBrandDiscountsLoading) return;
+    if (!selectedCustomer) return;
+
+    if (hasBrandDiscounts) {
+      // Drop auto-applied master flat (exact match only) — keep manual flat % that differs.
+      const master = Number(selectedCustomer.discount_percent) || 0;
+      if (master > 0.009) {
+        setFlatDiscountPercent((prev) =>
+          Math.abs(prev - master) < 0.009 ? 0 : prev,
+        );
       }
-    } else if (selectedCustomer && hasBrandDiscounts) {
-      // Customer has brand discounts, so don't auto-apply flat discount
-      // Only reset if this was an auto-applied customer discount (not manually set)
-      // For simplicity, we just don't set flat discount when brand discounts exist
+      return;
     }
-  }, [selectedCustomer, hasBrandDiscounts]);
+
+    if (selectedCustomer.discount_percent && selectedCustomer.discount_percent > 0) {
+      setFlatDiscountPercent(selectedCustomer.discount_percent);
+    }
+  }, [selectedCustomer, hasBrandDiscounts, isBrandDiscountsLoading, editingInvoiceId]);
 
   const customerForm = useForm<z.infer<typeof customerSchema>>({
     resolver: zodResolver(customerSchema),
@@ -1324,13 +1333,11 @@ export default function SalesInvoice() {
   }, [taxType]);
 
   // Apply brand discounts to line items when discounts load or items/customer change.
+  // Brand rows always win over customer master % (master is bill-level flat only,
+  // and only when no brand-discount rows exist).
   useEffect(() => {
     if (isInitializingEditRef.current) return;
     if (isBrandDiscountsLoading || !hasBrandDiscounts || brandDiscounts.length === 0) return;
-
-    const customerHasMasterDiscount =
-      !!selectedCustomer?.discount_percent && selectedCustomer.discount_percent > 0;
-    if (customerHasMasterDiscount) return;
 
     let applied = false;
     setLineItems((prev) => {
@@ -1368,7 +1375,6 @@ export default function SalesInvoice() {
     hasBrandDiscounts,
     isBrandDiscountsLoading,
     productBrandById,
-    selectedCustomer?.discount_percent,
     selectedCustomerId,
     lineItems.length,
     getBrandDiscountForProduct,
@@ -1744,11 +1750,12 @@ export default function SalesInvoice() {
         // Find empty row in working array or add new
         const emptyRowIndex = updatedItems.findIndex(item => item.productId === '');
         
-        const customerHasMasterDiscount =
-          !!selectedCustomer?.discount_percent && selectedCustomer.discount_percent > 0;
-        const brandDiscount = customerHasMasterDiscount
-          ? 0
-          : getBrandDiscountForProduct(product.brand, buildProductDisplayName(product));
+        // Brand-wise: always resolve brand % even when customer master Disc % is set.
+        // Master is bill flat only and only when no brand-discount rows exist.
+        const brandDiscount = getBrandDiscountForProduct(
+          product.brand,
+          buildProductDisplayName(product),
+        );
         const discountPercent = brandDiscount > 0 ? brandDiscount : 0;
         
         const newItem: LineItem = calculateLineTotal({
@@ -2131,12 +2138,13 @@ export default function SalesInvoice() {
       ? `${buildProductDisplayName(product)} — ${descNote}`
       : buildProductDisplayName(product);
     
-    const customerHasMasterDiscount =
-      !!selectedCustomer?.discount_percent && selectedCustomer.discount_percent > 0;
-    const brandDiscount = customerHasMasterDiscount
-      ? 0
-      : getBrandDiscountForProduct(product.brand, buildProductDisplayName(product));
-    // Auto-apply product-level sale discount if no brand/customer discount
+    // Brand-wise always resolves (even if customer.master Disc % is set).
+    // Master only becomes bill-level flat when customer has zero brand-discount rows.
+    const brandDiscount = getBrandDiscountForProduct(
+      product.brand,
+      buildProductDisplayName(product),
+    );
+    // Auto-apply product-level sale discount if no brand discount
     const productSaleDiscount = (() => {
       const sdt = (product as any).sale_discount_type;
       const sdv = (product as any).sale_discount_value || 0;
@@ -2578,20 +2586,23 @@ export default function SalesInvoice() {
     );
   };
 
+  /** Master Disc % is flat-only when no brand rows — never blocks brand line rates. */
   const customerHasMasterFlatDiscount =
-    !!selectedCustomer?.discount_percent && selectedCustomer.discount_percent > 0;
+    !!selectedCustomer?.discount_percent &&
+    selectedCustomer.discount_percent > 0 &&
+    !hasBrandDiscounts;
 
   const getCurrentBrandDiscountForLineItem = useCallback(
     (item: LineItem): number => {
-      if (customerHasMasterFlatDiscount || !item.productId) return 0;
+      if (!item.productId) return 0;
       const brand = item.brand || productBrandById.get(item.productId);
       return getBrandDiscountForProduct(brand, item.productName);
     },
-    [customerHasMasterFlatDiscount, getBrandDiscountForProduct, productBrandById],
+    [getBrandDiscountForProduct, productBrandById],
   );
 
   const lineItemsWithStaleBrandDiscount = useMemo(() => {
-    if (!editingInvoiceId || customerHasMasterFlatDiscount) return 0;
+    if (!editingInvoiceId || !hasBrandDiscounts) return 0;
     return lineItems.filter((item) => {
       if (!item.productId) return false;
       const current = getCurrentBrandDiscountForLineItem(item);
@@ -2599,7 +2610,7 @@ export default function SalesInvoice() {
     }).length;
   }, [
     editingInvoiceId,
-    customerHasMasterFlatDiscount,
+    hasBrandDiscounts,
     lineItems,
     getCurrentBrandDiscountForLineItem,
   ]);
@@ -4244,7 +4255,10 @@ Thank you for choosing us!`;
                 <Plus className="h-4 w-4" />
               </Button>
             </div>
-            {selectedCustomerId && selectedCustomer?.discount_percent > 0 && (
+            {selectedCustomerId &&
+              selectedCustomer?.discount_percent > 0 &&
+              !hasBrandDiscounts &&
+              !isBrandDiscountsLoading && (
               <span className="inline-flex text-xs font-semibold px-1.5 py-0.5 rounded bg-primary/10 text-primary mt-1">
                 {selectedCustomer.discount_percent}% Disc
               </span>
@@ -4271,6 +4285,11 @@ Thank you for choosing us!`;
                           {bd.brand}: {bd.discount_percent}%
                         </span>
                       ))}
+                      {Number(selectedCustomer.discount_percent) > 0 && (
+                        <span className="text-[11px] text-muted-foreground">
+                          (master {selectedCustomer.discount_percent}% ignored — brand rates apply)
+                        </span>
+                      )}
                       {editingInvoiceId && lineItemsWithStaleBrandDiscount > 0 && (
                         <Button
                           type="button"
