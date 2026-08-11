@@ -413,9 +413,12 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
   });
 
   // PDF Export function
-  const exportToPDF = () => {
-    if (sizeWiseData.rows.length === 0) return;
+  const exportToPDF = async () => {
+    if (sizeWiseData.rows.length === 0 || isExportingPdf) return;
 
+    setIsExportingPdf(true);
+    try {
+    const { default: jsPDF } = await import("jspdf");
     const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
