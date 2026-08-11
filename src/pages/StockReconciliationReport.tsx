@@ -11,7 +11,10 @@ import {
   ChevronDown,
   ChevronRight,
 } from "lucide-react";
-import * as XLSX from "xlsx";
+import type * as XLSXType from "xlsx";
+/** Lazily loaded on export — keeps the xlsx bundle off this page's initial chunk. */
+let xlsxModulePromise: Promise<typeof XLSXType> | null = null;
+const loadXlsx = (): Promise<typeof XLSXType> => (xlsxModulePromise ??= import("xlsx"));
 
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -123,7 +126,7 @@ export default function StockReconciliationReport() {
     };
   }, [rows]);
 
-  const exportExcel = () => {
+  const exportExcel = async () => {
     const headers = [
       "Barcode",
       "Product",
@@ -154,6 +157,7 @@ export default function StockReconciliationReport() {
       r.sale_returns,
       r.pending_dc,
     ]);
+    const XLSX = await loadXlsx();
     const ws = XLSX.utils.aoa_to_sheet([headers, ...data]);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Stock Reconciliation");

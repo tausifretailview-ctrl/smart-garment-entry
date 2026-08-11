@@ -30,8 +30,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { MetricCardSkeleton, TableSkeleton } from "@/components/ui/skeletons";
-import * as XLSX from "xlsx";
-import jsPDF from "jspdf";
+import type * as XLSXType from "xlsx";
+/** Lazily loaded on export — keeps the xlsx bundle off this page's initial chunk. */
+let xlsxModulePromise: Promise<typeof XLSXType> | null = null;
+const loadXlsx = (): Promise<typeof XLSXType> => (xlsxModulePromise ??= import("xlsx"));
+
+import type jsPDFType from "jspdf";
+/** Lazily loaded on export — keeps jsPDF/html2canvas off this page's initial chunk. */
+let jsPdfPromise: Promise<typeof jsPDFType> | null = null;
+const loadJsPdf = (): Promise<typeof jsPDFType> =>
+  (jsPdfPromise ??= import("jspdf").then((m) => m.default));
+
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { sortSizes } from "@/utils/sizeSort";
@@ -1304,7 +1313,7 @@ export default function StockReport() {
     stockStatusFilter !== "all";
 
   // Export Size-wise to Excel
-  const exportSizeWiseToExcel = () => {
+  const exportSizeWiseToExcel = async () => {
     const metaHeaders = [
       "Product",
       ...(showBrand ? [fieldLabels.brand] : []),
@@ -1330,6 +1339,7 @@ export default function StockReport() {
       sizeWiseTotals.grandTotal
     ]);
     
+    const XLSX = await loadXlsx();
     const ws = XLSX.utils.aoa_to_sheet([headers, ...data]);
     const colWidths = [
       { wch: 40 },
@@ -1348,7 +1358,8 @@ export default function StockReport() {
   };
 
   // Export Size-wise to PDF
-  const exportSizeWiseToPDF = () => {
+  const exportSizeWiseToPDF = async () => {
+    const jsPDF = await loadJsPdf();
     const doc = new jsPDF({ orientation: 'landscape' });
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
@@ -1414,7 +1425,7 @@ export default function StockReport() {
   };
 
   // Export All Stock to Excel
-  const exportAllStockToExcel = () => {
+  const exportAllStockToExcel = async () => {
     const headers = [
       "Sr No",
       "Supplier",
@@ -1472,6 +1483,7 @@ export default function StockReport() {
       Math.round(filteredStockItems.reduce((s, i) => s + i.sale_price * i.stock_qty, 0)),
       "",
     ]);
+    const XLSX = await loadXlsx();
     const ws = XLSX.utils.aoa_to_sheet([headers, ...data]);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Stock Report");
@@ -1581,6 +1593,7 @@ export default function StockReport() {
         `${items.length} variants`,
       ]);
 
+      const XLSX = await loadXlsx();
       const ws = XLSX.utils.aoa_to_sheet([headers, ...data]);
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "All Stock");

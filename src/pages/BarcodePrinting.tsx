@@ -34,8 +34,16 @@ import type { LabelData, TSPLTemplateConfig } from "@/utils/tsplGenerator";
 import { Check, Save, Trash2, GripVertical, Eye, Download, RefreshCw, Edit, Printer, AlertTriangle, Plus, Loader2, ChevronDown, ChevronLeft, Search, Package, History } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Badge } from "@/components/ui/badge";
-import jsPDF from "jspdf";
-import html2canvas from "html2canvas";
+import type jsPDFType from "jspdf";
+/** Lazily loaded on export — keeps jsPDF/html2canvas off this page's initial chunk. */
+let jsPdfPromise: Promise<typeof jsPDFType> | null = null;
+const loadJsPdf = (): Promise<typeof jsPDFType> =>
+  (jsPdfPromise ??= import("jspdf").then((m) => m.default));
+let html2canvasPromise: Promise<typeof html2canvasType> | null = null;
+const loadHtml2Canvas = (): Promise<typeof html2canvasType> =>
+  (html2canvasPromise ??= import("html2canvas").then((m) => m.default));
+
+import type html2canvasType from "html2canvas";
 import { encodePurchasePrice, getEffectivePurchasePrice } from "@/utils/purchaseCodeEncoder";
 import { generateA4LabelPdf } from '@/utils/a4LabelPdf';
 import {
@@ -5501,6 +5509,8 @@ export default function BarcodePrinting() {
   };
 
   const handleExportPDF = async () => {
+    const html2canvas = await loadHtml2Canvas();
+    const jsPDF = await loadJsPdf();
     const hasLabels = labelItems.some((item) => item.qty > 0);
     if (!hasLabels) {
       toast.error("Please add at least one label with quantity > 0");
@@ -5592,6 +5602,7 @@ export default function BarcodePrinting() {
 
           await new Promise(resolve => setTimeout(resolve, 200));
 
+          const html2canvas = await loadHtml2Canvas();
           const canvas = await html2canvas(wrapper, {
             scale: 8,  // High DPI for crisp, scannable barcodes
             backgroundColor: "#ffffff",

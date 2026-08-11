@@ -4,7 +4,10 @@ import {
   ArrowRight, ArrowLeft, FileText, Table2, CheckCircle2,
   ArrowUpCircle, ArrowDownCircle,
 } from "lucide-react";
-import * as XLSX from "xlsx";
+import type * as XLSXType from "xlsx";
+/** Lazily loaded on export — keeps the xlsx bundle off this page's initial chunk. */
+let xlsxModulePromise: Promise<typeof XLSXType> | null = null;
+const loadXlsx = (): Promise<typeof XLSXType> => (xlsxModulePromise ??= import("xlsx"));
 
 /* ─── Theme tokens (match parent) ─── */
 const C = {
@@ -124,6 +127,7 @@ const StockImportTab = ({ products, onApplyImport }: StockImportTabProps) => {
     try {
       if (ext === "xlsx" || ext === "xls") {
         const buffer = await file.arrayBuffer();
+        const XLSX = await loadXlsx();
         const wb = XLSX.read(buffer, { type: "array" });
         const ws = wb.Sheets[wb.SheetNames[0]];
         const json: string[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });

@@ -21,7 +21,11 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { CheckCircle2, XCircle, Download, Search, Wrench, RefreshCw, Loader2 } from "lucide-react";
 import { format } from "date-fns";
-import * as XLSX from "xlsx";
+import type * as XLSXType from "xlsx";
+/** Lazily loaded on export — keeps the xlsx bundle off this page's initial chunk. */
+let xlsxModulePromise: Promise<typeof XLSXType> | null = null;
+const loadXlsx = (): Promise<typeof XLSXType> => (xlsxModulePromise ??= import("xlsx"));
+
 import { toast } from "sonner";
 import { useCustomerSearch } from "@/hooks/useCustomerSearch";
 import {
@@ -488,7 +492,8 @@ export default function CustomerReconciliation() {
     }
   }, [currentOrganization?.id, selectedCustomerId, rows]);
 
-  const exportToExcel = () => {
+  const exportToExcel = async () => {
+    const XLSX = await loadXlsx();
     const ws = XLSX.utils.json_to_sheet(
       filtered.map((r) => ({
         Customer: r.customer_name,

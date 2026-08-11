@@ -36,7 +36,11 @@ import {
 } from "@/utils/expenseSalaryReportData";
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, subMonths, eachDayOfInterval } from "date-fns";
 import { cn } from "@/lib/utils";
-import * as XLSX from "xlsx";
+import type * as XLSXType from "xlsx";
+/** Lazily loaded on export — keeps the xlsx bundle off this page's initial chunk. */
+let xlsxModulePromise: Promise<typeof XLSXType> | null = null;
+const loadXlsx = (): Promise<typeof XLSXType> => (xlsxModulePromise ??= import("xlsx"));
+
 import { useReactToPrint } from "react-to-print";
 import {
   ResponsiveContainer,
@@ -317,7 +321,7 @@ export default function ExpenseSalaryReport() {
     setCurrentPage(1);
   };
 
-  const handleExportExcel = () => {
+  const handleExportExcel = async () => {
     const rows = filteredRows.map((r) => ({
       Date: format(new Date(r.date), "dd/MM/yyyy"),
       Type: r.type,
@@ -327,6 +331,7 @@ export default function ExpenseSalaryReport() {
       Amount: r.amount,
       "Voucher #": r.voucherNumber,
     }));
+    const XLSX = await loadXlsx();
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "ExpenseSalaryReport");

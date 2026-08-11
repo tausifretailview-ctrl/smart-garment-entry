@@ -3,7 +3,11 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useToast } from "@/hooks/use-toast";
-import * as XLSX from "xlsx";
+import type * as XLSXType from "xlsx";
+/** Lazily loaded on export — keeps the xlsx bundle off this page's initial chunk. */
+let xlsxModulePromise: Promise<typeof XLSXType> | null = null;
+const loadXlsx = (): Promise<typeof XLSXType> => (xlsxModulePromise ??= import("xlsx"));
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -225,7 +229,7 @@ export default function SalesmanCommission() {
     setShowRuleDialog(true);
   };
 
-  const exportToExcel = () => {
+  const exportToExcel = async () => {
     const data = filteredCommissions.map((c: any) => ({
       "Date": c.sale_date,
       "Invoice": c.sale_number,
@@ -239,6 +243,7 @@ export default function SalesmanCommission() {
       "Rule": c.rule_type,
       "Status": c.payment_status,
     }));
+    const XLSX = await loadXlsx();
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Commission");

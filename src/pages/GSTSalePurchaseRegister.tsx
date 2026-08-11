@@ -559,7 +559,7 @@ const GSTSalePurchaseRegister = () => {
       });
 
       // Generate and download Excel
-      const workbook = generateGSTRegisterExcel(
+      const workbook = await generateGSTRegisterExcel(
         salesRegister,
         saleReturnRegister,
         purchaseRegister,
@@ -571,7 +571,7 @@ const GSTSalePurchaseRegister = () => {
         posSalesRegister
       );
 
-      downloadGSTRegisterExcel(workbook, businessGSTIN || "GSTIN", fromDateObj, toDateObj);
+      await downloadGSTRegisterExcel(workbook, businessGSTIN || "GSTIN", fromDateObj, toDateObj);
 
       toast({
         title: "Export Successful",

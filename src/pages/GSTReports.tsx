@@ -28,7 +28,11 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import * as XLSX from "xlsx";
+import type * as XLSXType from "xlsx";
+/** Lazily loaded on export — keeps the xlsx bundle off this page's initial chunk. */
+let xlsxModulePromise: Promise<typeof XLSXType> | null = null;
+const loadXlsx = (): Promise<typeof XLSXType> => (xlsxModulePromise ??= import("xlsx"));
+
 import {
   isInterState,
   normalizeGstTaxType,
@@ -730,7 +734,8 @@ const GSTReports = () => {
     }
   };
 
-  const exportToExcel = (data: any[], fileName: string, sheetName: string) => {
+  const exportToExcel = async (data: any[], fileName: string, sheetName: string) => {
+    const XLSX = await loadXlsx();
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, sheetName);
@@ -774,8 +779,9 @@ const GSTReports = () => {
   };
 
   // UI-3: Combined GSTR-1 Excel export
-  const exportGSTR1ToExcel = () => {
+  const exportGSTR1ToExcel = async () => {
     if (!gstr1Data) return;
+    const XLSX = await loadXlsx();
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(gstr1Data.b2b), "B2B");
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(gstr1Data.b2cs), "B2CS");

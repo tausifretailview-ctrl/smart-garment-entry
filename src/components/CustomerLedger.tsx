@@ -18,13 +18,22 @@ import { Search, ArrowLeft, Download, Phone, Mail, MapPin, IndianRupee, Calendar
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import jsPDF from "jspdf";
+import type jsPDFType from "jspdf";
+/** Lazily loaded on export — keeps jsPDF/html2canvas off this page's initial chunk. */
+let jsPdfPromise: Promise<typeof jsPDFType> | null = null;
+const loadJsPdf = (): Promise<typeof jsPDFType> =>
+  (jsPdfPromise ??= import("jspdf").then((m) => m.default));
+
 import { format } from "date-fns";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import { isPosExchangeRefundPaymentVoucher } from "@/utils/saleSettlement";
 import { accountsHistoryTableClass, accountsHistoryTableWrapClass, accountsHistoryThClass } from "@/components/accounts/accountsHistoryUi";
-import * as XLSX from "xlsx";
+import type * as XLSXType from "xlsx";
+/** Lazily loaded on export — keeps the xlsx bundle off this page's initial chunk. */
+let xlsxModulePromise: Promise<typeof XLSXType> | null = null;
+const loadXlsx = (): Promise<typeof XLSXType> => (xlsxModulePromise ??= import("xlsx"));
+
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
@@ -2972,7 +2981,7 @@ export function CustomerLedger({
   }, [isSchool, filteredCustomers, customersForList, orgReceivablesSummary]);
 
   // Export customer list to Excel
-  const handleExportCustomerListExcel = useCallback(() => {
+  const handleExportCustomerListExcel = useCallback(async () => {
     if (!filteredCustomers.length) return;
     const rows = filteredCustomers.map((c) => {
       const f = facetsFromInvoiceOutstanding(c.balance, c.unusedAdvanceTotal || 0);
@@ -2991,6 +3000,7 @@ export function CustomerLedger({
           status === "outstanding" ? "Outstanding" : status === "credit" ? "Credit" : "Settled",
       };
     });
+    const XLSX = await loadXlsx();
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Customer Ledger");
@@ -2999,8 +3009,9 @@ export function CustomerLedger({
   }, [filteredCustomers]);
 
   // Export customer list to PDF
-  const handleExportCustomerListPDF = useCallback(() => {
+  const handleExportCustomerListPDF = useCallback(async () => {
     if (!filteredCustomers.length) return;
+    const jsPDF = await loadJsPdf();
     const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
     const pageWidth = doc.internal.pageSize.getWidth();
 
@@ -3563,7 +3574,7 @@ Please clear your dues at the earliest. Thank you!`;
     sendWhatsApp(selectedCustomer.phone, message);
   }, [selectedCustomer, transactions, startDate, endDate, sendWhatsApp]);
 
-  const handleExportToExcel = () => {
+  const handleExportToExcel = async () => {
     if (!selectedCustomer || !transactions) return;
 
     const exportData = transactions.map((t) => {
@@ -3616,6 +3627,7 @@ Please clear your dues at the earliest. Thank you!`;
       Balance: transactions.length > 0 ? transactions[transactions.length - 1].balance.toFixed(2) : '0.00',
     });
 
+    const XLSX = await loadXlsx();
     const ws = XLSX.utils.json_to_sheet(exportData);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Customer Ledger");
@@ -3637,6 +3649,7 @@ Please clear your dues at the earliest. Thank you!`;
       // PDF still exports without the strip if fetch fails.
     }
 
+    const jsPDF = await loadJsPdf();
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
     const margin = 14;

@@ -5,7 +5,10 @@ import { Link } from "react-router-dom";
 import { CalendarIcon, Check, ChevronsUpDown, FileDown, FileText, Printer, Scale } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useReactToPrint } from "react-to-print";
-import * as XLSX from "xlsx";
+import type * as XLSXType from "xlsx";
+/** Lazily loaded on export — keeps the xlsx bundle off this page's initial chunk. */
+let xlsxModulePromise: Promise<typeof XLSXType> | null = null;
+const loadXlsx = (): Promise<typeof XLSXType> => (xlsxModulePromise ??= import("xlsx"));
 
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -219,7 +222,7 @@ export default function CustomerAccountStatementAuditPage() {
 
   const customerQuery = customerId ? `?customer=${encodeURIComponent(customerId)}` : "";
 
-  const exportExcel = () => {
+  const exportExcel = async () => {
     if (!selectedCustomer || !auditBundle || displayRows.length === 0) return;
     const rows: (string | number)[][] = [
       ["Customer Account Statement (audit register)"],
@@ -250,6 +253,7 @@ export default function CustomerAccountStatementAuditPage() {
       rows.push(["Period formula check (customerAuditMath)", ""]);
       rows.push(["Outstanding (+ = Dr)", math.outstanding]);
     }
+    const XLSX = await loadXlsx();
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.aoa_to_sheet(rows);
     XLSX.utils.book_append_sheet(wb, ws, "Statement");

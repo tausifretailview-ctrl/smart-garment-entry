@@ -34,7 +34,11 @@ import {
 import { ReportPageSkeleton } from "@/components/skeletons/ReportPageSkeleton";
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek } from "date-fns";
 import { toast } from "sonner";
-import * as XLSX from "xlsx";
+import type * as XLSXType from "xlsx";
+/** Lazily loaded on export — keeps the xlsx bundle off this page's initial chunk. */
+let xlsxModulePromise: Promise<typeof XLSXType> | null = null;
+const loadXlsx = (): Promise<typeof XLSXType> => (xlsxModulePromise ??= import("xlsx"));
+
 import { getIndiaFinancialYear, getCurrentQuarter } from "@/utils/accountingReportUtils";
 import { useLocation } from "react-router-dom";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
@@ -399,7 +403,7 @@ export default function NetProfitAnalysis() {
     ? fieldLabels[fieldDimOpt.labelKey]
     : fieldDimOpt?.fallbackLabel || "Field";
 
-  const handleExportExcel = () => {
+  const handleExportExcel = async () => {
     if (filteredRows.length === 0) {
       toast.error("No data to export");
       return;
@@ -438,6 +442,7 @@ export default function NetProfitAnalysis() {
       return base;
     });
 
+    const XLSX = await loadXlsx();
     const ws = XLSX.utils.json_to_sheet(sheetRows);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, activeTab.slice(0, 28));

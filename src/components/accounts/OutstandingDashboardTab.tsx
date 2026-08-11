@@ -21,7 +21,11 @@ import {
   fetchOrgLedgerCustomersReference,
   fetchOrgLedgerSalesSummaryReference,
 } from "@/hooks/useOrgLedgerReferenceData";
-import * as XLSX from "xlsx";
+import type * as XLSXType from "xlsx";
+/** Lazily loaded on export — keeps the xlsx bundle off this page's initial chunk. */
+let xlsxModulePromise: Promise<typeof XLSXType> | null = null;
+const loadXlsx = (): Promise<typeof XLSXType> => (xlsxModulePromise ??= import("xlsx"));
+
 import { toast } from "sonner";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { MobileStatStrip } from "@/components/mobile/MobileStatStrip";
@@ -350,7 +354,7 @@ export function OutstandingDashboardTab({ organizationId, visitedTabs }: Outstan
     return sortDir === "asc" ? <ArrowUp className="h-3 w-3 ml-1" /> : <ArrowDown className="h-3 w-3 ml-1" />;
   };
 
-  const handleExport = () => {
+  const handleExport = async () => {
     const rows = filteredCustomers.map((c) => ({
       "Customer Name": c.name,
       "Phone": c.phone || "-",
@@ -363,6 +367,7 @@ export function OutstandingDashboardTab({ organizationId, visitedTabs }: Outstan
       "61-90 Days": Math.round(c.aging.d90),
       "90+ Days": Math.round(c.aging.d90plus),
     }));
+    const XLSX = await loadXlsx();
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Outstanding");

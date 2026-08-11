@@ -5,6 +5,7 @@ import { readFileSync } from "fs";
 import { componentTagger } from "lovable-tagger";
 import { VitePWA } from "vite-plugin-pwa";
 import { mcpPlugin } from "@lovable.dev/mcp-js/stacks/supabase/vite";
+import { visualizer } from "rollup-plugin-visualizer";
 
 const pkg = JSON.parse(readFileSync(path.resolve(__dirname, "package.json"), "utf-8"));
 /** Bust React Query persisted cache on each build/deploy (see queryPersister.ts). */
@@ -26,6 +27,13 @@ export default defineConfig(({ mode }) => ({
     react(),
     mode === "development" && componentTagger(),
     mcpPlugin(),
+    process.env.ANALYZE === "1" &&
+      (visualizer({
+        filename: "/tmp/bundle-report.html",
+        gzipSize: true,
+        brotliSize: false,
+        template: "treemap",
+      }) as any),
     VitePWA({
       injectRegister: false,
       registerType: 'prompt',
@@ -139,6 +147,10 @@ export default defineConfig(({ mode }) => ({
     rollupOptions: {
       output: {
         manualChunks(id) {
+          // Vite's __vitePreload helper is a virtual module. Rollup was folding it into
+          // pdf-vendor, which forced the whole 353 KB gz PDF bundle onto the critical
+          // path via the entry chunk. Keep it isolated.
+          if (id.includes("vite/preload-helper")) return "vite-preload";
           if (!id.includes("node_modules")) return;
 
           if (id.includes("@tanstack/react-query")) return "query-vendor";
