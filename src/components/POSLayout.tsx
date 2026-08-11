@@ -92,12 +92,16 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
     </>
   );
 
+  const posNavBtnClass =
+    "text-primary-foreground hover:bg-primary/80 gap-1.5 h-9 px-2.5 text-sm sm:text-base font-semibold";
+  const posNavIconClass = "h-5 w-5 shrink-0";
+
   const posHeader = (
-      <header className="h-12 shrink-0 bg-primary text-primary-foreground flex items-center justify-between px-4 shadow-md z-50">
-        <div className="flex items-center gap-3">
+      <header className="h-14 shrink-0 bg-primary text-primary-foreground flex items-center justify-between px-3 sm:px-4 shadow-md z-50 gap-2">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
           <DropdownMenu onOpenChange={handleMenuOpenChange}>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="text-primary-foreground hover:bg-primary/80">
+              <Button variant="ghost" size="icon" className="text-primary-foreground hover:bg-primary/80 h-9 w-9 shrink-0">
                 <Menu className="h-5 w-5" />
               </Button>
             </DropdownMenuTrigger>
@@ -134,15 +138,15 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
             </DropdownMenuContent>
           </DropdownMenu>
           
-          <div className="flex items-center gap-2">
-            <Store className="h-5 w-5" />
-            <span className="font-semibold text-sm md:text-base truncate max-w-[200px]">
+          <div className="flex items-center gap-2 min-w-0">
+            <Store className="h-5 w-5 shrink-0" />
+            <span className="font-semibold text-sm sm:text-base truncate max-w-[160px] md:max-w-[220px]">
               {currentOrganization?.name || "POS"}
             </span>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-0.5 sm:gap-1 flex-wrap justify-end min-w-0">
           <TooltipProvider>
             {onNewSale && (
               <Tooltip>
@@ -151,9 +155,9 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
                     variant="ghost" 
                     size="sm" 
                     onClick={onNewSale}
-                    className="text-primary-foreground hover:bg-primary/80 gap-1"
+                    className={posNavBtnClass}
                   >
-                    <PlusCircle className="h-4 w-4" />
+                    <PlusCircle className={posNavIconClass} />
                     <span className="hidden sm:inline">New Sale</span>
                   </Button>
                 </TooltipTrigger>
@@ -169,9 +173,9 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
                     variant="ghost" 
                     size="sm" 
                     onClick={onClearCart}
-                    className="text-primary-foreground hover:bg-destructive/80 gap-1"
+                    className={cn(posNavBtnClass, "hover:bg-destructive/80")}
                   >
-                    <Trash2 className="h-4 w-4" />
+                    <Trash2 className={posNavIconClass} />
                     <span className="hidden sm:inline">Clear</span>
                   </Button>
                 </TooltipTrigger>
@@ -187,9 +191,9 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
                     variant="ghost" 
                     size="sm" 
                     onClick={onEstimatePrint}
-                    className="text-primary-foreground hover:bg-primary/80 gap-1"
+                    className={posNavBtnClass}
                   >
-                    <FileText className="h-4 w-4" />
+                    <FileText className={posNavIconClass} />
                     <span className="hidden sm:inline">Estimate</span>
                   </Button>
                 </TooltipTrigger>
@@ -206,9 +210,9 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
                     size="sm" 
                     onClick={onSaveChanges}
                     disabled={isSavingChanges}
-                    className="text-primary-foreground hover:bg-green-600/80 gap-1 bg-green-600/40"
+                    className={cn(posNavBtnClass, "hover:bg-green-600/80 bg-green-600/40")}
                   >
-                    {isSavingChanges ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                    {isSavingChanges ? <Loader2 className={cn(posNavIconClass, "animate-spin")} /> : <Save className={posNavIconClass} />}
                     <span className="hidden sm:inline">{isSavingChanges ? 'Saving...' : 'Save Changes'}</span>
                   </Button>
                 </TooltipTrigger>
@@ -224,9 +228,9 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
                     variant="ghost" 
                     size="sm" 
                     onClick={onOpenCashierReport}
-                    className="text-primary-foreground hover:bg-primary/80 gap-1"
+                    className={posNavBtnClass}
                   >
-                    <BarChart3 className="h-4 w-4" />
+                    <BarChart3 className={posNavIconClass} />
                     <span className="hidden sm:inline">Cashier</span>
                   </Button>
                 </TooltipTrigger>
@@ -242,9 +246,9 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
                     variant="ghost" 
                     size="sm" 
                     onClick={onOpenStockReport}
-                    className="text-primary-foreground hover:bg-primary/80 gap-1"
+                    className={posNavBtnClass}
                   >
-                    <PackageIcon className="h-4 w-4" />
+                    <PackageIcon className={posNavIconClass} />
                     <span className="hidden sm:inline">Stock</span>
                   </Button>
                 </TooltipTrigger>
@@ -260,9 +264,9 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
                     variant="ghost" 
                     size="sm" 
                     onClick={onOpenSaleReturn}
-                    className="text-primary-foreground hover:bg-primary/80 gap-1"
+                    className={posNavBtnClass}
                   >
-                    <RotateCcw className="h-4 w-4" />
+                    <RotateCcw className={posNavIconClass} />
                     <span className="hidden sm:inline">S/R</span>
                   </Button>
                 </TooltipTrigger>
@@ -278,9 +282,9 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
                     variant="ghost"
                     size="sm"
                     onClick={() => orgNavigate("/pos-delivery-challan")}
-                    className="text-primary-foreground hover:bg-orange-500/80 gap-1 bg-orange-600/30"
+                    className={cn(posNavBtnClass, "hover:bg-orange-500/80 bg-orange-600/30")}
                   >
-                    <Truck className="h-4 w-4" />
+                    <Truck className={posNavIconClass} />
                     <span className="hidden sm:inline">DC</span>
                   </Button>
                 </TooltipTrigger>
@@ -295,9 +299,9 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
                   variant="ghost" 
                   size="sm" 
                   onClick={() => setShowSizeStock(true)}
-                  className="text-primary-foreground hover:bg-primary/80 gap-1"
+                  className={posNavBtnClass}
                 >
-                  <LayoutGrid className="h-4 w-4" />
+                  <LayoutGrid className={posNavIconClass} />
                   <span className="hidden sm:inline">Size Stock</span>
                 </Button>
               </TooltipTrigger>
@@ -311,9 +315,9 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
                   variant="ghost" 
                   size="sm" 
                   onClick={() => setShowCashTally(true)}
-                  className="text-primary-foreground hover:bg-primary/80 gap-1"
+                  className={posNavBtnClass}
                 >
-                  <Wallet className="h-4 w-4" />
+                  <Wallet className={posNavIconClass} />
                   <span className="hidden sm:inline">Cash Tally</span>
                 </Button>
               </TooltipTrigger>
@@ -327,9 +331,9 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
                   variant="ghost" 
                   size="sm" 
                   onClick={() => setShowPayments(true)}
-                  className="text-primary-foreground hover:bg-primary/80 gap-1"
+                  className={posNavBtnClass}
                 >
-                  <Banknote className="h-4 w-4" />
+                  <Banknote className={posNavIconClass} />
                   <span className="hidden sm:inline">Payments</span>
                 </Button>
               </TooltipTrigger>
@@ -343,9 +347,9 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
                   variant="ghost" 
                   size="icon" 
                   onClick={() => setIsOpen(true)}
-                  className="text-primary-foreground hover:bg-primary/80 h-8 w-8"
+                  className="text-primary-foreground hover:bg-primary/80 h-9 w-9"
                 >
-                  <Keyboard className="h-4 w-4" />
+                  <Keyboard className="h-5 w-5" />
                 </Button>
               </TooltipTrigger>
               <TooltipContent side="bottom" className="bg-popover text-popover-foreground">
@@ -353,7 +357,9 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
-          <span className="text-xs md:text-sm opacity-90 ml-2">Point of Sale</span>
+          <span className="text-sm sm:text-base font-semibold opacity-95 ml-1 sm:ml-2 whitespace-nowrap">
+            Point of Sale
+          </span>
         </div>
       </header>
   );
