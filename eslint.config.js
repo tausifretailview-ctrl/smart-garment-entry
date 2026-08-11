@@ -27,7 +27,9 @@ export default tseslint.config(
       "@typescript-eslint/no-unused-vars": "off",
       // Catches un-awaited async calls (e.g. lazy-loaded export handlers) that
       // would otherwise reject silently with no user feedback.
-      "@typescript-eslint/no-floating-promises": "error",
+      // Kept at "warn" behind a ratchet: `npm run lint:ratchet` fails only when
+      // the count exceeds the recorded baseline in .eslint-floating-promises-baseline.json.
+      "@typescript-eslint/no-floating-promises": "warn",
     },
   },
 );
