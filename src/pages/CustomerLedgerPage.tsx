@@ -443,7 +443,7 @@ export default function CustomerLedgerPage() {
       }
 
       const payAtSaleLedgerRows: LedgerRow[] = (inRangeSales || [])
-        .map((sale: any) => {
+        .map((sale: any): LedgerRow | null => {
           const sn = (sale.sale_number || "").trim();
           if (!sn) return null;
           if (existingPayAtSaleRefs.has(sn)) return null;
