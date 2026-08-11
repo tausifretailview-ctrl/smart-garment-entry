@@ -268,6 +268,110 @@ export function recordTabCacheSnapshot(meta: {
   snapshot.openTabPaths = meta.openTabPaths;
 }
 
+/* ------------------------------------------------------------------ *
+ * Render-owner decisions (always on — field evidence for blank pages)
+ *
+ * Unlike the perf events above these are recorded even when NavPerf is
+ * disabled: the blank-page reports we get from shops (e.g. the five-tab
+ * SM HAIR REPLACEMENT Electron case, stuck on Settings / User Rights with
+ * both the 8s soft hint and the hard timeout) arrive after the fact, so the
+ * evidence has to already be in memory when the user is asked to read it out.
+ *
+ * Readout: window.__ezzyRenderOwner.print()
+ * ------------------------------------------------------------------ */
+
+export type RenderOwner = "tab-cache" | "outlet";
+
+export type RenderOwnerDecision = {
+  at: number;
+  path: string;
+  owner: RenderOwner;
+  wantsTabCache: boolean;
+  effectiveTabPaneReady: boolean;
+  showTabCacheDuringColdNav: boolean;
+  forceOutletFallback: boolean;
+  isCacheableEntryActive: boolean;
+  activeChunkLoaded: boolean;
+  paneMounted: boolean;
+  tabPaths: string[];
+  /** Set by the blank-frame watchdog when nothing painted for this decision. */
+  blankFrame?: boolean;
+  /** Watchdog switched the owner to <Outlet> to recover. */
+  rescued?: boolean;
+};
+
+const MAX_RENDER_OWNER_DECISIONS = 30;
+const renderOwnerDecisions: RenderOwnerDecision[] = [];
+
+export function recordRenderOwnerDecision(
+  decision: Omit<RenderOwnerDecision, "at">,
+): void {
+  const last = renderOwnerDecisions[renderOwnerDecisions.length - 1];
+  if (
+    last &&
+    last.path === decision.path &&
+    last.owner === decision.owner &&
+    last.forceOutletFallback === decision.forceOutletFallback &&
+    last.effectiveTabPaneReady === decision.effectiveTabPaneReady
+  ) {
+    return;
+  }
+  renderOwnerDecisions.push({ at: Date.now(), ...decision });
+  if (renderOwnerDecisions.length > MAX_RENDER_OWNER_DECISIONS) {
+    renderOwnerDecisions.shift();
+  }
+  exposeRenderOwnerApi();
+}
+
+/** Watchdog found an empty workspace container for the current decision. */
+export function recordBlankFrame(path: string, rescued: boolean): void {
+  const last = renderOwnerDecisions[renderOwnerDecisions.length - 1];
+  if (last && last.path === path) {
+    last.blankFrame = true;
+    last.rescued = rescued;
+  }
+  console.warn(
+    `[RenderOwner] Blank workspace detected for "${path || "dashboard"}" — ` +
+      (rescued ? "falling back to <Outlet>." : "no owner change possible."),
+    last ?? {},
+  );
+}
+
+export function getRenderOwnerDecisions(): RenderOwnerDecision[] {
+  return [...renderOwnerDecisions];
+}
+
+export function buildRenderOwnerReport(): string {
+  if (renderOwnerDecisions.length === 0) return "(no render-owner decisions recorded yet)";
+  return renderOwnerDecisions
+    .map((d) => {
+      const flags = [
+        d.wantsTabCache ? "wantsCache" : "",
+        d.effectiveTabPaneReady ? "paneReady" : "",
+        d.showTabCacheDuringColdNav ? "coldNavCache" : "",
+        d.forceOutletFallback ? "forcedOutlet" : "",
+        d.isCacheableEntryActive ? "entryPane" : "",
+        d.activeChunkLoaded ? "chunkLoaded" : "",
+        d.paneMounted ? "paneMounted" : "",
+        d.blankFrame ? "BLANK" : "",
+        d.rescued ? "RESCUED" : "",
+      ].filter(Boolean);
+      return `${new Date(d.at).toISOString()} ${d.path || "(dashboard)"} → ${d.owner} [${flags.join(" ")}] tabs=${d.tabPaths.length}`;
+    })
+    .join("\n");
+}
+
+let renderOwnerApiExposed = false;
+function exposeRenderOwnerApi(): void {
+  if (renderOwnerApiExposed || typeof window === "undefined") return;
+  renderOwnerApiExposed = true;
+  (window as Window & { __ezzyRenderOwner?: Record<string, unknown> }).__ezzyRenderOwner = {
+    get: getRenderOwnerDecisions,
+    print: () => console.log(buildRenderOwnerReport()),
+    report: buildRenderOwnerReport,
+  };
+}
+
 export function recordChunkLoadStart(path: string): void {
   if (!enabled) return;
   const ts = now();
