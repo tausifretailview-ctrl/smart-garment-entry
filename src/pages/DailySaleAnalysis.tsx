@@ -30,7 +30,12 @@ import type * as XLSXType from "xlsx";
 let xlsxModulePromise: Promise<typeof XLSXType> | null = null;
 const loadXlsx = (): Promise<typeof XLSXType> => (xlsxModulePromise ??= import("xlsx"));
 
-import jsPDF from "jspdf";
+import type jsPDFType from "jspdf";
+/** Lazily loaded on export — keeps jsPDF/html2canvas off this page's initial chunk. */
+let jsPdfPromise: Promise<typeof jsPDFType> | null = null;
+const loadJsPdf = (): Promise<typeof jsPDFType> =>
+  (jsPdfPromise ??= import("jspdf").then((m) => m.default));
+
 import { multiTokenMatch } from "@/utils/multiTokenSearch";
 
 type QuickPeriod = "today" | "yesterday" | "last7" | "last30" | "thisMonth";
@@ -509,7 +514,8 @@ export default function DailySaleAnalysis() {
   };
 
   // ---- PDF EXPORT ----
-  const handlePdfExport = () => {
+  const handlePdfExport = async () => {
+    const jsPDF = await loadJsPdf();
     const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
     doc.setFontSize(16);
     doc.text("Daily Sale Items — Stock & Reorder Analysis", 14, 15);

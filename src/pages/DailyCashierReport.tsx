@@ -18,7 +18,12 @@ import type * as XLSXType from "xlsx";
 let xlsxModulePromise: Promise<typeof XLSXType> | null = null;
 const loadXlsx = (): Promise<typeof XLSXType> => (xlsxModulePromise ??= import("xlsx"));
 
-import jsPDF from "jspdf";
+import type jsPDFType from "jspdf";
+/** Lazily loaded on export — keeps jsPDF/html2canvas off this page's initial chunk. */
+let jsPdfPromise: Promise<typeof jsPDFType> | null = null;
+const loadJsPdf = (): Promise<typeof jsPDFType> =>
+  (jsPdfPromise ??= import("jspdf").then((m) => m.default));
+
 import { useIsMobile } from "@/hooks/use-mobile";
 import { MobilePageHeader } from "@/components/mobile/MobilePageHeader";
 import { MobileBottomNav } from "@/components/mobile/MobileBottomNav";
@@ -586,7 +591,8 @@ const DailyCashierReport = () => {
     XLSX.writeFile(wb, `Cashier_Report_${format(selectedDate, "yyyy-MM-dd")}.xlsx`);
   };
 
-  const handleExportPDF = () => {
+  const handleExportPDF = async () => {
+    const jsPDF = await loadJsPdf();
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
     
