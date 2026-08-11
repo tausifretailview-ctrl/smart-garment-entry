@@ -66,6 +66,7 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
   const [selectedProducts, setSelectedProducts] = useState<Product[]>([]);
   const [productsLoading, setProductsLoading] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [sizeWiseData, setSizeWiseData] = useState<{ sizes: string[]; rows: SizeWiseRow[] }>({ sizes: [], rows: [] });
   const [productDisplayLimit, setProductDisplayLimit] = useState(100);
   const [popoverOpen, setPopoverOpen] = useState(false);
