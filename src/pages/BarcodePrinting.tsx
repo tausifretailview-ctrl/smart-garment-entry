@@ -5509,6 +5509,8 @@ export default function BarcodePrinting() {
   };
 
   const handleExportPDF = async () => {
+    const html2canvas = await loadHtml2Canvas();
+    const jsPDF = await loadJsPdf();
     const hasLabels = labelItems.some((item) => item.qty > 0);
     if (!hasLabels) {
       toast.error("Please add at least one label with quantity > 0");
@@ -5551,8 +5553,6 @@ export default function BarcodePrinting() {
 
         const pageW = labelWidth * cols + horizontalGap * Math.max(0, cols - 1);
         const pdf = cols > 1
-          const html2canvas = await loadHtml2Canvas();
-          const jsPDF = await loadJsPdf();
           ? new jsPDF({
               orientation: "landscape",
               unit: "mm",
