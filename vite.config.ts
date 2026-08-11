@@ -147,6 +147,10 @@ export default defineConfig(({ mode }) => ({
     rollupOptions: {
       output: {
         manualChunks(id) {
+          // Vite's __vitePreload helper is a virtual module. Rollup was folding it into
+          // pdf-vendor, which forced the whole 353 KB gz PDF bundle onto the critical
+          // path via the entry chunk. Keep it isolated.
+          if (id.includes("vite/preload-helper")) return "vite-preload";
           if (!id.includes("node_modules")) return;
 
           if (id.includes("@tanstack/react-query")) return "query-vendor";
