@@ -1,4 +1,8 @@
-import * as XLSX from 'xlsx';
+import type * as XLSX from 'xlsx';
+
+/** Lazily loaded — keeps the ~140 KB gz xlsx bundle off the initial payload. */
+let xlsxModulePromise: Promise<typeof XLSX> | null = null;
+const loadXlsx = (): Promise<typeof XLSX> => (xlsxModulePromise ??= import('xlsx'));
 import { format } from 'date-fns';
 
 // GST Slabs supported
