@@ -735,11 +735,17 @@ const GSTReports = () => {
   };
 
   const exportToExcel = async (data: any[], fileName: string, sheetName: string) => {
-    const XLSX = await loadXlsx();
-    const ws = XLSX.utils.json_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, sheetName);
-    XLSX.writeFile(wb, `${fileName}_${fromDate}_to_${toDate}.xlsx`);
+    // xlsx is lazy-loaded — a failed chunk fetch must surface, not fail silently.
+    try {
+      const XLSX = await loadXlsx();
+      const ws = XLSX.utils.json_to_sheet(data);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, sheetName);
+      XLSX.writeFile(wb, `${fileName}_${fromDate}_to_${toDate}.xlsx`);
+    } catch (error) {
+      console.error("Excel export failed:", error);
+      toast({ title: "Export failed", description: "Could not generate the Excel file. Please retry.", variant: "destructive" });
+    }
   };
 
   /** Flatten nested GSTR-3B summary into rows json_to_sheet can serialize. */
@@ -773,22 +779,27 @@ const GSTReports = () => {
     return rows;
   };
 
-  const exportGstr3bToExcel = () => {
+  const exportGstr3bToExcel = async () => {
     if (!gstr3bData) return;
-    exportToExcel(flattenGstr3bForExcel(gstr3bData), "GSTR3B_Summary", "Summary");
+    await exportToExcel(flattenGstr3bForExcel(gstr3bData), "GSTR3B_Summary", "Summary");
   };
 
   // UI-3: Combined GSTR-1 Excel export
   const exportGSTR1ToExcel = async () => {
     if (!gstr1Data) return;
-    const XLSX = await loadXlsx();
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(gstr1Data.b2b), "B2B");
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(gstr1Data.b2cs), "B2CS");
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(gstr1Data.cdnr), "CDNR");
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(gstr1Data.cdnur), "CDNUR");
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(gstr1Data.hsn), "HSN");
-    XLSX.writeFile(wb, `GSTR1_${format(new Date(fromDate), "MMM-yyyy")}.xlsx`);
+    try {
+      const XLSX = await loadXlsx();
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(gstr1Data.b2b), "B2B");
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(gstr1Data.b2cs), "B2CS");
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(gstr1Data.cdnr), "CDNR");
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(gstr1Data.cdnur), "CDNUR");
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(gstr1Data.hsn), "HSN");
+      XLSX.writeFile(wb, `GSTR1_${format(new Date(fromDate), "MMM-yyyy")}.xlsx`);
+    } catch (error) {
+      console.error("GSTR-1 export failed:", error);
+      toast({ title: "Export failed", description: "Could not generate the GSTR-1 file. Please retry.", variant: "destructive" });
+    }
   };
 
   const handleGenerateReport = () => {
