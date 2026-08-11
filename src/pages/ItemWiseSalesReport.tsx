@@ -883,6 +883,7 @@ export default function ItemWiseSalesReport() {
 
   // Export to Excel
   const exportToExcel = async () => {
+    const XLSX = await loadXlsx();
     if (activeTab === "customerwise") {
       const exportRows: any[] = [];
       customerWiseData.forEach((row, i) => {
@@ -891,7 +892,6 @@ export default function ItemWiseSalesReport() {
           exportRows.push({ "Sr No": "", "Customer Name": "", "Product Name": p.product_name, "Items": "", "Total Qty": p.qty, "Total Value": Math.round(p.amount), "Avg Item Value": "" });
         });
       });
-      const XLSX = await loadXlsx();
       const ws = XLSX.utils.json_to_sheet(exportRows);
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "Customer-wise Sales");

@@ -372,6 +372,7 @@ export default function CustomerPointsReport() {
   }, [reportData, redemptionValue]);
 
   const exportToExcel = async () => {
+    const XLSX = await loadXlsx();
     if (drillCustomerId && drillRows.length > 0) {
       const exportData = drillRows.map((r, i) => ({
         "Sr No": i + 1,
@@ -382,7 +383,6 @@ export default function CustomerPointsReport() {
         "Invoice No": r.sale_number || "",
         Description: r.description || "",
       }));
-      const XLSX = await loadXlsx();
       const ws = XLSX.utils.json_to_sheet(exportData);
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "Points History");

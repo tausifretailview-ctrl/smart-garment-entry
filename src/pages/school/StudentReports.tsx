@@ -140,6 +140,7 @@ const StudentReports = () => {
 
   // Export to Excel
   const handleExport = async () => {
+    const XLSX = await loadXlsx();
     if (activeTab === "details") {
       const rows = filteredStudents.map((s: any, i: number) => ({
         "Sr No": i + 1,
@@ -155,7 +156,6 @@ const StudentReports = () => {
         "Parent Name": s.parent_name || "",
         "Phone": s.parent_phone || "",
       }));
-      const XLSX = await loadXlsx();
       const ws = XLSX.utils.json_to_sheet(rows);
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "Student Report");
