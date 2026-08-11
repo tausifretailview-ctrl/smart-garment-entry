@@ -22,7 +22,11 @@ import {
 } from "@/utils/accounting/journalService";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
 import { toast } from "sonner";
-import * as XLSX from "xlsx";
+import type * as XLSXType from "xlsx";
+/** Lazily loaded on export — keeps the xlsx bundle off this page's initial chunk. */
+let xlsxModulePromise: Promise<typeof XLSXType> | null = null;
+const loadXlsx = (): Promise<typeof XLSXType> => (xlsxModulePromise ??= import("xlsx"));
+
 import { AccountsHistoryPanel } from "@/components/accounts/AccountsHistoryPanel";
 import {
   accountsHistoryTableClass,
@@ -576,7 +580,7 @@ export function ExpensesTab({
     return Array.from(cats).sort();
   }, [expenseVouchers]);
 
-  const exportExcel = () => {
+  const exportExcel = async () => {
     const data = filteredExpenses.map((v) => ({
       "Voucher No": v.voucher_number,
       Date: format(new Date(v.voucher_date), "dd/MM/yyyy"),
@@ -587,6 +591,7 @@ export function ExpensesTab({
       "Paid By": v.paid_by || "",
       "Bill/Receipt No": v.receipt_number || "",
     }));
+    const XLSX = await loadXlsx();
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Expenses");

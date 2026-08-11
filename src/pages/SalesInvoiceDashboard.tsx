@@ -37,7 +37,11 @@ import { SALES_INVOICE_TABLE_SKELETON_COLUMNS } from "@/components/skeletons/das
 import { QuietRefreshBar, useQuietRefreshActive } from "@/components/QuietRefreshBar";
 
 import { Search, Printer, Edit, ChevronDown, ChevronUp, Trash2, Loader2, MessageCircle, Link2, Settings2, Package, IndianRupee, Send, FileText, TrendingUp, CheckCircle2, Clock, CalendarIcon, Download, Percent, Zap, FileDown, Lock, X, Plus, RefreshCw, Copy, Ban, Eye, MoreHorizontal, FileSpreadsheet, User, Phone, AlertTriangle, Receipt } from "lucide-react";
-import * as XLSX from "xlsx";
+import type * as XLSXType from "xlsx";
+/** Lazily loaded on export — keeps the xlsx bundle off this page's initial chunk. */
+let xlsxModulePromise: Promise<typeof XLSXType> | null = null;
+const loadXlsx = (): Promise<typeof XLSXType> => (xlsxModulePromise ??= import("xlsx"));
+
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { captureElementToPdfBase64 } from "@/utils/captureInvoicePdf";
 import { captureElementToPdfBlob } from "@/utils/invoiceElementToPdf";
@@ -1492,6 +1496,7 @@ export default function SalesInvoiceDashboard() {
         'Delivery Status': inv.delivery_status || '',
         'Salesman': inv.salesman || '',
       }));
+      const XLSX = await loadXlsx();
       const ws = XLSX.utils.json_to_sheet(exportData);
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'Sales Invoices');
@@ -1696,6 +1701,7 @@ export default function SalesInvoiceDashboard() {
     setBulkBusyAction("export");
     try {
       const exportData = bulkSelectedRows.map(mapInvoiceExportRow);
+      const XLSX = await loadXlsx();
       const ws = XLSX.utils.json_to_sheet(exportData);
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "Sales Invoices");

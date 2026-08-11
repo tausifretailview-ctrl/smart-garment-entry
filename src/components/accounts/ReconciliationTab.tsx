@@ -16,7 +16,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { accountsHistoryTableClass, accountsHistoryTableWrapClass, accountsHistoryThClass } from "@/components/accounts/accountsHistoryUi";
 import { useUserRoles } from "@/hooks/useUserRoles";
-import * as XLSX from "xlsx";
+import type * as XLSXType from "xlsx";
+/** Lazily loaded on export — keeps the xlsx bundle off this page's initial chunk. */
+let xlsxModulePromise: Promise<typeof XLSXType> | null = null;
+const loadXlsx = (): Promise<typeof XLSXType> => (xlsxModulePromise ??= import("xlsx"));
 
 interface ReconciliationTabProps {
   organizationId: string;
@@ -189,8 +192,9 @@ export function ReconciliationTab({ organizationId, customers, visitedTabs }: Re
     onError: (error: Error) => { toast.error(`Failed to delete receipt: ${error.message}`); },
   });
 
-  const handleExport = () => {
+  const handleExport = async () => {
     const filtered = reconciliationData || [];
+    const XLSX = await loadXlsx();
     const ws = XLSX.utils.json_to_sheet(filtered.map((payment) => ({
       "Voucher No": payment.voucher_number,
       "Payment Date": format(new Date(payment.voucher_date), "dd/MM/yyyy"),

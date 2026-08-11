@@ -27,7 +27,11 @@ import {
   supplierCreditNoteLedgerDescriptionFromCn,
 } from "@/utils/purchaseSupplierLedgerCn";
 import { linkedBillDisplayNo } from "@/utils/purchaseReturnCnDisplay";
-import * as XLSX from "xlsx";
+import type * as XLSXType from "xlsx";
+/** Lazily loaded on export — keeps the xlsx bundle off this page's initial chunk. */
+let xlsxModulePromise: Promise<typeof XLSXType> | null = null;
+const loadXlsx = (): Promise<typeof XLSXType> => (xlsxModulePromise ??= import("xlsx"));
+
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
@@ -645,7 +649,7 @@ export function SupplierLedger({ organizationId, visitedTabs, supplierBalanceMap
     return "Payment";
   };
 
-  const handleExportToExcel = () => {
+  const handleExportToExcel = async () => {
     if (!selectedSupplier || !transactions) return;
 
     const exportData = transactions.map((t) => ({
@@ -658,6 +662,7 @@ export function SupplierLedger({ organizationId, visitedTabs, supplierBalanceMap
       Balance: t.balance.toFixed(2),
     }));
 
+    const XLSX = await loadXlsx();
     const ws = XLSX.utils.json_to_sheet(exportData);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Supplier Ledger");
