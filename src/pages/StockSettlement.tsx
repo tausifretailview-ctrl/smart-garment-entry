@@ -46,7 +46,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
-import * as XLSX from "xlsx";
+import type * as XLSXType from "xlsx";
+/** Lazily loaded on export — keeps the xlsx bundle off this page's initial chunk. */
+let xlsxModulePromise: Promise<typeof XLSXType> | null = null;
+const loadXlsx = (): Promise<typeof XLSXType> => (xlsxModulePromise ??= import("xlsx"));
+
 import {
   fetchLatestOpenSessionId,
   fetchOpenScansForSession,
@@ -766,7 +770,7 @@ const StockSettlement = () => {
     return { totalQty, totalPurValue, totalSaleValue, fmt };
   }, [filtered]);
 
-  const exportCompleteStock = useCallback(() => {
+  const exportCompleteStock = useCallback(async () => {
     const wsData: (string | number)[][] = [
       ["Sr No", "Product Name", "Department", "Brand", "Unit", "Barcode", "Stock Qty", "Pur Price", "Sale Price", "Pur Value", "Sale Value"],
     ];
@@ -781,6 +785,7 @@ const StockSettlement = () => {
     const totalPur = +products.reduce((s, p) => s + p.softwareStock * p.purPrice, 0).toFixed(2);
     const totalSale = +products.reduce((s, p) => s + p.softwareStock * p.salePrice, 0).toFixed(2);
     wsData.push(["", "", "", "", "", "TOTAL", totalQty, "", "", totalPur, totalSale]);
+    const XLSX = await loadXlsx();
     const ws = XLSX.utils.aoa_to_sheet(wsData);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Complete Stock");
@@ -788,7 +793,7 @@ const StockSettlement = () => {
     toast({ title: "Exported", description: `All ${products.length} products exported with totals` });
   }, [products, toast]);
 
-  const exportScannedStock = useCallback(() => {
+  const exportScannedStock = useCallback(async () => {
     const scannedProducts = products.filter((p) => p.scanned);
     if (scannedProducts.length === 0) {
       toast({ title: "No scanned items", description: "Scan products first before exporting", variant: "destructive" });
@@ -805,6 +810,7 @@ const StockSettlement = () => {
     const totalSW = scannedProducts.reduce((s, p) => s + p.softwareStock, 0);
     const totalAct = scannedProducts.reduce((s, p) => s + (p.actualStock ?? 0), 0);
     wsData.push(["", "", "", "", "", "TOTAL", totalSW, totalAct, totalAct - totalSW, "", ""]);
+    const XLSX = await loadXlsx();
     const ws = XLSX.utils.aoa_to_sheet(wsData);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Scanned Products");
