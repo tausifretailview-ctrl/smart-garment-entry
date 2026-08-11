@@ -76,6 +76,44 @@ export function salePaidAtSaleTender(sale: {
   return Math.max(0, cash) + Math.max(0, card) + Math.max(0, upi);
 }
 
+/**
+ * Residual "Payment at sale" when sale also has sale-linked cash receipts.
+ * POS often stores tender on cash/card/upi AND a matching RCP voucher
+ * (Phase 4 backfill or payment recorded on POS Dashboard for the same bill).
+ * Ledger must credit the overlapping amount only once.
+ */
+export function residualPaymentAtSaleTender(
+  sale: {
+    cash_amount?: number | null;
+    card_amount?: number | null;
+    upi_amount?: number | null;
+  },
+  saleLinkedCashReceiptTotal: number,
+): number {
+  return Math.max(
+    0,
+    salePaidAtSaleTender(sale) - Math.max(0, Number(saleLinkedCashReceiptTotal) || 0),
+  );
+}
+
+/** Allocate residual tender to Cash → Card → UPI for display breakdown. */
+export function residualTenderBreakdown(
+  sale: {
+    cash_amount?: number | null;
+    card_amount?: number | null;
+    upi_amount?: number | null;
+  },
+  residual: number,
+): { cash: number; card: number; upi: number } {
+  let rem = Math.max(0, residual);
+  const cash = Math.min(Math.max(0, Number(sale.cash_amount || 0)), rem);
+  rem -= cash;
+  const card = Math.min(Math.max(0, Number(sale.card_amount || 0)), rem);
+  rem -= card;
+  const upi = Math.min(Math.max(0, Number(sale.upi_amount || 0)), rem);
+  return { cash, card, upi };
+}
+
 export function payAtSaleParticulars(sale: {
   cash_amount?: number | null;
   card_amount?: number | null;
@@ -121,6 +159,27 @@ export function buildAuditRows(
       .map((s) => String((s as { id: string }).id)),
   );
 
+  // Sale-linked cash/card receipts (exclude advance/CN memo apps) — same bucket as
+  // residualPaymentAtSaleTender so we never credit payment-at-sale + matching RCP twice.
+  const saleLinkedCashReceiptBySaleId = new Map<string, number>();
+  for (const v of params.vouchers) {
+    if (String(v.voucher_type || "").toLowerCase() !== "receipt") continue;
+    const refT = String(v.reference_type || "").toLowerCase();
+    if (refT !== "sale" && refT !== "customer") continue;
+    const refId = String(v.reference_id || "");
+    if (!refId) continue;
+    const memo = useLedgerAlignedApps
+      ? isReceiptMemoApplicationLedgerAligned(v)
+      : isAdvanceApplicationVoucher(v);
+    if (memo) continue;
+    const pm = String(v.payment_method || "").toLowerCase();
+    if (pm === "credit_note_adjustment") continue;
+    saleLinkedCashReceiptBySaleId.set(
+      refId,
+      (saleLinkedCashReceiptBySaleId.get(refId) || 0) + voucherCreditAmount(v),
+    );
+  }
+
   for (const s of params.sales) {
     const st = String(s.payment_status || "").toLowerCase();
     if (st === "cancelled" || st === "hold") continue;
@@ -163,14 +222,19 @@ export function buildAuditRows(
       });
     }
 
-    const paidAtSale = salePaidAtSaleTender(s);
+    const saleId = String((s as { id: string }).id);
+    const paidAtSale = residualPaymentAtSaleTender(
+      s,
+      saleLinkedCashReceiptBySaleId.get(saleId) || 0,
+    );
     if (paidAtSale > 0.005) {
+      const br = residualTenderBreakdown(s, paidAtSale);
       rows.push({
-        id: `pas-${(s as { id: string }).id}`,
+        id: `pas-${saleId}`,
         at: d,
         type: "Receipt",
         ref: sn,
-        particulars: payAtSaleParticulars(s),
+        particulars: payAtSaleParticulars({ ...s, ...br, sale_number: sn }),
         debit: 0,
         credit: paidAtSale,
         internal: false,

@@ -70,7 +70,12 @@ import {
   type SaleReturnLedgerRow,
 } from "@/utils/customerBalanceUtils";
 import { derivePaidAndStatus } from "@/utils/saleSettlement";
-import { computeAuditPeriodOutstanding, fetchCustomerAuditBundle } from "@/utils/customerAuditBundle";
+import {
+  computeAuditPeriodOutstanding,
+  fetchCustomerAuditBundle,
+  residualPaymentAtSaleTender,
+  residualTenderBreakdown,
+} from "@/utils/customerAuditBundle";
 import {
   computeInvoiceOutstandingFromReconciliation,
   computeRefundableCreditBalance,
@@ -1874,7 +1879,7 @@ export function CustomerLedger({
         // Sales prior to startDate
         const { data: priorSales } = await supabase
           .from('sales')
-          .select('id, net_amount, paid_amount, sale_return_adjust, payment_status, is_cancelled')
+          .select('id, net_amount, paid_amount, sale_return_adjust, payment_status, is_cancelled, cash_amount, card_amount, upi_amount')
           .eq('customer_id', selectedCustomer.id)
           .is('deleted_at', null)
           .neq('payment_status', 'hold')
@@ -1905,7 +1910,11 @@ export function CustomerLedger({
             );
             effectiveOpeningBalance += receivable;
             const cashVoucher = priorCashVouchers[sale.id] || 0;
-            const paidAtSale = Math.max(0, (sale.paid_amount || 0) - cashVoucher);
+            // Residual at-sale tender + voucher (same total as full tender or
+            // paid_amount, without double-counting overlapping cash).
+            const residualAtSale = residualPaymentAtSaleTender(sale, cashVoucher);
+            const fromPaid = Math.max(0, (Number(sale.paid_amount) || 0) - cashVoucher);
+            const paidAtSale = Math.max(residualAtSale, fromPaid);
             effectiveOpeningBalance -= paidAtSale + cashVoucher;
           });
         }
@@ -2132,30 +2141,27 @@ export function CustomerLedger({
           // Skip payment processing for cancelled invoices
           if (isCancelled) return;
 
-          // "Payment at sale" = the actual tender captured on the bill itself
-          // (cash + card + UPI). We deliberately do NOT derive this from
-          // `sale.paid_amount - voucherPayments` because legacy data drift
-          // can leave `paid_amount` inflated above real receipts, which
-          // would synthesise a phantom credit row here and over-state the
-          // payments column. Voucher receipts are still rendered as their
-          // own separate rows from `allVouchers` below.
+          // "Payment at sale" = residual tender on cash/card/upi not already
+          // represented by sale-linked cash receipts. POS bills often have both
+          // at-sale tender columns AND an RCP ("Payment received for POS sale…");
+          // crediting both double-counts overpayment. Voucher receipts stay as
+          // separate rows from `allVouchers` below.
+          const voucherCashOnSale = isExchangeCoveredByReturn
+            ? 0
+            : Number(split.cash || 0);
           const paidAtSale = isExchangeCoveredByReturn
             ? 0
-            : Math.max(
-                0,
-                Number(sale.cash_amount || 0) +
-                  Number(sale.card_amount || 0) +
-                  Number(sale.upi_amount || 0),
-              );
+            : residualPaymentAtSaleTender(sale, voucherCashOnSale);
           
           if (paidAtSale > 0) {
             runningBalance -= paidAtSale;
+            const tenderParts = residualTenderBreakdown(sale, paidAtSale);
             
-            // Build payment description with breakdown
+            // Build payment description with residual breakdown
             const paymentParts: string[] = [];
-            if (sale.cash_amount > 0) paymentParts.push(`Cash: ₹${sale.cash_amount.toLocaleString('en-IN')}`);
-            if (sale.card_amount > 0) paymentParts.push(`Card: ₹${sale.card_amount.toLocaleString('en-IN')}`);
-            if (sale.upi_amount > 0) paymentParts.push(`UPI: ₹${sale.upi_amount.toLocaleString('en-IN')}`);
+            if (tenderParts.cash > 0) paymentParts.push(`Cash: ₹${tenderParts.cash.toLocaleString('en-IN')}`);
+            if (tenderParts.card > 0) paymentParts.push(`Card: ₹${tenderParts.card.toLocaleString('en-IN')}`);
+            if (tenderParts.upi > 0) paymentParts.push(`UPI: ₹${tenderParts.upi.toLocaleString('en-IN')}`);
             
             allTransactions.push({
               id: `${sale.id}-payment-at-sale`,
@@ -2168,9 +2174,9 @@ export function CustomerLedger({
               credit: paidAtSale,
               balance: runningBalance,
               paymentBreakdown: {
-                cash: sale.cash_amount || 0,
-                card: sale.card_amount || 0,
-                upi: sale.upi_amount || 0,
+                cash: tenderParts.cash,
+                card: tenderParts.card,
+                upi: tenderParts.upi,
               },
             });
           }
@@ -2605,15 +2611,30 @@ export function CustomerLedger({
 
       if (openingError) throw openingError;
 
-      // Calculate total voucher payments per sale to exclude from "payment at sale"
+      // Cash/card/UPI receipt totals only (exclude advance/CN memos) for residual at-sale.
+      const voucherCashBySaleId: Record<string, number> = {};
+      // All voucher settlement (cash + disc + adv + cn) for paid_amount residual.
       const voucherPaymentsBySaleId: Record<string, number> = {};
       vouchersData?.forEach((voucher) => {
-        if (voucher.reference_id) {
-          const settled =
-            (Number(voucher.total_amount) || 0) + (Number(voucher.discount_amount) || 0);
-          voucherPaymentsBySaleId[voucher.reference_id] =
-            (voucherPaymentsBySaleId[voucher.reference_id] || 0) + settled;
+        if (!voucher.reference_id) return;
+        const settled =
+          (Number(voucher.total_amount) || 0) + (Number(voucher.discount_amount) || 0);
+        voucherPaymentsBySaleId[voucher.reference_id] =
+          (voucherPaymentsBySaleId[voucher.reference_id] || 0) + settled;
+        const pm = String(voucher.payment_method || "").toLowerCase();
+        if (pm === "advance_adjustment" || pm === "credit_note_adjustment") return;
+        const desc = String(voucher.description || "").toLowerCase();
+        if (
+          desc.includes("adjusted from advance balance") ||
+          desc.includes("advance adjusted") ||
+          desc.includes("credit note adjusted") ||
+          desc.includes("cn adjusted")
+        ) {
+          return;
         }
+        voucherCashBySaleId[voucher.reference_id] =
+          (voucherCashBySaleId[voucher.reference_id] || 0) +
+          (Number(voucher.total_amount) || 0);
       });
 
       // Build payment history list
@@ -2664,17 +2685,19 @@ export function CustomerLedger({
         });
       });
 
-      // Add payments made at time of sale (exclude amounts paid via vouchers)
+      // Residual tender not already covered by sale-linked *cash* receipts.
       customerSales?.forEach((sale) => {
+        const voucherCash = voucherCashBySaleId[sale.id] || 0;
+        const voucherAll = voucherPaymentsBySaleId[sale.id] || 0;
+        const residualTender = residualPaymentAtSaleTender(sale, voucherCash);
         const totalPaidOnSale = sale.paid_amount || 0;
-        const voucherPayments = voucherPaymentsBySaleId[sale.id] || 0;
-        const saleReturnAdjust = sale.sale_return_adjust || 0;
-        const paidAtSale = Math.max(0, totalPaidOnSale - voucherPayments);
+        const fromPaid = Math.max(0, totalPaidOnSale - voucherAll);
+        const paidAtSale = Math.max(residualTender, fromPaid);
         
         if (paidAtSale > 0) {
-          // Check date filter
           if (startDate && new Date(sale.sale_date) < startDate) return;
           if (endDate && new Date(sale.sale_date) > endDate) return;
+          const br = residualTenderBreakdown(sale, residualTender > 0.005 ? residualTender : paidAtSale);
           
           payments.push({
             id: `${sale.id}-sale-payment`,
@@ -2685,9 +2708,9 @@ export function CustomerLedger({
             amount: paidAtSale,
             method: sale.payment_method || 'mixed',
             description: 'Payment at time of sale',
-            cash: sale.cash_amount || 0,
-            card: sale.card_amount || 0,
-            upi: sale.upi_amount || 0,
+            cash: br.cash,
+            card: br.card,
+            upi: br.upi,
             source: 'sale',
           });
         }

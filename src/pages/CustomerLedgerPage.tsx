@@ -10,7 +10,11 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { fetchAllCustomers } from "@/utils/fetchAllRows";
-import { payAtSaleParticulars, salePaidAtSaleTender } from "@/utils/customerAuditBundle";
+import {
+  payAtSaleParticulars,
+  residualPaymentAtSaleTender,
+  residualTenderBreakdown,
+} from "@/utils/customerAuditBundle";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -439,26 +443,27 @@ export default function CustomerLedgerPage() {
       }
 
       const payAtSaleLedgerRows: LedgerRow[] = (inRangeSales || [])
-        .filter((sale: any) => {
+        .map((sale: any) => {
           const sn = (sale.sale_number || "").trim();
-          if (!sn) return false;
-          const tender = salePaidAtSaleTender(sale);
-          if (tender <= 0.005) return false;
-          if (existingPayAtSaleRefs.has(sn)) return false;
+          if (!sn) return null;
+          if (existingPayAtSaleRefs.has(sn)) return null;
           const voucherPaid = receiptTotalBySaleId.get(sale.id) || 0;
-          if (voucherPaid >= tender - 0.01) return false;
-          return true;
+          // Residual only — do not credit full tender when RCP already covers part/all.
+          const residual = residualPaymentAtSaleTender(sale, voucherPaid);
+          if (residual <= 0.005) return null;
+          const br = residualTenderBreakdown(sale, residual);
+          return {
+            id: `pas-${sale.id}`,
+            transaction_date: sale.sale_date,
+            voucher_type: "RECEIPT" as const,
+            voucher_no: sale.sale_number || null,
+            particulars: payAtSaleParticulars({ ...sale, ...br }),
+            debit: 0,
+            credit: residual,
+            running_balance: 0,
+          };
         })
-        .map((sale: any) => ({
-          id: `pas-${sale.id}`,
-          transaction_date: sale.sale_date,
-          voucher_type: "RECEIPT",
-          voucher_no: sale.sale_number || null,
-          particulars: payAtSaleParticulars(sale),
-          debit: 0,
-          credit: salePaidAtSaleTender(sale),
-          running_balance: 0,
-        }));
+        .filter((row): row is LedgerRow => row != null);
 
       // Opening balance payments & customer-level payment (refund) vouchers.
       let veCustQ = supabase
