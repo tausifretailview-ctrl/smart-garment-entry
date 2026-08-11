@@ -57,6 +57,20 @@ import { AlertCircle, RefreshCw } from "lucide-react";
 /** Sentinel — no cached pane is active while a bill-entry screen uses <Outlet>. */
 const TAB_CACHE_INACTIVE = "__none__";
 
+/** How long after a navigation the workspace may stay empty before we rescue it. */
+const BLANK_FRAME_GRACE_MS = 1_200;
+
+/** True when the workspace container actually painted something visible. */
+function hasPaintedContent(el: HTMLElement): boolean {
+  if (el.childElementCount === 0) return false;
+  const nodes = el.querySelectorAll<HTMLElement>(":scope > *, :scope > * > *");
+  for (const node of nodes) {
+    const rect = node.getBoundingClientRect();
+    if (rect.width > 1 && rect.height > 1) return true;
+  }
+  return false;
+}
+
 function getOrgPathSegment(pathname: string, orgSlug?: string): string {
   if (orgSlug && pathname.startsWith(`/${orgSlug}`)) {
     return pathname.slice(orgSlug.length + 2) || "";
@@ -88,6 +102,8 @@ export const OrgLayout = () => {
   const [forceOutletFallback, setForceOutletFallback] = useState(false);
   /** Paths whose lazy chunk already mounted — skip Outlet flash when switching back. */
   const tabPaneReadyPathsRef = useRef<Set<string>>(new Set());
+  /** Workspace container — watched by the blank-frame watchdog. */
+  const workspaceRef = useRef<HTMLDivElement>(null);
 
   const isTabPaneReadyForPath = useCallback((path: string): boolean => {
     // Registry reflects actual mount state (cleared on idle eviction). Ref alone goes stale.

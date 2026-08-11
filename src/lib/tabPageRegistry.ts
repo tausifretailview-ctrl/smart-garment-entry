@@ -127,6 +127,7 @@ export const TAB_PAGE_REGISTRY: Record<string, TabPageDef> = {
   "daily-sale-analysis": { loader: () => import("@/pages/DailySaleAnalysis"), layout: "layout" },
   "hourly-sales-analysis": { loader: () => import("@/pages/HourlySalesAnalysis"), layout: "layout" },
   "sales-analytics": { loader: () => import("@/pages/SalesAnalyticsDashboard"), layout: "layout" },
+  insights: { loader: () => import("@/pages/BusinessInsights"), layout: "layout" },
   "net-profit-analysis": {
     loader: () => import("@/pages/NetProfitAnalysis"),
     layout: "fullscreen",
