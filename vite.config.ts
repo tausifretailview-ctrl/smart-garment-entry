@@ -5,6 +5,7 @@ import { readFileSync } from "fs";
 import { componentTagger } from "lovable-tagger";
 import { VitePWA } from "vite-plugin-pwa";
 import { mcpPlugin } from "@lovable.dev/mcp-js/stacks/supabase/vite";
+import { visualizer } from "rollup-plugin-visualizer";
 
 const pkg = JSON.parse(readFileSync(path.resolve(__dirname, "package.json"), "utf-8"));
 /** Bust React Query persisted cache on each build/deploy (see queryPersister.ts). */
@@ -26,6 +27,13 @@ export default defineConfig(({ mode }) => ({
     react(),
     mode === "development" && componentTagger(),
     mcpPlugin(),
+    process.env.ANALYZE === "1" &&
+      (visualizer({
+        filename: "/tmp/bundle-report.html",
+        gzipSize: true,
+        brotliSize: false,
+        template: "treemap",
+      }) as any),
     VitePWA({
       injectRegister: false,
       registerType: 'prompt',
