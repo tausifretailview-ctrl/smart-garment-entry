@@ -67,6 +67,8 @@ export function computePosBillTotals(input: ComputePosBillTotalsInput): PosBillT
 
   const posGst = computePosBillGst(items, input.taxType, flatDiscountAmount);
 
+  // CRITICAL: Inclusive totalGst is an extracted breakdown only (tax already in price).
+  // Never add posGst.totalGst on inclusive / no_gst — would overcharge the customer.
   const amountBeforeRoundOff =
     input.taxType === "exclusive"
       ? posGst.taxableSubtotal -

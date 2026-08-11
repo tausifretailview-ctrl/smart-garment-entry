@@ -53,7 +53,90 @@ describe("POS billing characterisation — taxType", () => {
     line({ mrp: 2000, unitCost: 2000, quantity: 1, gstPer: 12 }),
   ];
 
-  it("inclusive: no bill-level GST added; net ≈ subtotal after flat", () => {
+  /**
+   * Golden: inclusive payable must ignore extracted totalGst.
+   * Regression: if exclusive formula is wrongly applied, bill overcharges by GST.
+   */
+  it("inclusive: payable is byte-identical regardless of GST extraction (no overcharge)", () => {
+    const withGstLines = [
+      line({ mrp: 2100, unitCost: 2100, quantity: 1, gstPer: 5 }),
+      line({ mrp: 1120, unitCost: 1120, quantity: 1, gstPer: 12 }),
+    ];
+    const noRateLines = withGstLines.map((i) => ({ ...i, gstPer: 0 }));
+
+    const a = computePosBillTotals({
+      items: withGstLines,
+      taxType: "inclusive",
+      flatDiscountValue: 10,
+      flatDiscountMode: "percent",
+      saleReturnAdjust: 50,
+      creditApplied: 25,
+      roundOff: 0,
+    });
+    const b = computePosBillTotals({
+      items: noRateLines,
+      taxType: "inclusive",
+      flatDiscountValue: 10,
+      flatDiscountMode: "percent",
+      saleReturnAdjust: 50,
+      creditApplied: 25,
+      roundOff: 0,
+    });
+
+    expect(a.finalAmount).toBe(b.finalAmount);
+    expect(a.amountBeforeRoundOff).toBe(b.amountBeforeRoundOff);
+    expect(a.totalGst).toBeGreaterThan(0);
+    expect(b.totalGst).toBe(0);
+  });
+
+  it("inclusive: one line ₹2,100 @5% → GST ₹100, payable ₹2,100", () => {
+    const t = computePosBillTotals({
+      items: [line({ mrp: 2100, unitCost: 2100, quantity: 1, gstPer: 5 })],
+      taxType: "inclusive",
+      flatDiscountValue: 0,
+      flatDiscountMode: "percent",
+      roundOff: 0,
+    });
+    expect(t.totalGst).toBe(100);
+    expect(t.finalAmount).toBe(2100);
+  });
+
+  it("inclusive: line discount then extract GST; payable is post-line-disc price", () => {
+    // MRP 2100 − disc ₹100 → net 2000 @5%
+    const t = computePosBillTotals({
+      items: [line({ mrp: 2100, unitCost: 2100, quantity: 1, gstPer: 5, discountAmount: 100 })],
+      taxType: "inclusive",
+      flatDiscountValue: 0,
+      flatDiscountMode: "percent",
+      roundOff: 0,
+    });
+    expect(t.subtotal).toBe(2000);
+    expect(t.finalAmount).toBe(2000);
+    expect(t.totalGst).toBeCloseTo(2000 - 2000 / 1.05, 1);
+  });
+
+  it("inclusive: flat ₹ — GST from post-flat amount; payable drops by flat only", () => {
+    const noFlat = computePosBillTotals({
+      items: [line({ mrp: 2100, unitCost: 2100, quantity: 1, gstPer: 5 })],
+      taxType: "inclusive",
+      flatDiscountValue: 0,
+      flatDiscountMode: "amount",
+      roundOff: 0,
+    });
+    const withFlat = computePosBillTotals({
+      items: [line({ mrp: 2100, unitCost: 2100, quantity: 1, gstPer: 5 })],
+      taxType: "inclusive",
+      flatDiscountValue: 105,
+      flatDiscountMode: "amount",
+      roundOff: 0,
+    });
+    expect(withFlat.finalAmount).toBe(noFlat.finalAmount - 105);
+    expect(withFlat.flatDiscountAmount).toBe(105);
+    expect(withFlat.totalGst).toBeLessThan(noFlat.totalGst);
+    expect(withFlat.totalGst).toBeGreaterThan(0);
+  });
+
+  it("inclusive: extracts embedded GST; payable stays at subtotal (tax not added)", () => {
     const t = computePosBillTotals({
       items,
       taxType: "inclusive",
@@ -63,7 +146,10 @@ describe("POS billing characterisation — taxType", () => {
     });
     expect(t.mrp).toBe(3000);
     expect(t.subtotal).toBe(3000);
-    expect(t.totalGst).toBe(0);
+    // Extracted GST breakdown only — never added to payable.
+    // 1000@5% → ~47.62; 2000@12% → ~214.29; sum ~261.91
+    expect(t.totalGst).toBeGreaterThan(0);
+    expect(t.totalGst).toBeCloseTo(47.62 + 214.29, 1);
     expect(t.amountBeforeRoundOff).toBe(3000);
     expect(t.calculatedRoundOff).toBe(0);
     expect(t.finalAmount).toBe(3000);

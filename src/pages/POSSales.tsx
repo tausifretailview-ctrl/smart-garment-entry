@@ -7119,11 +7119,14 @@ export default function POSSales() {
             
             <div className="w-px h-8 bg-white/20 mx-3 shrink-0" />
 
-            {taxType === "exclusive" && posGst.totalGst > 0.005 && (
+            {/* Inclusive GST is post-discount extract (breakdown); exclusive is added tax. Never add inclusive GST on top of Net. */}
+            {(taxType === "exclusive" || taxType === "inclusive") && posGst.totalGst > 0.005 && (
               <>
                 <div className="text-center px-3 shrink-0">
                   <div className="text-lg font-bold leading-tight">₹{formatINR2(posGst.totalGst)}</div>
-                  <div className="text-[11px] text-white/70 uppercase font-semibold">GST</div>
+                  <div className="text-[11px] text-white/70 uppercase font-semibold">
+                    {taxType === "inclusive" ? "GST (incl.)" : "GST"}
+                  </div>
                 </div>
                 <div className="w-px h-8 bg-white/20 mx-3 shrink-0" />
               </>
