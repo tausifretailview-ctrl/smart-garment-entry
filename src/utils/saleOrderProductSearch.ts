@@ -9,6 +9,7 @@ import {
   matchesProductSearchFields,
   scoreProductSearchMatch,
 } from "@/utils/productSearch";
+import { resolveVariantColor } from "@/utils/resolveVariantColor";
 
 export const VARIANT_SEARCH_SELECT = `
   id, size, pur_price, sale_price, mrp, barcode, color, stock_qty, product_id,
@@ -88,7 +89,7 @@ function mapVariantSearchRow(v: any): SaleOrderVariantSearchResult {
     product_name: v.products?.product_name || "",
     brand: v.products?.brand || "",
     category: v.products?.category || "",
-    color: v.color || v.products?.color || "",
+    color: resolveVariantColor(v.color, v.products?.color),
     style: v.products?.style || "",
     gst_per: v.products?.gst_per || 0,
     hsn_code: v.products?.hsn_code || "",

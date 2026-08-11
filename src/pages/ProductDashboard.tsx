@@ -1567,7 +1567,7 @@ const ProductDashboard = () => {
                     )}
                   </TableCell>
                   {showColorField && (
-                    <TableCell className="text-base py-2.5">{variant.color || "—"}</TableCell>
+                    <TableCell className="text-base py-2.5">{variant.color || row.color || "—"}</TableCell>
                   )}
                   <TableCell className="text-right text-base tabular-nums py-2.5">₹{variant.pur_price.toFixed(2)}</TableCell>
                   <TableCell className="text-right text-base tabular-nums py-2.5">₹{variant.sale_price.toFixed(2)}</TableCell>

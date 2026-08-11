@@ -25,6 +25,7 @@ import { checkBarcodeExists } from "@/utils/barcodeValidation";
 import { validateIMEI } from "@/utils/imeiValidation";
 import { getNetSoldQtyForVariant } from "@/utils/variantNetSoldQty";
 import { invalidateStockReportQueries } from "@/utils/invalidateDashboardQueries";
+import { resolveVariantColor } from "@/utils/resolveVariantColor";
 
 interface LineItem {
   temp_id: string;
@@ -130,11 +131,12 @@ const ProductEditPanel = ({
 
   const item = lineItems[currentIndex];
 
-  // Load product data when item changes
+  // Load product + selected variant when the line (or size/barcode) changes
   useEffect(() => {
     if (!item || !open) return;
-    loadProductData(item.product_id);
-  }, [item?.product_id, open]);
+    loadProductData(item.product_id, item.sku_id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reload when line sku changes
+  }, [item?.product_id, item?.sku_id, open]);
 
   // Focus field on open
   useEffect(() => {
@@ -143,7 +145,7 @@ const ProductEditPanel = ({
     }
   }, [focusField, currentIndex]);
 
-  const loadProductData = async (productId: string) => {
+  const loadProductData = async (productId: string, skuId?: string) => {
     setLoading(true);
     try {
       const { data } = await supabase
@@ -152,13 +154,38 @@ const ProductEditPanel = ({
         .eq("id", productId)
         .single();
 
+      let variantColor: string | null = null;
+      let variantData: {
+        id: string;
+        size: string;
+        barcode: string;
+        pur_price: number;
+        sale_price: number;
+        mrp: number | null;
+        active: boolean;
+        color?: string | null;
+      } | null = null;
+
+      if (skuId) {
+        const { data: v } = await supabase
+          .from("product_variants")
+          .select("id, size, barcode, pur_price, sale_price, mrp, active, color")
+          .eq("id", skuId)
+          .maybeSingle();
+        if (v) {
+          variantData = v as typeof variantData;
+          variantColor = (v as { color?: string | null }).color ?? null;
+        }
+      }
+
       if (data) {
         const pd: ProductData = {
           product_name: data.product_name || "",
           brand: data.brand || "",
           category: data.category || "",
           style: data.style || "",
-          color: data.color || "",
+          // Variant colour preferred; product.color is legacy fallback for NULL variants.
+          color: resolveVariantColor(variantColor, data.color),
           hsn_code: data.hsn_code || "",
           gst_per: data.gst_per || 0,
           uom: data.uom || "NOS",
@@ -174,6 +201,15 @@ const ProductEditPanel = ({
         setModifiedFields(new Set());
         setHasUnsavedChanges(false);
         setSaved(false);
+      }
+
+      if (variantData) {
+        setCurrentVariant(variantData as any);
+        setVariantSize(variantData.size || "");
+        setSizeModified(false);
+        setVariantBarcode(variantData.barcode || "");
+        setBarcodeModified(false);
+      } else {
         setCurrentVariant(null);
         setVariantSize("");
         setSizeModified(false);
@@ -181,22 +217,9 @@ const ProductEditPanel = ({
         setBarcodeModified(false);
       }
 
-      // Fetch current variant for size editing
-      if (item?.sku_id) {
-        const { data: variantData } = await supabase
-          .from("product_variants")
-          .select("id, size, barcode, pur_price, sale_price, mrp, active")
-          .eq("id", item.sku_id)
-          .maybeSingle();
-        if (variantData) {
-          setCurrentVariant(variantData as any);
-          setVariantSize(variantData.size || "");
-          setSizeModified(false);
-          setVariantBarcode(variantData.barcode || "");
-          setBarcodeModified(false);
-        }
+      if (skuId) {
         try {
-          setSoldUnits(await getNetSoldQtyForVariant(item.sku_id));
+          setSoldUnits(await getNetSoldQtyForVariant(skuId));
         } catch (e) {
           console.warn("[ProductEditPanel] sold qty lookup failed", e);
           setSoldUnits(0);
@@ -258,7 +281,8 @@ const ProductEditPanel = ({
         return;
       }
 
-      // Update product master
+      // Update product master (product-wide fields only — NOT colour)
+      // Color is variant-level: see product_variants update below.
       const { error } = await supabase
         .from("products")
         .update({
@@ -266,7 +290,6 @@ const ProductEditPanel = ({
           brand: form.brand || null,
           category: form.category || null,
           style: form.style || null,
-          color: form.color || null,
           hsn_code: form.hsn_code || null,
           gst_per: form.gst_per,
           uom: form.uom,
@@ -280,23 +303,34 @@ const ProductEditPanel = ({
 
       if (error) throw error;
 
-      // Update variant MRP if changed
-      if (modifiedFields.has("default_mrp") || modifiedFields.has("default_pur_price") || modifiedFields.has("default_sale_price")) {
+      // Pricing / colour apply ONLY to the currently selected variant (barcode/size).
+      const variantPatch: Record<string, unknown> = {};
+      if (
+        modifiedFields.has("default_mrp") ||
+        modifiedFields.has("default_pur_price") ||
+        modifiedFields.has("default_sale_price")
+      ) {
         if (soldUnits > 0) {
           toast({
             title: "Price update note",
             description: `${soldUnits} units already sold at the old price — this change affects future stock only; past sales are unaffected.`,
           });
         }
-        // Pricing changes apply ONLY to the currently selected variant (size-specific)
-        await supabase
+        variantPatch.pur_price = form.default_pur_price;
+        variantPatch.sale_price = form.default_sale_price;
+        variantPatch.mrp = form.default_mrp || null;
+      }
+      // Only write colour when the user changed it — never NULL other sizes via products.color.
+      if (modifiedFields.has("color") && item.sku_id) {
+        const trimmed = form.color?.trim() || "";
+        variantPatch.color = trimmed || null;
+      }
+      if (Object.keys(variantPatch).length > 0 && item.sku_id) {
+        const { error: varErr } = await supabase
           .from("product_variants")
-          .update({
-            pur_price: form.default_pur_price,
-            sale_price: form.default_sale_price,
-            mrp: form.default_mrp || null,
-          })
+          .update(variantPatch)
           .eq("id", item.sku_id);
+        if (varErr) throw varErr;
       }
 
       // Update line item in bill
@@ -316,19 +350,19 @@ const ProductEditPanel = ({
       if (modifiedFields.has("default_mrp")) lineUpdates.mrp = form.default_mrp;
 
       if (Object.keys(lineUpdates).length > 0) {
-        // Pricing fields → only the current row. Master fields → all rows of same product.
-        const PRICING_FIELDS = new Set(["pur_price", "sale_price", "mrp"]);
+        // Pricing + colour → only the current row. Master fields → all rows of same product.
+        const ROW_ONLY_FIELDS = new Set(["pur_price", "sale_price", "mrp", "color"]);
         const masterUpdates: Partial<LineItem> = {};
         const rowOnlyUpdates: Partial<LineItem> = {};
         Object.entries(lineUpdates).forEach(([k, v]) => {
-          if (PRICING_FIELDS.has(k)) (rowOnlyUpdates as any)[k] = v;
+          if (ROW_ONLY_FIELDS.has(k)) (rowOnlyUpdates as any)[k] = v;
           else (masterUpdates as any)[k] = v;
         });
-        // Apply master/classification fields to ALL line items of this product
+        // Apply product-level fields to ALL line items of this product
         if (Object.keys(masterUpdates).length > 0) {
           onProductUpdated(item.temp_id, masterUpdates, item.product_id);
         }
-        // Apply pricing only to the edited row
+        // Apply pricing/colour only to the edited row
         if (Object.keys(rowOnlyUpdates).length > 0) {
           onProductUpdated(item.temp_id, rowOnlyUpdates);
         }
@@ -521,8 +555,19 @@ const ProductEditPanel = ({
                     renderField(fieldLabel("category", "Category"), "category")}
                   {isFieldEnabled("style") &&
                     renderField(fieldLabel("style", "Style / Model"), "style")}
-                  {isFieldEnabled("color") &&
-                    renderField(fieldLabel("color", "Color"), "color")}
+                  {isFieldEnabled("color") && (
+                    <div className="space-y-1">
+                      {renderField(fieldLabel("color", "Color"), "color")}
+                      <p className="text-[10px] text-muted-foreground leading-snug">
+                        Applies to this size/barcode only — other sizes keep their own colour.
+                      </p>
+                      {soldUnits > 0 && (
+                        <p className="text-[10px] text-amber-600 leading-snug">
+                          Colour locked: {soldUnits} unit{soldUnits === 1 ? "" : "s"} sold for this barcode.
+                        </p>
+                      )}
+                    </div>
+                  )}
                   <div className="space-y-1">
                     <Label className="text-xs">Unit (UOM)</Label>
                     <Select value={form.uom} onValueChange={(v) => updateField("uom", v)}>

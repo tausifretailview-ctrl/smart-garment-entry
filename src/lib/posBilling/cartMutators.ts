@@ -9,6 +9,7 @@ import {
   sumMrpTotal,
 } from "./lineMath";
 import { isNonStockTrackedProduct } from "@/utils/productStockDisplay";
+import { resolveVariantColor } from "@/utils/resolveVariantColor";
 import type { PosBillingError, PosCartItem, PosGrossBasis } from "./types";
 
 export type CartMutatorResult = {
@@ -393,7 +394,7 @@ export function addLine(input: AddLineInput): CartMutatorResult {
   let description = descriptionParts.join("-");
   const extraParts: string[] = [];
   if (product.brand) extraParts.push(product.brand);
-  const displayColor = variant.color || product.color;
+  const displayColor = resolveVariantColor(variant.color, product.color);
   if (displayColor) extraParts.push(displayColor);
   if (extraParts.length > 0) description += "-" + extraParts.join("-");
 
@@ -414,7 +415,7 @@ export function addLine(input: AddLineInput): CartMutatorResult {
     productName: description,
     baseProductName: product.product_name || description.split("-")[0] || description,
     size: variant.size || "",
-    color: variant.color || product.color || "",
+    color: displayColor,
     quantity: 1,
     mrp: priced.displayMrp,
     originalMrp: priced.mrpToUse,

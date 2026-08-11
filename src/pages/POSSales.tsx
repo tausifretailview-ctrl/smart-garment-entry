@@ -2346,7 +2346,7 @@ export default function POSSales() {
             product: p,
             variant: item,
             matchedOn: matches,
-            searchText: `${p.product_name || ''} ${item.size || ''} ${item.color || ''} ${item.barcode || ''} ${p.brand || ''} ${p.category || ''}`.toLowerCase(),
+            searchText: `${p.product_name || ''} ${item.size || ''} ${item.color || p.color || ''} ${item.barcode || ''} ${p.brand || ''} ${p.category || ''}`.toLowerCase(),
           };
         });
 
@@ -2635,7 +2635,7 @@ export default function POSSales() {
         productName: product.product_name,
         baseProductName: product.product_name,
         size: variant.size || '-',
-        color: variant.color || '',
+        color: variant.color || product.color || '',
         quantity,
         mrp,
         originalMrp: null,
