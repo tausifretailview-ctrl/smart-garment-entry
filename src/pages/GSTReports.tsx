@@ -28,7 +28,11 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import * as XLSX from "xlsx";
+import type * as XLSXType from "xlsx";
+/** Lazily loaded on export — keeps the xlsx bundle off this page's initial chunk. */
+let xlsxModulePromise: Promise<typeof XLSXType> | null = null;
+const loadXlsx = (): Promise<typeof XLSXType> => (xlsxModulePromise ??= import("xlsx"));
+
 import {
   isInterState,
   normalizeGstTaxType,
@@ -730,11 +734,18 @@ const GSTReports = () => {
     }
   };
 
-  const exportToExcel = (data: any[], fileName: string, sheetName: string) => {
-    const ws = XLSX.utils.json_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, sheetName);
-    XLSX.writeFile(wb, `${fileName}_${fromDate}_to_${toDate}.xlsx`);
+  const exportToExcel = async (data: any[], fileName: string, sheetName: string) => {
+    // xlsx is lazy-loaded — a failed chunk fetch must surface, not fail silently.
+    try {
+      const XLSX = await loadXlsx();
+      const ws = XLSX.utils.json_to_sheet(data);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, sheetName);
+      XLSX.writeFile(wb, `${fileName}_${fromDate}_to_${toDate}.xlsx`);
+    } catch (error) {
+      console.error("Excel export failed:", error);
+      toast({ title: "Export failed", description: "Could not generate the Excel file. Please retry.", variant: "destructive" });
+    }
   };
 
   /** Flatten nested GSTR-3B summary into rows json_to_sheet can serialize. */
@@ -768,33 +779,39 @@ const GSTReports = () => {
     return rows;
   };
 
-  const exportGstr3bToExcel = () => {
+  const exportGstr3bToExcel = async () => {
     if (!gstr3bData) return;
-    exportToExcel(flattenGstr3bForExcel(gstr3bData), "GSTR3B_Summary", "Summary");
+    await exportToExcel(flattenGstr3bForExcel(gstr3bData), "GSTR3B_Summary", "Summary");
   };
 
   // UI-3: Combined GSTR-1 Excel export
-  const exportGSTR1ToExcel = () => {
+  const exportGSTR1ToExcel = async () => {
     if (!gstr1Data) return;
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(gstr1Data.b2b), "B2B");
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(gstr1Data.b2cs), "B2CS");
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(gstr1Data.cdnr), "CDNR");
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(gstr1Data.cdnur), "CDNUR");
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(gstr1Data.hsn), "HSN");
-    XLSX.writeFile(wb, `GSTR1_${format(new Date(fromDate), "MMM-yyyy")}.xlsx`);
+    try {
+      const XLSX = await loadXlsx();
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(gstr1Data.b2b), "B2B");
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(gstr1Data.b2cs), "B2CS");
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(gstr1Data.cdnr), "CDNR");
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(gstr1Data.cdnur), "CDNUR");
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(gstr1Data.hsn), "HSN");
+      XLSX.writeFile(wb, `GSTR1_${format(new Date(fromDate), "MMM-yyyy")}.xlsx`);
+    } catch (error) {
+      console.error("GSTR-1 export failed:", error);
+      toast({ title: "Export failed", description: "Could not generate the GSTR-1 file. Please retry.", variant: "destructive" });
+    }
   };
 
   const handleGenerateReport = () => {
     switch (activeReport) {
       case "gstr1":
-        generateGSTR1();
+        void generateGSTR1();
         break;
       case "gstr3b":
-        generateGSTR3B();
+        void generateGSTR3B();
         break;
       case "hsn-summary":
-        generateHSNSummary();
+        void generateHSNSummary();
         break;
       default:
         break;
@@ -1006,15 +1023,15 @@ const GSTReports = () => {
                   <Download className="h-3.5 w-3.5 mr-1" />
                   All Excel
                 </Button>
-                <Button variant="outline" size="sm" className="h-8 border-slate-200" onClick={() => exportToExcel(gstr1Data.b2b, "GSTR1_B2B", "B2B")}>
+                <Button variant="outline" size="sm" className="h-8 border-slate-200" onClick={() => void exportToExcel(gstr1Data.b2b, "GSTR1_B2B", "B2B")}>
                   <Download className="h-3.5 w-3.5 mr-1" />
                   B2B
                 </Button>
-                <Button variant="outline" size="sm" className="h-8 border-slate-200" onClick={() => exportToExcel(gstr1Data.b2cs, "GSTR1_B2CS", "B2CS")}>
+                <Button variant="outline" size="sm" className="h-8 border-slate-200" onClick={() => void exportToExcel(gstr1Data.b2cs, "GSTR1_B2CS", "B2CS")}>
                   <Download className="h-3.5 w-3.5 mr-1" />
                   B2CS
                 </Button>
-                <Button variant="outline" size="sm" className="h-8 border-slate-200" onClick={() => exportToExcel(gstr1Data.hsn, "GSTR1_HSN", "HSN")}>
+                <Button variant="outline" size="sm" className="h-8 border-slate-200" onClick={() => void exportToExcel(gstr1Data.hsn, "GSTR1_HSN", "HSN")}>
                   <Download className="h-3.5 w-3.5 mr-1" />
                   HSN
                 </Button>
@@ -1224,7 +1241,7 @@ const GSTReports = () => {
                 variant="outline"
                 size="sm"
                 className="h-8 border-slate-200"
-                onClick={() => exportToExcel(hsnData, "HSN_Summary", "HSN")}
+                onClick={() => void exportToExcel(hsnData, "HSN_Summary", "HSN")}
               >
                 <Download className="h-3.5 w-3.5 mr-1" />
                 Export Excel

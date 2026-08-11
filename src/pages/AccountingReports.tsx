@@ -32,7 +32,11 @@ import { ReportPageSkeleton } from "@/components/skeletons/ReportPageSkeleton";
 import { QuietRefreshBar } from "@/components/QuietRefreshBar";
 import { format, startOfMonth, endOfMonth, subMonths } from "date-fns";
 import { toast } from "sonner";
-import * as XLSX from "xlsx";
+import type * as XLSXType from "xlsx";
+/** Lazily loaded on export — keeps the xlsx bundle off this page's initial chunk. */
+let xlsxModulePromise: Promise<typeof XLSXType> | null = null;
+const loadXlsx = (): Promise<typeof XLSXType> => (xlsxModulePromise ??= import("xlsx"));
+
 import { supabase } from "@/integrations/supabase/client";
 import {
   calculateTrialBalance,
@@ -568,7 +572,8 @@ export default function AccountingReports() {
     else if (activeTab === "gl-balance-sheet") void glBsQuery.refetch();
   };
 
-  const exportToExcel = () => {
+  const exportToExcel = async () => {
+    const XLSX = await loadXlsx();
     const wb = XLSX.utils.book_new();
 
     if (activeTab === "trial-balance" && trialBalance.length > 0) {

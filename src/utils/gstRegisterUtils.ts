@@ -1,4 +1,8 @@
-import * as XLSX from 'xlsx';
+import type * as XLSX from 'xlsx';
+
+/** Lazily loaded — keeps the ~140 KB gz xlsx bundle off the initial payload. */
+let xlsxModulePromise: Promise<typeof XLSX> | null = null;
+const loadXlsx = (): Promise<typeof XLSX> => (xlsxModulePromise ??= import('xlsx'));
 import { format } from 'date-fns';
 
 // GST Slabs supported
@@ -415,7 +419,7 @@ export const calculateInvoiceValue = (breakup: GSTBreakup): number => {
 };
 
 // Generate Excel workbook with 5 sheets (including POS Sales)
-export const generateGSTRegisterExcel = (
+export const generateGSTRegisterExcel = async (
   salesData: SalesRegisterRow[],
   saleReturnData: SaleReturnRegisterRow[],
   purchaseData: PurchaseRegisterRow[],
@@ -425,7 +429,8 @@ export const generateGSTRegisterExcel = (
   fromDate: Date,
   toDate: Date,
   posSalesData?: SalesRegisterRow[]
-): XLSX.WorkBook => {
+): Promise<XLSX.WorkBook> => {
+  const XLSX = await loadXlsx();
   const workbook = XLSX.utils.book_new();
   const dateRange = `${format(fromDate, 'dd-MMMM-yyyy')} TO ${format(toDate, 'dd-MMMM-yyyy')}`;
   const printDate = format(new Date(), 'dd-MM-yyyy HH:mm');
@@ -650,12 +655,13 @@ const calculateReturnTotals = (data: SaleReturnRegisterRow[] | PurchaseReturnReg
 const round = (num: number) => Math.round(num * 100) / 100;
 
 // Download workbook as file
-export const downloadGSTRegisterExcel = (
+export const downloadGSTRegisterExcel = async (
   workbook: XLSX.WorkBook,
   businessGSTIN: string,
   fromDate: Date,
   toDate: Date
 ) => {
+  const XLSX = await loadXlsx();
   const filename = `Sale_Purchase_Register_${businessGSTIN}_${format(fromDate, 'd-MMMM-yyyy')}_TO_${format(toDate, 'd-MMMM-yyyy')}.xlsx`;
   XLSX.writeFile(workbook, filename);
 };

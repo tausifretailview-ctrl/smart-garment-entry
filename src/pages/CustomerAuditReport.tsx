@@ -25,7 +25,10 @@ import { ReportKpiCards, type ReportKpiItem } from "@/components/reports/ReportK
 import { QuietRefreshBar } from "@/components/QuietRefreshBar";
 import { useQuery } from "@tanstack/react-query";
 import { useReactToPrint } from "react-to-print";
-import * as XLSX from "xlsx";
+import type * as XLSXType from "xlsx";
+/** Lazily loaded on export — keeps the xlsx bundle off this page's initial chunk. */
+let xlsxModulePromise: Promise<typeof XLSXType> | null = null;
+const loadXlsx = (): Promise<typeof XLSXType> => (xlsxModulePromise ??= import("xlsx"));
 
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -485,7 +488,7 @@ export default function CustomerAuditReport() {
     }
   };
 
-  const exportExcel = () => {
+  const exportExcel = async () => {
     if (!selectedCustomer || !math || !auditBundle) return;
     const rows: (string | number)[][] = [
       ["Customer Audit Report"],
@@ -535,6 +538,7 @@ export default function CustomerAuditReport() {
       });
     }
 
+    const XLSX = await loadXlsx();
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.aoa_to_sheet(rows);
     XLSX.utils.book_append_sheet(wb, ws, "Audit");

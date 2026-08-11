@@ -32,7 +32,11 @@ import { BackToDashboard } from "@/components/BackToDashboard";
 import { QuietRefreshBar } from "@/components/QuietRefreshBar";
 import { localDayBounds } from "@/lib/localDayBounds";
 import { toast } from "sonner";
-import * as XLSX from "xlsx";
+import type * as XLSXType from "xlsx";
+/** Lazily loaded on export — keeps the xlsx bundle off this page's initial chunk. */
+let xlsxModulePromise: Promise<typeof XLSXType> | null = null;
+const loadXlsx = (): Promise<typeof XLSXType> => (xlsxModulePromise ??= import("xlsx"));
+
 import { useReactToPrint } from "react-to-print";
 import DailyTallyReport from "@/components/DailyTallyReport";
 import { fetchAllSalesWithFilters } from "@/utils/fetchAllRows";
@@ -440,7 +444,7 @@ const DailyTally = () => {
   const handlePrint = useReactToPrint({ contentRef: printRef });
 
   // ─── Export Excel ──────────────────────────────────────────────────
-  const handleExportExcel = useCallback(() => {
+  const handleExportExcel = useCallback(async () => {
     const rows = [
       [`Daily Tally — ${format(selectedDate, "dd MMM yyyy")}`],
       [settings?.business_name || ""],
@@ -473,6 +477,7 @@ const DailyTally = () => {
       ["Deposit to Bank", depositToBank],
       ["Handover to Owner", handoverToOwner],
     ];
+    const XLSX = await loadXlsx();
     const ws = XLSX.utils.aoa_to_sheet(rows);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Daily Tally");

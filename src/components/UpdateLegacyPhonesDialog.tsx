@@ -13,7 +13,11 @@ import {
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Upload, Phone, CheckCircle2, AlertCircle } from "lucide-react";
-import * as XLSX from "xlsx";
+import type * as XLSXType from "xlsx";
+/** Lazily loaded on export — keeps the xlsx bundle off this page's initial chunk. */
+let xlsxModulePromise: Promise<typeof XLSXType> | null = null;
+const loadXlsx = (): Promise<typeof XLSXType> => (xlsxModulePromise ??= import("xlsx"));
+
 import { normalizePhoneNumber } from "@/utils/excelImportUtils";
 
 interface UpdateLegacyPhonesDialogProps {
@@ -54,6 +58,7 @@ export const UpdateLegacyPhonesDialog = ({
 
     try {
       const buffer = await file.arrayBuffer();
+      const XLSX = await loadXlsx();
       const workbook = XLSX.read(buffer, { type: "array" });
       const sheetName = workbook.SheetNames[0];
       const worksheet = workbook.Sheets[sheetName];

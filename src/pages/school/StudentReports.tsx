@@ -13,7 +13,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { GraduationCap, Search, Download, Users, Eye } from "lucide-react";
 import { format } from "date-fns";
-import * as XLSX from "xlsx";
+import type * as XLSXType from "xlsx";
+/** Lazily loaded on export — keeps the xlsx bundle off this page's initial chunk. */
+let xlsxModulePromise: Promise<typeof XLSXType> | null = null;
+const loadXlsx = (): Promise<typeof XLSXType> => (xlsxModulePromise ??= import("xlsx"));
+
 import { StudentHistoryDialog } from "@/components/school/StudentHistoryDialog";
 
 const StudentReports = () => {
@@ -135,7 +139,8 @@ const StudentReports = () => {
   const grandFemale = summaryData.reduce((sum, r) => sum + r.female, 0);
 
   // Export to Excel
-  const handleExport = () => {
+  const handleExport = async () => {
+    const XLSX = await loadXlsx();
     if (activeTab === "details") {
       const rows = filteredStudents.map((s: any, i: number) => ({
         "Sr No": i + 1,

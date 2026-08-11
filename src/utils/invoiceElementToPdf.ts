@@ -1,7 +1,16 @@
-import html2canvas from "html2canvas";
-import jsPDF from "jspdf";
+import type html2canvasType from "html2canvas";
+import type jsPDFType from "jspdf";
 import { applyWappConnectInvoicePdfCloneFixes } from "@/utils/wappConnectInvoicePdfCapture";
 import { resolveInvoicePdfRasterOptions } from "@/utils/invoicePdfRaster";
+
+/** Lazily loaded — keeps html2canvas + jsPDF (~350 KB gz) off the initial payload. */
+let html2canvasPromise: Promise<typeof html2canvasType> | null = null;
+const loadHtml2Canvas = (): Promise<typeof html2canvasType> =>
+  (html2canvasPromise ??= import("html2canvas").then((m) => m.default));
+
+let jsPdfPromise: Promise<typeof jsPDFType> | null = null;
+const loadJsPdf = (): Promise<typeof jsPDFType> =>
+  (jsPdfPromise ??= import("jspdf").then((m) => m.default));
 
 export type InvoicePdfPageFormat = "a4" | "a5" | "thermal";
 
@@ -23,6 +32,7 @@ async function rasterizeElement(
   wappConnectPdf = false,
 ): Promise<HTMLCanvasElement> {
   const { scale } = resolveInvoicePdfRasterOptions({ mobileOptimized, wappConnectPdf });
+  const html2canvas = await loadHtml2Canvas();
   return html2canvas(element, {
     scale,
     useCORS: true,
@@ -57,6 +67,7 @@ async function capturePagedInvoiceTemplatesToPdfBlob(
   if (pageEls.length === 0) return null;
 
   const jsPdfFormat = pageFormat === "a5" ? "a5" : "a4";
+  const jsPDF = await loadJsPdf();
   const pdf = new jsPDF({
     orientation: "portrait",
     unit: "mm",
@@ -127,6 +138,7 @@ export async function captureElementToPdfBlob(
   const imgData = canvas.toDataURL(mimeType, imageQuality);
 
   if (pageFormat === "thermal") {
+    const jsPDF = await loadJsPdf();
     const pdf = new jsPDF({
       orientation: "portrait",
       unit: "mm",
@@ -160,6 +172,7 @@ export async function captureElementToPdfBlob(
   }
 
   const jsPdfFormat = pageFormat === "a5" ? "a5" : "a4";
+  const jsPDF = await loadJsPdf();
   const pdf = new jsPDF({
     orientation: "portrait",
     unit: "mm",

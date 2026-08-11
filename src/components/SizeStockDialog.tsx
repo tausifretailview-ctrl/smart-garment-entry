@@ -3,13 +3,12 @@ import { useQuery } from "@tanstack/react-query";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
-import { Search, Grid3X3, X, Check, FileText } from "lucide-react";
+import { Search, Grid3X3, X, Check, FileText, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
-import jsPDF from "jspdf";
 import { format } from "date-fns";
 import { sortSizes } from "@/utils/sizeSort";
 
@@ -67,6 +66,7 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
   const [selectedProducts, setSelectedProducts] = useState<Product[]>([]);
   const [productsLoading, setProductsLoading] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [sizeWiseData, setSizeWiseData] = useState<{ sizes: string[]; rows: SizeWiseRow[] }>({ sizes: [], rows: [] });
   const [productDisplayLimit, setProductDisplayLimit] = useState(100);
   const [popoverOpen, setPopoverOpen] = useState(false);
@@ -413,9 +413,12 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
   });
 
   // PDF Export function
-  const exportToPDF = () => {
-    if (sizeWiseData.rows.length === 0) return;
+  const exportToPDF = async () => {
+    if (sizeWiseData.rows.length === 0 || isExportingPdf) return;
 
+    setIsExportingPdf(true);
+    try {
+    const { default: jsPDF } = await import("jspdf");
     const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
@@ -542,6 +545,9 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
     doc.text(String(grandTotal), xPos + stockColWidth / 2, yPos + 5, { align: "center" });
 
     doc.save(`SizeStock_Report_${format(new Date(), "yyyy-MM-dd")}.pdf`);
+    } finally {
+      setIsExportingPdf(false);
+    }
   };
 
   return (
@@ -559,9 +565,13 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
               size="sm"
               className="h-6 px-2 text-xs gap-1"
               onClick={exportToPDF}
-              disabled={sizeWiseData.rows.length === 0}
+              disabled={sizeWiseData.rows.length === 0 || isExportingPdf}
             >
-              <FileText className="h-3 w-3" />
+              {isExportingPdf ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <FileText className="h-3 w-3" />
+              )}
               PDF
             </Button>
             <Button

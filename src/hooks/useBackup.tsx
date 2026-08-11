@@ -4,7 +4,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import * as XLSX from "xlsx";
+import type * as XLSXType from "xlsx";
+/** Lazily loaded on export — keeps the xlsx bundle off this page's initial chunk. */
+let xlsxModulePromise: Promise<typeof XLSXType> | null = null;
+const loadXlsx = (): Promise<typeof XLSXType> => (xlsxModulePromise ??= import("xlsx"));
 
 export interface BackupLog {
   id: string;
@@ -229,6 +232,7 @@ export const useBackup = () => {
       const addStatusColumn = (records: any[]) =>
         records.map(record => ({ ...record, status: record.deleted_at ? 'DELETED' : 'Active' }));
 
+      const XLSX = await loadXlsx();
       const wb = XLSX.utils.book_new();
 
       // Merged Sales Analysis

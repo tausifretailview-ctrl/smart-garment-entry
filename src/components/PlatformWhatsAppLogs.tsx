@@ -55,7 +55,10 @@ import {
   BarChart3
 } from "lucide-react";
 import { toast } from "sonner";
-import * as XLSX from "xlsx";
+import type * as XLSXType from "xlsx";
+/** Lazily loaded on export — keeps the xlsx bundle off this page's initial chunk. */
+let xlsxModulePromise: Promise<typeof XLSXType> | null = null;
+const loadXlsx = (): Promise<typeof XLSXType> => (xlsxModulePromise ??= import("xlsx"));
 
 interface WhatsAppLog {
   id: string;
@@ -257,7 +260,7 @@ export const PlatformWhatsAppLogs = () => {
     );
   };
 
-  const handleExport = () => {
+  const handleExport = async () => {
     if (!filteredLogs.length) {
       toast.error("No logs to export");
       return;
@@ -274,6 +277,7 @@ export const PlatformWhatsAppLogs = () => {
       'Message ID': log.wamid || '',
     }));
 
+    const XLSX = await loadXlsx();
     const ws = XLSX.utils.json_to_sheet(exportData);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Platform WhatsApp Logs");

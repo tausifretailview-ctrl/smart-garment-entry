@@ -23,7 +23,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import * as XLSX from "xlsx";
+import type * as XLSXType from "xlsx";
+/** Lazily loaded on export — keeps the xlsx bundle off this page's initial chunk. */
+let xlsxModulePromise: Promise<typeof XLSXType> | null = null;
+const loadXlsx = (): Promise<typeof XLSXType> => (xlsxModulePromise ??= import("xlsx"));
+
 import { useWhatsAppTemplates } from "@/hooks/useWhatsAppTemplates";
 import { useOpenCustomerAccount } from "@/hooks/useOpenCustomerAccount";
 
@@ -514,6 +518,7 @@ const DeliveryDashboard = () => {
       });
 
       // Create workbook
+      const XLSX = await loadXlsx();
       const wb = XLSX.utils.book_new();
       
       // Build worksheet data as array of arrays
@@ -726,7 +731,7 @@ const DeliveryDashboard = () => {
                   <Button 
                     variant="outline" 
                     size="sm" 
-                    onClick={(e) => exportToExcel(e)}
+                    onClick={(e) => void exportToExcel(e)}
                     disabled={isExporting || !filteredInvoices || filteredInvoices.length === 0}
                   >
                     <Download className="mr-2 h-4 w-4" />
