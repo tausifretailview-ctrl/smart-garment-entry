@@ -1,5 +1,13 @@
-import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
+import type jsPDFType from 'jspdf';
+import type html2canvasType from 'html2canvas';
+
+/** Lazily loaded — keeps jsPDF/html2canvas (~350 KB gz) out of eager page chunks. */
+let jsPdfPromise: Promise<typeof jsPDFType> | null = null;
+const loadJsPdf = (): Promise<typeof jsPDFType> =>
+  (jsPdfPromise ??= import('jspdf').then((m) => m.default));
+let html2canvasPromise: Promise<typeof html2canvasType> | null = null;
+const loadHtml2Canvas = (): Promise<typeof html2canvasType> =>
+  (html2canvasPromise ??= import('html2canvas').then((m) => m.default));
 import { createRoot } from 'react-dom/client';
 import { InvoiceTemplateHTML } from '@/components/InvoiceTemplateHTML';
 
@@ -45,6 +53,7 @@ interface InvoiceData {
 }
 
 export const generateInvoicePDF = async (data: InvoiceData) => {
+  const jsPDF = await loadJsPdf();
   // Create A5 vertical PDF (148mm x 210mm)
   const pdf = new jsPDF({
     orientation: 'portrait',
@@ -302,6 +311,8 @@ export const downloadInvoicePDF = async (data: InvoiceData, filename?: string): 
 };
 
 export const generateInvoiceFromHTML = async (data: InvoiceData): Promise<void> => {
+  const html2canvas = await loadHtml2Canvas();
+  const jsPDF = await loadJsPdf();
   console.log('Starting HTML-to-PDF generation...');
   
   // Create temporary container div
@@ -440,6 +451,7 @@ export const generateInvoiceFromHTML = async (data: InvoiceData): Promise<void> 
 };
 
 export const printInvoiceDirectly = async (data: InvoiceData): Promise<void> => {
+  const html2canvas = await loadHtml2Canvas();
   console.log('Starting direct print...');
   
   // Create temporary container div
@@ -613,6 +625,7 @@ export const printInvoiceDirectly = async (data: InvoiceData): Promise<void> => 
 };
 
 export const printA5BillFormat = async (data: InvoiceData): Promise<void> => {
+  const html2canvas = await loadHtml2Canvas();
   console.log('Starting A5 Bill Print...');
   
   // Create temporary container div
@@ -791,6 +804,8 @@ export const printA5BillFormat = async (data: InvoiceData): Promise<void> => {
 export const generateInvoiceBase64 = async (
   invoiceElement: HTMLElement
 ): Promise<string | null> => {
+  const html2canvas = await loadHtml2Canvas();
+  const jsPDF = await loadJsPdf();
   try {
     const canvas = await html2canvas(invoiceElement, {
       scale: 2,
