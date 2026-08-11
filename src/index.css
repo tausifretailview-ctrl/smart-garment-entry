@@ -3752,6 +3752,103 @@ main:has(.net-profit-workspace) {
   font-size: 1rem;
 }
 
+/* Net Profit Analysis — A4 print (full width, unclip scroll, readable body type) */
+@media print {
+  .erp-status-bar {
+    display: none !important;
+    visibility: hidden !important;
+  }
+
+  main:has(.net-profit-workspace),
+  main:has(.net-profit-workspace) .net-profit-workspace {
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+    min-height: 0 !important;
+    padding: 0 !important;
+  }
+
+  .net-profit-workspace,
+  .net-profit-report {
+    display: block !important;
+    position: static !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+    background: white !important;
+    color: black !important;
+    page: a4;
+  }
+
+  .net-profit-workspace,
+  .net-profit-report,
+  .net-profit-report * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .net-profit-report .min-h-0,
+  .net-profit-report .h-full,
+  .net-profit-report .overflow-hidden,
+  .net-profit-report .overflow-y-auto,
+  .net-profit-report .overflow-x-auto,
+  .net-profit-table-scroll {
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+    flex: none !important;
+  }
+
+  .net-profit-report table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    table-layout: auto !important;
+  }
+
+  .net-profit-report table thead {
+    display: table-header-group !important;
+    position: static !important;
+  }
+
+  .net-profit-report table tfoot {
+    display: table-footer-group !important;
+    position: static !important;
+  }
+
+  .net-profit-report table .sticky {
+    position: static !important;
+  }
+
+  .net-profit-report table thead th {
+    font-size: 9pt !important;
+    letter-spacing: 0.03em !important;
+    padding: 3mm 2mm !important;
+    background-color: #1e293b !important;
+    color: #ffffff !important;
+  }
+
+  .net-profit-report table tbody td,
+  .net-profit-report table tfoot td {
+    font-size: 9pt !important;
+    line-height: 1.35 !important;
+    padding: 2mm 2mm !important;
+    vertical-align: middle !important;
+  }
+
+  .net-profit-report table tbody tr {
+    height: auto !important;
+  }
+
+  .net-profit-report table tbody tr {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+}
+
 /* Item-wise Sales / Stock reports — sidebar-only full workspace (no header / tab strip) */
 .item-wise-sales-workspace,
 .item-wise-stock-workspace {

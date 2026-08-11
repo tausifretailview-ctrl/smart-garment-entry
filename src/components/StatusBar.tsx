@@ -94,7 +94,7 @@ export const StatusBar = () => {
   return (
     <div
       className={cn(
-        "erp-status-bar",
+        "erp-status-bar print:hidden",
         showOnPhoneForcedDesktop ? "erp-status-bar--fixed safe-area-pb" : "erp-status-bar--inset hidden lg:flex",
       )}
       style={

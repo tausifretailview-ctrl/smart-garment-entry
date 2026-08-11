@@ -813,6 +813,82 @@ export default function NetProfitAnalysis() {
           </div>
         </Card>
       </div>
+
+      {/* A4 report print: isolate content, full page width, readable type */}
+      <style>{`
+        @media print {
+          @page {
+            size: A4 portrait;
+            margin: 10mm 12mm;
+          }
+          body * {
+            visibility: hidden;
+          }
+          .net-profit-report,
+          .net-profit-report * {
+            visibility: visible;
+          }
+          .net-profit-report {
+            position: absolute !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            height: auto !important;
+            max-height: none !important;
+            overflow: visible !important;
+            background: white !important;
+            color: black !important;
+          }
+          .net-profit-report .print\\:hidden {
+            display: none !important;
+            visibility: hidden !important;
+          }
+          .net-profit-report .print\\:block {
+            display: block !important;
+            visibility: visible !important;
+          }
+          .net-profit-report h1 {
+            font-size: 16pt !important;
+            line-height: 1.25 !important;
+          }
+          .net-profit-report h2 {
+            font-size: 12pt !important;
+            line-height: 1.3 !important;
+          }
+          .net-profit-report p {
+            font-size: 9pt !important;
+          }
+          .net-profit-table-scroll,
+          .net-profit-report .overflow-hidden,
+          .net-profit-report .overflow-y-auto,
+          .net-profit-report .overflow-x-auto,
+          .net-profit-report .min-h-0,
+          .net-profit-report .h-full {
+            overflow: visible !important;
+            height: auto !important;
+            max-height: none !important;
+            min-height: 0 !important;
+          }
+          .net-profit-report table {
+            width: 100% !important;
+          }
+          .net-profit-report table thead th {
+            font-size: 9pt !important;
+            padding: 4px 6px !important;
+          }
+          .net-profit-report table tbody td,
+          .net-profit-report table tfoot td {
+            font-size: 9pt !important;
+            padding: 3px 6px !important;
+          }
+          .net-profit-report .sticky {
+            position: static !important;
+          }
+        }
+      `}</style>
     </div>
   );
 }
