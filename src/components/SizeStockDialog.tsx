@@ -545,6 +545,9 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
     doc.text(String(grandTotal), xPos + stockColWidth / 2, yPos + 5, { align: "center" });
 
     doc.save(`SizeStock_Report_${format(new Date(), "yyyy-MM-dd")}.pdf`);
+    } finally {
+      setIsExportingPdf(false);
+    }
   };
 
   return (
@@ -562,9 +565,13 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
               size="sm"
               className="h-6 px-2 text-xs gap-1"
               onClick={exportToPDF}
-              disabled={sizeWiseData.rows.length === 0}
+              disabled={sizeWiseData.rows.length === 0 || isExportingPdf}
             >
-              <FileText className="h-3 w-3" />
+              {isExportingPdf ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <FileText className="h-3 w-3" />
+              )}
               PDF
             </Button>
             <Button
