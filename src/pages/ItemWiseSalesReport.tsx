@@ -19,7 +19,11 @@ import { format, startOfDay, endOfDay, startOfMonth, endOfMonth, startOfQuarter,
 import { CalendarIcon, Search, ArrowLeft, Printer, FileSpreadsheet, Filter, X, ChevronDown, ChevronUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { QuietRefreshBar } from "@/components/QuietRefreshBar";
-import * as XLSX from "xlsx";
+import type * as XLSXType from "xlsx";
+/** Lazily loaded on export — keeps the xlsx bundle off this page's initial chunk. */
+let xlsxModulePromise: Promise<typeof XLSXType> | null = null;
+const loadXlsx = (): Promise<typeof XLSXType> => (xlsxModulePromise ??= import("xlsx"));
+
 import { multiTokenMatch } from "@/utils/multiTokenSearch";
 import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
 import { parsePersistedDate, restoreDashboardFilters, WINDOW_FILTER_IDS } from "@/lib/dashboardFilterPersistence";
@@ -878,7 +882,7 @@ export default function ItemWiseSalesReport() {
   }, [rpcSummary, filteredData, hasClientFilters]);
 
   // Export to Excel
-  const exportToExcel = () => {
+  const exportToExcel = async () => {
     if (activeTab === "customerwise") {
       const exportRows: any[] = [];
       customerWiseData.forEach((row, i) => {
@@ -887,6 +891,7 @@ export default function ItemWiseSalesReport() {
           exportRows.push({ "Sr No": "", "Customer Name": "", "Product Name": p.product_name, "Items": "", "Total Qty": p.qty, "Total Value": Math.round(p.amount), "Avg Item Value": "" });
         });
       });
+      const XLSX = await loadXlsx();
       const ws = XLSX.utils.json_to_sheet(exportRows);
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "Customer-wise Sales");

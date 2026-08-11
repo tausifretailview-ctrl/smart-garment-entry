@@ -1,7 +1,11 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format, parseISO } from "date-fns";
-import * as XLSX from "xlsx";
+import type * as XLSXType from "xlsx";
+/** Lazily loaded on export — keeps the xlsx bundle off this page's initial chunk. */
+let xlsxModulePromise: Promise<typeof XLSXType> | null = null;
+const loadXlsx = (): Promise<typeof XLSXType> => (xlsxModulePromise ??= import("xlsx"));
+
 import {
   ArrowLeft,
   CalendarIcon,
@@ -367,7 +371,7 @@ export default function CustomerPointsReport() {
     ];
   }, [reportData, redemptionValue]);
 
-  const exportToExcel = () => {
+  const exportToExcel = async () => {
     if (drillCustomerId && drillRows.length > 0) {
       const exportData = drillRows.map((r, i) => ({
         "Sr No": i + 1,
@@ -378,6 +382,7 @@ export default function CustomerPointsReport() {
         "Invoice No": r.sale_number || "",
         Description: r.description || "",
       }));
+      const XLSX = await loadXlsx();
       const ws = XLSX.utils.json_to_sheet(exportData);
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "Points History");

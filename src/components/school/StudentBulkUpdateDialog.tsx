@@ -9,7 +9,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Upload, Loader2, CheckCircle2, AlertTriangle, ArrowRight } from "lucide-react";
-import * as XLSX from "xlsx";
+import type * as XLSXType from "xlsx";
+/** Lazily loaded on export — keeps the xlsx bundle off this page's initial chunk. */
+let xlsxModulePromise: Promise<typeof XLSXType> | null = null;
+const loadXlsx = (): Promise<typeof XLSXType> => (xlsxModulePromise ??= import("xlsx"));
 
 interface StudentBulkUpdateDialogProps {
   open: boolean;
@@ -117,6 +120,7 @@ export const StudentBulkUpdateDialog = ({ open, onOpenChange }: StudentBulkUpdat
 
     try {
       const data = await file.arrayBuffer();
+      const XLSX = await loadXlsx();
       const wb = XLSX.read(data);
 
       // Fetch all existing students
