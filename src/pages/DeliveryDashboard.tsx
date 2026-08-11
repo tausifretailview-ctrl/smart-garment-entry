@@ -731,7 +731,7 @@ const DeliveryDashboard = () => {
                   <Button 
                     variant="outline" 
                     size="sm" 
-                    onClick={(e) => exportToExcel(e)}
+                    onClick={(e) => void exportToExcel(e)}
                     disabled={isExporting || !filteredInvoices || filteredInvoices.length === 0}
                   >
                     <Download className="mr-2 h-4 w-4" />
