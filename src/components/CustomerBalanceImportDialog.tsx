@@ -28,7 +28,11 @@ import { normalizePhoneNumber } from "@/utils/excelImportUtils";
 import { format } from "date-fns";
 import { fetchAllCustomers } from "@/utils/fetchAllRows";
 import { createCustomerAdvance } from "@/utils/createCustomerAdvance";
-import * as XLSX from "xlsx";
+import type * as XLSXType from "xlsx";
+
+/** Lazily loaded on import — keeps the xlsx bundle off this dialog's initial chunk. */
+let xlsxModulePromise: Promise<typeof XLSXType> | null = null;
+const loadXlsx = (): Promise<typeof XLSXType> => (xlsxModulePromise ??= import("xlsx"));
 
 interface CustomerBalanceImportDialogProps {
   open: boolean;
@@ -80,6 +84,7 @@ export function CustomerBalanceImportDialog({
 
     try {
       const arrayBuffer = await file.arrayBuffer();
+      const XLSX = await loadXlsx();
       const workbook = XLSX.read(arrayBuffer, { type: "array" });
 
       // Find Bal and Adv sheets
@@ -119,6 +124,7 @@ export function CustomerBalanceImportDialog({
       // Process Bal sheet
       if (balSheetName) {
         const balData = processSheet(
+          XLSX,
           workbook.Sheets[balSheetName],
           customerMap,
           false
@@ -136,6 +142,7 @@ export function CustomerBalanceImportDialog({
       // Process Adv sheet
       if (advSheetName) {
         const advData = processSheet(
+          XLSX,
           workbook.Sheets[advSheetName],
           customerMap,
           true
@@ -169,7 +176,8 @@ export function CustomerBalanceImportDialog({
   };
 
   const processSheet = (
-    sheet: XLSX.WorkSheet,
+    XLSX: typeof XLSXType,
+    sheet: XLSXType.WorkSheet,
     customerMap: Map<string, { id: string; name: string }>,
     isAdvance: boolean
   ): { rows: ExcelRow[]; matched: number; notFound: number } => {
