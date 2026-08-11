@@ -13,7 +13,10 @@ import { CalendarIcon, Check, ChevronsUpDown, FileDown, LayoutList, Printer } fr
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { useReactToPrint } from "react-to-print";
-import * as XLSX from "xlsx";
+import type * as XLSXType from "xlsx";
+/** Lazily loaded on export — keeps the xlsx bundle off this page's initial chunk. */
+let xlsxModulePromise: Promise<typeof XLSXType> | null = null;
+const loadXlsx = (): Promise<typeof XLSXType> => (xlsxModulePromise ??= import("xlsx"));
 
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -163,7 +166,7 @@ export default function CustomerBalanceActivityPage() {
 
   const customerQuery = customerId ? `?customer=${encodeURIComponent(customerId)}` : "";
 
-  const exportExcel = () => {
+  const exportExcel = async () => {
     if (!selectedCustomer || !period || period.rows.length === 0 || !fromYmd || !toYmd || !activityData) return;
     const rows: (string | number)[][] = [
       ["Customer balance & activity"],
@@ -187,6 +190,7 @@ export default function CustomerBalanceActivityPage() {
         `${fmt(Math.abs(r.runningBalanceOwed))} ${r.runningBalanceOwed >= 0 ? "Dr" : "Cr"}`,
       ]);
     });
+    const XLSX = await loadXlsx();
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.aoa_to_sheet(rows);
     XLSX.utils.book_append_sheet(wb, ws, "Activity");

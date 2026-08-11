@@ -15,7 +15,11 @@ import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
 import { restoreDashboardFilters } from "@/lib/dashboardFilterPersistence";
 import { useNavPerfPage, useNavPerfQueryWatch } from "@/hooks/useNavigationPerf";
-import * as XLSX from "xlsx";
+import type * as XLSXType from "xlsx";
+/** Lazily loaded on export — keeps the xlsx bundle off this page's initial chunk. */
+let xlsxModulePromise: Promise<typeof XLSXType> | null = null;
+const loadXlsx = (): Promise<typeof XLSXType> => (xlsxModulePromise ??= import("xlsx"));
+
 import { ColumnDef } from "@tanstack/react-table";
 import { ERPTable } from "@/components/erp-table";
 import { Button } from "@/components/ui/button";
@@ -1129,7 +1133,7 @@ const ProductDashboard = () => {
     }
   };
 
-  const handleExportToExcel = () => {
+  const handleExportToExcel = async () => {
     try {
       // Prepare data for export - flatten products with variants
       const exportData = productRows.flatMap((product) => 
@@ -1156,6 +1160,7 @@ const ProductDashboard = () => {
       );
 
       // Create worksheet
+      const XLSX = await loadXlsx();
       const ws = XLSX.utils.json_to_sheet(exportData);
 
       // Create workbook
@@ -1182,7 +1187,7 @@ const ProductDashboard = () => {
   };
 
   // === Stock Import Functions ===
-  const handleExportStockTemplate = () => {
+  const handleExportStockTemplate = async () => {
     const exportData = productRows.flatMap(product =>
       product.variants.map(variant => ({
         "Barcode": variant.barcode,
@@ -1193,6 +1198,7 @@ const ProductDashboard = () => {
         "New Stock Qty": displayVariantDashboardStock(product.product_type, variant.stock_qty),
       }))
     );
+    const XLSX = await loadXlsx();
     const ws = XLSX.utils.json_to_sheet(exportData);
     ws['!cols'] = [{ wch: 15 }, { wch: 30 }, { wch: 10 }, { wch: 12 }, { wch: 16 }, { wch: 16 }];
     const wb = XLSX.utils.book_new();
@@ -1205,6 +1211,7 @@ const ProductDashboard = () => {
     setStockImportFile(file);
     try {
       const buffer = await file.arrayBuffer();
+      const XLSX = await loadXlsx();
       const wb = XLSX.read(buffer, { type: "array" });
       const ws = wb.Sheets[wb.SheetNames[0]];
       const rows: any[] = XLSX.utils.sheet_to_json(ws, { defval: "" });

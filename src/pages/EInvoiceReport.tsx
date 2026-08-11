@@ -19,7 +19,10 @@ import { ERPTable } from "@/components/erp-table";
 import { ColumnDef } from "@tanstack/react-table";
 import { format, startOfDay, endOfDay, startOfMonth, endOfMonth, subDays } from "date-fns";
 import { Search, FileSpreadsheet, Loader2, RefreshCw, CheckCircle2, AlertTriangle, Clock, XCircle, Shield, Zap } from "lucide-react";
-import * as XLSX from "xlsx";
+import type * as XLSXType from "xlsx";
+/** Lazily loaded on export — keeps the xlsx bundle off this page's initial chunk. */
+let xlsxModulePromise: Promise<typeof XLSXType> | null = null;
+const loadXlsx = (): Promise<typeof XLSXType> => (xlsxModulePromise ??= import("xlsx"));
 
 const safeErrorString = (val: any): string => {
   if (!val) return '';
@@ -231,7 +234,7 @@ export default function EInvoiceReport() {
     setIsRetryingAll(false);
   };
 
-  const handleExportExcel = () => {
+  const handleExportExcel = async () => {
     if (!filteredInvoices.length) return;
     const rows = filteredInvoices.map((inv, idx: number) => ({
       'S.No': idx + 1,
@@ -246,6 +249,7 @@ export default function EInvoiceReport() {
       'Status': getStatusLabel(inv),
       'Error': inv.einvoice_error || '',
     }));
+    const XLSX = await loadXlsx();
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'E-Invoice Report');

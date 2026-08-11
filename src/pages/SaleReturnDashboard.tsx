@@ -39,7 +39,11 @@ import { useOpenCustomerAccount } from "@/hooks/useOpenCustomerAccount";
 import { CreditNoteHistoryDialog } from "@/components/CreditNoteHistoryDialog";
 import { isSaleReturnConsumedAtBilling } from "@/utils/saleReturnCnBalance";
 import { format } from "date-fns";
-import * as XLSX from "xlsx";
+import type * as XLSXType from "xlsx";
+/** Lazily loaded on export — keeps the xlsx bundle off this page's initial chunk. */
+let xlsxModulePromise: Promise<typeof XLSXType> | null = null;
+const loadXlsx = (): Promise<typeof XLSXType> => (xlsxModulePromise ??= import("xlsx"));
+
 import { useIsMobile } from "@/hooks/use-mobile";
 import { MobilePageHeader } from "@/components/mobile/MobilePageHeader";
 import { MobileStatStrip } from "@/components/mobile/MobileStatStrip";
@@ -824,7 +828,7 @@ export default function SaleReturnDashboard() {
   };
 
   // Export to Excel
-  const handleExportExcel = () => {
+  const handleExportExcel = async () => {
     if (returns.length === 0) {
       toast({ title: "No data", description: "No returns to export", variant: "destructive" });
       return;
@@ -845,6 +849,7 @@ export default function SaleReturnDashboard() {
       "Refund Type": ret.refund_type === 'cash_refund' ? 'Cash Refund' : ret.refund_type === 'exchange' ? 'Exchange' : 'Credit Note',
     }));
 
+    const XLSX = await loadXlsx();
     const ws = XLSX.utils.json_to_sheet(exportData);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Sale Returns");

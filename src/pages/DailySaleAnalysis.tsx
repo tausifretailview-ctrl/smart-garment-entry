@@ -25,7 +25,11 @@ import { MobilePageHeader } from "@/components/mobile/MobilePageHeader";
 import { MobileBottomNav } from "@/components/mobile/MobileBottomNav";
 import { MetricCardSkeleton, TableSkeleton } from "@/components/ui/skeletons";
 import { sortSizes } from "@/utils/sizeSort";
-import * as XLSX from "xlsx";
+import type * as XLSXType from "xlsx";
+/** Lazily loaded on export — keeps the xlsx bundle off this page's initial chunk. */
+let xlsxModulePromise: Promise<typeof XLSXType> | null = null;
+const loadXlsx = (): Promise<typeof XLSXType> => (xlsxModulePromise ??= import("xlsx"));
+
 import jsPDF from "jspdf";
 import { multiTokenMatch } from "@/utils/multiTokenSearch";
 
@@ -460,7 +464,7 @@ export default function DailySaleAnalysis() {
   };
 
   // ---- EXCEL EXPORT ----
-  const handleExcelExport = () => {
+  const handleExcelExport = async () => {
     const rows = filteredItems.map((i, idx) => ({
       "S.No": idx + 1,
       "Item": i.itemDescription,
@@ -485,6 +489,7 @@ export default function DailySaleAnalysis() {
       "Reorder Qty": i.reorderQty,
       "Stock Status": STOCK_STATUS_CONFIG[i.stockStatus].label,
     }));
+    const XLSX = await loadXlsx();
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Item Analysis");

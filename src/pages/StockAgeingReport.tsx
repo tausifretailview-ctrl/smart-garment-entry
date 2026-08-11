@@ -15,7 +15,11 @@ import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table";
 import { Download, Search, Clock } from "lucide-react";
 import { toast } from "sonner";
 import { differenceInDays, format, startOfDay } from "date-fns";
-import * as XLSX from "xlsx";
+import type * as XLSXType from "xlsx";
+/** Lazily loaded on export — keeps the xlsx bundle off this page's initial chunk. */
+let xlsxModulePromise: Promise<typeof XLSXType> | null = null;
+const loadXlsx = (): Promise<typeof XLSXType> => (xlsxModulePromise ??= import("xlsx"));
+
 import {
   Bar,
   BarChart,
@@ -245,7 +249,7 @@ export default function StockAgeingReport() {
   const paginatedRows = useMemo(() => filtered.slice(0, (page + 1) * PAGE_SIZE), [filtered, page]);
   const hasMore = paginatedRows.length < filtered.length;
 
-  const exportToExcel = () => {
+  const exportToExcel = async () => {
     if (!filtered.length) return toast.error("No data to export");
     const rows = filtered.map((r) => ({
       "Product Name": r.productName,
@@ -261,6 +265,7 @@ export default function StockAgeingReport() {
       "Sale Value (MRP)": r.mrp * r.quantity,
       "Ageing Bucket": r.bucket,
     }));
+    const XLSX = await loadXlsx();
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Stock Ageing");
