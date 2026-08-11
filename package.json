@@ -26,7 +26,8 @@
     "electron:dev": "concurrently \"npm run dev\" \"wait-on http://localhost:8080 && electron .\"",
     "electron:build": "electron-builder",
     "electron:build:win": "electron-builder --win",
-    "electron:publish": "electron-builder --win --publish always"
+    "electron:publish": "electron-builder --win --publish always",
+    "lint:ratchet": "node scripts/lint-ratchet.mjs"
   },
   "build": {
     "appId": "com.ezzyerp.desktop",
