@@ -805,13 +805,13 @@ const GSTReports = () => {
   const handleGenerateReport = () => {
     switch (activeReport) {
       case "gstr1":
-        generateGSTR1();
+        void generateGSTR1();
         break;
       case "gstr3b":
-        generateGSTR3B();
+        void generateGSTR3B();
         break;
       case "hsn-summary":
-        generateHSNSummary();
+        void generateHSNSummary();
         break;
       default:
         break;
@@ -1023,15 +1023,15 @@ const GSTReports = () => {
                   <Download className="h-3.5 w-3.5 mr-1" />
                   All Excel
                 </Button>
-                <Button variant="outline" size="sm" className="h-8 border-slate-200" onClick={() => exportToExcel(gstr1Data.b2b, "GSTR1_B2B", "B2B")}>
+                <Button variant="outline" size="sm" className="h-8 border-slate-200" onClick={() => void exportToExcel(gstr1Data.b2b, "GSTR1_B2B", "B2B")}>
                   <Download className="h-3.5 w-3.5 mr-1" />
                   B2B
                 </Button>
-                <Button variant="outline" size="sm" className="h-8 border-slate-200" onClick={() => exportToExcel(gstr1Data.b2cs, "GSTR1_B2CS", "B2CS")}>
+                <Button variant="outline" size="sm" className="h-8 border-slate-200" onClick={() => void exportToExcel(gstr1Data.b2cs, "GSTR1_B2CS", "B2CS")}>
                   <Download className="h-3.5 w-3.5 mr-1" />
                   B2CS
                 </Button>
-                <Button variant="outline" size="sm" className="h-8 border-slate-200" onClick={() => exportToExcel(gstr1Data.hsn, "GSTR1_HSN", "HSN")}>
+                <Button variant="outline" size="sm" className="h-8 border-slate-200" onClick={() => void exportToExcel(gstr1Data.hsn, "GSTR1_HSN", "HSN")}>
                   <Download className="h-3.5 w-3.5 mr-1" />
                   HSN
                 </Button>
@@ -1241,7 +1241,7 @@ const GSTReports = () => {
                 variant="outline"
                 size="sm"
                 className="h-8 border-slate-200"
-                onClick={() => exportToExcel(hsnData, "HSN_Summary", "HSN")}
+                onClick={() => void exportToExcel(hsnData, "HSN_Summary", "HSN")}
               >
                 <Download className="h-3.5 w-3.5 mr-1" />
                 Export Excel
