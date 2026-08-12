@@ -1,53 +1,46 @@
-# Blank white page on page switch — diagnose and make it impossible
+# SHREE CHHATRAPAL (KS Footwear) — three different outstanding figures
 
-## What is happening (and what is not yet confirmed)
+## What the data shows
 
-Reported: switching pages (Account Ledger, Purchase Bill, Insights) sometimes lands on a blank white screen; a manual reload fixes it.
+Three screens report three numbers for the same customer. All three are arithmetically "correct" for the formula each one uses; the underlying invoice records are what's inconsistent.
 
-What I confirmed by reading the code:
+| Source | Figure | Formula used |
+|---|---|---|
+| Bill-wise pending invoices (9 bills) | Rs. 73,165 | sum of net − paid_amount − returns |
+| Customer Ledger PDF | Rs. 71,899 | invoices − receipt vouchers − settlement discount |
+| WhatsApp reminder | Rs. 70,720 | invoices − GREATEST(paid_amount, vouchers) per invoice |
 
-- The workspace has **two competing render owners** in `OrgLayout`: the cached tab pane (`TabCachedPages`) and the router `<Outlet>`. Which one paints is decided by two *separately computed* booleans — `renderViaTabCache` and `hideTabCacheContainer` — plus `effectiveTabPaneReady`, `showTabCacheDuringColdNav`, and `forceOutletFallback`.
-- Purchase Bill and Customer Ledger Report are tab-cache pages; Insights is **not** registered in the tab registry and always renders through `<Outlet>`. Both render paths are affected, so the common factor is the handoff in `OrgLayout`, not any single page.
-- There is no last-resort guard: if the pane subtree renders nothing and `<Outlet>` is suppressed for the same frame, the shell paints an empty container — exactly a white page — with no error and no recovery UI. The existing rescue (`forceOutletFallback`) only fires after **18 seconds** (12s on the desktop shell), far past the point a user gives up and reloads.
+Two concrete data defects explain the whole gap.
 
-What I have **not** confirmed: which of the possible states actually occurs in production. That needs a reproduction with instrumentation, so it is step 1 — not a guess baked into a fix.
+**Defect 1 — Rs. 1,179 closed without a receipt (ledger higher than WhatsApp)**
 
-## Plan
+- INV/25-26/280: net 3,165. Receipts 2,785 + discount 95 = 2,880. `paid_amount` = 3,165. Missing 285.
+- INV/25-26/499: net 9,936. Receipts 8,744 + discount 298 = 9,042. `paid_amount` = 9,936. Missing 894.
 
-### 1. Instrument the render handoff (diagnosis first)
+Both invoices are marked completed, but 1,179 was never recorded as either cash or discount. The ledger still counts it as owed (71,899); the WhatsApp reminder trusts `paid_amount` and drops it (70,720). So the settlement discount shown on the ledger (Rs. 393) is understated if these were intended as discounts — the real write-off would be Rs. 1,572.
 
-Extend the existing navigation diagnostics so every navigation records a snapshot of the decision inputs: `renderViaTabCache`, `hideTabCacheContainer`, `effectiveTabPaneReady`, `showTabCacheDuringColdNav`, `forceOutletFallback`, mounted pane paths, and whether the active pane's chunk was already loaded. Keep the last ~30 entries in memory and expose them for readout, and log a single warning when a navigation ends with **neither** owner painting.
+**Defect 2 — Rs. 2,445 over-receipted on one invoice (bill-wise higher than both)**
 
-Cheap, always-on, and it turns the next user report into evidence instead of speculation.
+INV/25-26/694: net 32,555, but 6 receipts totalling 35,000 are posted against it (5,000 + 5,000 + 1,000 + 9,000 + 10,000 + 5,000). The extra 2,445 was almost certainly meant for one of the 9 open invoices but was tagged to 694, so the open bills never saw it. This is exactly the 73,165 → 70,720 gap.
 
-### 2. Single source of truth for the render owner
+## Decisions needed before any change
 
-Replace the two independently derived booleans with one computed `renderOwner` value (`"tab-cache" | "outlet"`), and derive both container visibility and `<Outlet>` rendering from it. This makes "both hidden" structurally unrepresentable rather than something reasoned about case by case. No behavioural change intended for states that already work.
+1. The Rs. 1,179 on INV/280 and INV/499 — was it a discount given at settlement (write it off as additional settlement discount), or is it still collectable (reopen those two invoices as partly pending)?
+2. The Rs. 2,445 extra on INV/694 — reallocate to the oldest open invoices (FIFO, starting INV/25-26/739), or hold it as customer advance?
 
-### 3. Blank-frame watchdog (the user-visible fix)
+## Fix (after the two answers)
 
-After each navigation settles, check that the workspace container actually painted content (rendered children with non-zero height). If it is still empty after a short grace period (~1.2s), log the step-1 snapshot and switch the render owner to `<Outlet>`. A white screen then self-heals in about a second instead of needing a manual reload.
+**Step 1 — repair the data (organization-scoped, audit-trailed)**
+- Rs. 2,445: reassign the excess receipt amount off INV/25-26/694 onto the chosen open invoice(s) via the existing receipt-reassignment path, so `paid_amount` and payment_status of the open bills update through the normal settlement recompute (`compute_sale_settlement`), not by hand-editing columns.
+- Rs. 1,179: either record it as settlement discount on the two receipts (ledger discount becomes 1,572 and the invoices legitimately close), or clear `paid_amount` down to the receipted amount so the two bills reopen for 285 / 894.
+- Re-run the customer balance reconciliation afterwards and confirm all three screens read the same number.
 
-### 4. Shorten the stuck-pane rescue
+**Step 2 — stop the three-formula divergence**
+The real bug is that the reminder, the ledger PDF and the bill-wise list each derive outstanding independently. Point the WhatsApp reminder in `src/pages/salesman/SalesmanCustomerAccount.tsx` at the same snapshot the ledger uses (`fetchCustomerBalanceSnapshot`), and apply the already-written but currently unused `src/utils/reconcileBillWisePending.ts` helper so the listed bills always sum to the stated total. Today the reminder prints a bill list and a total that come from different formulas with no reconciliation.
 
-Drop the `forceOutletFallback` timer from 18s/12s to roughly 6s for non-entry pages. Bill-entry screens keep their longer budget because they hold unsaved draft state and must not be swapped out.
+**Step 3 — catch it next time**
+Add two checks to the existing accounting-invariants view: receipts posted to an invoice exceeding its net amount, and `paid_amount` exceeding recorded receipts + discount. Both defects here would have been flagged the night they were created.
 
-### 5. Register Insights in the tab registry (optional, same pass)
-
-`insights` is the only one of the three reported pages with no registry entry, so it always cold-loads through `<Outlet>` and gets none of the prefetch/keep-alive treatment its sibling report pages get. Adding it removes one asymmetry from the surface being debugged.
-
-## Files this touches
-
-- `src/components/OrgLayout.tsx` — unified render owner, watchdog, shorter rescue timer
-- `src/lib/navigationPerfDiagnostics.ts` — render-decision snapshots + blank-frame warning
-- `src/lib/tabPageRegistry.ts` — Insights entry (step 5)
-
-## Verification
-
-- Drive the app with Playwright across Purchase Bills → Customer Ledger Report → Insights → back, repeatedly and with the network throttled, asserting the workspace container is non-empty after each navigation.
-- Confirm the diagnostics record exactly one owner per navigation and never zero.
-- Confirm bill-entry screens (Purchase Entry, POS) still keep draft state across tab switches and are not swapped to `<Outlet>` by the shortened timer.
-
-## Note
-
-Steps 2–4 make a blank page recoverable and short-lived, but the underlying trigger is only pinned down by step 1. If the diagnostics show a specific state (for example, a pane reporting its chunk as loaded while its subtree is unmounted), that root cause gets a targeted fix in a follow-up rather than being papered over by the watchdog.
+## Technical notes
+- Customer id `2bb8e998-9d7d-451a-b6e6-6ace7c29d858`, org `4bc73037-...`. No sale returns, no advances, opening balance 0 — so no other moving parts.
+- No column is hand-edited; all repairs go through the existing voucher / settlement RPCs so the ledger keeps a trail.
