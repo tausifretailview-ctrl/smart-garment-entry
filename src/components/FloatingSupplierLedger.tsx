@@ -192,7 +192,7 @@ export const FloatingSupplierLedger = ({
     // Return credit already folded into bill.paid_amount but rendered as its own
     // purchase-return row — exclude it from "Payment at purchase".
     const returnAdjustByBillId = buildUnvoucheredReturnAdjustByBillId(
-      purchaseReturnsData || [],
+      (purchaseReturnsData || []) as unknown as Parameters<typeof buildUnvoucheredReturnAdjustByBillId>[0],
       creditNoteVoucherIds,
     );
 
