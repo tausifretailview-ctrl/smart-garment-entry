@@ -94,7 +94,7 @@ export function buildInvoiceDashboardRpcFilters(
   };
 }
 
-const EMPTY_INVOICE_DASHBOARD_STATS: InvoiceDashboardStats = {
+export const EMPTY_INVOICE_DASHBOARD_STATS: InvoiceDashboardStats = {
   totalInvoices: 0,
   totalAmount: 0,
   totalDiscount: 0,
@@ -355,7 +355,10 @@ function computeInvoiceDashboardStats(rows: any[]): InvoiceDashboardStats {
   };
 }
 
-/** Fast client aggregation when RPC is missing (no receipt reconcile — cards only). */
+/**
+ * Fast client aggregation when RPC is missing/timed out (no receipt reconcile — cards only).
+ * Never throws: a second failure must still leave the dashboard with a usable empty/partial path.
+ */
 async function fetchInvoiceDashboardStatsClient(
   client: SupabaseClient,
   filters: InvoiceDashboardFilters,
@@ -364,44 +367,58 @@ async function fetchInvoiceDashboardStatsClient(
     return { ...EMPTY_INVOICE_DASHBOARD_STATS };
   }
 
-  // One line-item RPC for the whole stats pagination loop (not once per 1,000-row page).
-  const searchResolution = await resolveInvoiceSearch(client, filters);
+  try {
+    // One line-item RPC for the whole stats pagination loop (not once per 1,000-row page).
+    const searchResolution = await resolveInvoiceSearch(client, filters);
 
-  const PAGE_SIZE = 1000;
-  let offset = 0;
-  const allRows: any[] = [];
+    const PAGE_SIZE = 1000;
+    let offset = 0;
+    const allRows: any[] = [];
 
-  while (true) {
-    let query: any = buildFilteredSalesQuery(
-      client,
-      filters,
-      INVOICE_DASHBOARD_STATS_SELECT,
-    ).range(offset, offset + PAGE_SIZE - 1);
-    query = applyResolvedInvoiceSearch(query, searchResolution);
-    const { data, error } = await query;
-    if (error) throw error;
-    if (!data?.length) break;
-    allRows.push(...data);
-    if (data.length < PAGE_SIZE) break;
-    offset += PAGE_SIZE;
-  }
+    while (true) {
+      let query: any = buildFilteredSalesQuery(
+        client,
+        filters,
+        INVOICE_DASHBOARD_STATS_SELECT,
+      ).range(offset, offset + PAGE_SIZE - 1);
+      query = applyResolvedInvoiceSearch(query, searchResolution);
+      const { data, error } = await query;
+      if (error) {
+        console.warn(
+          "get_invoice_dashboard_stats client fallback query failed:",
+          invoiceDashboardRpcErrorMessage(error),
+        );
+        return { ...EMPTY_INVOICE_DASHBOARD_STATS };
+      }
+      if (!data?.length) break;
+      allRows.push(...data);
+      if (data.length < PAGE_SIZE) break;
+      offset += PAGE_SIZE;
+    }
 
-  if (allRows.length === 0) {
+    if (allRows.length === 0) {
+      return { ...EMPTY_INVOICE_DASHBOARD_STATS };
+    }
+
+    const displayRows = allRows.map(applyQuickInvoiceDisplayFields);
+    const statsRows =
+      filters.paymentStatusFilter.length > 0
+        ? displayRows.filter((inv) => filters.paymentStatusFilter.includes(inv.payment_status))
+        : displayRows.filter(
+            (inv) =>
+              inv.is_cancelled !== true &&
+              inv.payment_status !== "cancelled" &&
+              inv.payment_status !== "hold",
+          );
+
+    return computeInvoiceDashboardStats(statsRows);
+  } catch (err) {
+    console.warn(
+      "get_invoice_dashboard_stats client fallback failed:",
+      invoiceDashboardRpcErrorMessage(err),
+    );
     return { ...EMPTY_INVOICE_DASHBOARD_STATS };
   }
-
-  const displayRows = allRows.map(applyQuickInvoiceDisplayFields);
-  const statsRows =
-    filters.paymentStatusFilter.length > 0
-      ? displayRows.filter((inv) => filters.paymentStatusFilter.includes(inv.payment_status))
-      : displayRows.filter(
-          (inv) =>
-            inv.is_cancelled !== true &&
-            inv.payment_status !== "cancelled" &&
-            inv.payment_status !== "hold",
-        );
-
-  return computeInvoiceDashboardStats(statsRows);
 }
 
 function parseInvoiceDashboardStatsRow(row: Partial<InvoiceDashboardStats>): InvoiceDashboardStats {
@@ -418,7 +435,7 @@ function parseInvoiceDashboardStatsRow(row: Partial<InvoiceDashboardStats>): Inv
   };
 }
 
-/** Server-side summary tiles; falls back to client scan when RPC is unavailable. */
+/** Server-side summary tiles; falls back to client scan when RPC is unavailable. Never throws. */
 export async function fetchInvoiceDashboardStats(
   client: SupabaseClient,
   filters: InvoiceDashboardFilters,
