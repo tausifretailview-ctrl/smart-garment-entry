@@ -1,46 +1,43 @@
-# SHREE CHHATRAPAL (KS Footwear) — three different outstanding figures
+# Supplier ledger: purchase return adjusted against a bill is counted twice
 
-## What the data shows
+## What's happening
 
-Three screens report three numbers for the same customer. All three are arithmetically "correct" for the formula each one uses; the underlying invoice records are what's inconsistent.
+Confirmed on ELLA NOOR → FK PRODUCTION.
 
-| Source | Figure | Formula used |
-|---|---|---|
-| Bill-wise pending invoices (9 bills) | Rs. 73,165 | sum of net − paid_amount − returns |
-| Customer Ledger PDF | Rs. 71,899 | invoices − receipt vouchers − settlement discount |
-| WhatsApp reminder | Rs. 70,720 | invoices − GREATEST(paid_amount, vouchers) per invoice |
+When a purchase return is adjusted against a bill, `AdjustCreditNoteDialog` adds the return amount to that bill's `paid_amount` (bill "1": net 2,29,100, `paid_amount` 55,000 — and there is **no** payment voucher for it, so the whole 55,000 is the return adjustment).
 
-Two concrete data defects explain the whole gap.
+The supplier ledger then debits the same 55,000 in two places:
 
-**Defect 1 — Rs. 1,179 closed without a receipt (ledger higher than WhatsApp)**
+1. **"Payment at purchase" 55,000** — derived from `paid_amount` minus voucher payments. Since no voucher exists, the return adjustment is mistaken for cash paid at purchase.
+2. **"Purchase Return PR/26-27/1 (Adj. Against Bill 1)" 55,000** — the return row itself.
 
-- INV/25-26/280: net 3,165. Receipts 2,785 + discount 95 = 2,880. `paid_amount` = 3,165. Missing 285.
-- INV/25-26/499: net 9,936. Receipts 8,744 + discount 298 = 9,042. `paid_amount` = 9,936. Missing 894.
+Result: reconciliation subtracts `(-) Purchase Returns Adjusted 55,000` **and** `(-) Paid (Cash/Bank) 55,000`, so outstanding shows **5,03,100** when the true payable is **5,58,100** (6,13,100 − 55,000). Actual cash paid to this supplier is zero.
 
-Both invoices are marked completed, but 1,179 was never recorded as either cash or discount. The ledger still counts it as owed (71,899); the WhatsApp reminder trusts `paid_amount` and drops it (70,720). So the settlement discount shown on the ledger (Rs. 393) is understated if these were intended as discounts — the real write-off would be Rs. 1,572.
+The same double subtraction exists in the database function behind Supplier Party Balances (`_get_supplier_party_balances_rows`): its `total_paid` uses `purchase_bills.paid_amount` while `unreflected_returns` separately subtracts the return's `net_amount`. The RPC returns 5,03,100 too, so the outstanding list, ledger and reconciliation are all off by the adjusted amount.
 
-**Defect 2 — Rs. 2,445 over-receipted on one invoice (bill-wise higher than both)**
+## Fix
 
-INV/25-26/694: net 32,555, but 6 receipts totalling 35,000 are posted against it (5,000 + 5,000 + 1,000 + 9,000 + 10,000 + 5,000). The extra 2,445 was almost certainly meant for one of the 9 open invoices but was tagged to 694, so the open bills never saw it. This is exactly the 73,165 → 70,720 gap.
+**1. Exclude bill-linked return adjustments from "paid" (frontend)**
+In `src/components/SupplierLedger.tsx` and `src/components/FloatingSupplierLedger.tsx`, build a per-bill map of return credit already applied to that bill (the existing `buildPurchaseReturnAdjustByBillId` helper in `src/utils/purchaseBillReturnAdjust.ts` does exactly this) and subtract it when computing `paidAtPurchase`:
 
-## Decisions needed before any change
+```
+paidAtPurchase = max(0, paid_amount − voucherPayments − legacyVoucherPayments − returnAdjustOnBill)
+```
 
-1. The Rs. 1,179 on INV/280 and INV/499 — was it a discount given at settlement (write it off as additional settlement discount), or is it still collectable (reopen those two invoices as partly pending)?
-2. The Rs. 2,445 extra on INV/694 — reallocate to the oldest open invoices (FIFO, starting INV/25-26/739), or hold it as customer advance?
+The purchase-return row stays as the single place the credit reduces the balance. For FK PRODUCTION the "Payment at purchase 55,000" row then disappears, Total Paid becomes ₹0, and the closing balance becomes 5,58,100.
 
-## Fix (after the two answers)
+**2. Same correction in the reconciliation block**
+The "Paid (Cash / Bank)" line in the reconciliation panel must use the same adjusted figure, so `Net Purchases − Paid` reconciles with the running balance. "Purchase Returns Adjusted" keeps the 55,000.
 
-**Step 1 — repair the data (organization-scoped, audit-trailed)**
-- Rs. 2,445: reassign the excess receipt amount off INV/25-26/694 onto the chosen open invoice(s) via the existing receipt-reassignment path, so `paid_amount` and payment_status of the open bills update through the normal settlement recompute (`compute_sale_settlement`), not by hand-editing columns.
-- Rs. 1,179: either record it as settlement discount on the two receipts (ledger discount becomes 1,572 and the invoices legitimately close), or clear `paid_amount` down to the receipted amount so the two bills reopen for 285 / 894.
-- Re-run the customer balance reconciliation afterwards and confirm all three screens read the same number.
+**3. Same correction in the database function**
+New migration replacing `_get_supplier_party_balances_rows` so `bill_paid_by_supplier` subtracts return credit already booked into `paid_amount` for bills that have an `adjusted` return linked to them and no matching payment voucher. Keeps `unreflected_returns` as the only subtraction of that amount. This keeps Supplier Party Balances, the Outstanding tab and the ledger reading the same number.
 
-**Step 2 — stop the three-formula divergence**
-The real bug is that the reminder, the ledger PDF and the bill-wise list each derive outstanding independently. Point the WhatsApp reminder in `src/pages/salesman/SalesmanCustomerAccount.tsx` at the same snapshot the ledger uses (`fetchCustomerBalanceSnapshot`), and apply the already-written but currently unused `src/utils/reconcileBillWisePending.ts` helper so the listed bills always sum to the stated total. Today the reminder prints a bill list and a total that come from different formulas with no reconciliation.
-
-**Step 3 — catch it next time**
-Add two checks to the existing accounting-invariants view: receipts posted to an invoice exceeding its net amount, and `paid_amount` exceeding recorded receipts + discount. Both defects here would have been flagged the night they were created.
+**4. Verify**
+- FK PRODUCTION: ledger closing, reconciliation and party balance all read ₹5,58,100 with Total Paid ₹0.
+- Re-run `scripts/verify-supplier-party-balances-parity.sql` for the org and confirm no supplier drifts, including suppliers with real cash payments plus a return (the common case must not regress).
+- Spot-check a supplier whose return is `adjusted_outstanding` or `refunded` (no bill link) — those must be unchanged.
 
 ## Technical notes
-- Customer id `2bb8e998-9d7d-451a-b6e6-6ace7c29d858`, org `4bc73037-...`. No sale returns, no advances, opening balance 0 — so no other moving parts.
-- No column is hand-edited; all repairs go through the existing voucher / settlement RPCs so the ledger keeps a trail.
+- No data is rewritten. `paid_amount` keeps including the adjustment (the purchase-bill dashboard depends on it for status and already annotates "incl. P/R adj."); only the ledger and balance readers stop counting it a second time.
+- Only affects returns with `credit_status = 'adjusted'` and a `linked_bill_id`.
+- Scope is org-scoped read paths; no change to purchase return creation or stock.
