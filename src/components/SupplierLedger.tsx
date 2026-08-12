@@ -31,6 +31,7 @@ import {
   supplierCreditNoteLedgerDebit,
   supplierCreditNoteLedgerDescriptionFromCn,
 } from "@/utils/purchaseSupplierLedgerCn";
+import { buildUnvoucheredReturnAdjustByBillId } from "@/utils/purchaseBillReturnAdjust";
 import { linkedBillDisplayNo } from "@/utils/purchaseReturnCnDisplay";
 import type * as XLSXType from "xlsx";
 /** Lazily loaded on export — keeps the xlsx bundle off this page's initial chunk. */
