@@ -702,8 +702,14 @@ async function searchQuickStockVariants(orgId: string, rawQuery: string) {
     if (filtered.length > 0) return filtered;
   }
 
-  // 4) Variant-level size / color / barcode when no product matched
+  // 4) Variant-level size / color / barcode when no product matched.
+  // Search broadly on the first token only — the DB can't do a phrase-order
+  // match across spaces/hyphens the way real SKUs are formatted ("PUL194-RLX-BR"
+  // vs a typed "PUL194 RLX BR") — then AND-filter the remaining tokens
+  // client-side with the same token matcher used for the product path above,
+  // so each token can live in whichever field actually holds it.
   const esc = safeTerm.replace(/[%_]/g, "");
+  const primaryEsc = (tokens[0] || esc).replace(/[%_]/g, "");
   const variantQ = await supabase
     .from("product_variants")
     .select(QUICK_STOCK_VARIANT_SELECT)
@@ -712,9 +718,24 @@ async function searchQuickStockVariants(orgId: string, rawQuery: string) {
     .is("products.deleted_at", null)
     .is("deleted_at", null)
     .eq("active", true)
-    .or(`barcode.ilike.%${esc}%,size.ilike.%${esc}%,color.ilike.%${esc}%`)
+    .or(`barcode.ilike.%${primaryEsc}%,size.ilike.%${primaryEsc}%,color.ilike.%${primaryEsc}%`)
     .limit(200);
-  return variantQ.data || [];
+  const variantCandidates = variantQ.data || [];
+  if (tokens.length <= 1) return variantCandidates;
+  return variantCandidates.filter((item: any) =>
+    matchesProductSearchFields(
+      {
+        product_name: item.product?.product_name,
+        brand: item.product?.brand,
+        category: item.product?.category,
+        style: item.product?.style,
+        barcode: item.barcode,
+        color: item.color,
+        size: item.size,
+      },
+      safeTerm,
+    ),
+  );
 }
 
 // Floating Stock Report Dialog
