@@ -24,6 +24,7 @@ import {
   supplierCreditNoteLedgerDebit,
   supplierCreditNoteLedgerDescriptionFromCn,
 } from "@/utils/purchaseSupplierLedgerCn";
+import { buildUnvoucheredReturnAdjustByBillId } from "@/utils/purchaseBillReturnAdjust";
 import { linkedBillDisplayNo } from "@/utils/purchaseReturnCnDisplay";
 
 interface FloatingSupplierLedgerProps {
@@ -260,15 +261,17 @@ export const FloatingSupplierLedger = ({
               .reduce((s: number, v: any) => s + (Number(v.total_amount) || 0), 0)
           : 0;
         const paidAtPurchase = Math.max(0, totalPaidOnBill - voucherPmts - legacyVoucherPayments);
-        if (paidAtPurchase > 0) {
-          runningBalance -= paidAtPurchase;
+        const returnAdjustOnBill = returnAdjustByBillId.get(bill.id) || 0;
+        const cashAtPurchase = Math.max(0, paidAtPurchase - returnAdjustOnBill);
+        if (cashAtPurchase > 0) {
+          runningBalance -= cashAtPurchase;
           allTransactions.push({
             id: `${bill.id}-payment-at-purchase`,
             date: bill.bill_date,
             type: "payment",
             reference: bill.supplier_invoice_no || bill.software_bill_no || "N/A",
             description: "Payment at purchase",
-            debit: paidAtPurchase,
+            debit: cashAtPurchase,
             credit: 0,
             balance: runningBalance,
           });
