@@ -344,6 +344,13 @@ export function SupplierLedger({ organizationId, visitedTabs, supplierBalanceMap
         }
       });
 
+      // Return credit already written into bill.paid_amount but shown as its own
+      // purchase-return row below — must not be counted as cash paid.
+      const returnAdjustByBillId = buildUnvoucheredReturnAdjustByBillId(
+        purchaseReturnsData || [],
+        creditNoteVoucherIds,
+      );
+
       // Combine and sort transactions
       const allTransactions: Transaction[] = [];
       
@@ -425,9 +432,11 @@ export function SupplierLedger({ organizationId, visitedTabs, supplierBalanceMap
                 .reduce((s: number, v: any) => s + voucherSettlementCredit(v), 0)
             : 0;
           const paidAtPurchase = Math.max(0, totalPaidOnBill - voucherPayments - legacyVoucherPayments);
+          const returnAdjustOnBill = returnAdjustByBillId.get(bill.id) || 0;
+          const cashAtPurchase = Math.max(0, paidAtPurchase - returnAdjustOnBill);
           
-          if (paidAtPurchase > 0) {
-            runningBalance -= paidAtPurchase;
+          if (cashAtPurchase > 0) {
+            runningBalance -= cashAtPurchase;
             
             allTransactions.push({
               id: `${bill.id}-payment-at-purchase`,
@@ -435,7 +444,7 @@ export function SupplierLedger({ organizationId, visitedTabs, supplierBalanceMap
               type: 'payment',
               reference: bill.supplier_invoice_no || bill.software_bill_no || 'N/A',
               description: 'Payment at purchase',
-              debit: paidAtPurchase,
+              debit: cashAtPurchase,
               credit: 0,
               balance: runningBalance,
               category: 'payments',
