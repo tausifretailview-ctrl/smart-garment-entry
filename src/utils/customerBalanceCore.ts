@@ -331,13 +331,17 @@ export function computeCustomerBalanceCore(params: CustomerBalanceCoreParams): C
 
   const openingBalance = Number(params.openingBalance || 0);
 
-  // Outstanding = invoiced − payments (applied advance is in totalAdvanceUsed / receipts).
+  // Outstanding = invoiced − settlements + cash refunds paid to customer.
+  // Refunds (payment vouchers to customer) clear credit / pending-CN liability —
+  // they must ADD to signed outstanding (legacy computeCustomerOutstanding already
+  // did `+ refundsPaidTotal`). Subtracting them double-deepened Cr after refund
+  // (Zohra: paid bill + pending SR + cash refund still showed ₹600 Cr).
   // Unused advance is reported separately (unusedAdvance) — not subtracted from balance.
   const auditFormulaOutstanding =
     openingBalance +
     totalInvoicedGross -
     totalSaleReturnAdjustOnInvoices -
-    totalRealPayments -
+    totalRealPayments +
     customerPaymentDebits -
     totalAdvanceUsed +
     adjustmentTotal;
@@ -376,7 +380,7 @@ export function computeCustomerBalanceCore(params: CustomerBalanceCoreParams): C
       saleReturnAdjustOnInvoices: Math.round(-totalSaleReturnAdjustOnInvoices),
       receiptPayments: Math.round(-receiptCredits),
       creditNoteVouchers: Math.round(-creditNoteCredits),
-      customerPaymentRefunds: Math.round(-customerPaymentDebits),
+      customerPaymentRefunds: Math.round(customerPaymentDebits),
       advancesApplied: Math.round(-totalAdvanceUsed),
       /** Informational only — unused pool is not subtracted from balance (see unusedAdvance). */
       unusedAdvances: 0,

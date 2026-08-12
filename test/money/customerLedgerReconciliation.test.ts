@@ -62,6 +62,22 @@ describe("customerLedgerReconciliation", () => {
     expect(sumReconciliationLinesToOutstanding(facets)).toBe(2_000);
   });
 
+  it("Zohra after overpayment refund: pending SR + cash in + refund out → Outstanding Nil", () => {
+    // POS/INV ₹600 paid, pending SR ₹600, then cash refund ₹600 to customer.
+    const facets: LedgerReconciliationFacets = {
+      opening: 0,
+      grossInvoiced: 600,
+      invoiceCnApplied: 0,
+      saleReturns: 600,
+      paymentsCash: 600,
+      paymentsDiscount: 0,
+      advanceApplied: 0,
+      adjustments: 0,
+      cnRefunded: 600,
+    };
+    expect(computeInvoiceOutstandingFromReconciliation(facets)).toBe(0);
+  });
+
   it("advance applications reduce Outstanding even when memo-only on running balance", () => {
     const facets: LedgerReconciliationFacets = {
       opening: 0,

@@ -126,6 +126,50 @@ describe("computeCustomerBalanceCore — advance application", () => {
     expect(result.balance).toBeCloseTo(0, 0);
     expect(result.unusedAdvance).toBeCloseTo(0, 0);
   });
+
+  it("Zohra-shaped: paid bill + pending SR + overpayment refund → balance 0", () => {
+    const result = computeCustomerBalanceCore({
+      openingBalance: 0,
+      sales: [
+        {
+          id: "pos-7",
+          net_amount: 600,
+          paid_amount: 600,
+          cash_amount: 0,
+          sale_return_adjust: 0,
+        },
+      ],
+      voucherEntries: [
+        {
+          voucher_type: "receipt",
+          reference_type: "sale",
+          reference_id: "pos-7",
+          total_amount: 600,
+          payment_method: "cash",
+          description: "Payment received for POS sale",
+        },
+        {
+          voucher_type: "payment",
+          reference_type: "customer",
+          reference_id: "cust-zohra",
+          total_amount: 600,
+          payment_method: "cash",
+          description: "Overpayment refund to ZOHRA (cash)",
+        },
+      ],
+      customerAdvances: [],
+      advanceRefunds: [],
+      saleReturns: [
+        { net_amount: 600, credit_status: "pending", linked_sale_id: "pos-7" },
+      ],
+      additionalCustomerPaymentDebits: 0,
+      options: { ledgerAlignedApplicationReceipts: true },
+    });
+
+    expect(result.pendingStandaloneSaleReturns).toBeCloseTo(600, 0);
+    expect(result.customerPaymentDebits).toBeCloseTo(600, 0);
+    expect(result.balance).toBeCloseTo(0, 0);
+  });
 });
 
 describe("net receivable = gross outstanding − credit pool", () => {

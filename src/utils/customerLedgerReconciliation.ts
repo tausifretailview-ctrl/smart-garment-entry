@@ -19,7 +19,7 @@ export type LedgerReconciliationFacets = {
   paymentsDiscount: number;
   advanceApplied: number;
   adjustments: number;
-  /** CN cash refunded to customer — increases what they owe / reduces credit. */
+  /** Cash refunded to customer (CN / overpayment / party credit) — increases Outstanding (clears Cr). */
   cnRefunded?: number;
 };
 

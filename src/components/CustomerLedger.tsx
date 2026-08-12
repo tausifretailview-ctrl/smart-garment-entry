@@ -2859,7 +2859,8 @@ export function CustomerLedger({
         advanceCredit += t.credit || 0;
       } else if (t.type === "adv_refund") {
         advanceRefunded += t.debit || 0;
-      } else if (t.type === "cn_refund") {
+      } else if (t.type === "cn_refund" || t.type === "refund") {
+        // Overpayment refund + CN cash refund both clear party credit.
         cnRefunded += t.debit || 0;
       } else if (t.type === "adjustment") {
         adjustments += (t.debit || 0) - (t.credit || 0);
@@ -3219,9 +3220,17 @@ export function CustomerLedger({
         : advanceBalanceFromRows;
     const advanceAdjusted = Math.round(reconciliation.advanceApplied || 0);
     const returnsPending = saleReturnsSummary.pending + saleReturnsSummary.partialPending;
-    // Same path school already used: pending sale-return rows on this ledger.
-    const cnFromRows = Math.round(
-      pendingSaleReturns.reduce((sum, t) => sum + (t.amount || 0), 0),
+    // Pending SR rows on this ledger, net of cash refunds already paid out (overpayment /
+    // CN refund) so CN Available does not stay lit after Refund Overpayment.
+    const refundsPaidOnLedger = Math.round(
+      (transactions || [])
+        .filter((t) => t.type === "refund" || t.type === "cn_refund")
+        .reduce((sum, t) => sum + Math.max(0, Number(t.debit || 0)), 0),
+    );
+    const cnFromRows = Math.max(
+      0,
+      Math.round(pendingSaleReturns.reduce((sum, t) => sum + (t.amount || 0), 0)) -
+        refundsPaidOnLedger,
     );
 
     return {
@@ -3231,7 +3240,7 @@ export function CustomerLedger({
       // Same composition the card used: applied + unused.
       advanceReceived: Math.round(advanceAdjusted + advanceBalance),
       advanceBalance,
-      returnsPending,
+      returnsPending: Math.max(0, returnsPending - refundsPaidOnLedger),
       returnsAdjusted: saleReturnsSummary.adjusted,
       cnAvailable: cnFromRows,
       openingBalance: Math.round(reconciliation.opening || 0),
@@ -4258,6 +4267,7 @@ Please clear your dues at the earliest. Thank you!`;
               try {
                 const { data: { user } } = await supabase.auth.getUser();
                 const voucherNum = `REFUND-${Date.now()}`;
+                const refundMode = overpaymentRefundMode || "cash";
                 const { error } = await supabase
                   .from('voucher_entries')
                   .insert({
@@ -4268,11 +4278,54 @@ Please clear your dues at the earliest. Thank you!`;
                     reference_type: 'customer',
                     reference_id: selectedCustomer.id,
                     total_amount: amount,
-                    payment_method: overpaymentRefundMode,
-                    description: overpaymentRefundNote || `Overpayment refund to ${selectedCustomer.customer_name}`,
+                    payment_method: refundMode,
+                    description:
+                      overpaymentRefundNote ||
+                      `Overpayment refund to ${selectedCustomer.customer_name} (${refundMode})`,
                     created_by: user?.id || null,
                   });
                 if (error) throw error;
+
+                // Consume pending sale-return / CN credit so it cannot be applied again
+                // after cash was paid out (same pattern as Sale Return → Refund CN).
+                let remainingRefund = amount;
+                const { data: pendingReturns } = await supabase
+                  .from("sale_returns")
+                  .select(
+                    "id, net_amount, credit_available_balance, credit_status, return_date, created_at",
+                  )
+                  .eq("organization_id", organizationId)
+                  .eq("customer_id", selectedCustomer.id)
+                  .eq("credit_status", "pending")
+                  .is("deleted_at", null)
+                  .order("return_date", { ascending: true })
+                  .order("created_at", { ascending: true });
+
+                for (const sr of pendingReturns || []) {
+                  if (remainingRefund <= 0.01) break;
+                  const available = Math.max(
+                    0,
+                    Number(
+                      sr.credit_available_balance != null
+                        ? sr.credit_available_balance
+                        : sr.net_amount || 0,
+                    ),
+                  );
+                  if (available <= 0.01) continue;
+                  const take = Math.min(available, remainingRefund);
+                  const left = Math.max(0, available - take);
+                  const { error: srErr } = await supabase
+                    .from("sale_returns")
+                    .update({
+                      credit_status: left <= 0.01 ? "refunded" : "pending",
+                      credit_available_balance: left <= 0.01 ? 0 : left,
+                    })
+                    .eq("id", sr.id)
+                    .eq("organization_id", organizationId);
+                  if (srErr) throw srErr;
+                  remainingRefund = Math.round((remainingRefund - take) * 100) / 100;
+                }
+
                 toast.success(`Refund of ₹${amount.toLocaleString('en-IN')} recorded successfully`);
                 setShowOverpaymentRefundDialog(false);
                 setOverpaymentRefundAmount('');
@@ -4282,6 +4335,9 @@ Please clear your dues at the earliest. Thank you!`;
                 queryClient.invalidateQueries({ queryKey: ['customer-transactions'] });
                 queryClient.invalidateQueries({ queryKey: ['customers-with-balance'] });
                 queryClient.invalidateQueries({ queryKey: ['useCustomerBalance'] });
+                queryClient.invalidateQueries({ queryKey: ['customer-financial-snapshot'] });
+                queryClient.invalidateQueries({ queryKey: ['sale-returns'] });
+                queryClient.invalidateQueries({ queryKey: ['cashier-report-customer-refunds'] });
               } catch (err: any) {
                 console.error('Refund error:', err);
                 toast.error(`Refund failed: ${err.message || 'Unknown error'}`);
@@ -5355,7 +5411,7 @@ Please clear your dues at the earliest. Thank you!`;
                       )}
                       {cnRefunded > 0 && (
                         <div className="flex justify-between text-rose-700 dark:text-rose-400">
-                          <span>(+) CN Refunded to Customer</span>
+                          <span>(+) Refunds paid to customer</span>
                           <span className="font-medium">₹{Math.round(cnRefunded).toLocaleString("en-IN")}</span>
                         </div>
                       )}

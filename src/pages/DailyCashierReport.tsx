@@ -212,6 +212,42 @@ const DailyCashierReport = () => {
     enabled: !!currentOrganization?.id,
   });
 
+  // Customer overpayment / CN cash refunds (payment vouchers) — drawer outflow by mode
+  const { data: customerRefundVouchers, isLoading: customerRefundsLoading } = useQuery({
+    queryKey: ["cashier-report-customer-refunds", currentOrganization?.id, rangeStartYmd, rangeEndYmd, period],
+    queryFn: async () => {
+      if (!currentOrganization?.id) return [];
+      const startDateStr = format(startDate, "yyyy-MM-dd");
+      const endDateStr = format(endDate, "yyyy-MM-dd");
+      try {
+        const { data, error } = await supabase
+          .from("voucher_entries")
+          .select(
+            "id, voucher_number, voucher_date, total_amount, payment_method, description, reference_type",
+          )
+          .eq("organization_id", currentOrganization.id)
+          .eq("voucher_type", "payment")
+          .eq("reference_type", "customer")
+          .gte("voucher_date", startDateStr)
+          .lte("voucher_date", endDateStr)
+          .is("deleted_at", null);
+        if (error) {
+          console.error("Customer refund voucher query error:", error);
+          return [];
+        }
+        const { isPosExchangeRefundPaymentVoucher } = await import("@/utils/saleSettlement");
+        const { isAdvanceRefundPaymentVoucher } = await import("@/utils/advanceRefundVoucher");
+        return (data || []).filter(
+          (v) => !isPosExchangeRefundPaymentVoucher(v) && !isAdvanceRefundPaymentVoucher(v),
+        );
+      } catch (e) {
+        console.error("Customer refund voucher query failed:", e);
+        return [];
+      }
+    },
+    enabled: !!currentOrganization?.id,
+  });
+
   // Fetch expense vouchers for selected period
   const { data: expenseData, isLoading: expensesLoading } = useQuery({
     queryKey: ["cashier-report-expenses", currentOrganization?.id, rangeStartYmd, rangeEndYmd, period],
@@ -235,7 +271,7 @@ const DailyCashierReport = () => {
     enabled: !!currentOrganization?.id,
   });
 
-  const isLoading = salesLoading || receiptsLoading || refundsLoading || feesLoading || expensesLoading;
+  const isLoading = salesLoading || receiptsLoading || refundsLoading || customerRefundsLoading || feesLoading || expensesLoading;
 
   const { data: settings } = useSettings();
 
@@ -271,9 +307,15 @@ const DailyCashierReport = () => {
         rcpOtherCollection: 0,
         rcpTotalCollection: 0,
         rcpCount: 0,
-        // Cash refunds from sale returns
+        // Cash refunds from sale returns + customer overpayment/CN payment vouchers
         cashRefundTotal: 0,
         cashRefundCount: 0,
+        customerRefundCash: 0,
+        customerRefundUpi: 0,
+        customerRefundCard: 0,
+        customerRefundOther: 0,
+        customerRefundTotal: 0,
+        customerRefundCount: 0,
       };
     }
 
@@ -428,13 +470,34 @@ const DailyCashierReport = () => {
       feeTotalCollection = feeCashCollection + feeUpiCollection + feeCardCollection + feeBankCollection;
     }
 
-    // Calculate cash refund total from sale returns
+    // Calculate cash refund total from sale returns (refund_type=cash_refund)
     let cashRefundTotal = 0;
     if (cashRefundData) {
       cashRefundData.forEach((refund: any) => {
         cashRefundTotal += Number(refund.net_amount) || 0;
       });
     }
+
+    // Customer overpayment / pending-CN refunds paid from drawer (by payment mode)
+    let customerRefundCash = 0;
+    let customerRefundUpi = 0;
+    let customerRefundCard = 0;
+    let customerRefundOther = 0;
+    if (customerRefundVouchers) {
+      customerRefundVouchers.forEach((v: any) => {
+        const amt = Number(v.total_amount) || 0;
+        const method = String(v.payment_method || "cash").toLowerCase().trim();
+        if (method === "upi") customerRefundUpi += amt;
+        else if (method === "card" || method === "bank" || method === "cheque") customerRefundCard += amt;
+        else if (method === "cash" || !method) customerRefundCash += amt;
+        else customerRefundOther += amt;
+      });
+    }
+    const customerRefundTotal =
+      customerRefundCash + customerRefundUpi + customerRefundCard + customerRefundOther;
+    // Keep legacy cashRefundTotal as S/R cash_refund rows + cash-mode customer refunds
+    // so Net Cash Collection subtracts drawer cash outflows.
+    cashRefundTotal += customerRefundCash;
 
     // Calculate expense totals by payment method and category
     let expenseCash = 0;
@@ -490,9 +553,20 @@ const DailyCashierReport = () => {
       rcpOtherCollection,
       rcpTotalCollection,
       rcpCount: receiptData?.length || 0,
-      // Cash refunds
+      // Cash refunds (S/R cash_refund rows + customer overpayment/CN cash vouchers)
       cashRefundTotal,
-      cashRefundCount: cashRefundData?.length || 0,
+      cashRefundCount:
+        (cashRefundData?.length || 0) +
+        (customerRefundVouchers || []).filter((v: any) => {
+          const m = String(v.payment_method || "cash").toLowerCase();
+          return m === "cash" || !m;
+        }).length,
+      customerRefundCash,
+      customerRefundUpi,
+      customerRefundCard,
+      customerRefundOther,
+      customerRefundTotal,
+      customerRefundCount: customerRefundVouchers?.length || 0,
       // Student fee collections
       feeCashCollection,
       feeUpiCollection,
@@ -576,7 +650,11 @@ const DailyCashierReport = () => {
       ["S/R Adjusted", totals.totalSRAdjusted],
       ["Total Collection", grandTotalCollection],
       ["Refund (already in Cash)", totals.totalRefund],
-      ["Less: Sale Return Cash Refund", totals.cashRefundTotal],
+      ["Less: Cash Refunds (S/R + Customer cash)", totals.cashRefundTotal],
+      ["Customer Refund Cash", totals.customerRefundCash],
+      ["Customer Refund UPI", totals.customerRefundUpi],
+      ["Customer Refund Card/Bank", totals.customerRefundCard],
+      ["Customer Refund Other", totals.customerRefundOther],
       ["Net Cash Collection", grandCashCollection - totals.cashRefundTotal],
       [],
       ["Outstanding"],
@@ -854,6 +932,7 @@ const DailyCashierReport = () => {
           ["cashier-report-receipts"],
           ["cashier-report-fee-collections"],
           ["cashier-report-cash-refunds"],
+          ["cashier-report-customer-refunds"],
           ["cashier-report-expenses"],
         ]}
       />
@@ -1102,12 +1181,53 @@ const DailyCashierReport = () => {
                           <div className="p-2 rounded-full bg-red-100 dark:bg-red-900">
                             <RotateCcw className="h-4 w-4 text-red-600 dark:text-red-400" />
                           </div>
-                          <span className="font-medium">Less: Sale Return Cash Refund</span>
-                          <span className="text-xs text-muted-foreground">({totals.cashRefundCount} returns)</span>
+                          <span className="font-medium">Less: Cash Refunds (S/R + Customer)</span>
+                          <span className="text-xs text-muted-foreground">({totals.cashRefundCount})</span>
                         </div>
                       </TableCell>
                       <TableCell className="text-right font-semibold text-red-600">{formatCurrency(totals.cashRefundTotal)}</TableCell>
                     </TableRow>
+                  )}
+                  {totals.customerRefundTotal > 0 && (
+                    <>
+                      <TableRow className="bg-rose-50/80 dark:bg-rose-950/40">
+                        <TableCell colSpan={2} className="font-semibold text-rose-700 dark:text-rose-300">
+                          Customer refunds (overpayment / CN) — {totals.customerRefundCount} vouchers
+                        </TableCell>
+                      </TableRow>
+                      {totals.customerRefundCash > 0 && (
+                        <TableRow>
+                          <TableCell className="pl-8 text-sm">Cash</TableCell>
+                          <TableCell className="text-right font-semibold text-red-600">
+                            {formatCurrency(totals.customerRefundCash)}
+                          </TableCell>
+                        </TableRow>
+                      )}
+                      {totals.customerRefundUpi > 0 && (
+                        <TableRow>
+                          <TableCell className="pl-8 text-sm">UPI</TableCell>
+                          <TableCell className="text-right font-semibold text-red-600">
+                            {formatCurrency(totals.customerRefundUpi)}
+                          </TableCell>
+                        </TableRow>
+                      )}
+                      {totals.customerRefundCard > 0 && (
+                        <TableRow>
+                          <TableCell className="pl-8 text-sm">Card / Bank</TableCell>
+                          <TableCell className="text-right font-semibold text-red-600">
+                            {formatCurrency(totals.customerRefundCard)}
+                          </TableCell>
+                        </TableRow>
+                      )}
+                      {totals.customerRefundOther > 0 && (
+                        <TableRow>
+                          <TableCell className="pl-8 text-sm">Other</TableCell>
+                          <TableCell className="text-right font-semibold text-red-600">
+                            {formatCurrency(totals.customerRefundOther)}
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </>
                   )}
                   <TableRow className="bg-green-50 dark:bg-green-950">
                     <TableCell>
@@ -1210,7 +1330,7 @@ const DailyCashierReport = () => {
                   <TableRow className="bg-primary/10">
                     <TableCell className="font-bold text-primary">GRAND TOTAL (Sales + RCP + Fees - Expenses)</TableCell>
                     <TableCell className="text-right font-bold text-lg text-primary">
-                      {formatCurrency(totals.cashSale + totals.cardSale + totals.upiSale + totals.rcpTotalCollection + totals.feeTotalCollection - totals.totalRefund - totals.cashRefundTotal - totals.expenseTotal)}
+                      {formatCurrency(totals.cashSale + totals.cardSale + totals.upiSale + totals.rcpTotalCollection + totals.feeTotalCollection - totals.totalRefund - totals.cashRefundTotal - (totals.customerRefundUpi || 0) - (totals.customerRefundCard || 0) - (totals.customerRefundOther || 0) - totals.expenseTotal)}
                     </TableCell>
                   </TableRow>
                   <TableRow>
@@ -1311,8 +1431,21 @@ const DailyCashierReport = () => {
                   </div>
                   {totals.cashRefundTotal > 0 && (
                     <div className="flex justify-between text-red-600">
-                      <span className="text-muted-foreground">Less: S/R Cash Refund ({totals.cashRefundCount})</span>
+                      <span className="text-muted-foreground">Less: Cash Refunds ({totals.cashRefundCount})</span>
                       <span>- {formatCurrency(totals.cashRefundTotal)}</span>
+                    </div>
+                  )}
+                  {(totals.customerRefundUpi || 0) + (totals.customerRefundCard || 0) + (totals.customerRefundOther || 0) > 0 && (
+                    <div className="flex justify-between text-red-600">
+                      <span className="text-muted-foreground">Less: Customer Refund UPI/Card/Other</span>
+                      <span>
+                        -{" "}
+                        {formatCurrency(
+                          (totals.customerRefundUpi || 0) +
+                            (totals.customerRefundCard || 0) +
+                            (totals.customerRefundOther || 0),
+                        )}
+                      </span>
                     </div>
                   )}
                   {totals.feeTotalCollection > 0 && (
@@ -1330,7 +1463,7 @@ const DailyCashierReport = () => {
                 )}
                 <div className="flex justify-between py-2 border-t mt-2 font-bold text-green-600">
                   <span>Total Collected</span>
-                  <span>{formatCurrency(totals.cashSale + totals.cardSale + totals.upiSale + totals.totalSRAdjusted + totals.feeTotalCollection - totals.totalRefund - totals.cashRefundTotal - totals.expenseTotal)}</span>
+                  <span>{formatCurrency(totals.cashSale + totals.cardSale + totals.upiSale + totals.totalSRAdjusted + totals.feeTotalCollection - totals.totalRefund - totals.cashRefundTotal - (totals.customerRefundUpi || 0) - (totals.customerRefundCard || 0) - (totals.customerRefundOther || 0) - totals.expenseTotal)}</span>
                 </div>
                 <div className="pt-2 space-y-1 border-t mt-2">
                   <div className="flex justify-between">
