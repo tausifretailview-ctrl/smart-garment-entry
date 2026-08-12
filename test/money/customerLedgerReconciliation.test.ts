@@ -164,4 +164,24 @@ describe("computeRefundableCreditBalance", () => {
       }),
     ).toBe(600);
   });
+
+  it("Sneha-shaped: paid sale invoice + pending SR — refundable once (ledger zeros CN when returns in recon)", () => {
+    // INV ₹2,000 cash-paid, SR pending CN ₹2,000. Recon Outstanding = −2,000.
+    // Caller must pass cnAvailable: 0 when saleReturns already in outstanding;
+    // stacking snapshot CN still must not 2× if inv is Cr.
+    expect(
+      computeRefundableCreditBalance({
+        unusedAdvance: 0,
+        cnAvailable: 0,
+        invoiceOutstanding: -2_000,
+      }),
+    ).toBe(2_000);
+    expect(
+      computeRefundableCreditBalance({
+        unusedAdvance: 0,
+        cnAvailable: 2_000,
+        invoiceOutstanding: -2_000,
+      }),
+    ).toBe(2_000);
+  });
 });

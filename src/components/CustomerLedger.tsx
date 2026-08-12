@@ -2929,9 +2929,9 @@ export function CustomerLedger({
   ]);
 
   /**
-   * Refund banner — unused advance in excess of Dr outstanding, or abs(Cr).
-   * Pending CN is already inside recon invoice outstanding — do not stack
-   * snapshot cnAvailable on a Cr balance (Zohra: paid POS + pending SR → 2×).
+   * Refund banner — align with Net Position Cr (recon Outstanding − unused advance).
+   * Pending CN/SR is already inside recon invoice outstanding; never stack
+   * snapshot cnAvailable on top (Sneha/Zohra: paid bill + pending SR → 2× phantom).
    * Do not use snapshot outstanding_dr: SQL still nets unused_advances into the SUM
    * (Aafra: 10k − 4.8k party net = 5.2k phantom “Refund owed”).
    */
@@ -2941,9 +2941,11 @@ export function CustomerLedger({
       snapshotAdvanceAvailable > 0
         ? snapshotAdvanceAvailable
         : selectedCustomer.unusedAdvanceTotal || 0;
+    const returnsAlreadyInOutstanding = (reconciliation.saleReturns || 0) > 0.5;
     return computeRefundableCreditBalance({
       unusedAdvance: unused,
-      cnAvailable: snapshotCnAvailable || 0,
+      // When recon subtracted sale returns, CN is already in effectiveBalance.
+      cnAvailable: returnsAlreadyInOutstanding ? 0 : snapshotCnAvailable || 0,
       invoiceOutstanding: effectiveBalance,
     });
   }, [
@@ -2952,6 +2954,7 @@ export function CustomerLedger({
     snapshotAdvanceAvailable,
     snapshotCnAvailable,
     effectiveBalance,
+    reconciliation.saleReturns,
   ]);
 
   useEffect(() => {

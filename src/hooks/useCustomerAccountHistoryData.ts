@@ -464,17 +464,18 @@ export function useCustomerAccountHistoryData({
 
   /**
    * Same refund banner math as CustomerLedger.
-   * Use JS `balance` (unused advance NOT subtracted) — not snapshot outstanding_dr
-   * (SQL still nets unused_advances; Aafra-class phantom refund).
+   * `balance` from useCustomerBalance already nets pendingStandaloneSaleReturns —
+   * do not add snapshot cnAvailable again (Sneha/Zohra 2×). Use JS balance, not
+   * snapshot outstanding_dr (SQL still nets unused_advances; Aafra phantom refund).
    */
   const refundableCreditBalance = useMemo(() => {
     if (isSchool) return 0;
     return computeRefundableCreditBalance({
       unusedAdvance: summary.advanceAvailable,
-      cnAvailable: summary.cnAvailable,
+      cnAvailable: 0,
       invoiceOutstanding: balance,
     });
-  }, [isSchool, summary.advanceAvailable, summary.cnAvailable, balance]);
+  }, [isSchool, summary.advanceAvailable, balance]);
 
   return {
     isSchool,
