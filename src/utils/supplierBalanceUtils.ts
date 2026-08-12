@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { coerceToMap } from "@/lib/coerceToMap";
 import { voucherSettlementCredit } from "@/utils/paymentSettlementBreakdown";
+import { buildUnvoucheredReturnAdjustByBillId } from "@/utils/purchaseBillReturnAdjust";
 
 /**
  * Single source of truth for supplier (payables) balance used by Supplier Ledger,
@@ -213,6 +214,14 @@ function computeSnapshotForSupplier(
   }
   unreflectedReturns = roundMoney(unreflectedReturns);
 
+  // Return credit adjusted straight onto a bill's paid_amount with no CN voucher.
+  // It is already subtracted once via `unreflectedReturns`, so strip it out of
+  // the bill's "paid" figure to avoid double-counting.
+  const returnAdjustByBillId = buildUnvoucheredReturnAdjustByBillId(
+    (allPurchaseReturns || []).filter((pr) => pr.supplier_id === supplierId),
+    allCreditNoteVoucherIds,
+  );
+
   const supplierBillIds = supplierBills.map((b) => b.id);
   const perBillVoucherMap = new Map<string, number>();
   for (const v of voucherPayments || []) {
@@ -234,7 +243,9 @@ function computeSnapshotForSupplier(
   const totalPaidFromBills = roundMoney(
     supplierBills.reduce((sum: number, b: BillRow) => {
       const voucherPaid = perBillVoucherMap.get(b.id) || 0;
-      return sum + (voucherPaid > 0 ? voucherPaid : Number(b.paid_amount) || 0);
+      if (voucherPaid > 0) return sum + voucherPaid;
+      const returnAdjust = returnAdjustByBillId.get(b.id) || 0;
+      return sum + Math.max(0, (Number(b.paid_amount) || 0) - returnAdjust);
     }, 0)
   );
 
