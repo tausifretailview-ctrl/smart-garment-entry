@@ -677,21 +677,29 @@ async function searchQuickStockVariants(orgId: string, rawQuery: string) {
       orgId,
       products.map((p) => p.id),
     );
-    if (tokens.length <= 1) return variants;
-    return variants.filter((item: any) =>
-      matchesProductSearchFields(
-        {
-          product_name: item.product?.product_name,
-          brand: item.product?.brand,
-          category: item.product?.category,
-          style: item.product?.style,
-          barcode: item.barcode,
-          color: item.color,
-          size: item.size,
-        },
-        safeTerm,
-      ),
-    );
+    const filtered =
+      tokens.length <= 1
+        ? variants
+        : variants.filter((item: any) =>
+            matchesProductSearchFields(
+              {
+                product_name: item.product?.product_name,
+                brand: item.product?.brand,
+                category: item.product?.category,
+                style: item.product?.style,
+                barcode: item.barcode,
+                color: item.color,
+                size: item.size,
+              },
+              safeTerm,
+            ),
+          );
+    // A product-name match on just the first token (e.g. a style code) can
+    // still leave zero results once the remaining token (often a colour or
+    // size abbreviation, as in "PUL194-BR") is applied. Don't stop here —
+    // fall through to the variant-level barcode/size/colour search below,
+    // which covers this exact case ("style-colour" barcode formats).
+    if (filtered.length > 0) return filtered;
   }
 
   // 4) Variant-level size / color / barcode when no product matched
