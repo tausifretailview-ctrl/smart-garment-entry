@@ -1,7 +1,16 @@
 import { lazy, type ComponentType, type LazyExoticComponent } from "react";
 
+/** Legacy counter key — cleared on boot; superseded by timestamp cooldown. */
 const SKEW_RELOAD_KEY = "skew_reload_count";
-const MAX_SKEW_RECOVERY_RELOADS = 1;
+/** Epoch-ms of last skew recovery reload (sessionStorage). */
+const SKEW_RELOAD_AT_KEY = "skew_reload_at";
+/**
+ * Min gap between automatic skew reloads. Prevents tight reload loops while still
+ * allowing a morning-after / second-wave deploy miss after the first attempt.
+ * (Flat 1-per-session left overnight tabs stuck on the manual screen once the
+ * budget was spent earlier in the same tab session.)
+ */
+export const SKEW_RELOAD_COOLDOWN_MS = 2 * 60 * 1000;
 const MAX_IMPORT_RETRIES = 5;
 const RETRY_BASE_MS = 500;
 /** Per-attempt ceiling so a hung dynamic import cannot block Suspense forever.
@@ -225,10 +234,11 @@ export function isChunkLoadError(error: unknown): boolean {
   );
 }
 
-/** Clears the one-reload skew budget after a healthy boot. */
+/** Clears skew-recovery cooldown after a healthy boot. */
 export function resetSkewReloadCount(): void {
   try {
     sessionStorage.removeItem(SKEW_RELOAD_KEY);
+    sessionStorage.removeItem(SKEW_RELOAD_AT_KEY);
   } catch {
     // ignore private mode / storage errors
   }
@@ -253,16 +263,32 @@ async function purgeStaleAppCaches(): Promise<void> {
   }
 }
 
+/** True when another automatic skew reload is allowed (cooldown elapsed / never tried). */
+export function canAttemptSkewRecoveryReload(nowMs = Date.now()): boolean {
+  try {
+    const raw = sessionStorage.getItem(SKEW_RELOAD_AT_KEY);
+    if (!raw) return true;
+    const lastAt = parseInt(raw, 10);
+    if (!Number.isFinite(lastAt) || lastAt <= 0) return true;
+    return nowMs - lastAt >= SKEW_RELOAD_COOLDOWN_MS;
+  } catch {
+    return false;
+  }
+}
+
 /**
- * Bounded full-page reload for deploy/version skew. MAX 1 per session until reset.
+ * Bounded full-page reload for deploy/version skew.
+ * Cooldown (not a permanent 1/session cap) — overnight tabs that already recovered
+ * earlier can recover again after a morning deploy without hitting the manual screen.
  * Clears the SW precache first, otherwise the reload re-serves the same dead build.
  * Returns true if reload was initiated (caller should show a brief splash).
  */
 export function attemptSkewRecoveryReload(): boolean {
   try {
-    const count = parseInt(sessionStorage.getItem(SKEW_RELOAD_KEY) || "0", 10);
-    if (count >= MAX_SKEW_RECOVERY_RELOADS) return false;
-    sessionStorage.setItem(SKEW_RELOAD_KEY, String(count + 1));
+    if (!canAttemptSkewRecoveryReload()) return false;
+    sessionStorage.setItem(SKEW_RELOAD_AT_KEY, String(Date.now()));
+    // Keep legacy key in sync for older diagnostics / mid-rollout tabs.
+    sessionStorage.setItem(SKEW_RELOAD_KEY, "1");
     void purgeStaleAppCaches().finally(() => {
       window.location.reload();
     });

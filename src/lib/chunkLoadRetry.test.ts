@@ -1,7 +1,10 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
 import {
   CRITICAL_ENTRY_CHUNK_PATHS,
   isChunkLoadError,
+  canAttemptSkewRecoveryReload,
+  resetSkewReloadCount,
+  SKEW_RELOAD_COOLDOWN_MS,
   POST_LOGIN_PREFETCH_TAB_PATHS_WEB,
   POST_LOGIN_WEB_IDLE_ADMIN_PREFETCH_TAB_PATHS,
   POST_LOGIN_WEB_IDLE_INVENTORY_PREFETCH_TAB_PATHS,
@@ -54,6 +57,50 @@ describe("isChunkLoadError", () => {
     expect(isChunkLoadError(new Error("maxFlatDiscountForGross is not defined"))).toBe(false);
     expect(isChunkLoadError(new ReferenceError("foo is not defined"))).toBe(false);
     expect(isChunkLoadError(new TypeError("Cannot read properties of undefined"))).toBe(false);
+  });
+});
+
+describe("skew recovery cooldown", () => {
+  const store = new Map<string, string>();
+
+  beforeEach(() => {
+    store.clear();
+    vi.stubGlobal("sessionStorage", {
+      getItem: (k: string) => (store.has(k) ? store.get(k)! : null),
+      setItem: (k: string, v: string) => {
+        store.set(k, String(v));
+      },
+      removeItem: (k: string) => {
+        store.delete(k);
+      },
+      clear: () => store.clear(),
+    });
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    store.clear();
+  });
+
+  it("allows the first attempt", () => {
+    expect(canAttemptSkewRecoveryReload(1_000_000)).toBe(true);
+  });
+
+  it("blocks a second attempt inside the cooldown window", () => {
+    const t0 = 1_000_000;
+    sessionStorage.setItem("skew_reload_at", String(t0));
+    expect(canAttemptSkewRecoveryReload(t0 + 30_000)).toBe(false);
+  });
+
+  it("allows another attempt after cooldown (morning-after / second deploy wave)", () => {
+    const t0 = 1_000_000;
+    sessionStorage.setItem("skew_reload_at", String(t0));
+    expect(canAttemptSkewRecoveryReload(t0 + SKEW_RELOAD_COOLDOWN_MS)).toBe(true);
+  });
+
+  it("resetSkewReloadCount clears the cooldown", () => {
+    sessionStorage.setItem("skew_reload_at", String(Date.now()));
+    resetSkewReloadCount();
+    expect(canAttemptSkewRecoveryReload()).toBe(true);
   });
 });
 

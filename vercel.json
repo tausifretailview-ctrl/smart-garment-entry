@@ -2,7 +2,10 @@
   "rewrites": [
     { "source": "/~oauth/:path*", "destination": "https://5542c4f6-5687-49fc-a3ae-a105152e96ae.lovableproject.com/~oauth/:path*" },
     { "source": "/downloads/(.*)", "destination": "/downloads/$1" },
-    { "source": "/(.*)", "destination": "/index.html" }
+    {
+      "source": "/((?!assets/|fonts/|downloads/|registerSW\\.js|sw\\.js|workbox-[^/]+\\.js|manifest\\.webmanifest|favicon\\.ico|robots\\.txt).*)",
+      "destination": "/index.html"
+    }
   ],
   "headers": [
     {
@@ -57,6 +60,12 @@
       "source": "/registerSW.js",
       "headers": [
         { "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }
+      ]
+    },
+    {
+      "source": "/index.html",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }
       ]
     },
     {
