@@ -2929,9 +2929,11 @@ export function CustomerLedger({
   ]);
 
   /**
-   * Refund banner — unused advance + CN minus invoice outstanding (recon).
-   * Do not use snapshot outstanding_dr: SQL still nets unused_advances into the SUM,
-   * which invented phantom “Refund owed” (Aafra: 10k − 4.8k party net = 5.2k).
+   * Refund banner — unused advance in excess of Dr outstanding, or abs(Cr).
+   * Pending CN is already inside recon invoice outstanding — do not stack
+   * snapshot cnAvailable on a Cr balance (Zohra: paid POS + pending SR → 2×).
+   * Do not use snapshot outstanding_dr: SQL still nets unused_advances into the SUM
+   * (Aafra: 10k − 4.8k party net = 5.2k phantom “Refund owed”).
    */
   const refundableCreditBalance = useMemo(() => {
     if (!selectedCustomer || isSchool) return 0;

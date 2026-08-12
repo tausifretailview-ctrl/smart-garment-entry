@@ -140,13 +140,28 @@ describe("computeRefundableCreditBalance", () => {
     ).toBe(10_000);
   });
 
-  it("invoice-side credit plus unused pool both count as refundable", () => {
+  it("invoice-side credit stacks unused advance but not CN already in outstanding", () => {
+    // Overpayment Cr ₹2,000 + unused advance ₹1,000. CN ₹500 that is already
+    // reflected in the Cr outstanding must not add again.
     expect(
       computeRefundableCreditBalance({
         unusedAdvance: 1_000,
         cnAvailable: 500,
         invoiceOutstanding: -2_000,
       }),
-    ).toBe(3_500);
+    ).toBe(3_000);
+  });
+
+  it("Zohra-shaped: paid POS + pending SR CN — refundable is CN once, not 2×", () => {
+    // POS ₹600 paid in full, then sale return pending CN ₹600.
+    // Recon Outstanding = −600 (Cr); snapshot cnAvailable = 600 (same return).
+    // Buggy: abs(−600) + 600 = 1_200. Correct cash owed back = 600.
+    expect(
+      computeRefundableCreditBalance({
+        unusedAdvance: 0,
+        cnAvailable: 600,
+        invoiceOutstanding: -600,
+      }),
+    ).toBe(600);
   });
 });

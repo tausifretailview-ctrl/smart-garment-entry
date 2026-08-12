@@ -46,7 +46,7 @@ export function sumReconciliationLinesToOutstanding(f: LedgerReconciliationFacet
 }
 
 /**
- * Economic refundable credit: unused advance + CN − invoice outstanding (Dr).
+ * Economic refundable credit: cash we can pay back to the customer.
  *
  * `invoiceOutstanding` must NOT already net unused advances. SQL
  * `get_customer_true_outstanding` / financial-snapshot `outstanding_dr` still
@@ -54,18 +54,26 @@ export function sumReconciliationLinesToOutstanding(f: LedgerReconciliationFacet
  * invoice ₹14,800 + unused ₹10,000 must not yield phantom ₹5,200 “Refund owed”).
  *
  * Signed invoice outstanding: >0 customer owes on invoices; <0 invoice-side credit.
+ *
+ * Pending sale-return / CN credit must already be inside `invoiceOutstanding`
+ * (ledger recon `saleReturns`, or balance-core `pendingStandaloneSaleReturns`).
+ * When outstanding is Cr, do **not** also add `cnAvailable` — that double-counts
+ * the same pending CN (Zohra: POS ₹600 paid + SR pending CN ₹600 → phantom ₹1,200;
+ * correct refundable = ₹600).
+ *
+ * `cnAvailable` still offsets a Dr / nil outstanding (excess CN beyond what they owe).
  */
 export function computeRefundableCreditBalance(params: {
   unusedAdvance: number;
   cnAvailable?: number;
   invoiceOutstanding: number;
 }): number {
-  const pool =
-    Math.max(0, Number(params.unusedAdvance) || 0) +
-    Math.max(0, Number(params.cnAvailable) || 0);
+  const unused = Math.max(0, Number(params.unusedAdvance) || 0);
+  const cn = Math.max(0, Number(params.cnAvailable) || 0);
   const inv = Number(params.invoiceOutstanding) || 0;
   if (inv < -0.5) {
-    return Math.round(Math.abs(inv) + pool);
+    // Cr outstanding already embeds pending returns/CN vs cash received.
+    return Math.round(Math.abs(inv) + unused);
   }
-  return Math.round(Math.max(0, pool - inv));
+  return Math.round(Math.max(0, unused + cn - inv));
 }
