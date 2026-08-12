@@ -5325,7 +5325,8 @@ Please clear your dues at the earliest. Thank you!`;
                               ₹{Math.abs(
                                 Math.round(transactionTotals.totalDebit - transactionTotals.totalCredit),
                               ).toLocaleString("en-IN")}{" "}
-                              {transactionTotals.totalDebit - transactionTotals.totalCredit >= 0 ? "Dr" : "Cr"} diff
+                              {transactionTotals.totalDebit - transactionTotals.totalCredit >= 0 ? "Dr" : "Cr"} gap
+                              <span className="block text-[10px] normal-case font-normal">(memo rows excluded)</span>
                             </TableCell>
                           </TableRow>
                           <TableRow className="bg-slate-50 dark:bg-slate-900/40 hover:bg-slate-50">
