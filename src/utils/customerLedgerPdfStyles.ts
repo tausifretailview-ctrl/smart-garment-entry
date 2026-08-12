@@ -65,6 +65,8 @@ export function ledgerPdfTypeLabel(t: { type: string; status?: string }): string
       return "Adv Refund";
     case "credit_note":
       return "Credit Note";
+    case "cn_adjusted":
+      return "CN Adjust";
     case "fee":
       return "Fee";
     default:
@@ -87,6 +89,9 @@ export function ledgerPdfTypeColor(t: { type: string; status?: string }): Rgb {
     case "cn_refund":
     case "adv_refund":
       return LEDGER_PDF.red;
+    case "cn_adjusted":
+    case "advance_application":
+      return LEDGER_PDF.muted;
     default:
       return LEDGER_PDF.muted;
   }

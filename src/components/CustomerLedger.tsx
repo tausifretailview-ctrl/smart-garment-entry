@@ -185,7 +185,7 @@ interface Transaction {
   id: string;
   date: string;
   timestamp: string | null;
-  type: 'invoice' | 'payment' | 'advance' | 'advance_application' | 'adjustment' | 'fee' | 'return' | 'refund' | 'adv_refund' | 'cn_refund' | 'credit_note';
+  type: 'invoice' | 'payment' | 'advance' | 'advance_application' | 'adjustment' | 'fee' | 'return' | 'refund' | 'adv_refund' | 'cn_refund' | 'credit_note' | 'cn_adjusted';
   reference: string;
   description: string;
   debit: number;
@@ -265,6 +265,10 @@ const getBadgeStyle = (type: string, status?: string) => {
     case 'cn_refund':
       return 'bg-rose-100 text-rose-800 border border-rose-300 dark:bg-rose-950/40 dark:text-rose-300';
     case 'advance_applied':
+      return 'bg-gray-100 text-gray-600 border border-gray-200';
+    case 'cn_adjusted':
+      // Same muted treatment as the "Adv Adj" memo tag — both are informational
+      // offset rows, not real invoices, and should read that way at a glance.
       return 'bg-gray-100 text-gray-600 border border-gray-200';
     default:
       return 'bg-gray-100 text-gray-600 border border-gray-200';
@@ -2126,7 +2130,7 @@ export function CustomerLedger({
               id: `${sale.id}-cn-applied`,
               date: sale.sale_date,
               timestamp: item.timestamp || null,
-              type: 'invoice',
+              type: 'cn_adjusted',
               reference: sale.sale_number,
               description: `↳ CN / S/R adjusted on ${sale.sale_number} (pending CN applied to bill)`,
               debit: 0,
@@ -3620,7 +3624,7 @@ Please clear your dues at the earliest. Thank you!`;
       const row: any = {
         Date: dateStr,
         Time: timeStr,
-        Type: t.type === 'invoice' ? 'Invoice' : t.type === 'return' ? 'Sale Return' : t.type === 'advance' ? 'Advance' : t.type === 'adjustment' ? 'Adjustment' : 'Payment',
+        Type: t.type === 'invoice' ? 'Invoice' : t.type === 'return' ? 'Sale Return' : t.type === 'advance' ? 'Advance' : t.type === 'adjustment' ? 'Adjustment' : t.type === 'cn_adjusted' ? 'CN Adjust' : 'Payment',
         Reference: t.reference,
         Description: t.description,
         Debit: t.debit > 0 ? t.debit.toFixed(2) : '',
@@ -5109,6 +5113,10 @@ Please clear your dues at the earliest. Thank you!`;
                                   ) : transaction.type === 'credit_note' ? (
                                     <Badge className="bg-purple-100 text-purple-700 border border-purple-300 text-xs">
                                       Credit Note
+                                    </Badge>
+                                  ) : transaction.type === 'cn_adjusted' ? (
+                                    <Badge className={cn("text-xs", getBadgeStyle('cn_adjusted'))}>
+                                      CN Adjust
                                     </Badge>
                                   ) : (
                                     <>
