@@ -123,6 +123,11 @@ Deno.serve(async (req) => {
       invoiceTemplate === 'gift_tally' && receivingBankDetails
         ? receivingBankDetails
         : saleSettings?.bank_details || null;
+
+    const showBankDetails =
+      invoiceTemplate === 'gift_tally'
+        ? !!resolvedBankDetails
+        : (saleSettings?.show_bank_details ?? false) && !!resolvedBankDetails;
     const sanitizedSettings = settings ? {
       business_name: settings.business_name,
       address: settings.address,
@@ -144,11 +149,13 @@ Deno.serve(async (req) => {
       declaration_text: saleSettings?.declaration_text || '',
       terms_list: saleSettings?.terms_list || [],
       font_family: saleSettings?.font_family || 'inter',
-      bank_details: resolvedBankDetails,
-      show_bank_details:
-        invoiceTemplate === 'gift_tally'
-          ? !!resolvedBankDetails
-          : saleSettings?.show_bank_details ?? false,
+      // PRIVACY: this endpoint is unauthenticated (guarded only by an unguessable sale UUID)
+      // and the resulting link is routinely forwarded over WhatsApp. `bank_details` carries
+      // account_number / ifsc_code, so it must only be present in the payload when the shop
+      // has actually opted into printing it. Previously it was always sent and merely hidden
+      // client-side by `show_bank_details` - visible to anyone reading the JSON response.
+      bank_details: showBankDetails ? resolvedBankDetails : null,
+      show_bank_details: showBankDetails,
       pos_bill_format: saleSettings?.pos_bill_format || 'thermal',
       thermal_receipt_style: saleSettings?.thermal_receipt_style || 'classic',
       bill_barcode_settings: settings?.bill_barcode_settings ? {

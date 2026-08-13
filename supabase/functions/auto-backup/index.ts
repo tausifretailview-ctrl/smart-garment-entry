@@ -1,10 +1,22 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { fetchAllRows } from "../_shared/backupFetch.ts";
+import { isInternalDispatch } from "../_shared/internalDispatch.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+// Minimum retention we will ever act on. A caller-supplied 0 or negative value would put
+// the purge cutoff at (or after) "now", deleting every backup the org has ever taken.
+export const MIN_RETENTION_DAYS = 7;
+export const MAX_RETENTION_DAYS = 3650;
+
+/** Clamp an untrusted retention value into a safe range. Returns null if not a number. */
+export function clampRetentionDays(value: unknown): number | null {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return null;
+  return Math.min(MAX_RETENTION_DAYS, Math.max(MIN_RETENTION_DAYS, Math.floor(value)));
+}
 
 // Purge backup files in storage and backup_logs older than retentionDays for one org.
 // Caps at 1000 files per run for safety. Returns counts.
@@ -15,6 +27,15 @@ async function purgeOldBackups(
 ): Promise<{ files_deleted: number; logs_deleted: number }> {
   let filesDeleted = 0;
   let logsDeleted = 0;
+
+  // Defence in depth: never purge on a nonsensical retention window, whatever the caller said.
+  if (!Number.isFinite(retentionDays) || retentionDays < MIN_RETENTION_DAYS) {
+    console.error(
+      `Refusing to purge for ${organizationId}: retentionDays=${retentionDays} below floor ${MIN_RETENTION_DAYS}`,
+    );
+    return { files_deleted: 0, logs_deleted: 0 };
+  }
+
   const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
 
   try {
@@ -103,12 +124,15 @@ Deno.serve(async (req) => {
       organizationId: string;
       backupType?: string;
       retentionDays?: number;
-      internalDispatch?: boolean;
     };
     organizationId = parsed.organizationId;
     const backupType = parsed.backupType ?? 'automatic';
     const bodyRetention = parsed.retentionDays;
-    const internalDispatch = parsed.internalDispatch ?? false;
+
+    // SECURITY: internal-dispatch status comes from a shared secret in the request HEADERS,
+    // never from the body. A body flag is attacker-controlled and previously bypassed
+    // authentication, org membership and the admin-role check on this function.
+    const internalDispatch = isInternalDispatch(req);
 
     if (!organizationId) throw new Error('Organization ID is required');
 
@@ -144,7 +168,11 @@ Deno.serve(async (req) => {
     }
 
     // Resolve retention days (prefer body, else read from settings)
-    let retentionDays = typeof bodyRetention === 'number' ? bodyRetention : null;
+    // The dispatcher is authenticated by shared secret, so its value is trusted as-is.
+    // Anything from an end-user call is clamped to a safe floor before it can drive a purge.
+    let retentionDays = internalDispatch
+      ? (typeof bodyRetention === 'number' && Number.isFinite(bodyRetention) ? bodyRetention : null)
+      : clampRetentionDays(bodyRetention);
     if (retentionDays === null) {
       const { data: s } = await supabase
         .from('settings')

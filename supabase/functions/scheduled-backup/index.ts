@@ -1,6 +1,7 @@
 // Dispatcher: lists orgs with auto-backup enabled and fans out to auto-backup
 // (one invocation per org, fire-and-forget) so we never hit edge function timeout.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { isInternalDispatch, internalDispatchHeaders } from "../_shared/internalDispatch.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -19,6 +20,17 @@ const AUTO_BACKUP_INTERVAL_MS = AUTO_BACKUP_INTERVAL_DAYS * 24 * 60 * 60 * 1000;
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
+  }
+
+  // SECURITY: this function runs with verify_jwt = false and fans out full-database
+  // exports for every organization. It must only ever be invoked by the cron scheduler,
+  // which presents the shared dispatch secret.
+  if (!isInternalDispatch(req)) {
+    console.error('Rejected scheduled-backup invocation without valid dispatch secret');
+    return new Response(
+      JSON.stringify({ error: 'Forbidden' }),
+      { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
   }
 
   try {
@@ -73,12 +85,12 @@ Deno.serve(async (req) => {
             'Authorization': `Bearer ${supabaseServiceKey}`,
             'apikey': supabaseServiceKey,
             'Content-Type': 'application/json',
+            ...internalDispatchHeaders(),
           },
           body: JSON.stringify({
             organizationId: orgId,
             backupType: 'automatic',
             retentionDays,
-            internalDispatch: true,
           }),
         });
         // Just check status code; don't await body
