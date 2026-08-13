@@ -3772,8 +3772,8 @@ main:has(.net-profit-workspace) {
   .net-profit-report {
     display: block !important;
     position: static !important;
-    width: 100% !important;
-    max-width: 100% !important;
+    width: 210mm !important;
+    max-width: 210mm !important;
     height: auto !important;
     min-height: 0 !important;
     max-height: none !important;
@@ -3806,7 +3806,7 @@ main:has(.net-profit-workspace) {
   .net-profit-report table {
     width: 100% !important;
     border-collapse: collapse !important;
-    table-layout: auto !important;
+    table-layout: fixed !important;
   }
 
   .net-profit-report table thead {
@@ -3824,19 +3824,29 @@ main:has(.net-profit-workspace) {
   }
 
   .net-profit-report table thead th {
-    font-size: 9pt !important;
+    font-size: 8pt !important;
     letter-spacing: 0.03em !important;
-    padding: 3mm 2mm !important;
+    padding: 2.5mm 1.2mm !important;
     background-color: #1e293b !important;
     color: #ffffff !important;
   }
 
   .net-profit-report table tbody td,
   .net-profit-report table tfoot td {
-    font-size: 9pt !important;
-    line-height: 1.35 !important;
-    padding: 2mm 2mm !important;
+    font-size: 10pt !important;
+    line-height: 1.25 !important;
+    padding: 1.6mm 1.2mm !important;
     vertical-align: middle !important;
+  }
+
+  .net-profit-report table .net-profit-print-num {
+    white-space: nowrap !important;
+  }
+
+  .net-profit-report table tbody td:first-child,
+  .net-profit-report table tfoot td:first-child {
+    word-break: break-word !important;
+    overflow-wrap: anywhere !important;
   }
 
   .net-profit-report table tbody tr {

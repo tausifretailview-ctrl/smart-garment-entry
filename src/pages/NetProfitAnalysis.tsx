@@ -207,8 +207,9 @@ function ProfitBreakdownTable({
                 key={col.key}
                 className={cn(
                   tableHeadClass,
-                  col.align === "right" && "text-right",
+                  col.align === "right" && "text-right net-profit-print-num",
                   col.accent === "orange" && "text-orange-300",
+                  col.accent === "margin" && "print:hidden",
                 )}
                 title={col.title}
               >
@@ -233,14 +234,14 @@ function ProfitBreakdownTable({
                 {columns.map((col) => {
                   if (col.accent === "margin") {
                     return (
-                      <TableCell key={col.key} className="text-right">
+                      <TableCell key={col.key} className="text-right print:hidden">
                         {renderMargin(Number(col.get(row)))}
                       </TableCell>
                     );
                   }
                   if (col.money) {
                     return (
-                      <TableCell key={col.key} className="text-right">
+                      <TableCell key={col.key} className="text-right net-profit-print-num">
                         {renderMoney(Number(col.get(row)), col.accent)}
                         {col.key === "cogs" && row.zeroCostQty > 0 && (
                           <span
@@ -255,13 +256,14 @@ function ProfitBreakdownTable({
                     );
                   }
                   const val = col.get(row);
-                  return (
+                    return (
                     <TableCell
                       key={col.key}
                       className={cn(
                         tableCellClass,
                         col.align === "right" && "text-right",
                         col.key === "label" && "font-semibold",
+                        (col.key === "items" || col.key === "qty") && "net-profit-print-num",
                       )}
                       title={col.key === "label" ? String(val) : undefined}
                     >
@@ -286,7 +288,7 @@ function ProfitBreakdownTable({
                 }
                 if (col.accent === "margin") {
                   return (
-                    <TableCell key={col.key} className="text-right">
+                    <TableCell key={col.key} className="text-right print:hidden">
                       <Badge
                         variant={totals.grossProfit >= 0 ? "default" : "destructive"}
                         className={marginBadgeClass}
@@ -298,7 +300,7 @@ function ProfitBreakdownTable({
                 }
                 if (col.key === "qty" || col.key === "items") {
                   return (
-                    <TableCell key={col.key} className={cn(tableCellClass, "text-right font-bold")}>
+                    <TableCell key={col.key} className={cn(tableCellClass, "text-right font-bold net-profit-print-num")}>
                       {totals.itemsSold}
                     </TableCell>
                   );
@@ -319,7 +321,7 @@ function ProfitBreakdownTable({
                     profit: totals.grossProfit,
                   };
                   return (
-                    <TableCell key={col.key} className="text-right">
+                    <TableCell key={col.key} className="text-right net-profit-print-num">
                       {renderMoney(map[col.key] ?? 0, col.accent)}
                     </TableCell>
                   );
@@ -814,12 +816,12 @@ export default function NetProfitAnalysis() {
         </Card>
       </div>
 
-      {/* A4 report print: isolate content, full page width, readable type */}
+      {/* A4 report print: isolate content, fit page width, readable type, no Margin % */}
       <style>{`
         @media print {
           @page {
             size: A4 portrait;
-            margin: 10mm 12mm;
+            margin: 8mm 8mm;
           }
           body * {
             visibility: hidden;
@@ -832,15 +834,16 @@ export default function NetProfitAnalysis() {
             position: absolute !important;
             left: 0 !important;
             top: 0 !important;
-            width: 100% !important;
-            max-width: 100% !important;
+            width: 210mm !important;
+            max-width: 210mm !important;
             margin: 0 !important;
-            padding: 0 !important;
+            padding: 0 2mm !important;
             height: auto !important;
             max-height: none !important;
             overflow: visible !important;
             background: white !important;
             color: black !important;
+            page: a4;
           }
           .net-profit-report .print\\:hidden {
             display: none !important;
@@ -851,12 +854,12 @@ export default function NetProfitAnalysis() {
             visibility: visible !important;
           }
           .net-profit-report h1 {
-            font-size: 16pt !important;
-            line-height: 1.25 !important;
+            font-size: 14pt !important;
+            line-height: 1.2 !important;
           }
           .net-profit-report h2 {
-            font-size: 12pt !important;
-            line-height: 1.3 !important;
+            font-size: 11pt !important;
+            line-height: 1.25 !important;
           }
           .net-profit-report p {
             font-size: 9pt !important;
@@ -874,15 +877,26 @@ export default function NetProfitAnalysis() {
           }
           .net-profit-report table {
             width: 100% !important;
+            table-layout: fixed !important;
+            font-size: 10pt !important;
           }
           .net-profit-report table thead th {
-            font-size: 9pt !important;
-            padding: 4px 6px !important;
+            font-size: 8pt !important;
+            padding: 2.5mm 1.2mm !important;
           }
           .net-profit-report table tbody td,
           .net-profit-report table tfoot td {
-            font-size: 9pt !important;
-            padding: 3px 6px !important;
+            font-size: 10pt !important;
+            line-height: 1.25 !important;
+            padding: 1.6mm 1.2mm !important;
+          }
+          .net-profit-report table .net-profit-print-num {
+            white-space: nowrap !important;
+          }
+          .net-profit-report table tbody td:first-child,
+          .net-profit-report table tfoot td:first-child {
+            word-break: break-word !important;
+            overflow-wrap: anywhere !important;
           }
           .net-profit-report .sticky {
             position: static !important;
