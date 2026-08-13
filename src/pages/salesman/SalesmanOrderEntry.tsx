@@ -99,6 +99,7 @@ const SalesmanOrderEntry = () => {
   const [orderNumber, setOrderNumber] = useState("");
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
+  const savingLockRef = useRef(false);
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showDraftDialog, setShowDraftDialog] = useState(false);
 
@@ -171,10 +172,13 @@ const SalesmanOrderEntry = () => {
   useEffect(() => {
     if (currentOrganization?.id) {
       generateOrderNumber();
-      const customerId = searchParams.get("customerId");
-      if (customerId) {
-        fetchCustomerById(customerId);
-      }
+    }
+  }, [currentOrganization?.id]);
+
+  useEffect(() => {
+    const customerId = searchParams.get("customerId");
+    if (currentOrganization?.id && customerId) {
+      fetchCustomerById(customerId);
     }
   }, [currentOrganization?.id, searchParams]);
 
@@ -195,33 +199,65 @@ const SalesmanOrderEntry = () => {
     setShowDraftDialog(false);
   }, [deleteDraft]);
 
-  const generateOrderNumber = async (): Promise<string> => {
+  const isDuplicateOrderNumber = (error: { code?: string; message?: string } | null | undefined) =>
+    error?.code === "23505" || !!error?.message?.includes("duplicate key");
+
+  const fyOrderPrefix = () => {
     const now = new Date();
     const year = now.getMonth() >= 3 ? now.getFullYear() % 100 : (now.getFullYear() - 1) % 100;
-    const nextYear = year + 1;
-    const prefix = `SO/${year}-${nextYear}/`;
+    return `SO/${year}-${year + 1}/`;
+  };
 
-    // Find max sequence number by querying existing order numbers (include deleted for reuse)
-    const { data: orders } = await supabase
-      .from("sale_orders")
-      .select("order_number")
-      .eq("organization_id", currentOrganization!.id)
-      .ilike("order_number", `${prefix}%`);
-
+  // Fallback when the atomic RPC is unavailable or its sequence has drifted
+  // behind numbers already inserted by the old client-side max+1 path.
+  const nextOrderNumberFromExisting = async (): Promise<string> => {
+    const prefix = fyOrderPrefix();
     let maxSeq = 0;
-    if (orders) {
-      orders.forEach(order => {
+    const pageSize = 1000;
+    let offset = 0;
+
+    while (currentOrganization?.id) {
+      const { data: orders } = await supabase
+        .from("sale_orders")
+        .select("order_number")
+        .eq("organization_id", currentOrganization.id)
+        .ilike("order_number", `${prefix}%`)
+        .range(offset, offset + pageSize - 1);
+
+      if (!orders?.length) break;
+
+      for (const order of orders) {
         const match = order.order_number?.match(/\/(\d+)$/);
         if (match) {
           const seq = parseInt(match[1], 10);
           if (seq > maxSeq) maxSeq = seq;
         }
-      });
+      }
+
+      if (orders.length < pageSize) break;
+      offset += pageSize;
     }
 
-    const newOrderNumber = `${prefix}${maxSeq + 1}`;
-    setOrderNumber(newOrderNumber);
-    return newOrderNumber;
+    return `${prefix}${maxSeq + 1}`;
+  };
+
+  const generateOrderNumber = async (): Promise<string> => {
+    if (currentOrganization?.id) {
+      const { data, error } = await supabase.rpc("generate_sale_order_number", {
+        p_organization_id: currentOrganization.id,
+      });
+      if (!error && data) {
+        setOrderNumber(data);
+        return data;
+      }
+      if (error) {
+        console.warn("generate_sale_order_number failed, falling back:", error);
+      }
+    }
+
+    const fallback = await nextOrderNumberFromExisting();
+    setOrderNumber(fallback);
+    return fallback;
   };
 
   const fetchCustomerById = async (customerId: string) => {
@@ -482,11 +518,16 @@ const SalesmanOrderEntry = () => {
   };
 
   const saveOrder = async (shareAfter: boolean = false) => {
+    if (savingLockRef.current) return;
+    savingLockRef.current = true;
+
     if (!selectedCustomer) {
+      savingLockRef.current = false;
       toast.error("Please select a customer");
       return;
     }
     if (orderItems.length === 0) {
+      savingLockRef.current = false;
       toast.error("Please add at least one item");
       return;
     }
@@ -494,6 +535,7 @@ const SalesmanOrderEntry = () => {
     // Validate no items have zero quantity
     const zeroQtyItems = orderItems.filter(item => item.quantity <= 0);
     if (zeroQtyItems.length > 0) {
+      savingLockRef.current = false;
       const itemNames = zeroQtyItems.map(item => 
         `${item.product.product_name} (${item.variant.size})`
       ).join(", ");
@@ -504,39 +546,59 @@ const SalesmanOrderEntry = () => {
     // Validate total quantity is greater than zero
     const totalQuantity = orderItems.reduce((sum, item) => sum + item.quantity, 0);
     if (totalQuantity <= 0) {
+      savingLockRef.current = false;
       toast.error("Order must have at least one item with quantity greater than 0");
       return;
     }
 
     setSaving(true);
     try {
-      // CRITICAL: Regenerate order number atomically before saving to prevent duplicates
-      const freshOrderNumber = await generateOrderNumber();
-      
-      // Create sale order
-      const { data: order, error: orderError } = await supabase
-        .from("sale_orders")
-        .insert({
-          organization_id: currentOrganization!.id,
-          order_number: freshOrderNumber,
-          order_date: new Date().toISOString(),
-          customer_id: selectedCustomer.id,
-          customer_name: selectedCustomer.customer_name,
-          customer_phone: selectedCustomer.phone,
-          customer_address: selectedCustomer.address,
-          gross_amount: grossAmount,
-          discount_amount: 0,
-          gst_amount: gstAmount,
-          net_amount: netAmount,
-          status: "pending",
-          notes,
-          created_by: user!.id,
-          salesman: user!.email,
-        })
-        .select()
-        .single();
+      let freshOrderNumber = await generateOrderNumber();
+      let order: { id: string } | null = null;
+      let insertError: { code?: string; message?: string } | null = null;
 
-      if (orderError) throw orderError;
+      // Match desktop SaleOrderEntry: retry on unique order_number collisions.
+      // After a couple of RPC attempts, jump to max(existing)+1 in case the
+      // bill_number sequence lagged behind salesman orders created the old way.
+      for (let attempt = 0; attempt < 5; attempt++) {
+        if (attempt > 0) {
+          freshOrderNumber = attempt >= 2
+            ? await nextOrderNumberFromExisting()
+            : await generateOrderNumber();
+        }
+
+        const { data, error: orderError } = await supabase
+          .from("sale_orders")
+          .insert({
+            organization_id: currentOrganization!.id,
+            order_number: freshOrderNumber,
+            order_date: new Date().toISOString(),
+            customer_id: selectedCustomer.id,
+            customer_name: selectedCustomer.customer_name,
+            customer_phone: selectedCustomer.phone,
+            customer_address: selectedCustomer.address,
+            gross_amount: grossAmount,
+            discount_amount: 0,
+            gst_amount: gstAmount,
+            net_amount: netAmount,
+            status: "pending",
+            notes,
+            created_by: user!.id,
+            salesman: user!.email,
+          })
+          .select("id")
+          .single();
+
+        if (!orderError && data) {
+          order = data;
+          break;
+        }
+
+        insertError = orderError;
+        if (!isDuplicateOrderNumber(orderError)) throw orderError;
+      }
+
+      if (!order) throw insertError;
 
       // Create order items
       const items = orderItems.map(item => ({
@@ -588,8 +650,13 @@ const SalesmanOrderEntry = () => {
       navigate("/salesman/orders");
     } catch (error: any) {
       console.error("Error saving order:", error);
-      toast.error(error.message || "Failed to save order");
+      toast.error(
+        isDuplicateOrderNumber(error)
+          ? "Order number already used. Please tap Save again."
+          : (error.message || "Failed to save order")
+      );
     } finally {
+      savingLockRef.current = false;
       setSaving(false);
     }
   };
