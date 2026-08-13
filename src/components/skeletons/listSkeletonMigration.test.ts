@@ -1,6 +1,17 @@
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+
+/**
+ * Repo root, derived from this file's own location.
+ *
+ * This was previously hardcoded to "/workspace" -- the Cloud Agent container root --
+ * so these three suites could only ever pass inside that container and failed with
+ * ENOENT on every other checkout. Deriving it from import.meta.url makes the suite
+ * runnable anywhere and does not depend on the working directory vitest was started from.
+ */
+const REPO_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
 
 /** LIST-bucket files migrated in PR #234 — skeletons must gate on isLoading, never isFetching. */
 const LIST_MIGRATED_FILES = [
@@ -48,7 +59,7 @@ function extractSkeletonGates(source: string): string[] {
 describe("LIST skeleton migration — stale-data / isLoading-only rule", () => {
   it("every migrated file imports a List skeleton", () => {
     for (const rel of LIST_MIGRATED_FILES) {
-      const src = readFileSync(join("/workspace", rel), "utf8");
+      const src = readFileSync(join(REPO_ROOT, rel), "utf8");
       expect(src, rel).toMatch(/List(?:Page|Table)Skeleton/);
     }
   });
@@ -67,7 +78,7 @@ describe("LIST skeleton migration — stale-data / isLoading-only rule", () => {
     ]);
 
     for (const rel of LIST_MIGRATED_FILES) {
-      const src = readFileSync(join("/workspace", rel), "utf8");
+      const src = readFileSync(join(REPO_ROOT, rel), "utf8");
       const gates = extractSkeletonGates(src);
       expect(gates.length, `${rel} should render a List skeleton`).toBeGreaterThan(0);
       for (const gate of gates) {
@@ -79,7 +90,7 @@ describe("LIST skeleton migration — stale-data / isLoading-only rule", () => {
 
   it("ListPageSkeleton table region keeps fixed min-height (no layout jump)", () => {
     const src = readFileSync(
-      "/workspace/src/components/skeletons/ListPageSkeleton.tsx",
+      join(REPO_ROOT, "src/components/skeletons/ListPageSkeleton.tsx"),
       "utf8",
     );
     expect(src).toContain("min-h-[260px]");

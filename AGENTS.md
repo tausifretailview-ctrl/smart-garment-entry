@@ -3,7 +3,7 @@
 ## Cursor Cloud specific instructions
 
 ### What this project is
-EzzyERP — a single Vite + React + TypeScript web app (multi-tenant retail POS / billing / inventory / accounting for Indian businesses). It also has thin Capacitor (Android) and Electron (Windows) wrappers, but the web app is the primary surface. Package manager is **npm** (`package-lock.json`); a `bun.lock` also exists but npm is canonical (all `package.json` scripts call `npm run`).
+EzzyERP — a single Vite + React + TypeScript web app (multi-tenant retail POS / billing / inventory / accounting for Indian businesses). It also has thin Capacitor (Android) and Electron (Windows) wrappers, but the web app is the primary surface. Package manager is **npm** (`package-lock.json`). All `package.json` scripts call `npm run`. Do not add a second lockfile — Vercel auto-detects the package manager from whichever lockfile is present.
 
 ### Backend
 - The sole backend is a **cloud-hosted Supabase project** (Postgres + Auth + RLS + Edge Functions), owned by Lovable. Credentials are already committed in `.env` (`VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`). No local database/backend needs to be started to run or develop the frontend.
