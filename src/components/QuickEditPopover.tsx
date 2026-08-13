@@ -50,7 +50,7 @@ const QuickEditPopover = ({
 
       const { error } = await supabase
         .from(dbTable)
-        .update({ [dbField]: finalVal, updated_at: new Date().toISOString() })
+        .update({ [dbField]: finalVal, updated_at: new Date().toISOString() } as never)
         .eq("id", id);
 
       if (error) throw error;
