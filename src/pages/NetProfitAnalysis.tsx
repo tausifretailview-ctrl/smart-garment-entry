@@ -1,4 +1,5 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -30,6 +31,7 @@ import {
   UserRound,
   UserCheck,
   Layers,
+  RefreshCw,
 } from "lucide-react";
 import { ReportPageSkeleton } from "@/components/skeletons/ReportPageSkeleton";
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek } from "date-fns";
@@ -49,11 +51,11 @@ import {
   aggregateForTab,
   sumAggregates,
   FIELD_DIMENSION_OPTIONS,
-  type ProfitDataset,
   type ProfitAggregateRow,
   type NetProfitTab,
   type NetProfitFieldDimension,
 } from "@/utils/netProfitAnalysis";
+import { STALE_DASHBOARD_TAB_RETURN } from "@/lib/queryStaleTimes";
 
 const formatCurrency = (amount: number) =>
   new Intl.NumberFormat("en-IN", {
@@ -124,14 +126,12 @@ function ProfitBreakdownTable({
   totals,
   emptyLabel,
   loading,
-  hasGenerated,
 }: {
   rows: ProfitAggregateRow[];
   columns: ColumnDef[];
   totals: ReturnType<typeof sumAggregates>;
   emptyLabel: string;
   loading: boolean;
-  hasGenerated: boolean;
 }) {
   const tableHeadClass = "h-12 px-4 text-sm font-bold uppercase tracking-wide text-white";
   const tableRowClass = "h-12 hover:bg-teal-50/80 dark:hover:bg-teal-950/20";
@@ -150,14 +150,6 @@ function ProfitBreakdownTable({
       />
     );
   }
-  if (!hasGenerated) {
-    return (
-      <div className="flex flex-1 items-center justify-center text-base text-muted-foreground">
-        Click Generate to load profit data
-      </div>
-    );
-  }
-
   const renderMoney = (value: number, accent?: ColumnDef["accent"]) => {
     if (accent === "orange") {
       // Discounts are non-negative; never prepend minus onto an already-negative formatCurrency.
@@ -353,10 +345,35 @@ export default function NetProfitAnalysis() {
 
   const [activeTab, setActiveTab] = useState<NetProfitTab>("supplier-wise");
   const [fieldDimension, setFieldDimension] = useState<NetProfitFieldDimension>("brand");
-  const [loading, setLoading] = useState(false);
-  const [dataset, setDataset] = useState<ProfitDataset | null>(null);
   const [search, setSearch] = useState("");
-  const [hasGenerated, setHasGenerated] = useState(false);
+  const [debouncedFrom, setDebouncedFrom] = useState(fromDate);
+  const [debouncedTo, setDebouncedTo] = useState(toDate);
+
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      setDebouncedFrom(fromDate);
+      setDebouncedTo(toDate);
+    }, 300);
+    return () => window.clearTimeout(t);
+  }, [fromDate, toDate]);
+
+  const {
+    data: dataset,
+    isLoading,
+    isFetching,
+    isError,
+    refetch,
+  } = useQuery({
+    queryKey: ["net-profit-analysis", currentOrganization?.id, debouncedFrom, debouncedTo],
+    queryFn: () => loadProfitDataset(currentOrganization!.id, debouncedFrom, debouncedTo),
+    enabled: !!currentOrganization?.id && !!debouncedFrom && !!debouncedTo,
+    placeholderData: keepPreviousData,
+    staleTime: STALE_DASHBOARD_TAB_RETURN,
+  });
+
+  useEffect(() => {
+    if (isError) toast.error("Failed to load net profit data");
+  }, [isError]);
 
   const aggregatedRows = useMemo(() => {
     if (!dataset) return [] as ProfitAggregateRow[];
@@ -375,24 +392,6 @@ export default function NetProfitAnalysis() {
   }, [aggregatedRows, search]);
 
   const activeTotals = useMemo(() => sumAggregates(filteredRows), [filteredRows]);
-
-  const handleGenerate = async () => {
-    if (!currentOrganization?.id) return;
-    setHasGenerated(true);
-    setLoading(true);
-    try {
-      const data = await loadProfitDataset(currentOrganization.id, fromDate, toDate);
-      setDataset(data);
-      if (data.lines.length === 0) {
-        toast.message("No sales or returns in the selected period");
-      }
-    } catch (error) {
-      console.error("Error loading net profit dataset:", error);
-      toast.error("Failed to load net profit data");
-      setDataset(null);
-    }
-    setLoading(false);
-  };
 
   const handleFYPresetSelect = (from: string, to: string, key: string) => {
     setFromDate(from);
@@ -647,7 +646,7 @@ export default function NetProfitAnalysis() {
           </div>
         </div>
 
-        {hasGenerated && !loading && (
+        {dataset && (
           <div className="grid shrink-0 grid-cols-2 gap-2 print:hidden lg:grid-cols-4">
             {kpiItems.map((item) => (
               <div
@@ -675,7 +674,10 @@ export default function NetProfitAnalysis() {
                 <Input
                   type="date"
                   value={fromDate}
-                  onChange={(e) => setFromDate(e.target.value)}
+                  onChange={(e) => {
+                    setFromDate(e.target.value);
+                    setFyPreset("");
+                  }}
                   className="h-11 w-40 border-slate-200 bg-slate-50 text-base"
                 />
               </div>
@@ -686,18 +688,25 @@ export default function NetProfitAnalysis() {
                 <Input
                   type="date"
                   value={toDate}
-                  onChange={(e) => setToDate(e.target.value)}
+                  onChange={(e) => {
+                    setToDate(e.target.value);
+                    setFyPreset("");
+                  }}
                   className="h-11 w-40 border-slate-200 bg-slate-50 text-base"
                 />
               </div>
               <Button
-                onClick={handleGenerate}
-                disabled={loading}
+                onClick={() => void refetch()}
+                disabled={isFetching}
                 size="sm"
                 className="h-11 px-5 text-base font-semibold"
               >
-                {loading && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
-                Generate
+                {isFetching ? (
+                  <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="mr-1.5 h-4 w-4" />
+                )}
+                Refresh
               </Button>
               <FYPresets onSelect={handleFYPresetSelect} currentSelection={fyPreset} />
             </div>
@@ -800,7 +809,7 @@ export default function NetProfitAnalysis() {
               <p className="shrink-0 px-3 py-1.5 text-sm text-muted-foreground print:hidden">
                 Discounts match POS Disc (item + bill flat + points) — not round-off or S/R adjust.
                 Net sales include round-off and subtract sale-return adjust (same as POS Net after
-                disc/SR). Services included (COGS 0). Generate once — tabs re-group in memory.
+                disc/SR). Services included (COGS 0). Tabs re-group in memory.
               </p>
 
               <ProfitBreakdownTable
@@ -808,8 +817,7 @@ export default function NetProfitAnalysis() {
                 columns={columnsForTab}
                 totals={activeTotals}
                 emptyLabel="No data available for the selected period"
-                loading={loading}
-                hasGenerated={hasGenerated}
+                loading={isLoading && !dataset}
               />
             </div>
           </div>
