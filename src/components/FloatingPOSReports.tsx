@@ -655,20 +655,12 @@ async function searchQuickStockVariants(orgId: string, rawQuery: string) {
     products = prodQ.data || [];
   }
 
-  if (tokens.length > 1) {
-    products = products.filter((p) =>
-      matchesProductSearchFields(
-        {
-          product_name: p.product_name ?? undefined,
-          brand: p.brand ?? undefined,
-          category: p.category ?? undefined,
-          style: p.style ?? undefined,
-        },
-        safeTerm,
-      ),
-    );
-  }
-
+  // NOTE: no product-level AND-filter here. Colour and size live on
+  // product_variants, so requiring every token to match product_name/brand/
+  // category/style discarded valid products ("100 BLACK") before the variant
+  // fetch ran. Narrowing is done by restrictProductsToExactNameMatches below,
+  // and the variant-level filter (which includes color/size) applies the
+  // remaining tokens.
   const exactOnly = restrictProductsToExactNameMatches(products, primary);
   if (exactOnly) products = exactOnly;
 
