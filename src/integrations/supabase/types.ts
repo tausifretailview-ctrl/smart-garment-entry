@@ -4966,6 +4966,33 @@ export type Database = {
           },
         ]
       }
+      repair_ks_receipt_reallocation_20260813: {
+        Row: {
+          id: string
+          moved_at: string | null
+          new_reference_id: string
+          original_reference_id: string
+          total_amount: number
+          voucher_number: string
+        }
+        Insert: {
+          id: string
+          moved_at?: string | null
+          new_reference_id: string
+          original_reference_id: string
+          total_amount: number
+          voucher_number: string
+        }
+        Update: {
+          id?: string
+          moved_at?: string | null
+          new_reference_id?: string
+          original_reference_id?: string
+          total_amount?: number
+          voucher_number?: string
+        }
+        Relationships: []
+      }
       sale_financer_details: {
         Row: {
           bank_transfer_amount: number | null
