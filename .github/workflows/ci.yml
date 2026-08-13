@@ -1,0 +1,68 @@
+name: CI
+
+# Minimum viable enforcement. Before this workflow existed nothing ran the test
+# suite automatically, so a permanently-red baseline (the three skeleton suites
+# hardcoded to a container path) went unnoticed and trained everyone to ignore
+# failures. Keep this green.
+#
+# Package manager is npm (package-lock.json). Vercel auto-detects from the
+# lockfile; do not add bun.lock or the production install silently switches.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      # npm ci is the point: it fails if package.json and package-lock.json
+      # have drifted, which is the condition that made a clean install impossible.
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Test
+        run: npm test
+
+      # Floating-promise ratchet. Fails only if the count RISES above the
+      # baseline in .eslint-floating-promises-baseline.json.
+      - name: Lint ratchet
+        run: npm run lint:ratchet
+
+  # Fails if a second lockfile reappears. Two package managers in one repo means
+  # the install is whatever tool the last person happened to run.
+  single-lockfile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Assert exactly one lockfile
+        run: |
+          set -eu
+          found=""
+          for f in bun.lock bun.lockb yarn.lock pnpm-lock.yaml; do
+            [ -f "$f" ] && found="$found $f"
+          done
+          if [ -n "$found" ]; then
+            echo "Unexpected lockfile(s):$found"
+            echo "This repo standardises on package-lock.json. Remove the others."
+            exit 1
+          fi
+          test -f package-lock.json || { echo "package-lock.json is missing"; exit 1; }
+          echo "package-lock.json only - OK"

@@ -43,3 +43,8 @@ public/downloads/*.exe
 *.njsproj
 *.sln
 *.sw?
+
+# Nested checkout of this repo that appears inside src/ on some working copies.
+# It duplicates every test (doubling failure counts) and is an easy file to edit
+# by mistake. Never commit it.
+src/smart-garment-entry/
