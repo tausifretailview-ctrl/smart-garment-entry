@@ -191,12 +191,12 @@ function snapshotToInsert(
 async function insertBackupRow(
   row: Record<string, unknown>,
 ): Promise<void> {
-  const { error } = await supabase.from("printer_presets_backup").insert([row]);
+  const { error } = await supabase.from("printer_presets_backup").insert([row as never]);
   if (!error) return;
   if (isMissingPgColumn(error, "h_gap") && "h_gap" in row) {
     const { error: retryError } = await supabase
       .from("printer_presets_backup")
-      .insert([omitRecordKey(row, "h_gap")]);
+      .insert([omitRecordKey(row, "h_gap") as never]);
     if (retryError) throw retryError;
     return;
   }
