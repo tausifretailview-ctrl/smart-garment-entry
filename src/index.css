@@ -3772,15 +3772,14 @@ main:has(.net-profit-workspace) {
   .net-profit-report {
     display: block !important;
     position: static !important;
-    width: 210mm !important;
-    max-width: 210mm !important;
+    width: 100% !important;
+    max-width: 100% !important;
     height: auto !important;
     min-height: 0 !important;
     max-height: none !important;
     overflow: visible !important;
     background: white !important;
     color: black !important;
-    page: a4;
   }
 
   .net-profit-workspace,
@@ -3824,29 +3823,49 @@ main:has(.net-profit-workspace) {
   }
 
   .net-profit-report table thead th {
-    font-size: 8pt !important;
-    letter-spacing: 0.03em !important;
-    padding: 2.5mm 1.2mm !important;
+    font-size: 6.5pt !important;
+    letter-spacing: 0.02em !important;
+    padding: 1mm 0.6mm !important;
     background-color: #1e293b !important;
     color: #ffffff !important;
   }
 
   .net-profit-report table tbody td,
   .net-profit-report table tfoot td {
-    font-size: 10pt !important;
-    line-height: 1.25 !important;
-    padding: 1.6mm 1.2mm !important;
+    font-size: 7.5pt !important;
+    line-height: 1.2 !important;
+    padding: 0.8mm 0.6mm !important;
     vertical-align: middle !important;
+  }
+
+  .net-profit-report table .net-profit-col-label {
+    width: 18% !important;
+    word-break: break-word !important;
+    overflow-wrap: anywhere !important;
+  }
+
+  .net-profit-report table .net-profit-col-meta {
+    width: 18mm !important;
+    overflow: hidden !important;
+  }
+
+  .net-profit-report table .net-profit-col-qty {
+    width: 11mm !important;
+    white-space: nowrap !important;
+  }
+
+  .net-profit-report table .net-profit-col-money {
+    width: 22mm !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+  }
+
+  .net-profit-report table .net-profit-col-margin {
+    display: none !important;
   }
 
   .net-profit-report table .net-profit-print-num {
     white-space: nowrap !important;
-  }
-
-  .net-profit-report table tbody td:first-child,
-  .net-profit-report table tfoot td:first-child {
-    word-break: break-word !important;
-    overflow-wrap: anywhere !important;
   }
 
   .net-profit-report table tbody tr {
