@@ -407,7 +407,7 @@ export const useBulkProductUpdate = () => {
       const batch = ids.slice(i, i + batchSize);
       const { error } = await supabase
         .from("products")
-        .update(updateData)
+        .update(updateData as never)
         .in("id", batch);
       if (error) throw error;
     }
