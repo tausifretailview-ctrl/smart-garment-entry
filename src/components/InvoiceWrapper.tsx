@@ -140,6 +140,7 @@ interface InvoiceWrapperProps {
   sizeDisplayFormat?: 'size/qty' | 'size×qty';
   showProductColor?: boolean;
   showProductBrand?: boolean;
+  hideBrandOnInvoice?: boolean;
   showProductStyle?: boolean;
   
   // Customization overrides (for live preview)
@@ -343,6 +344,7 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
     const sizeDisplayFormat = props.sizeDisplayFormat ?? (settings?.sale_settings as any)?.size_display_format ?? 'size/qty';
     const showProductColor = props.showProductColor ?? (settings?.sale_settings as any)?.show_product_color ?? true;
     const showProductBrand = props.showProductBrand ?? (settings?.sale_settings as any)?.show_product_brand ?? false;
+    const hideBrandOnInvoice = props.hideBrandOnInvoice ?? (settings?.sale_settings as any)?.hide_brand_on_invoice ?? false;
     const showProductStyle = props.showProductStyle ?? (settings?.sale_settings as any)?.show_product_style ?? false;
     
     // Get customization settings - use prop overrides if provided for live preview
@@ -551,6 +553,7 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
       showProductColor,
       showProductBrand,
       showProductStyle,
+      hideBrandOnInvoice,
       
       // Points information
       pointsRedeemed: props.pointsRedeemed || 0,

@@ -112,6 +112,8 @@ interface RetailERPTemplateProps {
   sizeDisplayFormat?: "size/qty" | "size×qty";
   showProductColor?: boolean;
   showProductBrand?: boolean;
+  /** Print only the product-name field in Description (strip category/style/brand suffix). */
+  hideBrandOnInvoice?: boolean;
   showProductStyle?: boolean;
 
   stampImageBase64?: string;
@@ -182,6 +184,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   stampSize = "medium",
   instagramLink,
   variant = "standard",
+  hideBrandOnInvoice = false,
 }) => {
   const taxType = normalizeGstTaxType(taxTypeProp);
   const isNoGst = taxType === "no_gst";
@@ -1005,7 +1008,12 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                                   >
                                     {/* Screen + browser print: full particulars */}
                                     <span className="retail-erp-desc-full">
-                                      {item.particulars}
+                                      {hideBrandOnInvoice
+                                        ? retailErpWhatsAppProductLabel(
+                                            item.particulars,
+                                            item.productNameOnly,
+                                          )
+                                        : item.particulars}
                                       {item.color && (
                                         <span style={{ fontSize: "9px", marginLeft: "3px" }}>
                                           ({item.color})
