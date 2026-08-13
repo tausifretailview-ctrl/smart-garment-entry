@@ -304,7 +304,7 @@ const ProductEditPanel = ({
       if (error) throw error;
 
       // Pricing / colour apply ONLY to the currently selected variant (barcode/size).
-      const variantPatch: Record<string, unknown> = {};
+      const variantPatch: TablesUpdate<"product_variants"> = {};
       if (
         modifiedFields.has("default_mrp") ||
         modifiedFields.has("default_pur_price") ||
