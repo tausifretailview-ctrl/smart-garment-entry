@@ -246,7 +246,6 @@ export default function DeliveryChallanDashboard() {
           customer_email: challan.customer_email,
           customer_address: challan.customer_address,
           gross_amount: grossAmount,
-          gst_amount: gstAmount,
           discount_amount: challan.discount_amount,
           flat_discount_percent: challan.flat_discount_percent,
           flat_discount_amount: challan.flat_discount_amount,

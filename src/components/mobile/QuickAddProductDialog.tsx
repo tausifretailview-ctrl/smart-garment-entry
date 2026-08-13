@@ -136,9 +136,9 @@ export const QuickAddProductDialog = ({
           barcode_source: classifyBarcodeSource(barcode, {
             organizationNumber: (currentOrganization as { organization_number?: number } | null)?.organization_number,
           }).source,
-          purchase_price: parsedPurchasePrice,
+          pur_price: parsedPurchasePrice,
           mrp: parsedSalePrice,
-          stock_quantity: parsedStock,
+          stock_qty: parsedStock,
           organization_id: currentOrganization.id,
         })
         .select()

@@ -59,7 +59,7 @@ export async function syncVariantPriceFromPurchase({
 
   let query = supabase
     .from("product_variants")
-    .update(updates)
+    .update(updates as never)
     .eq("organization_id", organizationId)
     .is("deleted_at", null);
 

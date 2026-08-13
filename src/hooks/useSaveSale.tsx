@@ -336,7 +336,7 @@ export const useSaveSale = () => {
       .update({
         used_amount: ca,
         status: "fully_used",
-      } as Record<string, unknown>)
+      } as never)
       .eq("id", cnId)
       .eq("organization_id", currentOrganization.id);
   };
@@ -362,7 +362,7 @@ export const useSaveSale = () => {
       .update({
         credit_amount: creditAmount,
         status: "active",
-      } as Record<string, unknown>)
+      } as never)
       .eq("id", cnId)
       .eq("organization_id", currentOrganization.id);
   };
@@ -445,7 +445,7 @@ export const useSaveSale = () => {
           credit_available_balance: 0,
         };
         if (ensuredCnId) updateRow.credit_note_id = ensuredCnId;
-        await supabase.from('sale_returns').update(updateRow).eq('id', sr.id);
+        await supabase.from('sale_returns').update(updateRow as never).eq('id', sr.id);
         if (ensuredCnId) {
           await markCreditNoteFullyUsedForSrAdjust(ensuredCnId);
         }
@@ -503,7 +503,7 @@ export const useSaveSale = () => {
           credit_available_balance: 0,
           notes: `${sr.notes || ''}${sr.notes ? ' | ' : ''}Partially adjusted in POS sale`,
           ...(clearCnFromConsumedRow ? { credit_note_id: null } : cnIdSplit ? { credit_note_id: cnIdSplit } : {}),
-        } as Record<string, unknown>)
+        } as never)
         .eq('id', sr.id);
 
       if (leftoverAmt > 0.01) {
