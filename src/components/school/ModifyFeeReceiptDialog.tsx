@@ -100,7 +100,6 @@ export function ModifyFeeReceiptDialog({ open, onOpenChange, fee }: ModifyFeeRec
           .update({
             total_amount: paidAmount,
             payment_method: paymentMethod,
-            transaction_id: transactionId || null,
             voucher_date: paidDate,
           })
           .eq("voucher_number", fee.payment_receipt_id)
