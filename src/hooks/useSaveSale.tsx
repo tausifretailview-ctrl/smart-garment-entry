@@ -503,7 +503,7 @@ export const useSaveSale = () => {
           credit_available_balance: 0,
           notes: `${sr.notes || ''}${sr.notes ? ' | ' : ''}Partially adjusted in POS sale`,
           ...(clearCnFromConsumedRow ? { credit_note_id: null } : cnIdSplit ? { credit_note_id: cnIdSplit } : {}),
-        } as Record<string, unknown>)
+        } as never)
         .eq('id', sr.id);
 
       if (leftoverAmt > 0.01) {
