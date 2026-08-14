@@ -135,6 +135,13 @@ export const KidsThermalReceipt80mm = React.forwardRef<HTMLDivElement, KidsTherm
     const breakdownPaid = cashPaid + upiPaid + cardPaid + creditPaid;
     const totalPaid = breakdownPaid > 0 ? breakdownPaid : paidAmount;
 
+    const saleSettings = (settings?.sale_settings ?? {}) as {
+      invoice_document_title?: string;
+      declaration_text?: string;
+      terms_list?: string[];
+    };
+
+    const customDocTitle = saleSettings.invoice_document_title?.trim();
     const docTitle =
       documentType === 'quotation' || documentType === 'pos'
         ? 'ESTIMATE'
@@ -142,7 +149,13 @@ export const KidsThermalReceipt80mm = React.forwardRef<HTMLDivElement, KidsTherm
           ? 'SALE ORDER'
           : grandTotal < 0
             ? 'CREDIT NOTE'
-            : 'TAX INVOICE';
+            : customDocTitle || 'TAX INVOICE';
+
+    const declarationText = saleSettings.declaration_text?.trim() || '';
+    const termsList = (saleSettings.terms_list || [])
+      .map((t) => (t || '').trim())
+      .filter(Boolean);
+    const terms = termsList.length > 0 ? termsList : KIDS_DEFAULT_TERMS;
 
     const partyLabel = (() => {
       const name = (customerName || 'CASH').toUpperCase();
