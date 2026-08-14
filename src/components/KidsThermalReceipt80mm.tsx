@@ -60,12 +60,12 @@ function kidsLayoutForPaper(paper: PosThermalPaper) {
   return {
     paperWidth: is58 ? '48mm' : '72mm',
     padding: is58 ? '1mm 0.5mm 1mm 1mm' : '1mm 2mm 1mm 3mm',
-    baseFont: is58 ? '10px' : '12px',
-    headerFont: is58 ? '13px' : '16px',
-    titleFont: is58 ? '11px' : '13px',
-    itemFont: is58 ? '9px' : '11px',
-    footerFont: is58 ? '9px' : '11px',
-    grandFont: is58 ? '14px' : '18px',
+    baseFont: is58 ? '11px' : '14px',
+    headerFont: is58 ? '14px' : '18px',
+    titleFont: is58 ? '12px' : '15px',
+    itemFont: is58 ? '10px' : '13px',
+    footerFont: is58 ? '10px' : '13px',
+    grandFont: is58 ? '15px' : '20px',
     maxNameLen: is58 ? KIDS_MAX_NAME_LEN_58 : KIDS_MAX_NAME_LEN_80,
     colQtyFlex: is58 ? '0 0 11%' : '0 0 14%',
     colAmtFlex: is58 ? '0 0 24%' : '0 0 24%',
@@ -135,6 +135,13 @@ export const KidsThermalReceipt80mm = React.forwardRef<HTMLDivElement, KidsTherm
     const breakdownPaid = cashPaid + upiPaid + cardPaid + creditPaid;
     const totalPaid = breakdownPaid > 0 ? breakdownPaid : paidAmount;
 
+    const saleSettings = (settings?.sale_settings ?? {}) as {
+      invoice_document_title?: string;
+      declaration_text?: string;
+      terms_list?: string[];
+    };
+
+    const customDocTitle = saleSettings.invoice_document_title?.trim();
     const docTitle =
       documentType === 'quotation' || documentType === 'pos'
         ? 'ESTIMATE'
@@ -142,7 +149,13 @@ export const KidsThermalReceipt80mm = React.forwardRef<HTMLDivElement, KidsTherm
           ? 'SALE ORDER'
           : grandTotal < 0
             ? 'CREDIT NOTE'
-            : 'TAX INVOICE';
+            : customDocTitle || 'TAX INVOICE';
+
+    const declarationText = saleSettings.declaration_text?.trim() || '';
+    const termsList = (saleSettings.terms_list || [])
+      .map((t) => (t || '').trim())
+      .filter(Boolean);
+    const terms = termsList.length > 0 ? termsList : KIDS_DEFAULT_TERMS;
 
     const partyLabel = (() => {
       const name = (customerName || 'CASH').toUpperCase();
@@ -390,12 +403,31 @@ export const KidsThermalReceipt80mm = React.forwardRef<HTMLDivElement, KidsTherm
 
         <div style={{ ...left, fontSize: layout.footerFont, fontWeight: 900, lineHeight: '1.35', ...(layout.stackTotals ? { whiteSpace: 'normal', wordBreak: 'break-word' } : {}) }}>
           <div style={{ fontWeight: 900, fontSize: layout.titleFont, marginBottom: '2px' }}>** TERM &amp; CONDITIONS **</div>
-          {KIDS_DEFAULT_TERMS.map((term, idx) => (
+          {terms.map((term, idx) => (
             <div key={idx}>{term}</div>
           ))}
         </div>
 
         <div style={dotted} />
+
+        {declarationText && (
+          <>
+            <div
+              style={{
+                ...left,
+                fontSize: layout.footerFont,
+                fontWeight: 900,
+                lineHeight: '1.35',
+                whiteSpace: 'pre-line',
+                wordBreak: 'break-word',
+                margin: '2px 0',
+              }}
+            >
+              {declarationText}
+            </div>
+            <div style={dotted} />
+          </>
+        )}
 
         <div style={{ ...left, fontSize: layout.footerFont, fontWeight: 900, margin: '3px 0 1px' }}>
           ** THANK YOU FOR SHOPPING WITH US **
