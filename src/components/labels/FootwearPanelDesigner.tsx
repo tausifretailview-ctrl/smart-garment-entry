@@ -196,7 +196,7 @@ export function FootwearPanelDesigner({
             )}
             onClick={() => setPanel("box")}
           >
-            Box (64×53)
+            Box ({layout.boxWidthMm}×{layout.boxHeightMm})
           </button>
           <button
             type="button"
@@ -208,7 +208,7 @@ export function FootwearPanelDesigner({
             )}
             onClick={() => setPanel("pair")}
           >
-            Pair (38×25)×2
+            Pair ({layout.pairWidthMm}×{layout.pairHeightMm})×2
           </button>
         </div>
         <Button
@@ -225,9 +225,35 @@ export function FootwearPanelDesigner({
 
       <p className="text-[11px] text-muted-foreground">
         {panel === "box"
-          ? "Box coords are absolute on the 102×53 form (dots @ 203 DPI)."
+          ? `Box coords are relative to the box panel (dots @ 203 DPI). Form: ${form.widthMm}×${form.heightMm}mm.`
           : "Pair is designed once and printed twice (top + bottom). Coords are relative to each pair sticker."}
       </p>
+
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 border rounded-md p-2 bg-muted/20">
+        {([
+          ["boxWidthMm", "Box W (mm)"],
+          ["boxHeightMm", "Box H (mm)"],
+          ["pairWidthMm", "Pair W (mm)"],
+          ["pairHeightMm", "Pair H (mm)"],
+        ] as const).map(([key, label]) => (
+          <div key={key} className="space-y-0.5">
+            <Label className="text-[10px] text-muted-foreground">{label}</Label>
+            <Input
+              type="number"
+              step="0.5"
+              min={5}
+              max={200}
+              className="h-7 text-xs text-center tabular-nums font-mono px-1"
+              value={layout[key]}
+              onChange={(e) => {
+                const n = Number(e.target.value);
+                if (!Number.isFinite(n)) return;
+                onChange(updateFootwearLayout(resolved, { [key]: Math.min(200, Math.max(5, n)) }));
+              }}
+            />
+          </div>
+        ))}
+      </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 flex-1 min-h-0">
         <div className="space-y-2 overflow-auto min-h-0 max-h-[420px] xl:max-h-none pr-1">
