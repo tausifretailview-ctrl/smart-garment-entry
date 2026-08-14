@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -28,6 +28,9 @@ import {
 import {
   PRECISION_PRO_TSC_HEIGHT_MM,
   PRECISION_PRO_TSC_WIDTH_MM,
+  PAIR_TOP,
+  PAIR_X,
+  dotsToMm,
 } from "@/utils/labels/precisionProGeometry";
 
 interface FootwearPanelDesignerProps {
