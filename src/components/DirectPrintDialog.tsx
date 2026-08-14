@@ -802,12 +802,20 @@ export const DirectPrintDialog = ({
                     <span className="font-medium">{items.length}</span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span>Total Labels:</span>
+                    <span>{labelSize === 'precision_pro_tsc' ? 'Print forms:' : 'Total Labels:'}</span>
                     <span className="font-medium">{totalLabels}</span>
                   </div>
+                  {labelSize === 'precision_pro_tsc' && (
+                    <div className="flex justify-between text-sm text-muted-foreground">
+                      <span>Stickers (×3):</span>
+                      <span className="font-medium">{totalLabels * 3}</span>
+                    </div>
+                  )}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Uses the Interactive Label Designer template to generate TSPL commands.
+                  {labelSize === 'precision_pro_tsc'
+                    ? 'Each form prints 1 box + 2 pair stickers via fixed Precision Pro TSPL.'
+                    : 'Uses the Interactive Label Designer template to generate TSPL commands.'}
                 </p>
               </TabsContent>
 
@@ -1061,7 +1069,10 @@ PRINT 1,1`}
             ) : (
               <>
                 <Printer className="h-4 w-4 mr-2" />
-                {printTransport === 'usb' ? '⚡ USB Print' : 'Print'} {totalLabels} Labels
+                {printTransport === 'usb' ? '⚡ USB Print' : 'Print'}{' '}
+                {labelSize === 'precision_pro_tsc'
+                  ? `${totalLabels} form${totalLabels === 1 ? '' : 's'}`
+                  : `${totalLabels} Labels`}
               </>
             )}
           </Button>

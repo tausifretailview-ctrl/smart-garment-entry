@@ -12,11 +12,21 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { PrecisionThermalRowPreview } from "./PrecisionThermalRowPreview";
 import { PrecisionLabelCell } from "./PrecisionLabelCell";
+import { PrecisionProTSCPreview } from "@/components/labels/PrecisionProTSCPreview";
 import { LabelDesignConfig, LabelItem, LabelTemplate } from "@/types/labelTypes";
 import { cn } from "@/lib/utils";
 import type { PrecisionPrintMode } from "@/utils/precisionThermalModes";
-import { presetMatchesPrintMode, getPrecisionPrintModeDisplayName, inferPrecisionPrintMode } from "@/utils/precisionThermalModes";
-import { getThermalPreviewCols } from "@/utils/precisionThermalModes";
+import {
+  presetMatchesPrintMode,
+  getPrecisionPrintModeDisplayName,
+  inferPrecisionPrintMode,
+  getThermalPreviewCols,
+  isPrecisionFootwearMode,
+} from "@/utils/precisionThermalModes";
+import {
+  PRECISION_PRO_TSC_HEIGHT_MM,
+  PRECISION_PRO_TSC_WIDTH_MM,
+} from "@/utils/labels/precisionProGeometry";
 
 export interface CalibrationValues {
   xOffset: number;
@@ -691,6 +701,17 @@ export function LabelCalibrationUI({
               >
                 📄 A4 Sheet
               </button>
+              <button
+                type="button"
+                className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+                  printMode === 'footwear'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-muted/30 text-muted-foreground hover:bg-muted/50'
+                }`}
+                onClick={() => onPrintModeChange('footwear')}
+              >
+                Footwear Box+Pair
+              </button>
             </div>
           </div>
 
@@ -841,6 +862,35 @@ export function LabelCalibrationUI({
       )}
 
       {/* Calibration Fields + Preview */}
+      {isPrecisionFootwearMode(printMode || "") ? (
+        <div className={cn(fullWorkspace && "flex flex-col flex-1 min-h-0 gap-3")}>
+          <p className="text-xs text-muted-foreground">
+            Fixed 102×53mm TSPL layout (64mm box + two 38×25mm pair stickers). Uses Direct Print — not the designer.
+          </p>
+          {(!compact || fullWorkspace) && (
+            <div className={cn("space-y-2", fullWorkspace && "flex flex-col min-h-0 h-full")}>
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide shrink-0">
+                Live Preview ({previewScale}× • {PRECISION_PRO_TSC_WIDTH_MM}×{PRECISION_PRO_TSC_HEIGHT_MM}mm)
+              </p>
+              <Card className={cn("overflow-hidden", fullWorkspace && "flex flex-col flex-1 min-h-0")}>
+                <CardContent
+                  className={cn(
+                    "p-3 flex items-center justify-center bg-muted/30 overflow-auto",
+                    fullWorkspace ? "flex-1 min-h-[180px]" : "",
+                  )}
+                  style={fullWorkspace ? undefined : { minHeight: 120 }}
+                >
+                  <PrecisionProTSCPreview
+                    item={sampleItem || SAMPLE_ITEM}
+                    businessName={(sampleItem as LabelItem & { businessName?: string })?.businessName || "STORE"}
+                    scaleFactor={Math.min(previewScale, 1.6)}
+                  />
+                </CardContent>
+              </Card>
+            </div>
+          )}
+        </div>
+      ) : (
       <div
         className={cn(
           fullWorkspace && "grid grid-cols-1 xl:grid-cols-2 gap-4 flex-1 min-h-0 items-stretch",
@@ -925,6 +975,7 @@ export function LabelCalibrationUI({
           </div>
         )}
       </div>
+      )}
     </div>
   );
 }

@@ -1,4 +1,9 @@
-export type PrecisionPrintMode = "thermal" | "thermal2up" | "thermal3up" | "a4";
+export type PrecisionPrintMode =
+  | "thermal"
+  | "thermal2up"
+  | "thermal3up"
+  | "a4"
+  | "footwear";
 
 export type PrecisionPresetModeHint = {
   name?: string;
@@ -11,6 +16,14 @@ export type PrecisionPresetModeHint = {
 /** Infer multi-up mode from preset name when DB print_mode is missing or stale. */
 export function inferPrintModeFromName(name: string): PrecisionPrintMode | null {
   const n = name.toLowerCase();
+  if (
+    n.includes("footwear") ||
+    n.includes("box+pair") ||
+    n.includes("box + pair") ||
+    n.includes("precision pro tsc")
+  ) {
+    return "footwear";
+  }
   if (/\b3\s*[-*]?\s*up\b/.test(n) || n.includes("3up") || n.includes("3-up")) {
     return "thermal3up";
   }
@@ -25,6 +38,10 @@ export function inferPrintModeFromName(name: string): PrecisionPrintMode | null 
 
 export function isPrecisionThermalSheetMode(mode: string): boolean {
   return mode === "thermal" || mode === "thermal2up" || mode === "thermal3up";
+}
+
+export function isPrecisionFootwearMode(mode: string): boolean {
+  return mode === "footwear";
 }
 
 export function isPrecisionThermalMultiUp(mode: string): boolean {
@@ -49,15 +66,22 @@ export function getPrecisionThermalCols(mode: string, thermalCols = 1): number {
   return 1;
 }
 
+const EXPLICIT_PRINT_MODES: PrecisionPrintMode[] = [
+  "thermal",
+  "thermal2up",
+  "thermal3up",
+  "a4",
+  "footwear",
+];
+
+function isExplicitPrintMode(mode: string | undefined): mode is PrecisionPrintMode {
+  return EXPLICIT_PRINT_MODES.includes(mode as PrecisionPrintMode);
+}
+
 export function inferPrecisionPrintMode(preset: PrecisionPresetModeHint): PrecisionPrintMode {
   // Trust an explicit stored print_mode first — thermal presets often also persist
   // a4_cols/a4_rows from the shared settings form; those must not override mode.
-  if (
-    preset.printMode === "thermal" ||
-    preset.printMode === "thermal2up" ||
-    preset.printMode === "thermal3up" ||
-    preset.printMode === "a4"
-  ) {
+  if (isExplicitPrintMode(preset.printMode)) {
     return preset.printMode;
   }
   if (preset.name) {
@@ -80,6 +104,7 @@ export function getPrecisionThermalModeLabel(mode: string): string {
   if (mode === "thermal3up") return "3-Up";
   if (mode === "thermal2up") return "2-Up";
   if (mode === "a4") return "A4";
+  if (mode === "footwear") return "Footwear";
   return "1-Up";
 }
 
@@ -88,16 +113,12 @@ export function getPrecisionPrintModeDisplayName(mode: PrecisionPrintMode): stri
   if (mode === "thermal3up") return "Thermal (3-Up)";
   if (mode === "thermal2up") return "Thermal (2-Up)";
   if (mode === "a4") return "A4 Sheet";
+  if (mode === "footwear") return "Footwear Box+Pair";
   return "Thermal (1-Up)";
 }
 
 export function resolvePresetPrintMode(preset: PrecisionPresetModeHint): PrecisionPrintMode {
-  if (
-    preset.printMode === "thermal" ||
-    preset.printMode === "thermal2up" ||
-    preset.printMode === "thermal3up" ||
-    preset.printMode === "a4"
-  ) {
+  if (isExplicitPrintMode(preset.printMode)) {
     return preset.printMode;
   }
   return inferPrecisionPrintMode(preset);
