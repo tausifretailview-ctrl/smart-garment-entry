@@ -5320,13 +5320,6 @@ export default function BarcodePrinting() {
         return;
       }
 
-      // Footwear Box+Pair uses TSPL Direct Print (same engine as Standard precision_pro_tsc).
-      if (isPrecisionFootwearMode(precisionSettings.printMode)) {
-        setSheetType("precision_pro_tsc");
-        setIsDirectPrintDialogOpen(true);
-        return;
-      }
-
       if (isElectron()) {
         setPrecisionPrintConfirmQty(totalQty);
         setPrecisionPrintConfirmOpen(true);
@@ -8188,7 +8181,26 @@ export default function BarcodePrinting() {
       {/* Print Area (hidden, used for printing) */}
       {!testPrintActive && precisionSettings.enabled ? (
         <div className="hidden print:block">
-          {isPrecisionThermalSheetMode(precisionSettings.printMode) ? (
+          {isPrecisionFootwearMode(precisionSettings.printMode) ? (
+            <div ref={precisionPrintRef}>
+              {labelItems
+                .filter((i) => (i.qty || 0) > 0)
+                .flatMap((item, idx) =>
+                  Array.from({ length: item.qty || 1 }, (_, qi) => (
+                    <div className="precision-thermal-page" key={`fw-${idx}-${qi}`}>
+                      <div className="precision-label-container">
+                        <PrecisionProTSCPreview
+                          item={item}
+                          businessName={businessName}
+                          scaleFactor={1}
+                          design={footwearDesign}
+                        />
+                      </div>
+                    </div>
+                  )),
+                )}
+            </div>
+          ) : isPrecisionThermalSheetMode(precisionSettings.printMode) ? (
             <PrecisionThermalPrint
               ref={precisionPrintRef}
               items={labelItems.filter(i => (i.qty || 0) > 0).map(i => ({ ...i, businessName }))}
