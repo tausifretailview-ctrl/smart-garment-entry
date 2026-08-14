@@ -4,6 +4,13 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Minus, Plus, RotateCcw } from "lucide-react";
 import type { LabelItem } from "@/types/labelTypes";
 import { cn } from "@/lib/utils";
@@ -187,14 +194,71 @@ export function FootwearPanelDesigner({
                   max={maxY}
                   onChange={(y) => patchField(key, { y })}
                 />
-                {f.caption != null && f.caption !== "" && (
+                <div className="col-span-3 grid grid-cols-3 gap-2">
+                  <div className="space-y-0.5">
+                    <Label className="text-[10px] text-muted-foreground">Font</Label>
+                    <Select
+                      value={f.font}
+                      onValueChange={(v) => patchField(key, { font: v as typeof f.font })}
+                    >
+                      <SelectTrigger className="h-7 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(["1", "2", "3", "4", "5"] as const).map((v) => (
+                          <SelectItem key={v} value={v} className="text-xs">
+                            Font {v}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <DotNudge
+                    label="Width ×"
+                    value={f.mulX}
+                    min={1}
+                    max={10}
+                    onChange={(mulX) => patchField(key, { mulX })}
+                  />
+                  <DotNudge
+                    label="Height ×"
+                    value={f.mulY}
+                    min={1}
+                    max={10}
+                    onChange={(mulY) => patchField(key, { mulY })}
+                  />
+                </div>
+                {key === "barcode" && (
                   <div className="col-span-3">
-                    <Label className="text-[10px] text-muted-foreground">Caption</Label>
-                    <Input
-                      className="h-7 text-xs"
-                      value={f.caption}
-                      onChange={(e) => patchField(key, { caption: e.target.value })}
+                    <DotNudge
+                      label="Barcode height (dots)"
+                      value={f.barcodeHeight ?? 40}
+                      min={10}
+                      max={200}
+                      onChange={(barcodeHeight) => patchField(key, { barcodeHeight })}
                     />
+                  </div>
+                )}
+                {key !== "barcode" && (
+                  <div className="col-span-3 grid grid-cols-2 gap-2">
+                    <div>
+                      <Label className="text-[10px] text-muted-foreground">Prefix</Label>
+                      <Input
+                        className="h-7 text-xs"
+                        value={f.caption ?? ""}
+                        placeholder="e.g. ART NO : "
+                        onChange={(e) => patchField(key, { caption: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-[10px] text-muted-foreground">Suffix</Label>
+                      <Input
+                        className="h-7 text-xs"
+                        value={f.suffix ?? ""}
+                        placeholder="e.g. /-"
+                        onChange={(e) => patchField(key, { suffix: e.target.value })}
+                      />
+                    </div>
                   </div>
                 )}
               </div>
