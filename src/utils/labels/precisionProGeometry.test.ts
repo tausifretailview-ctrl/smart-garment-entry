@@ -63,18 +63,18 @@ const sample = {
 };
 
 describe("generatePrecisionProTSCLabel (config-driven)", () => {
-  it("defaults match the hardcoded Phase-1 layout", () => {
+  it("defaults match the Payal footwear form layout", () => {
     const tspl = generatePrecisionProTSCLabel(sample, 2);
     expect(tspl).toContain("SIZE 102 mm, 53 mm");
     expect(tspl).toContain("GAP 2 mm, 0 mm");
     expect(tspl).toContain("PRINT 1,2");
-    expect(tspl).toContain('ART NO : ART-42');
-    expect(tspl).toContain('COLOUR : BLACK');
-    expect(tspl).toContain("MRP : Rs.1299/-");
-    expect(tspl).toMatch(new RegExp(`TEXT ${PAIR_X},\\d+,"1",0,1,1,"ART-42"`));
+    expect(tspl).toContain('TEXT 10,190,"4",0,1,1,"ART-42"');
+    expect(tspl).toContain('TEXT 280,196,"3",0,1,1,"BLACK"');
+    expect(tspl).toContain('TEXT 300,4,"5",0,1,1,"Rs.1299"');
+    expect(tspl).toMatch(new RegExp(`TEXT ${PAIR_X + 8},\\d+,"4",0,1,1,"ART-42"`));
     expect(tspl).not.toMatch(/^BAR /m);
-    expect(tspl).toContain(`TEXT ${PAIR_X},${PAIR_TOP + 4}`);
-    expect(tspl).toContain(`TEXT ${PAIR_X},${PAIR_MID_Y + 4}`);
+    expect(tspl).toContain(`TEXT ${PAIR_X + 8},${PAIR_TOP + 44}`);
+    expect(tspl).toContain(`TEXT ${PAIR_X + 8},${PAIR_MID_Y + 44}`);
   });
 
   it("omitted design === DEFAULT design (same TSPL)", () => {
@@ -90,11 +90,11 @@ describe("generatePrecisionProTSCLabel (config-driven)", () => {
       DEFAULT_FOOTWEAR_FORM_DESIGN,
       "box",
       "productName",
-      { x: 40, y: 180 },
+      { x: 40, y: 180, show: true },
     );
     const tspl = generatePrecisionProTSCLabel(sample, 1, custom);
-    expect(tspl).toContain('TEXT 40,180,"4",0,1,1,"RUNNER"');
-    expect(tspl).not.toContain('TEXT 10,168,"4",0,1,1,"RUNNER"');
+    expect(tspl).toContain('TEXT 40,180,"3",0,1,1,"RUNNER"');
+    expect(tspl).not.toContain('TEXT 10,340,"3",0,1,1,"RUNNER"');
   });
 
   it("hides fields when show=false", () => {
@@ -116,7 +116,7 @@ describe("generatePrecisionProTSCLabel (config-driven)", () => {
       { y: 90 },
     );
     const tspl = generatePrecisionProTSCLabel(sample, 1, custom);
-    expect(tspl).toContain(`TEXT ${PAIR_X},${PAIR_TOP + 90}`);
-    expect(tspl).toContain(`TEXT ${PAIR_X},${PAIR_MID_Y + 90}`);
+    expect(tspl).toContain(`TEXT ${PAIR_X + 8},${PAIR_TOP + 90}`);
+    expect(tspl).toContain(`TEXT ${PAIR_X + 8},${PAIR_MID_Y + 90}`);
   });
 });
