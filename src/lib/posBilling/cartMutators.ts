@@ -197,9 +197,12 @@ export function updatePrice(
     return { items, error: { code: "INVALID_UNIT_PRICE", message: "Line not found" } };
   }
   const mrp = Number(items[index].mrp) || 0;
-  const unitCost = Math.min(mrp > 0 ? mrp : rawValue, Math.max(0, rawValue));
+  const typed = Math.max(0, rawValue);
+  // Typed rate above MRP is honoured: MRP rises with it so gross / cap / savings stay consistent.
+  const raisesMrp = mrp > 0 ? typed > mrp + 0.005 : true;
+  const unitCost = raisesMrp ? typed : Math.min(mrp, typed);
   const minUnit = minUnitPriceForDiscountCap(items, index, flatDiscountAmount);
-  if (unitCost + 0.005 < minUnit) {
+  if (!raisesMrp && unitCost + 0.005 < minUnit) {
     return {
       items,
       error: {
@@ -210,11 +213,12 @@ export function updatePrice(
     };
   }
   const updatedItems = [...items];
-  const lineMrp = Number(updatedItems[index].mrp) || 0;
-  const nextUnit = Math.min(lineMrp > 0 ? lineMrp : unitCost, Math.max(0, unitCost));
+  const nextMrp = raisesMrp ? unitCost : mrp;
+  const nextUnit = unitCost;
   updatedItems[index] = {
     ...updatedItems[index],
     rateAuthority: "unit",
+    mrp: nextMrp,
     unitCost: nextUnit,
     discountPercent: 0,
     discountAmount: 0,

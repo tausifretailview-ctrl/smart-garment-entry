@@ -497,6 +497,17 @@ describe("POS billing characterisation — qty/price edits after discount", () =
     expect(r.items[0].discountAmount).toBe(0);
     expect(r.items[0].netAmount).toBe(750);
   });
+
+  it("unit price above MRP raises MRP so the line total increases", () => {
+    const items = [line({ mrp: 1000, unitCost: 1000, quantity: 2, discountPercent: 10 })];
+    const r = updatePrice(items, 0, 1200, 0, null);
+    expect(r.error).toBeUndefined();
+    expect(r.items[0].mrp).toBe(1200);
+    expect(r.items[0].unitCost).toBe(1200);
+    expect(r.items[0].discountPercent).toBe(0);
+    expect(r.items[0].netAmount).toBe(2400);
+  });
+
 });
 
 describe("POS billing characterisation — hold resume / edit restore", () => {
