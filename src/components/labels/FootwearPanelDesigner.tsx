@@ -11,7 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Minus, Plus, RotateCcw } from "lucide-react";
+import { Minus, Plus, RotateCcw, Save } from "lucide-react";
 import type { LabelItem } from "@/types/labelTypes";
 import { cn } from "@/lib/utils";
 import { PrecisionProTSCPreview } from "@/components/labels/PrecisionProTSCPreview";
@@ -36,6 +36,9 @@ import {
 interface FootwearPanelDesignerProps {
   design: FootwearFormDesign;
   onChange: (design: FootwearFormDesign) => void;
+  /** When provided, shows a Save button that persists the design org-wide. */
+  onSave?: (design: FootwearFormDesign) => void | Promise<void>;
+  isSaving?: boolean;
   sampleItem?: LabelItem;
   businessName?: string;
   scaleFactor?: number;
@@ -89,6 +92,8 @@ function DotNudge({
 export function FootwearPanelDesigner({
   design,
   onChange,
+  onSave,
+  isSaving = false,
   sampleItem,
   businessName = "STORE",
   scaleFactor = 1.4,
@@ -211,11 +216,23 @@ export function FootwearPanelDesigner({
             Pair ({layout.pairWidthMm}×{layout.pairHeightMm})×2
           </button>
         </div>
+        {onSave ? (
+          <Button
+            type="button"
+            size="sm"
+            className="h-8 text-xs gap-1 ml-auto"
+            disabled={isSaving}
+            onClick={() => void onSave(resolveFootwearFormDesign(design))}
+          >
+            <Save className="h-3 w-3" />
+            {isSaving ? "Saving..." : "Save design"}
+          </Button>
+        ) : null}
         <Button
           type="button"
           variant="outline"
           size="sm"
-          className="h-8 text-xs gap-1 ml-auto"
+          className={cn("h-8 text-xs gap-1", !onSave && "ml-auto")}
           onClick={() => onChange(resolveFootwearFormDesign(DEFAULT_FOOTWEAR_FORM_DESIGN))}
         >
           <RotateCcw className="h-3 w-3" />
