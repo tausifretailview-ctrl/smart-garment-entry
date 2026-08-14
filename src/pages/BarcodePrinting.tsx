@@ -1545,8 +1545,63 @@ export default function BarcodePrinting() {
   }, [currentOrganization?.id]);
 
   useEffect(() => {
-    setFootwearDesign(loadFootwearDesignFromStorage(currentOrganization?.id));
+    const orgId = currentOrganization?.id;
+    setFootwearDesign(loadFootwearDesignFromStorage(orgId));
+    if (!orgId) return;
+    let cancelled = false;
+    void (async () => {
+      const { data } = await supabase
+        .from("barcode_label_settings")
+        .select("setting_data")
+        .eq("organization_id", orgId)
+        .eq("setting_type", "footwear_design")
+        .eq("setting_name", "default")
+        .maybeSingle();
+      if (cancelled || !data?.setting_data) return;
+      const resolved = resolveFootwearFormDesign(data.setting_data as any);
+      setFootwearDesign(resolved);
+      saveFootwearDesignToStorage(orgId, resolved);
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [currentOrganization?.id]);
+
+  const [savingFootwearDesign, setSavingFootwearDesign] = useState(false);
+  const handleFootwearDesignSave = useCallback(
+    async (design: FootwearFormDesign) => {
+      const orgId = currentOrganization?.id;
+      if (!orgId) {
+        toast.error("No organization selected");
+        return;
+      }
+      const resolved = resolveFootwearFormDesign(design);
+      setSavingFootwearDesign(true);
+      try {
+        const { error } = await supabase
+          .from("barcode_label_settings")
+          .upsert(
+            {
+              organization_id: orgId,
+              setting_type: "footwear_design",
+              setting_name: "default",
+              setting_data: resolved as any,
+            } as any,
+            { onConflict: "organization_id,setting_type,setting_name" },
+          );
+        if (error) throw error;
+        setFootwearDesign(resolved);
+        saveFootwearDesignToStorage(orgId, resolved);
+        toast.success("Footwear label design saved");
+      } catch (err) {
+        console.error("Failed to save footwear design:", err);
+        toast.error("Failed to save footwear design");
+      } finally {
+        setSavingFootwearDesign(false);
+      }
+    },
+    [currentOrganization?.id],
+  );
 
   const handleFootwearDesignChange = useCallback(
     (design: FootwearFormDesign) => {
@@ -7690,6 +7745,8 @@ export default function BarcodePrinting() {
             <FootwearPanelDesigner
               design={footwearDesign}
               onChange={handleFootwearDesignChange}
+              onSave={handleFootwearDesignSave}
+              isSaving={savingFootwearDesign}
               sampleItem={labelItems.length > 0 ? labelItems[0] : undefined}
               businessName={businessName}
               className="flex-1 min-h-0"
