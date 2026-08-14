@@ -2964,9 +2964,11 @@ export default function POSSales() {
       return;
     }
     const mrp = Number(items[index].mrp) || 0;
-    const unitCost = Math.min(mrp > 0 ? mrp : rawValue, Math.max(0, rawValue));
+    const unitCost = Math.max(0, rawValue);
+    // Above-MRP rate raises MRP in the mutator — no cap check needed for that direction.
+    const raisesMrp = mrp > 0 ? unitCost > mrp + 0.005 : true;
     const minUnit = minUnitPriceForDiscountCap(items, index, flatDiscountAmount);
-    if (unitCost + 0.005 < minUnit) {
+    if (!raisesMrp && unitCost + 0.005 < minUnit) {
       toast.warning(
         `Minimum ₹${minUnit.toLocaleString("en-IN", { maximumFractionDigits: 2 })} on this line.`,
       );
@@ -2975,7 +2977,7 @@ export default function POSSales() {
     }
     const rupeesOff = Math.max(0, (mrp - unitCost) * (Number(items[index].quantity) || 0));
     const pctOff = mrp > 0.005 ? ((mrp - unitCost) / mrp) * 100 : 0;
-    if (mrp > 0.005 && pctOff > posUnitPriceOverrideConfirmPct + 0.001) {
+    if (!raisesMrp && mrp > 0.005 && pctOff > posUnitPriceOverrideConfirmPct + 0.001) {
       setUnitPriceConfirm({
         index,
         value: unitCost,
