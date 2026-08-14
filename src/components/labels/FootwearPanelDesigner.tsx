@@ -333,7 +333,7 @@ export function FootwearPanelDesigner({
 
         <div className="flex flex-col min-h-0 gap-2">
           <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide shrink-0">
-            Live form preview ({PRECISION_PRO_TSC_WIDTH_MM}×{PRECISION_PRO_TSC_HEIGHT_MM}mm)
+            Live form preview ({form.widthMm}×{form.heightMm}mm)
           </p>
           <p className="text-[11px] text-muted-foreground shrink-0">
             Drag the dotted handles on the preview to move fields of the selected panel.
