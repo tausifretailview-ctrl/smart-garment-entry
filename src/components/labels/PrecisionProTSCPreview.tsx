@@ -2,15 +2,7 @@ import { useEffect, useRef, type RefObject } from "react";
 import JsBarcode from "jsbarcode";
 import type { LabelItem } from "@/types/labelTypes";
 import {
-  BOX_W,
-  LABEL_H,
-  PAIR_COL_W,
-  PAIR_H,
-  PAIR_MID_Y,
-  PAIR_TOP,
   PRECISION_PRO_DEBUG_DIVIDERS,
-  PRECISION_PRO_TSC_HEIGHT_MM,
-  PRECISION_PRO_TSC_WIDTH_MM,
   TRUNC,
   boxBarcodeNarrowBarWidth,
   dotsToMm,
