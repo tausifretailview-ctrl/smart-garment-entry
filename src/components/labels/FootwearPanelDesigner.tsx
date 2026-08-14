@@ -99,10 +99,54 @@ export function FootwearPanelDesigner({
   const fields = resolved[panel].fields;
   const maxX = panel === "box" ? 500 : 300;
   const maxY = panel === "box" ? 410 : 190;
+  const previewRef = useRef<HTMLDivElement>(null);
+  const [dragKey, setDragKey] = useState<FootwearFieldKey | null>(null);
 
   const patchField = (key: FootwearFieldKey, patch: Parameters<typeof updateFootwearField>[3]) => {
     onChange(updateFootwearField(resolved, panel, key, patch));
   };
+
+  /** Pixels per dot, measured from the rendered preview (survives zoom/scale). */
+  const pxPerDot = useCallback(() => {
+    const el = previewRef.current;
+    const widthPx = el?.getBoundingClientRect().width || 0;
+    if (!widthPx) return 0;
+    return widthPx / (PRECISION_PRO_TSC_WIDTH_MM * 8);
+  }, []);
+
+  const startDrag = (key: FootwearFieldKey) => (e: React.PointerEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const ratio = pxPerDot();
+    if (!ratio) return;
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const originX = fields[key].x;
+    const originY = fields[key].y;
+    setDragKey(key);
+
+    const move = (ev: PointerEvent) => {
+      const nx = Math.round(originX + (ev.clientX - startX) / ratio);
+      const ny = Math.round(originY + (ev.clientY - startY) / ratio);
+      patchField(key, {
+        x: Math.min(maxX, Math.max(0, nx)),
+        y: Math.min(maxY, Math.max(0, ny)),
+      });
+    };
+    const up = () => {
+      setDragKey(null);
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  };
+
+  // Panel origin inside the 102×53mm form (mm), used to place drag handles.
+  const panelOriginMm =
+    panel === "box"
+      ? { left: 0, top: 0 }
+      : { left: dotsToMm(PAIR_X), top: dotsToMm(PAIR_TOP) };
 
   const sample: LabelItem = sampleItem || {
     product_name: "RUNNER PRO",
@@ -273,14 +317,47 @@ export function FootwearPanelDesigner({
           <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide shrink-0">
             Live form preview ({PRECISION_PRO_TSC_WIDTH_MM}×{PRECISION_PRO_TSC_HEIGHT_MM}mm)
           </p>
+          <p className="text-[11px] text-muted-foreground shrink-0">
+            Drag the dotted handles on the preview to move fields of the selected panel.
+          </p>
           <Card className="flex flex-col flex-1 min-h-0 overflow-hidden">
             <CardContent className="p-3 flex items-center justify-center bg-muted/30 overflow-auto flex-1 min-h-[180px]">
-              <PrecisionProTSCPreview
-                item={sample}
-                businessName={businessName}
-                scaleFactor={scaleFactor}
-                design={resolved}
-              />
+              <div ref={previewRef} className="relative select-none">
+                <PrecisionProTSCPreview
+                  item={sample}
+                  businessName={businessName}
+                  scaleFactor={scaleFactor}
+                  design={resolved}
+                />
+                <div className="absolute inset-0">
+                  {FOOTWEAR_FIELD_KEYS.filter((key) => fields[key].show).map((key) => {
+                    const f = fields[key];
+                    const leftMm = panelOriginMm.left + dotsToMm(f.x);
+                    const topMm = panelOriginMm.top + dotsToMm(f.y);
+                    return (
+                      <div
+                        key={key}
+                        role="button"
+                        tabIndex={0}
+                        title={`Drag ${FOOTWEAR_FIELD_LABELS[key]}`}
+                        onPointerDown={startDrag(key)}
+                        className={cn(
+                          "absolute cursor-move rounded-sm border border-dashed",
+                          dragKey === key
+                            ? "border-primary bg-primary/25"
+                            : "border-primary/60 bg-primary/10 hover:bg-primary/20",
+                        )}
+                        style={{
+                          left: `${leftMm * scaleFactor}mm`,
+                          top: `${topMm * scaleFactor}mm`,
+                          width: `${(key === "barcode" ? 24 : 14) * scaleFactor}mm`,
+                          height: `${(key === "barcode" ? 8 : 3.5) * scaleFactor}mm`,
+                        }}
+                      />
+                    );
+                  })}
+                </div>
+              </div>
             </CardContent>
           </Card>
         </div>
