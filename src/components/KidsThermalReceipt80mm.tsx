@@ -267,7 +267,7 @@ export const KidsThermalReceipt80mm = React.forwardRef<HTMLDivElement, KidsTherm
         <div style={{ ...left, fontSize: '11px', fontWeight: 900, lineHeight: '1.3' }}>
           {gstNumber && <div>GST NO: {gstNumber}</div>}
           {mobile && <div>Mobile: {mobile}</div>}
-          <div>Website: {website}</div>
+          {website && <div>Website: {website}</div>}
         </div>
 
         <div style={dotted} />
