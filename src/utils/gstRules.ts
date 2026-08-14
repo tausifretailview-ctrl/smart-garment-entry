@@ -15,10 +15,13 @@
 export interface GarmentGstRuleSettings {
   garment_gst_rule_enabled?: boolean;
   garment_gst_threshold?: number;
+  /** GST % forced on lines at/below the threshold (default 5). */
+  garment_gst_below_rate?: number;
 }
 
 export const DEFAULT_GARMENT_GST_THRESHOLD = 2625;
 export const GARMENT_BUMPED_GST = 18;
+export const DEFAULT_GARMENT_BELOW_GST = 5;
 
 /** Coerce GST % from settings/DB — null, undefined, NaN become fallback. */
 export function normalizeGstPercent(value: unknown, fallback = 0): number {
@@ -55,6 +58,14 @@ export function getGarmentGstThreshold(
 ): number {
   const t = settings?.garment_gst_threshold;
   return typeof t === 'number' && t > 0 ? t : DEFAULT_GARMENT_GST_THRESHOLD;
+}
+
+/** Slab GST % applied when price is at/below the threshold. */
+export function getGarmentGstBelowRate(
+  settings?: GarmentGstRuleSettings | null
+): number {
+  const r = Number(settings?.garment_gst_below_rate);
+  return Number.isFinite(r) && r >= 0 ? r : DEFAULT_GARMENT_BELOW_GST;
 }
 
 /**
