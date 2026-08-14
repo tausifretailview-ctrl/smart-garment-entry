@@ -25,13 +25,12 @@ import {
   resolveFootwearFormDesign,
   resolveBoxSizeLayout,
   updateFootwearField,
+  updateFootwearLayout,
+  footwearFormSizeMm,
 } from "@/utils/labels/precisionProFootwearDesign";
 import {
-  PRECISION_PRO_TSC_HEIGHT_MM,
-  PRECISION_PRO_TSC_WIDTH_MM,
-  PAIR_TOP,
-  PAIR_X,
   dotsToMm,
+  mmToDots,
 } from "@/utils/labels/precisionProGeometry";
 
 interface FootwearPanelDesignerProps {
@@ -98,8 +97,12 @@ export function FootwearPanelDesigner({
   const [panel, setPanel] = useState<FootwearPanelId>("box");
   const resolved = resolveFootwearFormDesign(design);
   const fields = resolved[panel].fields;
-  const maxX = panel === "box" ? 500 : 300;
-  const maxY = panel === "box" ? 410 : 190;
+  const layout = resolved.layout;
+  const form = footwearFormSizeMm(layout);
+  const maxX =
+    panel === "box" ? Math.max(0, mmToDots(layout.boxWidthMm) - 12) : Math.max(0, mmToDots(layout.pairWidthMm) - 12);
+  const maxY =
+    panel === "box" ? Math.max(0, mmToDots(layout.boxHeightMm) - 14) : Math.max(0, mmToDots(layout.pairHeightMm) - 14);
   const previewRef = useRef<HTMLDivElement>(null);
   const [dragKey, setDragKey] = useState<FootwearFieldKey | null>(null);
 
@@ -119,8 +122,8 @@ export function FootwearPanelDesigner({
     const el = previewRef.current;
     const widthPx = el?.getBoundingClientRect().width || 0;
     if (!widthPx) return 0;
-    return widthPx / (PRECISION_PRO_TSC_WIDTH_MM * 8);
-  }, []);
+    return widthPx / (form.widthMm * 8);
+  }, [form.widthMm]);
 
   const startDrag = (key: FootwearFieldKey) => (e: React.PointerEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -158,7 +161,10 @@ export function FootwearPanelDesigner({
   const panelOriginMm =
     panel === "box"
       ? { left: 0, top: 0 }
-      : { left: dotsToMm(PAIR_X), top: dotsToMm(PAIR_TOP) };
+      : {
+          left: layout.boxWidthMm,
+          top: Math.max(0, (form.heightMm - layout.pairHeightMm * 2) / 2),
+        };
 
   const sample: LabelItem = sampleItem || {
     product_name: "RUNNER PRO",
