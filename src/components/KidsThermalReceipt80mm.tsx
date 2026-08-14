@@ -383,22 +383,6 @@ export const KidsThermalReceipt80mm = React.forwardRef<HTMLDivElement, KidsTherm
 
         <div style={solid} />
 
-        {/* Fixed footer — KIDS ZONE style */}
-        <div
-          style={{
-            ...left,
-            fontSize: layout.footerFont,
-            fontWeight: 900,
-            lineHeight: '1.35',
-            marginTop: '2px',
-          }}
-        >
-          <div style={{ ...center, fontSize: layout.stackTotals ? layout.titleFont : '14px', letterSpacing: '0.3px' }}>** FIXED RATE **</div>
-          <div style={{ margin: '2px 0', fontSize: layout.stackTotals ? layout.footerFont : '13px', ...(layout.stackTotals ? { whiteSpace: 'normal', wordBreak: 'break-word' } : {}) }}>
-            ** NO GUARANTEE FOR COLORS FANCY DRESS MATERIAL AND KIDS WEAR **
-          </div>
-        </div>
-
         <div style={dotted} />
 
         <div style={{ ...left, fontSize: layout.footerFont, fontWeight: 900, lineHeight: '1.35', ...(layout.stackTotals ? { whiteSpace: 'normal', wordBreak: 'break-word' } : {}) }}>
