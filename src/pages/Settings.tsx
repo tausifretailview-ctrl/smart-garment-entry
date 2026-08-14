@@ -178,6 +178,7 @@ interface PurchaseSettings {
   cursor_after_style?: 'pur_price' | 'hsn';
   garment_gst_rule_enabled?: boolean;
   garment_gst_threshold?: number;
+  garment_gst_below_rate?: number;
 }
 
 interface EInvoiceSettings {
@@ -1938,7 +1939,8 @@ export default function Settings() {
                       </Label>
                       <p className="text-xs text-muted-foreground">
                         When sale price exceeds the threshold below, Sale GST % auto-changes to 18%.
-                        Below or equal to the threshold, configured Sale GST % is kept (e.g. 5%). Manual GST &gt; 18% is preserved.
+                        Below or equal to the threshold, an 18% rate falls back to the slab rate below (e.g. 5%),
+                        so a wrong 18% entered during purchase does not carry into POS billing.
                       </p>
                     </div>
                     <Switch
@@ -1954,7 +1956,8 @@ export default function Settings() {
                       }
                     />
                   </div>
-                  <div className="space-y-1.5 max-w-xs">
+                  <div className="grid gap-3 sm:grid-cols-2 max-w-lg">
+                  <div className="space-y-1.5">
                     <Label htmlFor="garment_gst_threshold" className="text-xs">
                       Threshold price (incl. GST)
                     </Label>
@@ -1976,6 +1979,31 @@ export default function Settings() {
                       disabled={!settings.purchase_settings?.garment_gst_rule_enabled}
                       placeholder="2625"
                     />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="garment_gst_below_rate" className="text-xs">
+                      GST % at / below threshold
+                    </Label>
+                    <Input
+                      id="garment_gst_below_rate"
+                      type="number"
+                      min="0"
+                      max="28"
+                      step="0.5"
+                      value={settings.purchase_settings?.garment_gst_below_rate ?? 5}
+                      onChange={(e) =>
+                        setSettings({
+                          ...settings,
+                          purchase_settings: {
+                            ...settings.purchase_settings,
+                            garment_gst_below_rate: parseFloat(e.target.value) || 0,
+                          },
+                        })
+                      }
+                      disabled={!settings.purchase_settings?.garment_gst_rule_enabled}
+                      placeholder="5"
+                    />
+                  </div>
                   </div>
                 </div>
 

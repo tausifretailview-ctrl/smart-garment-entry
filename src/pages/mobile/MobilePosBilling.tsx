@@ -109,6 +109,7 @@ export default function MobilePosBilling() {
   const garmentGstSettings = {
     garment_gst_rule_enabled: purchaseSettings.garment_gst_rule_enabled === true,
     garment_gst_threshold: purchaseSettings.garment_gst_threshold as number | undefined,
+    garment_gst_below_rate: purchaseSettings.garment_gst_below_rate as number | undefined,
   };
 
   const initialTaxType = resolvePosDefaultTaxType({

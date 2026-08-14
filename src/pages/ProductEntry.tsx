@@ -428,6 +428,7 @@ const ProductEntry = () => {
         const loadedGarmentGstSettings: GarmentGstRuleSettings = {
           garment_gst_rule_enabled: purchaseSettings.garment_gst_rule_enabled === true,
           garment_gst_threshold: purchaseSettings.garment_gst_threshold,
+          garment_gst_below_rate: purchaseSettings.garment_gst_below_rate,
         };
         setGarmentGstSettings(loadedGarmentGstSettings);
         if (!editingProductId) {

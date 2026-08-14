@@ -2050,6 +2050,7 @@ const PurchaseEntry = () => {
   const garmentGstSettings: GarmentGstRuleSettings = {
     garment_gst_rule_enabled: (settings?.purchase_settings as any)?.garment_gst_rule_enabled === true,
     garment_gst_threshold: (settings?.purchase_settings as any)?.garment_gst_threshold,
+    garment_gst_below_rate: (settings?.purchase_settings as any)?.garment_gst_below_rate,
   };
   
   const focusSearchBar = useCallback(() => {
