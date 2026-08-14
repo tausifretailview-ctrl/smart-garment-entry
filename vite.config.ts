@@ -76,12 +76,15 @@ export default defineConfig(({ mode }) => ({
           },
           {
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
-            handler: 'CacheFirst',
+            // StaleWhileRevalidate, NOT CacheFirst: the font CSS embeds versioned
+            // gstatic hashes. Cached for a year, it kept requesting woff2 files
+            // Google had already deleted -> permanent 404s.
+            handler: 'StaleWhileRevalidate',
             options: {
               cacheName: 'google-fonts-cache',
               expiration: {
                 maxEntries: 10,
-                maxAgeSeconds: 60 * 60 * 24 * 365 // 1 year
+                maxAgeSeconds: 60 * 60 * 24 * 7 // 7 days
               },
               cacheableResponse: {
                 statuses: [0, 200]
