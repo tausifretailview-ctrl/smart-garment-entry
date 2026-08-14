@@ -178,6 +178,7 @@ interface PurchaseSettings {
   cursor_after_style?: 'pur_price' | 'hsn';
   garment_gst_rule_enabled?: boolean;
   garment_gst_threshold?: number;
+  garment_gst_below_rate?: number;
 }
 
 interface EInvoiceSettings {
