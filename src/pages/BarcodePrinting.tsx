@@ -141,6 +141,7 @@ import {
   loadFootwearDesignFromStorage,
   resolveFootwearFormDesign,
   saveFootwearDesignToStorage,
+  footwearFormSizeMm,
   type FootwearFormDesign,
 } from "@/utils/labels/precisionProFootwearDesign";
 import { migrateCustomTextFields } from "@/utils/labelCustomText";
@@ -5266,9 +5267,10 @@ export default function BarcodePrinting() {
       ? 1
       : getPrecisionThermalCols(precisionSettings.printMode, precisionSettings.thermalCols);
     const horizontalGap = cols > 1 ? getThermalMultiUpGap() : 0;
-    // Footwear form is a fixed 102×53mm sheet (box panel + 2 pair panels).
-    const labelW = isFootwearForm ? 102 : effectivePrecisionLabelWidth;
-    const labelH = isFootwearForm ? 53 : effectivePrecisionLabelHeight;
+    // Footwear form size comes from the designed panel sizes (box + pair column).
+    const footwearForm = footwearFormSizeMm(resolveFootwearFormDesign(footwearDesign).layout);
+    const labelW = isFootwearForm ? footwearForm.widthMm : effectivePrecisionLabelWidth;
+    const labelH = isFootwearForm ? footwearForm.heightMm : effectivePrecisionLabelHeight;
     const w = labelW * cols + horizontalGap * Math.max(0, cols - 1);
     const isA4 = !isFootwearForm && precisionSettings.printMode === "a4";
     // Thermal: page size must match physical sticker. vGap is roll spacing only — never add to page height.
