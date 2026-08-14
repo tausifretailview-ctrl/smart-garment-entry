@@ -139,6 +139,7 @@ function ConfigPanel({
 
         if (key === "barcode") {
           const hMm = dotsToMm(layout.barcodeHeight ?? (isBox ? 60 : 26));
+          const wDots = layout.widthDots ?? Math.max(40, panelWDots - layout.x - 8);
           return (
             <div
               key={key}
@@ -146,7 +147,7 @@ function ConfigPanel({
                 position: "absolute",
                 left: u(dotsToMm(layout.x)),
                 top: u(dotsToMm(layout.y)),
-                width: u(dotsToMm(Math.max(40, panelWDots - layout.x - 8))),
+                width: u(dotsToMm(Math.max(20, wDots))),
               }}
             >
               <svg
@@ -180,7 +181,14 @@ function ConfigPanel({
               textOverflow: "ellipsis",
               left: u(dotsToMm(x)),
               top: u(dotsToMm(y)),
-              maxWidth: u(dotsToMm(Math.max(24, panelWDots - x - 4))),
+              maxWidth: u(
+                dotsToMm(
+                  Math.max(
+                    12,
+                    layout.widthDots ?? Math.max(24, panelWDots - x - 4),
+                  ),
+                ),
+              ),
               fontSize: fs(pt),
               fontWeight: layout.mulX >= 2 || layout.font === "4" || layout.font === "5" ? 700 : 500,
               fontFamily: key === "barcodeText" ? "ui-monospace, monospace" : undefined,
