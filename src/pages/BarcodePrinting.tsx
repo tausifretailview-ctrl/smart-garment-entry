@@ -7998,7 +7998,8 @@ export default function BarcodePrinting() {
               <div className="mb-3 p-3 rounded-lg text-center font-bold text-sm" style={{ background: "hsl(var(--primary) / 0.1)", color: "hsl(var(--primary))" }}>
                 {(() => {
                   const forms = labelItems.reduce((s, i) => s + (i.qty || 0), 0);
-                  return `Total: ${forms} forms · ${forms * 3} stickers (102×53mm box + pair)`;
+                  const fw = footwearFormSizeMm(resolveFootwearFormDesign(footwearDesign).layout);
+                  return `Total: ${forms} forms · ${forms * 3} stickers (${fw.widthMm}×${fw.heightMm}mm box + pair)`;
                 })()}
               </div>
               <div className="flex flex-col items-center gap-4">
