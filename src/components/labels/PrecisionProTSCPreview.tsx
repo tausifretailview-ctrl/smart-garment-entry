@@ -247,10 +247,14 @@ export function PrecisionProTSCPreview({
 
   const boxBarH = resolved.box.fields.barcode.barcodeHeight ?? 60;
   const pairBarH = resolved.pair.fields.barcode.barcodeHeight ?? 26;
+  const boxNarrowCfg = resolved.box.fields.barcode.barcodeNarrow;
+  const pairNarrowCfg = resolved.pair.fields.barcode.barcodeNarrow;
+  const boxBarWidth = boxNarrowCfg && boxNarrowCfg > 0 ? boxNarrowCfg * 0.7 : boxNarrow === 2 ? 1.4 : 0.9;
+  const pairBarWidth = pairNarrowCfg && pairNarrowCfg > 0 ? pairNarrowCfg * 0.7 : 0.9;
 
-  useBarcode(boxBarcodeRef, barcode, (boxBarH / 2) * scaleFactor, boxNarrow === 2 ? 1.4 : 0.9);
-  useBarcode(pair1BarcodeRef, barcode, (pairBarH / 2) * scaleFactor, 0.9);
-  useBarcode(pair2BarcodeRef, barcode, (pairBarH / 2) * scaleFactor, 0.9);
+  useBarcode(boxBarcodeRef, barcode, (boxBarH / 2) * scaleFactor, boxBarWidth);
+  useBarcode(pair1BarcodeRef, barcode, (pairBarH / 2) * scaleFactor, pairBarWidth);
+  useBarcode(pair2BarcodeRef, barcode, (pairBarH / 2) * scaleFactor, pairBarWidth);
 
   const u = (mm: number) => `${mm * scaleFactor}mm`;
   const fs = (pt: number) => `${pt * scaleFactor * 0.35}mm`;
