@@ -25,13 +25,12 @@ import {
   resolveFootwearFormDesign,
   resolveBoxSizeLayout,
   updateFootwearField,
+  updateFootwearLayout,
+  footwearFormSizeMm,
 } from "@/utils/labels/precisionProFootwearDesign";
 import {
-  PRECISION_PRO_TSC_HEIGHT_MM,
-  PRECISION_PRO_TSC_WIDTH_MM,
-  PAIR_TOP,
-  PAIR_X,
   dotsToMm,
+  mmToDots,
 } from "@/utils/labels/precisionProGeometry";
 
 interface FootwearPanelDesignerProps {
@@ -98,8 +97,12 @@ export function FootwearPanelDesigner({
   const [panel, setPanel] = useState<FootwearPanelId>("box");
   const resolved = resolveFootwearFormDesign(design);
   const fields = resolved[panel].fields;
-  const maxX = panel === "box" ? 500 : 300;
-  const maxY = panel === "box" ? 410 : 190;
+  const layout = resolved.layout;
+  const form = footwearFormSizeMm(layout);
+  const maxX =
+    panel === "box" ? Math.max(0, mmToDots(layout.boxWidthMm) - 12) : Math.max(0, mmToDots(layout.pairWidthMm) - 12);
+  const maxY =
+    panel === "box" ? Math.max(0, mmToDots(layout.boxHeightMm) - 14) : Math.max(0, mmToDots(layout.pairHeightMm) - 14);
   const previewRef = useRef<HTMLDivElement>(null);
   const [dragKey, setDragKey] = useState<FootwearFieldKey | null>(null);
 
@@ -119,8 +122,8 @@ export function FootwearPanelDesigner({
     const el = previewRef.current;
     const widthPx = el?.getBoundingClientRect().width || 0;
     if (!widthPx) return 0;
-    return widthPx / (PRECISION_PRO_TSC_WIDTH_MM * 8);
-  }, []);
+    return widthPx / (form.widthMm * 8);
+  }, [form.widthMm]);
 
   const startDrag = (key: FootwearFieldKey) => (e: React.PointerEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -158,7 +161,10 @@ export function FootwearPanelDesigner({
   const panelOriginMm =
     panel === "box"
       ? { left: 0, top: 0 }
-      : { left: dotsToMm(PAIR_X), top: dotsToMm(PAIR_TOP) };
+      : {
+          left: layout.boxWidthMm,
+          top: Math.max(0, (form.heightMm - layout.pairHeightMm * 2) / 2),
+        };
 
   const sample: LabelItem = sampleItem || {
     product_name: "RUNNER PRO",
@@ -190,7 +196,7 @@ export function FootwearPanelDesigner({
             )}
             onClick={() => setPanel("box")}
           >
-            Box (64×53)
+            Box ({layout.boxWidthMm}×{layout.boxHeightMm})
           </button>
           <button
             type="button"
@@ -202,7 +208,7 @@ export function FootwearPanelDesigner({
             )}
             onClick={() => setPanel("pair")}
           >
-            Pair (38×25)×2
+            Pair ({layout.pairWidthMm}×{layout.pairHeightMm})×2
           </button>
         </div>
         <Button
@@ -219,9 +225,35 @@ export function FootwearPanelDesigner({
 
       <p className="text-[11px] text-muted-foreground">
         {panel === "box"
-          ? "Box coords are absolute on the 102×53 form (dots @ 203 DPI)."
+          ? `Box coords are relative to the box panel (dots @ 203 DPI). Form: ${form.widthMm}×${form.heightMm}mm.`
           : "Pair is designed once and printed twice (top + bottom). Coords are relative to each pair sticker."}
       </p>
+
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 border rounded-md p-2 bg-muted/20">
+        {([
+          ["boxWidthMm", "Box W (mm)"],
+          ["boxHeightMm", "Box H (mm)"],
+          ["pairWidthMm", "Pair W (mm)"],
+          ["pairHeightMm", "Pair H (mm)"],
+        ] as const).map(([key, label]) => (
+          <div key={key} className="space-y-0.5">
+            <Label className="text-[10px] text-muted-foreground">{label}</Label>
+            <Input
+              type="number"
+              step="0.5"
+              min={5}
+              max={200}
+              className="h-7 text-xs text-center tabular-nums font-mono px-1"
+              value={layout[key]}
+              onChange={(e) => {
+                const n = Number(e.target.value);
+                if (!Number.isFinite(n)) return;
+                onChange(updateFootwearLayout(resolved, { [key]: Math.min(200, Math.max(5, n)) }));
+              }}
+            />
+          </div>
+        ))}
+      </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 flex-1 min-h-0">
         <div className="space-y-2 overflow-auto min-h-0 max-h-[420px] xl:max-h-none pr-1">
@@ -327,7 +359,7 @@ export function FootwearPanelDesigner({
 
         <div className="flex flex-col min-h-0 gap-2">
           <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide shrink-0">
-            Live form preview ({PRECISION_PRO_TSC_WIDTH_MM}×{PRECISION_PRO_TSC_HEIGHT_MM}mm)
+            Live form preview ({form.widthMm}×{form.heightMm}mm)
           </p>
           <p className="text-[11px] text-muted-foreground shrink-0">
             Drag the dotted handles on the preview to move fields of the selected panel.
