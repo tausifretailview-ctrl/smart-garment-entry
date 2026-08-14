@@ -129,8 +129,12 @@ export function FootwearPanelDesigner({
     if (!ratio) return;
     const startX = e.clientX;
     const startY = e.clientY;
-    const originX = fields[key].x;
-    const originY = fields[key].y;
+    const base =
+      key === "size" && panel === "box"
+        ? resolveBoxSizeLayout(sample.size ? String(sample.size) : "9", fields[key])
+        : fields[key];
+    const originX = base.x;
+    const originY = base.y;
     setDragKey(key);
 
     const move = (ev: PointerEvent) => {
