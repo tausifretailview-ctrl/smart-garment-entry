@@ -5261,12 +5261,16 @@ export default function BarcodePrinting() {
     if (!printArea) return;
 
     const labelHTML = printArea.innerHTML;
-    const cols = getPrecisionThermalCols(precisionSettings.printMode, precisionSettings.thermalCols);
+    const isFootwearForm = isPrecisionFootwearMode(precisionSettings.printMode);
+    const cols = isFootwearForm
+      ? 1
+      : getPrecisionThermalCols(precisionSettings.printMode, precisionSettings.thermalCols);
     const horizontalGap = cols > 1 ? getThermalMultiUpGap() : 0;
-    const labelW = effectivePrecisionLabelWidth;
-    const labelH = effectivePrecisionLabelHeight;
+    // Footwear form is a fixed 102×53mm sheet (box panel + 2 pair panels).
+    const labelW = isFootwearForm ? 102 : effectivePrecisionLabelWidth;
+    const labelH = isFootwearForm ? 53 : effectivePrecisionLabelHeight;
     const w = labelW * cols + horizontalGap * Math.max(0, cols - 1);
-    const isA4 = precisionSettings.printMode === "a4";
+    const isA4 = !isFootwearForm && precisionSettings.printMode === "a4";
     // Thermal: page size must match physical sticker. vGap is roll spacing only — never add to page height.
     const h = isA4 ? 297 : labelH;
 
