@@ -181,9 +181,30 @@ export function resolveFootwearFormDesign(
   if (!input) return structuredClone(DEFAULT_FOOTWEAR_FORM_DESIGN);
   return {
     version: FOOTWEAR_DESIGN_VERSION,
+    layout: { ...DEFAULT_FOOTWEAR_LAYOUT, ...(input.layout ?? {}) },
     box: mergePanel(DEFAULT_FOOTWEAR_FORM_DESIGN.box, input.box),
     pair: mergePanel(DEFAULT_FOOTWEAR_FORM_DESIGN.pair, input.pair),
   };
+}
+
+/** Overall form size in mm derived from panel sizes. */
+export function footwearFormSizeMm(layout: FootwearLayoutDesign): {
+  widthMm: number;
+  heightMm: number;
+} {
+  return {
+    widthMm: layout.boxWidthMm + layout.pairWidthMm,
+    heightMm: Math.max(layout.boxHeightMm, layout.pairHeightMm * 2),
+  };
+}
+
+export function updateFootwearLayout(
+  design: FootwearFormDesign,
+  patch: Partial<FootwearLayoutDesign>,
+): FootwearFormDesign {
+  const next = resolveFootwearFormDesign(design);
+  next.layout = { ...next.layout, ...patch };
+  return next;
 }
 
 export function updateFootwearField(
