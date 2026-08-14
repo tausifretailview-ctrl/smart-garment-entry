@@ -255,29 +255,50 @@ export function PrecisionProTSCPreview({
   const u = (mm: number) => `${mm * scaleFactor}mm`;
   const fs = (pt: number) => `${pt * scaleFactor * 0.35}mm`;
 
-  const boxWidthMm = dotsToMm(BOX_W);
-  const pairWidthMm = dotsToMm(PAIR_COL_W);
-  const gapMm = Math.max(0, PRECISION_PRO_TSC_WIDTH_MM - boxWidthMm - pairWidthMm);
-  const pair1TopMm = dotsToMm(PAIR_TOP);
-  const pair1HMm = dotsToMm(PAIR_H);
-  const pair2TopMm = dotsToMm(PAIR_MID_Y);
-  const pair2HMm = dotsToMm(LABEL_H - PAIR_MID_Y);
+  const layout = resolved.layout;
+  const form = footwearFormSizeMm(layout);
+  const boxWidthMm = layout.boxWidthMm;
+  const pairWidthMm = layout.pairWidthMm;
+  const gapMm = 0;
+  const spareMm = Math.max(0, form.heightMm - layout.pairHeightMm * 2);
+  const pair1TopMm = spareMm / 2;
+  const pair1HMm = layout.pairHeightMm;
+  const pair2TopMm = pair1TopMm + layout.pairHeightMm;
+  const pair2HMm = layout.pairHeightMm;
+  const boxWDots = mmToDots(boxWidthMm);
+  const boxHDots = mmToDots(layout.boxHeightMm);
+  const pairWDots = mmToDots(pairWidthMm);
+  const pairHDots = mmToDots(layout.pairHeightMm);
 
   return (
     <div
-      className="relative flex bg-white text-black font-sans overflow-hidden box-border"
       style={{
-        width: u(PRECISION_PRO_TSC_WIDTH_MM),
-        height: u(PRECISION_PRO_TSC_HEIGHT_MM),
+        position: "relative",
+        display: "flex",
+        background: "#fff",
+        color: "#000",
+        overflow: "hidden",
+        boxSizing: "border-box",
+        fontFamily: "Arial, Helvetica, sans-serif",
+        width: u(form.widthMm),
+        height: u(form.heightMm),
         border: showBorder ? "1px dashed hsl(var(--border))" : undefined,
       }}
     >
-      <div className="relative shrink-0 h-full overflow-hidden" style={{ width: u(boxWidthMm) }}>
+      <div
+        style={{
+          position: "relative",
+          flex: "0 0 auto",
+          height: "100%",
+          overflow: "hidden",
+          width: u(boxWidthMm),
+        }}
+      >
         <ConfigPanel
           panel={resolved.box}
           values={boxValues}
-          panelWDots={BOX_W}
-          panelHDots={LABEL_H}
+          panelWDots={boxWDots}
+          panelHDots={boxHDots}
           isBox
           u={u}
           fs={fs}
@@ -288,21 +309,39 @@ export function PrecisionProTSCPreview({
 
       {gapMm > 0 && (
         <div
-          className={PRECISION_PRO_DEBUG_DIVIDERS ? "shrink-0 bg-black" : "shrink-0"}
-          style={{ width: u(gapMm), height: "100%" }}
+          style={{
+            flex: "0 0 auto",
+            width: u(gapMm),
+            height: "100%",
+            background: PRECISION_PRO_DEBUG_DIVIDERS ? "#000" : undefined,
+          }}
         />
       )}
 
-      <div className="relative shrink-0 h-full overflow-hidden" style={{ width: u(pairWidthMm) }}>
+      <div
+        style={{
+          position: "relative",
+          flex: "0 0 auto",
+          height: "100%",
+          overflow: "hidden",
+          width: u(pairWidthMm),
+        }}
+      >
         <div
-          className="absolute left-0 right-0 overflow-hidden"
-          style={{ top: u(pair1TopMm), height: u(pair1HMm) }}
+          style={{
+            position: "absolute",
+            left: 0,
+            right: 0,
+            overflow: "hidden",
+            top: u(pair1TopMm),
+            height: u(pair1HMm),
+          }}
         >
           <ConfigPanel
             panel={resolved.pair}
             values={pairValues}
-            panelWDots={PAIR_COL_W}
-            panelHDots={PAIR_H}
+            panelWDots={pairWDots}
+            panelHDots={pairHDots}
             isBox={false}
             u={u}
             fs={fs}
@@ -312,19 +351,31 @@ export function PrecisionProTSCPreview({
         </div>
         {PRECISION_PRO_DEBUG_DIVIDERS && (
           <div
-            className="absolute left-0 right-0 bg-black"
-            style={{ top: u(pair2TopMm - 0.25), height: u(0.25) }}
+            style={{
+              position: "absolute",
+              left: 0,
+              right: 0,
+              background: "#000",
+              top: u(pair2TopMm - 0.25),
+              height: u(0.25),
+            }}
           />
         )}
         <div
-          className="absolute left-0 right-0 overflow-hidden"
-          style={{ top: u(pair2TopMm), height: u(pair2HMm) }}
+          style={{
+            position: "absolute",
+            left: 0,
+            right: 0,
+            overflow: "hidden",
+            top: u(pair2TopMm),
+            height: u(pair2HMm),
+          }}
         >
           <ConfigPanel
             panel={resolved.pair}
             values={pairValues}
-            panelWDots={PAIR_COL_W}
-            panelHDots={PAIR_H}
+            panelWDots={pairWDots}
+            panelHDots={pairHDots}
             isBox={false}
             u={u}
             fs={fs}
