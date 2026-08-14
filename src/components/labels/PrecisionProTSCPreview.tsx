@@ -14,10 +14,12 @@ import {
   TRUNC,
   boxBarcodeNarrowBarWidth,
   dotsToMm,
+  mmToDots,
 } from "@/utils/labels/precisionProGeometry";
 import {
   DEFAULT_FOOTWEAR_FORM_DESIGN,
   FOOTWEAR_FIELD_KEYS,
+  footwearFormSizeMm,
   type FootwearFieldKey,
   type FootwearFieldLayout,
   type FootwearFormDesign,
