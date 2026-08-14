@@ -23,6 +23,7 @@ import {
   type FootwearFormDesign,
   type FootwearPanelId,
   resolveFootwearFormDesign,
+  resolveBoxSizeLayout,
   updateFootwearField,
 } from "@/utils/labels/precisionProFootwearDesign";
 import {
@@ -103,7 +104,14 @@ export function FootwearPanelDesigner({
   const [dragKey, setDragKey] = useState<FootwearFieldKey | null>(null);
 
   const patchField = (key: FootwearFieldKey, patch: Parameters<typeof updateFootwearField>[3]) => {
-    onChange(updateFootwearField(resolved, panel, key, patch));
+    // The box "size" field can be auto-repositioned by the overflow guard, which
+    // makes manual X/Y edits and dragging appear to do nothing. Any manual edit
+    // disables the guard so the user's coordinates win.
+    const finalPatch =
+      key === "size" && panel === "box" && (patch.x !== undefined || patch.y !== undefined)
+        ? { ...patch, sizeOverflowGuard: false }
+        : patch;
+    onChange(updateFootwearField(resolved, panel, key, finalPatch));
   };
 
   /** Pixels per dot, measured from the rendered preview (survives zoom/scale). */
@@ -121,8 +129,12 @@ export function FootwearPanelDesigner({
     if (!ratio) return;
     const startX = e.clientX;
     const startY = e.clientY;
-    const originX = fields[key].x;
-    const originY = fields[key].y;
+    const base =
+      key === "size" && panel === "box"
+        ? resolveBoxSizeLayout(sample.size ? String(sample.size) : "9", fields[key])
+        : fields[key];
+    const originX = base.x;
+    const originY = base.y;
     setDragKey(key);
 
     const move = (ev: PointerEvent) => {
@@ -332,8 +344,13 @@ export function FootwearPanelDesigner({
                 <div className="absolute inset-0">
                   {FOOTWEAR_FIELD_KEYS.filter((key) => fields[key].show).map((key) => {
                     const f = fields[key];
-                    const leftMm = panelOriginMm.left + dotsToMm(f.x);
-                    const topMm = panelOriginMm.top + dotsToMm(f.y);
+                    // Match where the preview actually draws the box size value.
+                    const drawn =
+                      key === "size" && panel === "box"
+                        ? resolveBoxSizeLayout(sample.size ? String(sample.size) : "9", f)
+                        : { x: f.x, y: f.y };
+                    const leftMm = panelOriginMm.left + dotsToMm(drawn.x);
+                    const topMm = panelOriginMm.top + dotsToMm(drawn.y);
                     return (
                       <div
                         key={key}
@@ -342,7 +359,7 @@ export function FootwearPanelDesigner({
                         title={`Drag ${FOOTWEAR_FIELD_LABELS[key]}`}
                         onPointerDown={startDrag(key)}
                         className={cn(
-                          "absolute cursor-move rounded-sm border border-dashed",
+                          "absolute cursor-move rounded-sm border border-dashed touch-none z-10",
                           dragKey === key
                             ? "border-primary bg-primary/25"
                             : "border-primary/60 bg-primary/10 hover:bg-primary/20",
