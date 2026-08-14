@@ -340,8 +340,13 @@ export function FootwearPanelDesigner({
                 <div className="absolute inset-0">
                   {FOOTWEAR_FIELD_KEYS.filter((key) => fields[key].show).map((key) => {
                     const f = fields[key];
-                    const leftMm = panelOriginMm.left + dotsToMm(f.x);
-                    const topMm = panelOriginMm.top + dotsToMm(f.y);
+                    // Match where the preview actually draws the box size value.
+                    const drawn =
+                      key === "size" && panel === "box"
+                        ? resolveBoxSizeLayout(sample.size ? String(sample.size) : "9", f)
+                        : { x: f.x, y: f.y };
+                    const leftMm = panelOriginMm.left + dotsToMm(drawn.x);
+                    const topMm = panelOriginMm.top + dotsToMm(drawn.y);
                     return (
                       <div
                         key={key}
@@ -350,7 +355,7 @@ export function FootwearPanelDesigner({
                         title={`Drag ${FOOTWEAR_FIELD_LABELS[key]}`}
                         onPointerDown={startDrag(key)}
                         className={cn(
-                          "absolute cursor-move rounded-sm border border-dashed",
+                          "absolute cursor-move rounded-sm border border-dashed touch-none z-10",
                           dragKey === key
                             ? "border-primary bg-primary/25"
                             : "border-primary/60 bg-primary/10 hover:bg-primary/20",
