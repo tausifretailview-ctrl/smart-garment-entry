@@ -7686,6 +7686,15 @@ export default function BarcodePrinting() {
               </div>
             ) : (
             <>
+            {isPrecisionFootwearMode(precisionSettings.printMode) ? (
+            <FootwearPanelDesigner
+              design={footwearDesign}
+              onChange={handleFootwearDesignChange}
+              sampleItem={labelItems.length > 0 ? labelItems[0] : undefined}
+              businessName={businessName}
+              className="flex-1 min-h-0"
+            />
+            ) : (
             <PrecisionLabelDesigner
               labelWidth={effectivePrecisionLabelWidth}
               labelHeight={effectivePrecisionLabelHeight}
