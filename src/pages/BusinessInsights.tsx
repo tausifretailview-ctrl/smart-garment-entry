@@ -13,13 +13,15 @@ import { ProfitabilityTab } from "@/components/business-insights/ProfitabilityTa
 import { StockHealthTab } from "@/components/business-insights/StockHealthTab";
 import { SupplierAnalysisTab } from "@/components/business-insights/SupplierAnalysisTab";
 import { SalesTrendsTab } from "@/components/business-insights/SalesTrendsTab";
+import { QuietCustomersTab } from "@/components/business-insights/QuietCustomersTab";
 
 type InsightsTabId =
   | "executive-summary"
   | "profitability"
   | "stock-health"
   | "supplier-analysis"
-  | "sales-trends";
+  | "sales-trends"
+  | "quiet-customers";
 
 const TAB_ITEMS: { id: InsightsTabId; label: string }[] = [
   { id: "executive-summary", label: "Executive Summary" },
@@ -27,6 +29,7 @@ const TAB_ITEMS: { id: InsightsTabId; label: string }[] = [
   { id: "stock-health", label: "Stock Health" },
   { id: "supplier-analysis", label: "Supplier Analysis" },
   { id: "sales-trends", label: "Sales Trends" },
+  { id: "quiet-customers", label: "Quiet Customers" },
 ];
 
 function defaultDateRange(): { startDate: string; endDate: string } {
@@ -58,6 +61,8 @@ export default function BusinessInsights() {
     setVisitedTabs((prev) => (prev.has(id) ? prev : new Set([...prev, id])));
   }, []);
 
+  const showSharedDateRange = selectedTab !== "quiet-customers";
+
   return (
     <div className="business-insights-workspace flex flex-col bg-slate-50 px-2 sm:px-3 py-2 min-h-0 h-full overflow-hidden w-full">
       <div className="w-full min-w-0 flex flex-col flex-1 min-h-0 gap-2">
@@ -79,36 +84,43 @@ export default function BusinessInsights() {
                 Business Insights
               </h1>
               <p className="text-sm text-muted-foreground mt-1 truncate">
-                Executive Summary · Profitability · Stock Health · Supplier · Sales Trends
+                Executive Summary · Profitability · Stock Health · Supplier · Sales Trends · Quiet
+                Customers
               </p>
             </div>
           </div>
-          <div className="flex flex-wrap items-end gap-3 shrink-0">
-            <div className="space-y-1">
-              <Label htmlFor="insights-from-date" className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                From
-              </Label>
-              <Input
-                id="insights-from-date"
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="h-9 w-[9.5rem] text-sm border-slate-200 bg-white"
-              />
+          {showSharedDateRange ? (
+            <div className="flex flex-wrap items-end gap-3 shrink-0">
+              <div className="space-y-1">
+                <Label htmlFor="insights-from-date" className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                  From
+                </Label>
+                <Input
+                  id="insights-from-date"
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="h-9 w-[9.5rem] text-sm border-slate-200 bg-white"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="insights-to-date" className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                  To
+                </Label>
+                <Input
+                  id="insights-to-date"
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="h-9 w-[9.5rem] text-sm border-slate-200 bg-white"
+                />
+              </div>
             </div>
-            <div className="space-y-1">
-              <Label htmlFor="insights-to-date" className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                To
-              </Label>
-              <Input
-                id="insights-to-date"
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                className="h-9 w-[9.5rem] text-sm border-slate-200 bg-white"
-              />
-            </div>
-          </div>
+          ) : (
+            <p className="text-xs text-muted-foreground shrink-0 max-w-xs text-right">
+              Quiet Customers is as-of today — the shared From/To range does not apply.
+            </p>
+          )}
         </div>
 
         <Tabs
@@ -157,6 +169,10 @@ export default function BusinessInsights() {
             {shouldMountTab("sales-trends") ? (
               <SalesTrendsTab startDate={startDate} endDate={endDate} />
             ) : null}
+          </TabsContent>
+
+          <TabsContent value="quiet-customers" className="flex-1 min-h-0 flex flex-col mt-0 data-[state=inactive]:hidden">
+            {shouldMountTab("quiet-customers") ? <QuietCustomersTab /> : null}
           </TabsContent>
         </Tabs>
       </div>
