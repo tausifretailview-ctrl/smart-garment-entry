@@ -23,6 +23,7 @@ import {
   type FootwearFormDesign,
   type FootwearPanelId,
   resolveFootwearFormDesign,
+  resolveBoxSizeLayout,
   updateFootwearField,
 } from "@/utils/labels/precisionProFootwearDesign";
 import {
@@ -103,7 +104,14 @@ export function FootwearPanelDesigner({
   const [dragKey, setDragKey] = useState<FootwearFieldKey | null>(null);
 
   const patchField = (key: FootwearFieldKey, patch: Parameters<typeof updateFootwearField>[3]) => {
-    onChange(updateFootwearField(resolved, panel, key, patch));
+    // The box "size" field can be auto-repositioned by the overflow guard, which
+    // makes manual X/Y edits and dragging appear to do nothing. Any manual edit
+    // disables the guard so the user's coordinates win.
+    const finalPatch =
+      key === "size" && panel === "box" && (patch.x !== undefined || patch.y !== undefined)
+        ? { ...patch, sizeOverflowGuard: false }
+        : patch;
+    onChange(updateFootwearField(resolved, panel, key, finalPatch));
   };
 
   /** Pixels per dot, measured from the rendered preview (survives zoom/scale). */
