@@ -27,6 +27,7 @@ import {
   PRECISION_PRO_TSC_HEIGHT_MM,
   PRECISION_PRO_TSC_WIDTH_MM,
 } from '@/utils/labels/precisionProTSPL';
+import type { FootwearFormDesign } from '@/utils/labels/precisionProFootwearDesign';
 import {
   PRNTemplate,
   SAMPLE_PRN_TEMPLATES,
@@ -59,6 +60,8 @@ interface DirectPrintDialogProps {
   labelSize: string;
   labelConfig?: LabelDesignConfig;
   businessName?: string;
+  /** Footwear Box+Pair layout — used when labelSize is precision_pro_tsc. */
+  footwearDesign?: FootwearFormDesign | null;
   prnTemplates?: PRNTemplate[];
   onSavePRNTemplate?: (template: PRNTemplate) => Promise<boolean>;
   onDeletePRNTemplate?: (name: string) => Promise<boolean>;
@@ -71,6 +74,7 @@ export const DirectPrintDialog = ({
   labelSize,
   labelConfig: templateConfig,
   businessName = '',
+  footwearDesign = null,
   prnTemplates = [],
   onSavePRNTemplate,
   onDeletePRNTemplate,
@@ -439,6 +443,7 @@ export const DirectPrintDialog = ({
                 category: item.category,
               },
               item.quantity,
+              footwearDesign,
             ),
           )
           .join('\n');

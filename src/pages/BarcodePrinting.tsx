@@ -136,6 +136,12 @@ import { PrecisionThermalRowPreview } from "@/components/precision-barcode/Preci
 import { PrecisionA4SheetPrint } from "@/components/precision-barcode/PrecisionA4SheetPrint";
 import { PrecisionLabelPreview } from "@/components/precision-barcode/PrecisionLabelPreview";
 import { PrecisionProTSCPreview } from "@/components/labels/PrecisionProTSCPreview";
+import {
+  loadFootwearDesignFromStorage,
+  resolveFootwearFormDesign,
+  saveFootwearDesignToStorage,
+  type FootwearFormDesign,
+} from "@/utils/labels/precisionProFootwearDesign";
 import { migrateCustomTextFields } from "@/utils/labelCustomText";
 import { LabelCalibrationUI, type CalibrationPreset } from "@/components/precision-barcode/LabelCalibrationUI";
 import { TestLabelPrint } from "@/components/precision-barcode/TestLabelPrint";
@@ -1479,6 +1485,9 @@ export default function BarcodePrinting() {
     labelConfig: null as any,
     thermalCols: 1,
   });
+  const [footwearDesign, setFootwearDesign] = useState<FootwearFormDesign>(() =>
+    resolveFootwearFormDesign(null),
+  );
   const [dbPresets, setDbPresets] = useState<CalibrationPreset[]>([]);
   const designerPresetsForMode = useMemo(
     () =>
@@ -1532,6 +1541,19 @@ export default function BarcodePrinting() {
       localStorage.removeItem("precision_active_preset");
     } catch {}
   }, [currentOrganization?.id]);
+
+  useEffect(() => {
+    setFootwearDesign(loadFootwearDesignFromStorage(currentOrganization?.id));
+  }, [currentOrganization?.id]);
+
+  const handleFootwearDesignChange = useCallback(
+    (design: FootwearFormDesign) => {
+      const resolved = resolveFootwearFormDesign(design);
+      setFootwearDesign(resolved);
+      saveFootwearDesignToStorage(currentOrganization?.id, resolved);
+    },
+    [currentOrganization?.id],
+  );
 
   const activePrecisionTemplateBaseName = activePrecisionTemplateName?.replace(/^preset:/, "") ?? null;
   const activePrecisionTemplateBaseNameRef = useRef(activePrecisionTemplateBaseName);
@@ -6573,6 +6595,7 @@ export default function BarcodePrinting() {
                     item={labelItems[0]}
                     businessName={businessName}
                     scaleFactor={1.5}
+                    design={footwearDesign}
                   />
                 </div>
               </div>
@@ -7498,6 +7521,8 @@ export default function BarcodePrinting() {
               fullWorkspace
               activePresetValue={activePrecisionTemplateName}
               onOpenBackupRestore={() => setBackupRestoreOpen(true)}
+              footwearDesign={footwearDesign}
+              onFootwearDesignChange={handleFootwearDesignChange}
             />
             </div>
           </div>
@@ -7855,6 +7880,8 @@ export default function BarcodePrinting() {
                 savedTemplates={savedLabelTemplates}
                 sampleItem={labelItems.length > 0 ? { ...labelItems[0], businessName } : undefined}
                 activePresetValue={activePrecisionTemplateName}
+                footwearDesign={footwearDesign}
+                onFootwearDesignChange={handleFootwearDesignChange}
               />
             </DialogContent>
           </Dialog>
@@ -7897,6 +7924,7 @@ export default function BarcodePrinting() {
                               item={item}
                               businessName={businessName}
                               scaleFactor={1.5}
+                              design={footwearDesign}
                             />
                           )),
                         )}
@@ -7973,6 +8001,7 @@ export default function BarcodePrinting() {
                         item={item}
                         businessName={businessName}
                         scaleFactor={1.5}
+                        design={footwearDesign}
                       />
                     )),
                   )}
@@ -8120,6 +8149,7 @@ export default function BarcodePrinting() {
         }
         labelConfig={labelConfig}
         businessName={businessName}
+        footwearDesign={footwearDesign}
         prnTemplates={prnTemplates}
         onSavePRNTemplate={savePRNTemplate}
         onDeletePRNTemplate={deletePRNTemplate}

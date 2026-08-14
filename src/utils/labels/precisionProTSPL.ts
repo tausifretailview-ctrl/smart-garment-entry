@@ -1,8 +1,7 @@
 // Precision Pro TSC — 102×53mm footwear label (box + 2 pair labels)
-// Geometry: src/utils/labels/precisionProGeometry.ts (single source of truth)
+// Geometry: precisionProGeometry.ts · Field layout: precisionProFootwearDesign.ts
 
 import {
-  BOX_CONTENT_X,
   BOX_W,
   LABEL_H,
   PAIR_COL_W,
@@ -15,8 +14,17 @@ import {
   PRECISION_PRO_TSC_WIDTH_MM,
   TRUNC,
   boxBarcodeNarrowBarWidth,
-  boxSizeOverflowSafe,
 } from "./precisionProGeometry";
+import {
+  DEFAULT_FOOTWEAR_FORM_DESIGN,
+  FOOTWEAR_FIELD_KEYS,
+  type FootwearFieldKey,
+  type FootwearFieldLayout,
+  type FootwearFormDesign,
+  type FootwearPanelDesign,
+  resolveBoxSizeLayout,
+  resolveFootwearFormDesign,
+} from "./precisionProFootwearDesign";
 
 export {
   PRECISION_PRO_TSC_WIDTH_MM,
@@ -56,44 +64,71 @@ function truncFields(data: PrecisionProTSCLabelData, compact: boolean) {
 
 type Trunc = ReturnType<typeof truncFields>;
 
-/** Box label — captions on MRP / ART NO / COLOUR; bare brand & category. */
-function boxPanelCommands(t: Trunc): string[] {
-  const narrow = boxBarcodeNarrowBarWidth(t.barcode);
-  const size = boxSizeOverflowSafe(t.size);
-  return [
-    `TEXT ${BOX_CONTENT_X},10,"3",0,1,1,"${esc(t.org)}"`,
-    `BARCODE ${BOX_CONTENT_X},45,"128",60,1,0,${narrow},2,"${t.barcode}"`,
-    `TEXT ${BOX_CONTENT_X},118,"2",0,1,1,"${t.barcode}"`,
-    `TEXT ${BOX_CONTENT_X},143,"2",0,1,1,"MRP : Rs.${t.mrp}/-"`,
-    `TEXT ${BOX_CONTENT_X},168,"4",0,1,1,"${esc(t.product)}"`,
-    `TEXT ${BOX_CONTENT_X},210,"3",0,1,1,"ART NO : ${esc(t.style)}"`,
-    `TEXT ${BOX_CONTENT_X},242,"2",0,1,1,"${esc(t.brand)}"`,
-    `TEXT 220,242,"2",0,1,1,"${esc(t.category)}"`,
-    `TEXT ${BOX_CONTENT_X},268,"2",0,1,1,"COLOUR : ${esc(t.color)}"`,
-    `TEXT ${size.x},${size.y},"${size.font}",0,${size.mulX},${size.mulY},"${esc(size.text)}"`,
-  ];
+function fieldValue(key: FootwearFieldKey, t: Trunc, layout: FootwearFieldLayout): string {
+  const raw =
+    key === "businessName"
+      ? t.org
+      : key === "barcode" || key === "barcodeText"
+        ? t.barcode
+        : key === "mrp"
+          ? String(t.mrp)
+          : key === "productName"
+            ? t.product
+            : key === "style"
+              ? t.style
+              : key === "brand"
+                ? t.brand
+                : key === "category"
+                  ? t.category
+                  : key === "color"
+                    ? t.color
+                    : t.size;
+  return `${layout.caption || ""}${raw}${layout.suffix || ""}`;
 }
 
-/** Pair stickers — bare values only (no captions); compact face. */
-function pairPanelCommands(y0: number, t: Trunc): string[] {
-  return [
-    `TEXT ${PAIR_X},${y0 + 4},"1",0,1,1,"${esc(t.org)}"`,
-    `BARCODE ${PAIR_X},${y0 + 16},"128",26,1,0,1,2,"${t.barcode}"`,
-    `TEXT ${PAIR_X},${y0 + 44},"1",0,1,1,"${t.barcode}"`,
-    `TEXT ${PAIR_X},${y0 + 54},"1",0,1,1,"Rs.${t.mrp}/-"`,
-    `TEXT ${PAIR_X},${y0 + 66},"2",0,1,1,"${esc(t.product)}"`,
-    `TEXT ${PAIR_X},${y0 + 82},"1",0,1,1,"${esc(t.style)}"`,
-    `TEXT ${PAIR_X},${y0 + 94},"1",0,1,1,"${esc(t.brand)}"`,
-    `TEXT ${PAIR_X + 115},${y0 + 94},"1",0,1,1,"${esc(t.category)}"`,
-    `TEXT ${PAIR_X},${y0 + 106},"1",0,1,1,"${esc(t.color)}"`,
-    `TEXT ${PAIR_X + 168},${y0 + 66},"3",0,1,1,"${esc(t.size)}"`,
-  ];
+function panelCommands(
+  panel: FootwearPanelDesign,
+  originX: number,
+  originY: number,
+  t: Trunc,
+  opts: { isBox: boolean },
+): string[] {
+  const out: string[] = [];
+  for (const key of FOOTWEAR_FIELD_KEYS) {
+    const layout = panel.fields[key];
+    if (!layout?.show) continue;
+
+    if (key === "barcode") {
+      const narrow = opts.isBox ? boxBarcodeNarrowBarWidth(t.barcode) : 1;
+      const h = layout.barcodeHeight ?? (opts.isBox ? 60 : 26);
+      out.push(
+        `BARCODE ${originX + layout.x},${originY + layout.y},"128",${h},1,0,${narrow},2,"${t.barcode}"`,
+      );
+      continue;
+    }
+
+    if (key === "size" && opts.isBox) {
+      const size = resolveBoxSizeLayout(t.size, layout);
+      out.push(
+        `TEXT ${size.x},${size.y},"${size.font}",0,${size.mulX},${size.mulY},"${esc(size.text)}"`,
+      );
+      continue;
+    }
+
+    const text = fieldValue(key, t, layout);
+    out.push(
+      `TEXT ${originX + layout.x},${originY + layout.y},"${layout.font}",0,${layout.mulX},${layout.mulY},"${esc(text)}"`,
+    );
+  }
+  return out;
 }
 
 export function generatePrecisionProTSCLabel(
   data: PrecisionProTSCLabelData,
   copies: number = 1,
+  design?: FootwearFormDesign | null,
 ): string {
+  const resolved = resolveFootwearFormDesign(design ?? DEFAULT_FOOTWEAR_FORM_DESIGN);
   const box = truncFields(data, false);
   const pair = truncFields(data, true);
 
@@ -104,12 +139,12 @@ export function generatePrecisionProTSCLabel(
     "REFERENCE 0,0",
     "CODEPAGE UTF-8",
     "CLS",
-    ...boxPanelCommands(box),
+    ...panelCommands(resolved.box, 0, 0, box, { isBox: true }),
     ...(PRECISION_PRO_DEBUG_DIVIDERS
       ? [`BAR ${BOX_W - 2},0,2,${LABEL_H}`, `BAR ${PAIR_X},${PAIR_MID_Y},${PAIR_COL_W},2`]
       : []),
-    ...pairPanelCommands(PAIR_TOP, pair),
-    ...pairPanelCommands(PAIR_MID_Y, pair),
+    ...panelCommands(resolved.pair, PAIR_X, PAIR_TOP, pair, { isBox: false }),
+    ...panelCommands(resolved.pair, PAIR_X, PAIR_MID_Y, pair, { isBox: false }),
     `PRINT 1,${copies}`,
   ];
 
@@ -119,8 +154,9 @@ export function generatePrecisionProTSCLabel(
 export function generatePrecisionProTSCBatch(
   items: PrecisionProTSCLabelData[],
   copiesPerItem: number = 1,
+  design?: FootwearFormDesign | null,
 ): string {
   return items
-    .map((item) => generatePrecisionProTSCLabel(item, copiesPerItem))
+    .map((item) => generatePrecisionProTSCLabel(item, copiesPerItem, design))
     .join("\n");
 }
