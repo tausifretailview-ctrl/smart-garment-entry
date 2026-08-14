@@ -78,8 +78,24 @@ export interface FootwearPanelDesign {
   fields: FootwearPanelFields;
 }
 
+/** Physical panel sizes in mm (die-cut form). */
+export interface FootwearLayoutDesign {
+  boxWidthMm: number;
+  boxHeightMm: number;
+  pairWidthMm: number;
+  pairHeightMm: number;
+}
+
+export const DEFAULT_FOOTWEAR_LAYOUT: FootwearLayoutDesign = {
+  boxWidthMm: 64,
+  boxHeightMm: 53,
+  pairWidthMm: 38,
+  pairHeightMm: 25,
+};
+
 export interface FootwearFormDesign {
   version: typeof FOOTWEAR_DESIGN_VERSION;
+  layout: FootwearLayoutDesign;
   box: FootwearPanelDesign;
   pair: FootwearPanelDesign;
 }
@@ -99,6 +115,7 @@ function field(
 /** Defaults = current hardcoded layout (byte-identical when design omitted/unchanged). */
 export const DEFAULT_FOOTWEAR_FORM_DESIGN: FootwearFormDesign = {
   version: FOOTWEAR_DESIGN_VERSION,
+  layout: { ...DEFAULT_FOOTWEAR_LAYOUT },
   box: {
     fields: {
       businessName: field({ show: true, x: BOX_CONTENT_X, y: 8, font: "3" }),
