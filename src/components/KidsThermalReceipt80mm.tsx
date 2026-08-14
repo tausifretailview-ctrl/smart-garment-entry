@@ -403,12 +403,31 @@ export const KidsThermalReceipt80mm = React.forwardRef<HTMLDivElement, KidsTherm
 
         <div style={{ ...left, fontSize: layout.footerFont, fontWeight: 900, lineHeight: '1.35', ...(layout.stackTotals ? { whiteSpace: 'normal', wordBreak: 'break-word' } : {}) }}>
           <div style={{ fontWeight: 900, fontSize: layout.titleFont, marginBottom: '2px' }}>** TERM &amp; CONDITIONS **</div>
-          {KIDS_DEFAULT_TERMS.map((term, idx) => (
+          {terms.map((term, idx) => (
             <div key={idx}>{term}</div>
           ))}
         </div>
 
         <div style={dotted} />
+
+        {declarationText && (
+          <>
+            <div
+              style={{
+                ...left,
+                fontSize: layout.footerFont,
+                fontWeight: 900,
+                lineHeight: '1.35',
+                whiteSpace: 'pre-line',
+                wordBreak: 'break-word',
+                margin: '2px 0',
+              }}
+            >
+              {declarationText}
+            </div>
+            <div style={dotted} />
+          </>
+        )}
 
         <div style={{ ...left, fontSize: layout.footerFont, fontWeight: 900, margin: '3px 0 1px' }}>
           ** THANK YOU FOR SHOPPING WITH US **
