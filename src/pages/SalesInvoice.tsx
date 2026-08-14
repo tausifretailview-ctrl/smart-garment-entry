@@ -899,6 +899,7 @@ export default function SalesInvoice() {
   const garmentGstSettings = {
     garment_gst_rule_enabled: ((settingsData as any)?.purchase_settings?.garment_gst_rule_enabled === true),
     garment_gst_threshold: (settingsData as any)?.purchase_settings?.garment_gst_threshold,
+    garment_gst_below_rate: (settingsData as any)?.purchase_settings?.garment_gst_below_rate,
   };
 
   // Read size grid setting from settings
