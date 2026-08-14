@@ -337,18 +337,39 @@ export function FootwearPanelDesigner({
                   />
                 </div>
                 {key === "barcode" && (
-                  <div className="col-span-3">
+                  <div className="col-span-3 grid grid-cols-3 gap-2">
                     <DotNudge
-                      label="Barcode height (dots)"
+                      label="Bar height (dots)"
                       value={f.barcodeHeight ?? 40}
                       min={10}
                       max={200}
                       onChange={(barcodeHeight) => patchField(key, { barcodeHeight })}
                     />
+                    <DotNudge
+                      label="Bar width (dots)"
+                      value={f.widthDots ?? Math.max(40, (panel === "box" ? mmToDots(layout.boxWidthMm) : mmToDots(layout.pairWidthMm)) - f.x - 8)}
+                      min={20}
+                      max={900}
+                      onChange={(widthDots) => patchField(key, { widthDots })}
+                    />
+                    <DotNudge
+                      label="Bar line (module)"
+                      value={f.barcodeNarrow ?? (panel === "box" ? 2 : 1)}
+                      min={1}
+                      max={6}
+                      onChange={(barcodeNarrow) => patchField(key, { barcodeNarrow })}
+                    />
                   </div>
                 )}
                 {key !== "barcode" && (
-                  <div className="col-span-3 grid grid-cols-2 gap-2">
+                  <div className="col-span-3 grid grid-cols-3 gap-2">
+                    <DotNudge
+                      label="Width (dots)"
+                      value={f.widthDots ?? Math.max(24, (panel === "box" ? mmToDots(layout.boxWidthMm) : mmToDots(layout.pairWidthMm)) - f.x - 4)}
+                      min={12}
+                      max={900}
+                      onChange={(widthDots) => patchField(key, { widthDots })}
+                    />
                     <div>
                       <Label className="text-[10px] text-muted-foreground">Prefix</Label>
                       <Input
