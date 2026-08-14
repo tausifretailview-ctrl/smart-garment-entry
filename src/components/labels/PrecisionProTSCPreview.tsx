@@ -130,7 +130,17 @@ function ConfigPanel({
   barcodeNarrow: 1 | 2;
 }) {
   return (
-    <div className="relative h-full w-full overflow-hidden font-sans text-black leading-tight">
+    <div
+      style={{
+        position: "relative",
+        height: "100%",
+        width: "100%",
+        overflow: "hidden",
+        color: "#000",
+        lineHeight: 1.1,
+        fontFamily: "Arial, Helvetica, sans-serif",
+      }}
+    >
       {FOOTWEAR_FIELD_KEYS.map((key) => {
         const layout = panel.fields[key];
         if (!layout?.show) return null;
@@ -140,14 +150,17 @@ function ConfigPanel({
           return (
             <div
               key={key}
-              className="absolute"
               style={{
+                position: "absolute",
                 left: u(dotsToMm(layout.x)),
                 top: u(dotsToMm(layout.y)),
                 width: u(dotsToMm(Math.max(40, panelWDots - layout.x - 8))),
               }}
             >
-              <svg ref={barcodeRef} className="block w-full" style={{ height: u(hMm) }} />
+              <svg
+                ref={barcodeRef}
+                style={{ display: "block", width: "100%", height: u(hMm) }}
+              />
             </div>
           );
         }
@@ -168,8 +181,11 @@ function ConfigPanel({
         return (
           <div
             key={key}
-            className="absolute truncate"
             style={{
+              position: "absolute",
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
               left: u(dotsToMm(x)),
               top: u(dotsToMm(y)),
               maxWidth: u(dotsToMm(Math.max(24, panelWDots - x - 4))),
@@ -182,8 +198,7 @@ function ConfigPanel({
           </div>
         );
       })}
-      {/* keep panelHDots referenced for layout clarity */}
-      <span className="sr-only">{panelHDots}</span>
+      <span style={{ display: "none" }}>{panelHDots}</span>
     </div>
   );
 }
