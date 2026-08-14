@@ -6537,7 +6537,7 @@ export default function POSSales() {
                               const discPct = Number(item.discountPercent) || 0;
                               const hasLineDisc = lineDiscRs > 0.005 || discPct > 0.005;
                               // Match bill print: show list rate + -% when line discount is on
-                              if (hasLineDisc) {
+                              if (hasLineDisc && !canEditPosUnitPrice) {
                                 return (
                                   <div
                                     className="flex flex-col items-end justify-center min-h-8 leading-tight text-right"
