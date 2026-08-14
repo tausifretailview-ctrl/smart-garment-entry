@@ -6556,6 +6556,7 @@ export default function POSSales() {
                               }
                               if (canEditPosUnitPrice) {
                                 return (
+                                  <div className="flex flex-col items-end gap-0.5">
                                   <Input
                                     type="number"
                                     inputMode="decimal"
@@ -6598,6 +6599,15 @@ export default function POSSales() {
                                     step="0.01"
                                     title="Selling unit price (typed rate clears Disc% / Disc Rs)"
                                   />
+                                  {hasLineDisc && (
+                                    <span className="text-[10px] font-semibold text-muted-foreground">
+                                      List ₹{formatINR2(listUnit)}
+                                      {discPct > 0.005
+                                        ? ` · -${discPct % 1 === 0 ? discPct.toFixed(0) : discPct.toFixed(1)}%`
+                                        : ""}
+                                    </span>
+                                  )}
+                                  </div>
                                 );
                               }
                               return (
