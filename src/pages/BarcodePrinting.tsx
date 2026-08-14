@@ -5320,13 +5320,6 @@ export default function BarcodePrinting() {
         return;
       }
 
-      // Footwear Box+Pair uses TSPL Direct Print (same engine as Standard precision_pro_tsc).
-      if (isPrecisionFootwearMode(precisionSettings.printMode)) {
-        setSheetType("precision_pro_tsc");
-        setIsDirectPrintDialogOpen(true);
-        return;
-      }
-
       if (isElectron()) {
         setPrecisionPrintConfirmQty(totalQty);
         setPrecisionPrintConfirmOpen(true);
