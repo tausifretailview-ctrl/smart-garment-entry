@@ -437,7 +437,7 @@ export function FootwearPanelDesigner({
                         style={{
                           left: `${leftMm * scaleFactor}mm`,
                           top: `${topMm * scaleFactor}mm`,
-                          width: `${(key === "barcode" ? 24 : 14) * scaleFactor}mm`,
+                          width: `${(f.widthDots ? dotsToMm(f.widthDots) : key === "barcode" ? 24 : 14) * scaleFactor}mm`,
                           height: `${(key === "barcode" ? 8 : 3.5) * scaleFactor}mm`,
                         }}
                       />
