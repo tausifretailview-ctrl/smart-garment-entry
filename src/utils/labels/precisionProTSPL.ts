@@ -99,7 +99,12 @@ function panelCommands(
     if (!layout?.show) continue;
 
     if (key === "barcode") {
-      const narrow = opts.isBox ? boxBarcodeNarrowBarWidth(t.barcode) : 1;
+      const narrow =
+        layout.barcodeNarrow && layout.barcodeNarrow > 0
+          ? Math.round(layout.barcodeNarrow)
+          : opts.isBox
+            ? boxBarcodeNarrowBarWidth(t.barcode)
+            : 1;
       const h = layout.barcodeHeight ?? (opts.isBox ? 60 : 26);
       out.push(
         `BARCODE ${originX + layout.x},${originY + layout.y},"128",${h},1,0,${narrow},2,"${t.barcode}"`,

@@ -68,6 +68,10 @@ export interface FootwearFieldLayout {
   suffix?: string;
   /** BARCODE height in dots (barcode field only). */
   barcodeHeight?: number;
+  /** Field width in dots. Text = max width before clipping; barcode = symbol width. */
+  widthDots?: number;
+  /** Barcode module (narrow bar) width in dots — barcode field only. */
+  barcodeNarrow?: number;
   /** When true, box size uses overflow-safe font/position. */
   sizeOverflowGuard?: boolean;
 }
