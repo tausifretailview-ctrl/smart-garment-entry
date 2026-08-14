@@ -29,6 +29,19 @@ describe("inferPrecisionPrintMode", () => {
     ).toBe("a4");
   });
 
+  it("trusts explicit footwear mode", () => {
+    expect(
+      inferPrecisionPrintMode({
+        name: "Box Pair",
+        printMode: "footwear",
+      }),
+    ).toBe("footwear");
+  });
+
+  it("infers footwear from precision pro / box+pair names", () => {
+    expect(inferPrecisionPrintMode({ name: "Precision Pro TSC Box+Pair" })).toBe("footwear");
+  });
+
   it("infers a4 from sheet dims only when printMode is missing", () => {
     expect(
       inferPrecisionPrintMode({

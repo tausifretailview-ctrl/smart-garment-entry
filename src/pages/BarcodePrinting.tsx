@@ -80,6 +80,7 @@ import {
   inferPrecisionPrintMode,
   isPrecisionThermalMultiUp,
   isPrecisionThermalSheetMode,
+  isPrecisionFootwearMode,
   presetMatchesPrintMode,
   printModeToThermalCols,
   type PrecisionPrintMode,
@@ -1491,6 +1492,7 @@ export default function BarcodePrinting() {
     [dbPresets, precisionSettings.printMode],
   );
   const noDefaultForModeHint = useMemo(() => {
+    if (isPrecisionFootwearMode(precisionSettings.printMode)) return null;
     if (findDefaultPresetForMode(dbPresets, precisionSettings.printMode)) return null;
     return `No default set for ${getPrecisionPrintModeDisplayName(precisionSettings.printMode)}. Save a design and click Set Default.`;
   }, [dbPresets, precisionSettings.printMode]);
@@ -2677,6 +2679,23 @@ export default function BarcodePrinting() {
   }, [savedLabelTemplates, setActivePrecisionTemplateName]);
 
   const executePrintModeSwitch = useCallback((mode: PrecisionPrintMode) => {
+    if (mode === "footwear") {
+      const activeName = activePrecisionTemplateName?.replace(/^preset:/, "") ?? null;
+      setPrecisionSettings((prev) => {
+        const next = {
+          ...prev,
+          printMode: mode,
+          labelWidth: 102,
+          labelHeight: 53,
+          thermalCols: 1,
+        };
+        precisionDesignBaselineRef.current = snapshotPrecisionDesign(next, activeName);
+        return next;
+      });
+      setSheetType("precision_pro_tsc");
+      return;
+    }
+
     const defaultPreset = findDefaultPresetForMode(dbPresets, mode);
     if (defaultPreset) {
       handlePrecisionPresetLoad(defaultPreset);
@@ -5278,6 +5297,13 @@ export default function BarcodePrinting() {
         return;
       }
 
+      // Footwear Box+Pair uses TSPL Direct Print (same engine as Standard precision_pro_tsc).
+      if (isPrecisionFootwearMode(precisionSettings.printMode)) {
+        setSheetType("precision_pro_tsc");
+        setIsDirectPrintDialogOpen(true);
+        return;
+      }
+
       if (isElectron()) {
         setPrecisionPrintConfirmQty(totalQty);
         setPrecisionPrintConfirmOpen(true);
@@ -7731,7 +7757,8 @@ export default function BarcodePrinting() {
             </>
           )}
         </Button>
-        {(precisionSettings.enabled || activeBarTab === "precision" || activeBarTab === "designer") && (
+        {(precisionSettings.enabled || activeBarTab === "precision" || activeBarTab === "designer") &&
+          !isPrecisionFootwearMode(precisionSettings.printMode) && (
           <Button
             variant="outline"
             size="sm"
@@ -7852,9 +7879,29 @@ export default function BarcodePrinting() {
               ) : (
                 <>
                   <div className="mb-3 p-3 rounded-lg text-center font-bold text-sm" style={{ background: "hsl(var(--primary) / 0.1)", color: "hsl(var(--primary))" }}>
-                    Total: {labelItems.reduce((s, i) => s + (i.qty || 0), 0)} labels
+                    {isPrecisionFootwearMode(precisionSettings.printMode)
+                      ? (() => {
+                          const forms = labelItems.reduce((s, i) => s + (i.qty || 0), 0);
+                          return `Total: ${forms} forms · ${forms * 3} stickers (box + 2 pairs each)`;
+                        })()
+                      : `Total: ${labelItems.reduce((s, i) => s + (i.qty || 0), 0)} labels`}
                   </div>
-                  {isPrecisionThermalSheetMode(precisionSettings.printMode) ? (
+                  {isPrecisionFootwearMode(precisionSettings.printMode) ? (
+                    <div className="flex flex-col items-center gap-4">
+                      {labelItems
+                        .filter((i) => (i.qty || 0) > 0)
+                        .flatMap((item, idx) =>
+                          Array.from({ length: item.qty || 1 }, (_, qi) => (
+                            <PrecisionProTSCPreview
+                              key={`fw-${idx}-${qi}`}
+                              item={item}
+                              businessName={businessName}
+                              scaleFactor={1.5}
+                            />
+                          )),
+                        )}
+                    </div>
+                  ) : isPrecisionThermalSheetMode(precisionSettings.printMode) ? (
                     <div className="flex flex-col items-center gap-4">
                       {(() => {
                         const expanded: LabelItem[] = [];
@@ -7911,7 +7958,10 @@ export default function BarcodePrinting() {
           ) : sheetType === "precision_pro_tsc" ? (
             <div className="mt-4 border rounded-md p-4 bg-white overflow-auto">
               <div className="mb-3 p-3 rounded-lg text-center font-bold text-sm" style={{ background: "hsl(var(--primary) / 0.1)", color: "hsl(var(--primary))" }}>
-                Total: {labelItems.reduce((s, i) => s + (i.qty || 0), 0)} labels (102×53mm box + pair)
+                {(() => {
+                  const forms = labelItems.reduce((s, i) => s + (i.qty || 0), 0);
+                  return `Total: ${forms} forms · ${forms * 3} stickers (102×53mm box + pair)`;
+                })()}
               </div>
               <div className="flex flex-col items-center gap-4">
                 {labelItems
@@ -8061,7 +8111,13 @@ export default function BarcodePrinting() {
           category: item.category,
           quantity: item.qty ?? 1,
         }))}
-        labelSize={sheetType === "custom" ? `custom_${customWidth}x${customHeight}` : sheetType}
+        labelSize={
+          isPrecisionFootwearMode(precisionSettings.printMode) || sheetType === "precision_pro_tsc"
+            ? "precision_pro_tsc"
+            : sheetType === "custom"
+              ? `custom_${customWidth}x${customHeight}`
+              : sheetType
+        }
         labelConfig={labelConfig}
         businessName={businessName}
         prnTemplates={prnTemplates}
