@@ -374,9 +374,9 @@ export default function SaleOrderDashboard() {
     const lineItems = (order.sale_order_items || []).filter(
       (item: any) => !item.deleted_at,
     );
-    const variantIds = [
+    const variantIds: string[] = [
       ...new Set(
-        lineItems
+        (lineItems as any[])
           .map((item: any) => item.variant_id)
           .filter((id: unknown): id is string => typeof id === "string" && id.length > 0),
       ),
