@@ -371,26 +371,40 @@ export default function SaleOrderDashboard() {
 
   // Fetch current stock for conversion
   const fetchStockForConversion = async (order: any) => {
-    const variantIds = order.sale_order_items.map((item: any) => item.variant_id);
-    const { data: variants } = await supabase
-      .from('product_variants')
-      .select('id, color, stock_qty')
-      .in('id', variantIds);
+    const lineItems = (order.sale_order_items || []).filter(
+      (item: any) => !item.deleted_at,
+    );
+    const variantIds = [
+      ...new Set(
+        lineItems
+          .map((item: any) => item.variant_id)
+          .filter((id: unknown): id is string => typeof id === "string" && id.length > 0),
+      ),
+    ];
 
-    const variantMap = new Map(variants?.map(v => [v.id, v]) || []);
+    let variantMap = new Map<string, { id: string; color?: string | null; stock_qty?: number | null }>();
+    if (variantIds.length > 0) {
+      const { data: variants, error } = await supabase
+        .from("product_variants")
+        .select("id, color, stock_qty")
+        .in("id", variantIds);
+      if (error) throw error;
+      variantMap = new Map(variants?.map((v) => [v.id, v]) || []);
+    }
 
-    const items: ConversionItem[] = order.sale_order_items
-      .filter((item: any) => item.pending_qty > 0)
+    const items: ConversionItem[] = lineItems
+      .filter((item: any) => Number(item.pending_qty) > 0)
       .map((item: any) => {
-        const variantMeta = variantMap.get(item.variant_id);
-        const stockQty = variantMeta?.stock_qty || 0;
-        const maxConvert = Math.min(item.pending_qty, stockQty);
+        const variantMeta = item.variant_id ? variantMap.get(item.variant_id) : undefined;
+        const stockQty = Number(variantMeta?.stock_qty) || 0;
+        const pendingQty = Number(item.pending_qty) || 0;
+        const maxConvert = Math.min(pendingQty, stockQty);
         return {
           id: item.id,
           product_name: item.product_name,
           size: item.size,
-          order_qty: item.order_qty,
-          pending_qty: item.pending_qty,
+          order_qty: Number(item.order_qty) || 0,
+          pending_qty: pendingQty,
           stock_qty: stockQty,
           convert_qty: maxConvert,
           selected: maxConvert > 0,
@@ -402,7 +416,7 @@ export default function SaleOrderDashboard() {
           gst_percent: item.gst_percent,
           barcode: item.barcode,
           color: item.color || variantMeta?.color || null,
-          uom: item.uom || 'NOS',
+          uom: item.uom || "NOS",
           hsn_code: item.hsn_code,
         };
       });
@@ -664,15 +678,16 @@ export default function SaleOrderDashboard() {
       if (!fullOrder) throw new Error("Order not found");
       // Same stock source as Convert to Sale Bill — do not query stock separately.
       const conversionItems = await fetchStockForConversion(fullOrder);
-      const anyAvailable = conversionItems.some((item) => item.convert_qty > 0);
-      if (!anyAvailable) {
+      if (conversionItems.length === 0) {
         toast({
-          title: "No stock available",
-          description: "No pending line has on-hand stock to pick right now.",
+          title: "Nothing to pick",
+          description: "This order has no pending line items.",
           variant: "destructive",
         });
         return;
       }
+      // Always open the pick list when pending lines exist — including Available=0
+      // shortfall rows (booking list). Blocking on convert_qty>0 hid the document.
       setOrderToPrint({
         order: fullOrder,
         mode: "available-stock",
