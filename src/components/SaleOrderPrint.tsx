@@ -10,6 +10,9 @@ interface SaleOrderItem {
   orderQty: number;
   fulfilledQty: number;
   pendingQty: number;
+  /** min(pending, stock) — used only when documentMode is available-stock */
+  availableQty?: number;
+  stockQty?: number;
   rate: number;
   mrp: number;
   discountPercent: number;
@@ -56,6 +59,13 @@ interface SaleOrderPrintProps {
   format?: 'a5-vertical' | 'a5-horizontal' | 'a4';
   colorScheme?: string;
   invoiceFormat?: 'standard' | 'wholesale-size-grouping';
+  /**
+   * Default 'order' preserves the existing Sale Order print.
+   * 'available-stock' = picking list (qty columns, no money).
+   */
+  documentMode?: 'order' | 'available-stock';
+  /** Snapshot time for available-stock disclaimer. */
+  printedAt?: Date;
 }
 
 export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintProps>(
@@ -69,6 +79,8 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
       showMRP = true, showColor = true,
       format = 'a4',
       invoiceFormat = 'standard',
+      documentMode = 'order',
+      printedAt,
     } = props;
 
     const PRIMARY = '#1a3a5c';
@@ -77,6 +89,7 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
 
     const isA4 = format === 'a4';
     const isHorizontal = format === 'a5-horizontal';
+    const isAvailableStock = documentMode === 'available-stock';
 
     const fmt = (n: number) =>
       `₹${n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -84,7 +97,24 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
     const fmtDate = (d: Date) =>
       d.toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
-    const totalQty = items.reduce((s, i) => s + i.orderQty, 0);
+    const fmtDateTime = (d: Date) =>
+      d.toLocaleString('en-IN', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+
+    const lineQty = (i: SaleOrderItem) =>
+      isAvailableStock ? (i.availableQty ?? 0) : i.orderQty;
+
+    const totalQty = items.reduce((s, i) => s + lineQty(i), 0);
+    const totalAvailable = items.reduce((s, i) => s + (i.availableQty ?? 0), 0);
+    const totalShortfall = items.reduce(
+      (s, i) => s + Math.max(0, (i.pendingQty || 0) - (i.availableQty ?? 0)),
+      0,
+    );
 
     // ── Smart pagination with product grouping ──────────────────────────────
     const FIRST_PAGE_ROWS = isA4 ? 30 : isHorizontal ? 12 : 15;
@@ -268,16 +298,37 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
               borderRadius: '4px', fontWeight: 800, fontSize: isA4 ? '11pt' : '9pt',
               letterSpacing: '0.1em', display: 'inline-block', marginBottom: '4px',
             }}>
-              SALE ORDER
+              {isAvailableStock ? 'AVAILABLE STOCK PICK LIST' : 'SALE ORDER'}
             </div>
             <div style={{ fontSize: smallFont, color: '#333', lineHeight: 1.5 }}>
               <div><strong>Order No:</strong> {orderNumber}</div>
               <div><strong>Date:</strong> {fmtDate(orderDate)}</div>
               {expectedDeliveryDate && <div><strong>Delivery By:</strong> {fmtDate(expectedDeliveryDate)}</div>}
               {quotationNumber && <div><strong>Ref. Quotation:</strong> {quotationNumber}</div>}
+              {isAvailableStock && printedAt && (
+                <div><strong>Printed at:</strong> {fmtDateTime(printedAt)}</div>
+              )}
             </div>
           </div>
         </div>
+        {isAvailableStock && (
+          <div style={{
+            marginTop: isA4 ? '6px' : '4px',
+            padding: isA4 ? '6px 8px' : '4px 6px',
+            border: `1px solid ${BORDER}`,
+            background: '#fff8e6',
+            fontSize: tinyFont,
+            color: '#333',
+            lineHeight: 1.4,
+          }}>
+            <strong>Snapshot only — not a stock reservation.</strong>
+            {' '}Available = min(pending qty, on-hand stock at print time).
+            {' '}On-hand stock can change before Convert to Sale Bill.
+            {totalShortfall > 0 && (
+              <span> Shortfall vs pending: <strong>{totalShortfall}</strong> pcs.</span>
+            )}
+          </div>
+        )}
       </div>
     );
 
@@ -456,6 +507,134 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
         </div>
       </div>
     );
+
+    // ── Available-stock picking list page (no money) ────────────────────────
+    const renderAvailableStockPage = (pageItems: SaleOrderItem[], pageIndex: number) => {
+      const isLastPage = pageIndex === totalPages - 1;
+      const isFirstPage = pageIndex === 0;
+      const pagePickQty = pageItems.reduce((s, i) => s + (i.availableQty ?? 0), 0);
+      const pagePending = pageItems.reduce((s, i) => s + (i.pendingQty || 0), 0);
+      const labelColSpan = showColor ? 4 : 3;
+
+      return (
+        <div
+          key={pageIndex}
+          className="sale-order-page"
+          style={{
+            width: pageWidth, minHeight: pageMinHeight,
+            padding: pagePadding, fontFamily: 'Arial, sans-serif',
+            fontSize: baseFontSize, backgroundColor: 'white', color: 'black',
+            boxSizing: 'border-box',
+            pageBreakAfter: isLastPage ? 'auto' : 'always',
+          }}
+        >
+          {isFirstPage ? renderFullHeader() : renderSlimHeader(pageIndex)}
+          {isFirstPage ? renderCustomerStrip(pageIndex) : renderSlimCustomerStrip(pageIndex)}
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr>
+                <th style={thStyle({ width: '4%', textAlign: 'center' })}>Sr</th>
+                <th style={thStyle({ textAlign: 'left' })}>Product</th>
+                {showColor && <th style={thStyle({ width: '8%', textAlign: 'center' })}>Color</th>}
+                <th style={thStyle({ width: '6%', textAlign: 'center' })}>Size</th>
+                <th style={thStyle({ width: '7%', textAlign: 'center' })}>Ordered</th>
+                <th style={thStyle({ width: '7%', textAlign: 'center' })}>Fulfilled</th>
+                <th style={thStyle({ width: '7%', textAlign: 'center' })}>Pending</th>
+                <th style={thStyle({ width: '7%', textAlign: 'center' })}>Stock</th>
+                <th style={thStyle({ width: '8%', textAlign: 'center' })}>Available</th>
+              </tr>
+            </thead>
+            <tbody>
+              {pageItems.map((item) => {
+                const details = [item.brand, item.style].filter(Boolean).join(' · ');
+                const available = item.availableQty ?? 0;
+                const short = available < (item.pendingQty || 0);
+                return (
+                  <tr key={item.sr} style={{ background: short ? '#fff5f5' : '#fff' }}>
+                    <td style={tdStyle({ textAlign: 'center', color: '#333' })}>{item.sr}</td>
+                    <td style={tdStyle({ textAlign: 'left' })}>
+                      {item.particulars}
+                      {details && (
+                        <span style={{ color: '#333', marginLeft: '3px', fontSize: '85%' }}>({details})</span>
+                      )}
+                    </td>
+                    {showColor && (
+                      <td style={tdStyle({ textAlign: 'center', fontWeight: 600 })}>{item.color || '—'}</td>
+                    )}
+                    <td style={tdStyle({ textAlign: 'center', fontWeight: 700 })}>{item.size}</td>
+                    <td style={tdStyle({ textAlign: 'center' })}>{item.orderQty}</td>
+                    <td style={tdStyle({ textAlign: 'center', color: '#166534' })}>{item.fulfilledQty}</td>
+                    <td style={tdStyle({ textAlign: 'center', color: '#9a3412' })}>{item.pendingQty}</td>
+                    <td style={tdStyle({ textAlign: 'center' })}>{item.stockQty ?? '—'}</td>
+                    <td style={tdStyle({
+                      textAlign: 'center',
+                      fontWeight: 800,
+                      color: available > 0 ? '#166534' : '#b91c1c',
+                    })}>
+                      {available}
+                    </td>
+                  </tr>
+                );
+              })}
+              <tr style={{ backgroundColor: '#f4f4f4' }}>
+                <td
+                  colSpan={labelColSpan}
+                  style={{
+                    border: `1px solid ${BORDER}`,
+                    padding: '2px 3px',
+                    fontWeight: 700,
+                    fontSize: isA4 ? '7.5pt' : '6.5pt',
+                    textAlign: 'right',
+                  }}
+                >
+                  {isLastPage ? 'Pick totals' : `Page ${pageIndex + 1}`}
+                </td>
+                <td style={{ border: `1px solid ${BORDER}`, padding: '2px 3px', textAlign: 'center', fontWeight: 700 }}>
+                  {isLastPage ? items.reduce((s, i) => s + i.orderQty, 0) : pageItems.reduce((s, i) => s + i.orderQty, 0)}
+                </td>
+                <td style={{ border: `1px solid ${BORDER}`, padding: '2px 3px', textAlign: 'center', fontWeight: 700 }}>
+                  {isLastPage
+                    ? items.reduce((s, i) => s + i.fulfilledQty, 0)
+                    : pageItems.reduce((s, i) => s + i.fulfilledQty, 0)}
+                </td>
+                <td style={{ border: `1px solid ${BORDER}`, padding: '2px 3px', textAlign: 'center', fontWeight: 700 }}>
+                  {isLastPage ? items.reduce((s, i) => s + i.pendingQty, 0) : pagePending}
+                </td>
+                <td style={{ border: `1px solid ${BORDER}`, padding: '2px 3px' }} />
+                <td style={{
+                  border: `1px solid ${BORDER}`,
+                  padding: '2px 3px',
+                  textAlign: 'center',
+                  fontWeight: 800,
+                }}>
+                  {isLastPage ? totalAvailable : pagePickQty}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          {isLastPage && (
+            <div style={{
+              marginTop: isA4 ? '10px' : '6px',
+              fontSize: tinyFont,
+              color: '#555',
+              borderTop: `1px solid ${BORDER}`,
+              paddingTop: '6px',
+            }}>
+              Pick only the <strong>Available</strong> column. Lines with Available 0 are shortfall / not in stock.
+              This document does not reserve stock or change the sale order.
+            </div>
+          )}
+          {!isLastPage && (
+            <div style={{
+              textAlign: 'center', fontSize: tinyFont, color: '#999',
+              marginTop: '3px', fontStyle: 'italic',
+            }}>
+              Continued on next page...
+            </div>
+          )}
+        </div>
+      );
+    };
 
     // ── Render standard page ────────────────────────────────────────────────
     const renderPage = (pageItems: SaleOrderItem[], pageIndex: number) => {
@@ -728,9 +907,13 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
             .sale-order-page:last-child { page-break-after: auto; }
           }
         `}</style>
-        {invoiceFormat === 'wholesale-size-grouping'
+        {invoiceFormat === 'wholesale-size-grouping' && !isAvailableStock
           ? renderWholesalePage()
-          : pages.map((pageItems, index) => renderPage(pageItems, index))
+          : pages.map((pageItems, index) =>
+              isAvailableStock
+                ? renderAvailableStockPage(pageItems, index)
+                : renderPage(pageItems, index),
+            )
         }
       </div>
     );
