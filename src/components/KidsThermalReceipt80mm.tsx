@@ -79,7 +79,9 @@ function formatKidsParticularsLine(item: KidsThermalItem, maxNameLen: number, sh
   if (name.length > maxNameLen) {
     name = `${name.slice(0, maxNameLen - 2)}..`;
   }
-  const size = item.size?.trim() || '';
+  const rawSize = item.size?.trim() || '';
+  // Guard placeholder sizes/colors ("None", "N/A", "-") from printing as product detail.
+  const size = /^(none|n\/a|na|null|undefined|-|\.)$/i.test(rawSize) ? '' : rawSize;
   const mrpVal = Number(item.mrp) || Number(item.rate) || 0;
   const parts = [name];
   if (size) parts.push(size);
