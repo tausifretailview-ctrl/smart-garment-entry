@@ -39,6 +39,20 @@ interface WindowTabsContextType {
 
 const WindowTabsContext = createContext<WindowTabsContextType | undefined>(undefined);
 
+/** Inert value used when a consumer renders outside the provider, so the app degrades instead of blanking. */
+const FALLBACK_WINDOW_TABS: WindowTabsContextType = {
+  openWindows: [],
+  activeWindow: "",
+  isTabsBarVisible: false,
+  toggleTabsBarVisibility: () => {},
+  openWindow: () => {},
+  closeWindow: () => {},
+  switchWindow: () => {},
+  isWindowOpen: () => false,
+  getPreviousWindow: () => null,
+  switchToPreviousWindow: () => false,
+};
+
 /** Shared with document.title via pageTitles.ts */
 const PAGE_CONFIG = PAGE_TITLE_CONFIG;
 
