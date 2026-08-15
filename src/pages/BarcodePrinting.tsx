@@ -2309,6 +2309,8 @@ export default function BarcodePrinting() {
             typeof bbs.default_precision_preset_id === "string" && bbs.default_precision_preset_id
               ? bbs.default_precision_preset_id
               : null;
+          configuredLandingModeRef.current = resolvedPrintMode;
+          defaultPrecisionPresetIdRef.current = defaultPresetIdFromSettings;
           setPrecisionSettings(prev => ({
             ...prev,
             enabled: bbs.precision_pro_enabled === true,
