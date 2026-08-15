@@ -360,7 +360,12 @@ export function WindowTabsProvider({ children }: { children: React.ReactNode }) 
 export function useWindowTabs() {
   const context = useContext(WindowTabsContext);
   if (!context) {
-    throw new Error("useWindowTabs must be used within WindowTabsProvider");
+    // Never crash the whole app (e.g. a stale HMR module instance in dev, or a
+    // consumer rendered outside the provider) — degrade to an inert tab strip.
+    if (import.meta.env.DEV) {
+      console.warn("[WindowTabs] useWindowTabs called outside WindowTabsProvider — using inert fallback.");
+    }
+    return FALLBACK_WINDOW_TABS;
   }
   return context;
 }
