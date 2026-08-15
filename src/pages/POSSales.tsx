@@ -3178,10 +3178,15 @@ export default function POSSales() {
           return;
         }
         const waPageFormat =
-          posBillFormat === "a5" || posBillFormat === "a5-horizontal" ? "a5" : "a4";
+          posBillFormat === "thermal"
+            ? "thermal"
+            : posBillFormat === "a5" || posBillFormat === "a5-horizontal"
+              ? "a5"
+              : "a4";
         const base64 = await captureElementToPdfBase64(whatsappPdfRef.current, {
           extraSettleMs: 700,
           pageFormat: waPageFormat,
+          thermalPaper: posThermalPaper,
           wappConnectPdf: true,
         });
         if (cancelled) return;
@@ -5060,11 +5065,16 @@ export default function POSSales() {
         if (shouldAttachPdf && invoiceDom) {
           await new Promise(r => setTimeout(r, 500));
           const waPageFormat =
-            posBillFormat === "a5" || posBillFormat === "a5-horizontal" ? "a5" : "a4";
+            posBillFormat === "thermal"
+              ? "thermal"
+              : posBillFormat === "a5" || posBillFormat === "a5-horizontal"
+                ? "a5"
+                : "a4";
           pdfBase64 =
             (await captureElementToPdfBase64(invoiceDom, {
               extraSettleMs: 200,
               pageFormat: waPageFormat,
+              thermalPaper: posThermalPaper,
               wappConnectPdf: true,
             })) || undefined;
         }
