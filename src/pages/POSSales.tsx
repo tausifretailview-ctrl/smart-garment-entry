@@ -179,6 +179,11 @@ import { ProductHistoryDialog } from "@/components/ProductHistoryDialog";
 import { DcSaleTransferDialog } from "@/components/DcSaleTransferDialog";
 import { FinancerDetailsForm, FinancerDetails, saveFinancerDetails } from "@/components/FinancerDetailsForm";
 import { AddAdvanceBookingDialog } from "@/components/AddAdvanceBookingDialog";
+import {
+  CustomerPhoneLookupInput,
+  type CustomerPhoneLookupRow,
+} from "@/components/CustomerPhoneLookupInput";
+import { phonesMatchExactly } from "@/utils/posCustomerPhoneMatch";
 import { searchSaleOrderVariants } from "@/utils/saleOrderProductSearch";
 
 interface PendingPriceSelection {
@@ -444,6 +449,8 @@ export default function POSSales() {
   const [customerId, setCustomerId] = useState<string>(_savedCart?.customerId || "");
   const [customerName, setCustomerName] = useState(_savedCart?.customerName || "");
   const [customerPhone, setCustomerPhone] = useState(_savedCart?.customerPhone || "");
+  /** Phone that produced the current customerId link (combobox or phone match). */
+  const linkedCustomerPhoneRef = useRef(_savedCart?.customerPhone || "");
   const [searchInput, setSearchInput] = useState("");
   const [showMobilePaymentSheet, setShowMobilePaymentSheet] = useState(false);
   const [selectedProductType, setSelectedProductType] = useState<string>("all");
@@ -855,7 +862,10 @@ export default function POSSales() {
     setItems(saved.items as CartItem[]);
     if (saved.customerId) setCustomerId(saved.customerId);
     if (saved.customerName) setCustomerName(saved.customerName);
-    if (saved.customerPhone) setCustomerPhone(saved.customerPhone);
+    if (saved.customerPhone) {
+      setCustomerPhone(saved.customerPhone);
+      linkedCustomerPhoneRef.current = saved.customerPhone;
+    }
     if (saved.saleNotes) setSaleNotes(saved.saleNotes);
     if (Number(saved.saleReturnAdjust) > 0.005) {
       setSaleReturnAdjust(Number(saved.saleReturnAdjust) || 0);
@@ -898,6 +908,33 @@ export default function POSSales() {
   
   // Ref to skip customer re-search after dropdown selection
   const customerJustSelected = useRef(false);
+
+  const applyCustomerFromPhoneLookup = useCallback((customer: CustomerPhoneLookupRow) => {
+    customerJustSelected.current = true;
+    setCustomerId(customer.id);
+    setCustomerName(customer.customer_name);
+    setCustomerPhone(customer.phone || "");
+    linkedCustomerPhoneRef.current = customer.phone || "";
+    setTimeout(() => {
+      customerJustSelected.current = false;
+    }, 500);
+  }, []);
+
+  const handleInlinePhoneChange = useCallback(
+    (value: string) => {
+      setCustomerPhone(value);
+      if (!customerId || !linkedCustomerPhoneRef.current) return;
+      if (!phonesMatchExactly(value, linkedCustomerPhoneRef.current)) {
+        setCustomerId("");
+        linkedCustomerPhoneRef.current = "";
+      }
+    },
+    [customerId],
+  );
+
+  useEffect(() => {
+    if (!customerPhone) linkedCustomerPhoneRef.current = "";
+  }, [customerPhone]);
 
   // Load sale data if saleId is in URL (edit mode)
   useEffect(() => {
@@ -1092,6 +1129,7 @@ export default function POSSales() {
       setCustomerId(sale.customer_id || "");
       setCustomerName(sale.customer_name);
       setCustomerPhone(sale.customer_phone || "");
+      linkedCustomerPhoneRef.current = sale.customer_phone || "";
       setSaleReturnAdjust(sale.sale_return_adjust || 0);
       setRoundOff(Number(sale.round_off) || 0);
       setIsManualRoundOff(true);
@@ -4622,6 +4660,7 @@ export default function POSSales() {
     // Load customer info
     setCustomerName(sale.customer_name || "");
     setCustomerPhone(sale.customer_phone || "");
+    linkedCustomerPhoneRef.current = sale.customer_phone || "";
     setCustomerId(sale.customer_id || "");
     
     // Load items from sale_items
@@ -5152,6 +5191,7 @@ export default function POSSales() {
       setCustomerId(newCustomer.id);
       setCustomerName(newCustomer.customer_name);
       setCustomerPhone(newCustomer.phone || "");
+      linkedCustomerPhoneRef.current = newCustomer.phone || "";
       setNewCustomerForm({
         customer_name: "",
         phone: "",
@@ -5296,10 +5336,12 @@ export default function POSSales() {
               setCustomerId(customer.id);
               setCustomerName(customer.customer_name);
               setCustomerPhone(customer.phone || "");
+              linkedCustomerPhoneRef.current = customer.phone || "";
             } else {
               setCustomerId("");
               setCustomerName("");
               setCustomerPhone("");
+              linkedCustomerPhoneRef.current = "";
             }
           }}
           onAddCustomer={() => openAddCustomerDialog()}
@@ -5431,10 +5473,12 @@ export default function POSSales() {
               setCustomerId(customer.id);
               setCustomerName(customer.customer_name);
               setCustomerPhone(customer.phone || "");
+              linkedCustomerPhoneRef.current = customer.phone || "";
             } else {
               setCustomerId("");
               setCustomerName("");
               setCustomerPhone("");
+              linkedCustomerPhoneRef.current = "";
             }
           }}
           onAddCustomer={() => openAddCustomerDialog()}
@@ -6030,6 +6074,7 @@ export default function POSSales() {
                       setCustomerName("");
                       setCustomerId("");
                       setCustomerPhone("");
+                      linkedCustomerPhoneRef.current = "";
                     }}
                   >
                     <X className="h-5 w-5" />
@@ -6091,6 +6136,7 @@ export default function POSSales() {
                                 setCustomerId(customer.id);
                                 setCustomerName(customer.customer_name);
                                 setCustomerPhone(customer.phone || "");
+                                linkedCustomerPhoneRef.current = customer.phone || "";
                                 setOpenCustomerSearch(false);
                                 setTimeout(() => { customerJustSelected.current = false; }, 500);
                               }}
@@ -6137,6 +6183,21 @@ export default function POSSales() {
               </Command>
             </PopoverContent>
           </Popover>
+
+          {/* Walk-in WhatsApp number — does not create a customers row */}
+          <div className="relative w-40 shrink-0">
+            <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1 block">
+              Mobile
+            </Label>
+            <CustomerPhoneLookupInput
+              value={customerPhone}
+              onChange={handleInlinePhoneChange}
+              placeholder="WhatsApp no."
+              className="h-10 text-base border-border/80 focus:border-primary font-mono tabular-nums"
+              onExistingCustomerSelect={applyCustomerFromPhoneLookup}
+              onUniqueExactMatch={applyCustomerFromPhoneLookup}
+            />
+          </div>
           
           {/* Customer Discount & Points moved to bottom after Note section */}
 

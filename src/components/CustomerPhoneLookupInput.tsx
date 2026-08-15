@@ -3,6 +3,11 @@ import { Input } from "@/components/ui/input";
 import { Loader2, UserCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCustomerSearch } from "@/hooks/useCustomerSearch";
+import {
+  normalizePosPhoneDigits,
+  phonesMatchExactly,
+  resolvePosCustomerPhoneMatch,
+} from "@/utils/posCustomerPhoneMatch";
 
 export type CustomerPhoneLookupRow = {
   id: string;
@@ -24,10 +29,12 @@ interface CustomerPhoneLookupInputProps {
   className?: string;
   /** When user picks an existing customer from the dropdown. */
   onExistingCustomerSelect: (customer: CustomerPhoneLookupRow) => void;
-}
-
-function normalizePhoneDigits(phone: string): string {
-  return phone.replace(/\D/g, "");
+  /**
+   * Opt-in (POS): when typed digits are complete and exactly one customer
+   * matches, call once so the sale can link without opening Add Customer.
+   * Ambiguous matches are never auto-linked — cashier picks from the list.
+   */
+  onUniqueExactMatch?: (customer: CustomerPhoneLookupRow) => void;
 }
 
 export function CustomerPhoneLookupInput({
@@ -40,11 +47,13 @@ export function CustomerPhoneLookupInput({
   disabled,
   className,
   onExistingCustomerSelect,
+  onUniqueExactMatch,
 }: CustomerPhoneLookupInputProps) {
   const [open, setOpen] = useState(false);
   const [highlightIndex, setHighlightIndex] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
-  const phoneDigits = normalizePhoneDigits(value);
+  const lastAutoLinkedDigitsRef = useRef<string>("");
+  const phoneDigits = normalizePosPhoneDigits(value);
   const searchEnabled = phoneDigits.length >= 3;
 
   const { filteredCustomers, isLoading } = useCustomerSearch(searchEnabled ? value : "", {
@@ -54,15 +63,29 @@ export function CustomerPhoneLookupInput({
   const phoneMatches = useMemo(() => {
     if (!searchEnabled) return [];
     return filteredCustomers.filter((customer) => {
-      const customerDigits = normalizePhoneDigits(customer.phone || "");
-      return customerDigits.includes(phoneDigits);
+      const customerDigits = normalizePosPhoneDigits(customer.phone || "");
+      return customerDigits.includes(phoneDigits) || phonesMatchExactly(phoneDigits, customer.phone || "");
     });
   }, [filteredCustomers, phoneDigits, searchEnabled]);
 
   const exactMatch = useMemo(
-    () => phoneMatches.find((customer) => normalizePhoneDigits(customer.phone || "") === phoneDigits),
+    () => phoneMatches.find((customer) => phonesMatchExactly(phoneDigits, customer.phone || "")),
     [phoneMatches, phoneDigits],
   );
+
+  useEffect(() => {
+    if (!onUniqueExactMatch || isLoading) return;
+    const resolved = resolvePosCustomerPhoneMatch(value, phoneMatches);
+    if (resolved.kind !== "unique") {
+      if (resolved.kind === "incomplete") {
+        lastAutoLinkedDigitsRef.current = "";
+      }
+      return;
+    }
+    if (lastAutoLinkedDigitsRef.current === phoneDigits) return;
+    lastAutoLinkedDigitsRef.current = phoneDigits;
+    onUniqueExactMatch(resolved.customer);
+  }, [value, phoneDigits, phoneMatches, isLoading, onUniqueExactMatch]);
 
   useEffect(() => {
     setHighlightIndex(0);
@@ -156,7 +179,7 @@ export function CustomerPhoneLookupInput({
               </div>
               <ul className="max-h-44 overflow-y-auto py-1">
                 {phoneMatches.map((customer, index) => {
-                  const isExact = normalizePhoneDigits(customer.phone || "") === phoneDigits;
+                  const isExact = phonesMatchExactly(phoneDigits, customer.phone || "");
                   return (
                     <li key={customer.id}>
                       <button
