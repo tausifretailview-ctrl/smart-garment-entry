@@ -2841,6 +2841,7 @@ export default function BarcodePrinting() {
       return next;
     });
   }, [activePrecisionTemplateName, dbPresets, handlePrecisionPresetLoad]);
+  executePrintModeSwitchRef.current = executePrintModeSwitch;
 
   const requestPrintModeChange = useCallback((mode: PrecisionPrintMode) => {
     if (mode === precisionSettings.printMode) return;
