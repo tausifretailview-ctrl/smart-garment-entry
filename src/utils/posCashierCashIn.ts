@@ -1,8 +1,15 @@
 /**
- * Pure cash-in reducer for POS cashier panels (FloatingPOSReports / DailyTally shape).
- * Isolated so Phase 1 can assert: after dual-write stop, totalCashIn has no tender∩receipt overlap.
+ * POS / Daily cashier cash-in helpers.
+ *
+ * Same-day invoice-linked receipts (reference_type=sale) must not be added on top of
+ * sale tenders when tenders already include that money (POS Dashboard dual-write history).
+ * Prior-day sale receipts and true customer/OB receipts still count in full.
  */
+
+const OVERLAP_EPS = 0.5;
+
 export type CashierSaleRow = {
+  id?: string | null;
   payment_method?: string | null;
   payment_status?: string | null;
   sale_number?: string | null;
@@ -16,10 +23,104 @@ export type CashierSaleRow = {
 export type CashierReceiptRow = {
   voucher_type?: string | null;
   total_amount?: number | null;
+  discount_amount?: number | null;
   payment_method?: string | null;
   description?: string | null;
   reference_type?: string | null;
+  reference_id?: string | null;
 };
+
+export type SaleForCashierOverlap = {
+  id: string;
+  net_amount?: number | null;
+  cash_amount?: number | null;
+  card_amount?: number | null;
+  upi_amount?: number | null;
+};
+
+/** Invoice-linked RCP (balance collect / FloatingPayments against a sale id). */
+export function isInvoiceLinkedSaleReceipt(
+  referenceType: string | null | undefined,
+): boolean {
+  return String(referenceType || "").toLowerCase() === "sale";
+}
+
+export function saleTenderTotal(sale: {
+  cash_amount?: number | null;
+  card_amount?: number | null;
+  upi_amount?: number | null;
+}): number {
+  return (
+    Math.max(0, Number(sale.cash_amount) || 0) +
+    Math.max(0, Number(sale.card_amount) || 0) +
+    Math.max(0, Number(sale.upi_amount) || 0)
+  );
+}
+
+/**
+ * Two-pass dedupe: when a sale on this reporting day has tenders + sale-linked
+ * receipts exceeding net, strip that overlap from receipt cash-in (already in tenders).
+ */
+export function createSameDaySaleReceiptOverlapTracker(
+  sales: SaleForCashierOverlap[],
+  receipts: Array<{
+    voucher_type?: string | null;
+    reference_type?: string | null;
+    reference_id?: string | null;
+    total_amount?: number | null;
+  }>,
+) {
+  const salesById = new Map<string, SaleForCashierOverlap>();
+  for (const s of sales) {
+    if (s?.id) salesById.set(s.id, s);
+  }
+
+  const receiptSumBySale = new Map<string, number>();
+  for (const v of receipts) {
+    if (String(v.voucher_type || "").toLowerCase() !== "receipt") continue;
+    if (!isInvoiceLinkedSaleReceipt(v.reference_type)) continue;
+    const sid = v.reference_id;
+    if (!sid || !salesById.has(sid)) continue;
+    const amt = Number(v.total_amount) || 0;
+    if (amt <= 0) continue;
+    receiptSumBySale.set(sid, (receiptSumBySale.get(sid) || 0) + amt);
+  }
+
+  const remainingOverlap = new Map<string, number>();
+  for (const [sid, receiptSum] of receiptSumBySale) {
+    const sale = salesById.get(sid);
+    if (!sale) continue;
+    const tender = saleTenderTotal(sale);
+    const net = Math.max(0, Number(sale.net_amount) || 0);
+    const overlap = Math.max(0, tender + receiptSum - net);
+    if (overlap > OVERLAP_EPS) remainingOverlap.set(sid, overlap);
+  }
+
+  return {
+    /**
+     * How much of this receipt should enter Old Balance / RCP cash-in.
+     * Non-sale refs and prior-day sale refs return full amount.
+     */
+    countableAmount(v: {
+      voucher_type?: string | null;
+      reference_type?: string | null;
+      reference_id?: string | null;
+      total_amount?: number | null;
+    }): number {
+      const raw = Number(v.total_amount) || 0;
+      if (raw <= 0) return 0;
+      if (String(v.voucher_type || "").toLowerCase() !== "receipt") return 0;
+      if (!isInvoiceLinkedSaleReceipt(v.reference_type)) return raw;
+      const sid = v.reference_id;
+      if (!sid || !salesById.has(sid)) return raw;
+      const left = remainingOverlap.get(sid) || 0;
+      if (left <= OVERLAP_EPS) return raw;
+      const strip = Math.min(raw, left);
+      remainingOverlap.set(sid, left - strip);
+      return Math.round((raw - strip) * 100) / 100;
+    },
+  };
+}
 
 function resolveMode(paymentMethod: string | null | undefined, description: string): string | null {
   const pm = (paymentMethod || "").toLowerCase().trim();
@@ -40,7 +141,7 @@ function isHoldLikeSale(sale: CashierSaleRow): boolean {
   return sale.payment_status === "pending" && String(sale.sale_number || "").startsWith("Hold/");
 }
 
-/** Mirrors FloatingPOSReports.calculateTotals cash legs (no advances/outflows). */
+/** Mirrors FloatingPOSReports cash legs with same-day sale-RCP overlap stripped. */
 export function reduceCashierCashIn(params: {
   sales: CashierSaleRow[];
   receipts: CashierReceiptRow[];
@@ -54,10 +155,14 @@ export function reduceCashierCashIn(params: {
   let receiptCash = 0;
   const advanceCash = Number(params.advanceCash || 0);
 
-  for (const sale of params.sales) {
-    if (sale.is_cancelled) continue;
-    if (sale.payment_status === "cancelled") continue;
-    if (isHoldLikeSale(sale)) continue;
+  const eligibleSales = params.sales.filter((sale) => {
+    if (sale.is_cancelled) return false;
+    if (sale.payment_status === "cancelled") return false;
+    if (isHoldLikeSale(sale)) return false;
+    return true;
+  });
+
+  for (const sale of eligibleSales) {
     const net = Number(sale.net_amount) || 0;
     if (sale.payment_method === "multiple") {
       cashSale += Number(sale.cash_amount) || 0;
@@ -76,13 +181,23 @@ export function reduceCashierCashIn(params: {
     }
   }
 
+  const overlapSales: SaleForCashierOverlap[] = eligibleSales
+    .filter((s): s is CashierSaleRow & { id: string } => !!s.id)
+    .map((s) => ({
+      id: s.id,
+      net_amount: s.net_amount,
+      cash_amount: s.cash_amount,
+      card_amount: s.card_amount,
+      upi_amount: s.upi_amount,
+    }));
+
+  const tracker = createSameDaySaleReceiptOverlapTracker(overlapSales, params.receipts);
+
   for (const v of params.receipts) {
     if (String(v.voucher_type || "").toLowerCase() !== "receipt") continue;
-    const amt = Number(v.total_amount) || 0;
-    if (amt <= 0) continue;
     const m = resolveMode(v.payment_method, v.description || "");
     if (!m || m !== "cash") continue;
-    receiptCash += amt;
+    receiptCash += tracker.countableAmount(v);
   }
 
   return {

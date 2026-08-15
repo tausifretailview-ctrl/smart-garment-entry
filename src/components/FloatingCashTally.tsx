@@ -25,6 +25,7 @@ import { localDayBounds } from "@/lib/localDayBounds";
 import DailyTallyReport from "@/components/DailyTallyReport";
 import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
 import { allocateMixPaymentToBill } from "@/utils/mixPaymentAllocation";
+import { createSameDaySaleReceiptOverlapTracker } from "@/utils/posCashierCashIn";
 
 // ─── helpers ───────────────────────────────────────────────────────────
 const fmt = (n: number) =>
@@ -93,7 +94,7 @@ export const FloatingCashTally = ({ open, onOpenChange }: FloatingCashTallyProps
     queryFn: async () => {
       const { data, error } = await supabase
         .from("voucher_entries")
-        .select("id, voucher_number, voucher_date, voucher_type, total_amount, description, reference_type, category, payment_method")
+        .select("id, voucher_number, voucher_date, voucher_type, total_amount, description, reference_type, reference_id, category, payment_method")
         .eq("organization_id", orgId!)
         .is("deleted_at", null)
         .gte("voucher_date", dateStr)
@@ -281,27 +282,47 @@ export const FloatingCashTally = ({ open, onOpenChange }: FloatingCashTallyProps
       target.total += net;
     });
 
+    const receiptOverlap = createSameDaySaleReceiptOverlapTracker(
+      (salesData || [])
+        .filter(
+          (s: any) =>
+            s?.id &&
+            !isHoldLikeSale(s) &&
+            !s?.is_cancelled &&
+            s?.payment_status !== "cancelled",
+        )
+        .map((s: any) => ({
+          id: s.id as string,
+          net_amount: s.net_amount,
+          cash_amount: s.cash_amount,
+          card_amount: s.card_amount,
+          upi_amount: s.upi_amount,
+        })),
+      vouchersData || [],
+    );
+
     (vouchersData || []).forEach((v: any) => {
-      const amt = Number(v.total_amount) || 0;
-      if (amt <= 0) return;
+      const rawAmt = Number(v.total_amount) || 0;
+      if (rawAmt <= 0) return;
       // Skip non-cash adjustments
       const pm = (v.payment_method || '').toLowerCase();
       if (pm === 'advance_adjustment' || pm === 'credit_note' || pm === 'advance') return;
 
       const mode = resolvePaymentMode(v.payment_method, v.description);
-      const addToBreakdown = (b: PaymentBreakdown) => {
+      const addToBreakdown = (b: PaymentBreakdown, amt: number) => {
         (b as any)[mode] += amt;
         b.total += amt;
       };
 
       if (v.voucher_type === 'receipt') {
-        addToBreakdown(receipts);
+        const amt = receiptOverlap.countableAmount(v);
+        if (amt > 0) addToBreakdown(receipts, amt);
       } else if (v.voucher_type === 'payment') {
-        if (v.reference_type === 'supplier') addToBreakdown(supplierPayments);
-        else if (v.reference_type === 'employee') addToBreakdown(employeeSalary);
-        else if (v.reference_type === 'customer') addToBreakdown(saleReturnRefunds);
+        if (v.reference_type === 'supplier') addToBreakdown(supplierPayments, rawAmt);
+        else if (v.reference_type === 'employee') addToBreakdown(employeeSalary, rawAmt);
+        else if (v.reference_type === 'customer') addToBreakdown(saleReturnRefunds, rawAmt);
       } else if (v.voucher_type === 'expense' || v.category === 'expense') {
-        addToBreakdown(expenses);
+        addToBreakdown(expenses, rawAmt);
       }
     });
 

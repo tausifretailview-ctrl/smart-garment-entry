@@ -40,6 +40,7 @@ import {
   getSaleReportRoundOff,
 } from "@/utils/cashierReportUtils";
 import { allocateMixPaymentToBill } from "@/utils/mixPaymentAllocation";
+import { createSameDaySaleReceiptOverlapTracker } from "@/utils/posCashierCashIn";
 import {
   Table,
   TableBody,
@@ -415,14 +416,48 @@ const DailyCashierReport = () => {
     }
 
     // Process receipt data (RCP) - use actual voucher payment_method first, then fallback to description.
+    // Strip same-day sale RCP already covered by tenders (historical POS Dashboard dual-write).
     let rcpCashCollection = 0;
     let rcpUpiCollection = 0;
     let rcpCardCollection = 0;
     let rcpOtherCollection = 0;
+
+    const receiptOverlap = createSameDaySaleReceiptOverlapTracker(
+      (salesData || [])
+        .filter(
+          (s: any) =>
+            s?.id &&
+            !s?.is_cancelled &&
+            s?.payment_status !== "cancelled" &&
+            !(
+              s?.payment_status === "hold" ||
+              (s?.payment_status === "pending" && String(s?.sale_number || "").startsWith("Hold/"))
+            ),
+        )
+        .map((s: any) => ({
+          id: s.id as string,
+          net_amount: s.net_amount,
+          cash_amount: s.cash_amount,
+          card_amount: s.card_amount,
+          upi_amount: s.upi_amount,
+        })),
+      (receiptData || []).map((r: any) => ({
+        voucher_type: "receipt",
+        reference_type: r.reference_type,
+        reference_id: r.reference_id,
+        total_amount: r.total_amount,
+      })),
+    );
     
     if (receiptData) {
       receiptData.forEach((receipt) => {
-        const amount = Number(receipt.total_amount) || 0;
+        const amount = receiptOverlap.countableAmount({
+          voucher_type: "receipt",
+          reference_type: receipt.reference_type,
+          reference_id: receipt.reference_id,
+          total_amount: receipt.total_amount,
+        });
+        if (amount <= 0) return;
         const method = (receipt.payment_method || "").toLowerCase().trim();
         const desc = (receipt.description || '').toLowerCase();
 

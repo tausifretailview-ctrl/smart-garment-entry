@@ -31,6 +31,7 @@ import { cn } from "@/lib/utils";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { QuietRefreshBar } from "@/components/QuietRefreshBar";
 import { localDayBounds } from "@/lib/localDayBounds";
+import { createSameDaySaleReceiptOverlapTracker } from "@/utils/posCashierCashIn";
 import { toast } from "sonner";
 import type * as XLSXType from "xlsx";
 /** Lazily loaded on export — keeps the xlsx bundle off this page's initial chunk. */
@@ -137,7 +138,7 @@ const DailyTally = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("voucher_entries")
-        .select("id, voucher_number, voucher_date, voucher_type, total_amount, description, reference_type, category")
+        .select("id, voucher_number, voucher_date, voucher_type, total_amount, description, reference_type, reference_id, category")
         .eq("organization_id", orgId!)
         .is("deleted_at", null)
         .gte("voucher_date", dateStr)
@@ -317,23 +318,43 @@ const DailyTally = () => {
       target.total += net;
     });
 
+    const receiptOverlap = createSameDaySaleReceiptOverlapTracker(
+      (salesData || [])
+        .filter(
+          (s: any) =>
+            s?.id &&
+            !isHoldLikeSale(s) &&
+            !s?.is_cancelled &&
+            s?.payment_status !== "cancelled",
+        )
+        .map((s: any) => ({
+          id: s.id as string,
+          net_amount: s.net_amount,
+          cash_amount: s.cash_amount,
+          card_amount: s.card_amount,
+          upi_amount: s.upi_amount,
+        })),
+      vouchersData || [],
+    );
+
     // Process vouchers — FIX 8: strict voucher_type check only for expenses
     (vouchersData || []).forEach((v: any) => {
-      const amt = Number(v.total_amount) || 0;
+      const rawAmt = Number(v.total_amount) || 0;
       const mode = parsePaymentMode(v.description);
-      const addToMode = (b: PaymentBreakdown) => {
+      const addToMode = (b: PaymentBreakdown, amt: number) => {
         b[mode as keyof PaymentBreakdown] = (b[mode as keyof PaymentBreakdown] as number) + amt;
         b.total += amt;
       };
 
       if (v.voucher_type === "receipt") {
-        addToMode(receipts);
+        const amt = receiptOverlap.countableAmount(v);
+        if (amt > 0) addToMode(receipts, amt);
       } else if (v.voucher_type === "payment" && v.reference_type === "supplier") {
-        addToMode(supplierPayments);
+        addToMode(supplierPayments, rawAmt);
       } else if (v.voucher_type === "payment" && v.reference_type === "employee") {
-        addToMode(employeeSalary);
+        addToMode(employeeSalary, rawAmt);
       } else if (v.voucher_type === "expense") {
-        addToMode(expenses);
+        addToMode(expenses, rawAmt);
       }
     });
 

@@ -17,6 +17,7 @@ import {
   getSaleReportRoundOff,
 } from "@/utils/cashierReportUtils";
 import { allocateMixPaymentToBill } from "@/utils/mixPaymentAllocation";
+import { createSameDaySaleReceiptOverlapTracker } from "@/utils/posCashierCashIn";
 import {
   buildProductTextOrFilter,
   expandProductSearchTerms,
@@ -115,7 +116,7 @@ function FloatingCashierReport({ open, onOpenChange }: { open: boolean; onOpenCh
       if (!currentOrganization?.id) return [];
       const { data } = await supabase
         .from("voucher_entries")
-        .select("id, voucher_type, total_amount, payment_method, reference_type, description, category")
+        .select("id, voucher_type, total_amount, payment_method, reference_type, reference_id, description, category")
         .eq("organization_id", currentOrganization.id)
         .eq("voucher_date", selectedDateSafe)
         .is("deleted_at", null);
@@ -227,21 +228,37 @@ function FloatingCashierReport({ open, onOpenChange }: { open: boolean; onOpenCh
       else advanceCash += amt;
     });
 
+    // Strip same-day sale RCP already covered by tenders (historical POS Dashboard dual-write).
+    const receiptOverlap = createSameDaySaleReceiptOverlapTracker(
+      eligibleSales
+        .filter((s: any) => !!s?.id)
+        .map((s: any) => ({
+          id: s.id as string,
+          net_amount: s.net_amount,
+          cash_amount: s.cash_amount,
+          card_amount: s.card_amount,
+          upi_amount: s.upi_amount,
+        })),
+      voucherData || [],
+    );
+
     (voucherData || []).forEach((v: any) => {
-      const amt = Number(v.total_amount) || 0;
-      if (amt <= 0) return;
+      const rawAmt = Number(v.total_amount) || 0;
+      if (rawAmt <= 0) return;
       const m = resolveMode(v.payment_method, v.description);
       if (!m) return; // skip advance_adjustment/credit_note
       if (v.voucher_type === 'receipt') {
+        const amt = receiptOverlap.countableAmount(v);
+        if (amt <= 0) return;
         receiptTotal += amt;
         if (m === 'upi') receiptUpi += amt;
         else if (m === 'card') receiptCard += amt;
         else receiptCash += amt;
       } else if (v.voucher_type === 'payment') {
-        if (v.reference_type === 'supplier') supplierPaid += amt;
-        else if (v.reference_type === 'employee') employeePaid += amt;
+        if (v.reference_type === 'supplier') supplierPaid += rawAmt;
+        else if (v.reference_type === 'employee') employeePaid += rawAmt;
       } else if (v.voucher_type === 'expense' || v.category === 'expense') {
-        expensePaid += amt;
+        expensePaid += rawAmt;
       }
     });
 
