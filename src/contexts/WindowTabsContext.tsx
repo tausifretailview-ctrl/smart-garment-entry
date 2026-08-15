@@ -39,6 +39,20 @@ interface WindowTabsContextType {
 
 const WindowTabsContext = createContext<WindowTabsContextType | undefined>(undefined);
 
+/** Inert value used when a consumer renders outside the provider, so the app degrades instead of blanking. */
+const FALLBACK_WINDOW_TABS: WindowTabsContextType = {
+  openWindows: [],
+  activeWindow: "",
+  isTabsBarVisible: false,
+  toggleTabsBarVisibility: () => {},
+  openWindow: () => {},
+  closeWindow: () => {},
+  switchWindow: () => {},
+  isWindowOpen: () => false,
+  getPreviousWindow: () => null,
+  switchToPreviousWindow: () => false,
+};
+
 /** Shared with document.title via pageTitles.ts */
 const PAGE_CONFIG = PAGE_TITLE_CONFIG;
 
@@ -360,7 +374,12 @@ export function WindowTabsProvider({ children }: { children: React.ReactNode }) 
 export function useWindowTabs() {
   const context = useContext(WindowTabsContext);
   if (!context) {
-    throw new Error("useWindowTabs must be used within WindowTabsProvider");
+    // Never crash the whole app (e.g. a stale HMR module instance in dev, or a
+    // consumer rendered outside the provider) — degrade to an inert tab strip.
+    if (import.meta.env.DEV) {
+      console.warn("[WindowTabs] useWindowTabs called outside WindowTabsProvider — using inert fallback.");
+    }
+    return FALLBACK_WINDOW_TABS;
   }
   return context;
 }
