@@ -1685,9 +1685,12 @@ const POSDashboard = () => {
           (await captureElementToPdfBase64(invoicePrintRef.current, {
             extraSettleMs: 700,
             pageFormat:
-              effectivePosBillFormat === "a5" || effectivePosBillFormat === "a5-horizontal"
-                ? "a5"
-                : "a4",
+              effectivePosBillFormat === "thermal"
+                ? "thermal"
+                : effectivePosBillFormat === "a5" || effectivePosBillFormat === "a5-horizontal"
+                  ? "a5"
+                  : "a4",
+            thermalPaper: posThermalPaper,
             wappConnectPdf: whatsAppAPISettings?.send_provider === "wappconnect",
           })) ||
           null
@@ -1696,7 +1699,12 @@ const POSDashboard = () => {
         setPrintData(null);
       }
     },
-    [buildPrintDataFromSale, effectivePosBillFormat, whatsAppAPISettings?.send_provider],
+    [
+      buildPrintDataFromSale,
+      effectivePosBillFormat,
+      posThermalPaper,
+      whatsAppAPISettings?.send_provider,
+    ],
   );
 
   const sendPosSaleWhatsAppViaAPI = useCallback(
