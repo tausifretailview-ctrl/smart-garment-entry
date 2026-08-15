@@ -104,6 +104,14 @@ export default function SaleOrderDashboard() {
       },
     },
     {
+      label: "Print Available Stock",
+      icon: Package,
+      onClick: () => {
+        void handlePrintAvailableStock(order);
+      },
+      hidden: order.status === "confirmed",
+    },
+    {
       label: "Edit",
       icon: Edit,
       onClick: () => {
@@ -148,7 +156,12 @@ export default function SaleOrderDashboard() {
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
   const [conversionItems, setConversionItems] = useState<ConversionItem[]>([]);
   const [isConverting, setIsConverting] = useState(false);
-  const [orderToPrint, setOrderToPrint] = useState<any>(null);
+  const [orderToPrint, setOrderToPrint] = useState<{
+    order: any;
+    mode: "order" | "available-stock";
+    conversionItems?: ConversionItem[];
+    printedAt?: Date;
+  } | null>(null);
   const { formatSaleOrderMessage } = useWhatsAppTemplates();
   const [fromDate, setFromDate] = useState<Date | undefined>(undefined);
   const [toDate, setToDate] = useState<Date | undefined>(undefined);
@@ -628,9 +641,50 @@ export default function SaleOrderDashboard() {
     try {
       const fullOrder = await fetchSaleOrderWithItems(order.id);
       if (!fullOrder) throw new Error("Order not found");
-      setOrderToPrint(fullOrder);
+      setOrderToPrint({ order: fullOrder, mode: "order" });
     } catch (error: any) {
       toast({ title: "Error", description: error.message || "Could not load order", variant: "destructive" });
+    } finally {
+      setRowActionLoadingId(null);
+    }
+  };
+
+  const handlePrintAvailableStock = async (order: any) => {
+    if (order.status === "confirmed") {
+      toast({
+        title: "Fully fulfilled",
+        description: "This order has no pending lines to pick.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setRowActionLoadingId(order.id);
+    try {
+      const fullOrder = await fetchSaleOrderWithItems(order.id);
+      if (!fullOrder) throw new Error("Order not found");
+      // Same stock source as Convert to Sale Bill — do not query stock separately.
+      const conversionItems = await fetchStockForConversion(fullOrder);
+      const anyAvailable = conversionItems.some((item) => item.convert_qty > 0);
+      if (!anyAvailable) {
+        toast({
+          title: "No stock available",
+          description: "No pending line has on-hand stock to pick right now.",
+          variant: "destructive",
+        });
+        return;
+      }
+      setOrderToPrint({
+        order: fullOrder,
+        mode: "available-stock",
+        conversionItems,
+        printedAt: new Date(),
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Could not load available stock",
+        variant: "destructive",
+      });
     } finally {
       setRowActionLoadingId(null);
     }
@@ -989,6 +1043,17 @@ export default function SaleOrderDashboard() {
                             <Button variant="ghost" size="icon" disabled={isRowBusy} onClick={() => void handlePrintOrder(order)} title="Print">
                               <Printer className="h-4 w-4" />
                             </Button>
+                            {order.status !== "confirmed" && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                disabled={isRowBusy}
+                                onClick={() => void handlePrintAvailableStock(order)}
+                                title="Print Available Stock"
+                              >
+                                <Package className="h-4 w-4" />
+                              </Button>
+                            )}
                             <Button variant="ghost" size="icon" disabled={isRowBusy} onClick={() => void handleEditOrder(order)}>
                               <Edit className="h-4 w-4" />
                             </Button>
@@ -1231,8 +1296,11 @@ export default function SaleOrderDashboard() {
       {/* Print Preview Dialog */}
       {orderToPrint && (
         <PrintSaleOrderDialog 
-          order={orderToPrint}
+          order={orderToPrint.order}
           settings={settings}
+          mode={orderToPrint.mode}
+          conversionItems={orderToPrint.conversionItems}
+          printedAt={orderToPrint.printedAt}
           onClose={() => setOrderToPrint(null)}
         />
       )}
@@ -1250,15 +1318,32 @@ export default function SaleOrderDashboard() {
 }
 
 // Print Dialog Component
-function PrintSaleOrderDialog({ order, settings, onClose }: { order: any; settings: any; onClose: () => void }) {
+function PrintSaleOrderDialog({
+  order,
+  settings,
+  onClose,
+  mode = "order",
+  conversionItems,
+  printedAt,
+}: {
+  order: any;
+  settings: any;
+  onClose: () => void;
+  mode?: "order" | "available-stock";
+  conversionItems?: ConversionItem[];
+  printedAt?: Date;
+}) {
   const printRef = useRef<HTMLDivElement>(null);
   const [printItems, setPrintItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedFormat, setSelectedFormat] = useState<'a4' | 'a5' | 'a5-horizontal' | 'thermal'>(
-    settings?.sale_settings?.bill_format || 'a4'
-  );
+  const isAvailableStock = mode === "available-stock";
+  const [selectedFormat, setSelectedFormat] = useState<'a4' | 'a5' | 'a5-horizontal' | 'thermal'>(() => {
+    const preferred = settings?.sale_settings?.bill_format || "a4";
+    if (mode === "available-stock" && preferred === "thermal") return "a4";
+    return preferred;
+  });
   const [invoiceStyle, setInvoiceStyle] = useState<"standard" | "wholesale-size-grouping">(
-    order.invoice_format || "standard"
+    isAvailableStock ? "standard" : (order.invoice_format || "standard")
   );
   
   const getPageStyle = () => {
@@ -1276,7 +1361,9 @@ function PrintSaleOrderDialog({ order, settings, onClose }: { order: any; settin
   
   const handlePrint = useReactToPrint({
     contentRef: printRef,
-    documentTitle: `SaleOrder-${order.order_number}`,
+    documentTitle: isAvailableStock
+      ? `AvailableStock-${order.order_number}`
+      : `SaleOrder-${order.order_number}`,
     pageStyle: `${getPageStyle()}
       ${INVOICE_PRINT_VISIBILITY_OVERRIDE_CSS}
       @media print {
@@ -1292,10 +1379,20 @@ function PrintSaleOrderDialog({ order, settings, onClose }: { order: any; settin
       }),
   });
 
-  // Fetch brand/style from products
+  // Fetch brand/style from products (and map available-stock rows from conversion)
   useEffect(() => {
     const fetchProductDetails = async () => {
-      const productIds = [...new Set((order.sale_order_items || []).map((item: any) => item.product_id).filter(Boolean))] as string[];
+      const sourceRows = isAvailableStock
+        ? (conversionItems || [])
+        : (order.sale_order_items || []).filter((item: any) => !item.deleted_at);
+
+      const productIds = [
+        ...new Set(
+          sourceRows
+            .map((item: any) => item.product_id)
+            .filter(Boolean),
+        ),
+      ] as string[];
       let productDetails: Record<string, { brand: string | null; style: string | null }> = {};
       
       if (productIds.length > 0) {
@@ -1312,43 +1409,71 @@ function PrintSaleOrderDialog({ order, settings, onClose }: { order: any; settin
         }
       }
 
-      const items = (order.sale_order_items || [])
-        .filter((item: any) => !item.deleted_at) // Filter out soft-deleted items
-        .map((item: any, index: number) => ({
-          sr: index + 1,
-          particulars: item.product_name,
-          size: item.size,
-          barcode: item.barcode || '',
-          hsn: '',
-          orderQty: item.order_qty,
-          fulfilledQty: item.fulfilled_qty,
-          pendingQty: item.pending_qty,
-          rate: item.unit_price,
-          mrp: item.mrp,
-          discountPercent: item.discount_percent,
-          total: item.line_total,
-          color: item.color || '',
-          brand: item.product_id ? productDetails[item.product_id]?.brand : null,
-          style: item.product_id ? productDetails[item.product_id]?.style : null,
-        }));
+      const items = isAvailableStock
+        ? (conversionItems || []).map((item, index) => ({
+            sr: index + 1,
+            particulars: item.product_name,
+            size: item.size,
+            barcode: item.barcode || "",
+            hsn: "",
+            orderQty: item.order_qty,
+            fulfilledQty: Math.max(0, item.order_qty - item.pending_qty),
+            pendingQty: item.pending_qty,
+            availableQty: item.convert_qty,
+            stockQty: item.stock_qty,
+            rate: item.unit_price,
+            mrp: item.mrp,
+            discountPercent: item.discount_percent,
+            total: 0,
+            color: item.color || "",
+            brand: item.product_id ? productDetails[item.product_id]?.brand : null,
+            style: item.product_id ? productDetails[item.product_id]?.style : null,
+          }))
+        : (order.sale_order_items || [])
+            .filter((item: any) => !item.deleted_at)
+            .map((item: any, index: number) => ({
+              sr: index + 1,
+              particulars: item.product_name,
+              size: item.size,
+              barcode: item.barcode || "",
+              hsn: "",
+              orderQty: item.order_qty,
+              fulfilledQty: item.fulfilled_qty,
+              pendingQty: item.pending_qty,
+              rate: item.unit_price,
+              mrp: item.mrp,
+              discountPercent: item.discount_percent,
+              total: item.line_total,
+              color: item.color || "",
+              brand: item.product_id ? productDetails[item.product_id]?.brand : null,
+              style: item.product_id ? productDetails[item.product_id]?.style : null,
+            }));
       
       setPrintItems(items);
       setLoading(false);
     };
 
     fetchProductDetails();
-  }, [order]);
+  }, [order, conversionItems, isAvailableStock]);
 
   return (
     <AlertDialog open={true} onOpenChange={onClose}>
       <AlertDialogContent className="print-dialog max-w-4xl max-h-[90vh] overflow-auto">
-        <AlertDialogHeader>
-          <AlertDialogTitle>Print Sale Order</AlertDialogTitle>
+          <AlertDialogHeader>
+          <AlertDialogTitle>
+            {isAvailableStock ? "Print Available Stock" : "Print Sale Order"}
+          </AlertDialogTitle>
           <AlertDialogDescription>
             <div className="flex flex-wrap items-center gap-4 mt-2">
               <div className="flex items-center gap-2">
                 <Label className="text-foreground">Bill Format:</Label>
-                <Select value={selectedFormat} onValueChange={(v: 'a4' | 'a5' | 'a5-horizontal' | 'thermal') => setSelectedFormat(v)}>
+                <Select
+                  value={selectedFormat === "thermal" && isAvailableStock ? "a4" : selectedFormat}
+                  onValueChange={(v: 'a4' | 'a5' | 'a5-horizontal' | 'thermal') => {
+                    if (isAvailableStock && v === "thermal") return;
+                    setSelectedFormat(v);
+                  }}
+                >
                   <SelectTrigger className="w-[200px]">
                     <SelectValue />
                   </SelectTrigger>
@@ -1356,11 +1481,13 @@ function PrintSaleOrderDialog({ order, settings, onClose }: { order: any; settin
                     <SelectItem value="a4">A4 (210mm × 297mm)</SelectItem>
                     <SelectItem value="a5">A5 Vertical (148mm × 210mm)</SelectItem>
                     <SelectItem value="a5-horizontal">A5 Horizontal (210mm × 148mm)</SelectItem>
-                    <SelectItem value="thermal">Thermal (80mm)</SelectItem>
+                    {!isAvailableStock && (
+                      <SelectItem value="thermal">Thermal (80mm)</SelectItem>
+                    )}
                   </SelectContent>
                 </Select>
               </div>
-              {selectedFormat !== 'thermal' && (
+              {!isAvailableStock && selectedFormat !== 'thermal' && (
                 <div className="flex items-center gap-2">
                   <Label className="text-foreground">Invoice Style:</Label>
                   <Select value={invoiceStyle} onValueChange={(v: "standard" | "wholesale-size-grouping") => setInvoiceStyle(v)}>
@@ -1373,6 +1500,11 @@ function PrintSaleOrderDialog({ order, settings, onClose }: { order: any; settin
                     </SelectContent>
                   </Select>
                 </div>
+              )}
+              {isAvailableStock && (
+                <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded px-2 py-1">
+                  Picking list — snapshot of on-hand stock, not a reservation. No prices.
+                </p>
               )}
             </div>
           </AlertDialogDescription>
@@ -1390,7 +1522,7 @@ function PrintSaleOrderDialog({ order, settings, onClose }: { order: any; settin
                 This order may have been created without items. Please re-create the order.
               </p>
             </div>
-          ) : selectedFormat === 'thermal' ? (
+          ) : selectedFormat === 'thermal' && !isAvailableStock ? (
             <ThermalPrint80mm
               ref={printRef}
               billNo={order.order_number}
@@ -1433,12 +1565,12 @@ function PrintSaleOrderDialog({ order, settings, onClose }: { order: any; settin
               customerMobile={order.customer_phone}
               customerEmail={order.customer_email}
               items={printItems}
-              grossAmount={order.gross_amount}
-              discountAmount={order.discount_amount + order.flat_discount_amount}
-              taxableAmount={order.gross_amount - order.discount_amount - order.flat_discount_amount}
-              gstAmount={order.gst_amount}
-              roundOff={order.round_off}
-              netAmount={order.net_amount}
+              grossAmount={isAvailableStock ? 0 : order.gross_amount}
+              discountAmount={isAvailableStock ? 0 : order.discount_amount + order.flat_discount_amount}
+              taxableAmount={isAvailableStock ? 0 : order.gross_amount - order.discount_amount - order.flat_discount_amount}
+              gstAmount={isAvailableStock ? 0 : order.gst_amount}
+              roundOff={isAvailableStock ? 0 : order.round_off}
+              netAmount={isAvailableStock ? 0 : order.net_amount}
               status={order.status}
               termsConditions={order.terms_conditions}
               notes={order.notes}
@@ -1446,7 +1578,9 @@ function PrintSaleOrderDialog({ order, settings, onClose }: { order: any; settin
               taxType={order.tax_type}
               format={selectedFormat === 'a5' ? 'a5-vertical' : selectedFormat === 'a5-horizontal' ? 'a5-horizontal' : 'a4'}
               colorScheme={settings?.sale_settings?.invoice_color_scheme || 'blue'}
-              invoiceFormat={invoiceStyle}
+              invoiceFormat={isAvailableStock ? "standard" : invoiceStyle}
+              documentMode={isAvailableStock ? "available-stock" : "order"}
+              printedAt={isAvailableStock ? (printedAt || new Date()) : undefined}
             />
           )}
         </div>
