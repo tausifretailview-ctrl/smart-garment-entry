@@ -2798,6 +2798,7 @@ export default function BarcodePrinting() {
       setSheetType("precision_pro_tsc");
     }
   }, [savedLabelTemplates, setActivePrecisionTemplateName]);
+  handlePrecisionPresetLoadRef.current = handlePrecisionPresetLoad;
 
   const executePrintModeSwitch = useCallback((mode: PrecisionPrintMode) => {
     if (mode === "footwear") {
