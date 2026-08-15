@@ -45,7 +45,9 @@ export async function captureElementToPdfBase64(
   el: HTMLElement,
   opts: {
     extraSettleMs?: number;
-    pageFormat?: "a4" | "a5";
+    pageFormat?: "a4" | "a5" | "thermal";
+    /** Roll width when pageFormat is "thermal". */
+    thermalPaper?: "58mm" | "80mm";
     /** WappConnect WhatsApp invoice PDF — border/font clone fixes only. */
     wappConnectPdf?: boolean;
     // Force JPEG + lower scale for smaller PDFs (WhatsApp / storage-bucket limits).
@@ -64,6 +66,7 @@ export async function captureElementToPdfBase64(
   const pageFormat = opts.pageFormat ?? "a4";
   const blob = await captureElementToPdfBlob(el, {
     pageFormat,
+    thermalPaper: opts.thermalPaper ?? "80mm",
     wappConnectPdf: opts.wappConnectPdf === true,
     // Force JPEG + lower scale for smaller PDFs (WhatsApp / storage-bucket limits).
     mobileOptimized: opts.mobileOptimized ?? true,
