@@ -197,6 +197,8 @@ interface EInvoiceSettings {
 interface SaleSettings {
   enable_customer_price_memory?: boolean; // Customer-wise sale price memory
   pos_barcode_price_mode?: 'mrp' | 'sale_price';
+  /** When true, POS keeps the selected salesman after save (default off). */
+  pos_retain_salesman?: boolean;
   default_discount?: number;
   /** Shared / Sale default GST mode (existing setting — unchanged for current orgs) */
   default_tax_type?: 'inclusive' | 'exclusive' | 'no_gst';
@@ -2236,6 +2238,31 @@ export default function Settings() {
                     </div>
                   </div>
                 )}
+
+                <div className="flex items-center justify-between gap-4 pt-4">
+                  <div>
+                    <Label htmlFor="pos_retain_salesman" className="font-normal cursor-pointer">
+                      Keep salesman after POS save
+                    </Label>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      When enabled, the selected salesperson stays for the next bill (Alt+M to change).
+                      Off by default — clears after each save. Explicit Clear / New Sale still clears.
+                    </p>
+                  </div>
+                  <Switch
+                    id="pos_retain_salesman"
+                    checked={settings.sale_settings?.pos_retain_salesman === true}
+                    onCheckedChange={(checked) =>
+                      setSettings({
+                        ...settings,
+                        sale_settings: {
+                          ...settings.sale_settings,
+                          pos_retain_salesman: checked,
+                        },
+                      })
+                    }
+                  />
+                </div>
                 
                 <div className="flex items-center space-x-2 pt-4">
                   <Switch

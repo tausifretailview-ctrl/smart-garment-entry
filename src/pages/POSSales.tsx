@@ -38,6 +38,11 @@ import { useBarcodeScanner } from "@/hooks/useBarcodeScanner";
 import { useIsMobile, useIsTablet } from "@/hooks/use-mobile";
 import { isElectronShell } from "@/lib/electronShell";
 import { isPosSalesRoute } from "@/lib/keyboardShortcuts";
+import {
+  POS_OPEN_SALESMAN_PICKER_EVENT,
+  shouldClearPosSalesmanAfterSave,
+  shouldCreatePosCommissionOnSave,
+} from "@/utils/posSalesmanRetain";
 import { TabletPOSLayout } from "@/components/tablet/TabletPOSLayout";
 import { WindowTabsBar } from "@/components/WindowTabsBar";
 import { Card } from "@/components/ui/card";
@@ -1285,6 +1290,13 @@ export default function POSSales() {
   }, [posBillFormat, posThermalPaper]);
   const showInvoicePreviewSetting: boolean = _posSaleSettings.show_invoice_preview ?? true;
   const defaultPosTaxType = resolvePosDefaultTaxType(_posSaleSettings);
+  const retainPosSalesman = _posSaleSettings.pos_retain_salesman === true;
+
+  const clearSalesmanAfterSaveIfNeeded = useCallback(() => {
+    if (shouldClearPosSalesmanAfterSave(retainPosSalesman)) {
+      setSelectedSalesman("");
+    }
+  }, [retainPosSalesman]);
 
   useEffect(() => {
     setTaxType(defaultPosTaxType);
@@ -1317,7 +1329,7 @@ export default function POSSales() {
           onSuccess: async () => {
             refreshPosAfterBillPrint();
             setSavedInvoiceData(null);
-            setSelectedSalesman("");
+            clearSalesmanAfterSaveIfNeeded();
             const billBarcodeSettings = (settingsData as any)?.bill_barcode_settings;
             if (billBarcodeSettings?.enable_cash_drawer) {
               const drawerPin = billBarcodeSettings?.cash_drawer_pin || 'pin2';
@@ -1328,8 +1340,26 @@ export default function POSSales() {
         });
       });
     },
-    [isDirectPrintEnabled, isAutoPrintEnabled, posBillFormat, directPrint, settingsData, refreshPosAfterBillPrint],
+    [isDirectPrintEnabled, isAutoPrintEnabled, posBillFormat, directPrint, settingsData, refreshPosAfterBillPrint, clearSalesmanAfterSaveIfNeeded],
   );
+
+  // Alt+M (via useGlobalNavigationShortcuts) — open salesman picker from barcode field
+  useEffect(() => {
+    const onOpenSalesman = () => {
+      if (!isPosSalesRoute(location.pathname)) return;
+      setSalesmanSearchInput("");
+      setOpenSalesmanSearch(true);
+      window.setTimeout(() => {
+        const input = document.querySelector(
+          "[data-pos-salesman-picker] [cmdk-input]",
+        ) as HTMLInputElement | null;
+        input?.focus();
+        input?.select();
+      }, 0);
+    };
+    window.addEventListener(POS_OPEN_SALESMAN_PICKER_EVENT, onOpenSalesman);
+    return () => window.removeEventListener(POS_OPEN_SALESMAN_PICKER_EVENT, onOpenSalesman);
+  }, [location.pathname]);
 
   // Keyboard shortcuts for POS actions
   useEffect(() => {
@@ -3475,7 +3505,12 @@ export default function POSSales() {
       }
       
       // Auto-record salesman commission
-      if (selectedSalesman && !currentSaleId) {
+      if (
+        shouldCreatePosCommissionOnSave({
+          salesmanName: selectedSalesman,
+          isEditingExistingSale: !!currentSaleId,
+        })
+      ) {
         createCommissionRecords(result.id, result.sale_number, result.sale_date || new Date().toISOString().split('T')[0], selectedSalesman, result.net_amount);
       }
 
@@ -3495,6 +3530,7 @@ export default function POSSales() {
       setSearchInput("");
       setCurrentSaleId(null); // Reset edit mode
       setOriginalItemsForEdit([]); // Clear original items for edit
+      clearSalesmanAfterSaveIfNeeded();
       setSaleNotes("");
       setFinancerDetails(null);
       setPosInvoiceDate(new Date());
@@ -3723,12 +3759,16 @@ export default function POSSales() {
       };
       
       // Auto-record salesman commission
-      if (salesmanForPrint && !wasEditing) {
+      if (
+        shouldCreatePosCommissionOnSave({
+          salesmanName: salesmanForPrint,
+          isEditingExistingSale: wasEditing,
+        })
+      ) {
         createCommissionRecords(result.id, result.sale_number, result.sale_date || new Date().toISOString().split('T')[0], salesmanForPrint, result.net_amount);
       }
 
       // WhatsApp invoice auto-send is handled by useSaveSale hook — do NOT send here to avoid duplicates
-      const willAutoPrint = isDirectPrintEnabled && isAutoPrintEnabled;
       // Set print snapshot first so hidden invoice re-renders with salesman before cart clears.
       // flushSync: commit portal DOM before cart clear + auto-print (avoids blank clone).
       flushSync(() => setSavedInvoiceData(invoiceDataForPrint));
@@ -3750,9 +3790,8 @@ export default function POSSales() {
       setSearchInput("");
       setCurrentSaleId(null);
       setOriginalItemsForEdit([]);
-      if (!willAutoPrint) {
-        setSelectedSalesman("");
-      }
+      // Same clear rule for all save paths (no auto-print divergence).
+      clearSalesmanAfterSaveIfNeeded();
       setSaleNotes("");
       setFinancerDetails(null);
       setIsHeldSale(false);
@@ -4009,7 +4048,12 @@ export default function POSSales() {
       } : null;
       
       // Auto-record salesman commission
-      if (selectedSalesman && !currentSaleId) {
+      if (
+        shouldCreatePosCommissionOnSave({
+          salesmanName: selectedSalesman,
+          isEditingExistingSale: !!currentSaleId,
+        })
+      ) {
         createCommissionRecords(result.id, result.sale_number, result.sale_date || new Date().toISOString().split('T')[0], selectedSalesman, result.net_amount);
       }
 
@@ -4030,7 +4074,7 @@ export default function POSSales() {
       setSearchInput("");
       setCurrentSaleId(null);
       setOriginalItemsForEdit([]);
-      setSelectedSalesman("");
+      clearSalesmanAfterSaveIfNeeded();
       setSaleNotes("");
       setFinancerDetails(null);
       setIsHeldSale(false);
@@ -4788,6 +4832,7 @@ export default function POSSales() {
     setSearchInput("");
     setCurrentSaleId(null);
     setOriginalItemsForEdit([]);
+    setSelectedSalesman("");
     setSaleNotes("");
     setPosInvoiceDate(new Date());
     
@@ -4813,6 +4858,7 @@ export default function POSSales() {
     setOriginalItemsForEdit([]);
     setCurrentInvoiceNumber("");
     setIsHeldSale(false);
+    setSelectedSalesman("");
     setSaleNotes("");
     setPosInvoiceDate(new Date());
     
@@ -6110,7 +6156,17 @@ export default function POSSales() {
           </div>
 
           {/* Salesperson Search - After Customer Name */}
-          <Popover open={openSalesmanSearch} onOpenChange={setOpenSalesmanSearch}>
+          <Popover
+            open={openSalesmanSearch}
+            onOpenChange={(open) => {
+              setOpenSalesmanSearch(open);
+              if (!open) {
+                setSalesmanSearchInput("");
+                // Return cursor to barcode — Esc or select (scanner must not type into filter).
+                focusBarcodeScanInput();
+              }
+            }}
+          >
             <PopoverTrigger asChild>
               <div className="relative w-36 shrink-0">
                 <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1 block">Salesperson</Label>
@@ -6138,7 +6194,15 @@ export default function POSSales() {
                 )}
               </div>
             </PopoverTrigger>
-            <PopoverContent className="w-[250px] p-0 z-50" align="start">
+            <PopoverContent
+              className="w-[250px] p-0 z-50"
+              align="start"
+              data-pos-salesman-picker
+              onCloseAutoFocus={(e) => {
+                e.preventDefault();
+                focusBarcodeScanInput();
+              }}
+            >
               <Command shouldFilter={false}>
                 <CommandInput 
                   placeholder="Search employee..." 
@@ -6156,6 +6220,7 @@ export default function POSSales() {
                           setSelectedSalesman(emp.employee_name);
                           setOpenSalesmanSearch(false);
                           setSalesmanSearchInput("");
+                          focusBarcodeScanInput();
                         }}
                         className="cursor-pointer"
                       >

@@ -4,7 +4,8 @@ import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { resolveFirstAllowedPath } from "@/lib/menuPermissions";
 import { useOrganization } from "@/contexts/OrganizationContext";
-import { isGlobalShortcutBlocked } from "@/lib/keyboardShortcuts";
+import { isGlobalShortcutBlocked, isPosSalesRoute } from "@/lib/keyboardShortcuts";
+import { dispatchPosOpenSalesmanPicker } from "@/utils/posSalesmanRetain";
 
 type NavTarget = {
   path: string;
@@ -56,6 +57,15 @@ export function useGlobalNavigationShortcuts() {
       if (e.altKey && !e.ctrlKey && !e.shiftKey && key === "s") {
         e.preventDefault();
         go("stock-report", "stock_report");
+        return;
+      }
+
+      // Alt+M — open POS salesman picker (only on POS route; scanner-safe modifier combo)
+      if (e.altKey && !e.ctrlKey && !e.shiftKey && key === "m") {
+        if (!isPosSalesRoute(location.pathname)) return;
+        e.preventDefault();
+        e.stopPropagation();
+        dispatchPosOpenSalesmanPicker();
         return;
       }
 
