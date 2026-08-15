@@ -3512,8 +3512,11 @@ export default function POSSales() {
       const defaultRate = (employee as any).commission_percent ?? 1.0;
       const employeeRules = (commissionRules || []).filter((r: any) => r.employee_id === employee.id);
 
-      // Fetch saved sale_items for item-level detail
-      const { data: saleItems } = await supabase.from('sale_items').select('product_id, product_name, quantity, line_total, size').eq('sale_id', saleId);
+      // Fetch saved sale_items for item-level detail (include discount fields)
+      const { data: saleItems } = await supabase
+        .from('sale_items')
+        .select('product_id, product_name, quantity, line_total, size, discount_share, net_after_discount, discount_percent')
+        .eq('sale_id', saleId);
 
       // Fetch product details for brand/category/style
       const productIds = [...new Set((saleItems || []).map((i: any) => i.product_id).filter(Boolean))];
@@ -3541,7 +3544,12 @@ export default function POSSales() {
         const records = saleItems.map((item: any) => {
           const prod = productMap[item.product_id] || {};
           const { rate, ruleType } = getRate(item);
-          const amount = Math.round(((item.line_total || 0) * rate / 100) * 100) / 100;
+          // Commission on net after discount (not gross line_total).
+          const netSale =
+            Number(item.net_after_discount) > 0
+              ? Number(item.net_after_discount)
+              : Math.max(0, Number(item.line_total || 0) - Number(item.discount_share || 0));
+          const amount = Math.round((netSale * rate / 100) * 100) / 100;
           return {
             organization_id: currentOrganization.id,
             employee_id: employee.id, employee_name: salesmanName,
@@ -3549,7 +3557,7 @@ export default function POSSales() {
             customer_name: customerName || 'Walk-in Customer',
             product_id: item.product_id, product_name: item.product_name,
             brand: prod.brand || null, category: prod.category || null, style: prod.style || null,
-            sale_amount: item.line_total || 0, commission_percent: rate,
+            sale_amount: netSale, commission_percent: rate,
             commission_amount: amount, rule_type: ruleType, payment_status: 'pending',
           };
         });
