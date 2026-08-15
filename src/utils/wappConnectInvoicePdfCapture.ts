@@ -95,6 +95,55 @@ export function applyWappConnectInvoicePdfCloneFixes(
 
   const retailErp = isRetailErpCloneRoot(clonedElement);
 
+  // Thermal receipts (80mm / 58mm roll) — tight line-heights + Arial Black render
+  // clipped in html2canvas, so product lines came through cut in half in the
+  // WhatsApp PDF. Relax leading / spacing on the clone only.
+  const thermalReceipt =
+    clonedElement.classList.contains("thermal-receipt-container") ||
+    Boolean(clonedElement.querySelector(".thermal-receipt-container"));
+
+  if (thermalReceipt) {
+    const thermalStyle = clonedDoc.createElement("style");
+    thermalStyle.setAttribute("data-wappconnect-thermal-pdf-fix", "true");
+    thermalStyle.textContent = `
+      .thermal-receipt-container,
+      .thermal-receipt-container * {
+        font-family: Arial, Helvetica, sans-serif !important;
+        -webkit-font-smoothing: antialiased !important;
+        text-rendering: geometricPrecision !important;
+        color: #000 !important;
+        line-height: 1.5 !important;
+        letter-spacing: 0 !important;
+        max-height: none !important;
+      }
+      .thermal-receipt-container {
+        background: #fff !important;
+        padding-top: 4px !important;
+        padding-bottom: 8px !important;
+      }
+      /* Item / total rows: keep the column layout, stop glyph clipping. */
+      .thermal-receipt-container div {
+        overflow: visible !important;
+      }
+      .thermal-receipt-container span {
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+        padding-top: 1px !important;
+        padding-bottom: 1px !important;
+      }
+    `;
+    clonedDoc.head?.appendChild(thermalStyle);
+
+    clonedElement.querySelectorAll<HTMLElement>("*").forEach((el) => {
+      const inline = el.style;
+      if (inline.transform && inline.transform !== "none") inline.transform = "none";
+      if (inline.maxHeight) inline.maxHeight = "none";
+      inline.lineHeight = "1.5";
+      inline.boxSizing = "border-box";
+    });
+    return;
+  }
+
   const styleEl = clonedDoc.createElement("style");
   styleEl.setAttribute("data-wappconnect-pdf-fix", "true");
   styleEl.textContent = retailErp
