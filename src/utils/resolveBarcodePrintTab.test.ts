@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { resolveBarcodePrintTab } from "./resolveBarcodePrintTab";
+import {
+  resolveBarcodePrintTab,
+  thermalLandingFromDefaultPrintTab,
+  isPrecisionDefaultPrintTab,
+} from "./resolveBarcodePrintTab";
 
 describe("resolveBarcodePrintTab", () => {
   it("opens Standard when default is an a4_ preset", () => {
@@ -66,5 +70,21 @@ describe("resolveBarcodePrintTab", () => {
         precisionProEnabled: true,
       }),
     ).toBe("precision");
+  });
+
+  it("opens Precision for Footwear + Pair settings tab", () => {
+    expect(
+      resolveBarcodePrintTab({
+        settingsDefaultBarTab: "precision_footwear",
+        defaultFormat: { sheetType: "thermal_50x38_1up" },
+      }),
+    ).toBe("precision");
+  });
+});
+
+describe("thermalLandingFromDefaultPrintTab", () => {
+  it("maps footwear tab to footwear landing mode", () => {
+    expect(thermalLandingFromDefaultPrintTab("precision_footwear")).toBe("footwear");
+    expect(isPrecisionDefaultPrintTab("precision_footwear")).toBe(true);
   });
 });

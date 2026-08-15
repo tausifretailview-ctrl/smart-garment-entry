@@ -9,7 +9,8 @@ export type BarcodeDefaultPrintTabSetting =
   | "auto"
   | "precision_1up"
   | "precision_2up"
-  | "precision_3up";
+  | "precision_3up"
+  | "precision_footwear";
 
 export type ResolveBarcodePrintTabInput = {
   /** Explicit tab from route state — only set when caller intentionally overrides */
@@ -40,17 +41,19 @@ export function isPrecisionDefaultPrintTab(
     tab === "precision" ||
     tab === "precision_1up" ||
     tab === "precision_2up" ||
-    tab === "precision_3up"
+    tab === "precision_3up" ||
+    tab === "precision_footwear"
   );
 }
 
-/** Map settings tab value → Precision Pro thermal landing mode (null if not precision). */
+/** Map settings tab value → Precision Pro landing mode (null if not precision). */
 export function thermalLandingFromDefaultPrintTab(
   tab: string | null | undefined,
-): "thermal" | "thermal2up" | "thermal3up" | null {
+): "thermal" | "thermal2up" | "thermal3up" | "footwear" | null {
   if (tab === "precision_1up") return "thermal";
   if (tab === "precision_2up") return "thermal2up";
   if (tab === "precision_3up") return "thermal3up";
+  if (tab === "precision_footwear") return "footwear";
   if (tab === "precision") return "thermal";
   return null;
 }

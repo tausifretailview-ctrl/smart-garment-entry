@@ -2252,6 +2252,7 @@ export default function BarcodePrinting() {
             rawTab === "precision_1up" ||
             rawTab === "precision_2up" ||
             rawTab === "precision_3up" ||
+            rawTab === "precision_footwear" ||
             rawTab === "precision" ||
             rawTab === "standard" ||
             rawTab === "auto"
@@ -2269,7 +2270,10 @@ export default function BarcodePrinting() {
           const fromTab = thermalLandingFromDefaultPrintTab(configuredDefaultTab);
           const landing = fromTab || bbs.default_thermal_landing || bbs.precision_print_mode;
           resolvedPrintMode =
-            landing === "thermal2up" || landing === "thermal3up" || landing === "thermal"
+            landing === "thermal2up" ||
+            landing === "thermal3up" ||
+            landing === "thermal" ||
+            landing === "footwear"
               ? landing
               : "thermal";
           defaultPresetIdFromSettings =
@@ -2584,7 +2588,8 @@ export default function BarcodePrinting() {
     if (
       printMode === "thermal" ||
       printMode === "thermal2up" ||
-      printMode === "thermal3up"
+      printMode === "thermal3up" ||
+      printMode === "footwear"
     ) {
       try {
         const { data: settingsRow } = await supabase
@@ -2599,11 +2604,13 @@ export default function BarcodePrinting() {
               ? (settingsRow.bill_barcode_settings as Record<string, unknown>)
               : {};
           const tabForMode =
-            printMode === "thermal3up"
-              ? "precision_3up"
-              : printMode === "thermal2up"
-                ? "precision_2up"
-                : "precision_1up";
+            printMode === "footwear"
+              ? "precision_footwear"
+              : printMode === "thermal3up"
+                ? "precision_3up"
+                : printMode === "thermal2up"
+                  ? "precision_2up"
+                  : "precision_1up";
           await supabase
             .from("settings")
             .update({
@@ -2754,6 +2761,10 @@ export default function BarcodePrinting() {
         setSheetType(resolved.sheetType as SheetType);
         setSelectedPreset("");
       }
+    }
+
+    if (mode === "footwear") {
+      setSheetType("precision_pro_tsc");
     }
   }, [savedLabelTemplates, setActivePrecisionTemplateName]);
 
