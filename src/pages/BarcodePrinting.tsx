@@ -2106,6 +2106,14 @@ export default function BarcodePrinting() {
     return `${location.key}|${billId}|${count}|${firstSku}`;
   }, [location.key, location.state]);
 
+  // Landing print mode + default preset configured in Settings → Barcode.
+  // Kept in refs so a cached (tab-restored) page can re-apply them on a fresh
+  // purchase navigation without re-running the one-time settings fetch.
+  const configuredLandingModeRef = useRef<PrecisionPrintMode | null>(null);
+  const defaultPrecisionPresetIdRef = useRef<string | null>(null);
+  const handlePrecisionPresetLoadRef = useRef<((preset: CalibrationPreset) => void) | null>(null);
+  const executePrintModeSwitchRef = useRef<((mode: PrecisionPrintMode) => void) | null>(null);
+
   useEffect(() => {
     if (settingsLoading || isLoadingSettings) return;
     if (!precisionConfigReady) return;
@@ -2135,6 +2143,27 @@ export default function BarcodePrinting() {
         ? prev
         : { ...prev, enabled: resolved === "precision" }
     );
+
+    // Printing straight from the Purchase dashboard must land on the configured
+    // Precision mode (e.g. Footwear Box+Pair) even when the page is restored from
+    // the window-tab cache with a different mode left over from a prior visit.
+    if (fromPurchase && resolved === "precision") {
+      const landing = configuredLandingModeRef.current;
+      if (landing) {
+        const byId = defaultPrecisionPresetIdRef.current
+          ? dbPresets.find((p) => p.id === defaultPrecisionPresetIdRef.current)
+          : undefined;
+        const target =
+          byId && inferPrecisionPrintMode(byId) === landing
+            ? byId
+            : findDefaultPresetForMode(dbPresets, landing);
+        if (target) {
+          handlePrecisionPresetLoadRef.current?.(target);
+        } else {
+          executePrintModeSwitchRef.current?.(landing);
+        }
+      }
+    }
   }, [
     settingsLoading,
     isLoadingSettings,
@@ -2280,6 +2309,8 @@ export default function BarcodePrinting() {
             typeof bbs.default_precision_preset_id === "string" && bbs.default_precision_preset_id
               ? bbs.default_precision_preset_id
               : null;
+          configuredLandingModeRef.current = resolvedPrintMode;
+          defaultPrecisionPresetIdRef.current = defaultPresetIdFromSettings;
           setPrecisionSettings(prev => ({
             ...prev,
             enabled: bbs.precision_pro_enabled === true,
@@ -2767,6 +2798,7 @@ export default function BarcodePrinting() {
       setSheetType("precision_pro_tsc");
     }
   }, [savedLabelTemplates, setActivePrecisionTemplateName]);
+  handlePrecisionPresetLoadRef.current = handlePrecisionPresetLoad;
 
   const executePrintModeSwitch = useCallback((mode: PrecisionPrintMode) => {
     if (mode === "footwear") {
@@ -2809,6 +2841,7 @@ export default function BarcodePrinting() {
       return next;
     });
   }, [activePrecisionTemplateName, dbPresets, handlePrecisionPresetLoad]);
+  executePrintModeSwitchRef.current = executePrintModeSwitch;
 
   const requestPrintModeChange = useCallback((mode: PrecisionPrintMode) => {
     if (mode === precisionSettings.printMode) return;
