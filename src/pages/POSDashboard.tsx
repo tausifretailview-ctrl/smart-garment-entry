@@ -2078,6 +2078,9 @@ const POSDashboard = () => {
       if (!vrow?.id) throw new Error("Receipt voucher insert failed");
       insertedVoucherId = vrow.id as string;
 
+      // Receipt-only settle (same as Sale Billing / FloatingPayments / Collect & Pay).
+      // Do NOT bump cash_amount/card_amount/upi_amount — those are billing-time tenders.
+      // Bumping them double-counted the balance in cashier cash-in (tenders + RCP).
       const rec = await syncSalePaymentFromVouchers(
         selectedSaleForPayment.id,
         currentOrganization!.id,
@@ -2085,42 +2088,6 @@ const POSDashboard = () => {
         supabase,
         { existingSale: selectedSaleForPayment },
       );
-
-      const colField =
-        paymentMode === "upi"
-          ? "upi_amount"
-          : paymentMode === "card" ||
-              paymentMode === "cheque" ||
-              paymentMode === "bank_transfer"
-            ? "card_amount"
-            : "cash_amount";
-
-      let nextCash = Number(selectedSaleForPayment.cash_amount) || 0;
-      let nextCard = Number(selectedSaleForPayment.card_amount) || 0;
-      let nextUpi = Number(selectedSaleForPayment.upi_amount) || 0;
-      if (colField === "cash_amount") nextCash += amount;
-      else if (colField === "card_amount") nextCard += amount;
-      else nextUpi += amount;
-
-      const modesUsed = [nextCash, nextCard, nextUpi].filter((v) => v > 0.01).length;
-      const nextPaymentMethod =
-        modesUsed > 1
-          ? "multiple"
-          : selectedSaleForPayment.payment_method === "multiple"
-            ? "multiple"
-            : paymentMode;
-
-      const { error: paymentMethodError } = await supabase
-        .from("sales")
-        .update({
-          payment_method: nextPaymentMethod,
-          cash_amount: nextCash,
-          card_amount: nextCard,
-          upi_amount: nextUpi,
-        })
-        .eq("id", selectedSaleForPayment.id)
-        .eq("organization_id", currentOrganization!.id);
-      if (paymentMethodError) throw paymentMethodError;
 
       if (postLedger) {
         await recordCustomerReceiptJournalEntry(
