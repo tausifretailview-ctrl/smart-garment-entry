@@ -139,35 +139,22 @@ export async function captureElementToPdfBlob(
 
   if (pageFormat === "thermal") {
     const jsPDF = await loadJsPdf();
+    const rollWidth = thermalPaper === "58mm" ? 58 : 80;
+    // Size the page to the receipt content instead of a fixed 297mm sheet —
+    // a fixed height left a long blank tail and made the receipt look mis-aligned.
+    const contentHeight = Math.max(
+      40,
+      Math.round(((canvas.height * rollWidth) / Math.max(1, canvas.width)) * 100) / 100,
+    );
     const pdf = new jsPDF({
       orientation: "portrait",
       unit: "mm",
-      format: [thermalPaper === "58mm" ? 58 : 80, 297],
+      format: [rollWidth, contentHeight],
     });
     const pdfWidth = pdf.internal.pageSize.getWidth();
-    const imgWidth = canvas.width;
-    const imgHeight = canvas.height;
-    const scaledHeight = (imgHeight * pdfWidth) / imgWidth;
-    const pageHeight = pdf.internal.pageSize.getHeight();
-    const totalPages = Math.max(1, Math.ceil(scaledHeight / pageHeight));
-
-    for (let page = 0; page < totalPages; page++) {
-      if (page > 0) pdf.addPage([thermalPaper === "58mm" ? 58 : 80, 297]);
-      const sourceY = (page * pageHeight * imgWidth) / pdfWidth;
-      const sourceH = Math.min((pageHeight * imgWidth) / pdfWidth, imgHeight - sourceY);
-      const sliceHeight = (sourceH * pdfWidth) / imgWidth;
-
-      const pageCanvas = document.createElement("canvas");
-      pageCanvas.width = imgWidth;
-      pageCanvas.height = Math.ceil(sourceH);
-      const ctx = pageCanvas.getContext("2d");
-      if (ctx) {
-        ctx.drawImage(canvas, 0, sourceY, imgWidth, sourceH, 0, 0, imgWidth, Math.ceil(sourceH));
-        const pageImg = pageCanvas.toDataURL(mimeType, imageQuality);
-        pdf.addImage(pageImg, imageType, 0, 0, pdfWidth, sliceHeight);
-      }
-    }
-
+    const pdfHeightThermal = pdf.internal.pageSize.getHeight();
+    // Single continuous page, edge to edge across the roll width.
+    pdf.addImage(imgData, imageType, 0, 0, pdfWidth, pdfHeightThermal);
     return pdf.output("blob");
   }
 
