@@ -1581,7 +1581,6 @@ export default function POSSales() {
       setSelectedSalesman("");
       setSaleNotes("");
       setFinancerDetails(null);
-      setPosInvoiceDate(new Date());
       toast.success("New Invoice", { description: "Cart cleared. Ready for new sale." });
       setTimeout(() => {
         barcodeInputRef.current?.focus();
@@ -3576,7 +3575,6 @@ export default function POSSales() {
       clearSalesmanAfterSaveIfNeeded();
       setSaleNotes("");
       setFinancerDetails(null);
-      setPosInvoiceDate(new Date());
     }
   };
 
@@ -3838,7 +3836,6 @@ export default function POSSales() {
       setSaleNotes("");
       setFinancerDetails(null);
       setIsHeldSale(false);
-      setPosInvoiceDate(new Date());
       setPointsToRedeem(0);
       
       triggerPosAutoPrintIfEnabled(() => setShowPrintConfirmDialog(true));
@@ -4121,7 +4118,6 @@ export default function POSSales() {
       setSaleNotes("");
       setFinancerDetails(null);
       setIsHeldSale(false);
-      setPosInvoiceDate(new Date());
       setPointsToRedeem(0);
       
       if (invoiceDataForPrint) {
@@ -4878,7 +4874,6 @@ export default function POSSales() {
     setOriginalItemsForEdit([]);
     setSelectedSalesman("");
     setSaleNotes("");
-    setPosInvoiceDate(new Date());
     
     toast.success("Cart Cleared", { description: "All items removed from cart" });
   };
@@ -4904,7 +4899,6 @@ export default function POSSales() {
     setIsHeldSale(false);
     setSelectedSalesman("");
     setSaleNotes("");
-    setPosInvoiceDate(new Date());
     
     toast.success("New Invoice", { description: "Cart cleared. Ready for new sale." });
     
@@ -5006,7 +5000,6 @@ export default function POSSales() {
       setCurrentInvoiceNumber("");
       setIsHeldSale(false);
       setSaleNotes("");
-      setPosInvoiceDate(new Date());
       
       // Refetch today's sales, dashboard data, and held bills
       await queryClient.invalidateQueries({ queryKey: ['todays-sales', currentOrganization?.id] });
