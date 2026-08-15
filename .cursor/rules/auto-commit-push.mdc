@@ -1,0 +1,24 @@
+---
+description: Auto commit and push finished work to GitHub without waiting to be asked
+alwaysApply: true
+---
+
+# Auto commit + push
+
+When a coding task is **done** (feature, fix, or requested change implemented and verified enough to share):
+
+1. **Commit** the relevant files on the current feature branch (exclude secrets, nested junk like `src/smart-garment-entry/`, and unrelated dirty files).
+2. **Push** to `origin` with upstream tracking (`git push -u origin HEAD`) in the same turn — do **not** wait for the user to say "push".
+3. Reply with the branch name, commit short hash, and that it was pushed.
+
+## When to skip
+
+- User explicitly says not to commit/push, or asks for a local-only / draft change.
+- There is nothing to commit (clean tree for the work done).
+- Only a read-only audit / Q&A with no file changes.
+
+## Commit hygiene
+
+- Follow the repo commit protocol (status, diff, log style, focused message).
+- Prefer the existing feature branch; do not push straight to `main` unless the user asked to update `main`.
+- Never force-push unless the user explicitly requests it.
