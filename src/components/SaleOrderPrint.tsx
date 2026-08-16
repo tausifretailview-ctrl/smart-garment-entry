@@ -13,6 +13,8 @@ interface SaleOrderItem {
   /** min(pending, stock) — used only when documentMode is available-stock */
   availableQty?: number;
   stockQty?: number;
+  /** Size-wise on-hand stock for this product+colour (available-stock print only) */
+  sizeStock?: { size: string; qty: number }[];
   rate: number;
   mrp: number;
   discountPercent: number;
