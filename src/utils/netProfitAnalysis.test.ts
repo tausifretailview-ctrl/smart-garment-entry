@@ -309,3 +309,68 @@ describe("aggregateForTab", () => {
     expect(supplier.grossProfit).toBe(dateWise.grossProfit);
   });
 });
+
+describe("marginPercent accuracy", () => {
+  it("Margin % = Gross Profit / Net Sales × 100 (and GP = Net − COGS)", () => {
+    const totals = sumAggregates([
+      {
+        ...line({ netSales: 21399.7, totalCOGS: 540651.59, grossSales: 906325.83 }),
+        key: "t",
+        label: "Total probe",
+        grossProfit: 0,
+        marginPercent: 0,
+      },
+    ]);
+    expect(totals.grossProfit).toBeCloseTo(21399.7 - 540651.59, 2);
+    expect(totals.grossProfit).toBeCloseTo(-519251.89, 2);
+    expect(totals.marginPercent).toBeCloseTo((-519251.89 / 21399.7) * 100, 1);
+    expect(totals.marginPercent).toBeCloseTo(-2426.4, 1);
+  });
+
+  it("total Margin % uses summed Net/COGS — not the average of row margins", () => {
+    const rows = aggregateForTab(
+      [
+        line({
+          netSales: 1000,
+          totalCOGS: 100,
+          productId: "a",
+          productName: "A",
+          saleId: "s1",
+          saleNumber: "1",
+        }), // row margin 90%
+        line({
+          netSales: 100,
+          totalCOGS: 90,
+          productId: "b",
+          productName: "B",
+          saleId: "s2",
+          saleNumber: "2",
+        }), // row margin 10%
+      ],
+      "product-wise",
+    );
+    expect(rows).toHaveLength(2);
+    const avgOfRowMargins =
+      (rows[0].marginPercent + rows[1].marginPercent) / 2;
+    expect(avgOfRowMargins).toBeCloseTo(50, 5);
+
+    const totals = sumAggregates(rows);
+    // Correct: (1100−190) / 1100 = 82.727…%
+    expect(totals.grossProfit).toBe(910);
+    expect(totals.marginPercent).toBeCloseTo((910 / 1100) * 100, 5);
+    expect(totals.marginPercent).not.toBeCloseTo(avgOfRowMargins, 0);
+  });
+
+  it("Margin % is 0 when Net Sales is 0 (no divide-by-zero)", () => {
+    const totals = sumAggregates([
+      {
+        ...line({ netSales: 0, totalCOGS: 50, grossSales: 0 }),
+        key: "z",
+        label: "Zero net",
+        grossProfit: 0,
+        marginPercent: 0,
+      },
+    ]);
+    expect(totals.marginPercent).toBe(0);
+  });
+});
