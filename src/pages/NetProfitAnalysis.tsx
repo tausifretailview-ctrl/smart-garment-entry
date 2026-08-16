@@ -338,10 +338,11 @@ export default function NetProfitAnalysis() {
   const urlFromDate = searchParams.get("from");
   const urlToDate = searchParams.get("to");
 
-  const currentFY = getIndiaFinancialYear(0);
-  const [fromDate, setFromDate] = useState(urlFromDate || currentFY.fromDate);
-  const [toDate, setToDate] = useState(urlToDate || format(new Date(), "yyyy-MM-dd"));
-  const [fyPreset, setFyPreset] = useState<string>(urlFromDate ? "" : "");
+  const todayIso = format(new Date(), "yyyy-MM-dd");
+  const [fromDate, setFromDate] = useState(urlFromDate || todayIso);
+  const [toDate, setToDate] = useState(urlToDate || todayIso);
+  /** Highlight Today unless deep-linked with ?from= / ?to= */
+  const [fyPreset, setFyPreset] = useState<string>(urlFromDate || urlToDate ? "" : "today");
 
   const [activeTab, setActiveTab] = useState<NetProfitTab>("supplier-wise");
   const [fieldDimension, setFieldDimension] = useState<NetProfitFieldDimension>("brand");
