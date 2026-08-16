@@ -1468,8 +1468,11 @@ function PrintSaleOrderDialog({
             orderQty: item.order_qty,
             fulfilledQty: Math.max(0, item.order_qty - item.pending_qty),
             pendingQty: item.pending_qty,
-            availableQty: item.convert_qty,
-            stockQty: item.stock_qty,
+            availableQty: Math.min(
+              item.pending_qty,
+              item.total_stock_qty ?? item.stock_qty,
+            ),
+            stockQty: item.total_stock_qty ?? item.stock_qty,
             rate: item.unit_price,
             mrp: item.mrp,
             discountPercent: item.discount_percent,
