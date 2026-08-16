@@ -405,24 +405,53 @@ export default function SaleOrderDashboard() {
           .filter((id: unknown): id is string => typeof id === "string" && id.length > 0),
       ),
     ];
-    const siblingKey = (productId?: string | null, color?: string | null, size?: string | null) =>
-      `${productId ?? ""}|${(color ?? "").trim().toUpperCase()}|${(size ?? "").trim().toUpperCase()}`;
+    // Article-wise: the same article (e.g. PUL192) can exist as several product rows
+    // (re-created on later purchases). The Size Stock screen groups by article name +
+    // colour, so the printed pick list must do the same or it under-reports stock.
+    const norm = (v?: string | null) => (v ?? "").trim().toUpperCase();
+    const siblingKey = (productName?: string | null, color?: string | null, size?: string | null) =>
+      `${norm(productName)}|${norm(color)}|${norm(size)}`;
     const siblingStock = new Map<string, number>();
-    // product|colour -> size -> qty (size-wise stock report on the print)
+    // article|colour -> size -> qty (size-wise stock report on the print)
     const sizeWiseStock = new Map<string, Map<string, number>>();
+    const itemProductName = new Map<string, string>();
     if (productIds.length > 0) {
+      // 1) resolve the article names of the ordered products
+      const { data: baseProducts, error: baseErr } = await supabase
+        .from("products")
+        .select("id, product_name")
+        .in("id", productIds);
+      if (baseErr) throw baseErr;
+      for (const p of baseProducts ?? []) itemProductName.set(p.id, p.product_name || "");
+      const names = [...new Set((baseProducts ?? []).map((p) => p.product_name).filter(Boolean))] as string[];
+
+      // 2) expand to every product row in this org sharing those article names
+      let expandedIds = productIds;
+      if (names.length > 0) {
+        const { data: sameName, error: nameErr } = await supabase
+          .from("products")
+          .select("id, product_name")
+          .eq("organization_id", currentOrganization?.id)
+          .is("deleted_at", null)
+          .in("product_name", names);
+        if (nameErr) throw nameErr;
+        for (const p of sameName ?? []) itemProductName.set(p.id, p.product_name || "");
+        expandedIds = [...new Set([...productIds, ...(sameName ?? []).map((p) => p.id)])];
+      }
+
       const { data: siblings, error: sibErr } = await supabase
         .from("product_variants")
         .select("product_id, color, size, stock_qty")
-        .in("product_id", productIds)
+        .in("product_id", expandedIds)
         .is("deleted_at", null)
         .eq("active", true);
       if (sibErr) throw sibErr;
       for (const v of siblings ?? []) {
-        const key = siblingKey(v.product_id, v.color, v.size);
+        const article = itemProductName.get(v.product_id) ?? v.product_id ?? "";
+        const key = siblingKey(article, v.color, v.size);
         siblingStock.set(key, (siblingStock.get(key) ?? 0) + (Number(v.stock_qty) || 0));
-        const pcKey = `${v.product_id ?? ""}|${(v.color ?? "").trim().toUpperCase()}`;
-        const sizeKey = (v.size ?? "").trim().toUpperCase();
+        const pcKey = `${norm(article)}|${norm(v.color)}`;
+        const sizeKey = norm(v.size);
         if (!sizeWiseStock.has(pcKey)) sizeWiseStock.set(pcKey, new Map());
         const sizeMap = sizeWiseStock.get(pcKey)!;
         sizeMap.set(sizeKey, (sizeMap.get(sizeKey) ?? 0) + (Number(v.stock_qty) || 0));
@@ -433,14 +462,15 @@ export default function SaleOrderDashboard() {
       .filter((item: any) => Number(item.pending_qty) > 0)
       .map((item: any) => {
         const variantMeta = item.variant_id ? variantMap.get(item.variant_id) : undefined;
+        const article = itemProductName.get(item.product_id) || item.product_name || "";
         const stockQty = Number(variantMeta?.stock_qty) || 0;
         const totalStockQty = Math.max(
           stockQty,
-          siblingStock.get(siblingKey(item.product_id, item.color ?? variantMeta?.color, item.size)) ?? 0,
+          siblingStock.get(siblingKey(article, item.color ?? variantMeta?.color, item.size)) ?? 0,
         );
         const pendingQty = Number(item.pending_qty) || 0;
         const maxConvert = Math.min(pendingQty, stockQty);
-        const pcKey = `${item.product_id ?? ""}|${((item.color ?? variantMeta?.color) ?? "").trim().toUpperCase()}`;
+        const pcKey = `${norm(article)}|${norm(item.color ?? variantMeta?.color)}`;
         const sizeStock = Array.from(sizeWiseStock.get(pcKey)?.entries() ?? [])
           .map(([size, qty]) => ({ size, qty }))
           .sort((a, b) =>
