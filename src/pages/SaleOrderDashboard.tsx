@@ -408,6 +408,8 @@ export default function SaleOrderDashboard() {
     const siblingKey = (productId?: string | null, color?: string | null, size?: string | null) =>
       `${productId ?? ""}|${(color ?? "").trim().toUpperCase()}|${(size ?? "").trim().toUpperCase()}`;
     const siblingStock = new Map<string, number>();
+    // product|colour -> size -> qty (size-wise stock report on the print)
+    const sizeWiseStock = new Map<string, Map<string, number>>();
     if (productIds.length > 0) {
       const { data: siblings, error: sibErr } = await supabase
         .from("product_variants")
@@ -419,6 +421,11 @@ export default function SaleOrderDashboard() {
       for (const v of siblings ?? []) {
         const key = siblingKey(v.product_id, v.color, v.size);
         siblingStock.set(key, (siblingStock.get(key) ?? 0) + (Number(v.stock_qty) || 0));
+        const pcKey = `${v.product_id ?? ""}|${(v.color ?? "").trim().toUpperCase()}`;
+        const sizeKey = (v.size ?? "").trim().toUpperCase();
+        if (!sizeWiseStock.has(pcKey)) sizeWiseStock.set(pcKey, new Map());
+        const sizeMap = sizeWiseStock.get(pcKey)!;
+        sizeMap.set(sizeKey, (sizeMap.get(sizeKey) ?? 0) + (Number(v.stock_qty) || 0));
       }
     }
 
@@ -433,6 +440,12 @@ export default function SaleOrderDashboard() {
         );
         const pendingQty = Number(item.pending_qty) || 0;
         const maxConvert = Math.min(pendingQty, stockQty);
+        const pcKey = `${item.product_id ?? ""}|${((item.color ?? variantMeta?.color) ?? "").trim().toUpperCase()}`;
+        const sizeStock = Array.from(sizeWiseStock.get(pcKey)?.entries() ?? [])
+          .map(([size, qty]) => ({ size, qty }))
+          .sort((a, b) =>
+            a.size.localeCompare(b.size, undefined, { numeric: true, sensitivity: "base" }),
+          );
         return {
           id: item.id,
           product_name: item.product_name,
@@ -441,6 +454,7 @@ export default function SaleOrderDashboard() {
           pending_qty: pendingQty,
           stock_qty: stockQty,
           total_stock_qty: totalStockQty,
+          size_stock: sizeStock,
           convert_qty: maxConvert,
           selected: maxConvert > 0,
           variant_id: item.variant_id,
