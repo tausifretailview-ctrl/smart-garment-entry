@@ -103,6 +103,7 @@ import { invalidateStatusBarSummary } from "@/utils/invalidateDashboardQueries";
 import { adjustQtyByStep, minQtyForUom } from "@/utils/qtyInput";
 import {
   incrementSupplierInvoiceNumber,
+  isPureNumericSupplierInvoice,
   nextGlobalNumericSupplierInvoice,
   resolveNextSupplierInvoiceNumber,
 } from "@/utils/purchaseSupplierInvoiceNumber";
@@ -2143,7 +2144,7 @@ const PurchaseEntry = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("purchase_bills")
-        .select("supplier_invoice_no, supplier_inv_auto_generated")
+        .select("supplier_invoice_no, supplier_inv_auto_generated, software_bill_no, bill_date")
         .eq("organization_id", currentOrganization?.id)
         .is("deleted_at", null)
         .or("is_cancelled.is.null,is_cancelled.eq.false")
@@ -2187,6 +2188,26 @@ const PurchaseEntry = () => {
       orgSupplierInvoices?.map((row) => row.supplier_invoice_no) ?? [],
     );
   }, [isEditMode, peekNextSupplierInvNo, orgSupplierInvoices]);
+
+  // Which saved bill carries the highest auto-generated serial (may be back-dated
+  // and therefore hidden behind the dashboard's month filter).
+  const autoSerialSourceBill = useMemo(() => {
+    if (isEditMode) return null;
+    let best: { serial: bigint; software_bill_no: string | null; bill_date: string | null } | null = null;
+    for (const row of orgSupplierInvoices ?? []) {
+      const raw = String(row.supplier_invoice_no ?? "").trim();
+      if (!isPureNumericSupplierInvoice(raw)) continue;
+      const serial = BigInt(raw);
+      if (!best || serial > best.serial) {
+        best = {
+          serial,
+          software_bill_no: (row as { software_bill_no?: string | null }).software_bill_no ?? null,
+          bill_date: (row as { bill_date?: string | null }).bill_date ?? null,
+        };
+      }
+    }
+    return best;
+  }, [isEditMode, orgSupplierInvoices]);
 
   // Fetch all purchase bill IDs for navigation
   const { data: allBillIds } = useQuery({
@@ -7443,6 +7464,27 @@ const PurchaseEntry = () => {
                     Supplier&apos;s bill: <span className="font-mono">{supplierPaperInvoiceNo}</span>
                     {" · "}
                     our serial <span className="font-mono">{nextSupplierInvNo ?? "…"}</span> is assigned when you save
+                  </>
+                ) : autoSerialSourceBill ? (
+                  <>
+                    Previous auto serial{" "}
+                    <span className="font-mono">{autoSerialSourceBill.serial.toString()}</span>
+                    {autoSerialSourceBill.software_bill_no ? (
+                      <>
+                        {" on "}
+                        <span className="font-mono">{autoSerialSourceBill.software_bill_no}</span>
+                        {autoSerialSourceBill.bill_date ? (
+                          <>
+                            {" ("}
+                            {format(new Date(autoSerialSourceBill.bill_date), "dd MMM yyyy")}
+                            {")"}
+                          </>
+                        ) : null}
+                      </>
+                    ) : null}
+                    {nextSupplierInvNo ? (
+                      <> · next serial <span className="font-mono">{nextSupplierInvNo}</span></>
+                    ) : null}
                   </>
                 ) : lastPurchaseBill?.supplier_invoice_no ? (
                   <>
