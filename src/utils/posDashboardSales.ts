@@ -944,7 +944,21 @@ async function enrichPosSalesWithReceiptSettlement(
 ): Promise<any[]> {
   if (!organizationId || sales.length === 0) return sales;
 
-  const invoiceRefs = sales.map((sale) => ({
+  // Only rows that can still change need the voucher crawl. Cancelled / hold /
+  // already fully-paid bills are skipped so the fan-out stays small on big orgs.
+  const needsSettlement = (sale: any): boolean => {
+    if (sale.is_cancelled || sale.payment_status === "cancelled" || sale.payment_status === "hold") {
+      return false;
+    }
+    const net = Number(sale.net_amount || 0) - Number(sale.sale_return_adjust || 0);
+    const paid = Number(sale.paid_amount || 0);
+    return !(sale.payment_status === "completed" && paid + 0.5 >= net);
+  };
+
+  const pending = sales.filter(needsSettlement);
+  if (pending.length === 0) return sales;
+
+  const invoiceRefs = pending.map((sale) => ({
     id: sale.id,
     sale_number: sale.sale_number,
     customer_id: sale.customer_id,
@@ -967,7 +981,7 @@ async function enrichPosSalesWithReceiptSettlement(
   const modeBySale = buildSaleReceiptModeAmountMap(invoiceRefs, voucherRows);
 
   return sales.map((sale) => {
-    if (sale.is_cancelled || sale.payment_status === "cancelled" || sale.payment_status === "hold") {
+    if (!needsSettlement(sale)) {
       return sale;
     }
     const rec = reconcileSaleInvoiceWithSplit(sale, splitBySale.get(sale.id) ?? null);
