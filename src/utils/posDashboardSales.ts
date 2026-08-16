@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { localDayEndUtcIso, localDayStartUtcIso } from "@/lib/localDayBounds";
 import {
   buildPosSaleHeaderSearchFilter,
+  looksLikeInvoiceSequence,
   rankPosDashboardSearchResults,
   shouldUnionSaleItemsForPosSearch,
 } from "@/utils/posDashboardSearch";
@@ -458,7 +459,8 @@ function resolvePosDashboardRpcDates(filters: PosDashboardFilters): {
   from: string | null;
   to: string | null;
 } {
-  if (filters.search.trim()) {
+  // Only invoice-serial lookups may aggregate outside the selected window.
+  if (filters.search.trim() && looksLikeInvoiceSequence(filters.search.trim())) {
     return { from: null, to: null };
   }
   const bounded = resolvePosDashboardDateRange(filters.startDate, filters.endDate);
