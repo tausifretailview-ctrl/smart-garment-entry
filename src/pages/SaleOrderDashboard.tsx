@@ -73,6 +73,8 @@ interface ConversionItem {
   order_qty: number;
   pending_qty: number;
   stock_qty: number;
+  /** Total on-hand across all variant rows of same product+colour+size (multiple barcodes/batches). */
+  total_stock_qty?: number;
   convert_qty: number;
   selected: boolean;
   variant_id: string;
