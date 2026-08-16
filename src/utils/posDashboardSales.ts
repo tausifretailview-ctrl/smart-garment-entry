@@ -721,12 +721,60 @@ type PosSearchResolution = {
   saleTextFilter: string;
   /** When set, restrict the sales query to these ids (header ± line-item union). */
   restrictToIds: string[] | null;
+  /** When the search resolves to exactly one customer, filter by the indexed column instead of a long id list. */
+  restrictToCustomerId?: string | null;
   /** Metadata about the line-item search, surfaced in the UI for cap warnings. */
   searchMeta?: PosDashboardSearchMeta;
 };
 
+/** Hard cap on header matches pulled per search (most recent first). */
+const POS_HEADER_SEARCH_CAP = 400;
+
+/**
+ * Search resolution is identical for the table page, the row count and the KPI
+ * tiles. Cache it briefly so a single keystroke batch resolves once, not 3×.
+ */
+const posSearchResolutionCache = new Map<
+  string,
+  { at: number; promise: Promise<PosSearchResolution | null> }
+>();
+const POS_SEARCH_CACHE_TTL_MS = 15_000;
+
+function posSearchCacheKey(filters: PosDashboardFilters): string {
+  return [
+    filters.organizationId,
+    filters.search.trim().toLowerCase(),
+    filters.startDate,
+    filters.endDate,
+  ].join("|");
+}
 
 async function resolvePosSearch(
+  client: SupabaseClient,
+  filters: PosDashboardFilters,
+): Promise<PosSearchResolution | null> {
+  if (!filters.search.trim()) return null;
+  const key = posSearchCacheKey(filters);
+  const now = Date.now();
+  const cached = posSearchResolutionCache.get(key);
+  if (cached && now - cached.at < POS_SEARCH_CACHE_TTL_MS) {
+    return cached.promise;
+  }
+  const promise = resolvePosSearchUncached(client, filters).catch((err) => {
+    posSearchResolutionCache.delete(key);
+    throw err;
+  });
+  posSearchResolutionCache.set(key, { at: now, promise });
+  // Keep the cache small — this is a per-tab in-memory map.
+  if (posSearchResolutionCache.size > 30) {
+    for (const [k, v] of posSearchResolutionCache) {
+      if (now - v.at > POS_SEARCH_CACHE_TTL_MS) posSearchResolutionCache.delete(k);
+    }
+  }
+  return promise;
+}
+
+async function resolvePosSearchUncached(
   client: SupabaseClient,
   filters: PosDashboardFilters,
 ): Promise<PosSearchResolution | null> {
@@ -734,18 +782,51 @@ async function resolvePosSearch(
   if (!searchStr) return null;
 
   const saleTextFilter = buildPosSaleHeaderSearchFilter(searchStr);
+  // Invoice-serial lookups must reach old bills, so they stay date-unbounded.
+  // Name / phone searches stay inside the selected window (bounded to 12 months
+  // for "All Time") so they never scan the org's full history.
+  const dateBounded = !looksLikeInvoiceSequence(searchStr);
+  const bounded = resolvePosDashboardDateRange(filters.startDate, filters.endDate);
+  const startIso = dateBounded ? localDayStartUtcIso(bounded.startDate) : null;
+  const endIso = dateBounded ? localDayEndUtcIso(bounded.endDate) : null;
 
-  const { data: headerMatches, error: headerError } = await client
+  let headerQuery: any = client
     .from("sales")
-    .select("id, sale_number, sale_date")
+    .select("id, sale_number, sale_date, customer_id")
     .eq("organization_id", filters.organizationId)
     .in("sale_type", ["pos", "delivery_challan"])
     .is("deleted_at", null)
-    .or(saleTextFilter);
+    .or(saleTextFilter)
+    .order("sale_date", { ascending: false })
+    .limit(POS_HEADER_SEARCH_CAP);
+  if (startIso) headerQuery = headerQuery.gte("sale_date", startIso);
+  if (endIso) headerQuery = headerQuery.lte("sale_date", endIso);
+  const { data: headerMatches, error: headerError } = await headerQuery;
   if (headerError) throw headerError;
 
-  const rankedHeaders = rankPosDashboardSearchResults(headerMatches || [], searchStr);
+  const headerRows = (headerMatches || []) as {
+    id: string;
+    sale_number?: string | null;
+    sale_date?: string | null;
+    customer_id?: string | null;
+  }[];
+  const rankedHeaders = rankPosDashboardSearchResults(headerRows, searchStr);
   const headerMatchIds = rankedHeaders.map((s) => s.id).filter(Boolean);
+
+  // Customer-wise search: when every hit belongs to one customer, filter on the
+  // indexed customer_id instead of shipping a few hundred ids in an IN list.
+  const distinctCustomerIds = new Set(
+    headerRows.map((r) => r.customer_id).filter((v): v is string => !!v),
+  );
+  const singleCustomerId =
+    distinctCustomerIds.size === 1 &&
+    headerRows.every((r) => !!r.customer_id) &&
+    !shouldUnionSaleItemsForPosSearch(searchStr)
+      ? [...distinctCustomerIds][0]
+      : null;
+  if (singleCustomerId) {
+    return { saleTextFilter, restrictToIds: null, restrictToCustomerId: singleCustomerId };
+  }
 
   // When invoice serial matches exist (e.g. "1029" → POS/26-27/1029), skip line-item union.
   if (headerMatchIds.length > 0 && !shouldUnionSaleItemsForPosSearch(searchStr)) {
@@ -779,6 +860,9 @@ async function resolvePosSearch(
 
 function applyResolvedPosSearch(query: any, resolution: PosSearchResolution | null): any {
   if (!resolution) return query;
+  if (resolution.restrictToCustomerId) {
+    return query.eq("customer_id", resolution.restrictToCustomerId);
+  }
   if (resolution.restrictToIds && resolution.restrictToIds.length > 0) {
     return query.in("id", resolution.restrictToIds);
   }
