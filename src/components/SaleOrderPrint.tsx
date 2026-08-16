@@ -587,8 +587,139 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
       </div>
     );
 
-    // ── Available-stock picking list page (no money) ────────────────────────
-    const renderAvailableStockPage = (pageItems: SaleOrderItem[], pageIndex: number) => {
+    // ── Available-stock: article-wise size matrix page ──────────────────────
+    const renderSizeMatrixPage = (pageRows: MatrixRow[], pageIndex: number) => {
+      const isLastPage = pageIndex === totalPages - 1;
+      const isFirstPage = pageIndex === 0;
+      const sizeColWidth = `${Math.max(4, Math.floor(52 / Math.max(1, matrixSizes.length)))}%`;
+
+      const colTotals = matrixSizes.map((sz) =>
+        matrixRows.reduce((s, r) => s + (r.cells.get(sz)?.stock ?? 0), 0),
+      );
+      const grandStock = matrixRows.reduce((s, r) => s + r.totalStock, 0);
+
+      return (
+        <div
+          key={`m-${pageIndex}`}
+          className="sale-order-page"
+          style={{
+            width: pageWidth, minHeight: pageMinHeight,
+            padding: pagePadding, fontFamily: 'Arial, sans-serif',
+            fontSize: baseFontSize, backgroundColor: 'white', color: 'black',
+            boxSizing: 'border-box',
+            pageBreakAfter: isLastPage ? 'auto' : 'always',
+          }}
+        >
+          {isFirstPage ? renderFullHeader() : renderSlimHeader(pageIndex)}
+          {isFirstPage ? renderCustomerStrip(pageIndex) : renderSlimCustomerStrip(pageIndex)}
+          <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+            <thead>
+              <tr>
+                <th style={thStyle({ width: '4%', textAlign: 'center' })}>Sr</th>
+                <th style={thStyle({ textAlign: 'left' })}>Article / Colour</th>
+                {matrixSizes.map((sz) => (
+                  <th key={sz} style={thStyle({ width: sizeColWidth, textAlign: 'center' })}>{sz}</th>
+                ))}
+                <th style={thStyle({ width: '9%', textAlign: 'center' })}>Total Stock</th>
+              </tr>
+            </thead>
+            <tbody>
+              {pageRows.map((row, idx) => {
+                const details = [row.brand, row.style].filter(Boolean).join(' · ');
+                return (
+                  <tr key={row.key}>
+                    <td style={tdStyle({ textAlign: 'center', color: '#333' })}>
+                      {pageIndex * MATRIX_ROWS_PER_PAGE + idx + 1}
+                    </td>
+                    <td style={tdStyle({ textAlign: 'left' })}>
+                      <span style={{ fontWeight: 700 }}>{row.productName}</span>
+                      {row.color && (
+                        <span style={{ marginLeft: '4px', fontWeight: 600 }}>– {row.color}</span>
+                      )}
+                      {details && (
+                        <span style={{ color: '#333', marginLeft: '3px', fontSize: '85%' }}>({details})</span>
+                      )}
+                      <div style={{ fontSize: '80%', color: '#555', marginTop: '1px' }}>
+                        Ordered {row.totalOrdered} · Pending {row.totalPending}
+                      </div>
+                    </td>
+                    {matrixSizes.map((sz) => {
+                      const cell = row.cells.get(sz);
+                      const stock = cell?.stock ?? 0;
+                      const ordered = cell?.ordered ?? 0;
+                      const short = ordered > 0 && stock < (cell?.pending ?? 0);
+                      return (
+                        <td
+                          key={sz}
+                          style={tdStyle({
+                            textAlign: 'center',
+                            background: short ? '#fff5f5' : ordered > 0 ? '#f2fbf4' : '#fff',
+                          })}
+                        >
+                          <div style={{ fontWeight: 700, color: stock > 0 ? '#111' : '#b91c1c' }}>
+                            {cell ? stock : '—'}
+                          </div>
+                          {ordered > 0 && (
+                            <div style={{ fontSize: '78%', color: '#1a3a5c' }}>o{ordered}</div>
+                          )}
+                        </td>
+                      );
+                    })}
+                    <td style={tdStyle({ textAlign: 'center', fontWeight: 800 })}>{row.totalStock}</td>
+                  </tr>
+                );
+              })}
+              {isLastPage && (
+                <tr style={{ backgroundColor: '#f4f4f4' }}>
+                  <td
+                    colSpan={2}
+                    style={{
+                      border: `1px solid ${BORDER}`, padding: '2px 3px',
+                      fontWeight: 700, fontSize: isA4 ? '7.5pt' : '6.5pt', textAlign: 'right',
+                    }}
+                  >
+                    Total stock
+                  </td>
+                  {colTotals.map((t, i) => (
+                    <td
+                      key={matrixSizes[i]}
+                      style={{ border: `1px solid ${BORDER}`, padding: '2px 3px', textAlign: 'center', fontWeight: 700 }}
+                    >
+                      {t}
+                    </td>
+                  ))}
+                  <td style={{ border: `1px solid ${BORDER}`, padding: '2px 3px', textAlign: 'center', fontWeight: 800 }}>
+                    {grandStock}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+          {isLastPage && (
+            <div style={{
+              marginTop: isA4 ? '10px' : '6px', fontSize: tinyFont, color: '#555',
+              borderTop: `1px solid ${BORDER}`, paddingTop: '6px',
+            }}>
+              Each cell = on-hand stock for that article/colour in that size. <strong>o</strong> = qty ordered on this
+              sale order. Order pending {items.reduce((s, i) => s + (i.pendingQty || 0), 0)} pcs ·
+              {' '}available to pick {totalAvailable} pcs · shortfall {totalShortfall} pcs.
+              Snapshot only — this document does not reserve stock.
+            </div>
+          )}
+          {!isLastPage && (
+            <div style={{
+              textAlign: 'center', fontSize: tinyFont, color: '#999',
+              marginTop: '3px', fontStyle: 'italic',
+            }}>
+              Continued on next page...
+            </div>
+          )}
+        </div>
+      );
+    };
+
+    // ── Available-stock picking list page (no money) — legacy line layout ────
+    const renderAvailableStockPageUnused = (pageItems: SaleOrderItem[], pageIndex: number) => {
       const isLastPage = pageIndex === totalPages - 1;
       const isFirstPage = pageIndex === 0;
       const pagePickQty = pageItems.reduce((s, i) => s + (i.availableQty ?? 0), 0);
