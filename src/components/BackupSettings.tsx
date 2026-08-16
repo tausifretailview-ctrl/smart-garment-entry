@@ -200,6 +200,20 @@ const BackupSettings = ({
     return Object.values(records).reduce((sum, count) => sum + count, 0);
   };
 
+  // Prefer latest completed automatic from history; fall back to settings.last_auto_backup_at.
+  const lastCompletedAutoAt = (() => {
+    const fromLogs = backupLogs?.find(
+      (log) => log.status === "completed" && String(log.backup_type).toLowerCase() === "automatic",
+    )?.created_at;
+    return fromLogs || lastAutoBackupAt;
+  })();
+
+  const AUTO_BACKUP_OVERDUE_MS = 36 * 60 * 60 * 1000; // >1 missed night
+  const autoBackupOverdue =
+    autoBackupEnabled &&
+    (!lastCompletedAutoAt ||
+      Date.now() - new Date(lastCompletedAutoAt).getTime() > AUTO_BACKUP_OVERDUE_MS);
+
   return (
     <div className="space-y-6">
       {/* Cloud Auto-Backup */}
@@ -220,6 +234,27 @@ const BackupSettings = ({
             </div>
           ) : (
             <>
+              {autoBackupOverdue && (
+                <div
+                  role="alert"
+                  className="flex gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-4 text-sm"
+                >
+                  <AlertTriangle className="h-5 w-5 shrink-0 text-amber-600" />
+                  <div className="space-y-1">
+                    <p className="font-medium text-foreground">Automatic backup is overdue</p>
+                    <p className="text-muted-foreground">
+                      {lastCompletedAutoAt
+                        ? `Last completed automatic backup: ${format(new Date(lastCompletedAutoAt), "dd MMM yyyy, hh:mm a")}. `
+                        : "No completed automatic backup found. "}
+                      Nightly runs are expected at 11:00 PM IST. Use{" "}
+                      <span className="font-medium text-foreground">Run Cloud Backup Now</span> below
+                      for an immediate backup. If this keeps happening, platform admin must verify the
+                      nightly cron dispatch secret is configured.
+                    </p>
+                  </div>
+                </div>
+              )}
+
               <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
                 <div>
                    <h4 className="font-medium">Enable Daily Auto-Backup (Every Night 11:00 PM IST)</h4>
@@ -251,10 +286,14 @@ const BackupSettings = ({
                 </p>
               </div>
 
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-3 flex-wrap">
                 <div className="text-sm text-muted-foreground">
-                  {lastAutoBackupAt ? (
-                    <span>Last backup: {format(new Date(lastAutoBackupAt), 'dd MMM yyyy, hh:mm a')}</span>
+                  {lastCompletedAutoAt ? (
+                    <span>
+                      Last automatic backup:{" "}
+                      {format(new Date(lastCompletedAutoAt), "dd MMM yyyy, hh:mm a")}
+                      {autoBackupOverdue ? " (overdue)" : ""}
+                    </span>
                   ) : (
                     <span>No automatic backup yet</span>
                   )}
@@ -296,7 +335,14 @@ const BackupSettings = ({
               {isDownloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileSpreadsheet className="h-4 w-4" />}
               Download Excel
             </Button>
-            
+            <Button
+              onClick={() => void startCloudBackup()}
+              disabled={isCloudBackingUp}
+              className="gap-2"
+            >
+              {isCloudBackingUp ? <Loader2 className="h-4 w-4 animate-spin" /> : <CloudUpload className="h-4 w-4" />}
+              Run Cloud Backup Now
+            </Button>
           </div>
 
           <div className="text-sm text-muted-foreground">
