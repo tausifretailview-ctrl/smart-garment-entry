@@ -1488,6 +1488,7 @@ function PrintSaleOrderDialog({
               item.total_stock_qty ?? item.stock_qty,
             ),
             stockQty: item.total_stock_qty ?? item.stock_qty,
+            sizeStock: item.size_stock ?? [],
             rate: item.unit_price,
             mrp: item.mrp,
             discountPercent: item.discount_percent,
