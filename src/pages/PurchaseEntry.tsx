@@ -103,6 +103,7 @@ import { invalidateStatusBarSummary } from "@/utils/invalidateDashboardQueries";
 import { adjustQtyByStep, minQtyForUom } from "@/utils/qtyInput";
 import {
   incrementSupplierInvoiceNumber,
+  isPureNumericSupplierInvoice,
   nextGlobalNumericSupplierInvoice,
   resolveNextSupplierInvoiceNumber,
 } from "@/utils/purchaseSupplierInvoiceNumber";
