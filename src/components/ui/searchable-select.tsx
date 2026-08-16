@@ -6,15 +6,21 @@ import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Input } from "@/components/ui/input";
 
+export type SearchableSelectOption = string | { value: string; label: string };
+
 interface SearchableSelectProps {
   value: string;
   onValueChange: (value: string) => void;
-  options: string[];
+  options: SearchableSelectOption[];
   placeholder?: string;
   allLabel?: string;
   allValue?: string;
   className?: string;
   triggerClassName?: string;
+}
+
+function normalizeOptions(options: SearchableSelectOption[]): { value: string; label: string }[] {
+  return options.map((o) => (typeof o === "string" ? { value: o, label: o } : o));
 }
 
 export function SearchableSelect({
@@ -30,13 +36,20 @@ export function SearchableSelect({
   const [open, setOpen] = React.useState(false);
   const [search, setSearch] = React.useState("");
 
-  const filtered = React.useMemo(() => {
-    if (!search.trim()) return options;
-    const q = search.toLowerCase();
-    return options.filter((o) => o.toLowerCase().includes(q));
-  }, [options, search]);
+  const normalized = React.useMemo(() => normalizeOptions(options), [options]);
 
-  const displayValue = value === allValue ? allLabel : value;
+  const filtered = React.useMemo(() => {
+    if (!search.trim()) return normalized;
+    const q = search.toLowerCase();
+    return normalized.filter(
+      (o) => o.label.toLowerCase().includes(q) || o.value.toLowerCase().includes(q),
+    );
+  }, [normalized, search]);
+
+  const displayValue =
+    value === allValue
+      ? allLabel
+      : normalized.find((o) => o.value === value)?.label ?? value;
 
   return (
     <Popover open={open} onOpenChange={(o) => { setOpen(o); if (!o) setSearch(""); }}>
@@ -50,7 +63,7 @@ export function SearchableSelect({
             triggerClassName
           )}
         >
-          <span className="truncate">{displayValue}</span>
+          <span className="truncate">{displayValue || placeholder}</span>
           <ChevronsUpDown className="ml-1 h-3.5 w-3.5 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
@@ -83,15 +96,15 @@ export function SearchableSelect({
           </button>
           {filtered.map((option) => (
             <button
-              key={option}
+              key={option.value}
               className={cn(
                 "flex items-center gap-2 w-full rounded-sm px-2 py-1.5 text-sm cursor-pointer hover:bg-accent text-left",
-                value === option && "bg-accent"
+                value === option.value && "bg-accent"
               )}
-              onClick={() => { onValueChange(option); setOpen(false); setSearch(""); }}
+              onClick={() => { onValueChange(option.value); setOpen(false); setSearch(""); }}
             >
-              <Check className={cn("h-3.5 w-3.5", value === option ? "opacity-100" : "opacity-0")} />
-              {option}
+              <Check className={cn("h-3.5 w-3.5", value === option.value ? "opacity-100" : "opacity-0")} />
+              {option.label}
             </button>
           ))}
           {filtered.length === 0 && (
