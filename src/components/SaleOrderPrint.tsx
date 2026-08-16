@@ -197,7 +197,84 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
       return result.length > 0 ? result : [[]];
     }, [items, FIRST_PAGE_ROWS, MIDDLE_PAGE_ROWS, LAST_PAGE_ROWS]);
 
-    const totalPages = pages.length;
+    // ── Article-wise size matrix (available-stock print) ────────────────────
+    type MatrixRow = {
+      key: string;
+      productName: string;
+      color?: string;
+      brand?: string;
+      style?: string;
+      cells: Map<string, { stock: number; ordered: number; pending: number }>;
+      totalStock: number;
+      totalOrdered: number;
+      totalPending: number;
+    };
+
+    const matrixRows: MatrixRow[] = React.useMemo(() => {
+      if (!isAvailableStock) return [];
+      const map = new Map<string, MatrixRow>();
+      items.forEach((item) => {
+        const key = `${item.particulars}||${item.color || ''}`;
+        if (!map.has(key)) {
+          map.set(key, {
+            key,
+            productName: item.particulars,
+            color: item.color,
+            brand: item.brand,
+            style: item.style,
+            cells: new Map(),
+            totalStock: 0,
+            totalOrdered: 0,
+            totalPending: 0,
+          });
+        }
+        const row = map.get(key)!;
+        // Size-wise on-hand stock is product+colour level — set once per size.
+        (item.sizeStock || []).forEach((s) => {
+          const sz = s.size || '—';
+          const cur = row.cells.get(sz) || { stock: 0, ordered: 0, pending: 0 };
+          cur.stock = Number(s.qty) || 0;
+          row.cells.set(sz, cur);
+        });
+        const sz = item.size || '—';
+        const cur = row.cells.get(sz) || { stock: 0, ordered: 0, pending: 0 };
+        cur.ordered += item.orderQty || 0;
+        cur.pending += item.pendingQty || 0;
+        row.cells.set(sz, cur);
+      });
+
+      return Array.from(map.values()).map((row) => {
+        let totalStock = 0;
+        let totalOrdered = 0;
+        let totalPending = 0;
+        row.cells.forEach((c) => {
+          totalStock += c.stock;
+          totalOrdered += c.ordered;
+          totalPending += c.pending;
+        });
+        return { ...row, totalStock, totalOrdered, totalPending };
+      });
+    }, [items, isAvailableStock]);
+
+    const matrixSizes: string[] = React.useMemo(() => {
+      if (!isAvailableStock) return [];
+      const set = new Set<string>();
+      matrixRows.forEach((r) => r.cells.forEach((_v, k) => set.add(k)));
+      return sortSizes(Array.from(set));
+    }, [matrixRows, isAvailableStock]);
+
+    const MATRIX_ROWS_PER_PAGE = isA4 ? 20 : 11;
+    const matrixPages: MatrixRow[][] = React.useMemo(() => {
+      if (!isAvailableStock) return [];
+      if (matrixRows.length === 0) return [[]];
+      const out: MatrixRow[][] = [];
+      for (let i = 0; i < matrixRows.length; i += MATRIX_ROWS_PER_PAGE) {
+        out.push(matrixRows.slice(i, i + MATRIX_ROWS_PER_PAGE));
+      }
+      return out;
+    }, [matrixRows, MATRIX_ROWS_PER_PAGE, isAvailableStock]);
+
+    const totalPages = isAvailableStock ? matrixPages.length : pages.length;
 
     const groupedItems = React.useMemo(() => {
       if (invoiceFormat !== 'wholesale-size-grouping') return null;
