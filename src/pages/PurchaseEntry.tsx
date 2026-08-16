@@ -2143,7 +2143,7 @@ const PurchaseEntry = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("purchase_bills")
-        .select("supplier_invoice_no, supplier_inv_auto_generated")
+        .select("supplier_invoice_no, supplier_inv_auto_generated, software_bill_no, bill_date")
         .eq("organization_id", currentOrganization?.id)
         .is("deleted_at", null)
         .or("is_cancelled.is.null,is_cancelled.eq.false")
