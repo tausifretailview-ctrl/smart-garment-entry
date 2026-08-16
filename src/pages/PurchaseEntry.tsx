@@ -7465,6 +7465,27 @@ const PurchaseEntry = () => {
                     {" · "}
                     our serial <span className="font-mono">{nextSupplierInvNo ?? "…"}</span> is assigned when you save
                   </>
+                ) : autoSerialSourceBill ? (
+                  <>
+                    Previous auto serial{" "}
+                    <span className="font-mono">{autoSerialSourceBill.serial.toString()}</span>
+                    {autoSerialSourceBill.software_bill_no ? (
+                      <>
+                        {" on "}
+                        <span className="font-mono">{autoSerialSourceBill.software_bill_no}</span>
+                        {autoSerialSourceBill.bill_date ? (
+                          <>
+                            {" ("}
+                            {format(new Date(autoSerialSourceBill.bill_date), "dd MMM yyyy")}
+                            {")"}
+                          </>
+                        ) : null}
+                      </>
+                    ) : null}
+                    {nextSupplierInvNo ? (
+                      <> · next serial <span className="font-mono">{nextSupplierInvNo}</span></>
+                    ) : null}
+                  </>
                 ) : lastPurchaseBill?.supplier_invoice_no ? (
                   <>
                     Previous bill used <span className="font-mono">{lastPurchaseBill.supplier_invoice_no}</span>
