@@ -73,6 +73,8 @@ interface ConversionItem {
   order_qty: number;
   pending_qty: number;
   stock_qty: number;
+  /** Total on-hand across all variant rows of same product+colour+size (multiple barcodes/batches). */
+  total_stock_qty?: number;
   convert_qty: number;
   selected: boolean;
   variant_id: string;
@@ -392,11 +394,42 @@ export default function SaleOrderDashboard() {
       variantMap = new Map(variants?.map((v) => [v.id, v]) || []);
     }
 
+    // Same product+colour+size can exist as several variant rows (separate barcodes /
+    // purchase batches). The printed "stock" must be the total on hand, not just the
+    // one row the order line happens to be bound to.
+    const productIds: string[] = [
+      ...new Set(
+        (lineItems as any[])
+          .map((item: any) => item.product_id)
+          .filter((id: unknown): id is string => typeof id === "string" && id.length > 0),
+      ),
+    ];
+    const siblingKey = (productId?: string | null, color?: string | null, size?: string | null) =>
+      `${productId ?? ""}|${(color ?? "").trim().toUpperCase()}|${(size ?? "").trim().toUpperCase()}`;
+    const siblingStock = new Map<string, number>();
+    if (productIds.length > 0) {
+      const { data: siblings, error: sibErr } = await supabase
+        .from("product_variants")
+        .select("product_id, color, size, stock_qty")
+        .in("product_id", productIds)
+        .is("deleted_at", null)
+        .eq("active", true);
+      if (sibErr) throw sibErr;
+      for (const v of siblings ?? []) {
+        const key = siblingKey(v.product_id, v.color, v.size);
+        siblingStock.set(key, (siblingStock.get(key) ?? 0) + (Number(v.stock_qty) || 0));
+      }
+    }
+
     const items: ConversionItem[] = lineItems
       .filter((item: any) => Number(item.pending_qty) > 0)
       .map((item: any) => {
         const variantMeta = item.variant_id ? variantMap.get(item.variant_id) : undefined;
         const stockQty = Number(variantMeta?.stock_qty) || 0;
+        const totalStockQty = Math.max(
+          stockQty,
+          siblingStock.get(siblingKey(item.product_id, item.color ?? variantMeta?.color, item.size)) ?? 0,
+        );
         const pendingQty = Number(item.pending_qty) || 0;
         const maxConvert = Math.min(pendingQty, stockQty);
         return {
@@ -406,6 +439,7 @@ export default function SaleOrderDashboard() {
           order_qty: Number(item.order_qty) || 0,
           pending_qty: pendingQty,
           stock_qty: stockQty,
+          total_stock_qty: totalStockQty,
           convert_qty: maxConvert,
           selected: maxConvert > 0,
           variant_id: item.variant_id,
@@ -1434,8 +1468,11 @@ function PrintSaleOrderDialog({
             orderQty: item.order_qty,
             fulfilledQty: Math.max(0, item.order_qty - item.pending_qty),
             pendingQty: item.pending_qty,
-            availableQty: item.convert_qty,
-            stockQty: item.stock_qty,
+            availableQty: Math.min(
+              item.pending_qty,
+              item.total_stock_qty ?? item.stock_qty,
+            ),
+            stockQty: item.total_stock_qty ?? item.stock_qty,
             rate: item.unit_price,
             mrp: item.mrp,
             discountPercent: item.discount_percent,
