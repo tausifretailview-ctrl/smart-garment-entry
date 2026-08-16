@@ -559,6 +559,14 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
                       {details && (
                         <span style={{ color: '#333', marginLeft: '3px', fontSize: '85%' }}>({details})</span>
                       )}
+                      {item.sizeStock && item.sizeStock.length > 0 && (
+                        <div style={{ color: '#333', fontSize: '80%', marginTop: '1px', lineHeight: 1.25 }}>
+                          Size-wise:{' '}
+                          {item.sizeStock
+                            .map((s) => `${s.size || '—'}:${s.qty}`)
+                            .join('  ')}
+                        </div>
+                      )}
                     </td>
                     {showColor && (
                       <td style={tdStyle({ textAlign: 'center', fontWeight: 600 })}>{item.color || '—'}</td>
