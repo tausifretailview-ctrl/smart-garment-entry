@@ -13,6 +13,8 @@ interface SaleOrderItem {
   /** min(pending, stock) — used only when documentMode is available-stock */
   availableQty?: number;
   stockQty?: number;
+  /** Size-wise on-hand stock for this product+colour (available-stock print only) */
+  sizeStock?: { size: string; qty: number }[];
   rate: number;
   mrp: number;
   discountPercent: number;
@@ -556,6 +558,14 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
                       {item.particulars}
                       {details && (
                         <span style={{ color: '#333', marginLeft: '3px', fontSize: '85%' }}>({details})</span>
+                      )}
+                      {item.sizeStock && item.sizeStock.length > 0 && (
+                        <div style={{ color: '#333', fontSize: '80%', marginTop: '1px', lineHeight: 1.25 }}>
+                          Size-wise:{' '}
+                          {item.sizeStock
+                            .map((s) => `${s.size || '—'}:${s.qty}`)
+                            .join('  ')}
+                        </div>
                       )}
                     </td>
                     {showColor && (
