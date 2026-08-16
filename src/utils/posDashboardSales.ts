@@ -982,7 +982,12 @@ async function enrichPosSalesWithReceiptSettlement(
 
   return sales.map((sale) => {
     if (!needsSettlement(sale)) {
-      return sale;
+      if (sale.is_cancelled || sale.payment_status === "cancelled" || sale.payment_status === "hold") {
+        return sale;
+      }
+      // Settled rows keep the same at-sale mode capping the KPI strip uses.
+      const modes = getPosPaymentModeDisplayAmounts(sale);
+      return { ...sale, cash_amount: modes.cash, card_amount: modes.card, upi_amount: modes.upi };
     }
     const rec = reconcileSaleInvoiceWithSplit(sale, splitBySale.get(sale.id) ?? null);
     const enrichedSale = {
