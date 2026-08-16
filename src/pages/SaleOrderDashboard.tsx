@@ -75,6 +75,7 @@ interface ConversionItem {
   stock_qty: number;
   /** Total on-hand across all variant rows of same product+colour+size (multiple barcodes/batches). */
   total_stock_qty?: number;
+  size_stock?: { size: string; qty: number }[];
   convert_qty: number;
   selected: boolean;
   variant_id: string;
