@@ -2188,6 +2188,26 @@ const PurchaseEntry = () => {
     );
   }, [isEditMode, peekNextSupplierInvNo, orgSupplierInvoices]);
 
+  // Which saved bill carries the highest auto-generated serial (may be back-dated
+  // and therefore hidden behind the dashboard's month filter).
+  const autoSerialSourceBill = useMemo(() => {
+    if (isEditMode) return null;
+    let best: { serial: bigint; software_bill_no: string | null; bill_date: string | null } | null = null;
+    for (const row of orgSupplierInvoices ?? []) {
+      const raw = String(row.supplier_invoice_no ?? "").trim();
+      if (!isPureNumericSupplierInvoice(raw)) continue;
+      const serial = BigInt(raw);
+      if (!best || serial > best.serial) {
+        best = {
+          serial,
+          software_bill_no: (row as { software_bill_no?: string | null }).software_bill_no ?? null,
+          bill_date: (row as { bill_date?: string | null }).bill_date ?? null,
+        };
+      }
+    }
+    return best;
+  }, [isEditMode, orgSupplierInvoices]);
+
   // Fetch all purchase bill IDs for navigation
   const { data: allBillIds } = useQuery({
     queryKey: ['all-purchase-bill-ids', currentOrganization?.id],
