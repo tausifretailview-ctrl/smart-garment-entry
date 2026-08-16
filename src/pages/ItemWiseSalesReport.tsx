@@ -29,6 +29,8 @@ import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersist
 import { parsePersistedDate, restoreDashboardFilters, WINDOW_FILTER_IDS } from "@/lib/dashboardFilterPersistence";
 import { ResetPersistedFiltersButton } from "@/components/ResetPersistedFiltersButton";
 import { useAuth } from "@/contexts/AuthContext";
+import type { SearchableSelectOption } from "@/components/ui/searchable-select";
+import { parseItemWiseUserFilter } from "@/utils/itemWiseSalesUserFilter";
 
 type PeriodType = "daily" | "monthly" | "quarterly" | "yearly" | "all" | "custom";
 
@@ -52,7 +54,8 @@ interface FilterOptions {
   departments: string[];
   customers: string[];
   colors: string[];
-  users: string[];
+  /** Login users (created_by) + salesman names for the User filter. */
+  users: SearchableSelectOption[];
 }
 
 function normFilterText(value: string | null | undefined): string {
@@ -138,7 +141,7 @@ const ITEM_WISE_KPI_EXPANDED_KEY = (userId: string) => `item-wise-sales-kpi-expa
 
 export default function ItemWiseSalesReport() {
   const { currentOrganization } = useOrganization();
-  const { user } = useAuth();
+  const { user, session } = useAuth();
   const { orgNavigate } = useOrgNavigation();
   const productFieldSettings = useProductFieldSettings();
   const fieldLabels = {
@@ -356,12 +359,12 @@ export default function ItemWiseSalesReport() {
     clearPersistedFilters();
   };
 
-  // Customer / user lists (org-wide). Brand/category/style/color are derived from period sale rows below.
+  // Customer / salesman lists from sales + org login users (admin/manager/…) for User filter.
   const { data: filterOptionsData } = useQuery({
-    queryKey: ["item-wise-filter-options", currentOrganization?.id],
+    queryKey: ["item-wise-filter-options", currentOrganization?.id, !!session?.access_token],
     queryFn: async () => {
       if (!currentOrganization?.id) {
-        return { brands: [], categories: [], departments: [], customers: [], colors: [], users: [] };
+        return { brands: [], categories: [], departments: [], customers: [], colors: [], users: [] as SearchableSelectOption[] };
       }
 
       const { data: sales } = await supabase
@@ -370,13 +373,53 @@ export default function ItemWiseSalesReport() {
         .eq("organization_id", currentOrganization.id)
         .is("deleted_at", null);
 
+      const salesmen = uniqueNormSorted((sales || []).map((s: { salesman?: string | null }) => s.salesman));
+      const salesmanOptions: SearchableSelectOption[] = salesmen.map((name) => ({
+        value: `salesman:${name}`,
+        label: name,
+      }));
+
+      let loginOptions: SearchableSelectOption[] = [];
+      try {
+        const { data: members } = await supabase
+          .from("organization_members")
+          .select("user_id, role")
+          .eq("organization_id", currentOrganization.id);
+        if (members?.length && session?.access_token) {
+          const { data: result } = await supabase.functions.invoke("get-users", {
+            headers: { Authorization: `Bearer ${session.access_token}` },
+          });
+          const allUsers = (result?.users || []) as Array<{ id: string; email?: string }>;
+          const roleByUserId = new Map(
+            members.map((m: { user_id: string; role: string }) => [m.user_id, m.role]),
+          );
+          loginOptions = allUsers
+            .filter((u) => roleByUserId.has(u.id))
+            .map((u) => {
+              const email = (u.email || "").trim();
+              const name = email.includes("@") ? email.split("@")[0] : email || u.id.slice(0, 8);
+              const role = String(roleByUserId.get(u.id) || "").trim();
+              return {
+                value: `created:${u.id}`,
+                label: role ? `${name} (${role})` : name,
+              };
+            })
+            .sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: "base" }));
+        }
+      } catch (err) {
+        console.warn("Item-wise sales: failed to load login users for filter", err);
+      }
+
+      // Login users first (created_by), then salesmen — both searchable in User filter.
+      const users: SearchableSelectOption[] = [...loginOptions, ...salesmanOptions];
+
       return {
         brands: [] as string[],
         categories: [] as string[],
         departments: [] as string[],
         customers: uniqueNormSorted((sales || []).map((s) => s.customer_name)),
         colors: [] as string[],
-        users: uniqueNormSorted((sales || []).map((s: { salesman?: string | null }) => s.salesman)),
+        users,
       };
     },
     enabled: !!currentOrganization?.id,
@@ -434,7 +477,7 @@ export default function ItemWiseSalesReport() {
       while (hasMore) {
         let salesQuery = supabase
           .from("sales")
-          .select("id, customer_name, salesman")
+          .select("id, customer_name, salesman, created_by")
           .eq("organization_id", currentOrganization.id)
           .is("deleted_at", null)
           .gte("sale_date", dateRange.from.toISOString())
@@ -446,8 +489,11 @@ export default function ItemWiseSalesReport() {
         if (selectedCustomer !== "all") {
           salesQuery = salesQuery.eq("customer_name", selectedCustomer);
         }
-        if (selectedUser !== "all") {
-          salesQuery = salesQuery.eq("salesman", selectedUser);
+        const { createdById, salesmanName } = parseItemWiseUserFilter(selectedUser);
+        if (createdById) {
+          salesQuery = salesQuery.eq("created_by", createdById);
+        } else if (salesmanName) {
+          salesQuery = salesQuery.eq("salesman", salesmanName);
         }
 
         const { data: salesData, error: salesError } = await salesQuery;
