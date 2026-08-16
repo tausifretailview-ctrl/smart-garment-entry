@@ -62,6 +62,8 @@ export type SlowMovingStockRow = {
   last_sold_date: string | null;
   days_since_sold: number | null;
   total_sold_ever: number;
+  last_purchase_date: string | null;
+  primary_supplier: string | null;
 };
 
 export type LowStockAlertRow = {

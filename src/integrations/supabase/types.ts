@@ -9482,7 +9482,9 @@ export type Database = {
           color: string
           current_stock: number
           days_since_sold: number
+          last_purchase_date: string
           last_sold_date: string
+          primary_supplier: string
           product_id: string
           product_name: string
           size: string

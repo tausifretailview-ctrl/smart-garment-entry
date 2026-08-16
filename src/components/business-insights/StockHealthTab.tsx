@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { format, parseISO } from "date-fns";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Search } from "lucide-react";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import {
   formatInsightsINR,
@@ -8,6 +8,7 @@ import {
   useSlowMovingStock,
   type LowStockAlertRow,
 } from "@/hooks/useBusinessInsights";
+import { filterSlowMovingStockRows } from "@/utils/slowMovingStockFilter";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -82,6 +83,7 @@ export function StockHealthTab() {
   const [subTab, setSubTab] = useState<StockSubTab>("low-stock");
   const [stockThreshold, setStockThreshold] = useState(5);
   const [idleDays, setIdleDays] = useState<number>(60);
+  const [slowProductFilter, setSlowProductFilter] = useState("");
 
   const {
     data: lowStock = [],
@@ -94,6 +96,11 @@ export function StockHealthTab() {
     isLoading: slowLoading,
     error: slowError,
   } = useSlowMovingStock(orgId, idleDays, true);
+
+  const filteredSlowStock = useMemo(
+    () => filterSlowMovingStockRows(slowStock, slowProductFilter),
+    [slowStock, slowProductFilter],
+  );
 
   const lowStockStats = useMemo(() => {
     let critical = 0;
@@ -299,25 +306,40 @@ export function StockHealthTab() {
             title="Dead / Slow Moving Stock"
             subtitle={`In-stock variants with no sale within ${idleDays} days`}
             toolbar={
-              <div className="flex flex-wrap gap-1">
-                {IDLE_DAY_OPTIONS.map((d) => (
-                  <Button
-                    key={d}
-                    type="button"
-                    size="sm"
-                    variant={idleDays === d ? "default" : "outline"}
-                    onClick={() => setIdleDays(d)}
-                    className="h-8 text-xs px-2.5"
-                  >
-                    {d}d
-                  </Button>
-                ))}
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="relative w-full sm:w-56">
+                  <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    value={slowProductFilter}
+                    onChange={(e) => setSlowProductFilter(e.target.value)}
+                    placeholder="Filter product, brand…"
+                    className="h-8 pl-8 text-xs border-slate-200"
+                    aria-label="Filter slow-moving products"
+                  />
+                </div>
+                <div className="flex flex-wrap gap-1">
+                  {IDLE_DAY_OPTIONS.map((d) => (
+                    <Button
+                      key={d}
+                      type="button"
+                      size="sm"
+                      variant={idleDays === d ? "default" : "outline"}
+                      onClick={() => setIdleDays(d)}
+                      className="h-8 text-xs px-2.5"
+                    >
+                      {d}d
+                    </Button>
+                  ))}
+                </div>
               </div>
             }
             footer={
               <p className="text-xs text-muted-foreground tabular-nums">
-                {slowStock.length.toLocaleString("en-IN")} slow-moving variant
-                {slowStock.length !== 1 ? "s" : ""}
+                {filteredSlowStock.length.toLocaleString("en-IN")} slow-moving variant
+                {filteredSlowStock.length !== 1 ? "s" : ""}
+                {slowProductFilter.trim()
+                  ? ` (of ${slowStock.length.toLocaleString("en-IN")})`
+                  : ""}
               </p>
             }
           >
@@ -331,16 +353,19 @@ export function StockHealthTab() {
                 <InsightsStaticTh label="Stock Value" className="text-right" />
                 <InsightsStaticTh label="Last Sold" />
                 <InsightsStaticTh label="Days Idle" className="text-right" />
+                <InsightsStaticTh label="Last Supplier" />
               </InsightsTableHeader>
               <TableBody>
-                {slowStock.length === 0 ? (
+                {filteredSlowStock.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="py-10 text-center text-base text-muted-foreground">
-                      No slow-moving stock for idle &gt; {idleDays} days
+                    <TableCell colSpan={9} className="py-10 text-center text-base text-muted-foreground">
+                      {slowStock.length === 0
+                        ? `No slow-moving stock for idle > ${idleDays} days`
+                        : "No variants match this filter"}
                     </TableCell>
                   </TableRow>
                 ) : (
-                  slowStock.map((row) => {
+                  filteredSlowStock.map((row) => {
                     const daysIdle = row.days_since_sold === null ? null : num(row.days_since_sold);
                     const neverSold = !row.last_sold_date;
                     return (
@@ -371,6 +396,14 @@ export function StockHealthTab() {
                             <span className="text-red-600 font-medium">∞</span>
                           ) : (
                             daysIdle
+                          )}
+                        </TableCell>
+                        <TableCell className={INSIGHTS_BODY_CELL}>
+                          {row.primary_supplier || "—"}
+                          {row.last_purchase_date && (
+                            <span className="block text-xs text-muted-foreground">
+                              {formatDateLabel(row.last_purchase_date)}
+                            </span>
                           )}
                         </TableCell>
                       </TableRow>
