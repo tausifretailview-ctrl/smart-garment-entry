@@ -1125,13 +1125,11 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
             .sale-order-page:last-child { page-break-after: auto; }
           }
         `}</style>
-        {invoiceFormat === 'wholesale-size-grouping' && !isAvailableStock
-          ? renderWholesalePage()
-          : pages.map((pageItems, index) =>
-              isAvailableStock
-                ? renderAvailableStockPage(pageItems, index)
-                : renderPage(pageItems, index),
-            )
+        {isAvailableStock
+          ? matrixPages.map((pageRows, index) => renderSizeMatrixPage(pageRows, index))
+          : invoiceFormat === 'wholesale-size-grouping'
+            ? renderWholesalePage()
+            : pages.map((pageItems, index) => renderPage(pageItems, index))
         }
       </div>
     );
