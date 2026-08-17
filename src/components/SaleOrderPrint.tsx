@@ -598,9 +598,9 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
       const sizeColWidth = `${Math.max(4, Math.floor(52 / Math.max(1, matrixSizes.length)))}%`;
 
       const colTotals = matrixSizes.map((sz) =>
-        matrixRows.reduce((s, r) => s + (r.cells.get(sz)?.stock ?? 0), 0),
+        matrixRows.reduce((s, r) => s + (r.cells.get(sz)?.available ?? 0), 0),
       );
-      const grandStock = matrixRows.reduce((s, r) => s + r.totalStock, 0);
+      const grandStock = matrixRows.reduce((s, r) => s + r.totalAvailable, 0);
 
       return (
         <div
