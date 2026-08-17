@@ -624,7 +624,7 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
                 {matrixSizes.map((sz) => (
                   <th key={sz} style={thStyle({ width: sizeColWidth, textAlign: 'center' })}>{sz}</th>
                 ))}
-                <th style={thStyle({ width: '9%', textAlign: 'center' })}>Total Stock</th>
+                <th style={thStyle({ width: '9%', textAlign: 'center' })}>Total Available</th>
               </tr>
             </thead>
             <tbody>
