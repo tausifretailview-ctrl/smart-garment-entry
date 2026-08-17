@@ -41,6 +41,12 @@ import type * as XLSXType from "xlsx";
 let xlsxModulePromise: Promise<typeof XLSXType> | null = null;
 const loadXlsx = (): Promise<typeof XLSXType> => (xlsxModulePromise ??= import("xlsx"));
 
+import type jsPDFType from "jspdf";
+/** Lazily loaded on export — keeps jsPDF off this page's initial chunk. */
+let jsPdfPromise: Promise<typeof jsPDFType> | null = null;
+const loadJsPdf = (): Promise<typeof jsPDFType> =>
+  (jsPdfPromise ??= import("jspdf").then((m) => m.default));
+
 import { getIndiaFinancialYear, getCurrentQuarter } from "@/utils/accountingReportUtils";
 import { useLocation } from "react-router-dom";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
@@ -63,6 +69,19 @@ const formatCurrency = (amount: number) =>
     currency: "INR",
     minimumFractionDigits: 2,
   }).format(amount);
+
+const formatPdfAmount = (amount: number) =>
+  new Intl.NumberFormat("en-IN", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(amount);
+
+type PdfCol = {
+  header: string;
+  width: number;
+  align: "left" | "right";
+  get: (row: ProfitAggregateRow) => string;
+};
 
 const FYPresets = ({
   onSelect,
@@ -455,6 +474,238 @@ export default function NetProfitAnalysis() {
     toast.success("Excel exported");
   };
 
+  const handleExportPdf = async () => {
+    if (filteredRows.length === 0) {
+      toast.error("No data to export");
+      return;
+    }
+
+    const qtyHeader =
+      activeTab === "product-wise" ||
+      activeTab === "date-wise" ||
+      activeTab === "field-wise"
+        ? "Qty"
+        : "Items";
+
+    // Portrait A4 (~210mm). Margin % intentionally omitted so money cols fit.
+    const moneyCols: PdfCol[] = [
+      {
+        header: qtyHeader,
+        width: 12,
+        align: "right",
+        get: (r) => String(r.itemsSold),
+      },
+      {
+        header: "Gross Sales",
+        width: 24,
+        align: "right",
+        get: (r) => formatPdfAmount(r.grossSales),
+      },
+      {
+        header: "Discounts",
+        width: 20,
+        align: "right",
+        get: (r) => {
+          const d = Math.max(0, r.totalDiscounts);
+          return d > 0 ? `-${formatPdfAmount(d)}` : formatPdfAmount(0);
+        },
+      },
+      {
+        header: "Net Sales",
+        width: 24,
+        align: "right",
+        get: (r) => formatPdfAmount(r.netSales),
+      },
+      {
+        header: "COGS",
+        width: 22,
+        align: "right",
+        get: (r) => formatPdfAmount(r.totalCOGS),
+      },
+      {
+        header: "Gross Profit",
+        width: 24,
+        align: "right",
+        get: (r) => formatPdfAmount(r.grossProfit),
+      },
+    ];
+
+    let labelCols: PdfCol[];
+    if (activeTab === "bill-wise") {
+      labelCols = [
+        { header: "Bill No", width: 28, align: "left", get: (r) => r.label },
+        { header: "Date", width: 18, align: "left", get: (r) => r.secondary || "-" },
+        { header: "Customer", width: 28, align: "left", get: (r) => r.tertiary || "-" },
+      ];
+    } else if (activeTab === "date-wise") {
+      labelCols = [
+        { header: "Date", width: 18, align: "left", get: (r) => r.secondary || "-" },
+        { header: "Product", width: 36, align: "left", get: (r) => r.label },
+        { header: "Brand", width: 20, align: "left", get: (r) => r.tertiary || "-" },
+      ];
+    } else if (activeTab === "product-wise") {
+      labelCols = [
+        { header: "Product", width: 44, align: "left", get: (r) => r.label },
+        { header: "Brand", width: 30, align: "left", get: (r) => r.secondary || "-" },
+      ];
+    } else if (activeTab === "customer-wise") {
+      labelCols = [{ header: "Customer", width: 54, align: "left", get: (r) => r.label }];
+    } else if (activeTab === "salesman-wise") {
+      labelCols = [{ header: "Salesman", width: 54, align: "left", get: (r) => r.label }];
+    } else if (activeTab === "field-wise") {
+      labelCols = [
+        { header: fieldDimensionLabel, width: 54, align: "left", get: (r) => r.label },
+      ];
+    } else {
+      labelCols = [{ header: "Supplier", width: 54, align: "left", get: (r) => r.label }];
+    }
+
+    const cols = [...labelCols, ...moneyCols];
+    const jsPDF = await loadJsPdf();
+    const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const marginX = 8;
+    const marginTop = 12;
+    const usableWidth = pageWidth - marginX * 2;
+    const colTotal = cols.reduce((s, c) => s + c.width, 0);
+    const scale = usableWidth / colTotal;
+    const scaled = cols.map((c) => ({ ...c, width: c.width * scale }));
+
+    const tabLabelMap: Record<NetProfitTab, string> = {
+      "supplier-wise": "Supplier-wise",
+      "product-wise": "Product-wise",
+      "bill-wise": "Bill-wise",
+      "date-wise": "Date-wise",
+      "customer-wise": "Customer-wise",
+      "salesman-wise": "Salesman-wise",
+      "field-wise": "Field-wise",
+    };
+    const tabLabel = tabLabelMap[activeTab];
+    const maxCharsForWidth = (wMm: number, fontSize: number) =>
+      Math.max(4, Math.floor((wMm * 2.4) / (fontSize * 0.35)));
+
+    const truncate = (text: string, wMm: number, fontSize: number) => {
+      const max = maxCharsForWidth(wMm, fontSize);
+      return text.length > max ? `${text.slice(0, Math.max(1, max - 1))}…` : text;
+    };
+
+    let y = marginTop;
+
+    const drawHeader = () => {
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(11);
+      doc.text("Net Profit Analysis", marginX, y);
+      y += 5;
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(7.5);
+      doc.text(
+        `${currentOrganization?.name || "Organization"} · ${tabLabel}${
+          activeTab === "field-wise" ? ` (${fieldDimensionLabel})` : ""
+        }`,
+        marginX,
+        y,
+      );
+      y += 4;
+      doc.text(
+        `Period: ${fromDate} to ${toDate} · ${filteredRows.length.toLocaleString("en-IN")} rows · ${format(
+          new Date(),
+          "dd-MM-yyyy HH:mm",
+        )}`,
+        marginX,
+        y,
+      );
+      y += 5;
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(6.5);
+      let x = marginX;
+      for (const col of scaled) {
+        const label = truncate(col.header, col.width - 1, 6.5);
+        if (col.align === "right") {
+          doc.text(label, x + col.width - 0.5, y, { align: "right" });
+        } else {
+          doc.text(label, x, y);
+        }
+        x += col.width;
+      }
+      y += 1.2;
+      doc.setDrawColor(120);
+      doc.setLineWidth(0.2);
+      doc.line(marginX, y, pageWidth - marginX, y);
+      y += 3.5;
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(6.5);
+    };
+
+    drawHeader();
+
+    const rowH = 4.2;
+    const footerReserve = 18;
+
+    for (const row of filteredRows) {
+      if (y > pageHeight - footerReserve) {
+        doc.addPage();
+        y = marginTop;
+        drawHeader();
+      }
+      let x = marginX;
+      for (const col of scaled) {
+        const raw = col.get(row);
+        const text = truncate(raw, col.width - 1, 6.5);
+        if (col.align === "right") {
+          doc.text(text, x + col.width - 0.5, y, { align: "right" });
+        } else {
+          doc.text(text, x, y);
+        }
+        x += col.width;
+      }
+      y += rowH;
+    }
+
+    if (y > pageHeight - footerReserve) {
+      doc.addPage();
+      y = marginTop;
+      drawHeader();
+    }
+
+    y += 1;
+    doc.setDrawColor(120);
+    doc.line(marginX, y, pageWidth - marginX, y);
+    y += 4;
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(6.5);
+
+    const totalsCells: string[] = [
+      ...labelCols.map((_, i) => (i === 0 ? "TOTAL" : "")),
+      String(activeTotals.itemsSold),
+      formatPdfAmount(activeTotals.grossSales),
+      (() => {
+        const d = Math.max(0, activeTotals.totalDiscounts);
+        return d > 0 ? `-${formatPdfAmount(d)}` : formatPdfAmount(0);
+      })(),
+      formatPdfAmount(activeTotals.netSales),
+      formatPdfAmount(activeTotals.totalCOGS),
+      formatPdfAmount(activeTotals.grossProfit),
+    ];
+
+    {
+      let x = marginX;
+      scaled.forEach((col, i) => {
+        const text = truncate(totalsCells[i] || "", col.width - 1, 6.5);
+        if (col.align === "right") {
+          doc.text(text, x + col.width - 0.5, y, { align: "right" });
+        } else {
+          doc.text(text, x, y);
+        }
+        x += col.width;
+      });
+    }
+
+    doc.save(`net-profit-${activeTab}-${fromDate}-to-${toDate}.pdf`);
+    toast.success("PDF exported");
+  };
+
   const columnsForTab = useMemo((): ColumnDef[] => {
     const qtyHeader =
       activeTab === "product-wise" ||
@@ -643,6 +894,15 @@ export default function NetProfitAnalysis() {
             >
               <Download className="h-4 w-4" />
               Excel
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-10 gap-1.5 border-slate-300 text-base"
+              onClick={() => void handleExportPdf()}
+            >
+              <FileText className="h-4 w-4" />
+              PDF
             </Button>
           </div>
         </div>
