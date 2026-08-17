@@ -85,16 +85,12 @@ describe("skew recovery cooldown", () => {
     expect(canAttemptSkewRecoveryReload(1_000_000)).toBe(true);
   });
 
-  it("blocks a second attempt inside the cooldown window", () => {
+  it("blocks a second attempt for the rest of the tab session", () => {
     const t0 = 1_000_000;
     sessionStorage.setItem("skew_reload_at", String(t0));
     expect(canAttemptSkewRecoveryReload(t0 + 30_000)).toBe(false);
-  });
-
-  it("allows another attempt after cooldown (morning-after / second deploy wave)", () => {
-    const t0 = 1_000_000;
-    sessionStorage.setItem("skew_reload_at", String(t0));
-    expect(canAttemptSkewRecoveryReload(t0 + SKEW_RELOAD_COOLDOWN_MS)).toBe(true);
+    expect(canAttemptSkewRecoveryReload(t0 + SKEW_RELOAD_COOLDOWN_MS)).toBe(false);
+    expect(canAttemptSkewRecoveryReload(t0 + 24 * 60 * 60 * 1000)).toBe(false);
   });
 
   it("resetSkewReloadCount clears the cooldown", () => {

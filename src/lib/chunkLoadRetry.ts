@@ -1,14 +1,13 @@
 import { lazy, type ComponentType, type LazyExoticComponent } from "react";
 
-/** Legacy counter key — cleared on boot; superseded by timestamp cooldown. */
+/** Legacy counter key — cleared on boot; superseded by one-shot session flag. */
 const SKEW_RELOAD_KEY = "skew_reload_count";
 /** Epoch-ms of last skew recovery reload (sessionStorage). */
 const SKEW_RELOAD_AT_KEY = "skew_reload_at";
 /**
- * Min gap between automatic skew reloads. Prevents tight reload loops while still
- * allowing a morning-after / second-wave deploy miss after the first attempt.
- * (Flat 1-per-session left overnight tabs stuck on the manual screen once the
- * budget was spent earlier in the same tab session.)
+ * One automatic full reload per tab session after deploy skew (stale hashed chunk 404).
+ * A 2-minute cooldown plus a 1s post-boot reset produced an all-pages refresh loop.
+ * Overnight / second-wave deploys surface the Update banner — user reloads when ready.
  */
 export const SKEW_RELOAD_COOLDOWN_MS = 2 * 60 * 1000;
 const MAX_IMPORT_RETRIES = 5;
@@ -263,14 +262,14 @@ async function purgeStaleAppCaches(): Promise<void> {
   }
 }
 
-/** True when another automatic skew reload is allowed (cooldown elapsed / never tried). */
-export function canAttemptSkewRecoveryReload(nowMs = Date.now()): boolean {
+/** True when another automatic skew reload is allowed (once per tab session). */
+export function canAttemptSkewRecoveryReload(_nowMs = Date.now()): boolean {
   try {
     const raw = sessionStorage.getItem(SKEW_RELOAD_AT_KEY);
     if (!raw) return true;
     const lastAt = parseInt(raw, 10);
     if (!Number.isFinite(lastAt) || lastAt <= 0) return true;
-    return nowMs - lastAt >= SKEW_RELOAD_COOLDOWN_MS;
+    return false;
   } catch {
     return false;
   }
@@ -278,9 +277,8 @@ export function canAttemptSkewRecoveryReload(nowMs = Date.now()): boolean {
 
 /**
  * Bounded full-page reload for deploy/version skew.
- * Cooldown (not a permanent 1/session cap) — overnight tabs that already recovered
- * earlier can recover again after a morning deploy without hitting the manual screen.
- * Clears the SW precache first, otherwise the reload re-serves the same dead build.
+ * Once per tab session. Further chunk 404s stay on the current page (error UI /
+ * Update banner) instead of looping reload.
  * Returns true if reload was initiated (caller should show a brief splash).
  */
 export function attemptSkewRecoveryReload(): boolean {

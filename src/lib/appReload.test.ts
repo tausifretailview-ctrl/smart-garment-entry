@@ -74,7 +74,7 @@ describe("startSilentUpdateWhenSafe", () => {
     vi.restoreAllMocks();
   });
 
-  it("reloads silently after idle with empty cart and no dialog — no banner", async () => {
+  it("does not silent-reload a visible tab even after idle — page must stick", async () => {
     const onFallbackBanner = vi.fn();
     const beforeReload = vi.fn().mockResolvedValue(undefined);
 
@@ -87,10 +87,10 @@ describe("startSilentUpdateWhenSafe", () => {
       pollMs: 200,
     });
 
-    await vi.advanceTimersByTimeAsync(1_200);
+    await vi.advanceTimersByTimeAsync(5_000);
 
-    expect(beforeReload).toHaveBeenCalledTimes(1);
-    expect(window.location.reload).toHaveBeenCalled();
+    expect(beforeReload).not.toHaveBeenCalled();
+    expect(window.location.reload).not.toHaveBeenCalled();
     expect(onFallbackBanner).not.toHaveBeenCalled();
   });
 
@@ -163,7 +163,7 @@ describe("startSilentUpdateWhenSafe", () => {
 
     dialog.remove();
     await vi.advanceTimersByTimeAsync(1_000);
-    expect(window.location.reload).toHaveBeenCalled();
+    expect(window.location.reload).not.toHaveBeenCalled();
   });
 
   it("restarts the 2h banner ceiling when a new session starts", async () => {
