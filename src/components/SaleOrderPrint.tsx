@@ -204,8 +204,9 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
       color?: string;
       brand?: string;
       style?: string;
-      cells: Map<string, { stock: number; ordered: number; pending: number }>;
+      cells: Map<string, { stock: number; ordered: number; pending: number; available: number }>;
       totalStock: number;
+      totalAvailable: number;
       totalOrdered: number;
       totalPending: number;
     };
@@ -224,6 +225,7 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
             style: item.style,
             cells: new Map(),
             totalStock: 0,
+            totalAvailable: 0,
             totalOrdered: 0,
             totalPending: 0,
           });
@@ -232,12 +234,12 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
         // Size-wise on-hand stock is product+colour level — set once per size.
         (item.sizeStock || []).forEach((s) => {
           const sz = s.size || '—';
-          const cur = row.cells.get(sz) || { stock: 0, ordered: 0, pending: 0 };
+          const cur = row.cells.get(sz) || { stock: 0, ordered: 0, pending: 0, available: 0 };
           cur.stock = Number(s.qty) || 0;
           row.cells.set(sz, cur);
         });
         const sz = item.size || '—';
-        const cur = row.cells.get(sz) || { stock: 0, ordered: 0, pending: 0 };
+        const cur = row.cells.get(sz) || { stock: 0, ordered: 0, pending: 0, available: 0 };
         cur.ordered += item.orderQty || 0;
         cur.pending += item.pendingQty || 0;
         row.cells.set(sz, cur);
@@ -245,14 +247,17 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
 
       return Array.from(map.values()).map((row) => {
         let totalStock = 0;
+        let totalAvailable = 0;
         let totalOrdered = 0;
         let totalPending = 0;
         row.cells.forEach((c) => {
+          c.available = Math.min(c.pending, c.stock);
           totalStock += c.stock;
+          totalAvailable += c.available;
           totalOrdered += c.ordered;
           totalPending += c.pending;
         });
-        return { ...row, totalStock, totalOrdered, totalPending };
+        return { ...row, totalStock, totalAvailable, totalOrdered, totalPending };
       });
     }, [items, isAvailableStock]);
 
