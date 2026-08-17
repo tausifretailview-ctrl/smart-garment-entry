@@ -611,13 +611,10 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
                         </span>
                       )}
                       {details && (
-                        <span style={{ color: '#333', marginLeft: '3px', fontSize: isA4 ? '7pt' : '6pt' }}>
+                        <span style={{ marginLeft: '3px', fontSize: isA4 ? '8pt' : '7pt', fontWeight: 800, color: '#000' }}>
                           ({details})
                         </span>
                       )}
-                      <div style={{ fontSize: cellSubFont, fontWeight: 700, marginTop: '2px' }}>
-                        {renderAvlOrd(row.totalAvailable, row.totalOrdered, cellSubFont)}
-                      </div>
                     </td>
                     {matrixSizes.map((sz) => {
                       const cell = row.cells.get(sz);
