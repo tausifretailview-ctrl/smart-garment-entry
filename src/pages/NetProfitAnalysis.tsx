@@ -487,7 +487,7 @@ export default function NetProfitAnalysis() {
         ? "Qty"
         : "Items";
 
-    // Portrait A4 (~210mm). Margin % intentionally omitted so money cols fit.
+    // Portrait A4 (~210mm). Primary label narrowed to fit Margin %.
     const moneyCols: PdfCol[] = [
       {
         header: qtyHeader,
@@ -528,36 +528,43 @@ export default function NetProfitAnalysis() {
         align: "right",
         get: (r) => formatPdfAmount(r.grossProfit),
       },
+      {
+        header: "Margin %",
+        width: 14,
+        align: "right",
+        get: (r) => `${r.marginPercent.toFixed(1)}%`,
+      },
     ];
 
     let labelCols: PdfCol[];
     if (activeTab === "bill-wise") {
       labelCols = [
-        { header: "Bill No", width: 28, align: "left", get: (r) => r.label },
-        { header: "Date", width: 18, align: "left", get: (r) => r.secondary || "-" },
-        { header: "Customer", width: 28, align: "left", get: (r) => r.tertiary || "-" },
+        { header: "Bill No", width: 24, align: "left", get: (r) => r.label },
+        { header: "Date", width: 16, align: "left", get: (r) => r.secondary || "-" },
+        { header: "Customer", width: 24, align: "left", get: (r) => r.tertiary || "-" },
       ];
     } else if (activeTab === "date-wise") {
       labelCols = [
-        { header: "Date", width: 18, align: "left", get: (r) => r.secondary || "-" },
-        { header: "Product", width: 36, align: "left", get: (r) => r.label },
-        { header: "Brand", width: 20, align: "left", get: (r) => r.tertiary || "-" },
+        { header: "Date", width: 16, align: "left", get: (r) => r.secondary || "-" },
+        { header: "Product", width: 30, align: "left", get: (r) => r.label },
+        { header: "Brand", width: 18, align: "left", get: (r) => r.tertiary || "-" },
       ];
     } else if (activeTab === "product-wise") {
       labelCols = [
-        { header: "Product", width: 44, align: "left", get: (r) => r.label },
-        { header: "Brand", width: 30, align: "left", get: (r) => r.secondary || "-" },
+        { header: "Product", width: 38, align: "left", get: (r) => r.label },
+        { header: "Brand", width: 22, align: "left", get: (r) => r.secondary || "-" },
       ];
     } else if (activeTab === "customer-wise") {
-      labelCols = [{ header: "Customer", width: 54, align: "left", get: (r) => r.label }];
+      labelCols = [{ header: "Customer", width: 40, align: "left", get: (r) => r.label }];
     } else if (activeTab === "salesman-wise") {
-      labelCols = [{ header: "Salesman", width: 54, align: "left", get: (r) => r.label }];
+      labelCols = [{ header: "Salesman", width: 40, align: "left", get: (r) => r.label }];
     } else if (activeTab === "field-wise") {
       labelCols = [
-        { header: fieldDimensionLabel, width: 54, align: "left", get: (r) => r.label },
+        { header: fieldDimensionLabel, width: 40, align: "left", get: (r) => r.label },
       ];
     } else {
-      labelCols = [{ header: "Supplier", width: 54, align: "left", get: (r) => r.label }];
+      // Supplier column narrowed (~54→40) so Margin % fits on portrait A4.
+      labelCols = [{ header: "Supplier", width: 40, align: "left", get: (r) => r.label }];
     }
 
     const cols = [...labelCols, ...moneyCols];
@@ -687,6 +694,7 @@ export default function NetProfitAnalysis() {
       formatPdfAmount(activeTotals.netSales),
       formatPdfAmount(activeTotals.totalCOGS),
       formatPdfAmount(activeTotals.grossProfit),
+      `${activeTotals.marginPercent.toFixed(1)}%`,
     ];
 
     {
