@@ -309,7 +309,11 @@ function mapPosVariantLookupRow(
   return { product: row.products, variant: row };
 }
 
-async function fetchPosVariantByBarcode(orgId: string, barcode: string) {
+async function fetchPosVariantByBarcode(
+  orgId: string,
+  barcode: string,
+  mobileERPConfig?: Parameters<typeof productRequiresImei>[1],
+) {
   const trimmed = barcode.trim();
   if (!trimmed) return null;
 
@@ -332,9 +336,15 @@ async function fetchPosVariantByBarcode(orgId: string, barcode: string) {
     .limit(1);
   if (partialError) throw partialError;
 
-  return mapPosVariantLookupRow(
+  const partial = mapPosVariantLookupRow(
     partialData?.[0] as unknown as (PosVariantRow & { products?: PosProductRow }) | undefined,
   );
+
+  // Serialized (IMEI) units are unique pieces and share long common prefixes.
+  // A substring match would silently add a DIFFERENT phone — exact match only.
+  if (partial && productRequiresImei(partial.product, mobileERPConfig)) return null;
+
+  return partial;
 }
 
 function isStockTrackedPosProduct(product: { product_type?: string | null } | null | undefined): boolean {
@@ -2130,10 +2140,18 @@ export default function POSSales() {
     // Fast keystrokes on numeric barcodes only — not text product search (e.g. "SHIRT")
     const trimmed = value.trim();
     const looksLikeNumericBarcode = /^\d+$/.test(trimmed);
+    // IMEI mode: never auto-submit a partially received code — units of the same
+    // model share long prefixes, so a truncated scan can resolve to another phone.
+    const imeiTooShort =
+      mobileERP.enabled &&
+      mobileERP.imei_scan_enforcement &&
+      trimmed.length > 0 &&
+      trimmed.length < (mobileERP.imei_min_length || 15);
     if (isScannerLike || (looksLikeNumericBarcode && trimmed.length >= 4 && timeSinceLastKeystroke < 50)) {
       setOpenProductSearch(false);
       setProductSearchResults([]);
       setIsProductSearchLoading(false);
+      if (imeiTooShort) return;
       // Schedule auto-submit for scanners that don't send Enter
       scheduleAutoSubmit(value, (val) => {
         void searchAndAddProduct(val);
@@ -2151,7 +2169,7 @@ export default function POSSales() {
 
       // Auto-add on pause when a manually typed barcode exactly matches a variant
       const trimmed = value.trim();
-      if (trimmed.length >= 4 && !/\s/.test(trimmed)) {
+      if (trimmed.length >= 4 && !/\s/.test(trimmed) && !imeiTooShort) {
         manualBarcodeDebounceTimer.current = setTimeout(() => {
           manualBarcodeDebounceTimer.current = null;
           void (async () => {
@@ -2482,7 +2500,7 @@ export default function POSSales() {
     try {
       // Quick service shortcodes (1-9): open dialog only when no real product has this barcode
       if (/^[1-9]$/.test(trimmedTerm)) {
-        const shortMatch = await fetchPosVariantByBarcode(orgId, trimmedTerm);
+        const shortMatch = await fetchPosVariantByBarcode(orgId, trimmedTerm, mobileERP);
         if (!shortMatch) {
           setQuickServiceCode(trimmedTerm);
           setShowQuickServiceDialog(true);
@@ -2497,7 +2515,7 @@ export default function POSSales() {
 
       // Lookup barcode first. Non-serialized accessories (shared EAN) must add/merge
       // even when org IMEI min-length would reject a 13-digit retail code.
-      const barcodeMatch = await fetchPosVariantByBarcode(orgId, trimmedTerm);
+      const barcodeMatch = await fetchPosVariantByBarcode(orgId, trimmedTerm, mobileERP);
       if (barcodeMatch) {
         const prod = barcodeMatch.product;
         const dbVariant = barcodeMatch.variant;
@@ -2518,7 +2536,8 @@ export default function POSSales() {
         }
 
         setSearchInput("");
-        if (stockQty > 0 || !isStockTrackedPosProduct(prod)) {
+        // Serialized units are unique pieces — a zero-stock IMEI is already sold.
+        if (stockQty > 0 || (!isStockTrackedPosProduct(prod) && !needsImei)) {
           // Same barcode again → addItemToCart merges qty (+1), not a duplicate line.
           await addItemToCart(prod, dbVariant, undefined, 'barcode');
           recordPosBarcodeScanSuccess(trimmedTerm);
