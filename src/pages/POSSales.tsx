@@ -2140,10 +2140,18 @@ export default function POSSales() {
     // Fast keystrokes on numeric barcodes only — not text product search (e.g. "SHIRT")
     const trimmed = value.trim();
     const looksLikeNumericBarcode = /^\d+$/.test(trimmed);
+    // IMEI mode: never auto-submit a partially received code — units of the same
+    // model share long prefixes, so a truncated scan can resolve to another phone.
+    const imeiTooShort =
+      mobileERP.enabled &&
+      mobileERP.imei_scan_enforcement &&
+      trimmed.length > 0 &&
+      trimmed.length < (mobileERP.imei_min_length || 15);
     if (isScannerLike || (looksLikeNumericBarcode && trimmed.length >= 4 && timeSinceLastKeystroke < 50)) {
       setOpenProductSearch(false);
       setProductSearchResults([]);
       setIsProductSearchLoading(false);
+      if (imeiTooShort) return;
       // Schedule auto-submit for scanners that don't send Enter
       scheduleAutoSubmit(value, (val) => {
         void searchAndAddProduct(val);
@@ -2161,7 +2169,7 @@ export default function POSSales() {
 
       // Auto-add on pause when a manually typed barcode exactly matches a variant
       const trimmed = value.trim();
-      if (trimmed.length >= 4 && !/\s/.test(trimmed)) {
+      if (trimmed.length >= 4 && !/\s/.test(trimmed) && !imeiTooShort) {
         manualBarcodeDebounceTimer.current = setTimeout(() => {
           manualBarcodeDebounceTimer.current = null;
           void (async () => {
