@@ -1,5 +1,5 @@
 import { useState, useEffect, Suspense } from "react";
-import { isChunkLoadError, lazyWithRetry, attemptSkewRecoveryReload, resetSkewReloadCount } from "@/lib/chunkLoadRetry";
+import { isChunkLoadError, lazyWithRetry, attemptSkewRecoveryReload } from "@/lib/chunkLoadRetry";
 import { DashboardSkeleton } from "@/components/ui/skeletons";
 import { RootErrorBoundary } from "@/components/RootErrorBoundary";
 import { ThemeProvider } from "next-themes";
@@ -303,13 +303,10 @@ function NonOrgLegacySaleReturnDashboardRedirect() {
 })();
 
 const App = () => {
-  // Fresh skew-recovery budget after a healthy boot; clear legacy counter from older builds.
+  // Keep the one-shot skew-recovery flag across reloads. Clearing it 1s after boot
+  // caused a full-app refresh loop when a hashed chunk 404'd after deploy.
   useEffect(() => {
     sessionStorage.removeItem("chunk_reload_count");
-    const timer = window.setTimeout(() => {
-      resetSkewReloadCount();
-    }, 1000);
-    return () => window.clearTimeout(timer);
   }, []);
 
   // Remembered shop → PWA manifest start_url = /{orgSlug} (not Platform Admin /auth).

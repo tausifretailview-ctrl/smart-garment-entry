@@ -11,7 +11,7 @@ function getElectronAPI(): ElectronReloadApi | undefined {
   return (window as Window & { electronAPI?: ElectronReloadApi }).electronAPI;
 }
 
-/** Idle with no pointer/keyboard activity before a silent reload may fire. */
+/** Idle with no pointer/keyboard activity — not used for visible-tab silent reload. */
 export const SILENT_UPDATE_IDLE_MS = 45_000;
 /** If no safe moment arrives, show the existing update banner. */
 export const SILENT_UPDATE_BANNER_FALLBACK_MS = 2 * 60 * 60 * 1000;
@@ -23,8 +23,7 @@ export const SILENT_UPDATE_BANNER_FALLBACK_STANDALONE_MS = 15 * 60 * 1000;
 /** How often installed PWAs should call registration.update(). */
 export const STANDALONE_SW_UPDATE_CHECK_MS = 5 * 60 * 1000;
 
-const ACTIVITY_EVENTS = ["mousemove", "keydown", "click", "touchstart"] as const;
-/** How often to re-check idle + cart + dialog gates. */
+/** How often to re-check hidden-tab + cart + dialog gates. */
 const SILENT_UPDATE_POLL_MS = 5_000;
 
 export function hasAnyPosCartItemsInSession(): boolean {
@@ -153,9 +152,9 @@ let silentReloadInFlight = false;
  * Does not show UI — callers show the existing banner only via onFallbackBanner
  * after {@link SILENT_UPDATE_BANNER_FALLBACK_MS}.
  *
- * Safe moment = no POS cart + no open dialog/sheet, and either:
- * - no user input for {@link SILENT_UPDATE_IDLE_MS}, or
- * - document.visibilityState === "hidden"
+ * Safe moment = no POS cart + no open dialog/sheet, and the tab is hidden
+ * (minimize / switch app). A visible idle dashboard must stay put — shops
+ * were losing the current page to auto-refresh after every deploy.
  *
  * Calling again while a prior session is active stops the old timers and
  * restarts the 2-hour banner ceiling (no stacking).
@@ -165,13 +164,10 @@ export function startSilentUpdateWhenSafe(
 ): SilentUpdateWhenSafeHandle {
   activeSilentSession?.stop();
 
-  const idleMs = options.idleMs ?? SILENT_UPDATE_IDLE_MS;
   const bannerFallbackMs = options.bannerFallbackMs ?? SILENT_UPDATE_BANNER_FALLBACK_MS;
   const pollMs = options.pollMs ?? SILENT_UPDATE_POLL_MS;
-  const now = options.now ?? Date.now;
 
   let stopped = false;
-  let lastActivityAt = now();
   let bannerFired = false;
   let pollTimer: ReturnType<typeof setInterval> | undefined;
   let bannerTimer: ReturnType<typeof setTimeout> | undefined;
@@ -182,17 +178,10 @@ export function startSilentUpdateWhenSafe(
     stopped = true;
     if (pollTimer !== undefined) clearInterval(pollTimer);
     if (bannerTimer !== undefined) clearTimeout(bannerTimer);
-    for (const eventName of ACTIVITY_EVENTS) {
-      window.removeEventListener(eventName, onActivity, true);
-    }
     document.removeEventListener("visibilitychange", onVisibility);
     if (activeSilentSession?.generation === generation) {
       activeSilentSession = null;
     }
-  };
-
-  const onActivity = () => {
-    lastActivityAt = now();
   };
 
   const trySilentReload = async () => {
@@ -200,10 +189,10 @@ export function startSilentUpdateWhenSafe(
     const organizationId = options.getOrganizationId?.() ?? null;
     if (!isSilentReloadSafe(organizationId)) return;
 
-    const idleLongEnough = now() - lastActivityAt >= idleMs;
     const tabHidden =
       typeof document !== "undefined" && document.visibilityState === "hidden";
-    if (!idleLongEnough && !tabHidden) return;
+    // Never reload a visible page — idle dashboards must stick.
+    if (!tabHidden) return;
 
     silentReloadInFlight = true;
     stop();
@@ -228,9 +217,6 @@ export function startSilentUpdateWhenSafe(
     }
   };
 
-  for (const eventName of ACTIVITY_EVENTS) {
-    window.addEventListener(eventName, onActivity, { passive: true, capture: true });
-  }
   document.addEventListener("visibilitychange", onVisibility);
 
   pollTimer = setInterval(() => {
