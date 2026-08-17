@@ -309,7 +309,11 @@ function mapPosVariantLookupRow(
   return { product: row.products, variant: row };
 }
 
-async function fetchPosVariantByBarcode(orgId: string, barcode: string) {
+async function fetchPosVariantByBarcode(
+  orgId: string,
+  barcode: string,
+  mobileERPConfig?: Parameters<typeof productRequiresImei>[1],
+) {
   const trimmed = barcode.trim();
   if (!trimmed) return null;
 
@@ -332,9 +336,15 @@ async function fetchPosVariantByBarcode(orgId: string, barcode: string) {
     .limit(1);
   if (partialError) throw partialError;
 
-  return mapPosVariantLookupRow(
+  const partial = mapPosVariantLookupRow(
     partialData?.[0] as unknown as (PosVariantRow & { products?: PosProductRow }) | undefined,
   );
+
+  // Serialized (IMEI) units are unique pieces and share long common prefixes.
+  // A substring match would silently add a DIFFERENT phone — exact match only.
+  if (partial && productRequiresImei(partial.product, mobileERPConfig)) return null;
+
+  return partial;
 }
 
 function isStockTrackedPosProduct(product: { product_type?: string | null } | null | undefined): boolean {
