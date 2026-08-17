@@ -26,6 +26,7 @@ import {
   prefetchPostLoginCriticalPages,
   prefetchPostLoginIdlePages,
   prefetchTabPage,
+  resetTabPageChunk,
   resolveTabCachePath,
 } from "@/lib/tabPageRegistry";
 import { bumpRecentTabPaneRetention } from "@/lib/recentTabPaneRetention";
@@ -373,10 +374,21 @@ export const OrgLayout = () => {
     const timeoutMs = 6_000;
     const timer = window.setTimeout(() => {
       console.warn("[OrgLayout] Tab pane not ready — falling back to Outlet for", currentPath);
+      // Clear poisoned tab-cache bookkeeping so a later switch can remount cleanly.
+      // Outlet uses App.tsx lazyWithRetry (separate promise) and often recovers when
+      // the tab-cache path was stuck on a stale prefetch.
+      resetTabPageChunk(resolvedCurrentPath);
       setForceOutletFallback(true);
     }, timeoutMs);
     return () => window.clearTimeout(timer);
-  }, [wantsTabCache, effectiveTabPaneReady, forceOutletFallback, usesLongLoadBudget, currentPath]);
+  }, [
+    wantsTabCache,
+    effectiveTabPaneReady,
+    forceOutletFallback,
+    usesLongLoadBudget,
+    currentPath,
+    resolvedCurrentPath,
+  ]);
 
   // Record the render-owner decision for every navigation (always on — field evidence).
   useEffect(() => {
@@ -417,10 +429,13 @@ export const OrgLayout = () => {
       if (!el || hasPaintedContent(el)) return;
       const canRescue = renderOwner === "tab-cache";
       recordBlankFrame(currentPath, canRescue);
-      if (canRescue) setForceOutletFallback(true);
+      if (canRescue) {
+        resetTabPageChunk(resolvedCurrentPath);
+        setForceOutletFallback(true);
+      }
     }, BLANK_FRAME_GRACE_MS);
     return () => window.clearTimeout(timer);
-  }, [currentPath, renderOwner, usesLongLoadBudget, forceOutletFallback]);
+  }, [currentPath, resolvedCurrentPath, renderOwner, usesLongLoadBudget, forceOutletFallback]);
 
   useEffect(() => {
     if (!isNavigationPerfEnabled()) return;

@@ -321,6 +321,8 @@ export function resolveTabCachePath(path: string): string {
 
 type TabPageModule = { default: ComponentType<unknown> };
 const prefetchCache = new Map<string, Promise<TabPageModule>>();
+/** When each in-flight prefetch was started (ms). Used to drop stale hung imports. */
+const prefetchStartedAt = new Map<string, number>();
 /** Tab paths whose lazy chunk module is already resolved in memory. */
 const loadedChunkPaths = new Set<string>();
 
@@ -340,6 +342,7 @@ function loadTabPageModule(path: string): Promise<TabPageModule> | null {
   const existing = prefetchCache.get(resolved);
   if (existing) return existing;
 
+  prefetchStartedAt.set(resolved, Date.now());
   const promise = importWithRetry(def.loader)
     .then((mod) => {
       loadedChunkPaths.add(resolved);
@@ -348,6 +351,9 @@ function loadTabPageModule(path: string): Promise<TabPageModule> | null {
     .catch((err) => {
       prefetchCache.delete(resolved);
       throw err;
+    })
+    .finally(() => {
+      prefetchStartedAt.delete(resolved);
     });
   prefetchCache.set(resolved, promise);
   return promise;
@@ -434,8 +440,29 @@ export function prefetchCriticalEntryChunks(): void {
 export function resetTabPageChunk(path: string): void {
   const resolved = resolveTabCachePath(path);
   prefetchCache.delete(resolved);
+  prefetchStartedAt.delete(resolved);
   lazyCache.delete(resolved);
   loadedChunkPaths.delete(resolved);
+}
+
+/**
+ * If a background prefetch for this path has been in-flight longer than maxAgeMs
+ * without resolving, drop our bookkeeping so the next getLazyTabPage / Suspense
+ * remount starts a fresh importWithRetry. (Browsers may still share a hung
+ * module promise for the same URL — soft remount + Reload remain the escape hatch.)
+ */
+export function refreshStaleInFlightTabChunk(path: string, maxAgeMs = 12_000): boolean {
+  const resolved = resolveTabCachePath(path);
+  if (loadedChunkPaths.has(resolved)) return false;
+  if (!prefetchCache.has(resolved)) return false;
+  const started = prefetchStartedAt.get(resolved);
+  if (started == null) return false;
+  if (Date.now() - started < maxAgeMs) return false;
+  console.warn(
+    `[tabPageRegistry] Refreshing stale in-flight chunk "${resolved}" after ${Math.round((Date.now() - started) / 1000)}s`,
+  );
+  resetTabPageChunk(resolved);
+  return true;
 }
 
 /** Warm bill-entry chunks after login (reduces first-open failures in desktop WebView). */

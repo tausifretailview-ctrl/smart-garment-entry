@@ -13,6 +13,7 @@ import {
   INVENTORY_TAB_PREFETCH_PATHS,
   SALES_TAB_PREFETCH_PATHS,
   resetTabPageChunk,
+  refreshStaleInFlightTabChunk,
   resolveTabCachePath,
   type TabPageLayout,
   type TabPageRole,
@@ -29,7 +30,7 @@ import { DashboardSkeleton } from "@/components/ui/skeletons";
 import { AppBootSplash } from "@/components/AppBootSplash";
 import { reloadAppWithUpdateCheck } from "@/lib/appReload";
 import { isElectronShell, shouldElectronMountOnlyActiveTab } from "@/lib/electronShell";
-import { beginUserPriorityLoad } from "@/lib/chunkLoadRetry";
+import { beginUserPriorityLoad, pauseBackgroundPrefetch } from "@/lib/chunkLoadRetry";
 import {
   isTabCachePaneMounted,
   markTabCachePaneMounted,
@@ -199,13 +200,17 @@ function getMinKeepTabs(): number {
 }
 
 const DASHBOARD_TAB_PATHS = new Set(["", "dashboard"]);
-/** Time before showing the "Retry tab / Refresh app" card. Generous on web/PWA
- *  so slow shop Wi-Fi does not false-alarm while the chunk is still downloading. */
-const TAB_LOAD_TIMEOUT_MS = 20_000;
-/** Large admin chunks (Settings ~5k lines) need more time on first cold load. */
-const HEAVY_TAB_LOAD_TIMEOUT_MS = 45_000;
+/** Time before showing the "Retry tab / Refresh app" card. */
+const TAB_LOAD_TIMEOUT_MS = 18_000;
+/**
+ * Large admin chunks (Settings) — keep slightly longer than default, but not 45s:
+ * users were stuck on skeleton + "Still loading…" until a manual full reload.
+ */
+const HEAVY_TAB_LOAD_TIMEOUT_MS = 22_000;
 /** When to swap the bare spinner for a friendlier "Still loading…" hint (second-stage only). */
 const SOFT_LOADING_HINT_MS = 8_000;
+/** Drop a background prefetch that never settled before remounting the active tab. */
+const STALE_IN_FLIGHT_MS = 12_000;
 
 type TabLoadShell = "entry" | "dashboard" | "page";
 
@@ -324,12 +329,15 @@ function TabPageFallback({
   active,
   path,
   onRetry,
+  onSoftRetry,
   /** Sibling pane already on screen — keep it dimmed; do not paint a full loading page. */
   silent = false,
 }: {
   active: boolean;
   path: string;
   onRetry: () => void;
+  /** One automatic remount after soft hint — parent must gate to a single call per activation. */
+  onSoftRetry?: () => void;
   silent?: boolean;
 }) {
   const [timedOut, setTimedOut] = useState(false);
@@ -349,6 +357,7 @@ function TabPageFallback({
     const budgetMs = getTabLoadTimeoutMs(path);
     let elapsed = 0;
     let lastTick = Date.now();
+    let softFired = false;
     const TICK_MS = 1_000;
 
     const interval = window.setInterval(() => {
@@ -357,11 +366,18 @@ function TabPageFallback({
       lastTick = now;
       if (document.hidden) return;
       elapsed += delta;
-      if (elapsed >= SOFT_LOADING_HINT_MS) setShowSoftHint(true);
+      if (elapsed >= SOFT_LOADING_HINT_MS) {
+        setShowSoftHint(true);
+        if (!softFired) {
+          softFired = true;
+          console.warn(
+            `[TabCachedPages] Soft-retry cold chunk: ${path || "dashboard"} (${Math.round(elapsed / 1000)}s)`,
+          );
+          onSoftRetry?.();
+        }
+      }
       if (elapsed < budgetMs) return;
 
-      // Do NOT wipe/restart an in-flight chunk download (that made idle wake-ups slower).
-      // User can still hit Retry tab / Refresh app after full timeout.
       console.warn(
         `[TabCachedPages] Slow chunk still loading: ${path || "dashboard"} (${Math.round(elapsed / 1000)}s)`,
       );
@@ -377,7 +393,7 @@ function TabPageFallback({
       window.clearInterval(interval);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [active, path]);
+  }, [active, path, onSoftRetry]);
 
   if (!active) return null;
 
@@ -459,6 +475,7 @@ function CachedTabPane({
   const paneRef = useRef<HTMLDivElement>(null);
   const wasActiveRef = useRef(active);
   const hasPaneMountedRef = useRef(false);
+  const softRetriedRef = useRef(false);
   const [loadKey, setLoadKey] = useState(0);
 
   const handlePaneReady = useCallback(() => {
@@ -470,6 +487,10 @@ function CachedTabPane({
     markTabCachePaneMounted(path);
     return () => markTabCachePaneUnmounted(path);
   }, [path]);
+
+  useEffect(() => {
+    if (active) softRetriedRef.current = false;
+  }, [active, path]);
 
   useEffect(() => {
     const pane = paneRef.current;
@@ -506,9 +527,17 @@ function CachedTabPane({
   const retryTabLoad = useCallback(() => {
     hasPaneMountedRef.current = false;
     resetTabPageChunk(path);
-    prefetchTabPage(path);
+    prefetchTabPage(path, { intent: true });
     setLoadKey((k) => k + 1);
   }, [path]);
+
+  const softRetryTabLoad = useCallback(() => {
+    if (softRetriedRef.current) return;
+    softRetriedRef.current = true;
+    // Yield bandwidth to this remount — idle admin prefetch must not keep starving Settings.
+    pauseBackgroundPrefetch(30_000);
+    retryTabLoad();
+  }, [retryTabLoad]);
 
   const LazyPage = getLazyTabPage(path);
   if (!LazyPage) return null;
@@ -522,6 +551,7 @@ function CachedTabPane({
             active={active}
             path={path}
             onRetry={retryTabLoad}
+            onSoftRetry={softRetryTabLoad}
             silent={silentFallback}
           />
         }
@@ -660,6 +690,11 @@ export function TabCachedPages({ paths, activePath, onActivePaneReady, onTabEvic
     }
     prevActivePathRef.current = resolvedActivePath;
     touchTabActiveAt(resolvedActivePath);
+    // Stale background prefetch can pin Suspense on a hung promise — refresh before mount.
+    if (!isTabPageChunkLoaded(resolvedActivePath)) {
+      refreshStaleInFlightTabChunk(resolvedActivePath, STALE_IN_FLIGHT_MS);
+      prefetchTabPage(resolvedActivePath, { intent: true });
+    }
     setMountedPaths((prev) => {
       if (electronSingleTab) {
         const next = new Set<string>([resolvedActivePath]);
