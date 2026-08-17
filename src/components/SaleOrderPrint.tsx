@@ -113,10 +113,6 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
 
     const totalQty = items.reduce((s, i) => s + lineQty(i), 0);
     const totalAvailable = items.reduce((s, i) => s + (i.availableQty ?? 0), 0);
-    const totalShortfall = items.reduce(
-      (s, i) => s + Math.max(0, (i.pendingQty || 0) - (i.availableQty ?? 0)),
-      0,
-    );
 
     // ── Smart pagination with product grouping ──────────────────────────────
     const FIRST_PAGE_ROWS = isA4 ? 30 : isHorizontal ? 12 : 15;
