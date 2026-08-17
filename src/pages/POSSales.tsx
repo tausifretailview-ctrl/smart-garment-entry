@@ -2492,7 +2492,7 @@ export default function POSSales() {
     try {
       // Quick service shortcodes (1-9): open dialog only when no real product has this barcode
       if (/^[1-9]$/.test(trimmedTerm)) {
-        const shortMatch = await fetchPosVariantByBarcode(orgId, trimmedTerm);
+        const shortMatch = await fetchPosVariantByBarcode(orgId, trimmedTerm, mobileERP);
         if (!shortMatch) {
           setQuickServiceCode(trimmedTerm);
           setShowQuickServiceDialog(true);
@@ -2507,7 +2507,7 @@ export default function POSSales() {
 
       // Lookup barcode first. Non-serialized accessories (shared EAN) must add/merge
       // even when org IMEI min-length would reject a 13-digit retail code.
-      const barcodeMatch = await fetchPosVariantByBarcode(orgId, trimmedTerm);
+      const barcodeMatch = await fetchPosVariantByBarcode(orgId, trimmedTerm, mobileERP);
       if (barcodeMatch) {
         const prod = barcodeMatch.product;
         const dbVariant = barcodeMatch.variant;
@@ -2528,7 +2528,8 @@ export default function POSSales() {
         }
 
         setSearchInput("");
-        if (stockQty > 0 || !isStockTrackedPosProduct(prod)) {
+        // Serialized units are unique pieces — a zero-stock IMEI is already sold.
+        if (stockQty > 0 || (!isStockTrackedPosProduct(prod) && !needsImei)) {
           // Same barcode again → addItemToCart merges qty (+1), not a duplicate line.
           await addItemToCart(prod, dbVariant, undefined, 'barcode');
           recordPosBarcodeScanSuccess(trimmedTerm);
