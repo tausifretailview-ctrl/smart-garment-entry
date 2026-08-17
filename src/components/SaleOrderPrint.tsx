@@ -403,11 +403,8 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
             lineHeight: 1.4,
           }}>
             <strong>Snapshot only — not a stock reservation.</strong>
-            {' '}Available = min(pending qty, on-hand stock at print time).
+            {' '}Each cell shows order qty (o) and available qty for that article/colour in that size.
             {' '}On-hand stock can change before Convert to Sale Bill.
-            {totalShortfall > 0 && (
-              <span> Shortfall vs pending: <strong>{totalShortfall}</strong> pcs.</span>
-            )}
           </div>
         )}
       </div>
