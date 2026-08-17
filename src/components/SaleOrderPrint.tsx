@@ -113,10 +113,6 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
 
     const totalQty = items.reduce((s, i) => s + lineQty(i), 0);
     const totalAvailable = items.reduce((s, i) => s + (i.availableQty ?? 0), 0);
-    const totalShortfall = items.reduce(
-      (s, i) => s + Math.max(0, (i.pendingQty || 0) - (i.availableQty ?? 0)),
-      0,
-    );
 
     // ── Smart pagination with product grouping ──────────────────────────────
     const FIRST_PAGE_ROWS = isA4 ? 30 : isHorizontal ? 12 : 15;
@@ -204,8 +200,9 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
       color?: string;
       brand?: string;
       style?: string;
-      cells: Map<string, { stock: number; ordered: number; pending: number }>;
+      cells: Map<string, { stock: number; ordered: number; pending: number; available: number }>;
       totalStock: number;
+      totalAvailable: number;
       totalOrdered: number;
       totalPending: number;
     };
@@ -224,6 +221,7 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
             style: item.style,
             cells: new Map(),
             totalStock: 0,
+            totalAvailable: 0,
             totalOrdered: 0,
             totalPending: 0,
           });
@@ -232,12 +230,12 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
         // Size-wise on-hand stock is product+colour level — set once per size.
         (item.sizeStock || []).forEach((s) => {
           const sz = s.size || '—';
-          const cur = row.cells.get(sz) || { stock: 0, ordered: 0, pending: 0 };
+          const cur = row.cells.get(sz) || { stock: 0, ordered: 0, pending: 0, available: 0 };
           cur.stock = Number(s.qty) || 0;
           row.cells.set(sz, cur);
         });
         const sz = item.size || '—';
-        const cur = row.cells.get(sz) || { stock: 0, ordered: 0, pending: 0 };
+        const cur = row.cells.get(sz) || { stock: 0, ordered: 0, pending: 0, available: 0 };
         cur.ordered += item.orderQty || 0;
         cur.pending += item.pendingQty || 0;
         row.cells.set(sz, cur);
@@ -245,14 +243,17 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
 
       return Array.from(map.values()).map((row) => {
         let totalStock = 0;
+        let totalAvailable = 0;
         let totalOrdered = 0;
         let totalPending = 0;
         row.cells.forEach((c) => {
+          c.available = Math.min(c.pending, c.stock);
           totalStock += c.stock;
+          totalAvailable += c.available;
           totalOrdered += c.ordered;
           totalPending += c.pending;
         });
-        return { ...row, totalStock, totalOrdered, totalPending };
+        return { ...row, totalStock, totalAvailable, totalOrdered, totalPending };
       });
     }, [items, isAvailableStock]);
 
@@ -310,16 +311,18 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
 
     // ── Compact styling ─────────────────────────────────────────────────────
     const baseFontSize = isA4 ? '8.5pt' : '7.5pt';
-    const smallFont = '8pt';
-    const tinyFont = '7pt';
+    const smallFont = isA4 ? '8.5pt' : '7pt';
+    const tinyFont = isA4 ? '7.5pt' : '6pt';
+    const cellMainFont = isA4 ? '10pt' : '8.5pt';
+    const cellSubFont = isA4 ? '7.5pt' : '6pt';
 
     const thStyle = (extra: React.CSSProperties = {}): React.CSSProperties => ({
       border: `1px solid ${BORDER}`,
       padding: isA4 ? '5px 4px' : '4px 3px',
       background: '#f4f4f4',
       color: '#000',
-      fontWeight: 700,
-      fontSize: isA4 ? '8.5pt' : '7pt',
+      fontWeight: 800,
+      fontSize: isA4 ? '9pt' : '7.5pt',
       textTransform: 'uppercase',
       letterSpacing: '0.03em',
       lineHeight: 1.25,
@@ -401,11 +404,8 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
             lineHeight: 1.4,
           }}>
             <strong>Snapshot only — not a stock reservation.</strong>
-            {' '}Available = min(pending qty, on-hand stock at print time).
+            {' '}Each cell shows order qty (o) and available qty for that article/colour in that size.
             {' '}On-hand stock can change before Convert to Sale Bill.
-            {totalShortfall > 0 && (
-              <span> Shortfall vs pending: <strong>{totalShortfall}</strong> pcs.</span>
-            )}
           </div>
         )}
       </div>
@@ -594,9 +594,9 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
       const sizeColWidth = `${Math.max(4, Math.floor(52 / Math.max(1, matrixSizes.length)))}%`;
 
       const colTotals = matrixSizes.map((sz) =>
-        matrixRows.reduce((s, r) => s + (r.cells.get(sz)?.stock ?? 0), 0),
+        matrixRows.reduce((s, r) => s + (r.cells.get(sz)?.available ?? 0), 0),
       );
-      const grandStock = matrixRows.reduce((s, r) => s + r.totalStock, 0);
+      const grandStock = matrixRows.reduce((s, r) => s + r.totalAvailable, 0);
 
       return (
         <div
@@ -620,7 +620,7 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
                 {matrixSizes.map((sz) => (
                   <th key={sz} style={thStyle({ width: sizeColWidth, textAlign: 'center' })}>{sz}</th>
                 ))}
-                <th style={thStyle({ width: '9%', textAlign: 'center' })}>Total Stock</th>
+                <th style={thStyle({ width: '9%', textAlign: 'center' })}>Total Available</th>
               </tr>
             </thead>
             <tbody>
@@ -628,26 +628,32 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
                 const details = [row.brand, row.style].filter(Boolean).join(' · ');
                 return (
                   <tr key={row.key}>
-                    <td style={tdStyle({ textAlign: 'center', color: '#333' })}>
+                    <td style={tdStyle({ textAlign: 'center', color: '#333', fontWeight: 700 })}>
                       {pageIndex * MATRIX_ROWS_PER_PAGE + idx + 1}
                     </td>
                     <td style={tdStyle({ textAlign: 'left' })}>
-                      <span style={{ fontWeight: 700 }}>{row.productName}</span>
+                      <span style={{ fontWeight: 800, fontSize: isA4 ? '9pt' : '7.5pt', color: '#000' }}>
+                        {row.productName}
+                      </span>
                       {row.color && (
-                        <span style={{ marginLeft: '4px', fontWeight: 600 }}>– {row.color}</span>
+                        <span style={{ marginLeft: '4px', fontWeight: 700, fontSize: isA4 ? '8.5pt' : '7pt', color: '#000' }}>
+                          – {row.color}
+                        </span>
                       )}
                       {details && (
-                        <span style={{ color: '#333', marginLeft: '3px', fontSize: '85%' }}>({details})</span>
+                        <span style={{ color: '#333', marginLeft: '3px', fontSize: isA4 ? '7pt' : '6pt' }}>
+                          ({details})
+                        </span>
                       )}
-                      <div style={{ fontSize: '80%', color: '#555', marginTop: '1px' }}>
-                        Ordered {row.totalOrdered} · Pending {row.totalPending}
+                      <div style={{ fontSize: isA4 ? '8pt' : '6.5pt', fontWeight: 600, color: '#555', marginTop: '1px' }}>
+                        Ordered {row.totalOrdered}
                       </div>
                     </td>
                     {matrixSizes.map((sz) => {
                       const cell = row.cells.get(sz);
-                      const stock = cell?.stock ?? 0;
+                      const available = cell?.available ?? 0;
                       const ordered = cell?.ordered ?? 0;
-                      const short = ordered > 0 && stock < (cell?.pending ?? 0);
+                      const short = ordered > 0 && available < ordered;
                       return (
                         <td
                           key={sz}
@@ -656,16 +662,24 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
                             background: short ? '#fff5f5' : ordered > 0 ? '#f2fbf4' : '#fff',
                           })}
                         >
-                          <div style={{ fontWeight: 700, color: stock > 0 ? '#111' : '#b91c1c' }}>
-                            {cell ? stock : '—'}
-                          </div>
-                          {ordered > 0 && (
-                            <div style={{ fontSize: '78%', color: '#1a3a5c' }}>o{ordered}</div>
-                          )}
+                          {cell ? (
+                            <>
+                              <div style={{ fontWeight: 800, fontSize: cellMainFont, color: available > 0 ? '#111' : '#b91c1c' }}>
+                                {available}
+                              </div>
+                              {ordered > 0 && (
+                                <div style={{ fontSize: cellSubFont, fontWeight: 600, color: '#1a3a5c', lineHeight: 1.1 }}>
+                                  o{ordered}
+                                </div>
+                              )}
+                            </>
+                          ) : '—'}
                         </td>
                       );
                     })}
-                    <td style={tdStyle({ textAlign: 'center', fontWeight: 800 })}>{row.totalStock}</td>
+                    <td style={tdStyle({ textAlign: 'center', fontWeight: 800, fontSize: cellMainFont })}>
+                      {row.totalAvailable}
+                    </td>
                   </tr>
                 );
               })}
@@ -675,20 +689,20 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
                     colSpan={2}
                     style={{
                       border: `1px solid ${BORDER}`, padding: '2px 3px',
-                      fontWeight: 700, fontSize: isA4 ? '7.5pt' : '6.5pt', textAlign: 'right',
+                      fontWeight: 800, fontSize: isA4 ? '8pt' : '7pt', textAlign: 'right',
                     }}
                   >
-                    Total stock
+                    Total available
                   </td>
                   {colTotals.map((t, i) => (
                     <td
                       key={matrixSizes[i]}
-                      style={{ border: `1px solid ${BORDER}`, padding: '2px 3px', textAlign: 'center', fontWeight: 700 }}
+                      style={{ border: `1px solid ${BORDER}`, padding: '2px 3px', textAlign: 'center', fontWeight: 800, fontSize: isA4 ? '8pt' : '7pt' }}
                     >
                       {t}
                     </td>
                   ))}
-                  <td style={{ border: `1px solid ${BORDER}`, padding: '2px 3px', textAlign: 'center', fontWeight: 800 }}>
+                  <td style={{ border: `1px solid ${BORDER}`, padding: '2px 3px', textAlign: 'center', fontWeight: 800, fontSize: cellMainFont }}>
                     {grandStock}
                   </td>
                 </tr>
@@ -700,10 +714,9 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
               marginTop: isA4 ? '10px' : '6px', fontSize: tinyFont, color: '#555',
               borderTop: `1px solid ${BORDER}`, paddingTop: '6px',
             }}>
-              Each cell = on-hand stock for that article/colour in that size. <strong>o</strong> = qty ordered on this
-              sale order. Order pending {items.reduce((s, i) => s + (i.pendingQty || 0), 0)} pcs ·
-              {' '}available to pick {totalAvailable} pcs · shortfall {totalShortfall} pcs.
-              Snapshot only — this document does not reserve stock.
+              Each cell shows order qty (o) and available qty for that article/colour in that size.
+              {' '}Available to pick {totalAvailable} pcs.
+              {' '}Snapshot only — this document does not reserve stock.
             </div>
           )}
           {!isLastPage && (
