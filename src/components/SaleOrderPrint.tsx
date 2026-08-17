@@ -1,5 +1,9 @@
 import React from 'react';
 import { sortSizes } from "@/utils/sizeSort";
+import {
+  buildAvailableStockMatrix,
+  type AvailableStockMatrixRow,
+} from "@/utils/availableStockPrintMatrix";
 
 interface SaleOrderItem {
   sr: number;
@@ -194,75 +198,16 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
     }, [items, FIRST_PAGE_ROWS, MIDDLE_PAGE_ROWS, LAST_PAGE_ROWS]);
 
     // ── Article-wise size matrix (available-stock print) ────────────────────
-    type MatrixRow = {
-      key: string;
-      productName: string;
-      color?: string;
-      brand?: string;
-      style?: string;
-      cells: Map<string, { stock: number; ordered: number; pending: number; available: number }>;
-      totalStock: number;
-      totalAvailable: number;
-      totalOrdered: number;
-      totalPending: number;
-    };
+    type MatrixRow = AvailableStockMatrixRow;
 
-    const matrixRows: MatrixRow[] = React.useMemo(() => {
-      if (!isAvailableStock) return [];
-      const map = new Map<string, MatrixRow>();
-      items.forEach((item) => {
-        const key = `${item.particulars}||${item.color || ''}`;
-        if (!map.has(key)) {
-          map.set(key, {
-            key,
-            productName: item.particulars,
-            color: item.color,
-            brand: item.brand,
-            style: item.style,
-            cells: new Map(),
-            totalStock: 0,
-            totalAvailable: 0,
-            totalOrdered: 0,
-            totalPending: 0,
-          });
-        }
-        const row = map.get(key)!;
-        // Size-wise on-hand stock is product+colour level — set once per size.
-        (item.sizeStock || []).forEach((s) => {
-          const sz = s.size || '—';
-          const cur = row.cells.get(sz) || { stock: 0, ordered: 0, pending: 0, available: 0 };
-          cur.stock = Number(s.qty) || 0;
-          row.cells.set(sz, cur);
-        });
-        const sz = item.size || '—';
-        const cur = row.cells.get(sz) || { stock: 0, ordered: 0, pending: 0, available: 0 };
-        cur.ordered += item.orderQty || 0;
-        cur.pending += item.pendingQty || 0;
-        row.cells.set(sz, cur);
-      });
-
-      return Array.from(map.values()).map((row) => {
-        let totalStock = 0;
-        let totalAvailable = 0;
-        let totalOrdered = 0;
-        let totalPending = 0;
-        row.cells.forEach((c) => {
-          c.available = Math.min(c.pending, c.stock);
-          totalStock += c.stock;
-          totalAvailable += c.available;
-          totalOrdered += c.ordered;
-          totalPending += c.pending;
-        });
-        return { ...row, totalStock, totalAvailable, totalOrdered, totalPending };
-      });
-    }, [items, isAvailableStock]);
-
-    const matrixSizes: string[] = React.useMemo(() => {
-      if (!isAvailableStock) return [];
-      const set = new Set<string>();
-      matrixRows.forEach((r) => r.cells.forEach((_v, k) => set.add(k)));
-      return sortSizes(Array.from(set));
-    }, [matrixRows, isAvailableStock]);
+    const availableStockMatrix = React.useMemo(
+      () => (isAvailableStock ? buildAvailableStockMatrix(items) : null),
+      [items, isAvailableStock],
+    );
+    const matrixRows: MatrixRow[] = availableStockMatrix?.rows ?? [];
+    const matrixSizes: string[] = availableStockMatrix?.sizes ?? [];
+    const matrixGrandAvailable = availableStockMatrix?.grandAvailable ?? totalAvailable;
+    const matrixGrandOrdered = availableStockMatrix?.grandOrdered ?? 0;
 
     const MATRIX_ROWS_PER_PAGE = isA4 ? 20 : 11;
     const matrixPages: MatrixRow[][] = React.useMemo(() => {
@@ -313,8 +258,8 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
     const baseFontSize = isA4 ? '8.5pt' : '7.5pt';
     const smallFont = isA4 ? '8.5pt' : '7pt';
     const tinyFont = isA4 ? '7.5pt' : '6pt';
-    const cellMainFont = isA4 ? '10pt' : '8.5pt';
-    const cellSubFont = isA4 ? '7.5pt' : '6pt';
+    const cellMainFont = isA4 ? '11pt' : '9pt';
+    const cellSubFont = isA4 ? '8pt' : '7pt';
 
     const thStyle = (extra: React.CSSProperties = {}): React.CSSProperties => ({
       border: `1px solid ${BORDER}`,
@@ -404,7 +349,7 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
             lineHeight: 1.4,
           }}>
             <strong>Snapshot only — not a stock reservation.</strong>
-            {' '}Each cell shows order qty (o) and available qty for that article/colour in that size.
+            {' '}Each size cell is <strong>available / ordered</strong> (pickable vs order qty).
             {' '}On-hand stock can change before Convert to Sale Bill.
           </div>
         )}
@@ -588,15 +533,29 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
     );
 
     // ── Available-stock: article-wise size matrix page ──────────────────────
+    const renderAvlOrd = (available: number, ordered: number, fontSize = cellMainFont) => {
+      const short = ordered > 0 && available < ordered;
+      const avlColor = short || (ordered > 0 && available <= 0) ? '#b91c1c' : '#111';
+      return (
+        <span style={{ whiteSpace: 'nowrap', fontWeight: 800, fontSize, lineHeight: 1.2 }}>
+          <span style={{ color: avlColor }}>{available}</span>
+          <span style={{ color: '#555', fontWeight: 700, padding: '0 2px' }}>/</span>
+          <span style={{ color: '#1a3a5c' }}>{ordered}</span>
+        </span>
+      );
+    };
+
     const renderSizeMatrixPage = (pageRows: MatrixRow[], pageIndex: number) => {
       const isLastPage = pageIndex === totalPages - 1;
       const isFirstPage = pageIndex === 0;
-      const sizeColWidth = `${Math.max(4, Math.floor(52 / Math.max(1, matrixSizes.length)))}%`;
+      const sizeColWidth = `${Math.max(6, Math.floor(50 / Math.max(1, matrixSizes.length)))}%`;
 
-      const colTotals = matrixSizes.map((sz) =>
+      const colAvail = matrixSizes.map((sz) =>
         matrixRows.reduce((s, r) => s + (r.cells.get(sz)?.available ?? 0), 0),
       );
-      const grandStock = matrixRows.reduce((s, r) => s + r.totalAvailable, 0);
+      const colOrd = matrixSizes.map((sz) =>
+        matrixRows.reduce((s, r) => s + (r.cells.get(sz)?.ordered ?? 0), 0),
+      );
 
       return (
         <div
@@ -618,14 +577,25 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
                 <th style={thStyle({ width: '4%', textAlign: 'center' })}>Sr</th>
                 <th style={thStyle({ textAlign: 'left' })}>Article / Colour</th>
                 {matrixSizes.map((sz) => (
-                  <th key={sz} style={thStyle({ width: sizeColWidth, textAlign: 'center' })}>{sz}</th>
+                  <th key={sz} style={thStyle({ width: sizeColWidth, textAlign: 'center' })}>
+                    {sz}
+                    <div style={{ fontSize: isA4 ? '6.5pt' : '5.5pt', fontWeight: 700, color: '#555', letterSpacing: 0, textTransform: 'none' }}>
+                      Avl / Ord
+                    </div>
+                  </th>
                 ))}
-                <th style={thStyle({ width: '9%', textAlign: 'center' })}>Total Available</th>
+                <th style={thStyle({ width: '12%', textAlign: 'center' })}>
+                  Total
+                  <div style={{ fontSize: isA4 ? '6.5pt' : '5.5pt', fontWeight: 700, color: '#555', letterSpacing: 0, textTransform: 'none' }}>
+                    Avl / Ord
+                  </div>
+                </th>
               </tr>
             </thead>
             <tbody>
               {pageRows.map((row, idx) => {
                 const details = [row.brand, row.style].filter(Boolean).join(' · ');
+                const rowShort = row.totalAvailable < row.totalOrdered;
                 return (
                   <tr key={row.key}>
                     <td style={tdStyle({ textAlign: 'center', color: '#333', fontWeight: 700 })}>
@@ -645,8 +615,8 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
                           ({details})
                         </span>
                       )}
-                      <div style={{ fontSize: isA4 ? '8pt' : '6.5pt', fontWeight: 600, color: '#555', marginTop: '1px' }}>
-                        Ordered {row.totalOrdered}
+                      <div style={{ fontSize: cellSubFont, fontWeight: 700, marginTop: '2px' }}>
+                        {renderAvlOrd(row.totalAvailable, row.totalOrdered, cellSubFont)}
                       </div>
                     </td>
                     {matrixSizes.map((sz) => {
@@ -659,26 +629,21 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
                           key={sz}
                           style={tdStyle({
                             textAlign: 'center',
+                            overflow: 'visible',
                             background: short ? '#fff5f5' : ordered > 0 ? '#f2fbf4' : '#fff',
                           })}
                         >
-                          {cell ? (
-                            <>
-                              <div style={{ fontWeight: 800, fontSize: cellMainFont, color: available > 0 ? '#111' : '#b91c1c' }}>
-                                {available}
-                              </div>
-                              {ordered > 0 && (
-                                <div style={{ fontSize: cellSubFont, fontWeight: 600, color: '#1a3a5c', lineHeight: 1.1 }}>
-                                  o{ordered}
-                                </div>
-                              )}
-                            </>
-                          ) : '—'}
+                          {ordered > 0 ? renderAvlOrd(available, ordered) : '—'}
                         </td>
                       );
                     })}
-                    <td style={tdStyle({ textAlign: 'center', fontWeight: 800, fontSize: cellMainFont })}>
-                      {row.totalAvailable}
+                    <td
+                      style={tdStyle({
+                        textAlign: 'center',
+                        background: rowShort ? '#fff5f5' : '#f2fbf4',
+                      })}
+                    >
+                      {renderAvlOrd(row.totalAvailable, row.totalOrdered)}
                     </td>
                   </tr>
                 );
@@ -688,22 +653,22 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
                   <td
                     colSpan={2}
                     style={{
-                      border: `1px solid ${BORDER}`, padding: '2px 3px',
-                      fontWeight: 800, fontSize: isA4 ? '8pt' : '7pt', textAlign: 'right',
+                      border: `1px solid ${BORDER}`, padding: '4px 3px',
+                      fontWeight: 800, fontSize: isA4 ? '8.5pt' : '7.5pt', textAlign: 'right',
                     }}
                   >
-                    Total available
+                    Total Avl / Ord
                   </td>
-                  {colTotals.map((t, i) => (
+                  {matrixSizes.map((sz, i) => (
                     <td
-                      key={matrixSizes[i]}
-                      style={{ border: `1px solid ${BORDER}`, padding: '2px 3px', textAlign: 'center', fontWeight: 800, fontSize: isA4 ? '8pt' : '7pt' }}
+                      key={sz}
+                      style={{ border: `1px solid ${BORDER}`, padding: '4px 3px', textAlign: 'center' }}
                     >
-                      {t}
+                      {renderAvlOrd(colAvail[i], colOrd[i], isA4 ? '9pt' : '8pt')}
                     </td>
                   ))}
-                  <td style={{ border: `1px solid ${BORDER}`, padding: '2px 3px', textAlign: 'center', fontWeight: 800, fontSize: cellMainFont }}>
-                    {grandStock}
+                  <td style={{ border: `1px solid ${BORDER}`, padding: '4px 3px', textAlign: 'center' }}>
+                    {renderAvlOrd(matrixGrandAvailable, matrixGrandOrdered)}
                   </td>
                 </tr>
               )}
@@ -714,8 +679,9 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
               marginTop: isA4 ? '10px' : '6px', fontSize: tinyFont, color: '#555',
               borderTop: `1px solid ${BORDER}`, paddingTop: '6px',
             }}>
-              Each cell shows order qty (o) and available qty for that article/colour in that size.
-              {' '}Available to pick {totalAvailable} pcs.
+              Each cell shows <strong>available / ordered</strong> for that article/colour in that size.
+              {' '}Ordered {matrixGrandOrdered} pcs.
+              {' '}Available to pick {matrixGrandAvailable} pcs.
               {' '}Snapshot only — this document does not reserve stock.
             </div>
           )}
