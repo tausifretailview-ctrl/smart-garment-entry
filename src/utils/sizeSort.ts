@@ -30,6 +30,19 @@ const canonicalSize = (size: string): string => {
   return SIZE_ALIASES[upper] ?? upper;
 };
 
+/**
+ * Shared key for size-wise grids (pick list, stock reports).
+ * Trims, uppercases, applies aliases, and collapses "06" → "6" so order lines
+ * and variant stock land in the same column.
+ */
+export function sizeMatrixKey(size?: string | null): string {
+  const upper = (size ?? "").trim().toUpperCase();
+  if (!upper) return "—";
+  const aliased = SIZE_ALIASES[upper] ?? upper;
+  if (/^\d+$/.test(aliased)) return String(parseInt(aliased, 10));
+  return aliased;
+}
+
 const isPureNumericSize = (size: string): boolean => /^\d+(\.\d+)?$/.test(normalizeSize(size));
 
 const sizeIndex = (size: string): number => {

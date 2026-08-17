@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { sortSizes } from "./sizeSort";
+import { sizeMatrixKey, sortSizes } from "./sizeSort";
 
 describe("sortSizes", () => {
   it("orders letter sizes with 2XL after XXL (not at end)", () => {
@@ -15,5 +15,11 @@ describe("sortSizes", () => {
 
   it("normalizes XXXL to 3XL position", () => {
     expect(sortSizes(["XXXL", "XL", "L"])).toEqual(["L", "XL", "XXXL"]);
+  });
+});
+
+describe("sizeMatrixKey", () => {
+  it("treats 06 and 6 as the same column", () => {
+    expect(sizeMatrixKey("06")).toBe(sizeMatrixKey("6"));
   });
 });

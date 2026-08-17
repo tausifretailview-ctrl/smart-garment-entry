@@ -65,6 +65,7 @@ import {
   sumSaleOrderItemQtys,
   type SaleOrderListFilters,
 } from "@/utils/saleOrderListQueries";
+import { sizeMatrixKey } from "@/utils/sizeSort";
 
 interface ConversionItem {
   id: string;
@@ -410,7 +411,7 @@ export default function SaleOrderDashboard() {
     // colour, so the printed pick list must do the same or it under-reports stock.
     const norm = (v?: string | null) => (v ?? "").trim().toUpperCase();
     const siblingKey = (productName?: string | null, color?: string | null, size?: string | null) =>
-      `${norm(productName)}|${norm(color)}|${norm(size)}`;
+      `${norm(productName)}|${norm(color)}|${sizeMatrixKey(size)}`;
     const siblingStock = new Map<string, number>();
     // article|colour -> size -> qty (size-wise stock report on the print)
     const sizeWiseStock = new Map<string, Map<string, number>>();
@@ -451,7 +452,7 @@ export default function SaleOrderDashboard() {
         const key = siblingKey(article, v.color, v.size);
         siblingStock.set(key, (siblingStock.get(key) ?? 0) + (Number(v.stock_qty) || 0));
         const pcKey = `${norm(article)}|${norm(v.color)}`;
-        const sizeKey = norm(v.size);
+        const sizeKey = sizeMatrixKey(v.size);
         if (!sizeWiseStock.has(pcKey)) sizeWiseStock.set(pcKey, new Map());
         const sizeMap = sizeWiseStock.get(pcKey)!;
         sizeMap.set(sizeKey, (sizeMap.get(sizeKey) ?? 0) + (Number(v.stock_qty) || 0));
