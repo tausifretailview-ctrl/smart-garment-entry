@@ -17,7 +17,19 @@ Precondition: before switching whole-org callers off
 `20260817120000`). Advance matches `_customer_advance_available`. CN matches
 `_customer_cn_available_total`. No `FOREACH`, no per-customer RPC inside.
 
-## How to prove (authenticated)
+## How to prove
+
+### Option A — Supabase SQL editor (preferred when no user JWT)
+
+Paste `scripts/prove-snapshot-all-equivalence.sql` (SECTION A). Set `org_id` to a
+**large** org, run, then repeat for a second org. Expect `diff_rows = 0` both
+times. If `diff_rows > 0`, uncomment SECTION B and export the mismatch CSV.
+
+Compares `get_customer_financial_snapshot_all` to
+`get_customer_financial_snapshot` per active customer (same numbers as the
+batch FOREACH path). Tolerances: 0.01 on money fields.
+
+### Option B — Node script (authenticated user JWT)
 
 ```powershell
 # Requires a signed-in access token for an org you belong to (do not use prod
