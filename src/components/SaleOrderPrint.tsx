@@ -349,8 +349,8 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
             lineHeight: 1.4,
           }}>
             <strong>Snapshot only — not a stock reservation.</strong>
-            {' '}Each size cell is <strong>available / ordered</strong> (pickable vs order qty).
-            {' '}On-hand stock can change before Convert to Sale Bill.
+            {' '}Each size cell is <strong>on-hand / ordered</strong> (same on-hand as Size-wise Stock Report).
+            {' '}Stock can change before Convert to Sale Bill.
           </div>
         )}
       </div>
@@ -676,9 +676,9 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
               marginTop: isA4 ? '10px' : '6px', fontSize: tinyFont, color: '#555',
               borderTop: `1px solid ${BORDER}`, paddingTop: '6px',
             }}>
-              Each cell shows <strong>available / ordered</strong> for that article/colour in that size.
+              Each cell shows <strong>on-hand / ordered</strong> for that article/colour in that size (Size-wise Stock).
               {' '}Ordered {matrixGrandOrdered} pcs.
-              {' '}Available to pick {matrixGrandAvailable} pcs.
+              {' '}On-hand {matrixGrandAvailable} pcs.
               {' '}Snapshot only — this document does not reserve stock.
             </div>
           )}

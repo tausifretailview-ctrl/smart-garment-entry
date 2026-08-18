@@ -66,6 +66,10 @@ import {
   type SaleOrderListFilters,
 } from "@/utils/saleOrderListQueries";
 import { sizeMatrixKey } from "@/utils/sizeSort";
+import {
+  aggregateSizeWiseStock,
+  sizeStockListForGroup,
+} from "@/utils/sizeWiseStockLookup";
 
 interface ConversionItem {
   id: string;
@@ -87,6 +91,8 @@ interface ConversionItem {
   gst_percent: number;
   barcode: string;
   color?: string;
+  brand?: string | null;
+  style?: string | null;
   uom?: string;
   hsn_code?: string;
 }
@@ -406,77 +412,90 @@ export default function SaleOrderDashboard() {
           .filter((id: unknown): id is string => typeof id === "string" && id.length > 0),
       ),
     ];
-    // Article-wise: the same article (e.g. PUL192) can exist as several product rows
-    // (re-created on later purchases). The Size Stock screen groups by article name +
-    // colour, so the printed pick list must do the same or it under-reports stock.
-    const norm = (v?: string | null) => (v ?? "").trim().toUpperCase();
-    const siblingKey = (productName?: string | null, color?: string | null, size?: string | null) =>
-      `${norm(productName)}|${norm(color)}|${sizeMatrixKey(size)}`;
-    const siblingStock = new Map<string, number>();
-    // article|colour -> size -> qty (size-wise stock report on the print)
-    const sizeWiseStock = new Map<string, Map<string, number>>();
-    const itemProductName = new Map<string, string>();
-    if (productIds.length > 0) {
-      // 1) resolve the article names of the ordered products
+    // Size-wise Stock Report groups name + brand + colour + style and sums stock_qty
+    // across barcodes / re-created product rows. The pick list must use that same map.
+    type ProductMeta = { product_name: string; brand: string; style: string };
+    const productMeta = new Map<string, ProductMeta>();
+    let sizeWiseByGroup = new Map<string, Map<string, number>>();
+    if (productIds.length > 0 && currentOrganization?.id) {
       const { data: baseProducts, error: baseErr } = await supabase
         .from("products")
-        .select("id, product_name")
+        .select("id, product_name, brand, style")
         .in("id", productIds);
       if (baseErr) throw baseErr;
-      for (const p of baseProducts ?? []) itemProductName.set(p.id, p.product_name || "");
+      for (const p of baseProducts ?? []) {
+        productMeta.set(p.id, {
+          product_name: p.product_name || "",
+          brand: p.brand || "",
+          style: p.style || "",
+        });
+      }
       const names = [...new Set((baseProducts ?? []).map((p) => p.product_name).filter(Boolean))] as string[];
 
-      // 2) expand to every product row in this org sharing those article names
+      const familyKey = (p: { product_name?: string | null; brand?: string | null; style?: string | null }) =>
+        `${(p.product_name || "").trim().toUpperCase()}|${(p.brand || "").trim().toUpperCase()}|${(p.style || "").trim().toUpperCase()}`;
+      const orderedFamilies = new Set((baseProducts ?? []).map(familyKey));
+
       let expandedIds = productIds;
       if (names.length > 0) {
         const { data: sameName, error: nameErr } = await supabase
           .from("products")
-          .select("id, product_name")
-          .eq("organization_id", currentOrganization?.id)
+          .select("id, product_name, brand, style")
+          .eq("organization_id", currentOrganization.id)
           .is("deleted_at", null)
           .in("product_name", names);
         if (nameErr) throw nameErr;
-        for (const p of sameName ?? []) itemProductName.set(p.id, p.product_name || "");
-        expandedIds = [...new Set([...productIds, ...(sameName ?? []).map((p) => p.id)])];
+        const siblingsOfFamily = (sameName ?? []).filter((p) => orderedFamilies.has(familyKey(p)));
+        for (const p of siblingsOfFamily) {
+          productMeta.set(p.id, {
+            product_name: p.product_name || "",
+            brand: p.brand || "",
+            style: p.style || "",
+          });
+        }
+        expandedIds = [...new Set([...productIds, ...siblingsOfFamily.map((p) => p.id)])];
       }
 
       const { data: siblings, error: sibErr } = await supabase
         .from("product_variants")
         .select("product_id, color, size, stock_qty")
+        .eq("organization_id", currentOrganization.id)
         .in("product_id", expandedIds)
         .is("deleted_at", null)
         .eq("active", true);
       if (sibErr) throw sibErr;
-      for (const v of siblings ?? []) {
-        const article = itemProductName.get(v.product_id) ?? v.product_id ?? "";
-        const key = siblingKey(article, v.color, v.size);
-        siblingStock.set(key, (siblingStock.get(key) ?? 0) + (Number(v.stock_qty) || 0));
-        const pcKey = `${norm(article)}|${norm(v.color)}`;
-        const sizeKey = sizeMatrixKey(v.size);
-        if (!sizeWiseStock.has(pcKey)) sizeWiseStock.set(pcKey, new Map());
-        const sizeMap = sizeWiseStock.get(pcKey)!;
-        sizeMap.set(sizeKey, (sizeMap.get(sizeKey) ?? 0) + (Number(v.stock_qty) || 0));
-      }
+      sizeWiseByGroup = aggregateSizeWiseStock(
+        (siblings ?? []).map((v) => {
+          const meta = productMeta.get(v.product_id);
+          return {
+            product_name: meta?.product_name,
+            brand: meta?.brand,
+            color: v.color,
+            style: meta?.style,
+            size: v.size,
+            stock_qty: v.stock_qty,
+          };
+        }),
+      );
     }
 
     const items: ConversionItem[] = lineItems
       .filter((item: any) => Number(item.pending_qty) > 0)
       .map((item: any) => {
         const variantMeta = item.variant_id ? variantMap.get(item.variant_id) : undefined;
-        const article = itemProductName.get(item.product_id) || item.product_name || "";
+        const meta = productMeta.get(item.product_id);
+        const article = meta?.product_name || item.product_name || "";
+        const brand = meta?.brand || "";
+        const style = meta?.style || "";
+        const color = item.color || variantMeta?.color || "";
+        const sizeStock = sizeStockListForGroup(sizeWiseByGroup, article, brand, color, style);
+        const sizeKey = sizeMatrixKey(item.size);
+        const groupOnHand =
+          sizeStock.find((s) => s.size === sizeKey)?.qty ?? 0;
         const stockQty = Number(variantMeta?.stock_qty) || 0;
-        const totalStockQty = Math.max(
-          stockQty,
-          siblingStock.get(siblingKey(article, item.color ?? variantMeta?.color, item.size)) ?? 0,
-        );
+        const totalStockQty = Math.max(stockQty, groupOnHand);
         const pendingQty = Number(item.pending_qty) || 0;
         const maxConvert = Math.min(pendingQty, stockQty);
-        const pcKey = `${norm(article)}|${norm(item.color ?? variantMeta?.color)}`;
-        const sizeStock = Array.from(sizeWiseStock.get(pcKey)?.entries() ?? [])
-          .map(([size, qty]) => ({ size, qty }))
-          .sort((a, b) =>
-            a.size.localeCompare(b.size, undefined, { numeric: true, sensitivity: "base" }),
-          );
         return {
           id: item.id,
           product_name: item.product_name,
@@ -495,7 +514,9 @@ export default function SaleOrderDashboard() {
           discount_percent: item.discount_percent,
           gst_percent: item.gst_percent,
           barcode: item.barcode,
-          color: item.color || variantMeta?.color || null,
+          color: color || null,
+          brand,
+          style,
           uom: item.uom || "NOS",
           hsn_code: item.hsn_code,
         };
@@ -1514,10 +1535,7 @@ function PrintSaleOrderDialog({
             orderQty: item.order_qty,
             fulfilledQty: Math.max(0, item.order_qty - item.pending_qty),
             pendingQty: item.pending_qty,
-            availableQty: Math.min(
-              item.pending_qty,
-              item.total_stock_qty ?? item.stock_qty,
-            ),
+            availableQty: item.total_stock_qty ?? item.stock_qty,
             stockQty: item.total_stock_qty ?? item.stock_qty,
             sizeStock: item.size_stock ?? [],
             rate: item.unit_price,
@@ -1525,8 +1543,8 @@ function PrintSaleOrderDialog({
             discountPercent: item.discount_percent,
             total: 0,
             color: item.color || "",
-            brand: item.product_id ? productDetails[item.product_id]?.brand : null,
-            style: item.product_id ? productDetails[item.product_id]?.style : null,
+            brand: item.brand ?? (item.product_id ? productDetails[item.product_id]?.brand : null),
+            style: item.style ?? (item.product_id ? productDetails[item.product_id]?.style : null),
           }))
         : (order.sale_order_items || [])
             .filter((item: any) => !item.deleted_at)

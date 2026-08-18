@@ -36,7 +36,7 @@ function emptyCell(): AvailableStockCell {
 }
 
 /**
- * Article × size pick-list matrix: available = min(pending, on-hand).
+ * Article × size pick-list matrix: available = Size-wise Stock on-hand (stock_qty).
  * Columns are only sizes that appear on the order so Avl/Ord stays readable.
  */
 export function buildAvailableStockMatrix(items: AvailableStockPrintItem[]): {
@@ -46,9 +46,11 @@ export function buildAvailableStockMatrix(items: AvailableStockPrintItem[]): {
   grandOrdered: number;
 } {
   const map = new Map<string, AvailableStockMatrixRow>();
+  const rowKey = (item: AvailableStockPrintItem) =>
+    `${item.particulars}||${item.brand || ""}||${item.color || ""}||${item.style || ""}`;
 
   items.forEach((item) => {
-    const key = `${item.particulars}||${item.color || ""}`;
+    const key = rowKey(item);
     if (!map.has(key)) {
       map.set(key, {
         key,
@@ -72,7 +74,7 @@ export function buildAvailableStockMatrix(items: AvailableStockPrintItem[]): {
   });
 
   items.forEach((item) => {
-    const key = `${item.particulars}||${item.color || ""}`;
+    const key = rowKey(item);
     const row = map.get(key);
     if (!row) return;
     (item.sizeStock || []).forEach((s) => {
@@ -89,7 +91,8 @@ export function buildAvailableStockMatrix(items: AvailableStockPrintItem[]): {
     let totalOrdered = 0;
     let totalPending = 0;
     row.cells.forEach((c) => {
-      c.available = Math.min(c.pending, c.stock);
+      // On-hand from Size-wise Stock — do not cap at order qty.
+      c.available = c.stock;
       totalStock += c.stock;
       totalAvailable += c.available;
       totalOrdered += c.ordered;
