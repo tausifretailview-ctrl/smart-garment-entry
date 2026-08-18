@@ -1,162 +1,113 @@
-# Security audit — read-only report (18 Aug 2026)
+# Close the anonymous RPC hole (confirmed exploitable)
 
-Nothing was changed, fixed, rotated or deleted. All output below is from live queries
-run in this session.
+## What was confirmed just now
 
-## Part A — traces of exploitation
+The chain is real. An unauthenticated POST with only the publishable key returned live
+inventory rows:
 
-**1. auth.users password/update history — NOT AVAILABLE.** The audit role has no access
-to the `auth` schema (`ERROR: permission denied for schema auth`). This check cannot be
-answered from here; it needs a session with elevated database access. Undetermined.
+```text
+POST /rest/v1/rpc/get_low_stock_alerts  {"p_org_id":"<real org uuid>"}   -> 200, rows
+```
 
-**2. organization_members added in last 120 days — 26 rows.** All follow the normal
-onboarding shape: one `admin` row per newly created shop, plus two `manager` rows
-(MULUND MOBILITY 09 Aug, RANAWAT'S BLING 23 Jul) and one `user` row (DUA BY SALEEM'S
-21 Jul). Most recent: PAYAL SHOES admin 14 Aug 09:42 UTC — the same day as the
-`temp-reset-pw` cleanup, so worth a one-line confirmation with the owner, but it matches
-the org-creation pattern (a matching `user_roles` admin row was written 0.45 s later).
-No membership row exists that lacks a corresponding org-creation event.
+The guard in that function is exactly the fail-open shape:
 
-**3. user_roles — 38 rows, exactly one `platform_admin`** (`b6a1a764…`, created_at NULL,
-i.e. the original seed row). No second platform-admin grant. Everything else is
-`admin`/`manager`/`user` created in step with the memberships in (2).
+```sql
+IF auth.uid() IS NOT NULL THEN
+  IF NOT (p_org_id IN (SELECT public.get_user_organization_ids(auth.uid()))) THEN
+    RAISE EXCEPTION 'Not authorized for this organization';
+  END IF;
+END IF;
+```
 
-**4/5. backup_logs.** Most recent automatic run 12 Aug 17:30 UTC across ~22 orgs; one
-manual backup 17 Aug. Per-org coverage shows first-seen dates that track org onboarding
-(18 Jul, 19 Jul, 31 Jul, 5/7/10/11 Aug cohorts) and no interior gap followed by a resumed
-series — the shape a retention purge would leave. Two real operational failures, not
-security events: KS FOOTWEAR (`4bc73037…`) `failed` on 11 and 12 Aug, and `a1bac661…`
-`failed` on 11 Aug. **No org's history is truncated at its start.**
+Anonymous caller -> `auth.uid()` is NULL -> the whole check is skipped, and
+`SECURITY DEFINER` bypasses RLS. Counts from the live database:
 
-**Edge function logs for `/functions/v1/temp-reset-pw` — GONE.** The analytics store
-returns a single log row in total (`function_edge_logs`, one entry from today). Retention
-has already rolled past 14 Aug. This is not "no evidence found"; the evidence window has
-expired. Whether that function was ever called cannot be determined from surviving data.
+- 95 `SECURITY DEFINER` VOLATILE (writing) functions in `public` are anon-executable.
+- 38 anon-executable `SECURITY DEFINER` functions contain the `auth.uid() IS NOT NULL`
+  fail-open guard, including `get_customer_party_balances`, `get_stock_report`,
+  `reconcile_customer_balance_v2`, `run_nightly_balance_reconciliation`,
+  `save_purchase_bill_with_items_atomic`, `repair_customer_floating_adjustments`.
 
-Conclusion for Part A: **no traces of exploitation are visible in the data that survives.**
-That is not the same as no compromise. The two records that would have shown it —
-`auth.users` update timestamps and edge logs — are respectively inaccessible to this role
-and already expired.
+Finding 2 outranks finding 1. Org UUIDs are not secret (they appear in forwarded
+`serve-wappconnect-pdf` links), so a WhatsApp forward is a plausible entry point.
 
-## Part B — siblings of the three patterns
+## Order of work
 
-**6. `verify_jwt = false` functions (22 in config.toml) and their own caller check:**
+### 1. Revoke anon EXECUTE on the writing subset (tonight)
 
-| Function | Own check |
-|---|---|
-| auto-backup | shared secret (`isInternalDispatch`) else `getUser()` + role — fixed 14 Aug |
-| scheduled-backup | shared secret, 403 otherwise — fixed 14 Aug |
-| backup-to-drive | `getUser()` (l.144) |
-| update-google-secrets | `getUser()` + admin/platform_admin role |
-| send-sms | `getUser()` (l.43) |
-| send-whatsapp | `getUser()` (l.497) |
-| generate-einvoice / cancel-einvoice / test-einvoice-connection | `getUser()` |
-| ai-assistant | `getUser()` (l.809) |
-| create-payment-link | `getUser()` (l.39) |
-| generate-gstr1 | `getClaims(token)` 401 + 403 org check |
-| get-users | `getUser(token)` + admin/manager role |
-| razorpay-webhook | HMAC signature (`RAZORPAY_WEBHOOK_SECRET`) |
-| phonepe-webhook | `x-verify` checksum, 401 on missing/invalid |
-| portal-auth | none by design (OTP entry point) |
-| portal-catalogue / portal-order | `x-portal-token` looked up in `portal_sessions` |
-| get-public-invoice | none — unguessable sale UUID (payload gated 14 Aug) |
-| download-apk / download-windows | none — public installers, intentional |
-| serve-wappconnect-pdf | none — path allowlist only (see 9) |
-| **sync-whatsapp-templates** | **none — see below** |
+Generate the list, don't hand-write it:
 
-`run-drift-detection` and `run-invariant-digest` are **not** in config.toml, so they keep
-the default `verify_jwt = true`. Good, but that is implicit; worth pinning explicitly.
+```sql
+select format('REVOKE EXECUTE ON FUNCTION %s FROM anon;', p.oid::regprocedure)
+from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+where n.nspname = 'public' and p.prosecdef and p.provolatile = 'v'
+  and has_function_privilege('anon', p.oid, 'EXECUTE')
+order by 1;
+```
 
-**7. Authorisation decided by request body.** After the 14 Aug fix, only one instance
-remains where a body value alone selects the tenant with no caller identity at all:
-`sync-whatsapp-templates/index.ts:76` reads `organizationId` from `req.json()` and at
-l.86 opens a **service-role** client with it. Everywhere else the body org id is checked
-against the verified caller. Adjacent body-driven values that are checked: `auto-backup`
-`retentionDays` (now behind the secret), `reset-organization` `confirmationName`
-(behind `getUser()`), `generate-gstr1` `organization_id` (403-checked).
+Review before running. Trigger functions in that list (`update_stock_on_sale`,
+`audit_*`, `handle_*_delete`) are never called over PostgREST, so revoking is free.
+Keep on the allowlist anything an unauthenticated screen actually calls. From the code
+the only confirmed unauthenticated RPC is `get_org_public_info` (org branding on
+`OrgAuth.tsx`); the buyer portal goes through edge functions with `x-portal-token`, not
+direct RPC. The allowlist gets re-derived from the code before the migration is written,
+not assumed.
 
-**8. `SUPABASE_SERVICE_ROLE_KEY` without establishing the caller:**
+Deliver as one migration with explicit `REVOKE ... FROM anon;` lines, plus a
+`GRANT EXECUTE ... TO authenticated;` where a revoke would otherwise strip an
+already-implicit `PUBLIC` grant the app relies on.
 
-- `sync-whatsapp-templates` — key l.86, caller check: **none**
-- `serve-wappconnect-pdf` — key l.40, caller check: **none** (path allowlist only)
-- `get-public-invoice` — key l.34, caller check: **none** (by design, UUID-gated)
-- `download-apk` l.61 / `download-windows` l.68 — **none** (public artefacts, intentional)
-- `portal-catalogue` / `portal-order` — key l.13, but session token validated first
-- all others read the key only after `getUser()` / signature / dispatch secret
+### 2. Fix `sync-whatsapp-templates`
 
-**9. Unauthenticated endpoints keyed by an unguessable id.**
-- `get-public-invoice?saleId=<uuid>` — returns sale header, line items, customer name,
-  **phone, address**, customer **GSTIN**, shop GSTIN, salesman, notes, payment split.
-  `bank_details` now only when the shop opted in. **No costs.** Phone/address/GSTIN still
-  leave the building unconditionally on a link that gets forwarded over WhatsApp.
-- `serve-wappconnect-pdf?path=<orgId>/wappconnect/<file>.pdf` — returns the rendered
-  invoice PDF. Guard is structural only (UUID/folder/`.pdf`, no traversal); it does not
-  bind the file to the caller. The filename is the only secret, and the response is served
-  `Cache-Control: public, max-age=31536000`.
+Same shape as `auto-backup`: service-role client opened on a body-supplied
+`organizationId` with no caller identity. Fix: read the `Authorization` header,
+`getUser()`, 401 if absent, then confirm the caller is a member of `organizationId`
+(admin/manager) before the service-role client is created. It is user-driven from the
+WhatsApp settings screen, not cron, so `getUser()` is the right guard — no dispatch
+secret. `SyncMetaTemplates.tsx` already invokes it through `supabase.functions.invoke`,
+which forwards the session, so no client change is needed.
 
-## Part C — database-side exposure
+### 3. Repair the guards themselves, then revoke the read-only set
 
-**10. Advisor: 354 findings.** Dominant classes: `rls_enabled_no_policy` (3, INFO),
-`extension_in_public` (WARN), and a large block of
-`anon_security_definer_function_executable` (WARN) — see 14.
-**11. Tables in `public` with RLS disabled: none (0 rows).**
-**12. Effectively-open policies:** 10, all scoped to `{service_role}` only
-(`batch_stock`, `bill_number_sequence`, `portal_sessions`, `stock_alerts`,
-`stock_movements`). No `true` policy is reachable by `anon` or `authenticated`.
-Note: ~78 policies show `qual IS NULL` in the naive query — those are INSERT policies
-whose real predicate is `with_check`; re-running with `with_check` included clears them.
-**13. `SECURITY DEFINER` functions without pinned `search_path`: none (0 rows).**
-**14. EXECUTE on money-path functions: `PUBLIC`, i.e. `anon` can call them.** 140
-`SECURITY DEFINER` functions in `public` are anon-executable, including
-`apply_school_fee_receipt`, `reconcile_customer_balance`/`_v2`,
-`run_nightly_balance_reconciliation`, `soft_delete_voucher`, `restore_voucher`,
-`generate_voucher_number`, `zero_unscanned_stock_settlement`,
-`reverse_unscanned_stock_settlement`, `settle_stock_session`,
-`invoice_reconcile_outstanding`, `compute_sale_settlement_v2`. Several of these write.
-This is the single largest unexamined surface found.
+Revoking anon EXECUTE removes the reachable path, but the fail-open guard is still
+wrong for any future grant. Change the pattern in the 38 affected functions from
+"check only if signed in" to "require a caller":
 
-## Part D — secrets and repository hygiene
+```sql
+IF auth.uid() IS NULL
+   OR NOT (p_org_id IN (SELECT public.get_user_organization_ids(auth.uid()))) THEN
+  RAISE EXCEPTION 'Not authorized for this organization' USING ERRCODE = '42501';
+END IF;
+```
 
-**15.** No service-role key, provider token, Google service-account JSON or private key is
-committed, and `git log -S` across all history for `SUPABASE_SERVICE_ROLE_KEY=` and
-`service_role"` returns nothing. Tracked credential-shaped files: `.env` (publishable key
-only — fine), plus `.env.example`, `.env.test.example`, `android/keystore.properties.example`.
-`supabase/functions/temp-reset-pw` is confirmed tracked in history at `23c8e4619`, removed
-at `8bd1bf3f2` — it is still recoverable from history in any existing clone.
-**16.** No `SERVICE_ROLE` reference anywhere under `src/`. Clean.
-**17. Repository visibility — undetermined from here.** No GitHub API access in this
-sandbox; the change date is not visible either. Needs a human check on the repo settings page.
+Functions legitimately called from edge functions under the service role need an
+`auth.role() = 'service_role'` escape in the same condition — each one gets checked
+against its callers before editing. This is a larger, riskier batch than steps 1-2, so
+it runs after them, in a quiet window, with the read-only anon revokes landing in the
+same pass.
 
----
+### 4. Review checklist item
 
-## Act tonight
+The same defect has now appeared five times: **a service-role client opened before the
+caller is established.** Add to `.cursor/rules/backend-core-invariants.mdc`:
 
-1. **`sync-whatsapp-templates` — unauthenticated write, any org.** `verify_jwt = false`,
-   no caller check, `organizationId` straight from the body into a service-role client.
-   Any anonymous caller can force a template resync for any tenant and, via the stale-key
-   sweep at l.190, **delete that tenant's `whatsapp_meta_templates` rows**. Same shape as
-   the `auto-backup` hole. Reachable right now.
-2. **Anon `EXECUTE` on writing money functions.** `soft_delete_voucher`,
-   `zero_unscanned_stock_settlement`, `apply_school_fee_receipt`,
-   `run_nightly_balance_reconciliation` and peers are callable by `anon` over PostgREST.
-   Each needs its internal org/role guard read before deciding — but until that read is
-   done, treat as reachable unauthenticated write.
+- No `SUPABASE_SERVICE_ROLE_KEY` client may be constructed before `getUser()`, a
+  verified signature, or the dispatch secret has identified the caller.
+- Tenant selection never comes from the request body alone — the body's
+  `organizationId` must be checked against the verified caller's memberships.
+- Org guards in `SECURITY DEFINER` functions fail closed: never
+  `IF auth.uid() IS NOT NULL THEN ... END IF;`.
 
-## Act deliberately
+## Verification
 
-3. **`serve-wappconnect-pdf`** — bearer-URL invoice PDFs, no caller binding, cached
-   publicly for a year. Same trust model as `get-public-invoice`; acceptable only if the
-   filename is high-entropy. Verify how the filename is generated.
-4. **`get-public-invoice` PII** — phone, address and GSTIN still ship unconditionally.
-   Consider gating them the way `bank_details` now is.
-5. **Service-role key rotation** — still outstanding, and `temp-reset-pw` lives on in git
-   history. Human task, out of shop hours.
-6. **`run-drift-detection` / `run-invariant-digest`** — protected only by the config default.
-   Pin `verify_jwt = true` explicitly so a future config edit cannot silently open them.
-7. **`extension_in_public` and 3 RLS-enabled-no-policy tables** — advisor INFO/WARN, no
-   evidence of exposure.
-8. **Retention** — edge logs expired before this audit could read them. If forensic
-   capability matters, ship log export before the next incident, not after.
+After step 1, re-run the confirming curl with no session — expect
+`42501 / permission denied for function`. After step 2, an unauthenticated POST to
+`sync-whatsapp-templates` expects 401, and the settings-screen sync still works signed
+in. After step 3, re-run the `has_function_privilege('anon', ...)` census and expect
+only the allowlist to remain.
 
-Ranked by exploitability: (1) and (2) are unauthenticated writes. (3)–(4) are reads
-guarded by unguessable ids. (5)–(8) are hygiene.
+## Not in this plan
+
+`serve-wappconnect-pdf` caller binding, `get-public-invoice` PII gating, service-role
+key rotation, and `verify_jwt = true` pinning for `run-drift-detection` /
+`run-invariant-digest` stay on the deliberate list from the audit.
