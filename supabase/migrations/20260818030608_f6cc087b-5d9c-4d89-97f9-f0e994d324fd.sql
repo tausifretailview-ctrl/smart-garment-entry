@@ -1,0 +1,1 @@
+REVOKE EXECUTE ON FUNCTION public.revoke_public_execute_on_new_functions() FROM PUBLIC, anon, authenticated;
