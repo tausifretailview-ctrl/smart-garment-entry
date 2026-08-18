@@ -15,8 +15,17 @@ Rules that must ALWAYS hold. If a change would violate one, it's wrong - stop.
 ## Establish the caller BEFORE the service-role client (this defect has shipped 5+ times)
 - Never construct a `SUPABASE_SERVICE_ROLE_KEY` client until the caller is identified: `getUser()` on the `Authorization` header, a verified webhook signature, or the shared dispatch secret (`_shared/internalDispatch.ts`). Repeat offenders so far: `auto-backup`, `scheduled-backup`, `sync-whatsapp-templates`.
 - Tenant selection never comes from the request body alone. A body `organizationId` must be checked against the verified caller's `organization_members` row (and role) before any data is touched.
-- Org guards inside `SECURITY DEFINER` functions must FAIL CLOSED. Never `IF auth.uid() IS NOT NULL THEN <check> END IF;` — for an anonymous caller `auth.uid()` is NULL, the check is skipped, and `SECURITY DEFINER` bypasses RLS. Write the guard as `IF auth.uid() IS NULL OR NOT <member of org> THEN RAISE EXCEPTION ... ERRCODE '42501';`.
-- Postgres grants `EXECUTE` to `PUBLIC` on every new function. Revoking `FROM anon` alone is a silent no-op — revoke `FROM PUBLIC`, then grant explicitly to `authenticated` / `service_role`. A default-privileges rule now strips the PUBLIC grant in `public`, so any new function needs its own explicit GRANT or callers get `42501`.
+- Org guards inside `SECURITY DEFINER` functions must FAIL CLOSED. Never `IF auth.uid() IS NOT NULL THEN <check> END IF;` — for an anonymous caller `auth.uid()` is NULL, the check is skipped, and `SECURITY DEFINER` bypasses RLS. Write the guard against `auth.role()`, which is a clean four-way discriminator: `'anon'` = reject, `'authenticated'` = require membership, `'service_role'` = pass, NULL = in-database caller (trigger / pg_cron) = pass:
+  ```sql
+  IF auth.role() = 'anon'
+     OR (auth.role() = 'authenticated'
+         AND NOT (p_org_id IN (SELECT public.get_user_organization_ids(auth.uid())))) THEN
+    RAISE EXCEPTION 'Not authorized for this organization' USING ERRCODE = '42501';
+  END IF;
+  ```
+- Postgres grants `EXECUTE` to `PUBLIC` on every new function. Revoking `FROM anon` alone is a silent no-op — revoke `FROM PUBLIC`, then grant explicitly to `authenticated` / `service_role`.
+- `ALTER DEFAULT PRIVILEGES` proved NOMINAL here (verified 2026-08-18 with a canary function pushed through the normal migration path: it still came back with `=X/postgres`). The real protection is the event trigger `trg_revoke_public_execute_on_new_functions` (`ddl_command_end` on CREATE/ALTER FUNCTION), which revokes EXECUTE from `PUBLIC`/`anon` and grants `authenticated`/`service_role` on every new public function. Anything that must stay anon-callable needs an explicit `GRANT EXECUTE ... TO anon;` AFTER the CREATE, and belongs in the trigger's allowlist.
+- Anon-executable allowlist in `public` (everything else is revoked): `get_org_public_info`, `login_attempts_rate_ok`, plus the RLS guard helpers `has_role`, `has_org_role`, `is_org_admin`, `is_entry_creator_or_admin`, `user_belongs_to_org`, `get_user_organization_ids` (these must stay granted or anon-visible policies error instead of returning empty).
 - Org UUIDs are not secrets (they appear in forwarded invoice-PDF links). Knowing one must never be sufficient authorization.
 
 ## Money & balances
