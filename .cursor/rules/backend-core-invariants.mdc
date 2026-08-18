@@ -12,6 +12,13 @@ Rules that must ALWAYS hold. If a change would violate one, it's wrong - stop.
 - A user sees only data for organizations they belong to (RLS via `has_role` / `has_org_role`).
 - No tenant table is readable by the anon/public role. External access goes through a token-scoped Edge Function returning only whitelisted fields.
 
+## Establish the caller BEFORE the service-role client (this defect has shipped 5+ times)
+- Never construct a `SUPABASE_SERVICE_ROLE_KEY` client until the caller is identified: `getUser()` on the `Authorization` header, a verified webhook signature, or the shared dispatch secret (`_shared/internalDispatch.ts`). Repeat offenders so far: `auto-backup`, `scheduled-backup`, `sync-whatsapp-templates`.
+- Tenant selection never comes from the request body alone. A body `organizationId` must be checked against the verified caller's `organization_members` row (and role) before any data is touched.
+- Org guards inside `SECURITY DEFINER` functions must FAIL CLOSED. Never `IF auth.uid() IS NOT NULL THEN <check> END IF;` — for an anonymous caller `auth.uid()` is NULL, the check is skipped, and `SECURITY DEFINER` bypasses RLS. Write the guard as `IF auth.uid() IS NULL OR NOT <member of org> THEN RAISE EXCEPTION ... ERRCODE '42501';`.
+- Postgres grants `EXECUTE` to `PUBLIC` on every new function. Revoking `FROM anon` alone is a silent no-op — revoke `FROM PUBLIC`, then grant explicitly to `authenticated` / `service_role`. A default-privileges rule now strips the PUBLIC grant in `public`, so any new function needs its own explicit GRANT or callers get `42501`.
+- Org UUIDs are not secrets (they appear in forwarded invoice-PDF links). Knowing one must never be sufficient authorization.
+
 ## Money & balances
 - Canonical customer-balance calc: `computeCustomerOutstanding` in `src/utils/customerBalanceUtils.ts`. A second copy exists in `src/utils/customerAuditMath.ts` (used by audit/reconciliation screens) - these are a known drift risk; `customerBalanceUtils` is canonical and the audit variant should converge on it, not diverge.
 - `outstanding = net_amount - paid_amount - sale_return_adjust`. Settled tolerance = `SETTLEMENT_TOLERANCE` (0.5) in `saleSettlement.ts`. (A separate `SETTLEMENT_TOLERANCE_RUPEE = 0.99` exists in `paymentSettlementBreakdown.ts` - do not confuse them.)
