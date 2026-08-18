@@ -4971,6 +4971,7 @@ export type Database = {
           id: string
           moved_at: string | null
           new_reference_id: string
+          organization_id: string
           original_reference_id: string
           total_amount: number
           voucher_number: string
@@ -4979,6 +4980,7 @@ export type Database = {
           id: string
           moved_at?: string | null
           new_reference_id: string
+          organization_id: string
           original_reference_id: string
           total_amount: number
           voucher_number: string
@@ -4987,6 +4989,7 @@ export type Database = {
           id?: string
           moved_at?: string | null
           new_reference_id?: string
+          organization_id?: string
           original_reference_id?: string
           total_amount?: number
           voucher_number?: string
@@ -8988,6 +8991,16 @@ export type Database = {
           advance_available: number
           cn_available_total: number
           cn_pending_count: number
+          outstanding_dr: number
+        }[]
+      }
+      get_customer_financial_snapshot_all: {
+        Args: { p_organization_id: string }
+        Returns: {
+          advance_available: number
+          cn_available_total: number
+          cn_pending_count: number
+          customer_id: string
           outstanding_dr: number
         }[]
       }
