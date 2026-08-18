@@ -15,7 +15,7 @@ describe("sizeMatrixKey", () => {
 });
 
 describe("buildAvailableStockMatrix", () => {
-  it("shows available against ordered per size and totals 44 / 53", () => {
+  it("shows Size-wise on-hand against ordered per size", () => {
     const matrix = buildAvailableStockMatrix([
       {
         particulars: "JT18-IN",
@@ -75,7 +75,8 @@ describe("buildAvailableStockMatrix", () => {
     ]);
 
     expect(matrix.grandOrdered).toBe(53);
-    expect(matrix.grandAvailable).toBe(44);
+    // On-hand (not capped): JT21 size 8 has 11 in stock vs 8 ordered.
+    expect(matrix.grandAvailable).toBe(47);
     expect(matrix.sizes).toEqual(["6", "7", "8", "37", "38"]);
 
     const jt18 = matrix.rows.find((r) => r.productName === "JT18-IN")!;
