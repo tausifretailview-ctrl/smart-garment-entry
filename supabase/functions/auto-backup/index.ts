@@ -1,6 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { fetchAllRows } from "../_shared/backupFetch.ts";
-import { isInternalDispatch } from "../_shared/internalDispatch.ts";
+import { isInternalDispatch, isServiceRoleRequest } from "../_shared/internalDispatch.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -117,7 +117,6 @@ Deno.serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const body = await req.json();
     const parsed = body as {
@@ -129,14 +128,15 @@ Deno.serve(async (req) => {
     const backupType = parsed.backupType ?? 'automatic';
     const bodyRetention = parsed.retentionDays;
 
-    // SECURITY: internal-dispatch status comes from a shared secret in the request HEADERS,
-    // never from the body. A body flag is attacker-controlled and previously bypassed
-    // authentication, org membership and the admin-role check on this function.
-    const internalDispatch = isInternalDispatch(req);
+    // SECURITY: identify the caller from HEADERS before opening a service-role client.
+    // Internal = shared dispatch secret OR service_role bearer (scheduled-backup fan-out).
+    // Never trust a body flag — that previously bypassed membership and admin checks.
+    const internalDispatch = isInternalDispatch(req) || isServiceRoleRequest(req);
 
     if (!organizationId) throw new Error('Organization ID is required');
 
-    // Auth: either internal dispatcher (service role JWT) or end-user with org membership
+    // Auth: either internal dispatcher or end-user with org membership.
+    // Identify the user (anon client + getUser) before opening the service-role client.
     if (!internalDispatch) {
       const authHeader = req.headers.get('Authorization');
       if (!authHeader) throw new Error('Missing authorization header');
@@ -146,6 +146,8 @@ Deno.serve(async (req) => {
       });
       const { data: { user }, error: authError } = await userClient.auth.getUser();
       if (authError || !user) throw new Error('Unauthorized');
+
+      supabase = createClient(supabaseUrl, supabaseServiceKey);
 
       const { data: membership } = await supabase
         .from('organization_members')
@@ -165,21 +167,20 @@ Deno.serve(async (req) => {
           { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
         );
       }
+    } else {
+      supabase = createClient(supabaseUrl, supabaseServiceKey);
     }
 
-    // Resolve retention days (prefer body, else read from settings)
-    // The dispatcher is authenticated by shared secret, so its value is trusted as-is.
-    // Anything from an end-user call is clamped to a safe floor before it can drive a purge.
-    let retentionDays = internalDispatch
-      ? (typeof bodyRetention === 'number' && Number.isFinite(bodyRetention) ? bodyRetention : null)
-      : clampRetentionDays(bodyRetention);
+    // Resolve retention days (prefer body, else read from settings). Always clamp so
+    // a 0/"delete immediately" value cannot wipe every backup the org has.
+    let retentionDays = clampRetentionDays(bodyRetention);
     if (retentionDays === null) {
       const { data: s } = await supabase
         .from('settings')
         .select('backup_retention_days')
         .eq('organization_id', organizationId)
         .single();
-      retentionDays = (s as any)?.backup_retention_days || 30;
+      retentionDays = clampRetentionDays((s as any)?.backup_retention_days) ?? 30;
     }
 
     // Get org name

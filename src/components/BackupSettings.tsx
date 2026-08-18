@@ -23,6 +23,11 @@ import { toast } from "sonner";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { isStatementTimeout } from "@/utils/statementTimeout";
 import OrganizationResetDialog from "./OrganizationResetDialog";
+import {
+  BACKUP_RETENTION_OPTIONS,
+  DEFAULT_BACKUP_RETENTION_DAYS,
+  normalizeBackupRetentionDays,
+} from "@/utils/backupRetention";
 
 interface BackupSettingsProps {
   autoBackupEnabled?: boolean;
@@ -36,7 +41,7 @@ interface BackupSettingsProps {
 const BackupSettings = ({
   autoBackupEnabled: autoBackupEnabledProp = false,
   backupEmail: backupEmailProp = "",
-  backupRetentionDays: backupRetentionDaysProp = 0,
+  backupRetentionDays: backupRetentionDaysProp = DEFAULT_BACKUP_RETENTION_DAYS,
   lastAutoBackupAt: lastAutoBackupAtProp = null,
   onAutoBackupEnabledChange,
 }: BackupSettingsProps) => {
@@ -51,7 +56,7 @@ const BackupSettings = ({
   // Auto-backup settings
   const [autoBackupEnabled, setAutoBackupEnabled] = useState(false);
   const [backupEmail, setBackupEmail] = useState("");
-  const [retentionDays, setRetentionDays] = useState("0");
+  const [retentionDays, setRetentionDays] = useState(String(DEFAULT_BACKUP_RETENTION_DAYS));
   const [lastAutoBackupAt, setLastAutoBackupAt] = useState<string | null>(null);
   const [isLoadingSettings, setIsLoadingSettings] = useState(true);
   const [isSavingSettings, setIsSavingSettings] = useState(false);
@@ -69,7 +74,12 @@ const BackupSettings = ({
   useEffect(() => {
     setAutoBackupEnabled(autoBackupEnabledProp);
     setBackupEmail(backupEmailProp);
-    setRetentionDays(String(backupRetentionDaysProp));
+    setRetentionDays(() => {
+      const n = normalizeBackupRetentionDays(backupRetentionDaysProp);
+      return (BACKUP_RETENTION_OPTIONS as readonly number[]).includes(n)
+        ? String(n)
+        : String(DEFAULT_BACKUP_RETENTION_DAYS);
+    });
     setLastAutoBackupAt(lastAutoBackupAtProp);
     setIsLoadingSettings(false);
   }, [autoBackupEnabledProp, backupEmailProp, backupRetentionDaysProp, lastAutoBackupAtProp]);
@@ -139,7 +149,7 @@ const BackupSettings = ({
         .update({
           auto_backup_enabled: autoBackupEnabled,
           backup_email: backupEmail.trim() || null,
-          backup_retention_days: parseInt(retentionDays, 10),
+          backup_retention_days: normalizeBackupRetentionDays(retentionDays),
         })
         .eq("organization_id", currentOrganization.id);
 
@@ -248,8 +258,8 @@ const BackupSettings = ({
                         : "No completed automatic backup found. "}
                       Nightly runs are expected at 11:00 PM IST. Use{" "}
                       <span className="font-medium text-foreground">Run Cloud Backup Now</span> below
-                      for an immediate backup. If this keeps happening, platform admin must verify the
-                      nightly cron dispatch secret is configured.
+                      for an immediate backup. If this is still overdue after tonight's 11:00 PM run,
+                      contact platform admin.
                     </p>
                   </div>
                 </div>
@@ -283,6 +293,25 @@ const BackupSettings = ({
                 />
                 <p className="text-xs text-muted-foreground">
                   Email delivery is not active yet.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="backupRetention">Delete backups older than</Label>
+                <Select value={retentionDays} onValueChange={setRetentionDays}>
+                  <SelectTrigger id="backupRetention" className="max-w-xs">
+                    <SelectValue placeholder="Choose retention" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {BACKUP_RETENTION_OPTIONS.map((days) => (
+                      <SelectItem key={days} value={String(days)}>
+                        {days} days
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  After each nightly backup, files and history older than this are removed. Minimum 7 days.
                 </p>
               </div>
 
