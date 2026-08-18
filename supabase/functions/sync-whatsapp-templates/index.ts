@@ -81,10 +81,53 @@ serve(async (req) => {
       });
     }
 
+    // SECURITY: this function runs with verify_jwt = false and opens a service-role client.
+    // The caller must be established BEFORE that client exists, and the body's
+    // organizationId must be checked against the caller's own memberships - otherwise any
+    // anonymous caller can resync (and, via the stale-template sweep below, delete) any
+    // tenant's WhatsApp templates.
+    const authHeader = req.headers.get("Authorization") ?? "";
+    if (!authHeader.toLowerCase().startsWith("bearer ")) {
+      return new Response(JSON.stringify({ success: false, error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const authClient = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_ANON_KEY") ?? "",
+      { global: { headers: { Authorization: authHeader } } },
+    );
+    const { data: userData, error: userError } = await authClient.auth.getUser();
+    const caller = userData?.user;
+    if (userError || !caller) {
+      return new Response(JSON.stringify({ success: false, error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
     );
+
+    const { data: membership, error: membershipError } = await supabase
+      .from("organization_members")
+      .select("role")
+      .eq("organization_id", organizationId)
+      .eq("user_id", caller.id)
+      .maybeSingle();
+
+    if (membershipError) throw membershipError;
+    if (!membership || !["admin", "manager"].includes(String(membership.role))) {
+      console.error(`sync-whatsapp-templates: user ${caller.id} not permitted for org ${organizationId}`);
+      return new Response(JSON.stringify({ success: false, error: "Forbidden" }), {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     const { data: orgSettings, error: settingsError } = await supabase
       .from("whatsapp_api_settings")
