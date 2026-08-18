@@ -8484,7 +8484,6 @@ export type Database = {
         Args: { p_bill_id: string }
         Returns: undefined
       }
-      _canary_default_priv_check2: { Args: never; Returns: string }
       _customer_advance_available: {
         Args: { p_customer_id: string; p_organization_id: string }
         Returns: number

@@ -1,0 +1,1 @@
+DROP FUNCTION IF EXISTS public._canary_default_priv_check2();
