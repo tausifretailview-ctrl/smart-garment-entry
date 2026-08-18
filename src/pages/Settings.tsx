@@ -25,6 +25,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { DEFAULT_BACKUP_RETENTION_DAYS } from "@/utils/backupRetention";
 import { useEffect as useEffectForSizeGroups } from "react";
 import type { CalibrationPreset } from "@/components/precision-barcode/LabelCalibrationUI";
 import {
@@ -459,7 +460,7 @@ export default function Settings() {
     report_settings: {},
     auto_backup_enabled: false,
     backup_email: "",
-    backup_retention_days: 0,
+    backup_retention_days: DEFAULT_BACKUP_RETENTION_DAYS,
     last_auto_backup_at: null,
   });
 
@@ -807,7 +808,7 @@ export default function Settings() {
           report_settings: (settingsData.report_settings as ReportSettings) || {},
           auto_backup_enabled: settingsData.auto_backup_enabled || false,
           backup_email: settingsData.backup_email || "",
-          backup_retention_days: settingsData.backup_retention_days ?? 0,
+          backup_retention_days: settingsData.backup_retention_days ?? DEFAULT_BACKUP_RETENTION_DAYS,
           last_auto_backup_at: settingsData.last_auto_backup_at ?? null,
         });
       }
