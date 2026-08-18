@@ -1,6 +1,7 @@
 import { useState, useRef, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useSearchParams, useNavigate } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
+import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { supabase } from "@/integrations/supabase/client";
 import { insertLedgerCredit, deleteLedgerEntries } from "@/lib/customerLedger";
 import { useSettings } from "@/hooks/useSettings";
@@ -157,7 +158,7 @@ function MetricCard({
 
 export default function PaymentsDashboard() {
   const isMobile = useIsMobile();
-  const navigate = useNavigate();
+  const { orgNavigate: navigate } = useOrgNavigation();
   const [searchParams, setSearchParams] = useSearchParams();
   const customerIdParam = searchParams.get("customerId");
   const queryClient = useQueryClient();
