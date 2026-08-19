@@ -819,7 +819,10 @@ export async function reconcileInvoiceDashboardRows(
 
   const splitBySale = new Map<string, SaleReceiptVoucherSplit>();
   const splitOpts = {
-    voucherDateFrom: filters.voucherDateFrom,
+    // All Time has no period bounds — bound customer receipts by the oldest sale
+    // on this page instead of pulling each customer's full voucher history.
+    voucherDateFrom:
+      filters.voucherDateFrom ?? oldestSaleDateOnPage(invoices),
     voucherDateTo: filters.voucherDateTo,
   };
   const batchSplit = await fetchSaleReceiptSplitsForInvoices(
