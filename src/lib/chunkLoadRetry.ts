@@ -133,6 +133,7 @@ export const SALES_TAB_PREFETCH_PATHS = [
   "pos-dashboard",
   "sales-invoice-dashboard",
   "pos-sales",
+  "pos-delivery-challan",
   "sales-invoice",
   "sale-returns",
   "sale-return-dashboard",
@@ -150,6 +151,7 @@ export const CRITICAL_ENTRY_CHUNK_PATHS = [
   "purchase-entry",
   "product-entry",
   "pos-sales",
+  "pos-delivery-challan",
   "sales-invoice",
   // Later: add mobile-pos when it uses the tab-cache registry (billing must not cold-load).
 ] as const;

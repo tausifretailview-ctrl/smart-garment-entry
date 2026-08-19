@@ -6,18 +6,21 @@
  * sibling produced a white workspace until the 6s rescue timer.
  */
 
-/** Bill-entry screens may show a boot splash longer than dashboard cold-nav. */
+/** Bill-entry / POS screens may show a boot splash longer than dashboard cold-nav. */
 export function usesLongLoadBudget(
   isEntryPage: boolean,
   isCacheableEntryActive: boolean,
+  isPosLikeEntry = false,
 ): boolean {
-  return isEntryPage || isCacheableEntryActive;
+  return isEntryPage || isCacheableEntryActive || isPosLikeEntry;
 }
 
 /**
  * A sibling may silence the active Suspense shell / keep tab-cache as render owner
  * only when it is mounted AND its lazy page has committed (onReady).
  * `chunkLoaded` is ignored — prefetch is not paint.
+ * POS / bill-entry shells must never go silent — a painted dashboard sibling
+ * would hide the DC/POS loading splash and leave a white pane.
  */
 export function isPaintedTabSibling(opts: {
   mounted: boolean;
@@ -26,8 +29,14 @@ export function isPaintedTabSibling(opts: {
   return opts.mounted && opts.contentReady;
 }
 
-/** Silent (`null`) fallback only when a sibling is genuinely on screen. */
-export function shouldSilentTabSuspenseFallback(hasPaintedSibling: boolean): boolean {
+export type TabLoadShellKind = "entry" | "dashboard" | "page";
+
+/** Silent (`null`) fallback only when a sibling is genuinely on screen — never for entry shells. */
+export function shouldSilentTabSuspenseFallback(
+  hasPaintedSibling: boolean,
+  loadShell: TabLoadShellKind = "dashboard",
+): boolean {
+  if (loadShell === "entry") return false;
   return hasPaintedSibling;
 }
 

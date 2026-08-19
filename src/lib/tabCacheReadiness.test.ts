@@ -60,6 +60,14 @@ describe("tab-cache sibling readiness", () => {
     expect(resolveTabPageFallbackKind(silent)).toBe("shell");
     expect(resolveTabPageFallbackKind(true)).toBe("empty");
   });
+
+  it("never silences the Suspense fallback for POS / bill-entry shells", () => {
+    expect(shouldSilentTabSuspenseFallback(true, "entry")).toBe(false);
+    expect(shouldSilentTabSuspenseFallback(true, "dashboard")).toBe(true);
+    expect(resolveTabPageFallbackKind(shouldSilentTabSuspenseFallback(true, "entry"))).toBe(
+      "shell",
+    );
+  });
 });
 
 describe("usesLongLoadBudget is shared by watchdog and rescue timer", () => {
@@ -67,6 +75,7 @@ describe("usesLongLoadBudget is shared by watchdog and rescue timer", () => {
     expect(usesLongLoadBudget(true, false)).toBe(true);
     expect(usesLongLoadBudget(false, true)).toBe(true);
     expect(usesLongLoadBudget(false, false)).toBe(false);
+    expect(usesLongLoadBudget(false, false, true)).toBe(true);
   });
 
   it("OrgLayout watchdog and 6s rescue both import the same helper", () => {

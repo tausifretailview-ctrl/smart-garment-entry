@@ -18,6 +18,7 @@ import {
   isEntryTabPath,
   isFillHeightShellPath,
   isMainDashboardPath,
+  isNoSidebarEntrySegment,
   isViewportFixedEntryPath,
 } from "@/lib/entryPageLayout";
 import {
@@ -232,6 +233,7 @@ export const OrgLayout = () => {
     const run = () => {
       if (shouldElectronMountOnlyActiveTab()) {
         prefetchTabPage("pos-sales");
+        prefetchTabPage("pos-delivery-challan");
         prefetchTabPage("");
         if (tabPaths.includes("settings")) {
           prefetchTabPage("settings", { intent: true });
@@ -351,7 +353,11 @@ export const OrgLayout = () => {
    * this one exemption — if they ever diverge, a draft screen could be swapped out
    * from under the user by the fast watchdog.
    */
-  const usesLongLoadBudget = usesLongLoadBudgetForNav(isEntryPage, isCacheableEntryActive);
+  const usesLongLoadBudget = usesLongLoadBudgetForNav(
+    isEntryPage,
+    isCacheableEntryActive,
+    isNoSidebarEntrySegment(resolvedCurrentPath),
+  );
 
   // Reset on navigation — restore before paint so going back from an entry screen
   // (e.g. POS) does not flash the <Outlet> copy for one frame before the cached pane shows.

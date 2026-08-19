@@ -76,6 +76,7 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
       prefetchTabPage("sales-invoice-dashboard", { intent: true });
     }
     if (can("settings_view")) prefetchTabPage("settings", { intent: true });
+    if (can("pos_sales")) prefetchTabPage("pos-delivery-challan", { intent: true });
   };
 
   const handleSignOut = async () => {
@@ -282,6 +283,7 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
                     variant="ghost"
                     size="sm"
                     onClick={() => orgNavigate("/pos-delivery-challan")}
+                    onPointerEnter={() => prefetchTabPage("pos-delivery-challan", { intent: true })}
                     className={cn(posNavBtnClass, "hover:bg-orange-500/80 bg-orange-600/30")}
                   >
                     <Truck className={posNavIconClass} />

@@ -17,7 +17,7 @@ function resolveTabLoadShell(path: string): "entry" | "dashboard" | "page" {
   const def = TAB_PAGE_REGISTRY[resolved];
   if (resolved === "" || resolved === "dashboard") return "dashboard";
   if (!def) return "page";
-  if (def.layout === "pos") return "entry";
+  if (def.layout === "pos" || def.layout === "pos-dc") return "entry";
   if (
     resolved === "sales-invoice" ||
     (resolved.endsWith("-entry") &&
@@ -54,6 +54,7 @@ describe("tab load shell coverage", () => {
 
   it("classifies bill-entry screens as entry shell", () => {
     expect(resolveTabLoadShell("pos-sales")).toBe("entry");
+    expect(resolveTabLoadShell("pos-delivery-challan")).toBe("entry");
     expect(resolveTabLoadShell("purchase-entry")).toBe("entry");
     expect(resolveTabLoadShell("product-entry")).toBe("entry");
     expect(resolveTabLoadShell("sales-invoice")).toBe("entry");
