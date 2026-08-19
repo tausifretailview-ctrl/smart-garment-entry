@@ -114,6 +114,7 @@ import {
 import { checkBarcodeExists } from "@/utils/barcodeValidation";
 import { normalizeProductSearchTerm } from "@/utils/productDashboardBarcodeSearch";
 import { restrictProductsToExactNameMatches } from "@/utils/productSearch";
+import { groupPurchaseSearchByProductMaster } from "@/utils/purchaseProductSearchGroup";
 import { getUniversalCodeScanWarning } from "@/utils/imeiValidation";
 import { validateIMEI } from "@/hooks/useMobileERP";
 import { productRequiresImei } from "@/utils/productRequiresImei";
@@ -237,6 +238,8 @@ interface ProductVariant {
   size_range?: string | null;
   uom?: string;
   requires_imei?: boolean;
+  groupedVariantCount?: number;
+  groupedProductIds?: string[];
 }
 
 interface LineItem {
@@ -2710,7 +2713,7 @@ const PurchaseEntry = () => {
         }
       }
 
-      setInlineSearchResults(sortedResults);
+      setInlineSearchResults(groupPurchaseSearchByProductMaster(sortedResults));
       setSelectedInlineIndex(0);
       setShowInlineSearch(true);
     } catch (error: any) {
@@ -2728,11 +2731,9 @@ const PurchaseEntry = () => {
       return;
     }
 
-    if (entryMode === "grid") {
-      // For Size Grid mode - open size grid, focus will be handled by handleSizeGridConfirm
-      openSizeGridModal(variant.product_id);
+    if (entryMode === "grid" || (variant.groupedVariantCount ?? 1) > 1) {
+      openSizeGridModal(variant.product_id, variant.groupedProductIds);
     } else {
-      // For Free Size mode - add row and focus on QTY field
       await addInlineRow(variant);
       setTimeout(() => {
         lastQtyInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -3393,7 +3394,7 @@ const PurchaseEntry = () => {
         }
       }
 
-      setSearchResults(sortedResults);
+      setSearchResults(groupPurchaseSearchByProductMaster(sortedResults));
       setSelectedSearchIndex(0);
       setShowSearch(true);
     } catch (error: any) {
@@ -3476,8 +3477,8 @@ const PurchaseEntry = () => {
       return;
     }
 
-    if (entryMode === "grid") {
-      openSizeGridModal(variant.product_id);
+    if (entryMode === "grid" || (variant.groupedVariantCount ?? 1) > 1) {
+      openSizeGridModal(variant.product_id, variant.groupedProductIds);
     } else {
       await addInlineRow(variant);
       // Scroll to and focus on quantity input after adding inline row
@@ -3488,10 +3489,13 @@ const PurchaseEntry = () => {
     }
   };
 
-  const openSizeGridModal = async (productId: string) => {
+  const openSizeGridModal = async (productId: string, productIds?: string[]) => {
     if (!currentOrganization) return;
 
-    setSelectedProduct({ id: productId, product_name: "Loading…" });
+    const ids = [...new Set((productIds?.length ? productIds : [productId]).filter(Boolean))];
+    if (ids.length === 0) return;
+
+    setSelectedProduct({ id: ids[0], product_name: "Loading…" });
     setSizeGridVariants([]);
     setSizeGridLoading(true);
     setShowSizeGrid(true);
@@ -3527,9 +3531,10 @@ const PurchaseEntry = () => {
           uom
         )
       `)
-      .eq("product_id", productId)
+      .in("product_id", ids)
       .eq("organization_id", currentOrganization.id)
-      .eq("active", true);
+      .eq("active", true)
+      .is("deleted_at", null);
 
     if (error || !data || data.length === 0) {
       setShowSizeGrid(false);
@@ -7021,11 +7026,12 @@ const PurchaseEntry = () => {
                           {result.category && <span className="text-[11px] bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 border border-purple-200 dark:border-purple-800 px-1.5 py-0.5 rounded">{result.category}</span>}
                           {result.style && <span className="text-[11px] bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 border border-amber-200 dark:border-amber-800 px-1.5 py-0.5 rounded">{result.style}</span>}
                           {result.color && result.color !== '-' && <span className="text-[11px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded">{result.color}</span>}
-                          {result.size && <span className="text-[11px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded font-mono">Size: {result.size}</span>}
                         </div>
                         <div className="flex items-center gap-1 mt-0.5">
-                          {result.barcode && <span className="text-[11px] text-muted-foreground font-mono">{result.barcode}</span>}
                           {result.size_range && <span className="text-[11px] px-1.5 py-0.5 rounded bg-primary/10 text-primary font-semibold">{result.size_range}</span>}
+                          {result.groupedVariantCount && result.groupedVariantCount > 1 && (
+                            <span className="text-[11px] text-muted-foreground">{result.groupedVariantCount} sizes</span>
+                          )}
                         </div>
                       </div>
                       <div className="text-right shrink-0">
@@ -7616,7 +7622,7 @@ const PurchaseEntry = () => {
                         );
                       }
                     }}
-                    placeholder="SEARCH BY NAME, BRAND, CATEGORY, STYLE OR BARCODE..."
+                    placeholder="SEARCH BY NAME, BRAND, CATEGORY OR STYLE..."
                   />
                   {showSearch && searchResults.length > 0 && (
                     <div className="absolute top-full mt-1 w-full bg-popover border border-border rounded-md shadow-lg z-[100] max-h-80 overflow-auto">
@@ -7650,10 +7656,12 @@ const PurchaseEntry = () => {
                                 {result.category && <span className="text-[10px] bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 border border-purple-200 dark:border-purple-800 px-1 py-0.5 rounded">{result.category}</span>}
                                 {result.style && <span className="text-[10px] bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 border border-amber-200 dark:border-amber-800 px-1 py-0.5 rounded">{result.style}</span>}
                                 {result.color && result.color !== '-' && <span className="text-[10px] bg-muted text-muted-foreground px-1 py-0.5 rounded">{result.color}</span>}
-                                {result.size && <span className="text-[10px] bg-muted text-muted-foreground px-1 py-0.5 rounded font-mono">Size: {result.size}</span>}
                               </div>
                               <div className="flex items-center gap-4 text-xs text-muted-foreground mt-1">
-                                {result.barcode && <span className="font-mono">{result.barcode}</span>}
+                                {result.size_range && <span>{result.size_range}</span>}
+                                {result.groupedVariantCount && result.groupedVariantCount > 1 && (
+                                  <span>{result.groupedVariantCount} sizes</span>
+                                )}
                               </div>
                             </div>
                             <div className="text-right shrink-0">
@@ -8001,7 +8009,7 @@ const PurchaseEntry = () => {
                               }
                             }
                           }}
-                          placeholder="Search product name, brand, barcode..."
+                          placeholder="Search product name, brand, style..."
                           className="w-full pr-8"
                         />
                         <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
@@ -8055,7 +8063,6 @@ const PurchaseEntry = () => {
                                           brand: result.brand,
                                           style: result.style,
                                           color: result.color,
-                                          size: result.size
                                         })}
                                       </span>
                                       {result.size_range && (
@@ -8065,8 +8072,8 @@ const PurchaseEntry = () => {
                                       )}
                                     </div>
                                     <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                                      {result.barcode && (
-                                        <span>Barcode: {result.barcode}</span>
+                                      {result.groupedVariantCount && result.groupedVariantCount > 1 && (
+                                        <span>{result.groupedVariantCount} sizes</span>
                                       )}
                                       <span className="text-primary font-medium">
                                         Pur: ₹{result.pur_price?.toFixed(2) || '0.00'}
