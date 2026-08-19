@@ -143,6 +143,8 @@ import { CustomerAccountSummaryStrip } from "@/components/CustomerAccountSummary
 import {
   fetchInvoiceDashboardPage,
   fetchInvoiceDashboardStats,
+  fetchInvoiceDashboardExportRows,
+  formatInvoiceDashboardPaymentStatusLabel,
   getInvoiceDashboardDisplayStatus,
   patchInvoiceDashboardDeliveryStatus,
   patchInvoiceDashboardPaymentFields,
@@ -179,27 +181,6 @@ const safeErrorString = (val: any): string => {
 /** Header amount but no qty on file — usually missing or soft-deleted sale_items. */
 const invoiceLikelyMissingLines = (inv: { net_amount?: number; total_qty?: number }) =>
   Number(inv.net_amount || 0) > 0 && Number(inv.total_qty || 0) === 0;
-
-/**
- * Payment status filter for sales: cancelled is stored as payment_status and/or is_cancelled.
- * When non-cancelled statuses are selected, exclude rows flagged is_cancelled so legacy bad rows
- * do not appear under Pending/Paid.
- */
-function applyPaymentStatusFilterToSalesQuery(query: any, paymentStatusFilter: string[]) {
-  if (paymentStatusFilter.length === 0) return query;
-  const hasCancelled = paymentStatusFilter.includes("cancelled");
-  const rest = paymentStatusFilter.filter((s) => s !== "cancelled");
-  if (hasCancelled && rest.length === 0) {
-    return query.or("payment_status.eq.cancelled,is_cancelled.eq.true");
-  }
-  if (hasCancelled && rest.length > 0) {
-    const inList = rest.join(",");
-    return query.or(
-      `and(payment_status.in.(${inList}),is_cancelled.eq.false),is_cancelled.eq.true,payment_status.eq.cancelled`,
-    );
-  }
-  return query.in("payment_status", rest).eq("is_cancelled", false);
-}
 
 /** Inclusive calendar-day bounds for sale_date (avoids UTC midnight cutting off same-day invoices). */
 function salesDashboardSaleDateFilterBounds(startYmd: string | null, endYmd: string | null) {
@@ -1441,47 +1422,11 @@ export default function SalesInvoiceDashboard() {
 
   const handleExportExcel = useCallback(async (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (!currentOrganization?.id) return;
     try {
-      toast({ title: "Exporting...", description: "Fetching all records for export" });
+      toast({ title: "Exporting...", description: "Fetching filtered invoices for export" });
 
-      // Fetch ALL matching invoices (no pagination) with same filters
-      const allRows: any[] = [];
-      let offset = 0;
-      const pageSize = 1000;
-      let hasMore = true;
-
-      while (hasMore) {
-        let query = supabase
-          .from('sales')
-          .select('sale_number, sale_date, customer_name, customer_phone, total_qty, gross_amount, discount_amount, flat_discount_amount, net_amount, paid_amount, sale_return_adjust, credit_applied, payment_status, delivery_status, salesman')
-          .eq('organization_id', currentOrganization!.id)
-          .eq('sale_type', 'invoice')
-          .is('deleted_at', null)
-          .order('created_at', { ascending: false })
-          .range(offset, offset + pageSize - 1);
-
-        if (deliveryFilter !== 'all') query = query.eq('delivery_status', deliveryFilter);
-        if (paymentStatusFilter.length > 0) {
-          query = applyPaymentStatusFilterToSalesQuery(query, paymentStatusFilter);
-        }
-        if (userFilter !== 'all' && userFilter !== '__pending__') query = query.eq('created_by', userFilter);
-        if (saleDateFilter.start) query = query.gte('sale_date', saleDateFilter.start);
-        if (saleDateFilter.end) query = query.lte('sale_date', saleDateFilter.end);
-        if (debouncedSearch) {
-          const s = debouncedSearch.trim();
-          query = query.or(`sale_number.ilike.%${s}%,customer_name.ilike.%${s}%,customer_phone.ilike.%${s}%`);
-        }
-
-        const { data, error } = await query;
-        if (error) throw error;
-        if (data && data.length > 0) {
-          allRows.push(...data);
-          offset += pageSize;
-          hasMore = data.length === pageSize;
-        } else {
-          hasMore = false;
-        }
-      }
+      const allRows = await fetchInvoiceDashboardExportRows(supabase, dashboardFilters);
 
       const exportData = allRows.map((inv: any) => ({
         'Invoice No': inv.sale_number || '',
@@ -1495,12 +1440,15 @@ export default function SalesInvoiceDashboard() {
         'Paid Amount': inv.paid_amount || 0,
         'Balance': Math.max(
           0,
-          (inv.net_amount || 0) -
-            (inv.paid_amount || 0) -
-            Math.max(inv.sale_return_adjust || 0, inv.credit_applied || 0),
+          Number(
+            inv.outstanding ??
+              (inv.net_amount || 0) -
+                (inv.paid_amount || 0) -
+                Math.max(inv.sale_return_adjust || 0, inv.credit_applied || 0),
+          ),
         ),
         'Credit Note Adj.': Math.max(inv.sale_return_adjust || 0, inv.credit_applied || 0),
-        'Payment Status': inv.payment_status || '',
+        'Payment Status': formatInvoiceDashboardPaymentStatusLabel(inv),
         'Delivery Status': inv.delivery_status || '',
         'Salesman': inv.salesman || '',
       }));
@@ -1513,7 +1461,7 @@ export default function SalesInvoiceDashboard() {
     } catch (err: any) {
       toast({ title: "Export Failed", description: err.message, variant: "destructive" });
     }
-  }, [currentOrganization?.id, deliveryFilter, paymentStatusFilter, saleDateFilter, debouncedSearch, toast]);
+  }, [currentOrganization?.id, dashboardFilters, toast]);
 
   // Memoized event handlers
   const selectableInvoices = useMemo(
@@ -1699,7 +1647,7 @@ export default function SalesInvoiceDashboard() {
     "Paid Amount": inv.paid_amount || 0,
     Balance: invoiceBalanceDue(inv),
     "Credit Note Adj.": Math.max(inv.sale_return_adjust || 0, inv.credit_applied || 0),
-    "Payment Status": inv.payment_status || "",
+    "Payment Status": formatInvoiceDashboardPaymentStatusLabel(inv),
     "Delivery Status": inv.delivery_status || "",
     Salesman: inv.salesman || "",
   }), [invoiceBalanceDue]);
