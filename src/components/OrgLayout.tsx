@@ -43,7 +43,15 @@ import {
 } from "@/lib/navigationPerfDiagnostics";
 import { cn } from "@/lib/utils";
 import { invoiceDashboardPrefetchQueryOptions } from "@/utils/invoiceDashboardData";
-import { isTabCachePaneMounted } from "@/lib/tabCacheMountRegistry";
+import {
+  isTabCachePaneContentReady,
+  isTabCachePaneMounted,
+} from "@/lib/tabCacheMountRegistry";
+import {
+  hasPaintedWorkspaceContent,
+  isPaintedTabSibling,
+  usesLongLoadBudget as usesLongLoadBudgetForNav,
+} from "@/lib/tabCacheReadiness";
 import { prefetchPurchaseDashboardQueries } from "@/utils/purchaseDashboardPrefetch";
 import { prefetchMainDashboardQueries } from "@/utils/mainDashboardPrefetch";
 import { prefetchPosDashboardQueries } from "@/utils/posDashboardPrefetch";
@@ -60,17 +68,6 @@ const TAB_CACHE_INACTIVE = "__none__";
 
 /** How long after a navigation the workspace may stay empty before we rescue it. */
 const BLANK_FRAME_GRACE_MS = 1_200;
-
-/** True when the workspace container actually painted something visible. */
-function hasPaintedContent(el: HTMLElement): boolean {
-  if (el.childElementCount === 0) return false;
-  const nodes = el.querySelectorAll<HTMLElement>(":scope > *, :scope > * > *");
-  for (const node of nodes) {
-    const rect = node.getBoundingClientRect();
-    if (rect.width > 1 && rect.height > 1) return true;
-  }
-  return false;
-}
 
 function getOrgPathSegment(pathname: string, orgSlug?: string): string {
   if (orgSlug && pathname.startsWith(`/${orgSlug}`)) {
@@ -111,6 +108,7 @@ export const OrgLayout = () => {
     if (isTabCachePaneMounted(path)) return true;
     // Chunk already in memory — the cached pane mounts synchronously, so skip the
     // <Outlet> fallback entirely (rendering both causes a one-frame flicker).
+    // CURRENT PATH ONLY. Sibling checks must not use this — prefetch is not paint.
     if (isTabPageChunkLoaded(path)) return true;
     if (tabPaneReadyPathsRef.current.has(path)) return true;
     for (const recorded of tabPaneReadyPathsRef.current) {
@@ -212,7 +210,12 @@ export const OrgLayout = () => {
   // Keep the previous pane visible (dimmed) while a sibling cold-loads — desktop UX.
   const hasReadySiblingPane = tabPaths.some((p) => {
     const resolved = resolveTabCachePath(p);
-    return resolved !== resolvedCurrentPath && isTabPaneReadyForPath(resolved);
+    if (resolved === resolvedCurrentPath) return false;
+    return isPaintedTabSibling({
+      mounted: isTabCachePaneMounted(resolved),
+      contentReady:
+        isTabCachePaneContentReady(resolved) || tabPaneReadyPathsRef.current.has(resolved),
+    });
   });
   const showTabCacheDuringColdNav =
     wantsTabCache &&
@@ -348,7 +351,7 @@ export const OrgLayout = () => {
    * this one exemption — if they ever diverge, a draft screen could be swapped out
    * from under the user by the fast watchdog.
    */
-  const usesLongLoadBudget = isEntryPage || isCacheableEntryActive;
+  const usesLongLoadBudget = usesLongLoadBudgetForNav(isEntryPage, isCacheableEntryActive);
 
   // Reset on navigation — restore before paint so going back from an entry screen
   // (e.g. POS) does not flash the <Outlet> copy for one frame before the cached pane shows.
@@ -365,7 +368,10 @@ export const OrgLayout = () => {
     }
   }, [resolvedCurrentPath, tabPaths.length, isTabPaneReadyForPath]);
 
-  // Safety net: stuck Suspense skeleton (purchase-bills blank) → fall back to route <Outlet>.
+  // Safety net: stuck Suspense skeleton → fall back to route <Outlet>.
+  // Must not be reached on a normal cold open after sibling-readiness uses paint,
+  // not chunk download. If this warning still appears, the fix is incomplete —
+  // do not retune this timer.
   useEffect(() => {
     if (!wantsTabCache || effectiveTabPaneReady || forceOutletFallback) return;
     // Cacheable entry must stay on the pane (draft state); only dashboards use Outlet rescue.
@@ -417,16 +423,18 @@ export const OrgLayout = () => {
   ]);
 
   /**
-   * Blank-frame watchdog — the user-visible save. If the workspace container painted
-   * nothing shortly after a navigation, log the decision snapshot and hand the route
-   * back to <Outlet> instead of leaving a white screen that needs a manual reload.
-   * Skipped for long-budget (bill-entry) screens — see `usesLongLoadBudget`.
+   * Blank-frame watchdog — belt-and-braces, not the cold-open fix. If the workspace
+   * has tab-cache panes but none look painted (empty dimmed outgoing, silent Suspense),
+   * hand the route back to <Outlet>. A dimmed outgoing pane that still holds the
+   * previous page counts as painted so a slow report over shop wifi is not swapped
+   * at 1.2s. Skipped for long-budget (bill-entry) screens via `usesLongLoadBudget`.
+   * A RESCUED render-owner after this ships is a defect to investigate.
    */
   useEffect(() => {
     if (usesLongLoadBudget || forceOutletFallback) return;
     const timer = window.setTimeout(() => {
       const el = workspaceRef.current;
-      if (!el || hasPaintedContent(el)) return;
+      if (!el || hasPaintedWorkspaceContent(el)) return;
       const canRescue = renderOwner === "tab-cache";
       recordBlankFrame(currentPath, canRescue);
       if (canRescue) {

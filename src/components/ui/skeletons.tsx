@@ -86,7 +86,10 @@ export function ListSkeleton({
 // Dashboard skeleton - complete dashboard layout placeholder
 export function DashboardSkeleton() {
   return (
-    <div className="space-y-4 p-4 animate-in fade-in-0 duration-300">
+    <div
+      className="space-y-4 p-4 animate-in fade-in-0 duration-300"
+      data-ezzy-load-shell="dashboard"
+    >
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="space-y-1">

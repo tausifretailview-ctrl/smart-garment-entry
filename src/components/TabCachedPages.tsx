@@ -32,10 +32,17 @@ import { reloadAppWithUpdateCheck } from "@/lib/appReload";
 import { isElectronShell, shouldElectronMountOnlyActiveTab } from "@/lib/electronShell";
 import { beginUserPriorityLoad, pauseBackgroundPrefetch } from "@/lib/chunkLoadRetry";
 import {
+  isTabCachePaneContentReady,
   isTabCachePaneMounted,
+  markTabCachePaneContentReady,
   markTabCachePaneMounted,
   markTabCachePaneUnmounted,
 } from "@/lib/tabCacheMountRegistry";
+import {
+  isPaintedTabSibling,
+  resolveTabPageFallbackKind,
+  shouldSilentTabSuspenseFallback,
+} from "@/lib/tabCacheReadiness";
 import { TabCacheLayoutContext } from "@/contexts/TabCacheLayoutContext";
 import {
   isNavigationPerfEnabled,
@@ -427,7 +434,7 @@ function TabPageFallback({
 
   // Desktop-like tab switch: keep the previous pane visible (dimmed) instead of
   // replacing it with DashboardSkeleton / AppBootSplash (Sales POS ↔ Invoice feel).
-  if (silent) return null;
+  if (resolveTabPageFallbackKind(silent) === "empty") return null;
 
   // Immediate route-shaped shell (<150ms target). Soft hint is second-stage only.
   return (
@@ -480,6 +487,7 @@ function CachedTabPane({
 
   const handlePaneReady = useCallback(() => {
     hasPaneMountedRef.current = true;
+    markTabCachePaneContentReady(path);
     onActivePaneReady?.(path);
   }, [onActivePaneReady, path]);
 
@@ -586,6 +594,7 @@ function CachedTabPane({
       )}
       aria-hidden={!active}
       data-tab-cache-path={path}
+      data-tab-cache-dimmed={dimOutgoing ? "true" : undefined}
     >
       <TabCacheLayoutContext.Provider value>
         {withRole}
@@ -818,9 +827,13 @@ export function TabCachedPages({ paths, activePath, onActivePaneReady, onTabEvic
   // Ready sibling on screen → silent Suspense (no full-page loading shell).
   const hasReadySiblingPane = pathsToRender.some((p) => {
     if (p === resolvedActivePath) return false;
-    return isTabCachePaneMounted(p) || isTabPageChunkLoaded(p);
+    return isPaintedTabSibling({
+      mounted: isTabCachePaneMounted(p),
+      contentReady: isTabCachePaneContentReady(p),
+    });
   });
-  const silentColdNav = dimOutgoingDuringLoad && hasReadySiblingPane;
+  const silentColdNav =
+    dimOutgoingDuringLoad && shouldSilentTabSuspenseFallback(hasReadySiblingPane);
 
   if (uniquePaths.length === 0) return null;
 
