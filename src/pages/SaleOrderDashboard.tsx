@@ -1454,15 +1454,17 @@ function PrintSaleOrderDialog({
   const [loading, setLoading] = useState(true);
   const isAvailableStock = mode === "available-stock";
   const [selectedFormat, setSelectedFormat] = useState<'a4' | 'a5' | 'a5-horizontal' | 'thermal'>(() => {
-    const preferred = settings?.sale_settings?.bill_format || "a4";
-    if (mode === "available-stock" && preferred === "thermal") return "a4";
-    return preferred;
+    if (mode === "available-stock") return "a4";
+    return settings?.sale_settings?.bill_format || "a4";
   });
   const [invoiceStyle, setInvoiceStyle] = useState<"standard" | "wholesale-size-grouping">(
     isAvailableStock ? "standard" : (order.invoice_format || "standard")
   );
   
   const getPageStyle = () => {
+    if (isAvailableStock) {
+      return '@page { size: A4 landscape; margin: 6mm; }';
+    }
     switch (selectedFormat) {
       case 'a5':
         return '@page { size: 148mm 210mm; margin: 4mm; }';
@@ -1575,19 +1577,19 @@ function PrintSaleOrderDialog({
 
   return (
     <AlertDialog open={true} onOpenChange={onClose}>
-      <AlertDialogContent className="print-dialog max-w-4xl max-h-[90vh] overflow-auto">
+      <AlertDialogContent className={cn("print-dialog max-h-[90vh] overflow-auto", isAvailableStock ? "max-w-6xl" : "max-w-4xl")}>
           <AlertDialogHeader>
           <AlertDialogTitle>
             {isAvailableStock ? "Print Available Stock" : "Print Sale Order"}
           </AlertDialogTitle>
           <AlertDialogDescription>
             <div className="flex flex-wrap items-center gap-4 mt-2">
+              {!isAvailableStock && (
               <div className="flex items-center gap-2">
                 <Label className="text-foreground">Bill Format:</Label>
                 <Select
-                  value={selectedFormat === "thermal" && isAvailableStock ? "a4" : selectedFormat}
+                  value={selectedFormat}
                   onValueChange={(v: 'a4' | 'a5' | 'a5-horizontal' | 'thermal') => {
-                    if (isAvailableStock && v === "thermal") return;
                     setSelectedFormat(v);
                   }}
                 >
@@ -1598,12 +1600,11 @@ function PrintSaleOrderDialog({
                     <SelectItem value="a4">A4 (210mm × 297mm)</SelectItem>
                     <SelectItem value="a5">A5 Vertical (148mm × 210mm)</SelectItem>
                     <SelectItem value="a5-horizontal">A5 Horizontal (210mm × 148mm)</SelectItem>
-                    {!isAvailableStock && (
-                      <SelectItem value="thermal">Thermal (80mm)</SelectItem>
-                    )}
+                    <SelectItem value="thermal">Thermal (80mm)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
+              )}
               {!isAvailableStock && selectedFormat !== 'thermal' && (
                 <div className="flex items-center gap-2">
                   <Label className="text-foreground">Invoice Style:</Label>
@@ -1620,7 +1621,7 @@ function PrintSaleOrderDialog({
               )}
               {isAvailableStock && (
                 <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded px-2 py-1">
-                  Picking list — snapshot of on-hand stock, not a reservation. No prices.
+                  Picking list prints on A4 landscape so size columns fit. Snapshot of on-hand stock, not a reservation. No prices.
                 </p>
               )}
             </div>
@@ -1693,7 +1694,7 @@ function PrintSaleOrderDialog({
               notes={order.notes}
               shippingAddress={order.shipping_address}
               taxType={order.tax_type}
-              format={selectedFormat === 'a5' ? 'a5-vertical' : selectedFormat === 'a5-horizontal' ? 'a5-horizontal' : 'a4'}
+              format={isAvailableStock ? 'a4' : selectedFormat === 'a5' ? 'a5-vertical' : selectedFormat === 'a5-horizontal' ? 'a5-horizontal' : 'a4'}
               colorScheme={settings?.sale_settings?.invoice_color_scheme || 'blue'}
               invoiceFormat={isAvailableStock ? "standard" : invoiceStyle}
               documentMode={isAvailableStock ? "available-stock" : "order"}

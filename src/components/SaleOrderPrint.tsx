@@ -96,6 +96,8 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
     const isA4 = format === 'a4';
     const isHorizontal = format === 'a5-horizontal';
     const isAvailableStock = documentMode === 'available-stock';
+    // Wide size matrix does not fit A4 portrait — pick list always prints landscape.
+    const isPickListLandscape = isAvailableStock;
 
     const fmt = (n: number) =>
       `₹${n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -209,7 +211,7 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
     const matrixGrandAvailable = availableStockMatrix?.grandAvailable ?? totalAvailable;
     const matrixGrandOrdered = availableStockMatrix?.grandOrdered ?? 0;
 
-    const MATRIX_ROWS_PER_PAGE = isA4 ? 20 : 11;
+    const MATRIX_ROWS_PER_PAGE = isPickListLandscape ? 14 : isA4 ? 20 : 11;
     const matrixPages: MatrixRow[][] = React.useMemo(() => {
       if (!isAvailableStock) return [];
       if (matrixRows.length === 0) return [[]];
@@ -283,9 +285,9 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
       ...extra,
     });
 
-    const pageWidth = isA4 ? '210mm' : isHorizontal ? '210mm' : '148mm';
-    const pageMinHeight = isA4 ? '297mm' : isHorizontal ? '148mm' : '210mm';
-    const pagePadding = isA4 ? '8mm' : isHorizontal ? '6mm' : '4mm';
+    const pageWidth = isPickListLandscape ? '297mm' : isA4 ? '210mm' : isHorizontal ? '210mm' : '148mm';
+    const pageMinHeight = isPickListLandscape ? '210mm' : isA4 ? '297mm' : isHorizontal ? '148mm' : '210mm';
+    const pagePadding = isPickListLandscape ? '6mm' : isA4 ? '8mm' : isHorizontal ? '6mm' : '4mm';
 
     // ── Full Header (first page) ────────────────────────────────────────────
     const renderFullHeader = () => (
@@ -548,7 +550,7 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
     const renderSizeMatrixPage = (pageRows: MatrixRow[], pageIndex: number) => {
       const isLastPage = pageIndex === totalPages - 1;
       const isFirstPage = pageIndex === 0;
-      const sizeColWidth = `${Math.max(6, Math.floor(50 / Math.max(1, matrixSizes.length)))}%`;
+      const sizeColWidth = `${Math.max(isPickListLandscape ? 4.5 : 6, Math.floor((isPickListLandscape ? 68 : 50) / Math.max(1, matrixSizes.length)))}%`;
 
       const colAvail = matrixSizes.map((sz) =>
         matrixRows.reduce((s, r) => s + (r.cells.get(sz)?.available ?? 0), 0),
@@ -575,7 +577,7 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
             <thead>
               <tr>
                 <th style={thStyle({ width: '4%', textAlign: 'center' })}>Sr</th>
-                <th style={thStyle({ textAlign: 'left' })}>Article / Colour</th>
+                <th style={thStyle({ width: isPickListLandscape ? '16%' : undefined, textAlign: 'left' })}>Article / Colour</th>
                 {matrixSizes.map((sz) => (
                   <th key={sz} style={thStyle({ width: sizeColWidth, textAlign: 'center' })}>
                     {sz}
@@ -960,7 +962,7 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
       <div ref={ref} className="sale-order-print-container sale-order-print print-document">
         <style>{`
           @media print {
-            @page { size: ${isA4 ? 'A4' : isHorizontal ? 'A5 landscape' : 'A5 portrait'}; margin: 0; }
+            @page { size: ${isPickListLandscape ? 'A4 landscape' : isA4 ? 'A4' : isHorizontal ? 'A5 landscape' : 'A5 portrait'}; margin: 0; }
             .sale-order-print-container { margin: 0; padding: 0; }
             .sale-order-page { page-break-after: always; margin: 0; }
             .sale-order-page:last-child { page-break-after: auto; }
