@@ -609,20 +609,6 @@ async function fetchSaleReceiptVoucherRowsForInvoicesInternal(
     ...new Set(invoices.map((i) => i.customer_id).filter(Boolean)),
   ] as string[];
 
-  const merged: SaleReceiptVoucherRow[] = [];
-
-  for (let i = 0; i < saleIds.length; i += SALE_ID_IN_CHUNK) {
-    const chunk = saleIds.slice(i, i + SALE_ID_IN_CHUNK);
-    try {
-      const rows = await fetchPaginatedReceiptRows(client, organizationId, (q) =>
-        q.in("reference_id", chunk),
-      );
-      merged.push(...rows);
-    } catch (chunkErr) {
-      console.warn("[customerBalance] skip sale-id receipt chunk", chunkErr);
-    }
-  }
-
   const applyVoucherDateBounds = (q: any) => {
     let bounded = q;
     if (options?.voucherDateFrom) {
@@ -634,16 +620,35 @@ async function fetchSaleReceiptVoucherRowsForInvoicesInternal(
     return bounded;
   };
 
-  for (const customerId of customerIds) {
-    try {
-      const rows = await fetchPaginatedReceiptRows(client, organizationId, (q) =>
-        applyVoucherDateBounds(q.eq("reference_id", customerId)),
-      );
-      merged.push(...rows);
-    } catch (custErr) {
-      console.warn("[customerBalance] skip customer receipt rows", customerId, custErr);
-    }
+  // Chunked `reference_id IN (...)` instead of one request per customer:
+  // a 50-row invoice page went from ~51 sequential round trips to 2.
+  const chunks: Array<Promise<SaleReceiptVoucherRow[]>> = [];
+
+  for (let i = 0; i < saleIds.length; i += SALE_ID_IN_CHUNK) {
+    const chunk = saleIds.slice(i, i + SALE_ID_IN_CHUNK);
+    chunks.push(
+      fetchPaginatedReceiptRows(client, organizationId, (q) =>
+        q.in("reference_id", chunk),
+      ).catch((chunkErr) => {
+        console.warn("[customerBalance] skip sale-id receipt chunk", chunkErr);
+        return [] as SaleReceiptVoucherRow[];
+      }),
+    );
   }
+
+  for (let i = 0; i < customerIds.length; i += SALE_ID_IN_CHUNK) {
+    const chunk = customerIds.slice(i, i + SALE_ID_IN_CHUNK);
+    chunks.push(
+      fetchPaginatedReceiptRows(client, organizationId, (q) =>
+        applyVoucherDateBounds(q.in("reference_id", chunk)),
+      ).catch((custErr) => {
+        console.warn("[customerBalance] skip customer receipt chunk", custErr);
+        return [] as SaleReceiptVoucherRow[];
+      }),
+    );
+  }
+
+  const merged = (await Promise.all(chunks)).flat();
 
   return dedupeReceiptRows(merged);
 }

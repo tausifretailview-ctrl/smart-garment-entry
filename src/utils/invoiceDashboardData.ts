@@ -477,6 +477,28 @@ export const fetchInvoiceDashboardStatsViaRpc = fetchInvoiceDashboardStats;
 
 const SR_RECONCILE_TOLERANCE = 0.005;
 
+/**
+ * Oldest sale_date (YYYY-MM-DD) among the visible page rows — used as a receipt
+ * lower bound when no period filter is set (All Time). Receipts can never predate
+ * the invoice they settle, so this cannot drop a relevant voucher.
+ */
+function oldestSaleDateOnPage(invoices: any[]): string | null {
+  let oldest: string | null = null;
+  for (const inv of invoices) {
+    const raw = inv?.sale_date ?? inv?.created_at;
+    if (!raw) continue;
+    const ymd = String(raw).slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd)) continue;
+    if (oldest === null || ymd < oldest) oldest = ymd;
+  }
+  if (!oldest) return null;
+  // Pad a year back so advances/credit notes raised before the invoice still count.
+  const d = new Date(`${oldest}T00:00:00Z`);
+  if (Number.isNaN(d.getTime())) return null;
+  d.setUTCFullYear(d.getUTCFullYear() - 1);
+  return d.toISOString().slice(0, 10);
+}
+
 /** Kill-switch: display-time khata FIFO (party ledger pool). Off = DB/reconcile rows only. */
 export const ENABLE_KHATA_FIFO = false;
 
@@ -819,7 +841,10 @@ export async function reconcileInvoiceDashboardRows(
 
   const splitBySale = new Map<string, SaleReceiptVoucherSplit>();
   const splitOpts = {
-    voucherDateFrom: filters.voucherDateFrom,
+    // All Time has no period bounds — bound customer receipts by the oldest sale
+    // on this page instead of pulling each customer's full voucher history.
+    voucherDateFrom:
+      filters.voucherDateFrom ?? oldestSaleDateOnPage(invoices),
     voucherDateTo: filters.voucherDateTo,
   };
   const batchSplit = await fetchSaleReceiptSplitsForInvoices(
