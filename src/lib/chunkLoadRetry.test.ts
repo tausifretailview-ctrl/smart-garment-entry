@@ -128,6 +128,7 @@ describe("idle / wake entry-chunk prefetch lists", () => {
         "purchase-entry",
         "product-entry",
         "pos-sales",
+        "pos-delivery-challan",
         "sales-invoice",
       ]),
     );

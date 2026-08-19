@@ -4,7 +4,7 @@ export const ENTRY_FULLSCREEN_PATH =
 
 /** POS + primary bill entry — full viewport: no sidebar or global header; window tab strip stays visible. */
 export const NO_SIDEBAR_ENTRY_PATH =
-  /\/(pos-sales|sales-invoice|purchase-entry|purchase-return-entry)(\/|$)/;
+  /\/(pos-sales|pos-delivery-challan|sales-invoice|purchase-entry|purchase-return-entry)(\/|$)/;
 
 export function isEntryFullscreenPath(pathname: string): boolean {
   return ENTRY_FULLSCREEN_PATH.test(pathname);
@@ -71,6 +71,7 @@ export function isNoSidebarEntrySegment(pathSegment: string): boolean {
   const segment = pathSegment.replace(/^\/+|\/+$/g, "");
   return (
     segment === "pos-sales" ||
+    segment === "pos-delivery-challan" ||
     segment === "sales-invoice" ||
     segment === "purchase-entry" ||
     segment === "purchase-return-entry"

@@ -24,6 +24,7 @@ import { TabPaneErrorBoundary } from "@/components/TabPaneErrorBoundary";
 import { Layout } from "@/components/Layout";
 import { FullScreenLayout } from "@/components/FullScreenLayout";
 import { POSLayout } from "@/components/POSLayout";
+import { PosDeliveryChallanLayout } from "@/components/PosDeliveryChallanLayout";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { DashboardSkeleton } from "@/components/ui/skeletons";
@@ -232,7 +233,7 @@ function resolveTabLoadShell(path: string): TabLoadShell {
   const def = TAB_PAGE_REGISTRY[resolved];
   if (DASHBOARD_TAB_PATHS.has(resolved)) return "dashboard";
   if (!def) return "page";
-  if (def.layout === "pos") return "entry";
+  if (def.layout === "pos" || def.layout === "pos-dc") return "entry";
   // Bill/product entry screens — not voucher pages that merely end in "-entry"
   // (e.g. third-party-entry is an accounts form, not a bill screen).
   if (
@@ -375,7 +376,7 @@ function TabPageFallback({
       elapsed += delta;
       if (elapsed >= SOFT_LOADING_HINT_MS) {
         setShowSoftHint(true);
-        if (!softFired) {
+        if (!softFired && !silent) {
           softFired = true;
           console.warn(
             `[TabCachedPages] Soft-retry cold chunk: ${path || "dashboard"} (${Math.round(elapsed / 1000)}s)`,
@@ -400,7 +401,7 @@ function TabPageFallback({
       window.clearInterval(interval);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [active, path, onSoftRetry]);
+  }, [active, path, onSoftRetry, silent]);
 
   if (!active) return null;
 
@@ -453,6 +454,8 @@ function wrapWithLayout(layout: TabPageLayout, page: React.ReactNode) {
   switch (layout) {
     case "pos":
       return <POSLayout>{page}</POSLayout>;
+    case "pos-dc":
+      return <PosDeliveryChallanLayout>{page}</PosDeliveryChallanLayout>;
     case "fullscreen":
       return <FullScreenLayout>{page}</FullScreenLayout>;
     default:
@@ -833,7 +836,11 @@ export function TabCachedPages({ paths, activePath, onActivePaneReady, onTabEvic
     });
   });
   const silentColdNav =
-    dimOutgoingDuringLoad && shouldSilentTabSuspenseFallback(hasReadySiblingPane);
+    dimOutgoingDuringLoad &&
+    shouldSilentTabSuspenseFallback(
+      hasReadySiblingPane,
+      resolveTabLoadShell(resolvedActivePath),
+    );
 
   if (uniquePaths.length === 0) return null;
 
