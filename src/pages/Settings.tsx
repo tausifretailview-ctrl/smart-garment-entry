@@ -169,6 +169,8 @@ interface PurchaseSettings {
   purchase_code_alphabet?: string;
   show_purchase_code?: boolean;
   purchase_code_include_gst?: boolean;
+  purchase_code_extra_percent_enabled?: boolean;
+  purchase_code_extra_percent?: number;
   show_mrp?: boolean;
   product_entry_discount_enabled?: boolean;
   barcode_mode?: 'auto' | 'scan';
@@ -2193,6 +2195,62 @@ export default function Settings() {
                 <p className="text-xs text-muted-foreground ml-12">
                   When enabled, purchase code = (Purchase Rate − Discount + GST Amount) instead of just purchase rate
                 </p>
+
+                <div className="flex items-center space-x-2 ml-6">
+                  <Checkbox
+                    id="purchase_code_extra_percent_enabled"
+                    checked={settings.purchase_settings?.purchase_code_extra_percent_enabled === true}
+                    onCheckedChange={(checked) =>
+                      setSettings({
+                        ...settings,
+                        purchase_settings: {
+                          ...settings.purchase_settings,
+                          purchase_code_extra_percent_enabled: checked === true,
+                          purchase_code_extra_percent:
+                            settings.purchase_settings?.purchase_code_extra_percent ?? 10,
+                        },
+                      })
+                    }
+                    disabled={!settings.purchase_settings?.show_purchase_code}
+                  />
+                  <Label htmlFor="purchase_code_extra_percent_enabled" className="font-normal cursor-pointer">
+                    Add extra % on Purchase Code
+                  </Label>
+                </div>
+                <p className="text-xs text-muted-foreground ml-12">
+                  When enabled, the encoded purchase code uses purchase rate plus this extra percent
+                  (example: ₹500 + 10% → alphabet for ₹550). Default is off.
+                </p>
+                <div className="ml-12 max-w-[10rem] space-y-1.5">
+                  <Label htmlFor="purchase_code_extra_percent" className="text-xs">
+                    Extra percent
+                  </Label>
+                  <Input
+                    id="purchase_code_extra_percent"
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.5"
+                    inputMode="decimal"
+                    value={settings.purchase_settings?.purchase_code_extra_percent ?? 10}
+                    onChange={(e) => {
+                      const raw = parseFloat(e.target.value);
+                      const next = Number.isFinite(raw) ? Math.min(100, Math.max(0, raw)) : 0;
+                      setSettings({
+                        ...settings,
+                        purchase_settings: {
+                          ...settings.purchase_settings,
+                          purchase_code_extra_percent: next,
+                        },
+                      });
+                    }}
+                    disabled={
+                      !settings.purchase_settings?.show_purchase_code ||
+                      settings.purchase_settings?.purchase_code_extra_percent_enabled !== true
+                    }
+                    placeholder="10"
+                  />
+                </div>
                 
                 <div className="flex items-center space-x-2 pt-4">
                   <Checkbox

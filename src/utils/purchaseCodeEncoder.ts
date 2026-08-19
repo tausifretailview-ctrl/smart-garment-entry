@@ -47,18 +47,34 @@ export const encodePurchasePrice = (price: number, alphabet?: string, billDate?:
   return `${month}${encodedCode}${year}`;
 };
 
+const clampExtraPercent = (value: number): number => {
+  if (!Number.isFinite(value) || value <= 0) return 0;
+  return Math.min(100, value);
+};
+
 /**
- * Calculates the effective purchase price for encoding.
- * If includeGst is true: pur_price + (pur_price * gst_per / 100)
- * Otherwise: just pur_price
+ * Calculates the effective purchase price for encoding on barcode labels.
+ * Order: purchase rate → optional GST → optional extra % (e.g. 500 + 10% = 550).
  */
 export const getEffectivePurchasePrice = (
   purPrice: number,
   gstPer: number = 0,
-  includeGst: boolean = false
+  includeGst: boolean = false,
+  extraPercentEnabled: boolean = false,
+  extraPercent: number = 0,
 ): number => {
-  if (!includeGst || gstPer <= 0) return purPrice;
-  return Math.round(purPrice + (purPrice * gstPer / 100));
+  let amount = purPrice;
+  if (includeGst && gstPer > 0) {
+    amount = amount + (amount * gstPer / 100);
+  }
+  if (extraPercentEnabled) {
+    const pct = clampExtraPercent(extraPercent);
+    if (pct > 0) {
+      amount = amount + (amount * pct / 100);
+    }
+  }
+  if (amount !== purPrice) return Math.round(amount);
+  return purPrice;
 };
 
 /**
