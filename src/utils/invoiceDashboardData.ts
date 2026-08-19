@@ -491,7 +491,12 @@ function oldestSaleDateOnPage(invoices: any[]): string | null {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd)) continue;
     if (oldest === null || ymd < oldest) oldest = ymd;
   }
-  return oldest;
+  if (!oldest) return null;
+  // Pad a year back so advances/credit notes raised before the invoice still count.
+  const d = new Date(`${oldest}T00:00:00Z`);
+  if (Number.isNaN(d.getTime())) return null;
+  d.setUTCFullYear(d.getUTCFullYear() - 1);
+  return d.toISOString().slice(0, 10);
 }
 
 /** Kill-switch: display-time khata FIFO (party ledger pool). Off = DB/reconcile rows only. */
