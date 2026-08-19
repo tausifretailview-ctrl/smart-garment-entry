@@ -9,6 +9,7 @@ export function AppBootSplash({ message = "Loading…" }: { message?: string }) 
       role="status"
       aria-live="polite"
       aria-busy="true"
+      data-ezzy-load-shell="splash"
     >
       <div className="flex flex-col items-center gap-6">
         <div
