@@ -1471,6 +1471,8 @@ export default function BarcodePrinting() {
   const [purchaseCodeAlphabet, setPurchaseCodeAlphabet] = useState("ABCDEFGHIK");
   const [showPurchaseCode, setShowPurchaseCode] = useState(false);
   const [purchaseCodeIncludeGst, setPurchaseCodeIncludeGst] = useState(false);
+  const [purchaseCodeExtraPercentEnabled, setPurchaseCodeExtraPercentEnabled] = useState(false);
+  const [purchaseCodeExtraPercent, setPurchaseCodeExtraPercent] = useState(10);
   const [defaultUom, setDefaultUom] = useState("NOS");
   const [isDirectPrintDialogOpen, setIsDirectPrintDialogOpen] = useState(false);
   const [precisionSettings, setPrecisionSettings] = useState({
@@ -2271,6 +2273,10 @@ export default function BarcodePrinting() {
           if (purchaseSettings.purchase_code_include_gst !== undefined) {
             setPurchaseCodeIncludeGst(purchaseSettings.purchase_code_include_gst);
           }
+          setPurchaseCodeExtraPercentEnabled(purchaseSettings.purchase_code_extra_percent_enabled === true);
+          if (typeof purchaseSettings.purchase_code_extra_percent === "number") {
+            setPurchaseCodeExtraPercent(purchaseSettings.purchase_code_extra_percent);
+          }
         }
 
         // Load precision pro settings (use merge to avoid overwriting preset-loaded labelConfig)
@@ -2991,11 +2997,11 @@ export default function BarcodePrinting() {
       setLabelItems(prev => prev.map(item => ({
         ...item,
         purchase_code: item.pur_price && item.pur_price > 0 
-          ? encodePurchasePrice(getEffectivePurchasePrice(item.pur_price, item.gst_per || 0, purchaseCodeIncludeGst), purchaseCodeAlphabet, item.bill_date) 
+          ? encodePurchasePrice(getEffectivePurchasePrice(item.pur_price, item.gst_per || 0, purchaseCodeIncludeGst, purchaseCodeExtraPercentEnabled, purchaseCodeExtraPercent), purchaseCodeAlphabet, item.bill_date) 
           : item.purchase_code
       })));
     }
-  }, [purchaseCodeAlphabet, purchaseCodeIncludeGst]);
+  }, [purchaseCodeAlphabet, purchaseCodeIncludeGst, purchaseCodeExtraPercentEnabled, purchaseCodeExtraPercent]);
 
   // Restore purchase-bill context (survives tab switch when router state is cleared)
   useEffect(() => {
@@ -3161,7 +3167,13 @@ export default function BarcodePrinting() {
         const purPrice = live?.pur_price ?? item.pur_price ?? 0;
         const gstPer = item.gst_per || 0;
         const billDateStr = item.bill_date || undefined;
-        const effectivePrice = getEffectivePurchasePrice(purPrice, gstPer, purchaseCodeIncludeGst);
+        const effectivePrice = getEffectivePurchasePrice(
+          purPrice,
+          gstPer,
+          purchaseCodeIncludeGst,
+          purchaseCodeExtraPercentEnabled,
+          purchaseCodeExtraPercent,
+        );
         const purchaseCode = purPrice > 0
           ? encodePurchasePrice(effectivePrice, purchaseCodeAlphabet, billDateStr)
           : undefined;
@@ -3244,6 +3256,8 @@ export default function BarcodePrinting() {
     currentOrganization?.id,
     purchaseCodeAlphabet,
     purchaseCodeIncludeGst,
+    purchaseCodeExtraPercentEnabled,
+    purchaseCodeExtraPercent,
     orgNavigate,
   ]);
 
@@ -3472,7 +3486,7 @@ export default function BarcodePrinting() {
       sale_price: result.sale_price,
       mrp: result.mrp || result.sale_price,
       pur_price: purPrice,
-      purchase_code: purPrice > 0 ? encodePurchasePrice(getEffectivePurchasePrice(purPrice, 0, purchaseCodeIncludeGst), purchaseCodeAlphabet) : '', // no bill_date for manual add
+      purchase_code: purPrice > 0 ? encodePurchasePrice(getEffectivePurchasePrice(purPrice, 0, purchaseCodeIncludeGst, purchaseCodeExtraPercentEnabled, purchaseCodeExtraPercent), purchaseCodeAlphabet) : '', // no bill_date for manual add
       barcode: result.barcode,
       bill_number: '',
       qty: 1,
@@ -3708,7 +3722,7 @@ export default function BarcodePrinting() {
           const variantInfo = variantMap.get(item.sku_id);
           const purPrice = item.pur_price || 0;
           const gstPer = (item as any).gst_per || 0;
-          const effectivePrice = getEffectivePurchasePrice(purPrice, gstPer, purchaseCodeIncludeGst);
+          const effectivePrice = getEffectivePurchasePrice(purPrice, gstPer, purchaseCodeIncludeGst, purchaseCodeExtraPercentEnabled, purchaseCodeExtraPercent);
           return {
             sku_id: item.sku_id,
             product_name: variantInfo.product_name,
