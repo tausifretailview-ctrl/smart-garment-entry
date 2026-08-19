@@ -115,6 +115,7 @@ import { checkBarcodeExists } from "@/utils/barcodeValidation";
 import { normalizeProductSearchTerm } from "@/utils/productDashboardBarcodeSearch";
 import { restrictProductsToExactNameMatches } from "@/utils/productSearch";
 import { groupPurchaseSearchByProductMaster } from "@/utils/purchaseProductSearchGroup";
+import { planExistingSkuBarcodeFill } from "@/utils/purchaseVariantBarcode";
 import { getUniversalCodeScanWarning } from "@/utils/imeiValidation";
 import { validateIMEI } from "@/hooks/useMobileERP";
 import { productRequiresImei } from "@/utils/productRequiresImei";
@@ -2956,6 +2957,31 @@ const PurchaseEntry = () => {
     }
   };
 
+  /** Fill an empty displayed barcode from the SKU, or generate only if the DB is also empty. */
+  const barcodeForExistingSku = async (skuId: string, displayedBarcode: string): Promise<string> => {
+    const shown = displayedBarcode?.trim() || "";
+    if (!currentOrganization?.id) return shown;
+    const { data } = await supabase
+      .from("product_variants")
+      .select("barcode")
+      .eq("id", skuId)
+      .eq("organization_id", currentOrganization.id)
+      .maybeSingle();
+    const saved = (data?.barcode || "").trim();
+    const plan = planExistingSkuBarcodeFill(shown, saved);
+    if (plan === "displayed") return shown;
+    if (plan === "database") return saved;
+    if (!isAutoBarcode) return shown;
+    const newBarcode = await generateCentralizedBarcode();
+    const { error } = await supabase
+      .from("product_variants")
+      .update({ barcode: newBarcode })
+      .eq("id", skuId)
+      .eq("organization_id", currentOrganization.id);
+    if (error) throw error;
+    return newBarcode;
+  };
+
   // AbortController ref to cancel in-flight search requests
   const searchAbortControllerRef = useRef<AbortController | null>(null);
 
@@ -3560,9 +3586,7 @@ const PurchaseEntry = () => {
       if (sameBarcodeSeriesEnabled || v.barcode_source === "external") {
         // Same barcode series: reuse existing variant+barcode
         if (!barcode && isAutoBarcode) {
-          const newBarcode = await generateCentralizedBarcode();
-          await supabase.from("product_variants").update({ barcode: newBarcode }).eq("id", skuId);
-          barcode = newBarcode;
+          barcode = await barcodeForExistingSku(skuId, barcode);
         }
       } else {
         // Template select → always new SKU (do not overwrite old barcode/prices)
@@ -3904,9 +3928,7 @@ const PurchaseEntry = () => {
         // Existing variant - smart barcode handling (external codes stay on their SKU)
         if (sameBarcodeSeriesEnabled || variant.barcode_source === "external") {
           if (!barcode && isAutoBarcode) {
-            const newBarcode = await generateCentralizedBarcode();
-            await supabase.from("product_variants").update({ barcode: newBarcode }).eq("id", skuId);
-            barcode = newBarcode;
+            barcode = await barcodeForExistingSku(skuId, barcode);
           }
         } else {
           const result = await forkVariantForPurchaseLine({
@@ -4071,9 +4093,7 @@ const PurchaseEntry = () => {
     if (reuseSharedBarcode) {
       // Same barcode / non-serialized accessory: reuse existing variant+barcode
       if (!barcode && isAutoBarcode) {
-        const newBarcode = await generateCentralizedBarcode();
-        await supabase.from("product_variants").update({ barcode: newBarcode }).eq("id", skuId);
-        barcode = newBarcode;
+        barcode = await barcodeForExistingSku(skuId, barcode);
       }
     } else {
       // Selecting an existing product = template only → new barcode + new SKU.

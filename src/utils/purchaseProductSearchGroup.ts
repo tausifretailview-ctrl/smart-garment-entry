@@ -48,13 +48,23 @@ export function groupPurchaseSearchByProductMaster<T extends PurchaseSearchVaria
   return Array.from(buckets.values()).map((group) => {
     const representative = group[0];
     const productIds = [...new Set(group.map((g) => g.product_id).filter(Boolean))];
+    const groupedProductIds = productIds.length > 0 ? productIds : [representative.product_id];
+    // One SKU (Free Size / no-size): keep real size + barcode so inline pick
+    // does not add a blank-size line or generate over the saved barcode.
+    if (group.length === 1) {
+      return {
+        ...representative,
+        groupedVariantCount: 1,
+        groupedProductIds,
+      };
+    }
     return {
       ...representative,
       size: "",
       barcode: "",
       size_range: representative.size_range || sizeRangeFromSizes(group.map((g) => g.size)),
       groupedVariantCount: group.length,
-      groupedProductIds: productIds.length > 0 ? productIds : [representative.product_id],
+      groupedProductIds,
     };
   });
 }
