@@ -29,6 +29,16 @@ describe("groupPurchaseSearchByProductMaster", () => {
     expect(grouped[0].product_name).toBe("SHIRT");
   });
 
+  it("keeps size and barcode on a single-SKU (Free Size) row", () => {
+    const grouped = groupPurchaseSearchByProductMaster([
+      shirt({ id: "fs1", size: "Free", barcode: "90001999" }),
+    ]);
+    expect(grouped).toHaveLength(1);
+    expect(grouped[0].size).toBe("Free");
+    expect(grouped[0].barcode).toBe("90001999");
+    expect(grouped[0].groupedVariantCount).toBe(1);
+  });
+
   it("keeps different colours as separate master rows", () => {
     const grouped = groupPurchaseSearchByProductMaster([
       shirt({ color: "BK", barcode: "1" }),
