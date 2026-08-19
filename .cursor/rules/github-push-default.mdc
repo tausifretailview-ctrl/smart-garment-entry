@@ -1,0 +1,13 @@
+---
+description: Always commit and push completed work to GitHub without asking first.
+alwaysApply: true
+---
+
+# Default GitHub push
+
+After finishing a feature or fix in this repo:
+
+- Create a focused branch if needed, commit, and `git push -u origin HEAD`.
+- Do not ask "want me to push?" or wait for a yes.
+- Open a PR with `gh pr create` when GitHub CLI is authenticated; if it is not, push the branch and give the compare/PR URL.
+- Do not force-push unless the user explicitly asks.
