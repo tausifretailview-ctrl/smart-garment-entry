@@ -1,32 +1,35 @@
-# Liberty PWA: why the installed app shows the generic icon and opens the wrong page
+# Speed up Sales Invoice Dashboard on "All Time" (ELLA NOOR)
 
-Investigation only — no code or data changed.
+## What the reads show
 
-## What the video shows
-The Windows desktop/taskbar shortcut is labelled "EzzyERP - Easy Billing, Smart Business" with a plain browser (Edge "e") icon — not the EzzyERP logo and not Liberty's shop name. That is exactly what Windows shows when the install could not use the app's icons and captured the generic site manifest.
+ELLA NOOR has 4,316 invoices and 4,455 receipt vouchers — not huge. The database side is fine: the KPI aggregate query for the whole history runs in ~45 ms on the server, and the invoice list is already server-paginated (50 rows a page).
 
-## Cause 1 — the 512 icon is not a real PNG
-`public/icon-512.png` is a JPEG file that has been given a `.png` name. The server sends it as `image/png` and the manifest declares `"type": "image/png"`, so Chrome/Edge reject it as a malformed icon. The 512 icon is the one Windows uses for the desktop shortcut and taskbar, so the install falls back to the browser's own icon.
+The delay is in the browser, in the step that reconciles paid/pending for the rows on screen:
 
-- `public/icon-192.png` — real PNG, 192x192 (fine)
-- `public/icon-512.png` — JPEG data, 512x512 (broken for PWA install)
-- Same broken file is live at the production domain.
+- For every page of 50 invoices, the app fires **one separate network request per distinct customer** on that page (up to 50 requests), executed **one after another**, not in parallel. Each round trip is ~100-300 ms, so a single page costs several seconds before badges/balances settle.
+- On "All Time" those per-customer requests carry **no date bounds**, so each one pulls that customer's entire receipt history and paginates it in 1,000-row pages.
+- The same reconcile runs again on every page change, filter change and refresh.
 
-## Cause 2 — the shop-specific manifest is a `blob:` URL
-`src/lib/orgPwaManifest.ts` builds Liberty's manifest in memory and attaches it as a `blob:` link. Desktop Chrome/Edge on Windows do not install from a `blob:` manifest; they use the static `/manifest.webmanifest`, which says:
+Any other period (Weekly/Monthly) is faster only because the customer queries are date-bounded — the per-customer request storm is still there.
 
-- name: "EzzyERP - Easy Billing, Smart Business" (no shop name)
-- start_url: `/organization-setup`
+## What we will change
 
-So the installed Liberty app opens the generic organization-entry screen instead of Liberty's login page, and it is titled EzzyERP.
+### 1. Batch the per-customer receipt fetch (main fix)
+Replace the loop that queries one customer at a time with chunked `reference_id IN (...)` queries (80 ids per request, matching the existing sale-id chunking). A 50-row page then needs 2 requests instead of ~51. Same rows, same date bounds, same result — only the number of round trips changes.
 
-## Cause 3 — install timing
-`applyOrgPwaManifest` only runs after `OrgLayout` mounts. If the user installs from the browser menu before/outside that, the static manifest is what gets captured — the same generic result.
+### 2. Keep All-Time reconcile bounded
+When no period is selected, bound the receipt lookup by the oldest sale date on the visible page instead of leaving it open-ended, so old, unrelated vouchers are not downloaded and paginated.
 
-## Recommended fix (separate task, not done here)
-1. Replace `public/icon-512.png` with a genuine 512x512 PNG (and add a 1024 maskable variant); verify with `file` before shipping.
-2. Serve real per-shop manifests from a same-origin URL (e.g. `/manifest/liberty.webmanifest` via a rewrite or a small function) instead of `blob:`, with `name` = shop name and `start_url` = `/liberty`.
-3. After the fix, existing installs must be uninstalled and reinstalled once — Windows caches the shortcut icon.
+### 3. Avoid re-doing settled work
+Cache the reconcile result per page of invoice ids for the session so paging back and forth, or returning to the tab, does not re-run the whole reconcile.
 
-## Note
-Both custom domains respond 200, and the manifest itself loads, so this is not a hosting or DNS problem.
+### 4. Keep the KPI tiles as they are
+The tiles already come from a single server aggregate and are not the bottleneck; no change needed there.
+
+## Not changing
+No money logic, no reconcile formula, no data, no schema. Displayed paid/pending/status values must stay byte-identical — only the fetch shape changes.
+
+## Verification
+- Time "open Sales Invoice Dashboard → All Time" on ELLA NOOR before and after, and count network requests for one page load.
+- Compare Total Revenue, Pending Amount and the first page's per-row Balance values before and after — they must match exactly.
+- Spot-check a customer with many receipts (paid, partial and unpaid rows) on All Time and on Monthly.
