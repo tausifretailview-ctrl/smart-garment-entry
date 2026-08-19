@@ -547,6 +547,35 @@ export function getInvoiceDashboardDisplayStatus(invoice: {
   return invoice.payment_status || "pending";
 }
 
+/** Excel / print label matching the Sales Invoice Dashboard status badge. */
+export function formatInvoiceDashboardPaymentStatusLabel(invoice: {
+  payment_status?: string | null;
+  outstanding?: number | null;
+  is_cancelled?: boolean | null;
+  net_amount?: number | null;
+  paid_amount?: number | null;
+  sale_return_adjust?: number | null;
+  credit_applied?: number | null;
+}): string {
+  const status = getInvoiceDashboardDisplayStatus(invoice);
+  if (status === "completed") return "Paid";
+  if (status === "partial") return "Partial";
+  if (status === "cancelled") return "Cancelled";
+  if (status === "hold") return "Hold";
+  return "Not Paid";
+}
+
+export function filterInvoiceDashboardRowsByPaymentStatus<T extends {
+  payment_status?: string | null;
+  outstanding?: number | null;
+  is_cancelled?: boolean | null;
+}>(rows: T[], paymentStatusFilter: string[]): T[] {
+  if (paymentStatusFilter.length === 0) return rows;
+  return rows.filter((inv) =>
+    paymentStatusFilter.includes(getInvoiceDashboardDisplayStatus(inv)),
+  );
+}
+
 export function sumInvoiceDashboardOutstanding(rows: any[]): number {
   return roundKhataMoney(
     rows.reduce((sum, inv) => {
@@ -915,6 +944,52 @@ export async function fetchInvoiceDashboardPage(
   return { invoices, totalCount, searchMeta: searchResolution?.searchMeta };
 }
 
+/**
+ * All dashboard-matching invoices for Excel export.
+ * Reconciles paid/status from receipts (same as the table) then applies the
+ * payment filter on the computed status so stale `payment_status='pending'`
+ * paid bills are not exported as Pending.
+ */
+export async function fetchInvoiceDashboardExportRows(
+  client: SupabaseClient,
+  filters: InvoiceDashboardFilters,
+): Promise<any[]> {
+  if (!filters.organizationId) return [];
+
+  const searchResolution = await resolveInvoiceSearch(client, filters);
+  const pageSize = 500;
+  const allRows: any[] = [];
+  let offset = 0;
+
+  for (;;) {
+    let query: any = applyInvoiceDashboardFilters(
+      client.from("sales").select(INVOICE_DASHBOARD_LIST_SELECT),
+      filters,
+    )
+      .order("created_at", { ascending: false })
+      .range(offset, offset + pageSize - 1);
+    query = applyResolvedInvoiceSearch(query, searchResolution);
+    const { data, error } = await query;
+    if (error) throw error;
+    const pageRows = data || [];
+    if (pageRows.length === 0) break;
+    allRows.push(...pageRows);
+    if (pageRows.length < pageSize) break;
+    offset += pageSize;
+  }
+
+  if (allRows.length === 0) return [];
+
+  const normalized: any[] = [];
+  for (let i = 0; i < allRows.length; i += pageSize) {
+    const batch = allRows.slice(i, i + pageSize);
+    const reconciled = await reconcileInvoiceDashboardRows(client, filters, batch);
+    normalized.push(...reconciled);
+  }
+
+  if (filters.paymentStatusFilter.length === 0) return normalized;
+  return filterInvoiceDashboardRowsByPaymentStatus(normalized, filters.paymentStatusFilter);
+}
 
 /** Default weekly range — matches SalesInvoiceDashboard initial periodFilter. */
 export function buildDefaultWeeklyInvoiceDashboardFilters(
