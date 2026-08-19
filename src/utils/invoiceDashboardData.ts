@@ -477,6 +477,23 @@ export const fetchInvoiceDashboardStatsViaRpc = fetchInvoiceDashboardStats;
 
 const SR_RECONCILE_TOLERANCE = 0.005;
 
+/**
+ * Oldest sale_date (YYYY-MM-DD) among the visible page rows — used as a receipt
+ * lower bound when no period filter is set (All Time). Receipts can never predate
+ * the invoice they settle, so this cannot drop a relevant voucher.
+ */
+function oldestSaleDateOnPage(invoices: any[]): string | null {
+  let oldest: string | null = null;
+  for (const inv of invoices) {
+    const raw = inv?.sale_date ?? inv?.created_at;
+    if (!raw) continue;
+    const ymd = String(raw).slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd)) continue;
+    if (oldest === null || ymd < oldest) oldest = ymd;
+  }
+  return oldest;
+}
+
 /** Kill-switch: display-time khata FIFO (party ledger pool). Off = DB/reconcile rows only. */
 export const ENABLE_KHATA_FIFO = false;
 
