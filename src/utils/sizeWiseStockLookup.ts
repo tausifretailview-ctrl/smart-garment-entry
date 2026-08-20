@@ -1,5 +1,26 @@
 import { sizeMatrixKey } from "@/utils/sizeSort";
 
+/**
+ * Article code = the part of the product name before the first hyphen.
+ * The same shoe is often re-created as several product rows
+ * ("PUL228", "PUL228-PUL-RLX-LD") and under different style codes.
+ */
+export function articleCodeKey(productName?: string | null): string {
+  const raw = (productName ?? "").trim().toUpperCase();
+  const [code] = raw.split("-");
+  return (code ?? "").trim() || raw;
+}
+
+/** Pick-list grouping: article code + brand + colour (style deliberately ignored). */
+export function articleStockGroupKey(
+  productName?: string | null,
+  brand?: string | null,
+  color?: string | null,
+): string {
+  const n = (v?: string | null) => (v ?? "").trim().toUpperCase();
+  return `${articleCodeKey(productName)}|${n(brand)}|${n(color)}`;
+}
+
 /** Same grouping as Stock Report Size-wise tab: name + brand + colour + style. */
 export function sizeWiseStockGroupKey(
   productName?: string | null,
