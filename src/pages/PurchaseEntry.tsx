@@ -7684,10 +7684,25 @@ const PurchaseEntry = () => {
                                 )}
                               </div>
                             </div>
-                            <div className="text-right shrink-0">
-                              <span className="text-primary font-bold text-sm">Buy: ₹{result.pur_price?.toFixed(2) || '0.00'}</span>
-                              <div className="text-[11px] text-amber-600 dark:text-amber-400 font-bold">MRP: ₹{result.mrp?.toFixed(2) || '0.00'}</div>
-                              <div className="text-[11px] text-muted-foreground">Sale: ₹{result.sale_price?.toFixed(2) || '0.00'}</div>
+                            <div className="text-right shrink-0 tabular-nums font-mono">
+                              <div className={cn(
+                                "font-bold text-[15px] leading-tight",
+                                idx === selectedSearchIndex ? "text-accent-foreground" : "text-amber-600 dark:text-amber-400",
+                              )}>
+                                MRP: ₹{result.mrp?.toFixed(2) || '0.00'}
+                              </div>
+                              <div className={cn(
+                                "text-[12px] font-semibold leading-tight",
+                                idx === selectedSearchIndex ? "text-accent-foreground/90" : "text-primary",
+                              )}>
+                                Buy: ₹{result.pur_price?.toFixed(2) || '0.00'}
+                              </div>
+                              <div className={cn(
+                                "text-[12px] leading-tight",
+                                idx === selectedSearchIndex ? "text-accent-foreground/80" : "text-muted-foreground",
+                              )}>
+                                Sale: ₹{result.sale_price?.toFixed(2) || '0.00'}
+                              </div>
                             </div>
                             </div>
                           </button>
