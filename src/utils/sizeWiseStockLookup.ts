@@ -59,6 +59,35 @@ export function aggregateSizeWiseStock(
   return byGroup;
 }
 
+/**
+ * Pick-list aggregation: sum on-hand stock_qty per article code + brand + colour,
+ * merging duplicate product rows that differ only by style / name suffix.
+ */
+export function aggregateArticleStock(
+  variants: SizeWiseStockVariantRow[],
+): Map<string, Map<string, number>> {
+  const byGroup = new Map<string, Map<string, number>>();
+  for (const v of variants) {
+    const group = articleStockGroupKey(v.product_name, v.brand, v.color);
+    const size = sizeMatrixKey(v.size);
+    if (!byGroup.has(group)) byGroup.set(group, new Map());
+    const sizes = byGroup.get(group)!;
+    sizes.set(size, (sizes.get(size) ?? 0) + (Number(v.stock_qty) || 0));
+  }
+  return byGroup;
+}
+
+export function articleSizeStockList(
+  byGroup: Map<string, Map<string, number>>,
+  productName?: string | null,
+  brand?: string | null,
+  color?: string | null,
+): { size: string; qty: number }[] {
+  const sizes = byGroup.get(articleStockGroupKey(productName, brand, color));
+  if (!sizes) return [];
+  return Array.from(sizes.entries()).map(([size, qty]) => ({ size, qty }));
+}
+
 export function sizeStockListForGroup(
   byGroup: Map<string, Map<string, number>>,
   productName?: string | null,
