@@ -67,8 +67,9 @@ import {
 } from "@/utils/saleOrderListQueries";
 import { sizeMatrixKey } from "@/utils/sizeSort";
 import {
-  aggregateSizeWiseStock,
-  sizeStockListForGroup,
+  aggregateArticleStock,
+  articleCodeKey,
+  articleSizeStockList,
 } from "@/utils/sizeWiseStockLookup";
 
 interface ConversionItem {
