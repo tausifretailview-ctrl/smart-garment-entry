@@ -47,6 +47,12 @@ export function isSaleReturnConsumedAtBilling(sr: {
 export function resolveCnAvailableFromRows(
   sr: SaleReturnCnRow,
   cn: CreditNoteLiveRow | null | undefined,
+  /**
+   * Amount of this return already applied to its linked invoice, when known.
+   * Used only for `adjusted` returns that have no `credit_notes` row and no
+   * `credit_available_balance` — see the note below.
+   */
+  appliedOnLinkedSale?: number | null,
 ): number {
   const net = Math.max(0, Number(sr.net_amount || 0));
   const cabRaw = sr.credit_available_balance;
@@ -60,6 +66,16 @@ export function resolveCnAvailableFromRows(
   if (cab != null) return Math.round(cab);
   const st = String(sr.credit_status || "").toLowerCase();
   if (st === "refunded") return 0;
+  // `adjusted` + linked invoice with no CN header and no CAB: the return was already
+  // credited somewhere (billing absorption or a CN-adjustment receipt). Falling back to
+  // the gross net amount here made a fully/partly consumed return look fully available —
+  // ELLA NOOR / Hanif bhai showed the whole Rs.6,250 as pending after Rs.3,200 was applied.
+  // Use the known applied portion when the caller has it, otherwise show nothing available.
+  if (isSaleReturnConsumedAtBilling(sr as { credit_status?: string | null; linked_sale_id?: string | null })) {
+    const applied = Number(appliedOnLinkedSale ?? NaN);
+    if (Number.isFinite(applied)) return Math.round(Math.max(0, net - Math.max(0, applied)));
+    return 0;
+  }
   return Math.round(net);
 }
 
