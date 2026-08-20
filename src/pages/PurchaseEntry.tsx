@@ -7651,8 +7651,10 @@ const PurchaseEntry = () => {
                           key={result.product_id + idx}
                           onMouseEnter={() => setSelectedSearchIndex(idx)}
                           className={cn(
-                            "w-full text-left px-4 py-3 text-popover-foreground border-b border-border last:border-0 transition-colors flex items-start gap-2",
-                            idx === selectedSearchIndex ? "bg-accent" : "hover:bg-accent/50"
+                            "w-full text-left px-4 py-3 border-b border-border last:border-0 transition-colors flex items-start gap-2",
+                            idx === selectedSearchIndex
+                              ? "bg-accent text-accent-foreground"
+                              : "text-popover-foreground hover:bg-accent/50"
                           )}
                         >
                           <button
