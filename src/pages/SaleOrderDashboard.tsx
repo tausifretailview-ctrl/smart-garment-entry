@@ -433,18 +433,21 @@ export default function SaleOrderDashboard() {
       }
       const names = [...new Set((baseProducts ?? []).map((p) => p.product_name).filter(Boolean))] as string[];
 
-      const familyKey = (p: { product_name?: string | null; brand?: string | null; style?: string | null }) =>
-        `${(p.product_name || "").trim().toUpperCase()}|${(p.brand || "").trim().toUpperCase()}|${(p.style || "").trim().toUpperCase()}`;
+      // Same article can live on several product rows with different styles or a
+      // suffixed name (PUL228 / PUL228-PUL-RLX-LD). Match on article code + brand only.
+      const familyKey = (p: { product_name?: string | null; brand?: string | null }) =>
+        `${articleCodeKey(p.product_name)}|${(p.brand || "").trim().toUpperCase()}`;
       const orderedFamilies = new Set((baseProducts ?? []).map(familyKey));
 
       let expandedIds = productIds;
-      if (names.length > 0) {
+      const codes = [...new Set(names.map((n) => articleCodeKey(n)).filter(Boolean))];
+      if (codes.length > 0) {
         const { data: sameName, error: nameErr } = await supabase
           .from("products")
           .select("id, product_name, brand, style")
           .eq("organization_id", currentOrganization.id)
           .is("deleted_at", null)
-          .in("product_name", names);
+          .or(codes.map((c) => `product_name.ilike.${c}%`).join(","));
         if (nameErr) throw nameErr;
         const siblingsOfFamily = (sameName ?? []).filter((p) => orderedFamilies.has(familyKey(p)));
         for (const p of siblingsOfFamily) {
