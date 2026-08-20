@@ -361,9 +361,13 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
           const product = variant.products;
           if (!product) return;
 
-          const variantColor = variant.color || "";
-          const productKey = `${product.id}-${variantColor}`;
-          allSizes.add(variant.size);
+          const variantColor = (variant.color || "").trim();
+          // Merge duplicate product rows that share name + brand + colour so the
+          // same article never renders as several rows.
+          const productKey = `${(product.product_name || "").trim().toUpperCase()}|${(product.brand || "").trim().toUpperCase()}|${variantColor.toUpperCase()}`;
+          const sizeKey = sizeMatrixKey(variant.size);
+          if (!sizeKey) return;
+          allSizes.add(sizeKey);
 
           if (!productMap.has(productKey)) {
             productMap.set(productKey, {
@@ -377,8 +381,9 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
           }
 
           const row = productMap.get(productKey)!;
-          row.sizeStocks[variant.size] = (row.sizeStocks[variant.size] || 0) + variant.stock_qty;
-          row.totalStock += variant.stock_qty;
+          const qty = Number(variant.stock_qty) || 0;
+          row.sizeStocks[sizeKey] = (row.sizeStocks[sizeKey] || 0) + qty;
+          row.totalStock += qty;
         });
 
         // Sort sizes using standard garment order
