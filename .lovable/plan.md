@@ -1,59 +1,30 @@
-# Blank white workspace when opening an organization
+# Sale Order "Available Stock" print shows 0 for PUL228 — cause and fix
 
-## What happens
+## What the data shows (KS FOOTWEAR, verified)
 
-Opening `/{org}` (e.g. `/ks-footwear`) paints the sidebar, header and tab bar, but the
-workspace area stays white. A reload shows the dashboard normally. The console in the
-screenshot confirms the sequence: no error for ~6 seconds, then
-`[OrgLayout] Tab pane not ready — falling back to Outlet`.
+`PUL228` exists as **three separate product rows**, all brand RLX:
 
-## Confirmed cause (read from the current code)
+| Product row | Name | Style | Stock |
+|---|---|---|---|
+| bca7d558… | PUL228 | PUG | ~2 pcs total (BEIJE: 0) |
+| ee219f2f… | PUL228 | PUL | the real stock — BEIJE 19/32/33/21/6 = 111, BK 143, etc. |
+| 91073d0e… | PUL228-PUL-RLX-LD | PUL | 0 |
 
-Two places treat "the chunk file is downloaded" as "a pane is painted on screen".
+Sale orders SO/26-27/1096 and /1131 booked PUL228 BEIJE against **bca7d558 (style PUG)**, which holds zero BEIJE stock. So the pick list correctly prints `0 / 1` for that product row, while the Size-wise Stock Report — which lists every PUL228 row — shows the 111 pcs sitting on the other row.
 
-1. `src/components/TabCachedPages.tsx` (~line 820)
-   `hasReadySiblingPane` counts a sibling tab as ready when
-   `isTabCachePaneMounted(p) || isTabPageChunkLoaded(p)`. On a cold open, the
-   post-login prefetch downloads sibling chunks (POS Dashboard, Sales, etc.) within
-   the first second, so this is true even though no sibling has mounted yet.
-   That sets `silentColdNav`, and the active pane's Suspense fallback returns
-   `null` ("a sibling is already on screen, don't paint a loading shell") — but no
-   sibling is on screen. Nothing renders.
+The pick list already tries to pull in sibling product rows, but its family match requires **the same product name AND brand AND style**. Style `PUG` ≠ `PUL`, and the third row's name has a `-PUL-RLX-LD` suffix, so both stock-holding rows are excluded.
 
-2. `src/components/OrgLayout.tsx` (~lines 109-221)
-   `isTabPaneReadyForPath` returns true for a chunk-loaded-but-never-mounted path,
-   so `hasReadySiblingPane` → `showTabCacheDuringColdNav` → `renderOwner = "tab-cache"`.
-   That also hides `<Outlet>`, so the fallback route cannot paint either.
+## The fix
 
-Result: tab-cache owns the frame, paints nothing, and `<Outlet>` is suppressed —
-a white workspace until the 6s rescue timer (or a manual reload) hands the route
-back to `<Outlet>`.
+In the Sale Order pick-list stock lookup only (`src/pages/SaleOrderDashboard.tsx` + `src/utils/sizeWiseStockLookup.ts`):
 
-The 1.2s blank-frame watchdog does not save this case reliably because the
-workspace container still has a sized box while the dimmed (empty) sibling pane is
-mounted, so `hasPaintedContent` reports true.
+1. **Match siblings on article code + brand, ignoring style.** Drop `style` from the family key so `PUL228 / RLX / PUG` and `PUL228 / RLX / PUL` are treated as the same article.
+2. **Normalise the article code** before matching: uppercase, trim, and take the segment before the first `-` (`PUL228-PUL-RLX-LD` → `PUL228`). Fetch candidate products with a prefix match on the code instead of an exact `IN (names)` list.
+3. **Group on-hand stock by code + brand + colour** (style removed) when summing `stock_qty`, so the printed cell for PUL228 BEIJE size 5 becomes 32 and the row total 111.
+4. Leave conversion behaviour alone: `stock_qty` used for the convert-to-invoice quantity cap stays bound to the actual variant. Only the printed Avl figure widens to the article-level on-hand total (it is explicitly a snapshot, not a reservation).
 
-## Fix
+## Notes
 
-1. **Silence only when a sibling is genuinely painted** — in `TabCachedPages`,
-   base `hasReadySiblingPane` on real mount state (`isTabCachePaneMounted`) plus a
-   pane that has actually signalled ready, not on `isTabPageChunkLoaded`. When no
-   sibling is painted, render the normal `DashboardSkeleton` / loading shell instead
-   of `null`.
-2. **Same correction in `OrgLayout`** — split the two meanings: keep chunk-loaded as
-   the fast path for *the current* path (that stays, it prevents the Outlet flash),
-   but require an actually mounted sibling before `showTabCacheDuringColdNav` can
-   suppress `<Outlet>`.
-3. **Harden the watchdog** — treat a workspace whose only visible children are
-   `aria-hidden` / dimmed outgoing panes as unpainted, so a future variant of this
-   state is rescued in 1.2s instead of 6s.
-
-Net effect: opening an org shows the dashboard skeleton and then the dashboard —
-never a white pane — and the 6s Outlet fallback stops being the normal path.
-
-## Notes / out of scope
-
-- The `blob:` manifest CSP warning and the 406 request in the same console are
-  separate, non-blocking issues (PWA manifest and a `maybeSingle` lookup) — not the
-  cause of the blank frame. Flag if you want them handled too.
-- Frontend render-path only; no data, query or backend changes.
+- Nothing in the database changes; this is a read/aggregation fix.
+- The Size-wise Stock Report keeps its current per-row grouping — only the pick list aggregates across styles.
+- Side effect of step 2: any two products whose names share a prefix before the first `-` and have the same brand will merge in the pick list. For this catalogue (article codes like PUL228, FL709, BHG215) that is the intended behaviour.
