@@ -10,7 +10,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
-import { sortSizes } from "@/utils/sizeSort";
+import { sizeMatrixKey, sortSizes } from "@/utils/sizeSort";
 
 interface SizeStockDialogProps {
   open: boolean;
