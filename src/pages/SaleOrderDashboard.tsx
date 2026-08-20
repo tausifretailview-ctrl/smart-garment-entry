@@ -394,10 +394,11 @@ export default function SaleOrderDashboard() {
     ];
 
     let variantMap = new Map<string, { id: string; color?: string | null; stock_qty?: number | null }>();
-    if (variantIds.length > 0) {
+    if (variantIds.length > 0 && currentOrganization?.id) {
       const { data: variants, error } = await supabase
         .from("product_variants")
         .select("id, color, stock_qty")
+        .eq("organization_id", currentOrganization.id)
         .in("id", variantIds);
       if (error) throw error;
       variantMap = new Map(variants?.map((v) => [v.id, v]) || []);
@@ -496,17 +497,20 @@ export default function SaleOrderDashboard() {
         const sizeKey = sizeMatrixKey(item.size);
         const groupOnHand =
           sizeStock.find((s) => s.size === sizeKey)?.qty ?? 0;
-        const stockQty = Number(variantMeta?.stock_qty) || 0;
-        const totalStockQty = Math.max(stockQty, groupOnHand);
+        // Prefer family on-hand (same article/brand/colour across duplicate masters
+        // and barcodes). Bound variant alone is often 0 when stock was received on
+        // a sibling product row — that produced blank pick-list dashes.
+        const boundStockQty = Number(variantMeta?.stock_qty) || 0;
+        const totalStockQty = Math.max(boundStockQty, groupOnHand);
         const pendingQty = Number(item.pending_qty) || 0;
-        const maxConvert = Math.min(pendingQty, stockQty);
+        const maxConvert = Math.min(pendingQty, totalStockQty);
         return {
           id: item.id,
           product_name: item.product_name,
           size: item.size,
           order_qty: Number(item.order_qty) || 0,
           pending_qty: pendingQty,
-          stock_qty: stockQty,
+          stock_qty: totalStockQty,
           total_stock_qty: totalStockQty,
           size_stock: sizeStock,
           convert_qty: maxConvert,
