@@ -329,7 +329,7 @@ const formatProductDescription = (item: {
   brand?: string;
   style?: string;
   color?: string;
-  size: string;
+  size?: string;
 }) => {
   const parts = [item.product_name];
   if (item.style && item.style.trim() && item.style.trim() !== '-') parts.push(item.style);
