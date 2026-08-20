@@ -468,7 +468,7 @@ export default function SaleOrderDashboard() {
         .is("deleted_at", null)
         .eq("active", true);
       if (sibErr) throw sibErr;
-      sizeWiseByGroup = aggregateSizeWiseStock(
+      sizeWiseByGroup = aggregateArticleStock(
         (siblings ?? []).map((v) => {
           const meta = productMeta.get(v.product_id);
           return {
@@ -492,7 +492,7 @@ export default function SaleOrderDashboard() {
         const brand = meta?.brand || "";
         const style = meta?.style || "";
         const color = item.color || variantMeta?.color || "";
-        const sizeStock = sizeStockListForGroup(sizeWiseByGroup, article, brand, color, style);
+        const sizeStock = articleSizeStockList(sizeWiseByGroup, article, brand, color);
         const sizeKey = sizeMatrixKey(item.size);
         const groupOnHand =
           sizeStock.find((s) => s.size === sizeKey)?.qty ?? 0;
