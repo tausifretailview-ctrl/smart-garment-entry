@@ -9090,6 +9090,7 @@ export type Database = {
         Args: { p_customer_id: string; p_organization_id: string }
         Returns: number
       }
+      get_deleted_cn_adjust_without_sra_digest: { Args: never; Returns: Json }
       get_erp_dashboard_stats: {
         Args: { p_end_date: string; p_org_id: string; p_start_date: string }
         Returns: Json
