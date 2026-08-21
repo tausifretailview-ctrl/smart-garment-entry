@@ -10,6 +10,7 @@ import {
   resolveTabCachePath,
   shouldAllowSpeculativeChunkPrefetch,
 } from "./tabPageRegistry";
+import { POST_LOGIN_WEB_IDLE_INVENTORY_PREFETCH_TAB_PATHS } from "./chunkLoadRetry";
 
 /** Mirrors TabCachedPages.resolveTabLoadShell — every registry route must map. */
 function resolveTabLoadShell(path: string): "entry" | "dashboard" | "page" {
@@ -70,15 +71,14 @@ describe("tab load shell coverage", () => {
 });
 
 describe("master / inventory / sales tab mutual prefetch", () => {
-  it("warms Customers and Suppliers like Sales dashboards (web critical + sibling set)", () => {
+  it("warms Customers and Suppliers like Sales dashboards (idle + sibling set)", () => {
     expect(MASTER_TAB_PREFETCH_PATHS).toContain("customers");
     expect(MASTER_TAB_PREFETCH_PATHS).toContain("suppliers");
     expect(MASTER_TAB_PREFETCH_PATHS).toContain("salesman-commission");
-    expect(POST_LOGIN_PREFETCH_TAB_PATHS_WEB).toContain("customers");
-    expect(POST_LOGIN_PREFETCH_TAB_PATHS_WEB).toContain("suppliers");
-    expect(POST_LOGIN_PREFETCH_TAB_PATHS_WEB).toContain("pos-dashboard");
-    expect(POST_LOGIN_PREFETCH_TAB_PATHS_WEB).toContain("sales-invoice-dashboard");
+    // Critical warm is dashboard + POS only — masters/dashboards idle-warm.
+    expect(POST_LOGIN_PREFETCH_TAB_PATHS_WEB).toEqual(["", "pos-sales"]);
     expect(POST_LOGIN_WEB_IDLE_ADMIN_PREFETCH_TAB_PATHS).toContain("customers");
+    expect(POST_LOGIN_WEB_IDLE_ADMIN_PREFETCH_TAB_PATHS).toContain("suppliers");
   });
 
   it("warms Inventory siblings including Product + Purchase dashboards", () => {
@@ -86,7 +86,8 @@ describe("master / inventory / sales tab mutual prefetch", () => {
     expect(INVENTORY_TAB_PREFETCH_PATHS).toContain("purchase-bills");
     expect(INVENTORY_TAB_PREFETCH_PATHS).toContain("purchase-orders");
     expect(INVENTORY_TAB_PREFETCH_PATHS).toContain("stock-settlement");
-    expect(POST_LOGIN_PREFETCH_TAB_PATHS_WEB).toContain("products");
+    expect(POST_LOGIN_WEB_IDLE_INVENTORY_PREFETCH_TAB_PATHS).toContain("products");
+    expect(POST_LOGIN_WEB_IDLE_INVENTORY_PREFETCH_TAB_PATHS).toContain("purchase-bills");
   });
 
   it("keeps Sales POS ↔ Invoice mutual warm set", () => {

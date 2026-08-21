@@ -209,16 +209,16 @@ function getMinKeepTabs(): number {
 
 const DASHBOARD_TAB_PATHS = new Set(["", "dashboard"]);
 /** Time before showing the "Retry tab / Refresh app" card. */
-const TAB_LOAD_TIMEOUT_MS = 18_000;
+const TAB_LOAD_TIMEOUT_MS = 6_000;
 /**
  * Large admin chunks (Settings) — keep slightly longer than default, but not 45s:
  * users were stuck on skeleton + "Still loading…" until a manual full reload.
  */
-const HEAVY_TAB_LOAD_TIMEOUT_MS = 22_000;
-/** When to swap the bare spinner for a friendlier "Still loading…" hint (second-stage only). */
-const SOFT_LOADING_HINT_MS = 8_000;
+const HEAVY_TAB_LOAD_TIMEOUT_MS = 6_000;
+/** Soft remount + bandwidth pause — fire early so hung cold chunks recover. */
+const SOFT_LOADING_HINT_MS = 3_000;
 /** Drop a background prefetch that never settled before remounting the active tab. */
-const STALE_IN_FLIGHT_MS = 12_000;
+const STALE_IN_FLIGHT_MS = 4_000;
 
 type TabLoadShell = "entry" | "dashboard" | "page";
 
@@ -546,7 +546,7 @@ function CachedTabPane({
     if (softRetriedRef.current) return;
     softRetriedRef.current = true;
     // Yield bandwidth to this remount — idle admin prefetch must not keep starving Settings.
-    pauseBackgroundPrefetch(30_000);
+    pauseBackgroundPrefetch(60_000);
     retryTabLoad();
   }, [retryTabLoad]);
 

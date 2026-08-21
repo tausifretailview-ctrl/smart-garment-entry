@@ -85,6 +85,11 @@ describe("skew recovery cooldown", () => {
     expect(canAttemptSkewRecoveryReload(1_000_000)).toBe(true);
   });
 
+  it("blocks a second attempt after chunk_recovery_reloaded flag", () => {
+    sessionStorage.setItem("chunk_recovery_reloaded", "1");
+    expect(canAttemptSkewRecoveryReload()).toBe(false);
+  });
+
   it("blocks a second attempt for the rest of the tab session", () => {
     const t0 = 1_000_000;
     sessionStorage.setItem("skew_reload_at", String(t0));
@@ -101,9 +106,15 @@ describe("skew recovery cooldown", () => {
 });
 
 describe("idle / wake entry-chunk prefetch lists", () => {
+  it("keeps post-login critical warm to dashboard + POS only", () => {
+    expect([...POST_LOGIN_PREFETCH_TAB_PATHS_WEB]).toEqual(["", "pos-sales"]);
+    expect(POST_LOGIN_PREFETCH_TAB_PATHS_WEB).not.toContain("purchase-bills");
+    expect(POST_LOGIN_PREFETCH_TAB_PATHS_WEB).not.toContain("settings");
+  });
+
   it("warms purchase-entry and product-entry on web idle after login", () => {
     expect(POST_LOGIN_WEB_IDLE_INVENTORY_PREFETCH_TAB_PATHS).toEqual(
-      expect.arrayContaining(["purchase-entry", "product-entry"]),
+      expect.arrayContaining(["purchase-entry", "product-entry", "purchase-bills"]),
     );
   });
 
