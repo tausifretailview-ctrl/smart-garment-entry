@@ -2994,8 +2994,10 @@ const PurchaseEntry = () => {
     async (rawBarcode: string): Promise<ProductVariant | null> => {
       if (!currentOrganization?.id) return null;
       const barcode = normalizeProductSearchTerm(rawBarcode);
-      if (!barcode) return null;
+      // Reject empty / whitespace-only — `.eq("barcode", "")` yields PostgREST 400s.
+      if (!barcode || barcode.length < 1) return null;
 
+      const orgId = currentOrganization.id;
       const { data, error } = await supabase
         .from("product_variants")
         .select(
@@ -3028,7 +3030,7 @@ const PurchaseEntry = () => {
           )
         `,
         )
-        .eq("organization_id", currentOrganization.id)
+        .eq("organization_id", orgId)
         .eq("barcode", barcode)
         .is("deleted_at", null)
         .eq("active", true)

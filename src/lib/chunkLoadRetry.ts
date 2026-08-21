@@ -4,6 +4,8 @@ import { lazy, type ComponentType, type LazyExoticComponent } from "react";
 const SKEW_RELOAD_KEY = "skew_reload_count";
 /** Epoch-ms of last skew recovery reload (sessionStorage). */
 const SKEW_RELOAD_AT_KEY = "skew_reload_at";
+/** Explicit one-shot flag — prevents reload loops after ChunkLoadError recovery. */
+const CHUNK_RECOVERY_RELOADED_KEY = "chunk_recovery_reloaded";
 /**
  * One automatic full reload per tab session after deploy skew (stale hashed chunk 404).
  * A 2-minute cooldown plus a 1s post-boot reset produced an all-pages refresh loop.
@@ -18,16 +20,26 @@ const RETRY_BASE_MS = 500;
  *  "This tab failed to load" screen. */
 export const MODULE_LOAD_TIMEOUT_MS = 60_000;
 
-/** Paths prefetched right after org login so first bill open does not cold-load a large chunk. */
-export const POST_LOGIN_PREFETCH_TAB_PATHS = [
-  "", // main dashboard — fast return from POS / window tabs
-  "pos-sales",
+/**
+ * Eager post-login prefetch — ONLY the home dashboard + POS.
+ * Everything else warms via `scheduleSequentialIdlePrefetch` so cold opens of
+ * Purchase Bills / Purchase Entry are not starved by a 15+ chunk waterfall.
+ */
+export const POST_LOGIN_PREFETCH_TAB_PATHS = ["", "pos-sales"] as const;
+
+/** Web/PWA critical warm — same slim set as Electron (active route wins bandwidth). */
+export const POST_LOGIN_PREFETCH_TAB_PATHS_WEB = ["", "pos-sales"] as const;
+
+/**
+ * Former Electron critical paths — first wave of idle prefetch after login.
+ * Kept sequential so they never race the visible tab.
+ */
+export const POST_LOGIN_ELECTRON_IDLE_PRIMARY_PREFETCH_TAB_PATHS = [
   "pos-dashboard",
   "sales-invoice",
   "sales-invoice-dashboard",
   "purchase-entry",
   "purchase-bill-dashboard",
-  // Frequently switched-to from Sales/Purchase — warm so first open is instant
   "stock-report",
   "customers",
   "suppliers",
@@ -37,32 +49,9 @@ export const POST_LOGIN_PREFETCH_TAB_PATHS = [
   "sale-return-dashboard",
   "purchase-return-dashboard",
   "accounts",
-  // URL-slug aliases used in App.tsx routes (resolved to the same chunks)
   "products",
   "purchase-bills",
   "purchase-returns",
-] as const;
-
-/**
- * Slim post-login prefetch list for web/PWA — only the modules a cashier
- * typically opens first. Avoids a 20+ chunk waterfall on cold load that
- * starves the visible tab and triggers the "Taking longer than expected"
- * screen on slow shop Wi-Fi.
- */
-export const POST_LOGIN_PREFETCH_TAB_PATHS_WEB = [
-  "",
-  "pos-sales",
-  "pos-dashboard",
-  "sales-invoice-dashboard",
-  "purchase-bills",
-  "purchase-bill-dashboard",
-  "stock-report",
-  // Masters + Product Dashboard — same instant-switch bar as Sales dashboards
-  // (Customers ↔ Suppliers / Products ↔ Purchase Bills must not cold-load).
-  "customers",
-  "suppliers",
-  "products",
-  "product-dashboard",
 ] as const;
 
 /**
@@ -79,6 +68,9 @@ export const POST_LOGIN_WEB_IDLE_INVENTORY_PREFETCH_TAB_PATHS = [
   "purchase-returns",
   "purchase-entry",
   "product-entry",
+  "pos-dashboard",
+  "sales-invoice-dashboard",
+  "stock-report",
 ] as const;
 
 /**
@@ -240,6 +232,7 @@ export function resetSkewReloadCount(): void {
   try {
     sessionStorage.removeItem(SKEW_RELOAD_KEY);
     sessionStorage.removeItem(SKEW_RELOAD_AT_KEY);
+    sessionStorage.removeItem(CHUNK_RECOVERY_RELOADED_KEY);
   } catch {
     // ignore private mode / storage errors
   }
@@ -267,6 +260,7 @@ async function purgeStaleAppCaches(): Promise<void> {
 /** True when another automatic skew reload is allowed (once per tab session). */
 export function canAttemptSkewRecoveryReload(_nowMs = Date.now()): boolean {
   try {
+    if (sessionStorage.getItem(CHUNK_RECOVERY_RELOADED_KEY) === "1") return false;
     const raw = sessionStorage.getItem(SKEW_RELOAD_AT_KEY);
     if (!raw) return true;
     const lastAt = parseInt(raw, 10);
@@ -287,6 +281,7 @@ export function attemptSkewRecoveryReload(): boolean {
   try {
     if (!canAttemptSkewRecoveryReload()) return false;
     sessionStorage.setItem(SKEW_RELOAD_AT_KEY, String(Date.now()));
+    sessionStorage.setItem(CHUNK_RECOVERY_RELOADED_KEY, "1");
     // Keep legacy key in sync for older diagnostics / mid-rollout tabs.
     sessionStorage.setItem(SKEW_RELOAD_KEY, "1");
     void purgeStaleAppCaches().finally(() => {
@@ -340,8 +335,11 @@ export async function importWithRetry<T>(importFn: () => Promise<T>): Promise<T>
     }
   }
 
-  // Auto-reload disabled by design — skew recovery is handled by error boundaries
-  // via attemptSkewRecoveryReload() (bounded, once per session).
+  // Stale deploy / HTML-for-JS: recover immediately (once per session) so the user
+  // never sits on a blank Suspense shell waiting for a manual refresh.
+  if (isChunkLoadError(lastError) && attemptSkewRecoveryReload()) {
+    return new Promise<T>(() => {});
+  }
   throw lastError;
 }
 

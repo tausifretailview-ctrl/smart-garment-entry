@@ -4,6 +4,7 @@ import { Outlet, useParams, useLocation } from "react-router-dom";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { AppBootSplash } from "@/components/AppBootSplash";
+import { DashboardSkeleton } from "@/components/ui/skeletons";
 import OrgAuth from "@/pages/OrgAuth";
 import { storeOrgSlug } from "@/lib/orgSlug";
 import { applyOrgPwaManifest } from "@/lib/orgPwaManifest";
@@ -69,6 +70,8 @@ const TAB_CACHE_INACTIVE = "__none__";
 
 /** How long after a navigation the workspace may stay empty before we rescue it. */
 const BLANK_FRAME_GRACE_MS = 1_200;
+/** Stuck tab-cache Suspense → hand route to <Outlet> (with App DashboardSkeleton). */
+const OUTLET_FALLBACK_MS = 4_000;
 
 function getOrgPathSegment(pathname: string, orgSlug?: string): string {
   if (orgSlug && pathname.startsWith(`/${orgSlug}`)) {
@@ -382,8 +385,9 @@ export const OrgLayout = () => {
     if (!wantsTabCache || effectiveTabPaneReady || forceOutletFallback) return;
     // Cacheable entry must stay on the pane (draft state); only dashboards use Outlet rescue.
     if (usesLongLoadBudget) return;
-    // 18s/12s was far past the point users gave up and reloaded manually.
-    const timeoutMs = 6_000;
+    // 4s: hand off to <Outlet> + App LazyFallback (DashboardSkeleton) before the
+    // "Taking longer than expected" card appears at 6s in TabCachedPages.
+    const timeoutMs = OUTLET_FALLBACK_MS;
     const timer = window.setTimeout(() => {
       console.warn("[OrgLayout] Tab pane not ready — falling back to Outlet for", currentPath);
       // Clear poisoned tab-cache bookkeeping so a later switch can remount cleanly.
@@ -628,7 +632,7 @@ export const OrgLayout = () => {
     isViewportFixedEntry || isEntryPage || hasVisibleTabCache || isFillHeightPage || isMainDashboard;
 
   const workspaceBody = (
-    <div ref={workspaceRef} className="flex min-h-0 flex-1 flex-col overflow-hidden w-full">
+    <div ref={workspaceRef} className="relative flex min-h-0 flex-1 flex-col overflow-hidden w-full">
       {tabPaths.length > 0 && (
         <div
           className={cn(
@@ -669,6 +673,16 @@ export const OrgLayout = () => {
           <Outlet />
         </div>
       )}
+      {/* Never leave a pure white workspace while the active tab chunk is still cold. */}
+      {wantsTabCache &&
+        !effectiveTabPaneReady &&
+        !forceOutletFallback &&
+        !hasReadySiblingPane &&
+        renderViaTabCache && (
+          <div className="absolute inset-0 z-10 bg-background">
+            <DashboardSkeleton />
+          </div>
+        )}
     </div>
   );
 
