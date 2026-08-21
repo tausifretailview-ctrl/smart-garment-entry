@@ -7,6 +7,10 @@ import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { useMobileERP, validateIMEI } from "@/hooks/useMobileERP";
 import { getUniversalCodeScanWarning } from "@/utils/imeiValidation";
 import { productRequiresImei } from "@/utils/productRequiresImei";
+import {
+  resolvePurchaseBarcodesForStockReport,
+  type PurchaseBarcodeStockClient,
+} from "@/utils/stockReportPurchaseBarcodeResolve";
 import { useSettings } from "@/hooks/useSettings";
 import { usePosBilling } from "@/hooks/usePosBilling";
 import type { CartItem, PosGrossBasis } from "@/lib/posBilling";
@@ -343,8 +347,32 @@ async function fetchPosVariantByBarcode(
   // Serialized (IMEI) units are unique pieces and share long common prefixes.
   // A substring match would silently add a DIFFERENT phone — exact match only.
   if (partial && productRequiresImei(partial.product, mobileERPConfig)) return null;
+  if (partial) return partial;
 
-  return partial;
+  // Post-merge drift: purchase_items still has the scanned barcode; live master
+  // may carry a different barcode (KS Footwear / duplicate-master consolidate).
+  if (!/^\d{4,}$/.test(trimmed)) return null;
+  try {
+    const resolutions = await resolvePurchaseBarcodesForStockReport(
+      supabase as unknown as PurchaseBarcodeStockClient,
+      orgId,
+      trimmed,
+    );
+    const hit = resolutions.find((r) => !r.excludeReason && r.skuId);
+    if (!hit) return null;
+
+    const { data: bySku, error: bySkuError } = await posVariantBaseQuery(orgId)
+      .eq('id', hit.skuId)
+      .limit(1);
+    if (bySkuError) throw bySkuError;
+
+    return mapPosVariantLookupRow(
+      bySku?.[0] as unknown as (PosVariantRow & { products?: PosProductRow }) | undefined,
+    );
+  } catch (err) {
+    console.error('POS purchase-barcode resolve failed:', err);
+    return null;
+  }
 }
 
 function isStockTrackedPosProduct(product: { product_type?: string | null } | null | undefined): boolean {
@@ -2182,10 +2210,7 @@ export default function POSSales() {
 
             if (mobileERP.enabled && mobileERP.imei_scan_enforcement) {
               // Prefer lookup before IMEI length gate so shared EANs still resolve.
-              const { data: earlyData } = await posVariantBaseQuery(orgId).eq('barcode', term).limit(1);
-              const earlyMatch = mapPosVariantLookupRow(
-                earlyData?.[0] as (PosVariantRow & { products?: PosProductRow }) | undefined,
-              );
+              const earlyMatch = await fetchPosVariantByBarcode(orgId, term, mobileERP);
               if (earlyMatch && !productRequiresImei(earlyMatch.product, mobileERP)) {
                 // fall through to add below without IMEI length rejection
               } else if (!validateIMEI(term, mobileERP.imei_min_length, mobileERP.imei_max_length)) {
@@ -2198,14 +2223,7 @@ export default function POSSales() {
               }
             }
 
-            const { data, error } = await posVariantBaseQuery(orgId).eq('barcode', term).limit(1);
-            if (error) {
-              console.error('Manual barcode lookup failed:', error);
-              return;
-            }
-            const match = mapPosVariantLookupRow(
-              data?.[0] as (PosVariantRow & { products?: PosProductRow }) | undefined,
-            );
+            const match = await fetchPosVariantByBarcode(orgId, term, mobileERP);
             if (!match) return;
 
             markSubmitted(term);

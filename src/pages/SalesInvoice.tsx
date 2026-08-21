@@ -6,6 +6,10 @@ import { useSettings, useProductFieldSettings } from "@/hooks/useSettings";
 import { resolveGarmentGstForLine } from "@/utils/gstRules";
 import { GST_SLABS } from "@/utils/gstRegisterUtils";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  resolvePurchaseBarcodesForStockReport,
+  type PurchaseBarcodeStockClient,
+} from "@/utils/stockReportPurchaseBarcodeResolve";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useCustomerBalance } from "@/hooks/useCustomerBalance";
 import { useCustomerSearch, useCustomerBalances } from "@/hooks/useCustomerSearch";
@@ -1890,6 +1894,45 @@ export default function SalesInvoice() {
       if (dbVariant && (dbVariant as any).products) {
         foundVariant = dbVariant;
         foundProduct = (dbVariant as any).products;
+      }
+
+      // Purchase-line barcode snapshot → live sku (post-merge drift).
+      if (!foundVariant && /^\d{4,}$/.test(searchTerm.trim())) {
+        try {
+          const resolutions = await resolvePurchaseBarcodesForStockReport(
+            supabase as unknown as PurchaseBarcodeStockClient,
+            currentOrganization.id,
+            searchTerm.trim(),
+          );
+          const hit = resolutions.find((r) => !r.excludeReason && r.skuId);
+          if (hit?.skuId) {
+            const { data: bySku, error: bySkuErr } = await supabase
+              .from("product_variants")
+              .select(`
+          id, barcode, size, color, stock_qty, sale_price, mrp, pur_price, product_id, active,
+          last_purchase_sale_price, last_purchase_mrp, last_purchase_date,
+          products!inner(
+            id, product_name, brand, hsn_code, gst_per, sale_gst_percent, purchase_gst_percent,
+            category, style, color, product_type, organization_id, size_group_id,
+            sale_discount_type, sale_discount_value, uom, status, deleted_at
+          )
+        `)
+              .eq("id", hit.skuId)
+              .eq("organization_id", currentOrganization.id)
+              .is("deleted_at", null)
+              .eq("products.organization_id", currentOrganization.id)
+              .eq("products.status", "active")
+              .is("products.deleted_at", null)
+              .maybeSingle();
+            if (bySkuErr) console.error("Sale purchase-barcode resolve failed:", bySkuErr);
+            if (bySku && (bySku as any).products) {
+              foundVariant = bySku;
+              foundProduct = (bySku as any).products;
+            }
+          }
+        } catch (err) {
+          console.error("Sale purchase-barcode resolve failed:", err);
+        }
       }
     }
 

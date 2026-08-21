@@ -1,6 +1,7 @@
 -- KS Footwear — barcode on Purchase Bills but missing from Stock Report
 -- Org: 4bc73037-e877-4123-9261-eb6e3876698c
 -- Barcode: 0040017398 (PUG42 qty 3 on bill)
+-- Note: purchase_items has NO organization_id — scope via purchase_bills only.
 
 -- 1) Purchase snapshot vs live variant/product
 SELECT
@@ -27,9 +28,7 @@ SELECT
     ELSE 'should appear in Stock Report — check filters'
   END AS diagnosis
 FROM public.purchase_items pi
-JOIN public.purchase_bills pb
-  ON pb.id = pi.bill_id
- AND pb.organization_id = pi.organization_id
+JOIN public.purchase_bills pb ON pb.id = pi.bill_id
 LEFT JOIN public.product_variants pv ON pv.id = pi.sku_id
 LEFT JOIN public.products p ON p.id = pv.product_id
 WHERE pb.organization_id = '4bc73037-e877-4123-9261-eb6e3876698c'
