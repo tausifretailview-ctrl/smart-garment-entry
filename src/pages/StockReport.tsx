@@ -76,6 +76,8 @@ interface StockItem {
   sale_price: number;
   pur_price: number | null;
   barcode: string;
+  /** Purchase-label barcode when search hit via purchase_items (live barcode differs). */
+  matched_purchase_barcode?: string;
   supplier_name: string;
   supplier_invoice_no: string;
   category: string;
@@ -381,6 +383,7 @@ function stockItemMatchesSearch(item: StockItem, query: string): boolean {
     item.product_name,
     item.brand,
     item.barcode,
+    item.matched_purchase_barcode,
     item.size,
     item.color,
     item.department,
@@ -891,6 +894,8 @@ export default function StockReport() {
         if (requestId !== searchRequestIdRef.current) return;
 
         let rows = (data || []) as unknown as StockReportRpcRow[];
+        /** variant_id → purchase-label barcode when live barcode ≠ search */
+        const purchaseLabelByVariantId = new Map<string, string>();
 
         // Purchase Bills matches purchase_items.barcode; Stock Report matches live
         // product_variants.barcode. After master merges the snapshot can diverge —
@@ -945,10 +950,18 @@ export default function StockReport() {
                 }
               }
               rows = [...merged.values()];
+              const searchBc = searchTerm.trim();
+              for (const r of resolutions) {
+                if (r.excludeReason || !r.skuId) continue;
+                const live = (r.liveBarcode || "").trim();
+                if (live && live !== searchBc) {
+                  purchaseLabelByVariantId.set(r.skuId, r.purchaseBarcode || searchBc);
+                }
+              }
               if (rows.length > 0) {
                 const shown = retryBarcodes.slice(0, 3).join(", ");
                 toast.message("Matched via purchase history", {
-                  description: `Purchase barcode ${searchTerm.trim()} maps to live barcode ${shown}.`,
+                  description: `Label ${searchBc} → live barcode ${shown} (same SKU after master merge).`,
                 });
               }
             } else if (resolutions.length > 0) {
@@ -974,6 +987,7 @@ export default function StockReport() {
         setStockItems(
           rows.map((row) => {
             const purchaseSource = purchaseSourceByVariantId.get(row.variant_id);
+            const matchedPurchase = purchaseLabelByVariantId.get(row.variant_id);
             return {
               id: row.variant_id,
               product_name: row.product_name || "",
@@ -989,6 +1003,7 @@ export default function StockReport() {
               sale_price: Number(row.sale_price ?? 0),
               pur_price: row.pur_price != null ? Number(row.pur_price) : null,
               barcode: row.barcode || "",
+              matched_purchase_barcode: matchedPurchase,
               supplier_name: purchaseSource?.supplier_name || "",
               supplier_invoice_no: purchaseSource?.supplier_invoice_no || "",
               category: row.category || "",
@@ -1223,7 +1238,24 @@ export default function StockReport() {
       // General search filter — multi-token AND
       if (searchTerm) {
         const matchesOldBarcode = variantIdsFromOldBarcodes.has(item.id);
-        if (!matchesOldBarcode && !multiTokenMatch(searchTerm, item.product_name, item.brand, item.color, item.size, item.barcode, item.supplier_name, item.supplier_invoice_no, item.category, item.department, (item as any).hsn_code)) return false;
+        if (
+          !matchesOldBarcode &&
+          !multiTokenMatch(
+            searchTerm,
+            item.product_name,
+            item.brand,
+            item.color,
+            item.size,
+            item.barcode,
+            item.matched_purchase_barcode,
+            item.supplier_name,
+            item.supplier_invoice_no,
+            item.category,
+            item.department,
+            (item as any).hsn_code,
+          )
+        )
+          return false;
       }
 
       return true;
@@ -1873,6 +1905,12 @@ export default function StockReport() {
                   {item.brand && <p className="text-xs font-semibold text-foreground">{item.brand}</p>}
                   <div className="flex gap-1.5 mt-1 flex-wrap">
                     {item.barcode && <span className="text-[10px] bg-muted px-1.5 py-0.5 rounded font-mono">{item.barcode}</span>}
+                    {item.matched_purchase_barcode &&
+                      item.matched_purchase_barcode !== item.barcode && (
+                        <span className="text-[10px] bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 px-1.5 py-0.5 rounded font-mono">
+                          Label {item.matched_purchase_barcode}
+                        </span>
+                      )}
                     {item.size && <span className="text-[10px] bg-muted px-1.5 py-0.5 rounded">{item.size}</span>}
                     {item.color && <span className="text-[10px] bg-muted px-1.5 py-0.5 rounded">{item.color}</span>}
                   </div>
@@ -2321,13 +2359,22 @@ export default function StockReport() {
                               <TableCell className={STOCK_PRODUCT_DETAIL_CELL}>{highlightSearchText(item.department || '—', highlightQuery)}</TableCell>
                             )}
                             <TableCell className={cn(STOCK_DATA_CELL, "font-mono font-semibold")}>
-                              <div className="flex flex-wrap items-center gap-1.5">
-                                {highlightSearchText(item.barcode, highlightQuery)}
-                                {openSettlementVariantIds.has(item.id) && (
-                                  <Badge variant="outline" className="border-sky-200 bg-sky-50 text-[10px] font-normal text-sky-800">
-                                    In settlement
-                                  </Badge>
-                                )}
+                              <div className="flex flex-col gap-0.5">
+                                <div className="flex flex-wrap items-center gap-1.5">
+                                  {highlightSearchText(item.barcode, highlightQuery)}
+                                  {openSettlementVariantIds.has(item.id) && (
+                                    <Badge variant="outline" className="border-sky-200 bg-sky-50 text-[10px] font-normal text-sky-800">
+                                      In settlement
+                                    </Badge>
+                                  )}
+                                </div>
+                                {item.matched_purchase_barcode &&
+                                  item.matched_purchase_barcode !== item.barcode && (
+                                    <span className="text-[10px] font-normal text-amber-700 dark:text-amber-400">
+                                      Label{" "}
+                                      {highlightSearchText(item.matched_purchase_barcode, highlightQuery)}
+                                    </span>
+                                  )}
                               </div>
                             </TableCell>
                             <TableCell className={cn(STOCK_DATA_CELL, "text-right bg-blue-50/80 dark:bg-blue-950/50 font-medium")}>
