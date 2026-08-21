@@ -15,6 +15,11 @@
 --   `assert_org_member` / auth.uid(), which is NULL in the dashboard SQL editor
 --   (ERROR 42501 Authentication required).
 --
+--   Phase 1 sets `session_replication_role = replica` for the transaction so
+--   purchase/sale stock triggers do NOT fire on FK remaps. Those triggers would
+--   (a) double-count stock_qty and (b) insert movement_type values like
+--   `purchase_sku_change_in` that are missing from stock_movements_movement_type_check.
+--
 -- Canonical master = most sold qty, then most stock, then earliest created_at.
 --
 -- This script:
@@ -23,8 +28,9 @@
 --
 -- Invariants:
 --   - Scoped to one organization_id
---   - Soft-delete only via merge_products
---   - product_variants.stock_qty transferred by merge_products before soft-delete
+--   - Soft-delete only (deleted_at / active=false)
+--   - product_variants.stock_qty transferred in-script before soft-delete
+--   - Stock triggers disabled during remaps (manual stock transfer is authoritative)
 --
 -- DO NOT run the MUTATE block until PREFLIGHT results are reviewed.
 -- Run this BEFORE applying
@@ -146,6 +152,12 @@ LIMIT 100;
 
 BEGIN;
 
+-- Disable USER triggers for this transaction only. Remapping purchase_items.sku_id
+-- otherwise fires handle_purchase_item_update, which:
+--   1) adjusts stock_qty again (would double-count after our manual transfer)
+--   2) inserts purchase_sku_change_in/out — not in stock_movements_movement_type_check
+SET LOCAL session_replication_role = replica;
+
 DO $$
 DECLARE
   v_org uuid := '4bc73037-e877-4123-9261-eb6e3876698c';
@@ -164,6 +176,12 @@ DECLARE
   v_source_name text;
   v_target_name text;
 BEGIN
+  -- session_replication_role is transaction-local (SET LOCAL above); confirm
+  IF current_setting('session_replication_role', true) IS DISTINCT FROM 'replica' THEN
+    RAISE EXCEPTION 'session_replication_role must be replica for this repair (got %)',
+      current_setting('session_replication_role', true);
+  END IF;
+
   SELECT name INTO v_org_name FROM public.organizations WHERE id = v_org;
   IF v_org_name IS NULL THEN
     RAISE EXCEPTION 'KS Footwear org % not found — aborting', v_org;
@@ -458,6 +476,9 @@ BEGIN
 
   RAISE NOTICE 'KS Footwear consolidation OK (% merges). Stock preserved.', v_merged;
 END $$;
+
+-- Restored automatically at COMMIT; set explicitly for clarity if more statements follow
+SET LOCAL session_replication_role = origin;
 
 COMMIT;
 

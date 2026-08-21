@@ -9,6 +9,9 @@
    It **inlines** the `merge_products` logic (does **not** call the RPC).
    Production `merge_products` requires `assert_org_member` / `auth.uid()`, which
    is missing in the dashboard SQL editor (`42501 Authentication required`).
+   Phase 1 also sets `session_replication_role = replica` so purchase stock
+   triggers do not fire on `sku_id` remaps (avoids double stock + invalid
+   `purchase_sku_change_*` movement types).
    Assertions after mutate:
    - no remaining duplicate active names in the org
    - no active variants on soft-deleted products
