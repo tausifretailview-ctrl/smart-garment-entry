@@ -307,18 +307,61 @@ BEGIN
         WHERE variant_id = v_src_variant.id;
         UPDATE public.delivery_challan_items SET variant_id = v_target_variant_id
         WHERE variant_id = v_src_variant.id;
+
+        -- batch_stock: unique (variant_id, bill_number) — merge qty then drop conflicts
+        UPDATE public.batch_stock bs
+        SET quantity = bs.quantity + src.quantity,
+            updated_at = NOW()
+        FROM public.batch_stock src
+        WHERE src.organization_id = v_org
+          AND src.variant_id = v_src_variant.id
+          AND bs.organization_id = v_org
+          AND bs.variant_id = v_target_variant_id
+          AND bs.bill_number = src.bill_number;
+
+        DELETE FROM public.batch_stock src
+        USING public.batch_stock tgt
+        WHERE src.organization_id = v_org
+          AND src.variant_id = v_src_variant.id
+          AND tgt.organization_id = v_org
+          AND tgt.variant_id = v_target_variant_id
+          AND tgt.bill_number = src.bill_number;
+
         UPDATE public.batch_stock
         SET variant_id = v_target_variant_id
         WHERE organization_id = v_org AND variant_id = v_src_variant.id;
+
         UPDATE public.stock_movements
         SET variant_id = v_target_variant_id
         WHERE organization_id = v_org AND variant_id = v_src_variant.id;
+
+        -- customer_product_prices: unique (org, customer, variant) — keep target row
+        DELETE FROM public.customer_product_prices src
+        USING public.customer_product_prices tgt
+        WHERE src.organization_id = v_org
+          AND src.variant_id = v_src_variant.id
+          AND tgt.organization_id = v_org
+          AND tgt.variant_id = v_target_variant_id
+          AND tgt.customer_id = src.customer_id;
+
         UPDATE public.customer_product_prices
         SET variant_id = v_target_variant_id
         WHERE organization_id = v_org AND variant_id = v_src_variant.id;
+
+        -- stock_alerts: open alert unique per variant — drop source if target already open
+        DELETE FROM public.stock_alerts src
+        USING public.stock_alerts tgt
+        WHERE src.organization_id = v_org
+          AND src.variant_id = v_src_variant.id
+          AND src.resolved_at IS NULL
+          AND tgt.organization_id = v_org
+          AND tgt.variant_id = v_target_variant_id
+          AND tgt.resolved_at IS NULL;
+
         UPDATE public.stock_alerts
         SET variant_id = v_target_variant_id
         WHERE organization_id = v_org AND variant_id = v_src_variant.id;
+
         UPDATE public.stock_settlement_scans
         SET variant_id = v_target_variant_id
         WHERE organization_id = v_org AND variant_id = v_src_variant.id;
