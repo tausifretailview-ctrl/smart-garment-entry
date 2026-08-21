@@ -80,6 +80,7 @@ import {
   computeInvoiceOutstandingFromReconciliation,
   computeRefundableCreditBalance,
 } from "@/utils/customerLedgerReconciliation";
+import { saleReturnRunningBalanceCredit } from "@/utils/customerLedgerSaleReturnBalance";
 import {
   filterLedgerRowsByCardDrill,
   ledgerCardDrillLabel,
@@ -2341,14 +2342,16 @@ export function CustomerLedger({
           // Without this guard the SR gets double-credited: once via the invoice's
           // sale_return_adjust net-down, again as a standalone CN credit line.
           const consumedAmount = Math.max(absorbedOnInvoice, appliedAmount);
-          const balanceCredit = Math.max(0, amount - consumedAmount);
+          // Remaining after CN application — for CN Available / status / recon
+          // saleReturns (t.credit). Must NOT drive the running Balance column.
+          const remainingCredit = Math.max(0, amount - consumedAmount);
 
           // Skip SRs fully absorbed on a linked invoice via sales.sale_return_adjust
           // (pending CN applied on Sales Dashboard — same as buildAuditRows / balance RPC).
           if (String(sr.credit_status || '').toLowerCase() === 'adjusted' && linkedSaleId) {
             return;
           }
-          if (balanceCredit <= 0 && consumedAmount > 0) {
+          if (remainingCredit <= 0 && consumedAmount > 0) {
             const memoSaleNumber =
               (absorbedOnInvoice > 0 && linkedSale?.sale_number) ||
               appliedInfo?.saleNumber ||
@@ -2371,11 +2374,16 @@ export function CustomerLedger({
             return;
           }
 
-          if (amount > 0 && balanceCredit > 0) {
-            runningBalance -= balanceCredit;
+          if (amount > 0 && remainingCredit > 0) {
+            // Running Balance must advance by GROSS return credit (same as Credit
+            // column via displayCredit). Using remainingCredit here double-deducted
+            // applied CN: balance moved net-of-applied, then the invoice still
+            // debited gross (Hanif bhai / SR×INV ₹3,200 → ended ₹150 Dr while
+            // column totals correctly showed ₹3,050 Cr gap).
+            runningBalance -= saleReturnRunningBalanceCredit(amount);
 
             let status: string;
-            if (absorbedOnInvoice > 0 && balanceCredit <= 0) status = 'Fully Adjusted';
+            if (absorbedOnInvoice > 0 && remainingCredit <= 0) status = 'Fully Adjusted';
             else if (appliedAmount > 0 && unusedAmount === 0) status = 'Fully Adjusted';
             else if (appliedAmount > 0 && unusedAmount > 0)
               status = `Partial — ₹${unusedAmount.toLocaleString('en-IN')} pending`;
@@ -2389,13 +2397,13 @@ export function CustomerLedger({
               ? ` — ₹${appliedAmount.toLocaleString('en-IN')} applied to ${appliedInfo.saleNumber}`
               : '';
             const absorbedSummary =
-              absorbedOnInvoice > 0 && balanceCredit > 0
-                ? ` (₹${absorbedOnInvoice.toLocaleString('en-IN')} on invoice, ₹${balanceCredit.toLocaleString('en-IN')} pending)`
+              absorbedOnInvoice > 0 && remainingCredit > 0
+                ? ` (₹${absorbedOnInvoice.toLocaleString('en-IN')} on invoice, ₹${remainingCredit.toLocaleString('en-IN')} pending)`
                 : "";
 
             const desc = `Sale Return [${status}]${appliedSummary}${absorbedSummary}`;
             const srStatus: "pending" | "adjusted" =
-              balanceCredit > 0 &&
+              remainingCredit > 0 &&
               (/\bPending\b/i.test(status) || /Partial.*pending/i.test(status))
                 ? "pending"
                 : "adjusted";
@@ -2408,11 +2416,12 @@ export function CustomerLedger({
               reference: sr.return_number,
               description: desc,
               debit: 0,
-              credit: balanceCredit,
+              // Recon / CN Available use remaining; Credit column uses displayCredit (gross).
+              credit: remainingCredit,
               displayCredit: amount,
               balance: runningBalance,
               status: srStatus,
-              amount: balanceCredit,
+              amount: remainingCredit,
             });
           }
         } else if (item.type === 'adv_refund') {
