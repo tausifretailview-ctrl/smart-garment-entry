@@ -3,10 +3,16 @@
 ## Order of operations
 
 1. Run **Phase 0 (preflight)** in
-   `consolidate-ks-footwear-duplicate-masters.sql` against production (SQL editor /
-   service role). Review duplicate groups and stock totals.
+   `consolidate-ks-footwear-duplicate-masters.sql` against production (SQL editor).
+   Review duplicate groups and stock totals.
 2. Run **Phase 1 (mutate)** from the same file as one `BEGIN … COMMIT` block.
-   It calls `public.merge_products(canonical, duplicate)` per pair and asserts:
+   It **inlines** the `merge_products` logic (does **not** call the RPC).
+   Production `merge_products` requires `assert_org_member` / `auth.uid()`, which
+   is missing in the dashboard SQL editor (`42501 Authentication required`).
+   Phase 1 also sets `session_replication_role = replica` so purchase stock
+   triggers do not fire on `sku_id` remaps (avoids double stock + invalid
+   `purchase_sku_change_*` movement types).
+   Assertions after mutate:
    - no remaining duplicate active names in the org
    - no active variants on soft-deleted products
    - stock totals by `LOWER(TRIM(product_name))` unchanged
