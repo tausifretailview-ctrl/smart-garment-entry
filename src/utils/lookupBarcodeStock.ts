@@ -1,4 +1,8 @@
 import { supabase } from "@/integrations/supabase/client";
+import {
+  resolvePurchaseBarcodesForStockReport,
+  type PurchaseBarcodeStockClient,
+} from "@/utils/stockReportPurchaseBarcodeResolve";
 
 export type BarcodeStockMatch = {
   variantId: string;
@@ -59,6 +63,27 @@ export async function lookupBarcodeStock(
 
     if (fuzzyErr) throw fuzzyErr;
     rows = fuzzyRows ?? [];
+  }
+
+  if (rows.length === 0 && /^\d{4,}$/.test(term)) {
+    const resolutions = await resolvePurchaseBarcodesForStockReport(
+      supabase as unknown as PurchaseBarcodeStockClient,
+      organizationId,
+      term,
+    );
+    const skuIds = resolutions.filter((r) => !r.excludeReason && r.skuId).map((r) => r.skuId);
+    if (skuIds.length > 0) {
+      const { data: bySkuRows, error: bySkuErr } = await supabase
+        .from("product_variants")
+        .select(variantSelect)
+        .eq("organization_id", organizationId)
+        .is("deleted_at", null)
+        .eq("active", true)
+        .in("id", skuIds)
+        .limit(25);
+      if (bySkuErr) throw bySkuErr;
+      rows = bySkuRows ?? [];
+    }
   }
 
   return rows
