@@ -64,7 +64,6 @@ import { UOM_OPTIONS, DEFAULT_UOM, isDecimalUOM } from "@/constants/uom";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { useProductFieldSettings, type ProductFieldKey } from "@/hooks/useSettings";
 import {
-  checkBarcodeExists,
   findBarcodeConflictsInOrg,
   formatBarcodeConflictMessage,
 } from "@/utils/barcodeValidation";
@@ -853,15 +852,36 @@ export const ProductEntryDialog = ({
     barcodeConflictTimerRef.current = setTimeout(() => {
       void (async () => {
         try {
-          for (const code of codes) {
-            const result = await checkBarcodeExists(code, currentOrganization.id);
-            if (result.exists) {
-              setBarcodeConflict({
-                barcode: code,
-                productName: result.productName || "Unknown Product",
-              });
-              return;
-            }
+          const incomingByBarcode: Record<
+            string,
+            { salePrice: number; mrp: number | null; requiresImei: boolean }
+          > = {};
+          for (const v of variants) {
+            const code = (v.barcode || "").trim();
+            if (code.length < 4) continue;
+            incomingByBarcode[code] = {
+              salePrice: Number(v.sale_price) || Number(formData.default_sale_price) || 0,
+              mrp: v.mrp ?? formData.default_mrp ?? null,
+              requiresImei: formData.requires_imei === true,
+            };
+          }
+          const codes = Object.keys(incomingByBarcode);
+          if (codes.length === 0) {
+            setBarcodeConflict(null);
+            return;
+          }
+          const conflicts = await findBarcodeConflictsInOrg(
+            codes,
+            currentOrganization.id,
+            { incomingByBarcode },
+          );
+          if (conflicts.length > 0) {
+            const first = conflicts[0];
+            setBarcodeConflict({
+              barcode: first.barcode,
+              productName: first.productName || "Unknown Product",
+            });
+            return;
           }
           setBarcodeConflict(null);
         } catch (err) {
@@ -875,7 +895,7 @@ export const ProductEntryDialog = ({
         barcodeConflictTimerRef.current = null;
       }
     };
-  }, [open, variants, currentOrganization?.id]);
+  }, [open, variants, currentOrganization?.id, formData.default_sale_price, formData.default_mrp, formData.requires_imei]);
 
   // Sync selectedSizes and auto-generate variants when size_group_id or colors change
   useEffect(() => {
@@ -1948,6 +1968,18 @@ export const ProductEntryDialog = ({
         const conflicts = await findBarcodeConflictsInOrg(
           variantsToCreate.map((v) => v.barcode),
           currentOrganization.id,
+          {
+            incomingByBarcode: Object.fromEntries(
+              variantsToCreate.map((v) => [
+                String(v.barcode || "").trim(),
+                {
+                  salePrice: Number(v.sale_price) || 0,
+                  mrp: v.mrp ?? null,
+                  requiresImei: formData.requires_imei === true,
+                },
+              ]),
+            ),
+          },
         );
         if (conflicts.length > 0) {
           const first = conflicts[0];
@@ -1957,7 +1989,7 @@ export const ProductEntryDialog = ({
           });
           toast({
             title: "Duplicate Barcode Error",
-            description: `Barcode(s) already exist: ${formatBarcodeConflictMessage(conflicts)}.`,
+            description: `Same barcode at the same MRP already exists: ${formatBarcodeConflictMessage(conflicts)}. Use a different MRP or open the existing product.`,
             variant: "destructive",
             action: onUseExistingProduct ? (
               <ToastAction
@@ -3074,7 +3106,8 @@ export const ProductEntryDialog = ({
                         <div className="rounded-md border border-amber-300 bg-amber-50 px-2.5 py-2 text-xs text-amber-950 space-y-1.5">
                           <p>
                             Barcode <span className="font-mono font-semibold">{barcodeConflict.barcode}</span> already
-                            exists on <span className="font-semibold">{barcodeConflict.productName}</span>.
+                            exists on <span className="font-semibold">{barcodeConflict.productName}</span> at the same MRP.
+                            Use a different sale/MRP price to create a new SKU, or open the existing product.
                           </p>
                           {onUseExistingProduct && (
                             <Button
@@ -3942,7 +3975,8 @@ export const ProductEntryDialog = ({
                       <div className="rounded-md border border-amber-300 bg-amber-50 px-2.5 py-2 text-xs text-amber-950 space-y-1.5">
                         <p>
                           Barcode <span className="font-mono font-semibold">{barcodeConflict.barcode}</span> already
-                          exists on <span className="font-semibold">{barcodeConflict.productName}</span>.
+                          exists on <span className="font-semibold">{barcodeConflict.productName}</span> at the same MRP.
+                          Use a different sale/MRP price to create a new SKU, or open the existing product.
                         </p>
                         {onUseExistingProduct && (
                           <Button

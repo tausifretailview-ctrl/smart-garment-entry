@@ -1230,13 +1230,25 @@ const ProductEntry = () => {
         {
           excludeProductId: editingProductId,
           excludeVariantIds: variants.map((v) => v.id).filter(Boolean) as string[],
+          incomingByBarcode: Object.fromEntries(
+            variants
+              .filter((v) => String(v.barcode ?? "").trim())
+              .map((v) => [
+                String(v.barcode ?? "").trim(),
+                {
+                  salePrice: Number(v.sale_price) || 0,
+                  mrp: v.mrp ?? null,
+                  requiresImei: Boolean((formData as { requires_imei?: boolean }).requires_imei),
+                },
+              ]),
+          ),
         },
       );
 
       if (conflicts.length > 0) {
         toast({
           title: "Duplicate Barcode Error",
-          description: `Barcode(s) already exist: ${formatBarcodeConflictMessage(conflicts)}. Please use unique barcodes.`,
+          description: `Same barcode at the same MRP already exists: ${formatBarcodeConflictMessage(conflicts)}. Use a different MRP or a unique barcode.`,
           variant: "destructive",
         });
         return false;

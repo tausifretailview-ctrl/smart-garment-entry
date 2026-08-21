@@ -3,6 +3,17 @@ import { supabase } from "@/integrations/supabase/client";
 export type BarcodeConflict = {
   barcode: string;
   productName: string;
+  salePrice?: number;
+  mrp?: number | null;
+};
+
+export type BarcodePriceTier = {
+  salePrice?: number | null;
+  mrp?: number | null;
+};
+
+export type IncomingBarcodePrice = BarcodePriceTier & {
+  requiresImei?: boolean;
 };
 
 /** Trim, drop blanks, dedupe. */
@@ -15,25 +26,66 @@ export function normalizeBarcodes(
 }
 
 /**
+ * Shelf / branded price key: MRP when set, otherwise sale price.
+ * Used so the same manufacturer EAN can exist at different MRP tiers (Jockey, etc.).
+ */
+export function effectiveBarcodePriceTier(p: BarcodePriceTier): number {
+  const mrp = Number(p.mrp) || 0;
+  const sale = Number(p.salePrice) || 0;
+  return mrp > 0 ? mrp : sale;
+}
+
+/**
+ * True when this org-level barcode hit should block create/save.
+ * Serialized IMEI units always conflict. Branded EANs conflict only at the same
+ * price tier (same MRP / sale); a different MRP is allowed.
+ */
+export function isBarcodeOrgConflict(args: {
+  existingRequiresImei?: boolean;
+  incomingRequiresImei?: boolean;
+  existing: BarcodePriceTier;
+  incoming: BarcodePriceTier;
+  tolerance?: number;
+}): boolean {
+  if (args.existingRequiresImei || args.incomingRequiresImei) return true;
+  const tolerance = args.tolerance ?? 0.009;
+  const existingTier = effectiveBarcodePriceTier(args.existing);
+  const incomingTier = effectiveBarcodePriceTier(args.incoming);
+  // Until the new line has a price, keep the hard warning (same as legacy).
+  if (incomingTier <= 0 || existingTier <= 0) return true;
+  return Math.abs(existingTier - incomingTier) <= tolerance;
+}
+
+/**
  * Check if a barcode already exists in product_variants for the given organization.
  * Optionally exclude a specific variant ID (useful for edit scenarios).
+ * Pass `incoming` to allow the same branded EAN at a different MRP/sale price.
  */
 export async function checkBarcodeExists(
   barcode: string,
   organizationId: string,
   excludeVariantId?: string,
+  incoming?: IncomingBarcodePrice,
 ): Promise<{ exists: boolean; productName?: string }> {
   const conflicts = await findBarcodeConflictsInOrg(
     [barcode],
     organizationId,
-    excludeVariantId ? { excludeVariantIds: [excludeVariantId] } : undefined,
+    {
+      excludeVariantIds: excludeVariantId ? [excludeVariantId] : undefined,
+      incomingByBarcode: incoming
+        ? { [String(barcode).trim()]: incoming }
+        : undefined,
+      /** IMEI edits must stay globally unique even without incoming prices. */
+      forceUnique: incoming?.requiresImei === true,
+    },
   );
   if (!conflicts.length) return { exists: false };
   return { exists: true, productName: conflicts[0].productName };
 }
 
 /**
- * Return barcodes from the list that already exist on another product in the org.
+ * Return barcodes from the list that already exist on another product in the org
+ * at the same price tier (or always, for IMEI / when no incoming price map).
  */
 export async function findBarcodeConflictsInOrg(
   barcodes: Array<string | null | undefined>,
@@ -41,6 +93,10 @@ export async function findBarcodeConflictsInOrg(
   options?: {
     excludeProductId?: string | null;
     excludeVariantIds?: string[];
+    /** Per-barcode prices for the rows being saved. Different MRP ⇒ not a conflict. */
+    incomingByBarcode?: Record<string, IncomingBarcodePrice>;
+    /** When true, ignore price-tier allowance (IMEI / serialized). */
+    forceUnique?: boolean;
   },
 ): Promise<BarcodeConflict[]> {
   const cleaned = normalizeBarcodes(barcodes);
@@ -48,7 +104,7 @@ export async function findBarcodeConflictsInOrg(
 
   const { data, error } = await supabase
     .from("product_variants")
-    .select("id, barcode, product_id, products!inner(product_name)")
+    .select("id, barcode, product_id, sale_price, mrp, products!inner(product_name, requires_imei)")
     .eq("organization_id", organizationId)
     .in("barcode", cleaned)
     .is("deleted_at", null);
@@ -56,6 +112,8 @@ export async function findBarcodeConflictsInOrg(
   if (error) throw error;
 
   const excludeVariantIds = new Set(options?.excludeVariantIds?.filter(Boolean) ?? []);
+  const incomingByBarcode = options?.incomingByBarcode;
+  const forceUnique = options?.forceUnique === true;
 
   return (data ?? [])
     .filter((row) => {
@@ -63,21 +121,54 @@ export async function findBarcodeConflictsInOrg(
       if (options?.excludeProductId && row.product_id === options.excludeProductId) {
         return false;
       }
-      return true;
+
+      const barcode = String(row.barcode || "").trim();
+      const product = row.products as {
+        product_name?: string;
+        requires_imei?: boolean | null;
+      } | null;
+      const incoming = incomingByBarcode?.[barcode];
+
+      if (forceUnique || !incomingByBarcode) {
+        // Legacy callers (IMEI correction, no price context): any hit is a conflict.
+        return true;
+      }
+
+      if (!incoming) return true;
+
+      return isBarcodeOrgConflict({
+        existingRequiresImei: product?.requires_imei === true,
+        incomingRequiresImei: incoming.requiresImei === true,
+        existing: {
+          salePrice: row.sale_price,
+          mrp: row.mrp,
+        },
+        incoming,
+      });
     })
-    .map((row) => ({
-      barcode: String(row.barcode),
-      productName:
-        (row.products as { product_name?: string } | null)?.product_name ||
-        "Unknown Product",
-    }));
+    .map((row) => {
+      const product = row.products as {
+        product_name?: string;
+      } | null;
+      return {
+        barcode: String(row.barcode),
+        productName: product?.product_name || "Unknown Product",
+        salePrice: row.sale_price != null ? Number(row.sale_price) : undefined,
+        mrp: row.mrp != null ? Number(row.mrp) : null,
+      };
+    });
 }
 
 export function formatBarcodeConflictMessage(conflicts: BarcodeConflict[]): string {
   const seen = new Map<string, string>();
   for (const conflict of conflicts) {
     if (!seen.has(conflict.barcode)) {
-      seen.set(conflict.barcode, conflict.productName);
+      const tier = effectiveBarcodePriceTier({
+        salePrice: conflict.salePrice,
+        mrp: conflict.mrp,
+      });
+      const priceNote = tier > 0 ? ` @ ₹${tier}` : "";
+      seen.set(conflict.barcode, `${conflict.productName}${priceNote}`);
     }
   }
   return [...seen.entries()]

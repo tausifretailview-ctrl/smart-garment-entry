@@ -1866,7 +1866,7 @@ export default function SalesInvoice() {
     // Targeted DB barcode lookup (fires on scan only, not on mount).
     // No `active` filter — resolve inactive variants too if the barcode matches.
     if (currentOrganization?.id) {
-      const { data: dbVariant, error: dbError } = await supabase
+      const { data: dbVariants, error: dbError } = await supabase
         .from('product_variants')
         .select(`
           id, barcode, size, color, stock_qty, sale_price, mrp, pur_price, product_id, active,
@@ -1883,17 +1883,36 @@ export default function SalesInvoice() {
         .eq('products.organization_id', currentOrganization.id)
         .eq('products.status', 'active')
         .is('products.deleted_at', null)
-        .order('active', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+        .order('stock_qty', { ascending: false })
+        .limit(50);
 
       if (dbError) {
         console.error('Barcode lookup failed:', dbError);
       }
 
-      if (dbVariant && (dbVariant as any).products) {
-        foundVariant = dbVariant;
-        foundProduct = (dbVariant as any).products;
+      const rows = (dbVariants || []).filter((row: any) => row?.products);
+      if (rows.length > 1) {
+        const withStock = rows.filter((r: any) => Number(r.stock_qty) > 0);
+        const choices = withStock.length > 0 ? withStock : rows;
+        if (choices.length > 1) {
+          setProductSearchResults(
+            choices.map((r: any) => ({
+              product: r.products,
+              variant: r,
+            })),
+          );
+          setOpenProductSearch(true);
+          setSearchInput(searchTerm.trim());
+          toast.message("Multiple products share this barcode", {
+            description: "Pick the correct product / MRP from the list.",
+          });
+          return;
+        }
+        foundVariant = choices[0];
+        foundProduct = (choices[0] as any).products;
+      } else if (rows.length === 1) {
+        foundVariant = rows[0];
+        foundProduct = (rows[0] as any).products;
       }
 
       // Purchase-line barcode snapshot → live sku (post-merge drift).

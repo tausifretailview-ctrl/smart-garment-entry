@@ -313,6 +313,29 @@ function mapPosVariantLookupRow(
   return { product: row.products, variant: row };
 }
 
+async function fetchPosExactBarcodeMatches(
+  orgId: string,
+  barcode: string,
+): Promise<Array<{ product: PosProductRow; variant: PosVariantRow }>> {
+  const trimmed = barcode.trim();
+  if (!trimmed) return [];
+
+  const { data, error } = await posVariantBaseQuery(orgId)
+    .eq("barcode", trimmed)
+    .order("stock_qty", { ascending: false })
+    .limit(50);
+  if (error) throw error;
+
+  const out: Array<{ product: PosProductRow; variant: PosVariantRow }> = [];
+  for (const row of data || []) {
+    const mapped = mapPosVariantLookupRow(
+      row as unknown as (PosVariantRow & { products?: PosProductRow }) | undefined,
+    );
+    if (mapped) out.push(mapped);
+  }
+  return out;
+}
+
 async function fetchPosVariantByBarcode(
   orgId: string,
   barcode: string,
@@ -2567,7 +2590,49 @@ export default function POSSales() {
 
       // Lookup barcode first. Non-serialized accessories (shared EAN) must add/merge
       // even when org IMEI min-length would reject a 13-digit retail code.
-      const barcodeMatch = await fetchPosVariantByBarcode(orgId, trimmedTerm, mobileERP);
+      // Branded EANs may exist at multiple MRP tiers — ask the cashier to pick.
+      const exactBarcodeMatches = await fetchPosExactBarcodeMatches(orgId, trimmedTerm);
+      let barcodeMatch:
+        | { product: PosProductRow; variant: PosVariantRow; remappedLiveBarcode?: string }
+        | null = null;
+
+      if (exactBarcodeMatches.length > 1) {
+        const inStock = exactBarcodeMatches.filter(
+          (m) =>
+            Number(m.variant.stock_qty || 0) > 0 ||
+            !isStockTrackedPosProduct(m.product) ||
+            productRequiresImei(m.product, mobileERP),
+        );
+        const choices = inStock.length > 0 ? inStock : exactBarcodeMatches;
+        if (choices.length > 1) {
+          setProductSearchResults(
+            choices.map((m) => {
+              const p = m.product;
+              const v = m.variant;
+              const tier =
+                (Number(v.mrp) > 0 ? Number(v.mrp) : Number(v.sale_price)) || 0;
+              return {
+                product: p,
+                variant: v,
+                searchText: `${p.product_name} ${v.size} ${v.barcode} ${tier}`,
+                matchLabels: ["Barcode", tier > 0 ? `₹${tier}` : "Price"].filter(Boolean),
+              };
+            }),
+          );
+          setOpenProductSearch(true);
+          setSearchInput(trimmedTerm);
+          toast.message("Multiple products share this barcode", {
+            description: "Pick the correct product / MRP from the list.",
+          });
+          return;
+        }
+        barcodeMatch = choices[0] ?? null;
+      } else if (exactBarcodeMatches.length === 1) {
+        barcodeMatch = exactBarcodeMatches[0];
+      } else {
+        barcodeMatch = await fetchPosVariantByBarcode(orgId, trimmedTerm, mobileERP);
+      }
+
       if (barcodeMatch) {
         const prod = barcodeMatch.product;
         const dbVariant = barcodeMatch.variant;

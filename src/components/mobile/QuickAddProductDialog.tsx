@@ -101,9 +101,20 @@ export const QuickAddProductDialog = ({
     try {
       // Check for duplicate barcode before saving
       if (barcode.trim()) {
-        const { exists, productName } = await checkBarcodeExists(barcode.trim(), currentOrganization.id);
+        const { exists, productName } = await checkBarcodeExists(
+          barcode.trim(),
+          currentOrganization.id,
+          undefined,
+          {
+            salePrice: parsedSalePrice,
+            mrp: null,
+            requiresImei: false,
+          },
+        );
         if (exists) {
-          toast.error(`Barcode "${barcode.trim()}" already exists in product "${productName}". Please use a unique barcode.`);
+          toast.error(
+            `Barcode "${barcode.trim()}" already exists on "${productName}" at the same sale price. Use a different price or barcode.`,
+          );
           setIsLoading(false);
           return;
         }
