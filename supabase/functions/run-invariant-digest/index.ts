@@ -11,9 +11,10 @@ const corsHeaders = {
  * 1. Snapshots public.v_accounting_invariants into invariant_daily_snapshot.
  * 2. Reads get_invariant_digest() — today's counts vs the previous snapshot.
  * 3. Emails INTEGRITY_DIGEST_EMAIL_TO when configured (change + open totals).
- * 4. WhatsApps PLATFORM_ADMIN_WHATSAPP whenever paid_diverges_from_receipts has a
- *    non-zero absolute count (not only delta) — understated/overstated paid after
- *    bulk repairs must reach a person within a day even if other checks are flat.
+ * 4. WhatsApps PLATFORM_ADMIN_WHATSAPP whenever paid_diverges_from_receipts OR
+ *    deleted_cn_adjust_without_sra has a non-zero absolute count (not only delta).
+ *    Soft-deleted CN-adjusts with SRA≈0 stay silent under paid≠settlement because
+ *    receipt sync rewrites paid_amount to match remaining vouchers.
  * Detection always runs even if the alert step is skipped or fails.
  */
 type DigestRow = {
@@ -76,8 +77,9 @@ serve(async (req) => {
       delta: [...byCheck.values()].reduce((s, e) => s + e.delta, 0),
     };
     const regressions = rows.filter((r) => Number(r.delta || 0) > 0);
-    const paidMismatch = byCheck.get("paid_diverges_from_receipts");
-    const paidMismatchCount = paidMismatch?.count ?? 0;
+    const paidMismatchCount = byCheck.get("paid_diverges_from_receipts")?.count ?? 0;
+    const cnDeletedWithoutSraCount = byCheck.get("deleted_cn_adjust_without_sra")?.count ?? 0;
+    const moneyAlertCount = paidMismatchCount + cnDeletedWithoutSraCount;
 
     let paidDigest: {
       total_failing?: number;
@@ -92,6 +94,33 @@ serve(async (req) => {
         console.error("[run-invariant-digest] paid mismatch digest failed", digErr);
       } else {
         paidDigest = dig as typeof paidDigest;
+      }
+    }
+
+    let cnDigest: {
+      total_failing?: number;
+      organizations?: Array<{
+        organization_id: string;
+        organization_name: string | null;
+        failing_count: number;
+        total_abs_discrepancy: number;
+        worst_rows?: Array<{
+          sale_number: string | null;
+          voucher_number: string | null;
+          amount: number;
+          sale_return_adjust: number;
+        }>;
+      }>;
+    } | null = null;
+    if (cnDeletedWithoutSraCount > 0) {
+      const { data: dig, error: digErr } = await supabase.rpc(
+        "get_deleted_cn_adjust_without_sra_digest",
+        {},
+      );
+      if (digErr) {
+        console.error("[run-invariant-digest] deleted CN digest failed", digErr);
+      } else {
+        cnDigest = dig as typeof cnDigest;
       }
     }
 
@@ -121,6 +150,23 @@ serve(async (req) => {
         }
         lines.push("");
       }
+      if (cnDeletedWithoutSraCount > 0) {
+        lines.push(
+          `DELETED CN-ADJUST WITHOUT SRA: ${cnDeletedWithoutSraCount} receipt(s) — soft-deleted credit_note_adjustment while sale_return_adjust ≈ 0`,
+        );
+        lines.push("");
+        for (const org of (cnDigest?.organizations || []).slice(0, 20)) {
+          lines.push(
+            `${org.organization_name || org.organization_id}: ${org.failing_count} rows, ₹${org.total_abs_discrepancy}`,
+          );
+          for (const w of (org.worst_rows || []).slice(0, 5)) {
+            lines.push(
+              `  - ${w.sale_number} / ${w.voucher_number}: ₹${w.amount} (SRA ${w.sale_return_adjust})`,
+            );
+          }
+        }
+        lines.push("");
+      }
       lines.push(
         regressions.length > 0
           ? "NEW violations today"
@@ -143,8 +189,8 @@ serve(async (req) => {
       lines.push("Platform Admin > Data Integrity > Invariants.");
 
       const subject =
-        paidMismatchCount > 0
-          ? `[EzzyERP] PAID SETTLEMENT MISMATCH: ${paidMismatchCount} open`
+        moneyAlertCount > 0
+          ? `[EzzyERP] MONEY INVARIANT: paid≠settlement ${paidMismatchCount}, CN-delete/SRA0 ${cnDeletedWithoutSraCount}`
           : regressions.length > 0
           ? `[EzzyERP] Accounting invariants: +${totals.delta} new (${totals.violations} open)`
           : `[EzzyERP] Accounting invariants: ${totals.violations} open, no change`;
@@ -168,24 +214,30 @@ serve(async (req) => {
       }
     }
 
-    // Absolute non-zero for paid settlement — do not wait for a delta vs yesterday.
-    if (paidMismatchCount > 0) {
+    // Absolute non-zero for money checks — do not wait for a delta vs yesterday.
+    if (moneyAlertCount > 0) {
       if (!adminPhone || !adminOrgId) {
         whatsappSkippedReason =
           "PLATFORM_ADMIN_WHATSAPP or PLATFORM_ADMIN_ORG_ID not configured";
       } else {
-        const orgLines = (paidDigest?.organizations || [])
-          .slice(0, 8)
+        const paidLines = (paidDigest?.organizations || [])
+          .slice(0, 5)
           .map(
             (o) =>
-              `${o.organization_name || "org"}: ${o.failing_count} (₹${o.total_abs_discrepancy})`,
-          )
-          .join("\n");
+              `paid≠settl ${o.organization_name || "org"}: ${o.failing_count} (₹${o.total_abs_discrepancy})`,
+          );
+        const cnLines = (cnDigest?.organizations || [])
+          .slice(0, 5)
+          .map(
+            (o) =>
+              `CNΔ/SRA0 ${o.organization_name || "org"}: ${o.failing_count} (₹${o.total_abs_discrepancy})`,
+          );
         const message =
-          `⚠️ Paid amount ≠ settlement\n` +
-          `${paidMismatchCount} invoice(s) where paid_amount ≠ compute_sale_settlement\n` +
-          `${orgLines}\n\n` +
-          `Open Platform Admin → Data Integrity → Invariants.\n` +
+          `⚠️ Money invariant alert\n` +
+          `paid≠settlement: ${paidMismatchCount}\n` +
+          `deleted CN-adjust without SRA: ${cnDeletedWithoutSraCount}\n` +
+          [...paidLines, ...cnLines].join("\n") +
+          `\n\nOpen Platform Admin → Data Integrity → Invariants.\n` +
           `Do not bulk-repair money rows until dry-run + hand-check protocol is followed.`;
 
         const { error: sendErr } = await supabase.functions.invoke("send-whatsapp", {
@@ -213,7 +265,9 @@ serve(async (req) => {
         checks: Object.fromEntries(byCheck),
         regressions: regressions.length,
         paid_settlement_mismatches: paidMismatchCount,
+        deleted_cn_adjust_without_sra: cnDeletedWithoutSraCount,
         paid_digest: paidDigest,
+        cn_deleted_without_sra_digest: cnDigest,
         alert_sent: alertSent,
         alert_skipped_reason: alertSkippedReason,
         whatsapp_sent: whatsappSent,

@@ -34,6 +34,9 @@ export function InvariantHealthRow() {
   const paidMismatch = rows
     .filter((r) => r.check_name === "paid_diverges_from_receipts")
     .reduce((s, r) => s + Number(r.violation_count || 0), 0);
+  const cnDeletedSra0 = rows
+    .filter((r) => r.check_name === "deleted_cn_adjust_without_sra")
+    .reduce((s, r) => s + Number(r.violation_count || 0), 0);
 
   return (
     <Card>
@@ -44,6 +47,11 @@ export function InvariantHealthRow() {
         {paidMismatch > 0 && (
           <Badge variant="destructive" className="tabular-nums font-mono">
             {paidMismatch} paid≠settlement
+          </Badge>
+        )}
+        {cnDeletedSra0 > 0 && (
+          <Badge variant="destructive" className="tabular-nums font-mono">
+            {cnDeletedSra0} CNΔ/SRA0
           </Badge>
         )}
         <Badge

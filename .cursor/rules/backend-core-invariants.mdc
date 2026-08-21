@@ -64,9 +64,9 @@ A bulk soft-delete of 28 receipts assumed CN had already been absorbed into `sal
 3. **Hand-check at least five rows** against the source records (invoice, receipts, returns / CN) before running the mutate.
 4. **Every repaired row carries a tag** in a queryable column (e.g. `notes` / `description` containing `[cn_over_apply_repair_YYYYMMDD]`). That tag is the only reason the June batch was traceable — keep the practice.
 5. **Soft delete only, never hard delete**, so a reversal is possible via Recycle Bin / clearing `deleted_at`.
-6. **Run the accounting invariant digest immediately after** (`run-invariant-digest` / `snapshot_accounting_invariants`). In particular `paid_diverges_from_receipts` (paid_amount vs `compute_sale_settlement.new_paid`) must not increase. A rising count is a stop-ship — reverse or fix before leaving the session.
+6. **Run the accounting invariant digest immediately after** (`run-invariant-digest` / `snapshot_accounting_invariants`). In particular `paid_diverges_from_receipts` (paid_amount vs `compute_sale_settlement.new_paid`) and `deleted_cn_adjust_without_sra` (soft-deleted CN-adjust with `sale_return_adjust` ≈ 0) must not increase. A rising count is a stop-ship — reverse or fix before leaving the session.
 
-Do not invent a second paid formula for the check: the digest calls `compute_sale_settlement`. Platform admin receives WhatsApp when that check's absolute count is non-zero (`PLATFORM_ADMIN_WHATSAPP`).
+Do not invent a second paid formula for the paid check: the digest calls `compute_sale_settlement`. Note: after a soft-delete the receipt-sync trigger often *rewrites* paid to match remaining vouchers, so paid≠settlement alone will not catch a wrongful CN-adjust delete — that is why `deleted_cn_adjust_without_sra` exists. Platform admin receives WhatsApp when either check's absolute count is non-zero (`PLATFORM_ADMIN_WHATSAPP`).
 
 ## UI / conventions
 - Customer names are UPPERCASED in APP CODE only (`customerUtils.ts`) - no DB trigger enforces it; a direct DB write/migration can bypass it.
