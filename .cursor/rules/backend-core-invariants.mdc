@@ -66,7 +66,12 @@ A bulk soft-delete of 28 receipts assumed CN had already been absorbed into `sal
 5. **Soft delete only, never hard delete**, so a reversal is possible via Recycle Bin / clearing `deleted_at`.
 6. **Run the accounting invariant digest immediately after** (`run-invariant-digest` / `snapshot_accounting_invariants`). In particular `paid_diverges_from_receipts` (paid_amount vs `compute_sale_settlement.new_paid`) and `deleted_cn_adjust_without_sra` (soft-deleted CN-adjust with `sale_return_adjust` ≈ 0) must not increase. A rising count is a stop-ship — reverse or fix before leaving the session.
 
-Do not invent a second paid formula for the paid check: the digest calls `compute_sale_settlement`. Note: after a soft-delete the receipt-sync trigger often *rewrites* paid to match remaining vouchers, so paid≠settlement alone will not catch a wrongful CN-adjust delete — that is why `deleted_cn_adjust_without_sra` exists. Platform admin receives WhatsApp when either check's absolute count is non-zero (`PLATFORM_ADMIN_WHATSAPP`).
+Do not invent a second paid formula for the paid check: the digest calls `compute_sale_settlement`. Note: after a soft-delete the receipt-sync trigger often *rewrites* paid to match remaining vouchers, so paid≠settlement alone will not catch a wrongful CN-adjust delete — that is why `deleted_cn_adjust_without_sra` exists.
+
+### Who is alerted (Phase 2 delivery)
+- **Recipient:** the phone in edge secret `PLATFORM_ADMIN_WHATSAPP` (same as settlement drift), sent via org `PLATFORM_ADMIN_ORG_ID`'s WhatsApp config. Optional copy: `INTEGRITY_DIGEST_EMAIL_TO` via Resend.
+- **When:** `run-invariant-digest` finishes and either money check has absolute count > 0 (not only vs yesterday's delta).
+- **Expected action:** open Platform Admin → Data Integrity → Invariants, inspect the money cards / top rows, stop any in-flight bulk money repair, follow the dry-run protocol above before mutating. Do not ignore a flat non-zero count.
 
 ## UI / conventions
 - Customer names are UPPERCASED in APP CODE only (`customerUtils.ts`) - no DB trigger enforces it; a direct DB write/migration can bypass it.

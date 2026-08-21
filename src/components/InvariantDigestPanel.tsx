@@ -91,6 +91,14 @@ export function InvariantDigestPanel() {
     [rows],
   );
 
+  const cnDeletedOpen = useMemo(
+    () =>
+      rows
+        .filter((r) => r.check_name === "deleted_cn_adjust_without_sra")
+        .reduce((s, r) => s + Number(r.violation_count || 0), 0),
+    [rows],
+  );
+
   const { data: paidMismatchDigest } = useQuery({
     queryKey: ["paid_settlement_mismatch_digest"],
     enabled: paidMismatchOpen > 0,
@@ -109,6 +117,31 @@ export function InvariantDigestPanel() {
             recorded_paid: number;
             expected_paid: number;
             discrepancy: number;
+          }>;
+        }>;
+      };
+    },
+  });
+
+  const { data: cnDeletedDigest } = useQuery({
+    queryKey: ["deleted_cn_adjust_without_sra_digest"],
+    enabled: cnDeletedOpen > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("get_deleted_cn_adjust_without_sra_digest" as any, {});
+      if (error) throw error;
+      return data as {
+        total_failing?: number;
+        organizations?: Array<{
+          organization_id: string;
+          organization_name: string | null;
+          failing_count: number;
+          total_abs_discrepancy: number;
+          worst_rows?: Array<{
+            sale_number: string | null;
+            voucher_number: string | null;
+            amount: number;
+            sale_return_adjust: number;
+            recorded_paid: number;
           }>;
         }>;
       };
@@ -155,6 +188,12 @@ export function InvariantDigestPanel() {
       qc.invalidateQueries({ queryKey: ["invariant_digest"] });
       qc.invalidateQueries({ queryKey: ["invariant_last_snapshot"] });
       qc.invalidateQueries({ queryKey: ["paid_settlement_mismatch_digest"] });
+      qc.invalidateQueries({ queryKey: ["deleted_cn_adjust_without_sra_digest"] });
+      if ((data as any)?.whatsapp_sent) {
+        toast.message("Platform admin WhatsApp alert sent for open money invariants");
+      } else if ((data as any)?.whatsapp_skipped_reason && ((data as any)?.paid_settlement_mismatches > 0 || (data as any)?.deleted_cn_adjust_without_sra > 0)) {
+        toast.message(`WhatsApp not sent: ${(data as any).whatsapp_skipped_reason}`);
+      }
     } catch (e: any) {
       toast.error(e?.message || "Failed to run digest");
     } finally {
@@ -166,8 +205,8 @@ export function InvariantDigestPanel() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-muted-foreground">
-          Every accounting invariant, snapshotted daily. Change since the previous snapshot is what matters —
-          a flat total is noise, a jump is a live regression.
+          Snapshotted daily. Money checks (paid≠settlement, deleted CN-adjust with SRA≈0) WhatsApp the
+          platform admin whenever their absolute count is non-zero — not only when the count jumps.
         </p>
         <Button onClick={runNow} disabled={running} variant="outline">
           {running ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
@@ -206,8 +245,8 @@ export function InvariantDigestPanel() {
               Paid ≠ compute_sale_settlement ({paidMismatchDigest?.total_failing ?? paidMismatchOpen} invoices)
             </CardTitle>
             <p className="text-xs text-muted-foreground">
-              Same definition as the receipt sync writer. Platform admin is WhatsApped when this count is
-              non-zero after the daily digest.
+              Same definition as the receipt sync writer. WhatsApped to PLATFORM_ADMIN_WHATSAPP when
+              non-zero after digest.
             </p>
           </CardHeader>
           <CardContent className="space-y-3 p-4 pt-0">
@@ -224,6 +263,40 @@ export function InvariantDigestPanel() {
                     <li key={`${w.sale_number}-${w.discrepancy}`} className="tabular-nums font-mono">
                       {w.sale_number}: recorded {inr(w.recorded_paid)} → expected {inr(w.expected_paid)} (Δ{" "}
                       {inr(w.discrepancy)})
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
+      {cnDeletedOpen > 0 && (
+        <Card className="border-destructive/40">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm text-destructive">
+              Deleted CN-adjust without SRA ({cnDeletedDigest?.total_failing ?? cnDeletedOpen} receipts)
+            </CardTitle>
+            <p className="text-xs text-muted-foreground">
+              Soft-deleted credit_note_adjustment while the invoice never absorbed via sale_return_adjust.
+              Same class as cn_over_apply_repair_20260606. Investigate; do not bulk-repair without dry-run.
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-3 p-4 pt-0">
+            {(cnDeletedDigest?.organizations || []).map((org) => (
+              <div key={org.organization_id} className="space-y-1">
+                <div className="text-sm font-medium">
+                  {org.organization_name || "—"}{" "}
+                  <span className="tabular-nums font-mono text-muted-foreground">
+                    {org.failing_count} · ₹{inr(org.total_abs_discrepancy)}
+                  </span>
+                </div>
+                <ul className="text-xs text-muted-foreground space-y-0.5 pl-3">
+                  {(org.worst_rows || []).map((w) => (
+                    <li key={`${w.voucher_number}-${w.sale_number}-${w.amount}`} className="tabular-nums font-mono">
+                      {w.sale_number} / {w.voucher_number}: ₹{inr(w.amount)} (paid {inr(w.recorded_paid)}, SRA{" "}
+                      {inr(w.sale_return_adjust)})
                     </li>
                   ))}
                 </ul>
