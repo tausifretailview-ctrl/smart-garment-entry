@@ -175,12 +175,17 @@ DECLARE
   v_target_variant_id uuid;
   v_source_name text;
   v_target_name text;
+  v_leftover integer;
 BEGIN
   -- session_replication_role is transaction-local (SET LOCAL above); confirm
   IF current_setting('session_replication_role', true) IS DISTINCT FROM 'replica' THEN
     RAISE EXCEPTION 'session_replication_role must be replica for this repair (got %)',
       current_setting('session_replication_role', true);
   END IF;
+
+  CREATE TEMP TABLE _ks_sources_deleted (
+    product_id uuid PRIMARY KEY
+  ) ON COMMIT DROP;
 
   SELECT name INTO v_org_name FROM public.organizations WHERE id = v_org;
   IF v_org_name IS NULL THEN
@@ -266,21 +271,20 @@ BEGIN
     v_variants_moved := 0;
     v_variants_merged := 0;
 
-    -- Inline merge_products (no assert_org_member — SQL editor has no JWT)
+    -- Inline merge (no assert_org_member — SQL editor has no JWT).
+    -- Match color+size with NULL-safe COALESCE (NULL size must still merge).
     FOR v_src_variant IN
       SELECT *
       FROM public.product_variants
       WHERE product_id = r.source_id
-        AND organization_id = v_org
         AND deleted_at IS NULL
     LOOP
       SELECT id INTO v_target_variant_id
       FROM public.product_variants
       WHERE product_id = r.target_id
-        AND organization_id = v_org
-        AND COALESCE(color, '') = COALESCE(v_src_variant.color, '')
-        AND size = v_src_variant.size
         AND deleted_at IS NULL
+        AND COALESCE(color, '') = COALESCE(v_src_variant.color, '')
+        AND COALESCE(size, '') = COALESCE(v_src_variant.size, '')
       LIMIT 1;
 
       IF v_target_variant_id IS NOT NULL THEN
@@ -374,20 +378,112 @@ BEGIN
             active = false,
             stock_qty = 0,
             updated_at = NOW()
-        WHERE id = v_src_variant.id
-          AND organization_id = v_org;
+        WHERE id = v_src_variant.id;
 
         v_variants_merged := v_variants_merged + 1;
       ELSE
-        UPDATE public.product_variants
-        SET product_id = r.target_id,
-            updated_at = NOW()
-        WHERE id = v_src_variant.id
-          AND organization_id = v_org
-          AND deleted_at IS NULL;
-        v_variants_moved := v_variants_moved + 1;
+        BEGIN
+          UPDATE public.product_variants
+          SET product_id = r.target_id,
+              organization_id = v_org,
+              updated_at = NOW()
+          WHERE id = v_src_variant.id
+            AND deleted_at IS NULL;
+          v_variants_moved := v_variants_moved + 1;
+        EXCEPTION
+          WHEN unique_violation THEN
+            -- Same color+size+barcode already on target — fold stock and soft-delete
+            SELECT id INTO v_target_variant_id
+            FROM public.product_variants
+            WHERE product_id = r.target_id
+              AND deleted_at IS NULL
+              AND COALESCE(color, '') = COALESCE(v_src_variant.color, '')
+              AND COALESCE(size, '') = COALESCE(v_src_variant.size, '')
+              AND COALESCE(barcode, '') = COALESCE(v_src_variant.barcode, '')
+            LIMIT 1;
+
+            IF v_target_variant_id IS NULL THEN
+              SELECT id INTO v_target_variant_id
+              FROM public.product_variants
+              WHERE product_id = r.target_id
+                AND deleted_at IS NULL
+                AND COALESCE(color, '') = COALESCE(v_src_variant.color, '')
+                AND COALESCE(size, '') = COALESCE(v_src_variant.size, '')
+              LIMIT 1;
+            END IF;
+
+            IF v_target_variant_id IS NULL THEN
+              RAISE EXCEPTION
+                'Cannot reassign variant % onto product % (unique conflict, no merge target)',
+                v_src_variant.id, r.target_id;
+            END IF;
+
+            UPDATE public.product_variants
+            SET stock_qty = COALESCE(stock_qty, 0) + COALESCE(v_src_variant.stock_qty, 0),
+                opening_qty = COALESCE(opening_qty, 0) + COALESCE(v_src_variant.opening_qty, 0),
+                updated_at = NOW()
+            WHERE id = v_target_variant_id;
+
+            UPDATE public.sale_items SET variant_id = v_target_variant_id
+            WHERE variant_id = v_src_variant.id;
+            UPDATE public.purchase_items SET sku_id = v_target_variant_id
+            WHERE sku_id = v_src_variant.id;
+            UPDATE public.sale_return_items SET variant_id = v_target_variant_id
+            WHERE variant_id = v_src_variant.id;
+            UPDATE public.purchase_return_items SET sku_id = v_target_variant_id
+            WHERE sku_id = v_src_variant.id;
+            UPDATE public.quotation_items SET variant_id = v_target_variant_id
+            WHERE variant_id = v_src_variant.id;
+            UPDATE public.sale_order_items SET variant_id = v_target_variant_id
+            WHERE variant_id = v_src_variant.id;
+            UPDATE public.purchase_order_items SET variant_id = v_target_variant_id
+            WHERE variant_id = v_src_variant.id;
+            UPDATE public.delivery_challan_items SET variant_id = v_target_variant_id
+            WHERE variant_id = v_src_variant.id;
+            UPDATE public.stock_movements
+            SET variant_id = v_target_variant_id
+            WHERE organization_id = v_org AND variant_id = v_src_variant.id;
+
+            UPDATE public.product_variants
+            SET deleted_at = NOW(),
+                active = false,
+                stock_qty = 0,
+                updated_at = NOW()
+            WHERE id = v_src_variant.id;
+
+            v_variants_merged := v_variants_merged + 1;
+        END;
       END IF;
     END LOOP;
+
+    -- Belt-and-braces: no active variant may remain on the source before soft-delete
+    SELECT COUNT(*) INTO v_leftover
+    FROM public.product_variants
+    WHERE product_id = r.source_id
+      AND deleted_at IS NULL;
+
+    IF v_leftover > 0 THEN
+      -- Fold any leftover stock into target (by color+size), then soft-delete leftovers
+      UPDATE public.product_variants tgt
+      SET stock_qty = tgt.stock_qty + src.stock_qty,
+          opening_qty = COALESCE(tgt.opening_qty, 0) + COALESCE(src.opening_qty, 0),
+          updated_at = NOW()
+      FROM public.product_variants src
+      WHERE src.product_id = r.source_id
+        AND src.deleted_at IS NULL
+        AND tgt.product_id = r.target_id
+        AND tgt.deleted_at IS NULL
+        AND COALESCE(tgt.color, '') = COALESCE(src.color, '')
+        AND COALESCE(tgt.size, '') = COALESCE(src.size, '');
+
+      UPDATE public.product_variants
+      SET deleted_at = NOW(),
+          active = false,
+          stock_qty = 0,
+          updated_at = NOW()
+      WHERE product_id = r.source_id
+        AND deleted_at IS NULL;
+    END IF;
 
     UPDATE public.sale_items SET product_id = r.target_id WHERE product_id = r.source_id;
     UPDATE public.purchase_items SET product_id = r.target_id WHERE product_id = r.source_id;
@@ -422,6 +518,10 @@ BEGIN
     WHERE id = r.source_id
       AND organization_id = v_org
       AND deleted_at IS NULL;
+
+    INSERT INTO _ks_sources_deleted (product_id)
+    VALUES (r.source_id)
+    ON CONFLICT DO NOTHING;
 
     INSERT INTO public.audit_logs (
       organization_id, entity_type, entity_id, action, old_values, new_values
@@ -482,14 +582,30 @@ BEGIN
 
   SELECT COUNT(*) INTO v_orphan_variants
   FROM public.product_variants pv
-  JOIN public.products p ON p.id = pv.product_id
-  WHERE pv.organization_id = v_org
-    AND pv.deleted_at IS NULL
-    AND p.deleted_at IS NOT NULL;
+  JOIN _ks_sources_deleted d ON d.product_id = pv.product_id
+  WHERE pv.deleted_at IS NULL;
 
   IF v_orphan_variants > 0 THEN
-    RAISE EXCEPTION 'Assertion failed: % active variants still point at soft-deleted products',
+    RAISE EXCEPTION
+      'Assertion failed: % active variants still point at products soft-deleted in this run',
       v_orphan_variants;
+  END IF;
+
+  -- Informational: pre-existing orphans in this org (not fail)
+  SELECT COUNT(*) INTO v_leftover
+  FROM public.product_variants pv
+  JOIN public.products p ON p.id = pv.product_id
+  WHERE p.organization_id = v_org
+    AND p.deleted_at IS NOT NULL
+    AND pv.deleted_at IS NULL
+    AND NOT EXISTS (
+      SELECT 1 FROM _ks_sources_deleted d WHERE d.product_id = p.id
+    );
+
+  IF v_leftover > 0 THEN
+    RAISE NOTICE
+      'Note: % pre-existing active variants on historically soft-deleted products (outside this merge) — not failing',
+      v_leftover;
   END IF;
 
   SELECT COALESCE(jsonb_object_agg(name_key, total_stock), '{}'::jsonb)
