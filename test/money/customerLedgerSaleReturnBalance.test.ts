@@ -21,32 +21,30 @@ describe("Hanif bhai — running balance vs column totals", () => {
       consumedAmount: appliedCn,
     });
 
-    // Buggy path used remaining for both credit and running advance.
-    const buggyRows = [
+    const rows = [
       { displayDebit: 10550, displayCredit: 0 },
       { displayDebit: 0, displayCredit: 10550 },
       { displayDebit: 0, displayCredit: grossReturn, credit: remaining },
       { displayDebit: 3200, displayCredit: 0 },
     ];
-    // Column totals always sum display* → gap −3050 (3050 Cr).
-    expect(walkLedgerSignedBalance(buggyRows)).toBe(-3050);
+    expect(walkLedgerSignedBalance(rows)).toBe(-3050);
 
-    // Running balance with gross advance (fixed):
     let running = 0;
     running += 10550;
     running -= 10550;
     running -= saleReturnRunningBalanceCredit(grossReturn);
     running += 3200;
     expect(running).toBe(-3050);
-    expect(running).toBe(walkLedgerSignedBalance(buggyRows));
 
-    // Old bug: advance by remaining only → +150 Dr while columns say 3050 Cr.
-    let buggyRunning = 0;
-    buggyRunning += 10550;
-    buggyRunning -= 10550;
-    buggyRunning -= remaining;
-    buggyRunning += 3200;
-    expect(buggyRunning).toBe(150);
-    expect(buggyRunning).not.toBe(walkLedgerSignedBalance(buggyRows));
+    // Recon must use gross return (6250), not remaining (3050).
+    const grossInvoiced = 10550 + 3200;
+    const paymentsCash = 10550;
+    const saleReturnsGross = grossReturn;
+    const outstanding = grossInvoiced - saleReturnsGross - paymentsCash;
+    expect(outstanding).toBe(-3050);
+    expect(outstanding).toBe(running);
+
+    const buggyOutstanding = grossInvoiced - remaining - paymentsCash;
+    expect(buggyOutstanding).toBe(150);
   });
 });
