@@ -317,7 +317,12 @@ async function fetchPosVariantByBarcode(
   orgId: string,
   barcode: string,
   mobileERPConfig?: Parameters<typeof productRequiresImei>[1],
-) {
+): Promise<{
+  product: PosProductRow;
+  variant: PosVariantRow;
+  /** Set when resolved via purchase_items because live barcode differs from scan. */
+  remappedLiveBarcode?: string;
+} | null> {
   const trimmed = barcode.trim();
   if (!trimmed) return null;
 
@@ -366,9 +371,23 @@ async function fetchPosVariantByBarcode(
       .limit(1);
     if (bySkuError) throw bySkuError;
 
-    return mapPosVariantLookupRow(
+    const mapped = mapPosVariantLookupRow(
       bySku?.[0] as unknown as (PosVariantRow & { products?: PosProductRow }) | undefined,
     );
+    if (!mapped) return null;
+
+    const liveBc = (hit.liveBarcode || mapped.variant.barcode || "").trim();
+    // Keep the scanned label barcode on the cart line (same pattern as legacy IMEI).
+    const variantForCart =
+      liveBc && liveBc !== trimmed
+        ? ({ ...mapped.variant, barcode: trimmed } as PosVariantRow)
+        : mapped.variant;
+
+    return {
+      product: mapped.product,
+      variant: variantForCart,
+      remappedLiveBarcode: liveBc && liveBc !== trimmed ? liveBc : undefined,
+    };
   } catch (err) {
     console.error('POS purchase-barcode resolve failed:', err);
     return null;
@@ -2297,6 +2316,21 @@ export default function POSSales() {
               partialRes.data.forEach((v: { id: string }) => matchedVariantIds.add(v.id));
             }
           }
+          // Purchase-label barcode may differ from live master after merge
+          if (matchedVariantIds.size === 0 && /^\d{4,}$/.test(escToken)) {
+            try {
+              const resolutions = await resolvePurchaseBarcodesForStockReport(
+                supabase as unknown as PurchaseBarcodeStockClient,
+                currentOrganization.id,
+                escToken,
+              );
+              for (const r of resolutions) {
+                if (!r.excludeReason && r.skuId) matchedVariantIds.add(r.skuId);
+              }
+            } catch (err) {
+              console.error('POS dropdown purchase-barcode resolve failed:', err);
+            }
+          }
         }
 
         const variantOrParts = [
@@ -2554,6 +2588,13 @@ export default function POSSales() {
         }
 
         setSearchInput("");
+        setProductSearchResults([]);
+        setOpenProductSearch(false);
+        if (barcodeMatch.remappedLiveBarcode) {
+          toast.info("Matched purchase barcode", {
+            description: `Label ${trimmedTerm} → live SKU ${barcodeMatch.remappedLiveBarcode} (${prod.product_name})`,
+          });
+        }
         // Serialized units are unique pieces — a zero-stock IMEI is already sold.
         if (stockQty > 0 || (!isStockTrackedPosProduct(prod) && !needsImei)) {
           // Same barcode again → addItemToCart merges qty (+1), not a duplicate line.
