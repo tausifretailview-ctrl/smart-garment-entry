@@ -53,6 +53,12 @@ import {
 } from "@/lib/dashboardFilterPersistence";
 import { fetchAllOpenSettlementVariantIds } from "@/utils/stockSettlementScans";
 import { fetchOldBarcodeSaleItemMappings } from "@/utils/stockReportOldBarcodeSearch";
+import {
+  isStockReportBarcodeLikeSearch,
+  liveBarcodesForStockReportRetry,
+  resolvePurchaseBarcodesForStockReport,
+  type PurchaseBarcodeStockClient,
+} from "@/utils/stockReportPurchaseBarcodeResolve";
 import { mergeActivityNavigationState } from "@/lib/activityCenterNavigation";
 
 interface StockItem {
@@ -884,8 +890,81 @@ export default function StockReport() {
         await oldBarcodePromise;
         if (requestId !== searchRequestIdRef.current) return;
 
-        const rows = (data || []) as unknown as StockReportRpcRow[];
-        setServerTotalRows(Number(rows[0]?.total_rows ?? 0));
+        let rows = (data || []) as unknown as StockReportRpcRow[];
+
+        // Purchase Bills matches purchase_items.barcode; Stock Report matches live
+        // product_variants.barcode. After master merges the snapshot can diverge —
+        // retry get_stock_report with the live barcode(s) pointed at by sku_id.
+        if (
+          rows.length === 0 &&
+          isStockReportBarcodeLikeSearch(searchTerm) &&
+          currentOrganization?.id
+        ) {
+          try {
+            const resolutions = await resolvePurchaseBarcodesForStockReport(
+              supabase as unknown as PurchaseBarcodeStockClient,
+              currentOrganization.id,
+              searchTerm,
+            );
+            if (requestId !== searchRequestIdRef.current) return;
+
+            const retryBarcodes = liveBarcodesForStockReportRetry(resolutions, searchTerm);
+            if (retryBarcodes.length > 0) {
+              const merged = new Map<string, StockReportRpcRow>();
+              for (const liveBc of retryBarcodes.slice(0, 5)) {
+                const { data: retryData, error: retryErr } = await (
+                  supabase as unknown as {
+                    rpc: (
+                      fn: string,
+                      args: Record<string, unknown>,
+                    ) => ReturnType<typeof supabase.rpc>;
+                  }
+                ).rpc("get_stock_report", {
+                  ...buildStockReportRpcFilters({
+                    orgId: currentOrganization.id,
+                    searchTerm: liveBc,
+                    categoryFilter,
+                    brandFilter,
+                    stockStatusFilter,
+                    lowStockThreshold,
+                    departmentFilter,
+                    sizeFilter,
+                    colorFilter,
+                    productNameFilter,
+                    pinnedProducts,
+                    supplierFilter,
+                    supplierInvoiceFilter,
+                  }),
+                  p_limit: fetchLimit,
+                  p_offset: 0,
+                });
+                if (retryErr) throw retryErr;
+                if (requestId !== searchRequestIdRef.current) return;
+                for (const row of (retryData || []) as unknown as StockReportRpcRow[]) {
+                  merged.set(row.variant_id, row);
+                }
+              }
+              rows = [...merged.values()];
+              if (rows.length > 0) {
+                const shown = retryBarcodes.slice(0, 3).join(", ");
+                toast.message("Matched via purchase history", {
+                  description: `Purchase barcode ${searchTerm.trim()} maps to live barcode ${shown}.`,
+                });
+              }
+            } else if (resolutions.length > 0) {
+              const reason =
+                resolutions.find((r) => r.excludeReason)?.excludeReason ||
+                "No active stock-report row for this purchase barcode.";
+              toast.error("On purchase bill, not in Stock Report", {
+                description: reason,
+              });
+            }
+          } catch (resolveErr) {
+            console.error("Purchase barcode resolve failed", resolveErr);
+          }
+        }
+
+        setServerTotalRows(Number(rows[0]?.total_rows ?? rows.length ?? 0));
         const purchaseSourceByVariantId = await fetchLatestPurchaseSourceByVariantId(
           currentOrganization.id,
           rows.map((row) => row.variant_id),
