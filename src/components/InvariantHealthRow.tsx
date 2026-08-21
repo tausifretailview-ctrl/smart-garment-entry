@@ -15,6 +15,7 @@ type DigestRow = {
 /**
  * Accounting-invariant summary strip for System Health — the daily digest has to
  * reach a screen a human actually opens, not just sit inside a view.
+ * paid_diverges_from_receipts (paid vs compute_sale_settlement) is called out when open.
  */
 export function InvariantHealthRow() {
   const { data: rows = [] } = useQuery({
@@ -30,6 +31,9 @@ export function InvariantHealthRow() {
   const total = rows.reduce((s, r) => s + Number(r.violation_count || 0), 0);
   const delta = rows.reduce((s, r) => s + Number(r.delta || 0), 0);
   const regressions = rows.filter((r) => Number(r.delta || 0) > 0).length;
+  const paidMismatch = rows
+    .filter((r) => r.check_name === "paid_diverges_from_receipts")
+    .reduce((s, r) => s + Number(r.violation_count || 0), 0);
 
   return (
     <Card>
@@ -37,6 +41,11 @@ export function InvariantHealthRow() {
         <ShieldCheck className="h-5 w-5 text-primary" />
         <div className="text-sm font-semibold">Accounting invariants</div>
         <div className="tabular-nums font-mono text-sm">{total} open</div>
+        {paidMismatch > 0 && (
+          <Badge variant="destructive" className="tabular-nums font-mono">
+            {paidMismatch} paid≠settlement
+          </Badge>
+        )}
         <Badge
           variant={delta > 0 ? "destructive" : "secondary"}
           className={`tabular-nums font-mono ${delta < 0 ? "bg-emerald-600 text-white hover:bg-emerald-600" : ""}`}

@@ -56,6 +56,18 @@ Rules that must ALWAYS hold. If a change would violate one, it's wrong - stop.
 - Status/balance fields are projections of underlying transactions; when in doubt recompute from source (receipts, returns, sales).
 - Reconciliation tools are drift ALARMS that reuse the canonical calc - never a second independent formula.
 
+## Bulk money-row repairs (earned 2026-06 / noticed 2026-08 — ELLA NOOR `cn_over_apply_repair_20260606`)
+A bulk soft-delete of 28 receipts assumed CN had already been absorbed into `sale_return_adjust`. Every candidate had `sale_return_adjust = 0`. Customers were shown as owing money they had paid; nobody noticed for ~10 weeks. Rules for any bulk write/delete against money rows (`voucher_entries`, `sales.paid_amount` / `payment_status` / `sale_return_adjust`, credit notes, advances):
+
+1. **Dry-run first** — a SELECT listing every row that would change, with the before and after value. No mutate until that result set is reviewed.
+2. **Validate the premise on the dry-run output before executing.** One glance at `sale_return_adjust` across the 28 candidates would have shown every value was 0 and stopped the repair.
+3. **Hand-check at least five rows** against the source records (invoice, receipts, returns / CN) before running the mutate.
+4. **Every repaired row carries a tag** in a queryable column (e.g. `notes` / `description` containing `[cn_over_apply_repair_YYYYMMDD]`). That tag is the only reason the June batch was traceable — keep the practice.
+5. **Soft delete only, never hard delete**, so a reversal is possible via Recycle Bin / clearing `deleted_at`.
+6. **Run the accounting invariant digest immediately after** (`run-invariant-digest` / `snapshot_accounting_invariants`). In particular `paid_diverges_from_receipts` (paid_amount vs `compute_sale_settlement.new_paid`) must not increase. A rising count is a stop-ship — reverse or fix before leaving the session.
+
+Do not invent a second paid formula for the check: the digest calls `compute_sale_settlement`. Platform admin receives WhatsApp when that check's absolute count is non-zero (`PLATFORM_ADMIN_WHATSAPP`).
+
 ## UI / conventions
 - Customer names are UPPERCASED in APP CODE only (`customerUtils.ts`) - no DB trigger enforces it; a direct DB write/migration can bypass it.
 - Colors via HSL semantic tokens only (no raw hex); numeric columns use tabular-nums font-mono.

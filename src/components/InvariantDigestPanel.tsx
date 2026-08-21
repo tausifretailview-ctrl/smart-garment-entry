@@ -27,7 +27,7 @@ const CHECK_LABEL: Record<string, string> = {
   advance_refund_exceeds_booking: "Advance refund exceeds booking",
   advance_applied_exceeds_invoice: "Advance applied exceeds invoice",
   paid_exceeds_net: "Paid amount exceeds invoice value",
-  paid_diverges_from_receipts: "Paid amount unreconstructable from receipts",
+  paid_diverges_from_receipts: "Paid amount ≠ compute_sale_settlement",
   advance_draw_exceeds_booking: "Advance drawn beyond booking amount",
   customer_advance_pool_negative: "Customer advance pool negative (unbacked adjustments)",
 };
@@ -82,6 +82,38 @@ export function InvariantDigestPanel() {
     },
   });
 
+  const paidMismatchOpen = useMemo(
+    () =>
+      rows
+        .filter((r) => r.check_name === "paid_diverges_from_receipts")
+        .reduce((s, r) => s + Number(r.violation_count || 0), 0),
+    [rows],
+  );
+
+  const { data: paidMismatchDigest } = useQuery({
+    queryKey: ["paid_settlement_mismatch_digest"],
+    enabled: paidMismatchOpen > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("get_paid_settlement_mismatch_digest" as any, {});
+      if (error) throw error;
+      return data as {
+        total_failing?: number;
+        organizations?: Array<{
+          organization_id: string;
+          organization_name: string | null;
+          failing_count: number;
+          total_abs_discrepancy: number;
+          worst_rows?: Array<{
+            sale_number: string | null;
+            recorded_paid: number;
+            expected_paid: number;
+            discrepancy: number;
+          }>;
+        }>;
+      };
+    },
+  });
+
   const byCheck = useMemo(() => {
     const m = new Map<string, { count: number; prev: number; delta: number; orgs: number }>();
     for (const r of rows) {
@@ -121,6 +153,7 @@ export function InvariantDigestPanel() {
       toast.success(`Snapshot taken — ${(data as any)?.totals?.violations ?? 0} violations`);
       qc.invalidateQueries({ queryKey: ["invariant_digest"] });
       qc.invalidateQueries({ queryKey: ["invariant_last_snapshot"] });
+      qc.invalidateQueries({ queryKey: ["paid_settlement_mismatch_digest"] });
     } catch (e: any) {
       toast.error(e?.message || "Failed to run digest");
     } finally {
@@ -164,6 +197,40 @@ export function InvariantDigestPanel() {
           </CardContent>
         </Card>
       </div>
+
+      {paidMismatchOpen > 0 && (
+        <Card className="border-destructive/40">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm text-destructive">
+              Paid ≠ compute_sale_settlement ({paidMismatchDigest?.total_failing ?? paidMismatchOpen} invoices)
+            </CardTitle>
+            <p className="text-xs text-muted-foreground">
+              Same definition as the receipt sync writer. Platform admin is WhatsApped when this count is
+              non-zero after the daily digest.
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-3 p-4 pt-0">
+            {(paidMismatchDigest?.organizations || []).map((org) => (
+              <div key={org.organization_id} className="space-y-1">
+                <div className="text-sm font-medium">
+                  {org.organization_name || "—"}{" "}
+                  <span className="tabular-nums font-mono text-muted-foreground">
+                    {org.failing_count} · ₹{inr(org.total_abs_discrepancy)}
+                  </span>
+                </div>
+                <ul className="text-xs text-muted-foreground space-y-0.5 pl-3">
+                  {(org.worst_rows || []).map((w) => (
+                    <li key={`${w.sale_number}-${w.discrepancy}`} className="tabular-nums font-mono">
+                      {w.sale_number}: recorded {inr(w.recorded_paid)} → expected {inr(w.expected_paid)} (Δ{" "}
+                      {inr(w.discrepancy)})
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader className="pb-2"><CardTitle className="text-sm">By check</CardTitle></CardHeader>
