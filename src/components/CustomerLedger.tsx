@@ -2856,7 +2856,10 @@ export function CustomerLedger({
         grossInvoiced += t.grossBill ?? t.displayDebit ?? t.debit ?? 0;
         invoiceCnApplied += t.saleReturnAdjustApplied ?? 0;
       } else if (t.type === "return") {
-        saleReturns += t.credit || 0;
+        // Same gross as Credit column / running Balance (displayCredit). Using
+        // t.credit alone (remaining after CN apply) left applied CN out of recon
+        // and disagreed with the column gap (Hanif: ₹150 Dr vs ₹3,050 Cr).
+        saleReturns += (t.displayCredit ?? t.credit) || 0;
       } else if (t.type === "payment") {
         const discount = t.paymentBreakdown?.settlementDiscount || 0;
         const cash =
@@ -5361,10 +5364,13 @@ Please clear your dues at the earliest. Thank you!`;
                     {(() => {
                       const confirmedReturns = ledgerRows
                         .filter((t) => t.type === 'return' && t.status === 'adjusted')
-                        .reduce((sum, t) => sum + (t.amount || t.credit || 0), 0);
+                        .reduce((sum, t) => sum + ((t.displayCredit ?? t.amount ?? t.credit) || 0), 0);
                       const pendingReturns = ledgerRows
                         .filter((t) => t.type === 'return' && t.status === 'pending')
-                        .reduce((sum, t) => sum + (t.amount || t.credit || 0), 0);
+                        .reduce((sum, t) => sum + ((t.displayCredit ?? t.amount ?? t.credit) || 0), 0);
+                      const pendingRemaining = ledgerRows
+                        .filter((t) => t.type === 'return' && t.status === 'pending')
+                        .reduce((sum, t) => sum + (t.credit || 0), 0);
                       const cashPaid = reconciliation.paymentsCash;
                       const settlementDiscount = reconciliation.paymentsDiscount;
                       const cnOnInvoices = reconciliation.invoiceCnApplied;
@@ -5406,7 +5412,11 @@ Please clear your dues at the earliest. Thank you!`;
                         <span>(−) Sale Returns (Pending CN)</span>
                         <span className="font-medium">₹{Math.round(pendingReturns).toLocaleString("en-IN")}</span>
                       </div>
-                      <div className="text-[11px] text-orange-500 -mt-1">Pending — awaiting adjustment</div>
+                      <div className="text-[11px] text-orange-500 -mt-1">
+                        {pendingRemaining > 0 && pendingRemaining < pendingReturns - 0.5
+                          ? `Gross return — ₹${Math.round(pendingRemaining).toLocaleString("en-IN")} still available to adjust`
+                          : "Pending — awaiting adjustment"}
+                      </div>
                       <div className="flex justify-between border-t pt-1.5">
                         <span className="font-semibold">(=) Net Invoiced</span>
                         <span className="font-semibold">₹{Math.round(reconciliation.netInvoiced).toLocaleString("en-IN")}</span>
