@@ -1,7 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import {
-  accountFacetsFromFinancialSnapshot,
   CUSTOMER_FINANCIAL_SNAPSHOT_QUERY_KEY,
   fetchCustomerFinancialSnapshot,
   type CustomerFinancialSnapshot,
@@ -78,7 +77,6 @@ export function useCustomerBalance(
         fetchCustomerAuditBundle(supabase, organizationId, customerId),
       ]);
 
-      const facets = accountFacetsFromFinancialSnapshot(snap);
       const adjustmentTotal = (bundle.balanceAdjustments || []).reduce(
         (sum: number, a: { outstanding_difference?: number | null }) =>
           sum + Number(a.outstanding_difference || 0),
@@ -103,9 +101,9 @@ export function useCustomerBalance(
       );
 
       return {
-        balance: snap.outstandingDr,
-        grossOutstanding: facets.outstanding,
-        netPosition: facets.netPosition,
+        balance: snap.netPosition,
+        grossOutstanding: snap.grossOutstandingDr,
+        netPosition: snap.netPosition,
         openingBalance: core.openingBalance,
         totalSales: core.totalSalesNet,
         totalPaid,
