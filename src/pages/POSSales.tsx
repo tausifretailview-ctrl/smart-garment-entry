@@ -2313,13 +2313,15 @@ export default function POSSales() {
         const matchedVariantIds = new Set<string>();
 
         if (isNumericToken) {
+          const strictBarcode = isCompleteNumericBarcodeForPosCart(escToken);
+
           const exactQ = baseFilters(
             supabase.from('product_variants').select('id, product_id'),
           ).eq('barcode', escToken);
           const exactRes = await exactQ.limit(500);
           if (!exactRes.error && exactRes.data?.length) {
             exactRes.data.forEach((v: { id: string }) => matchedVariantIds.add(v.id));
-          } else if (!exactRes.error && shouldUsePartialPosBarcodeMatch(escToken)) {
+          } else if (!strictBarcode && !exactRes.error && shouldUsePartialPosBarcodeMatch(escToken)) {
             const partialQ = baseFilters(
               supabase.from('product_variants').select('id, product_id'),
             ).ilike('barcode', `%${escToken}%`);
@@ -2329,12 +2331,13 @@ export default function POSSales() {
             }
           }
           // Purchase-label barcode may differ from live master after merge
-          if (matchedVariantIds.size === 0 && canResolvePosPurchaseBarcode(escToken)) {
+          if (matchedVariantIds.size === 0 && strictBarcode && canResolvePosPurchaseBarcode(escToken)) {
             try {
               const resolutions = await resolvePurchaseBarcodesForStockReport(
                 supabase as unknown as PurchaseBarcodeStockClient,
                 currentOrganization.id,
                 escToken,
+                { exactOnly: true },
               );
               for (const r of resolutions) {
                 if (!r.excludeReason && r.skuId) matchedVariantIds.add(r.skuId);
@@ -2342,6 +2345,11 @@ export default function POSSales() {
             } catch (err) {
               console.error('POS dropdown purchase-barcode resolve failed:', err);
             }
+          }
+
+          // Complete barcode scan — never widen to name/price partial matches (shared 0040… prefixes).
+          if (strictBarcode) {
+            return matchedVariantIds;
           }
         }
 
@@ -2397,20 +2405,32 @@ export default function POSSales() {
 
       if (isNumeric) {
         tokens = [term];
-        const matchedIds = await fetchVariantsForToken(term);
-        if (requestSeq !== productSearchSeqRef.current) return;
-        if (matchedIds.size === 0) {
-          allData = [];
-        } else {
-          const finalIds = Array.from(matchedIds).slice(0, 50);
-          const { data: finalVariants, error } = await baseFilters(
-            supabase.from('product_variants').select(variantSelect)
-          )
-            .in('id', finalIds)
-            .order('stock_qty', { ascending: false });
+        if (isCompleteNumericBarcodeForPosCart(term)) {
+          const scan = await lookupVariantRowsByScan(
+            currentOrganization.id,
+            term,
+            variantSelect,
+            supabase,
+            { exactOnly: true },
+          );
           if (requestSeq !== productSearchSeqRef.current) return;
-          if (error) throw error;
-          allData = finalVariants || [];
+          allData = (scan.rows || []) as any[];
+        } else {
+          const matchedIds = await fetchVariantsForToken(term);
+          if (requestSeq !== productSearchSeqRef.current) return;
+          if (matchedIds.size === 0) {
+            allData = [];
+          } else {
+            const finalIds = Array.from(matchedIds).slice(0, 50);
+            const { data: finalVariants, error } = await baseFilters(
+              supabase.from('product_variants').select(variantSelect)
+            )
+              .in('id', finalIds)
+              .order('stock_qty', { ascending: false });
+            if (requestSeq !== productSearchSeqRef.current) return;
+            if (error) throw error;
+            allData = finalVariants || [];
+          }
         }
       } else {
         // Text / mixed search — reuse sale-order product search (name, brand, style, category, barcode)
@@ -2460,6 +2480,7 @@ export default function POSSales() {
         .filter((item: any) => {
           const product = item.products;
           if (!product) return false;
+          if (product.status !== 'active') return false;
           if (selectedProductType !== 'all' && product.product_type !== selectedProductType) {
             return false;
           }
@@ -2486,6 +2507,9 @@ export default function POSSales() {
           check('Color', item.color || p.color);
           check('Size', item.size);
           check('Barcode', item.barcode);
+          if (isNumeric && isCompleteNumericBarcodeForPosCart(term) && !matches.includes('Barcode')) {
+            matches.push('Barcode');
+          }
           tokens.forEach(tok => {
             if (/^\d+$/.test(tok)) {
               if (Number(item.sale_price) === Number(tok) && !matches.includes('Price')) matches.push('Price');
@@ -2497,6 +2521,8 @@ export default function POSSales() {
             product: p,
             variant: item,
             matchedOn: matches,
+            displayBarcode:
+              isNumeric && isCompleteNumericBarcodeForPosCart(term) ? term : item.barcode,
             searchText: `${p.product_name || ''} ${item.size || ''} ${item.color || p.color || ''} ${item.barcode || ''} ${p.brand || ''} ${p.category || ''}`.toLowerCase(),
           };
         });
@@ -2595,7 +2621,13 @@ export default function POSSales() {
         if (exactBarcodeMatches.length > 0) break;
       }
       if (exactBarcodeMatches.length === 0) {
-        const scan = await lookupVariantRowsByScan(orgId, trimmedTerm, POS_VARIANT_LOOKUP_SELECT);
+        const scan = await lookupVariantRowsByScan(
+          orgId,
+          trimmedTerm,
+          POS_VARIANT_LOOKUP_SELECT,
+          supabase,
+          { exactOnly: true },
+        );
         for (const row of scan.rows) {
           const mapped = mapPosVariantLookupRow(
             row as unknown as (PosVariantRow & { products?: PosProductRow }) | undefined,
@@ -6134,7 +6166,12 @@ export default function POSSales() {
                               value={item.searchText}
                               data-pos-index={index}
                               onSelect={() => {
-                                addItemToCart(product, item.variant);
+                                const variantForCart =
+                                  item.displayBarcode &&
+                                  item.displayBarcode !== item.variant.barcode
+                                    ? { ...item.variant, barcode: item.displayBarcode }
+                                    : item.variant;
+                                addItemToCart(product, variantForCart);
                               }}
                               className={`cursor-pointer group text-slate-900 dark:text-slate-100 transition-colors border-b border-slate-100 dark:border-slate-800 data-[selected=true]:bg-primary data-[selected=true]:text-primary-foreground ${
                                 index === selectedProductIndex
@@ -6186,8 +6223,8 @@ export default function POSSales() {
                                   </span>
                                 </div>
                                  <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400 group-data-[selected=true]:text-white/90">
-                                  {formatPosCartBarcode(item.variant.barcode) && (
-                                    <span className="font-mono text-xs">{formatPosCartBarcode(item.variant.barcode)}</span>
+                                  {formatPosCartBarcode(item.displayBarcode ?? item.variant.barcode) && (
+                                    <span className="font-mono text-xs">{formatPosCartBarcode(item.displayBarcode ?? item.variant.barcode)}</span>
                                   )}
                                   <span className="font-semibold text-primary group-data-[selected=true]:text-white">₹{item.variant.sale_price}</span>
                                   {enableMrp && item.variant.mrp && item.variant.mrp > item.variant.sale_price && (

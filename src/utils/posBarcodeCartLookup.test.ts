@@ -17,6 +17,8 @@ describe("posBarcodeCartLookup", () => {
     expect(isCompleteNumericBarcodeForPosCart("1234567")).toBe(true);
     expect(isCompleteNumericBarcodeForPosCart("12345678")).toBe(true);
     expect(isCompleteNumericBarcodeForPosCart("12")).toBe(false);
+    expect(isCompleteNumericBarcodeForPosCart("004001")).toBe(false);
+    expect(isPosServiceShortNumericBarcode("004001")).toBe(false);
     expect(POS_NUMERIC_BARCODE_MIN_LENGTH).toBe(8);
   });
 
