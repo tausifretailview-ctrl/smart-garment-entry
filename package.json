@@ -12,6 +12,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:money": "vitest run test/money src/utils/customerBalanceCore.shumama.test.ts src/utils/saleInvoiceStatus.test.ts src/lib/posBilling/posBilling.characterisation.test.ts src/utils/posGstTotals.test.ts",
+    "test:balance-gate:offline": "vitest run test/money/customerBalanceVerificationGate.test.ts test/money/customerFinancialSnapshotFacets.test.ts test/money/customerPartyBalanceSnapshot.test.ts",
+    "test:balance-gate": "node scripts/run-balance-gate.mjs",
     "test:integration": "vitest run test/integration",
     "test:seed": "vitest run test/scripts/seed-staging.test.ts",
     "test:verify-staging": "vitest run test/scripts/verify-staging-schema.test.ts",

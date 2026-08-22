@@ -38,6 +38,8 @@ const EMPTY_SNAPSHOT: CustomerFinancialSnapshot = {
   advanceAvailable: 0,
   cnAvailableTotal: 0,
   cnPendingCount: 0,
+  grossOutstandingDr: 0,
+  netPosition: 0,
 };
 
 /**
