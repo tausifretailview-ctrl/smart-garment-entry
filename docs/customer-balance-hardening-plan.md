@@ -1,0 +1,89 @@
+# Customer balance hardening — implementation plan
+
+**Goal:** One accurate customer balance on every page; no paid_amount / CN / return-pool drift on future transactions.
+
+**Status:** Phase 1 (P0 app writes) in progress — branch `cursor/customer-balance-hardening-p0-0051`
+
+---
+
+## Problem summary (Ella Noor evidence)
+
+| Issue | Example | Root cause |
+|-------|---------|------------|
+| Paid drift | 11 invoices R5 batch | Inline `derivePaidAndStatus` writes vs `compute_sale_settlement` |
+| CN double-apply | Shumama ₹61,900 ×2 | SRA + CN voucher both count |
+| Return pool stale | Sharmin −₹11,500 Cr | `credit_available_balance` null on adjusted returns |
+| Page disagreement | Ledger vs Party vs Outstanding tab | 3+ balance sources in UI |
+
+---
+
+## P0 — In progress (this PR series)
+
+### P0-1 Single sale payment writer ✅ starting
+
+**Rule:** After any receipt/advance/CN voucher mutates a sale, call `applyRecomputedSalePaymentState(saleId, orgId)` — never hand-write `paid_amount` / `payment_status`.
+
+| File | Change |
+|------|--------|
+| `customerBalanceUtils.ts` | `syncSalePaymentsFromVouchersBatch` → `applyRecomputedSalePaymentState` |
+| `BulkAdvanceAdjustDialog.tsx` | Remove inline paid update; recompute after FIFO |
+| `SalesInvoiceDashboard.tsx` | Remove pre-voucher paid bump; recompute after voucher |
+| `useSaveSale.tsx` | Recompute after insert/update when sale exists in DB |
+
+**Keep `derivePaidAndStatus` for:** pre-insert UX only (cart totals before save).
+
+### P0-2 Single CN writer RPC — planned (migration)
+
+**Spec:** `docs/customer-accounts-consistency-v1.md`
+
+- `adjust_invoice_balance` creates `credit_note_adjustment` voucher inside RPC
+- Client stops duplicate `createReceiptVoucher` on Settle / Adjust CN
+- Migration: new timestamped file in `supabase/migrations/`
+
+### P0-3 One headline balance in UI — planned
+
+Standardize display on `get_customer_financial_snapshot.outstanding_dr`:
+
+| Replace | With |
+|---------|------|
+| `OutstandingDashboardTab` invoice sum | Snapshot RPC or party list |
+| `credit_applied` in invoice dashboard | `sale_return_adjust` only |
+| Payment picker fallback ledger math | Retry RPC / show unavailable |
+
+---
+
+## P1 — Next
+
+- Return pool invariant: on `credit_status = adjusted`, require `credit_available_balance = 0` or explicit remainder
+- Nightly `paid_diverges_from_receipts` digest → WhatsApp alert
+- Remove `warnSettlementPathMismatch` once all paths migrated
+- Unify settlement tolerance (₹1 DB vs ₹0.99 UI)
+
+---
+
+## P2 — Polish
+
+- Update `.cursor/rules` — document that `recomputeSalePaymentState` exists and is required
+- Ledger: single primary “Amount owed”; RPC cross-check audit-only
+- Deprecate `reconcileSaleInvoiceWithSplit` for **writes** (keep for display dedupe)
+
+---
+
+## Verification gates
+
+| Gate | Command / screen |
+|------|------------------|
+| Unit | `npm run test:money` |
+| Parity | `scripts/verify-customer-party-balances-parity.sql` |
+| Paid invariant | `scripts/verify-paid-settlement-invariant-ella-noor.sql` |
+| UI QA | Customer Reconciliation — 0 rows > ₹1 drift |
+| Post-deploy | `run-invariant-digest` — `paid_diverges_from_receipts` count must not rise |
+
+---
+
+## Success criteria
+
+- [ ] All post-voucher write paths use `applyRecomputedSalePaymentState`
+- [ ] CN apply uses single RPC writer (no client duplicate voucher)
+- [ ] Customer Balances = Payment tab = POS picker = Ledger header (within ₹1)
+- [ ] No new paid drift rows after 30 days of production traffic

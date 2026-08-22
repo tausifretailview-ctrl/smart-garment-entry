@@ -132,12 +132,11 @@ import {
   applyCreditNoteFifoToSale,
   createReceiptVoucher,
   consumeAdvanceFIFO,
-  derivePaidAndStatus,
   getAvailableCN,
-  warnSettlementPathMismatch,
   type CnFifoVoucherChunk,
 } from "@/utils/saleSettlement";
 import { fetchCustomerBalanceSnapshot } from "@/utils/customerBalanceUtils";
+import { applyRecomputedSalePaymentState } from "@/utils/recomputeSalePaymentState";
 import { assertCustomerPaymentWithinOutstandingCap } from "@/utils/invoiceOverpaymentGuard";
 import { CustomerAccountSummaryStrip } from "@/components/CustomerAccountSummaryStrip";
 import {
@@ -2704,37 +2703,9 @@ export default function SalesInvoiceDashboard() {
         effectivePaidAmount = Number(saleAfterCn?.paid_amount || currentPaid);
         effectiveCNAdjust = Number(saleAfterCn?.sale_return_adjust || currentCNAdjust);
       } else {
-        const newPaidAmount = Math.round((currentPaid + amount) * 100) / 100;
-        const newCNAdjust = currentCNAdjust;
-        const legacyStatus =
-          newPaidAmount + newCNAdjust >= selectedInvoiceForPayment.net_amount - 1
-            ? "completed"
-            : newPaidAmount > 0 || newCNAdjust > 0
-              ? "partial"
-              : "pending";
-        const { paymentStatus: newStatus } = derivePaidAndStatus({
-          netAmount: Number(selectedInvoiceForPayment.net_amount || 0),
-          saleReturnAdjust: newCNAdjust,
-          cashReceived: paymentMode === "advance" ? currentPaid : newPaidAmount,
-          advanceApplied: paymentMode === "advance" ? amount : 0,
-          cnApplied: 0,
-          discountGiven: 0,
-          paymentMethod: paymentMode,
-        });
-        warnSettlementPathMismatch("SalesInvoiceDashboard.recordPayment", legacyStatus, newStatus);
-
-        const { error: updateError } = await supabase
-          .from("sales")
-          .update({
-            paid_amount: newPaidAmount,
-            payment_status: newStatus,
-            payment_date: format(paymentDate, "yyyy-MM-dd"),
-            payment_method: paymentMode,
-          })
-          .eq("id", selectedInvoiceForPayment.id);
-
-        if (updateError) throw updateError;
-        effectivePaidAmount = newPaidAmount;
+        // paid_amount / payment_status written after voucher via applyRecomputedSalePaymentState
+        effectivePaidAmount = currentPaid;
+        effectiveCNAdjust = currentCNAdjust;
       }
 
       const payYmd = format(paymentDate, "yyyy-MM-dd");
@@ -2879,60 +2850,40 @@ export default function SalesInvoiceDashboard() {
         }
       }
 
-      // Critical sync guard: after voucher creation, re-sync sales paid/status from persisted values.
-      // This guarantees advance_adjustment vouchers and sales table stay aligned.
+      // Canonical sync: compute_sale_settlement after all vouchers are persisted.
+      const payYmdFinal = format(paymentDate, "yyyy-MM-dd");
+      const recomputed = await applyRecomputedSalePaymentState(
+        selectedInvoiceForPayment.id,
+        currentOrganization!.id,
+        supabase,
+      );
+
+      const { error: metaUpdErr } = await supabase
+        .from("sales")
+        .update({
+          payment_date: payYmdFinal,
+          payment_method: paymentMode,
+        })
+        .eq("id", selectedInvoiceForPayment.id)
+        .eq("organization_id", currentOrganization!.id);
+      if (metaUpdErr) throw metaUpdErr;
+
       const { data: refreshedSale, error: refreshedSaleError } = await supabase
-        .from('sales')
-        .select('paid_amount, net_amount, sale_return_adjust')
-        .eq('id', selectedInvoiceForPayment.id)
+        .from("sales")
+        .select("paid_amount, net_amount, sale_return_adjust, payment_status")
+        .eq("id", selectedInvoiceForPayment.id)
         .single();
       if (refreshedSaleError) throw refreshedSaleError;
 
-      const { data: saleReceipts, error: saleReceiptsError } = await supabase
-        .from('voucher_entries')
-        .select('total_amount, payment_method')
-        .eq('organization_id', currentOrganization?.id)
-        .eq('voucher_type', 'receipt')
-        // Phase 1.2: include mis-tagged customer rows for this exact sale id.
-        .in('reference_type', ['sale', 'customer'])
-        .eq('reference_id', selectedInvoiceForPayment.id)
-        .is('deleted_at', null);
-      if (saleReceiptsError) throw saleReceiptsError;
-
-      // Only true cash-like receipts should be compared against paid_amount.
-      // credit_note_adjustment and advance_adjustment vouchers represent CN/advance
-      // settlement (already reflected via sale_return_adjust or applied advance),
-      // and including them here double-counts the same settlement and flips
-      // partial invoices to completed.
-      const receiptTotal = (saleReceipts || [])
-        .filter((row: any) => {
-          const pm = String(row.payment_method || '').toLowerCase();
-          return pm !== 'credit_note_adjustment' && pm !== 'advance_adjustment';
-        })
-        .reduce((sum: number, row: any) => sum + Number(row.total_amount || 0), 0);
+      const reconciledPaid = recomputed.skipped
+        ? Number(refreshedSale?.paid_amount || 0)
+        : recomputed.paidAmount;
+      const reconciledStatus = recomputed.skipped
+        ? String(refreshedSale?.payment_status || "pending")
+        : recomputed.paymentStatus;
       const latestNet = Number(refreshedSale?.net_amount || selectedInvoiceForPayment.net_amount || 0);
       const latestSRAdjust = Number(refreshedSale?.sale_return_adjust || 0);
       const payableCap = Math.max(0, latestNet - latestSRAdjust);
-      const reconciledPaid = Math.min(
-        payableCap,
-        Math.max(Number(refreshedSale?.paid_amount || 0), receiptTotal)
-      );
-      const reconciledStatus =
-        reconciledPaid + latestSRAdjust >= latestNet - 1
-          ? 'completed'
-          : reconciledPaid > 0 || latestSRAdjust > 0
-            ? 'partial'
-            : 'pending';
-
-      const { error: finalSyncError } = await supabase
-        .from('sales')
-        .update({
-          paid_amount: reconciledPaid,
-          payment_status: reconciledStatus,
-          payment_date: format(paymentDate, 'yyyy-MM-dd'),
-        })
-        .eq('id', selectedInvoiceForPayment.id);
-      if (finalSyncError) throw finalSyncError;
 
       effectivePaidAmount = reconciledPaid;
       effectiveCNAdjust = latestSRAdjust;

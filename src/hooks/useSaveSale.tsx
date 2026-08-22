@@ -22,6 +22,7 @@ import {
   preSaveInvariants,
   warnSettlementPathMismatch,
 } from "@/utils/saleSettlement";
+import { applyRecomputedSalePaymentState } from "@/utils/recomputeSalePaymentState";
 import { ensureCreditNoteForSaleReturn } from "@/utils/ensureCreditNoteForSaleReturn";
 import { isSaleReturnConsumedAtBilling } from "@/utils/saleReturnCnBalance";
 import { allocateMixPaymentToBill } from "@/utils/mixPaymentAllocation";
@@ -1006,6 +1007,20 @@ export const useSaveSale = () => {
         }
       }
 
+      try {
+        const recomputed = await applyRecomputedSalePaymentState(
+          sale.id,
+          currentOrganization.id,
+          supabase,
+        );
+        if (!recomputed.skipped) {
+          sale.paid_amount = recomputed.paidAmount;
+          sale.payment_status = recomputed.paymentStatus;
+        }
+      } catch (recomputeErr) {
+        console.error("applyRecomputedSalePaymentState failed after save:", recomputeErr);
+      }
+
       let pointsAwarded = 0;
       // No points earn on bills that redeem points (pending stays 0).
       const redeemedOnBill = (saleData.pointsRedeemedAmount || 0) > 0;
@@ -1828,6 +1843,20 @@ export const useSaveSale = () => {
         }
       }
 
+      try {
+        const recomputed = await applyRecomputedSalePaymentState(
+          sale.id,
+          currentOrganization.id,
+          supabase,
+        );
+        if (!recomputed.skipped) {
+          sale.paid_amount = recomputed.paidAmount;
+          sale.payment_status = recomputed.paymentStatus;
+        }
+      } catch (recomputeErr) {
+        console.error("applyRecomputedSalePaymentState failed after update:", recomputeErr);
+      }
+
       toast({
         title: "Sale updated successfully",
         description: `Sale ${sale.sale_number} has been updated`,
@@ -2265,6 +2294,20 @@ export const useSaveSale = () => {
         } else {
           await runSrConsume();
         }
+      }
+
+      try {
+        const recomputed = await applyRecomputedSalePaymentState(
+          sale.id,
+          currentOrganization.id,
+          supabase,
+        );
+        if (!recomputed.skipped) {
+          sale.paid_amount = recomputed.paidAmount;
+          sale.payment_status = recomputed.paymentStatus;
+        }
+      } catch (recomputeErr) {
+        console.error("applyRecomputedSalePaymentState failed after resume:", recomputeErr);
       }
 
       toast({
