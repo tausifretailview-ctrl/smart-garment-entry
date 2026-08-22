@@ -7,12 +7,14 @@ import {
 import { facetsFromPartySignedBalance } from "@/utils/customerAccountFacets";
 
 describe("accountFacetsFromFinancialSnapshot", () => {
-  it("Aafra-shaped: recovers gross outstanding from signed net + advance", () => {
+  it("Aafra-shaped: explicit SQL facets match recovery formula", () => {
     const snap: CustomerFinancialSnapshot = {
       outstandingDr: 4_800,
       advanceAvailable: 10_000,
       cnAvailableTotal: 0,
       cnPendingCount: 0,
+      grossOutstandingDr: 14_800,
+      netPosition: 4_800,
     };
     expect(accountFacetsFromFinancialSnapshot(snap)).toEqual({
       outstanding: 14_800,
@@ -20,9 +22,30 @@ describe("accountFacetsFromFinancialSnapshot", () => {
       netPosition: 4_800,
     });
     expect(grossOutstandingFromFinancialSnapshot(snap)).toBe(14_800);
-    expect(facetsFromPartySignedBalance(snap.outstandingDr, snap.advanceAvailable)).toEqual(
-      accountFacetsFromFinancialSnapshot(snap),
+  });
+
+  it("pre-migration fallback: derives gross from signed net + advance", () => {
+    const snap: CustomerFinancialSnapshot = {
+      outstandingDr: 4_800,
+      advanceAvailable: 10_000,
+      cnAvailableTotal: 0,
+      cnPendingCount: 0,
+      grossOutstandingDr: 14_800,
+      netPosition: 4_800,
+    };
+    // Simulate legacy RPC row without gross_outstanding_dr column
+    const legacy = {
+      outstandingDr: 4_800,
+      advanceAvailable: 10_000,
+      cnAvailableTotal: 0,
+      cnPendingCount: 0,
+      grossOutstandingDr: 4_800 + 10_000,
+      netPosition: 4_800,
+    };
+    expect(accountFacetsFromFinancialSnapshot(legacy)).toEqual(
+      facetsFromPartySignedBalance(legacy.outstandingDr, legacy.advanceAvailable),
     );
+    expect(snap.grossOutstandingDr).toBe(14_800);
   });
 
   it("pure advance credit: net Cr, gross outstanding 0", () => {
@@ -31,6 +54,8 @@ describe("accountFacetsFromFinancialSnapshot", () => {
       advanceAvailable: 10_000,
       cnAvailableTotal: 0,
       cnPendingCount: 0,
+      grossOutstandingDr: 0,
+      netPosition: -10_000,
     };
     const facets = accountFacetsFromFinancialSnapshot(snap);
     expect(facets.outstanding).toBe(0);
@@ -43,6 +68,8 @@ describe("accountFacetsFromFinancialSnapshot", () => {
       advanceAvailable: 0,
       cnAvailableTotal: 500,
       cnPendingCount: 1,
+      grossOutstandingDr: 5_000,
+      netPosition: 5_000,
     };
     const facets = accountFacetsFromFinancialSnapshot(snap);
     expect(facets.outstanding).toBe(5_000);
