@@ -35,11 +35,8 @@ import {
   getAvailableCN,
   type AvailableCNReturn,
 } from "@/utils/saleSettlement";
-import {
-  reconcileSaleInvoiceDisplay,
-  splitSaleLinkedReceiptRows,
-} from "@/utils/customerBalanceUtils";
 import { formatCnApplyError } from "@/utils/saleReturnCnBalance";
+import { applyRecomputedSalePaymentState } from "@/utils/recomputeSalePaymentState";
 import { useCustomerFinancialSnapshot } from "@/hooks/useCustomerFinancialSnapshot";
 import { invalidateCustomerFinancialSnapshot } from "@/utils/customerFinancialSnapshot";
 import {
@@ -235,44 +232,20 @@ export function SettleCustomerAccountDialog({
   }, [cnData?.returns]);
 
   const syncSaleFromVouchers = async (invoiceId: string, voucherDate: string) => {
-    const { data: freshSale, error: saleErr } = await supabase
-      .from("sales")
-      .select("net_amount, paid_amount, sale_return_adjust, payment_method")
-      .eq("id", invoiceId)
-      .eq("organization_id", organizationId)
-      .single();
-    if (saleErr) throw saleErr;
-
-    const { data: receiptRows, error: vchErr } = await supabase
-      .from("voucher_entries")
-      .select("reference_id, total_amount, payment_method, description, discount_amount")
-      .eq("organization_id", organizationId)
-      .eq("reference_id", invoiceId)
-      .in("reference_type", ["sale", "customer"])
-      .eq("voucher_type", "receipt")
-      .is("deleted_at", null);
-    if (vchErr) throw vchErr;
-
-    const splitMap = splitSaleLinkedReceiptRows(receiptRows || []);
-    const rec = reconcileSaleInvoiceDisplay({
-      net_amount: Number(freshSale.net_amount || 0),
-      sale_return_adjust: Number(freshSale.sale_return_adjust || 0),
-      paid_amount: Number(freshSale.paid_amount || 0),
-      split: splitMap.get(invoiceId) ?? null,
-    });
-
-    const { error: updErr } = await supabase
-      .from("sales")
-      .update({
-        paid_amount: rec.paid_amount,
-        payment_status: rec.payment_status,
-        payment_date: voucherDate,
-      })
-      .eq("id", invoiceId)
-      .eq("organization_id", organizationId);
-    if (updErr) throw updErr;
-
-    return rec;
+    const result = await applyRecomputedSalePaymentState(
+      invoiceId,
+      organizationId,
+      supabase,
+    );
+    if (!result.skipped) {
+      const { error: dateErr } = await supabase
+        .from("sales")
+        .update({ payment_date: voucherDate })
+        .eq("id", invoiceId)
+        .eq("organization_id", organizationId);
+      if (dateErr) throw dateErr;
+    }
+    return result;
   };
 
   const handleSettle = async () => {

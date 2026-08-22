@@ -2,7 +2,7 @@
 
 **Goal:** One accurate customer balance on every page; no paid_amount / CN / return-pool drift on future transactions.
 
-**Status:** Phase 1 (P0 app writes) in progress — branch `cursor/customer-balance-hardening-p0-0051`
+**Status:** Phase 1 (P0 app writes) — P0-1 + P0-2 complete on branch `cursor/customer-balance-hardening-p0-0051`
 
 ---
 
@@ -32,13 +32,28 @@
 
 **Keep `derivePaidAndStatus` for:** pre-insert UX only (cart totals before save).
 
-### P0-2 Single CN writer RPC — planned (migration)
+### P0-2 Single CN writer RPC ✅ complete
 
 **Spec:** `docs/customer-accounts-consistency-v1.md`
 
-- `adjust_invoice_balance` creates `credit_note_adjustment` voucher inside RPC
-- Client stops duplicate `createReceiptVoucher` on Settle / Adjust CN
-- Migration: new timestamped file in `supabase/migrations/`
+**DB (already live):** `supabase/migrations/20260606140000_cn_adjust_sync_guardrails.sql`
+
+- `adjust_invoice_balance` returns `jsonb` with `voucher_entry_id`
+- Creates `credit_note_adjustment` voucher inline via `generate_voucher_number`
+- `trg_cn_adjust_sync` is sole writer of `credit_notes.used_amount`
+- `apply_credit_note_to_sale` delegates to `adjust_invoice_balance` (FIFO)
+
+**Client (this PR):**
+
+| File | Change |
+|------|--------|
+| `saleSettlement.ts` | `createReceiptVoucher` blocks `credit_note_adjustment`; FIFO uses RPC only |
+| `AdjustCustomerCreditNoteDialog.tsx` | RPC-only apply; reads `voucher_entry_id` for GL |
+| `SettleCustomerAccountDialog.tsx` | CN via `applyCreditNoteFifoToSale`; `syncSaleFromVouchers` → `applyRecomputedSalePaymentState` |
+| `saleReturnCnBalance.ts` | `ensureCreditNoteHeadroom` heal-down (never inflates CN header) |
+| `FloatingSaleReturn.tsx` | POS CN redeem via `adjust_invoice_balance` RPC |
+
+**Tests:** `test/money/cnAdjustConsistency.test.ts` — guard, RPC meta parse, pool helpers
 
 ### P0-3 One headline balance in UI — planned
 
@@ -83,7 +98,7 @@ Standardize display on `get_customer_financial_snapshot.outstanding_dr`:
 
 ## Success criteria
 
-- [ ] All post-voucher write paths use `applyRecomputedSalePaymentState`
-- [ ] CN apply uses single RPC writer (no client duplicate voucher)
+- [x] All post-voucher write paths use `applyRecomputedSalePaymentState`
+- [x] CN apply uses single RPC writer (no client duplicate voucher)
 - [ ] Customer Balances = Payment tab = POS picker = Ledger header (within ₹1)
 - [ ] No new paid drift rows after 30 days of production traffic
