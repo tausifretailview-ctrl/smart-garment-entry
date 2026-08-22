@@ -269,6 +269,7 @@ BEGIN;
 CREATE TEMP TABLE _cn_fp_repair_targets ON COMMIT DROP AS
 SELECT
   ve.id                    AS voucher_id,
+  ve.voucher_number,
   ve.organization_id,
   ve.reference_id          AS sale_id,
   ve.total_amount          AS cn_amount,
@@ -280,7 +281,8 @@ SELECT
     )
   ) AS sra_to_apply,
   sr.id                    AS sale_return_id,
-  COALESCE(sr.net_amount, 0) AS return_net
+  COALESCE(sr.net_amount, 0) AS return_net,
+  active_dup.id            AS active_duplicate_voucher_id
 FROM public.voucher_entries ve
 INNER JOIN public.sales s
   ON s.id = ve.reference_id
@@ -291,6 +293,10 @@ LEFT JOIN public.sale_returns sr
  AND sr.organization_id = ve.organization_id
  AND sr.deleted_at IS NULL
  AND LOWER(COALESCE(sr.credit_status, '')) = 'adjusted'
+LEFT JOIN public.voucher_entries active_dup
+  ON active_dup.voucher_number = ve.voucher_number
+ AND active_dup.deleted_at IS NULL
+ AND active_dup.id <> ve.id
 WHERE ve.voucher_type = 'receipt'
   AND LOWER(COALESCE(ve.payment_method, '')) = 'credit_note_adjustment'
   AND ve.deleted_at IS NOT NULL
@@ -321,6 +327,7 @@ WHERE fp.sale_id = s.id
   AND fp.sra_to_apply > 0.005;
 
 -- 3b. Restore the deleted CN-adjust receipts (clear deleted_at).
+-- Skip rows where an active voucher already holds the same voucher_number (uq_voucher_entries_number_active).
 UPDATE public.voucher_entries ve
 SET
   deleted_at = NULL,
@@ -330,7 +337,21 @@ SET
   updated_at = now()
 FROM _cn_fp_repair_targets fp
 WHERE fp.voucher_id = ve.id
-  AND ve.deleted_at IS NOT NULL;
+  AND ve.deleted_at IS NOT NULL
+  AND fp.active_duplicate_voucher_id IS NULL;
+
+-- 3b-skip. Leave deleted twin in Recycle Bin with audit note when active receipt already exists.
+UPDATE public.voucher_entries ve
+SET
+  notes = COALESCE(ve.notes, '') ||
+    E'\n[cn_false_positive_restore_20260822] restore skipped — active voucher ' ||
+    fp.voucher_number || ' already exists (id=' || fp.active_duplicate_voucher_id || ')',
+  updated_at = now()
+FROM _cn_fp_repair_targets fp
+WHERE fp.voucher_id = ve.id
+  AND ve.deleted_at IS NOT NULL
+  AND fp.active_duplicate_voucher_id IS NOT NULL
+  AND COALESCE(ve.notes, '') NOT ILIKE '%restore skipped — active voucher%';
 
 -- 3c. Set credit_available_balance on linked sale returns (remainder after apply).
 UPDATE public.sale_returns sr

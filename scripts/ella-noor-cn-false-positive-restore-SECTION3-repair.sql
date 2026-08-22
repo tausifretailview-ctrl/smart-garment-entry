@@ -23,7 +23,8 @@ SELECT
   ) AS sra_to_apply,
   sr.id                    AS sale_return_id,
   sr.return_number,
-  COALESCE(sr.net_amount, 0) AS return_net
+  COALESCE(sr.net_amount, 0) AS return_net,
+  active_dup.id            AS active_duplicate_voucher_id
 FROM public.voucher_entries ve
 INNER JOIN public.sales s
   ON s.id = ve.reference_id
@@ -34,6 +35,10 @@ LEFT JOIN public.sale_returns sr
  AND sr.organization_id = ve.organization_id
  AND sr.deleted_at IS NULL
  AND LOWER(COALESCE(sr.credit_status, '')) = 'adjusted'
+LEFT JOIN public.voucher_entries active_dup
+  ON active_dup.voucher_number = ve.voucher_number
+ AND active_dup.deleted_at IS NULL
+ AND active_dup.id <> ve.id
 WHERE ve.voucher_type = 'receipt'
   AND LOWER(COALESCE(ve.payment_method, '')) = 'credit_note_adjustment'
   AND ve.deleted_at IS NOT NULL
@@ -55,7 +60,11 @@ SELECT
   return_number,
   return_net,
   ROUND(return_net - cn_amount, 2) AS remainder_after_apply,
-  CASE WHEN cn_amount > sra_to_apply + 0.5 THEN 'CN exceeds invoice cap' ELSE 'OK' END AS cap_flag
+  CASE WHEN cn_amount > sra_to_apply + 0.5 THEN 'CN exceeds invoice cap' ELSE 'OK' END AS cap_flag,
+  CASE
+    WHEN active_duplicate_voucher_id IS NULL THEN 'RESTORE'
+    ELSE 'SKIP_RESTORE — active ' || voucher_number || ' exists (id=' || active_duplicate_voucher_id || ')'
+  END AS restore_action
 FROM _cn_fp_repair_targets
 ORDER BY cn_amount DESC;
 
@@ -76,7 +85,7 @@ WHERE fp.sale_id = s.id
   AND s.organization_id = fp.organization_id
   AND fp.sra_to_apply > 0.005;
 
--- 3b. Restore deleted CN-adjust receipts
+-- 3b. Restore deleted CN-adjust receipts (skip when active twin exists — uq_voucher_entries_number_active)
 UPDATE public.voucher_entries ve
 SET
   deleted_at = NULL,
@@ -86,7 +95,22 @@ SET
   updated_at = now()
 FROM _cn_fp_repair_targets fp
 WHERE fp.voucher_id = ve.id
-  AND ve.deleted_at IS NOT NULL;
+  AND ve.deleted_at IS NOT NULL
+  AND fp.active_duplicate_voucher_id IS NULL;
+
+-- 3b-skip. Audit note on deleted twins that cannot be undeleted (invoice SRA still repaired in 3a)
+UPDATE public.voucher_entries ve
+SET
+  notes = COALESCE(ve.notes, '') ||
+    E'\n[cn_false_positive_restore_20260822] restore skipped — active voucher ' ||
+    fp.voucher_number || ' already exists (id=' || fp.active_duplicate_voucher_id ||
+    '); sale_return_adjust applied on ' || fp.sale_number,
+  updated_at = now()
+FROM _cn_fp_repair_targets fp
+WHERE fp.voucher_id = ve.id
+  AND ve.deleted_at IS NOT NULL
+  AND fp.active_duplicate_voucher_id IS NOT NULL
+  AND COALESCE(ve.notes, '') NOT ILIKE '%restore skipped — active voucher%';
 
 -- 3c. Update linked sale return pool (skip when no linked return)
 UPDATE public.sale_returns sr

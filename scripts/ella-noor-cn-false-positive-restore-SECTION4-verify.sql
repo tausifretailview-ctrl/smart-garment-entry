@@ -1,8 +1,8 @@
 -- SECTION 4 — verify 28-row repair (read-only)
 
--- A) No false-positive rows left
+-- A) No false-positive rows left (excludes skip-restore twins with active voucher_number collision)
 WITH false_positive_fp AS (
-  SELECT ve.voucher_number
+  SELECT ve.id AS voucher_id, ve.voucher_number
   FROM public.voucher_entries ve
   INNER JOIN public.sales s ON s.id = ve.reference_id AND s.organization_id = ve.organization_id AND s.deleted_at IS NULL
   WHERE ve.voucher_type = 'receipt'
@@ -17,8 +17,23 @@ WITH false_positive_fp AS (
     )
     AND ve.organization_id = '3fdca631-1e0c-4417-9704-421f5129ff67'::uuid
 )
-SELECT COUNT(*) AS remaining_false_positives FROM false_positive_fp;
--- expect 0
+SELECT COUNT(*) AS remaining_false_positives
+FROM false_positive_fp fp
+WHERE NOT EXISTS (
+  SELECT 1
+  FROM public.voucher_entries active
+  WHERE active.voucher_number = fp.voucher_number
+    AND active.deleted_at IS NULL
+    AND active.id <> fp.voucher_id
+);
+-- expect 0 (skip-restore twins may stay deleted but invoice SRA should be set)
+
+-- A2) Skip-restore twins (audit only — should match SECTION 3 pre-check SKIP_RESTORE rows)
+SELECT ve.voucher_number, ve.id, ve.notes
+FROM public.voucher_entries ve
+WHERE ve.organization_id = '3fdca631-1e0c-4417-9704-421f5129ff67'::uuid
+  AND ve.deleted_at IS NOT NULL
+  AND COALESCE(ve.notes, '') ILIKE '%restore skipped — active voucher%';
 
 -- B) Restored vouchers count
 SELECT COUNT(*) AS restored_vouchers
