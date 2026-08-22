@@ -7,7 +7,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { Loader2, IndianRupee, CheckCircle2 } from "lucide-react";
-import { consumeAdvanceFIFO, derivePaidAndStatus, warnSettlementPathMismatch } from "@/utils/saleSettlement";
+import { consumeAdvanceFIFO } from "@/utils/saleSettlement";
+import { applyRecomputedSalePaymentState } from "@/utils/recomputeSalePaymentState";
 import { fetchCustomerFinancialSnapshot, invalidateCustomerFinancialSnapshot } from "@/utils/customerFinancialSnapshot";
 import {
   fetchSaleReceiptSplitsForInvoices,
@@ -230,25 +231,6 @@ export function BulkAdvanceAdjustDialog({
           continue;
         }
 
-        const prevPaid = inv.paid_amount;
-        const newPaid = Math.round((prevPaid + inv.allocate) * 100) / 100;
-        const legacyStatus =
-          newPaid + inv.sale_return_adjust >= inv.net_amount - 1
-            ? "completed"
-            : newPaid > 0
-              ? "partial"
-              : "pending";
-        const { paymentStatus: newStatus } = derivePaidAndStatus({
-          netAmount: inv.net_amount,
-          saleReturnAdjust: inv.sale_return_adjust,
-          cashReceived: prevPaid,
-          advanceApplied: inv.allocate,
-          cnApplied: 0,
-          discountGiven: 0,
-          paymentMethod: "advance",
-        });
-        warnSettlementPathMismatch("BulkAdvanceAdjustDialog", legacyStatus, newStatus);
-
         await consumeAdvanceFIFO(supabase, {
           customerId,
           organizationId,
@@ -258,18 +240,18 @@ export function BulkAdvanceAdjustDialog({
           createdBy: userId ?? null,
         });
 
-        const { error: updateErr } = await supabase
+        await applyRecomputedSalePaymentState(inv.id, organizationId, supabase);
+
+        const { error: metaErr } = await supabase
           .from("sales")
           .update({
-            paid_amount: newPaid,
-            payment_status: newStatus,
             payment_method: "advance",
             payment_date: advYmd,
           })
           .eq("id", inv.id)
           .eq("organization_id", organizationId);
 
-        if (updateErr) throw updateErr;
+        if (metaErr) throw metaErr;
         appliedTargets += 1;
       }
 

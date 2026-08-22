@@ -5,6 +5,7 @@ import { fetchCustomerAuditBundle, salePaidAtSaleTender } from "@/utils/customer
 import { computeCustomerBalanceCore, getCustomerAccountState, warnCustomerBalanceMismatch } from "@/utils/customerBalanceCore";
 import { fetchCustomerFinancialSnapshotMap } from "@/utils/customerFinancialSnapshot";
 import { CUSTOMER_RECEIPT_REFERENCE_TYPE_VALUES } from "@/utils/paymentVoucherFilters";
+import { applyRecomputedSalePaymentState } from "@/utils/recomputeSalePaymentState";
 
 /**
  * Shared customer receivable math — matches Customer Ledger / useCustomerBalance.
@@ -1061,18 +1062,32 @@ export async function syncSalePaymentsFromVouchersBatch(
     uniqueIds.map(async (invoiceId) => {
       const sale = salesById.get(invoiceId);
       if (!sale) return;
-      const split = splitMap.get(invoiceId) ?? emptySplit();
-      const rec = reconcileSaleInvoiceWithSplit(sale, split);
-      const { error: updErr } = await client
+
+      const recomputed = await applyRecomputedSalePaymentState(
+        invoiceId,
+        organizationId,
+        client,
+      );
+
+      const { error: dateErr } = await client
         .from("sales")
-        .update({
-          paid_amount: rec.paid_amount,
-          payment_status: rec.payment_status,
-          payment_date: voucherDateYmd,
-        })
+        .update({ payment_date: voucherDateYmd })
         .eq("id", invoiceId)
         .eq("organization_id", organizationId);
-      if (updErr) throw updErr;
+      if (dateErr) throw dateErr;
+
+      const split = splitMap.get(invoiceId) ?? emptySplit();
+      const rec = reconcileSaleInvoiceWithSplit(
+        {
+          ...sale,
+          paid_amount: recomputed.skipped ? sale.paid_amount : recomputed.paidAmount,
+        },
+        split,
+      );
+      if (!recomputed.skipped) {
+        rec.paid_amount = recomputed.paidAmount;
+        rec.payment_status = recomputed.paymentStatus;
+      }
       results.set(invoiceId, rec);
     }),
   );
