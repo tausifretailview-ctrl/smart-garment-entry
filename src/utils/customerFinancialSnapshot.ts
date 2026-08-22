@@ -2,6 +2,10 @@ import type { QueryClient } from "@tanstack/react-query";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { invalidateOrgLedgerReferenceData } from "@/hooks/useOrgLedgerReferenceData";
+import {
+  facetsFromPartySignedBalance,
+  type CustomerAccountFacets,
+} from "@/utils/customerAccountFacets";
 
 export type CustomerFinancialSnapshot = {
   outstandingDr: number;
@@ -124,6 +128,23 @@ function normalizeRow(row: {
     cnAvailableTotal: Math.round(Number(row.cn_available_total ?? 0) * 100) / 100,
     cnPendingCount: Math.max(0, Math.floor(Number(row.cn_pending_count ?? 0))),
   };
+}
+
+/**
+ * Map SQL snapshot rows to UI facets.
+ * `outstanding_dr` is signed net (party balance); gross invoice outstanding = net + unused advance.
+ */
+export function accountFacetsFromFinancialSnapshot(
+  snap: CustomerFinancialSnapshot,
+): CustomerAccountFacets {
+  return facetsFromPartySignedBalance(snap.outstandingDr, snap.advanceAvailable);
+}
+
+/** Gross invoice + OB outstanding (unused advance not subtracted). */
+export function grossOutstandingFromFinancialSnapshot(
+  snap: CustomerFinancialSnapshot,
+): number {
+  return accountFacetsFromFinancialSnapshot(snap).outstanding;
 }
 
 /**
@@ -312,6 +333,9 @@ export function invalidateCustomerFinancialSnapshot(
     });
   }
   queryClient.invalidateQueries({ queryKey: ["customer-balance"] });
+  queryClient.invalidateQueries({
+    queryKey: [CUSTOMER_FINANCIAL_SNAPSHOT_QUERY_KEY, "balance-hook"],
+  });
   queryClient.invalidateQueries({ queryKey: ["customer-advances"] });
   queryClient.invalidateQueries({ queryKey: ["customer-advances-search"] });
   queryClient.invalidateQueries({ queryKey: ["customer-credit-notes-search"] });

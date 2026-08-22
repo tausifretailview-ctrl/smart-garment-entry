@@ -6,7 +6,6 @@ import {
   fetchCustomerSaleStats,
 } from "@/utils/customerSegments";
 import { useCustomerBalance } from "@/hooks/useCustomerBalance";
-import { useCustomerFinancialSnapshot } from "@/hooks/useCustomerFinancialSnapshot";
 import { useSchoolFeatures } from "@/hooks/useSchoolFeatures";
 import { resolveImportedOpeningBalance } from "@/lib/schoolFeeOpening";
 import { adjustmentDueDelta } from "@/lib/schoolFeeLiability";
@@ -96,6 +95,7 @@ export function useCustomerAccountHistoryData({
 
   const {
     balance,
+    grossOutstanding,
     openingBalance,
     totalSales,
     totalPaid,
@@ -105,14 +105,9 @@ export function useCustomerAccountHistoryData({
     totalAdvanceApplied,
     totalCnApplied,
     unusedAdvanceTotal,
+    cnAvailableTotal,
     isLoading: balanceLoading,
   } = useCustomerBalance(customerId, organizationId);
-
-  const {
-    outstandingDr: snapshotOutstandingDr,
-    advanceAvailable: snapshotAdvanceAvailable,
-    cnAvailableTotal: snapshotCnAvailable,
-  } = useCustomerFinancialSnapshot(customerId, organizationId);
 
   const { data: schoolFeeData } = useQuery({
     queryKey: ["school-customer-fees", customerId, organizationId],
@@ -440,42 +435,35 @@ export function useCustomerAccountHistoryData({
   );
 
   const summary = useMemo(() => {
-    const outstandingDr = snapshotOutstandingDr ?? balance;
-    const advanceAvailable = snapshotAdvanceAvailable ?? unusedAdvanceTotal;
-    const cnAvailable = snapshotCnAvailable ?? 0;
     const cnAppliedOnInvoices = Math.round(
       (totalSaleReturnAdjustOnSales || 0) + (totalCnApplied || 0),
     );
     return {
-      outstandingDr,
-      advanceAvailable,
-      cnAvailable,
+      outstandingDr: balance,
+      advanceAvailable: unusedAdvanceTotal,
+      cnAvailable: cnAvailableTotal,
       cnAppliedOnInvoices,
     };
   }, [
-    snapshotOutstandingDr,
-    snapshotAdvanceAvailable,
-    snapshotCnAvailable,
     balance,
     unusedAdvanceTotal,
+    cnAvailableTotal,
     totalSaleReturnAdjustOnSales,
     totalCnApplied,
   ]);
 
   /**
    * Same refund banner math as CustomerLedger.
-   * `balance` from useCustomerBalance already nets pendingStandaloneSaleReturns —
-   * do not add snapshot cnAvailable again (Sneha/Zohra 2×). Use JS balance, not
-   * snapshot outstanding_dr (SQL still nets unused_advances; Aafra phantom refund).
+   * Use gross invoice outstanding (not signed net) for refundable credit math.
    */
   const refundableCreditBalance = useMemo(() => {
     if (isSchool) return 0;
     return computeRefundableCreditBalance({
       unusedAdvance: summary.advanceAvailable,
       cnAvailable: 0,
-      invoiceOutstanding: balance,
+      invoiceOutstanding: grossOutstanding,
     });
-  }, [isSchool, summary.advanceAvailable, balance]);
+  }, [isSchool, summary.advanceAvailable, grossOutstanding]);
 
   return {
     isSchool,
