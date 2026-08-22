@@ -18,6 +18,11 @@ import {
   posVariantDisplayMrp,
   shouldPromptPosPriceSelection,
 } from "@/utils/posScanPriceSelection";
+import {
+  isCompleteNumericBarcodeForPosCart,
+  POS_BARCODE_CART_LOOKUP_EXACT,
+  POS_NUMERIC_BARCODE_MIN_LENGTH,
+} from "@/utils/posBarcodeCartLookup";
 import { useSettings } from "@/hooks/useSettings";
 import { usePosBilling } from "@/hooks/usePosBilling";
 import type { CartItem, PosGrossBasis } from "@/lib/posBilling";
@@ -347,6 +352,7 @@ async function fetchPosVariantByBarcodeOnce(
   orgId: string,
   trimmed: string,
   mobileERPConfig?: Parameters<typeof productRequiresImei>[1],
+  lookupOptions: { exactOnly?: boolean } = POS_BARCODE_CART_LOOKUP_EXACT,
 ): Promise<{
   product: PosProductRow;
   variant: PosVariantRow;
@@ -369,32 +375,38 @@ async function fetchPosVariantByBarcodeOnce(
   );
   if (exact) return exact;
 
-  const escaped = trimmed.replace(/[%_,]/g, '');
-  if (!escaped) return null;
+  const exactOnly = lookupOptions.exactOnly !== false;
 
-  const { data: partialData, error: partialError } = await posVariantBaseQuery(orgId)
-    .ilike('barcode', `%${escaped}%`)
-    .order('stock_qty', { ascending: false })
-    .limit(1);
-  if (partialError) throw partialError;
+  if (!exactOnly) {
+    const escaped = trimmed.replace(/[%_,]/g, '');
+    if (escaped) {
+      const { data: partialData, error: partialError } = await posVariantBaseQuery(orgId)
+        .ilike('barcode', `%${escaped}%`)
+        .order('stock_qty', { ascending: false })
+        .limit(1);
+      if (partialError) throw partialError;
 
-  const partial = mapPosVariantLookupRow(
-    partialData?.[0] as unknown as (PosVariantRow & { products?: PosProductRow }) | undefined,
-  );
+      const partial = mapPosVariantLookupRow(
+        partialData?.[0] as unknown as (PosVariantRow & { products?: PosProductRow }) | undefined,
+      );
 
-  // Serialized (IMEI) units are unique pieces and share long common prefixes.
-  // A substring match would silently add a DIFFERENT phone — exact match only.
-  if (partial && productRequiresImei(partial.product, mobileERPConfig)) return null;
-  if (partial) return partial;
+      // Serialized (IMEI) units are unique pieces and share long common prefixes.
+      // A substring match would silently add a DIFFERENT phone — exact match only.
+      if (partial && productRequiresImei(partial.product, mobileERPConfig)) return null;
+      if (partial) return partial;
+    }
+  }
 
   // Post-merge drift: purchase_items still has the scanned barcode; live master
   // may carry a different barcode (KS Footwear / duplicate-master consolidate).
   if (!/^\d{4,}$/.test(trimmed)) return null;
+  if (exactOnly && !isCompleteNumericBarcodeForPosCart(trimmed)) return null;
   try {
     const resolutions = await resolvePurchaseBarcodesForStockReport(
       supabase as unknown as PurchaseBarcodeStockClient,
       orgId,
       trimmed,
+      { exactOnly },
     );
     const hit = resolutions.find((r) => !r.excludeReason && r.skuId);
     if (!hit) return null;
@@ -431,13 +443,14 @@ async function fetchPosVariantByBarcode(
   orgId: string,
   barcode: string,
   mobileERPConfig?: Parameters<typeof productRequiresImei>[1],
+  lookupOptions: { exactOnly?: boolean } = POS_BARCODE_CART_LOOKUP_EXACT,
 ): Promise<{
   product: PosProductRow;
   variant: PosVariantRow;
   remappedLiveBarcode?: string;
 } | null> {
   for (const candidate of expandBarcodeScanCandidates(barcode)) {
-    const hit = await fetchPosVariantByBarcodeOnce(orgId, candidate, mobileERPConfig);
+    const hit = await fetchPosVariantByBarcodeOnce(orgId, candidate, mobileERPConfig, lookupOptions);
     if (hit) return hit;
   }
   return null;
@@ -989,22 +1002,16 @@ export default function POSSales() {
     scheduleAutoSubmit,
     cancelAutoSubmit,
     markSubmitted,
-    wasRecentlySubmitted,
-  } = useBarcodeScanner();
+  } = useBarcodeScanner({ minBarcodeLength: POS_NUMERIC_BARCODE_MIN_LENGTH });
   const mobileERP = useMobileERP();
   const lastInputTime = useRef<number>(0);
   const dropdownDebounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const manualBarcodeDebounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const productSearchSeqRef = useRef(0);
 
   const clearPosBarcodeSubmitTimers = useCallback(() => {
     if (dropdownDebounceTimer.current) {
       clearTimeout(dropdownDebounceTimer.current);
       dropdownDebounceTimer.current = null;
-    }
-    if (manualBarcodeDebounceTimer.current) {
-      clearTimeout(manualBarcodeDebounceTimer.current);
-      manualBarcodeDebounceTimer.current = null;
     }
     cancelAutoSubmit();
   }, [cancelAutoSubmit]);
@@ -2225,17 +2232,11 @@ export default function POSSales() {
       clearTimeout(dropdownDebounceTimer.current);
       dropdownDebounceTimer.current = null;
     }
-    if (manualBarcodeDebounceTimer.current) {
-      clearTimeout(manualBarcodeDebounceTimer.current);
-      manualBarcodeDebounceTimer.current = null;
-    }
     
     // Detect if this looks like scanner input
     const isScannerLike = detectScannerInput(value, timeSinceLastKeystroke);
     
-    // Fast keystrokes on numeric barcodes only — not text product search (e.g. "SHIRT")
     const trimmed = value.trim();
-    const looksLikeNumericBarcode = /^\d+$/.test(trimmed);
     // IMEI mode: never auto-submit a partially received code — units of the same
     // model share long prefixes, so a truncated scan can resolve to another phone.
     const imeiTooShort =
@@ -2243,11 +2244,12 @@ export default function POSSales() {
       mobileERP.imei_scan_enforcement &&
       trimmed.length > 0 &&
       trimmed.length < (mobileERP.imei_min_length || 15);
-    if (isScannerLike || (looksLikeNumericBarcode && trimmed.length >= 4 && timeSinceLastKeystroke < 50)) {
+    const numericTooShort = /^\d+$/.test(trimmed) && !isCompleteNumericBarcodeForPosCart(trimmed);
+    if (isScannerLike) {
       setOpenProductSearch(false);
       setProductSearchResults([]);
       setIsProductSearchLoading(false);
-      if (imeiTooShort) return;
+      if (imeiTooShort || numericTooShort) return;
       // Schedule auto-submit for scanners that don't send Enter
       scheduleAutoSubmit(value, (val) => {
         void searchAndAddProduct(val);
@@ -2258,57 +2260,16 @@ export default function POSSales() {
     }
     
     if (value.length >= 2) {
-      // Show dropdown for all manual typing, including long numeric barcodes
+      // Show dropdown for manual typing, including long numeric barcodes
       dropdownDebounceTimer.current = setTimeout(() => {
         setOpenProductSearch(true);
       }, 300);
-
-      // Auto-add on pause when a manually typed barcode exactly matches a variant
-      const trimmed = value.trim();
-      if (trimmed.length >= 4 && !/\s/.test(trimmed) && !imeiTooShort) {
-        manualBarcodeDebounceTimer.current = setTimeout(() => {
-          manualBarcodeDebounceTimer.current = null;
-          void (async () => {
-            const term = value.trim();
-            if (!term || /\s/.test(term)) return;
-            if (wasRecentlySubmitted(term) || posSearchAndAddInFlight.has(term)) return;
-
-            const orgId = currentOrganization?.id;
-            if (!orgId) return;
-
-            if (mobileERP.enabled && mobileERP.imei_scan_enforcement) {
-              // Prefer lookup before IMEI length gate so shared EANs still resolve.
-              const earlyMatch = await fetchPosVariantByBarcode(orgId, term, mobileERP);
-              if (earlyMatch && !productRequiresImei(earlyMatch.product, mobileERP)) {
-                // fall through to add below without IMEI length rejection
-              } else if (!validateIMEI(term, mobileERP.imei_min_length, mobileERP.imei_max_length)) {
-                return;
-              } else {
-                const universalWarning = getUniversalCodeScanWarning(term);
-                if (universalWarning) {
-                  toast.warning("Possible wrong barcode", { description: universalWarning });
-                }
-              }
-            }
-
-            const match = await fetchPosVariantByBarcode(orgId, term, mobileERP);
-            if (!match) return;
-
-            markSubmitted(term);
-            cancelAutoSubmit();
-            setOpenProductSearch(false);
-            setSearchInput("");
-            await searchAndAddProduct(term);
-            resetScannerDetection();
-          })();
-        }, 500);
-      }
     } else {
       setOpenProductSearch(false);
       setProductSearchResults([]);
       setIsProductSearchLoading(false);
     }
-  }, [recordKeystroke, detectScannerInput, scheduleAutoSubmit, searchAndAddProduct, resetScannerDetection, clearPosBarcodeSubmitTimers, markSubmitted, wasRecentlySubmitted, currentOrganization?.id, mobileERP]);
+  }, [recordKeystroke, detectScannerInput, scheduleAutoSubmit, searchAndAddProduct, resetScannerDetection, mobileERP]);
 
   useEffect(() => {
     const term = searchInput.trim();
@@ -2583,6 +2544,14 @@ export default function POSSales() {
 
     const trimmedTerm = searchTerm.trim();
     if (!trimmedTerm) return;
+
+    // Reject incomplete numeric barcodes — prefix match used to add wrong SKU mid-type.
+    if (/^\d+$/.test(trimmedTerm) && !/^[1-9]$/.test(trimmedTerm) && !isCompleteNumericBarcodeForPosCart(trimmedTerm)) {
+      toast.message("Barcode incomplete", {
+        description: `Enter at least ${POS_NUMERIC_BARCODE_MIN_LENGTH} digits or press Enter when done.`,
+      });
+      return;
+    }
 
     if (shouldSwallowPosRepeatBarcodeScan(trimmedTerm)) {
       setSearchInput("");

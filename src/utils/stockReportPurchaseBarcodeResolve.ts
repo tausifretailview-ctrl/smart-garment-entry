@@ -37,20 +37,27 @@ export async function fetchPurchaseBarcodeSkuIds(
   client: PurchaseBarcodeStockClient,
   organizationId: string,
   barcode: string,
+  options?: { exactOnly?: boolean },
 ): Promise<Array<{ skuId: string; purchaseBarcode: string }>> {
   if (!organizationId || !barcode.trim()) return [];
 
-  const { data, error } = await client
+  const trimmed = barcode.trim();
+  let query = client
     .from("purchase_items")
     .select(PURCHASE_BARCODE_STOCK_RESOLVE_SELECT)
     .eq("purchase_bills.organization_id", organizationId)
     .is("purchase_bills.deleted_at", null)
-    .ilike("barcode", `%${barcode.trim()}%`)
     .not("sku_id", "is", null)
     .is("deleted_at", null)
     .limit(50);
 
-  if (error) throw error;
+  if (options?.exactOnly) {
+    query = query.eq("barcode", trimmed);
+  } else {
+    query = query.ilike("barcode", `%${trimmed}%`);
+  }
+
+  const { data, error } = await query;
 
   const out: Array<{ skuId: string; purchaseBarcode: string }> = [];
   const seen = new Set<string>();
@@ -71,8 +78,9 @@ export async function resolvePurchaseBarcodesForStockReport(
   client: PurchaseBarcodeStockClient,
   organizationId: string,
   barcode: string,
+  options?: { exactOnly?: boolean },
 ): Promise<PurchaseBarcodeStockResolution[]> {
-  const links = await fetchPurchaseBarcodeSkuIds(client, organizationId, barcode);
+  const links = await fetchPurchaseBarcodeSkuIds(client, organizationId, barcode, options);
   if (links.length === 0) return [];
 
   const skuIds = links.map((l) => l.skuId);
