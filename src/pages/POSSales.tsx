@@ -7,6 +7,7 @@ import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { useMobileERP, validateIMEI } from "@/hooks/useMobileERP";
 import { getUniversalCodeScanWarning } from "@/utils/imeiValidation";
 import { productRequiresImei } from "@/utils/productRequiresImei";
+import { canResolvePosPurchaseBarcode, shouldUsePartialPosBarcodeMatch } from "@/utils/posBarcodeLookup";
 import {
   resolvePurchaseBarcodesForStockReport,
   type PurchaseBarcodeStockClient,
@@ -379,7 +380,7 @@ async function fetchPosVariantByBarcodeOnce(
 
   if (!exactOnly) {
     const escaped = trimmed.replace(/[%_,]/g, '');
-    if (escaped) {
+    if (escaped && shouldUsePartialPosBarcodeMatch(trimmed)) {
       const { data: partialData, error: partialError } = await posVariantBaseQuery(orgId)
         .ilike('barcode', `%${escaped}%`)
         .order('stock_qty', { ascending: false })
@@ -399,7 +400,7 @@ async function fetchPosVariantByBarcodeOnce(
 
   // Post-merge drift: purchase_items still has the scanned barcode; live master
   // may carry a different barcode (KS Footwear / duplicate-master consolidate).
-  if (!/^\d{4,}$/.test(trimmed)) return null;
+  if (!canResolvePosPurchaseBarcode(trimmed)) return null;
   if (exactOnly && !isCompleteNumericBarcodeForPosCart(trimmed)) return null;
   try {
     const resolutions = await resolvePurchaseBarcodesForStockReport(
@@ -2317,7 +2318,7 @@ export default function POSSales() {
           const exactRes = await exactQ.limit(500);
           if (!exactRes.error && exactRes.data?.length) {
             exactRes.data.forEach((v: { id: string }) => matchedVariantIds.add(v.id));
-          } else if (!exactRes.error) {
+          } else if (!exactRes.error && shouldUsePartialPosBarcodeMatch(escToken)) {
             const partialQ = baseFilters(
               supabase.from('product_variants').select('id, product_id'),
             ).ilike('barcode', `%${escToken}%`);
@@ -2327,7 +2328,7 @@ export default function POSSales() {
             }
           }
           // Purchase-label barcode may differ from live master after merge
-          if (matchedVariantIds.size === 0 && /^\d{4,}$/.test(escToken)) {
+          if (matchedVariantIds.size === 0 && canResolvePosPurchaseBarcode(escToken)) {
             try {
               const resolutions = await resolvePurchaseBarcodesForStockReport(
                 supabase as unknown as PurchaseBarcodeStockClient,
@@ -2798,6 +2799,9 @@ export default function POSSales() {
       setSearchInput("");
       setProductSearchResults([]);
       playErrorBeep();
+      toast.error("Product not found", {
+        description: `No active product for barcode ${trimmedTerm}. Check service barcode on product master.`,
+      });
       focusBarcodeScanInput();
     } catch (error: any) {
       console.error('POS scan/search failed:', error);
