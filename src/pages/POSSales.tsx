@@ -22,6 +22,7 @@ import {
   isCompleteNumericBarcodeForPosCart,
   POS_BARCODE_CART_LOOKUP_EXACT,
   POS_NUMERIC_BARCODE_MIN_LENGTH,
+  shouldPosEnterUseExactBarcodeLookup,
 } from "@/utils/posBarcodeCartLookup";
 import { useSettings } from "@/hooks/useSettings";
 import { usePosBilling } from "@/hooks/usePosBilling";
@@ -998,13 +999,10 @@ export default function POSSales() {
   const {
     recordKeystroke,
     reset: resetScannerDetection,
-    detectScannerInput,
-    scheduleAutoSubmit,
     cancelAutoSubmit,
     markSubmitted,
-  } = useBarcodeScanner({ minBarcodeLength: POS_NUMERIC_BARCODE_MIN_LENGTH });
+  } = useBarcodeScanner({ minBarcodeLength: POS_NUMERIC_BARCODE_MIN_LENGTH, autoSubmitDelay: 0 });
   const mobileERP = useMobileERP();
-  const lastInputTime = useRef<number>(0);
   const dropdownDebounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const productSearchSeqRef = useRef(0);
 
@@ -2214,53 +2212,20 @@ export default function POSSales() {
     }
   }, [resetScannerDetection, clearPosBarcodeSubmitTimers, markSubmitted, searchAndAddProduct]);
 
-  // Optimized input change handler with scanner detection
+  // Optimized input change handler — manual typing never auto-adds; press Enter (or scan gun Enter suffix).
   const handleBarcodeInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
-    const now = Date.now();
-    const timeSinceLastKeystroke = now - lastInputTime.current;
     
-    // Record keystroke for scanner detection
     recordKeystroke();
-    lastInputTime.current = now;
-    
-    // Update the input value
     setSearchInput(value);
     
-    // Clear previous debounce timers
     if (dropdownDebounceTimer.current) {
       clearTimeout(dropdownDebounceTimer.current);
       dropdownDebounceTimer.current = null;
     }
-    
-    // Detect if this looks like scanner input
-    const isScannerLike = detectScannerInput(value, timeSinceLastKeystroke);
-    
-    const trimmed = value.trim();
-    // IMEI mode: never auto-submit a partially received code — units of the same
-    // model share long prefixes, so a truncated scan can resolve to another phone.
-    const imeiTooShort =
-      mobileERP.enabled &&
-      mobileERP.imei_scan_enforcement &&
-      trimmed.length > 0 &&
-      trimmed.length < (mobileERP.imei_min_length || 15);
-    const numericTooShort = /^\d+$/.test(trimmed) && !isCompleteNumericBarcodeForPosCart(trimmed);
-    if (isScannerLike) {
-      setOpenProductSearch(false);
-      setProductSearchResults([]);
-      setIsProductSearchLoading(false);
-      if (imeiTooShort || numericTooShort) return;
-      // Schedule auto-submit for scanners that don't send Enter
-      scheduleAutoSubmit(value, (val) => {
-        void searchAndAddProduct(val);
-        setSearchInput("");
-        resetScannerDetection();
-      });
-      return;
-    }
+    cancelAutoSubmit();
     
     if (value.length >= 2) {
-      // Show dropdown for manual typing, including long numeric barcodes
       dropdownDebounceTimer.current = setTimeout(() => {
         setOpenProductSearch(true);
       }, 300);
@@ -2269,7 +2234,7 @@ export default function POSSales() {
       setProductSearchResults([]);
       setIsProductSearchLoading(false);
     }
-  }, [recordKeystroke, detectScannerInput, scheduleAutoSubmit, searchAndAddProduct, resetScannerDetection, mobileERP]);
+  }, [recordKeystroke, cancelAutoSubmit]);
 
   useEffect(() => {
     const term = searchInput.trim();
@@ -6026,6 +5991,8 @@ export default function POSSales() {
                       onChange={handleBarcodeInputChange}
                       onBlur={handleBarcodeInputBlur}
                       onKeyDown={(e) => {
+                        const rawValue =
+                          (e.currentTarget as HTMLInputElement)?.value?.trim() || searchInput.trim();
                         if (openProductSearch && filteredProducts.length > 0) {
                           if (e.key === 'ArrowDown') {
                             e.preventDefault();
@@ -6039,7 +6006,15 @@ export default function POSSales() {
                           }
                           if (e.key === 'Enter' || e.key === 'Go' || (e as any).keyCode === 13) {
                             e.preventDefault();
-                            const rawValue = (e.currentTarget as HTMLInputElement)?.value?.trim() || searchInput.trim();
+                            // Numeric barcodes: exact lookup only — dropdown uses partial ILIKE.
+                            if (shouldPosEnterUseExactBarcodeLookup(rawValue)) {
+                              clearPosBarcodeSubmitTimers();
+                              markSubmitted(rawValue);
+                              setOpenProductSearch(false);
+                              void searchAndAddProduct(rawValue);
+                              resetScannerDetection();
+                              return;
+                            }
                             const selected = filteredProducts[selectedProductIndex] || filteredProducts[0];
                             if (selected?.product && selected?.variant) {
                               clearPosBarcodeSubmitTimers();

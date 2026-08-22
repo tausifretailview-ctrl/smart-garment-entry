@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   isCompleteNumericBarcodeForPosCart,
   POS_NUMERIC_BARCODE_MIN_LENGTH,
+  shouldPosEnterUseExactBarcodeLookup,
 } from "./posBarcodeCartLookup";
 
 describe("posBarcodeCartLookup", () => {
@@ -20,5 +21,21 @@ describe("posBarcodeCartLookup", () => {
 
   it("trims whitespace before length check", () => {
     expect(isCompleteNumericBarcodeForPosCart("  0040011442  ")).toBe(true);
+  });
+});
+
+describe("shouldPosEnterUseExactBarcodeLookup", () => {
+  it("numeric barcode Enter uses exact lookup, not dropdown partial pick", () => {
+    expect(shouldPosEnterUseExactBarcodeLookup("0040017429")).toBe(true);
+    expect(shouldPosEnterUseExactBarcodeLookup("0040")).toBe(true);
+  });
+
+  it("text search Enter may use dropdown pick", () => {
+    expect(shouldPosEnterUseExactBarcodeLookup("SHIRT")).toBe(false);
+    expect(shouldPosEnterUseExactBarcodeLookup("BHG215")).toBe(false);
+  });
+
+  it("quick service codes use dropdown path", () => {
+    expect(shouldPosEnterUseExactBarcodeLookup("3")).toBe(false);
   });
 });

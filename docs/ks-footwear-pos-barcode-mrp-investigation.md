@@ -23,7 +23,8 @@ POS resolves the correct **variant row** and reads **`product_variants.mrp`** (o
 
 4. **Non-deterministic `.limit(1)`** — `fetchPosVariantByBarcode` exact match had no `ORDER BY` when multiple rows share barcode (fixed: order by `stock_qty`, use best row helper).
 
-5. **Partial barcode auto-add while typing** — A 500ms debounce called `fetchPosVariantByBarcode` with **ILIKE `%term%`**, so typing `0040…` could match `0040011442` before the full code was entered. Fixed: remove pause auto-add; cart lookup is **exact-only**; scanner auto-submit requires **≥8 digits**.
+5. **Partial barcode auto-add while typing** — Auto-submit on fast keystrokes and Enter picking dropdown partial ILIKE match added wrong SKU mid-type. Fixed: **no auto-add while typing**; numeric barcode **Enter** uses exact lookup only; hardware scan gun should send **Enter** suffix.
+
 
 ## Verify in Supabase (KS org)
 
