@@ -23,9 +23,13 @@ POS resolves the correct **variant row** and reads **`product_variants.mrp`** (o
 
 4. **Non-deterministic `.limit(1)`** — `fetchPosVariantByBarcode` exact match had no `ORDER BY` when multiple rows share barcode (fixed: order by `stock_qty`, use best row helper).
 
+5. **Partial barcode auto-add while typing** — A 500ms debounce called `fetchPosVariantByBarcode` with **ILIKE `%term%`**, so typing `0040…` could match `0040011442` before the full code was entered. Fixed: remove pause auto-add; cart lookup is **exact-only**; scanner auto-submit requires **≥8 digits**.
+
 ## Verify in Supabase (KS org)
 
-Replace `<org_id>` with KS Footwear organization UUID.
+Replace `<org_id>` with KS Footwear organization UUID (`4bc73037-e877-4123-9261-eb6e3876698c`).
+
+**Note:** `bill_number` is on **`purchase_items`**, not `purchase_bills`. Use `pb.software_bill_no` / `pb.supplier_invoice_no` for bill-header refs.
 
 ```sql
 -- 1) All live variants for this barcode
@@ -62,7 +66,7 @@ SET mrp = 204.5,
     last_purchase_mrp = 204.5,
     updated_at = now()
 WHERE id = '<variant_id>'
-  AND organization_id = '<org_id>';
+  AND organization_id = '4bc73037-e877-4123-9261-eb6e3876698c';
 ```
 
 ## App fix (this PR)
