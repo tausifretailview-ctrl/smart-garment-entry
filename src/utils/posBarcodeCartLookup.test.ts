@@ -1,8 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   POS_NUMERIC_BARCODE_MIN_LENGTH,
+cursor/ks-footwear-pos-barcode-mrp-fix-0051
+  shouldPosEnterUseExactBarcodeLookup,
+=======
   isCompleteNumericBarcodeForPosCart,
   isPosServiceShortNumericBarcode,
+ main
 } from "./posBarcodeCartLookup";
 
 describe("posBarcodeCartLookup", () => {
@@ -23,5 +27,21 @@ describe("posBarcodeCartLookup", () => {
   it("allows single-digit quick service codes 1–9", () => {
     expect(isCompleteNumericBarcodeForPosCart("5")).toBe(true);
     expect(isCompleteNumericBarcodeForPosCart("0")).toBe(false);
+  });
+});
+
+describe("shouldPosEnterUseExactBarcodeLookup", () => {
+  it("numeric barcode Enter uses exact lookup, not dropdown partial pick", () => {
+    expect(shouldPosEnterUseExactBarcodeLookup("0040017429")).toBe(true);
+    expect(shouldPosEnterUseExactBarcodeLookup("0040")).toBe(true);
+  });
+
+  it("text search Enter may use dropdown pick", () => {
+    expect(shouldPosEnterUseExactBarcodeLookup("SHIRT")).toBe(false);
+    expect(shouldPosEnterUseExactBarcodeLookup("BHG215")).toBe(false);
+  });
+
+  it("quick service codes use dropdown path", () => {
+    expect(shouldPosEnterUseExactBarcodeLookup("3")).toBe(false);
   });
 });

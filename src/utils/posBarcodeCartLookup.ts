@@ -29,7 +29,14 @@ export function isCompleteNumericBarcodeForPosCart(term: string): boolean {
   return isPosServiceShortNumericBarcode(t);
 }
 
-/** Cart add / scan submit must never use fuzzy substring barcode matching. */
+/** Enter on numeric barcode must exact-match lookup, not dropdown partial pick. */
+export function shouldPosEnterUseExactBarcodeLookup(term: string): boolean {
+  const t = term.trim();
+  if (!/^\d+$/.test(t)) return false;
+  if (/^[1-9]$/.test(t)) return false;
+  return t.length >= 4;
+}
+
 export type PosBarcodeCartLookupOptions = {
   /** When true (default), skip ILIKE `%term%` variant and purchase-item fallbacks. */
   exactOnly?: boolean;
