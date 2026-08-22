@@ -4,6 +4,8 @@
 
 **Status:** Phase 1 (P0 app writes + UI) — P0-1 + P0-2 + P0-3 complete on branch `cursor/customer-balance-ui-p0-3-0051`
 
+**Unified balance UI (Phases A–D):** Phases A/B/C/D on branch `cursor/unified-customer-balance-ui-0051` — single `get_customer_financial_snapshot` read path, SQL facet semantics, party page alignment, offline verification gate.
+
 ---
 
 ## Problem summary (Ella Noor evidence)
@@ -89,13 +91,41 @@ Standardize display on `get_customer_financial_snapshot.outstanding_dr`:
 
 ## Verification gates
 
-| Gate | Command / screen |
-|------|------------------|
-| Unit | `npm run test:money` |
-| Parity | `scripts/verify-customer-party-balances-parity.sql` |
-| Paid invariant | `scripts/verify-paid-settlement-invariant-ella-noor.sql` |
-| UI QA | Customer Reconciliation — 0 rows > ₹1 drift |
-| Post-deploy | `run-invariant-digest` — `paid_diverges_from_receipts` count must not rise |
+| Gate | Command / screen | Pass condition |
+|------|------------------|----------------|
+| **Offline (CI/local)** | `npm run test:balance-gate` | Vitest facet + party alignment tests green |
+| Unit (money path) | `npm run test:money` | All money tests green |
+| SQL facet semantics | `scripts/verify-customer-balance-unified-gate.sql` gates D-0–D-4 | Zero drift rows after migration `20260822183000` |
+| SQL party parity | `scripts/verify-customer-party-balances-parity.sql` | Zero drift rows (Ella Noor + POS orgs) |
+| Paid invariant | `scripts/verify-paid-settlement-invariant-ella-noor.sql` | No new paid drift |
+| UI QA | Customer Reconciliation | 0 rows > ₹1 drift |
+| UI QA | Customer Balance Activity | RPC vs legacy within ₹1 |
+| Cross-screen | Ledger = Payment = POS picker = Party | Same net within ₹1 per customer |
+| Post-deploy | `run-invariant-digest` | `paid_diverges_from_receipts` count must not rise |
+
+### Phase D — verification gate (offline + post-deploy)
+
+**Offline (automated):**
+
+```bash
+npm run test:balance-gate
+```
+
+Runs `customerBalanceVerificationGate.test.ts`, `customerFinancialSnapshotFacets.test.ts`, and `customerPartyBalanceSnapshot.test.ts`. Pure TS checks for:
+
+- Snapshot facet identities (`net_position = outstanding_dr`, `gross = net + advance`)
+- Party row alignment with snapshot (Aafra recovery)
+- Cross-screen headline parity within ₹1
+
+**Post-deploy (owner / Lovable SQL editor):**
+
+1. Apply migration `20260822183000_snapshot_facet_semantics.sql`
+2. Run `scripts/verify-customer-balance-unified-gate.sql` — gates D-0 through D-4 must return zero drift rows
+3. Run `scripts/verify-customer-party-balances-parity.sql` for Ella Noor + POS orgs
+4. Manual UI sign-off (gate D-6 checklist in unified gate script)
+5. `run-invariant-digest` after any bulk repair
+
+**30-day production gate (not yet started):** `paid_diverges_from_receipts` stable — track via nightly digest.
 
 ---
 
@@ -103,5 +133,5 @@ Standardize display on `get_customer_financial_snapshot.outstanding_dr`:
 
 - [x] All post-voucher write paths use `applyRecomputedSalePaymentState`
 - [x] CN apply uses single RPC writer (no client duplicate voucher)
-- [x] Customer Balances = Payment tab = POS picker = Ledger header (within ₹1)
+- [x] Customer Balances = Payment tab = POS picker = Ledger header (within ₹1) — app reads unified snapshot; SQL/UI gates in Phase D
 - [ ] No new paid drift rows after 30 days of production traffic

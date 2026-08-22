@@ -62,6 +62,10 @@ Run `scripts/audit-balance-formula-parity.sql` to compare
 output (via a logged debug snapshot) for every customer in an org. Drift
 > ₹1 indicates one of the four causes above.
 
+**Unified balance gate (Phase D):** After migration `20260822183000`, run
+`scripts/verify-customer-balance-unified-gate.sql` and locally
+`npm run test:balance-gate`. See `docs/customer-balance-hardening-plan.md`.
+
 ## 5. Single source of truth (write path)
 
 - Pre-insert sales: `derivePaidAndStatus` in `src/utils/saleSettlement.ts`.
