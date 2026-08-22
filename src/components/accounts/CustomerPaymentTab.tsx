@@ -316,9 +316,7 @@ export function CustomerPaymentTab({
   });
 
   // Customers with an outstanding balance for the receipt picker.
-  // Uses the master reconciler (reconcile_customer_balances) which computes EVERY customer
-  // in a single set-based query — far faster than the per-customer snapshot loop that took
-  // minutes to populate this list — and stays consistent with Customer Ledger / Reconciliation.
+  // Uses set-based get_customer_party_balances (same fast RPC as Customer Balances page).
   const {
     data: customersWithBalance,
     isLoading: customersWithBalanceLoading,

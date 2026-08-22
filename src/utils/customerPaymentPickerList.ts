@@ -3,6 +3,10 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchOrgLedgerCustomersReference } from "@/hooks/useOrgLedgerReferenceData";
 import {
+  fetchAllCustomerPartyBalances,
+  type CustomerPartyBalanceRpcRow,
+} from "@/utils/fetchAllRows";
+import {
   fetchCustomerFinancialSnapshotMap,
   fetchCustomersWithFinancialActivity,
 } from "@/utils/customerFinancialSnapshot";
@@ -29,7 +33,43 @@ function labelForCustomer(
   return `Customer ${customerId.slice(0, 8)}`;
 }
 
-/** Snapshot RPC fallback when reconcile_customer_balances is empty or unavailable. */
+/** Map set-based party RPC rows to payment picker options (pure — testable). */
+export function mapPartyRowsToPaymentPicker(
+  partyRows: CustomerPartyBalanceRpcRow[],
+  customerById: Map<string, { customer_name?: string; phone?: string | null }>,
+): CustomerPaymentPickerRow[] {
+  return partyRows
+    .filter((r) => r.signed_balance >= MIN_PAYMENT_PICKER_BALANCE)
+    .map((r) => {
+      const c = customerById.get(r.customer_id);
+      return {
+        id: r.customer_id,
+        customer_name: labelForCustomer(
+          c ?? { customer_name: r.customer_name, phone: null },
+          r.customer_id,
+        ),
+        phone: c?.phone ?? null,
+        outstandingBalance: Math.round(r.signed_balance),
+      };
+    })
+    .sort((a, b) => a.customer_name.localeCompare(b.customer_name));
+}
+
+/** Fast path — same set-based RPC as Customer Balances page. */
+async function buildPickerListFromPartyBalances(
+  organizationId: string,
+  client: SupabaseClient = supabase,
+  queryClient?: QueryClient,
+): Promise<CustomerPaymentPickerRow[]> {
+  const [partyRows, allCustomers] = await Promise.all([
+    fetchAllCustomerPartyBalances(organizationId),
+    fetchOrgLedgerCustomersReference(organizationId, queryClient),
+  ]);
+  const customerById = new Map(allCustomers.map((c) => [c.id, c]));
+  return mapPartyRowsToPaymentPicker(partyRows, customerById);
+}
+
+/** Last-resort batch snapshot when party + reconcile both fail. */
 async function buildPickerListFromSnapshot(
   organizationId: string,
   allCustomers: Array<{ id: string; customer_name?: string; phone?: string | null }>,
@@ -52,13 +92,20 @@ async function buildPickerListFromSnapshot(
 
 /**
  * Customers with receivable balance for the Customer Payment (RCP) picker.
- * Prefers `reconcile_customer_balances` RPC; falls back to financial snapshot batch.
+ * Primary: `get_customer_party_balances` (set-based, same as Customer Balances page).
+ * Fallback: reconcile_customer_balances, then scoped snapshot batch.
  */
 export async function fetchCustomersWithBalanceForPaymentPicker(
   organizationId: string,
   client: SupabaseClient = supabase,
   queryClient?: QueryClient,
 ): Promise<CustomerPaymentPickerRow[]> {
+  try {
+    return await buildPickerListFromPartyBalances(organizationId, client, queryClient);
+  } catch (err) {
+    console.warn("[customerPaymentPicker] party balances failed; trying reconcile", err);
+  }
+
   const allCustomers = await fetchOrgLedgerCustomersReference(organizationId, queryClient);
   const customerById = new Map(allCustomers.map((c) => [c.id, c]));
 
