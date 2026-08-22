@@ -23,7 +23,8 @@ POS resolves the correct **variant row** and reads **`product_variants.mrp`** (o
 
 4. **Non-deterministic `.limit(1)`** — `fetchPosVariantByBarcode` exact match had no `ORDER BY` when multiple rows share barcode (fixed: order by `stock_qty`, use best row helper).
 
-5. **Partial barcode auto-add while typing** — A 500ms debounce called `fetchPosVariantByBarcode` with **ILIKE `%term%`**, so typing `0040…` could match `0040011442` before the full code was entered. Fixed: remove pause auto-add; cart lookup is **exact-only**; scanner auto-submit requires **≥8 digits**.
+5. **Partial barcode auto-add while typing** — Auto-submit on fast keystrokes and Enter picking dropdown partial ILIKE match added wrong SKU mid-type. Fixed: **no auto-add while typing**; numeric barcode **Enter** uses exact lookup only; hardware scan gun should send **Enter** suffix.
+
 
 ## Verify in Supabase (KS org)
 
@@ -83,7 +84,12 @@ WHERE id = '<variant_id>'
 - [ ] Enable **Ask price on scan** in sale settings if shop wants cashier confirm every drift
 - [ ] After deploy: scan label → if drift remains, dialog should offer **Last purchase ₹204.5**
 
-## POS price mode (MRP vs Sale Price)
+## Stock Report (same org)
+
+- Typing in the search box no longer auto-loads the grid — click **Search** or press **Enter**.
+- Numeric barcode search uses **exact** purchase-label match (no partial `0040` → wrong row).
+- Label barcode `0040017429` may show live barcode `40003024` with **Label 0040017429** badge — same SKU after master merge, not a wrong product.
+
 
 KS Footwear had **POS Barcode Scan - Use MRP as Price** enabled (`sale_settings.pos_barcode_price_mode = 'mrp'`). That makes every scan add at **MRP** with no MRP−sale discount.
 

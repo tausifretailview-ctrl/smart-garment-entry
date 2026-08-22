@@ -78,6 +78,20 @@ describe("usesLongLoadBudget is shared by watchdog and rescue timer", () => {
     expect(usesLongLoadBudget(false, false, true)).toBe(true);
   });
 
+  it("OrgLayout pane-ready gate requires content ready, not wrapper mount alone", () => {
+    const src = readFileSync(join(here, "../components/OrgLayout.tsx"), "utf8");
+    expect(src).toMatch(/isTabCachePaneMounted\(canonical\)/);
+    expect(src).toMatch(/isTabCachePaneContentReady\(canonical\)/);
+    expect(src).not.toMatch(/isTabPageChunkLoaded\(path\)/);
+    expect(src).not.toMatch(/effectiveTabPaneReady = tabPaneReady \|\| tabPaneWasReady \|\| paneMounted/);
+  });
+
+  it("TabCachedPages soft-retry runs even during silent cold-nav", () => {
+    const src = readFileSync(join(here, "../components/TabCachedPages.tsx"), "utf8");
+    expect(src).not.toMatch(/if \(!softFired && !silent\)/);
+    expect(src).toMatch(/if \(silent && !showSoftHint\) return null/);
+  });
+
   it("OrgLayout watchdog and 6s rescue both import the same helper", () => {
     const src = readFileSync(join(here, "../components/OrgLayout.tsx"), "utf8");
     expect(src).toMatch(/usesLongLoadBudget/);

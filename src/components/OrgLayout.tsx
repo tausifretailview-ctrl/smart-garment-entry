@@ -108,15 +108,17 @@ export const OrgLayout = () => {
   const workspaceRef = useRef<HTMLDivElement>(null);
 
   const isTabPaneReadyForPath = useCallback((path: string): boolean => {
-    // Registry reflects actual mount state (cleared on idle eviction). Ref alone goes stale.
-    if (isTabCachePaneMounted(path)) return true;
-    // Chunk already in memory — the cached pane mounts synchronously, so skip the
-    // <Outlet> fallback entirely (rendering both causes a one-frame flicker).
-    // CURRENT PATH ONLY. Sibling checks must not use this — prefetch is not paint.
-    if (isTabPageChunkLoaded(path)) return true;
-    if (tabPaneReadyPathsRef.current.has(path)) return true;
+    const canonical = resolveTabCachePath(path);
+    // Wrapper mount + lazy content committed — not prefetch / not empty Suspense shell.
+    if (
+      isTabCachePaneMounted(canonical) &&
+      isTabCachePaneContentReady(canonical)
+    ) {
+      return true;
+    }
+    if (tabPaneReadyPathsRef.current.has(canonical)) return true;
     for (const recorded of tabPaneReadyPathsRef.current) {
-      if (resolveTabCachePath(recorded) === path) return true;
+      if (resolveTabCachePath(recorded) === canonical) return true;
     }
     return false;
   }, []);
@@ -207,10 +209,9 @@ export const OrgLayout = () => {
   const wantsTabCache = isCacheableTabPath(resolvedCurrentPath) && tabPaths.length > 0;
   const tabPaneWasReady = isTabPaneReadyForPath(resolvedCurrentPath);
   const paneMounted = isTabCachePaneMounted(resolvedCurrentPath);
-  // Trust chunk-already-loaded / prior ready — do not require paneMounted. The old
-  // `tabPaneWasReady && paneMounted` forced an <Outlet> skeleton flash on every
-  // master/dashboard switch even when the destination chunk was warm (Customers → Suppliers).
-  const effectiveTabPaneReady = tabPaneReady || tabPaneWasReady || paneMounted;
+  // Only trust prior onReady / content-ready — wrapper mount or prefetch alone must
+  // not skip the 4s Outlet rescue (blank white page until 6s TabCachedPages timeout).
+  const effectiveTabPaneReady = tabPaneReady || tabPaneWasReady;
   // Keep the previous pane visible (dimmed) while a sibling cold-loads — desktop UX.
   const hasReadySiblingPane = tabPaths.some((p) => {
     const resolved = resolveTabCachePath(p);

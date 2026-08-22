@@ -3,6 +3,8 @@ import {
   POS_PARTIAL_BARCODE_MIN_LEN,
   POS_SHORT_NUMERIC_BARCODE_MIN_LEN,
   canResolvePosPurchaseBarcode,
+  isPosBarcodeLikeNumericToken,
+  isPosPriceSearchToken,
   posNumericBarcodeAutoSubmitMinLen,
   shouldUsePartialPosBarcodeMatch,
 } from "./posBarcodeLookup";
@@ -34,5 +36,18 @@ describe("posBarcodeLookup", () => {
     expect(shouldUsePartialPosBarcodeMatch("501")).toBe(false);
     expect(shouldUsePartialPosBarcodeMatch("123456")).toBe(true);
     expect(POS_PARTIAL_BARCODE_MIN_LEN).toBeGreaterThan(3);
+  });
+
+  it("does not treat barcode numerics as price search tokens", () => {
+    expect(isPosBarcodeLikeNumericToken("0040017429")).toBe(true);
+    expect(isPosBarcodeLikeNumericToken("0040")).toBe(true);
+    expect(isPosBarcodeLikeNumericToken("12345678")).toBe(true);
+    expect(isPosBarcodeLikeNumericToken("501")).toBe(false);
+    expect(isPosPriceSearchToken("0040017429")).toBe(false);
+    expect(isPosPriceSearchToken("0040")).toBe(false);
+    expect(isPosPriceSearchToken("649")).toBe(true);
+    expect(isPosPriceSearchToken("501")).toBe(true);
+    expect(isPosPriceSearchToken("64900")).toBe(true);
+    expect(isPosPriceSearchToken("204.5")).toBe(true);
   });
 });
