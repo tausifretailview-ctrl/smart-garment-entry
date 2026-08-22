@@ -120,10 +120,11 @@ Runs `customerBalanceVerificationGate.test.ts`, `customerFinancialSnapshotFacets
 **Post-deploy (owner / Lovable SQL editor):**
 
 1. Apply migration `20260822183000_snapshot_facet_semantics.sql`
-2. Run `scripts/verify-customer-balance-unified-gate.sql` — gates D-0 through D-4 must return zero drift rows
-3. Run `scripts/verify-customer-party-balances-parity.sql` for Ella Noor + POS orgs
-4. Manual UI sign-off (gate D-6 checklist in unified gate script)
-5. `run-invariant-digest` after any bulk repair
+2. Run `scripts/verify-customer-balance-unified-gate.sql` — start with **DIAG** block, then gates D-0 through D-5
+3. **SQL editor auth:** per-customer `get_customer_financial_snapshot` fails with `Authentication required` (assert_org_member). Gates use set-based `get_customer_financial_snapshot_all` + `get_customer_party_balances` instead — safe in postgres/service_role editor.
+4. Run `scripts/verify-customer-party-balances-parity.sql` for Ella Noor + POS orgs (blocks using `get_customer_true_outstanding` may also need JWT — use party vs snapshot_all gates when auth fails)
+5. Manual UI sign-off (gate D-6 checklist in unified gate script)
+6. `run-invariant-digest` after any bulk repair
 
 **30-day production gate (not yet started):** `paid_diverges_from_receipts` stable — track via nightly digest.
 
