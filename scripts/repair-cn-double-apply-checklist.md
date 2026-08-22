@@ -23,6 +23,8 @@
 
 ## P0 — Shumama Baireli
 
+> **Status: REPAIRED Aug 22, 2026** — Owner repair complete. Post-repair party balance: **₹1,58,700 Dr** (`reconcile_customer_balance` export). CN/SRA alignment fixed per owner decision; net receivable unchanged at headline level.
+
 **Customer id:** `224e20b5-12a7-4ad0-b7e3-c8d593d7d8f9`  
 **Canonical balance (as-is DB):** ~**₹17,400 Cr** (`get_customer_true_outstanding` ≈ -17400)
 

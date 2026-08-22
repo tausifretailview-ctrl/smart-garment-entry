@@ -19,7 +19,7 @@
 --   INV/25-26/1233 Parveen Siddiqui    drift −₹9,450
 --   INV/25-26/1314 Sana Rahil          drift −₹3,800
 --   INV/26-27/1257 Amber khan          drift −₹3,050
---   INV/26-27/2423 Faiza Adil          drift +₹2,200 (paid includes SRA)
+--   INV/26-27/2423 Faiza Adil          drift +₹2,200 (paid includes SRA) — REPAIRED Aug 22
 --   INV/26-27/2106 JASMIN DHEBAR       drift −₹500
 --   INV/26-27/2105 NIHAD NAJEEB        drift −₹150
 --   INV/26-27/2067 NAFISA              drift −₹100
