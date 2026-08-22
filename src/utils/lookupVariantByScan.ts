@@ -16,6 +16,11 @@ export type VariantScanLookupResult = {
   scanCandidates: string[];
 };
 
+export type VariantScanLookupOptions = {
+  /** Skip fuzzy ilike barcode; purchase_items resolves exact barcode only. */
+  exactOnly?: boolean;
+};
+
 function escapeIlike(term: string): string {
   return term.replace(/[%_\\]/g, "\\$&");
 }
@@ -31,7 +36,9 @@ export async function lookupVariantRowsByScan(
   raw: string,
   variantSelect: string,
   client: LookupClient = supabase,
+  options?: VariantScanLookupOptions,
 ): Promise<VariantScanLookupResult> {
+  const exactOnly = options?.exactOnly === true;
   const scanCandidates = expandBarcodeScanCandidates(raw);
   const empty: VariantScanLookupResult = {
     rows: [],
@@ -64,19 +71,21 @@ export async function lookupVariantRowsByScan(
     }
   }
 
-  for (const candidate of scanCandidates) {
-    const escaped = escapeIlike(candidate);
-    const { data: fuzzyRows, error: fuzzyErr } = await base()
-      .ilike("barcode", `%${escaped}%`)
-      .limit(25);
-    if (!fuzzyErr && fuzzyRows?.length) {
-      return {
-        rows: fuzzyRows as Record<string, unknown>[],
-        matchedCandidate: candidate,
-        wasDoubledScan: isDoubledNumericBarcode(raw),
-        resolvedVia: "variant-fuzzy",
-        scanCandidates,
-      };
+  if (!exactOnly) {
+    for (const candidate of scanCandidates) {
+      const escaped = escapeIlike(candidate);
+      const { data: fuzzyRows, error: fuzzyErr } = await base()
+        .ilike("barcode", `%${escaped}%`)
+        .limit(25);
+      if (!fuzzyErr && fuzzyRows?.length) {
+        return {
+          rows: fuzzyRows as Record<string, unknown>[],
+          matchedCandidate: candidate,
+          wasDoubledScan: isDoubledNumericBarcode(raw),
+          resolvedVia: "variant-fuzzy",
+          scanCandidates,
+        };
+      }
     }
   }
 
@@ -87,6 +96,7 @@ export async function lookupVariantRowsByScan(
       client as unknown as PurchaseBarcodeStockClient,
       organizationId,
       candidate,
+      exactOnly ? { exactOnly: true } : undefined,
     );
     const skuIds = resolutions.filter((r) => !r.excludeReason && r.skuId).map((r) => r.skuId);
     if (!skuIds.length) continue;

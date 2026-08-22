@@ -14,6 +14,8 @@ export const POS_SERVICE_NUMERIC_BARCODE_MAX_LENGTH = 7;
 export function isPosServiceShortNumericBarcode(term: string): boolean {
   const t = term.trim();
   if (!/^\d+$/.test(t)) return false;
+  // Leading-zero strings are retail EAN prefixes (0040…), not quick-service SKUs.
+  if (t.startsWith("0")) return false;
   return (
     t.length >= POS_SERVICE_NUMERIC_BARCODE_MIN_LENGTH &&
     t.length <= POS_SERVICE_NUMERIC_BARCODE_MAX_LENGTH
