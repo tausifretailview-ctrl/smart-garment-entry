@@ -43,7 +43,6 @@ import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useOpenCustomerAccount } from "@/hooks/useOpenCustomerAccount";
 import { useCustomerBalance } from "@/hooks/useCustomerBalance";
-import { useCustomerFinancialSnapshot } from "@/hooks/useCustomerFinancialSnapshot";
 import { CustomerAccountSummaryStrip } from "@/components/CustomerAccountSummaryStrip";
 import {
   fetchCustomerAccountStateView,
@@ -439,19 +438,16 @@ export function CustomerLedger({
   const [overpaymentRefundNote, setOverpaymentRefundNote] = useState('');
   const [isProcessingRefund, setIsProcessingRefund] = useState(false);
   const queryClient = useQueryClient();
-  const { balance: authoritativeBalance } = useCustomerBalance(
-    isSchool ? null : selectedCustomer?.id || null,
-    organizationId || null
-  );
-
   const {
-    outstandingDr: snapshotOutstandingDr,
-    advanceAvailable: snapshotAdvanceAvailable,
+    balance: authoritativeBalance,
+    unusedAdvanceTotal: snapshotAdvanceAvailable,
     cnAvailableTotal: snapshotCnAvailable,
-  } = useCustomerFinancialSnapshot(
-    isSchool ? null : selectedCustomer?.id,
+  } = useCustomerBalance(
+    isSchool ? null : selectedCustomer?.id || null,
     organizationId || null,
   );
+
+  const snapshotOutstandingDr = authoritativeBalance;
 
   /** Same closing balance as Customer Audit Report for the selected date window (business org only). */
   const { data: ledgerAuditClosingBalance } = useQuery({

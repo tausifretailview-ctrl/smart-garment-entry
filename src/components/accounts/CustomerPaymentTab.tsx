@@ -65,7 +65,6 @@ import {
   paymentPickerDaysClass,
   paymentPickerRefClass,
 } from "@/components/accounts/accountsHistoryUi";
-import { useCustomerFinancialSnapshot } from "@/hooks/useCustomerFinancialSnapshot";
 import { invalidateCustomerFinancialSnapshot } from "@/utils/customerFinancialSnapshot";
 import { invalidateAfterCustomerPaymentMutation } from "@/utils/invalidateDashboardQueries";
 import {
@@ -507,34 +506,21 @@ export function CustomerPaymentTab({
 
   const {
     balance: customerBalance,
+    unusedAdvanceTotal: advanceBalance,
+    cnAvailableTotal: adjustedOutstandingCreditTotal,
     isLoading: customerBalanceLoading,
   } = useCustomerBalance(referenceId || null, organizationId);
 
-  const {
-    outstandingDr: snapshotOutstandingDr,
-    advanceAvailable: snapshotAdvanceAvailable,
-    cnAvailableTotal: snapshotCnAvailable,
-    isLoading: snapshotLoading,
-    isFetching: snapshotFetching,
-  } = useCustomerFinancialSnapshot(referenceId || null, organizationId);
-
-  /**
-   * Lifetime Dr — same sources as Customer Ledger (SQL snapshot + ledger-aligned balance core).
-   * Prefer snapshot RPC first; useCustomerBalance uses the same ledger-aligned formula after fix.
-   */
+  /** Lifetime Dr — SQL snapshot (same as POS picker / Customer Balances list). */
   const lifetimeOutstanding = useMemo(() => {
     if (!referenceId) return undefined;
-    if (snapshotOutstandingDr != null && !Number.isNaN(Number(snapshotOutstandingDr))) {
-      return Number(snapshotOutstandingDr);
-    }
     if (customerBalance != null && !Number.isNaN(Number(customerBalance))) {
       return Number(customerBalance);
     }
     return customersWithBalance?.find((c) => c.id === referenceId)?.outstandingBalance;
-  }, [referenceId, snapshotOutstandingDr, customerBalance, customersWithBalance]);
+  }, [referenceId, customerBalance, customersWithBalance]);
 
-  const balanceBannerLoading =
-    !!referenceId && (customerBalanceLoading || snapshotLoading || snapshotFetching);
+  const balanceBannerLoading = !!referenceId && customerBalanceLoading;
 
   /** Sum of opening + per-invoice pending (matches Select Invoices list; includes sale_return_adjust). */
   const listedInvoicePendingTotal = useMemo(() => {
@@ -547,9 +533,6 @@ export function CustomerPaymentTab({
     );
   }, [referenceId, customerInvoicesKey, invoiceVoucherSplitsKey, openingBalanceRemaining, customerInvoices, invoiceVoucherSplits]);
 
-
-  const advanceBalance = snapshotAdvanceAvailable;
-  const adjustedOutstandingCreditTotal = snapshotCnAvailable;
 
   const selectedInvoiceIdsKey = selectedInvoiceIds.join("|");
   const allocatedAmountsKey = JSON.stringify(allocatedAmounts);

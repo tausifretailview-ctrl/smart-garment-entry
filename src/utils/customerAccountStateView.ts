@@ -1,6 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { fetchCustomerAuditBundle } from "@/utils/customerAuditBundle";
-import { getCustomerAccountState } from "@/utils/customerBalanceCore";
+import {
+  accountFacetsFromFinancialSnapshot,
+  fetchCustomerFinancialSnapshot,
+} from "@/utils/customerFinancialSnapshot";
 
 /** One unused advance booking line for hover/expand decomposition. */
 export type CustomerAdvanceLegView = {
@@ -12,7 +15,7 @@ export type CustomerAdvanceLegView = {
 };
 
 /**
- * Pure Outstanding facets for UI — same maths as Accounting Spec / getCustomerAccountState.
+ * Pure Outstanding facets for UI — sourced from `get_customer_financial_snapshot`.
  * Outstanding includes opening balance; unused advance is NOT folded into Outstanding.
  */
 export type CustomerAccountStateView = {
@@ -22,7 +25,7 @@ export type CustomerAccountStateView = {
   outstanding: number;
   unusedAdvance: number;
   unclaimedSaleReturn: number;
-  /** outstanding − unusedAdvance (economic net the ledger party balance matches). */
+  /** Signed net receivable: matches snapshot `outstanding_dr`. */
   netPosition: number;
   openingBalance: number;
   advanceLegs: CustomerAdvanceLegView[];
@@ -33,31 +36,20 @@ function roundRupee(n: number): number {
 }
 
 /**
- * Load canonical customer account facets. Do not re-derive in UI — display these.
+ * Load canonical customer account facets from the SQL snapshot RPC.
+ * Advance legs still come from the audit bundle (display-only decomposition).
  */
 export async function fetchCustomerAccountStateView(
   client: SupabaseClient,
   organizationId: string,
   customerId: string,
 ): Promise<CustomerAccountStateView> {
-  const bundle = await fetchCustomerAuditBundle(client, organizationId, customerId);
-  const adjustmentTotal = (bundle.balanceAdjustments || []).reduce(
-    (sum: number, a: { outstanding_difference?: number | null }) =>
-      sum + Number(a.outstanding_difference || 0),
-    0,
-  );
+  const [snap, bundle] = await Promise.all([
+    fetchCustomerFinancialSnapshot(client, organizationId, customerId),
+    fetchCustomerAuditBundle(client, organizationId, customerId),
+  ]);
 
-  const state = getCustomerAccountState({
-    openingBalance: Number(bundle.customer.opening_balance || 0),
-    customerId,
-    sales: bundle.allSales,
-    voucherEntries: bundle.vouchersMerged,
-    customerAdvances: bundle.advances,
-    advanceRefunds: bundle.refunds,
-    adjustmentTotal,
-    saleReturns: bundle.saleReturns,
-    options: { ledgerAlignedApplicationReceipts: true },
-  });
+  const facets = accountFacetsFromFinancialSnapshot(snap);
 
   const advanceLegs: CustomerAdvanceLegView[] = (bundle.advances || [])
     .map((a: {
@@ -85,11 +77,11 @@ export async function fetchCustomerAccountStateView(
     customerName: String(
       (bundle.customer as { customer_name?: string }).customer_name || "",
     ).trim(),
-    outstanding: roundRupee(state.outstanding),
-    unusedAdvance: roundRupee(state.unusedAdvancePool),
-    unclaimedSaleReturn: roundRupee(state.unclaimedSaleReturnCredit),
-    netPosition: roundRupee(state.netPosition),
-    openingBalance: roundRupee(state.openingBalance),
+    outstanding: facets.outstanding,
+    unusedAdvance: facets.unusedAdvance,
+    unclaimedSaleReturn: roundRupee(snap.cnAvailableTotal),
+    netPosition: facets.netPosition,
+    openingBalance: roundRupee(Number(bundle.customer.opening_balance || 0)),
     advanceLegs,
   };
 }

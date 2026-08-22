@@ -136,7 +136,7 @@ import {
   getAvailableCN,
   type CnFifoVoucherChunk,
 } from "@/utils/saleSettlement";
-import { fetchCustomerBalanceSnapshot } from "@/utils/customerBalanceUtils";
+import { fetchCustomerFinancialSnapshot } from "@/utils/customerFinancialSnapshot";
 import { applyRecomputedSalePaymentState } from "@/utils/recomputeSalePaymentState";
 import { assertCustomerPaymentWithinOutstandingCap } from "@/utils/invoiceOverpaymentGuard";
 import { CustomerAccountSummaryStrip } from "@/components/CustomerAccountSummaryStrip";
@@ -1558,12 +1558,12 @@ export default function SalesInvoiceDashboard() {
         let customerBalance = invoiceBalanceDue(invoice);
         if (invoice.customer_id) {
           try {
-            const snap = await fetchCustomerBalanceSnapshot(
+            const snap = await fetchCustomerFinancialSnapshot(
               supabase,
               currentOrganization.id,
               invoice.customer_id,
             );
-            customerBalance = snap.balance;
+            customerBalance = snap.outstandingDr;
           } catch {
             /* keep invoice balance */
           }
@@ -2290,12 +2290,12 @@ export default function SalesInvoiceDashboard() {
     let customerBalance = 0;
     if (invoice.customer_id && currentOrganization?.id) {
       try {
-        const snap = await fetchCustomerBalanceSnapshot(
+        const snap = await fetchCustomerFinancialSnapshot(
           supabase,
           currentOrganization.id,
           invoice.customer_id
         );
-        customerBalance = snap.balance;
+        customerBalance = snap.outstandingDr;
       } catch {
         customerBalance = 0;
       }
