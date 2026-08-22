@@ -93,6 +93,22 @@ Run Phase1 §1D and §1E for advance refund scan.
 
 ---
 
+## Next step (Aug 22 — owner run in Supabase)
+
+| Order | Script | Action |
+|-------|--------|--------|
+| **1** | `ella-noor-p0-component-breakdown.sql` | Export P0 breakdown (Sumaiya, Tanvi, Shumama) |
+| **2** | `ella-noor-phase1-classify-customers.sql` **§1F-batch** | Export P1 breakdown (Sharmin, Saba, Siya, Anusha, Hanif) |
+| **3** | `ella-noor-r5-paid-drift-resync.sql` **§1** | Dry-run 11 paid drift invoices |
+| **4** | `ella-noor-r5-paid-drift-resync.sql` **§2** | Uncomment + COMMIT after hand-check 5 rows |
+| **5** | `ella-noor-sharmin-mewara-balance-diagnostic.sql` **§4–5** | Confirm stale return pool before R3 |
+| **6** | `repair-cn-double-apply-checklist.md` | Owner sign-off for Shumama R2 |
+
+**R5 is safe to run without owner decision** — it only aligns `paid_amount` to `compute_sale_settlement`.  
+**R2/R3 need owner sign-off** before mutating return pools or CN vouchers.
+
+---
+
 ## Phase 1 export analysis (Aug 22 exports)
 
 | Export | Section | Rows | Key finding |
