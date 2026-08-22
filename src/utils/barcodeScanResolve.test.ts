@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { expandBarcodeScanCandidates } from "./barcodeScanResolve";
+import { expandBarcodeScanCandidates, isDoubledNumericBarcode } from "./barcodeScanResolve";
 
 describe("expandBarcodeScanCandidates", () => {
   it("returns normalized trim for a normal barcode", () => {
@@ -25,5 +25,15 @@ describe("expandBarcodeScanCandidates", () => {
 
   it("does not split odd-length numeric codes", () => {
     expect(expandBarcodeScanCandidates("123456789")).toEqual(["123456789"]);
+  });
+});
+
+describe("isDoubledNumericBarcode", () => {
+  it("detects KS Footwear doubled scan", () => {
+    expect(isDoubledNumericBarcode("00400152410040015241")).toBe(true);
+  });
+
+  it("rejects single barcode", () => {
+    expect(isDoubledNumericBarcode("0040015241")).toBe(false);
   });
 });

@@ -1,8 +1,8 @@
 import { supabase } from "@/integrations/supabase/client";
 import {
-  resolvePurchaseBarcodesForStockReport,
-  type PurchaseBarcodeStockClient,
-} from "@/utils/stockReportPurchaseBarcodeResolve";
+  lookupVariantRowsByScan,
+  pickBestVariantScanRow,
+} from "@/utils/lookupVariantByScan";
 
 export type BarcodeStockMatch = {
   variantId: string;
@@ -20,90 +20,46 @@ export type BarcodeStockMatch = {
   purPrice: number;
 };
 
-function escapeIlike(term: string) {
-  return term.replace(/[%_\\]/g, "\\$&");
+const VARIANT_STOCK_SELECT =
+  "id, barcode, size, color, current_stock, stock_qty, sale_price, mrp, pur_price, product_id, products!inner(id, product_name, brand, category, style, organization_id, deleted_at)";
+
+function mapStockRow(row: Record<string, unknown>, organizationId: string): BarcodeStockMatch | null {
+  const p = row.products as Record<string, unknown> | null | undefined;
+  if (!p || p.deleted_at || p.organization_id !== organizationId) return null;
+
+  return {
+    variantId: String(row.id),
+    productId: String(row.product_id),
+    productName: String(p.product_name),
+    brand: p.brand != null ? String(p.brand) : null,
+    category: p.category != null ? String(p.category) : null,
+    style: p.style != null ? String(p.style) : null,
+    size: String(row.size ?? "—"),
+    color: row.color != null ? String(row.color) : null,
+    barcode: row.barcode != null ? String(row.barcode) : null,
+    currentStock: Number(row.current_stock ?? row.stock_qty) || 0,
+    salePrice: Number(row.sale_price) || 0,
+    mrp: Number(row.mrp) || 0,
+    purPrice: Number(row.pur_price) || 0,
+  };
 }
 
 /**
  * Look up product variant(s) by barcode for quick stock check (mobile scan).
+ * Uses canonical scan resolution: doubled-read candidates + purchase_items fallback.
  */
 export async function lookupBarcodeStock(
   organizationId: string,
   barcode: string,
 ): Promise<BarcodeStockMatch[]> {
-  const term = barcode.trim();
-  if (!term || !organizationId) return [];
+  if (!barcode.trim() || !organizationId) return [];
 
-  const variantSelect =
-    "id, barcode, size, color, current_stock, stock_qty, sale_price, mrp, pur_price, product_id, products!inner(id, product_name, brand, category, style, organization_id, deleted_at)";
+  const lookup = await lookupVariantRowsByScan(organizationId, barcode, VARIANT_STOCK_SELECT, supabase);
+  if (!lookup.rows.length) return [];
 
-  const { data: exactRows, error: exactErr } = await supabase
-    .from("product_variants")
-    .select(variantSelect)
-    .eq("organization_id", organizationId)
-    .is("deleted_at", null)
-    .eq("active", true)
-    .eq("barcode", term)
-    .limit(25);
-
-  if (exactErr) throw exactErr;
-
-  let rows = exactRows ?? [];
-
-  if (rows.length === 0) {
-    const escaped = escapeIlike(term);
-    const { data: fuzzyRows, error: fuzzyErr } = await supabase
-      .from("product_variants")
-      .select(variantSelect)
-      .eq("organization_id", organizationId)
-      .is("deleted_at", null)
-      .eq("active", true)
-      .ilike("barcode", `%${escaped}%`)
-      .limit(25);
-
-    if (fuzzyErr) throw fuzzyErr;
-    rows = fuzzyRows ?? [];
-  }
-
-  if (rows.length === 0 && /^\d{4,}$/.test(term)) {
-    const resolutions = await resolvePurchaseBarcodesForStockReport(
-      supabase as unknown as PurchaseBarcodeStockClient,
-      organizationId,
-      term,
-    );
-    const skuIds = resolutions.filter((r) => !r.excludeReason && r.skuId).map((r) => r.skuId);
-    if (skuIds.length > 0) {
-      const { data: bySkuRows, error: bySkuErr } = await supabase
-        .from("product_variants")
-        .select(variantSelect)
-        .eq("organization_id", organizationId)
-        .is("deleted_at", null)
-        .eq("active", true)
-        .in("id", skuIds)
-        .limit(25);
-      if (bySkuErr) throw bySkuErr;
-      rows = bySkuRows ?? [];
-    }
-  }
-
-  return rows
-    .filter((row: any) => {
-      const p = row.products;
-      return p && !p.deleted_at && p.organization_id === organizationId;
-    })
-    .map((row: any) => ({
-      variantId: row.id,
-      productId: row.product_id,
-      productName: row.products.product_name,
-      brand: row.products.brand ?? null,
-      category: row.products.category ?? null,
-      style: row.products.style ?? null,
-      size: row.size ?? "—",
-      color: row.color ?? null,
-      barcode: row.barcode ?? null,
-      currentStock: Number(row.current_stock ?? row.stock_qty) || 0,
-      salePrice: Number(row.sale_price) || 0,
-      mrp: Number(row.mrp) || 0,
-      purPrice: Number(row.pur_price) || 0,
-    }));
+  return lookup.rows
+    .map((row) => mapStockRow(row, organizationId))
+    .filter((m): m is BarcodeStockMatch => m != null);
 }
+
+export { lookupVariantRowsByScan, pickBestVariantScanRow };
