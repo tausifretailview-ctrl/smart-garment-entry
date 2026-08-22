@@ -202,11 +202,9 @@ BEGIN
   FROM (
     SELECT GREATEST(
       0::numeric,
-      GREATEST(
-        COALESCE(s.cash_amount, 0), 0)
-          + GREATEST(COALESCE(s.card_amount, 0), 0)
-          + GREATEST(COALESCE(s.upi_amount, 0), 0)
-      )
+      GREATEST(COALESCE(s.cash_amount, 0), 0)
+        + GREATEST(COALESCE(s.card_amount, 0), 0)
+        + GREATEST(COALESCE(s.upi_amount, 0), 0)
       - COALESCE((
         SELECT SUM(
           GREATEST(0::numeric, COALESCE(ve.total_amount, 0) + COALESCE(ve.discount_amount, 0))
