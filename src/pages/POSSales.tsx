@@ -7,7 +7,7 @@ import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { useMobileERP, validateIMEI } from "@/hooks/useMobileERP";
 import { getUniversalCodeScanWarning } from "@/utils/imeiValidation";
 import { productRequiresImei } from "@/utils/productRequiresImei";
-import { canResolvePosPurchaseBarcode, shouldUsePartialPosBarcodeMatch } from "@/utils/posBarcodeLookup";
+import { canResolvePosPurchaseBarcode, isPosPriceSearchToken, shouldUsePartialPosBarcodeMatch } from "@/utils/posBarcodeLookup";
 import {
   resolvePurchaseBarcodesForStockReport,
   type PurchaseBarcodeStockClient,
@@ -2314,7 +2314,7 @@ export default function POSSales() {
           `size.ilike.%${escToken}%`,
           `color.ilike.%${escToken}%`,
         ];
-        if (isNumericToken) {
+        if (isPosPriceSearchToken(escToken)) {
           variantOrParts.push(`sale_price.eq.${escToken}`);
           variantOrParts.push(`mrp.eq.${escToken}`);
         }
@@ -2451,7 +2451,7 @@ export default function POSSales() {
           check('Size', item.size);
           check('Barcode', item.barcode);
           tokens.forEach(tok => {
-            if (/^\d+$/.test(tok)) {
+            if (isPosPriceSearchToken(tok)) {
               if (Number(item.sale_price) === Number(tok) && !matches.includes('Price')) matches.push('Price');
               if (Number(item.mrp) === Number(tok) && !matches.includes('MRP')) matches.push('MRP');
             }
