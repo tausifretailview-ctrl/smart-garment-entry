@@ -1,4 +1,5 @@
 import type { CustomerAccountFacets } from "@/utils/customerAccountFacets";
+import { facetsFromPartySignedBalance } from "@/utils/customerAccountFacets";
 import {
   fetchAllCustomerPartyBalances,
   fetchCustomerPhoneMap,
@@ -6,22 +7,11 @@ import {
 } from "@/utils/fetchAllRows";
 import {
   accountFacetsFromFinancialSnapshot,
-  fetchCustomerFinancialSnapshotMap,
-  fetchOrganizationFinancialSnapshotMap,
   type CustomerFinancialSnapshot,
 } from "@/utils/customerFinancialSnapshot";
 import { partyBalanceDirection } from "@/utils/customerPartyBalanceDisplay";
 
-const EMPTY_SNAPSHOT: CustomerFinancialSnapshot = {
-  outstandingDr: 0,
-  advanceAvailable: 0,
-  cnAvailableTotal: 0,
-  cnPendingCount: 0,
-  grossOutstandingDr: 0,
-  netPosition: 0,
-};
-
-/** Party list row with headline numbers from `get_customer_financial_snapshot` (_all / _batch). */
+/** Party list row with headline numbers aligned to snapshot facet semantics. */
 export type CustomerPartyBalanceAlignedRow = CustomerPartyBalanceRpcRow & {
   phone?: string;
   /** Invoice + OB outstanding (gross_outstanding_dr). */
@@ -46,6 +36,30 @@ export function partyBalanceRowFacets(
   };
 }
 
+/**
+ * Derive unified-balance facets from party RPC row (single RPC — no snapshot_all).
+ * Uses signed_balance as canonical net; ignores legacy net_position = signed − advance.
+ */
+export function alignPartyRowFromRpc(
+  row: CustomerPartyBalanceRpcRow,
+  phone: string,
+): CustomerPartyBalanceAlignedRow {
+  const signedNet = Math.round(Number(row.signed_balance) || 0);
+  const facets = facetsFromPartySignedBalance(signedNet, row.advance_available);
+
+  return {
+    ...row,
+    phone,
+    gross_outstanding: facets.outstanding,
+    net_position: facets.netPosition,
+    advance_available: facets.unusedAdvance,
+    cn_available: 0,
+    signed_balance: signedNet,
+    direction: partyBalanceDirection({ signed_balance: signedNet }),
+  };
+}
+
+/** Merge explicit snapshot facets onto a party row (detail views / parity checks). */
 export function alignPartyRowWithSnapshot(
   row: CustomerPartyBalanceRpcRow,
   phone: string,
@@ -67,26 +81,19 @@ export function alignPartyRowWithSnapshot(
 }
 
 /**
- * Customer Balances list — party names from `get_customer_party_balances`,
- * headline Outstanding / Advance / Net from financial snapshot RPC (same as Ledger / POS).
+ * Customer Balances list — one set-based party RPC + phone map.
+ * Facets match get_customer_financial_snapshot after migration 20260822183000
+ * (gross = signed + advance; net = signed). Avoids snapshot_all timeout on large orgs.
  */
 export async function fetchCustomerPartyBalancesAligned(
   organizationId: string,
 ): Promise<CustomerPartyBalanceAlignedRow[]> {
-  const [partyRows, phoneMap, snapshotAll] = await Promise.all([
+  const [partyRows, phoneMap] = await Promise.all([
     fetchAllCustomerPartyBalances(organizationId),
     fetchCustomerPhoneMap(organizationId),
-    fetchOrganizationFinancialSnapshotMap(organizationId),
   ]);
 
-  let snapshotById = snapshotAll;
-  if (snapshotAll.size === 0 && partyRows.length > 0) {
-    const ids = partyRows.map((r) => r.customer_id);
-    snapshotById = await fetchCustomerFinancialSnapshotMap(organizationId, ids);
-  }
-
-  return partyRows.map((row) => {
-    const snap = snapshotById.get(row.customer_id) ?? { ...EMPTY_SNAPSHOT };
-    return alignPartyRowWithSnapshot(row, phoneMap.get(row.customer_id) ?? "", snap);
-  });
+  return partyRows.map((row) =>
+    alignPartyRowFromRpc(row, phoneMap.get(row.customer_id) ?? ""),
+  );
 }

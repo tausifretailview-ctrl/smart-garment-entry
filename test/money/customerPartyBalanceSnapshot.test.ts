@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  alignPartyRowFromRpc,
   alignPartyRowWithSnapshot,
   partyBalanceRowFacets,
 } from "@/utils/customerPartyBalanceSnapshot";
@@ -19,6 +20,42 @@ describe("partyBalanceRowFacets", () => {
       unusedAdvance: 10_000,
       netPosition: 4_800,
     });
+  });
+});
+
+describe("alignPartyRowFromRpc", () => {
+  const baseRow: CustomerPartyBalanceRpcRow = {
+    customer_id: "c1",
+    customer_name: "AAFRA TEST",
+    signed_balance: 4_800,
+    advance_available: 10_000,
+    direction: "Dr",
+    net_position: -5_200,
+    total_dr: 0,
+    total_cr: 0,
+    net_receivable: 0,
+  };
+
+  it("derives Aafra facets from signed_balance + advance (ignores legacy net_position)", () => {
+    const aligned = alignPartyRowFromRpc(baseRow, "9999999999");
+    expect(aligned.gross_outstanding).toBe(14_800);
+    expect(aligned.net_position).toBe(4_800);
+    expect(aligned.advance_available).toBe(10_000);
+    expect(aligned.net_position).not.toBe(-5_200);
+    expect(partyBalanceRowFacets(aligned)).toEqual({
+      outstanding: 14_800,
+      unusedAdvance: 10_000,
+      netPosition: 4_800,
+    });
+  });
+
+  it("pure advance credit shows Cr direction from signed net", () => {
+    const aligned = alignPartyRowFromRpc(
+      { ...baseRow, signed_balance: -10_000, direction: "Settled", net_position: -20_000 },
+      "",
+    );
+    expect(aligned.gross_outstanding).toBe(0);
+    expect(aligned.direction).toBe("Cr");
   });
 });
 
