@@ -476,7 +476,7 @@ export async function getAvailableCN(
   };
 }
 
-function voucherMetaFromAdjustInvoiceRpc(rpcData: unknown): {
+export function voucherMetaFromAdjustInvoiceRpc(rpcData: unknown): {
   voucherEntryId: string;
   voucherNumber: string;
 } {
